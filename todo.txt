@@ -1,0 +1,3 @@
+1. puścić prompt z przebudową inferencji gru, dane zamiast z logów z nginx to będą z xdp, dzięki temu zgodność danych treningowych z danymi w trakcie działania
+2. porównać różne zbiory danych treningowych
+3. jakie typy ataków DDoS system będzie skutecznie mitygował ?
