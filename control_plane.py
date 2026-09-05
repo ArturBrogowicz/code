@@ -13,7 +13,7 @@ import joblib
 import numpy as np
 from GRU_ML_model import GRUDDoSClassifier
 
-# Fix 13: Limit PyTorch internal thread pool to 1 to prevent GIL contention
+# Limit PyTorch internal thread pool to 1 to prevent GIL contention
 # between PyTorch's intra-op parallelism and our Python threads.
 torch.set_num_threads(1)
 
@@ -25,25 +25,33 @@ SCALER_PATH = "training_results/scaler.save"
 
 SEQUENCE_LENGTH = 15
 PREDICTION_THRESHOLD = 0.85
-INPUT_SIZE = 3
+
+# 6 ingress-observable features aligned with CICFlowMeter training data:
+#   [0] Flow Duration (µs)           — from XDP: ktime_ns delta
+#   [1] Total Fwd Packet (count)     — from XDP: packet_count
+#   [2] Total Length of Fwd Packet   — from XDP: byte_count
+#   [3] Fwd Packet Length Mean       — computed: byte_count / packet_count
+#   [4] Flow Packets/s              — computed: packet_count / flow_duration_s
+#   [5] SYN Flag Count              — from XDP: syn_count
+INPUT_SIZE = 6
 HIDDEN_SIZE = 64
 NUM_LAYERS = 2
 L4_POLL_INTERVAL = 1.0
 SYN_FLOOD_THRESHOLD = 200
 
-# Fix 5: Auto-unblock IPs after TTL expires (seconds)
+# Auto-unblock IPs after TTL expires (seconds)
 BAN_TTL_SECONDS = 300
 
-# Fix 6: Aggregate SYN rate threshold for spoofed-IP flood detection
+# Aggregate SYN rate threshold for spoofed-IP flood detection
 GLOBAL_SYN_THRESHOLD = 5000
 
-# Fix 7: Early detection heuristic thresholds (triggers before GRU's 15-request minimum)
+# Early detection heuristic thresholds (triggers before GRU's 15-request minimum)
 HEURISTIC_WINDOW = 10.0        # Sliding window in seconds
 HEURISTIC_MAX_RPS = 50         # Max requests per second before blocking
 HEURISTIC_ERROR_RATIO = 0.8    # Block if >80% of requests return 4xx/5xx
 HEURISTIC_MIN_REQUESTS = 5     # Minimum requests in window before evaluating
 
-# Fix 10: Eviction timeout for idle client tracking data (seconds)
+# Eviction timeout for idle client tracking data (seconds)
 CLIENT_IDLE_TIMEOUT = 60.0
 
 print(f"[*] Compiling and loading eBPF code from file: {BPF_SOURCE_FILE}...")
@@ -69,31 +77,31 @@ gru_model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
 gru_model.to(device)
 gru_model.eval()
 
-# Fix 11: Pre-allocate a reusable tensor buffer for inference instead of
-# creating a new torch.tensor() on every evaluation. We copy data into this
-# buffer using numpy, avoiding repeated memory allocation and GC pressure.
+# Pre-allocate a reusable tensor buffer for inference instead of
+# creating a new torch.tensor() on every evaluation.
 _inference_buffer_np = np.zeros((1, SEQUENCE_LENGTH, INPUT_SIZE), dtype=np.float32)
 _inference_tensor = torch.zeros(1, SEQUENCE_LENGTH, INPUT_SIZE,
                                 dtype=torch.float32, device=device)
 
+# GRU per-IP sequence tracking — now populated from XDP telemetry, not Nginx logs
 client_sequences = defaultdict(lambda: deque(maxlen=SEQUENCE_LENGTH))
 banned_ips = set()
 banned_ips_lock = threading.Lock()
 stop_event = threading.Event()
 
-# Fix 5: Track ban timestamps for TTL-based expiry
+# Track ban timestamps for TTL-based expiry
 ban_timestamps = {}
 
-# Fix 7: Track per-IP request metadata for rate/error heuristic
+# Track per-IP request metadata for rate/error heuristic (from Nginx logs)
 request_tracker = defaultdict(deque)
 
-# Fix 6: Track whether SYN cookies have been activated
+# Track whether SYN cookies have been activated
 syn_cookies_enabled = False
 
-# Fix 10: Track last-seen timestamp per client for idle eviction
+# Track last-seen timestamp per client for idle eviction
 client_last_seen = {}
 
-# Fix 13: Queue for offloading ML inference to a dedicated thread
+# Queue for offloading ML inference to a dedicated thread
 inference_queue = queue.Queue()
 inference_result_queue = queue.Queue()
 
@@ -144,12 +152,10 @@ def unblock_expired_bans():
 
 
 def evict_idle_clients():
-    """Fix 10: Remove tracking data for clients that have been idle too long.
+    """Remove tracking data for clients that have been idle too long.
 
     Without this, every unique IP that sends at least one request accumulates
-    a deque entry in client_sequences and request_tracker forever. Under a
-    subnet scan (e.g., /16 = 65K IPs each sending 1 request), this becomes
-    an unbounded memory leak.
+    a deque entry in client_sequences and request_tracker forever.
 
     Called periodically from the L4 telemetry monitor thread.
     """
@@ -175,13 +181,7 @@ def kill_zombie_connections(ip_str):
 
 
 def tail_nginx_logs(file_path):
-    """Tail a log file, automatically reopening on log rotation (inode change).
-
-    Fix 8: The original implementation held a single file descriptor open
-    forever. If logrotate renamed or truncated the file, the generator would
-    silently read nothing. This version checks the inode every ~5 seconds
-    and reopens the file when rotation is detected.
-    """
+    """Tail a log file, automatically reopening on log rotation (inode change)."""
     while True:
         try:
             current_inode = os.stat(file_path).st_ino
@@ -212,16 +212,14 @@ def tail_nginx_logs(file_path):
 
 
 def inference_worker():
-    """Fix 13: Dedicated inference thread to decouple GRU computation from log parsing.
+    """Dedicated inference thread to decouple GRU computation from telemetry polling.
 
-    The main thread parses log lines and builds feature sequences (I/O-bound).
-    This thread runs GRU inference (CPU-bound). By separating them, the main
-    thread can continue parsing logs during inference, and the L4 telemetry
-    thread gets more GIL time for SYN flood detection.
+    The telemetry thread extracts features from XDP and submits scaled sequences.
+    This thread runs GRU inference (CPU-bound) and posts results back.
 
     Communication uses two thread-safe queues:
-      inference_queue:        main → worker  (client_ip, scaled_sequence)
-      inference_result_queue: worker → main  (client_ip, probability)
+      inference_queue:        telemetry → worker  (client_ip, scaled_sequence)
+      inference_result_queue: worker → telemetry  (client_ip, probability)
     """
     while not stop_event.is_set():
         try:
@@ -230,7 +228,7 @@ def inference_worker():
             continue
 
         try:
-            # Fix 11: Reuse pre-allocated tensor buffer
+            # Reuse pre-allocated tensor buffer
             _inference_buffer_np[0] = scaled_sequence
             _inference_tensor.copy_(torch.from_numpy(_inference_buffer_np))
 
@@ -245,72 +243,11 @@ def inference_worker():
             inference_queue.task_done()
 
 
-def l3_l4_telemetry_monitor():
-    global syn_cookies_enabled
-    print(f"[*] Starting L3/L4 telemetry monitor (Interval: {L4_POLL_INTERVAL}s)")
-    while not stop_event.is_set():
-        time.sleep(L4_POLL_INTERVAL)
-
-        # Fix 5: Sweep expired bans each cycle
-        unblock_expired_bans()
-
-        # Fix 10: Evict idle client tracking data each cycle
-        evict_idle_clients()
-
-        total_global_syn = 0
-
-        # Fix 12: Collect keys during iteration, delete individually after
-        # processing instead of telemetry_map.clear(). This eliminates the
-        # TOCTOU race where new XDP-counted packets between the iteration
-        # and clear() were silently lost.
-        processed_keys = []
-
-        for key, per_cpu_values in telemetry_map.items():
-            ip_str = network_bytes_to_ip(key.value)
-            processed_keys.append(key)
-
-            with banned_ips_lock:
-                if ip_str in banned_ips:
-                    continue
-
-            total_syn = sum(cpu.syn_count for cpu in per_cpu_values)
-            total_global_syn += total_syn
-
-            if total_syn > SYN_FLOOD_THRESHOLD:
-                print(f"\n[L4-DETECT] SYN FLOOD ATTACK - IP: {ip_str} | Rate: {total_syn} SYN/s")
-                ban_ip(ip_str, reason=f"Per-IP SYN flood ({total_syn} SYN/s)")
-
-        # Fix 12: Delete only the keys we processed — new entries added by
-        # XDP between our iteration start and now are preserved for the next cycle.
-        for key in processed_keys:
-            try:
-                del telemetry_map[key]
-            except KeyError:
-                pass
-
-        # Fix 6: Detect spoofed-IP SYN floods via aggregate rate
-        if total_global_syn > GLOBAL_SYN_THRESHOLD and not syn_cookies_enabled:
-            try:
-                subprocess.run(
-                    ["sysctl", "-w", "net.ipv4.tcp_syncookies=1"],
-                    check=True, capture_output=True
-                )
-                print(f"[L4-GLOBAL] Aggregate SYN rate {total_global_syn}/s exceeds threshold. "
-                      f"SYN cookies ENABLED.")
-                syn_cookies_enabled = True
-            except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                print(f"[-] Failed to enable SYN cookies: {e}")
-        elif total_global_syn <= GLOBAL_SYN_THRESHOLD // 2 and syn_cookies_enabled:
-            syn_cookies_enabled = False
-            print(f"[L4-GLOBAL] Aggregate SYN rate {total_global_syn}/s back to normal. "
-                  f"SYN cookies flag reset.")
-
-
 def drain_inference_results():
     """Drain all pending results from the inference worker thread.
 
-    Called from the main loop after each log line to process any GRU
-    verdicts that have completed asynchronously.
+    Called from both the telemetry monitor and main loop to process any
+    GRU verdicts that have completed asynchronously.
     """
     while True:
         try:
@@ -323,7 +260,7 @@ def drain_inference_results():
                 continue
 
         if probability > PREDICTION_THRESHOLD:
-            print(f"\n[GRU] DETECTED L7 ATTACK (Slowloris/DoS) - IP: {client_ip} | "
+            print(f"\n[GRU] DETECTED ATTACK — IP: {client_ip} | "
                   f"Confidence: {probability * 100:.1f}%")
             ban_ip(client_ip,
                    reason=f"GRU classifier ({probability * 100:.1f}% confidence)")
@@ -333,24 +270,135 @@ def drain_inference_results():
             client_last_seen.pop(client_ip, None)
 
 
+def l3_l4_telemetry_monitor():
+    """L3/L4 telemetry monitor — now also drives GRU inference.
+
+    Every L4_POLL_INTERVAL (1s), this thread:
+      1. Sweeps expired bans and idle client data
+      2. Drains completed inference results
+      3. Reads per-IP telemetry from the XDP map
+      4. Runs the per-IP SYN flood heuristic
+      5. Extracts 6 CICFlowMeter-aligned features from XDP telemetry
+      6. Builds per-IP sequences and submits full sequences to the inference thread
+      7. Detects aggregate SYN floods and enables SYN cookies
+
+    The GRU now operates on the SAME measurement plane (L3/L4 flow statistics)
+    as its training data — eliminating the Nginx/CICFlowMeter feature mismatch.
+    """
+    global syn_cookies_enabled
+    print(f"[*] Starting L3/L4 telemetry monitor (Interval: {L4_POLL_INTERVAL}s)")
+    while not stop_event.is_set():
+        time.sleep(L4_POLL_INTERVAL)
+
+        # Periodic maintenance
+        unblock_expired_bans()
+        evict_idle_clients()
+        drain_inference_results()
+
+        total_global_syn = 0
+
+        # Collect keys during iteration, delete individually after processing
+        # to avoid the TOCTOU race where clear() drops newly-added entries.
+        processed_keys = []
+        now_ns = time.time_ns()
+
+        for key, per_cpu_values in telemetry_map.items():
+            ip_str = network_bytes_to_ip(key.value)
+            processed_keys.append(key)
+
+            with banned_ips_lock:
+                if ip_str in banned_ips:
+                    continue
+
+            # Aggregate per-CPU counters
+            total_pkts = sum(cpu.packet_count for cpu in per_cpu_values)
+            total_syn = sum(cpu.syn_count for cpu in per_cpu_values)
+            total_bytes = sum(cpu.byte_count for cpu in per_cpu_values)
+
+            # first_seen_ns: take the earliest non-zero value across CPUs
+            first_ns_values = [cpu.first_seen_ns for cpu in per_cpu_values
+                               if cpu.first_seen_ns > 0]
+            first_ns = min(first_ns_values) if first_ns_values else 0
+
+            total_global_syn += total_syn
+
+            # --- L4 SYN flood heuristic (per-IP) ---
+            if total_syn > SYN_FLOOD_THRESHOLD:
+                print(f"\n[L4-DETECT] SYN FLOOD ATTACK - IP: {ip_str} | "
+                      f"Rate: {total_syn} SYN/s")
+                ban_ip(ip_str, reason=f"Per-IP SYN flood ({total_syn} SYN/s)")
+                continue
+
+            # --- GRU feature extraction from XDP telemetry ---
+            if total_pkts > 0 and first_ns > 0:
+                flow_duration_us = max((now_ns - first_ns) / 1000, 1.0)
+                flow_duration_s = flow_duration_us / 1e6
+                fwd_pkt_len_mean = total_bytes / total_pkts
+                flow_pps = total_pkts / flow_duration_s
+
+                features = [
+                    flow_duration_us,           # Flow Duration (µs)
+                    float(total_pkts),          # Total Fwd Packet
+                    float(total_bytes),         # Total Length of Fwd Packet
+                    fwd_pkt_len_mean,           # Fwd Packet Length Mean
+                    flow_pps,                   # Flow Packets/s
+                    float(total_syn),           # SYN Flag Count
+                ]
+
+                client_last_seen[ip_str] = time.time()
+                client_sequences[ip_str].append(features)
+
+                if len(client_sequences[ip_str]) == SEQUENCE_LENGTH:
+                    raw_sequence = np.array(list(client_sequences[ip_str]))
+                    scaled_sequence = scaler.transform(raw_sequence)
+                    inference_queue.put((ip_str, scaled_sequence))
+
+        # Delete only processed keys — new entries added by XDP between
+        # our iteration start and now are preserved for the next cycle.
+        for key in processed_keys:
+            try:
+                del telemetry_map[key]
+            except KeyError:
+                pass
+
+        # Detect spoofed-IP SYN floods via aggregate rate
+        if total_global_syn > GLOBAL_SYN_THRESHOLD and not syn_cookies_enabled:
+            try:
+                subprocess.run(
+                    ["sysctl", "-w", "net.ipv4.tcp_syncookies=1"],
+                    check=True, capture_output=True
+                )
+                print(f"[L4-GLOBAL] Aggregate SYN rate {total_global_syn}/s exceeds "
+                      f"threshold. SYN cookies ENABLED.")
+                syn_cookies_enabled = True
+            except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                print(f"[-] Failed to enable SYN cookies: {e}")
+        elif total_global_syn <= GLOBAL_SYN_THRESHOLD // 2 and syn_cookies_enabled:
+            syn_cookies_enabled = False
+            print(f"[L4-GLOBAL] Aggregate SYN rate {total_global_syn}/s back to normal. "
+                  f"SYN cookies flag reset.")
+
+
 try:
-    print("[*] Starting Nginx -> GRU -> XDP integration...")
-    print("[*] Starting dual-engine Anti-DDoS integration (GRU + Heuristics)...")
+    print("[*] Starting tri-engine Anti-DDoS integration "
+          "(XDP Telemetry + GRU ML + L7 Heuristics)...")
 
     telemetry_thread = threading.Thread(target=l3_l4_telemetry_monitor, daemon=True)
     telemetry_thread.start()
 
-    # Fix 13: Start dedicated inference worker thread
+    # Start dedicated inference worker thread
     inference_thread = threading.Thread(target=inference_worker, daemon=True)
     inference_thread.start()
     print("[+] Inference worker thread started.")
 
-    print(f"[*] Listening for logs in file: {NGINX_LOG_FILE}")
+    print(f"[*] Listening for Nginx logs (heuristic engine): {NGINX_LOG_FILE}")
 
+    # The main loop now handles ONLY the L7 heuristic (rate + error ratio).
+    # GRU inference has moved to the telemetry monitor thread where it reads
+    # CICFlowMeter-aligned features directly from the XDP telemetry map.
     for log_line in tail_nginx_logs(NGINX_LOG_FILE):
         try:
-            # Fix 13: Drain any completed inference results before processing
-            # the next log line. This is non-blocking.
+            # Drain any completed GRU inference results (non-blocking)
             drain_inference_results()
 
             log_data = json.loads(log_line)
@@ -360,10 +408,7 @@ try:
                 if client_ip in banned_ips:
                     continue
 
-            # Fix 10: Update last-seen timestamp for idle eviction
-            client_last_seen[client_ip] = time.time()
-
-            # --- Fix 7: Early detection heuristic (rate + error ratio) ---
+            # --- L7 Heuristic: rate + error ratio detection ---
             now = time.time()
             status = int(log_data.get("status", 200))
             is_error = status >= 400
@@ -393,26 +438,6 @@ try:
                         request_tracker.pop(client_ip, None)
                         client_last_seen.pop(client_ip, None)
                         continue
-
-            # Feature mapping (Nginx log → CICFlowMeter training equivalent):
-            #   request_time * 1e6  ≈ Flow Duration (µs)
-            #   request_length      ≈ Fwd Packets Length Total (bytes)
-            #   bytes_sent          ≈ Bwd Packets Length Total (bytes)
-            # NOTE: These are semantic approximations. For production accuracy,
-            # retrain the model on a dataset collected from Nginx JSON logs.
-            features = [
-                float(log_data.get("request_time", 0.0)) * 1000000,
-                float(log_data.get("request_length", 0)),
-                float(log_data.get("bytes_sent", 0))
-            ]
-
-            client_sequences[client_ip].append(features)
-
-            if len(client_sequences[client_ip]) == SEQUENCE_LENGTH:
-                # Fix 11 + 13: Build scaled sequence and submit to inference thread
-                raw_sequence = np.array(list(client_sequences[client_ip]))
-                scaled_sequence = scaler.transform(raw_sequence)
-                inference_queue.put((client_ip, scaled_sequence))
 
         except json.JSONDecodeError:
             continue
