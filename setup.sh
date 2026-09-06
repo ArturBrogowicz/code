@@ -1,9 +1,9 @@
 #!/bin/bash
 
-PROJECT_DIR="/home/artur/DDoS-mitigation"
+PROJECT_DIR="/home/artur/DDoS-mitigation/code"
 NGINX_CONF="${PROJECT_DIR}/nginx.conf"
 CONTROL_PLANE="${PROJECT_DIR}/control_plane.py"
-PYTHON_VENV="${PROJECT_DIR}/.venv/bin/python"
+PYTHON_VENV="${PROJECT_DIR}/venv/bin/python"
 
 if [ "$EUID" -ne 0 ]; then
   echo "[-] Please run this script with root privileges (sudo bash setup_lab.sh)"
