@@ -1,0 +1,6 @@
+bcc==0.1.10
+joblib==1.6.0
+numpy==2.5.2
+pandas==3.0.5
+scikit_learn==1.9.0
+torch==2.14.0
