@@ -10,7 +10,7 @@ from sklearn.metrics import (accuracy_score, precision_score, recall_score,
 from torch.utils.data import Dataset, DataLoader
 from GRU_ML_model import GRUDDoSClassifier
 
-DATA_PATH = "training_data/CICFlowMeter.csv"
+DATA_PATH = "training_data/balanced_dataset.csv"
 MODEL_SAVE_PATH = "training_results/gru_ddos_model.pth"
 SCALER_SAVE_PATH = "training_results/scaler.save"
 
@@ -113,18 +113,27 @@ time_col = find_column(df, TIME_COL_ALIASES)
 
 if ip_col:
     print(f"[*] Sorting data by '{ip_col}' to group sequences per client...")
-    sort_cols = [ip_col]
+
+    # FIX: Losowe przemieszanie całych bloków IP przed sortowaniem chronologicznym
+    unique_ips = df[ip_col].unique()
+    np.random.seed(42)
+    np.random.shuffle(unique_ips)
+
+    ip_order = {ip: i for i, ip in enumerate(unique_ips)}
+    df['__ip_order'] = df[ip_col].map(ip_order)
+
+    sort_cols = ['__ip_order']
 
     if time_col:
         sort_cols.append(time_col)
         df[time_col] = pd.to_datetime(df[time_col], errors='coerce')
 
     df = df.sort_values(by=sort_cols).reset_index(drop=True)
+    df.drop(columns=['__ip_order'], inplace=True)
 else:
     print("[-] Warning: Client IP column not found in dataset. Sequences might cross IPs!")
     print(f"    Searched for: {IP_COL_ALIASES}")
 
-# ============================================================
 # LABELS — Binary classification: Benign=0, Attack=1
 # ============================================================
 

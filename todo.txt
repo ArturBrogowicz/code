@@ -1,3 +1,5 @@
-1. puścić prompt z przebudową inferencji gru, dane zamiast z logów z nginx to będą z xdp, dzięki temu zgodność danych treningowych z danymi w trakcie działania
-2. porównać różne zbiory danych treningowych
-3. jakie typy ataków DDoS system będzie skutecznie mitygował ?
+1. puścić prompt z przebudową inferencji gru, dane zamiast z logów z nginx to będą z xdp, dzięki temu zgodność danych treningowych z danymi w trakcie działania DONE
+2. porównać różne zbiory danych treningowych DONE
+3. jakie typy ataków DDoS system będzie skutecznie mitygował ? DONE
+4. "Aktualny problem: Model jest trenowany na danych z zestawów CIC, które mierzą przepływy w sieci (zazwyczaj na poziomie transportowym). Kod XDP operuje na poziomie IP (warstwa 3), ale pobiera dane w momencie przyjścia pakietu (stan początkowy), a nie po zakończeniu przepływu. Oznacza to, że model otrzymuje cechy pochodzące z pojedynczych pakietów lub bardzo krótkich fragmentów przepływu, a nie z pełnych, zakończonych przepływów. Powoduje to poważne rozbieżności w charakterystyce danych (tzw. data drift), co skutkuje niską trafnością modeli uczenia maszynowego. W praktyce model słabo wykrywa ataki, ponieważ dane, na których się uczył, różnią się fundamentalnie od danych, które widzi w rzeczywistym ruchu sieciowym. Potwierdzają to liczne błędne klasyfikacje i alarmy, np. klasyfikowanie normalnego ruchu jako SYN Flood, nawet gdy liczba flag SYN jest zerowa"
+5. Zaktualizować schemat
