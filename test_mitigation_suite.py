@@ -72,7 +72,8 @@ def reset_environment():
     project_dir = os.path.dirname(os.path.abspath(__file__))
     venv_python = os.path.join(project_dir, "venv", "bin", "python")
     control_plane_py = os.path.join(project_dir, "control_plane.py")
-    run_cmd(f"nohup {venv_python} {control_plane_py} > /tmp/mitigation_test.log 2>&1 &", ns=SERVER_NS, bg=True)
+    cmd = ["bash", "-c", f"{venv_python} {control_plane_py} > /tmp/mitigation_test.log 2>&1"]
+    run_cmd(cmd, ns=SERVER_NS, bg=True)
     time.sleep(3) # Wait for BPF compilation and loading
 
 def tail_logs_for_ban(target_ip, timeout=15):
