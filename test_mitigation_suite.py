@@ -62,19 +62,20 @@ def check_syncookies():
     return res.stdout.strip() == "1"
 
 def reset_environment():
-    """Clean up state between tests."""
-    print("[*] Resetting environment...")
-    run_cmd(f"ss -K dst {SERVER_IP}", ns=ATTACKER_NS)
-    # Restart the control plane to flush memory/maps
-    run_cmd("pkill -f control_plane.py", ns=SERVER_NS)
-    time.sleep(1)
-    # Start control plane in background, redirecting output to a file we can tail
+    """Clean up state between tests by calling setup.sh."""
+    print("[*] Rebuilding the entire environment for the next test...")
+    
     project_dir = os.path.dirname(os.path.abspath(__file__))
-    venv_python = os.path.join(project_dir, "venv", "bin", "python")
-    control_plane_py = os.path.join(project_dir, "control_plane.py")
-    cmd = ["bash", "-c", f"{venv_python} {control_plane_py} > /tmp/mitigation_test.log 2>&1"]
-    run_cmd(cmd, ns=SERVER_NS, bg=True)
-    time.sleep(3) # Wait for BPF compilation and loading
+    setup_sh = os.path.join(project_dir, "setup.sh")
+    
+    # Uruchamiamy Twój oryginalny skrypt setup.sh w tle na prawach roota
+    # Logi kierujemy do pliku, z którego test_mitigation_suite.py je odczytuje
+    cmd = ["bash", "-c", f"sudo bash {setup_sh} > /tmp/mitigation_test.log 2>&1"]
+    run_cmd(cmd, bg=True)
+    
+    # Dajemy setup.sh 10 sekund na usunięcie starych namespace'ów, 
+    # kompilację XDP i pełne uruchomienie środowiska.
+    time.sleep(10)
 
 def tail_logs_for_ban(target_ip, timeout=15):
     """Tail the control plane log to find the ban reason and TTM."""
