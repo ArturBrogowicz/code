@@ -88,4 +88,4 @@ echo "------------------------------------------------------------"
 echo "[+] Infrastructure ready! Starting Mitigation Daemon."
 echo "------------------------------------------------------------"
 
-ip netns exec server_ns ${PYTHON_VENV} ${CONTROL_PLANE}
+ip netns exec server_ns ${PYTHON_VENV} -u ${CONTROL_PLANE}
