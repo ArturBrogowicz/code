@@ -38,6 +38,7 @@ HIDDEN_SIZE = 64
 NUM_LAYERS = 2
 L4_POLL_INTERVAL = 1.0
 SYN_FLOOD_THRESHOLD = 200
+UDP_FLOOD_THRESHOLD = 5000
 
 # Auto-unblock IPs after TTL expires (seconds)
 BAN_TTL_SECONDS = 300
@@ -327,6 +328,15 @@ def l3_l4_telemetry_monitor():
                 print(f"\n[L4-DETECT] SYN FLOOD ATTACK - IP: {ip_str} | "
                       f"Rate: {total_syn} SYN/s")
                 ban_ip(ip_str, reason=f"Per-IP SYN flood ({total_syn} SYN/s)")
+                continue
+
+            # --- L4 UDP / Volumetric flood heuristic (per-IP) ---
+            non_syn_pkts = total_pkts - total_syn
+            if non_syn_pkts > UDP_FLOOD_THRESHOLD:
+                print(f"\n[L4-DETECT] UDP/PACKET FLOOD ATTACK - IP: {ip_str} | "
+                      f"Rate: {non_syn_pkts} pkts/s")
+                # Słowo "UDP" w reason jest kluczowe dla Twojego parsera w skrypcie testowym
+                ban_ip(ip_str, reason=f"Per-IP UDP flood ({non_syn_pkts} pkts/s)")
                 continue
 
             # --- GRU feature extraction from XDP telemetry ---
