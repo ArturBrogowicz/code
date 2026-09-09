@@ -43,15 +43,10 @@ def run_cmd(cmd, ns=None, bg=False, timeout=None):
             return e
 
 def is_ip_banned(ip):
-    """Check if the IP is in the BPF blacklist_map using bpftool."""
-    # Assuming the map name is blacklist_map and it's loaded in the system
-    res = run_cmd("bpftool map dump name blacklist_map", ns=SERVER_NS)
-    if isinstance(res, subprocess.TimeoutExpired):
-        return False
-    
-    # The most bulletproof verification is pinging from attacker_ns to server_ns
-    # If blocked at XDP, ping will fail.
-    ping_res = run_cmd(f"ping -c 1 -W 1 {SERVER_IP}", ns=ATTACKER_NS)
+    """Check if the IP is banned by pinging from that specific source IP."""
+    # Pingujemy serwer, zmuszając ping do wyjścia z konkretnego adresu IP (-I ip)
+    ping_res = run_cmd(f"ping -c 1 -W 1 -I {ip} {SERVER_IP}", ns=ATTACKER_NS)
+    # Jeśli pakiet nie wrócił (kod błędu inny niż 0), oznacza to, że XDP go zablokowało
     return ping_res.returncode != 0
 
 def check_syncookies():
@@ -148,6 +143,25 @@ def test_l7_error_flood():
     else:
         report("C: L7 Error Flood", engine, ttm, f"{RED}FAIL{RESET}")
 
+def test_gru_stealth_syn():
+    print(f"\n{YELLOW}--- Scenario D: Low & Slow SYN Flood (GRU ML Target) ---{RESET}")
+    reset_environment()
+    
+    # Wysyłamy 10 pakietów SYN na sekundę (-i u100000)
+    # To celowo omija heurystykę L4, by wymusić analizę przez model GRU
+    proc = run_cmd(f"hping3 -a {ATTACKER_IP} -S -p 80 -i u100000 {SERVER_IP}", ns=ATTACKER_NS, bg=True)
+    
+    # Model potrzebuje 15 sekund na zebranie sekwencji, dajemy timeout 25s
+    engine, ttm = tail_logs_for_ban(ATTACKER_IP, timeout=25)
+    proc.kill()
+    
+    is_dropped = is_ip_banned(ATTACKER_IP)
+    
+    if engine == "GRU ML" and is_dropped:
+        report("D: Low & Slow SYN", engine, ttm, f"{GREEN}PASS{RESET}")
+    else:
+        report("D: Low & Slow SYN", engine, ttm, f"{RED}FAIL{RESET}")
+
 def test_benign_traffic():
     print(f"\n{YELLOW}--- Scenario F: Benign Baseline ---{RESET}")
     reset_environment()
@@ -183,6 +197,38 @@ def test_global_spoofed_syn():
     else:
         report("H: Global SYN Flood", "None", None, f"{RED}FAIL{RESET}")
 
+def test_mixed_traffic():
+    print(f"\n{YELLOW}--- Scenario I: Mixed Traffic (Attacker + Legitimate) ---{RESET}")
+    reset_environment()
+    
+    LEGIT_IP = "10.0.0.3"
+    
+    # Przypisujemy drugi adres IP do interfejsu w attacker_ns, aby symulować drugiego klienta
+    run_cmd(f"ip addr add {LEGIT_IP}/24 dev veth_attacker", ns=ATTACKER_NS)
+    
+    # Uruchamiamy w tle legalnego klienta: wysyła 1 zapytanie na sekundę przez 25 sekund
+    cmd_legit = f"bash -c 'for i in {{1..25}}; do curl -s --interface {LEGIT_IP} {HTTP_URL} > /dev/null; sleep 1; done'"
+    proc_legit = run_cmd(cmd_legit, ns=ATTACKER_NS, bg=True)
+    
+    # Uruchamiamy atak z oryginalnego IP (10.0.0.2) 
+    proc_attacker = run_cmd(f"hping3 -a {ATTACKER_IP} -S -p 80 -i u100000 {SERVER_IP}", ns=ATTACKER_NS, bg=True)
+    
+    # Czekamy na zablokowanie atakującego
+    engine, ttm = tail_logs_for_ban(ATTACKER_IP, timeout=25)
+    
+    proc_attacker.kill()
+    proc_legit.kill()
+    
+    # Sprawdzamy status obu adresów IP na zaporze XDP
+    attacker_banned = is_ip_banned(ATTACKER_IP)
+    legit_banned = is_ip_banned(LEGIT_IP)
+    
+    # Jeśli atakujący jest zablokowany, a legalny użytkownik NIE JEST zablokowany - test zaliczony
+    if attacker_banned and not legit_banned:
+        report("I: Mixed Traffic", engine, ttm, f"{GREEN}PASS{RESET}")
+    else:
+        report("I: Mixed Traffic", engine, ttm, f"{RED}FAIL{RESET}")
+
 def run_all():
     if os.geteuid() != 0:
         print(f"{RED}[-] Please run this script with sudo/root privileges.{RESET}")
@@ -199,8 +245,10 @@ def run_all():
     test_l4_syn_flood()
     test_l7_http_flood()
     test_l7_error_flood()
+    test_gru_stealth_syn()        # <-- Nowy test D
     test_benign_traffic()
     test_global_spoofed_syn()
+    test_mixed_traffic()          # <-- Nowy test I
     
     # Clean up at the end
     run_cmd("pkill -f control_plane.py", ns=SERVER_NS)
