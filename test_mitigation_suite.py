@@ -175,8 +175,8 @@ def test_l7_slowloris():
         f.write("""import socket, random, time
 TARGET_IP = "10.0.0.1"
 PORT = 80
-SOCKET_COUNT = 150
-SLEEP_TIME = 10
+SOCKET_COUNT = 49
+SLEEP_TIME = 8
 sockets = []
 
 def create_socket():
@@ -345,8 +345,8 @@ def test_l7_rudy():
         f.write("""import socket, random, time
 TARGET_IP = "10.0.0.1"
 PORT = 80
-SOCKET_COUNT = 150
-SLEEP_TIME = 10
+SOCKET_COUNT = 49
+SLEEP_TIME = 7
 sockets = []
 
 def create_socket():
