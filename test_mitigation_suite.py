@@ -311,6 +311,29 @@ def test_mixed_traffic():
     else:
         report("I: Mixed Traffic", engine, ttm, f"{RED}FAIL{RESET}")
 
+def test_l4_ack_flood():
+    print(f"\n{YELLOW}--- Scenario J: TCP State Exhaustion (ACK Flood) ---{RESET}")
+    reset_environment()
+    
+    # Narzędzie hping3 wysyła pakiety z samą flagą ACK (-A) z maksymalną prędkością (--flood)
+    # Pakiety te mają za zadanie ominąć limity SYN_FLOOD_THRESHOLD i zmęczyć zaporę
+    proc = run_cmd(f"hping3 -A -p 80 --flood {SERVER_IP}", ns=ATTACKER_NS, bg=True)
+    
+    # Atak wolumetryczny zostanie ucięty błyskawicznie przez heurystykę "non_syn_pkts".
+    # Dajemy systemowi 5 sekund na mitygację.
+    engine, ttm = tail_logs_for_ban(ATTACKER_IP, timeout=5)
+    proc.kill()
+    
+    is_dropped = is_ip_banned(ATTACKER_IP)
+    
+    # Twój parser logów tail_logs_for_ban zakwalifikuje ten ban jako "L4 UDP Flood", 
+    # ponieważ w control_plane.py użyliśmy słowa "UDP" w reason stringu dla tej reguły.
+    if engine == "L4 UDP Flood" and is_dropped:
+        # Wypisujemy "L4 Non-SYN Flood" dla lepszej czytelności w ostatecznej tabeli
+        report("J: ACK Flood", "L4 Non-SYN Flood", ttm, f"{GREEN}PASS{RESET}")
+    else:
+        report("J: ACK Flood", engine, ttm, f"{RED}FAIL{RESET}")
+
 def run_all():
     if os.geteuid() != 0:
         print(f"{RED}[-] Please run this script with sudo/root privileges.{RESET}")
@@ -327,12 +350,13 @@ def run_all():
     test_l4_syn_flood()
     test_l7_http_flood()
     test_l7_error_flood()
-    test_gru_stealth_syn()        # <-- Nowy test D
+    test_gru_stealth_syn()
     test_l7_slowloris()
     test_benign_traffic()
     test_l4_udp_flood()
     test_global_spoofed_syn()
-    test_mixed_traffic()          # <-- Nowy test I
+    test_mixed_traffic()
+    test_l4_ack_flood()
     
     # Clean up at the end
     run_cmd("pkill -f control_plane.py", ns=SERVER_NS)

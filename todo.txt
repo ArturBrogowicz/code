@@ -3,5 +3,6 @@
 3. jakie typy ataków DDoS system będzie skutecznie mitygował ? DONE
 4. "Aktualny problem: Model jest trenowany na danych z zestawów CIC, które mierzą przepływy w sieci (zazwyczaj na poziomie transportowym). Kod XDP operuje na poziomie IP (warstwa 3), ale pobiera dane w momencie przyjścia pakietu (stan początkowy), a nie po zakończeniu przepływu. Oznacza to, że model otrzymuje cechy pochodzące z pojedynczych pakietów lub bardzo krótkich fragmentów przepływu, a nie z pełnych, zakończonych przepływów. Powoduje to poważne rozbieżności w charakterystyce danych (tzw. data drift), co skutkuje niską trafnością modeli uczenia maszynowego. W praktyce model słabo wykrywa ataki, ponieważ dane, na których się uczył, różnią się fundamentalnie od danych, które widzi w rzeczywistym ruchu sieciowym. Potwierdzają to liczne błędne klasyfikacje i alarmy, np. klasyfikowanie normalnego ruchu jako SYN Flood, nawet gdy liczba flag SYN jest zerowa"
 5. Zaktualizować schemat
-6. Zrobić/podpiąć backend aplikacji, która będzie celem ataku
-7. Skrypt atakujący DDoS
+6. Zrobić/podpiąć backend aplikacji, która będzie celem ataku DONE
+7. Skrypt atakujący DDoS DONE
+8. Narzędzia do pomiaru zużycia procesora i pamięci
