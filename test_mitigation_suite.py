@@ -68,9 +68,32 @@ def reset_environment():
     cmd = ["bash", "-c", f"sudo bash {setup_sh} > /tmp/mitigation_test.log 2>&1"]
     run_cmd(cmd, bg=True)
     
-    # Dajemy setup.sh 10 sekund na usunięcie starych namespace'ów, 
-    # kompilację XDP i pełne uruchomienie środowiska.
-    time.sleep(10)
+    print("[*] Waiting for mitigation daemon to initialize (PyTorch & eBPF)...", end="", flush=True)
+    start_time = time.time()
+    is_ready = False
+    
+    # Dajemy systemowi maksymalnie 45 sekund na wczytanie wag modelu i XDP
+    while time.time() - start_time < 45:
+        try:
+            with open("/tmp/mitigation_test.log", "r") as f:
+                logs = f.read()
+                # To jest ostatnia linijka printowana przez control_plane.py po załadowaniu wszystkiego
+                if "Listening for Nginx logs" in logs:
+                    is_ready = True
+                    break
+        except FileNotFoundError:
+            pass
+        
+        print(".", end="", flush=True)
+        time.sleep(0.5)
+    
+    print() # Nowa linia
+    
+    if not is_ready:
+        print(f"{RED}[!] Warning: Daemon did not report ready state within 45s. Test might fail!{RESET}")
+    else:
+        # Dajemy mu jeszcze 1 sekundę by system operacyjny ustabilizował wątki i ruszył nasłuch plików
+        time.sleep(1)
 
 def tail_logs_for_ban(target_ip, timeout=15):
     """Tail the control plane log to find the ban reason and TTM."""
