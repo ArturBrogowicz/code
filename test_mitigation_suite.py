@@ -63,8 +63,14 @@ def reset_environment():
     project_dir = os.path.dirname(os.path.abspath(__file__))
     setup_sh = os.path.join(project_dir, "setup.sh")
     
-    # Uruchamiamy Twój oryginalny skrypt setup.sh w tle na prawach roota
-    # Logi kierujemy do pliku, z którego test_mitigation_suite.py je odczytuje
+    # 1. FIX: Usuwamy stary plik logów ZANIM uruchomimy setup.
+    # To zapobiega wyścigowi, w którym skrypt czyta "gotowość" z poprzedniego testu.
+    try:
+        os.remove("/tmp/mitigation_test.log")
+    except FileNotFoundError:
+        pass
+    
+    # Uruchamiamy środowisko w tle
     cmd = ["bash", "-c", f"sudo bash {setup_sh} > /tmp/mitigation_test.log 2>&1"]
     run_cmd(cmd, bg=True)
     
@@ -72,16 +78,15 @@ def reset_environment():
     start_time = time.time()
     is_ready = False
     
-    # Dajemy systemowi maksymalnie 45 sekund na wczytanie wag modelu i XDP
     while time.time() - start_time < 45:
         try:
             with open("/tmp/mitigation_test.log", "r") as f:
                 logs = f.read()
-                # To jest ostatnia linijka printowana przez control_plane.py po załadowaniu wszystkiego
                 if "Listening for Nginx logs" in logs:
                     is_ready = True
                     break
         except FileNotFoundError:
+            # Plik jeszcze nie został stworzony przez Basha, spokojnie czekamy
             pass
         
         print(".", end="", flush=True)
@@ -92,8 +97,10 @@ def reset_environment():
     if not is_ready:
         print(f"{RED}[!] Warning: Daemon did not report ready state within 45s. Test might fail!{RESET}")
     else:
-        # Dajemy mu jeszcze 1 sekundę by system operacyjny ustabilizował wątki i ruszył nasłuch plików
-        time.sleep(1)
+        # 2. FIX: Zwiększamy czas oczekiwania na 3 sekundy.
+        # Dajemy pewność, że f.seek(0, os.SEEK_END) w control_plane.py zostało wykonane,
+        # a cała infrastruktura wirtualna działa stabilnie, zanim wypuścimy pakiety uderzeniowe.
+        time.sleep(3)
 
 def tail_logs_for_ban(target_ip, timeout=15):
     """Tail the control plane log to find the ban reason and TTM."""
