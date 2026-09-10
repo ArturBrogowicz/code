@@ -436,6 +436,27 @@ done
     else:
         report("L: L7 Yo-Yo Attack", engine, ttm, f"{RED}FAIL{RESET}")
 
+def test_l3_fragmentation():
+    print(f"\n{YELLOW}--- Scenario M: L3 IP Fragmentation (Teardrop/Fraggle) ---{RESET}")
+    reset_environment()
+    
+    # Narzędzie hping3 wysyła pakiety pofragmentowane (-f) z nieprawidłowym 
+    # przesunięciem offsetu (--fragoff 20) z maksymalną prędkością (--flood).
+    proc = run_cmd(f"hping3 -S -p 80 -f --fragoff 20 --flood {SERVER_IP}", ns=ATTACKER_NS, bg=True)
+    
+    # Zależnie od tego, jak kod w języku C parsuje ucięte nagłówki w XDP, 
+    # atak zostanie ucięty jako "L4 SYN Flood" (jeśli flaga SYN zostanie odczytana) 
+    # lub jako "L4 UDP Flood" (jeśli pakiety zostaną potraktowane jako non-SYN).
+    engine, ttm = tail_logs_for_ban(ATTACKER_IP, timeout=5)
+    proc.kill()
+    
+    is_dropped = is_ip_banned(ATTACKER_IP)
+    
+    if engine != "None" and is_dropped:
+        report("M: IP Fragmentation", engine, ttm, f"{GREEN}PASS{RESET}")
+    else:
+        report("M: IP Fragmentation", engine, ttm, f"{RED}FAIL{RESET}")
+
 def run_all():
     if os.geteuid() != 0:
         print(f"{RED}[-] Please run this script with sudo/root privileges.{RESET}")
@@ -461,6 +482,7 @@ def run_all():
     test_l4_ack_flood()
     test_l7_rudy()
     test_l7_yoyo()
+    test_l3_fragmentation()
     
     # Clean up at the end
     run_cmd("pkill -f control_plane.py", ns=SERVER_NS)
