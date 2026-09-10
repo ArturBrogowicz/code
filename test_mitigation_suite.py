@@ -412,7 +412,7 @@ def test_l7_yoyo():
     # a następnie zasypia na 6 sekund, by obniżyć średnią i zmylić proste zapory.
     with open(yoyo_script, "w") as f:
         f.write(f"""#!/bin/bash
-while True; do
+while true; do
     wrk -t2 -c50 -d2s {HTTP_URL} > /dev/null 2>&1
     sleep 6
 done
