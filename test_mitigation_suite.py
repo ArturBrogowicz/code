@@ -401,6 +401,41 @@ while True:
     else:
         report("K: L7 Slow POST (R.U.D.Y.)", engine, ttm, f"{RED}FAIL{RESET}")
 
+def test_l7_yoyo():
+    print(f"\n{YELLOW}--- Scenario L: L7 Pulsing (Yo-Yo) Attack ---{RESET}")
+    reset_environment()
+    
+    yoyo_script = "/tmp/yoyo_test.sh"
+    
+    # Tworzymy skrypt bash, który symuluje pulsacyjne zachowanie.
+    # Uderza narzędziem wrk przez 2 sekundy (potężny burst),
+    # a następnie zasypia na 6 sekund, by obniżyć średnią i zmylić proste zapory.
+    with open(yoyo_script, "w") as f:
+        f.write(f"""#!/bin/bash
+while True; do
+    wrk -t2 -c50 -d2s {HTTP_URL} > /dev/null 2>&1
+    sleep 6
+done
+""")
+    
+    # Nadanie uprawnień do wykonania
+    os.chmod(yoyo_script, 0o755)
+    
+    # Uruchomienie skryptu Yo-Yo w przestrzeni atakującego
+    proc = run_cmd(f"bash {yoyo_script}", ns=ATTACKER_NS, bg=True)
+    
+    # Dajemy systemowi 20 sekund. Atak powinien zostać złapany przez L7 Heuristic 
+    # już przy pierwszym lub najpóźniej przy drugim "uderzeniu".
+    engine, ttm = tail_logs_for_ban(ATTACKER_IP, timeout=20)
+    proc.kill()
+    
+    is_dropped = is_ip_banned(ATTACKER_IP)
+    
+    if engine != "None" and is_dropped:
+        report("L: L7 Yo-Yo Attack", engine, ttm, f"{GREEN}PASS{RESET}")
+    else:
+        report("L: L7 Yo-Yo Attack", engine, ttm, f"{RED}FAIL{RESET}")
+
 def run_all():
     if os.geteuid() != 0:
         print(f"{RED}[-] Please run this script with sudo/root privileges.{RESET}")
@@ -425,6 +460,7 @@ def run_all():
     test_mixed_traffic()
     test_l4_ack_flood()
     test_l7_rudy()
+    test_l7_yoyo()
     
     # Clean up at the end
     run_cmd("pkill -f control_plane.py", ns=SERVER_NS)
