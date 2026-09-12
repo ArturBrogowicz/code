@@ -115,6 +115,12 @@ def tail_logs_for_ban(target_ip, timeout=15):
                             return "L4 SYN Flood", time.time() - start_time
                         elif "UDP" in line:
                             return "L4 UDP Flood", time.time() - start_time
+                        # R.U.D.Y.-specific checks BEFORE generic "Heuristic"
+                        # because "Heuristic R.U.D.Y." contains "Heuristic"
+                        elif "R.U.D.Y." in line:
+                            return "L7 R.U.D.Y.", time.time() - start_time
+                        elif "Slow connection" in line:
+                            return "L4 Slow Conn", time.time() - start_time
                         elif "Heuristic" in line:
                             return "L7 Heuristic", time.time() - start_time
                         elif "GRU" in line:

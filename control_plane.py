@@ -20,6 +20,7 @@ torch.set_num_threads(1)
 INTERFACE = "veth_server"
 BPF_SOURCE_FILE = "xdp_ddos_filter.c"
 NGINX_LOG_FILE = "/var/log/nginx/ddos_ml_access.log"
+NGINX_ERROR_LOG = "/var/log/nginx/error.log"
 MODEL_PATH = "training_results/gru_ddos_model.pth"
 SCALER_PATH = "training_results/scaler.save"
 
@@ -39,6 +40,8 @@ NUM_LAYERS = 2
 L4_POLL_INTERVAL = 1.0
 SYN_FLOOD_THRESHOLD = 200
 UDP_FLOOD_THRESHOLD = 5000
+RUDY_TIMEOUT_THRESHOLD = 3     # Ban after 3 body-read timeouts in the window
+RUDY_WINDOW = 60.0             # Sliding window for counting timeouts (seconds)
 
 # Auto-unblock IPs after TTL expires (seconds)
 BAN_TTL_SECONDS = 300
@@ -95,6 +98,9 @@ ban_timestamps = {}
 
 # Track per-IP request metadata for rate/error heuristic (from Nginx logs)
 request_tracker = defaultdict(deque)
+
+# Alongside existing request_tracker
+rudy_tracker = defaultdict(deque)  # {ip: deque of (timestamp,)]}
 
 # Track whether SYN cookies have been activated
 syn_cookies_enabled = False
@@ -211,6 +217,68 @@ def tail_nginx_logs(file_path):
             print(f"[-] Log file {file_path} not found, retrying in 1s...")
             time.sleep(1)
 
+def tail_nginx_error_logs(file_path):
+    """Tail the Nginx error log for client body timeout events.
+
+    R.U.D.Y. attacks cause Nginx to eventually time out waiting for the
+    POST body. These timeouts are logged in the error log, not the access
+    log. This function detects the pattern and bans repeat offenders.
+    """
+    import re
+    # Pattern matches: "client timed out ... while reading client request body, client: <IP>"
+    timeout_pattern = re.compile(
+        r'client timed out.*while reading client request body.*client:\s*(\d+\.\d+\.\d+\.\d+)'
+    )
+
+    while not stop_event.is_set():
+        try:
+            current_inode = os.stat(file_path).st_ino
+            with open(file_path, 'r') as f:
+                f.seek(0, os.SEEK_END)
+                stale_count = 0
+                while not stop_event.is_set():
+                    line = f.readline()
+                    if not line:
+                        time.sleep(0.1)
+                        stale_count += 1
+                        if stale_count >= 50:  # Check rotation every ~5s
+                            stale_count = 0
+                            try:
+                                if os.stat(file_path).st_ino != current_inode:
+                                    break
+                            except FileNotFoundError:
+                                break
+                        continue
+                    stale_count = 0
+
+                    match = timeout_pattern.search(line)
+                    if match:
+                        client_ip = match.group(1)
+
+                        with banned_ips_lock:
+                            if client_ip in banned_ips:
+                                continue
+
+                        now = time.time()
+                        rudy_tracker[client_ip].append(now)
+
+                        # Evict old entries outside the window
+                        while (rudy_tracker[client_ip] and
+                               now - rudy_tracker[client_ip][0] > RUDY_WINDOW):
+                            rudy_tracker[client_ip].popleft()
+
+                        timeout_count = len(rudy_tracker[client_ip])
+                        if timeout_count >= RUDY_TIMEOUT_THRESHOLD:
+                            print(f"\n[RUDY-DETECT] Slow POST attack detected - IP: {client_ip} | "
+                                  f"Body timeouts: {timeout_count} in {RUDY_WINDOW}s")
+                            ban_ip(client_ip,
+                                   reason=f"Heuristic R.U.D.Y. ({timeout_count} body timeouts)")
+                            kill_zombie_connections(client_ip)
+                            rudy_tracker.pop(client_ip, None)
+
+        except FileNotFoundError:
+            print(f"[-] Error log {file_path} not found, retrying in 1s...")
+            time.sleep(1)
 
 def inference_worker():
     """Dedicated inference thread to decouple GRU computation from telemetry polling.
@@ -315,7 +383,7 @@ def l3_l4_telemetry_monitor():
             total_pkts = sum(cpu.packet_count for cpu in per_cpu_values)
             total_syn = sum(cpu.syn_count for cpu in per_cpu_values)
             total_bytes = sum(cpu.byte_count for cpu in per_cpu_values)
-
+            total_connections = sum(cpu.active_connections for cpu in per_cpu_values)
             # first_seen_ns: take the earliest non-zero value across CPUs
             first_ns_values = [cpu.first_seen_ns for cpu in per_cpu_values
                                if cpu.first_seen_ns > 0]
@@ -345,6 +413,16 @@ def l3_l4_telemetry_monitor():
                 flow_duration_s = flow_duration_us / 1e6
                 fwd_pkt_len_mean = total_bytes / total_pkts
                 flow_pps = total_pkts / flow_duration_s
+
+                # --- Layer 3: eBPF connection-count heuristic (R.U.D.Y./Slowloris) ---
+                # If an IP has many active connections but very low packet rate,
+                # it's likely holding connections open without sending data.
+                if total_connections > 20 and flow_pps < 5.0:
+                    print(f"\n[L4-DETECT] SLOW CONNECTION ABUSE - IP: {ip_str} | "
+                          f"Connections: {total_connections} | PPS: {flow_pps:.1f}")
+                    ban_ip(ip_str, reason=f"Slow connection abuse ({total_connections} conns, {flow_pps:.1f} pps)")
+                    kill_zombie_connections(ip_str)
+                    continue
 
                 features = [
                     flow_duration_us,           # Flow Duration (µs)
@@ -399,8 +477,18 @@ try:
     # Start dedicated inference worker thread
     inference_thread = threading.Thread(target=inference_worker, daemon=True)
     inference_thread.start()
-    print("[+] Inference worker thread started.")
 
+    print("[+] Inference worker thread started.")
+    # Start error log monitor for R.U.D.Y. / slow POST detection
+    error_log_thread = threading.Thread(
+        target=tail_nginx_error_logs,
+        args=(NGINX_ERROR_LOG,),
+        daemon=True
+    )
+    error_log_thread.start()
+    print(f"[*] Listening for Nginx error logs (RUDY detection): {NGINX_ERROR_LOG}")
+    print("[+] RUDY detection thread started.")
+    
     print(f"[*] Listening for Nginx logs (heuristic engine): {NGINX_LOG_FILE}")
 
     # The main loop now handles ONLY the L7 heuristic (rate + error ratio).

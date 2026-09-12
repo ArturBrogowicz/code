@@ -9,6 +9,7 @@ struct telemetry_data {
     u64 syn_count;       // SYN Flag Count
     u64 byte_count;      // Total Length of Fwd Packet (IP payload bytes)
     u64 first_seen_ns;   // Flow start timestamp for Flow Duration computation
+    u64 active_connections;  // NEW: incremented on SYN, decremented on FIN/RST
 };
 
 BPF_HASH(blacklist_map, u32, u64, 100000);
@@ -44,14 +45,17 @@ int xdp_ddos_mitigation(struct xdp_md *ctx) {
 
     u64 pkt_bytes = bpf_ntohs(ip->tot_len); 
     u8 is_syn = 0;
+    u8 is_fin_rst = 0;
 
     if (ip->protocol == IPPROTO_TCP) {
         struct tcphdr *tcp = (void *)ip + (ip->ihl * 4);
         
         if ((void *)(tcp + 1) <= data_end) {
-            
             if (tcp->syn && !tcp->ack) {
                 is_syn = 1;
+            }
+            if (tcp->fin || tcp->rst) {
+                is_fin_rst = 1;
             }
         }
     }
@@ -73,6 +77,12 @@ int xdp_ddos_mitigation(struct xdp_md *ctx) {
         
         if (is_syn) {
             tel->syn_count += 1;
+            tel->active_connections += 1;
+        }
+
+        // Decrement connection count on FIN or RST (connection teardown)
+        if (is_fin_rst && tel->active_connections > 0) {
+            tel->active_connections -= 1;
         }
     }
 
