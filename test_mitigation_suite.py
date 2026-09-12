@@ -382,7 +382,7 @@ def test_l7_rudy():
 TARGET_IP = "10.0.0.1"
 PORT = 80
 SOCKET_COUNT = 49
-SLEEP_TIME = 7
+SLEEP_TIME = 4
 sockets = []
 
 def create_socket():
