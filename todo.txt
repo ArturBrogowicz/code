@@ -6,3 +6,4 @@
 6. Zrobić/podpiąć backend aplikacji, która będzie celem ataku DONE
 7. Skrypt atakujący DDoS DONE
 8. Narzędzia do pomiaru zużycia procesora i pamięci
+9. Scenariusz testowy bardziej zaawansowany, duzy ruch legalny i botnet atakującego, rozproszony atak w L3/4 i L7, low-and-slow oraz flood.
