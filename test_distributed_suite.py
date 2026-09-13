@@ -6,19 +6,18 @@ import sys
 import os
 import threading
 import random
-import concurrent.futures
 
 # --- CONFIGURATION ---
 SERVER_IP = "10.0.0.1"
-BRIDGE_NS = "bridge_ns"
 SERVER_NS = "server_ns"
+ATTACKER_NS = "attacker_ns"  # We use the existing attacker_ns as our bridge namespace
 
-# Adjust sizes for practical simulation (total of 55 namespaces)
 NUM_BOTS = 15
 NUM_LEGIT = 40
 
-BOT_IP_BASE = "10.0.1"
-LEGIT_IP_BASE = "10.0.2"
+# We use the 10.0.0.0/24 subnet configured by setup.sh
+BOT_IP_START = 10
+LEGIT_IP_START = 100
 
 # ANSI Colors
 GREEN = "\033[92m"
@@ -29,7 +28,6 @@ RESET = "\033[0m"
 results = []
 
 def run_cmd(cmd, ns=None, bg=False, timeout=None):
-    """Run a shell command, optionally within a namespace."""
     full_cmd = []
     if ns:
         full_cmd.extend(["ip", "netns", "exec", ns])
@@ -48,67 +46,44 @@ def run_cmd(cmd, ns=None, bg=False, timeout=None):
             return e
 
 def cleanup_topology():
-    print("[*] Cleaning up topology and lingering processes...")
+    print("[*] Cleaning up distributed namespaces and processes...")
     subprocess.run(["pkill", "-f", "control_plane.py"], stderr=subprocess.DEVNULL)
-    subprocess.run(["ip", "netns", "exec", SERVER_NS, "pkill", "-f", "nginx"], stderr=subprocess.DEVNULL)
-    subprocess.run(["ip", "netns", "exec", SERVER_NS, "pkill", "-f", "gunicorn"], stderr=subprocess.DEVNULL)
+    
+    # Restore attacker_ns to its original state (remove bridge, restore IP)
+    subprocess.run(["ip", "netns", "exec", ATTACKER_NS, "ip", "link", "set", "dev", "veth_attacker", "nomaster"], stderr=subprocess.DEVNULL)
+    subprocess.run(["ip", "netns", "exec", ATTACKER_NS, "ip", "link", "del", "br0"], stderr=subprocess.DEVNULL)
+    subprocess.run(["ip", "netns", "exec", ATTACKER_NS, "ip", "addr", "add", "10.0.0.2/24", "dev", "veth_attacker"], stderr=subprocess.DEVNULL)
     
     res = subprocess.run(["ip", "netns", "list"], capture_output=True, text=True)
     for line in res.stdout.splitlines():
         ns = line.split()[0]
-        if ns.startswith("bot_ns_") or ns.startswith("legit_ns_") or ns in [SERVER_NS, BRIDGE_NS, "attacker_ns"]:
+        if ns.startswith("bot_ns_") or ns.startswith("legit_ns_"):
             subprocess.run(["ip", "netns", "del", ns])
 
 def setup_topology():
     cleanup_topology()
-    print("[*] Setting up bridge and server namespaces...")
-    run_cmd("ip netns add server_ns")
-    run_cmd("ip netns add bridge_ns")
+    print("[*] Setting up distributed topology inside existing setup.sh environment...")
     
-    run_cmd("ip link add veth_server type veth peer name veth_router")
-    run_cmd("ip link set veth_server netns server_ns")
-    run_cmd("ip link set veth_router netns bridge_ns")
-    
-    # Server setup
-    run_cmd(f"ip addr add {SERVER_IP}/16 dev veth_server", ns=SERVER_NS)
-    run_cmd("ip link set veth_server up", ns=SERVER_NS)
-    run_cmd("ip link set lo up", ns=SERVER_NS)
-    run_cmd("ethtool -K veth_server tx off rx off", ns=SERVER_NS)
-    
-    # Bridge setup
-    run_cmd("ip link add name br0 type bridge", ns=BRIDGE_NS)
-    run_cmd("ip link set veth_router master br0", ns=BRIDGE_NS)
-    run_cmd("ip link set veth_router up", ns=BRIDGE_NS)
-    run_cmd("ip link set br0 up", ns=BRIDGE_NS)
-    
-    project_dir = os.path.dirname(os.path.abspath(__file__))
-    venv_python = os.path.join(project_dir, "venv", "bin", "python")
-    
-    dummy_app_path = os.path.join(project_dir, "dummy_app.py")
-    if not os.path.exists(dummy_app_path):
-        with open(dummy_app_path, "w") as f:
-            f.write("def app(environ, start_response):\n    data = b'Backend is running flawlessly!\\n'\n    start_response('200 OK', [('Content-Type', 'text/plain'), ('Content-Length', str(len(data)))])\n    return iter([data])\n")
-            
-    print("[*] Starting Nginx and Gunicorn in server_ns...")
-    run_cmd(["bash", "-c", f"{venv_python} -m gunicorn --chdir {project_dir} --workers 4 --threads 10 -b 0.0.0.0:8080 dummy_app:app >/dev/null 2>&1"], ns=SERVER_NS, bg=True)
-    time.sleep(1)
-    nginx_conf = os.path.join(project_dir, "nginx.conf")
-    run_cmd(["nginx", "-c", nginx_conf], ns=SERVER_NS)
+    # Use attacker_ns as a bridge
+    run_cmd(f"ip addr del 10.0.0.2/24 dev veth_attacker", ns=ATTACKER_NS)
+    run_cmd(f"ip link add name br0 type bridge", ns=ATTACKER_NS)
+    run_cmd(f"ip link set dev veth_attacker master br0", ns=ATTACKER_NS)
+    run_cmd(f"ip link set dev br0 up", ns=ATTACKER_NS)
     
     # Bots
     print(f"[*] Creating {NUM_BOTS} botnet namespaces...")
     for i in range(1, NUM_BOTS + 1):
         ns_name = f"bot_ns_{i}"
-        ip = f"{BOT_IP_BASE}.{i}"
+        ip = f"10.0.0.{BOT_IP_START + i}"
         run_cmd(f"ip netns add {ns_name}")
         run_cmd(f"ip link add vb_{i} type veth peer name vbr_{i}")
         run_cmd(f"ip link set vb_{i} netns {ns_name}")
-        run_cmd(f"ip link set vbr_{i} netns {BRIDGE_NS}")
+        run_cmd(f"ip link set vbr_{i} netns {ATTACKER_NS}")
         
-        run_cmd(f"ip link set vbr_{i} master br0", ns=BRIDGE_NS)
-        run_cmd(f"ip link set vbr_{i} up", ns=BRIDGE_NS)
+        run_cmd(f"ip link set vbr_{i} master br0", ns=ATTACKER_NS)
+        run_cmd(f"ip link set vbr_{i} up", ns=ATTACKER_NS)
         
-        run_cmd(f"ip addr add {ip}/16 dev vb_{i}", ns=ns_name)
+        run_cmd(f"ip addr add {ip}/24 dev vb_{i}", ns=ns_name)
         run_cmd(f"ip link set vb_{i} up", ns=ns_name)
         run_cmd(f"ip link set lo up", ns=ns_name)
         
@@ -116,20 +91,19 @@ def setup_topology():
     print(f"[*] Creating {NUM_LEGIT} legitimate user namespaces (simulating mobile networks)...")
     for i in range(1, NUM_LEGIT + 1):
         ns_name = f"legit_ns_{i}"
-        ip = f"{LEGIT_IP_BASE}.{i}"
+        ip = f"10.0.0.{LEGIT_IP_START + i}"
         run_cmd(f"ip netns add {ns_name}")
         run_cmd(f"ip link add vl_{i} type veth peer name vlr_{i}")
         run_cmd(f"ip link set vl_{i} netns {ns_name}")
-        run_cmd(f"ip link set vlr_{i} netns {BRIDGE_NS}")
+        run_cmd(f"ip link set vlr_{i} netns {ATTACKER_NS}")
         
-        run_cmd(f"ip link set vlr_{i} master br0", ns=BRIDGE_NS)
-        run_cmd(f"ip link set vlr_{i} up", ns=BRIDGE_NS)
+        run_cmd(f"ip link set vlr_{i} master br0", ns=ATTACKER_NS)
+        run_cmd(f"ip link set vlr_{i} up", ns=ATTACKER_NS)
         
-        run_cmd(f"ip addr add {ip}/16 dev vl_{i}", ns=ns_name)
+        run_cmd(f"ip addr add {ip}/24 dev vl_{i}", ns=ns_name)
         run_cmd(f"ip link set vl_{i} up", ns=ns_name)
         run_cmd(f"ip link set lo up", ns=ns_name)
         
-        # 50% chance to simulate a bad mobile connection (100ms latency, 1% packet loss)
         if random.choice([True, False]):
             run_cmd(f"tc qdisc add dev vl_{i} root netem delay 100ms 20ms loss 1%", ns=ns_name)
 
@@ -152,7 +126,6 @@ def legit_user_worker(ns_name, ip):
     while not stop_legit_traffic.is_set():
         time.sleep(random.uniform(0.5, 2.0))
         
-        # Check if banned via ping (XDP drop verification)
         ping_res = subprocess.run(["ip", "netns", "exec", ns_name, "ping", "-c", "1", "-W", "1", SERVER_IP], capture_output=True)
         if ping_res.returncode != 0:
             legit_stats["banned"] += 1
@@ -171,14 +144,13 @@ def start_legit_traffic():
     legit_stats["banned"] = 0
     threads = []
     for i in range(1, NUM_LEGIT + 1):
-        t = threading.Thread(target=legit_user_worker, args=(f"legit_ns_{i}", f"{LEGIT_IP_BASE}.{i}"))
+        t = threading.Thread(target=legit_user_worker, args=(f"legit_ns_{i}", f"10.0.0.{LEGIT_IP_START + i}"))
         t.daemon = True
         t.start()
         threads.append(t)
     return threads
 
 def stop_botnet(procs):
-    """Aggressive cleanup of all botnet processes."""
     for p in procs:
         try:
             p.kill()
@@ -219,7 +191,7 @@ def run_scenario(name, bot_cmd, duration, expected_engine=None):
                 for line in logs:
                     if "[BAN]" in line:
                         for i in range(1, NUM_BOTS + 1):
-                            bot_ip = f"{BOT_IP_BASE}.{i}"
+                            bot_ip = f"10.0.0.{BOT_IP_START + i}"
                             if bot_ip in line and bot_ip not in banned_bots:
                                 banned_bots.add(bot_ip)
                                 if first_ttm is None:
@@ -272,21 +244,11 @@ def main():
     rudy_script = os.path.join(project_dir, "rudy_script.py")
 
     try:
-        # 100 SYN/s per bot -> 15 bots = 1500 SYN/s. Bypasses L4 Per-IP threshold (200), hits ML or Global.
         run_scenario("Distributed Low & Slow SYN Flood", f"hping3 -S -p 80 -i u10000 {SERVER_IP}", duration=15)
-        
-        # 200 UDP/s per bot. Bypasses SYN metrics, purely volumetric. GRU ML should catch this based on PPS.
         run_scenario("Distributed UDP Flood", f"hping3 --udp -p 80 -i u5000 {SERVER_IP}", duration=15)
-        
-        # Slowloris. Bypasses limit_conn (50) by opening 8 connections per bot. Total = 120 sockets holding state.
         run_scenario("Distributed Slowloris", [venv_python, slowloris_script], duration=25)
-        
-        # R.U.D.Y. Exactly 49 sockets per bot, perfectly bypassing limit_conn (50). Very evasive L7 attack.
         run_scenario("Distributed R.U.D.Y.", [venv_python, rudy_script], duration=25)
-        
-        # Basic HTTP Flood via curl loops
         run_scenario("Distributed HTTP Flood", ["bash", "-c", f"while true; do curl -s http://{SERVER_IP}/ > /dev/null; done"], duration=15)
-    
     except KeyboardInterrupt:
         print("\n[*] Tests interrupted by user.")
     finally:
