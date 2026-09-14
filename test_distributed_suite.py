@@ -114,7 +114,7 @@ def cleanup_all():
         run("pkill -9 -f slowloris", ns=ns)
         run("pkill -9 -f rudy", ns=ns)
         run("pkill -9 -f wrk", ns=ns)
-        run("pkill -9 -f python3", ns=ns)
+        run("pkill -9 -f _dist_", ns=ns)
 
     # Delete namespaces (automatically removes veths inside them)
     for ns in list(_all_created_ns):
@@ -289,7 +289,7 @@ def start_server_services():
     time.sleep(1)
 
     # Start Nginx
-    run(["nginx", "-c", NGINX_CONF], ns=SERVER_NS)
+    run(["nginx", "-c", NGINX_CONF], ns=SERVER_NS, bg=True)
     time.sleep(0.5)
 
     # Start mitigation daemon
@@ -359,7 +359,7 @@ def reset_between_scenarios():
     time.sleep(1)
 
     # Restart Nginx
-    run(["nginx", "-c", NGINX_CONF], ns=SERVER_NS)
+    run(["nginx", "-c", NGINX_CONF], ns=SERVER_NS, bg=True)
     time.sleep(0.5)
 
     # Restart mitigation daemon with a fresh log file
@@ -592,7 +592,7 @@ def kill_procs(procs):
             pass
         run("pkill -9 -f hping3", ns=ns)
         run("pkill -9 -f wrk", ns=ns)
-        run("pkill -9 -f python3", ns=ns)
+        run("pkill -9 -f _dist_", ns=ns)
 
 
 def _write_script(path, content):
