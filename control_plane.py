@@ -25,8 +25,8 @@ MODEL_PATH = "training_results/gru_ddos_model.pth"
 SCALER_PATH = "training_results/scaler.save"
 
 SEQUENCE_LENGTH = 15
-PREDICTION_THRESHOLD = 0.85
-
+PREDICTION_THRESHOLD = 0.95
+GRU_CONSECUTIVE_THRESH = 3
 # 6 ingress-observable features aligned with CICFlowMeter training data:
 #   [0] Flow Duration (µs)           — from XDP: ktime_ns delta
 #   [1] Total Fwd Packet (count)     — from XDP: packet_count
@@ -53,7 +53,7 @@ GLOBAL_SYN_THRESHOLD = 5000
 HEURISTIC_WINDOW = 10.0        # Sliding window in seconds
 HEURISTIC_MAX_RPS = 50         # Max requests per second before blocking
 HEURISTIC_ERROR_RATIO = 0.8    # Block if >80% of requests return 4xx/5xx
-HEURISTIC_MIN_REQUESTS = 5     # Minimum requests in window before evaluating
+HEURISTIC_MIN_REQUESTS = 10     # Minimum requests in window before evaluating
 
 # Eviction timeout for idle client tracking data (seconds)
 CLIENT_IDLE_TIMEOUT = 60.0
@@ -92,6 +92,8 @@ client_sequences = defaultdict(lambda: deque(maxlen=SEQUENCE_LENGTH))
 banned_ips = set()
 banned_ips_lock = threading.Lock()
 stop_event = threading.Event()
+# GRU consecutive violations tracker
+gru_violation_counts = defaultdict(int)
 
 # Track ban timestamps for TTL-based expiry
 ban_timestamps = {}
@@ -172,6 +174,7 @@ def evict_idle_clients():
     for ip_str in stale_ips:
         client_sequences.pop(ip_str, None)
         request_tracker.pop(ip_str, None)
+        gru_violation_counts.pop(ip_str, None)
         del client_last_seen[ip_str]
     if stale_ips:
         print(f"[GC] Evicted tracking data for {len(stale_ips)} idle client(s).")
@@ -329,15 +332,22 @@ def drain_inference_results():
                 continue
 
         if probability > PREDICTION_THRESHOLD:
-            print(f"\n[GRU] DETECTED ATTACK — IP: {client_ip} | "
-                  f"Confidence: {probability * 100:.1f}%")
-            ban_ip(client_ip,
-                   reason=f"GRU classifier ({probability * 100:.1f}% confidence)")
-            kill_zombie_connections(client_ip)
-            client_sequences.pop(client_ip, None)
-            request_tracker.pop(client_ip, None)
-            client_last_seen.pop(client_ip, None)
-
+            gru_violation_counts[client_ip] += 1
+            violations = gru_violation_counts[client_ip]
+            # verify if collected 3 sequences in a row to prevent false positives
+            if violations >= GRU_CONSECUTIVE_THRESH:
+                print(f"\n[GRU] DETECTED ATTACK — IP: {client_ip} | "
+                      f"Confidence: {probability * 100:.1f}%")
+                ban_ip(client_ip,
+                    reason=f"GRU classifier ({probability * 100:.1f}% confidence)")
+                kill_zombie_connections(client_ip)
+                client_sequences.pop(client_ip, None)
+                request_tracker.pop(client_ip, None)
+                client_last_seen.pop(client_ip, None)
+                gru_violation_counts.pop(client_ip, None)
+        else:
+            if client_ip in gru_violation_counts:
+                gru_violation_counts.pop(client_ip, None)
 
 def l3_l4_telemetry_monitor():
     """L3/L4 telemetry monitor — now also drives GRU inference.
@@ -417,7 +427,7 @@ def l3_l4_telemetry_monitor():
                 # --- Layer 3: eBPF connection-count heuristic (R.U.D.Y./Slowloris) ---
                 # If an IP has many active connections but very low packet rate,
                 # it's likely holding connections open without sending data.
-                if total_connections > 20 and flow_pps < 5.0:
+                if total_connections > 50 and flow_pps < 5.0:
                     print(f"\n[L4-DETECT] SLOW CONNECTION ABUSE - IP: {ip_str} | "
                           f"Connections: {total_connections} | PPS: {flow_pps:.1f}")
                     ban_ip(ip_str, reason=f"Slow connection abuse ({total_connections} conns, {flow_pps:.1f} pps)")
@@ -526,7 +536,7 @@ try:
                     error_count = sum(1 for _, err in entries if err)
                     error_ratio = error_count / len(entries)
 
-                    if rps > HEURISTIC_MAX_RPS or error_ratio > HEURISTIC_ERROR_RATIO:
+                    if rps > HEURISTIC_MAX_RPS or (error_ratio > HEURISTIC_ERROR_RATIO and rps > 10):
                         print(f"\n[HEURISTIC] L7 anomaly detected - IP: {client_ip} | "
                               f"RPS: {rps:.1f} | Error ratio: {error_ratio:.0%}")
                         ban_ip(client_ip,

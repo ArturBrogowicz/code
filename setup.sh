@@ -79,7 +79,7 @@ echo "[*] Installing Gunicorn inside venv..."
 ${PYTHON_VENV} -m pip install gunicorn >/dev/null 2>&1
 
 echo "[*] Starting multi-worker Gunicorn backend on port 8080..."
-ip netns exec server_ns nohup ${PYTHON_VENV} -m gunicorn --chdir ${PROJECT_DIR} --workers 4 --threads 10 -b 0.0.0.0:8080 dummy_app:app >/dev/null 2>&1 &
+ip netns exec server_ns nohup ${PYTHON_VENV} -m gunicorn --chdir ${PROJECT_DIR} --workers 8 --threads 4 -b 0.0.0.0:8080 dummy_app:app >/dev/null 2>&1 &
 
 echo "[*] Starting Nginx in isolated namespace..."
 ip netns exec server_ns nginx -c ${NGINX_CONF}

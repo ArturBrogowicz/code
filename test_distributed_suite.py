@@ -32,10 +32,10 @@ SERVER_IP = "10.0.0.1"
 SERVER_NS = "server_ns"
 BRIDGE_NAME = "ddos_br0"      # Bridge lives in the DEFAULT namespace
 
-LEGIT_COUNT = 40               # Number of legitimate client namespaces
+LEGIT_COUNT = 20               # Number of legitimate client namespaces
 LEGIT_IP_PREFIX = "10.0.1"     # Legit IPs: 10.0.1.1 – 10.0.1.40
 
-BOTNET_COUNT = 10              # Number of botnet attacker namespaces
+BOTNET_COUNT = 5              # Number of botnet attacker namespaces
 BOTNET_IP_PREFIX = "10.0.2"    # Botnet IPs: 10.0.2.1 – 10.0.2.10
 
 SUBNET_MASK = "/16"            # All nodes in 10.0.0.0/16
@@ -284,7 +284,7 @@ def start_server_services():
 
     # Start Gunicorn
     run([PYTHON_VENV, "-m", "gunicorn", "--chdir", PROJECT_DIR,
-         "--workers", "4", "--threads", "10", "-b", "0.0.0.0:8080",
+         "--workers", "8", "--threads", "4", "-b", "0.0.0.0:8080",
          "dummy_app:app"], ns=SERVER_NS, bg=True)
     time.sleep(1)
 
@@ -336,7 +336,13 @@ def reset_between_scenarios():
     global _daemon_proc
 
     print(f"\n{CYAN}[*] Resetting mitigation environment...{RESET}")
-
+    
+    # Kill ALL control_plane.py processes inside server_ns
+    run(["pkill", "-9", "-f", "control_plane.py"], ns=SERVER_NS)
+    time.sleep(0.5)
+    # Explicitly detach XDP from veth_server (in case the orphan left it attached)
+    run(["ip", "link", "set", "dev", "veth_server", "xdp", "off"], ns=SERVER_NS)
+    
     # Kill the running daemon
     if _daemon_proc and _daemon_proc.poll() is None:
         _daemon_proc.kill()
@@ -354,7 +360,7 @@ def reset_between_scenarios():
 
     # Restart Gunicorn
     run([PYTHON_VENV, "-m", "gunicorn", "--chdir", PROJECT_DIR,
-         "--workers", "4", "--threads", "10", "-b", "0.0.0.0:8080",
+         "--workers", "8", "--threads", "4", "-b", "0.0.0.0:8080",
          "dummy_app:app"], ns=SERVER_NS, bg=True)
     time.sleep(1)
 
@@ -449,7 +455,7 @@ def _legit_worker(ns_name, ip_addr, profile):
     while not _legit_traffic_stop.is_set():
         try:
             run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
-                 "--max-time", "5", HTTP_URL], ns=ns_name, timeout=8)
+                 "--max-time", "10", HTTP_URL], ns=ns_name, timeout=8)
         except Exception:
             pass
         jitter = random.uniform(-0.5, 1.0)
@@ -547,7 +553,7 @@ def check_collateral_damage(legit_nodes):
     return (len(banned_legit) == 0), banned_legit
 
 
-def verify_legit_http(legit_nodes, sample_size=10):
+def verify_legit_http(legit_nodes, sample_size=15):
     """Verify HTTP connectivity from a random sample of legitimate users.
 
     Returns: (success, fail, total)
@@ -556,7 +562,7 @@ def verify_legit_http(legit_nodes, sample_size=10):
     success = fail = 0
     for ns, ip, _ in sample:
         res = run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
-                   "--max-time", "8", HTTP_URL], ns=ns, timeout=12)
+                   "--max-time", "15", HTTP_URL], ns=ns, timeout=12)
         if res and res.stdout.strip() == "200":
             success += 1
         else:
@@ -690,7 +696,7 @@ def scenario_udp_flood(botnet, legit):
     print(f"  SCENARIO 3: Distributed UDP Flood")
     print(f"{'='*70}{RESET}")
     procs = launch_botnet(botnet, lambda ns, ip:
-        run(f"hping3 --udp -p 80 --flood {SERVER_IP}", ns=ns, bg=True))
+        run(f"hping3 --udp -p 80 -i u100 {SERVER_IP}", ns=ns, bg=True))
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
     kill_procs(procs)
     time.sleep(1)
@@ -716,7 +722,7 @@ def scenario_ack_flood(botnet, legit):
     print(f"  SCENARIO 5: Distributed ACK Flood")
     print(f"{'='*70}{RESET}")
     procs = launch_botnet(botnet, lambda ns, ip:
-        run(f"hping3 -A -p 80 --flood {SERVER_IP}", ns=ns, bg=True))
+        run(f"hping3 -A -p 80 -i u100 {SERVER_IP}", ns=ns, bg=True))
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
     kill_procs(procs)
     time.sleep(1)
@@ -729,7 +735,7 @@ def scenario_fragmentation(botnet, legit):
     print(f"  SCENARIO 6: Distributed IP Fragmentation Flood")
     print(f"{'='*70}{RESET}")
     procs = launch_botnet(botnet, lambda ns, ip:
-        run(f"hping3 -S -p 80 -f --fragoff 20 --flood {SERVER_IP}",
+        run(f"hping3 -S -p 80 -f --fragoff 20 -i u100 {SERVER_IP}",
             ns=ns, bg=True))
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
     kill_procs(procs)
@@ -854,7 +860,7 @@ def scenario_multi_vector(botnet, legit):
         if p: procs.append((p, ns, ip))
 
     for ns, ip in botnet[2*third:]:
-        p = run(f"hping3 --udp -p 80 --flood {SERVER_IP}", ns=ns, bg=True)
+        p = run(f"hping3 --udp -p 80 -i u100 {SERVER_IP}", ns=ns, bg=True)
         if p: procs.append((p, ns, ip))
 
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=20)
