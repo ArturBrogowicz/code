@@ -99,32 +99,39 @@ def cleanup_all():
 
     print(f"\n{YELLOW}[*] Cleaning up all namespaces and processes...{RESET}")
 
-    # Kill daemon and services
-    subprocess.run(["pkill", "-f", "control_plane.py"], capture_output=True)
-    subprocess.run(["pkill", "-f", "gunicorn"], capture_output=True)
-    subprocess.run(["pkill", "-f", "nginx: master process"], capture_output=True)
+    # Kill ALL mitigation-related processes system-wide
+    subprocess.run(["pkill", "-9", "-f", "control_plane.py"], capture_output=True)
+    subprocess.run(["pkill", "-9", "-f", "gunicorn"], capture_output=True)
+    subprocess.run(["pkill", "-9", "-f", "nginx: master"], capture_output=True)
+    subprocess.run(["pkill", "-9", "-f", "hping3"], capture_output=True)
+    subprocess.run(["pkill", "-9", "-f", "_dist_"], capture_output=True)
+    subprocess.run(["pkill", "-9", "-f", "wrk"], capture_output=True)
     if _daemon_proc and _daemon_proc.poll() is None:
         _daemon_proc.kill()
         _daemon_proc.wait()
-        _daemon_proc = None
-
-    # Kill attack tools in every namespace before deleting them
-    for ns in list(_all_created_ns):
-        run("pkill -9 -f hping3", ns=ns)
-        run("pkill -9 -f slowloris", ns=ns)
-        run("pkill -9 -f rudy", ns=ns)
-        run("pkill -9 -f wrk", ns=ns)
-        run("pkill -9 -f _dist_", ns=ns)
-
-    # Delete namespaces (automatically removes veths inside them)
-    for ns in list(_all_created_ns):
-        subprocess.run(["ip", "netns", "del", ns],
-                       capture_output=True, timeout=10)
+    _daemon_proc = None
+    time.sleep(0.5)
+    # Nuclear: find and delete ALL namespaces matching our patterns
+    result = subprocess.run(["ip", "netns", "list"], capture_output=True, text=True)
+    if result and result.stdout:
+        for line in result.stdout.strip().split("\n"):
+            ns = line.split()[0] if line.strip() else ""
+            if ns.startswith(("server_ns", "legit_", "bot_")):
+                subprocess.run(["ip", "netns", "del", ns],
+                               capture_output=True, timeout=10)
     _all_created_ns.clear()
-
-    # Delete the bridge (host namespace)
+    # Delete the bridge
     subprocess.run(["ip", "link", "del", BRIDGE_NAME],
                    capture_output=True, timeout=5)
+    # Also delete orphaned veth interfaces
+    result = subprocess.run(["ip", "link", "show"], capture_output=True, text=True)
+    if result and result.stdout:
+        for line in result.stdout.split("\n"):
+            for prefix in ["vo_legit_", "vo_bot_", "veth_srv_br"]:
+                if prefix in line:
+                    iface = line.split(":")[1].strip().split("@")[0]
+                    subprocess.run(["ip", "link", "del", iface],
+                                   capture_output=True, timeout=5)
 
     try:
         os.remove(LOG_FILE)
@@ -455,7 +462,7 @@ def _legit_worker(ns_name, ip_addr, profile):
     while not _legit_traffic_stop.is_set():
         try:
             run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
-                 "--max-time", "10", HTTP_URL], ns=ns_name, timeout=8)
+                 "--max-time", "10", HTTP_URL], ns=ns_name, timeout=15)
         except Exception:
             pass
         jitter = random.uniform(-0.5, 1.0)
@@ -562,7 +569,7 @@ def verify_legit_http(legit_nodes, sample_size=15):
     success = fail = 0
     for ns, ip, _ in sample:
         res = run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
-                   "--max-time", "15", HTTP_URL], ns=ns, timeout=12)
+                   "--max-time", "15", HTTP_URL], ns=ns, timeout=20)
         if res and res.stdout.strip() == "200":
             success += 1
         else:
@@ -696,7 +703,7 @@ def scenario_udp_flood(botnet, legit):
     print(f"  SCENARIO 3: Distributed UDP Flood")
     print(f"{'='*70}{RESET}")
     procs = launch_botnet(botnet, lambda ns, ip:
-        run(f"hping3 --udp -p 80 -i u100 {SERVER_IP}", ns=ns, bg=True))
+        run(f"hping3 --udp -p 80 --flood {SERVER_IP}", ns=ns, bg=True))
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
     kill_procs(procs)
     time.sleep(1)
@@ -722,7 +729,7 @@ def scenario_ack_flood(botnet, legit):
     print(f"  SCENARIO 5: Distributed ACK Flood")
     print(f"{'='*70}{RESET}")
     procs = launch_botnet(botnet, lambda ns, ip:
-        run(f"hping3 -A -p 80 -i u100 {SERVER_IP}", ns=ns, bg=True))
+        run(f"hping3 -A -p 80 --flood {SERVER_IP}", ns=ns, bg=True))
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
     kill_procs(procs)
     time.sleep(1)
@@ -735,7 +742,7 @@ def scenario_fragmentation(botnet, legit):
     print(f"  SCENARIO 6: Distributed IP Fragmentation Flood")
     print(f"{'='*70}{RESET}")
     procs = launch_botnet(botnet, lambda ns, ip:
-        run(f"hping3 -S -p 80 -f --fragoff 20 -i u100 {SERVER_IP}",
+        run(f"hping3 -S -p 80 -f --fragoff 20 --flood {SERVER_IP}",
             ns=ns, bg=True))
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
     kill_procs(procs)
@@ -860,7 +867,7 @@ def scenario_multi_vector(botnet, legit):
         if p: procs.append((p, ns, ip))
 
     for ns, ip in botnet[2*third:]:
-        p = run(f"hping3 --udp -p 80 -i u100 {SERVER_IP}", ns=ns, bg=True)
+        p = run(f"hping3 --udp -p 80 --flood {SERVER_IP}", ns=ns, bg=True)
         if p: procs.append((p, ns, ip))
 
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=20)
