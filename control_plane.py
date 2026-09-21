@@ -379,7 +379,7 @@ def l3_l4_telemetry_monitor():
         # Collect keys during iteration, delete individually after processing
         # to avoid the TOCTOU race where clear() drops newly-added entries.
         processed_keys = []
-        now_ns = time.time_ns()
+        now_ns = time.monotonic_ns()
 
         for key, per_cpu_values in telemetry_map.items():
             ip_str = network_bytes_to_ip(key.value)
@@ -427,10 +427,14 @@ def l3_l4_telemetry_monitor():
                 # --- Layer 3: eBPF connection-count heuristic (R.U.D.Y./Slowloris) ---
                 # If an IP has many active connections but very low packet rate,
                 # it's likely holding connections open without sending data.
-                if total_connections > 7 and flow_pps < 20.0:
+                # NOTE: Use total_pkts / L4_POLL_INTERVAL (stable per-interval
+                # rate) instead of flow_pps (which depends on sub-second timing
+                # within the interval and can be artificially inflated).
+                interval_pps = total_pkts / L4_POLL_INTERVAL
+                if total_connections > 7 and interval_pps < 20.0:
                     print(f"\n[L4-DETECT] SLOW CONNECTION ABUSE - IP: {ip_str} | "
-                          f"Connections: {total_connections} | PPS: {flow_pps:.1f}")
-                    ban_ip(ip_str, reason=f"Slow connection abuse ({total_connections} conns, {flow_pps:.1f} pps)")
+                          f"Connections: {total_connections} | PPS: {interval_pps:.1f}")
+                    ban_ip(ip_str, reason=f"Slow connection abuse ({total_connections} conns, {interval_pps:.1f} pps)")
                     kill_zombie_connections(ip_str)
                     continue
 

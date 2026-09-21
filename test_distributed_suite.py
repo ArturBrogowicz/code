@@ -494,7 +494,7 @@ def stop_legit_traffic():
 
 def is_ip_banned(ns_name):
     """Check if an IP is blocked by XDP by pinging the server from its ns."""
-    res = run(f"ping -c 1 -W 1 {SERVER_IP}", ns=ns_name, timeout=5)
+    res = run(f"ping -c 2 -W 2 {SERVER_IP}", ns=ns_name, timeout=10)
     if res is None:
         return True
     return res.returncode != 0
@@ -680,7 +680,7 @@ def scenario_syn_flood(botnet, legit):
         run(f"hping3 -S -p 80 -i u1000 {SERVER_IP}", ns=ns, bg=True))
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
     kill_procs(procs)
-    time.sleep(1)
+    time.sleep(3)
     report("Distributed SYN Flood", bans, botnet, legit)
 
 
@@ -693,7 +693,7 @@ def scenario_slow_syn(botnet, legit):
         run(f"hping3 -S -p 80 -i u100000 {SERVER_IP}", ns=ns, bg=True))
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=30)
     kill_procs(procs)
-    time.sleep(1)
+    time.sleep(3)
     report("Distributed Low & Slow SYN", bans, botnet, legit)
 
 
@@ -706,7 +706,7 @@ def scenario_udp_flood(botnet, legit):
         run(f"hping3 --udp -p 80 --flood {SERVER_IP}", ns=ns, bg=True))
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
     kill_procs(procs)
-    time.sleep(1)
+    time.sleep(3)
     report("Distributed UDP Flood", bans, botnet, legit)
 
 
@@ -719,7 +719,7 @@ def scenario_http_flood(botnet, legit):
         run(f"wrk -t2 -c50 -d30s {HTTP_URL}", ns=ns, bg=True))
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=15)
     kill_procs(procs)
-    time.sleep(1)
+    time.sleep(3)
     report("Distributed HTTP Flood", bans, botnet, legit)
 
 
@@ -732,7 +732,7 @@ def scenario_ack_flood(botnet, legit):
         run(f"hping3 -A -p 80 --flood {SERVER_IP}", ns=ns, bg=True))
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
     kill_procs(procs)
-    time.sleep(1)
+    time.sleep(3)
     report("Distributed ACK Flood", bans, botnet, legit)
 
 
@@ -746,7 +746,7 @@ def scenario_fragmentation(botnet, legit):
             ns=ns, bg=True))
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
     kill_procs(procs)
-    time.sleep(1)
+    time.sleep(3)
     report("Distributed Fragmentation", bans, botnet, legit)
 
 
@@ -784,7 +784,7 @@ while True:
         run(f"python3 {script}", ns=ns, bg=True))
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=40)
     kill_procs(procs)
-    time.sleep(1)
+    time.sleep(3)
     report("Distributed Slowloris", bans, botnet, legit)
 
 
@@ -823,7 +823,7 @@ while True:
         run(f"python3 {script}", ns=ns, bg=True))
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=40)
     kill_procs(procs)
-    time.sleep(1)
+    time.sleep(3)
     report("Distributed R.U.D.Y.", bans, botnet, legit)
 
 
@@ -844,7 +844,7 @@ done
         run(f"bash {script}", ns=ns, bg=True))
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=25)
     kill_procs(procs)
-    time.sleep(1)
+    time.sleep(3)
     report("Distributed Yo-Yo", bans, botnet, legit)
 
 
@@ -872,7 +872,7 @@ def scenario_multi_vector(botnet, legit):
 
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=20)
     kill_procs(procs)
-    time.sleep(1)
+    time.sleep(3)
     report("Multi-Vector Attack", bans, botnet, legit)
 
 
