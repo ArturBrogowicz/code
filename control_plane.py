@@ -53,7 +53,7 @@ GLOBAL_SYN_THRESHOLD = 5000
 HEURISTIC_WINDOW = 10.0        # Sliding window in seconds
 HEURISTIC_MAX_RPS = 50         # Max requests per second before blocking
 HEURISTIC_ERROR_RATIO = 0.8    # Block if >80% of requests return 4xx/5xx
-HEURISTIC_MIN_REQUESTS = 10     # Minimum requests in window before evaluating
+HEURISTIC_MIN_REQUESTS = 5     # Minimum requests in window before evaluating
 
 # Eviction timeout for idle client tracking data (seconds)
 CLIENT_IDLE_TIMEOUT = 60.0
@@ -427,7 +427,7 @@ def l3_l4_telemetry_monitor():
                 # --- Layer 3: eBPF connection-count heuristic (R.U.D.Y./Slowloris) ---
                 # If an IP has many active connections but very low packet rate,
                 # it's likely holding connections open without sending data.
-                if total_connections > 50 and flow_pps < 5.0:
+                if total_connections > 7 and flow_pps < 20.0:
                     print(f"\n[L4-DETECT] SLOW CONNECTION ABUSE - IP: {ip_str} | "
                           f"Connections: {total_connections} | PPS: {flow_pps:.1f}")
                     ban_ip(ip_str, reason=f"Slow connection abuse ({total_connections} conns, {flow_pps:.1f} pps)")
@@ -519,7 +519,8 @@ try:
             # --- L7 Heuristic: rate + error ratio detection ---
             now = time.time()
             status = int(log_data.get("status", 200))
-            is_error = status >= 400
+            # 503 is the backend saying it's overloaded, so we don't count that as an attack from the client
+            is_error = status >= 400 and status != 503
 
             request_tracker[client_ip].append((now, is_error))
 
