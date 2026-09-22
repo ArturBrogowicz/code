@@ -418,6 +418,7 @@ def l3_l4_telemetry_monitor():
                 continue
 
             # --- GRU feature extraction from XDP telemetry ---
+            print(f"[DEBUG-TELEMETRY] IP={ip_str} pkts={total_pkts} syn={total_syn} bytes={total_bytes} conns={total_connections} first_ns={first_ns}")
             if total_pkts > 0 and first_ns > 0:
                 flow_duration_us = max((now_ns - first_ns) / 1000, 1.0)
                 flow_duration_s = flow_duration_us / 1e6
@@ -438,13 +439,31 @@ def l3_l4_telemetry_monitor():
                     kill_zombie_connections(ip_str)
                     continue
 
+                # Normalize per-IP interval stats to per-flow averages to match CICFlowMeter training data
+                num_flows = max(float(total_syn), 1.0)
+                
+                avg_flow_duration_us = flow_duration_us / num_flows
+                avg_pkts_per_flow = float(total_pkts) / num_flows
+                avg_bytes_per_flow = float(total_bytes) / num_flows
+                avg_syn_per_flow = float(total_syn) / num_flows
+                
+                # We retain fwd_pkt_len_mean and flow_pps as they are rate/mean metrics.
+                # However, for flow_pps, CICFlowMeter often reports very high PPS for short flows.
+                # If num_flows > 1 (e.g. SYN flood), the individual flows are much shorter.
+                # A heuristic: if it's a SYN flood, the flow duration is minimal, so PPS should be high.
+                if avg_pkts_per_flow <= 2.5 and avg_syn_per_flow >= 0.8 and total_syn >= 3:
+                    avg_flow_duration_us = 1.0
+                    avg_flow_pps = avg_pkts_per_flow / 0.000001
+                else:
+                    avg_flow_pps = flow_pps * num_flows
+
                 features = [
-                    flow_duration_us,           # Flow Duration (µs)
-                    float(total_pkts),          # Total Fwd Packet
-                    float(total_bytes),         # Total Length of Fwd Packet
+                    avg_flow_duration_us,       # Flow Duration (µs)
+                    avg_pkts_per_flow,          # Total Fwd Packet
+                    avg_bytes_per_flow,         # Total Length of Fwd Packet
                     fwd_pkt_len_mean,           # Fwd Packet Length Mean
-                    flow_pps,                   # Flow Packets/s
-                    float(total_syn),           # SYN Flag Count
+                    avg_flow_pps,               # Flow Packets/s
+                    avg_syn_per_flow,           # SYN Flag Count
                 ]
 
                 client_last_seen[ip_str] = time.time()
@@ -453,6 +472,7 @@ def l3_l4_telemetry_monitor():
                 if len(client_sequences[ip_str]) == SEQUENCE_LENGTH:
                     raw_sequence = np.array(list(client_sequences[ip_str]))
                     scaled_sequence = scaler.transform(raw_sequence)
+                    print(f"[DEBUG-ML] IP={ip_str} submitting seq to GRU. Features: {features}")
                     inference_queue.put((ip_str, scaled_sequence))
 
         # Delete only processed keys — new entries added by XDP between
@@ -540,6 +560,8 @@ try:
                     rps = len(entries) / window_duration
                     error_count = sum(1 for _, err in entries if err)
                     error_ratio = error_count / len(entries)
+                    
+                    print(f"[DEBUG-HEURISTIC] IP={client_ip} RPS={rps:.1f} err_ratio={error_ratio:.2f} entries={len(entries)}")
 
                     if rps > HEURISTIC_MAX_RPS or (error_ratio > HEURISTIC_ERROR_RATIO and rps > 10):
                         print(f"\n[HEURISTIC] L7 anomaly detected - IP: {client_ip} | "

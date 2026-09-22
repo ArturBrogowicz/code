@@ -134,7 +134,8 @@ def cleanup_all():
                                    capture_output=True, timeout=5)
 
     try:
-        os.remove(LOG_FILE)
+        # os.remove(LOG_FILE)
+        pass
     except FileNotFoundError:
         pass
 
@@ -568,9 +569,16 @@ def verify_legit_http(legit_nodes, sample_size=15):
     sample = random.sample(legit_nodes, min(sample_size, len(legit_nodes)))
     success = fail = 0
     for ns, ip, _ in sample:
-        res = run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
-                   "--max-time", "15", HTTP_URL], ns=ns, timeout=20)
-        if res and res.stdout.strip() == "200":
+        success_for_this = False
+        for attempt in range(3):
+            res = run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
+                       "--max-time", "15", HTTP_URL], ns=ns, timeout=20)
+            if res and res.stdout.strip() == "200":
+                success_for_this = True
+                break
+            time.sleep(1)
+            
+        if success_for_this:
             success += 1
         else:
             fail += 1

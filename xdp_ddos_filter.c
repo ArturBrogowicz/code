@@ -40,6 +40,7 @@ int xdp_ddos_mitigation(struct xdp_md *ctx) {
 
     if (drop_counter) {
         lock_xadd(drop_counter, 1);
+        bpf_trace_printk("[XDP] DROPPED packet from %x\\n", src_ip);
         return XDP_DROP;
     }
 
@@ -84,6 +85,9 @@ int xdp_ddos_mitigation(struct xdp_md *ctx) {
         if (is_fin_rst && tel->active_connections > 0) {
             tel->active_connections -= 1;
         }
+        
+        bpf_trace_printk("[XDP] src=%x pkts=%llu bytes=%llu\\n", src_ip, tel->packet_count, tel->byte_count);
+        bpf_trace_printk("[XDP] src=%x syn=%llu conns=%llu\\n", src_ip, tel->syn_count, tel->active_connections);
     }
 
     return XDP_PASS;
