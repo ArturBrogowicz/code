@@ -133,7 +133,16 @@ def ban_ip(ip_str, reason="unknown"):
     Centralizes the ban logic so every code path (GRU, heuristic, L4)
     consistently updates both the XDP blacklist and the internal tracking sets.
     """
-    block_ip_in_xdp(ip_str)
+    backend = os.environ.get("MITIGATION_BACKEND", "xdp")
+    if backend == "iptables":
+        try:
+            subprocess.run(["ip", "netns", "exec", "server_ns", "iptables", "-A", "INPUT", "-s", ip_str, "-j", "DROP"], check=True)
+            print(f"[IPTABLES] BLOCKED IP: {ip_str}. Rule is active on software firewall.")
+        except Exception as e:
+            print(f"[-] Failed to block {ip_str} via iptables: {e}")
+    else:
+        block_ip_in_xdp(ip_str)
+        
     with banned_ips_lock:
         banned_ips.add(ip_str)
         ban_timestamps[ip_str] = time.time()
@@ -150,12 +159,20 @@ def unblock_expired_bans():
         expired = [ip for ip, ts in ban_timestamps.items()
                    if now - ts > BAN_TTL_SECONDS]
         for ip_str in expired:
-            try:
-                ip_int = ip_to_network_bytes(ip_str)
-                del blacklist_map[blacklist_map.Key(ip_int)]
-                print(f"[TTL] Unblocked IP: {ip_str} (ban expired after {BAN_TTL_SECONDS}s)")
-            except KeyError:
-                pass
+            backend = os.environ.get("MITIGATION_BACKEND", "xdp")
+            if backend == "iptables":
+                try:
+                    subprocess.run(["ip", "netns", "exec", "server_ns", "iptables", "-D", "INPUT", "-s", ip_str, "-j", "DROP"], check=False)
+                    print(f"[TTL] Unblocked IP: {ip_str} (iptables ban expired after {BAN_TTL_SECONDS}s)")
+                except Exception:
+                    pass
+            else:
+                try:
+                    ip_int = ip_to_network_bytes(ip_str)
+                    del blacklist_map[blacklist_map.Key(ip_int)]
+                    print(f"[TTL] Unblocked IP: {ip_str} (ban expired after {BAN_TTL_SECONDS}s)")
+                except KeyError:
+                    pass
             banned_ips.discard(ip_str)
             del ban_timestamps[ip_str]
 

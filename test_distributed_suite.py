@@ -310,7 +310,8 @@ def start_server_services():
     except FileNotFoundError:
         pass
 
-    cmd = ["ip", "netns", "exec", SERVER_NS, PYTHON_VENV, "-u", CONTROL_PLANE]
+    backend = os.environ.get("MITIGATION_BACKEND", "xdp")
+    cmd = ["ip", "netns", "exec", SERVER_NS, "env", f"MITIGATION_BACKEND={backend}", PYTHON_VENV, "-u", CONTROL_PLANE]
     log_fd = open(LOG_FILE, "w")
     _daemon_proc = subprocess.Popen(cmd, stdout=log_fd, stderr=subprocess.STDOUT)
 
@@ -354,6 +355,8 @@ def reset_between_scenarios():
     time.sleep(0.5)
     # Explicitly detach XDP from veth_server (in case the orphan left it attached)
     run(["ip", "link", "set", "dev", "veth_server", "xdp", "off"], ns=SERVER_NS)
+    # Flush any leftover iptables rules if in comparative baseline mode
+    run(["iptables", "-F"], ns=SERVER_NS)
     
     # Kill the running daemon
     if _daemon_proc and _daemon_proc.poll() is None:
@@ -386,7 +389,8 @@ def reset_between_scenarios():
     except FileNotFoundError:
         pass
 
-    cmd = ["ip", "netns", "exec", SERVER_NS, PYTHON_VENV, "-u", CONTROL_PLANE]
+    backend = os.environ.get("MITIGATION_BACKEND", "xdp")
+    cmd = ["ip", "netns", "exec", SERVER_NS, "env", f"MITIGATION_BACKEND={backend}", PYTHON_VENV, "-u", CONTROL_PLANE]
     log_fd = open(LOG_FILE, "w")
     _daemon_proc = subprocess.Popen(cmd, stdout=log_fd, stderr=subprocess.STDOUT)
 
@@ -602,7 +606,8 @@ def capture_metrics(scenario, phase):
         bps = rx_b2 - rx_b1
         
         # 4. Save to CSV
-        csv_file = "/tmp/mitigation_performance.csv"
+        backend = os.environ.get("MITIGATION_BACKEND", "xdp")
+        csv_file = "/tmp/metrics_iptables.csv" if backend == "iptables" else "/tmp/mitigation_performance.csv"
         file_exists = os.path.isfile(csv_file)
         with open(csv_file, "a", newline='') as f:
             writer = csv.writer(f)
