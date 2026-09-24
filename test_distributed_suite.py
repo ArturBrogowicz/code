@@ -310,32 +310,36 @@ def start_server_services():
     except FileNotFoundError:
         pass
 
-    backend = os.environ.get("MITIGATION_BACKEND", "xdp")
-    cmd = ["ip", "netns", "exec", SERVER_NS, "env", f"MITIGATION_BACKEND={backend}", PYTHON_VENV, "-u", CONTROL_PLANE]
-    log_fd = open(LOG_FILE, "w")
-    _daemon_proc = subprocess.Popen(cmd, stdout=log_fd, stderr=subprocess.STDOUT)
+    if os.environ.get("MITIGATION_MODE") != "none":
+        backend = os.environ.get("MITIGATION_BACKEND", "xdp")
+        cmd = ["ip", "netns", "exec", SERVER_NS, "env", f"MITIGATION_BACKEND={backend}", PYTHON_VENV, "-u", CONTROL_PLANE]
+        log_fd = open(LOG_FILE, "w")
+        _daemon_proc = subprocess.Popen(cmd, stdout=log_fd, stderr=subprocess.STDOUT)
 
-    # Wait for readiness
-    print("[*] Waiting for mitigation daemon to initialize...", end="", flush=True)
-    start = time.time()
-    ready = False
-    while time.time() - start < 60:
-        try:
-            with open(LOG_FILE, "r") as f:
-                if "Listening for Nginx logs" in f.read():
-                    ready = True
-                    break
-        except FileNotFoundError:
-            pass
-        print(".", end="", flush=True)
-        time.sleep(0.5)
-    print()
+        # Wait for readiness
+        print("[*] Waiting for mitigation daemon to initialize...", end="", flush=True)
+        start = time.time()
+        ready = False
+        while time.time() - start < 60:
+            try:
+                with open(LOG_FILE, "r") as f:
+                    if "Listening for Nginx logs" in f.read():
+                        ready = True
+                        break
+            except FileNotFoundError:
+                pass
+            print(".", end="", flush=True)
+            time.sleep(0.5)
+        print()
 
-    if not ready:
-        print(f"{RED}[!] Daemon did not report ready within 60s!{RESET}")
+        if not ready:
+            print(f"{RED}[!] Daemon did not report ready within 60s!{RESET}")
+        else:
+            print(f"{GREEN}[+] Mitigation daemon is ready.{RESET}")
+            time.sleep(2)
     else:
-        print(f"{GREEN}[+] Mitigation daemon is ready.{RESET}")
-        time.sleep(2)
+        print(f"{YELLOW}[!] MITIGATION_MODE=none: Server is running UNPROTECTED.{RESET}")
+        time.sleep(1)
 
 
 def reset_between_scenarios():
@@ -389,27 +393,31 @@ def reset_between_scenarios():
     except FileNotFoundError:
         pass
 
-    backend = os.environ.get("MITIGATION_BACKEND", "xdp")
-    cmd = ["ip", "netns", "exec", SERVER_NS, "env", f"MITIGATION_BACKEND={backend}", PYTHON_VENV, "-u", CONTROL_PLANE]
-    log_fd = open(LOG_FILE, "w")
-    _daemon_proc = subprocess.Popen(cmd, stdout=log_fd, stderr=subprocess.STDOUT)
+    if os.environ.get("MITIGATION_MODE") != "none":
+        backend = os.environ.get("MITIGATION_BACKEND", "xdp")
+        cmd = ["ip", "netns", "exec", SERVER_NS, "env", f"MITIGATION_BACKEND={backend}", PYTHON_VENV, "-u", CONTROL_PLANE]
+        log_fd = open(LOG_FILE, "w")
+        _daemon_proc = subprocess.Popen(cmd, stdout=log_fd, stderr=subprocess.STDOUT)
 
-    # Wait for readiness
-    start = time.time()
-    while time.time() - start < 30:
-        try:
-            with open(LOG_FILE, "r") as f:
-                if "Listening for Nginx logs" in f.read():
-                    break
-        except FileNotFoundError:
-            pass
-        time.sleep(0.5)
+        # Wait for readiness
+        start = time.time()
+        while time.time() - start < 30:
+            try:
+                with open(LOG_FILE, "r") as f:
+                    if "Listening for Nginx logs" in f.read():
+                        break
+            except FileNotFoundError:
+                pass
+            time.sleep(0.5)
+        else:
+            print(f"{RED}[!] Daemon did not restart within 30s!{RESET}")
+            return
+
+        time.sleep(1)
+        print(f"{GREEN}[+] Environment reset complete.{RESET}")
     else:
-        print(f"{RED}[!] Daemon did not restart within 30s!{RESET}")
-        return
-
-    time.sleep(1)
-    print(f"{GREEN}[+] Environment reset complete.{RESET}")
+        print(f"{YELLOW}[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).{RESET}")
+        time.sleep(1)
 
 
 def build_topology():
@@ -606,8 +614,14 @@ def capture_metrics(scenario, phase):
         bps = rx_b2 - rx_b1
         
         # 4. Save to CSV
+        mode = os.environ.get("MITIGATION_MODE", "active")
         backend = os.environ.get("MITIGATION_BACKEND", "xdp")
-        csv_file = "/tmp/metrics_iptables.csv" if backend == "iptables" else "/tmp/mitigation_performance.csv"
+        if mode == "none":
+            csv_file = "/tmp/metrics_unprotected.csv"
+        elif backend == "iptables":
+            csv_file = "/tmp/metrics_iptables.csv"
+        else:
+            csv_file = "/tmp/mitigation_performance.csv"
         file_exists = os.path.isfile(csv_file)
         with open(csv_file, "a", newline='') as f:
             writer = csv.writer(f)
