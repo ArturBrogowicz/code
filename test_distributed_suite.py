@@ -47,6 +47,7 @@ HTTP_URL = f"http://{SERVER_IP}/"
 
 PROJECT_DIR = "/home/artur/DDoS-mitigation/code"
 NGINX_CONF = f"{PROJECT_DIR}/nginx.conf"
+NGINX_UNPROTECTED_CONF = f"{PROJECT_DIR}/nginx_unprotected.conf"
 CONTROL_PLANE = f"{PROJECT_DIR}/control_plane.py"
 PYTHON_VENV = f"{PROJECT_DIR}/venv/bin/python"
 LOG_FILE = "/tmp/mitigation_distributed_test.log"
@@ -67,7 +68,7 @@ _all_created_ns = []           # Track for cleanup
 _legit_traffic_stop = threading.Event()
 _legit_threads = []
 _daemon_proc = None
-
+csv_lock = threading.Lock()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  SHELL HELPER
@@ -301,7 +302,9 @@ def start_server_services():
     time.sleep(1)
 
     # Start Nginx
-    run(["nginx", "-c", NGINX_CONF], ns=SERVER_NS, bg=True)
+    mode = os.environ.get("MITIGATION_MODE", "active")
+    active_conf = NGINX_UNPROTECTED_CONF if mode == "none" else NGINX_CONF
+    run(["nginx", "-c", active_conf], ns=SERVER_NS, bg=True)
     time.sleep(0.5)
 
     # Start mitigation daemon
@@ -384,7 +387,9 @@ def reset_between_scenarios():
     time.sleep(1)
 
     # Restart Nginx
-    run(["nginx", "-c", NGINX_CONF], ns=SERVER_NS, bg=True)
+    mode = os.environ.get("MITIGATION_MODE", "active")
+    active_conf = NGINX_UNPROTECTED_CONF if mode == "none" else NGINX_CONF
+    run(["nginx", "-c", active_conf], ns=SERVER_NS, bg=True)
     time.sleep(0.5)
 
     # Restart mitigation daemon with a fresh log file
@@ -552,8 +557,8 @@ def _classify_engine(line):
     """Classify the detection engine from a [BAN] log line."""
     if "SYN flood" in line:
         return "L4 SYN"
-    if "UDP" in line:
-        return "L4 UDP"
+    if "Volumetric" in line:
+        return "L4 Volumetric"
     if "R.U.D.Y." in line:
         return "L7 R.U.D.Y."
     if "Slow connection" in line:
@@ -567,80 +572,82 @@ def _classify_engine(line):
 
 
 def capture_metrics(scenario, phase):
-    try:
-        # 1. CPU & RAM
-        cpu_total = psutil.cpu_percent(interval=None)
-        mem_total = psutil.virtual_memory().used / (1024 * 1024)
-        
-        daemon_cpu = 0.0
-        daemon_ram = 0.0
-        nginx_cpu = 0.0
-
-        for p in psutil.process_iter(['name', 'cmdline']):
-            try:
-                cmdline = ' '.join(p.info['cmdline'] or [])
-                if "control_plane.py" in cmdline and "ip netns exec" not in cmdline:
-                    daemon_cpu += p.cpu_percent(interval=None)
-                    daemon_ram += p.memory_info().rss / (1024 * 1024)
-                elif "nginx: worker process" in cmdline:
-                    nginx_cpu += p.cpu_percent(interval=None)
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-
-        # 2. TCP State (Server NS)
-        tcp_estab = tcp_tw = tcp_syn = 0
-        ss_res = run(["ss", "-tan"], ns=SERVER_NS)
-        if ss_res and ss_res.stdout:
-            tcp_estab = ss_res.stdout.count("ESTAB")
-            tcp_tw = ss_res.stdout.count("TIME-WAIT")
-            tcp_syn = ss_res.stdout.count("SYN-RECV")
-
-        # 3. Throughput (PPS/Bps)
-        def read_stats():
-            try:
-                res_p = run(["cat", "/sys/class/net/veth_server/statistics/rx_packets"], ns=SERVER_NS)
-                res_b = run(["cat", "/sys/class/net/veth_server/statistics/rx_bytes"], ns=SERVER_NS)
-                rx_p = int(res_p.stdout.strip())
-                rx_b = int(res_b.stdout.strip())
-                return rx_p, rx_b
-            except:
-                return 0, 0
-                
-        rx_p1, rx_b1 = read_stats()
-        time.sleep(1.0)
-        rx_p2, rx_b2 = read_stats()
-        
-        pps = rx_p2 - rx_p1
-        bps = rx_b2 - rx_b1
-        
-        # 4. Save to CSV
-        mode = os.environ.get("MITIGATION_MODE", "active")
-        backend = os.environ.get("MITIGATION_BACKEND", "xdp")
-        if mode == "none":
-            csv_file = "/tmp/metrics_unprotected.csv"
-        elif backend == "iptables":
-            csv_file = "/tmp/metrics_iptables.csv"
-        else:
-            csv_file = "/tmp/mitigation_performance.csv"
-        file_exists = os.path.isfile(csv_file)
-        with open(csv_file, "a", newline='') as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow(["Timestamp", "Scenario", "Phase", "CPU_Total_Pct", 
-                                 "CPU_Daemon_Pct", "CPU_Nginx_Pct", "RAM_Total_MB", 
-                                 "RAM_Daemon_MB", "TCP_Estab", "TCP_TimeWait", 
-                                 "TCP_SynRecv", "PPS_Rx", "Bps_Rx"])
-            writer.writerow([
-                datetime.datetime.now().isoformat(),
-                scenario, phase,
-                f"{cpu_total:.1f}", f"{daemon_cpu:.1f}", f"{nginx_cpu:.1f}",
-                f"{mem_total:.1f}", f"{daemon_ram:.1f}",
-                tcp_estab, tcp_tw, tcp_syn, pps, bps
-            ])
+    def task():
+        try:
+            # 1. CPU & RAM
+            cpu_total = psutil.cpu_percent(interval=None)
+            mem_total = psutil.virtual_memory().used / (1024 * 1024)
             
-    except Exception as e:
-        print(f"Error capturing metrics: {e}")
+            daemon_cpu = 0.0
+            daemon_ram = 0.0
+            nginx_cpu = 0.0
 
+            for p in psutil.process_iter(['name', 'cmdline']):
+                try:
+                    cmdline = ' '.join(p.info['cmdline'] or [])
+                    if "control_plane.py" in cmdline and "ip netns exec" not in cmdline:
+                        daemon_cpu += p.cpu_percent(interval=None)
+                        daemon_ram += p.memory_info().rss / (1024 * 1024)
+                    elif "nginx: worker process" in cmdline:
+                        nginx_cpu += p.cpu_percent(interval=None)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+
+            # 2. TCP State (Server NS)
+            tcp_estab = tcp_tw = tcp_syn = 0
+            ss_res = run(["ss", "-tan"], ns=SERVER_NS)
+            if ss_res and ss_res.stdout:
+                tcp_estab = ss_res.stdout.count("ESTAB")
+                tcp_tw = ss_res.stdout.count("TIME-WAIT")
+                tcp_syn = ss_res.stdout.count("SYN-RECV")
+
+            # 3. Throughput (PPS/Bps)
+            def read_stats():
+                try:
+                    res_p = run(["cat", "/sys/class/net/veth_server/statistics/rx_packets"], ns=SERVER_NS)
+                    res_b = run(["cat", "/sys/class/net/veth_server/statistics/rx_bytes"], ns=SERVER_NS)
+                    rx_p = int(res_p.stdout.strip())
+                    rx_b = int(res_b.stdout.strip())
+                    return rx_p, rx_b
+                except:
+                    return 0, 0
+                    
+            rx_p1, rx_b1 = read_stats()
+            time.sleep(1.0)
+            rx_p2, rx_b2 = read_stats()
+            
+            pps = rx_p2 - rx_p1
+            bps = rx_b2 - rx_b1
+            
+            # 4. Save to CSV
+            mode = os.environ.get("MITIGATION_MODE", "active")
+            backend = os.environ.get("MITIGATION_BACKEND", "xdp")
+            if mode == "none":
+                csv_file = "/tmp/metrics_unprotected.csv"
+            elif backend == "iptables":
+                csv_file = "/tmp/metrics_iptables.csv"
+            else:
+                csv_file = "/tmp/mitigation_performance.csv"
+            file_exists = os.path.isfile(csv_file)
+            with open(csv_file, "a", newline='') as f:
+                writer = csv.writer(f)
+                if not file_exists:
+                    writer.writerow(["Timestamp", "Scenario", "Phase", "CPU_Total_Pct", 
+                                    "CPU_Daemon_Pct", "CPU_Nginx_Pct", "RAM_Total_MB", 
+                                    "RAM_Daemon_MB", "TCP_Estab", "TCP_TimeWait", 
+                                    "TCP_SynRecv", "PPS_Rx", "Bps_Rx"])
+                writer.writerow([
+                    datetime.datetime.now().isoformat(),
+                    scenario, phase,
+                    f"{cpu_total:.1f}", f"{daemon_cpu:.1f}", f"{nginx_cpu:.1f}",
+                    f"{mem_total:.1f}", f"{daemon_ram:.1f}",
+                    tcp_estab, tcp_tw, tcp_syn, pps, bps
+                ])
+                
+        except Exception as e:
+            print(f"Error capturing metrics: {e}")
+
+    threading.Thread(target=task, daemon=True).start()
 
 def check_collateral_damage(legit_nodes):
     """Verify that NO legitimate user IP is banned.

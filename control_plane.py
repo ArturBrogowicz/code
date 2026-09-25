@@ -428,10 +428,9 @@ def l3_l4_telemetry_monitor():
             # --- L4 UDP / Volumetric flood heuristic (per-IP) ---
             non_syn_pkts = total_pkts - total_syn
             if non_syn_pkts > UDP_FLOOD_THRESHOLD:
-                print(f"\n[L4-DETECT] UDP/PACKET FLOOD ATTACK - IP: {ip_str} | "
+                print(f"\n[L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: {ip_str} | "
                       f"Rate: {non_syn_pkts} pkts/s")
-                # Słowo "UDP" w reason jest kluczowe dla Twojego parsera w skrypcie testowym
-                ban_ip(ip_str, reason=f"Per-IP UDP flood ({non_syn_pkts} pkts/s)")
+                ban_ip(ip_str, reason=f"Volumetric packet flood ({non_syn_pkts} pkts/s)")
                 continue
 
             # --- GRU feature extraction from XDP telemetry ---

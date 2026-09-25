@@ -113,8 +113,8 @@ def tail_logs_for_ban(target_ip, timeout=15):
                     if "[BAN]" in line and target_ip in line:
                         if "SYN flood" in line:
                             return "L4 SYN Flood", time.time() - start_time
-                        elif "UDP" in line:
-                            return "L4 UDP Flood", time.time() - start_time
+                        elif "Volumetric" in line:
+                            return "L4 Volumetric Flood", time.time() - start_time
                         # R.U.D.Y.-specific checks BEFORE generic "Heuristic"
                         # because "Heuristic R.U.D.Y." contains "Heuristic"
                         elif "R.U.D.Y." in line:
@@ -362,11 +362,10 @@ def test_l4_ack_flood():
     
     is_dropped = is_ip_banned(ATTACKER_IP)
     
-    # Twój parser logów tail_logs_for_ban zakwalifikuje ten ban jako "L4 UDP Flood", 
-    # ponieważ w control_plane.py użyliśmy słowa "UDP" w reason stringu dla tej reguły.
-    if engine == "L4 UDP Flood" and is_dropped:
-        # Wypisujemy "L4 Non-SYN Flood" dla lepszej czytelności w ostatecznej tabeli
-        report("J: ACK Flood", "L4 Non-SYN Flood", ttm, f"{GREEN}PASS{RESET}")
+    # Twoj parser logow tail_logs_for_ban zakwalifikuje ten ban prawidlowo
+    # jako "L4 Volumetric Flood", poniewaz flaga ACK ignoruje licznik SYN.
+    if engine == "L4 Volumetric Flood" and is_dropped:
+        report("J: ACK Flood", "L4 Volumetric Flood", ttm, f"{GREEN}PASS{RESET}")
     else:
         report("J: ACK Flood", engine, ttm, f"{RED}FAIL{RESET}")
 
