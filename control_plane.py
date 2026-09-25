@@ -209,13 +209,13 @@ def kill_zombie_connections(ip_str):
 
 def tail_nginx_logs(file_path):
     """Tail a log file, automatically reopening on log rotation (inode change)."""
-    while True:
+    while not stop_event.is_set():
         try:
             current_inode = os.stat(file_path).st_ino
             with open(file_path, 'r') as f:
                 f.seek(0, os.SEEK_END)
                 stale_count = 0
-                while True:
+                while not stop_event.is_set():
                     line = f.readline()
                     if not line:
                         time.sleep(0.05)
@@ -435,7 +435,7 @@ def l3_l4_telemetry_monitor():
                 continue
 
             # --- GRU feature extraction from XDP telemetry ---
-            print(f"[DEBUG-TELEMETRY] IP={ip_str} pkts={total_pkts} syn={total_syn} bytes={total_bytes} conns={total_connections} first_ns={first_ns}")
+            # print(f"[DEBUG-TELEMETRY] IP={ip_str} pkts={total_pkts} syn={total_syn} bytes={total_bytes} conns={total_connections} first_ns={first_ns}")
             if total_pkts > 0 and first_ns > 0:
                 flow_duration_us = max((now_ns - first_ns) / 1000, 1.0)
                 flow_duration_s = flow_duration_us / 1e6
@@ -472,7 +472,7 @@ def l3_l4_telemetry_monitor():
                     avg_flow_duration_us = 1.0
                     avg_flow_pps = avg_pkts_per_flow / 0.000001
                 else:
-                    avg_flow_pps = flow_pps * num_flows
+                    avg_flow_pps = flow_pps / num_flows
 
                 features = [
                     avg_flow_duration_us,       # Flow Duration (µs)
@@ -489,7 +489,7 @@ def l3_l4_telemetry_monitor():
                 if len(client_sequences[ip_str]) == SEQUENCE_LENGTH:
                     raw_sequence = np.array(list(client_sequences[ip_str]))
                     scaled_sequence = scaler.transform(raw_sequence)
-                    print(f"[DEBUG-ML] IP={ip_str} submitting seq to GRU. Features: {features}")
+                    # print(f"[DEBUG-ML] IP={ip_str} submitting seq to GRU. Features: {features}")
                     inference_queue.put((ip_str, scaled_sequence))
 
         # Delete only processed keys — new entries added by XDP between
@@ -578,7 +578,7 @@ try:
                     error_count = sum(1 for _, err in entries if err)
                     error_ratio = error_count / len(entries)
                     
-                    print(f"[DEBUG-HEURISTIC] IP={client_ip} RPS={rps:.1f} err_ratio={error_ratio:.2f} entries={len(entries)}")
+                    # print(f"[DEBUG-HEURISTIC] IP={client_ip} RPS={rps:.1f} err_ratio={error_ratio:.2f} entries={len(entries)}")
 
                     if rps > HEURISTIC_MAX_RPS or (error_ratio > HEURISTIC_ERROR_RATIO and rps > 10):
                         print(f"\n[HEURISTIC] L7 anomaly detected - IP: {client_ip} | "
