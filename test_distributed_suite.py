@@ -71,7 +71,7 @@ _daemon_proc = None
 csv_lock = threading.Lock()
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  SHELL HELPER
+#  HELPER
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def run(cmd, ns=None, bg=False, timeout=None):
@@ -93,6 +93,11 @@ def run(cmd, ns=None, bg=False, timeout=None):
     except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
         return None
 
+def _get_log_size():
+    try:
+        return os.path.getsize(LOG_FILE)
+    except FileNotFoundError:
+        return 0
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  INFRASTRUCTURE: Namespace & Network Topology Management
@@ -522,18 +527,19 @@ def is_ip_banned(ns_name):
     return res.returncode != 0
 
 
-def tail_logs_for_bans(target_ips, timeout=25):
+def tail_logs_for_bans(target_ips, timeout=25, attack_start=None, log_start_pos=0):
     """Watch the daemon log for [BAN] entries matching any of the target IPs.
 
     Returns: dict {ip: (engine, ttm)}
     """
-    start_time = time.time()
+    start_time = attack_start or time.time()
     found = {}
     remaining = set(target_ips)
 
     while time.time() - start_time < timeout and remaining:
         try:
             with open(LOG_FILE, "r") as f:
+                f.seek(log_start_pos)
                 for line in f:
                     if "[BAN]" not in line:
                         continue
@@ -574,34 +580,24 @@ def _classify_engine(line):
 def capture_metrics(scenario, phase):
     def task():
         try:
-            # 1. CPU & RAM
-            cpu_total = psutil.cpu_percent(interval=None)
-            mem_total = psutil.virtual_memory().used / (1024 * 1024)
-            
+            # Locate target processes BEFORE the measurement window
             daemon_cpu = 0.0
             daemon_ram = 0.0
             nginx_cpu = 0.0
-
+            daemon_procs = []
+            nginx_procs = []
             for p in psutil.process_iter(['name', 'cmdline']):
                 try:
                     cmdline = ' '.join(p.info['cmdline'] or [])
                     if "control_plane.py" in cmdline and "ip netns exec" not in cmdline:
-                        daemon_cpu += p.cpu_percent(interval=None)
-                        daemon_ram += p.memory_info().rss / (1024 * 1024)
+                        p.cpu_percent(interval=None)  # prime the baseline
+                        daemon_procs.append(p)
                     elif "nginx: worker process" in cmdline:
-                        nginx_cpu += p.cpu_percent(interval=None)
+                        p.cpu_percent(interval=None)  # prime the baseline
+                        nginx_procs.append(p)
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     pass
 
-            # 2. TCP State (Server NS)
-            tcp_estab = tcp_tw = tcp_syn = 0
-            ss_res = run(["ss", "-tan"], ns=SERVER_NS)
-            if ss_res and ss_res.stdout:
-                tcp_estab = ss_res.stdout.count("ESTAB")
-                tcp_tw = ss_res.stdout.count("TIME-WAIT")
-                tcp_syn = ss_res.stdout.count("SYN-RECV")
-
-            # 3. Throughput (PPS/Bps)
             def read_stats():
                 try:
                     res_p = run(["cat", "/sys/class/net/veth_server/statistics/rx_packets"], ns=SERVER_NS)
@@ -611,15 +607,38 @@ def capture_metrics(scenario, phase):
                     return rx_p, rx_b
                 except:
                     return 0, 0
-                    
+
+            # 2. Combined 1-second measurement window (CPU + PPS)
             rx_p1, rx_b1 = read_stats()
-            time.sleep(1.0)
+            cpu_total = psutil.cpu_percent(interval=1.0)
             rx_p2, rx_b2 = read_stats()
-            
+
+            # 3. Read per-process CPU (now has a 1s baseline from the prime above)
+            for p in daemon_procs:
+                try:
+                    daemon_cpu += p.cpu_percent(interval=None)
+                    daemon_ram += p.memory_info().rss / (1024 * 1024)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            for p in nginx_procs:
+                try:
+                    nginx_cpu += p.cpu_percent(interval=None)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+
+            mem_total = psutil.virtual_memory().used / (1024 * 1024)
+            # 4. TCP State (Server NS)
+            tcp_estab = tcp_tw = tcp_syn = 0
+            ss_res = run(["ss", "-tan"], ns=SERVER_NS)
+            if ss_res and ss_res.stdout:
+                tcp_estab = ss_res.stdout.count("ESTAB")
+                tcp_tw = ss_res.stdout.count("TIME-WAIT")
+                tcp_syn = ss_res.stdout.count("SYN-RECV")
+
             pps = rx_p2 - rx_p1
             bps = rx_b2 - rx_b1
             
-            # 4. Save to CSV
+            # 5. Save to CSV
             mode = os.environ.get("MITIGATION_MODE", "active")
             backend = os.environ.get("MITIGATION_BACKEND", "xdp")
             if mode == "none":
@@ -785,11 +804,13 @@ def scenario_syn_flood(botnet, legit):
     print(f"  SCENARIO 1: Distributed SYN Flood (1000 SYN/s per bot)")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed SYN Flood", "Phase 1: Baseline")
+    attack_start = time.time()
+    log_pos = _get_log_size()
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"hping3 -S -p 80 -i u1000 {SERVER_IP}", ns=ns, bg=True))
     time.sleep(1.5)
     capture_metrics("Distributed SYN Flood", "Phase 2: Pre-Mitigation")
-    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed SYN Flood", "Phase 3: Post-Mitigation")
     kill_procs(procs)
     time.sleep(3)
@@ -802,11 +823,13 @@ def scenario_slow_syn(botnet, legit):
     print(f"  SCENARIO 2: Distributed Low & Slow SYN (GRU ML Target)")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed Low & Slow SYN", "Phase 1: Baseline")
+    attack_start = time.time()
+    log_pos = _get_log_size()
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"hping3 -S -p 80 -i u100000 {SERVER_IP}", ns=ns, bg=True))
     time.sleep(1.5)
     capture_metrics("Distributed Low & Slow SYN", "Phase 2: Pre-Mitigation")
-    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=30)
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=30, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed Low & Slow SYN", "Phase 3: Post-Mitigation")
     kill_procs(procs)
     time.sleep(3)
@@ -819,11 +842,13 @@ def scenario_udp_flood(botnet, legit):
     print(f"  SCENARIO 3: Distributed UDP Flood")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed UDP Flood", "Phase 1: Baseline")
+    attack_start = time.time()
+    log_pos = _get_log_size()
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"hping3 --udp -p 80 --flood {SERVER_IP}", ns=ns, bg=True))
     time.sleep(1.5)
     capture_metrics("Distributed UDP Flood", "Phase 2: Pre-Mitigation")
-    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed UDP Flood", "Phase 3: Post-Mitigation")
     kill_procs(procs)
     time.sleep(3)
@@ -836,11 +861,13 @@ def scenario_http_flood(botnet, legit):
     print(f"  SCENARIO 4: Distributed HTTP Flood")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed HTTP Flood", "Phase 1: Baseline")
+    attack_start = time.time()
+    log_pos = _get_log_size()
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"wrk -t2 -c50 -d30s {HTTP_URL}", ns=ns, bg=True))
     time.sleep(1.5)
     capture_metrics("Distributed HTTP Flood", "Phase 2: Pre-Mitigation")
-    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=15)
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=15, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed HTTP Flood", "Phase 3: Post-Mitigation")
     kill_procs(procs)
     time.sleep(3)
@@ -853,11 +880,13 @@ def scenario_ack_flood(botnet, legit):
     print(f"  SCENARIO 5: Distributed ACK Flood")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed ACK Flood", "Phase 1: Baseline")
+    attack_start = time.time()
+    log_pos = _get_log_size()
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"hping3 -A -p 80 --flood {SERVER_IP}", ns=ns, bg=True))
     time.sleep(1.5)
     capture_metrics("Distributed ACK Flood", "Phase 2: Pre-Mitigation")
-    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed ACK Flood", "Phase 3: Post-Mitigation")
     kill_procs(procs)
     time.sleep(3)
@@ -870,12 +899,14 @@ def scenario_fragmentation(botnet, legit):
     print(f"  SCENARIO 6: Distributed IP Fragmentation Flood")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed IP Fragmentation Flood", "Phase 1: Baseline")
+    attack_start = time.time()
+    log_pos = _get_log_size()
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"hping3 -S -p 80 -f --fragoff 20 --flood {SERVER_IP}",
             ns=ns, bg=True))
     time.sleep(1.5)
     capture_metrics("Distributed IP Fragmentation Flood", "Phase 2: Pre-Mitigation")
-    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10)
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed IP Fragmentation Flood", "Phase 3: Post-Mitigation")
     kill_procs(procs)
     time.sleep(3)
@@ -888,7 +919,8 @@ def scenario_slowloris(botnet, legit):
     print(f"  SCENARIO 7: Distributed Slowloris")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed Slowloris", "Phase 1: Baseline")
-
+    attack_start = time.time()
+    log_pos = _get_log_size()
     script = "/tmp/_dist_slowloris.py"
     _write_script(script, f'''import socket, random, time
 TARGET = "{SERVER_IP}"; PORT = 80; N = 8; SLEEP = 5; socks = []
@@ -917,7 +949,7 @@ while True:
         run(f"python3 {script}", ns=ns, bg=True))
     time.sleep(1.5)
     capture_metrics("Distributed Slowloris", "Phase 2: Pre-Mitigation")
-    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=40)
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=40, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed Slowloris", "Phase 3: Post-Mitigation")
     kill_procs(procs)
     time.sleep(3)
@@ -930,7 +962,8 @@ def scenario_rudy(botnet, legit):
     print(f"  SCENARIO 8: Distributed R.U.D.Y. (Slow POST)")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed R.U.D.Y.", "Phase 1: Baseline")
-
+    attack_start = time.time()
+    log_pos = _get_log_size()
     script = "/tmp/_dist_rudy.py"
     _write_script(script, f'''import socket, random, time
 TARGET = "{SERVER_IP}"; PORT = 80; N = 10; SLEEP = 7; socks = []
@@ -960,7 +993,7 @@ while True:
         run(f"python3 {script}", ns=ns, bg=True))
     time.sleep(1.5)
     capture_metrics("Distributed R.U.D.Y.", "Phase 2: Pre-Mitigation")
-    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=40)
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=40, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed R.U.D.Y.", "Phase 3: Post-Mitigation")
     kill_procs(procs)
     time.sleep(3)
@@ -973,7 +1006,8 @@ def scenario_yoyo(botnet, legit):
     print(f"  SCENARIO 9: Distributed Yo-Yo (Pulsing) Attack")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed Yo-Yo", "Phase 1: Baseline")
-
+    attack_start = time.time()
+    log_pos = _get_log_size()
     script = "/tmp/_dist_yoyo.sh"
     _write_script(script, f"""#!/bin/bash
 while true; do
@@ -985,7 +1019,7 @@ done
         run(f"bash {script}", ns=ns, bg=True))
     time.sleep(1.5)
     capture_metrics("Distributed Yo-Yo", "Phase 2: Pre-Mitigation")
-    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=25)
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=25, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed Yo-Yo", "Phase 3: Post-Mitigation")
     kill_procs(procs)
     time.sleep(3)
@@ -998,7 +1032,8 @@ def scenario_multi_vector(botnet, legit):
     print(f"  SCENARIO 10: Multi-Vector Distributed Attack")
     print(f"{'='*70}{RESET}")
     capture_metrics("Multi-Vector Distributed Attack", "Phase 1: Baseline")
-
+    attack_start = time.time()
+    log_pos = _get_log_size()
     procs = []
     n = len(botnet)
     third = n // 3
@@ -1017,7 +1052,7 @@ def scenario_multi_vector(botnet, legit):
 
     time.sleep(1.5)
     capture_metrics("Multi-Vector Distributed Attack", "Phase 2: Pre-Mitigation")
-    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=20)
+    bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=20, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Multi-Vector Distributed Attack", "Phase 3: Post-Mitigation")
     kill_procs(procs)
     time.sleep(3)
