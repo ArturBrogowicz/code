@@ -1,0 +1,548 @@
+artur@ddos-mitigation:~/DDoS-mitigation/code$ sudo python3 test_distributed_suite.py
+
+╔══════════════════════════════════════════════════════════════╗
+║   DISTRIBUTED DDoS MITIGATION TESTING SUITE                ║
+║   20 Legit Clients  |  5 Botnet Nodes                      ║
+╚══════════════════════════════════════════════════════════════╝
+
+
+[*] Cleaning up all namespaces and processes...
+[+] Cleanup complete.
+
+[*] Building network topology...
+[*] Creating 20 legitimate client namespaces...
+[+] Legitimate clients ready. Profile distribution:
+    perfect: 4 nodes
+    broadband: 9 nodes
+    mobile_3g: 7 nodes
+    mobile_bad: 0 nodes
+[*] Creating 5 botnet attacker namespaces...
+[+] Botnet ready: 5 nodes.
+[*] Waiting for mitigation daemon to initialize.....................................................
+[+] Mitigation daemon is ready.
+[+] Started background traffic from 20 legitimate users.
+
+[*] Baseline settling period (5s)...
+
+======================================================================
+  SCENARIO 1: Distributed SYN Flood (1000 SYN/s per bot)
+======================================================================
+
+  [PASS] Distributed SYN Flood
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.93s
+  ├── Engines:           L4 SYN
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 2: Distributed Low & Slow SYN (GRU ML Target)
+======================================================================
+
+  [PASS] Distributed Low & Slow SYN
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           16.83s
+  ├── Engines:           GRU ML
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 3: Distributed UDP Flood
+======================================================================
+
+  [PASS] Distributed UDP Flood
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.53s
+  ├── Engines:           L4 Volumetric
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 4: Distributed HTTP Flood
+======================================================================
+
+  [PASS] Distributed HTTP Flood
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           4.43s
+  ├── Engines:           L7 Heuristic
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 5: Distributed ACK Flood
+======================================================================
+
+  [PASS] Distributed ACK Flood
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.52s
+  ├── Engines:           L4 Volumetric
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 6: Distributed IP Fragmentation Flood
+======================================================================
+
+  [PASS] Distributed Fragmentation
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.61s
+  ├── Engines:           L4 Volumetric
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 7: Distributed Slowloris
+======================================================================
+
+  [PASS] Distributed Slowloris
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           5.39s
+  ├── Engines:           L7 Heuristic
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 8: Distributed R.U.D.Y. (Slow POST)
+======================================================================
+
+  [PASS] Distributed R.U.D.Y.
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           6.88s
+  ├── Engines:           L7 Heuristic
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 9: Distributed Yo-Yo (Pulsing) Attack
+======================================================================
+
+  [PASS] Distributed Yo-Yo
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.51s
+  ├── Engines:           L7 Heuristic
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 10: Multi-Vector Distributed Attack
+======================================================================
+
+  [PASS] Multi-Vector Attack
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.71s
+  ├── Engines:           L7 Heuristic, L4 SYN, L4 Volumetric
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+==========================================================================================
+  DISTRIBUTED TEST SUMMARY
+==========================================================================================
+  Scenario                            | Banned     | Avg TTM    | Engine(s)          | FP       | Result
+  ----------------------------------------------------------------------------------------
+  Distributed SYN Flood               | 5/5        | 1.93s      | L4 SYN             | Clean    | PASS
+  Distributed Low & Slow SYN          | 5/5        | 16.83s     | GRU ML             | Clean    | PASS
+  Distributed UDP Flood               | 5/5        | 1.53s      | L4 Volumetric      | Clean    | PASS
+  Distributed HTTP Flood              | 5/5        | 4.43s      | L7 Heuristic       | Clean    | PASS
+  Distributed ACK Flood               | 5/5        | 1.52s      | L4 Volumetric      | Clean    | PASS
+  Distributed Fragmentation           | 5/5        | 1.61s      | L4 Volumetric      | Clean    | PASS
+  Distributed Slowloris               | 5/5        | 5.39s      | L7 Heuristic       | Clean    | PASS
+  Distributed R.U.D.Y.                | 5/5        | 6.88s      | L7 Heuristic       | Clean    | PASS
+  Distributed Yo-Yo                   | 5/5        | 1.51s      | L7 Heuristic       | Clean    | PASS
+  Multi-Vector Attack                 | 5/5        | 1.71s      | L7 Heuristic, L4 SYN, L4 Volumetric | Clean    | PASS
+
+  Passed: 10  |  Failed: 0  |  Total: 10
+
+[*] Cleaning up all namespaces and processes...
+[+] Cleanup complete.
+artur@ddos-mitigation:~/DDoS-mitigation/code$ sudo MITIGATION_BACKEND=iptables python3 test_distributed_suite.py
+
+╔══════════════════════════════════════════════════════════════╗
+║   DISTRIBUTED DDoS MITIGATION TESTING SUITE                ║
+║   20 Legit Clients  |  5 Botnet Nodes                      ║
+╚══════════════════════════════════════════════════════════════╝
+
+
+[*] Cleaning up all namespaces and processes...
+[+] Cleanup complete.
+
+[*] Building network topology...
+[*] Creating 20 legitimate client namespaces...
+[+] Legitimate clients ready. Profile distribution:
+    perfect: 4 nodes
+    broadband: 8 nodes
+    mobile_3g: 6 nodes
+    mobile_bad: 2 nodes
+[*] Creating 5 botnet attacker namespaces...
+[+] Botnet ready: 5 nodes.
+[*] Waiting for mitigation daemon to initialize........
+[+] Mitigation daemon is ready.
+[+] Started background traffic from 20 legitimate users.
+
+[*] Baseline settling period (5s)...
+
+======================================================================
+  SCENARIO 1: Distributed SYN Flood (1000 SYN/s per bot)
+======================================================================
+
+  [PASS] Distributed SYN Flood
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           3.52s
+  ├── Engines:           L4 SYN
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 2: Distributed Low & Slow SYN (GRU ML Target)
+======================================================================
+
+  [PASS] Distributed Low & Slow SYN
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           17.26s
+  ├── Engines:           GRU ML
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 3: Distributed UDP Flood
+======================================================================
+
+  [PASS] Distributed UDP Flood
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.55s
+  ├── Engines:           L4 Volumetric
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 4: Distributed HTTP Flood
+======================================================================
+
+  [PASS] Distributed HTTP Flood
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.51s
+  ├── Engines:           L7 Heuristic
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 5: Distributed ACK Flood
+======================================================================
+
+  [PASS] Distributed ACK Flood
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           2.31s
+  ├── Engines:           L4 Volumetric
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 6: Distributed IP Fragmentation Flood
+======================================================================
+
+  [PASS] Distributed Fragmentation
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.52s
+  ├── Engines:           L4 Volumetric
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 7: Distributed Slowloris
+======================================================================
+
+  [PASS] Distributed Slowloris
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           5.59s
+  ├── Engines:           L7 Heuristic
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 8: Distributed R.U.D.Y. (Slow POST)
+======================================================================
+
+  [PASS] Distributed R.U.D.Y.
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           6.04s
+  ├── Engines:           L7 Heuristic
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 9: Distributed Yo-Yo (Pulsing) Attack
+======================================================================
+
+  [PASS] Distributed Yo-Yo
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.51s
+  ├── Engines:           L7 Heuristic
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[+] Environment reset complete.
+
+======================================================================
+  SCENARIO 10: Multi-Vector Distributed Attack
+======================================================================
+
+  [PASS] Multi-Vector Attack
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.51s
+  ├── Engines:           L4 Volumetric, L7 Heuristic, L4 SYN
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+==========================================================================================
+  DISTRIBUTED TEST SUMMARY
+==========================================================================================
+  Scenario                            | Banned     | Avg TTM    | Engine(s)          | FP       | Result
+  ----------------------------------------------------------------------------------------
+  Distributed SYN Flood               | 5/5        | 3.52s      | L4 SYN             | Clean    | PASS
+  Distributed Low & Slow SYN          | 5/5        | 17.26s     | GRU ML             | Clean    | PASS
+  Distributed UDP Flood               | 5/5        | 1.55s      | L4 Volumetric      | Clean    | PASS
+  Distributed HTTP Flood              | 5/5        | 1.51s      | L7 Heuristic       | Clean    | PASS
+  Distributed ACK Flood               | 5/5        | 2.31s      | L4 Volumetric      | Clean    | PASS
+  Distributed Fragmentation           | 5/5        | 1.52s      | L4 Volumetric      | Clean    | PASS
+  Distributed Slowloris               | 5/5        | 5.59s      | L7 Heuristic       | Clean    | PASS
+  Distributed R.U.D.Y.                | 5/5        | 6.04s      | L7 Heuristic       | Clean    | PASS
+  Distributed Yo-Yo                   | 5/5        | 1.51s      | L7 Heuristic       | Clean    | PASS
+  Multi-Vector Attack                 | 5/5        | 1.51s      | L4 Volumetric, L7 Heuristic, L4 SYN | Clean    | PASS
+
+  Passed: 10  |  Failed: 0  |  Total: 10
+
+[*] Cleaning up all namespaces and processes...
+[+] Cleanup complete.
+artur@ddos-mitigation:~/DDoS-mitigation/code$ sudo MITIGATION_MODE=none python3 test_distributed_suite.py
+
+╔══════════════════════════════════════════════════════════════╗
+║   DISTRIBUTED DDoS MITIGATION TESTING SUITE                ║
+║   20 Legit Clients  |  5 Botnet Nodes                      ║
+╚══════════════════════════════════════════════════════════════╝
+
+
+[*] Cleaning up all namespaces and processes...
+[+] Cleanup complete.
+
+[*] Building network topology...
+[*] Creating 20 legitimate client namespaces...
+[+] Legitimate clients ready. Profile distribution:
+    perfect: 6 nodes
+    broadband: 6 nodes
+    mobile_3g: 7 nodes
+    mobile_bad: 1 nodes
+[*] Creating 5 botnet attacker namespaces...
+[+] Botnet ready: 5 nodes.
+[!] MITIGATION_MODE=none: Server is running UNPROTECTED.
+[+] Started background traffic from 20 legitimate users.
+
+[*] Baseline settling period (5s)...
+
+======================================================================
+  SCENARIO 1: Distributed SYN Flood (1000 SYN/s per bot)
+======================================================================
+
+  [FAIL] Distributed SYN Flood
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 2: Distributed Low & Slow SYN (GRU ML Target)
+======================================================================
+
+  [FAIL] Distributed Low & Slow SYN
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 3: Distributed UDP Flood
+======================================================================
+
+  [FAIL] Distributed UDP Flood
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 4: Distributed HTTP Flood
+======================================================================
+
+  [FAIL] Distributed HTTP Flood
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 5: Distributed ACK Flood
+======================================================================
+
+  [FAIL] Distributed ACK Flood
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 6: Distributed IP Fragmentation Flood
+======================================================================
+
+  [FAIL] Distributed Fragmentation
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 7: Distributed Slowloris
+======================================================================
+
+  [FAIL] Distributed Slowloris
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 8: Distributed R.U.D.Y. (Slow POST)
+======================================================================
+
+  [FAIL] Distributed R.U.D.Y.
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 9: Distributed Yo-Yo (Pulsing) Attack
+======================================================================
+
+  [FAIL] Distributed Yo-Yo
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 10: Multi-Vector Distributed Attack
+======================================================================
+
+  [FAIL] Multi-Vector Attack
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  └── False Positives:   None ✅
+
+==========================================================================================
+  DISTRIBUTED TEST SUMMARY
+==========================================================================================
+  Scenario                            | Banned     | Avg TTM    | Engine(s)          | FP       | Result
+  ----------------------------------------------------------------------------------------
+  Distributed SYN Flood               | 0/5        | N/A        | None               | Clean    | FAIL
+  Distributed Low & Slow SYN          | 0/5        | N/A        | None               | Clean    | FAIL
+  Distributed UDP Flood               | 0/5        | N/A        | None               | Clean    | FAIL
+  Distributed HTTP Flood              | 0/5        | N/A        | None               | Clean    | FAIL
+  Distributed ACK Flood               | 0/5        | N/A        | None               | Clean    | FAIL
+  Distributed Fragmentation           | 0/5        | N/A        | None               | Clean    | FAIL
+  Distributed Slowloris               | 0/5        | N/A        | None               | Clean    | FAIL
+  Distributed R.U.D.Y.                | 0/5        | N/A        | None               | Clean    | FAIL
+  Distributed Yo-Yo                   | 0/5        | N/A        | None               | Clean    | FAIL
+  Multi-Vector Attack                 | 0/5        | N/A        | None               | Clean    | FAIL
+
+  Passed: 0  |  Failed: 10  |  Total: 10
+
+[*] Cleaning up all namespaces and processes...
+[+] Cleanup complete.
