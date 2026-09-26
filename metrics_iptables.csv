@@ -1,0 +1,31 @@
+Timestamp,Scenario,Phase,CPU_Total_Pct,CPU_Daemon_Pct,CPU_Nginx_Pct,RAM_Total_MB,RAM_Daemon_MB,TCP_Estab,TCP_TimeWait,TCP_SynRecv,PPS_Rx,Bps_Rx
+2026-09-26T13:47:47.470542,Distributed SYN Flood,Phase 1: Baseline,8.5,0.9,0.0,1661.2,459.1,11,43,63,1791,73408
+2026-09-26T13:47:49.053969,Distributed SYN Flood,Phase 2: Pre-Mitigation,29.2,0.9,0.9,1674.0,459.1,17,51,107,2478,101532
+2026-09-26T13:47:53.511879,Distributed SYN Flood,Phase 3: Post-Mitigation,4.2,1.0,0.0,1672.2,459.1,17,55,510,20,940
+2026-09-26T13:48:57.728399,Distributed Low & Slow SYN,Phase 1: Baseline,2.4,1.0,0.0,1666.6,458.8,6,364,15,129,6288
+2026-09-26T13:48:59.225424,Distributed Low & Slow SYN,Phase 2: Pre-Mitigation,5.5,0.0,1.0,1667.8,458.8,7,365,20,109,4868
+2026-09-26T13:49:15.747700,Distributed Low & Slow SYN,Phase 3: Post-Mitigation,3.5,0.7,0.7,1662.3,465.4,5,340,0,36,2248
+2026-09-26T13:50:29.495668,Distributed UDP Flood,Phase 1: Baseline,10.7,0.9,0.0,1950.6,458.7,8,362,3,1034545,29392552
+2026-09-26T13:50:30.968394,Distributed UDP Flood,Phase 3: Post-Mitigation,6.2,0.0,0.0,1874.2,458.8,8,368,1,296333,8039900
+2026-09-26T13:50:30.969339,Distributed UDP Flood,Phase 2: Pre-Mitigation,6.0,0.0,0.0,1874.2,458.8,8,368,1,296475,8018088
+2026-09-26T13:51:31.672237,Distributed HTTP Flood,Phase 1: Baseline,2.5,0.9,4.4,1663.9,458.8,4,561,0,231,17130
+2026-09-26T13:51:33.194093,Distributed HTTP Flood,Phase 2: Pre-Mitigation,3.8,1.9,0.9,1667.5,458.8,7,570,1,523,29306
+2026-09-26T13:51:33.362620,Distributed HTTP Flood,Phase 3: Post-Mitigation,4.3,0.0,0.0,1668.2,458.8,9,572,1,536,30150
+2026-09-26T13:52:44.310393,Distributed ACK Flood,Phase 1: Baseline,8.1,0.8,0.0,2021.3,459.0,5,342,4,998791,40135188
+2026-09-26T13:52:46.602649,Distributed ACK Flood,Phase 2: Pre-Mitigation,3.3,0.0,1.0,1963.8,459.1,3,351,6,54,3628
+2026-09-26T13:52:46.609456,Distributed ACK Flood,Phase 3: Post-Mitigation,3.3,0.0,0.0,1963.8,459.1,3,351,6,56,3680
+2026-09-26T13:53:48.459906,Distributed IP Fragmentation Flood,Phase 1: Baseline,10.2,0.0,0.0,2481.2,458.9,6,363,512,1849632,55840584
+2026-09-26T13:53:48.838489,Distributed IP Fragmentation Flood,Phase 2: Pre-Mitigation,10.1,0.0,0.0,1976.2,458.9,6,363,512,836504,24841700
+2026-09-26T13:53:48.843323,Distributed IP Fragmentation Flood,Phase 3: Post-Mitigation,10.3,0.0,0.0,1976.4,458.9,6,363,512,836568,24807164
+2026-09-26T13:54:48.900297,Distributed Slowloris,Phase 1: Baseline,0.4,0.0,0.8,1686.0,458.7,46,373,256,57,3687
+2026-09-26T13:54:48.948002,Distributed Slowloris,Phase 2: Pre-Mitigation,0.7,0.0,0.0,1686.0,458.7,47,374,255,22,1472
+2026-09-26T13:54:53.004897,Distributed Slowloris,Phase 3: Post-Mitigation,1.4,0.0,0.0,1679.7,458.7,5,389,1,63,3760
+2026-09-26T13:55:35.239482,Distributed R.U.D.Y.,Phase 1: Baseline,2.1,1.8,0.0,1670.0,458.9,56,384,1,220,9369
+2026-09-26T13:55:37.130965,Distributed R.U.D.Y.,Phase 2: Pre-Mitigation,3.0,0.0,0.0,1674.0,458.9,58,359,0,38,2642
+2026-09-26T13:55:41.626718,Distributed R.U.D.Y.,Phase 3: Post-Mitigation,2.3,0.9,0.9,1656.4,458.9,8,349,0,75,4504
+2026-09-26T13:56:40.797833,Distributed Yo-Yo,Phase 1: Baseline,11.5,3.9,40.9,1668.3,459.1,7,730,0,5790,435080
+2026-09-26T13:56:42.102788,Distributed Yo-Yo,Phase 3: Post-Mitigation,3.3,0.0,0.0,1667.8,459.1,6,717,0,461,26484
+2026-09-26T13:56:42.103460,Distributed Yo-Yo,Phase 2: Pre-Mitigation,3.3,0.0,0.0,1667.8,459.1,6,717,0,461,26484
+2026-09-26T13:57:49.947811,Multi-Vector Distributed Attack,Phase 1: Baseline,46.9,1.8,2.7,1704.2,458.9,6,441,512,486995,13701908
+2026-09-26T13:57:51.467907,Multi-Vector Distributed Attack,Phase 3: Post-Mitigation,4.4,0.0,0.9,1695.6,458.9,5,428,509,133,9084
+2026-09-26T13:57:51.489848,Multi-Vector Distributed Attack,Phase 2: Pre-Mitigation,4.3,0.0,0.0,1696.1,458.9,6,429,509,133,9144
