@@ -576,11 +576,23 @@ def _classify_engine(line):
     return "Unknown"
 
 
+def _read_softirqs_net_rx():
+    """Read /proc/softirqs and return NET_RX counts per CPU as a list."""
+    try:
+        with open("/proc/softirqs", "r") as f:
+            for line in f:
+                if line.strip().startswith("NET_RX:"):
+                    return [int(x) for x in line.split()[1:]]
+    except Exception:
+        pass
+    return []
+
+
 
 def capture_metrics(scenario, phase):
     def task():
         try:
-            # Locate target processes BEFORE the measurement window
+            # 1. Locate target processes BEFORE the measurement window
             daemon_cpu = 0.0
             daemon_ram = 0.0
             nginx_cpu = 0.0
@@ -608,12 +620,32 @@ def capture_metrics(scenario, phase):
                 except:
                     return 0, 0
 
-            # 2. Combined 1-second measurement window (CPU + PPS)
+            # 2. Snapshot softirqs BEFORE the measurement window
+            softirq_before = _read_softirqs_net_rx()
+
+            # 3. Combined 1-second measurement window (CPU + PPS + softirqs)
             rx_p1, rx_b1 = read_stats()
             cpu_total = psutil.cpu_percent(interval=1.0)
+            per_core = psutil.cpu_percent(interval=0, percpu=True)
             rx_p2, rx_b2 = read_stats()
 
-            # 3. Read per-process CPU (now has a 1s baseline from the prime above)
+            # 4. Snapshot softirqs AFTER the measurement window
+            softirq_after = _read_softirqs_net_rx()
+
+            # 5. Compute NET_RX softirq deltas
+            if softirq_before and softirq_after and len(softirq_before) == len(softirq_after):
+                softirq_delta = [a - b for a, b in zip(softirq_after, softirq_before)]
+                softirq_total = sum(softirq_delta)
+                hot_core_id = softirq_delta.index(max(softirq_delta))
+                hot_core_softirq = softirq_delta[hot_core_id]
+                hot_core_cpu = per_core[hot_core_id] if hot_core_id < len(per_core) else 0.0
+            else:
+                softirq_total = 0
+                hot_core_softirq = 0
+                hot_core_id = -1
+                hot_core_cpu = 0.0
+
+            # 6. Read per-process CPU (now has a 1s baseline from the prime above)
             for p in daemon_procs:
                 try:
                     daemon_cpu += p.cpu_percent(interval=None)
@@ -627,7 +659,7 @@ def capture_metrics(scenario, phase):
                     pass
 
             mem_total = psutil.virtual_memory().used / (1024 * 1024)
-            # 4. TCP State (Server NS)
+            # 7. TCP State (Server NS)
             tcp_estab = tcp_tw = tcp_syn = 0
             ss_res = run(["ss", "-tan"], ns=SERVER_NS)
             if ss_res and ss_res.stdout:
@@ -638,7 +670,7 @@ def capture_metrics(scenario, phase):
             pps = rx_p2 - rx_p1
             bps = rx_b2 - rx_b1
             
-            # 5. Save to CSV
+            # 8. Save to CSV (extended with 4 new kernel metrics columns)
             mode = os.environ.get("MITIGATION_MODE", "active")
             backend = os.environ.get("MITIGATION_BACKEND", "xdp")
             if mode == "none":
@@ -654,13 +686,17 @@ def capture_metrics(scenario, phase):
                     writer.writerow(["Timestamp", "Scenario", "Phase", "CPU_Total_Pct", 
                                     "CPU_Daemon_Pct", "CPU_Nginx_Pct", "RAM_Total_MB", 
                                     "RAM_Daemon_MB", "TCP_Estab", "TCP_TimeWait", 
-                                    "TCP_SynRecv", "PPS_Rx", "Bps_Rx"])
+                                    "TCP_SynRecv", "PPS_Rx", "Bps_Rx",
+                                    "SoftIRQ_NET_RX_Total", "SoftIRQ_NET_RX_HotCore",
+                                    "HotCore_ID", "HotCore_CPU_Pct"])
                 writer.writerow([
                     datetime.datetime.now().isoformat(),
                     scenario, phase,
                     f"{cpu_total:.1f}", f"{daemon_cpu:.1f}", f"{nginx_cpu:.1f}",
                     f"{mem_total:.1f}", f"{daemon_ram:.1f}",
-                    tcp_estab, tcp_tw, tcp_syn, pps, bps
+                    tcp_estab, tcp_tw, tcp_syn, pps, bps,
+                    softirq_total, hot_core_softirq,
+                    hot_core_id, f"{hot_core_cpu:.1f}"
                 ])
                 
         except Exception as e:
@@ -849,6 +885,13 @@ def scenario_udp_flood(botnet, legit):
     time.sleep(1.5)
     capture_metrics("Distributed UDP Flood", "Phase 2: Pre-Mitigation")
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10, attack_start=attack_start, log_start_pos=log_pos)
+    # ── Sustained Stress Window: measure CPU while bans actively DROP flood traffic ──
+    print(f"    {CYAN}[*] Sustained stress measurement (10s)...{RESET}")
+    for i in range(3):
+        time.sleep(3)
+        capture_metrics("Distributed UDP Flood", f"Phase 2A: Sustained Stress ({i+1}/3)")
+    time.sleep(1)
+    # ── End Sustained Stress ──
     capture_metrics("Distributed UDP Flood", "Phase 3: Post-Mitigation")
     kill_procs(procs)
     time.sleep(3)
@@ -887,6 +930,13 @@ def scenario_ack_flood(botnet, legit):
     time.sleep(1.5)
     capture_metrics("Distributed ACK Flood", "Phase 2: Pre-Mitigation")
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10, attack_start=attack_start, log_start_pos=log_pos)
+    # ── Sustained Stress Window: measure CPU while bans actively DROP flood traffic ──
+    print(f"    {CYAN}[*] Sustained stress measurement (10s)...{RESET}")
+    for i in range(3):
+        time.sleep(3)
+        capture_metrics("Distributed ACK Flood", f"Phase 2A: Sustained Stress ({i+1}/3)")
+    time.sleep(1)
+    # ── End Sustained Stress ──
     capture_metrics("Distributed ACK Flood", "Phase 3: Post-Mitigation")
     kill_procs(procs)
     time.sleep(3)
@@ -907,6 +957,13 @@ def scenario_fragmentation(botnet, legit):
     time.sleep(1.5)
     capture_metrics("Distributed IP Fragmentation Flood", "Phase 2: Pre-Mitigation")
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10, attack_start=attack_start, log_start_pos=log_pos)
+    # ── Sustained Stress Window: measure CPU while bans actively DROP flood traffic ──
+    print(f"    {CYAN}[*] Sustained stress measurement (10s)...{RESET}")
+    for i in range(3):
+        time.sleep(3)
+        capture_metrics("Distributed IP Fragmentation Flood", f"Phase 2A: Sustained Stress ({i+1}/3)")
+    time.sleep(1)
+    # ── End Sustained Stress ──
     capture_metrics("Distributed IP Fragmentation Flood", "Phase 3: Post-Mitigation")
     kill_procs(procs)
     time.sleep(3)
@@ -1053,6 +1110,13 @@ def scenario_multi_vector(botnet, legit):
     time.sleep(1.5)
     capture_metrics("Multi-Vector Distributed Attack", "Phase 2: Pre-Mitigation")
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=20, attack_start=attack_start, log_start_pos=log_pos)
+    # ── Sustained Stress Window: measure CPU while bans actively DROP flood traffic ──
+    print(f"    {CYAN}[*] Sustained stress measurement (10s)...{RESET}")
+    for i in range(3):
+        time.sleep(3)
+        capture_metrics("Multi-Vector Distributed Attack", f"Phase 2A: Sustained Stress ({i+1}/3)")
+    time.sleep(1)
+    # ── End Sustained Stress ──
     capture_metrics("Multi-Vector Distributed Attack", "Phase 3: Post-Mitigation")
     kill_procs(procs)
     time.sleep(3)
