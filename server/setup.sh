@@ -1,12 +1,13 @@
 #!/bin/bash
 
-PROJECT_DIR="/home/artur/DDoS-mitigation/code"
+# Zaktualizowana ścieżka na podstawie Twojej aktualnej lokalizacji katalogu
+PROJECT_DIR="/home/artur/DDoS-mitigation/code/server"
 NGINX_CONF="${PROJECT_DIR}/nginx.conf"
 CONTROL_PLANE="${PROJECT_DIR}/control_plane.py"
-PYTHON_VENV="${PROJECT_DIR}/venv/bin/python"
+PYTHON_VENV="/home/artur/DDoS-mitigation/code/venv/bin/python"
 
 if [ "$EUID" -ne 0 ]; then
-  echo "[-] Please run this script with root privileges (sudo bash setup_lab.sh)"
+  echo "[-] Please run this script with root privileges (sudo bash setup.sh)"
   exit
 fi
 
@@ -26,29 +27,16 @@ pkill -f "nginx: master process" 2>/dev/null
 pkill -f "control_plane.py" 2>/dev/null
 pkill -f "gunicorn" 2>/dev/null
 
-ip netns del attacker_ns 2>/dev/null
-ip netns del server_ns 2>/dev/null
+echo "[*] Configuring paravirtualized interface enp0s8 for XDP..."
+ip link set enp0s8 up
+# Dodajemy IP, ukrywając błąd w przypadku, gdy adres został już przypisany (jak wynika z 'ip a')
+ip addr add 10.0.0.1/24 dev enp0s8 2>/dev/null
 
-echo "[*] Creating Network Namespaces and veth interfaces..."
-ip netns add attacker_ns
-ip netns add server_ns
+# Wyłączenie offloadingu sprzętowego niezbędne do prawidłowego działania XDP
+# Dodano wyłączenie GRO i LRO, co jest kluczowe dla sterowników typu virtio_net
+ethtool -K enp0s8 tx off rx off gro off lro off 2>/dev/null
 
-ip link add veth_server type veth peer name veth_attacker
-
-ip link set veth_server netns server_ns
-ip link set veth_attacker netns attacker_ns
-
-ip netns exec server_ns ip addr add 10.0.0.1/24 dev veth_server
-ip netns exec server_ns ip link set veth_server up
-ip netns exec server_ns ip link set lo up
-
-ip netns exec attacker_ns ip addr add 10.0.0.2/24 dev veth_attacker
-ip netns exec attacker_ns ip link set veth_attacker up
-ip netns exec attacker_ns ip link set lo up
-
-ip netns exec server_ns ethtool -K veth_server tx off rx off
-
-echo "[+] Built network environment: [10.0.0.1 Server] <- veth -> [10.0.0.2 Attacker]"
+echo "[+] Network environment configured: [10.0.0.1 Server listening on enp0s8]"
 
 echo "[*] Preparing logs and SSL certificates for Proxy..."
 
@@ -79,13 +67,13 @@ echo "[*] Installing Gunicorn inside venv..."
 ${PYTHON_VENV} -m pip install gunicorn >/dev/null 2>&1
 
 echo "[*] Starting multi-worker Gunicorn backend on port 8080..."
-ip netns exec server_ns nohup ${PYTHON_VENV} -m gunicorn --chdir ${PROJECT_DIR} --workers 8 --threads 4 -b 0.0.0.0:8080 dummy_app:app >/dev/null 2>&1 &
+nohup ${PYTHON_VENV} -m gunicorn --chdir ${PROJECT_DIR} --workers 8 --threads 4 -b 0.0.0.0:8080 dummy_app:app >/dev/null 2>&1 &
 
-echo "[*] Starting Nginx in isolated namespace..."
-ip netns exec server_ns nginx -c ${NGINX_CONF}
+echo "[*] Starting Nginx directly on the host..."
+nginx -c ${NGINX_CONF}
 
 echo "------------------------------------------------------------"
 echo "[+] Infrastructure ready! Starting Mitigation Daemon."
 echo "------------------------------------------------------------"
 
-ip netns exec server_ns ${PYTHON_VENV} -u ${CONTROL_PLANE}
+${PYTHON_VENV} -u ${CONTROL_PLANE}

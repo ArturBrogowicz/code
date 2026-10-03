@@ -61,7 +61,7 @@ CLIENT_IDLE_TIMEOUT = 60.0
 print(f"[*] Compiling and loading eBPF code from file: {BPF_SOURCE_FILE}...")
 bpf = BPF(src_file=BPF_SOURCE_FILE)
 bpf_function = bpf.load_func("xdp_ddos_mitigation", BPF.XDP)
-bpf.attach_xdp(INTERFACE, bpf_function, 0)
+bpf.attach_xdp(INTERFACE, bpf_function, flags=BPF.XDP_FLAGS_SKB_MODE)
 print(f"[+] Successfully attached XDP program to interface {INTERFACE}.")
 
 blacklist_map = bpf.get_table("blacklist_map")
@@ -136,7 +136,7 @@ def ban_ip(ip_str, reason="unknown"):
     backend = os.environ.get("MITIGATION_BACKEND", "xdp")
     if backend == "iptables":
         try:
-            subprocess.run(["ip", "netns", "exec", "server_ns", "iptables", "-A", "INPUT", "-s", ip_str, "-j", "DROP"], check=True)
+            subprocess.run(["iptables", "-A", "INPUT", "-s", ip_str, "-j", "DROP"], check=True)
             print(f"[IPTABLES] BLOCKED IP: {ip_str}. Rule is active on software firewall.")
         except Exception as e:
             print(f"[-] Failed to block {ip_str} via iptables: {e}")
@@ -162,7 +162,7 @@ def unblock_expired_bans():
             backend = os.environ.get("MITIGATION_BACKEND", "xdp")
             if backend == "iptables":
                 try:
-                    subprocess.run(["ip", "netns", "exec", "server_ns", "iptables", "-D", "INPUT", "-s", ip_str, "-j", "DROP"], check=False)
+                    subprocess.run(["iptables", "-D", "INPUT", "-s", ip_str, "-j", "DROP"], check=False)
                     print(f"[TTL] Unblocked IP: {ip_str} (iptables ban expired after {BAN_TTL_SECONDS}s)")
                 except Exception:
                     pass
