@@ -60,64 +60,119 @@ def report(scenario, status):
     results.append([scenario, status])
 
 # =======================================================================
+# METRYKI
+# =======================================================================
+
+def capture_metrics(scenario, phase):
+    """Wyzwalacz API serwera - żąda wykonania 1-sekundowego pomiaru zasobów."""
+    print(f"    {CYAN}[*] Metryki serwera: {phase}...{RESET}")
+    data = json.dumps({"scenario": scenario, "phase": phase}).encode('utf-8')
+    req = urllib.request.Request(
+        f"http://{SERVER_IP}:9999/capture", 
+        data=data, 
+        headers={'Content-Type': 'application/json'}, 
+        method='POST'
+    )
+    try:
+        urllib.request.urlopen(req, timeout=5)
+    except Exception as e:
+        print(f"    {RED}[!] Błąd API metryk na serwerze: {e}{RESET}")
+
+# =======================================================================
 # SCENARIUSZE TESTOWE
 # =======================================================================
 
 def test_l4_syn_flood():
-    print(f"\n{YELLOW}--- Scenariusz 1: High-Rate L4 SYN Flood ---{RESET}")
+    name = "1: L4 SYN Flood"
+    print(f"\n{YELLOW}--- Scenariusz {name} ---{RESET}")
     prompt_reset()
+    
+    capture_metrics(name, "Phase 1: Baseline")
     print("[*] Generowanie ruchu SYN Flood (hping3)...")
     proc = run_cmd(f"hping3 -S -p 80 -i u1000 {SERVER_IP}", bg=True)
-    time.sleep(5)
-    proc.kill()
+    time.sleep(1.5)
     
-    if is_banned():
-        report("1: L4 SYN Flood", f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
-    else:
-        report("1: L4 SYN Flood", f"{RED}BRAK BLOKADY (FAIL){RESET}")
+    capture_metrics(name, "Phase 2: Pre-Mitigation")
+    print(f"    {CYAN}[*] Mierzenie przyrostu po mitygacji (Sustained Stress)...{RESET}")
+    for i in range(2):
+        time.sleep(2)
+        capture_metrics(name, f"Phase 2A: Sustained Stress ({i+1}/2)")
+        
+    proc.kill()
+    time.sleep(2)
+    capture_metrics(name, "Phase 3: Post-Mitigation")
+    
+    if is_banned(): report(name, f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
+    else: report(name, f"{RED}BRAK BLOKADY (FAIL){RESET}")
 
 def test_l7_http_flood():
-    print(f"\n{YELLOW}--- Scenariusz 2: L7 High-Frequency HTTP Flood ---{RESET}")
+    name = "2: L7 HTTP Flood"
+    print(f"\n{YELLOW}--- Scenariusz {name} ---{RESET}")
     prompt_reset()
-    print("[*] Generowanie ruchu HTTP Flood (wrk)...")
-    proc = run_cmd(f"wrk -t4 -c100 -d10s {HTTP_URL}", bg=True)
-    time.sleep(12)
-    proc.kill()
     
-    if is_banned():
-        report("2: L7 HTTP Flood", f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
-    else:
-        report("2: L7 HTTP Flood", f"{RED}BRAK BLOKADY (FAIL){RESET}")
+    capture_metrics(name, "Phase 1: Baseline")
+    print("[*] Generowanie ruchu HTTP Flood (wrk)...")
+    proc = run_cmd(f"wrk -t4 -c100 -d20s {HTTP_URL}", bg=True)
+    time.sleep(1.5)
+    
+    capture_metrics(name, "Phase 2: Pre-Mitigation")
+    for i in range(2):
+        time.sleep(3)
+        capture_metrics(name, f"Phase 2A: Sustained Stress ({i+1}/2)")
+        
+    proc.kill()
+    time.sleep(2)
+    capture_metrics(name, "Phase 3: Post-Mitigation")
+    
+    if is_banned(): report(name, f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
+    else: report(name, f"{RED}BRAK BLOKADY (FAIL){RESET}")
 
 def test_l7_error_flood():
-    print(f"\n{YELLOW}--- Scenariusz 3: L7 Error Flooding (Błędy 404) ---{RESET}")
+    name = "3: L7 Error Flood (404)"
+    print(f"\n{YELLOW}--- Scenariusz {name} ---{RESET}")
     prompt_reset()
-    print("[*] Generowanie zapytań do nieistniejącego zasobu (wrk)...")
-    proc = run_cmd(f"wrk -t4 -c20 -d10s {HTTP_URL}nonexistent_page", bg=True)
-    time.sleep(12)
-    proc.kill()
     
-    if is_banned():
-        report("3: L7 Error Flood (404)", f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
-    else:
-        report("3: L7 Error Flood (404)", f"{RED}BRAK BLOKADY (FAIL){RESET}")
+    capture_metrics(name, "Phase 1: Baseline")
+    print("[*] Generowanie zapytań do nieistniejącego zasobu (wrk)...")
+    proc = run_cmd(f"wrk -t4 -c20 -d15s {HTTP_URL}nonexistent_page", bg=True)
+    time.sleep(1.5)
+    
+    capture_metrics(name, "Phase 2: Pre-Mitigation")
+    time.sleep(8)
+    
+    proc.kill()
+    time.sleep(2)
+    capture_metrics(name, "Phase 3: Post-Mitigation")
+    
+    if is_banned(): report(name, f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
+    else: report(name, f"{RED}BRAK BLOKADY (FAIL){RESET}")
 
 def test_gru_stealth_syn():
-    print(f"\n{YELLOW}--- Scenariusz 4: Low & Slow SYN Flood (Target GRU ML) ---{RESET}")
+    name = "4: Low & Slow SYN (GRU)"
+    print(f"\n{YELLOW}--- Scenariusz {name} ---{RESET}")
     prompt_reset()
+    
+    capture_metrics(name, "Phase 1: Baseline")
     print("[*] Generowanie powolnego ataku SYN Flood (10 pkt/s)...")
     proc = run_cmd(f"hping3 -S -p 80 -i u100000 {SERVER_IP}", bg=True)
-    time.sleep(20) # GRU potrzebuje min. 15 żądań
-    proc.kill()
+    time.sleep(5)
     
-    if is_banned():
-        report("4: Low & Slow SYN (GRU)", f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
-    else:
-        report("4: Low & Slow SYN (GRU)", f"{RED}BRAK BLOKADY (FAIL){RESET}")
+    capture_metrics(name, "Phase 2: Pre-Mitigation")
+    time.sleep(15) # GRU potrzebuje długiej sekwencji (min. 15 żądań)
+    
+    proc.kill()
+    time.sleep(2)
+    capture_metrics(name, "Phase 3: Post-Mitigation")
+    
+    if is_banned(): report(name, f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
+    else: report(name, f"{RED}BRAK BLOKADY (FAIL){RESET}")
 
 def test_l7_slowloris():
-    print(f"\n{YELLOW}--- Scenariusz 5: L7 Slowloris Attack ---{RESET}")
+    name = "5: L7 Slowloris"
+    print(f"\n{YELLOW}--- Scenariusz {name} ---{RESET}")
     prompt_reset()
+    
+    capture_metrics(name, "Phase 1: Baseline")
     script_path = "/tmp/slowloris_test.py"
     with open(script_path, "w") as f:
         f.write(f"""import socket, random, time
@@ -143,63 +198,91 @@ while True:
 """)
     print("[*] Wykonywanie skryptu Slowloris...")
     proc = run_cmd(f"python3 {script_path}", bg=True)
-    time.sleep(25)
-    proc.kill()
+    time.sleep(2)
     
-    if is_banned():
-        report("5: L7 Slowloris", f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
-    else:
-        report("5: L7 Slowloris", f"{RED}BRAK BLOKADY (FAIL){RESET}")
+    capture_metrics(name, "Phase 2: Pre-Mitigation")
+    time.sleep(20)
+    
+    proc.kill()
+    time.sleep(2)
+    capture_metrics(name, "Phase 3: Post-Mitigation")
+    
+    if is_banned(): report(name, f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
+    else: report(name, f"{RED}BRAK BLOKADY (FAIL){RESET}")
 
 def test_benign_traffic():
-    print(f"\n{YELLOW}--- Scenariusz 6: Normalny ruch (Benign Baseline) ---{RESET}")
+    name = "6: Benign Traffic"
+    print(f"\n{YELLOW}--- Scenariusz {name} ---{RESET}")
     prompt_reset()
+    
+    capture_metrics(name, "Phase 1: Baseline")
     print("[*] Wysyłanie standardowych żądań HTTP (curl) przez 10 sekund...")
-    for _ in range(10):
+    
+    for i in range(10):
+        if i == 3: capture_metrics(name, "Phase 2: Pre-Mitigation")
         run_cmd(f"curl -s -o /dev/null {HTTP_URL}")
         time.sleep(1)
         
-    if not is_banned():
-        report("6: Benign Traffic", f"{GREEN}BRAK BLOKADY (SUKCES){RESET}")
-    else:
-        report("6: Benign Traffic", f"{RED}ZABLOKOWANO (FAIL - False Positive){RESET}")
+    capture_metrics(name, "Phase 3: Post-Mitigation")
+    
+    if not is_banned(): report(name, f"{GREEN}BRAK BLOKADY (SUKCES){RESET}")
+    else: report(name, f"{RED}ZABLOKOWANO (FAIL - False Positive){RESET}")
 
 def test_l4_udp_flood():
-    print(f"\n{YELLOW}--- Scenariusz 7: High-Rate L4 UDP Flood ---{RESET}")
+    name = "7: L4 UDP Flood"
+    print(f"\n{YELLOW}--- Scenariusz {name} ---{RESET}")
     prompt_reset()
+    
+    capture_metrics(name, "Phase 1: Baseline")
     print("[*] Generowanie ruchu UDP Flood (hping3)...")
     proc = run_cmd(f"hping3 --udp -p 80 --flood {SERVER_IP}", bg=True)
-    time.sleep(10)
-    proc.kill()
+    time.sleep(1.5)
     
-    if is_banned():
-        report("7: L4 UDP Flood", f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
-    else:
-        report("7: L4 UDP Flood", f"{RED}BRAK BLOKADY (FAIL){RESET}")
+    capture_metrics(name, "Phase 2: Pre-Mitigation")
+    for i in range(2):
+        time.sleep(2)
+        capture_metrics(name, f"Phase 2A: Sustained Stress ({i+1}/2)")
+        
+    proc.kill()
+    time.sleep(2)
+    capture_metrics(name, "Phase 3: Post-Mitigation")
+    
+    if is_banned(): report(name, f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
+    else: report(name, f"{RED}BRAK BLOKADY (FAIL){RESET}")
 
 def test_global_spoofed_syn():
-    print(f"\n{YELLOW}--- Scenariusz 8: Distributed Spoofed SYN Flood ---{RESET}")
+    name = "8: Spoofed SYN Flood"
+    print(f"\n{YELLOW}--- Scenariusz {name} ---{RESET}")
     prompt_reset()
+    
+    capture_metrics(name, "Phase 1: Baseline")
     print("[*] Generowanie SYN Flood z losowych adresów IP (--rand-source)...")
     proc = run_cmd(f"hping3 -S -p 80 --rand-source --flood {SERVER_IP}", bg=True)
-    time.sleep(8)
-    proc.kill()
+    time.sleep(1.5)
     
-    # Ponieważ IP są spoofowane, główny IP atakującego NIE zostanie zablokowany.
-    # Sprawdzamy jedynie, czy system przetrwał.
+    capture_metrics(name, "Phase 2: Pre-Mitigation")
+    for i in range(2):
+        time.sleep(2)
+        capture_metrics(name, f"Phase 2A: Sustained Stress ({i+1}/2)")
+        
+    proc.kill()
+    time.sleep(2)
+    capture_metrics(name, "Phase 3: Post-Mitigation")
+    
     print(f"{CYAN}[!] Sprawdź na serwerze log: '[L4-GLOBAL] ... SYN cookies ENABLED'{RESET}")
-    if not is_banned():
-        report("8: Spoofed SYN Flood", f"{GREEN}WYKONANO (Sprawdź logi serwera){RESET}")
-    else:
-        report("8: Spoofed SYN Flood", f"{RED}BŁĄD (Atakujący zablokowany?){RESET}")
+    if not is_banned(): report(name, f"{GREEN}WYKONANO (Sprawdź logi serwera){RESET}")
+    else: report(name, f"{RED}BŁĄD (Atakujący zablokowany?){RESET}")
 
 def test_mixed_traffic():
-    print(f"\n{YELLOW}--- Scenariusz 9: Mixed Traffic (Attacker + Legitimate) ---{RESET}")
+    name = "9: Mixed Traffic"
+    print(f"\n{YELLOW}--- Scenariusz {name} ---{RESET}")
     prompt_reset()
     
     iface = get_egress_interface()
     print(f"[*] Dodawanie drugiego IP ({LEGIT_IP}) do interfejsu {iface} dla symulacji...")
     run_cmd(f"ip addr add {LEGIT_IP}/24 dev {iface}")
+    
+    capture_metrics(name, "Phase 1: Baseline")
     
     print("[*] Uruchamianie legalnego klienta (curl w tle)...")
     cmd_legit = f"bash -c 'for i in {{1..25}}; do curl -s --interface {LEGIT_IP} {HTTP_URL} > /dev/null; sleep 1; done'"
@@ -207,38 +290,54 @@ def test_mixed_traffic():
     
     print("[*] Uruchamianie ataku z głównego IP...")
     proc_attacker = run_cmd(f"hping3 -a {ATTACKER_IP} -S -p 80 -i u100000 {SERVER_IP}", bg=True)
+    time.sleep(5)
     
-    time.sleep(25) # Czekamy na detekcję GRU ML
+    capture_metrics(name, "Phase 2: Pre-Mitigation")
+    time.sleep(15) # Czekamy na detekcję GRU ML
+    
     proc_attacker.kill()
     proc_legit.kill()
+    time.sleep(2)
+    capture_metrics(name, "Phase 3: Post-Mitigation")
     
     attacker_banned = is_banned(ATTACKER_IP)
     legit_banned = is_banned(LEGIT_IP)
-    
     run_cmd(f"ip addr del {LEGIT_IP}/24 dev {iface}") # Cleanup
     
     if attacker_banned and not legit_banned:
-        report("9: Mixed Traffic", f"{GREEN}ZABLOKOWANO TYLKO ATAKUJĄCEGO (SUKCES){RESET}")
+        report(name, f"{GREEN}ZABLOKOWANO TYLKO ATAKUJĄCEGO (SUKCES){RESET}")
     else:
         err_msg = "OBA ZABLOKOWANE" if legit_banned else "BRAK BLOKADY"
-        report("9: Mixed Traffic", f"{RED}BŁĄD ({err_msg}){RESET}")
+        report(name, f"{RED}BŁĄD ({err_msg}){RESET}")
 
 def test_l4_ack_flood():
-    print(f"\n{YELLOW}--- Scenariusz 10: TCP State Exhaustion (ACK Flood) ---{RESET}")
+    name = "10: ACK Flood"
+    print(f"\n{YELLOW}--- Scenariusz {name} ---{RESET}")
     prompt_reset()
+    
+    capture_metrics(name, "Phase 1: Baseline")
     print("[*] Generowanie ruchu ACK Flood (hping3)...")
     proc = run_cmd(f"hping3 -A -p 80 --flood {SERVER_IP}", bg=True)
-    time.sleep(8)
-    proc.kill()
+    time.sleep(1.5)
     
-    if is_banned():
-        report("10: ACK Flood", f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
-    else:
-        report("10: ACK Flood", f"{RED}BRAK BLOKADY (FAIL){RESET}")
+    capture_metrics(name, "Phase 2: Pre-Mitigation")
+    for i in range(2):
+        time.sleep(2)
+        capture_metrics(name, f"Phase 2A: Sustained Stress ({i+1}/2)")
+        
+    proc.kill()
+    time.sleep(2)
+    capture_metrics(name, "Phase 3: Post-Mitigation")
+    
+    if is_banned(): report(name, f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
+    else: report(name, f"{RED}BRAK BLOKADY (FAIL){RESET}")
 
 def test_l7_rudy():
-    print(f"\n{YELLOW}--- Scenariusz 11: L7 Slow POST (R.U.D.Y.) ---{RESET}")
+    name = "11: L7 Slow POST (R.U.D.Y.)"
+    print(f"\n{YELLOW}--- Scenariusz {name} ---{RESET}")
     prompt_reset()
+    
+    capture_metrics(name, "Phase 1: Baseline")
     script_path = "/tmp/rudy_test.py"
     with open(script_path, "w") as f:
         f.write(f"""import socket, random, time
@@ -264,17 +363,24 @@ while True:
 """)
     print("[*] Wykonywanie skryptu R.U.D.Y....")
     proc = run_cmd(f"python3 {script_path}", bg=True)
-    time.sleep(25)
-    proc.kill()
+    time.sleep(2)
     
-    if is_banned():
-        report("11: L7 Slow POST (R.U.D.Y.)", f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
-    else:
-        report("11: L7 Slow POST (R.U.D.Y.)", f"{RED}BRAK BLOKADY (FAIL){RESET}")
+    capture_metrics(name, "Phase 2: Pre-Mitigation")
+    time.sleep(20)
+    
+    proc.kill()
+    time.sleep(2)
+    capture_metrics(name, "Phase 3: Post-Mitigation")
+    
+    if is_banned(): report(name, f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
+    else: report(name, f"{RED}BRAK BLOKADY (FAIL){RESET}")
 
 def test_l7_yoyo():
-    print(f"\n{YELLOW}--- Scenariusz 12: L7 Pulsing (Yo-Yo) Attack ---{RESET}")
+    name = "12: L7 Yo-Yo Attack"
+    print(f"\n{YELLOW}--- Scenariusz {name} ---{RESET}")
     prompt_reset()
+    
+    capture_metrics(name, "Phase 1: Baseline")
     script_path = "/tmp/yoyo_test.sh"
     with open(script_path, "w") as f:
         f.write(f"""#!/bin/bash
@@ -284,28 +390,42 @@ while true; do
 done
 """)
     os.chmod(script_path, 0o755)
+    
     print("[*] Wykonywanie ataku Yo-Yo (pulsacyjne uderzenia wrk)...")
     proc = run_cmd(f"bash {script_path}", bg=True)
-    time.sleep(22)
-    proc.kill()
+    time.sleep(2)
     
-    if is_banned():
-        report("12: L7 Yo-Yo Attack", f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
-    else:
-        report("12: L7 Yo-Yo Attack", f"{RED}BRAK BLOKADY (FAIL){RESET}")
+    capture_metrics(name, "Phase 2: Pre-Mitigation")
+    time.sleep(18)
+    
+    proc.kill()
+    time.sleep(2)
+    capture_metrics(name, "Phase 3: Post-Mitigation")
+    
+    if is_banned(): report(name, f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
+    else: report(name, f"{RED}BRAK BLOKADY (FAIL){RESET}")
 
 def test_l3_fragmentation():
-    print(f"\n{YELLOW}--- Scenariusz 13: L3 IP Fragmentation (Teardrop/Fraggle) ---{RESET}")
+    name = "13: IP Fragmentation"
+    print(f"\n{YELLOW}--- Scenariusz {name} ---{RESET}")
     prompt_reset()
+    
+    capture_metrics(name, "Phase 1: Baseline")
     print("[*] Generowanie pofragmentowanych pakietów IP (hping3 -f)...")
     proc = run_cmd(f"hping3 -S -p 80 -f --fragoff 20 --flood {SERVER_IP}", bg=True)
-    time.sleep(8)
-    proc.kill()
+    time.sleep(1.5)
     
-    if is_banned():
-        report("13: IP Fragmentation", f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
-    else:
-        report("13: IP Fragmentation", f"{RED}BRAK BLOKADY (FAIL){RESET}")
+    capture_metrics(name, "Phase 2: Pre-Mitigation")
+    for i in range(2):
+        time.sleep(2)
+        capture_metrics(name, f"Phase 2A: Sustained Stress ({i+1}/2)")
+        
+    proc.kill()
+    time.sleep(2)
+    capture_metrics(name, "Phase 3: Post-Mitigation")
+    
+    if is_banned(): report(name, f"{GREEN}ZABLOKOWANO (SUKCES){RESET}")
+    else: report(name, f"{RED}BRAK BLOKADY (FAIL){RESET}")
 
 def run_all():
     if os.geteuid() != 0:
