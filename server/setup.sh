@@ -8,21 +8,13 @@ PYTHON_VENV="/home/artur/DDoS-mitigation/code/venv/bin/python"
 
 if [ "$EUID" -ne 0 ]; then
   echo "[-] Please run this script with root privileges (sudo bash setup.sh)"
+  echo "[-] Please run this script with root privileges (sudo bash setup.sh)"
   exit
 fi
 
-echo "[*] Starting the construction of the automated PoC environment..."
-
-echo "[*] Checking dependencies (Nginx)..."
-if ! command -v nginx &> /dev/null; then
-    echo "[*] Installing Nginx server..."
-    apt-get update && apt-get install -y nginx
-fi
-
+echo "[*] Cleaning up old processes..."
 systemctl stop nginx 2>/dev/null
 systemctl disable nginx 2>/dev/null
-
-echo "[*] Killing old processes from previous sessions..."
 pkill -f "nginx: master process" 2>/dev/null
 pkill -f "control_plane.py" 2>/dev/null
 pkill -f "gunicorn" 2>/dev/null
@@ -41,6 +33,7 @@ echo "[+] Network environment configured: [10.0.0.1 Server listening on enp0s8]"
 echo "[*] Preparing logs and SSL certificates for Proxy..."
 
 if [ ! -f /etc/ssl/certs/nginx-selfsigned.crt ]; then
+    echo "[*] Generating SSL certificates..."
     openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
         -keyout /etc/ssl/private/nginx-selfsigned.key \
         -out /etc/ssl/certs/nginx-selfsigned.crt \
@@ -48,7 +41,7 @@ if [ ! -f /etc/ssl/certs/nginx-selfsigned.crt ]; then
 fi
 
 mkdir -p /var/log/nginx
-touch /var/log/nginx/ddos_ml_access.log
+> /var/log/nginx/ddos_ml_access.log
 chmod 644 /var/log/nginx/ddos_ml_access.log
 > /var/log/nginx/ddos_ml_access.log
 
