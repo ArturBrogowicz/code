@@ -184,9 +184,13 @@ def create_server_ns():
     subprocess.run(["ip", "netns", "add", SERVER_NS], capture_output=True)
     _all_created_ns.append(SERVER_NS)
 
-    # Create veth pair: veth_server (→ server_ns) ↔ veth_srv_br (→ host bridge)
-    subprocess.run(["ip", "link", "add", "veth_server", "type", "veth",
-                    "peer", "name", "veth_srv_br"], capture_output=True)
+    # Create multi-queue veth pair: veth_server (→ server_ns) ↔ veth_srv_br (→ host bridge)
+    subprocess.run([
+        "ip", "link", "add", "veth_server", 
+        "numrxqueues", "8", "numtxqueues", "8", 
+        "type", "veth", "peer", "name", "veth_srv_br", 
+        "numrxqueues", "8", "numtxqueues", "8"
+    ], capture_output=True)
 
     # Move server end into server_ns
     subprocess.run(["ip", "link", "set", "veth_server", "netns", SERVER_NS],
@@ -221,9 +225,13 @@ def create_client_ns(ns_name, ip_addr):
     subprocess.run(["ip", "netns", "add", ns_name], capture_output=True)
     _all_created_ns.append(ns_name)
 
-    # Create veth pair in host namespace
-    subprocess.run(["ip", "link", "add", veth_outer, "type", "veth",
-                    "peer", "name", veth_inner], capture_output=True)
+    # Create multi-queue veth pair in host namespace
+    subprocess.run([
+        "ip", "link", "add", veth_outer, 
+        "numrxqueues", "8", "numtxqueues", "8",
+        "type", "veth", "peer", "name", veth_inner,
+        "numrxqueues", "8", "numtxqueues", "8"
+    ], capture_output=True)
 
     # Move inner end into client namespace
     subprocess.run(["ip", "link", "set", veth_inner, "netns", ns_name],
