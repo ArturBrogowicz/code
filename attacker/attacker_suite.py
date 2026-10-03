@@ -3,6 +3,8 @@ import subprocess
 import time
 import sys
 import os
+import urllib.request
+import json
 
 # --- KONFIGURACJA ---
 SERVER_IP = "10.0.0.1"
