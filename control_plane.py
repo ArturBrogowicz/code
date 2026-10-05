@@ -95,6 +95,19 @@ stop_event = threading.Event()
 # GRU consecutive violations tracker
 gru_violation_counts = defaultdict(int)
 
+# Protects the cross-thread per-IP dicts: client_sequences, gru_violation_counts,
+# request_tracker, client_last_seen. The telemetry monitor thread and the main
+# Nginx-log loop both mutate these, so every access must hold this lock.
+# Rule: NEVER hold this lock across ban_ip()/kill_zombie_connections()/subprocess/
+# BPF calls — that keeps state_lock and banned_ips_lock from ever nesting.
+state_lock = threading.Lock()
+
+# Userspace snapshot of cumulative XDP counters, used to compute per-interval
+# deltas by subtraction (read-and-swap). Touched ONLY by the telemetry thread
+# (monitor loop + evict_idle_clients + drain_inference_results, which is now a
+# single consumer running in that thread), so it needs no lock.
+prev_telemetry = {}   # {ip_str: (cum_pkts, cum_syn, cum_bytes)}
+
 # Track ban timestamps for TTL-based expiry
 ban_timestamps = {}
 
@@ -186,13 +199,25 @@ def evict_idle_clients():
     Called periodically from the L4 telemetry monitor thread.
     """
     now = time.time()
-    stale_ips = [ip for ip, ts in client_last_seen.items()
-                 if now - ts > CLIENT_IDLE_TIMEOUT]
+    # Snapshot + pop under state_lock so a concurrent append/pop from the main
+    # loop can't trigger "dictionary changed size during iteration".
+    with state_lock:
+        stale_ips = [ip for ip, ts in client_last_seen.items()
+                     if now - ts > CLIENT_IDLE_TIMEOUT]
+        for ip_str in stale_ips:
+            client_sequences.pop(ip_str, None)
+            request_tracker.pop(ip_str, None)
+            gru_violation_counts.pop(ip_str, None)
+            del client_last_seen[ip_str]
+    # BPF telemetry map + snapshot cleanup. Now that the monitor no longer wipes
+    # the whole map every interval, idle eviction is what bounds its growth.
+    # Telemetry-thread-only state (prev_telemetry / telemetry_map) → no state_lock.
     for ip_str in stale_ips:
-        client_sequences.pop(ip_str, None)
-        request_tracker.pop(ip_str, None)
-        gru_violation_counts.pop(ip_str, None)
-        del client_last_seen[ip_str]
+        prev_telemetry.pop(ip_str, None)
+        try:
+            del telemetry_map[telemetry_map.Key(ip_to_network_bytes(ip_str))]
+        except KeyError:
+            pass
     if stale_ips:
         print(f"[GC] Evicted tracking data for {len(stale_ips)} idle client(s).")
 
@@ -335,8 +360,10 @@ def inference_worker():
 def drain_inference_results():
     """Drain all pending results from the inference worker thread.
 
-    Called from both the telemetry monitor and main loop to process any
-    GRU verdicts that have completed asynchronously.
+    SINGLE CONSUMER: called ONLY from the L4 telemetry monitor thread. This is
+    what makes the gru_violation_counts read-modify-write below safe from the
+    lost-update race (and prevents the same IP being banned twice, which in
+    iptables mode used to leave a duplicate DROP rule → ban outliving its TTL).
     """
     while True:
         try:
@@ -348,23 +375,32 @@ def drain_inference_results():
             if client_ip in banned_ips:
                 continue
 
-        if probability > PREDICTION_THRESHOLD:
-            gru_violation_counts[client_ip] += 1
-            violations = gru_violation_counts[client_ip]
-            # verify if collected 3 sequences in a row to prevent false positives
-            if violations >= GRU_CONSECUTIVE_THRESH:
-                print(f"\n[GRU] DETECTED ATTACK — IP: {client_ip} | "
-                      f"Confidence: {probability * 100:.1f}%")
-                ban_ip(client_ip,
-                    reason=f"GRU classifier ({probability * 100:.1f}% confidence)")
-                kill_zombie_connections(client_ip)
-                client_sequences.pop(client_ip, None)
-                request_tracker.pop(client_ip, None)
-                client_last_seen.pop(client_ip, None)
+        # Counter logic under state_lock; ban/kill done OUTSIDE the lock so we
+        # never hold state_lock across a subprocess/BPF call.
+        should_ban = False
+        with state_lock:
+            if probability > PREDICTION_THRESHOLD:
+                gru_violation_counts[client_ip] += 1
+                # require GRU_CONSECUTIVE_THRESH detections in a row (FP guard)
+                if gru_violation_counts[client_ip] >= GRU_CONSECUTIVE_THRESH:
+                    should_ban = True
+            else:
                 gru_violation_counts.pop(client_ip, None)
-        else:
-            if client_ip in gru_violation_counts:
-                gru_violation_counts.pop(client_ip, None)
+
+        if not should_ban:
+            continue
+
+        print(f"\n[GRU] DETECTED ATTACK — IP: {client_ip} | "
+              f"Confidence: {probability * 100:.1f}%")
+        ban_ip(client_ip,
+               reason=f"GRU classifier ({probability * 100:.1f}% confidence)")
+        kill_zombie_connections(client_ip)
+        with state_lock:
+            client_sequences.pop(client_ip, None)
+            request_tracker.pop(client_ip, None)
+            client_last_seen.pop(client_ip, None)
+            gru_violation_counts.pop(client_ip, None)
+        prev_telemetry.pop(client_ip, None)   # telemetry-thread-only
 
 def l3_l4_telemetry_monitor():
     """L3/L4 telemetry monitor — now also drives GRU inference.
@@ -391,90 +427,104 @@ def l3_l4_telemetry_monitor():
         evict_idle_clients()
         drain_inference_results()
 
-        total_global_syn = 0
-
-        # Collect keys during iteration, delete individually after processing
-        # to avoid the TOCTOU race where clear() drops newly-added entries.
-        processed_keys = []
+        total_global_syn_delta = 0
         now_ns = time.monotonic_ns()
 
+        # Read-and-swap: the XDP counters are cumulative and are NOT wiped here.
+        # We keep a userspace snapshot (prev_telemetry) and compute per-interval
+        # DELTAS by subtraction. Deltas drive the rate heuristics (unchanged
+        # semantics); cumulative values give true flow duration + live connection
+        # counts. Idle keys are reclaimed in evict_idle_clients(), not here, so a
+        # packet XDP counts between our read and a delete can no longer be lost.
         for key, per_cpu_values in telemetry_map.items():
             ip_str = network_bytes_to_ip(key.value)
-            processed_keys.append(key)
 
-            with banned_ips_lock:
-                if ip_str in banned_ips:
-                    continue
-
-            # Aggregate per-CPU counters
-            total_pkts = sum(cpu.packet_count for cpu in per_cpu_values)
-            total_syn = sum(cpu.syn_count for cpu in per_cpu_values)
-            total_bytes = sum(cpu.byte_count for cpu in per_cpu_values)
-            total_connections = sum(cpu.active_connections for cpu in per_cpu_values)
-            # first_seen_ns: take the earliest non-zero value across CPUs
+            # Cumulative per-CPU aggregation
+            cum_pkts = sum(cpu.packet_count for cpu in per_cpu_values)
+            cum_syn = sum(cpu.syn_count for cpu in per_cpu_values)
+            cum_bytes = sum(cpu.byte_count for cpu in per_cpu_values)
+            cum_conns = sum(cpu.active_connections for cpu in per_cpu_values)
+            # first_seen_ns: earliest non-zero across CPUs -> true flow start
             first_ns_values = [cpu.first_seen_ns for cpu in per_cpu_values
                                if cpu.first_seen_ns > 0]
             first_ns = min(first_ns_values) if first_ns_values else 0
 
-            total_global_syn += total_syn
+            # Per-interval deltas vs the previous snapshot. A value below the
+            # previous snapshot means the key was evicted and re-created (IP
+            # reuse / counter reset) -> treat the cumulative value as the delta.
+            prev = prev_telemetry.get(ip_str)
+            if prev is None or cum_pkts < prev[0]:
+                d_pkts, d_syn, d_bytes = cum_pkts, cum_syn, cum_bytes
+            else:
+                d_pkts = cum_pkts - prev[0]
+                d_syn = cum_syn - prev[1]
+                d_bytes = cum_bytes - prev[2]
+            prev_telemetry[ip_str] = (cum_pkts, cum_syn, cum_bytes)
 
-            # --- L4 SYN flood heuristic (per-IP) ---
-            if total_syn > SYN_FLOOD_THRESHOLD:
+            with banned_ips_lock:
+                if ip_str in banned_ips:
+                    # snapshot already advanced -> deltas stay correct post-unban
+                    continue
+
+            total_global_syn_delta += d_syn
+
+            # --- L4 SYN flood heuristic (per-IP, per-interval rate) ---
+            if d_syn > SYN_FLOOD_THRESHOLD:
                 print(f"\n[L4-DETECT] SYN FLOOD ATTACK - IP: {ip_str} | "
-                      f"Rate: {total_syn} SYN/s")
-                ban_ip(ip_str, reason=f"Per-IP SYN flood ({total_syn} SYN/s)")
+                      f"Rate: {d_syn} SYN/s")
+                ban_ip(ip_str, reason=f"Per-IP SYN flood ({d_syn} SYN/s)")
                 continue
 
-            # --- L4 UDP / Volumetric flood heuristic (per-IP) ---
-            non_syn_pkts = total_pkts - total_syn
+            # --- L4 UDP / Volumetric flood heuristic (per-IP, per-interval rate) ---
+            non_syn_pkts = d_pkts - d_syn
             if non_syn_pkts > UDP_FLOOD_THRESHOLD:
                 print(f"\n[L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: {ip_str} | "
                       f"Rate: {non_syn_pkts} pkts/s")
                 ban_ip(ip_str, reason=f"Volumetric packet flood ({non_syn_pkts} pkts/s)")
                 continue
 
+            # Mark liveness (drives idle eviction) -- shared dict, under state_lock.
+            if d_pkts > 0:
+                with state_lock:
+                    client_last_seen[ip_str] = time.time()
+
             # --- GRU feature extraction from XDP telemetry ---
-            # print(f"[DEBUG-TELEMETRY] IP={ip_str} pkts={total_pkts} syn={total_syn} bytes={total_bytes} conns={total_connections} first_ns={first_ns}")
-            if total_pkts > 0 and first_ns > 0:
+            if d_pkts > 0 and first_ns > 0:
+                # TRUE cumulative flow duration — now correct and preserved for
+                # the de-confounded retrain (P0). The current (confounded) model
+                # was effectively tuned on per-interval (<=1s) durations, so we
+                # CAP what we actually feed it; remove this cap on retrain.
                 flow_duration_us = max((now_ns - first_ns) / 1000, 1.0)
-                flow_duration_s = flow_duration_us / 1e6
-                fwd_pkt_len_mean = total_bytes / total_pkts
-                flow_pps = total_pkts / flow_duration_s
+                gru_duration_us = min(flow_duration_us, L4_POLL_INTERVAL * 1e6)
+                gru_duration_s = gru_duration_us / 1e6
+                fwd_pkt_len_mean = d_bytes / d_pkts
+                flow_pps = d_pkts / gru_duration_s
 
-                # --- Layer 3: eBPF connection-count heuristic (R.U.D.Y./Slowloris) ---
-                # If an IP has many active connections but very low packet rate,
-                # it's likely holding connections open without sending data.
-                # NOTE: Use total_pkts / L4_POLL_INTERVAL (stable per-interval
-                # rate) instead of flow_pps (which depends on sub-second timing
-                # within the interval and can be artificially inflated).
-                interval_pps = total_pkts / L4_POLL_INTERVAL
-                if total_connections > 7 and interval_pps < 20.0:
-                    print(f"\n[L4-DETECT] SLOW CONNECTION ABUSE - IP: {ip_str} | "
-                          f"Connections: {total_connections} | PPS: {interval_pps:.1f}")
-                    ban_ip(ip_str, reason=f"Slow connection abuse ({total_connections} conns, {interval_pps:.1f} pps)")
-                    kill_zombie_connections(ip_str)
-                    continue
+                # --- L4 slow-connection (Slowloris/R.U.D.Y.) heuristic: DEFERRED ---
+                # Reviving this naively with the cumulative active_connections
+                # counter false-bans legit clients: ingress-only XDP never sees
+                # server-side teardown, so the gauge drifts upward without bound
+                # (observed: every legit client pinned at "8 conns"). A drift-free
+                # design (per-interval conn gauge, C-side) is its own iteration.
+                # Slowloris/R.U.D.Y. remain covered by the L7 heuristic engine.
 
-                # Normalize per-IP interval stats to per-flow averages to match CICFlowMeter training data
-                num_flows = max(float(total_syn), 1.0)
-                
-                avg_flow_duration_us = flow_duration_us / num_flows
-                avg_pkts_per_flow = float(total_pkts) / num_flows
-                avg_bytes_per_flow = float(total_bytes) / num_flows
-                avg_syn_per_flow = float(total_syn) / num_flows
-                
-                # We retain fwd_pkt_len_mean and flow_pps as they are rate/mean metrics.
-                # However, for flow_pps, CICFlowMeter often reports very high PPS for short flows.
-                # If num_flows > 1 (e.g. SYN flood), the individual flows are much shorter.
-                # A heuristic: if it's a SYN flood, the flow duration is minimal, so PPS should be high.
-                if avg_pkts_per_flow <= 2.5 and avg_syn_per_flow >= 0.8 and total_syn >= 3:
+                # Normalize per-interval stats to per-flow averages (CICFlowMeter-aligned)
+                num_flows = max(float(d_syn), 1.0)
+
+                avg_flow_duration_us = gru_duration_us / num_flows
+                avg_pkts_per_flow = float(d_pkts) / num_flows
+                avg_bytes_per_flow = float(d_bytes) / num_flows
+                avg_syn_per_flow = float(d_syn) / num_flows
+
+                # SYN-flood-shaped flows: force minimal duration / very high PPS
+                if avg_pkts_per_flow <= 2.5 and avg_syn_per_flow >= 0.8 and d_syn >= 3:
                     avg_flow_duration_us = 1.0
                     avg_flow_pps = avg_pkts_per_flow / 0.000001
                 else:
                     avg_flow_pps = flow_pps / num_flows
 
                 features = [
-                    avg_flow_duration_us,       # Flow Duration (µs)
+                    avg_flow_duration_us,       # Flow Duration (us)
                     avg_pkts_per_flow,          # Total Fwd Packet
                     avg_bytes_per_flow,         # Total Length of Fwd Packet
                     fwd_pkt_len_mean,           # Fwd Packet Length Mean
@@ -482,38 +532,35 @@ def l3_l4_telemetry_monitor():
                     avg_syn_per_flow,           # SYN Flag Count
                 ]
 
-                client_last_seen[ip_str] = time.time()
-                client_sequences[ip_str].append(features)
+                # Append + readiness check under state_lock; the heavy work
+                # (scaler transform + queue put) is done OUTSIDE the lock.
+                with state_lock:
+                    client_sequences[ip_str].append(features)
+                    seq_ready = len(client_sequences[ip_str]) == SEQUENCE_LENGTH
+                    raw_sequence = (np.array(list(client_sequences[ip_str]))
+                                    if seq_ready else None)
+                if seq_ready:
+                    inference_queue.put((ip_str, scaler.transform(raw_sequence)))
 
-                if len(client_sequences[ip_str]) == SEQUENCE_LENGTH:
-                    raw_sequence = np.array(list(client_sequences[ip_str]))
-                    scaled_sequence = scaler.transform(raw_sequence)
-                    # print(f"[DEBUG-ML] IP={ip_str} submitting seq to GRU. Features: {features}")
-                    inference_queue.put((ip_str, scaled_sequence))
-
-        # Delete only processed keys — new entries added by XDP between
-        # our iteration start and now are preserved for the next cycle.
-        for key in processed_keys:
-            try:
-                del telemetry_map[key]
-            except KeyError:
-                pass
+        # NOTE: no blanket delete of the telemetry map here any more. Keys are
+        # cumulative and are reclaimed only when an IP goes idle (see
+        # evict_idle_clients) -- that is what preserves flow duration + counts.
 
         # Detect spoofed-IP SYN floods via aggregate rate
-        if total_global_syn > GLOBAL_SYN_THRESHOLD and not syn_cookies_enabled:
+        if total_global_syn_delta > GLOBAL_SYN_THRESHOLD and not syn_cookies_enabled:
             try:
                 subprocess.run(
                     ["sysctl", "-w", "net.ipv4.tcp_syncookies=1"],
                     check=True, capture_output=True
                 )
-                print(f"[L4-GLOBAL] Aggregate SYN rate {total_global_syn}/s exceeds "
+                print(f"[L4-GLOBAL] Aggregate SYN rate {total_global_syn_delta}/s exceeds "
                       f"threshold. SYN cookies ENABLED.")
                 syn_cookies_enabled = True
             except (subprocess.CalledProcessError, FileNotFoundError) as e:
                 print(f"[-] Failed to enable SYN cookies: {e}")
-        elif total_global_syn <= GLOBAL_SYN_THRESHOLD // 2 and syn_cookies_enabled:
+        elif total_global_syn_delta <= GLOBAL_SYN_THRESHOLD // 2 and syn_cookies_enabled:
             syn_cookies_enabled = False
-            print(f"[L4-GLOBAL] Aggregate SYN rate {total_global_syn}/s back to normal. "
+            print(f"[L4-GLOBAL] Aggregate SYN rate {total_global_syn_delta}/s back to normal. "
                   f"SYN cookies flag reset.")
 
 
@@ -546,9 +593,6 @@ try:
     # CICFlowMeter-aligned features directly from the XDP telemetry map.
     for log_line in tail_nginx_logs(NGINX_LOG_FILE):
         try:
-            # Drain any completed GRU inference results (non-blocking)
-            drain_inference_results()
-
             log_data = json.loads(log_line)
             client_ip = log_data.get("client_ip")
 
@@ -562,33 +606,43 @@ try:
             # 503 is the backend saying it's overloaded, so we don't count that as an attack from the client
             is_error = status >= 400 and status != 503
 
-            request_tracker[client_ip].append((now, is_error))
+            # request_tracker is shared with the telemetry thread's eviction, so
+            # every read/write happens under state_lock. We only DECIDE here; the
+            # ban/kill (subprocess/BPF) runs after the lock is released.
+            should_ban = False
+            ban_rps = 0.0
+            ban_err = 0.0
+            with state_lock:
+                request_tracker[client_ip].append((now, is_error))
 
-            # Evict entries outside the sliding window
-            while (request_tracker[client_ip] and
-                   now - request_tracker[client_ip][0][0] > HEURISTIC_WINDOW):
-                request_tracker[client_ip].popleft()
+                # Evict entries outside the sliding window
+                while (request_tracker[client_ip] and
+                       now - request_tracker[client_ip][0][0] > HEURISTIC_WINDOW):
+                    request_tracker[client_ip].popleft()
 
-            entries = request_tracker[client_ip]
-            if len(entries) >= HEURISTIC_MIN_REQUESTS:
-                window_duration = now - entries[0][0]
-                if window_duration > 0:
-                    rps = len(entries) / window_duration
-                    error_count = sum(1 for _, err in entries if err)
-                    error_ratio = error_count / len(entries)
-                    
-                    # print(f"[DEBUG-HEURISTIC] IP={client_ip} RPS={rps:.1f} err_ratio={error_ratio:.2f} entries={len(entries)}")
+                entries = request_tracker[client_ip]
+                if len(entries) >= HEURISTIC_MIN_REQUESTS:
+                    window_duration = now - entries[0][0]
+                    if window_duration > 0:
+                        rps = len(entries) / window_duration
+                        error_count = sum(1 for _, err in entries if err)
+                        error_ratio = error_count / len(entries)
+                        if rps > HEURISTIC_MAX_RPS or (error_ratio > HEURISTIC_ERROR_RATIO and rps > 10):
+                            should_ban = True
+                            ban_rps = rps
+                            ban_err = error_ratio
 
-                    if rps > HEURISTIC_MAX_RPS or (error_ratio > HEURISTIC_ERROR_RATIO and rps > 10):
-                        print(f"\n[HEURISTIC] L7 anomaly detected - IP: {client_ip} | "
-                              f"RPS: {rps:.1f} | Error ratio: {error_ratio:.0%}")
-                        ban_ip(client_ip,
-                               reason=f"Heuristic (RPS={rps:.1f}, errors={error_ratio:.0%})")
-                        kill_zombie_connections(client_ip)
-                        client_sequences.pop(client_ip, None)
-                        request_tracker.pop(client_ip, None)
-                        client_last_seen.pop(client_ip, None)
-                        continue
+            if should_ban:
+                print(f"\n[HEURISTIC] L7 anomaly detected - IP: {client_ip} | "
+                      f"RPS: {ban_rps:.1f} | Error ratio: {ban_err:.0%}")
+                ban_ip(client_ip,
+                       reason=f"Heuristic (RPS={ban_rps:.1f}, errors={ban_err:.0%})")
+                kill_zombie_connections(client_ip)
+                with state_lock:
+                    client_sequences.pop(client_ip, None)
+                    request_tracker.pop(client_ip, None)
+                    client_last_seen.pop(client_ip, None)
+                continue
 
         except json.JSONDecodeError:
             continue
