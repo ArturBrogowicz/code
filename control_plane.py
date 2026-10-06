@@ -43,6 +43,15 @@ UDP_FLOOD_THRESHOLD = 5000
 RUDY_TIMEOUT_THRESHOLD = 3     # Ban after 3 body-read timeouts in the window
 RUDY_WINDOW = 60.0             # Sliding window for counting timeouts (seconds)
 
+# L4 slow-connection abuse (Slowloris/R.U.D.Y.) — drift-free detection sourced
+# from the kernel socket table (ss), NOT a hand-rolled XDP gauge. An IP is
+# flagged only when it holds many concurrent ESTABLISHED connections AND sends
+# near-zero data this interval AND does so for several consecutive intervals.
+SLOWCONN_CONN_THRESHOLD = 8    # Concurrent ESTABLISHED conns from one IP
+SLOWCONN_IDLE_BYTES = 250      # Per-interval ingress bytes below which it's "idle"
+SLOWCONN_CONSECUTIVE = 3       # Sustained intervals before banning (FP guard)
+PUBLIC_PORTS = (":80", ":443") # nginx public listeners (local port in ss output)
+
 # Auto-unblock IPs after TTL expires (seconds)
 BAN_TTL_SECONDS = 300
 
@@ -107,6 +116,10 @@ state_lock = threading.Lock()
 # (monitor loop + evict_idle_clients + drain_inference_results, which is now a
 # single consumer running in that thread), so it needs no lock.
 prev_telemetry = {}   # {ip_str: (cum_pkts, cum_syn, cum_bytes)}
+
+# Consecutive intervals an IP has looked like slow-connection abuse (many held
+# connections + near-idle data). Telemetry-thread-only, like prev_telemetry.
+slowconn_counts = defaultdict(int)
 
 # Track ban timestamps for TTL-based expiry
 ban_timestamps = {}
@@ -214,6 +227,7 @@ def evict_idle_clients():
     # Telemetry-thread-only state (prev_telemetry / telemetry_map) → no state_lock.
     for ip_str in stale_ips:
         prev_telemetry.pop(ip_str, None)
+        slowconn_counts.pop(ip_str, None)
         try:
             del telemetry_map[telemetry_map.Key(ip_to_network_bytes(ip_str))]
         except KeyError:
@@ -230,6 +244,34 @@ def kill_zombie_connections(ip_str):
         print(f"[-] Error while killing sessions for {ip_str}: {e.stderr.decode().strip()}")
     except FileNotFoundError:
         print("[-] The 'ss' tool is not installed (iproute2 package).")
+
+
+def get_established_conns_by_ip():
+    """Per-source-IP count of ESTABLISHED client connections, read from the
+    kernel socket table (authoritative and drift-free, unlike an XDP gauge).
+
+    The daemon runs inside server_ns, so plain `ss` sees the client<->nginx
+    sockets. We keep only connections whose LOCAL port is a public listener
+    (80/443) and group by the remote peer IP. Returns {ip_str: count}.
+    """
+    counts = defaultdict(int)
+    try:
+        res = subprocess.run(["ss", "-tan", "state", "established"],
+                             capture_output=True, text=True, timeout=2)
+    except (subprocess.SubprocessError, FileNotFoundError):
+        return counts
+    for line in res.stdout.splitlines():
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        # Parse from the right so we're robust to whether ss prints the State
+        # column: the last two tokens are always Local and Peer "addr:port".
+        local, peer = parts[-2], parts[-1]
+        if not local.endswith(PUBLIC_PORTS):
+            continue
+        peer_ip = peer.rsplit(":", 1)[0].strip("[]")
+        counts[peer_ip] += 1
+    return counts
 
 
 def tail_nginx_logs(file_path):
@@ -401,6 +443,7 @@ def drain_inference_results():
             client_last_seen.pop(client_ip, None)
             gru_violation_counts.pop(client_ip, None)
         prev_telemetry.pop(client_ip, None)   # telemetry-thread-only
+        slowconn_counts.pop(client_ip, None)  # telemetry-thread-only
 
 def l3_l4_telemetry_monitor():
     """L3/L4 telemetry monitor — now also drives GRU inference.
@@ -430,6 +473,10 @@ def l3_l4_telemetry_monitor():
         total_global_syn_delta = 0
         now_ns = time.monotonic_ns()
 
+        # Kernel-authoritative per-IP concurrent connection counts for the
+        # drift-free slow-connection heuristic (fetched once per poll).
+        established_by_ip = get_established_conns_by_ip()
+
         # Read-and-swap: the XDP counters are cumulative and are NOT wiped here.
         # We keep a userspace snapshot (prev_telemetry) and compute per-interval
         # DELTAS by subtraction. Deltas drive the rate heuristics (unchanged
@@ -443,7 +490,6 @@ def l3_l4_telemetry_monitor():
             cum_pkts = sum(cpu.packet_count for cpu in per_cpu_values)
             cum_syn = sum(cpu.syn_count for cpu in per_cpu_values)
             cum_bytes = sum(cpu.byte_count for cpu in per_cpu_values)
-            cum_conns = sum(cpu.active_connections for cpu in per_cpu_values)
             # first_seen_ns: earliest non-zero across CPUs -> true flow start
             first_ns_values = [cpu.first_seen_ns for cpu in per_cpu_values
                                if cpu.first_seen_ns > 0]
@@ -483,6 +529,26 @@ def l3_l4_telemetry_monitor():
                 ban_ip(ip_str, reason=f"Volumetric packet flood ({non_syn_pkts} pkts/s)")
                 continue
 
+            # --- L4 slow-connection abuse (Slowloris/R.U.D.Y.), drift-free ---
+            # Concurrent ESTABLISHED connections come from the kernel socket
+            # table (authoritative), combined with a near-idle ingress byte rate
+            # this interval and sustained over several intervals. Legit clients
+            # fail at least one leg (they don't hoard idle connections), so this
+            # cannot false-ban them the way the old cumulative XDP gauge did.
+            # Runs regardless of d_pkts: a true Slowloris may send nothing here.
+            conns = established_by_ip.get(ip_str, 0)
+            if conns >= SLOWCONN_CONN_THRESHOLD and d_bytes < SLOWCONN_IDLE_BYTES:
+                slowconn_counts[ip_str] += 1
+                if slowconn_counts[ip_str] >= SLOWCONN_CONSECUTIVE:
+                    print(f"\n[L4-DETECT] SLOW CONNECTION ABUSE - IP: {ip_str} | "
+                          f"Est. conns: {conns} | Bytes/interval: {d_bytes}")
+                    ban_ip(ip_str, reason=f"Slow connection abuse ({conns} conns)")
+                    kill_zombie_connections(ip_str)
+                    slowconn_counts.pop(ip_str, None)
+                    continue
+            else:
+                slowconn_counts.pop(ip_str, None)
+
             # Mark liveness (drives idle eviction) -- shared dict, under state_lock.
             if d_pkts > 0:
                 with state_lock:
@@ -499,14 +565,6 @@ def l3_l4_telemetry_monitor():
                 gru_duration_s = gru_duration_us / 1e6
                 fwd_pkt_len_mean = d_bytes / d_pkts
                 flow_pps = d_pkts / gru_duration_s
-
-                # --- L4 slow-connection (Slowloris/R.U.D.Y.) heuristic: DEFERRED ---
-                # Reviving this naively with the cumulative active_connections
-                # counter false-bans legit clients: ingress-only XDP never sees
-                # server-side teardown, so the gauge drifts upward without bound
-                # (observed: every legit client pinned at "8 conns"). A drift-free
-                # design (per-interval conn gauge, C-side) is its own iteration.
-                # Slowloris/R.U.D.Y. remain covered by the L7 heuristic engine.
 
                 # Normalize per-interval stats to per-flow averages (CICFlowMeter-aligned)
                 num_flows = max(float(d_syn), 1.0)
