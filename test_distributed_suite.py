@@ -598,6 +598,14 @@ def _read_softirqs_net_rx():
 
 
 def capture_metrics(scenario, phase):
+    """Measure one ~1s window SYNCHRONOUSLY, then write the CSV row.
+
+    Runs synchronously on purpose: the caller blocks for the full window, so
+    each phase completes before the scenario advances. This keeps 'Phase 1:
+    Baseline' (the first call in every scenario) a true pre-attack measurement
+    instead of overlapping launch_botnet(), and stops adjacent phases' windows
+    from bleeding into one another (also removes the concurrent-CSV-write race).
+    """
     def task():
         try:
             # 1. Locate target processes BEFORE the measurement window
@@ -710,7 +718,7 @@ def capture_metrics(scenario, phase):
         except Exception as e:
             print(f"Error capturing metrics: {e}")
 
-    threading.Thread(target=task, daemon=True).start()
+    task()   # synchronous: block for the full measurement window (see docstring)
 
 def check_collateral_damage(legit_nodes):
     """Verify that NO legitimate user IP is banned.
@@ -852,7 +860,6 @@ def scenario_syn_flood(botnet, legit):
     log_pos = _get_log_size()
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"hping3 -S -p 80 -i u1000 {SERVER_IP}", ns=ns, bg=True))
-    time.sleep(1.5)
     capture_metrics("Distributed SYN Flood", "Phase 2: Pre-Mitigation")
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed SYN Flood", "Phase 3: Post-Mitigation")
@@ -871,7 +878,6 @@ def scenario_slow_syn(botnet, legit):
     log_pos = _get_log_size()
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"hping3 -S -p 80 -i u100000 {SERVER_IP}", ns=ns, bg=True))
-    time.sleep(1.5)
     capture_metrics("Distributed Low & Slow SYN", "Phase 2: Pre-Mitigation")
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=30, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed Low & Slow SYN", "Phase 3: Post-Mitigation")
@@ -890,7 +896,6 @@ def scenario_udp_flood(botnet, legit):
     log_pos = _get_log_size()
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"hping3 --udp -p 80 --flood {SERVER_IP}", ns=ns, bg=True))
-    time.sleep(1.5)
     capture_metrics("Distributed UDP Flood", "Phase 2: Pre-Mitigation")
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10, attack_start=attack_start, log_start_pos=log_pos)
     # ── Sustained Stress Window: measure CPU while bans actively DROP flood traffic ──
@@ -916,7 +921,6 @@ def scenario_http_flood(botnet, legit):
     log_pos = _get_log_size()
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"wrk -t2 -c50 -d30s {HTTP_URL}", ns=ns, bg=True))
-    time.sleep(1.5)
     capture_metrics("Distributed HTTP Flood", "Phase 2: Pre-Mitigation")
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=15, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed HTTP Flood", "Phase 3: Post-Mitigation")
@@ -935,7 +939,6 @@ def scenario_ack_flood(botnet, legit):
     log_pos = _get_log_size()
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"hping3 -A -p 80 --flood {SERVER_IP}", ns=ns, bg=True))
-    time.sleep(1.5)
     capture_metrics("Distributed ACK Flood", "Phase 2: Pre-Mitigation")
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10, attack_start=attack_start, log_start_pos=log_pos)
     # ── Sustained Stress Window: measure CPU while bans actively DROP flood traffic ──
@@ -962,7 +965,6 @@ def scenario_fragmentation(botnet, legit):
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"hping3 -S -p 80 -f --fragoff 20 --flood {SERVER_IP}",
             ns=ns, bg=True))
-    time.sleep(1.5)
     capture_metrics("Distributed IP Fragmentation Flood", "Phase 2: Pre-Mitigation")
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10, attack_start=attack_start, log_start_pos=log_pos)
     # ── Sustained Stress Window: measure CPU while bans actively DROP flood traffic ──
@@ -1012,7 +1014,6 @@ while True:
 ''')
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"python3 {script}", ns=ns, bg=True))
-    time.sleep(1.5)
     capture_metrics("Distributed Slowloris", "Phase 2: Pre-Mitigation")
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=40, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed Slowloris", "Phase 3: Post-Mitigation")
@@ -1056,7 +1057,6 @@ while True:
 ''')
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"python3 {script}", ns=ns, bg=True))
-    time.sleep(1.5)
     capture_metrics("Distributed R.U.D.Y.", "Phase 2: Pre-Mitigation")
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=40, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed R.U.D.Y.", "Phase 3: Post-Mitigation")
@@ -1082,7 +1082,6 @@ done
 """)
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"bash {script}", ns=ns, bg=True))
-    time.sleep(1.5)
     capture_metrics("Distributed Yo-Yo", "Phase 2: Pre-Mitigation")
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=25, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed Yo-Yo", "Phase 3: Post-Mitigation")
@@ -1115,7 +1114,6 @@ def scenario_multi_vector(botnet, legit):
         p = run(f"hping3 --udp -p 80 --flood {SERVER_IP}", ns=ns, bg=True)
         if p: procs.append((p, ns, ip))
 
-    time.sleep(1.5)
     capture_metrics("Multi-Vector Distributed Attack", "Phase 2: Pre-Mitigation")
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=20, attack_start=attack_start, log_start_pos=log_pos)
     # ── Sustained Stress Window: measure CPU while bans actively DROP flood traffic ──
