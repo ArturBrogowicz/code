@@ -596,6 +596,40 @@ def _read_softirqs_net_rx():
     return []
 
 
+def _read_cpu_jiffies():
+    """Read /proc/stat -> ((idle_all, total), [(idle_all, total) per cpu0..cpuN]).
+
+    idle_all = idle + iowait; total = sum of all fields. Host-wide, same scope
+    as /proc/softirqs, so the hot-core softirq index lines up with per_core.
+    """
+    agg, per_core = None, []
+    try:
+        with open("/proc/stat", "r") as f:
+            for line in f:
+                if not line.startswith("cpu"):
+                    break
+                parts = line.split()
+                vals = [int(x) for x in parts[1:]]
+                idle_all = vals[3] + (vals[4] if len(vals) > 4 else 0)
+                total = sum(vals)
+                if parts[0] == "cpu":
+                    agg = (idle_all, total)
+                else:                         # cpu0, cpu1, ...
+                    per_core.append((idle_all, total))
+    except Exception:
+        pass
+    return agg, per_core
+
+
+def _cpu_busy_pct(before, after):
+    """Busy% between two (idle_all, total) jiffie snapshots."""
+    (idle_b, total_b), (idle_a, total_a) = before, after
+    d_total, d_idle = total_a - total_b, idle_a - idle_b
+    if d_total <= 0:
+        return 0.0
+    return max(0.0, min(100.0, (1.0 - d_idle / d_total) * 100.0))
+
+
 
 def capture_metrics(scenario, phase):
     """Measure one ~1s window SYNCHRONOUSLY, then write the CSV row.
@@ -636,17 +670,28 @@ def capture_metrics(scenario, phase):
                 except:
                     return 0, 0
 
-            # 2. Snapshot softirqs BEFORE the measurement window
+            # 2+3+4. One aligned ~1s window: CPU (per-core + total), softirqs,
+            # and PPS are all bracketed by the SAME sleep, so HotCore_CPU_Pct is
+            # consistent with CPU_Total (fixes audit 5b). CPU comes from
+            # /proc/stat jiffie deltas rather than psutil's two offset windows.
+            _, core_before = _read_cpu_jiffies()
             softirq_before = _read_softirqs_net_rx()
-
-            # 3. Combined 1-second measurement window (CPU + PPS + softirqs)
             rx_p1, rx_b1 = read_stats()
-            cpu_total = psutil.cpu_percent(interval=1.0)
-            per_core = psutil.cpu_percent(interval=0, percpu=True)
+            time.sleep(1.0)
             rx_p2, rx_b2 = read_stats()
-
-            # 4. Snapshot softirqs AFTER the measurement window
             softirq_after = _read_softirqs_net_rx()
+            _, core_after = _read_cpu_jiffies()
+
+            if core_before and core_after and len(core_before) == len(core_after):
+                per_core = [_cpu_busy_pct(b, a) for b, a in zip(core_before, core_after)]
+            else:
+                per_core = []
+            # CPU_Total = unweighted MEAN of per-core busy%. The /proc/stat aggregate
+            # line jiffie-weights cores, which under-represents a single saturated
+            # core on a tickless kernel (a busy core accrues fewer jiffies than an
+            # idle one). The mean gives the intuitive "fraction of total CPU in use":
+            # one fully-pegged core out of 8 -> 12.5%.
+            cpu_total = (sum(per_core) / len(per_core)) if per_core else 0.0
 
             # 5. Compute NET_RX softirq deltas
             if softirq_before and softirq_after and len(softirq_before) == len(softirq_after):
