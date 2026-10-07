@@ -596,6 +596,30 @@ def _read_softirqs_net_rx():
     return []
 
 
+def _read_ip_inreceives():
+    """Ip InReceives (cumulative) from /proc/net/snmp inside server_ns — packets
+    that reached the kernel IP layer. XDP_DROP happens BEFORE this (never
+    counted); iptables -j DROP in INPUT happens AFTER (counted), so this isolates
+    where each backend drops, which raw PPS/softirq cannot on veth."""
+    try:
+        res = run(["cat", "/proc/net/snmp"], ns=SERVER_NS)
+        if not res or not res.stdout:
+            return 0
+        hdr = vals = None
+        for line in res.stdout.splitlines():
+            if line.startswith("Ip:"):
+                if hdr is None:
+                    hdr = line.split()
+                else:
+                    vals = line.split()
+                    break
+        if hdr and vals and "InReceives" in hdr:
+            return int(vals[hdr.index("InReceives")])
+    except Exception:
+        pass
+    return 0
+
+
 def _read_cpu_jiffies():
     """Read /proc/stat -> ((idle_all, total), [(idle_all, total) per cpu0..cpuN]).
 
@@ -676,9 +700,11 @@ def capture_metrics(scenario, phase):
             # /proc/stat jiffie deltas rather than psutil's two offset windows.
             _, core_before = _read_cpu_jiffies()
             softirq_before = _read_softirqs_net_rx()
+            ip_rx1 = _read_ip_inreceives()
             rx_p1, rx_b1 = read_stats()
             time.sleep(1.0)
             rx_p2, rx_b2 = read_stats()
+            ip_rx2 = _read_ip_inreceives()
             softirq_after = _read_softirqs_net_rx()
             _, core_after = _read_cpu_jiffies()
 
@@ -730,7 +756,10 @@ def capture_metrics(scenario, phase):
 
             pps = rx_p2 - rx_p1
             bps = rx_b2 - rx_b1
-            
+            # Stack-penetration metrics (fairness: isolate WHERE each backend drops)
+            ip_inreceives = max(0, ip_rx2 - ip_rx1)       # packets that reached the IP layer
+            prestack_dropped = max(0, pps - ip_inreceives)  # dropped before the stack (XDP)
+
             # 8. Save to CSV (extended with 4 new kernel metrics columns)
             mode = os.environ.get("MITIGATION_MODE", "active")
             backend = os.environ.get("MITIGATION_BACKEND", "xdp")
@@ -749,7 +778,8 @@ def capture_metrics(scenario, phase):
                                     "RAM_Daemon_MB", "TCP_Estab", "TCP_TimeWait", 
                                     "TCP_SynRecv", "PPS_Rx", "Bps_Rx",
                                     "SoftIRQ_NET_RX_Total", "SoftIRQ_NET_RX_HotCore",
-                                    "HotCore_ID", "HotCore_CPU_Pct"])
+                                    "HotCore_ID", "HotCore_CPU_Pct",
+                                    "IP_InReceives", "PreStack_Dropped"])
                 writer.writerow([
                     datetime.datetime.now().isoformat(),
                     scenario, phase,
@@ -757,7 +787,8 @@ def capture_metrics(scenario, phase):
                     f"{mem_total:.1f}", f"{daemon_ram:.1f}",
                     tcp_estab, tcp_tw, tcp_syn, pps, bps,
                     softirq_total, hot_core_softirq,
-                    hot_core_id, f"{hot_core_cpu:.1f}"
+                    hot_core_id, f"{hot_core_cpu:.1f}",
+                    ip_inreceives, prestack_dropped
                 ])
                 
         except Exception as e:
