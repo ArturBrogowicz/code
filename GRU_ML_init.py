@@ -1,355 +1,166 @@
-import torch
-import torch.nn as nn
+#!/usr/bin/env python3
+"""Phase B — Fixed, de-confounded GRU training pipeline (CIC-IDS2017).
+
+Rewrites the previous confounded pipeline. Key corrections vs. the old version:
+  * Single-capture data (CIC-IDS2017) — benign AND attack from one testbed.
+  * Top-8 XDP-observable features (feature-selection study), not the SYN-centric 6.
+  * Sequences built STRICTLY within a single Source IP (never across IPs).
+  * Scaler fit on the TRAIN split ONLY (no leakage).
+  * Honest split: benign IP-disjoint (train/val/test by Source IP); attack
+    sub-type-stratified random (only ~1 attacker IP exists, so an IP-disjoint
+    attack split is impossible — documented limitation).
+  * Class imbalance handled with BCEWithLogitsLoss pos_weight.
+
+Capture order is preserved for within-IP sequencing (CIC-IDS2017 timestamps are
+unreliable — mixed d/m/Y and ambiguous AM/PM — so we do NOT sort by them; the
+rows are already in capture order per day-file).
+"""
+import json, warnings; warnings.filterwarnings("ignore")
+import numpy as np, pandas as pd, torch, torch.nn as nn, joblib
 import torch.optim as optim
-import pandas as pd
-import numpy as np
-import joblib
+from collections import defaultdict
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import (accuracy_score, precision_score, recall_score,
                              f1_score, confusion_matrix)
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import TensorDataset, DataLoader
 from GRU_ML_model import GRUDDoSClassifier
 
-DATA_PATH = "training_data/balanced_dataset.csv"
-MODEL_SAVE_PATH = "training_results/gru_ddos_model.pth"
-SCALER_SAVE_PATH = "training_results/scaler.save"
+torch.manual_seed(42); np.random.seed(42); torch.set_num_threads(8)
 
-SEQUENCE_LENGTH = 15
-BATCH_SIZE = 64
-EPOCHS = 5
-HIDDEN_SIZE = 64
-NUM_LAYERS = 2
+DATA = "training_data/cicids2017_dosddos.csv"
+MODEL_OUT = "training_results/gru_cicids_model.pth"
+SCALER_OUT = "training_results/scaler_cicids.save"
+CFG_OUT = "training_results/feature_config.json"
 
-# Train/validation/test split ratios
-TRAIN_RATIO = 0.70
-VAL_RATIO = 0.15
-TEST_RATIO = 0.15
+FEATURES = ['Init_Win_bytes_forward', 'Fwd IAT Total', 'Fwd Header Length', 'Fwd IAT Max',
+            'Fwd Packet Length Max', 'Fwd IAT Mean', 'Flow Packets/s', 'Total Length of Fwd Packets']
+SEQ = 15; HIDDEN = 64; LAYERS = 2; BATCH = 256; EPOCHS = 15
+BENIGN_CAP_PER_IP = 80     # cap sequences per benign IP (stop huge IPs dominating)
+BENIGN_TARGET = 180000
+ATTACK_TARGET = 120000
+TRAIN, VAL = 0.70, 0.15    # test = remainder
 
-# Column name aliases across CICFlowMeter dataset versions.
-# All three major datasets (CIC-IDS-2017, CSE-CIC-IDS2018, CIC-UNSW-NB15)
-# produce the same features but with slightly different column names.
-# This mapping normalizes them to a canonical form.
-FEATURE_ALIASES = {
-    'Flow Duration':              ['Flow Duration'],
-    'Total Fwd Packet':           ['Total Fwd Packet', 'Tot Fwd Pkts', 'Total Fwd Packets'],
-    'Total Length of Fwd Packet':  ['Total Length of Fwd Packet', 'TotLen Fwd Pkts',
-                                    'Total Length of Fwd Packets'],
-    'Fwd Packet Length Mean':      ['Fwd Packet Length Mean', 'Fwd Pkt Len Mean'],
-    'Flow Packets/s':              ['Flow Packets/s', 'Flow Pkts/s'],
-    'SYN Flag Count':              ['SYN Flag Count', 'SYN Flag Cnt'],
-}
+print(f"[*] Loading {DATA} ...")
+df = pd.read_csv(DATA, low_memory=False)
+for c in FEATURES:
+    df[c] = df[c].astype(np.float32)
+print(f"    {len(df)} flows  benign={(df.y==0).sum()} attack={(df.y==1).sum()}")
 
-# Metadata column aliases (not used as features, but needed for grouping/sorting)
-IP_COL_ALIASES = ['Src IP', 'Source IP']
-TIME_COL_ALIASES = ['Timestamp']
-LABEL_COL_ALIASES = ['Label']
+# ---------- within-IP sequence builders (preserve capture order) ----------
+def windows(arr, cap=None):
+    """All SEQ-length sliding windows of a (n,F) row block, optionally strided to <=cap."""
+    n = len(arr)
+    if n < SEQ:
+        return []
+    starts = list(range(0, n - SEQ + 1))
+    if cap and len(starts) > cap:
+        step = len(starts) / cap
+        starts = [starts[int(i * step)] for i in range(cap)]
+    return [arr[s:s + SEQ] for s in starts]
 
+rng = np.random.default_rng(42)
+att_ips = set(df.loc[df.y == 1, 'Source IP'].unique())
 
-def find_column(df, aliases):
-    """Find a column in the DataFrame by checking a list of known aliases.
+# ----- BENIGN: group by IP (benign-only IPs), split IPs 70/15/15 -----
+ben = df[(df.y == 0) & (~df['Source IP'].isin(att_ips))]
+ben_ips = [ip for ip, g in ben.groupby('Source IP', sort=False) if len(g) >= SEQ]
+rng.shuffle(ben_ips)
+n_tr = int(len(ben_ips) * TRAIN); n_va = int(len(ben_ips) * (TRAIN + VAL))
+split_of = {}
+for i, ip in enumerate(ben_ips):
+    split_of[ip] = 'train' if i < n_tr else ('val' if i < n_va else 'test')
+ben_seq = {'train': [], 'val': [], 'test': []}
+for ip, g in ben.groupby('Source IP', sort=False):
+    if ip not in split_of:
+        continue
+    for w in windows(g[FEATURES].to_numpy(), cap=BENIGN_CAP_PER_IP):
+        ben_seq[split_of[ip]].append(w)
+# subsample benign to target, proportional to split ratios
+for sp, frac in [('train', TRAIN), ('val', VAL), ('test', 1 - TRAIN - VAL)]:
+    tgt = int(BENIGN_TARGET * frac); L = ben_seq[sp]
+    if len(L) > tgt:
+        idx = rng.choice(len(L), tgt, replace=False); ben_seq[sp] = [L[i] for i in idx]
 
-    CICFlowMeter column names vary across dataset versions. This function
-    handles the variation transparently, stripping leading/trailing whitespace
-    from the DataFrame's column names before matching.
-    """
-    stripped = {c.strip(): c for c in df.columns}
-    for alias in aliases:
-        if alias in stripped:
-            return stripped[alias]
-    return None
+# ----- ATTACK: within attacker-IP windows, sub-type-stratified random split -----
+att_windows, att_types = [], []
+for ip, g in df[df.y == 1].groupby('Source IP', sort=False):
+    rows = g[FEATURES].to_numpy(); subs = g['Label'].to_numpy()
+    n = len(rows)
+    for s in range(0, n - SEQ + 1):
+        att_windows.append(rows[s:s + SEQ]); att_types.append(subs[s + SEQ - 1])
+att_windows = np.array(att_windows, dtype=np.float32); att_types = np.array(att_types)
+if len(att_windows) > ATTACK_TARGET:                      # stride down, keep sub-type mix
+    keep = rng.choice(len(att_windows), ATTACK_TARGET, replace=False)
+    att_windows, att_types = att_windows[keep], att_types[keep]
+att_seq = {'train': [], 'val': [], 'test': []}
+att_sub = {'train': [], 'val': [], 'test': []}
+for t in np.unique(att_types):                             # stratify by sub-type
+    idx = np.where(att_types == t)[0]; rng.shuffle(idx)
+    a = int(len(idx) * TRAIN); b = int(len(idx) * (TRAIN + VAL))
+    for sp, sl in [('train', idx[:a]), ('val', idx[a:b]), ('test', idx[b:])]:
+        for i in sl:
+            att_seq[sp].append(att_windows[i]); att_sub[sp].append(t)
 
+def stack(sp):
+    Xb = np.array(ben_seq[sp], dtype=np.float32) if ben_seq[sp] else np.empty((0, SEQ, len(FEATURES)), np.float32)
+    Xa = np.array(att_seq[sp], dtype=np.float32) if att_seq[sp] else np.empty((0, SEQ, len(FEATURES)), np.float32)
+    X = np.concatenate([Xb, Xa], 0)
+    y = np.concatenate([np.zeros(len(Xb)), np.ones(len(Xa))]).astype(np.float32)
+    sub = np.array(['BENIGN'] * len(Xb) + list(att_sub[sp]))
+    return X, y, sub
 
-def normalize_feature_columns(df):
-    """Resolve 6 training features from the DataFrame using alias lookup.
+Xtr, ytr, _ = stack('train'); Xva, yva, _ = stack('val'); Xte, yte, subte = stack('test')
+print(f"[*] sequences  train={len(ytr)} (atk {int(ytr.sum())})  "
+      f"val={len(yva)} (atk {int(yva.sum())})  test={len(yte)} (atk {int(yte.sum())})")
 
-    Returns:
-        (selected_columns, canonical_names): Two parallel lists — the actual
-        DataFrame column names and the canonical names we'll use internally.
-    """
-    selected = []
-    canonical = []
-    for canon_name, aliases in FEATURE_ALIASES.items():
-        col = find_column(df, aliases)
-        if col is None:
-            raise ValueError(
-                f"Required feature '{canon_name}' not found in dataset. "
-                f"Tried aliases: {aliases}. "
-                f"Available columns: {list(df.columns)}"
-            )
-        selected.append(col)
-        canonical.append(canon_name)
-    return selected, canonical
+# ---------- scaler fit on TRAIN ONLY ----------
+scaler = StandardScaler().fit(Xtr.reshape(-1, len(FEATURES)))
+def scale(X): return scaler.transform(X.reshape(-1, len(FEATURES))).reshape(X.shape).astype(np.float32)
+Xtr, Xva, Xte = scale(Xtr), scale(Xva), scale(Xte)
 
+def loader(X, y, shuffle):
+    return DataLoader(TensorDataset(torch.from_numpy(X), torch.from_numpy(y).unsqueeze(1)),
+                      batch_size=BATCH, shuffle=shuffle)
+ltr, lva = loader(Xtr, ytr, True), loader(Xva, yva, False)
 
-# ============================================================
-# LOAD & CLEAN DATASET
-# ============================================================
+device = torch.device('cpu')
+model = GRUDDoSClassifier(input_size=len(FEATURES), hidden_size=HIDDEN, num_layers=LAYERS).to(device)
+pos_w = torch.tensor([(ytr == 0).sum() / max((ytr == 1).sum(), 1)], dtype=torch.float32)
+print(f"[*] pos_weight={pos_w.item():.2f}")
+crit = nn.BCEWithLogitsLoss(pos_weight=pos_w); opt = optim.Adam(model.parameters(), lr=1e-3)
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print(f"[*] Using device: {device}")
-
-print(f"[*] Loading data from {DATA_PATH}...")
-if DATA_PATH.endswith('.parquet'):
-    df = pd.read_parquet(DATA_PATH)
-else:
-    df = pd.read_csv(DATA_PATH, low_memory=False)
-
-print(f"[*] Raw dataset: {len(df)} rows, {len(df.columns)} columns.")
-
-# Strip whitespace from column names (CIC-IDS-2017 has leading spaces)
-df.columns = df.columns.str.strip()
-
-# Clean infinite/NaN values
-df.replace([np.inf, -np.inf], np.nan, inplace=True)
-df.dropna(inplace=True)
-print(f"[*] After cleaning: {len(df)} rows.")
-
-# ============================================================
-# SORT BY SOURCE IP (if available) TO GROUP SEQUENCES PER CLIENT
-# ============================================================
-
-ip_col = find_column(df, IP_COL_ALIASES)
-time_col = find_column(df, TIME_COL_ALIASES)
-
-if ip_col:
-    print(f"[*] Sorting data by '{ip_col}' to group sequences per client...")
-
-    # FIX: Losowe przemieszanie całych bloków IP przed sortowaniem chronologicznym
-    unique_ips = df[ip_col].unique()
-    np.random.seed(42)
-    np.random.shuffle(unique_ips)
-
-    ip_order = {ip: i for i, ip in enumerate(unique_ips)}
-    df['__ip_order'] = df[ip_col].map(ip_order)
-
-    sort_cols = ['__ip_order']
-
-    if time_col:
-        sort_cols.append(time_col)
-        df[time_col] = pd.to_datetime(df[time_col], errors='coerce')
-
-    df = df.sort_values(by=sort_cols).reset_index(drop=True)
-    df.drop(columns=['__ip_order'], inplace=True)
-else:
-    print("[-] Warning: Client IP column not found in dataset. Sequences might cross IPs!")
-    print(f"    Searched for: {IP_COL_ALIASES}")
-
-# LABELS — Binary classification: Benign=0, Attack=1
-# ============================================================
-
-label_col = find_column(df, LABEL_COL_ALIASES)
-if label_col is None:
-    raise ValueError(f"Missing label column! Searched for: {LABEL_COL_ALIASES}")
-
-# Normalize label strings and apply binary mapping
-label_values = df[label_col].astype(str).str.strip().str.lower()
-labels = np.where(label_values == 'benign', 0, 1)
-
-benign_count = np.sum(labels == 0)
-attack_count = np.sum(labels == 1)
-print(f"[*] Labels — Benign: {benign_count} ({benign_count/len(labels)*100:.1f}%), "
-      f"Attack: {attack_count} ({attack_count/len(labels)*100:.1f}%)")
-
-# Print attack type breakdown for thesis documentation
-print("[*] Attack type distribution:")
-for label_name, count in df[label_col].value_counts().items():
-    print(f"    {label_name}: {count}")
-
-# ============================================================
-# FEATURE SELECTION — 6 ingress-observable features
-# ============================================================
-
-# Feature mapping to XDP telemetry inference (control_plane.py):
-#   Flow Duration              → ktime_ns delta (now - first_seen_ns)
-#   Total Fwd Packet           → telemetry_data.packet_count
-#   Total Length of Fwd Packet → telemetry_data.byte_count
-#   Fwd Packet Length Mean     → byte_count / packet_count
-#   Flow Packets/s             → packet_count / flow_duration_s
-#   SYN Flag Count             → telemetry_data.syn_count
-selected_cols, canonical_names = normalize_feature_columns(df)
-print(f"[*] Selected features ({len(selected_cols)}):")
-for canon, actual in zip(canonical_names, selected_cols):
-    if canon != actual:
-        print(f"    {canon} (matched as '{actual}')")
-    else:
-        print(f"    {canon}")
-
-features = df[selected_cols].values.astype(np.float64)
-INPUT_SIZE = features.shape[1]
-print(f"[*] INPUT_SIZE: {INPUT_SIZE}")
-
-# ============================================================
-# NORMALIZE
-# ============================================================
-
-print("[*] Normalizing data...")
-scaler = StandardScaler()
-features_scaled = scaler.fit_transform(features)
-
-joblib.dump(scaler, SCALER_SAVE_PATH)
-
-# ============================================================
-# DATASET CLASS
-# ============================================================
-
-print("[*] Generating time sequences...")
-
-
-class DynamicDDoSDataset(Dataset):
-    """
-    Dataset class for dynamically generating time-series sequences from network traffic data.
-    """
-    def __init__(self, data, labels, seq_length):
-        """
-        Initializes the dynamic dataset.
-
-        Parameters:
-        -----------
-        data : numpy.ndarray
-            The scaled feature array.
-        labels : numpy.ndarray
-            The binary target labels.
-        seq_length : int
-            The number of time steps in each sequence.
-        """
-        self.data = data
-        self.labels = labels
-        self.seq_length = seq_length
-
-    def __len__(self):
-        """
-        Returns the total number of available sequences.
-        """
-        return len(self.data) - self.seq_length
-
-    def __getitem__(self, idx):
-        """
-        Generates one sequence slice and its corresponding label on the fly.
-        """
-        x_seq = self.data[idx : (idx + self.seq_length)]
-        y_label = self.labels[idx + self.seq_length - 1]
-        return torch.tensor(x_seq, dtype=torch.float32), torch.tensor([y_label], dtype=torch.float32)
-
-
-# ============================================================
-# TRAIN/VAL/TEST SPLIT (chronological, no shuffling across splits)
-# ============================================================
-
-total_samples = len(features_scaled) - SEQUENCE_LENGTH
-train_end = int(total_samples * TRAIN_RATIO)
-val_end = int(total_samples * (TRAIN_RATIO + VAL_RATIO))
-
-print(f"[*] Splitting dataset: train={train_end}, val={val_end - train_end}, test={total_samples - val_end}")
-
-train_data = features_scaled[:train_end + SEQUENCE_LENGTH]
-train_labels = labels[:train_end + SEQUENCE_LENGTH]
-
-val_data = features_scaled[train_end:val_end + SEQUENCE_LENGTH]
-val_labels = labels[train_end:val_end + SEQUENCE_LENGTH]
-
-test_data = features_scaled[val_end:]
-test_labels = labels[val_end:]
-
-train_dataset = DynamicDDoSDataset(train_data, train_labels, SEQUENCE_LENGTH)
-val_dataset = DynamicDDoSDataset(val_data, val_labels, SEQUENCE_LENGTH)
-test_dataset = DynamicDDoSDataset(test_data, test_labels, SEQUENCE_LENGTH)
-
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
-test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
-
-print(f"[*] Train sequences: {len(train_dataset)}, Val sequences: {len(val_dataset)}, "
-      f"Test sequences: {len(test_dataset)}")
-
-# ============================================================
-# MODEL & TRAINING
-# ============================================================
-
-model = GRUDDoSClassifier(input_size=INPUT_SIZE, hidden_size=HIDDEN_SIZE, num_layers=NUM_LAYERS).to(device)
-criterion = nn.BCEWithLogitsLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
-
-
-def evaluate_model(model, data_loader, criterion, dataset_name=""):
-    """Run evaluation pass and compute classification metrics.
-
-    Returns:
-        dict with loss, accuracy, precision, recall, f1, and confusion_matrix.
-    """
+def evaluate(X, y):
     model.eval()
-    total_loss = 0
-    all_preds = []
-    all_labels = []
-
     with torch.no_grad():
-        for batch_X, batch_y in data_loader:
-            batch_X, batch_y = batch_X.to(device), batch_y.to(device)
-            outputs = model(batch_X)
-            loss = criterion(outputs, batch_y)
-            total_loss += loss.item()
+        p = torch.sigmoid(model(torch.from_numpy(X).to(device))).cpu().numpy().ravel()
+    pred = (p >= 0.5).astype(int)
+    return (f1_score(y, pred, zero_division=0), precision_score(y, pred, zero_division=0),
+            recall_score(y, pred, zero_division=0), accuracy_score(y, pred), pred)
 
-            probs = torch.sigmoid(outputs).cpu().numpy()
-            preds = (probs >= 0.5).astype(int).flatten()
-            all_preds.extend(preds)
-            all_labels.extend(batch_y.cpu().numpy().astype(int).flatten())
+best_f1, best_state = 0.0, None
+for ep in range(EPOCHS):
+    model.train(); tot = 0.0
+    for xb, yb in ltr:
+        opt.zero_grad(); loss = crit(model(xb.to(device)), yb.to(device)); loss.backward(); opt.step()
+        tot += loss.item()
+    f1, pr, rc, ac, _ = evaluate(Xva, yva)
+    print(f"  epoch {ep+1:2d}  train_loss={tot/len(ltr):.4f}  val F1={f1:.4f} P={pr:.4f} R={rc:.4f}")
+    if f1 > best_f1:
+        best_f1 = f1; best_state = {k: v.clone() for k, v in model.state_dict().items()}
 
-    all_preds = np.array(all_preds)
-    all_labels = np.array(all_labels)
+model.load_state_dict(best_state)
+f1, pr, rc, ac, pred = evaluate(Xte, yte)
+print("\n" + "=" * 60 + f"\nHELD-OUT TEST  F1={f1:.4f}  P={pr:.4f}  R={rc:.4f}  Acc={ac:.4f}")
+print("Confusion matrix [[TN FP][FN TP]]:\n", confusion_matrix(yte, pred))
+print("Per-attack-type RECALL on test:")
+for t in sorted(set(subte)):
+    if t == 'BENIGN':
+        m = subte == t; print(f"  {t:18s} n={int(m.sum()):6d}  false-positive={ (pred[m]==1).mean()*100:5.2f}%")
+    else:
+        m = subte == t; print(f"  {t:18s} n={int(m.sum()):6d}  recall={ (pred[m]==1).mean()*100:5.1f}%")
 
-    avg_loss = total_loss / len(data_loader)
-    acc = accuracy_score(all_labels, all_preds)
-    prec = precision_score(all_labels, all_preds, zero_division=0)
-    rec = recall_score(all_labels, all_preds, zero_division=0)
-    f1 = f1_score(all_labels, all_preds, zero_division=0)
-    cm = confusion_matrix(all_labels, all_preds)
-
-    if dataset_name:
-        print(f"  [{dataset_name}] Loss: {avg_loss:.4f} | Acc: {acc:.4f} | "
-              f"Prec: {prec:.4f} | Rec: {rec:.4f} | F1: {f1:.4f}")
-        print(f"  [{dataset_name}] Confusion Matrix:\n{cm}")
-
-    return {"loss": avg_loss, "accuracy": acc, "precision": prec,
-            "recall": rec, "f1": f1, "confusion_matrix": cm}
-
-
-print("[*] Starting training process...")
-best_val_f1 = 0.0
-
-for _epoch in range(EPOCHS):
-    model.train()
-    total_loss = 0
-    for batch_X, batch_y in train_loader:
-        batch_X, batch_y = batch_X.to(device), batch_y.to(device)
-
-        optimizer.zero_grad()
-        outputs = model(batch_X)
-        loss = criterion(outputs, batch_y)
-        loss.backward()
-        optimizer.step()
-
-        total_loss += loss.item()
-
-    avg_loss = total_loss / len(train_loader)
-    print(f"\nEpoch [{_epoch + 1}/{EPOCHS}], Train Loss: {avg_loss:.4f}")
-
-    # Validation evaluation after each epoch
-    val_metrics = evaluate_model(model, val_loader, criterion, dataset_name="Val")
-
-    # Save best model based on validation F1
-    if val_metrics["f1"] > best_val_f1:
-        best_val_f1 = val_metrics["f1"]
-        torch.save(model.state_dict(), MODEL_SAVE_PATH)
-        print(f"  [*] New best model saved (Val F1: {best_val_f1:.4f})")
-
-# Final evaluation on held-out test set using the best model
-print("\n[*] Loading best model for final test evaluation...")
-model.load_state_dict(torch.load(MODEL_SAVE_PATH, map_location=device))
-print("=" * 60)
-print("FINAL TEST SET EVALUATION")
-print("=" * 60)
-test_metrics = evaluate_model(model, test_loader, criterion, dataset_name="Test")
-
-print(f"\n[+] Model saved to {MODEL_SAVE_PATH}")
-print(f"[+] Scaler saved to {SCALER_SAVE_PATH}")
-print(f"[+] Best validation F1: {best_val_f1:.4f}")
-print(f"[+] Test F1: {test_metrics['f1']:.4f}")
+torch.save(best_state, MODEL_OUT); joblib.dump(scaler, SCALER_OUT)
+json.dump({"features": FEATURES, "seq_length": SEQ, "input_size": len(FEATURES),
+           "hidden_size": HIDDEN, "num_layers": LAYERS, "model": MODEL_OUT, "scaler": SCALER_OUT,
+           "best_val_f1": round(best_f1, 4), "test_f1": round(f1, 4)}, open(CFG_OUT, "w"), indent=2)
+print(f"\n[+] saved model -> {MODEL_OUT}\n[+] saved scaler -> {SCALER_OUT}\n[+] saved config -> {CFG_OUT}")

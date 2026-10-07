@@ -1,0 +1,20 @@
+{
+  "features": [
+    "Init_Win_bytes_forward",
+    "Fwd IAT Total",
+    "Fwd Header Length",
+    "Fwd IAT Max",
+    "Fwd Packet Length Max",
+    "Fwd IAT Mean",
+    "Flow Packets/s",
+    "Total Length of Fwd Packets"
+  ],
+  "seq_length": 15,
+  "input_size": 8,
+  "hidden_size": 64,
+  "num_layers": 2,
+  "model": "training_results/gru_cicids_model.pth",
+  "scaler": "training_results/scaler_cicids.save",
+  "best_val_f1": 0.996,
+  "test_f1": 0.9948
+}
