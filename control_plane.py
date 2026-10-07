@@ -67,6 +67,12 @@ HEURISTIC_MIN_REQUESTS = 5     # Minimum requests in window before evaluating
 # Eviction timeout for idle client tracking data (seconds)
 CLIENT_IDLE_TIMEOUT = 60.0
 
+# An IP that completed a TCP handshake (showed an ESTABLISHED connection) within
+# this window is treated as a real client, exempt from SYN-flood classification.
+# A lossy legit client retransmitting SYNs under flood stress looks SYN-flood-
+# shaped at L3/L4, but (unlike hping3 -S) it does establish connections.
+LEGIT_TCP_MEMORY = 60.0
+
 print(f"[*] Compiling and loading eBPF code from file: {BPF_SOURCE_FILE}...")
 bpf = BPF(src_file=BPF_SOURCE_FILE)
 bpf_function = bpf.load_func("xdp_ddos_mitigation", BPF.XDP)
@@ -120,6 +126,10 @@ prev_telemetry = {}   # {ip_str: (cum_pkts, cum_syn, cum_bytes)}
 # Consecutive intervals an IP has looked like slow-connection abuse (many held
 # connections + near-idle data). Telemetry-thread-only, like prev_telemetry.
 slowconn_counts = defaultdict(int)
+
+# Last wall-time each IP showed >=1 ESTABLISHED connection (completed handshake).
+# Used to exempt real clients from SYN-flood classification. Telemetry-thread-only.
+legit_tcp_seen = {}
 
 # Track ban timestamps for TTL-based expiry
 ban_timestamps = {}
@@ -228,6 +238,7 @@ def evict_idle_clients():
     for ip_str in stale_ips:
         prev_telemetry.pop(ip_str, None)
         slowconn_counts.pop(ip_str, None)
+        legit_tcp_seen.pop(ip_str, None)
         try:
             del telemetry_map[telemetry_map.Key(ip_to_network_bytes(ip_str))]
         except KeyError:
@@ -432,6 +443,15 @@ def drain_inference_results():
         if not should_ban:
             continue
 
+        # Don't GRU-ban an IP that completed a TCP handshake recently: a real
+        # client (even a lossy one retransmitting SYNs under flood stress) shows
+        # ESTABLISHED connections; a low-and-slow SYN flood never does. Hard
+        # safety net against the lossy-client false positive (§3/§4e).
+        if time.time() - legit_tcp_seen.get(client_ip, 0.0) < LEGIT_TCP_MEMORY:
+            with state_lock:
+                gru_violation_counts.pop(client_ip, None)
+            continue
+
         print(f"\n[GRU] DETECTED ATTACK — IP: {client_ip} | "
               f"Confidence: {probability * 100:.1f}%")
         ban_ip(client_ip,
@@ -472,6 +492,7 @@ def l3_l4_telemetry_monitor():
 
         total_global_syn_delta = 0
         now_ns = time.monotonic_ns()
+        now_wall = time.time()
 
         # Kernel-authoritative per-IP concurrent connection counts for the
         # drift-free slow-connection heuristic (fetched once per poll).
@@ -537,6 +558,8 @@ def l3_l4_telemetry_monitor():
             # cannot false-ban them the way the old cumulative XDP gauge did.
             # Runs regardless of d_pkts: a true Slowloris may send nothing here.
             conns = established_by_ip.get(ip_str, 0)
+            if conns > 0:
+                legit_tcp_seen[ip_str] = now_wall   # completed TCP handshake = real client
             if conns >= SLOWCONN_CONN_THRESHOLD and d_bytes < SLOWCONN_IDLE_BYTES:
                 slowconn_counts[ip_str] += 1
                 if slowconn_counts[ip_str] >= SLOWCONN_CONSECUTIVE:
@@ -574,8 +597,15 @@ def l3_l4_telemetry_monitor():
                 avg_bytes_per_flow = float(d_bytes) / num_flows
                 avg_syn_per_flow = float(d_syn) / num_flows
 
-                # SYN-flood-shaped flows: force minimal duration / very high PPS
-                if avg_pkts_per_flow <= 2.5 and avg_syn_per_flow >= 0.8 and d_syn >= 3:
+                # SYN-flood-shaped flows: force minimal duration / very high PPS.
+                # EXEMPT IPs that completed a TCP handshake recently — a lossy
+                # legit client retransmitting SYNs looks SYN-flood-shaped at L3/L4,
+                # but (unlike hping3 -S) it establishes connections, so we must not
+                # let it be classified as a flood (§3/§4e lossy-client FP fix).
+                recently_legit = (now_wall - legit_tcp_seen.get(ip_str, 0.0)
+                                  < LEGIT_TCP_MEMORY)
+                if (not recently_legit and avg_pkts_per_flow <= 2.5
+                        and avg_syn_per_flow >= 0.8 and d_syn >= 3):
                     avg_flow_duration_us = 1.0
                     avg_flow_pps = avg_pkts_per_flow / 0.000001
                 else:
@@ -682,7 +712,10 @@ try:
                 if len(entries) >= HEURISTIC_MIN_REQUESTS:
                     window_duration = now - entries[0][0]
                     if window_duration > 0:
-                        rps = len(entries) / window_duration
+                        # Clamp the denominator to >=1s so a small burst in a
+                        # tiny elapsed window (e.g. 5 reqs in 50ms) can't explode
+                        # into a huge rps and false-ban a bursty legit client (§3).
+                        rps = len(entries) / max(window_duration, 1.0)
                         error_count = sum(1 for _, err in entries if err)
                         error_ratio = error_count / len(entries)
                         if rps > HEURISTIC_MAX_RPS or (error_ratio > HEURISTIC_ERROR_RATIO and rps > 10):
