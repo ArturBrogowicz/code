@@ -1263,26 +1263,28 @@ def main():
     print(f"\n{CYAN}[*] Baseline settling period (5s)...{RESET}")
     time.sleep(5)
 
+    # Ordered scenario registry. ONLY_SCENARIOS="4,7,8,9" (env) runs a subset in
+    # this same order; unset → all ten, exactly as before (resets between each).
+    all_scenarios = [
+        (1, scenario_syn_flood), (2, scenario_slow_syn), (3, scenario_udp_flood),
+        (4, scenario_http_flood), (5, scenario_ack_flood), (6, scenario_fragmentation),
+        (7, scenario_slowloris), (8, scenario_rudy), (9, scenario_yoyo),
+        (10, scenario_multi_vector),
+    ]
+    only = os.environ.get("ONLY_SCENARIOS", "").strip()
+    if only:
+        want = {int(x) for x in only.split(",") if x.strip()}
+        run_list = [(n, fn) for n, fn in all_scenarios if n in want]
+        print(f"{YELLOW}[!] ONLY_SCENARIOS={only} → running scenarios "
+              f"{[n for n, _ in run_list]}{RESET}")
+    else:
+        run_list = all_scenarios
+
     try:
-        scenario_syn_flood(botnet, legit)
-        reset_between_scenarios()
-        scenario_slow_syn(botnet, legit)
-        reset_between_scenarios()
-        scenario_udp_flood(botnet, legit)
-        reset_between_scenarios()
-        scenario_http_flood(botnet, legit)
-        reset_between_scenarios()
-        scenario_ack_flood(botnet, legit)
-        reset_between_scenarios()
-        scenario_fragmentation(botnet, legit)
-        reset_between_scenarios()
-        scenario_slowloris(botnet, legit)
-        reset_between_scenarios()
-        scenario_rudy(botnet, legit)
-        reset_between_scenarios()
-        scenario_yoyo(botnet, legit)
-        reset_between_scenarios()
-        scenario_multi_vector(botnet, legit)
+        for i, (_n, fn) in enumerate(run_list):
+            fn(botnet, legit)
+            if i < len(run_list) - 1:
+                reset_between_scenarios()
     except KeyboardInterrupt:
         print(f"\n{YELLOW}[!] Interrupted by user.{RESET}")
     finally:

@@ -33,7 +33,7 @@ SCALER_OUT = "training_results/scaler_cicids.save"
 CFG_OUT = "training_results/feature_config.json"
 
 FEATURES = ['Init_Win_bytes_forward', 'Fwd IAT Total', 'Fwd Header Length', 'Fwd IAT Max',
-            'Fwd Packet Length Max', 'Fwd IAT Mean', 'Flow Packets/s', 'Total Length of Fwd Packets']
+            'Fwd Packet Length Max', 'Fwd IAT Mean', 'Fwd Packets/s', 'Total Length of Fwd Packets']
 SEQ = 15; HIDDEN = 64; LAYERS = 2; BATCH = 256; EPOCHS = 15
 BENIGN_CAP_PER_IP = 80     # cap sequences per benign IP (stop huge IPs dominating)
 BENIGN_TARGET = 180000

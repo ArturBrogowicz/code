@@ -6,7 +6,7 @@
     "Fwd IAT Max",
     "Fwd Packet Length Max",
     "Fwd IAT Mean",
-    "Flow Packets/s",
+    "Fwd Packets/s",
     "Total Length of Fwd Packets"
   ],
   "seq_length": 15,
@@ -15,6 +15,6 @@
   "num_layers": 2,
   "model": "training_results/gru_cicids_model.pth",
   "scaler": "training_results/scaler_cicids.save",
-  "best_val_f1": 0.996,
-  "test_f1": 0.9948
+  "best_val_f1": 0.9956,
+  "test_f1": 0.9962
 }

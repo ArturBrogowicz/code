@@ -1,0 +1,21 @@
+{
+  "features": [
+    "Init_Win_bytes_forward",
+    "Fwd IAT Total",
+    "Fwd Header Length",
+    "Fwd IAT Max",
+    "Fwd Packet Length Max",
+    "Fwd IAT Mean",
+    "Fwd Packets/s",
+    "Total Length of Fwd Packets"
+  ],
+  "seq_length": 15,
+  "input_size": 8,
+  "hidden_size": 64,
+  "num_layers": 2,
+  "model": "training_results/gru_testbed_model.pth",
+  "scaler": "training_results/scaler_testbed.save",
+  "source": "testbed-native (Tier-1)",
+  "val_f1": 1.0,
+  "test_f1": 1.0
+}

@@ -17,7 +17,7 @@ OUT = "training_data/cicids2017_dosddos.csv"
 
 FEATURES = [
     'Init_Win_bytes_forward', 'Fwd IAT Total', 'Fwd Header Length', 'Fwd IAT Max',
-    'Fwd Packet Length Max', 'Fwd IAT Mean', 'Flow Packets/s', 'Total Length of Fwd Packets',
+    'Fwd Packet Length Max', 'Fwd IAT Mean', 'Fwd Packets/s', 'Total Length of Fwd Packets',
 ]
 META = ['Source IP', 'Timestamp']
 ATTACK = {'DoS Hulk', 'DoS GoldenEye', 'DoS slowloris', 'DoS Slowhttptest', 'DDoS'}

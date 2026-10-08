@@ -21,22 +21,38 @@ INTERFACE = "veth_server"
 BPF_SOURCE_FILE = "xdp_ddos_filter.c"
 NGINX_LOG_FILE = "/var/log/nginx/ddos_ml_access.log"
 NGINX_ERROR_LOG = "/var/log/nginx/error.log"
-MODEL_PATH = "training_results/gru_ddos_model.pth"
-SCALER_PATH = "training_results/scaler.save"
+# GRU inference is driven by the Tier-1 (testbed-native) model. Its feature set,
+# sequence length and layer sizes are read from the training config so inference
+# can never silently drift from training. The 8 per-FLOW forward features (and
+# their exact order) are defined once by the trainer (train_testbed_gru.py) and
+# the capture tool (capture_testbed_dataset.py); here we only consume them:
+#   [0] Init_Win_bytes_forward       — XDP: init_win (first fwd pkt TCP window)
+#   [1] Fwd IAT Total (µs)           — XDP: last_seen - first_seen
+#   [2] Fwd Header Length (bytes)    — XDP: sum of L4 header bytes
+#   [3] Fwd IAT Max (µs)             — XDP: iat_max_ns
+#   [4] Fwd Packet Length Max        — XDP: fwd_pkt_len_max (L4 payload)
+#   [5] Fwd IAT Mean (µs)            — computed: IAT total / (pkts - 1)
+#   [6] Fwd Packets/s                — computed: pkts / duration_s
+#   [7] Total Length of Fwd Packets  — XDP: fwd_payload_bytes
+GRU_CONFIG_PATH = "training_results/feature_config_testbed.json"
+with open(GRU_CONFIG_PATH) as _f:
+    _gru_cfg = json.load(_f)
+GRU_FEATURES = _gru_cfg["features"]
+MODEL_PATH = _gru_cfg["model"]
+SCALER_PATH = _gru_cfg["scaler"]
+SEQUENCE_LENGTH = int(_gru_cfg["seq_length"])
+INPUT_SIZE = int(_gru_cfg["input_size"])
+HIDDEN_SIZE = int(_gru_cfg["hidden_size"])
+NUM_LAYERS = int(_gru_cfg["num_layers"])
 
-SEQUENCE_LENGTH = 15
 PREDICTION_THRESHOLD = 0.95
 GRU_CONSECUTIVE_THRESH = 3
-# 6 ingress-observable features aligned with CICFlowMeter training data:
-#   [0] Flow Duration (µs)           — from XDP: ktime_ns delta
-#   [1] Total Fwd Packet (count)     — from XDP: packet_count
-#   [2] Total Length of Fwd Packet   — from XDP: byte_count
-#   [3] Fwd Packet Length Mean       — computed: byte_count / packet_count
-#   [4] Flow Packets/s              — computed: packet_count / flow_duration_s
-#   [5] SYN Flag Count              — from XDP: syn_count
-INPUT_SIZE = 6
-HIDDEN_SIZE = 64
-NUM_LAYERS = 2
+
+# Test-only isolation switch (T1d/Option B). When GRU_ONLY=1, every NON-GRU ban
+# path (L4 SYN/volumetric/slow-conn, aggregate SYN cookies, L7 rate heuristic,
+# R.U.D.Y. log detector) is disabled so the GRU engine can be validated end-to-
+# end on its own. Default off → production behaviour is unchanged.
+GRU_ONLY = os.environ.get("GRU_ONLY", "0") == "1"
 L4_POLL_INTERVAL = 1.0
 SYN_FLOOD_THRESHOLD = 200
 UDP_FLOOD_THRESHOLD = 5000
@@ -67,12 +83,6 @@ HEURISTIC_MIN_REQUESTS = 5     # Minimum requests in window before evaluating
 # Eviction timeout for idle client tracking data (seconds)
 CLIENT_IDLE_TIMEOUT = 60.0
 
-# An IP that completed a TCP handshake (showed an ESTABLISHED connection) within
-# this window is treated as a real client, exempt from SYN-flood classification.
-# A lossy legit client retransmitting SYNs under flood stress looks SYN-flood-
-# shaped at L3/L4, but (unlike hping3 -S) it does establish connections.
-LEGIT_TCP_MEMORY = 60.0
-
 print(f"[*] Compiling and loading eBPF code from file: {BPF_SOURCE_FILE}...")
 bpf = BPF(src_file=BPF_SOURCE_FILE)
 bpf_function = bpf.load_func("xdp_ddos_mitigation", BPF.XDP)
@@ -81,15 +91,16 @@ print(f"[+] Successfully attached XDP program to interface {INTERFACE}.")
 
 blacklist_map = bpf.get_table("blacklist_map")
 telemetry_map = bpf.get_table("telemetry_map")
+flow_map = bpf.get_table("flow_map")   # per-flow 5-tuple fwd features (drives GRU)
 
-print("[*] Loading data scaler...")
+print(f"[*] Loading data scaler ({SCALER_PATH})...")
 scaler = joblib.load(SCALER_PATH)
 assert scaler.n_features_in_ == INPUT_SIZE, (
     f"Scaler expects {scaler.n_features_in_} features but INPUT_SIZE is {INPUT_SIZE}. "
-    "Ensure the training features in GRU_ML_init.py match the inference features."
+    f"Ensure the features in {GRU_CONFIG_PATH} match what control_plane extracts."
 )
 
-print("[*] Loading trained GRU model...")
+print(f"[*] Loading trained GRU model ({MODEL_PATH}, input_size={INPUT_SIZE})...")
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 gru_model = GRUDDoSClassifier(input_size=INPUT_SIZE, hidden_size=HIDDEN_SIZE, num_layers=NUM_LAYERS)
 gru_model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
@@ -102,7 +113,9 @@ _inference_buffer_np = np.zeros((1, SEQUENCE_LENGTH, INPUT_SIZE), dtype=np.float
 _inference_tensor = torch.zeros(1, SEQUENCE_LENGTH, INPUT_SIZE,
                                 dtype=torch.float32, device=device)
 
-# GRU per-IP sequence tracking — now populated from XDP telemetry, not Nginx logs
+# GRU sequence tracking, keyed by Source IP. Each step is the 8-feature vector of
+# ONE active flow snapshot (per-flow, from flow_map), appended in poll order —
+# exactly how the Tier-1 training sequences were built (within a Source IP).
 client_sequences = defaultdict(lambda: deque(maxlen=SEQUENCE_LENGTH))
 banned_ips = set()
 banned_ips_lock = threading.Lock()
@@ -123,13 +136,16 @@ state_lock = threading.Lock()
 # single consumer running in that thread), so it needs no lock.
 prev_telemetry = {}   # {ip_str: (cum_pkts, cum_syn, cum_bytes)}
 
+# Last fwd_packets count seen per FLOW (5-tuple). We feed the GRU a new sequence
+# step only when a flow actually advanced this interval — the exact "active flow"
+# unit the training capture emitted (stale flows are not re-emitted). This keeps
+# inference faithful to training and bounds how fast sequences fill. Touched ONLY
+# by the telemetry thread (monitor loop + evict + drain), so it needs no lock.
+prev_flow_pk = {}     # {(src_ip, src_port, dst_port, proto): fwd_packets}
+
 # Consecutive intervals an IP has looked like slow-connection abuse (many held
 # connections + near-idle data). Telemetry-thread-only, like prev_telemetry.
 slowconn_counts = defaultdict(int)
-
-# Last wall-time each IP showed >=1 ESTABLISHED connection (completed handshake).
-# Used to exempt real clients from SYN-flood classification. Telemetry-thread-only.
-legit_tcp_seen = {}
 
 # Track ban timestamps for TTL-based expiry
 ban_timestamps = {}
@@ -156,6 +172,27 @@ def ip_to_network_bytes(ip_str):
 
 def network_bytes_to_ip(ip_int):
     return socket.inet_ntoa(struct.pack("=I", ip_int))
+
+def flow_features(ff):
+    """Build the 8 forward features (in training order) from a flow_feat record.
+
+    MUST stay byte-for-byte identical to capture_testbed_dataset.py so that
+    inference == training (no domain gap). Durations are nanoseconds in the map
+    and converted to microseconds here, matching the capture tool.
+    """
+    dur_ns = ff.last_seen_ns - ff.first_seen_ns
+    pk = ff.fwd_packets
+    dur_us = dur_ns / 1000.0
+    return [
+        float(ff.init_win),                                   # Init_Win_bytes_forward
+        dur_us,                                               # Fwd IAT Total (µs)
+        float(ff.fwd_hdr_bytes),                              # Fwd Header Length
+        ff.iat_max_ns / 1000.0,                               # Fwd IAT Max (µs)
+        float(ff.fwd_pkt_len_max),                            # Fwd Packet Length Max
+        (dur_us / (pk - 1)) if pk > 1 else 0.0,               # Fwd IAT Mean (µs)
+        (pk / (dur_ns / 1e9)) if dur_ns > 0 else 0.0,         # Fwd Packets/s
+        float(ff.fwd_payload_bytes),                          # Total Length of Fwd Packets
+    ]
 
 def block_ip_in_xdp(ip_str):
     ip_int = ip_to_network_bytes(ip_str)
@@ -238,12 +275,16 @@ def evict_idle_clients():
     for ip_str in stale_ips:
         prev_telemetry.pop(ip_str, None)
         slowconn_counts.pop(ip_str, None)
-        legit_tcp_seen.pop(ip_str, None)
         try:
             del telemetry_map[telemetry_map.Key(ip_to_network_bytes(ip_str))]
         except KeyError:
             pass
     if stale_ips:
+        # Drop per-flow active-tracking for the evicted IPs (flow_map itself is
+        # LRU-bounded in the kernel; this just reclaims the userspace shadow).
+        stale_ints = {ip_to_network_bytes(ip) for ip in stale_ips}
+        for fid in [f for f in prev_flow_pk if f[0] in stale_ints]:
+            prev_flow_pk.pop(fid, None)
         print(f"[GC] Evicted tracking data for {len(stale_ips)} idle client(s).")
 
 
@@ -366,7 +407,7 @@ def tail_nginx_error_logs(file_path):
                             rudy_tracker[client_ip].popleft()
 
                         timeout_count = len(rudy_tracker[client_ip])
-                        if timeout_count >= RUDY_TIMEOUT_THRESHOLD:
+                        if timeout_count >= RUDY_TIMEOUT_THRESHOLD and not GRU_ONLY:
                             print(f"\n[RUDY-DETECT] Slow POST attack detected - IP: {client_ip} | "
                                   f"Body timeouts: {timeout_count} in {RUDY_WINDOW}s")
                             ban_ip(client_ip,
@@ -443,15 +484,6 @@ def drain_inference_results():
         if not should_ban:
             continue
 
-        # Don't GRU-ban an IP that completed a TCP handshake recently: a real
-        # client (even a lossy one retransmitting SYNs under flood stress) shows
-        # ESTABLISHED connections; a low-and-slow SYN flood never does. Hard
-        # safety net against the lossy-client false positive (§3/§4e).
-        if time.time() - legit_tcp_seen.get(client_ip, 0.0) < LEGIT_TCP_MEMORY:
-            with state_lock:
-                gru_violation_counts.pop(client_ip, None)
-            continue
-
         print(f"\n[GRU] DETECTED ATTACK — IP: {client_ip} | "
               f"Confidence: {probability * 100:.1f}%")
         ban_ip(client_ip,
@@ -464,6 +496,9 @@ def drain_inference_results():
             gru_violation_counts.pop(client_ip, None)
         prev_telemetry.pop(client_ip, None)   # telemetry-thread-only
         slowconn_counts.pop(client_ip, None)  # telemetry-thread-only
+        _ip_int = ip_to_network_bytes(client_ip)   # drop per-flow tracking
+        for fid in [f for f in prev_flow_pk if f[0] == _ip_int]:
+            prev_flow_pk.pop(fid, None)
 
 def l3_l4_telemetry_monitor():
     """L3/L4 telemetry monitor — now also drives GRU inference.
@@ -473,12 +508,14 @@ def l3_l4_telemetry_monitor():
       2. Drains completed inference results
       3. Reads per-IP telemetry from the XDP map
       4. Runs the per-IP SYN flood heuristic
-      5. Extracts 6 CICFlowMeter-aligned features from XDP telemetry
-      6. Builds per-IP sequences and submits full sequences to the inference thread
+      5. Reads the per-FLOW table and, for each flow that advanced this interval,
+         extracts the 8 forward features and appends them to its Source IP's
+         rolling sequence
+      6. Submits full (len==SEQUENCE_LENGTH) sequences to the inference thread
       7. Detects aggregate SYN floods and enables SYN cookies
 
-    The GRU now operates on the SAME measurement plane (L3/L4 flow statistics)
-    as its training data — eliminating the Nginx/CICFlowMeter feature mismatch.
+    The GRU runs on the SAME per-flow pipeline used to build the Tier-1 training
+    set (capture_testbed_dataset.py), so train == inference with no domain gap.
     """
     global syn_cookies_enabled
     print(f"[*] Starting L3/L4 telemetry monitor (Interval: {L4_POLL_INTERVAL}s)")
@@ -491,8 +528,6 @@ def l3_l4_telemetry_monitor():
         drain_inference_results()
 
         total_global_syn_delta = 0
-        now_ns = time.monotonic_ns()
-        now_wall = time.time()
 
         # Kernel-authoritative per-IP concurrent connection counts for the
         # drift-free slow-connection heuristic (fetched once per poll).
@@ -511,10 +546,6 @@ def l3_l4_telemetry_monitor():
             cum_pkts = sum(cpu.packet_count for cpu in per_cpu_values)
             cum_syn = sum(cpu.syn_count for cpu in per_cpu_values)
             cum_bytes = sum(cpu.byte_count for cpu in per_cpu_values)
-            # first_seen_ns: earliest non-zero across CPUs -> true flow start
-            first_ns_values = [cpu.first_seen_ns for cpu in per_cpu_values
-                               if cpu.first_seen_ns > 0]
-            first_ns = min(first_ns_values) if first_ns_values else 0
 
             # Per-interval deltas vs the previous snapshot. A value below the
             # previous snapshot means the key was evicted and re-created (IP
@@ -536,7 +567,7 @@ def l3_l4_telemetry_monitor():
             total_global_syn_delta += d_syn
 
             # --- L4 SYN flood heuristic (per-IP, per-interval rate) ---
-            if d_syn > SYN_FLOOD_THRESHOLD:
+            if d_syn > SYN_FLOOD_THRESHOLD and not GRU_ONLY:
                 print(f"\n[L4-DETECT] SYN FLOOD ATTACK - IP: {ip_str} | "
                       f"Rate: {d_syn} SYN/s")
                 ban_ip(ip_str, reason=f"Per-IP SYN flood ({d_syn} SYN/s)")
@@ -544,7 +575,7 @@ def l3_l4_telemetry_monitor():
 
             # --- L4 UDP / Volumetric flood heuristic (per-IP, per-interval rate) ---
             non_syn_pkts = d_pkts - d_syn
-            if non_syn_pkts > UDP_FLOOD_THRESHOLD:
+            if non_syn_pkts > UDP_FLOOD_THRESHOLD and not GRU_ONLY:
                 print(f"\n[L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: {ip_str} | "
                       f"Rate: {non_syn_pkts} pkts/s")
                 ban_ip(ip_str, reason=f"Volumetric packet flood ({non_syn_pkts} pkts/s)")
@@ -558,9 +589,7 @@ def l3_l4_telemetry_monitor():
             # cannot false-ban them the way the old cumulative XDP gauge did.
             # Runs regardless of d_pkts: a true Slowloris may send nothing here.
             conns = established_by_ip.get(ip_str, 0)
-            if conns > 0:
-                legit_tcp_seen[ip_str] = now_wall   # completed TCP handshake = real client
-            if conns >= SLOWCONN_CONN_THRESHOLD and d_bytes < SLOWCONN_IDLE_BYTES:
+            if conns >= SLOWCONN_CONN_THRESHOLD and d_bytes < SLOWCONN_IDLE_BYTES and not GRU_ONLY:
                 slowconn_counts[ip_str] += 1
                 if slowconn_counts[ip_str] >= SLOWCONN_CONSECUTIVE:
                     print(f"\n[L4-DETECT] SLOW CONNECTION ABUSE - IP: {ip_str} | "
@@ -577,65 +606,47 @@ def l3_l4_telemetry_monitor():
                 with state_lock:
                     client_last_seen[ip_str] = time.time()
 
-            # --- GRU feature extraction from XDP telemetry ---
-            if d_pkts > 0 and first_ns > 0:
-                # TRUE cumulative flow duration — now correct and preserved for
-                # the de-confounded retrain (P0). The current (confounded) model
-                # was effectively tuned on per-interval (<=1s) durations, so we
-                # CAP what we actually feed it; remove this cap on retrain.
-                flow_duration_us = max((now_ns - first_ns) / 1000, 1.0)
-                gru_duration_us = min(flow_duration_us, L4_POLL_INTERVAL * 1e6)
-                gru_duration_s = gru_duration_us / 1e6
-                fwd_pkt_len_mean = d_bytes / d_pkts
-                flow_pps = d_pkts / gru_duration_s
-
-                # Normalize per-interval stats to per-flow averages (CICFlowMeter-aligned)
-                num_flows = max(float(d_syn), 1.0)
-
-                avg_flow_duration_us = gru_duration_us / num_flows
-                avg_pkts_per_flow = float(d_pkts) / num_flows
-                avg_bytes_per_flow = float(d_bytes) / num_flows
-                avg_syn_per_flow = float(d_syn) / num_flows
-
-                # SYN-flood-shaped flows: force minimal duration / very high PPS.
-                # EXEMPT IPs that completed a TCP handshake recently — a lossy
-                # legit client retransmitting SYNs looks SYN-flood-shaped at L3/L4,
-                # but (unlike hping3 -S) it establishes connections, so we must not
-                # let it be classified as a flood (§3/§4e lossy-client FP fix).
-                recently_legit = (now_wall - legit_tcp_seen.get(ip_str, 0.0)
-                                  < LEGIT_TCP_MEMORY)
-                if (not recently_legit and avg_pkts_per_flow <= 2.5
-                        and avg_syn_per_flow >= 0.8 and d_syn >= 3):
-                    avg_flow_duration_us = 1.0
-                    avg_flow_pps = avg_pkts_per_flow / 0.000001
-                else:
-                    avg_flow_pps = flow_pps / num_flows
-
-                features = [
-                    avg_flow_duration_us,       # Flow Duration (us)
-                    avg_pkts_per_flow,          # Total Fwd Packet
-                    avg_bytes_per_flow,         # Total Length of Fwd Packet
-                    fwd_pkt_len_mean,           # Fwd Packet Length Mean
-                    avg_flow_pps,               # Flow Packets/s
-                    avg_syn_per_flow,           # SYN Flag Count
-                ]
-
-                # Append + readiness check under state_lock; the heavy work
-                # (scaler transform + queue put) is done OUTSIDE the lock.
-                with state_lock:
-                    client_sequences[ip_str].append(features)
-                    seq_ready = len(client_sequences[ip_str]) == SEQUENCE_LENGTH
-                    raw_sequence = (np.array(list(client_sequences[ip_str]))
-                                    if seq_ready else None)
-                if seq_ready:
-                    inference_queue.put((ip_str, scaler.transform(raw_sequence)))
-
         # NOTE: no blanket delete of the telemetry map here any more. Keys are
         # cumulative and are reclaimed only when an IP goes idle (see
         # evict_idle_clients) -- that is what preserves flow duration + counts.
 
+        # --- GRU inference on per-FLOW forward features (Tier-1 pipeline) ---
+        # Read the per-flow 5-tuple table the XDP program fills. For every TCP
+        # flow that advanced since last poll (an ACTIVE flow — the same unit the
+        # training capture emitted), compute the 8 forward features and append
+        # them to that Source IP's rolling sequence, then submit full sequences.
+        # (TCP only: the Tier-1 training domain is HTTP/L7; UDP/volumetric floods
+        # are the L4 threshold engine's job above, not the GRU's.) False-positive
+        # safety rests on the model itself — benign flows score ~0 even under heavy
+        # packet loss/corruption (validated) — plus the 0.95 threshold and the
+        # GRU_CONSECUTIVE_THRESH consecutive-detection requirement.
+        with banned_ips_lock:
+            banned_snapshot = set(banned_ips)
+        for fk, ff in flow_map.items():
+            if fk.proto != socket.IPPROTO_TCP:
+                continue
+            ip_str = network_bytes_to_ip(fk.src_ip)
+            if ip_str in banned_snapshot:
+                continue
+            pk = ff.fwd_packets
+            flow_id = (fk.src_ip, fk.src_port, fk.dst_port, fk.proto)
+            if prev_flow_pk.get(flow_id, 0) >= pk:
+                continue                       # stale flow: no new fwd packets
+            prev_flow_pk[flow_id] = pk
+
+            feats = flow_features(ff)
+            # Append + readiness under state_lock; the heavy work (scaler
+            # transform + queue put) is done OUTSIDE the lock.
+            with state_lock:
+                client_sequences[ip_str].append(feats)
+                seq_ready = len(client_sequences[ip_str]) == SEQUENCE_LENGTH
+                raw_sequence = (np.array(list(client_sequences[ip_str]))
+                                if seq_ready else None)
+            if seq_ready:
+                inference_queue.put((ip_str, scaler.transform(raw_sequence)))
+
         # Detect spoofed-IP SYN floods via aggregate rate
-        if total_global_syn_delta > GLOBAL_SYN_THRESHOLD and not syn_cookies_enabled:
+        if total_global_syn_delta > GLOBAL_SYN_THRESHOLD and not syn_cookies_enabled and not GRU_ONLY:
             try:
                 subprocess.run(
                     ["sysctl", "-w", "net.ipv4.tcp_syncookies=1"],
@@ -655,6 +666,8 @@ def l3_l4_telemetry_monitor():
 try:
     print("[*] Starting tri-engine Anti-DDoS integration "
           "(XDP Telemetry + GRU ML + L7 Heuristics)...")
+    if GRU_ONLY:
+        print("[!] GRU_ONLY=1 — all non-GRU ban paths DISABLED (test isolation mode).")
 
     telemetry_thread = threading.Thread(target=l3_l4_telemetry_monitor, daemon=True)
     telemetry_thread.start()
@@ -723,7 +736,7 @@ try:
                             ban_rps = rps
                             ban_err = error_ratio
 
-            if should_ban:
+            if should_ban and not GRU_ONLY:
                 print(f"\n[HEURISTIC] L7 anomaly detected - IP: {client_ip} | "
                       f"RPS: {ban_rps:.1f} | Error ratio: {ban_err:.0%}")
                 ban_ip(client_ip,
