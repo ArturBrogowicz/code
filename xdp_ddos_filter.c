@@ -42,7 +42,13 @@ struct flow_feat {
 };
 
 BPF_HASH(blacklist_map, u32, u64, 100000);
-BPF_PERCPU_HASH(telemetry_map, u32, struct telemetry_data, 100000);
+// PERCPU + LRU so the per-source telemetry table self-bounds under a spoofed
+// (--rand-source) flood: when full, the kernel evicts the least-recently-used
+// entry instead of making lookup_or_try_init() refuse new keys — which would
+// under-count SYNs exactly when the flood peaks (audit §2c). Per-interval deltas
+// already tolerate a reused key's evict+recreate (prev_telemetry subtraction in
+// control_plane.py treats a drop below the previous snapshot as the delta).
+BPF_TABLE("lru_percpu_hash", u32, struct telemetry_data, telemetry_map, 100000);
 // LRU so the flow table self-bounds under floods (oldest flows evicted first).
 BPF_TABLE("lru_hash", struct flow_key, struct flow_feat, flow_map, 262144);
 
