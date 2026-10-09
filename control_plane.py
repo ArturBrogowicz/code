@@ -68,6 +68,17 @@ SLOWCONN_IDLE_BYTES = 250      # Per-interval ingress bytes below which it's "id
 SLOWCONN_CONSECUTIVE = 3       # Sustained intervals before banning (FP guard)
 PUBLIC_PORTS = (":80", ":443") # nginx public listeners (local port in ss output)
 
+# L4 low-and-slow SYN (half-open / SYN-without-completion). A distributed SYN
+# attack kept UNDER the per-IP (SYN_FLOOD_THRESHOLD) and global (GLOBAL_SYN_
+# THRESHOLD) rate limits still exhausts the SYN backlog. Its defining trait: the
+# source sends SYNs but NEVER completes a handshake (never shows an ESTABLISHED
+# connection). A real client — even a lossy one — establishes connections
+# constantly, so we ban only a source that SYNs while establishing *nothing*.
+LOWSYN_SYN_MIN = 3             # Min SYNs/interval to consider (legit reconnect is 1-2)
+LOWSYN_ESTABLISH_GRACE = 15.0  # An IP that completed a handshake within this window
+                               # is a real client, exempt (its SYNs are reconnects)
+LOWSYN_CONSECUTIVE = 4         # Sustained suspect intervals before banning (FP guard)
+
 # Auto-unblock IPs after TTL expires (seconds)
 BAN_TTL_SECONDS = 300
 
@@ -160,6 +171,12 @@ prev_flow_pk = {}     # {(src_ip, src_port, dst_port, proto): fwd_packets}
 # Consecutive intervals an IP has looked like slow-connection abuse (many held
 # connections + near-idle data). Telemetry-thread-only, like prev_telemetry.
 slowconn_counts = defaultdict(int)
+
+# Low-and-slow SYN tracking (telemetry-thread-only). lowsyn_counts: consecutive
+# suspect intervals (SYNs but no established connection); last_established_seen:
+# last wall-time an IP showed >=1 ESTABLISHED connection (completed handshake).
+lowsyn_counts = defaultdict(int)
+last_established_seen = {}
 
 # Track ban timestamps for TTL-based expiry
 ban_timestamps = {}
@@ -295,6 +312,8 @@ def evict_idle_clients():
     for ip_str in stale_ips:
         prev_telemetry.pop(ip_str, None)
         slowconn_counts.pop(ip_str, None)
+        lowsyn_counts.pop(ip_str, None)
+        last_established_seen.pop(ip_str, None)
         try:
             del telemetry_map[telemetry_map.Key(ip_to_network_bytes(ip_str))]
         except KeyError:
@@ -633,6 +652,30 @@ def l3_l4_telemetry_monitor():
                     continue
             else:
                 slowconn_counts.pop(ip_str, None)
+
+            # --- L4 low-and-slow SYN (sub-threshold SYN flood, no handshake) ---
+            # An IP that keeps SYN-ing but never completes a handshake (no ESTABLISHED
+            # connection) is exhausting the SYN backlog low-and-slow, beneath the per-IP
+            # and global SYN rate limits. A real client — even a lossy one — establishes
+            # connections, so a recent-handshake grace exempts it; only a source that
+            # establishes NOTHING for several consecutive intervals while SYN-ing is banned.
+            now_wall = time.time()
+            if conns > 0:
+                last_established_seen[ip_str] = now_wall
+            recently_established = (now_wall - last_established_seen.get(ip_str, 0.0)
+                                    <= LOWSYN_ESTABLISH_GRACE)
+            if (not recently_established and conns == 0
+                    and d_syn >= LOWSYN_SYN_MIN and not GRU_ONLY):
+                lowsyn_counts[ip_str] += 1
+                if lowsyn_counts[ip_str] >= LOWSYN_CONSECUTIVE:
+                    print(f"\n[L4-DETECT] LOW-AND-SLOW SYN - IP: {ip_str} | "
+                          f"{d_syn} SYN/s, 0 established, no handshake in "
+                          f"{LOWSYN_ESTABLISH_GRACE:.0f}s")
+                    ban_ip(ip_str, reason=f"Low-and-slow SYN ({d_syn} SYN/s, no handshake)")
+                    lowsyn_counts.pop(ip_str, None)
+                    continue
+            else:
+                lowsyn_counts.pop(ip_str, None)
 
             # Mark liveness (drives idle eviction) -- shared dict, under state_lock.
             if d_pkts > 0:

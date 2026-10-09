@@ -571,6 +571,8 @@ def _classify_engine(line):
     """Classify the detection engine from a [BAN] log line."""
     if "SYN flood" in line:
         return "L4 SYN"
+    if "Low-and-slow" in line:
+        return "L4 Low-SYN"
     if "Volumetric" in line:
         return "L4 Volumetric"
     if "R.U.D.Y." in line:
