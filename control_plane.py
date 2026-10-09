@@ -74,6 +74,20 @@ BAN_TTL_SECONDS = 300
 # Aggregate SYN rate threshold for spoofed-IP flood detection
 GLOBAL_SYN_THRESHOLD = 5000
 
+# Load-aware GRU suppression. While a volumetric flood is active, legit TCP flows
+# stall/retransmit and start to resemble low-and-slow L7 attacks to the GRU — so
+# an attacker could weaponize a flood into GRU-banning legit clients. During a
+# flood the L4 engine already owns the threat, so we PAUSE GRU bans for a short
+# cooldown and resume once it subsides. Slowloris/R.U.D.Y. persist far longer than
+# a flood (which L4 kills in ~1s), so the GRU still catches them afterwards.
+GLOBAL_PPS_THRESHOLD = 50000   # aggregate fwd pkts/interval ⇒ "under volumetric flood"
+VOLUMETRIC_COOLDOWN = 15.0     # keep GRU paused after flood activity; must outlast
+                               # the client request timeout (~10 s) so legit flows
+                               # that stalled *through* the flood die and get LRU-
+                               # evicted before the GRU resumes — otherwise their
+                               # cumulative (flood-contaminated) features linger and
+                               # trigger a post-flood false positive.
+
 # Early detection heuristic thresholds (triggers before GRU's 15-request minimum)
 HEURISTIC_WINDOW = 10.0        # Sliding window in seconds
 HEURISTIC_MAX_RPS = 50         # Max requests per second before blocking
@@ -158,6 +172,12 @@ rudy_tracker = defaultdict(deque)  # {ip: deque of (timestamp,)]}
 
 # Track whether SYN cookies have been activated
 syn_cookies_enabled = False
+
+# Wall-time until which GRU bans are paused because a volumetric flood is active
+# (see GLOBAL_PPS_THRESHOLD / VOLUMETRIC_COOLDOWN). Set in the telemetry monitor
+# and read in drain_inference_results — both run in the telemetry thread, so no
+# lock is needed.
+volumetric_active_until = 0.0
 
 # Track last-seen timestamp per client for idle eviction
 client_last_seen = {}
@@ -484,6 +504,15 @@ def drain_inference_results():
         if not should_ban:
             continue
 
+        # Load-aware suppression: don't GRU-ban while a volumetric flood is active.
+        # Legit flows are stalled/distorted then (false-positive risk), and the L4
+        # engine already handles the flood. Reset the counter so a post-flood ban
+        # needs fresh consecutive detections, not stale distorted ones.
+        if time.time() < volumetric_active_until:
+            with state_lock:
+                gru_violation_counts.pop(client_ip, None)
+            continue
+
         print(f"\n[GRU] DETECTED ATTACK — IP: {client_ip} | "
               f"Confidence: {probability * 100:.1f}%")
         ban_ip(client_ip,
@@ -517,7 +546,7 @@ def l3_l4_telemetry_monitor():
     The GRU runs on the SAME per-flow pipeline used to build the Tier-1 training
     set (capture_testbed_dataset.py), so train == inference with no domain gap.
     """
-    global syn_cookies_enabled
+    global syn_cookies_enabled, volumetric_active_until
     print(f"[*] Starting L3/L4 telemetry monitor (Interval: {L4_POLL_INTERVAL}s)")
     while not stop_event.is_set():
         time.sleep(L4_POLL_INTERVAL)
@@ -528,6 +557,7 @@ def l3_l4_telemetry_monitor():
         drain_inference_results()
 
         total_global_syn_delta = 0
+        total_global_pkt_delta = 0
 
         # Kernel-authoritative per-IP concurrent connection counts for the
         # drift-free slow-connection heuristic (fetched once per poll).
@@ -565,12 +595,14 @@ def l3_l4_telemetry_monitor():
                     continue
 
             total_global_syn_delta += d_syn
+            total_global_pkt_delta += d_pkts
 
             # --- L4 SYN flood heuristic (per-IP, per-interval rate) ---
             if d_syn > SYN_FLOOD_THRESHOLD and not GRU_ONLY:
                 print(f"\n[L4-DETECT] SYN FLOOD ATTACK - IP: {ip_str} | "
                       f"Rate: {d_syn} SYN/s")
                 ban_ip(ip_str, reason=f"Per-IP SYN flood ({d_syn} SYN/s)")
+                volumetric_active_until = time.time() + VOLUMETRIC_COOLDOWN
                 continue
 
             # --- L4 UDP / Volumetric flood heuristic (per-IP, per-interval rate) ---
@@ -579,6 +611,7 @@ def l3_l4_telemetry_monitor():
                 print(f"\n[L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: {ip_str} | "
                       f"Rate: {non_syn_pkts} pkts/s")
                 ban_ip(ip_str, reason=f"Volumetric packet flood ({non_syn_pkts} pkts/s)")
+                volumetric_active_until = time.time() + VOLUMETRIC_COOLDOWN
                 continue
 
             # --- L4 slow-connection abuse (Slowloris/R.U.D.Y.), drift-free ---
@@ -620,30 +653,46 @@ def l3_l4_telemetry_monitor():
         # safety rests on the model itself — benign flows score ~0 even under heavy
         # packet loss/corruption (validated) — plus the 0.95 threshold and the
         # GRU_CONSECUTIVE_THRESH consecutive-detection requirement.
-        with banned_ips_lock:
-            banned_snapshot = set(banned_ips)
-        for fk, ff in flow_map.items():
-            if fk.proto != socket.IPPROTO_TCP:
-                continue
-            ip_str = network_bytes_to_ip(fk.src_ip)
-            if ip_str in banned_snapshot:
-                continue
-            pk = ff.fwd_packets
-            flow_id = (fk.src_ip, fk.src_port, fk.dst_port, fk.proto)
-            if prev_flow_pk.get(flow_id, 0) >= pk:
-                continue                       # stale flow: no new fwd packets
-            prev_flow_pk[flow_id] = pk
-
-            feats = flow_features(ff)
-            # Append + readiness under state_lock; the heavy work (scaler
-            # transform + queue put) is done OUTSIDE the lock.
+        if time.time() < volumetric_active_until:
+            # Volumetric flood active: legit flows are stalled/distorted. Don't feed
+            # the GRU, and PURGE accumulated snapshots so that once the flood passes
+            # the per-IP sequences rebuild from clean (short-lived) legit flows.
+            # Otherwise flood-era distorted snapshots linger in the 15-deque and the
+            # GRU bans legit clients the moment the cooldown expires (observed).
             with state_lock:
-                client_sequences[ip_str].append(feats)
-                seq_ready = len(client_sequences[ip_str]) == SEQUENCE_LENGTH
-                raw_sequence = (np.array(list(client_sequences[ip_str]))
-                                if seq_ready else None)
-            if seq_ready:
-                inference_queue.put((ip_str, scaler.transform(raw_sequence)))
+                client_sequences.clear()
+        else:
+            with banned_ips_lock:
+                banned_snapshot = set(banned_ips)
+            for fk, ff in flow_map.items():
+                if fk.proto != socket.IPPROTO_TCP:
+                    continue
+                ip_str = network_bytes_to_ip(fk.src_ip)
+                if ip_str in banned_snapshot:
+                    continue
+                pk = ff.fwd_packets
+                flow_id = (fk.src_ip, fk.src_port, fk.dst_port, fk.proto)
+                if prev_flow_pk.get(flow_id, 0) >= pk:
+                    continue                       # stale flow: no new fwd packets
+                prev_flow_pk[flow_id] = pk
+
+                feats = flow_features(ff)
+                # Append + readiness under state_lock; the heavy work (scaler
+                # transform + queue put) is done OUTSIDE the lock.
+                with state_lock:
+                    client_sequences[ip_str].append(feats)
+                    seq_ready = len(client_sequences[ip_str]) == SEQUENCE_LENGTH
+                    raw_sequence = (np.array(list(client_sequences[ip_str]))
+                                    if seq_ready else None)
+                if seq_ready:
+                    inference_queue.put((ip_str, scaler.transform(raw_sequence)))
+
+        # Keep the GRU paused under aggregate volumetric load (distributed floods
+        # that may not trip any single per-IP threshold). Runs in all modes — the
+        # GRU must never act on flood-distorted legit flows.
+        if (total_global_syn_delta > GLOBAL_SYN_THRESHOLD
+                or total_global_pkt_delta > GLOBAL_PPS_THRESHOLD):
+            volumetric_active_until = time.time() + VOLUMETRIC_COOLDOWN
 
         # Detect spoofed-IP SYN floods via aggregate rate
         if total_global_syn_delta > GLOBAL_SYN_THRESHOLD and not syn_cookies_enabled and not GRU_ONLY:

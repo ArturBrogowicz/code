@@ -37,29 +37,51 @@ def split_ips(ips, a, bnd):
     ips = list(ips); rng.shuffle(ips)
     n1, n2 = int(len(ips)*a), int(len(ips)*bnd)
     return {ip:("train" if i<n1 else ("val" if i<n2 else "test")) for i,ip in enumerate(ips)}
-# guarantee each split gets >=1 attacker IP (only 4 exist): 2 train / 1 val / 1 test
-att_ips = list(df[df.y==1].src_ip.unique()); rng.shuffle(att_ips)
-att_split = {att_ips[0]:"train", att_ips[1]:"train", att_ips[2]:"val", att_ips[3]:"test"} \
-            if len(att_ips) >= 4 else split_ips(att_ips, .7, .85)
+# Attacker IPs carry a known attack family (matches capture_testbed_dataset.py's
+# bot schedule). Split IP-disjoint AND family-aware: TRAIN sees one intensity of
+# every family; the held-out TEST is a DIFFERENT intensity of the low-rate L7
+# families (slowloris/rudy) — the honest generalization check. Floods (caught by
+# L4/L7 regardless) sit in train+val. Falls back to a generic >=1-per-split scheme
+# if the attacker IP set ever differs from the capture schedule.
+ATTACK_FAMILY = {                         # bot IP -> (family, split)
+    "10.0.2.1": ("http-flood", "train"),  # wrk -c50
+    "10.0.2.2": ("http-flood", "val"),    # wrk -c30
+    "10.0.2.3": ("slowloris",  "train"),  # N=8
+    "10.0.2.4": ("slowloris",  "test"),   # N=30  (held-out intensity)
+    "10.0.2.5": ("rudy",       "train"),  # N=10
+    "10.0.2.6": ("rudy",       "test"),   # N=20  (held-out intensity)
+}
+att_ips = list(df[df.y==1].src_ip.unique())
+if set(att_ips) == set(ATTACK_FAMILY):
+    att_split = {ip: ATTACK_FAMILY[ip][1] for ip in att_ips}
+    att_fam   = {ip: ATTACK_FAMILY[ip][0] for ip in att_ips}
+else:
+    rng.shuffle(att_ips)
+    att_split = {ip: ("val" if i == len(att_ips)-2 else
+                      "test" if i == len(att_ips)-1 else "train")
+                 for i, ip in enumerate(att_ips)}
+    att_fam   = {ip: "attack" for ip in att_ips}
 ben_split = split_ips(df[df.y==0].src_ip.unique(), .67, .83)
 split_of = {**att_split, **ben_split}
 
 def build(spname):
-    X, y = [], []
+    X, y, ips = [], [], []
     for ip, g in df.groupby("src_ip", sort=False):
         if split_of.get(ip) != spname: continue
         arr = g[FEATURES].to_numpy(); lab = int(g.y.iloc[0])
         starts = list(range(0, len(arr)-SEQ+1))
         if len(starts) > CAP_PER_IP:
             step = len(starts)/CAP_PER_IP; starts = [starts[int(i*step)] for i in range(CAP_PER_IP)]
-        for s in starts: X.append(arr[s:s+SEQ]); y.append(lab)
-    if not X: return np.empty((0,SEQ,len(FEATURES)),np.float32), np.empty((0,),np.float32)
-    return np.array(X,np.float32), np.array(y,np.float32)
+        for s in starts: X.append(arr[s:s+SEQ]); y.append(lab); ips.append(ip)
+    if not X:
+        return (np.empty((0,SEQ,len(FEATURES)),np.float32),
+                np.empty((0,),np.float32), np.array([]))
+    return np.array(X,np.float32), np.array(y,np.float32), np.array(ips)
 
-Xtr,ytr = build("train"); Xva,yva = build("val"); Xte,yte = build("test")
+Xtr,ytr,_ = build("train"); Xva,yva,_ = build("val"); Xte,yte,ipte = build("test")
 print(f"[*] sequences train={len(ytr)}(atk {int(ytr.sum())}) val={len(yva)}(atk {int(yva.sum())}) "
       f"test={len(yte)}(atk {int(yte.sum())})")
-print(f"[*] attacker IP split: {att_split}")
+print(f"[*] attacker IP split: { {ip: f'{att_fam[ip]}/{att_split[ip]}' for ip in att_split} }")
 
 scaler = StandardScaler().fit(Xtr.reshape(-1,len(FEATURES)))
 def sc(X): return scaler.transform(X.reshape(-1,len(FEATURES))).reshape(X.shape).astype(np.float32)
@@ -90,6 +112,14 @@ model.load_state_dict(beststate)
 f1,pr,rc,ac,pred=ev(Xte,yte)
 print(f"\n{'='*56}\nHELD-OUT TEST (IP-disjoint)  F1={f1:.4f} P={pr:.4f} R={rc:.4f} Acc={ac:.4f}")
 print("Confusion [[TN FP][FN TP]]:\n", confusion_matrix(yte,pred) if len(pred) else "n/a")
+if len(pred):
+    print("Per-test-IP (honest generalization view):")
+    for ip in sorted(set(ipte)):
+        m = ipte == ip; lab = int(yte[m][0])
+        if lab == 1:
+            print(f"  {ip:12} {att_fam.get(ip,'attack'):11} recall={(pred[m]==1).mean()*100:5.1f}%  (n={int(m.sum())})")
+        else:
+            print(f"  {ip:12} {'benign':11} FP   ={(pred[m]==1).mean()*100:5.1f}%  (n={int(m.sum())})")
 
 torch.save(beststate,MODEL_OUT); joblib.dump(scaler,SCALER_OUT)
 json.dump({"features":FEATURES,"seq_length":SEQ,"input_size":len(FEATURES),"hidden_size":HIDDEN,

@@ -17,5 +17,5 @@
   "scaler": "training_results/scaler_testbed.save",
   "source": "testbed-native (Tier-1)",
   "val_f1": 1.0,
-  "test_f1": 1.0
+  "test_f1": 0.9963
 }
