@@ -71,6 +71,160 @@ _daemon_proc = None
 csv_lock = threading.Lock()
 
 # ═══════════════════════════════════════════════════════════════════════════════
+#  SERVICE-AVAILABILITY MEASUREMENT (continuous, via the background legit workers)
+# ═══════════════════════════════════════════════════════════════════════════════
+# The background _legit_worker threads already curl the server throughout the run.
+# We record each request (HTTP status + latency), tagged with the current attack
+# phase, to measure how well REAL users are served BEFORE / DURING / AFTER each
+# attack. Reporting-only: this NEVER affects the PASS/FAIL logic in report().
+
+AVAIL_BEFORE_SECONDS = 3           # per-scenario pre-attack baseline window (denser 'before')
+AVAIL_AFTER_SECONDS = 10           # bounded post-attack recovery window (defines 'after';
+                                   # replaces the old settle sleep so 'after' is comparable
+                                   # across scenarios and excludes report()'s own curl overhead)
+_avail_lock = threading.Lock()
+_avail_samples = []                # samples for the CURRENT scenario (cleared per scenario)
+_avail_scenario = None
+_avail_period = "idle"             # before | during | after | idle   (idle = not recorded)
+_avail_results = []                # aggregated per-scenario availability (for the final table)
+
+
+def _avail_begin(scenario):
+    """Open a new scenario's 'before' window (clears the previous scenario's samples)."""
+    global _avail_scenario, _avail_period
+    with _avail_lock:
+        _avail_samples.clear()
+    _avail_scenario = scenario
+    _avail_period = "before"
+
+
+def _avail_phase(period):
+    """Switch the current availability phase: before | during | after | idle."""
+    global _avail_period
+    _avail_period = period
+
+
+def _avail_record(scenario, period, profile, code, latency_s):
+    """Record one legit-request outcome, unless idle / between scenarios."""
+    if period == "idle" or scenario is None:
+        return
+    with _avail_lock:
+        _avail_samples.append({"scenario": scenario, "period": period,
+                               "profile": profile, "code": code,
+                               "lat": latency_s, "ok": code == "200",
+                               "ts": time.time()})   # per-request time (for the raw time-series)
+
+
+def _pct(sorted_vals, q):
+    """Nearest-rank percentile of an already-sorted list (empty -> 0.0)."""
+    n = len(sorted_vals)
+    if n == 0:
+        return 0.0
+    idx = max(0, min(n - 1, (q * n + 99) // 100 - 1))
+    return sorted_vals[idx]
+
+
+def _avail_kpis(samples):
+    """Aggregate samples -> KPIs. Latency percentiles are over successful (200) requests
+    only, so failures/timeouts don't masquerade as slow successes; they show up in the
+    timeout rate instead. Latency is capped by curl --max-time (slower = timeout)."""
+    total = len(samples)
+    c200 = sum(1 for s in samples if s["code"] == "200")
+    c503 = sum(1 for s in samples if s["code"] == "503")
+    c000 = sum(1 for s in samples if s["code"] == "000")   # timeout / no response / conn refused
+    cother = total - c200 - c503 - c000
+    lats = sorted(s["lat"] * 1000.0 for s in samples if s["ok"])   # ms, successful only
+    mean = sum(lats) / len(lats) if lats else 0.0
+    return {
+        "total": total, "ok": c200,
+        "succ": (c200 / total * 100.0) if total else 0.0,
+        "c200": c200, "c503": c503, "c000": c000, "cother": cother,
+        "to_rate": (c000 / total * 100.0) if total else 0.0,
+        "p50": _pct(lats, 50), "p95": _pct(lats, 95), "p99": _pct(lats, 99),
+        "mean": mean, "max": (lats[-1] if lats else 0.0),
+    }
+
+
+def _avail_csv_paths():
+    """Availability CSV paths, split by mode/backend like the resource CSV, so XDP vs
+    iptables vs unprotected availability can be compared across separate runs."""
+    mode = os.environ.get("MITIGATION_MODE", "active")
+    backend = os.environ.get("MITIGATION_BACKEND", "xdp")
+    tag = "unprotected" if mode == "none" else ("iptables" if backend == "iptables" else "performance")
+    return f"/tmp/availability_{tag}.csv", f"/tmp/availability_raw_{tag}.csv", mode, backend
+
+
+def _write_availability_csv(scenario, by_period, by_prof, profiles, snap):
+    """Append one aggregated row per (period, profile) plus a raw per-request dump."""
+    agg_csv, raw_csv, mode, backend = _avail_csv_paths()
+    ts = datetime.datetime.now().isoformat()
+    hdr = ["Timestamp", "Scenario", "Period", "Profile", "Mode", "Backend",
+           "Total_Reqs", "Success_200", "Success_Rate_Pct", "HTTP_503",
+           "HTTP_000_Timeout", "HTTP_Other", "Timeout_Rate_Pct",
+           "Lat_p50_ms", "Lat_p95_ms", "Lat_p99_ms", "Lat_Mean_ms", "Lat_Max_ms"]
+
+    def row(period, profile, k):
+        return [ts, scenario, period, profile, mode, backend,
+                k["total"], k["c200"], f"{k['succ']:.1f}", k["c503"],
+                k["c000"], k["cother"], f"{k['to_rate']:.1f}",
+                f"{k['p50']:.1f}", f"{k['p95']:.1f}", f"{k['p99']:.1f}",
+                f"{k['mean']:.1f}", f"{k['max']:.1f}"]
+
+    agg_new = not os.path.isfile(agg_csv)
+    with open(agg_csv, "a", newline="") as f:
+        w = csv.writer(f)
+        if agg_new:
+            w.writerow(hdr)
+        for p in ("before", "during", "after"):
+            w.writerow(row(p, "ALL", by_period[p]))          # headline (all profiles)
+            for pr in profiles:                              # per-profile breakdown
+                k = by_prof[(p, pr)]
+                if k["total"]:
+                    w.writerow(row(p, pr, k))
+
+    raw_new = not os.path.isfile(raw_csv)
+    with open(raw_csv, "a", newline="") as f:                # raw dump for time-series charts
+        w = csv.writer(f)
+        if raw_new:
+            w.writerow(["Timestamp", "Scenario", "Period", "Profile", "HTTP_Code", "Latency_ms", "OK"])
+        for s in snap:
+            w.writerow([datetime.datetime.fromtimestamp(s["ts"]).isoformat(),
+                        scenario, s["period"], s["profile"], s["code"],
+                        f"{s['lat'] * 1000.0:.1f}", int(s["ok"])])
+
+
+def _avail_finalize():
+    """Snapshot the scenario's samples, aggregate, write CSVs, store the summary line, go idle.
+
+    Called at the TOP of report() — BEFORE the collateral/HTTP verification — so the 'after'
+    window is exactly the bounded post-kill recovery sleep (AVAIL_AFTER_SECONDS), not the
+    variable report() duration. Reporting-only; uses the sample-tagged scenario name. The
+    formatted console line is stored in _avail_results and printed later, in the report block."""
+    global _avail_period
+    with _avail_lock:
+        snap = list(_avail_samples)
+    _avail_period = "idle"                       # stop recording (report()'s own curls ignored)
+    scenario = _avail_scenario or "unknown"
+    periods = ("before", "during", "after")
+    by_period = {p: _avail_kpis([s for s in snap if s["period"] == p]) for p in periods}
+    profiles = sorted({s["profile"] for s in snap})
+    by_prof = {(p, pr): _avail_kpis([s for s in snap
+                                     if s["period"] == p and s["profile"] == pr])
+               for p in periods for pr in profiles}
+
+    b, d, a = by_period["before"], by_period["during"], by_period["after"]
+    d_extra = f", p95 {d['p95']:.0f}ms" if d["total"] else ""
+
+    def _f(k, extra=""):
+        return f"{k['succ']:.0f}% (n={k['total']}{extra})" if k["total"] else "n/a"
+    line = (f"  ├── Availability:      before {_f(b)} · "
+            f"during {_f(d, d_extra)} · after {_f(a)}")
+
+    _avail_results.append({"scenario": scenario, "by_period": by_period, "line": line})
+    _write_availability_csv(scenario, by_period, by_prof, profiles, snap)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 #  HELPER
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -276,6 +430,25 @@ def apply_tc(ns_name, profile):
              "loss", "5%", "corrupt", "1%"], ns=ns_name)
 
 
+def _wait_http_ready(timeout=15):
+    """Probe the service (from server_ns) until it serves HTTP 200, so a freshly
+    (re)started gunicorn/nginx is actually WARM before the scenario's pre-attack
+    'before' baseline is measured. Without this, cold-worker transients right after
+    each reset depress the baseline even for no-loss ('perfect') clients (observed).
+    Runs before the daemon starts tailing, and probes the server's own IP (never a
+    client IP), so it can't perturb the heuristics or the ban logic. Returns True
+    once a 200 is seen."""
+    start = time.time()
+    while time.time() - start < timeout:
+        res = run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
+                   "--max-time", "2", HTTP_URL], ns=SERVER_NS, timeout=4)
+        if res is not None and res.stdout.strip() == "200":
+            return True
+        time.sleep(0.3)
+    print(f"{YELLOW}[!] Service not HTTP-ready within {timeout}s (baseline may be noisy).{RESET}")
+    return False
+
+
 def start_server_services():
     """Start Nginx, Gunicorn, and the mitigation daemon inside server_ns."""
     global _daemon_proc
@@ -319,6 +492,7 @@ def start_server_services():
     active_conf = NGINX_UNPROTECTED_CONF if mode == "none" else NGINX_CONF
     run(["nginx", "-c", active_conf], ns=SERVER_NS, bg=True)
     time.sleep(0.5)
+    _wait_http_ready()   # ensure gunicorn/nginx actually serve before proceeding (clean baseline)
 
     # Start mitigation daemon
     try:
@@ -404,6 +578,7 @@ def reset_between_scenarios():
     active_conf = NGINX_UNPROTECTED_CONF if mode == "none" else NGINX_CONF
     run(["nginx", "-c", active_conf], ns=SERVER_NS, bg=True)
     time.sleep(0.5)
+    _wait_http_ready()   # ensure gunicorn/nginx actually serve before proceeding (clean baseline)
 
     # Restart mitigation daemon with a fresh log file
     try:
@@ -495,11 +670,24 @@ def _legit_worker(ns_name, ip_addr, profile):
                      "mobile_3g": 3.0, "mobile_bad": 5.0}.get(profile, 2.0)
 
     while not _legit_traffic_stop.is_set():
+        # Tag by the phase at request START, so a request issued under attack counts
+        # as 'during' even if it completes just after. Recording is availability-only
+        # and never changes this worker's behaviour/cadence.
+        period = _avail_period
+        scenario = _avail_scenario
+        code, lat = "000", 10.0           # default = no response (curl --max-time)
         try:
-            run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
-                 "--max-time", "10", HTTP_URL], ns=ns_name, timeout=15)
+            res = run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code} %{time_total}",
+                       "--max-time", "10", HTTP_URL], ns=ns_name, timeout=15)
+            if res is not None and res.stdout:
+                parts = res.stdout.split()
+                if parts:
+                    code = parts[0]
+                    if len(parts) > 1:
+                        lat = float(parts[1])
         except Exception:
             pass
+        _avail_record(scenario, period, profile, code, lat)
         jitter = random.uniform(-0.5, 1.0)
         _legit_traffic_stop.wait(max(0.5, base_interval + jitter))
 
@@ -666,6 +854,15 @@ def capture_metrics(scenario, phase):
     instead of overlapping launch_botnet(), and stops adjacent phases' windows
     from bleeding into one another (also removes the concurrent-CSV-write race).
     """
+    # Availability phase transitions, driven by the existing phase labels so each
+    # scenario needs no extra edits (reporting-only; see the _avail_* helpers).
+    if phase.startswith("Phase 1"):            # Baseline → open the pre-attack 'before' window
+        _avail_begin(scenario)
+        if AVAIL_BEFORE_SECONDS > 0:
+            time.sleep(AVAIL_BEFORE_SECONDS)   # denser pre-attack baseline (recorded as 'before')
+    elif phase.startswith("Phase 2:"):         # Pre-Mitigation → the attack is now live
+        _avail_phase("during")                 # ('Phase 2A' sustained + 'Phase 3' stay 'during')
+
     def task():
         try:
             # 1. Locate target processes BEFORE the measurement window
@@ -877,6 +1074,8 @@ def _write_script(path, content):
 
 def report(name, ban_results, botnet_nodes, legit_nodes):
     """Evaluate and display results for a distributed attack scenario."""
+    _avail_finalize()   # aggregate availability FIRST (bounds 'after' to the post-kill window,
+                        # before the collateral/HTTP verification curls run below)
     botnet_ips = [ip for _, ip in botnet_nodes]
     banned_cnt = sum(1 for ip in botnet_ips if ban_results[ip][0] != "None")
     total = len(botnet_ips)
@@ -908,6 +1107,8 @@ def report(name, ban_results, botnet_nodes, legit_nodes):
     print(f"  ├── Engines:           {', '.join(engines) if engines else 'None'}")
     print(f"  ├── Legit HTTP:        {http_ok}/{http_total} OK "
           f"({'✅' if http_pass else '❌'})")
+    if _avail_results:                       # continuous service-availability (reporting-only)
+        print(_avail_results[-1]["line"])
     fp_str = "None ✅" if col_pass else f"{len(col_list)} BANNED ❌"
     print(f"  └── False Positives:   {fp_str}")
     if col_list:
@@ -942,7 +1143,8 @@ def scenario_syn_flood(botnet, legit):
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=10, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed SYN Flood", "Phase 3: Post-Mitigation")
     kill_procs(procs)
-    time.sleep(3)
+    _avail_phase("after")      # attack stopped → bounded recovery window (then report() aggregates)
+    time.sleep(AVAIL_AFTER_SECONDS)
     report("Distributed SYN Flood", bans, botnet, legit)
 
 
@@ -960,7 +1162,8 @@ def scenario_slow_syn(botnet, legit):
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=30, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed Low & Slow SYN", "Phase 3: Post-Mitigation")
     kill_procs(procs)
-    time.sleep(3)
+    _avail_phase("after")      # attack stopped → bounded recovery window (then report() aggregates)
+    time.sleep(AVAIL_AFTER_SECONDS)
     report("Distributed Low & Slow SYN", bans, botnet, legit)
 
 
@@ -985,7 +1188,8 @@ def scenario_udp_flood(botnet, legit):
     # ── End Sustained Stress ──
     capture_metrics("Distributed UDP Flood", "Phase 3: Post-Mitigation")
     kill_procs(procs)
-    time.sleep(3)
+    _avail_phase("after")      # attack stopped → bounded recovery window (then report() aggregates)
+    time.sleep(AVAIL_AFTER_SECONDS)
     report("Distributed UDP Flood", bans, botnet, legit)
 
 
@@ -1003,7 +1207,8 @@ def scenario_http_flood(botnet, legit):
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=15, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed HTTP Flood", "Phase 3: Post-Mitigation")
     kill_procs(procs)
-    time.sleep(3)
+    _avail_phase("after")      # attack stopped → bounded recovery window (then report() aggregates)
+    time.sleep(AVAIL_AFTER_SECONDS)
     report("Distributed HTTP Flood", bans, botnet, legit)
 
 
@@ -1028,7 +1233,8 @@ def scenario_ack_flood(botnet, legit):
     # ── End Sustained Stress ──
     capture_metrics("Distributed ACK Flood", "Phase 3: Post-Mitigation")
     kill_procs(procs)
-    time.sleep(3)
+    _avail_phase("after")      # attack stopped → bounded recovery window (then report() aggregates)
+    time.sleep(AVAIL_AFTER_SECONDS)
     report("Distributed ACK Flood", bans, botnet, legit)
 
 
@@ -1054,7 +1260,8 @@ def scenario_fragmentation(botnet, legit):
     # ── End Sustained Stress ──
     capture_metrics("Distributed IP Fragmentation Flood", "Phase 3: Post-Mitigation")
     kill_procs(procs)
-    time.sleep(3)
+    _avail_phase("after")      # attack stopped → bounded recovery window (then report() aggregates)
+    time.sleep(AVAIL_AFTER_SECONDS)
     report("Distributed Fragmentation", bans, botnet, legit)
 
 
@@ -1096,7 +1303,8 @@ while True:
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=40, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed Slowloris", "Phase 3: Post-Mitigation")
     kill_procs(procs)
-    time.sleep(3)
+    _avail_phase("after")      # attack stopped → bounded recovery window (then report() aggregates)
+    time.sleep(AVAIL_AFTER_SECONDS)
     report("Distributed Slowloris", bans, botnet, legit)
 
 
@@ -1139,7 +1347,8 @@ while True:
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=40, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed R.U.D.Y.", "Phase 3: Post-Mitigation")
     kill_procs(procs)
-    time.sleep(3)
+    _avail_phase("after")      # attack stopped → bounded recovery window (then report() aggregates)
+    time.sleep(AVAIL_AFTER_SECONDS)
     report("Distributed R.U.D.Y.", bans, botnet, legit)
 
 
@@ -1164,7 +1373,8 @@ done
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=25, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed Yo-Yo", "Phase 3: Post-Mitigation")
     kill_procs(procs)
-    time.sleep(3)
+    _avail_phase("after")      # attack stopped → bounded recovery window (then report() aggregates)
+    time.sleep(AVAIL_AFTER_SECONDS)
     report("Distributed Yo-Yo", bans, botnet, legit)
 
 
@@ -1203,7 +1413,8 @@ def scenario_multi_vector(botnet, legit):
     # ── End Sustained Stress ──
     capture_metrics("Multi-Vector Distributed Attack", "Phase 3: Post-Mitigation")
     kill_procs(procs)
-    time.sleep(3)
+    _avail_phase("after")      # attack stopped → bounded recovery window (then report() aggregates)
+    time.sleep(AVAIL_AFTER_SECONDS)
     report("Multi-Vector Attack", bans, botnet, legit)
 
 
@@ -1233,6 +1444,30 @@ def print_summary():
 
     print(f"\n  {GREEN}Passed: {p}{RESET}  |  {RED}Failed: {f}{RESET}  |  "
           f"Total: {p + f}")
+
+    # ── Service availability (legitimate clients, continuous) ──────────────────
+    if _avail_results:
+        print(f"\n{BOLD}{YELLOW}{'='*94}")
+        print(f"  SERVICE AVAILABILITY (legitimate clients, continuous — before/during/after)")
+        print(f"{'='*94}{RESET}")
+        print(f"  {'Scenario':<32} | {'Period':<6} | {'Succ%':<6} | {'Reqs':<5} | "
+              f"{'p50':<7} | {'p95':<7} | {'p99':<7} | {'TOs'}")
+        print(f"  {'-'*92}")
+        for r in _avail_results:
+            for i, per in enumerate(("before", "during", "after")):
+                k = r["by_period"][per]
+                name = (r["scenario"][:32]) if i == 0 else ""
+                if k["total"]:
+                    col = GREEN if k["succ"] >= 99.0 else (YELLOW if k["succ"] >= 90.0 else RED)
+                    succ = f"{col}{k['succ']:>5.1f}{RESET}"
+                    lat = f"{k['p50']:>4.0f}ms | {k['p95']:>4.0f}ms | {k['p99']:>4.0f}ms"
+                    print(f"  {name:<32} | {per:<6} | {succ} | {k['total']:<5} | "
+                          f"{lat} | {k['c000']}")
+                else:
+                    print(f"  {name:<32} | {per:<6} | {'n/a':<6} | {0:<5} | "
+                          f"{'—':<7} | {'—':<7} | {'—':<7} | 0")
+        print(f"\n  {CYAN}Availability CSVs: /tmp/availability_<performance|iptables|unprotected>.csv "
+              f"(+ _raw_ per-request dumps){RESET}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
