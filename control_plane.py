@@ -567,6 +567,14 @@ def l3_l4_telemetry_monitor():
     """
     global syn_cookies_enabled, volumetric_active_until
     print(f"[*] Starting L3/L4 telemetry monitor (Interval: {L4_POLL_INTERVAL}s)")
+    # Flow-age gating (audit §4e FP fix): after a volumetric flood clears, only let
+    # the GRU score flows that STARTED afterwards. A flow that spanned the
+    # suppression window carries flood-contaminated cumulative features (stalled
+    # IAT, distorted lengths) and gets false-positived at ~99% the instant the
+    # cooldown expires. These two vars are telemetry-thread-local — they persist
+    # across the poll loop below and need no lock.
+    gru_trust_flows_after_ns = 0   # monotonic-ns baseline; 0 = no flood seen yet, trust all flows
+    was_suppressing = False
     while not stop_event.is_set():
         time.sleep(L4_POLL_INTERVAL)
 
@@ -696,7 +704,14 @@ def l3_l4_telemetry_monitor():
         # safety rests on the model itself — benign flows score ~0 even under heavy
         # packet loss/corruption (validated) — plus the 0.95 threshold and the
         # GRU_CONSECUTIVE_THRESH consecutive-detection requirement.
-        if time.time() < volumetric_active_until:
+        # Detect the flood→clear transition and stamp the clean baseline: from this
+        # instant the GRU only trusts flows that START afterwards (see loop header).
+        suppressing = time.time() < volumetric_active_until
+        if was_suppressing and not suppressing:
+            gru_trust_flows_after_ns = time.monotonic_ns()  # same clock as ff.first_seen_ns (bpf_ktime, §6e)
+        was_suppressing = suppressing
+
+        if suppressing:
             # Volumetric flood active: legit flows are stalled/distorted. Don't feed
             # the GRU, and PURGE accumulated snapshots so that once the flood passes
             # the per-IP sequences rebuild from clean (short-lived) legit flows.
@@ -712,6 +727,13 @@ def l3_l4_telemetry_monitor():
                     continue
                 ip_str = network_bytes_to_ip(fk.src_ip)
                 if ip_str in banned_snapshot:
+                    continue
+                # Flow-age gate: a flow that began on/before the last flood's clear
+                # point carries flood-contaminated cumulative features — skip it for
+                # GRU scoring (it would false-positive). Fresh post-flood flows are
+                # clean; a real attacker reopens new flows that ARE scored, and the
+                # L4/L7/SlowConn/RUDY engines still cover these flows regardless.
+                if ff.first_seen_ns < gru_trust_flows_after_ns:
                     continue
                 pk = ff.fwd_packets
                 flow_id = (fk.src_ip, fk.src_port, fk.dst_port, fk.proto)
