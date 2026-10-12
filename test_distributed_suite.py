@@ -29,6 +29,7 @@ import atexit
 import psutil
 import csv
 import datetime
+import json
 
 # ─────────────────────────────── CONFIGURATION ───────────────────────────────
 
@@ -266,7 +267,11 @@ def cleanup_all():
     # Kill ALL mitigation-related processes system-wide
     subprocess.run(["pkill", "-9", "-f", "control_plane.py"], capture_output=True)
     subprocess.run(["pkill", "-9", "-f", "gunicorn"], capture_output=True)
-    subprocess.run(["pkill", "-9", "-f", "nginx: master"], capture_output=True)
+    # Fast stop first (master reaps its workers), then SIGKILL leftovers incl. orphaned
+    # workers of earlier runs (SIGKILL on the master alone orphaned 8 workers per run).
+    subprocess.run(["pkill", "-TERM", "-f", "nginx: master process"], capture_output=True)
+    time.sleep(1.0)
+    subprocess.run(["pkill", "-9", "-f", "nginx: (master|worker) process"], capture_output=True)
     subprocess.run(["pkill", "-9", "-f", "hping3"], capture_output=True)
     subprocess.run(["pkill", "-9", "-f", "_dist_"], capture_output=True)
     subprocess.run(["pkill", "-9", "-f", "wrk"], capture_output=True)
@@ -373,6 +378,10 @@ def create_client_ns(ns_name, ip_addr):
                    (ip_addr)                    (bridge port)
     """
     veth_inner = "veth_in"
+    # udev MACAddressPolicy=persistent derives the MAC from the interface NAME, so every
+    # "veth_in" received the same address (12:af:eb:2d:8a:f2). An explicitly assigned
+    # address (addr_assign_type=SET) is left alone by udev -> unique, deterministic MAC.
+    inner_mac = "02:00:%02x:%02x:%02x:%02x" % tuple(int(o) for o in ip_addr.split("."))
     # Truncate outer name to stay under the 15-char IFNAMSIZ limit
     veth_outer = f"vo_{ns_name[:12]}"
 
@@ -383,7 +392,7 @@ def create_client_ns(ns_name, ip_addr):
     subprocess.run([
         "ip", "link", "add", veth_outer, 
         "numrxqueues", "8", "numtxqueues", "8",
-        "type", "veth", "peer", "name", veth_inner,
+        "type", "veth", "peer", "name", veth_inner, "address", inner_mac,
         "numrxqueues", "8", "numtxqueues", "8"
     ], capture_output=True)
 
@@ -559,7 +568,14 @@ def reset_between_scenarios():
         _daemon_proc = None
 
     # Kill Nginx and Gunicorn
-    run("pkill -f 'nginx: master process'", ns=SERVER_NS)
+    # List argv: the old string form was str.split() into ['pkill','-f',"'nginx:",'master',"process'"]
+    # -> "pkill: only one pattern can be provided" -> nginx was never restarted.
+    run(["pkill", "-TERM", "-f", "nginx: master process"], ns=SERVER_NS)
+    for _ in range(50):
+        if subprocess.run(["pgrep", "-f", "nginx: (master|worker) process"],
+                          capture_output=True).returncode != 0:
+            break
+        time.sleep(0.1)
     run(["pkill", "-f", "gunicorn"], ns=SERVER_NS)
     time.sleep(0.5)
 
@@ -653,6 +669,16 @@ def build_topology():
         botnet_nodes.append((ns, ip))
 
     print(f"{GREEN}[+] Botnet ready: {len(botnet_nodes)} nodes.{RESET}")
+
+    # Invariant: every client/bot interface on the bridge must have a unique MAC.
+    macs = {}
+    for node in legit_nodes + botnet_nodes:
+        ns = node[0]
+        res = run(["ip", "-j", "link", "show", "veth_in"], ns=ns)
+        mac = json.loads(res.stdout)[0]["address"] if res and res.stdout else None
+        assert mac and mac not in macs, f"duplicate/missing MAC {mac} in {ns} (also {macs.get(mac)})"
+        macs[mac] = ns
+    print(f"{GREEN}[+] {len(macs)} unique client/bot MACs verified.{RESET}")
 
     # ── Server services ──
     start_server_services()
