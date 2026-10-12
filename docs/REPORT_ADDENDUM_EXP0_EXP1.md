@@ -40,7 +40,10 @@ Three different namespaces received the identical name-derived MAC. With an expl
 | `PreStack_Dropped` ≈ PPS, `IP_InReceives` | yes; 41–48 pps | yes; 147–169 pps |
 | CPU_Total / hot core during floods | 64–66 % / 100 % | 55–59 % / 98–100 % |
 
-Charts: `charts/exp1_timeseries.png`, `charts/exp1_segments.png`. Tables: `outputs/exp1/exp1_summary.txt`, `raw_both.csv`, `phases_both.csv`.
+Tables: `outputs/exp1/exp1_summary.txt`, `raw_both.csv`, `phases_both.csv`.
+
+![EXP-1 — legit success over time, duplicate-MAC baseline vs unique-MAC, per flood scenario.](figures/exp1_timeseries.png)
+![EXP-1 — availability by time-aligned segment, duplicate-MAC vs unique-MAC.](figures/exp1_segments.png)
 
 **Interpretation**
 * [FACT] Fixing the MAC collision alone takes legit availability from ≈ 32–36 % to **100 %** under every flood, *including the first second before any ban*, with 1.5–1.6 M pps hitting `veth_server`, attackers still sharing the CPUs, and the hot core still at ~100 %. **The availability losses reported for 2026-10-11 (and every earlier run) were an artefact of the testbed's L2 defect, not of attack load or of the defence.** Shared-CPU contention, which I had listed as a possible co-cause, does not cause failures at these intensities [FACT for this setup].
@@ -121,7 +124,11 @@ Charts: `charts/exp1_timeseries.png`, `charts/exp1_segments.png`. Tables: `outpu
 * Data: `campaigns/2026-10-12_macfix_{iptables,unprotected}/` (console, CSVs + `SHA256SUMS`, provenance with input hashes).
 * End state after each mode: 0 Nginx processes, 0 netns, no XDP attached, no duplicate-address kernel messages. The repo's tracked files are unchanged; you added `docs/REPORT_ADDENDUM_EXP0_EXP1.md` meanwhile, which predates this section.
 * Analysis: `scripts/exp1b_compare.py` → `outputs/exp1b/exp1b_summary.txt`, `latency_by_mode.txt`.
-* Charts: `charts/exp1b_crossmode_macfix.png`, `exp1b_timeseries_macfix.png`, `exp1b_latency_macfix.png`.
+* Charts:
+
+![EXP-1b — cross-mode availability (XDP/iptables/unprotected), unique-MAC testbed.](figures/exp1b_crossmode_macfix.png)
+![EXP-1b — legit success over time by mode.](figures/exp1b_timeseries_macfix.png)
+![EXP-1b — served-request latency by mode.](figures/exp1b_latency_macfix.png)
 
 ### H.1 Availability — 100 % in every mode, including unprotected [FACT]
 
@@ -219,7 +226,10 @@ Charts: `charts/exp1_timeseries.png`, `charts/exp1_segments.png`. Tables: `outpu
 * `campaigns/run_exp1c.sh`, 3 runs with `MITIGATION_MODE=none NGINX_PROTECTED=1`, using suite copy `patches/work/c/` = the verified D1+D2 copy plus a 5-site switch (`patches/EXP1c_nginxlimits_mode.diff`) that keeps the protected `nginx.conf` without the daemon and writes `*_nginxlimits.csv`.
 * Verified during the run [FACT]: `nginx: master process nginx -c …/code/nginx.conf`, no `control_plane.py` process, 25 unique MACs per run, 0 duplicate-address messages.
 * End state: 0 Nginx processes, 0 netns, repo tracked files unchanged.
-* Data: `campaigns/2026-10-12_macfix_nginxlimits/`. Analysis: `outputs/exp1c/exp1c_summary.txt`. Charts: `charts/exp1c_latency_4modes.png`, `charts/exp1c_nginx_cpu_4modes.png`.
+* Data: `campaigns/2026-10-12_macfix_nginxlimits/`. Analysis: `outputs/exp1c/exp1c_summary.txt`.
+
+![EXP-1c — L7-flood latency by mode including nginx-limits-only.](figures/exp1c_latency_4modes.png)
+![EXP-1c — nginx worker CPU under L7 floods (rate-limiting alone ≈ 4× unprotected).](figures/exp1c_nginx_cpu_4modes.png)
 
 ### I.1 Availability — 100 % in all four modes [FACT]
 Every scenario in Nginx-limits-only mode is 100 % (n = 299–992 per scenario). Across XDP / iptables / Nginx-limits-only / unprotected, the only failure in 12 runs is one unprotected UDP-flood request.
@@ -287,6 +297,8 @@ An open-loop attacker at a fixed rate would not amplify like this, so the effect
 **Why:** EXP-1b/1c showed that with the suite's default over-provisioned server (8 cores, trivial static backend), no attack degrades availability in any mode, so the comparison was uninformative. EXP-1d (calibration sweep) found the knee: the unprotected server only degrades once its backend is capacity-limited. EXP-2a runs the 4-mode comparison at that knee.
 
 **Setup** (`campaigns/run_knee_4modes.sh`, suite copy `d/`): server (nginx + gunicorn) pinned to **cpu0** with a **single gunicorn worker/thread**; attack generators pinned to **cpus 1–7** (so degradation comes from attacker *requests* saturating the one backend worker, not from generator CPU contention); HTTP flood `wrk -c400` from **10 bots**; `ONLY_SCENARIOS=4` (HTTP flood), 3 runs per mode; timestamped daemon-log observer for the protected modes. Verified live: server affinity = cpu0, 10 bots, 30 unique MACs. End state: 0 nginx, 0 netns; /tmp clean copies restored; repo untouched.
+
+![EXP-2a — 4-mode comparison at the capacity-limited knee. Left: legitimate-client HTTP success during the flood (XDP/iptables + daemon = 100 %, unprotected = 90 %, nginx-limits-only = 52 %); dots are the 3 runs. Right: latency of served legitimate requests over time.](figures/exp2a_knee_4modes.png)
 
 ### J.1 Result — availability DURING the HTTP flood [FACT]
 
@@ -367,7 +379,7 @@ An open-loop attacker at a fixed rate would not amplify like this, so the effect
 
 ## M. Summary of the 2026-10-12 experiment campaign (EXP-0 … F-45)
 
-All runs used copies of the suite/daemon under `/root/project_analysis/patches/work/`; the repository's tracked files were never modified. Data in `campaigns/2026-10-12_*`, analysis in `outputs/`, charts in `charts/`, verified patches in `patches/`.
+All runs used copies of the suite/daemon under `/root/project_analysis/patches/work/`; the repository's tracked files were never modified. Data in `campaigns/2026-10-12_*`, analysis in `outputs/`, charts in `figures/`, verified patches in `patches/`.
 
 | Finding | Evidence |
 |---|---|

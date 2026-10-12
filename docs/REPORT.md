@@ -318,11 +318,11 @@ Scripts: `scripts/ml_data_profile.py`, `ml_eval_tier1.py`, `ml_shortcut_probes.p
 * The suite file was rewritten on disk at 12:34:09/12:34:15 by `git checkout main` plus a fast-forward merge **during XDP run 2**. Content before and after equals HEAD, and the running interpreter had already compiled it [INFERENCE: no effect].
 * The previous snapshot (`c9a7f0c`, 10-03) predates the concurrency fix, the Tier-1 GRU, Low-SYN, flow-age gating and the availability metric, so it was stale (Lead 1).
 * [FACT] The repo's 3 metrics CSVs are byte-identical to `/tmp`. The `/tmp` availability CSVs contain exactly these 9 runs: 30 scenario blocks per mode, the order asserted in `results_analysis.py`, and the tmpfs was reset at boot. Raw-derived "during" success equals the aggregated CSV (max diff 0.05 pp; identical n). The console tables, metrics CSVs and availability CSVs agree on scenarios, order and run boundaries.
-* [FACT] **Regenerated figures:** `plot_availability.py` (HEAD) run on the `/tmp` CSVs gives PNGs that are **byte-identical** to the committed `availability_phases.png` and `availability_crossmode.png` (`charts/regen_*`). The PDFs differ only in embedded dates (same size).
+* [FACT] **Regenerated figures:** `plot_availability.py` (HEAD) run on the `/tmp` CSVs gives PNGs that are **byte-identical** to the committed `availability_phases.png` and `availability_crossmode.png` (`figures/regen_*`). The PDFs differ only in embedded dates (same size).
 
 ### 8.2 Availability metric definition — what "during" means
 * "during" = from the Phase-2 call (attack just launched) until `kill_procs` + `_avail_phase("after")` (`:1145-1146` etc.). **In protected modes the harness kills the attack as soon as all bots appear in the daemon log**; in unprotected mode it waits for the timeout (10/30/15/40/25/20 s).
-* Measured window length (attack start → kill, mean of 3 runs; `charts/diag2_during_window_length.png`):
+* Measured window length (attack start → kill, mean of 3 runs; `figures/diag2_during_window_length.png`):
 
 | Scenario | XDP | iptables | Unprotected | Unprot / protected |
 |---|---|---|---|---|
@@ -344,7 +344,7 @@ Scripts: `scripts/ml_data_profile.py`, `ml_eval_tier1.py`, `ml_shortcut_probes.p
 1. **Mechanism [FACT].** `create_client_ns()` names every inner end `veth_in` (`:375`) and moves it into its netns right after creation (`:391`). `/usr/lib/systemd/network/99-default.link` sets `MACAddressPolicy=persistent` for `OriginalName=*`. Recomputing systemd's `siphash24(machine-id ‖ "veth_in")` (`scripts/persistent_mac_check.py`) yields **12:af:eb:2d:8a:f2**, exactly the MAC in all 90 kernel DAD messages. Uniquely named devices (`vo_legit_1`, `veth_server`, …) get distinct MACs.
 2. **Extent [FACT].** Each run shows 10 printed plus 11–14 suppressed detections, so **22–25 of the 25 interfaces collided** per run (25, 25, 23 | 25, 23, 22 | 22, 25, 22). The same symptom appears in all 8 previous boots, so every historical result and the Tier-1 training capture are affected.
 3. **Every failure is a timeout [FACT].** 100 % of failed requests are curl `000`; there are no 5xx and no 503.
-4. **Bans don't restore service while the flood continues [FACT].** For requests started after all bots were banned and before the attack was killed (`charts/diag4_segments.png`):
+4. **Bans don't restore service while the flood continues [FACT].** For requests started after all bots were banned and before the attack was killed (`figures/diag4_segments.png`):
 
 | Segment / scenario | XDP | iptables | Unprotected |
 |---|---|---|---|
@@ -353,14 +353,24 @@ Scripts: `scripts/ml_data_profile.py`, `ml_eval_tier1.py`, `ml_shortcut_probes.p
 | Frag | 33.0 % (91) | 41.5 % (94) | 40.0 % (135) |
 | Multi | 32.7 % (98) | 36.2 % (105) | 37.9 % (211) |
 
-   Recovery coincides with the harness **kill**, not with the bans, in every mode (`charts/diag1_timeseries_by_mode.png`).
-5. **Run effect [FACT].** Mean flood availability per run vs colliding interfaces: **Spearman ρ = −0.84, p = 0.005**. All 25 colliding: 19.0 % (n = 4) vs 22–23 colliding: 44.4 % (n = 5), Mann-Whitney p = 0.032. Unprotected r2 (25 collide) = 8 %, while unprotected r1 (22) = 53 % (`charts/diag3_mac_collision_vs_availability.png`).
+   Recovery coincides with the harness **kill**, not with the bans, in every mode (`figures/diag1_timeseries_by_mode.png`).
+5. **Run effect [FACT].** Mean flood availability per run vs colliding interfaces: **Spearman ρ = −0.84, p = 0.005**. All 25 colliding: 19.0 % (n = 4) vs 22–23 colliding: 44.4 % (n = 5), Mann-Whitney p = 0.032. Unprotected r2 (25 collide) = 8 %, while unprotected r1 (22) = 53 % (`figures/diag3_mac_collision_vs_availability.png`).
 6. **Per-client bimodality [FACT].** Unprotected r3 multi-vector (22 collide, so 3 unique MACs): during the 32-s flood, **10.0.1.18 (0.49 req/s) and 10.0.1.12 (0.31 req/s) are served at normal rates while the other 18 clients complete 1–3 requests**. The wrk bot itself logged exactly **50 requests (one per connection) in the first second, then nothing for 33 s**. In XDP r2 (all 25 collide), every client is uniformly starved during the post-ban flood.
 7. **Alternative explanations** [INFERENCE].
    * CPU contention by the generators is real: CPU_Total ≈ 62–70 % = 5 busy hping3 out of 8 vCPUs, the hot core is at 100 % in all modes, and VM starvation messages appear.
    * However, CPU contention cannot explain three observations: two specific clients served normally while 18 starve; a 5,000-pps SYN flood (CPU ~25–30 %) collapsing availability to ~34 %; and the run-level correlation with the collision count.
    * Most likely both act; the MAC collision dominates.
-   * Decisive test: EXP-1.
+   * Decisive test: EXP-1 (confirmed the MAC collision is the cause — see `docs/REPORT_ADDENDUM_EXP0_EXP1.md` §C).
+
+**Figures (§8.2–8.3):**
+
+![Legit success over time per flood scenario, by mode (duplicate-MAC baseline): recovery tracks the harness kill, not the bans.](figures/diag1_timeseries_by_mode.png)
+
+![Length of the 'during' window by mode — 1.5–8× longer unprotected, so the cross-mode 'during' bars compare different exposures.](figures/diag2_during_window_length.png)
+
+![Run-level flood availability vs number of colliding MAC interfaces (Spearman ρ = −0.84, p = 0.005) — tracks the L2 collision, not the defence mode.](figures/diag3_mac_collision_vs_availability.png)
+
+![Availability by time-aligned segment: flood still running after bans, and first second of the L7 floods, by mode.](figures/diag4_segments.png)
 
 ### 8.4 Other collection-method issues
 * **"Phase 2: Pre-Mitigation"** *is* under attack (attack launched just before), but its 1-s window overlaps the bans (TTM ≈ 1.1 s).
@@ -916,8 +926,8 @@ New scenario: `bot_1`: `hping3 -S -p 80 --flood --rand-source 10.0.0.1`; after 1
 **D. Outputs.**
 * `outputs/tmp_snapshot/`: sha256-verified copies of all `/tmp` result CSVs, `_dist_*` scripts and `avail_nruns.log`.
 * `outputs/*.csv|txt`: parsed console, windows, segments, time series, metrics pivots, ML results, lint, clang-tidy, power analysis.
-* `charts/regen_availability_{phases,crossmode}.png|pdf`: regenerated thesis figures; PNGs byte-identical to the committed ones.
-* `charts/diag1_timeseries_by_mode.png`, `diag2_during_window_length.png`, `diag3_mac_collision_vs_availability.png`, `diag4_segments.png`.
+* `figures/regen_availability_{phases,crossmode}.png|pdf`: regenerated thesis figures; PNGs byte-identical to the committed ones.
+* `figures/diag1_timeseries_by_mode.png`, `diag2_during_window_length.png`, `diag3_mac_collision_vs_availability.png`, `diag4_segments.png`.
 * `patches/D1_D2_unique_mac_and_nginx_restart.patch`: verified with `git apply --check` against HEAD, **not applied**.
 * `notes/phase0…phase6*.md`: per-phase notes.
 
@@ -933,6 +943,6 @@ New scenario: `bot_1`: `hping3 -S -p 80 --flood --rand-source 10.0.0.1`; after 1
 * I ran as `artur` with sudo, not as root.
 * Read-only `nsenter` into the zombie netns of the orphan Nginx workers (`ss`, `ip`, `sysctl -n`).
 * Transient PNG view copies were placed in this session's own scratchpad (the Read tool cannot traverse `/root`) and deleted immediately.
-* `plot_availability.py` (a pure plotting script, not on the forbidden list) was executed with explicit output paths into `charts/`.
+* `plot_availability.py` (a pure plotting script, not on the forbidden list) was executed with explicit output paths into `figures/`.
 * The re-training experiments wrote only to memory and `outputs/`, never to `training_results/`.
 * Claude's own persistent memory (`~/.claude/projects/-home-artur-DDoS-mitigation-code/memory/`, not the project) was updated. Two earlier memories made claims this review disproves ("before" failures = lossy clients; "XDP ≈ iptables because both pay the receive path"); they were corrected. Two memories were added (duplicate-MAC defect, thesis context).
