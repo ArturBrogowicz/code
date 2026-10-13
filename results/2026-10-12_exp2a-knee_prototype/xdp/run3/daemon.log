@@ -1,0 +1,56 @@
+1791810304.884 [*] Starting tri-engine Anti-DDoS integration (XDP Telemetry + GRU ML + L7 Heuristics)...
+1791810304.885 [*] Starting L3/L4 telemetry monitor (Interval: 1.0s)
+1791810304.885 [+] Inference worker thread started.
+1791810304.886 [*] Listening for Nginx error logs (RUDY detection): /var/log/nginx/error.log
+1791810304.886 [+] RUDY detection thread started.
+1791810304.886 [*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log
+1791810316.639 
+1791810316.639 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.1 | RPS: 51.0 | Error ratio: 0%
+1791810316.639 [XDP] BLOCKED IP: 10.0.2.1. Rule is active on hardware.
+1791810316.639 [BAN] 10.0.2.1 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810316.675 [OS] Killed hanging TCP sessions for address 10.0.2.1.
+1791810316.675 
+1791810316.675 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.2 | RPS: 51.0 | Error ratio: 0%
+1791810316.675 [XDP] BLOCKED IP: 10.0.2.2. Rule is active on hardware.
+1791810316.675 [BAN] 10.0.2.2 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810316.702 [OS] Killed hanging TCP sessions for address 10.0.2.2.
+1791810316.702 
+1791810316.702 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.3 | RPS: 51.0 | Error ratio: 0%
+1791810316.702 [XDP] BLOCKED IP: 10.0.2.3. Rule is active on hardware.
+1791810316.702 [BAN] 10.0.2.3 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810316.725 [OS] Killed hanging TCP sessions for address 10.0.2.3.
+1791810316.728 
+1791810316.728 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.7 | RPS: 51.0 | Error ratio: 0%
+1791810316.728 [XDP] BLOCKED IP: 10.0.2.7. Rule is active on hardware.
+1791810316.728 [BAN] 10.0.2.7 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810316.747 [OS] Killed hanging TCP sessions for address 10.0.2.7.
+1791810316.749 
+1791810316.749 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.4 | RPS: 51.0 | Error ratio: 0%
+1791810316.749 [XDP] BLOCKED IP: 10.0.2.4. Rule is active on hardware.
+1791810316.749 [BAN] 10.0.2.4 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810316.768 [OS] Killed hanging TCP sessions for address 10.0.2.4.
+1791810316.770 
+1791810316.770 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.6 | RPS: 51.0 | Error ratio: 0%
+1791810316.770 [XDP] BLOCKED IP: 10.0.2.6. Rule is active on hardware.
+1791810316.770 [BAN] 10.0.2.6 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810316.791 [OS] Killed hanging TCP sessions for address 10.0.2.6.
+1791810316.791 
+1791810316.791 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.5 | RPS: 51.0 | Error ratio: 0%
+1791810316.791 [XDP] BLOCKED IP: 10.0.2.5. Rule is active on hardware.
+1791810316.791 [BAN] 10.0.2.5 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810316.814 [OS] Killed hanging TCP sessions for address 10.0.2.5.
+1791810316.816 
+1791810316.816 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.10 | RPS: 51.0 | Error ratio: 0%
+1791810316.816 [XDP] BLOCKED IP: 10.0.2.10. Rule is active on hardware.
+1791810316.816 [BAN] 10.0.2.10 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810316.836 [OS] Killed hanging TCP sessions for address 10.0.2.10.
+1791810316.837 
+1791810316.837 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.8 | RPS: 51.0 | Error ratio: 0%
+1791810316.837 [XDP] BLOCKED IP: 10.0.2.8. Rule is active on hardware.
+1791810316.837 [BAN] 10.0.2.8 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810316.859 [OS] Killed hanging TCP sessions for address 10.0.2.8.
+1791810316.859 
+1791810316.859 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.9 | RPS: 51.0 | Error ratio: 0%
+1791810316.859 [XDP] BLOCKED IP: 10.0.2.9. Rule is active on hardware.
+1791810316.859 [BAN] 10.0.2.9 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810316.892 [OS] Killed hanging TCP sessions for address 10.0.2.9.

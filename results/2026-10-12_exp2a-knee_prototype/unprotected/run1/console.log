@@ -1,0 +1,61 @@
+===== KNEE unprotected run 1/3 =====
+
+╔══════════════════════════════════════════════════════════════╗
+║   DISTRIBUTED DDoS MITIGATION TESTING SUITE                ║
+║   20 Legit Clients  |  10 Botnet Nodes                      ║
+╚══════════════════════════════════════════════════════════════╝
+
+
+[*] Cleaning up all namespaces and processes...
+[+] Cleanup complete.
+
+[*] Building network topology...
+[*] Creating 20 legitimate client namespaces...
+[+] Legitimate clients ready. Profile distribution:
+    perfect: 5 nodes
+    broadband: 7 nodes
+    mobile_3g: 6 nodes
+    mobile_bad: 2 nodes
+[*] Creating 10 botnet attacker namespaces...
+[+] Botnet ready: 10 nodes.
+[+] 30 unique client/bot MACs verified.
+[!] MITIGATION_MODE=none: no daemon; nginx conf = /home/artur/DDoS-mitigation/code/nginx_unprotected.conf
+[+] Started background traffic from 20 legitimate users.
+
+[*] Baseline settling period (5s)...
+[!] ONLY_SCENARIOS=4 → running scenarios [4]
+
+======================================================================
+  SCENARIO 4: Distributed HTTP Flood
+======================================================================
+
+  [FAIL] Distributed HTTP Flood
+  ├── Botnet banned:     0/10 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  ├── Availability:      before 97% (n=32) · during 89% (n=64, p95 6514ms) · after 100% (n=9)
+  └── False Positives:   None ✅
+
+==========================================================================================
+  DISTRIBUTED TEST SUMMARY
+==========================================================================================
+  Scenario                            | Banned     | Avg TTM    | Engine(s)          | FP       | Result
+  ----------------------------------------------------------------------------------------
+  Distributed HTTP Flood              | 0/10       | N/A        | None               | Clean    | FAIL
+
+  Passed: 0  |  Failed: 1  |  Total: 1
+
+==============================================================================================
+  SERVICE AVAILABILITY (legitimate clients, continuous — before/during/after)
+==============================================================================================
+  Scenario                         | Period | Succ%  | Reqs  | p50     | p95     | p99     | TOs
+  --------------------------------------------------------------------------------------------
+  Distributed HTTP Flood           | before |  96.9 | 32    |   41ms | 1383ms | 1392ms | 1
+                                   | during |  89.1 | 64    | 1152ms | 6514ms | 7008ms | 1
+                                   | after  | 100.0 | 9     |   12ms |  506ms |  506ms | 0
+
+  Availability CSVs: /tmp/availability_<performance|iptables|unprotected>.csv (+ _raw_ per-request dumps)
+
+[*] Cleaning up all namespaces and processes...
+[+] Cleanup complete.

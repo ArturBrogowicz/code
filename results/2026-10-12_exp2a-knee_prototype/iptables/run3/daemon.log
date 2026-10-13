@@ -1,0 +1,59 @@
+1791810510.106 [*] Starting tri-engine Anti-DDoS integration (XDP Telemetry + GRU ML + L7 Heuristics)...
+1791810510.106 [*] Starting L3/L4 telemetry monitor (Interval: 1.0s)
+1791810510.107 [+] Inference worker thread started.
+1791810510.108 [*] Listening for Nginx error logs (RUDY detection): /var/log/nginx/error.log
+1791810510.108 [+] RUDY detection thread started.
+1791810510.108 [*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log
+1791810522.100 
+1791810522.100 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.2 | RPS: 51.0 | Error ratio: 0%
+1791810522.112 [IPTABLES] BLOCKED IP: 10.0.2.2. Rule is active on software firewall.
+1791810522.112 [BAN] 10.0.2.2 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810522.140 [OS] Killed hanging TCP sessions for address 10.0.2.2.
+1791810522.146 
+1791810522.146 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.10 | RPS: 51.0 | Error ratio: 0%
+1791810522.159 [IPTABLES] BLOCKED IP: 10.0.2.10. Rule is active on software firewall.
+1791810522.159 [BAN] 10.0.2.10 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810522.195 [OS] Killed hanging TCP sessions for address 10.0.2.10.
+1791810522.198 
+1791810522.199 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.7 | RPS: 51.0 | Error ratio: 0%
+1791810522.208 [IPTABLES] BLOCKED IP: 10.0.2.7. Rule is active on software firewall.
+1791810522.208 [BAN] 10.0.2.7 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810522.232 [OS] Killed hanging TCP sessions for address 10.0.2.7.
+1791810522.233 
+1791810522.233 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.4 | RPS: 51.0 | Error ratio: 0%
+1791810522.240 [IPTABLES] BLOCKED IP: 10.0.2.4. Rule is active on software firewall.
+1791810522.240 [BAN] 10.0.2.4 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810522.270 [OS] Killed hanging TCP sessions for address 10.0.2.4.
+1791810522.273 
+1791810522.273 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.6 | RPS: 51.0 | Error ratio: 0%
+1791810522.282 [IPTABLES] BLOCKED IP: 10.0.2.6. Rule is active on software firewall.
+1791810522.282 [BAN] 10.0.2.6 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810522.305 [OS] Killed hanging TCP sessions for address 10.0.2.6.
+1791810522.305 
+1791810522.305 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.3 | RPS: 51.0 | Error ratio: 0%
+1791810522.314 [IPTABLES] BLOCKED IP: 10.0.2.3. Rule is active on software firewall.
+1791810522.314 [BAN] 10.0.2.3 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810522.335 [OS] Killed hanging TCP sessions for address 10.0.2.3.
+1791810522.338 
+1791810522.338 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.9 | RPS: 51.0 | Error ratio: 0%
+1791810522.348 [IPTABLES] BLOCKED IP: 10.0.2.9. Rule is active on software firewall.
+1791810522.348 [BAN] 10.0.2.9 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810522.371 [OS] Killed hanging TCP sessions for address 10.0.2.9.
+1791810522.372 
+1791810522.372 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.1 | RPS: 51.0 | Error ratio: 0%
+1791810522.384 [IPTABLES] BLOCKED IP: 10.0.2.1. Rule is active on software firewall.
+1791810522.384 [BAN] 10.0.2.1 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810522.398 
+1791810522.398 [L4-DETECT] SYN FLOOD ATTACK - IP: 10.0.2.8 | Rate: 401 SYN/s
+1791810522.406 [OS] Killed hanging TCP sessions for address 10.0.2.1.
+1791810522.406 
+1791810522.406 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.8 | RPS: 51.0 | Error ratio: 0%
+1791810522.407 [IPTABLES] BLOCKED IP: 10.0.2.8. Rule is active on software firewall.
+1791810522.407 [BAN] 10.0.2.8 banned for 300s. Reason: Per-IP SYN flood (401 SYN/s)
+1791810522.407 
+1791810522.407 [L4-DETECT] SYN FLOOD ATTACK - IP: 10.0.2.5 | Rate: 401 SYN/s
+1791810522.435 [IPTABLES] BLOCKED IP: 10.0.2.8. Rule is active on software firewall.
+1791810522.435 [BAN] 10.0.2.8 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791810522.437 [IPTABLES] BLOCKED IP: 10.0.2.5. Rule is active on software firewall.
+1791810522.437 [BAN] 10.0.2.5 banned for 300s. Reason: Per-IP SYN flood (401 SYN/s)
+1791810522.477 [OS] Killed hanging TCP sessions for address 10.0.2.8.

@@ -1,0 +1,45 @@
+{
+ "schema": 1,
+ "run_id": "run1",
+ "status": "completed",
+ "imported": {
+  "tool": "eval/import_legacy_campaign.py",
+  "from": "/tmp/claude-1000/-home-artur-DDoS-mitigation-code/a943d4d7-2106-49a6-9be3-02da83fe28c3/scratchpad/exp2a_src/xdp",
+  "note": "Recorded with a prototype copy of test_distributed_suite.py before the reproducible harness existed; attack start/end approximated by the Phase-1/Phase-3 metrics timestamps, event times by a tail -F observer (its replay of the previous mode's log and its own notices removed), client profiles unseeded (plan not recorded)."
+ },
+ "started_utc": "2026-10-12T13:03:06+00:00",
+ "git": {
+  "commit": "6fc27fa",
+  "branch": null,
+  "dirty": null,
+  "dirty_files": []
+ },
+ "mode": {
+  "label": "xdp",
+  "MITIGATION_MODE": "active",
+  "MITIGATION_BACKEND": "xdp",
+  "NGINX_PROTECTED": false,
+  "GRU_ONLY": false
+ },
+ "operating_point": {
+  "name": "knee",
+  "GUNICORN_WORKERS": "1",
+  "GUNICORN_THREADS": "1",
+  "SERVER_CPUS": "0",
+  "ATTACK_CPUS": "1-7",
+  "WRK_CONNS": "400",
+  "BOTNET_COUNT": "10"
+ },
+ "settings": {
+  "ATTACK_DURATION": 0.0,
+  "PROFILE_SEED": null,
+  "ONLY_SCENARIOS": "4"
+ },
+ "profile_plan": [],
+ "inputs_sha256": {
+  "/root/project_analysis/patches/work/d/test_distributed_suite.py": "6e57743a738f2106344035da71cebb2b4adc326176ded9416064810662671b36",
+  "control_plane.py": "e3d95ad2f8e06fe81fe280b224396d46e8bc0ca5a776a0add1ca04a00af99b6f",
+  "nginx.conf": "f2432140d54fa7312441d5531aa7238372c906fc3f0afb18a15e9cfc586a7a7d",
+  "nginx_unprotected.conf": "c817e9a6c38d8aa2925d3d728e41b20b8ebeb7a5245fe8624f7d1901c693bbca"
+ }
+}

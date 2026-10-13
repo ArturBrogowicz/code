@@ -1,0 +1,11 @@
+{"t_wall":1791810178.311,"t_mono_ns":null,"kind":"start","source":"observer"}
+{"t_wall":1791810190.164,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.4","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791810190.189,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.5","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791810190.227,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.6","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791810190.247,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.2","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791810190.267,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.10","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791810190.287,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.9","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791810190.308,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.1","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791810190.33,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.7","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791810190.371,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.3","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791810190.39,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.8","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}

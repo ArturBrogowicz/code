@@ -1,0 +1,4 @@
+scenario,mode,reference,delta_pp,ci_lo,ci_hi,method,fisher_p
+Distributed HTTP Flood,xdp,unprotected,10.096,6.849,12.676,independent runs,0.003
+Distributed HTTP Flood,iptables,unprotected,10.096,6.849,12.676,independent runs,0.003
+Distributed HTTP Flood,nginxlimits,unprotected,-37.691,-40.563,-35.112,independent runs,0.000

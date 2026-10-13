@@ -1,0 +1,13 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-12T13:07:49.304383,Distributed HTTP Flood,before,ALL,active,iptables,33,33,100.0,0,0,0,0.0,44.5,455.6,502.4,105.2,502.4
+2026-10-12T13:07:49.304383,Distributed HTTP Flood,before,broadband,active,iptables,15,15,100.0,0,0,0,0.0,47.3,170.6,170.6,58.3,170.6
+2026-10-12T13:07:49.304383,Distributed HTTP Flood,before,mobile_3g,active,iptables,7,7,100.0,0,0,0,0.0,440.4,502.4,502.4,367.6,502.4
+2026-10-12T13:07:49.304383,Distributed HTTP Flood,before,perfect,active,iptables,11,11,100.0,0,0,0,0.0,1.4,10.0,10.0,2.3,10.0
+2026-10-12T13:07:49.304383,Distributed HTTP Flood,during,ALL,active,iptables,26,26,100.0,0,0,0,0.0,44.2,445.4,532.1,155.7,532.1
+2026-10-12T13:07:49.304383,Distributed HTTP Flood,during,broadband,active,iptables,13,13,100.0,0,0,0,0.0,44.0,532.1,532.1,102.0,532.1
+2026-10-12T13:07:49.304383,Distributed HTTP Flood,during,mobile_3g,active,iptables,7,7,100.0,0,0,0,0.0,322.4,397.7,397.7,323.8,397.7
+2026-10-12T13:07:49.304383,Distributed HTTP Flood,during,perfect,active,iptables,6,6,100.0,0,0,0,0.0,1.6,445.4,445.4,75.9,445.4
+2026-10-12T13:07:49.304383,Distributed HTTP Flood,after,ALL,active,iptables,76,76,100.0,0,0,0,0.0,46.0,469.8,534.3,122.4,534.3
+2026-10-12T13:07:49.304383,Distributed HTTP Flood,after,broadband,active,iptables,37,37,100.0,0,0,0,0.0,47.1,141.8,237.7,63.4,237.7
+2026-10-12T13:07:49.304383,Distributed HTTP Flood,after,mobile_3g,active,iptables,18,18,100.0,0,0,0,0.0,378.6,534.3,534.3,385.1,534.3
+2026-10-12T13:07:49.304383,Distributed HTTP Flood,after,perfect,active,iptables,21,21,100.0,0,0,0,0.0,1.1,2.8,3.0,1.4,3.0
