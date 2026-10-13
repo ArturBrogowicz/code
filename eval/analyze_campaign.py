@@ -8,6 +8,7 @@ latency.csv, window.csv, detection.csv, server.csv}. Deterministic: running it a
 the same data reproduces the files byte for byte (see docs/EVALUATION.md).
 """
 import argparse
+import json
 import os
 import sys
 
@@ -30,7 +31,13 @@ def analyse(campaign_dir, out_dir=None, window_s=10.0, reference="unprotected"):
     for name, df in tables.items():
         df.to_csv(os.path.join(out_dir, f"{name}.csv"), index=False, float_format="%.3f",
                   lineterminator="\n")
-    title = os.path.basename(os.path.normpath(campaign_dir))
+    # Title from the campaign's own record, not its path: the output must not change when
+    # a campaign is copied (published) elsewhere.
+    title = None
+    manifest = os.path.join(campaign_dir, "campaign.json")
+    if os.path.isfile(manifest):
+        with open(manifest, encoding="utf-8") as fh:
+            title = json.load(fh).get("campaign_id")
     with open(os.path.join(out_dir, "summary.md"), "w", encoding="utf-8") as fh:
         fh.write(C.summary_markdown(title, data, tables, window_s, reference))
     return out_dir, data, tables
