@@ -1,0 +1,230 @@
+{
+ "replica_bit_identical": true,
+ "cf1": [
+  {
+   "seed": 42,
+   "variant": "R0 (trainer replica)",
+   "hping3 SYN/ACK flow: win 64, 20-B header": 0.0002932100906036794,
+   "same, win 29200": 0.0002846319111995399,
+   "same, win 65535": 0.9996598958969116,
+   "Linux client SYN: win 64240, 40-B header": 0.9996240139007568,
+   "stalled handshake: 2 SYNs 1 s apart, no payload": 0.9995741248130798
+  },
+  {
+   "seed": 42,
+   "variant": "CF1: without the windows containing the init_win-63 snapshot",
+   "hping3 SYN/ACK flow: win 64, 20-B header": 0.000582654494792223,
+   "same, win 29200": 0.00038707576459273696,
+   "same, win 65535": 0.9996421337127686,
+   "Linux client SYN: win 64240, 40-B header": 0.9995846152305603,
+   "stalled handshake: 2 SYNs 1 s apart, no payload": 0.9995126724243164
+  },
+  {
+   "seed": 42,
+   "variant": "control: without as many random benign windows",
+   "hping3 SYN/ACK flow: win 64, 20-B header": 0.0002902460691984743,
+   "same, win 29200": 0.00026881301891990006,
+   "same, win 65535": 0.9996678829193115,
+   "Linux client SYN: win 64240, 40-B header": 0.9996150732040405,
+   "stalled handshake: 2 SYNs 1 s apart, no payload": 0.9995266199111938
+  },
+  {
+   "seed": 7,
+   "variant": "R0 (trainer replica)",
+   "hping3 SYN/ACK flow: win 64, 20-B header": 0.0005229859962128103,
+   "same, win 29200": 0.0006374563672579825,
+   "same, win 65535": 0.9997126460075378,
+   "Linux client SYN: win 64240, 40-B header": 0.9997001886367798,
+   "stalled handshake: 2 SYNs 1 s apart, no payload": 0.9996479749679565
+  },
+  {
+   "seed": 7,
+   "variant": "CF1: without the windows containing the init_win-63 snapshot",
+   "hping3 SYN/ACK flow: win 64, 20-B header": 0.052149880677461624,
+   "same, win 29200": 0.08149737119674683,
+   "same, win 65535": 0.9997037053108215,
+   "Linux client SYN: win 64240, 40-B header": 0.99969482421875,
+   "stalled handshake: 2 SYNs 1 s apart, no payload": 0.9996514320373535
+  },
+  {
+   "seed": 7,
+   "variant": "control: without as many random benign windows",
+   "hping3 SYN/ACK flow: win 64, 20-B header": 0.0005042501725256443,
+   "same, win 29200": 0.0006103019695729017,
+   "same, win 65535": 0.9996994733810425,
+   "Linux client SYN: win 64240, 40-B header": 0.9996860027313232,
+   "stalled handshake: 2 SYNs 1 s apart, no payload": 0.9996373653411865
+  },
+  {
+   "seed": 13,
+   "variant": "R0 (trainer replica)",
+   "hping3 SYN/ACK flow: win 64, 20-B header": 0.0004234905354678631,
+   "same, win 29200": 0.000465092045487836,
+   "same, win 65535": 0.9995954632759094,
+   "Linux client SYN: win 64240, 40-B header": 0.9994544386863708,
+   "stalled handshake: 2 SYNs 1 s apart, no payload": 0.9993176460266113
+  },
+  {
+   "seed": 13,
+   "variant": "CF1: without the windows containing the init_win-63 snapshot",
+   "hping3 SYN/ACK flow: win 64, 20-B header": 0.0013557604979723692,
+   "same, win 29200": 0.0009635960450395942,
+   "same, win 65535": 0.9996127486228943,
+   "Linux client SYN: win 64240, 40-B header": 0.9995019435882568,
+   "stalled handshake: 2 SYNs 1 s apart, no payload": 0.9993995428085327
+  },
+  {
+   "seed": 13,
+   "variant": "control: without as many random benign windows",
+   "hping3 SYN/ACK flow: win 64, 20-B header": 0.00042611139360815287,
+   "same, win 29200": 0.0004673634539358318,
+   "same, win 65535": 0.9996088147163391,
+   "Linux client SYN: win 64240, 40-B header": 0.9994996786117554,
+   "stalled handshake: 2 SYNs 1 s apart, no payload": 0.9993983507156372
+  }
+ ],
+ "cf2": [
+  {
+   "seed": 42,
+   "benign test windows > thr": 0.0,
+   "R.U.D.Y. as captured (51-B requests)": 0.2944915254237288,
+   "request edited to 36 B (Slowloris-like)": 1.0,
+   "request edited to 34 B (wrk-like)": 1.0,
+   "request edited to 72 B (curl-like)": 0.0635593220338983
+  },
+  {
+   "seed": 7,
+   "benign test windows > thr": 0.0,
+   "R.U.D.Y. as captured (51-B requests)": 0.19491525423728814,
+   "request edited to 36 B (Slowloris-like)": 1.0,
+   "request edited to 34 B (wrk-like)": 1.0,
+   "request edited to 72 B (curl-like)": 0.0211864406779661
+  },
+  {
+   "seed": 13,
+   "benign test windows > thr": 0.0,
+   "R.U.D.Y. as captured (51-B requests)": 0.1906779661016949,
+   "request edited to 36 B (Slowloris-like)": 1.0,
+   "request edited to 34 B (wrk-like)": 1.0,
+   "request edited to 72 B (curl-like)": 0.023305084745762712
+  }
+ ],
+ "cf2_info": {
+  "rudy_windows": 472,
+  "benign_windows": 217,
+  "rudy_ips": [
+   "10.0.2.5",
+   "10.0.2.6"
+  ]
+ },
+ "cf3": [
+  {
+   "variant": "V0 all 8 features",
+   "seed": 42,
+   "R.U.D.Y. held out: windows > thr": 0.2944915254237288,
+   "benign test windows > thr": 0.0,
+   "p(hping3 SYN/ACK flow: win 64, 20-B header)": 0.0009808872127905488,
+   "p(Linux client SYN: win 64240, 40-B header)": 0.9992840886116028,
+   "p(stalled handshake: 2 SYNs 1 s apart, no payload)": 0.9992726445198059
+  },
+  {
+   "variant": "V0 all 8 features",
+   "seed": 7,
+   "R.U.D.Y. held out: windows > thr": 0.19491525423728814,
+   "benign test windows > thr": 0.0,
+   "p(hping3 SYN/ACK flow: win 64, 20-B header)": 0.00866967998445034,
+   "p(Linux client SYN: win 64240, 40-B header)": 0.999518871307373,
+   "p(stalled handshake: 2 SYNs 1 s apart, no payload)": 0.999515175819397
+  },
+  {
+   "variant": "V0 all 8 features",
+   "seed": 13,
+   "R.U.D.Y. held out: windows > thr": 0.1906779661016949,
+   "benign test windows > thr": 0.0,
+   "p(hping3 SYN/ACK flow: win 64, 20-B header)": 0.0025291028432548046,
+   "p(Linux client SYN: win 64240, 40-B header)": 0.9994232654571533,
+   "p(stalled handshake: 2 SYNs 1 s apart, no payload)": 0.9994205236434937
+  },
+  {
+   "variant": "V1 without the TCP window",
+   "seed": 42,
+   "R.U.D.Y. held out: windows > thr": 0.17584745762711865,
+   "benign test windows > thr": 0.0,
+   "p(hping3 SYN/ACK flow: win 64, 20-B header)": 0.9989368319511414,
+   "p(Linux client SYN: win 64240, 40-B header)": 0.9989368319511414,
+   "p(stalled handshake: 2 SYNs 1 s apart, no payload)": 0.9989287257194519
+  },
+  {
+   "variant": "V1 without the TCP window",
+   "seed": 7,
+   "R.U.D.Y. held out: windows > thr": 0.13983050847457626,
+   "benign test windows > thr": 0.0,
+   "p(hping3 SYN/ACK flow: win 64, 20-B header)": 0.9977453351020813,
+   "p(Linux client SYN: win 64240, 40-B header)": 0.9977454543113708,
+   "p(stalled handshake: 2 SYNs 1 s apart, no payload)": 0.9976199269294739
+  },
+  {
+   "variant": "V1 without the TCP window",
+   "seed": 13,
+   "R.U.D.Y. held out: windows > thr": 0.11864406779661017,
+   "benign test windows > thr": 0.0,
+   "p(hping3 SYN/ACK flow: win 64, 20-B header)": 0.9973688125610352,
+   "p(Linux client SYN: win 64240, 40-B header)": 0.9973689317703247,
+   "p(stalled handshake: 2 SYNs 1 s apart, no payload)": 0.9972876310348511
+  },
+  {
+   "variant": "V2 without the request-size features",
+   "seed": 42,
+   "R.U.D.Y. held out: windows > thr": 0.940677966101695,
+   "benign test windows > thr": 0.0,
+   "p(hping3 SYN/ACK flow: win 64, 20-B header)": 0.0006281820242293179,
+   "p(Linux client SYN: win 64240, 40-B header)": 0.0027278258930891752,
+   "p(stalled handshake: 2 SYNs 1 s apart, no payload)": 0.0009582858765497804
+  },
+  {
+   "variant": "V2 without the request-size features",
+   "seed": 7,
+   "R.U.D.Y. held out: windows > thr": 0.9703389830508474,
+   "benign test windows > thr": 0.0,
+   "p(hping3 SYN/ACK flow: win 64, 20-B header)": 0.0008030487806536257,
+   "p(Linux client SYN: win 64240, 40-B header)": 0.017909785732626915,
+   "p(stalled handshake: 2 SYNs 1 s apart, no payload)": 0.0013351051602512598
+  },
+  {
+   "variant": "V2 without the request-size features",
+   "seed": 13,
+   "R.U.D.Y. held out: windows > thr": 0.9597457627118644,
+   "benign test windows > thr": 0.0,
+   "p(hping3 SYN/ACK flow: win 64, 20-B header)": 0.0005580013385042548,
+   "p(Linux client SYN: win 64240, 40-B header)": 0.01929776929318905,
+   "p(stalled handshake: 2 SYNs 1 s apart, no payload)": 0.001172337681055069
+  },
+  {
+   "variant": "V3 without both",
+   "seed": 42,
+   "R.U.D.Y. held out: windows > thr": 0.9788135593220338,
+   "benign test windows > thr": 0.0,
+   "p(hping3 SYN/ACK flow: win 64, 20-B header)": 0.21604259312152863,
+   "p(Linux client SYN: win 64240, 40-B header)": 0.23415221273899078,
+   "p(stalled handshake: 2 SYNs 1 s apart, no payload)": 0.0012056803097948432
+  },
+  {
+   "variant": "V3 without both",
+   "seed": 7,
+   "R.U.D.Y. held out: windows > thr": 0.9555084745762712,
+   "benign test windows > thr": 0.0,
+   "p(hping3 SYN/ACK flow: win 64, 20-B header)": 0.019829852506518364,
+   "p(Linux client SYN: win 64240, 40-B header)": 0.020367953926324844,
+   "p(stalled handshake: 2 SYNs 1 s apart, no payload)": 0.015924472361803055
+  },
+  {
+   "variant": "V3 without both",
+   "seed": 13,
+   "R.U.D.Y. held out: windows > thr": 0.8665254237288136,
+   "benign test windows > thr": 0.0,
+   "p(hping3 SYN/ACK flow: win 64, 20-B header)": 0.0006473649409599602,
+   "p(Linux client SYN: win 64240, 40-B header)": 0.0006490201922133565,
+   "p(stalled handshake: 2 SYNs 1 s apart, no payload)": 0.0013192400801926851
+  }
+ ]
+}

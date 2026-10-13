@@ -1,0 +1,556 @@
+{
+ "replay": [
+  {
+   "ip": "10.0.1.1",
+   "label": 0,
+   "rows": 63,
+   "windows": 49,
+   "first_window_s": 57.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.0003108990495093167
+  },
+  {
+   "ip": "10.0.1.10",
+   "label": 0,
+   "rows": 52,
+   "windows": 38,
+   "first_window_s": 61.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.00028028414817526937
+  },
+  {
+   "ip": "10.0.1.11",
+   "label": 0,
+   "rows": 56,
+   "windows": 42,
+   "first_window_s": 51.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.00027775223134085536
+  },
+  {
+   "ip": "10.0.1.12",
+   "label": 0,
+   "rows": 49,
+   "windows": 35,
+   "first_window_s": 69.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.00028064250363968313
+  },
+  {
+   "ip": "10.0.1.13",
+   "label": 0,
+   "rows": 58,
+   "windows": 44,
+   "first_window_s": 44.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.00029341591289266944
+  },
+  {
+   "ip": "10.0.1.14",
+   "label": 0,
+   "rows": 52,
+   "windows": 38,
+   "first_window_s": 34.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.0002823712711688131
+  },
+  {
+   "ip": "10.0.1.15",
+   "label": 0,
+   "rows": 47,
+   "windows": 33,
+   "first_window_s": 64.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.0002757314359769225
+  },
+  {
+   "ip": "10.0.1.16",
+   "label": 0,
+   "rows": 48,
+   "windows": 34,
+   "first_window_s": 64.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.00026811379939317703
+  },
+  {
+   "ip": "10.0.1.17",
+   "label": 0,
+   "rows": 73,
+   "windows": 59,
+   "first_window_s": 28.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.00031628640135750175
+  },
+  {
+   "ip": "10.0.1.18",
+   "label": 0,
+   "rows": 60,
+   "windows": 46,
+   "first_window_s": 50.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.00025691231712698936
+  },
+  {
+   "ip": "10.0.1.19",
+   "label": 0,
+   "rows": 57,
+   "windows": 43,
+   "first_window_s": 61.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.0003096799773629755
+  },
+  {
+   "ip": "10.0.1.2",
+   "label": 0,
+   "rows": 68,
+   "windows": 54,
+   "first_window_s": 47.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.00029796845046803355
+  },
+  {
+   "ip": "10.0.1.20",
+   "label": 0,
+   "rows": 56,
+   "windows": 42,
+   "first_window_s": 43.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.00030256740865297616
+  },
+  {
+   "ip": "10.0.1.21",
+   "label": 0,
+   "rows": 49,
+   "windows": 35,
+   "first_window_s": 55.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.0003773370699491352
+  },
+  {
+   "ip": "10.0.1.22",
+   "label": 0,
+   "rows": 57,
+   "windows": 43,
+   "first_window_s": 58.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.00031082172063179314
+  },
+  {
+   "ip": "10.0.1.23",
+   "label": 0,
+   "rows": 47,
+   "windows": 33,
+   "first_window_s": 42.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.0002580578438937664
+  },
+  {
+   "ip": "10.0.1.24",
+   "label": 0,
+   "rows": 48,
+   "windows": 34,
+   "first_window_s": 45.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.00027442630380392075
+  },
+  {
+   "ip": "10.0.1.3",
+   "label": 0,
+   "rows": 56,
+   "windows": 42,
+   "first_window_s": 41.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.00033065141178667545
+  },
+  {
+   "ip": "10.0.1.4",
+   "label": 0,
+   "rows": 78,
+   "windows": 64,
+   "first_window_s": 53.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.0003056753193959594
+  },
+  {
+   "ip": "10.0.1.5",
+   "label": 0,
+   "rows": 68,
+   "windows": 54,
+   "first_window_s": 37.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.0003059687733184546
+  },
+  {
+   "ip": "10.0.1.6",
+   "label": 0,
+   "rows": 73,
+   "windows": 59,
+   "first_window_s": 35.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.0003075175336562097
+  },
+  {
+   "ip": "10.0.1.7",
+   "label": 0,
+   "rows": 55,
+   "windows": 41,
+   "first_window_s": 61.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.0002799084468279034
+  },
+  {
+   "ip": "10.0.1.8",
+   "label": 0,
+   "rows": 56,
+   "windows": 42,
+   "first_window_s": 60.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.0002800783549901098
+  },
+  {
+   "ip": "10.0.1.9",
+   "label": 0,
+   "rows": 52,
+   "windows": 38,
+   "first_window_s": 65.0,
+   "decision_s": null,
+   "frac_over": 0.0,
+   "p_median": 0.0002731831918936223
+  },
+  {
+   "ip": "10.0.2.1",
+   "label": 1,
+   "rows": 8862,
+   "windows": 8848,
+   "first_window_s": 1.0,
+   "decision_s": 2.0,
+   "frac_over": 1.0,
+   "p_median": 0.9996782541275024
+  },
+  {
+   "ip": "10.0.2.2",
+   "label": 1,
+   "rows": 1274,
+   "windows": 1260,
+   "first_window_s": 1.0,
+   "decision_s": 2.0,
+   "frac_over": 1.0,
+   "p_median": 0.9996579885482788
+  },
+  {
+   "ip": "10.0.2.3",
+   "label": 1,
+   "rows": 151,
+   "windows": 137,
+   "first_window_s": 15.0,
+   "decision_s": 16.0,
+   "frac_over": 1.0,
+   "p_median": 0.9996515512466431
+  },
+  {
+   "ip": "10.0.2.4",
+   "label": 1,
+   "rows": 564,
+   "windows": 550,
+   "first_window_s": 5.0,
+   "decision_s": 6.0,
+   "frac_over": 1.0,
+   "p_median": 0.9996530413627625
+  },
+  {
+   "ip": "10.0.2.5",
+   "label": 1,
+   "rows": 228,
+   "windows": 214,
+   "first_window_s": 7.0,
+   "decision_s": 8.0,
+   "frac_over": 1.0,
+   "p_median": 0.9995877146720886
+  },
+  {
+   "ip": "10.0.2.6",
+   "label": 1,
+   "rows": 272,
+   "windows": 258,
+   "first_window_s": 7.0,
+   "decision_s": 8.0,
+   "frac_over": 0.9728682170542635,
+   "p_median": 0.9995977878570557
+  }
+ ],
+ "probes": [
+  [
+   "hping3 SYN (S1, S2 Low & Slow, S10) or ACK (S5) flow: 1 pkt, win 64, 20-B header",
+   0.0002932100906036794
+  ],
+  [
+   "same with window 512",
+   0.0002931237395387143
+  ],
+  [
+   "same with window 29200 (common Linux)",
+   0.0002846319111995399
+  ],
+  [
+   "same with window 65535",
+   0.9996598958969116
+  ],
+  [
+   "Linux client SYN (curl's first snapshot): win 64240, 40-B header",
+   0.9996240139007568
+  ],
+  [
+   "legit handshake stalled by a flood: 2 SYNs 1 s apart, no payload",
+   0.9995741248130798
+  ]
+ ],
+ "race": [
+  {
+   "scenario": "Distributed SYN Flood",
+   "ttm": 0.503,
+   "engines": "l4_syn 5",
+   "suppress_from": 0.5033268928527832,
+   "gru_events": 0
+  },
+  {
+   "scenario": "Distributed Low & Slow SYN",
+   "ttm": 3.982,
+   "engines": "l4_lowsyn 5",
+   "suppress_from": null,
+   "gru_events": 0
+  },
+  {
+   "scenario": "Distributed UDP Flood",
+   "ttm": 0.484,
+   "engines": "l4_volumetric 5",
+   "suppress_from": 0.48397397994995117,
+   "gru_events": 0
+  },
+  {
+   "scenario": "Distributed HTTP Flood",
+   "ttm": 0.548,
+   "engines": "l7_rate 5",
+   "suppress_from": null,
+   "gru_events": 0
+  },
+  {
+   "scenario": "Distributed ACK Flood",
+   "ttm": 0.966,
+   "engines": "l4_volumetric 5",
+   "suppress_from": 0.9653832912445068,
+   "gru_events": 0
+  },
+  {
+   "scenario": "Distributed IP Fragmentation Flood",
+   "ttm": 0.491,
+   "engines": "l4_volumetric 5",
+   "suppress_from": 0.4908020496368408,
+   "gru_events": 0
+  },
+  {
+   "scenario": "Distributed Slowloris",
+   "ttm": 3.724,
+   "engines": "l4_slowconn 5",
+   "suppress_from": null,
+   "gru_events": 0
+  },
+  {
+   "scenario": "Distributed R.U.D.Y.",
+   "ttm": 3.568,
+   "engines": "l4_slowconn 5",
+   "suppress_from": null,
+   "gru_events": 0
+  },
+  {
+   "scenario": "Distributed Yo-Yo",
+   "ttm": 0.516,
+   "engines": "l7_rate 5",
+   "suppress_from": null,
+   "gru_events": 0
+  },
+  {
+   "scenario": "Multi-Vector Distributed Attack",
+   "ttm": 0.836,
+   "engines": "l4_syn 1, l4_volumetric 3, l7_rate 1",
+   "suppress_from": 0.8363466262817383,
+   "gru_events": 0
+  }
+ ],
+ "census": [
+  {
+   "run": "2026-10-12_exp2a-knee_prototype/iptables/run1",
+   "events": "imported (bans only)",
+   "bans": 10,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-12_exp2a-knee_prototype/iptables/run2",
+   "events": "imported (bans only)",
+   "bans": 10,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-12_exp2a-knee_prototype/iptables/run3",
+   "events": "imported (bans only)",
+   "bans": 11,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-12_exp2a-knee_prototype/xdp/run1",
+   "events": "imported (bans only)",
+   "bans": 10,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-12_exp2a-knee_prototype/xdp/run2",
+   "events": "imported (bans only)",
+   "bans": 11,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-12_exp2a-knee_prototype/xdp/run3",
+   "events": "imported (bans only)",
+   "bans": 10,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-13_exp2a-knee_equal-exposure-30s/iptables/run1",
+   "events": "daemon",
+   "bans": 10,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-13_exp2a-knee_equal-exposure-30s/iptables/run2",
+   "events": "daemon",
+   "bans": 10,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-13_exp2a-knee_equal-exposure-30s/iptables/run3",
+   "events": "daemon",
+   "bans": 10,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-13_exp2a-knee_equal-exposure-30s/xdp/run1",
+   "events": "daemon",
+   "bans": 10,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-13_exp2a-knee_equal-exposure-30s/xdp/run2",
+   "events": "daemon",
+   "bans": 10,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-13_exp2a-knee_equal-exposure-30s/xdp/run3",
+   "events": "daemon",
+   "bans": 10,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-13_exp2a-knee_reproduction/iptables/run1",
+   "events": "daemon",
+   "bans": 10,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-13_exp2a-knee_reproduction/iptables/run2",
+   "events": "daemon",
+   "bans": 10,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-13_exp2a-knee_reproduction/iptables/run3",
+   "events": "daemon",
+   "bans": 10,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-13_exp2a-knee_reproduction/xdp/run1",
+   "events": "daemon",
+   "bans": 10,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-13_exp2a-knee_reproduction/xdp/run2",
+   "events": "daemon",
+   "bans": 10,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-13_exp2a-knee_reproduction/xdp/run3",
+   "events": "daemon",
+   "bans": 10,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 0
+  },
+  {
+   "run": "2026-10-13_regression-default-full-suite",
+   "events": "daemon",
+   "bans": 50,
+   "gru_bans": 0,
+   "gru_suppressed": 0,
+   "suppress_on": 5
+  }
+ ]
+}
