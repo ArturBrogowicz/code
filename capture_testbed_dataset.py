@@ -23,7 +23,7 @@ training signal.
 Run:    sudo ./venv/bin/python capture_testbed_dataset.py
 Output: training_data/testbed_flows.csv
 """
-import os, sys, time, socket, struct, ctypes, textwrap, subprocess, random
+import os, sys, time, socket, struct, ctypes, textwrap, subprocess, random, atexit, shutil, tempfile
 import pandas as pd
 from bcc import BPF
 
@@ -46,8 +46,11 @@ N_BOTS        = 6
 ATTACK_CAP_PER_POLL = 80                 # keep benign:attack ratio sane
 TOTAL         = 170                      # capture seconds (1 poll/s)
 OUT           = "training_data/testbed_flows.csv"
-SCR           = ("/tmp/claude-1000/-home-artur-DDoS-mitigation-code/"
-                 "d1a6f299-2ac9-49c8-8641-3d4d2f8f3077/scratchpad")
+# Attack scripts go to a private temporary directory, removed at exit. (Review D12: this
+# used to be another session's tmpfs scratchpad, which no longer exists after a reboot,
+# so the capture crashed once the topology and the server were already up.)
+SCR           = tempfile.mkdtemp(prefix="ddos_capture_")
+atexit.register(shutil.rmtree, SCR, ignore_errors=True)
 FEATS = ["Init_Win_bytes_forward","Fwd IAT Total","Fwd Header Length","Fwd IAT Max",
          "Fwd Packet Length Max","Fwd IAT Mean","Fwd Packets/s","Total Length of Fwd Packets"]
 
