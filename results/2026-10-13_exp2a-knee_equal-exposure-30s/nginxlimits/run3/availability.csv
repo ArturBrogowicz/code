@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-13T09:31:08.952807,Distributed HTTP Flood,before,ALL,none,xdp,34,34,100.0,0,0,0,0.0,41.3,346.9,1802.3,109.5,1802.3
+2026-10-13T09:31:08.952807,Distributed HTTP Flood,before,broadband,none,xdp,17,17,100.0,0,0,0,0.0,44.1,47.5,47.5,43.6,47.5
+2026-10-13T09:31:08.952807,Distributed HTTP Flood,before,mobile_3g,none,xdp,4,4,100.0,0,0,0,0.0,285.7,346.9,346.9,291.4,346.9
+2026-10-13T09:31:08.952807,Distributed HTTP Flood,before,mobile_bad,none,xdp,1,1,100.0,0,0,0,0.0,1802.3,1802.3,1802.3,1802.3,1802.3
+2026-10-13T09:31:08.952807,Distributed HTTP Flood,before,perfect,none,xdp,12,12,100.0,0,0,0,0.0,1.1,2.9,2.9,1.2,2.9
+2026-10-13T09:31:08.952807,Distributed HTTP Flood,during,ALL,none,xdp,59,26,44.1,0,33,0,55.9,6317.2,9927.2,9938.9,6603.5,9938.9
+2026-10-13T09:31:08.952807,Distributed HTTP Flood,during,broadband,none,xdp,27,13,48.1,0,14,0,51.9,5898.6,9938.9,9938.9,6632.8,9938.9
+2026-10-13T09:31:08.952807,Distributed HTTP Flood,during,mobile_3g,none,xdp,12,4,33.3,0,8,0,66.7,4003.0,4453.7,4453.7,3703.4,4453.7
+2026-10-13T09:31:08.952807,Distributed HTTP Flood,during,mobile_bad,none,xdp,2,1,50.0,0,1,0,50.0,9400.1,9400.1,9400.1,9400.1,9400.1
+2026-10-13T09:31:08.952807,Distributed HTTP Flood,during,perfect,none,xdp,18,8,44.4,0,10,0,55.6,7396.1,9927.2,9927.2,7656.5,9927.2
+2026-10-13T09:31:08.952807,Distributed HTTP Flood,after,ALL,none,xdp,74,74,100.0,0,0,0,0.0,40.4,331.3,674.7,68.2,674.7
+2026-10-13T09:31:08.952807,Distributed HTTP Flood,after,broadband,none,xdp,34,34,100.0,0,0,0,0.0,43.5,47.6,47.7,43.3,47.7
+2026-10-13T09:31:08.952807,Distributed HTTP Flood,after,mobile_3g,none,xdp,8,8,100.0,0,0,0,0.0,306.1,355.0,355.0,298.6,355.0
+2026-10-13T09:31:08.952807,Distributed HTTP Flood,after,mobile_bad,none,xdp,2,2,100.0,0,0,0,0.0,474.2,674.7,674.7,574.5,674.7
+2026-10-13T09:31:08.952807,Distributed HTTP Flood,after,perfect,none,xdp,30,30,100.0,0,0,0,0.0,1.1,2.2,3.1,1.2,3.1

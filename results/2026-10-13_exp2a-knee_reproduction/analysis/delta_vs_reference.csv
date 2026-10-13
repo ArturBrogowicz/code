@@ -1,0 +1,4 @@
+scenario,mode,reference,delta_pp,ci_lo,ci_hi,method,fisher_p
+Distributed HTTP Flood,xdp,unprotected,21.359,12.281,32.857,paired by PROFILE_SEED (3 blocks),0.000
+Distributed HTTP Flood,iptables,unprotected,21.359,12.281,32.857,paired by PROFILE_SEED (3 blocks),0.000
+Distributed HTTP Flood,nginxlimits,unprotected,-6.074,-15.612,5.830,paired by PROFILE_SEED (3 blocks),0.269

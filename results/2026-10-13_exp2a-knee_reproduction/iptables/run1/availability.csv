@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-13T09:06:16.832816,Distributed HTTP Flood,before,ALL,active,iptables,32,32,100.0,0,0,0,0.0,1.5,746.1,1459.5,147.3,1459.5
+2026-10-13T09:06:16.832816,Distributed HTTP Flood,before,broadband,active,iptables,6,6,100.0,0,0,0,0.0,44.4,48.2,48.2,44.9,48.2
+2026-10-13T09:06:16.832816,Distributed HTTP Flood,before,mobile_3g,active,iptables,7,7,100.0,0,0,0,0.0,295.8,1459.5,1459.5,452.4,1459.5
+2026-10-13T09:06:16.832816,Distributed HTTP Flood,before,mobile_bad,active,iptables,2,2,100.0,0,0,0,0.0,512.8,746.1,746.1,629.5,746.1
+2026-10-13T09:06:16.832816,Distributed HTTP Flood,before,perfect,active,iptables,17,17,100.0,0,0,0,0.0,1.2,1.6,1.6,1.2,1.6
+2026-10-13T09:06:16.832816,Distributed HTTP Flood,during,ALL,active,iptables,23,23,100.0,0,0,0,0.0,208.5,493.9,701.8,192.7,701.8
+2026-10-13T09:06:16.832816,Distributed HTTP Flood,during,broadband,active,iptables,6,6,100.0,0,0,0,0.0,43.8,493.9,493.9,199.5,493.9
+2026-10-13T09:06:16.832816,Distributed HTTP Flood,during,mobile_3g,active,iptables,7,7,100.0,0,0,0,0.0,307.3,364.3,364.3,291.8,364.3
+2026-10-13T09:06:16.832816,Distributed HTTP Flood,during,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,701.8,701.8,701.8,701.8,701.8
+2026-10-13T09:06:16.832816,Distributed HTTP Flood,during,perfect,active,iptables,9,9,100.0,0,0,0,0.0,1.3,481.2,481.2,54.5,481.2
+2026-10-13T09:06:16.832816,Distributed HTTP Flood,after,ALL,active,iptables,80,80,100.0,0,0,0,0.0,1.4,395.3,1327.1,107.4,1327.1
+2026-10-13T09:06:16.832816,Distributed HTTP Flood,after,broadband,active,iptables,17,17,100.0,0,0,0,0.0,42.3,51.3,51.3,42.8,51.3
+2026-10-13T09:06:16.832816,Distributed HTTP Flood,after,mobile_3g,active,iptables,16,16,100.0,0,0,0,0.0,315.7,1327.1,1327.1,382.2,1327.1
+2026-10-13T09:06:16.832816,Distributed HTTP Flood,after,mobile_bad,active,iptables,3,3,100.0,0,0,0,0.0,493.8,763.5,763.5,566.5,763.5
+2026-10-13T09:06:16.832816,Distributed HTTP Flood,after,perfect,active,iptables,44,44,100.0,0,0,0,0.0,1.0,1.6,2.6,1.1,2.6

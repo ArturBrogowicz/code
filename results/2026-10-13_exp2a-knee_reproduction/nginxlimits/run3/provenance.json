@@ -1,0 +1,143 @@
+{
+ "schema": 1,
+ "run_id": "run3",
+ "status": "completed",
+ "started_utc": "2026-10-13T09:13:33+00:00",
+ "updated_utc": "2026-10-13T09:14:40+00:00",
+ "argv": [
+  "/home/artur/DDoS-mitigation/code/test_distributed_suite.py"
+ ],
+ "git": {
+  "commit": "efc59947f2c5021026be9e6e657143494297dbfa",
+  "branch": "feat/reproducible-eval",
+  "dirty": false,
+  "dirty_files": []
+ },
+ "mode": {
+  "label": "nginxlimits",
+  "MITIGATION_MODE": "none",
+  "MITIGATION_BACKEND": "xdp",
+  "NGINX_PROTECTED": true,
+  "GRU_ONLY": false,
+  "nginx_conf": "nginx.conf"
+ },
+ "operating_point": {
+  "name": "knee",
+  "GUNICORN_WORKERS": "1",
+  "GUNICORN_THREADS": "1",
+  "WRK_CONNS": "400",
+  "WRK_THREADS": "2",
+  "BOTNET_COUNT": "10",
+  "SERVER_CPUS": "0",
+  "ATTACK_CPUS": "1-7"
+ },
+ "settings": {
+  "ATTACK_DURATION": 0.0,
+  "PROFILE_SEED": 3,
+  "ONLY_SCENARIOS": "4",
+  "LEGIT_COUNT": 20,
+  "BOTNET_COUNT": 10,
+  "AVAIL_BEFORE_SECONDS": 3,
+  "AVAIL_AFTER_SECONDS": 10
+ },
+ "profile_plan": [
+  {
+   "ip": "10.0.1.1",
+   "profile": "perfect"
+  },
+  {
+   "ip": "10.0.1.2",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.3",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.4",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.5",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.6",
+   "profile": "perfect"
+  },
+  {
+   "ip": "10.0.1.7",
+   "profile": "perfect"
+  },
+  {
+   "ip": "10.0.1.8",
+   "profile": "mobile_3g"
+  },
+  {
+   "ip": "10.0.1.9",
+   "profile": "perfect"
+  },
+  {
+   "ip": "10.0.1.10",
+   "profile": "perfect"
+  },
+  {
+   "ip": "10.0.1.11",
+   "profile": "mobile_bad"
+  },
+  {
+   "ip": "10.0.1.12",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.13",
+   "profile": "mobile_3g"
+  },
+  {
+   "ip": "10.0.1.14",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.15",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.16",
+   "profile": "perfect"
+  },
+  {
+   "ip": "10.0.1.17",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.18",
+   "profile": "mobile_3g"
+  },
+  {
+   "ip": "10.0.1.19",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.20",
+   "profile": "mobile_3g"
+  }
+ ],
+ "host": {
+  "uname": "Linux ddos-mitigation 7.0.0-38-generic #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:10:14 UTC 2026 x86_64 ",
+  "cpus": 8,
+  "python": "3.14.4",
+  "nginx": "nginx version: nginx/1.28.3 (Ubuntu)"
+ },
+ "inputs_sha256": {
+  "test_distributed_suite.py": "09e7e271ae06a50c5d2b117c51fb7f3eceb156268c2787020e5d153c81a1693e",
+  "control_plane.py": "6d899ef7c520b2162e6b1dbbaa05b65c73e08c88584e5fbc5c7a7df5e216c823",
+  "ban_events.py": "272f9f0e84a71e16a709f513229d0de43fd8395b9cd45ba6afcee635d20cd5ed",
+  "xdp_ddos_filter.c": "dc215f94be034d87bffaf4f674377a826a07d4c0dfe2bc01c85f9eb18c5384a3",
+  "GRU_ML_model.py": "95d35a299cbc8f15f82a4aebf558aad42427a08f300e47c67aa31fe675c352ec",
+  "nginx.conf": "f2432140d54fa7312441d5531aa7238372c906fc3f0afb18a15e9cfc586a7a7d",
+  "nginx_unprotected.conf": "c817e9a6c38d8aa2925d3d728e41b20b8ebeb7a5245fe8624f7d1901c693bbca",
+  "training_results/feature_config_testbed.json": "f24709772bdfdd2a97916fd81965f5e064d552842eee5a61379d27dec7a1740c",
+  "training_results/gru_testbed_model.pth": "4b8bb940a44b4459d955441b0ef689d919b9b4ba294f99cab4e59587bebd0052",
+  "training_results/scaler_testbed.save": "91431ff97b8934db3b386cffbf8f097acf80d23bec7df78a492a618bc0c64afa"
+ }
+}

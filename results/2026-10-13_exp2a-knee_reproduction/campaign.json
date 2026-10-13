@@ -1,0 +1,187 @@
+{
+ "schema": 1,
+ "campaign_id": "2026-10-13_exp2a-knee_reproduction",
+ "created_utc": "2026-10-13T09:03:27+00:00",
+ "command": [
+  "eval/run_campaign.py",
+  "--operating-point",
+  "knee",
+  "--scenarios",
+  "4",
+  "--runs",
+  "3",
+  "--out",
+  "/var/tmp/ddos_campaigns/2026-10-13_exp2a-knee_reproduction"
+ ],
+ "python": "/usr/bin/python3",
+ "settings": {
+  "modes": [
+   "xdp",
+   "iptables",
+   "nginxlimits",
+   "unprotected"
+  ],
+  "runs": 3,
+  "scenarios": "4",
+  "operating_point": "knee",
+  "attack_duration": 0.0,
+  "seed_base": 0,
+  "order_seed": 0,
+  "set": {}
+ },
+ "plan": [
+  {
+   "block": 1,
+   "mode": "nginxlimits",
+   "profile_seed": 1,
+   "dir": "nginxlimits/run1"
+  },
+  {
+   "block": 1,
+   "mode": "xdp",
+   "profile_seed": 1,
+   "dir": "xdp/run1"
+  },
+  {
+   "block": 1,
+   "mode": "iptables",
+   "profile_seed": 1,
+   "dir": "iptables/run1"
+  },
+  {
+   "block": 1,
+   "mode": "unprotected",
+   "profile_seed": 1,
+   "dir": "unprotected/run1"
+  },
+  {
+   "block": 2,
+   "mode": "xdp",
+   "profile_seed": 2,
+   "dir": "xdp/run2"
+  },
+  {
+   "block": 2,
+   "mode": "iptables",
+   "profile_seed": 2,
+   "dir": "iptables/run2"
+  },
+  {
+   "block": 2,
+   "mode": "unprotected",
+   "profile_seed": 2,
+   "dir": "unprotected/run2"
+  },
+  {
+   "block": 2,
+   "mode": "nginxlimits",
+   "profile_seed": 2,
+   "dir": "nginxlimits/run2"
+  },
+  {
+   "block": 3,
+   "mode": "xdp",
+   "profile_seed": 3,
+   "dir": "xdp/run3"
+  },
+  {
+   "block": 3,
+   "mode": "nginxlimits",
+   "profile_seed": 3,
+   "dir": "nginxlimits/run3"
+  },
+  {
+   "block": 3,
+   "mode": "iptables",
+   "profile_seed": 3,
+   "dir": "iptables/run3"
+  },
+  {
+   "block": 3,
+   "mode": "unprotected",
+   "profile_seed": 3,
+   "dir": "unprotected/run3"
+  }
+ ],
+ "runs": {
+  "nginxlimits/run1": {
+   "exit_code": 0,
+   "seconds": 73.1,
+   "finished_utc": "2026-10-13T09:04:40+00:00",
+   "leftovers": []
+  },
+  "xdp/run1": {
+   "exit_code": 0,
+   "seconds": 62.5,
+   "finished_utc": "2026-10-13T09:05:43+00:00",
+   "leftovers": []
+  },
+  "iptables/run1": {
+   "exit_code": 0,
+   "seconds": 65.0,
+   "finished_utc": "2026-10-13T09:06:48+00:00",
+   "leftovers": []
+  },
+  "unprotected/run1": {
+   "exit_code": 0,
+   "seconds": 73.3,
+   "finished_utc": "2026-10-13T09:08:01+00:00",
+   "leftovers": []
+  },
+  "xdp/run2": {
+   "exit_code": 0,
+   "seconds": 63.1,
+   "finished_utc": "2026-10-13T09:09:04+00:00",
+   "leftovers": []
+  },
+  "iptables/run2": {
+   "exit_code": 0,
+   "seconds": 64.7,
+   "finished_utc": "2026-10-13T09:10:09+00:00",
+   "leftovers": []
+  },
+  "unprotected/run2": {
+   "exit_code": 0,
+   "seconds": 73.3,
+   "finished_utc": "2026-10-13T09:11:22+00:00",
+   "leftovers": []
+  },
+  "nginxlimits/run2": {
+   "exit_code": 0,
+   "seconds": 70.3,
+   "finished_utc": "2026-10-13T09:12:33+00:00",
+   "leftovers": []
+  },
+  "xdp/run3": {
+   "exit_code": 0,
+   "seconds": 60.2,
+   "finished_utc": "2026-10-13T09:13:33+00:00",
+   "leftovers": []
+  },
+  "nginxlimits/run3": {
+   "exit_code": 0,
+   "seconds": 69.3,
+   "finished_utc": "2026-10-13T09:14:42+00:00",
+   "leftovers": []
+  },
+  "iptables/run3": {
+   "exit_code": 0,
+   "seconds": 62.6,
+   "finished_utc": "2026-10-13T09:15:45+00:00",
+   "leftovers": []
+  },
+  "unprotected/run3": {
+   "exit_code": 0,
+   "seconds": 69.4,
+   "finished_utc": "2026-10-13T09:16:54+00:00",
+   "leftovers": []
+  }
+ },
+ "status": "completed",
+ "updated_utc": "2026-10-13T09:16:54+00:00",
+ "git": {
+  "commit": "efc59947f2c5021026be9e6e657143494297dbfa",
+  "branch": "feat/reproducible-eval",
+  "dirty": false
+ }
+}

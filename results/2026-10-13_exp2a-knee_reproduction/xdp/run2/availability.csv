@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-13T09:08:35.394098,Distributed HTTP Flood,before,ALL,active,xdp,29,29,100.0,0,0,0,0.0,41.6,541.7,1481.7,167.9,1481.7
+2026-10-13T09:08:35.394098,Distributed HTTP Flood,before,broadband,active,xdp,14,14,100.0,0,0,0,0.0,41.1,47.1,47.1,41.7,47.1
+2026-10-13T09:08:35.394098,Distributed HTTP Flood,before,mobile_3g,active,xdp,4,4,100.0,0,0,0,0.0,268.5,362.4,362.4,297.9,362.4
+2026-10-13T09:08:35.394098,Distributed HTTP Flood,before,mobile_bad,active,xdp,4,4,100.0,0,0,0,0.0,538.5,1481.7,1481.7,771.5,1481.7
+2026-10-13T09:08:35.394098,Distributed HTTP Flood,before,perfect,active,xdp,7,7,100.0,0,0,0,0.0,1.0,3.2,3.2,1.4,3.2
+2026-10-13T09:08:35.394098,Distributed HTTP Flood,during,ALL,active,xdp,22,22,100.0,0,0,0,0.0,45.7,329.1,905.6,157.9,905.6
+2026-10-13T09:08:35.394098,Distributed HTTP Flood,during,broadband,active,xdp,11,11,100.0,0,0,0,0.0,45.7,322.9,322.9,127.1,322.9
+2026-10-13T09:08:35.394098,Distributed HTTP Flood,during,mobile_3g,active,xdp,3,3,100.0,0,0,0,0.0,205.1,274.5,274.5,218.8,274.5
+2026-10-13T09:08:35.394098,Distributed HTTP Flood,during,mobile_bad,active,xdp,1,1,100.0,0,0,0,0.0,905.6,905.6,905.6,905.6,905.6
+2026-10-13T09:08:35.394098,Distributed HTTP Flood,during,perfect,active,xdp,7,7,100.0,0,0,0,0.0,1.4,329.1,329.1,73.2,329.1
+2026-10-13T09:08:35.394098,Distributed HTTP Flood,after,ALL,active,xdp,76,76,100.0,0,0,0,0.0,43.8,700.5,1693.9,139.3,1693.9
+2026-10-13T09:08:35.394098,Distributed HTTP Flood,after,broadband,active,xdp,37,37,100.0,0,0,0,0.0,44.2,49.1,50.3,43.6,50.3
+2026-10-13T09:08:35.394098,Distributed HTTP Flood,after,mobile_3g,active,xdp,11,11,100.0,0,0,0,0.0,263.5,451.6,451.6,300.5,451.6
+2026-10-13T09:08:35.394098,Distributed HTTP Flood,after,mobile_bad,active,xdp,7,7,100.0,0,0,0,0.0,700.5,1693.9,1693.9,805.7,1693.9
+2026-10-13T09:08:35.394098,Distributed HTTP Flood,after,perfect,active,xdp,21,21,100.0,0,0,0,0.0,1.1,1.6,2.3,1.2,2.3

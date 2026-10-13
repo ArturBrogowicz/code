@@ -1,0 +1,5 @@
+scenario,mode,CPU_Nginx_Pct,CPU_Total_Pct,CPU_Daemon_Pct,PPS_Rx,IP_InReceives,PreStack_Dropped,TCP_Estab,TCP_SynRecv
+Distributed HTTP Flood,xdp,11.117,8.033,4.300,5925.667,8120.167,0.000,0.000,0.167
+Distributed HTTP Flood,iptables,17.233,12.783,6.017,8014.500,12592.167,0.000,0.000,0.667
+Distributed HTTP Flood,nginxlimits,90.417,21.267,0.000,31178.833,35212.500,0.000,5018.833,0.167
+Distributed HTTP Flood,unprotected,43.667,18.267,0.000,4833.000,40362.000,0.000,8998.167,850.833

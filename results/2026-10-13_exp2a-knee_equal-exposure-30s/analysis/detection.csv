@@ -1,0 +1,5 @@
+scenario,mode,runs,bots,banned,ttm_median_s,ttm_min_s,ttm_max_s,engines,gru_bans,fp_count,fp_ips,fp_source,exposure_mean_s
+Distributed HTTP Flood,xdp,3,30,30,0.188,0.053,0.324,l7_rate:30,0,0,,ban events,31.098
+Distributed HTTP Flood,iptables,3,30,30,0.357,0.111,0.741,l7_rate:30,0,0,,ban events,31.094
+Distributed HTTP Flood,nginxlimits,3,30,0,,,,,0,0,,no daemon,31.134
+Distributed HTTP Flood,unprotected,3,30,0,,,,,0,0,,no daemon,31.157

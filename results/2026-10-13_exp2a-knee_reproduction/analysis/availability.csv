@@ -1,0 +1,13 @@
+scenario,mode,period,runs,n,ok,success_pct,ci_lo,ci_hi,per_run_pct
+Distributed HTTP Flood,xdp,before,3,94,94,100.000,100.000,100.000,100/100/100
+Distributed HTTP Flood,xdp,during,3,65,65,100.000,100.000,100.000,100/100/100
+Distributed HTTP Flood,xdp,after,3,243,243,100.000,100.000,100.000,100/100/100
+Distributed HTTP Flood,iptables,before,3,98,98,100.000,100.000,100.000,100/100/100
+Distributed HTTP Flood,iptables,during,3,69,69,100.000,100.000,100.000,100/100/100
+Distributed HTTP Flood,iptables,after,3,238,238,100.000,100.000,100.000,100/100/100
+Distributed HTTP Flood,nginxlimits,before,3,96,95,98.958,96.970,100.000,97/100/100
+Distributed HTTP Flood,nginxlimits,during,3,113,82,72.566,66.667,78.378,73/78/67
+Distributed HTTP Flood,nginxlimits,after,3,225,225,100.000,100.000,100.000,100/100/100
+Distributed HTTP Flood,unprotected,before,3,94,94,100.000,100.000,100.000,100/100/100
+Distributed HTTP Flood,unprotected,during,3,206,162,78.641,67.143,87.719,67/88/82
+Distributed HTTP Flood,unprotected,after,3,58,55,94.828,82.353,100.000,100/82/100
