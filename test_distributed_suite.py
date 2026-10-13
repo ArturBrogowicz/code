@@ -30,6 +30,10 @@ import psutil
 import csv
 import datetime
 import json
+import platform
+import statistics
+
+import ban_events
 
 # ─────────────────────────────── CONFIGURATION ───────────────────────────────
 
@@ -40,8 +44,7 @@ BRIDGE_NAME = "ddos_br0"      # Bridge lives in the DEFAULT namespace
 LEGIT_COUNT = 20               # Number of legitimate client namespaces
 LEGIT_IP_PREFIX = "10.0.1"     # Legit IPs: 10.0.1.1 – 10.0.1.40
 
-BOTNET_COUNT = 5              # Number of botnet attacker namespaces
-BOTNET_IP_PREFIX = "10.0.2"    # Botnet IPs: 10.0.2.1 – 10.0.2.10
+BOTNET_IP_PREFIX = "10.0.2"    # Botnet IPs: 10.0.2.1 – 10.0.2.10 (count: BOTNET_COUNT below)
 
 SUBNET_MASK = "/16"            # All nodes in 10.0.0.0/16
 HTTP_URL = f"http://{SERVER_IP}/"
@@ -52,6 +55,56 @@ NGINX_UNPROTECTED_CONF = f"{PROJECT_DIR}/nginx_unprotected.conf"
 CONTROL_PLANE = f"{PROJECT_DIR}/control_plane.py"
 PYTHON_VENV = f"{PROJECT_DIR}/venv/bin/python"
 LOG_FILE = "/tmp/mitigation_distributed_test.log"
+
+# ─────────────────────── EVALUATION SETTINGS (environment) ──────────────────────
+# Every setting defaults to the historical behaviour, so a plain run is unchanged.
+# eval/run_campaign.py sets them per mode and run (see docs/EVALUATION.md).
+#
+# OPERATING_POINT names a server-capacity / attack-intensity set; a variable named
+# like a setting overrides it. "knee" is the capacity-limited point of the EXP-1d
+# calibration (docs/REPORT_ADDENDUM_EXP0_EXP1.md §J): one gunicorn worker pinned to
+# cpu0, the attack generators pinned off it and a stronger HTTP flood — the point
+# where the UNPROTECTED server measurably degrades.
+OPERATING_POINTS = {
+    "default": {"GUNICORN_WORKERS": "8", "GUNICORN_THREADS": "4", "WRK_CONNS": "50",
+                "WRK_THREADS": "2", "BOTNET_COUNT": "5", "SERVER_CPUS": "", "ATTACK_CPUS": ""},
+    "knee": {"GUNICORN_WORKERS": "1", "GUNICORN_THREADS": "1", "WRK_CONNS": "400",
+             "WRK_THREADS": "2", "BOTNET_COUNT": "10", "SERVER_CPUS": "0", "ATTACK_CPUS": "1-7"},
+}
+
+
+def resolve_operating_point(env):
+    """(name, {setting: value}) for env["OPERATING_POINT"], with per-variable overrides."""
+    name = env.get("OPERATING_POINT", "default")
+    if name not in OPERATING_POINTS:
+        raise ValueError(f"unknown OPERATING_POINT={name!r} "
+                         f"(known: {', '.join(OPERATING_POINTS)})")
+    return name, {k: env.get(k, v) for k, v in OPERATING_POINTS[name].items()}
+
+
+OPERATING_POINT, _OP = resolve_operating_point(os.environ)
+BOTNET_COUNT = int(_OP["BOTNET_COUNT"])    # Number of botnet attacker namespaces
+GUNICORN_WORKERS = _OP["GUNICORN_WORKERS"]
+GUNICORN_THREADS = _OP["GUNICORN_THREADS"]
+WRK_CONNS = _OP["WRK_CONNS"]              # HTTP-flood connections per bot
+WRK_THREADS = _OP["WRK_THREADS"]
+SERVER_CPUS = _OP["SERVER_CPUS"]          # taskset CPU list for nginx + gunicorn ("" = not pinned)
+ATTACK_CPUS = _OP["ATTACK_CPUS"]          # taskset CPU list for commands in bot_* ("" = not pinned)
+
+# 4th mode: MITIGATION_MODE=none with NGINX_PROTECTED=1 keeps the protected nginx.conf
+# (limit_req / limit_conn) but runs no daemon, separating Nginx's share of the
+# protection from the daemon's (review F-11, addendum §I).
+NGINX_PROTECTED = os.environ.get("NGINX_PROTECTED", "0") == "1"
+# Seed of the client network-profile assignment: the same plan in every mode and run
+# (review H10). The campaign runner varies it per block of paired runs.
+PROFILE_SEED = int(os.environ.get("PROFILE_SEED") or 0)
+# Equal exposure (review F-02): when > 0 every attack runs this many seconds in EVERY
+# mode, instead of being stopped as soon as the bans are seen. 0 = historical behaviour.
+ATTACK_DURATION = float(os.environ.get("ATTACK_DURATION") or 0)
+# Per-run results (CSVs, ban events, daemon log, provenance) go to RESULTS_DIR, by
+# default a new directory under RESULTS_ROOT — outside the repository on purpose.
+# The legacy /tmp CSVs are still written exactly as before.
+RESULTS_ROOT = os.environ.get("RESULTS_ROOT", "/var/tmp/ddos_campaigns")
 
 # ─────────────────────────────── ANSI COLORS ─────────────────────────────────
 
@@ -70,6 +123,13 @@ _legit_traffic_stop = threading.Event()
 _legit_threads = []
 _daemon_proc = None
 csv_lock = threading.Lock()
+_results_dir = None            # this run's results directory (set in main(); None outside a run)
+_run_started_utc = None
+_run_status = "incomplete"     # → "completed" when every scenario ran
+_run_finished = False
+_profile_plan = []             # [(ip, profile)] of the legit clients (recorded in provenance)
+_attack = {"t0": None, "start": None, "end": None}   # current scenario timeline (epoch s)
+_daemon_log_label = None       # scenario whose daemon output is in LOG_FILE, not yet archived
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  SERVICE-AVAILABILITY MEASUREMENT (continuous, via the background legit workers)
@@ -105,7 +165,7 @@ def _avail_phase(period):
     _avail_period = period
 
 
-def _avail_record(scenario, period, profile, code, latency_s):
+def _avail_record(scenario, period, profile, code, latency_s, ip=None, t_start=None):
     """Record one legit-request outcome, unless idle / between scenarios."""
     if period == "idle" or scenario is None:
         return
@@ -113,7 +173,8 @@ def _avail_record(scenario, period, profile, code, latency_s):
         _avail_samples.append({"scenario": scenario, "period": period,
                                "profile": profile, "code": code,
                                "lat": latency_s, "ok": code == "200",
-                               "ts": time.time()})   # per-request time (for the raw time-series)
+                               "ts": time.time(),   # per-request time (for the raw time-series)
+                               "ip": ip, "t_start": t_start})
 
 
 def _pct(sorted_vals, q):
@@ -146,12 +207,43 @@ def _avail_kpis(samples):
     }
 
 
+def _mode_tag():
+    """Suffix of the legacy /tmp CSVs for this run's mode (unchanged for the original 3 modes)."""
+    mode = os.environ.get("MITIGATION_MODE", "active")
+    backend = os.environ.get("MITIGATION_BACKEND", "xdp")
+    if mode == "none":
+        return "nginxlimits" if NGINX_PROTECTED else "unprotected"
+    return "iptables" if backend == "iptables" else "performance"
+
+
+def _mode_label():
+    """Mode name used in results and provenance: xdp | iptables | nginxlimits | unprotected."""
+    tag = _mode_tag()
+    return "xdp" if tag == "performance" else tag
+
+
+def _out_paths(legacy_path, run_file):
+    """Where a CSV goes: the legacy /tmp file (appended across runs, as before) and,
+    during a suite run, this run's own copy in the results directory."""
+    return [legacy_path] + ([os.path.join(_results_dir, run_file)] if _results_dir else [])
+
+
+def _append_csv(path, header, rows):
+    """Append rows to a CSV, writing the header first if the file is new."""
+    new = not os.path.isfile(path)
+    with open(path, "a", newline="") as f:
+        w = csv.writer(f)
+        if new:
+            w.writerow(header)
+        w.writerows(rows)
+
+
 def _avail_csv_paths():
     """Availability CSV paths, split by mode/backend like the resource CSV, so XDP vs
     iptables vs unprotected availability can be compared across separate runs."""
     mode = os.environ.get("MITIGATION_MODE", "active")
     backend = os.environ.get("MITIGATION_BACKEND", "xdp")
-    tag = "unprotected" if mode == "none" else ("iptables" if backend == "iptables" else "performance")
+    tag = _mode_tag()
     return f"/tmp/availability_{tag}.csv", f"/tmp/availability_raw_{tag}.csv", mode, backend
 
 
@@ -171,27 +263,30 @@ def _write_availability_csv(scenario, by_period, by_prof, profiles, snap):
                 f"{k['p50']:.1f}", f"{k['p95']:.1f}", f"{k['p99']:.1f}",
                 f"{k['mean']:.1f}", f"{k['max']:.1f}"]
 
-    agg_new = not os.path.isfile(agg_csv)
-    with open(agg_csv, "a", newline="") as f:
-        w = csv.writer(f)
-        if agg_new:
-            w.writerow(hdr)
-        for p in ("before", "during", "after"):
-            w.writerow(row(p, "ALL", by_period[p]))          # headline (all profiles)
-            for pr in profiles:                              # per-profile breakdown
-                k = by_prof[(p, pr)]
-                if k["total"]:
-                    w.writerow(row(p, pr, k))
+    agg_rows = []
+    for p in ("before", "during", "after"):
+        agg_rows.append(row(p, "ALL", by_period[p]))         # headline (all profiles)
+        for pr in profiles:                                  # per-profile breakdown
+            k = by_prof[(p, pr)]
+            if k["total"]:
+                agg_rows.append(row(p, pr, k))
+    for path in _out_paths(agg_csv, "availability.csv"):
+        _append_csv(path, hdr, agg_rows)
 
-    raw_new = not os.path.isfile(raw_csv)
-    with open(raw_csv, "a", newline="") as f:                # raw dump for time-series charts
-        w = csv.writer(f)
-        if raw_new:
-            w.writerow(["Timestamp", "Scenario", "Period", "Profile", "HTTP_Code", "Latency_ms", "OK"])
-        for s in snap:
-            w.writerow([datetime.datetime.fromtimestamp(s["ts"]).isoformat(),
-                        scenario, s["period"], s["profile"], s["code"],
-                        f"{s['lat'] * 1000.0:.1f}", int(s["ok"])])
+    # Raw dump for time-series charts. The legacy /tmp file keeps its 7 columns (it is
+    # appended across runs, so wider rows would corrupt older files); the per-run copy
+    # adds the client IP and the request start time (epoch s).
+    raw_hdr = ["Timestamp", "Scenario", "Period", "Profile", "HTTP_Code", "Latency_ms", "OK"]
+    raw_rows = [[datetime.datetime.fromtimestamp(s["ts"]).isoformat(),
+                 scenario, s["period"], s["profile"], s["code"],
+                 f"{s['lat'] * 1000.0:.1f}", int(s["ok"])] for s in snap]
+    _append_csv(raw_csv, raw_hdr, raw_rows)
+    if _results_dir:
+        _append_csv(os.path.join(_results_dir, "availability_raw.csv"),
+                    raw_hdr + ["Client_IP", "T_Start"],
+                    [r + [s.get("ip") or "",
+                          f"{s['t_start']:.3f}" if s.get("t_start") is not None else ""]
+                     for r, s in zip(raw_rows, snap)])
 
 
 def _avail_finalize():
@@ -234,6 +329,8 @@ def run(cmd, ns=None, bg=False, timeout=None):
     full_cmd = []
     if ns:
         full_cmd.extend(["ip", "netns", "exec", ns])
+        if ATTACK_CPUS and ns.startswith("bot_"):
+            full_cmd.extend(["taskset", "-c", ATTACK_CPUS])   # keep attack generators off the server CPUs
     if isinstance(cmd, str):
         full_cmd.extend(cmd.split())
     else:
@@ -458,6 +555,55 @@ def _wait_http_ready(timeout=15):
     return False
 
 
+def _srv(cmd):
+    """Pin a server process (nginx / gunicorn) to SERVER_CPUS when set."""
+    return ["taskset", "-c", SERVER_CPUS] + cmd if SERVER_CPUS else cmd
+
+
+def _nginx_conf():
+    """nginx config for this mode: the unprotected one only for MITIGATION_MODE=none
+    without NGINX_PROTECTED."""
+    mode = os.environ.get("MITIGATION_MODE", "active")
+    return NGINX_UNPROTECTED_CONF if (mode == "none" and not NGINX_PROTECTED) else NGINX_CONF
+
+
+def _start_web_stack():
+    """Start gunicorn and nginx in server_ns and wait until the service answers."""
+    run(_srv([PYTHON_VENV, "-m", "gunicorn", "--chdir", PROJECT_DIR,
+              "--workers", GUNICORN_WORKERS, "--threads", GUNICORN_THREADS,
+              "-b", "0.0.0.0:8080", "dummy_app:app"]), ns=SERVER_NS, bg=True)
+    time.sleep(1)
+    run(_srv(["nginx", "-c", _nginx_conf()]), ns=SERVER_NS, bg=True)
+    time.sleep(0.5)
+    _wait_http_ready()   # ensure gunicorn/nginx actually serve before proceeding (clean baseline)
+
+
+def _daemon_cmd():
+    """Command that starts control_plane.py in server_ns; its ban events go to this run."""
+    env = [f"MITIGATION_BACKEND={os.environ.get('MITIGATION_BACKEND', 'xdp')}"]
+    if _results_dir:
+        env.append(f"BAN_EVENTS={os.path.join(_results_dir, 'ban_events.jsonl')}")
+    return ["ip", "netns", "exec", SERVER_NS, "env", *env, PYTHON_VENV, "-u", CONTROL_PLANE]
+
+
+def _archive_daemon_log():
+    """Append the live daemon log (recreated for every scenario) to the run's daemon.log,
+    so no scenario's log is lost (review F-07). No-op outside a suite run."""
+    global _daemon_log_label
+    label, _daemon_log_label = _daemon_log_label, None
+    if not (_results_dir and label):
+        return
+    try:
+        with open(LOG_FILE, errors="replace") as src:
+            content = src.read()
+    except FileNotFoundError:
+        return
+    with open(os.path.join(_results_dir, "daemon.log"), "a") as dst:
+        dst.write(f"===== {label} =====\n{content}")
+        if content and not content.endswith("\n"):
+            dst.write("\n")
+
+
 def start_server_services():
     """Start Nginx, Gunicorn, and the mitigation daemon inside server_ns."""
     global _daemon_proc
@@ -490,18 +636,8 @@ def start_server_services():
             '    return iter([data])\n'
         )
 
-    # Start Gunicorn
-    run([PYTHON_VENV, "-m", "gunicorn", "--chdir", PROJECT_DIR,
-         "--workers", "8", "--threads", "4", "-b", "0.0.0.0:8080",
-         "dummy_app:app"], ns=SERVER_NS, bg=True)
-    time.sleep(1)
-
-    # Start Nginx
-    mode = os.environ.get("MITIGATION_MODE", "active")
-    active_conf = NGINX_UNPROTECTED_CONF if mode == "none" else NGINX_CONF
-    run(["nginx", "-c", active_conf], ns=SERVER_NS, bg=True)
-    time.sleep(0.5)
-    _wait_http_ready()   # ensure gunicorn/nginx actually serve before proceeding (clean baseline)
+    # Start Gunicorn + Nginx
+    _start_web_stack()
 
     # Start mitigation daemon
     try:
@@ -510,8 +646,7 @@ def start_server_services():
         pass
 
     if os.environ.get("MITIGATION_MODE") != "none":
-        backend = os.environ.get("MITIGATION_BACKEND", "xdp")
-        cmd = ["ip", "netns", "exec", SERVER_NS, "env", f"MITIGATION_BACKEND={backend}", PYTHON_VENV, "-u", CONTROL_PLANE]
+        cmd = _daemon_cmd()
         log_fd = open(LOG_FILE, "w")
         _daemon_proc = subprocess.Popen(cmd, stdout=log_fd, stderr=subprocess.STDOUT)
 
@@ -583,28 +718,19 @@ def reset_between_scenarios():
     for lf in ["/var/log/nginx/ddos_ml_access.log", "/var/log/nginx/error.log"]:
         open(lf, "w").close()
 
-    # Restart Gunicorn
-    run([PYTHON_VENV, "-m", "gunicorn", "--chdir", PROJECT_DIR,
-         "--workers", "8", "--threads", "4", "-b", "0.0.0.0:8080",
-         "dummy_app:app"], ns=SERVER_NS, bg=True)
-    time.sleep(1)
+    # Restart Gunicorn + Nginx
+    _start_web_stack()
 
-    # Restart Nginx
-    mode = os.environ.get("MITIGATION_MODE", "active")
-    active_conf = NGINX_UNPROTECTED_CONF if mode == "none" else NGINX_CONF
-    run(["nginx", "-c", active_conf], ns=SERVER_NS, bg=True)
-    time.sleep(0.5)
-    _wait_http_ready()   # ensure gunicorn/nginx actually serve before proceeding (clean baseline)
-
-    # Restart mitigation daemon with a fresh log file
+    # Restart mitigation daemon with a fresh log file (the finished scenario's log is
+    # archived into the results directory first)
+    _archive_daemon_log()
     try:
         os.remove(LOG_FILE)
     except FileNotFoundError:
         pass
 
     if os.environ.get("MITIGATION_MODE") != "none":
-        backend = os.environ.get("MITIGATION_BACKEND", "xdp")
-        cmd = ["ip", "netns", "exec", SERVER_NS, "env", f"MITIGATION_BACKEND={backend}", PYTHON_VENV, "-u", CONTROL_PLANE]
+        cmd = _daemon_cmd()
         log_fd = open(LOG_FILE, "w")
         _daemon_proc = subprocess.Popen(cmd, stdout=log_fd, stderr=subprocess.STDOUT)
 
@@ -629,6 +755,13 @@ def reset_between_scenarios():
         time.sleep(1)
 
 
+def profile_plan(n, seed, profiles, weights):
+    """Network profile for legit_1..legit_n: the same for a given seed in every mode and
+    run (review H10: an unseeded draw per run put 0–4 'mobile_bad' clients in a run)."""
+    rng = random.Random(seed)
+    return [rng.choices(profiles, weights=weights, k=1)[0] for _ in range(n)]
+
+
 def build_topology():
     """Build the full test topology: bridge + server + legit + botnet."""
     legit_nodes = []     # [(ns_name, ip_addr, profile)]
@@ -646,16 +779,18 @@ def build_topology():
     print(f"{CYAN}[*] Creating {LEGIT_COUNT} legitimate client namespaces...{RESET}")
     profiles = ["perfect", "broadband", "mobile_3g", "mobile_bad"]
     weights  = [0.30, 0.35, 0.25, 0.10]
+    plan = profile_plan(LEGIT_COUNT, PROFILE_SEED, profiles, weights)
 
     for i in range(1, LEGIT_COUNT + 1):
         ns  = f"legit_{i}"
         ip  = f"{LEGIT_IP_PREFIX}.{i}"
         create_client_ns(ns, ip)
-        profile = random.choices(profiles, weights=weights, k=1)[0]
+        profile = plan[i - 1]
         apply_tc(ns, profile)
         legit_nodes.append((ns, ip, profile))
 
-    print(f"{GREEN}[+] Legitimate clients ready. Profile distribution:{RESET}")
+    print(f"{GREEN}[+] Legitimate clients ready. Profile distribution "
+          f"(PROFILE_SEED={PROFILE_SEED}):{RESET}")
     for p in profiles:
         cnt = sum(1 for _, _, pr in legit_nodes if pr == p)
         print(f"    {p}: {cnt} nodes")
@@ -701,6 +836,7 @@ def _legit_worker(ns_name, ip_addr, profile):
         # and never changes this worker's behaviour/cadence.
         period = _avail_period
         scenario = _avail_scenario
+        t_start = time.time()
         code, lat = "000", 10.0           # default = no response (curl --max-time)
         try:
             res = run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code} %{time_total}",
@@ -713,7 +849,7 @@ def _legit_worker(ns_name, ip_addr, profile):
                         lat = float(parts[1])
         except Exception:
             pass
-        _avail_record(scenario, period, profile, code, lat)
+        _avail_record(scenario, period, profile, code, lat, ip=ip_addr, t_start=t_start)
         jitter = random.uniform(-0.5, 1.0)
         _legit_traffic_stop.wait(max(0.5, base_interval + jitter))
 
@@ -754,6 +890,8 @@ def tail_logs_for_bans(target_ips, timeout=25, attack_start=None, log_start_pos=
 
     Returns: dict {ip: (engine, ttm)}
     """
+    if ATTACK_DURATION > 0:
+        timeout = min(timeout, ATTACK_DURATION)   # equal exposure: never wait past the attack's end
     start_time = attack_start or time.time()
     found = {}
     remaining = set(target_ips)
@@ -883,11 +1021,14 @@ def capture_metrics(scenario, phase):
     # Availability phase transitions, driven by the existing phase labels so each
     # scenario needs no extra edits (reporting-only; see the _avail_* helpers).
     if phase.startswith("Phase 1"):            # Baseline → open the pre-attack 'before' window
+        _scenario_begin(scenario)
         _avail_begin(scenario)
         if AVAIL_BEFORE_SECONDS > 0:
             time.sleep(AVAIL_BEFORE_SECONDS)   # denser pre-attack baseline (recorded as 'before')
     elif phase.startswith("Phase 2:"):         # Pre-Mitigation → the attack is now live
         _avail_phase("during")                 # ('Phase 2A' sustained + 'Phase 3' stay 'during')
+    elif phase.startswith("Phase 3"):          # equal exposure: first hold the attack to its fixed end
+        _hold_attack(_attack["start"])
 
     def task():
         try:
@@ -986,36 +1127,29 @@ def capture_metrics(scenario, phase):
             prestack_dropped = max(0, pps - ip_inreceives)  # dropped before the stack (XDP)
 
             # 8. Save to CSV (extended with 4 new kernel metrics columns)
-            mode = os.environ.get("MITIGATION_MODE", "active")
-            backend = os.environ.get("MITIGATION_BACKEND", "xdp")
-            if mode == "none":
-                csv_file = "/tmp/metrics_unprotected.csv"
-            elif backend == "iptables":
-                csv_file = "/tmp/metrics_iptables.csv"
-            else:
-                csv_file = "/tmp/mitigation_performance.csv"
-            file_exists = os.path.isfile(csv_file)
-            with open(csv_file, "a", newline='') as f:
-                writer = csv.writer(f)
-                if not file_exists:
-                    writer.writerow(["Timestamp", "Scenario", "Phase", "CPU_Total_Pct", 
-                                    "CPU_Daemon_Pct", "CPU_Nginx_Pct", "RAM_Total_MB", 
-                                    "RAM_Daemon_MB", "TCP_Estab", "TCP_TimeWait", 
-                                    "TCP_SynRecv", "PPS_Rx", "Bps_Rx",
-                                    "SoftIRQ_NET_RX_Total", "SoftIRQ_NET_RX_HotCore",
-                                    "HotCore_ID", "HotCore_CPU_Pct",
-                                    "IP_InReceives", "PreStack_Dropped"])
-                writer.writerow([
-                    datetime.datetime.now().isoformat(),
-                    scenario, phase,
-                    f"{cpu_total:.1f}", f"{daemon_cpu:.1f}", f"{nginx_cpu:.1f}",
-                    f"{mem_total:.1f}", f"{daemon_ram:.1f}",
-                    tcp_estab, tcp_tw, tcp_syn, pps, bps,
-                    softirq_total, hot_core_softirq,
-                    hot_core_id, f"{hot_core_cpu:.1f}",
-                    ip_inreceives, prestack_dropped
-                ])
-                
+            tag = _mode_tag()
+            csv_file = ("/tmp/mitigation_performance.csv" if tag == "performance"
+                        else f"/tmp/metrics_{tag}.csv")
+            header = ["Timestamp", "Scenario", "Phase", "CPU_Total_Pct",
+                      "CPU_Daemon_Pct", "CPU_Nginx_Pct", "RAM_Total_MB",
+                      "RAM_Daemon_MB", "TCP_Estab", "TCP_TimeWait",
+                      "TCP_SynRecv", "PPS_Rx", "Bps_Rx",
+                      "SoftIRQ_NET_RX_Total", "SoftIRQ_NET_RX_HotCore",
+                      "HotCore_ID", "HotCore_CPU_Pct",
+                      "IP_InReceives", "PreStack_Dropped"]
+            row = [
+                datetime.datetime.now().isoformat(),
+                scenario, phase,
+                f"{cpu_total:.1f}", f"{daemon_cpu:.1f}", f"{nginx_cpu:.1f}",
+                f"{mem_total:.1f}", f"{daemon_ram:.1f}",
+                tcp_estab, tcp_tw, tcp_syn, pps, bps,
+                softirq_total, hot_core_softirq,
+                hot_core_id, f"{hot_core_cpu:.1f}",
+                ip_inreceives, prestack_dropped
+            ]
+            for path in _out_paths(csv_file, "metrics.csv"):
+                _append_csv(path, header, [row])
+
         except Exception as e:
             print(f"Error capturing metrics: {e}")
 
@@ -1061,6 +1195,41 @@ def verify_legit_http(legit_nodes, sample_size=15):
 #  ATTACK HELPERS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _scenario_begin(scenario):
+    """Start a scenario's timeline (its pre-attack baseline begins now)."""
+    global _daemon_log_label
+    _attack.update(t0=time.time(), start=None, end=None)
+    _daemon_log_label = scenario
+
+
+def _attack_begin():
+    """Mark (and return) the moment the scenario's attack is launched."""
+    _attack["start"] = time.time()
+    return _attack["start"]
+
+
+def attack_hold_remaining(attack_start, duration, now):
+    """Seconds left until attack_start + duration; 0 when duration is 0 (historical mode)."""
+    if not duration or attack_start is None:
+        return 0.0
+    return max(0.0, attack_start + duration - now)
+
+
+def _hold_attack(attack_start):
+    """Equal exposure (ATTACK_DURATION > 0): keep the attack running to its fixed end in
+    EVERY mode instead of stopping as soon as the bans are seen (review F-02)."""
+    left = attack_hold_remaining(attack_start, ATTACK_DURATION, time.time())
+    if left > 0:
+        print(f"    {CYAN}[*] Equal exposure: attack continues {left:.1f}s more "
+              f"(ATTACK_DURATION={ATTACK_DURATION:g}s)...{RESET}")
+        time.sleep(left)
+
+
+def _wrk_seconds():
+    """wrk run length: 30 s as before, or long enough to cover ATTACK_DURATION."""
+    return max(30, int(ATTACK_DURATION) + 5)
+
+
 def launch_botnet(botnet_nodes, cmd_func):
     """Launch an attack from every botnet node concurrently.
 
@@ -1077,6 +1246,7 @@ def launch_botnet(botnet_nodes, cmd_func):
 
 def kill_procs(procs):
     """Kill all attack processes."""
+    _attack["end"] = time.time()          # the attack stops now
     for p, ns, _ in procs:
         try:
             p.kill()
@@ -1098,6 +1268,45 @@ def _write_script(path, content):
 #  REPORT
 # ═══════════════════════════════════════════════════════════════════════════════
 
+SCENARIO_RESULT_FIELDS = [
+    "Scenario", "Mode", "Operating_Point", "Profile_Seed", "Attack_Duration_s",
+    "Scenario_T0", "Attack_Start", "Attack_End", "Exposure_s", "Bots",
+    "Banned_Harness", "Banned_Events", "TTM_Harness_Mean_s", "TTM_Exact_Median_s",
+    "TTM_Exact_Max_s", "TTM_Exact_By_Bot", "Engine_By_Bot", "FP_Source", "FP_IPs",
+    "FP_Ping_IPs", "Legit_HTTP_OK", "Legit_HTTP_Total", "Result"]
+
+
+def _fmt_t(x):
+    return "" if x is None else f"{x:.3f}"
+
+
+def _scenario_events(bot_ips, legit_ips):
+    """Ground truth for the current scenario from the daemon's ban events: exact
+    time-to-mitigate and engine per bot (bans while the attack ran) and the legit IPs
+    banned since the scenario began. available=False when this run has no event log."""
+    out = {"available": False, "ttm": {}, "engine": {}, "fp": set()}
+    if not _results_dir:
+        return out
+    events = ban_events.read_events(os.path.join(_results_dir, "ban_events.jsonl"))
+    if not any(e["kind"] == "start" for e in events):
+        return out
+    out["available"] = True
+    start, end = _attack["start"], _attack["end"] or time.time()
+    if start is not None:
+        for ip, e in ban_events.first_bans(events, ips=bot_ips, since=start, until=end).items():
+            out["ttm"][ip] = e["t_wall"] - start
+            out["engine"][ip] = e.get("engine", "unknown")
+    out["fp"] = set(ban_events.first_bans(events, ips=legit_ips, since=_attack["t0"]))
+    return out
+
+
+def _write_scenario_result(rec):
+    """One machine-readable row per scenario in <results_dir>/scenario_results.csv."""
+    if _results_dir:
+        _append_csv(os.path.join(_results_dir, "scenario_results.csv"), SCENARIO_RESULT_FIELDS,
+                    [[rec.get(k, "") for k in SCENARIO_RESULT_FIELDS]])
+
+
 def report(name, ban_results, botnet_nodes, legit_nodes):
     """Evaluate and display results for a distributed attack scenario."""
     _avail_finalize()   # aggregate availability FIRST (bounds 'after' to the post-kill window,
@@ -1113,7 +1322,20 @@ def report(name, ban_results, botnet_nodes, legit_nodes):
     engines = set(ban_results[ip][0] for ip in botnet_ips
                   if ban_results[ip][0] != "None")
 
-    col_ok, col_list = check_collateral_damage(legit_nodes)
+    # False positives come from the daemon's ban events (ground truth, review F-25). The
+    # old ping check still runs and is recorded for comparison; it decides only when a
+    # daemon ran without an event log.
+    _, col_list_ping = check_collateral_damage(legit_nodes)
+    ev = _scenario_events(botnet_ips, [ip for _, ip, _ in legit_nodes])
+    if os.environ.get("MITIGATION_MODE") == "none":
+        col_list, fp_source = [], "no daemon"            # nothing can ban a client
+    elif ev["available"]:
+        profile_of = {ip: prof for _, ip, prof in legit_nodes}
+        col_list, fp_source = [(ip, profile_of[ip]) for ip in sorted(ev["fp"])], "ban events"
+    else:
+        col_list, fp_source = col_list_ping, "ping"
+    col_ok = not col_list
+    ttms = sorted(ev["ttm"].values())
     http_ok, http_fail, http_total = verify_legit_http(legit_nodes)
 
     eff_pass  = banned_cnt >= total * 0.8
@@ -1130,13 +1352,19 @@ def report(name, ban_results, botnet_nodes, legit_nodes):
         print(f"  ├── Avg TTM:           {avg_ttm:.2f}s")
     else:
         print(f"  ├── Avg TTM:           N/A")
+    if ev["available"]:
+        if ttms:
+            print(f"  ├── Exact TTM:         median {statistics.median(ttms):.2f}s · "
+                  f"max {ttms[-1]:.2f}s ({len(ttms)}/{total} bots, ban events)")
+        else:
+            print("  ├── Exact TTM:         no bot banned (ban events)")
     print(f"  ├── Engines:           {', '.join(engines) if engines else 'None'}")
     print(f"  ├── Legit HTTP:        {http_ok}/{http_total} OK "
           f"({'✅' if http_pass else '❌'})")
     if _avail_results:                       # continuous service-availability (reporting-only)
         print(_avail_results[-1]["line"])
     fp_str = "None ✅" if col_pass else f"{len(col_list)} BANNED ❌"
-    print(f"  └── False Positives:   {fp_str}")
+    print(f"  └── False Positives:   {fp_str} [{fp_source}]")
     if col_list:
         for lip, lprof in col_list:
             print(f"       └── FP: {lip} (profile: {lprof})")
@@ -1150,6 +1378,30 @@ def report(name, ban_results, botnet_nodes, legit_nodes):
         "result": "PASS" if overall else "FAIL",
     })
 
+    exposure = (_attack["end"] - _attack["start"]) if (_attack["start"] and _attack["end"]) else None
+    if ATTACK_DURATION > 0 and exposure is not None and exposure > ATTACK_DURATION + 2.0:
+        print(f"  {YELLOW}[!] The attack ran {exposure:.1f}s, longer than ATTACK_DURATION="
+              f"{ATTACK_DURATION:g}s (this scenario's fixed phases take longer), so exposure "
+              f"is NOT equal across modes; raise ATTACK_DURATION.{RESET}")
+    _write_scenario_result({
+        "Scenario": name, "Mode": _mode_label(), "Operating_Point": OPERATING_POINT,
+        "Profile_Seed": PROFILE_SEED, "Attack_Duration_s": ATTACK_DURATION,
+        "Scenario_T0": _fmt_t(_attack["t0"]), "Attack_Start": _fmt_t(_attack["start"]),
+        "Attack_End": _fmt_t(_attack["end"]), "Exposure_s": _fmt_t(exposure),
+        "Bots": total, "Banned_Harness": banned_cnt,
+        "Banned_Events": len(ttms) if ev["available"] else "",
+        "TTM_Harness_Mean_s": _fmt_t(avg_ttm),
+        "TTM_Exact_Median_s": _fmt_t(statistics.median(ttms)) if ttms else "",
+        "TTM_Exact_Max_s": _fmt_t(ttms[-1]) if ttms else "",
+        "TTM_Exact_By_Bot": json.dumps({ip: round(t, 3) for ip, t in sorted(ev["ttm"].items())}),
+        "Engine_By_Bot": json.dumps(dict(sorted(ev["engine"].items()))),
+        "FP_Source": fp_source,
+        "FP_IPs": json.dumps([ip for ip, _ in col_list]),
+        "FP_Ping_IPs": json.dumps([ip for ip, _ in col_list_ping]),
+        "Legit_HTTP_OK": http_ok, "Legit_HTTP_Total": http_total,
+        "Result": "PASS" if overall else "FAIL",
+    })
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  ATTACK SCENARIOS
@@ -1161,7 +1413,7 @@ def scenario_syn_flood(botnet, legit):
     print(f"  SCENARIO 1: Distributed SYN Flood (1000 SYN/s per bot)")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed SYN Flood", "Phase 1: Baseline")
-    attack_start = time.time()
+    attack_start = _attack_begin()
     log_pos = _get_log_size()
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"hping3 -S -p 80 -i u1000 {SERVER_IP}", ns=ns, bg=True))
@@ -1180,7 +1432,7 @@ def scenario_slow_syn(botnet, legit):
     print(f"  SCENARIO 2: Distributed Low & Slow SYN (GRU ML Target)")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed Low & Slow SYN", "Phase 1: Baseline")
-    attack_start = time.time()
+    attack_start = _attack_begin()
     log_pos = _get_log_size()
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"hping3 -S -p 80 -i u100000 {SERVER_IP}", ns=ns, bg=True))
@@ -1199,7 +1451,7 @@ def scenario_udp_flood(botnet, legit):
     print(f"  SCENARIO 3: Distributed UDP Flood")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed UDP Flood", "Phase 1: Baseline")
-    attack_start = time.time()
+    attack_start = _attack_begin()
     log_pos = _get_log_size()
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"hping3 --udp -p 80 --flood {SERVER_IP}", ns=ns, bg=True))
@@ -1225,10 +1477,10 @@ def scenario_http_flood(botnet, legit):
     print(f"  SCENARIO 4: Distributed HTTP Flood")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed HTTP Flood", "Phase 1: Baseline")
-    attack_start = time.time()
+    attack_start = _attack_begin()
     log_pos = _get_log_size()
     procs = launch_botnet(botnet, lambda ns, ip:
-        run(f"wrk -t2 -c50 -d30s {HTTP_URL}", ns=ns, bg=True))
+        run(f"wrk -t{WRK_THREADS} -c{WRK_CONNS} -d{_wrk_seconds()}s {HTTP_URL}", ns=ns, bg=True))
     capture_metrics("Distributed HTTP Flood", "Phase 2: Pre-Mitigation")
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=15, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed HTTP Flood", "Phase 3: Post-Mitigation")
@@ -1244,7 +1496,7 @@ def scenario_ack_flood(botnet, legit):
     print(f"  SCENARIO 5: Distributed ACK Flood")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed ACK Flood", "Phase 1: Baseline")
-    attack_start = time.time()
+    attack_start = _attack_begin()
     log_pos = _get_log_size()
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"hping3 -A -p 80 --flood {SERVER_IP}", ns=ns, bg=True))
@@ -1270,7 +1522,7 @@ def scenario_fragmentation(botnet, legit):
     print(f"  SCENARIO 6: Distributed IP Fragmentation Flood")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed IP Fragmentation Flood", "Phase 1: Baseline")
-    attack_start = time.time()
+    attack_start = _attack_begin()
     log_pos = _get_log_size()
     procs = launch_botnet(botnet, lambda ns, ip:
         run(f"hping3 -S -p 80 -f --fragoff 20 --flood {SERVER_IP}",
@@ -1297,7 +1549,7 @@ def scenario_slowloris(botnet, legit):
     print(f"  SCENARIO 7: Distributed Slowloris")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed Slowloris", "Phase 1: Baseline")
-    attack_start = time.time()
+    attack_start = _attack_begin()
     log_pos = _get_log_size()
     script = "/tmp/_dist_slowloris.py"
     _write_script(script, f'''import socket, random, time
@@ -1340,7 +1592,7 @@ def scenario_rudy(botnet, legit):
     print(f"  SCENARIO 8: Distributed R.U.D.Y. (Slow POST)")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed R.U.D.Y.", "Phase 1: Baseline")
-    attack_start = time.time()
+    attack_start = _attack_begin()
     log_pos = _get_log_size()
     script = "/tmp/_dist_rudy.py"
     _write_script(script, f'''import socket, random, time
@@ -1384,12 +1636,12 @@ def scenario_yoyo(botnet, legit):
     print(f"  SCENARIO 9: Distributed Yo-Yo (Pulsing) Attack")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed Yo-Yo", "Phase 1: Baseline")
-    attack_start = time.time()
+    attack_start = _attack_begin()
     log_pos = _get_log_size()
     script = "/tmp/_dist_yoyo.sh"
     _write_script(script, f"""#!/bin/bash
 while true; do
-    wrk -t2 -c50 -d2s {HTTP_URL} > /dev/null 2>&1
+    wrk -t{WRK_THREADS} -c{WRK_CONNS} -d2s {HTTP_URL} > /dev/null 2>&1
     sleep 6
 done
 """)
@@ -1410,7 +1662,7 @@ def scenario_multi_vector(botnet, legit):
     print(f"  SCENARIO 10: Multi-Vector Distributed Attack")
     print(f"{'='*70}{RESET}")
     capture_metrics("Multi-Vector Distributed Attack", "Phase 1: Baseline")
-    attack_start = time.time()
+    attack_start = _attack_begin()
     log_pos = _get_log_size()
     procs = []
     n = len(botnet)
@@ -1421,7 +1673,7 @@ def scenario_multi_vector(botnet, legit):
         if p: procs.append((p, ns, ip))
 
     for ns, ip in botnet[third:2*third]:
-        p = run(f"wrk -t2 -c50 -d30s {HTTP_URL}", ns=ns, bg=True)
+        p = run(f"wrk -t{WRK_THREADS} -c{WRK_CONNS} -d{_wrk_seconds()}s {HTTP_URL}", ns=ns, bg=True)
         if p: procs.append((p, ns, ip))
 
     for ns, ip in botnet[2*third:]:
@@ -1442,6 +1694,122 @@ def scenario_multi_vector(botnet, legit):
     _avail_phase("after")      # attack stopped → bounded recovery window (then report() aggregates)
     time.sleep(AVAIL_AFTER_SECONDS)
     report("Multi-Vector Attack", bans, botnet, legit)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  RESULTS DIRECTORY & PROVENANCE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_PROVENANCE_INPUTS = ["test_distributed_suite.py", "control_plane.py", "ban_events.py",
+                      "xdp_ddos_filter.c", "GRU_ML_model.py", "nginx.conf",
+                      "nginx_unprotected.conf", "training_results/feature_config_testbed.json"]
+
+
+def _utc_now():
+    return datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
+
+
+def _git(*args):
+    """git output for the project, or None. The suite runs as root on a user-owned
+    repository, so it is marked safe for this call only (no git config is changed)."""
+    try:
+        r = subprocess.run(["git", "-c", f"safe.directory={PROJECT_DIR}", "-C", PROJECT_DIR,
+                            *args], capture_output=True, text=True, timeout=10, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def _init_results_dir():
+    """Create this run's results directory; refuse one that already holds a run."""
+    global _results_dir, _run_started_utc
+    _run_started_utc = _utc_now()
+    d = os.environ.get("RESULTS_DIR") or os.path.join(
+        RESULTS_ROOT, time.strftime("%Y%m%dT%H%M%SZ", time.gmtime()) + "_" + _mode_label())
+    if os.path.exists(os.path.join(d, "provenance.json")):
+        print(f"{RED}[-] {d} already holds a run (provenance.json); use a new RESULTS_DIR.{RESET}")
+        sys.exit(2)
+    os.makedirs(d, exist_ok=True)
+    _results_dir = d
+
+
+def _write_provenance(status):
+    """(Re)write <results_dir>/provenance.json — code, settings and host of this run —
+    so every result traces back to an exact commit and configuration (review F-24)."""
+    if not _results_dir:
+        return
+    files = list(_PROVENANCE_INPUTS)
+    try:
+        with open(os.path.join(PROJECT_DIR, "training_results/feature_config_testbed.json")) as f:
+            gru_cfg = json.load(f)
+        files += [p for p in (gru_cfg.get("model"), gru_cfg.get("scaler")) if p]
+    except (OSError, ValueError):
+        pass
+    dirty = _git("status", "--porcelain", "--untracked-files=no")
+    try:
+        nginx_v = subprocess.run(["nginx", "-v"], capture_output=True, text=True,
+                                 timeout=5, check=False).stderr.strip()
+    except (OSError, subprocess.SubprocessError):
+        nginx_v = None
+    prov = {
+        "schema": 1,
+        "run_id": os.path.basename(os.path.normpath(_results_dir)),
+        "status": status,
+        "started_utc": _run_started_utc,
+        "updated_utc": _utc_now(),
+        "argv": sys.argv,
+        "git": {"commit": _git("rev-parse", "HEAD"),
+                "branch": _git("rev-parse", "--abbrev-ref", "HEAD"),
+                "dirty": None if dirty is None else bool(dirty),
+                "dirty_files": dirty.splitlines()[:50] if dirty else []},
+        "mode": {"label": _mode_label(),
+                 "MITIGATION_MODE": os.environ.get("MITIGATION_MODE", "active"),
+                 "MITIGATION_BACKEND": os.environ.get("MITIGATION_BACKEND", "xdp"),
+                 "NGINX_PROTECTED": NGINX_PROTECTED,
+                 "GRU_ONLY": os.environ.get("GRU_ONLY", "0") == "1",
+                 "nginx_conf": os.path.basename(_nginx_conf())},
+        "operating_point": {"name": OPERATING_POINT, **_OP},
+        "settings": {"ATTACK_DURATION": ATTACK_DURATION, "PROFILE_SEED": PROFILE_SEED,
+                     "ONLY_SCENARIOS": os.environ.get("ONLY_SCENARIOS", ""),
+                     "LEGIT_COUNT": LEGIT_COUNT, "BOTNET_COUNT": BOTNET_COUNT,
+                     "AVAIL_BEFORE_SECONDS": AVAIL_BEFORE_SECONDS,
+                     "AVAIL_AFTER_SECONDS": AVAIL_AFTER_SECONDS},
+        "profile_plan": [{"ip": ip, "profile": prof} for ip, prof in _profile_plan],
+        "host": {"uname": " ".join(platform.uname()), "cpus": os.cpu_count(),
+                 "python": sys.version.split()[0], "nginx": nginx_v},
+        "inputs_sha256": {f: ban_events.file_sha256(os.path.join(PROJECT_DIR, f)) for f in files},
+    }
+    path = os.path.join(_results_dir, "provenance.json")
+    with open(path + ".tmp", "w") as f:
+        json.dump(prov, f, indent=1)
+        f.write("\n")
+    os.replace(path + ".tmp", path)
+
+
+def _chown_results():
+    """Hand the results directory to the user who ran sudo, so it can be analysed
+    and published without root."""
+    uid, gid = os.environ.get("SUDO_UID"), os.environ.get("SUDO_GID")
+    if not (_results_dir and uid and gid):
+        return
+    for root, dirs, files in os.walk(_results_dir):
+        for path in [root] + [os.path.join(root, n) for n in dirs + files]:
+            try:
+                os.chown(path, int(uid), int(gid))
+            except OSError:
+                pass
+
+
+def _finish_run():
+    """Close the results directory: archive the daemon log, final provenance, ownership.
+    Called at the end of main() and, via atexit, after an abnormal exit (idempotent)."""
+    global _run_finished
+    if _run_finished or not _results_dir:
+        return
+    _run_finished = True
+    _archive_daemon_log()
+    _write_provenance(_run_status)
+    _chown_results()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1492,8 +1860,11 @@ def print_summary():
                 else:
                     print(f"  {name:<32} | {per:<6} | {'n/a':<6} | {0:<5} | "
                           f"{'—':<7} | {'—':<7} | {'—':<7} | 0")
-        print(f"\n  {CYAN}Availability CSVs: /tmp/availability_<performance|iptables|unprotected>.csv "
-              f"(+ _raw_ per-request dumps){RESET}")
+        print(f"\n  {CYAN}Availability CSVs: /tmp/availability_<performance|iptables|nginxlimits|"
+              f"unprotected>.csv (+ _raw_ per-request dumps){RESET}")
+    if _results_dir:
+        print(f"  {CYAN}Results directory (this run, with ban events + provenance): "
+              f"{_results_dir}{RESET}")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1501,9 +1872,14 @@ def print_summary():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def main():
+    global _profile_plan, _run_status
     if os.geteuid() != 0:
         print(f"{RED}[-] This script requires root privileges (sudo).{RESET}")
         sys.exit(1)
+
+    _init_results_dir()
+    atexit.register(_finish_run)   # also after an abnormal exit; runs before cleanup_all (LIFO)
+    _write_provenance("running")
 
     # Dependency check
     for tool in ["hping3", "wrk", "curl", "ping", "tc", "ip", "ethtool"]:
@@ -1519,8 +1895,14 @@ def main():
           f"                      ║\n"
           f"╚══════════════════════════════════════════════════════════════╝"
           f"{RESET}\n")
+    print(f"{CYAN}[*] Mode: {_mode_label()} · operating point: {OPERATING_POINT} · "
+          f"PROFILE_SEED={PROFILE_SEED}"
+          f"{f' · ATTACK_DURATION={ATTACK_DURATION:g}s' if ATTACK_DURATION > 0 else ''}{RESET}")
+    print(f"{CYAN}[*] Results directory: {_results_dir}{RESET}")
 
     legit, botnet = build_topology()
+    _profile_plan = [(ip, prof) for _, ip, prof in legit]
+    _write_provenance("running")
     start_legit_traffic(legit)
 
     print(f"\n{CYAN}[*] Baseline settling period (5s)...{RESET}")
@@ -1548,12 +1930,14 @@ def main():
             fn(botnet, legit)
             if i < len(run_list) - 1:
                 reset_between_scenarios()
+        _run_status = "completed"
     except KeyboardInterrupt:
         print(f"\n{YELLOW}[!] Interrupted by user.{RESET}")
     finally:
         stop_legit_traffic()
 
     print_summary()
+    _finish_run()
 
 
 if __name__ == "__main__":
