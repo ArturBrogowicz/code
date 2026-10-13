@@ -327,7 +327,7 @@ An open-loop attacker at a fixed rate would not amplify like this, so the effect
 
 ### J.3 What this establishes for the thesis
 * **Supported now:** at a capacity-limited server, the daemon (XDP or iptables) restores legitimate-client availability from 90 % to 100 % and latency from ~1 s to ~1 ms under an HTTP flood; XDP additionally keeps the flood out of the IP stack and has slightly lower latency than iptables.
-* **New, defensible finding:** nginx `limit_req`/`limit_conn` *without* dropping the attacker can reduce availability below the unprotected baseline against a closed-loop flood on a constrained server, because the 503 + logging amplification costs more CPU than it saves. This argues for network-level bans (the daemon) over config-only rate limiting, and motivates the logging fix (§K).
+* **New, defensible finding:** nginx `limit_req`/`limit_conn` *without* dropping the attacker can reduce availability below the unprotected baseline against a closed-loop flood on a constrained server, because the 503 + logging amplification costs more CPU than it saves. This argues for network-level bans (the daemon) over config-only rate limiting, and motivates the logging fix (§K). *(Replication, §N: the penalty did not reproduce significantly in R3 (−6 pp, CI includes 0) but did in R4 with equal exposure (−36 pp). Rate limiting alone was never better than no protection; the size of the penalty is unresolved at 3 runs per mode.)*
 
 ### J.4 Caveats
 * One operating point, one scenario (HTTP flood), 3 runs — but per-run variance is tiny (e.g. nginx-limits 53/53/51). Fisher tests pool requests and ignore run/client clustering (negligible here given the spread).
@@ -356,7 +356,7 @@ An open-loop attacker at a fixed rate would not amplify like this, so the effect
 
 **Interpretation:** tuning gives only a marginal, noisy improvement (52 % → ~49–78 %) and does **not** approach even the unprotected baseline. nginx CPU stays pegged at ~96 % of the shared core, and PPS actually *rises* (34 k → 50 k) because cheaper 429s + suppressed logging let the closed-loop bots be rejected and re-fire faster. **The bottleneck is the CPU cost of processing/rejecting the amplified request stream on the constrained core, not log I/O.** Logging/status tuning is good hygiene (lower log volume, correct 429 semantics) but cannot fix the availability problem — only dropping the attacker at the network layer (the daemon, XDP or iptables → 100 %) does.
 
-**Thesis takeaway (combining §J + §K):** on a capacity-limited server under a closed-loop L7 flood, the ordering is **daemon (100 %) ≫ unprotected (90 %) > rate-limiting-only (~50–60 %)**. Application-layer rate limiting without a network-level ban is not just insufficient, it is counterproductive here; the control plane's actual contribution is to *drop* the attacker so the server never spends CPU on its requests. This is the clearest argument in the project for the mitigation daemon over config-only defences.
+**Thesis takeaway (combining §J + §K):** on a capacity-limited server under a closed-loop L7 flood, the ordering is **daemon (100 %) ≫ unprotected (90 %) > rate-limiting-only (~50–60 %)**. Application-layer rate limiting without a network-level ban is not just insufficient, it is counterproductive here; the control plane's actual contribution is to *drop* the attacker so the server never spends CPU on its requests. This is the clearest argument in the project for the mitigation daemon over config-only defences. *(Qualified by the replication in §N: "daemon ≫ both modes without a daemon" reproduced in all three campaigns; "unprotected > rate-limiting-only" did not reach significance in R3.)*
 
 **Caveat:** `limit_req`/`limit_conn` would still help against an *open-loop* attacker (fixed send rate, no re-fire amplification) and against connection exhaustion; this result is specific to closed-loop request floods on a CPU-constrained server. A proper evaluation should include an open-loop generator (e.g. `wrk2 -R<rate>`).
 
@@ -392,7 +392,7 @@ All runs used copies of the suite/daemon under `/root/project_analysis/patches/w
 | With correct L2 + default over-provisioned server, no attack degrades availability in any mode | EXP-1b/1c (100 % incl. unprotected) |
 | The availability metric only discriminates once the server is capacity-limited | EXP-1d sweep (knee at 1 worker/1 CPU, wrk-c400, 10 bots) |
 | **At the knee, the daemon (XDP/iptables) restores availability 90 %→100 % and latency ~1 s→~1 ms** | EXP-2a (Fisher p=0.003) |
-| **Rate-limiting alone is worse than no protection (52 % vs 90 %) against a closed-loop flood on a constrained server** | EXP-2a + EXP-2b (CPU-bound, not logging) |
+| **Rate-limiting alone is worse than no protection (52 % vs 90 %) against a closed-loop flood on a constrained server**. *Replication (§N): never better than unprotected, significantly worse in EXP-2a and R4 but not in R3, so the size is unresolved at n = 3.* | EXP-2a + EXP-2b (CPU-bound, not logging); R3/R4 |
 | XDP ≈ iptables on availability; XDP drops pre-stack and has lower latency | EXP-1b, EXP-2a |
 | GRU bans nothing once the heuristics act (<0.5 s); no legit bans | EXP-1/1b/2a/F-45 (0 GRU bans in ≈ 390 bot-scenarios: 300 in EXP-1/1b, 60 in EXP-2a, 30 in the F-45 validation) |
 | F-45 GRU-feed stall is fixed and validated | EXP-5 + §L (6/6 ACK runs, max 0.97 s TTM) |
@@ -401,3 +401,66 @@ All runs used copies of the suite/daemon under `/root/project_analysis/patches/w
 **Applied since this campaign:** D1+D2 (unique veth MAC + nginx restart/orphan cleanup) and F-45 (GRU-feed stall cap) are committed and merged to `main` (commit `51cc21c`); both files compile and the XDP program passes the BPF verifier. On 2026-10-13 the evaluation instruments followed on branch `feat/reproducible-eval`: machine-readable ban events (D7), per-run results directories with provenance, event-based TTM and false positives, seeded client profiles, equal-exposure mode and the knee operating point in the suite (D9), the campaign tools in `eval/`, a repaired `.gitignore` (D13) and published campaigns in `results/` (see `docs/EVALUATION.md`).
 
 **Still open / recommended (not yet done):** ≥10 interleaved runs per mode at the knee (§J) for publication-grade confidence intervals; an open-loop attacker (`wrk2 -R`) to test rate-limiting in its intended regime; a realistic benign mix (keep-alive / HTTPS / HTTP2 / NAT) and held-out attack families for the ML re-capture; the remaining engineering patches carried as verified diffs but **not** applied (D5 time-normalised rates, `items_lookup_batch()` map reads); and re-capturing the Tier-1 dataset on the fixed (unique-MAC) testbed.
+
+---
+
+## N. Replication with the reproducible harness (R1–R4, 2026-10-13)
+
+The approved runs used branch `feat/reproducible-eval` @ `efc5994` on a freshly rebooted
+VM. No testbed remains were present before or after any run, and the repository stayed
+clean.
+
+**R1, smoke test (XDP, HTTP + ACK flood): validates the new instrument.** Every `[BAN]`
+console line has exactly one ban event (10/10, same IP and reason, engine consistent with
+the reason). There is one start event per daemon instance, the results directory is
+complete, and the legacy `/tmp` outputs are unchanged. Event times against an independent
+`tail -F` observer: 8 of 10 agree within 1.2 ms; the first two HTTP-flood bans were seen
+by the observer 92 and 30 ms after their events. The daemon stamps an event *after* the
+`[BAN]` line is written, so a positive difference is lag of the reference observer, not
+an error of the event. The stated ±50 ms criterion was therefore not met for those two
+readings.
+
+**R2, regression (full suite, default settings): 10/10 PASS.** Legit availability was
+100 % during every attack, 5/5 bots were banned in every scenario, no false positives
+(ban events), no GRU bans. Median time to mitigate stays in EXP-1's regime: SYN 0.50,
+Low & Slow SYN 3.98, UDP 0.48, HTTP 0.55, ACK 0.97 (no F-45 stall), fragmentation 0.49,
+Slowloris 3.72, R.U.D.Y. 3.57, Yo-Yo 0.52, multi-vector 0.84 s.
+
+**R3 / R4: the knee comparison (HTTP flood, 4 modes × 3 runs, interleaved, paired by
+`PROFILE_SEED`).** Published as `results/2026-10-13_exp2a-knee_reproduction/` (R3, same
+design as EXP-2a) and `results/2026-10-13_exp2a-knee_equal-exposure-30s/` (R4, every
+attack 30 s in every mode).
+
+| Legit success during the flood | EXP-2a (2026-10-12) | R3 | R4 (equal exposure) |
+|---|---|---|---|
+| XDP + daemon | 100 % | 100 % | 100 % |
+| iptables + daemon | 100 % | 100 % | 100 % |
+| nginx limits only | 52.2 % | 72.6 % | 37.2 % |
+| unprotected | 89.9 % | 78.6 % | 73.3 % |
+| Δ daemon vs unprotected | +10.1 pp (independent runs) | **+21.4 pp** [+12.3, +32.9] | **+26.7 pp** [+8.0, +40.0] |
+| Δ limits only vs unprotected | −37.7 pp | −6.1 pp [−15.6, +5.8], p = 0.27 | **−36.1 pp** [−58.0, −19.9] |
+| Time to mitigate, XDP / iptables (median) | 0.22 / 0.31 s | 0.20 / 0.34 s | 0.19 / 0.36 s |
+| Exposure, daemon / no daemon | 2.3 / 16.4 s | 2.3 / 16.4 s | 31.1 / 31.1 s |
+
+* **Robust in all three campaigns:** the daemon (XDP or iptables) keeps legitimate-client
+  availability at 100 % at the knee, while both modes without a daemon lose service. R4
+  shows this is not an artefact of the harness stopping the attack once the bans are seen
+  (F-02): over a full 30-s attack the daemon modes serve 100 % at 1–2 ms ('perfect'
+  clients, p50/p95).
+* **XDP vs iptables:** identical availability. XDP's bans take effect 0.1–0.2 s sooner in
+  every campaign, because an iptables ban first runs an `iptables` subprocess.
+* **Not robust:** the size, and in R3 even the significance, of the rate-limiting-only
+  penalty. EXP-2a's tightly clustered runs and its pooled Fisher test overstated the
+  certainty, and its sequential, unseeded design could not separate the mode from run and
+  time effects. §J.3, §K and §M are qualified accordingly. Rate limiting alone was never
+  better than no protection.
+* **New:** the unprotected server does not fully recover within 10 s after the flood
+  (94.8 % in R3, 85.7 % in R4; every other mode 100 %), because its single backend is
+  still draining queued attacker requests. Time to recovery deserves its own metric.
+* **XDP's pre-stack drop for this closed-loop TCP flood fades within seconds of the ban**:
+  3,506 pps dropped at R3's Phase 3 (~2 s), 0 at R4's Phase 3 (30 s), because the
+  blackholed `wrk` connections back off. The sustained drop shows with open-loop floods
+  (§H).
+* **Next:** ≥ 10 paired runs per mode to resolve the rate-limiting effect; an open-loop
+  attacker (`wrk2 -R`), where the rejection amplification cannot occur; a time-to-recovery
+  metric.
