@@ -1268,8 +1268,11 @@ def _write_script(path, content):
 #  REPORT
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# Data_Scenario is the name used in the metrics/availability CSVs, which differs from the
+# report name for two scenarios ("Distributed IP Fragmentation Flood" vs "Distributed
+# Fragmentation", "Multi-Vector Distributed Attack" vs "Multi-Vector Attack").
 SCENARIO_RESULT_FIELDS = [
-    "Scenario", "Mode", "Operating_Point", "Profile_Seed", "Attack_Duration_s",
+    "Scenario", "Data_Scenario", "Mode", "Operating_Point", "Profile_Seed", "Attack_Duration_s",
     "Scenario_T0", "Attack_Start", "Attack_End", "Exposure_s", "Bots",
     "Banned_Harness", "Banned_Events", "TTM_Harness_Mean_s", "TTM_Exact_Median_s",
     "TTM_Exact_Max_s", "TTM_Exact_By_Bot", "Engine_By_Bot", "FP_Source", "FP_IPs",
@@ -1384,7 +1387,8 @@ def report(name, ban_results, botnet_nodes, legit_nodes):
               f"{ATTACK_DURATION:g}s (this scenario's fixed phases take longer), so exposure "
               f"is NOT equal across modes; raise ATTACK_DURATION.{RESET}")
     _write_scenario_result({
-        "Scenario": name, "Mode": _mode_label(), "Operating_Point": OPERATING_POINT,
+        "Scenario": name, "Data_Scenario": _avail_scenario, "Mode": _mode_label(),
+        "Operating_Point": OPERATING_POINT,
         "Profile_Seed": PROFILE_SEED, "Attack_Duration_s": ATTACK_DURATION,
         "Scenario_T0": _fmt_t(_attack["t0"]), "Attack_Start": _fmt_t(_attack["start"]),
         "Attack_End": _fmt_t(_attack["end"]), "Exposure_s": _fmt_t(exposure),
