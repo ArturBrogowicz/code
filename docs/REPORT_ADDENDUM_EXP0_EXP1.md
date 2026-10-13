@@ -322,7 +322,7 @@ An open-loop attacker at a fixed rate would not amplify like this, so the effect
   The closed-loop `wrk` bots get instant 503s from `limit_req`, so they re-fire immediately → **~9× more requests (34 k vs 3.7 k pps)**, each generating a 503 **plus an access-log line and an `[error] limiting requests` line**. On the single shared cpu0 this saturates nginx (98 %) and starves legit request handling. Unprotected has no such amplification (bots block on the real response), so cpu0 is less contended and legit service is actually better. **Shedding the attacker at L7 without dropping it at the network is counterproductive on a constrained server.**
 
 ### J.2 Detection [FACT]
-* The **L7 rate heuristic** bans the HTTP-flood bots in **0.19 s (XDP) / 0.34 s (iptables)** median (0.07–0.47 s); a few bots are co-banned by L4 SYN (wrk's connection churn). **GRU: 0 bans. No legit IP banned.** Consistent with EXP-1/1b (the heuristics act long before the GRU accumulates 15 snapshots).
+* The **L7 rate heuristic** bans the HTTP-flood bots in **0.22 s (XDP) / 0.31 s (iptables)** median, range 0.07–0.49 s, 30 bots per mode over the 3 runs (corrected 2026-10-13, see §J.5; first published as 0.19 / 0.34 s from run 3 only). First-ban engines: L7 rate 24 + L4 SYN 6 (XDP), L7 rate 28 + L4 SYN 2 (iptables); the SYN co-bans come from wrk's connection churn. **GRU: 0 bans. No legit IP banned.** Consistent with EXP-1/1b (the heuristics act long before the GRU accumulates 15 snapshots).
 * XDP drops banned-bot packets before the stack (`PreStack_Dropped` 3.7 k; `IP_InReceives` 7.4 k vs iptables 17.3 k). XDP's perfect-client p95 latency is lower than iptables (147 vs 418 ms) — a marginal XDP edge.
 
 ### J.3 What this establishes for the thesis
@@ -333,6 +333,11 @@ An open-loop attacker at a fixed rate would not amplify like this, so the effect
 * One operating point, one scenario (HTTP flood), 3 runs — but per-run variance is tiny (e.g. nginx-limits 53/53/51). Fisher tests pool requests and ignore run/client clustering (negligible here given the spread).
 * The capacity limit (1 worker on 1 CPU) is deliberately severe to create a meaningful load; absolute numbers depend on it. The *ordering* (daemon > unprotected > limits-only) is the result, not the exact percentages.
 * nginx-limits ran with default `limit_req_log_level error`; §K quantifies how much of its collapse is log I/O.
+
+### J.5 Correction and published data (2026-10-13)
+* The EXP-2a data is now published in the repository as `results/2026-10-12_exp2a-knee_prototype/` (converted with `eval/import_legacy_campaign.py`; per-run provenance, ban events, deterministic `analysis/`, `SHA256SUMS`), and `tests/test_campaign_analysis.py` pins the §J numbers against it.
+* Re-analysing it with `eval/analyze_campaign.py` reproduced the availability, latency, Fisher-test and server-load numbers of J.1/J.2 exactly, but showed that the **time-to-mitigate** statistic in J.2 had been computed on **run 3 only**: a run-splitting bug in the prototype analysis script was fixed for the availability table, but the time-to-mitigate output was never re-checked. J.2 now gives the values over all runs. The same bug affected a 0–10 s equal-exposure comparison that was not part of this addendum; over all runs, 'perfect' clients got XDP 100 % (n = 95), iptables 100 % (n = 96), nginx limits only 13.6 % (n = 22), unprotected 97.3 % (n = 73).
+* No conclusion of §J changes.
 
 ---
 
@@ -389,10 +394,10 @@ All runs used copies of the suite/daemon under `/root/project_analysis/patches/w
 | **At the knee, the daemon (XDP/iptables) restores availability 90 %→100 % and latency ~1 s→~1 ms** | EXP-2a (Fisher p=0.003) |
 | **Rate-limiting alone is worse than no protection (52 % vs 90 %) against a closed-loop flood on a constrained server** | EXP-2a + EXP-2b (CPU-bound, not logging) |
 | XDP ≈ iptables on availability; XDP drops pre-stack and has lower latency | EXP-1b, EXP-2a |
-| GRU bans nothing once the heuristics act (<0.5 s); no legit bans | EXP-1/1b/2a (0 GRU bans in 450+ bot-scenarios) |
+| GRU bans nothing once the heuristics act (<0.5 s); no legit bans | EXP-1/1b/2a/F-45 (0 GRU bans in ≈ 390 bot-scenarios: 300 in EXP-1/1b, 60 in EXP-2a, 30 in the F-45 validation) |
 | F-45 GRU-feed stall is fixed and validated | EXP-5 + §L (6/6 ACK runs, max 0.97 s TTM) |
 | The ping-based FP check yields false FPs | EXP-1/1b (FP reported with 0 bans in daemon log) |
 
-**Applied since this campaign:** D1+D2 (unique veth MAC + nginx restart/orphan cleanup) and F-45 (GRU-feed stall cap) are committed and merged to `main` (commit `51cc21c`); both files compile and the XDP program passes the BPF verifier.
+**Applied since this campaign:** D1+D2 (unique veth MAC + nginx restart/orphan cleanup) and F-45 (GRU-feed stall cap) are committed and merged to `main` (commit `51cc21c`); both files compile and the XDP program passes the BPF verifier. On 2026-10-13 the evaluation instruments followed on branch `feat/reproducible-eval`: machine-readable ban events (D7), per-run results directories with provenance, event-based TTM and false positives, seeded client profiles, equal-exposure mode and the knee operating point in the suite (D9), the campaign tools in `eval/`, a repaired `.gitignore` (D13) and published campaigns in `results/` (see `docs/EVALUATION.md`).
 
 **Still open / recommended (not yet done):** ≥10 interleaved runs per mode at the knee (§J) for publication-grade confidence intervals; an open-loop attacker (`wrk2 -R`) to test rate-limiting in its intended regime; a realistic benign mix (keep-alive / HTTPS / HTTP2 / NAT) and held-out attack families for the ML re-capture; the remaining engineering patches carried as verified diffs but **not** applied (D5 time-normalised rates, `items_lookup_batch()` map reads); and re-capturing the Tier-1 dataset on the fixed (unique-MAC) testbed.
