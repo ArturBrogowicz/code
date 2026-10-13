@@ -1,0 +1,11 @@
+scenario,mode,runs,bots,banned,ttm_median_s,ttm_min_s,ttm_max_s,engines,gru_bans,fp_count,fp_ips,fp_source,exposure_mean_s
+Distributed SYN Flood,xdp,1,5,5,0.503,0.502,0.503,l4_syn:5,0,0,,ban events,2.538
+Distributed Low & Slow SYN,xdp,1,5,5,3.982,3.982,3.983,l4_lowsyn:5,0,0,,ban events,5.337
+Distributed UDP Flood,xdp,1,5,5,0.484,0.483,0.484,l4_volumetric:5,0,0,,ban events,15.792
+Distributed HTTP Flood,xdp,1,5,5,0.548,0.348,0.777,l7_rate:5,0,0,,ban events,2.712
+Distributed ACK Flood,xdp,1,5,5,0.966,0.966,0.966,l4_volumetric:5,0,0,,ban events,15.735
+Distributed IP Fragmentation Flood,xdp,1,5,5,0.491,0.491,0.491,l4_volumetric:5,0,0,,ban events,15.862
+Distributed Slowloris,xdp,1,5,5,3.724,3.693,3.751,l4_slowconn:5,0,0,,ban events,5.195
+Distributed R.U.D.Y.,xdp,1,5,5,3.568,3.540,3.597,l4_slowconn:5,0,0,,ban events,4.693
+Distributed Yo-Yo,xdp,1,5,5,0.516,0.171,0.594,l7_rate:5,0,0,,ban events,2.669
+Multi-Vector Distributed Attack,xdp,1,5,5,0.836,0.084,0.836,"l4_syn:1, l4_volumetric:3, l7_rate:1",0,0,,ban events,15.588

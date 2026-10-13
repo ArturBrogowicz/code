@@ -5,6 +5,7 @@ a new measurement is a new campaign.
 
 | Campaign | Content | Status |
 |---|---|---|
+| [`2026-10-13_regression-default-full-suite`](2026-10-13_regression-default-full-suite/) | R2: one run of all 10 scenarios in XDP mode at default settings; the regression check of the harness and the event source of the GRU diagnosis | valid; a single run, for regression and diagnosis, not for comparisons between modes |
 | [`2026-10-13_exp2a-knee_equal-exposure-30s`](2026-10-13_exp2a-knee_equal-exposure-30s/) | R4: as R3, but every attack runs 30 s in every mode (equal exposure) | valid; 3 paired runs per mode |
 | [`2026-10-13_exp2a-knee_reproduction`](2026-10-13_exp2a-knee_reproduction/) | R3: EXP-2a re-recorded with the reproducible harness (interleaved, paired by `PROFILE_SEED`) | valid; 3 paired runs per mode |
 | [`2026-10-12_exp2a-knee_prototype`](2026-10-12_exp2a-knee_prototype/) | HTTP flood at the capacity-limited operating point, 4 modes × 3 runs (addendum §J) | valid; recorded with the prototype harness and imported; 3 runs per mode |
@@ -25,6 +26,8 @@ a new measurement is a new campaign.
         daemon.log, console.log
       analysis/                summary.md, tables (CSV), figures/ — derived, see below
       SHA256SUMS
+
+A published single run (R2) keeps the run files directly in its directory.
 
 ## Checking and reproducing
 
