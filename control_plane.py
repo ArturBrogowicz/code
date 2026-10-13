@@ -12,6 +12,7 @@ import torch
 import joblib
 import numpy as np
 from GRU_ML_model import GRUDDoSClassifier
+import ban_events
 
 # Limit PyTorch internal thread pool to 1 to prevent GIL contention
 # between PyTorch's intra-op parallelism and our Python threads.
@@ -112,6 +113,10 @@ HEURISTIC_MIN_REQUESTS = 5     # Minimum requests in window before evaluating
 
 # Eviction timeout for idle client tracking data (seconds)
 CLIENT_IDLE_TIMEOUT = 60.0
+
+# Machine-readable ban / unban / suppression events (see ban_events.py). The test
+# harness points BAN_EVENTS at its per-run results directory; "" disables the log.
+EVENTS = ban_events.EventLog(os.environ.get("BAN_EVENTS", ban_events.DEFAULT_PATH))
 
 print(f"[*] Compiling and loading eBPF code from file: {BPF_SOURCE_FILE}...")
 bpf = BPF(src_file=BPF_SOURCE_FILE)
@@ -242,18 +247,23 @@ def block_ip_in_xdp(ip_str):
     print(f"[XDP] BLOCKED IP: {ip_str}. Rule is active on hardware.")
 
 
-def ban_ip(ip_str, reason="unknown"):
+def ban_ip(ip_str, reason="unknown", engine="unknown", **detail):
     """Block IP in XDP and record ban timestamp for TTL-based expiry.
 
     Centralizes the ban logic so every code path (GRU, heuristic, L4)
     consistently updates both the XDP blacklist and the internal tracking sets.
+    `engine` (one of ban_events.ENGINES) and `detail` (the measured value, its
+    threshold, ...) go only to the ban-event log; the [BAN] console line is
+    unchanged because the test harness parses it.
     """
     backend = os.environ.get("MITIGATION_BACKEND", "xdp")
+    enforced = True
     if backend == "iptables":
         try:
             subprocess.run(["ip", "netns", "exec", "server_ns", "iptables", "-A", "INPUT", "-s", ip_str, "-j", "DROP"], check=True)
             print(f"[IPTABLES] BLOCKED IP: {ip_str}. Rule is active on software firewall.")
         except Exception as e:
+            enforced = False
             print(f"[-] Failed to block {ip_str} via iptables: {e}")
     else:
         block_ip_in_xdp(ip_str)
@@ -262,6 +272,8 @@ def ban_ip(ip_str, reason="unknown"):
         banned_ips.add(ip_str)
         ban_timestamps[ip_str] = time.time()
     print(f"[BAN] {ip_str} banned for {BAN_TTL_SECONDS}s. Reason: {reason}")
+    EVENTS.emit("ban", ip=ip_str, engine=engine, reason=reason, backend=backend,
+                enforced=enforced, ttl_s=BAN_TTL_SECONDS, **detail)
 
 
 def unblock_expired_bans():
@@ -270,6 +282,7 @@ def unblock_expired_bans():
     Called periodically from the L4 telemetry monitor thread.
     """
     now = time.time()
+    unbanned = []   # (ip, backend, ban age) — events are written after the lock is released
     with banned_ips_lock:
         expired = [ip for ip, ts in ban_timestamps.items()
                    if now - ts > BAN_TTL_SECONDS]
@@ -288,8 +301,11 @@ def unblock_expired_bans():
                     print(f"[TTL] Unblocked IP: {ip_str} (ban expired after {BAN_TTL_SECONDS}s)")
                 except KeyError:
                     pass
+            unbanned.append((ip_str, backend, now - ban_timestamps[ip_str]))
             banned_ips.discard(ip_str)
             del ban_timestamps[ip_str]
+    for ip_str, backend, age in unbanned:
+        EVENTS.emit("unban", ip=ip_str, backend=backend, age_s=round(age, 3))
 
 
 def evict_idle_clients():
@@ -455,7 +471,9 @@ def tail_nginx_error_logs(file_path):
                             print(f"\n[RUDY-DETECT] Slow POST attack detected - IP: {client_ip} | "
                                   f"Body timeouts: {timeout_count} in {RUDY_WINDOW}s")
                             ban_ip(client_ip,
-                                   reason=f"Heuristic R.U.D.Y. ({timeout_count} body timeouts)")
+                                   reason=f"Heuristic R.U.D.Y. ({timeout_count} body timeouts)",
+                                   engine="l7_rudy", value=timeout_count,
+                                   threshold=RUDY_TIMEOUT_THRESHOLD)
                             kill_zombie_connections(client_ip)
                             rudy_tracker.pop(client_ip, None)
 
@@ -516,12 +534,14 @@ def drain_inference_results():
         # Counter logic under state_lock; ban/kill done OUTSIDE the lock so we
         # never hold state_lock across a subprocess/BPF call.
         should_ban = False
+        hits = 0
         with state_lock:
             if probability > PREDICTION_THRESHOLD:
                 gru_violation_counts[client_ip] += 1
                 # require GRU_CONSECUTIVE_THRESH detections in a row (FP guard)
                 if gru_violation_counts[client_ip] >= GRU_CONSECUTIVE_THRESH:
                     should_ban = True
+                    hits = gru_violation_counts[client_ip]
             else:
                 gru_violation_counts.pop(client_ip, None)
 
@@ -535,12 +555,15 @@ def drain_inference_results():
         if time.time() < volumetric_active_until:
             with state_lock:
                 gru_violation_counts.pop(client_ip, None)
+            EVENTS.emit("gru_suppressed", ip=client_ip, value=round(probability, 6), hits=hits)
             continue
 
         print(f"\n[GRU] DETECTED ATTACK — IP: {client_ip} | "
               f"Confidence: {probability * 100:.1f}%")
         ban_ip(client_ip,
-               reason=f"GRU classifier ({probability * 100:.1f}% confidence)")
+               reason=f"GRU classifier ({probability * 100:.1f}% confidence)",
+               engine="gru", value=round(probability, 6),
+               threshold=PREDICTION_THRESHOLD, hits=hits)
         kill_zombie_connections(client_ip)
         with state_lock:
             client_sequences.pop(client_ip, None)
@@ -633,7 +656,8 @@ def l3_l4_telemetry_monitor():
             if d_syn > SYN_FLOOD_THRESHOLD and not GRU_ONLY:
                 print(f"\n[L4-DETECT] SYN FLOOD ATTACK - IP: {ip_str} | "
                       f"Rate: {d_syn} SYN/s")
-                ban_ip(ip_str, reason=f"Per-IP SYN flood ({d_syn} SYN/s)")
+                ban_ip(ip_str, reason=f"Per-IP SYN flood ({d_syn} SYN/s)",
+                       engine="l4_syn", value=d_syn, threshold=SYN_FLOOD_THRESHOLD)
                 volumetric_active_until = time.time() + VOLUMETRIC_COOLDOWN
                 continue
 
@@ -642,7 +666,8 @@ def l3_l4_telemetry_monitor():
             if non_syn_pkts > UDP_FLOOD_THRESHOLD and not GRU_ONLY:
                 print(f"\n[L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: {ip_str} | "
                       f"Rate: {non_syn_pkts} pkts/s")
-                ban_ip(ip_str, reason=f"Volumetric packet flood ({non_syn_pkts} pkts/s)")
+                ban_ip(ip_str, reason=f"Volumetric packet flood ({non_syn_pkts} pkts/s)",
+                       engine="l4_volumetric", value=non_syn_pkts, threshold=UDP_FLOOD_THRESHOLD)
                 volumetric_active_until = time.time() + VOLUMETRIC_COOLDOWN
                 continue
 
@@ -659,7 +684,9 @@ def l3_l4_telemetry_monitor():
                 if slowconn_counts[ip_str] >= SLOWCONN_CONSECUTIVE:
                     print(f"\n[L4-DETECT] SLOW CONNECTION ABUSE - IP: {ip_str} | "
                           f"Est. conns: {conns} | Bytes/interval: {d_bytes}")
-                    ban_ip(ip_str, reason=f"Slow connection abuse ({conns} conns)")
+                    ban_ip(ip_str, reason=f"Slow connection abuse ({conns} conns)",
+                           engine="l4_slowconn", value=conns,
+                           threshold=SLOWCONN_CONN_THRESHOLD, bytes=d_bytes)
                     kill_zombie_connections(ip_str)
                     slowconn_counts.pop(ip_str, None)
                     continue
@@ -684,7 +711,8 @@ def l3_l4_telemetry_monitor():
                     print(f"\n[L4-DETECT] LOW-AND-SLOW SYN - IP: {ip_str} | "
                           f"{d_syn} SYN/s, 0 established, no handshake in "
                           f"{LOWSYN_ESTABLISH_GRACE:.0f}s")
-                    ban_ip(ip_str, reason=f"Low-and-slow SYN ({d_syn} SYN/s, no handshake)")
+                    ban_ip(ip_str, reason=f"Low-and-slow SYN ({d_syn} SYN/s, no handshake)",
+                           engine="l4_lowsyn", value=d_syn, threshold=LOWSYN_SYN_MIN)
                     lowsyn_counts.pop(ip_str, None)
                     continue
             else:
@@ -719,6 +747,9 @@ def l3_l4_telemetry_monitor():
         suppressing = time.time() < volumetric_active_until
         if was_suppressing and not suppressing:
             gru_trust_flows_after_ns = time.monotonic_ns()  # same clock as ff.first_seen_ns (bpf_ktime, §6e)
+        if suppressing != was_suppressing:   # observed once per poll
+            EVENTS.emit("suppress_on" if suppressing else "suppress_off",
+                        syn_delta=total_global_syn_delta, pkt_delta=total_global_pkt_delta)
         was_suppressing = suppressing
 
         if suppressing:
@@ -791,6 +822,23 @@ try:
           "(XDP Telemetry + GRU ML + L7 Heuristics)...")
     if GRU_ONLY:
         print("[!] GRU_ONLY=1 — all non-GRU ban paths DISABLED (test isolation mode).")
+    EVENTS.emit("start", pid=os.getpid(), backend=os.environ.get("MITIGATION_BACKEND", "xdp"),
+                gru_only=GRU_ONLY, interface=INTERFACE, model=MODEL_PATH,
+                model_sha256=ban_events.file_sha256(MODEL_PATH),
+                scaler_sha256=ban_events.file_sha256(SCALER_PATH),
+                xdp_sha256=ban_events.file_sha256(BPF_SOURCE_FILE),
+                thresholds={
+                    "syn_flood": SYN_FLOOD_THRESHOLD, "volumetric": UDP_FLOOD_THRESHOLD,
+                    "slowconn_conns": SLOWCONN_CONN_THRESHOLD,
+                    "slowconn_idle_bytes": SLOWCONN_IDLE_BYTES,
+                    "slowconn_consecutive": SLOWCONN_CONSECUTIVE,
+                    "lowsyn_syn_min": LOWSYN_SYN_MIN, "lowsyn_consecutive": LOWSYN_CONSECUTIVE,
+                    "l7_max_rps": HEURISTIC_MAX_RPS, "l7_error_ratio": HEURISTIC_ERROR_RATIO,
+                    "rudy_timeouts": RUDY_TIMEOUT_THRESHOLD, "gru_p": PREDICTION_THRESHOLD,
+                    "gru_consecutive": GRU_CONSECUTIVE_THRESH,
+                    "global_syn": GLOBAL_SYN_THRESHOLD, "global_pps": GLOBAL_PPS_THRESHOLD,
+                    "volumetric_cooldown_s": VOLUMETRIC_COOLDOWN, "ban_ttl_s": BAN_TTL_SECONDS,
+                    "poll_interval_s": L4_POLL_INTERVAL})
 
     telemetry_thread = threading.Thread(target=l3_l4_telemetry_monitor, daemon=True)
     telemetry_thread.start()
@@ -863,7 +911,9 @@ try:
                 print(f"\n[HEURISTIC] L7 anomaly detected - IP: {client_ip} | "
                       f"RPS: {ban_rps:.1f} | Error ratio: {ban_err:.0%}")
                 ban_ip(client_ip,
-                       reason=f"Heuristic (RPS={ban_rps:.1f}, errors={ban_err:.0%})")
+                       reason=f"Heuristic (RPS={ban_rps:.1f}, errors={ban_err:.0%})",
+                       engine="l7_rate", value=round(ban_rps, 3),
+                       threshold=HEURISTIC_MAX_RPS, error_ratio=round(ban_err, 4))
                 kill_zombie_connections(client_ip)
                 with state_lock:
                     client_sequences.pop(client_ip, None)
