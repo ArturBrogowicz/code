@@ -1,7 +1,22 @@
 # Design & implementation plan: moving the GRU to Nginx request logs (L7)
 
-**Status (2026-10-14):** design draft for approval. Nothing here is implemented. No VM
-workload is proposed for execution yet; every build and run step is gated (§9).
+**Status (2026-10-14):** approved. **Phase P1 (ingestion, shadow mode) code has landed**;
+its gate — a short smoke capture on the VM — has **not** run and needs approval. No VM
+workload has been executed. Later phases stay gated (§8, §9).
+
+**Confirmed decisions (§10).** (1) Scope: GRU owns L7 sub-threshold abuse only. (2)
+Transport: Unix-domain datagram syslog primary + durable file sink. (3) Keying: **IP +
+`ua_h` from the start**, bans map to the source IP for XDP. (4) Slow signal:
+`$request_completion` + timeout lines first, `ss` in-flight snapshot kept as a fallback.
+(5) Keep the deterministic L7 rate and R.U.D.Y. rules alongside the GRU. (6) Keep the GRU
+as primary, **and** train a tabular baseline (LightGBM / logistic regression on window
+summaries) at P4 to test whether sequence modelling earns its place.
+
+**P1 implementation map.** `l7_ingest.py` (parser, `(IP, ua_h)` window store,
+`SyslogDatagramReader`); shadow thread in `control_plane.py` (`l7_shadow_monitor`, off
+unless `L7_SHADOW=1`, never bans); `l7json` format + socket sink in both nginx confs
+(both pass `nginx -t`); `tests/test_l7_ingest.py` (16) and two contract tests that pin
+shadow mode to never-ban and guarded-start.
 
 **Origin:** REPORT.md §9 ("should the production GRU be fed from XDP telemetry or from
 Nginx logs?") recommends the move at ≈ 70 % confidence. `docs/ML_INVESTIGATION.md` then
@@ -71,9 +86,10 @@ not hold; the thesis should state this.
 * **Two detection inputs, one enforcement.** XDP counters drive the deterministic L3/L4
   rules; Nginx request logs drive the L7 request-window features and the GRU. Both call
   the same `ban_ip()`, which enforces in XDP.
-* **The GRU no longer reads `flow_map`.** The XDP→GRU feed (and its F-45 cap defect,
-  `ML_INVESTIGATION.md` §2.9) is retired. `flow_map` may remain for the L4 rules or be
-  simplified later; that is a separate change.
+* **The GRU no longer reads `flow_map`** (target state, at P2). The XDP→GRU feed and its
+  F-45 cap defect (`ML_INVESTIGATION.md` §2.9) are retired once the L7 GRU is wired; in P1
+  the old feed is untouched and the new path only *observes* (shadow mode). `flow_map` may
+  remain for the L4 rules or be simplified later; that is a separate change.
 * **TLS/HTTP2 become visible.** Today clients use `http://` only (REPORT §4.3); the L7
   model works on decrypted requests regardless of TLS, including HTTP/2 streams, because
   Nginx logs one line per request after decryption [FACT].
@@ -97,7 +113,7 @@ log_format l7json escape=json
     '"tls":"$ssl_protocol",'                      # "" on :80
     '"reused":"$ssl_session_reused",'            # r = resumed TLS
     '"method":"$request_method",'
-    '"uri_h":"$uri_hash",'                        # hashed path (njs/map; see §5.4) — not raw URI
+    '"uri":"$request_uri",'                        # P1: raw; the daemon hashes it on ingest (§5.4)
     '"status":$status,'
     '"compl":"$request_completion",'             # "OK" or "" (incomplete → slow attack, no wait)
     '"rt":$request_time,'                         # total request time (s)
@@ -107,7 +123,7 @@ log_format l7json escape=json
     '"bsent":$bytes_sent,'                         # response bytes
     '"lreq":"$limit_req_status",'                  # PASSED / DELAYED / REJECTED (sub-threshold signal)
     '"lconn":"$limit_conn_status",'
-    '"ua_h":"$ua_hash"'                            # hashed User-Agent (§5.4) — not raw UA
+    '"ua":"$http_user_agent"'                      # P1: raw; daemon hashes to ua_h (keying, §5.3)
   '}';
 ```
 
@@ -120,8 +136,13 @@ log_format l7json escape=json
   sees this without re-deriving the rate.
 * **`$upstream_response_time`** surfaces requests that are cheap to send but expensive to
   serve (search endpoints, regex, large renders) — a class the packet counters cannot see.
-* `$uri_hash` / `$ua_hash`: §5.4 explains why these are hashed, and how (an nginx `map`
-  over a few buckets, or `njs` for a real hash; decided at P2).
+* **URI and User-Agent hashing [DECISION, P1 reality].** The anti-fingerprint rule (§5.4)
+  is that the *model* never sees raw URI/UA. P1 logs them raw over the socket and the
+  daemon hashes them immediately on ingest (`l7_ingest.stable_hash32`, blake2b/32-bit),
+  dropping the raw strings — because this nginx build has **no njs** (`nginx -V`) to hash
+  in the log. Moving the hash into nginx (njs, needs an apt install with approval) is a P2
+  option; the P1 smoke test measures whether raw URI/UA on the wire causes datagram
+  truncation (§9 R2).
 
 The same format goes into **both** `nginx.conf` and `nginx_unprotected.conf`, so captures
 and evaluation runs are schema-identical (REPORT §9.5 prerequisite) [FACT].
@@ -161,9 +182,13 @@ log is lost when no reader is attached — so it is not considered.)
 * The daemon binds the socket, raises `SO_RCVBUF`, and reads datagrams in a thread that
   replaces `tail_nginx_logs`.
 * **Why:** under an L7 flood the worker must never block on a slow consumer; a datagram
-  socket drops instead, and the drop rate is observable (a counter), so overload degrades
-  gracefully rather than stalling Nginx. Disk still holds the full log for evidence and
-  offline replay.
+  socket drops instead (bounded by `SO_RCVBUF` and `max_dgram_qlen=512` on this VM), so
+  overload degrades gracefully rather than stalling Nginx. Disk still holds the full log
+  for evidence and offline replay.
+* **Measuring drops [DECISION].** `SOCK_DGRAM` does not report drops to the receiver, so
+  the daemon counts what it *received* and the P1 smoke test compares that against the
+  file sink's line count (the file gets every line): drops = file lines − received. This
+  is the concrete R2 gate, not an in-kernel counter.
 * **Fallback:** if P1's smoke test shows unacceptable truncation or drops, fall back to
   file + tail with a per-run log dir (no logrotate) — the current code path, already
   proven.
@@ -223,12 +248,18 @@ P2/P4 with the probe battery (§6), not fixed here.
 | Volume asymmetry | `bytes_sent` / `request_length` ratios; means | tiny-request/large-response amplification, uploads |
 | Rate-limit signal | `limit_req_status=REJECTED/DELAYED` count | proximity to the deterministic threshold |
 
-### 5.3 Keying [DECISION + RISK]
-* **Default key: source IP** (`$remote_addr`), because enforcement is per-IP in XDP.
-* [RISK] **NAT** mixes many users behind one IP, so a per-IP sequence can blend benign and
-  abusive behaviour, and a ban hits everyone behind the NAT. Mitigations, evaluated at P4:
-  key on IP + `ua_h`, or IP + `connection` for connection-scoped abuse; include a NAT'd
-  benign profile in the capture (§6) and report its false-positive rate separately.
+### 5.3 Keying [DECISION 3 + RISK]
+* **Key: (IP, `ua_h`) from the start** — the window and the model separate concurrent
+  clients behind one NAT IP by User-Agent. Implemented in P1 (`l7_ingest.key_of`).
+* **Enforcement still maps to the IP.** A ban decided on an `(IP, ua_h)` key bans the
+  source IP, because XDP's `blacklist_map` is keyed on IP (`xdp_ddos_filter.c:64`). So a
+  confident detection on one UA behind a NAT still blocks the whole IP — a deliberate,
+  documented trade-off.
+* [RISK] **NAT** therefore remains a false-positive and over-block hazard: `ua_h` splits
+  the *windows* but not the *enforcement*, and a spoofable UA is a weak separator.
+  Mitigations evaluated at P4: an `(IP, connection)` key for connection-scoped abuse; a
+  NAT'd benign profile in the capture (§6) with its false-positive rate reported
+  separately (§9 R3).
 
 ### 5.4 Anti-fingerprint discipline [DECISION, from `ML_INVESTIGATION.md` §6.3]
 The XDP model keyed on request size and TCP window — tool fingerprints, trivially evaded
@@ -322,6 +353,13 @@ learns the suppressed/contaminated regime (§5.6).
   feature-set variants (with/without size, UA, URI-diversity).
 * Reports window-level *and* IP-level numbers, always stating the sampling
   (`ML_INVESTIGATION.md` §3.4 showed why).
+* **Tabular baseline [DECISION 6].** Alongside the GRU, train a non-sequential baseline
+  (LightGBM or logistic regression on per-window summary statistics — mean/max/stddev of
+  the §5.2 features) under the identical splits, policy metrics and probe battery. If the
+  GRU does not beat it on held-out-family recall at equal FP, the thesis reports that
+  sequence modelling adds nothing here and the simpler model is preferred. (LightGBM is
+  not yet installed; P4 either adds it with approval or uses scikit-learn's gradient
+  boosting / logistic regression, which are present.)
 
 ---
 
@@ -355,8 +393,8 @@ the working protocol.
 
 | Phase | Work | Output | Gate (approval needed to pass) |
 |---|---|---|---|
-| **P0** | This design | `docs/L7_GRU_DESIGN.md` | **You approve the plan, or adjust §4.3 transport, §5.3 keying, §5.5 slow-signal approach, scope.** |
-| **P1** | Extended `log_format` (both confs); Unix-dgram syslog reader replacing `tail_nginx_logs`; **shadow mode only** (parse + per-IP windows, no GRU, no new bans); drop/truncation counters; unit tests | code + tests; `docs` update | Code review; unit tests green; **a short smoke capture (≈ 3 min, VM, approval)** reports drop rate, truncation rate, ingest CPU vs §4.4 |
+| **P0** ✓ | This design | `docs/L7_GRU_DESIGN.md` | **Approved 2026-10-14** with the six §10 decisions. |
+| **P1** (code ✓, gate pending) | Extended `log_format` (both confs); Unix-dgram syslog reader (`l7_ingest.py`); **shadow mode only** (`l7_shadow_monitor`, parse + `(IP, ua_h)` windows, no GRU, no bans); counters; unit + contract tests | `l7_ingest.py`, `control_plane.py` shadow thread, both nginx confs, `tests/test_l7_ingest.py` | Code review; 70 tests green, lint clean, `nginx -t` ok ✓; **pending: a short smoke capture (≈ 3 min, VM, approval)** to report drop rate (file−socket), truncation rate, ingest CPU vs §4.4 |
 | **P2** | Request-sequence features (§5.2); L7 GRU wired in **shadow mode** (scores logged via a `gru_poll`-style event, never bans); load-aware suppression + completion gate (§5.6); batched inference | code + tests | Review of shadow-mode scores on a replayed capture; invariance-probe harness exists |
 | **P3** | `ml/capture_l7.py`: dual-label capture, diverse benign (§6.2), sub-threshold + held-out attacks (§6.3) | capture tool + manifest schema | **Smoke capture (VM, approval);** manifest, labels, schedule complete; benign diversity verified in the data |
 | **P4** | `ml/train_l7.py`: grouped/LOFO splits, policy metrics, probe battery, feature-set variants; **offline, CPU** | model package + model card + metrics report | Metrics review: held-out-family recall, FP/client-hour per profile, probe-battery pass, GRU-vs-lower-threshold comparison |
@@ -385,22 +423,19 @@ answers the "built observability in from day one" lesson (`ML_INVESTIGATION.md` 
 
 ---
 
-## 10. Open decisions for your approval
+## 10. Decisions (resolved 2026-10-14)
 
-1. **Scope of the GRU's role (§1).** Confirm L7 sub-threshold abuse only, with L3/L4 and
-   high-rate L7 staying deterministic.
-2. **Transport (§4.3).** Unix-domain datagram syslog + durable file sink, as recommended?
-   Or keep file + tail for simplicity and treat syslog as a later optimisation?
-3. **Keying (§5.3).** Start with per-IP (matches XDP enforcement) and add IP+UA only if
-   NAT FP shows up — acceptable?
-4. **Slow-signal strategy (§5.5).** Rely on `$request_completion` + timeout lines first,
-   and treat the `ss` in-flight snapshot as a fallback option rather than building it now?
-5. **Keep the deterministic L7 heuristics (rate rule, R.U.D.Y. error-log detector) running
-   alongside the L7 GRU?** Recommended yes: they own the above-threshold case and give the
-   GRU its fast-path fallback. The GRU adds only the sub-threshold niche.
-6. **Model family.** Keep a GRU for continuity with the thesis, or also baseline a lighter
-   sequence/summary model (logistic/GBM on window summaries) as REPORT §9.5 arm (E)
-   suggested, to test whether sequence modelling is even needed here?
+All six were confirmed by the user when the plan was approved; the status block at the top
+restates them. For the record:
 
-No code or VM workload proceeds until P0 is approved; each later VM step is approved on its
-own.
+1. **Scope** — L7 sub-threshold abuse only; L3/L4 and high-rate L7 stay deterministic. ✓
+2. **Transport** — Unix-domain datagram syslog primary + durable file sink. ✓
+3. **Keying** — IP + `ua_h` **from the start**; bans map to the source IP for XDP. ✓
+4. **Slow signal** — `$request_completion` + timeout lines first; `ss` in-flight snapshot
+   kept as a fallback if P1/P2 shows signal starvation. ✓
+5. **Coexistence** — keep the deterministic L7 rate and R.U.D.Y. rules; the GRU adds only
+   the sub-threshold niche. ✓
+6. **Model family** — GRU primary **and** a tabular baseline (LightGBM / logistic) at P4
+   to test whether sequence modelling earns its place (§6.4). ✓
+
+Each later VM step (P1 smoke, P3 capture, P5 evaluation) is still approved on its own.
