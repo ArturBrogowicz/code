@@ -1,8 +1,11 @@
 # Design & implementation plan: moving the GRU to Nginx request logs (L7)
 
-**Status (2026-10-14):** approved. **Phase P1 (ingestion, shadow mode) code has landed**;
-its gate — a short smoke capture on the VM — has **not** run and needs approval. No VM
-workload has been executed. Later phases stay gated (§8, §9).
+**Status (2026-10-14):** approved. **Phase P1 (ingestion, shadow mode) is complete** — code
+landed and its gate, a 3-minute smoke capture on the VM, **PASSED**
+(`results/2026-10-14_l7-p1-smoke/`): the socket transport is clean in the GRU's
+sub-threshold regime (0 real drops, 0 truncation, 0 parse errors, windows fill), and under
+a flood burst it degrades by dropping datagrams (not blocking nginx) while the file sink
+keeps every line. Ready for P2 on your go-ahead. Later phases stay gated (§8, §9).
 
 **Confirmed decisions (§10).** (1) Scope: GRU owns L7 sub-threshold abuse only. (2)
 Transport: Unix-domain datagram syslog primary + durable file sink. (3) Keying: **IP +
@@ -189,6 +192,15 @@ log is lost when no reader is attached — so it is not considered.)
   the daemon counts what it *received* and the P1 smoke test compares that against the
   file sink's line count (the file gets every line): drops = file lines − received. This
   is the concrete R2 gate, not an in-kernel counter.
+* **P1 smoke result [FACT, `results/2026-10-14_l7-p1-smoke/`].** In the GRU's sub-threshold
+  regime (~2.4 req/s) the socket received every line (0 real drops, 0 truncation, 0 parse
+  errors). Under a 4-bot `wrk` flood burst it dropped ~40 % (peak 1765 in one 2 s interval):
+  a sub-second spike of thousands of datagrams overruns `net.unix.max_dgram_qlen = 512`
+  before the single-thread reader drains it. Acceptable here — the flood is the rate rule's
+  job (file-based, unaffected; it banned the bots) and the file sink kept every line — but
+  R2 (§9) carries the mitigations. **Operational note:** nginx starts before the daemon
+  binds the socket, so the first few lines miss the socket until the daemon is up; the file
+  sink has them, and the smoke measures steady state after the shadow thread reports ready.
 * **Fallback:** if P1's smoke test shows unacceptable truncation or drops, fall back to
   file + tail with a per-run log dir (no logrotate) — the current code path, already
   proven.
@@ -394,7 +406,7 @@ the working protocol.
 | Phase | Work | Output | Gate (approval needed to pass) |
 |---|---|---|---|
 | **P0** ✓ | This design | `docs/L7_GRU_DESIGN.md` | **Approved 2026-10-14** with the six §10 decisions. |
-| **P1** (code ✓, gate pending) | Extended `log_format` (both confs); Unix-dgram syslog reader (`l7_ingest.py`); **shadow mode only** (`l7_shadow_monitor`, parse + `(IP, ua_h)` windows, no GRU, no bans); counters; unit + contract tests | `l7_ingest.py`, `control_plane.py` shadow thread, both nginx confs, `tests/test_l7_ingest.py` | Code review; 70 tests green, lint clean, `nginx -t` ok ✓; **pending: a short smoke capture (≈ 3 min, VM, approval)** to report drop rate (file−socket), truncation rate, ingest CPU vs §4.4 |
+| **P1** ✓ | Extended `log_format` (both confs); Unix-dgram syslog reader (`l7_ingest.py`); **shadow mode only** (`l7_shadow_monitor`, parse + `(IP, ua_h)` windows, no GRU, no bans); counters; unit + contract tests; smoke runner (`ml/smoke_l7.py`) | `l7_ingest.py`, `control_plane.py` shadow thread, both nginx confs, `tests/test_l7_ingest.py`, `ml/smoke_l7.py` | **PASSED 2026-10-14**: 70 tests green, lint clean, `nginx -t` ok; smoke (`results/2026-10-14_l7-p1-smoke/`) shows steady-regime drops ≈ 0, 0 truncation, CPU mean 4.6 % |
 | **P2** | Request-sequence features (§5.2); L7 GRU wired in **shadow mode** (scores logged via a `gru_poll`-style event, never bans); load-aware suppression + completion gate (§5.6); batched inference | code + tests | Review of shadow-mode scores on a replayed capture; invariance-probe harness exists |
 | **P3** | `ml/capture_l7.py`: dual-label capture, diverse benign (§6.2), sub-threshold + held-out attacks (§6.3) | capture tool + manifest schema | **Smoke capture (VM, approval);** manifest, labels, schedule complete; benign diversity verified in the data |
 | **P4** | `ml/train_l7.py`: grouped/LOFO splits, policy metrics, probe battery, feature-set variants; **offline, CPU** | model package + model card + metrics report | Metrics review: held-out-family recall, FP/client-hour per profile, probe-battery pass, GRU-vs-lower-threshold comparison |
@@ -412,7 +424,7 @@ answers the "built observability in from day one" lesson (`ML_INVESTIGATION.md` 
 | # | Risk | Likelihood / impact | Mitigation and gate |
 |---|---|---|---|
 | R1 | **Slow attacks emit too few log lines** to fill a window in useful time (§5.5) | High / high — this is the core risk | `$request_completion` + timeout lines as early signal; keep deterministic SlowConn/R.U.D.Y. as fast path; optional `ss` in-flight snapshot; **gate: P5 time-to-detect must beat heuristics in the niche, else report no value** |
-| R2 | **Syslog datagram truncation / drops** under flood corrupt features | Medium / medium | Compact field names + hashed URI/UA to shrink lines; raise `SO_RCVBUF`; **gate: P1 smoke measures truncation & drop rate**; fallback to file+tail (§4.3) |
+| R2 | **Syslog datagram truncation / drops** under flood corrupt features | Medium / medium — **measured at P1**: 0 in the sub-threshold regime; ~40 % only under a flood burst (`max_dgram_qlen=512` bound) | 0 truncation seen (incl. a 900 B UA); drops are flood-only and that is the rate rule's regime (file-based) with the file sink retaining all. If ever needed for the GRU: raise `net.unix.max_dgram_qlen` (sysctl, needs approval), batch the reader's drain (`recvmmsg`), or fall back to file+tail (§4.3) |
 | R3 | **NAT** mixes users on one IP; a ban over-blocks (§5.3) | Medium / high | IP+UA or IP+connection keys; NAT'd benign profile in capture; **gate: P4 reports NAT FP separately** |
 | R4 | **Fingerprint shortcut recurs** via UA/size (the XDP failure) | Medium / high | Hash-only strings, size as ratio, randomise in training; **gate: invariance probe battery is a hard P4 acceptance test** |
 | R5 | **No genuine niche:** a lower static threshold matches the GRU (§7) | Medium / high (to the thesis claim) | Pre-registered GRU-vs-lower-threshold comparison; **gate: P5 must show separation of sub-threshold abuse from benign** |

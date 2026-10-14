@@ -1,0 +1,47 @@
+[*] Building topology (L7_SHADOW=1, 6 legit, 4 bots)...
+
+
+    perfect: 1 nodes
+    broadband: 3 nodes
+    mobile_3g: 2 nodes
+    mobile_bad: 0 nodes
+[*] Waiting for mitigation daemon to initialize......
+[+] L7 shadow thread ready.
+[+] Started background traffic from 6 legitimate users.
+[*] Baseline: file=24 lines, socket received=22.
+[*] Attack burst (wrk from all bots)...
+[*] Truncation probe sent (long User-Agent).
+
+[+] Topology cleaned up.
+
+=== L7 P1 smoke summary ===
+  out_dir                  /var/tmp/ddos_l7_smoke/20261014T153732Z
+  duration_s               180.0
+  legit                    6
+  bots                     4
+  socket                   /run/ddos_l7.sock
+  shadow_ready             True
+  file_lines_delta         2190
+  socket_received_delta    1312
+  estimated_drops          878
+  overall_drop_pct         40.091
+  steady_file_delta        137
+  steady_received_delta    134
+  steady_drops             3
+  steady_drop_pct          2.19
+  peak_interval_drops      1765
+  truncated_total          0
+  parse_errors_total       0
+  parsed_total             1334
+  received_total           1334
+  active_keys              6
+  distinct_ips             6
+  full_windows             6
+  daemon_cpu_pct_mean      4.6
+  daemon_cpu_pct_max       12.5
+  cpu_n_samples            89
+  series                   89 samples (in summary.json)
+
+[+] Wrote /var/tmp/ddos_l7_smoke/20261014T153732Z/summary.json
+[+] P1 transport health: PASS — steady-regime drops 3/137 (tol 5, lag not loss), truncation 0, windows filled 6. Flood-burst drop (rate rule's regime; file sink retains all): overall 40.091%, peak 2 s interval 1765.
+
