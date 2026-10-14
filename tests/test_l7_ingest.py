@@ -150,6 +150,7 @@ class DatagramReaderTest(unittest.TestCase):
         self.assertEqual(counters.parse_errors, 0)
         self.assertEqual(store.stats()["active_keys"], 1)   # one (ip, ua) key
         self.assertGreater(reader.rcvbuf, 0)
+        self.assertEqual(reader.mode, 0o666)    # nginx (nobody) must be able to send
 
     def test_close_unlinks_socket(self):
         d = tempfile.mkdtemp(prefix="l7t_")

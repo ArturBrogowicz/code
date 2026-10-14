@@ -22,7 +22,9 @@ P2 decision. Raw values are dropped immediately after hashing.
 
 import hashlib
 import json
+import os
 import socket
+import stat
 import time
 from collections import defaultdict, deque
 
@@ -33,6 +35,11 @@ DEFAULT_SOCKET_PATH = "/run/ddos_l7.sock"
 DEFAULT_WINDOW = 20          # requests kept per (ip, ua) key
 DEFAULT_IDLE_TIMEOUT = 60.0  # seconds; evict a key idle this long
 DEFAULT_RCVBUF = 4 * 1024 * 1024
+# The daemon binds the socket as root, but Nginx worker processes run unprivileged
+# (user nobody) and must be able to send to it, so make it world-writable. This is a
+# local testbed socket; a production deployment would instead run the sender and
+# receiver under a shared group and use 0o660.
+DEFAULT_SOCKET_MODE = 0o666
 _RECV_SIZE = 65536           # max datagram we read; Nginx caps its own syslog line far below
 
 
@@ -171,7 +178,8 @@ class SyslogDatagramReader:
     sink's line count (docs/L7_GRU_DESIGN.md §4.3).
     """
 
-    def __init__(self, path=DEFAULT_SOCKET_PATH, rcvbuf=DEFAULT_RCVBUF, unlink_stale=True):
+    def __init__(self, path=DEFAULT_SOCKET_PATH, rcvbuf=DEFAULT_RCVBUF,
+                 unlink_stale=True, mode=DEFAULT_SOCKET_MODE):
         self.path = path
         if unlink_stale:
             self._unlink()
@@ -181,11 +189,14 @@ class SyslogDatagramReader:
         except OSError:
             pass
         self.sock.bind(path)
+        if mode is not None:
+            # Let the unprivileged Nginx worker send to a root-bound socket.
+            os.chmod(path, mode)
+        self.mode = stat.S_IMODE(os.stat(path).st_mode)
         self.rcvbuf = self.sock.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
 
     def _unlink(self):
         try:
-            import os
             if os.path.exists(self.path):
                 os.unlink(self.path)
         except OSError:
