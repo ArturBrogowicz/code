@@ -380,6 +380,12 @@ An open-loop attacker at a fixed rate would not amplify like this, so the effect
 
 **Max TTM across all 6 patched runs = 0.97 s**, with no run approaching the ~10.3 s stall. vs the HEAD baseline (1/6 stalled at 10.32 s, 0/5 FAIL). The patched daemon loaded and ran correctly from the non-repo path (XDP compiled, model/scaler loaded, all threads started). **F-45 fix confirmed.** Recommend also switching the periodic map reads to `items_lookup_batch()` (7× faster) and implementing D5 (time-normalised rates) — both carried as verified/snippet patches, not applied.
 
+*Correction (2026-10-13, `docs/ML_INVESTIGATION.md` §2.9):* the stall fix holds, but two statements above are wrong.
+* The cap does not bound the read. BCC's `items()` builds the full list of entries before the loop runs (`venv/.../bcc/table.py`), so a full map still costs ≈ 1 s per poll to read, not ≈ 8 ms. What the cap bounds is the per-flow scaling work, which caused the stall.
+* "Legit traffic is never affected" holds only for a freshly started daemon. The cap counts *visited* entries, stale ones included, and the daemon never deletes `flow_map` entries. Once the map holds more than 2000 entries, which takes about 6.5 min of legit traffic alone, the GRU sees only ≈ 2000/(entries) of the new flows.
+
+The suite restarts the daemon for every scenario, so none of its runs could show this.
+
 ---
 
 ## M. Summary of the 2026-10-12 experiment campaign (EXP-0 … F-45)

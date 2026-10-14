@@ -1,7 +1,15 @@
 # ML investigation: the GRU engine (2026-10-13)
 
-**Status:** diagnosis complete. It was done offline, with no traffic and no change to the
-system. The experimental design (§5) awaits approval before any VM workload.
+**Status (2026-10-14):** the diagnosis is complete and final. It was done offline, with no
+traffic and no change to the system.
+
+**The experimental design of §5 is on hold.** None of A1–A8 or W0–W5 has been
+implemented or run. On 2026-10-14 the focus moved to feeding the GRU from Nginx request
+logs instead of XDP flow telemetry (REPORT.md §9; plan in `docs/L7_GRU_DESIGN.md`).
+
+§6 lists what this investigation implies for that redesign. Parts of §5 carry over to
+the L7 plan in adapted form: the heuristics-only arm, the GRU telemetry, the arms in the
+runner, and the trainer and capture principles.
 
 **Evidence:**
 * `ml/diagnosis/report.md`: `ml/diagnose_gru.py` scores the deployed model read-only
@@ -238,7 +246,7 @@ The "slow attack behavior" the model learned is nginx's timeout behavior.
 | T6 | There is no leave-one-family-out evaluation, no probe battery and no IP-level confidence interval. | n/a |
 | T7 | The docstring claims the TCP window is constant. | `:9` |
 
-## 5. Proposed experimental design (for approval)
+## 5. Proposed experimental design (on hold since 2026-10-14)
 
 ### Phase A: code, no VM workload
 * **A1. `HEURISTICS_ONLY=1`.** The mirror of `GRU_ONLY` (`control_plane.py:61`): the GRU
@@ -319,3 +327,44 @@ The "slow attack behavior" the model learned is nginx's timeout behavior.
 * Captured datasets get manifests and SHA-256 hashes.
 * The deployed model changes only through A7, with your approval.
 * Every VM workload above runs only after explicit approval.
+
+## 6. Lessons carried into the L7 redesign
+
+Each lesson below comes from a finding above. `docs/L7_GRU_DESIGN.md` turns them into
+requirements.
+
+1. **Design for detection latency.** The GRU lost every race because of three things:
+   its 15-step windows, the 3-hit rule and the drain at the next poll (§2.3). A learned
+   engine needs a latency budget for each attack family it targets. Its time to detect
+   must be measured against the heuristics, not assumed.
+2. **Evaluate in the niche.** Every suite attack trips a heuristic first (§2), so a
+   learned engine can show value only where the heuristics are blind: below their
+   thresholds.
+   * Calibrate those scenarios on the thresholds and on service impact only, never on
+     what the model detects; that would be circular.
+   * Compare the GRU with simply lowering the thresholds.
+3. **Use behavioral features, not tool fingerprints.** Request size and the TCP window
+   acted as fingerprints (§3.1, §2.5). HTTP adds more: User-Agent, header order, exact
+   request length.
+   * Exclude such features, or randomize them in the training data.
+   * Make invariance tests acceptance gates. These are CF2-style edits that change only
+     a fingerprint, and the decision must not change.
+4. **Benign diversity decides the false-positive rate.** One-shot curl as the only benign
+   traffic made every small-request or keep-alive client suspect (§3.2 caveat, REPORT.md
+   §5.3). The benign generator matters more than the model.
+5. **Load awareness is load-bearing.** Stalled legit traffic during a flood looks like a
+   slow attack (p = 0.9996, §2.8). At L7, floods cause 503, 408 and 499 bursts and long
+   request times for legit clients. The L7 engine therefore needs equivalents of flood
+   suppression and of the flow-age gate.
+6. **Build observability in from day one.** Zero bans revealed nothing until there were
+   ban events and an offline replay (§2.1, §2.3). A new engine has to log its per-window
+   scores, in shadow mode, before it is ever allowed to ban.
+7. **Bound state by useful work, and test over long runs.** The F-45 cap counts visited
+   entries rather than useful ones, and the suite's daemon restart per scenario hides
+   such time-dependent defects (§2.9). State bounds need soak tests.
+8. **Evaluate per client.** IP-level confidence intervals and splits grouped by IP and by
+   family are needed (T1, T4). Window-level AUC can hinge on sampling: 0.115 per host vs
+   0.52 per flow on CIC-IDS2017 (§3.4). Always state the sampling.
+9. **Nginx's configuration shapes the signal.** The 5-s timeouts and the 64 KiB body limit
+   decide what a slow attack looks like (§3.3). The model is valid only for the
+   configuration it was validated with, so a configuration change means validating again.
