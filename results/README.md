@@ -5,6 +5,7 @@ a new measurement is a new campaign.
 
 | Campaign | Content | Status |
 |---|---|---|
+| [`2026-10-14_l7-p1-smoke`](2026-10-14_l7-p1-smoke/) | L7 ingestion P1 verification-gate smoke (`docs/L7_GRU_DESIGN.md`): socket-transport health in shadow mode | gate artifact, **not a comparison campaign**; see its README |
 | [`2026-10-13_regression-default-full-suite`](2026-10-13_regression-default-full-suite/) | R2: one run of all 10 scenarios in XDP mode at default settings; the regression check of the harness and the event source of the GRU diagnosis | valid; a single run, for regression and diagnosis, not for comparisons between modes |
 | [`2026-10-13_exp2a-knee_equal-exposure-30s`](2026-10-13_exp2a-knee_equal-exposure-30s/) | R4: as R3, but every attack runs 30 s in every mode (equal exposure) | valid; 3 paired runs per mode |
 | [`2026-10-13_exp2a-knee_reproduction`](2026-10-13_exp2a-knee_reproduction/) | R3: EXP-2a re-recorded with the reproducible harness (interleaved, paired by `PROFILE_SEED`) | valid; 3 paired runs per mode |
