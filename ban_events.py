@@ -13,7 +13,7 @@ Every record has:
     t_wall     float  epoch seconds (time.time()) when the event was written
     t_mono_ns  int    CLOCK_MONOTONIC in ns (time.monotonic_ns())
     kind       str    "start" | "ban" | "unban" | "suppress_on" | "suppress_off"
-                      | "gru_suppressed"
+                      | "gru_suppressed" | "l7_shadow"
 plus kind-specific fields (ip, engine, value, threshold, ...); the full schema is
 documented in docs/EVALUATION.md.
 """

@@ -13,6 +13,7 @@ import joblib
 import numpy as np
 from GRU_ML_model import GRUDDoSClassifier
 import ban_events
+import l7_ingest
 
 # Limit PyTorch internal thread pool to 1 to prevent GIL contention
 # between PyTorch's intra-op parallelism and our Python threads.
@@ -22,6 +23,13 @@ INTERFACE = "veth_server"
 BPF_SOURCE_FILE = "xdp_ddos_filter.c"
 NGINX_LOG_FILE = "/var/log/nginx/ddos_ml_access.log"
 NGINX_ERROR_LOG = "/var/log/nginx/error.log"
+# Phase P1 L7 ingestion (docs/L7_GRU_DESIGN.md). Shadow mode only: observe the
+# extended Nginx request log over a Unix-domain datagram socket and keep per-(IP,
+# User-Agent) request windows, but never ban. OFF unless L7_SHADOW=1, so the live
+# detection paths are byte-for-byte unchanged by default.
+L7_SHADOW = os.environ.get("L7_SHADOW", "0") == "1"
+L7_SOCKET_PATH = os.environ.get("L7_SOCKET_PATH", l7_ingest.DEFAULT_SOCKET_PATH)
+L7_SHADOW_REPORT_INTERVAL = 5.0
 # GRU inference is driven by the Tier-1 (testbed-native) model. Its feature set,
 # sequence length and layer sizes are read from the training config so inference
 # can never silently drift from training. The 8 per-FLOW forward features (and
@@ -481,6 +489,52 @@ def tail_nginx_error_logs(file_path):
             print(f"[-] Error log {file_path} not found, retrying in 1s...")
             time.sleep(1)
 
+
+def l7_shadow_monitor(socket_path):
+    """Phase P1 shadow ingestion (docs/L7_GRU_DESIGN.md §8).
+
+    Read the extended Nginx access log from the Unix-domain datagram socket, keep
+    per-(IP, User-Agent) request windows, and emit a periodic 'l7_shadow'
+    telemetry event with the ingest counters and window stats. It NEVER bans and
+    never touches the live detection state (banned_ips, client_sequences, the
+    request_tracker rate rule) — it only observes, so the socket transport and the
+    windowing can be measured before the GRU is wired to it (P2). The durable file
+    access_log remains the ground truth for the P1 drop measurement (§4.3).
+    """
+    try:
+        reader = l7_ingest.SyslogDatagramReader(socket_path)
+    except OSError as e:
+        print(f"[-] L7 shadow: cannot bind {socket_path}: {e}")
+        return
+    print(f"[*] L7 shadow ingestion on {socket_path} (SO_RCVBUF={reader.rcvbuf}).")
+    counters = l7_ingest.L7Counters()
+    store = l7_ingest.L7WindowStore()
+    last_report = time.time()
+    try:
+        for data in reader.messages(stop=stop_event.is_set, timeout=0.5,
+                                    yield_timeouts=True):
+            if data is not None:
+                counters.received += 1
+                counters.bytes_total += len(data)
+                obj = l7_ingest.parse_l7_line(data)
+                if obj is None:
+                    counters.parse_errors += 1
+                    if l7_ingest.looks_truncated(data):
+                        counters.truncated += 1
+                else:
+                    rec = l7_ingest.normalise(obj)
+                    if rec is not None:
+                        counters.parsed += 1
+                        store.add(rec)
+            now = time.time()
+            if now - last_report >= L7_SHADOW_REPORT_INTERVAL:
+                store.evict(now)
+                EVENTS.emit("l7_shadow", **counters.as_dict(), **store.stats())
+                last_report = now
+    finally:
+        reader.close()
+
+
 def inference_worker():
     """Dedicated inference thread to decouple GRU computation from telemetry polling.
 
@@ -857,6 +911,14 @@ try:
     error_log_thread.start()
     print(f"[*] Listening for Nginx error logs (RUDY detection): {NGINX_ERROR_LOG}")
     print("[+] RUDY detection thread started.")
+
+    # Phase P1 L7 shadow ingestion (docs/L7_GRU_DESIGN.md §8). Observe-only; OFF
+    # unless L7_SHADOW=1, so the default daemon behaviour is unchanged.
+    if L7_SHADOW:
+        l7_shadow_thread = threading.Thread(
+            target=l7_shadow_monitor, args=(L7_SOCKET_PATH,), daemon=True)
+        l7_shadow_thread.start()
+        print(f"[+] L7 shadow ingestion thread started (socket {L7_SOCKET_PATH}).")
     
     print(f"[*] Listening for Nginx logs (heuristic engine): {NGINX_LOG_FILE}")
 
