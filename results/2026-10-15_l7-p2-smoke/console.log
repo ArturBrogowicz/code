@@ -1,0 +1,113 @@
+[*] Building topology (L7_SHADOW=1, 6 legit, 4 bots, P2: record + model + XDP_GRU=0)...
+
+
+    perfect: 1 nodes
+    broadband: 3 nodes
+    mobile_3g: 2 nodes
+    mobile_bad: 0 nodes
+[*] Waiting for mitigation daemon to initialize............................
+[+] L7 shadow thread ready.
+[+] Started background traffic from 6 legitimate users.
+[*] Baseline: file=23 lines, socket received=10.
+[*] Attack burst (wrk from 2 bots)...
+[*] Truncation probe sent (long User-Agent).
+[*] SYN flood (2 bots, ~6 s) to arm flood suppression...
+
+[+] Topology cleaned up.
+[*] P2 analysis: replay determinism, feature summaries, probes...
+
+=== L7 smoke summary ===
+  out_dir                  /var/tmp/ddos_l7_smoke/20261015T073809Z
+  mode                     p2
+  duration_s               180.0
+  legit                    6
+  bots                     4
+  socket                   /run/ddos_l7.sock
+  model                    /var/tmp/ddos_l7_smoke/20261015T073809Z/untrained_pkg
+  model_untrained          True
+  shadow_ready             True
+  file_lines_delta         4203
+  socket_received_delta    780
+  estimated_drops          3423
+  overall_drop_pct         81.442
+  steady_file_delta        135
+  steady_received_delta    137
+  steady_drops             0
+  steady_drop_pct          0.0
+  peak_interval_drops      3778
+  truncated_total          0
+  parse_errors_total       0
+  parsed_total             790
+  received_total           790
+  active_keys              6
+  distinct_ips             6
+  full_windows             6
+  daemon_cpu_pct_mean      9.9
+  daemon_cpu_pct_max       50.9
+  cpu_n_samples            88
+  series                   88 samples (in summary.json)
+  p2                       (see below)
+
+[+] Wrote /var/tmp/ddos_l7_smoke/20261015T073809Z/summary.json
+[+] P1 transport health: PASS — steady-regime drops 0/135 (tol 5, lag not loss), truncation 0, windows filled 6. Flood-burst drop (rate rule's regime; file sink retains all): overall 81.442%, peak 2 s interval 3778.
+{
+ "recorded_lines": 949,
+ "replayed_lines": 947,
+ "determinism": {
+  "would_bans_live": 13,
+  "would_bans_replay": 13,
+  "would_ban_sequence_match": true,
+  "live": {
+   "polls": 157,
+   "suppressed_polls": 12,
+   "windows": 335,
+   "too_short": 26,
+   "gated_age": 57,
+   "over": 314,
+   "would_bans": 13
+  },
+  "replay": {
+   "polls": 157,
+   "suppressed_polls": 12,
+   "windows": 335,
+   "too_short": 26,
+   "gated_age": 57,
+   "over": 314,
+   "would_bans": 13
+  },
+  "counts_match": true,
+  "match": true
+ },
+ "live_totals": {
+  "polls": 157,
+  "suppressed_polls": 12,
+  "windows": 335,
+  "too_short": 26,
+  "gated_age": 57,
+  "over": 314,
+  "would_bans": 13
+ },
+ "would_ban_ips_by_class": {
+  "benign": [
+   "10.0.1.1",
+   "10.0.1.2",
+   "10.0.1.3",
+   "10.0.1.4",
+   "10.0.1.5",
+   "10.0.1.6"
+  ],
+  "attack": [
+   "10.0.2.2"
+  ]
+ },
+ "suppress_on_events": 1,
+ "bans_by_engine": {
+  "l4_syn": 2,
+  "l7_rate": 2
+ },
+ "non_deterministic_bans": [],
+ "windows_csv": "/var/tmp/ddos_l7_smoke/20261015T073809Z/windows.csv"
+}
+probes: {"n_windows": 155, "base_over_threshold": 0.9354838709677419, "ua_swap": true, "uri_bijection": true, "time_offset": true, "pad_request": false, "iat_jitter": true, "all_pass": false}
+[+] P2 shadow engine: PASS — replay determinism True, windows scored 335, suppressed polls 12, gated (age) 57, exact probes pass, non-deterministic bans 0.
+

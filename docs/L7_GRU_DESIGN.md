@@ -7,10 +7,22 @@
 * Under a flood burst it drops datagrams instead of blocking nginx, and the file sink
   keeps every line.
 
-**P2 (the shadow scoring engine) code has landed (§5.7). Its gate is pending:** a
-VM smoke capture (`ml/smoke_l7.py --p2`) that needs your approval. No L7 model is
-trained yet (that is P4), so P2 can be judged on mechanics and features only, not on
-detection quality. Later phases stay gated (§8, §9).
+**P2 (the shadow scoring engine) is complete (§5.7).** Its gate, a VM smoke run with an
+*untrained* model, **PASSED** (`results/2026-10-15_l7-p2-smoke/`):
+* **Determinism:** replaying the recording reproduced the live run exactly: 13/13
+  would-bans and every counter.
+* **Flood gating:** it engaged live, with 12 suppressed polls and then 57 age-gated
+  windows.
+* **Exact invariance probes:** |Δp| = 0 on real windows.
+* **Bans:** only the deterministic engines banned.
+
+No detection claims are made before P4 trains a model. The run produced two findings
+that P3 and P4 must act on:
+* **Tool fingerprints in the traffic:** the current testbed traffic still carries
+  request-size and connection-reuse fingerprints (§9 R4).
+* **Probe metric:** decision-flip rates must be read together with |Δp| (§5.7).
+
+Later phases stay gated (§8, §9).
 
 **Confirmed decisions (§10).** (1) Scope: GRU owns L7 sub-threshold abuse only. (2)
 Transport: Unix-domain datagram syslog primary + durable file sink. (3) Keying: **IP +
@@ -407,6 +419,11 @@ left untouched, padding left at exactly zero. So training and serving cannot dri
   time offset.
 * Robustness transforms report decision-flip rates: +50–500 B padding, ±10 % IAT
   jitter. The bar for these is set at P4.
+  * **The P2 gate showed that flip rates alone mislead.** The untrained model flipped
+    91 % of its decisions under padding, yet its largest score change was 0.015: its
+    scores sat at the threshold.
+  * P4 therefore judges robustness on the |Δp| distribution *and* on flips at the
+    calibrated threshold.
 * In the tests, a size-keyed stub model *fails* the padding probe (flip rate > 50 %).
   The harness catches exactly the XDP model's shortcut.
 
@@ -514,7 +531,7 @@ the working protocol.
 |---|---|---|---|
 | **P0** ✓ | This design | `docs/L7_GRU_DESIGN.md` | **Approved 2026-10-14** with the six §10 decisions. |
 | **P1** ✓ | Extended `log_format` (both confs); Unix-dgram syslog reader (`l7_ingest.py`); **shadow mode only** (`l7_shadow_monitor`, parse + `(IP, ua_h)` windows, no GRU, no bans); counters; unit + contract tests; smoke runner (`ml/smoke_l7.py`) | `l7_ingest.py`, `control_plane.py` shadow thread, both nginx confs, `tests/test_l7_ingest.py`, `ml/smoke_l7.py` | **PASSED 2026-10-14**: 70 tests green, lint clean, `nginx -t` ok; smoke (`results/2026-10-14_l7-p1-smoke/`) shows steady-regime drops ≈ 0, 0 truncation, CPU mean 4.6 % |
-| **P2** (code ✓, gate pending) | Request-sequence features (§5.2); L7 GRU wired in **shadow mode** (`l7_gru_poll` / `l7_would_ban` events, never bans); load-aware suppression + age gate (§5.6); batched inference; recording + deterministic replay; invariance-probe harness; `XDP_GRU` switch | §5.7 | 114 tests green, lint clean ✓. **Pending: VM smoke `ml/smoke_l7.py --p2` (≈ 4 min, approval).** It passes if: the P1 transport criteria still hold; the live would-bans and counters replay exactly from the recording; windows were scored; the SYN flood produced suppressed polls; the exact probes pass on real windows; and no non-deterministic engine banned. Its `windows.csv` (feature summaries per scored window) is for review. No detection claims: the model is untrained |
+| **P2** ✓ | Request-sequence features (§5.2); L7 GRU wired in **shadow mode** (`l7_gru_poll` / `l7_would_ban` events, never bans); load-aware suppression + age gate (§5.6); batched inference; recording + deterministic replay; invariance-probe harness; `XDP_GRU` switch | §5.7; `results/2026-10-15_l7-p2-smoke/` | **PASSED 2026-10-15** (`ml/smoke_l7.py --p2`, untrained model): P1 transport still clean (0/135 steady drops); live run replayed exactly (13/13 would-bans, 335/335 windows); flood gating live (12 suppressed polls, 57 age-gated windows); exact probes \|Δp\| = 0; only deterministic engines banned. No detection claims: the model is untrained |
 | **P3** | `ml/capture_l7.py`: dual-label capture, diverse benign (§6.2), sub-threshold + held-out attacks (§6.3) | capture tool + manifest schema | **Smoke capture (VM, approval);** manifest, labels, schedule complete; benign diversity verified in the data |
 | **P4** | `ml/train_l7.py`: grouped/LOFO splits, policy metrics, probe battery, feature-set variants; **offline, CPU** | model package + model card + metrics report | Metrics review: held-out-family recall, FP/client-hour per profile, probe-battery pass, GRU-vs-lower-threshold comparison |
 | **P5** | Online evaluation: arms (L7-GRU-only / heuristics-only / hybrid), sub-threshold scenarios (§7), benign soak; current + candidate model | published campaign in `results/` | **Each VM run approved individually;** pre-registered hypotheses judged; honest verdict on marginal value |
@@ -533,7 +550,7 @@ answers the "built observability in from day one" lesson (`ML_INVESTIGATION.md` 
 | R1 | **Slow attacks emit too few log lines** to fill a window in useful time (§5.5) | High / high — this is the core risk | `$request_completion` + timeout lines as early signal; keep deterministic SlowConn/R.U.D.Y. as fast path; optional `ss` in-flight snapshot; **gate: P5 time-to-detect must beat heuristics in the niche, else report no value** |
 | R2 | **Syslog datagram truncation / drops** under flood corrupt features | Medium / medium — **measured at P1**: 0 in the sub-threshold regime; ~40 % only under a flood burst (`max_dgram_qlen=512` bound) | 0 truncation seen (incl. a 900 B UA); drops are flood-only and that is the rate rule's regime (file-based) with the file sink retaining all. If ever needed for the GRU: raise `net.unix.max_dgram_qlen` (sysctl, needs approval), batch the reader's drain (`recvmmsg`), or fall back to file+tail (§4.3) |
 | R3 | **NAT** mixes users on one IP; a ban over-blocks (§5.3) | Medium / high | IP+UA or IP+connection keys; NAT'd benign profile in capture; **gate: P4 reports NAT FP separately** |
-| R4 | **Fingerprint shortcut recurs** via UA/size (the XDP failure) | Medium / high | Hash-only strings, size as ratio, randomise in training; **gate: invariance probe battery is a hard P4 acceptance test** |
+| R4 | **Fingerprint shortcut recurs** via UA/size (the XDP failure) | **High / high — evidence at P2:** in the current testbed traffic, request size (wrk ≈ 34 B vs curl ≈ 72 B) and connection reuse (curl one-shot vs wrk keep-alive) separate the classes, and URIs carry nothing (one-path app) | Hash-only strings, size as its own droppable group, protocol off by default (done in P2); **P3 must randomise request sizes, add keep-alive and HTTP/2 benign sessions, and serve a multi-path app**; **gate: the invariance probe battery is a hard P4 acceptance test** (\|Δp\| and flips) |
 | R5 | **No genuine niche:** a lower static threshold matches the GRU (§7) | Medium / high (to the thesis claim) | Pre-registered GRU-vs-lower-threshold comparison; **gate: P5 must show separation of sub-threshold abuse from benign** |
 | R6 | **Benign diversity still insufficient** → FP on real clients (the recurring data failure) | Medium / high | §6.2 mix incl. keep-alive, H2, NAT, mobile netem; **gate: FP/client-hour per profile at P4 and the soak at P5** |
 | R7 | **HTTP/2 multiplexing** makes connection-level features ambiguous (many requests per conn) | Low / medium | Per-request logging is unaffected (one line each); connection features use `connection_requests`; validate on an H2 benign profile |

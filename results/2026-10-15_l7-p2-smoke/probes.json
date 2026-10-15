@@ -1,0 +1,40 @@
+{
+ "n_windows": 155,
+ "base_over_threshold": 0.9354838709677419,
+ "ua_swap": {
+  "exact": true,
+  "mean_abs_dp": 0.0,
+  "max_abs_dp": 0.0,
+  "flip_rate": 0.0,
+  "pass": true
+ },
+ "uri_bijection": {
+  "exact": true,
+  "mean_abs_dp": 0.0,
+  "max_abs_dp": 0.0,
+  "flip_rate": 0.0,
+  "pass": true
+ },
+ "time_offset": {
+  "exact": true,
+  "mean_abs_dp": 0.0,
+  "max_abs_dp": 0.0,
+  "flip_rate": 0.0,
+  "pass": true
+ },
+ "pad_request": {
+  "exact": false,
+  "mean_abs_dp": 0.011201498098671436,
+  "max_abs_dp": 0.015015631914138794,
+  "flip_rate": 0.9096774193548387,
+  "pass": false
+ },
+ "iat_jitter": {
+  "exact": false,
+  "mean_abs_dp": 2.5825345801422372e-05,
+  "max_abs_dp": 0.00012046098709106445,
+  "flip_rate": 0.0,
+  "pass": true
+ },
+ "all_pass": false
+}
