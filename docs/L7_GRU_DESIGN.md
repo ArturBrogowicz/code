@@ -1,11 +1,16 @@
 # Design & implementation plan: moving the GRU to Nginx request logs (L7)
 
-**Status (2026-10-14):** approved. **Phase P1 (ingestion, shadow mode) is complete** — code
-landed and its gate, a 3-minute smoke capture on the VM, **PASSED**
-(`results/2026-10-14_l7-p1-smoke/`): the socket transport is clean in the GRU's
-sub-threshold regime (0 real drops, 0 truncation, 0 parse errors, windows fill), and under
-a flood burst it degrades by dropping datagrams (not blocking nginx) while the file sink
-keeps every line. Ready for P2 on your go-ahead. Later phases stay gated (§8, §9).
+**Status (2026-10-15):** approved. **P1 (ingestion, shadow mode) is complete.** Its gate, a
+3-minute smoke capture on the VM, **PASSED** (`results/2026-10-14_l7-p1-smoke/`):
+* In the GRU's sub-threshold regime the socket transport is clean: 0 real drops, 0
+  truncation, 0 parse errors, and the windows fill.
+* Under a flood burst it drops datagrams instead of blocking nginx, and the file sink
+  keeps every line.
+
+**P2 (the shadow scoring engine) code has landed (§5.7). Its gate is pending:** a
+VM smoke capture (`ml/smoke_l7.py --p2`) that needs your approval. No L7 model is
+trained yet (that is P4), so P2 can be judged on mechanics and features only, not on
+detection quality. Later phases stay gated (§8, §9).
 
 **Confirmed decisions (§10).** (1) Scope: GRU owns L7 sub-threshold abuse only. (2)
 Transport: Unix-domain datagram syslog primary + durable file sink. (3) Keying: **IP +
@@ -20,6 +25,19 @@ summaries) at P4 to test whether sequence modelling earns its place.
 unless `L7_SHADOW=1`, never bans); `l7json` format + socket sink in both nginx confs
 (both pass `nginx -t`); `tests/test_l7_ingest.py` (16) and two contract tests that pin
 shadow mode to never-ban and guarded-start.
+
+**P2 implementation map (details in §5.7).**
+* `l7_features.py`: features, window matrices, scaling and summaries (numpy only).
+* `l7_scorer.py`: model packages and batched scoring.
+* `l7_engine.py`: the shadow engine, gating, recording format and `build_engine`.
+* `control_plane.py`: wiring (`L7_MODEL`, `L7_RECORD`, and the `XDP_GRU` switch,
+  default on).
+* `ml/replay_l7.py`: deterministic offline replay and the features CSV.
+* `ml/l7_probes.py`: the invariance-probe harness.
+* `ml/smoke_l7.py --p2`: the gate runner.
+* Tests: 44 new, 114 in total. 41 are unit tests. 3 are contract tests checking that
+  the L7 modules cannot reach the ban path, that `XDP_GRU` guards the feed and the
+  drain, and that every `l7_*` attribute `control_plane.py` uses exists.
 
 **Origin:** REPORT.md §9 ("should the production GRU be fed from XDP telemetry or from
 Nginx logs?") recommends the move at ≈ 70 % confidence. `docs/ML_INVESTIGATION.md` then
@@ -89,10 +107,15 @@ not hold; the thesis should state this.
 * **Two detection inputs, one enforcement.** XDP counters drive the deterministic L3/L4
   rules; Nginx request logs drive the L7 request-window features and the GRU. Both call
   the same `ban_ip()`, which enforces in XDP.
-* **The GRU no longer reads `flow_map`** (target state, at P2). The XDP→GRU feed and its
-  F-45 cap defect (`ML_INVESTIGATION.md` §2.9) are retired once the L7 GRU is wired; in P1
-  the old feed is untouched and the new path only *observes* (shadow mode). `flow_map` may
-  remain for the L4 rules or be simplified later; that is a separate change.
+* **The GRU no longer reads `flow_map`** (target state). The XDP→GRU feed and its F-45
+  cap defect (`ML_INVESTIGATION.md` §2.9) are retired once the L7 GRU is promoted (P6).
+  * P2 adds the switch: `XDP_GRU=0` skips that feed and its drain. It defaults to
+    **on**, so production behaviour is unchanged, and contract tests pin the guards.
+    Evaluation arms (P2 gate, P5) run with it off: the XDP-fed GRU false-banned a
+    legit client in the P1 smoke.
+  * Flipping the default before P6 is your call.
+  * `flow_map` may stay for the L4 rules or be simplified later; that is a separate
+    change.
 * **TLS/HTTP2 become visible.** Today clients use `http://` only (REPORT §4.3); the L7
   model works on decrypted requests regardless of TLS, including HTTP/2 streams, because
   Nginx logs one line per request after decryption [FACT].
@@ -316,6 +339,90 @@ So the L7 engine needs the XDP model's two guards, re-expressed:
 * **A completion/age gate:** do not score windows dominated by requests that overlapped a
   suppression interval.
 
+### 5.7 P2 implementation: the shadow scoring engine [FACT: code + 114 green tests]
+
+**Columns** (`l7_features.FEATURE_GROUPS`).
+* One row per request. A window holds the last `seq_len` = 20 requests of one
+  `(IP, ua_h)` key, ordered by **request start** (`msec − rt`).
+* Shorter windows are left-padded with zero rows, so the newest request sits in the
+  last time step, which `GRUDDoSClassifier` reads. Column 0 is `valid` (0 on padding).
+* The default selection has 20 columns; the protocol group adds 3.
+
+| Group | Columns | Definition |
+|---|---|---|
+| timing | `log_iat`, `log_rt`, `log_urt` | gap since the previous request's start (0 for the first); request time; upstream time (summed over retries `a, b` and redirects `a : b`) |
+| completion | `incomplete`, `s_timeout` | `$request_completion` ≠ `OK`; status 408 / 444 / 499 |
+| status | `s2xx` … `s5xx` | status class |
+| method | `m_get`, `m_post`, `m_other` | request method |
+| size | `log_rlen`, `log_bsent`, `size_ratio` | request bytes, response bytes, response/request (log scale) |
+| connection | `log_creq`, `new_conn` | request number on the connection; first request on it |
+| uri | `uri_repeat` | the path occurred earlier in the window (hash equality only) |
+| ratelimit | `lreq_limited` | `$limit_req_status` DELAYED or REJECTED |
+| protocol (**off by default**) | `is_h2`, `is_tls`, `tls_reused` | client capability, a fingerprint risk (§5.4) |
+
+**Scaling.** `apply_scaling` is shared with the P4 trainer: standardisation, `valid`
+left untouched, padding left at exactly zero. So training and serving cannot drift.
+
+**Model package** (`l7_scorer`).
+* Contents: `config.json` (format `l7-gru-package/1`, columns, `seq_len`, GRU size,
+  mean/std, threshold, consecutive, weights SHA-256, metadata) and `model.pth`.
+* Loading refuses unknown or duplicate columns, `valid` not first, bad shapes or
+  policy values, and tampered weights.
+* Windows are scored in one batch.
+
+**Decision policy (shadow).**
+* Every poll (1 s), each key that received requests and holds ≥ 5 of them is encoded
+  and scored in one batch.
+* p > threshold in `consecutive` successive *scored* windows of a key gives one
+  `l7_would_ban`. It is logged, never enforced.
+* The event records whether another engine had already banned the IP, which shows
+  P5 who got there first.
+* A key is scored only when it has new requests, so a slow attacker's streak advances
+  once per request (R1, §5.5).
+
+**Load awareness (§5.6), as built.**
+* While the L3/L4 engines report a flood (`volumetric_active_until`), nothing is
+  scored and hit streaks are forgotten.
+* When the flood ends, `trust_after` is set to that instant. Windows whose requests
+  mostly (> 50 %) started earlier are skipped until fresh requests dominate.
+
+**Telemetry** (event kinds, pinned by the contract test).
+* `l7_gru_poll` every 5 s and at exit: polls, suppressed polls, windows scored, too
+  short, age-gated, over threshold, would-bans, evicted, max p, top-5 keys, model
+  SHA-256, `t_last_poll`.
+* `l7_would_ban` as it happens.
+* `l7_shadow`: the P1 ingest counters.
+
+**Determinism and replay.**
+* Windows are scored in sorted key order, and eviction runs inside `poll()`.
+* With `L7_RECORD`, the daemon writes the engine's exact input: every record, plus
+  every poll tick with the flood state and the banned IPs.
+* `ml/replay_l7.py` replays it through a fresh engine and reproduces the live
+  decisions. `--compare-live` checks this.
+* Verified offline by a simulated session with a flood and a SIGKILL-ed daemon
+  (`tests/test_smoke_p2_analysis.py`), and to be verified live at the P2 gate.
+
+**Invariance probes** (`ml/l7_probes.py`).
+* Exact transforms must give |Δp| ≤ 1e-5: User-Agent swap, consistent URI renaming,
+  time offset.
+* Robustness transforms report decision-flip rates: +50–500 B padding, ±10 % IAT
+  jitter. The bar for these is set at P4.
+* In the tests, a size-keyed stub model *fails* the padding probe (flip rate > 50 %).
+  The harness catches exactly the XDP model's shortcut.
+
+**Measured cost [FACT, `bench/l7_ingest_bench.py`].**
+* A full poll (encode + one batched score, GRU 64×2, 20-step windows) costs ≈ 110–125 µs
+  per updated window.
+* 256 updated windows take ≈ 28 ms per poll (≈ 3 % of a core at 1 poll/s); 1024 take
+  ≈ 117 ms (≈ 12 %).
+* Encoding (≈ 70 µs/window, pure Python) costs more than the batched GRU
+  (≈ 45 µs/window). Caching per-request static features at ingest is an optimisation
+  lead, if P5 shows it matters.
+
+**P1 fixes that landed with P2.** `normalise` now sums multi-value upstream times
+(P1 coerced them to 0), keeps `tls`, `reused` and `conn`, and maps the legacy
+`json_ml_format` field names.
+
 ---
 
 ## 6. Dataset re-capture and training pipeline
@@ -407,7 +514,7 @@ the working protocol.
 |---|---|---|---|
 | **P0** ✓ | This design | `docs/L7_GRU_DESIGN.md` | **Approved 2026-10-14** with the six §10 decisions. |
 | **P1** ✓ | Extended `log_format` (both confs); Unix-dgram syslog reader (`l7_ingest.py`); **shadow mode only** (`l7_shadow_monitor`, parse + `(IP, ua_h)` windows, no GRU, no bans); counters; unit + contract tests; smoke runner (`ml/smoke_l7.py`) | `l7_ingest.py`, `control_plane.py` shadow thread, both nginx confs, `tests/test_l7_ingest.py`, `ml/smoke_l7.py` | **PASSED 2026-10-14**: 70 tests green, lint clean, `nginx -t` ok; smoke (`results/2026-10-14_l7-p1-smoke/`) shows steady-regime drops ≈ 0, 0 truncation, CPU mean 4.6 % |
-| **P2** | Request-sequence features (§5.2); L7 GRU wired in **shadow mode** (scores logged via a `gru_poll`-style event, never bans); load-aware suppression + completion gate (§5.6); batched inference | code + tests | Review of shadow-mode scores on a replayed capture; invariance-probe harness exists |
+| **P2** (code ✓, gate pending) | Request-sequence features (§5.2); L7 GRU wired in **shadow mode** (`l7_gru_poll` / `l7_would_ban` events, never bans); load-aware suppression + age gate (§5.6); batched inference; recording + deterministic replay; invariance-probe harness; `XDP_GRU` switch | §5.7 | 114 tests green, lint clean ✓. **Pending: VM smoke `ml/smoke_l7.py --p2` (≈ 4 min, approval).** It passes if: the P1 transport criteria still hold; the live would-bans and counters replay exactly from the recording; windows were scored; the SYN flood produced suppressed polls; the exact probes pass on real windows; and no non-deterministic engine banned. Its `windows.csv` (feature summaries per scored window) is for review. No detection claims: the model is untrained |
 | **P3** | `ml/capture_l7.py`: dual-label capture, diverse benign (§6.2), sub-threshold + held-out attacks (§6.3) | capture tool + manifest schema | **Smoke capture (VM, approval);** manifest, labels, schedule complete; benign diversity verified in the data |
 | **P4** | `ml/train_l7.py`: grouped/LOFO splits, policy metrics, probe battery, feature-set variants; **offline, CPU** | model package + model card + metrics report | Metrics review: held-out-family recall, FP/client-hour per profile, probe-battery pass, GRU-vs-lower-threshold comparison |
 | **P5** | Online evaluation: arms (L7-GRU-only / heuristics-only / hybrid), sub-threshold scenarios (§7), benign soak; current + candidate model | published campaign in `results/` | **Each VM run approved individually;** pre-registered hypotheses judged; honest verdict on marginal value |
