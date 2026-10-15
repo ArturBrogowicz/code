@@ -15,7 +15,11 @@ sys.path.insert(0, REPO)
 import ban_events
 
 EVENT_KINDS = {"start", "ban", "unban", "suppress_on", "suppress_off", "gru_suppressed",
-               "l7_shadow"}
+               "l7_shadow", "l7_gru_poll", "l7_would_ban"}
+# The L7 shadow modules must not be able to enforce anything (docs/L7_GRU_DESIGN.md §8).
+L7_MODULES = ("l7_ingest.py", "l7_features.py", "l7_scorer.py", "l7_engine.py")
+BAN_PATH_NAMES = ("ban_ip", "block_ip_in_xdp", "blacklist_map", "kill_zombie_connections",
+                  "iptables")
 
 
 def _calls(tree, predicate):
@@ -83,6 +87,44 @@ class ControlPlaneContractTest(unittest.TestCase):
         called = {n.func.id for n in ast.walk(self._func("l7_shadow_monitor"))
                   if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
         self.assertEqual(called & forbidden, set())
+
+    def test_l7_module_attributes_exist(self):
+        # control_plane.py cannot be imported offline (it attaches XDP at import), so
+        # check that every l7_* module attribute it references actually exists.
+        import importlib
+        for mod_name in ("l7_engine", "l7_ingest"):
+            mod = importlib.import_module(mod_name)
+            refs = {n.attr for n in ast.walk(self.tree) if isinstance(n, ast.Attribute)
+                    and isinstance(n.value, ast.Name) and n.value.id == mod_name}
+            self.assertTrue(refs, mod_name)
+            self.assertEqual(sorted(r for r in refs if not hasattr(mod, r)), [], mod_name)
+
+    def test_l7_modules_cannot_reach_the_ban_path(self):
+        for name in L7_MODULES:
+            with open(os.path.join(REPO, name), encoding="utf-8") as fh:
+                tree = ast.parse(fh.read())
+            used = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
+            used |= {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
+            self.assertEqual(used & set(BAN_PATH_NAMES), set(), name)
+
+    def _guarded_by(self, flag, needle):
+        """Unparsed bodies of the `if <flag>:` blocks, checked for `needle`."""
+        found = []
+        for node in ast.walk(self.tree):
+            if isinstance(node, ast.If) and isinstance(node.test, ast.Name) \
+                    and node.test.id == flag:
+                found.append(needle in "\n".join(ast.unparse(s) for s in node.body))
+        return any(found)
+
+    def test_xdp_gru_feed_and_drain_are_guarded(self):
+        # XDP_GRU=0 must skip both the flow_map feed and the result drain.
+        self.assertTrue(self._guarded_by("XDP_GRU", "flow_map.items()"))
+        self.assertTrue(self._guarded_by("XDP_GRU", "drain_inference_results()"))
+        calls = [n for n in ast.walk(self._func("l3_l4_telemetry_monitor"))
+                 if isinstance(n, ast.Expr) and isinstance(n.value, ast.Call)
+                 and isinstance(n.value.func, ast.Name)
+                 and n.value.func.id == "drain_inference_results"]
+        self.assertEqual(len(calls), 1)         # exactly one call: the guarded one above
 
     def test_l7_shadow_thread_is_guarded(self):
         # The shadow thread must start only under `if L7_SHADOW:`, so the default

@@ -13,6 +13,7 @@ import joblib
 import numpy as np
 from GRU_ML_model import GRUDDoSClassifier
 import ban_events
+import l7_engine
 import l7_ingest
 
 # Limit PyTorch internal thread pool to 1 to prevent GIL contention
@@ -30,6 +31,14 @@ NGINX_ERROR_LOG = "/var/log/nginx/error.log"
 L7_SHADOW = os.environ.get("L7_SHADOW", "0") == "1"
 L7_SOCKET_PATH = os.environ.get("L7_SOCKET_PATH", l7_ingest.DEFAULT_SOCKET_PATH)
 L7_SHADOW_REPORT_INTERVAL = 5.0
+# Phase P2: the shadow engine scores (IP, User-Agent) request windows once per poll,
+# in one batch, with the model package in L7_MODEL (unset = features-only), and logs
+# would-ban decisions; it never bans. L7_RECORD appends the engine's exact input
+# stream (records + poll ticks) to a JSONL file, for deterministic offline replay
+# (ml/replay_l7.py).
+L7_MODEL = os.environ.get("L7_MODEL", "")
+L7_RECORD = os.environ.get("L7_RECORD", "")
+L7_POLL_INTERVAL = 1.0
 # GRU inference is driven by the Tier-1 (testbed-native) model. Its feature set,
 # sequence length and layer sizes are read from the training config so inference
 # can never silently drift from training. The 8 per-FLOW forward features (and
@@ -67,6 +76,10 @@ MAX_GRU_FLOWS_PER_POLL = 2000
 # R.U.D.Y. log detector) is disabled so the GRU engine can be validated end-to-
 # end on its own. Default off → production behaviour is unchanged.
 GRU_ONLY = os.environ.get("GRU_ONLY", "0") == "1"
+# The XDP-fed GRU (flow_map snapshots → GRU). XDP_GRU=0 skips its feed and drain, for
+# evaluation arms that must exclude it (it false-banned a legit client during the P1
+# smoke, docs/L7_GRU_DESIGN.md §2). Default on → production behaviour is unchanged.
+XDP_GRU = os.environ.get("XDP_GRU", "1") == "1"
 L4_POLL_INTERVAL = 1.0
 SYN_FLOOD_THRESHOLD = 200
 UDP_FLOOD_THRESHOLD = 5000
@@ -491,25 +504,40 @@ def tail_nginx_error_logs(file_path):
 
 
 def l7_shadow_monitor(socket_path):
-    """Phase P1 shadow ingestion (docs/L7_GRU_DESIGN.md §8).
+    """L7 shadow ingestion and scoring (docs/L7_GRU_DESIGN.md §8, phases P1–P2).
 
     Read the extended Nginx access log from the Unix-domain datagram socket, keep
-    per-(IP, User-Agent) request windows, and emit a periodic 'l7_shadow'
-    telemetry event with the ingest counters and window stats. It NEVER bans and
-    never touches the live detection state (banned_ips, client_sequences, the
-    request_tracker rate rule) — it only observes, so the socket transport and the
-    windowing can be measured before the GRU is wired to it (P2). The durable file
-    access_log remains the ground truth for the P1 drop measurement (§4.3).
+    per-(IP, User-Agent) request windows, and once per poll score every updated
+    window in one batch (l7_engine; features-only without L7_MODEL). Emits:
+      * 'l7_shadow'    every 5 s: ingest counters and window stats (P1);
+      * 'l7_gru_poll'  every 5 s and at exit: engine aggregate (windows scored,
+                       gated, max p, top keys, suppressed polls);
+      * 'l7_would_ban' when a key meets the decision policy.
+    It NEVER bans and never touches the live detection state (banned_ips is only
+    read, to annotate would-ban events). With L7_RECORD set it also appends the
+    engine's exact input stream, for deterministic replay (ml/replay_l7.py).
     """
     try:
         reader = l7_ingest.SyslogDatagramReader(socket_path)
     except OSError as e:
         print(f"[-] L7 shadow: cannot bind {socket_path}: {e}")
         return
-    print(f"[*] L7 shadow ingestion on {socket_path} (SO_RCVBUF={reader.rcvbuf}).")
+    try:
+        engine = l7_engine.build_engine(L7_MODEL or None)
+    except (ValueError, OSError) as e:      # l7_scorer.PackageError is a ValueError
+        print(f"[-] L7 shadow: model package {L7_MODEL!r} rejected ({e}); features-only.")
+        engine = l7_engine.build_engine(None)
+    recorder = None
+    if L7_RECORD:
+        try:
+            recorder = l7_engine.EngineRecorder(L7_RECORD)
+        except OSError as e:
+            print(f"[-] L7 shadow: cannot record to {L7_RECORD}: {e}")
+    mode = (f"model {engine.scorer.sha256[:12]}" if engine.scorer else "features-only")
+    print(f"[*] L7 shadow ingestion on {socket_path} (SO_RCVBUF={reader.rcvbuf}, {mode}, "
+          f"record={'on' if recorder else 'off'}).")
     counters = l7_ingest.L7Counters()
-    store = l7_ingest.L7WindowStore()
-    last_report = time.time()
+    last_poll = last_report = time.time()
     try:
         for data in reader.messages(stop=stop_event.is_set, timeout=0.5,
                                     yield_timeouts=True):
@@ -525,13 +553,28 @@ def l7_shadow_monitor(socket_path):
                     rec = l7_ingest.normalise(obj)
                     if rec is not None:
                         counters.parsed += 1
-                        store.add(rec)
+                        if recorder:
+                            recorder.record(obj, time.time())
+                        engine.on_record(rec)
             now = time.time()
+            if now - last_poll >= L7_POLL_INTERVAL:
+                suppressing = now < volumetric_active_until
+                with banned_ips_lock:
+                    banned = tuple(banned_ips)
+                if recorder:
+                    recorder.poll(now, suppressing, banned)
+                for ev in engine.poll(now, suppressing, banned):
+                    if ev.pop("kind") == "l7_would_ban":
+                        EVENTS.emit("l7_would_ban", **ev)
+                last_poll = now
             if now - last_report >= L7_SHADOW_REPORT_INTERVAL:
-                store.evict(now)
-                EVENTS.emit("l7_shadow", **counters.as_dict(), **store.stats())
+                EVENTS.emit("l7_shadow", **counters.as_dict(), **engine.store.stats())
+                EVENTS.emit("l7_gru_poll", **engine.take_summary())
                 last_report = now
     finally:
+        EVENTS.emit("l7_gru_poll", final=True, **engine.take_summary())
+        if recorder:
+            recorder.close()
         reader.close()
 
 
@@ -663,7 +706,8 @@ def l3_l4_telemetry_monitor():
         # Periodic maintenance
         unblock_expired_bans()
         evict_idle_clients()
-        drain_inference_results()
+        if XDP_GRU:
+            drain_inference_results()
 
         total_global_syn_delta = 0
         total_global_pkt_delta = 0
@@ -814,7 +858,7 @@ def l3_l4_telemetry_monitor():
             # GRU bans legit clients the moment the cooldown expires (observed).
             with state_lock:
                 client_sequences.clear()
-        else:
+        elif XDP_GRU:
             with banned_ips_lock:
                 banned_snapshot = set(banned_ips)
             visited = 0
@@ -877,7 +921,9 @@ try:
     if GRU_ONLY:
         print("[!] GRU_ONLY=1 — all non-GRU ban paths DISABLED (test isolation mode).")
     EVENTS.emit("start", pid=os.getpid(), backend=os.environ.get("MITIGATION_BACKEND", "xdp"),
-                gru_only=GRU_ONLY, interface=INTERFACE, model=MODEL_PATH,
+                gru_only=GRU_ONLY, xdp_gru=XDP_GRU, l7_shadow=L7_SHADOW,
+                l7_model=L7_MODEL or None, l7_record=bool(L7_RECORD),
+                interface=INTERFACE, model=MODEL_PATH,
                 model_sha256=ban_events.file_sha256(MODEL_PATH),
                 scaler_sha256=ban_events.file_sha256(SCALER_PATH),
                 xdp_sha256=ban_events.file_sha256(BPF_SOURCE_FILE),

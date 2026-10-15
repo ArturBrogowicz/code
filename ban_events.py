@@ -13,7 +13,9 @@ Every record has:
     t_wall     float  epoch seconds (time.time()) when the event was written
     t_mono_ns  int    CLOCK_MONOTONIC in ns (time.monotonic_ns())
     kind       str    "start" | "ban" | "unban" | "suppress_on" | "suppress_off"
-                      | "gru_suppressed" | "l7_shadow"
+                      | "gru_suppressed" | "l7_shadow" | "l7_gru_poll" | "l7_would_ban"
+                      (the l7_* kinds are the L7 shadow engine's telemetry; a
+                      would-ban is a decision that was logged, not enforced)
 plus kind-specific fields (ip, engine, value, threshold, ...); the full schema is
 documented in docs/EVALUATION.md.
 """
