@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PROJECT_DIR="/home/artur/DDoS-mitigation/code"
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NGINX_CONF="${PROJECT_DIR}/nginx.conf"
 CONTROL_PLANE="${PROJECT_DIR}/control_plane.py"
 PYTHON_VENV="${PROJECT_DIR}/venv/bin/python"
