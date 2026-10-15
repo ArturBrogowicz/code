@@ -138,6 +138,23 @@ class CommandTest(unittest.TestCase):
         self.assertEqual(legit_argv, ["ip", "netns", "exec", "legit_1", "curl", "x"])
 
 
+class PreflightTest(unittest.TestCase):
+    def test_missing_venv_stops_before_the_run_starts(self):
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(S, "PYTHON_VENV", os.path.join(d, "venv/bin/python")), \
+                mock.patch.object(S.os, "geteuid", return_value=0), \
+                mock.patch.object(S.atexit, "register"), \
+                mock.patch.object(S, "_init_results_dir") as init_results, \
+                mock.patch.object(S, "_write_provenance"), \
+                mock.patch.object(S, "build_topology") as build_topology, \
+                mock.patch("builtins.print"), \
+                self.assertRaises(SystemExit) as cm:
+            S.main()
+        self.assertEqual(cm.exception.code, 1)
+        init_results.assert_not_called()
+        build_topology.assert_not_called()
+
+
 class ResultsFilesTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

@@ -1880,6 +1880,12 @@ def main():
     if os.geteuid() != 0:
         print(f"{RED}[-] This script requires root privileges (sudo).{RESET}")
         sys.exit(1)
+    # venv/ is untracked, so a fresh checkout or worktree has none; without this check
+    # gunicorn and the daemon would only fail once the topology is up.
+    if not os.access(PYTHON_VENV, os.X_OK):
+        print(f"{RED}[-] No Python venv at {PYTHON_VENV} (gunicorn and control_plane.py run "
+              f"from it). Create venv/ in this checkout or symlink an existing one.{RESET}")
+        sys.exit(1)
 
     _init_results_dir()
     atexit.register(_finish_run)   # also after an abnormal exit; runs before cleanup_all (LIFO)
