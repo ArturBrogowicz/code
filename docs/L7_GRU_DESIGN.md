@@ -588,6 +588,39 @@ The point of the whole move: a niche where the heuristics are blind. Calibration
 * These scenarios extend the suite as new entries (S11–S15 in `ML_INVESTIGATION.md` §5 A4)
   and only become meaningful once the L7 model is wired (P2+).
 
+### 7.1 P5 online-evaluation run plan [DECISION, approved 2026-10-15: shadow-only]
+
+The L7 GRU runs in **shadow** during P5 (`ml/eval_l7.py`): it scores and logs
+`l7_would_ban`, and never bans. The deterministic engines do the real banning (as in
+production), and `XDP_GRU=0` keeps the XDP-fed GRU out. Enforcement + availability-impact
+are deferred to P6 (promotion), because in shadow the GRU cannot change availability and
+turning on real L7-GRU bans is exactly what promotion gates.
+
+**What each run measures**, from the daemon's own `ban_events.jsonl` (deterministic bans +
+`l7_would_ban` + `l7_gru_poll` + suppression) and its recorded engine input
+(`l7_record.jsonl`), both lossless:
+* deterministic bans vs L7 would-bans per attacker family, with time-to-detect;
+* benign would-bans (the false-positive rate);
+* suppression / age-gating while the volumetric flood runs;
+* **H1b** — a static per-IP rps-threshold sweep on the recorded requests: could a lower
+  threshold match the GRU without false-banning benign? (the honest comparison).
+
+**Runs** (each a VM workload, each approved; same topology class as P3):
+
+| Run | Config | ≈ dur | Answers |
+|---|---|---|---|
+| A | full mix (benign + fast sub-threshold + held-out + slow + mid-run SYN flood), **`no_size` candidate** | ~6 min | H1, H1b, R1, suppression |
+| B | same mix, **`with-size` model** (`ml/train_l7.py --out … no promotion`) | ~6 min | H2 — fingerprint online |
+| C | **benign soak** (`--soak`, benign + one SYN flood, 10 min), candidate | ~12 min | H3 — benign FP, suppression |
+| D | run A on a **second seed** | ~6 min | the P4 single-seed/capture caveat |
+
+**Pass vs honest negative.** Marginal value is shown iff: the deterministic engines ban
+≈ 0 of the fast sub-threshold attackers; the GRU would-bans most of them within the
+exposure; benign would-bans ≈ 0; **and** the H1b sweep shows no static threshold matches
+that coverage at the same benign FP. Otherwise the thesis reports the GRU as
+non-contributing / thresholds suffice — a valid result. Slow families are expected to be
+the deterministic SlowConn path's, not the GRU's (R1), and are reported per family.
+
 ---
 
 ## 8. Step-by-step roadmap with verification gates
@@ -604,7 +637,7 @@ the working protocol.
 | **P2** ✓ | Request-sequence features (§5.2); L7 GRU wired in **shadow mode** (`l7_gru_poll` / `l7_would_ban` events, never bans); load-aware suppression + age gate (§5.6); batched inference; recording + deterministic replay; invariance-probe harness; `XDP_GRU` switch | §5.7; `results/2026-10-15_l7-p2-smoke/` | **PASSED 2026-10-15** (`ml/smoke_l7.py --p2`, untrained model): P1 transport still clean (0/135 steady drops); live run replayed exactly (13/13 would-bans, 335/335 windows); flood gating live (12 suppressed polls, 57 age-gated windows); exact probes \|Δp\| = 0; only deterministic engines banned. No detection claims: the model is untrained |
 | **P3** ✓ | `ml/capture_l7.py` + `l7_webapp.py`, `nginx_l7capture.conf`, `ml/l7_traffic.py`, `ml/l7_gen.py`, `l7_dataset.py`; diverse benign (§6.2), calibrated sub-threshold + held-out attacks (§6.3); dataset manifest (§6.5) | capture tool + manifest schema; 17 tests | **PASSED 2026-10-15** (`results/2026-10-15_l7-p3-capture/`): 9012-line dataset, manifest/labels/schedule complete, all families present; R4 closed (size overlaps 5.02 vs 5.35, URI diversity now separates); R1 confirmed (slow families ~1 window vs 58–332 fast) |
 | **P4** ✓ | `ml/train_l7.py`: IP-disjoint benign + family-disjoint held-out splits, policy metrics with Clopper-Pearson CIs + FP/client-hour, exact-invariance probe gate, feature-set variants, GRU + HGB tabular baseline; **offline, CPU** | model package + card + metrics (`results/2026-10-15_l7-p4-train/`) | **PASSED 2026-10-15**: probe gate PASS; `no_size` chosen (held-out 7/8 at 0 FP vs 1/8 with size — the size shortcut confirmed and removed); GRU > baseline; candidate not promoted |
-| **P5** | Online evaluation: arms (L7-GRU-only / heuristics-only / hybrid), sub-threshold scenarios (§7), benign soak; current + candidate model | published campaign in `results/` | **Each VM run approved individually;** pre-registered hypotheses judged; honest verdict on marginal value |
+| **P5** (runner ✓, runs pending) | Online evaluation in **shadow** (`ml/eval_l7.py`, §7.1): deterministic bans vs L7 would-bans on the sub-threshold scenarios + benign soak, candidate vs with-size model, `XDP_GRU=0`; the H1b threshold sweep | published campaign in `results/` | runner built, `--plan` verified, unit-tested ✓. **Pending: runs A–D (VM, approval each, §7.1);** pre-registered hypotheses judged; honest verdict on marginal value |
 | **P6** | `ml/promote_l7.py`: install a vetted model, with hashes and metrics | promoted model | **Explicit approval;** only if P5 shows value at acceptable FP |
 
 Verification threads through every phase: shadow mode (P1–P2) means the L7 engine can be
