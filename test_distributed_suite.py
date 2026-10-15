@@ -49,7 +49,7 @@ BOTNET_IP_PREFIX = "10.0.2"    # Botnet IPs: 10.0.2.1 – 10.0.2.10 (count: BOTN
 SUBNET_MASK = "/16"            # All nodes in 10.0.0.0/16
 HTTP_URL = f"http://{SERVER_IP}/"
 
-PROJECT_DIR = "/home/artur/DDoS-mitigation/code"
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))   # this checkout (also under sudo)
 NGINX_CONF = f"{PROJECT_DIR}/nginx.conf"
 NGINX_UNPROTECTED_CONF = f"{PROJECT_DIR}/nginx_unprotected.conf"
 CONTROL_PLANE = f"{PROJECT_DIR}/control_plane.py"

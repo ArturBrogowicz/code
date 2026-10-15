@@ -27,7 +27,7 @@ import os, sys, time, socket, struct, ctypes, textwrap, subprocess, random
 import pandas as pd
 from bcc import BPF
 
-sys.path.insert(0, "/home/artur/DDoS-mitigation/code")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import test_distributed_suite as S   # exact topology + server stack + netem + legit traffic
 
 SIP        = S.SERVER_IP                 # 10.0.0.1
