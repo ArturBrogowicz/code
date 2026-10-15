@@ -90,8 +90,32 @@ def _sums(events, kind="l7_gru_poll"):
     return {k: sum(e.get(k, 0) or 0 for e in events if e.get("kind") == kind) for k in keys}
 
 
-def compare_live(live_events, replay_events, tol=1e-5):
-    """Compare a live run's shadow events with a replay of its recording."""
+def live_cutoff(live_events):
+    """The last poll a live run's written summaries cover (their t_last_poll), or
+    None. A daemon stopped with SIGKILL never writes its exit-time summary, so
+    polls recorded after this point have no live counterpart to compare with."""
+    covered = [e["t_last_poll"] for e in live_events
+               if e.get("kind") == "l7_gru_poll" and e.get("t_last_poll") is not None]
+    return max(covered) if covered else None
+
+
+def cut_items(items, cutoff, tol=1e-6):
+    """Stream items up to and including the last poll tick at or before `cutoff`
+    (the recorder rounds its timestamps to 1 µs, hence the tolerance)."""
+    items = list(items)
+    last = -1
+    for i, it in enumerate(items):
+        if it[0] == "poll" and it[1] <= cutoff + tol:
+            last = i
+    return items[:last + 1]
+
+
+def compare_live(live_events, replay_events, tol=1e-5, cutoff=None):
+    """Compare a live run's shadow events with a replay of its recording. With
+    `cutoff`, live would-bans after it (uncovered by any summary) are ignored."""
+    if cutoff is not None:
+        live_events = [e for e in live_events if e.get("kind") != "l7_would_ban"
+                       or e.get("t_poll", 0) <= cutoff + 1e-6]
     lw = [e for e in live_events if e.get("kind") == "l7_would_ban"]
     rw = [e for e in replay_events if e.get("kind") == "l7_would_ban"]
 
@@ -150,13 +174,22 @@ def main():
         writer.writerow([f"{now:.3f}", key[0], key[1], ip_class(key[0]),
                          "" if p is None else f"{p:.6f}", *(f"{v:.6g}" for v in vec)])
 
+    live = cutoff = None
+    if args.compare_live:
+        with open(args.compare_live, encoding="utf-8") as fh:
+            live = [json.loads(line) for line in fh if '"l7_' in line]
+        cutoff = live_cutoff(live)
+
     engine = E.build_engine(args.model, min_events=args.min_events,
                             window_hook=hook if args.features_csv else None)
     if args.features_csv:
         fh_csv = open(args.features_csv, "w", newline="", encoding="utf-8")  # noqa: SIM115
     try:
         with open(args.input, encoding="utf-8", errors="replace") as fh:
-            events = replay(E.read_stream(fh), engine, poll_every=args.poll)
+            items = list(E.read_stream(fh))
+        if cutoff is not None:                # compare only what the live run summarised
+            items = cut_items(items, cutoff)
+        events = replay(items, engine, poll_every=args.poll)
     finally:
         if fh_csv:
             fh_csv.close()
@@ -167,9 +200,8 @@ def main():
                           for e in events)
     report = {"input": args.input, "model": args.model, **summarise(events)}
     if args.compare_live:
-        with open(args.compare_live, encoding="utf-8") as fh:
-            live = [json.loads(line) for line in fh if '"l7_' in line]
-        report["compare_live"] = compare_live(live, events)
+        report["compare_live"] = compare_live(live, events, cutoff=cutoff)
+        report["compare_live"]["cutoff"] = cutoff
     print(json.dumps(report, indent=1, default=str))
     if args.compare_live and not report["compare_live"]["match"]:
         sys.exit(1)

@@ -79,6 +79,41 @@ class ReplayTest(unittest.TestCase):
         self.assertEqual(len(rows), report["totals"]["windows"])
 
 
+class CompareLiveCliTest(unittest.TestCase):
+    def test_cli_cuts_the_uncovered_tail_of_a_killed_run(self):
+        import ban_events
+        d = tempfile.mkdtemp(prefix="l7cmp_")
+        self.addCleanup(shutil.rmtree, d, True)
+        pkg = os.path.join(d, "pkg")
+        U.tiny_package(pkg, seq_len=8)
+        rec_path, ev_path = os.path.join(d, "rec.jsonl"), os.path.join(d, "ev.jsonl")
+        rec, ev = E.EngineRecorder(rec_path), ban_events.EventLog(ev_path)
+        eng = E.build_engine(pkg, min_events=3)
+        for step in range(20):
+            now = 5000.0 + step
+            for ip, ua in (("10.0.2.3", "bot"), ("10.0.1.3", "browser")):
+                o = U.obj(ip=ip, ua=ua, msec=now - 0.2, method="POST" if ua == "bot" else "GET")
+                rec.record(o, now - 0.2)
+                eng.on_record(l7_ingest.normalise(o))
+            rec.poll(now, False, ())
+            for e in eng.poll(now, False, ()):
+                if e.pop("kind") == "l7_would_ban":
+                    ev.emit("l7_would_ban", **e)
+            if step % 5 == 4 and step < 15:          # summaries stop after poll 14
+                ev.emit("l7_gru_poll", **eng.take_summary())
+        rec.close()
+        ev.close()
+        res = subprocess.run([sys.executable, os.path.join(U.REPO, "ml", "replay_l7.py"),
+                              rec_path, "--model", pkg, "--min-events", "3",
+                              "--compare-live", ev_path], capture_output=True, text=True,
+                             check=False, env={**os.environ, "PYTHONPYCACHEPREFIX": "/tmp/l7pyc"})
+        self.assertEqual(res.returncode, 0, res.stdout[-800:] + res.stderr[-800:])
+        cmp = json.loads(res.stdout)["compare_live"]
+        self.assertTrue(cmp["match"])
+        self.assertEqual(cmp["live"]["polls"], 15)            # polls 15-19 were cut
+        self.assertEqual(cmp["cutoff"], 5014.0)
+
+
 class ProbeTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp(prefix="l7probe_")
