@@ -35,6 +35,19 @@ training input):
   low-and-slow; P4/P5 must treat the slow families as the `ss`/SlowConn path's job and
   report per-family (§9 R1).
 
+**P4 (training) is complete (§6.4).** `ml/train_l7.py` trained on the P3 dataset, offline
+on CPU; gate **PASSED** (`results/2026-10-15_l7-p4-train/`, a candidate — not promoted):
+* **The size feature is a shortcut.** Dropping the two request-size features takes
+  held-out-family detection from 1/8 to **7/8 groups at 0 benign FP/client-hour**; the
+  saved `no_size` model is size-invariant by probe (padding flips 0 %). This confirms the
+  XDP CF3 finding on the new L7 data, and the selection rule chose `no_size`.
+* **URI diversity is useful, not a shortcut:** removing it instead raises benign FP to
+  9.9/client-hour — the two string-derived signals are not equivalent.
+* **Sequence modelling earns its place (decision 6):** the GRU (7/8 at 0 FP) beats the
+  HGB tabular baseline on the same features.
+* **Exact-invariance probe gate PASSED**; `slowread` 0/1 is the R1 limit (low-and-slow
+  barely logs), reported per family, not a training fault.
+
 Later phases stay gated (§8, §9).
 
 **Confirmed decisions (§10).** (1) Scope: GRU owns L7 sub-threshold abuse only. (2)
@@ -590,7 +603,7 @@ the working protocol.
 | **P1** ✓ | Extended `log_format` (both confs); Unix-dgram syslog reader (`l7_ingest.py`); **shadow mode only** (`l7_shadow_monitor`, parse + `(IP, ua_h)` windows, no GRU, no bans); counters; unit + contract tests; smoke runner (`ml/smoke_l7.py`) | `l7_ingest.py`, `control_plane.py` shadow thread, both nginx confs, `tests/test_l7_ingest.py`, `ml/smoke_l7.py` | **PASSED 2026-10-14**: 70 tests green, lint clean, `nginx -t` ok; smoke (`results/2026-10-14_l7-p1-smoke/`) shows steady-regime drops ≈ 0, 0 truncation, CPU mean 4.6 % |
 | **P2** ✓ | Request-sequence features (§5.2); L7 GRU wired in **shadow mode** (`l7_gru_poll` / `l7_would_ban` events, never bans); load-aware suppression + age gate (§5.6); batched inference; recording + deterministic replay; invariance-probe harness; `XDP_GRU` switch | §5.7; `results/2026-10-15_l7-p2-smoke/` | **PASSED 2026-10-15** (`ml/smoke_l7.py --p2`, untrained model): P1 transport still clean (0/135 steady drops); live run replayed exactly (13/13 would-bans, 335/335 windows); flood gating live (12 suppressed polls, 57 age-gated windows); exact probes \|Δp\| = 0; only deterministic engines banned. No detection claims: the model is untrained |
 | **P3** ✓ | `ml/capture_l7.py` + `l7_webapp.py`, `nginx_l7capture.conf`, `ml/l7_traffic.py`, `ml/l7_gen.py`, `l7_dataset.py`; diverse benign (§6.2), calibrated sub-threshold + held-out attacks (§6.3); dataset manifest (§6.5) | capture tool + manifest schema; 17 tests | **PASSED 2026-10-15** (`results/2026-10-15_l7-p3-capture/`): 9012-line dataset, manifest/labels/schedule complete, all families present; R4 closed (size overlaps 5.02 vs 5.35, URI diversity now separates); R1 confirmed (slow families ~1 window vs 58–332 fast) |
-| **P4** | `ml/train_l7.py`: grouped/LOFO splits, policy metrics, probe battery, feature-set variants; **offline, CPU** | model package + model card + metrics report | Metrics review: held-out-family recall, FP/client-hour per profile, probe-battery pass, GRU-vs-lower-threshold comparison |
+| **P4** ✓ | `ml/train_l7.py`: IP-disjoint benign + family-disjoint held-out splits, policy metrics with Clopper-Pearson CIs + FP/client-hour, exact-invariance probe gate, feature-set variants, GRU + HGB tabular baseline; **offline, CPU** | model package + card + metrics (`results/2026-10-15_l7-p4-train/`) | **PASSED 2026-10-15**: probe gate PASS; `no_size` chosen (held-out 7/8 at 0 FP vs 1/8 with size — the size shortcut confirmed and removed); GRU > baseline; candidate not promoted |
 | **P5** | Online evaluation: arms (L7-GRU-only / heuristics-only / hybrid), sub-threshold scenarios (§7), benign soak; current + candidate model | published campaign in `results/` | **Each VM run approved individually;** pre-registered hypotheses judged; honest verdict on marginal value |
 | **P6** | `ml/promote_l7.py`: install a vetted model, with hashes and metrics | promoted model | **Explicit approval;** only if P5 shows value at acceptable FP |
 
