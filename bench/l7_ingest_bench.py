@@ -116,6 +116,42 @@ def inference():
               f"{b / best:10.0f} windows/s")
 
 
+def engine_poll():
+    """The full Phase-P2 poll: encode K updated (IP, UA) windows of 20 requests
+    (l7_features) and score them in one batch with a production-sized GRU
+    (hidden 64, 2 layers), versus features-only. Untrained weights: cost only."""
+    import shutil
+    import tempfile
+
+    import l7_engine
+    import l7_ingest
+    import l7_scorer
+    from l7_features import columns
+
+    pkg = tempfile.mkdtemp(prefix="l7bench_")
+    try:
+        cols = columns()
+        model = GRUDDoSClassifier(len(cols), 64, 2)
+        l7_scorer.save_package(pkg, model, cols, 20, [0.0] * len(cols), [1.0] * len(cols),
+                               0.95, 3, hidden_size=64, num_layers=2)
+        for label, path in (("features-only", None), ("scored (GRU 64x2)", pkg)):
+            for k in (64, 256, 1024):
+                eng = l7_engine.build_engine(path)
+                for key in range(k):
+                    for i in range(20):
+                        eng.on_record(l7_ingest.normalise(
+                            {"ip": f"10.1.{key // 250}.{key % 250}", "ua": "u", "uri": f"/{i % 5}",
+                             "msec": 1000.0 + i * 0.5, "rt": 0.01, "status": 200, "method": "GET",
+                             "rlen": 120, "bsent": 900, "creq": i + 1, "compl": "OK", "urt": "0.004"}))
+                t0 = time.perf_counter()
+                eng.poll(1100.0)
+                dt = time.perf_counter() - t0
+                print(f"  {label:18s} {k:5d} windows/poll  {dt * 1e3:8.2f} ms/poll  "
+                      f"{dt / k * 1e6:7.1f} us/window")
+    finally:
+        shutil.rmtree(pkg, ignore_errors=True)
+
+
 def main():
     lines = [make_line(i) for i in range(N)]
     blob = sum(len(line) + 1 for line in lines)
@@ -125,6 +161,8 @@ def main():
     bench("json + 8 request-sequence features (blake2b URI)", lambda: seq_features(lines))
     print("inference (deployed 8-feat/seq15/h64/l2 architecture, CPU, 1 thread):")
     inference()
+    print("P2 engine poll (encode updated windows + one batched score, CPU, 1 thread):")
+    engine_poll()
 
 
 if __name__ == "__main__":
