@@ -1,0 +1,17 @@
+[*] L7 capture → /var/tmp/ddos_l7_datasets/20261015T115102Z  (seed=1, 12 benign, 9 attackers, 300s)
+
+[+] origin ready.
+  [  16.4s] launched slowloris from 10.0.2.4 (41s)
+  [  34.0s] launched scraper from 10.0.2.3 (58s)
+  [  71.1s] launched subthreshold_flood from 10.0.2.2 (61s)
+  [  95.5s] launched slowpost from 10.0.2.5 (68s)
+  [  97.5s] launched subthreshold_flood from 10.0.2.1 (67s)
+  [ 170.8s] launched padded_flood from 10.0.2.6 (69s)
+  [ 172.8s] launched slowread from 10.0.2.8 (50s)
+  [ 223.9s] launched credstuff from 10.0.2.7 (63s)
+  [ 268.2s] launched volumetric_flood from 10.0.2.9 (8s)
+
+[+] Topology cleaned up. access.log lines: 9012
+[+] Wrote /var/tmp/ddos_l7_datasets/20261015T115102Z/manifest.json
+[+] capture OK: 9012 access-log lines, 9 attack windows launched.
+

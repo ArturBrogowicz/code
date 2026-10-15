@@ -5,6 +5,7 @@ a new measurement is a new campaign.
 
 | Campaign | Content | Status |
 |---|---|---|
+| [`2026-10-15_l7-p3-capture`](2026-10-15_l7-p3-capture/) | L7 capture dataset (P3 gate): labelled l7json access log + manifest; feature review confirms size/URI now behavioural (R4), low-and-slow barely logs (R1) | gate artifact + P4 training input; see its README |
 | [`2026-10-15_l7-p2-smoke`](2026-10-15_l7-p2-smoke/) | L7 shadow-engine P2 verification-gate smoke: scoring, flood gating, record→replay determinism, probes, feature review (untrained model) | gate artifact, **not a comparison campaign**; see its README |
 | [`2026-10-14_l7-p1-smoke`](2026-10-14_l7-p1-smoke/) | L7 ingestion P1 verification-gate smoke (`docs/L7_GRU_DESIGN.md`): socket-transport health in shadow mode | gate artifact, **not a comparison campaign**; see its README |
 | [`2026-10-13_regression-default-full-suite`](2026-10-13_regression-default-full-suite/) | R2: one run of all 10 scenarios in XDP mode at default settings; the regression check of the harness and the event source of the GRU diagnosis | valid; a single run, for regression and diagnosis, not for comparisons between modes |
