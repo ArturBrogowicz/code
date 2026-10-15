@@ -16,13 +16,17 @@
 * **Exact invariance probes:** |Δp| = 0 on real windows.
 * **Bans:** only the deterministic engines banned.
 
-No detection claims are made before P4 trains a model. The run produced two findings
-that P3 and P4 must act on:
-* **Tool fingerprints in the traffic:** the current testbed traffic still carries
-  request-size and connection-reuse fingerprints (§9 R4).
+No detection claims are made before P4 trains a model. The P2 run produced two findings
+that P3 and P4 act on:
+* **Tool fingerprints in the traffic:** the P2 testbed traffic still carried
+  request-size and connection-reuse fingerprints (§9 R4) — P3 removes them.
 * **Probe metric:** decision-flip rates must be read together with |Δp| (§5.7).
 
-Later phases stay gated (§8, §9).
+**P3 (dataset re-capture) code has landed (§6.5). Its gate is pending:** a VM capture run
+(`ml/capture_l7.py`) that needs your approval. The code is offline-reviewable now —
+`ml/capture_l7.py --plan` prints the calibrated plan without touching the system, and 17
+unit tests cover the app, generators, calibration and manifest. Later phases stay gated
+(§8, §9).
 
 **Confirmed decisions (§10).** (1) Scope: GRU owns L7 sub-threshold abuse only. (2)
 Transport: Unix-domain datagram syslog primary + durable file sink. (3) Keying: **IP +
@@ -449,12 +453,15 @@ The capture is the hard part: the XDP model's failures were data failures
 (the capture imports the suite, so topology/nginx/gunicorn match serving) and the
 trainer-v2 principles from `ML_INVESTIGATION.md` §5 (A5/A6), re-aimed at L7.
 
-### 6.1 Dual-label capture (`ml/capture_l7.py`, built at P3)
+### 6.1 Dual-label capture (`ml/capture_l7.py`)
 * Records the **extended JSON access log** (§3), labelled by `$remote_addr` → namespace
   map (benign `10.0.1.x`, attack `10.0.2.x`), with a provenance manifest, seeds, and an
-  attack-schedule log (ground-truth start/stop per bot) — as in A5.
-* Native XDP; a new dataset directory, never overwriting `training_data/`.
-* Captures both `:80` and `:443` (the L7 model should be TLS-agnostic).
+  attack-schedule log (ground-truth start/stop per bot).
+* **No XDP and no daemon during capture:** attacks are recorded unmitigated and the
+  l7json log goes to a lossless **file**, not the datagram socket. The sub-threshold
+  calibration (§7) is what makes these scenarios meaningful once the daemon is on (P5).
+* A new dataset directory under `/var/tmp`, never overwriting `training_data/`.
+* Clients run on `:80` and `:443` (the L7 model should be TLS-agnostic).
 
 ### 6.2 Benign diversity (the FP budget) [FACT: tooling present/absent on this VM]
 From REPORT §9.5, constrained to what is installed (`curl` 8.18 with HTTP/2 via nghttp2;
@@ -471,12 +478,14 @@ Missing tools (`wrk2` for open-loop rate, `h2load`) are flagged as capture-fidel
 to either install (apt, with approval) or substitute in Python at P3.
 
 ### 6.3 Sub-threshold L7 attacks (calibrated, §7)
-Trained families: sub-threshold request floods (20/45 rps < 50), Slowloris (6 sockets),
-slow-body POST (Content-Length ≤ 64 k so Nginx does not 413 it immediately), URI-randomised
-scraping < 50 rps. **Held-out families** (evaluation only): padded request floods,
-credential-stuffing POSTs against a 401/403 endpoint, slow-read, an HTTP/2 multiplexing
-abuse if tooling allows. Each capture also runs a concurrent volumetric flood so the model
-learns the suppressed/contaminated regime (§5.6).
+Trained families (`ml/l7_traffic.TRAINED_ATTACKS`): sub-threshold request floods (20 and
+45 rps < 50), Slowloris (6 sockets, a header every 3 s < the 5 s timeout), slow-body POST
+(Content-Length ≤ 64 k so Nginx does not 413 it, one byte every 3 s), URI-randomised
+scraping (25 rps). **Held-out families** (`HELDOUT_ATTACKS`, evaluation only): padded
+request floods (a 500 B header), credential-stuffing POSTs against `/login` (always 401),
+slow-read. A mid-capture SYN flood runs so the model sees benign traffic distorted (the
+contaminated regime, §5.6). HTTP/2 rapid-reset is **not** included — no tool on this VM
+produces it (`h2load`/custom client absent); noted as a capture-fidelity gap.
 
 ### 6.4 Trainer (`ml/train_l7.py`, built at P4) [from `ML_INVESTIGATION.md` §5 A6]
 * Reads dataset manifests; writes a model package + model card; **never** touches
@@ -496,6 +505,45 @@ learns the suppressed/contaminated regime (§5.6).
   sequence modelling adds nothing here and the simpler model is preferred. (LightGBM is
   not yet installed; P4 either adds it with approval or uses scikit-learn's gradient
   boosting / logistic regression, which are present.)
+
+### 6.5 P3 implementation: the capture pipeline [FACT: code + 17 tests, `--plan` verified]
+
+**`l7_webapp.py`** — a multi-path WSGI origin (gunicorn serves it), fixing the P2
+finding that URIs and response sizes carried no signal: `/`, `/page/<n>` and
+`/static/<id>.<ext>` of varied, **process-stable** sizes (crc32, not Python's salted
+`hash()`), `/api/<name>`, a `/search` with an artificial upstream delay (so
+`$upstream_response_time` is non-zero), a ~1.5 MB `/download/large`, a `/upload`, and a
+`/login` that always 401s (what a credential-stuffing *probe* sees; it authenticates
+no one and holds no data).
+
+**`nginx_l7capture.conf`** — request handling byte-identical to `nginx.conf`
+(same `limit_req`/`limit_conn`, 5 s timeouts, 64 k body cap, TLS, HTTP/2, `l7json`
+format), so the features are shaped the same; the only change is the l7json log to a
+lossless file. `ml/capture_l7.py` templates the log path per dataset.
+
+**`ml/l7_traffic.py`** — the plan and the honest-calibration gate (§7). `THRESHOLDS`
+mirrors `control_plane.py` and `nginx.conf` (a test cross-checks the source). `calibrate()`
+**raises** if any trained attack is not provably below a ban threshold (rate ≤ 50 − 5;
+held connections ≤ 8 − 1; dribble interval < the 5 s timeout; body ≤ 64 k). `build_plan()`
+assigns IPs, seeds and attack windows deterministically.
+
+**`ml/l7_gen.py`** — one client's traffic for a fixed time, launched per namespace. Benign
+kinds: one-shot curl, keep-alive browsing (`requests.Session`), HTTP/2 over TLS
+(`curl --http2 --parallel`), API polling, large download, upload, and a NAT gateway
+(several users, one IP). Attack families as in §6.3. **Scope lock:** it refuses any target
+outside `10.0.0.0/16`, and `--plan` prints what it would do and sends nothing.
+
+**`l7_dataset.py`** — the dataset contract shared by the capture (writer) and the P4
+trainer (reader): `manifest.json` (format, seed, duration, IP→label map, attack schedule,
+provenance) + `access.log`. `validate_manifest()` rejects malformed manifests; labels come
+from the plan, never a model.
+
+**`ml/capture_l7.py`** — the orchestrator. Reuses the suite's topology primitives
+(bridge, server ns, per-client ns, netem), starts the app + capture nginx (no daemon),
+runs the seeded plan (benign for the whole capture, each attacker in its window), and
+writes the dataset with provenance (git commit, seeds, input SHA-256s, the calibration
+report). Benign clients get balanced, seeded netem profiles (lossy-benign matters — the
+GRU_ONLY lossy FP). `--plan` runs the whole planning path offline.
 
 ---
 
@@ -532,7 +580,7 @@ the working protocol.
 | **P0** ✓ | This design | `docs/L7_GRU_DESIGN.md` | **Approved 2026-10-14** with the six §10 decisions. |
 | **P1** ✓ | Extended `log_format` (both confs); Unix-dgram syslog reader (`l7_ingest.py`); **shadow mode only** (`l7_shadow_monitor`, parse + `(IP, ua_h)` windows, no GRU, no bans); counters; unit + contract tests; smoke runner (`ml/smoke_l7.py`) | `l7_ingest.py`, `control_plane.py` shadow thread, both nginx confs, `tests/test_l7_ingest.py`, `ml/smoke_l7.py` | **PASSED 2026-10-14**: 70 tests green, lint clean, `nginx -t` ok; smoke (`results/2026-10-14_l7-p1-smoke/`) shows steady-regime drops ≈ 0, 0 truncation, CPU mean 4.6 % |
 | **P2** ✓ | Request-sequence features (§5.2); L7 GRU wired in **shadow mode** (`l7_gru_poll` / `l7_would_ban` events, never bans); load-aware suppression + age gate (§5.6); batched inference; recording + deterministic replay; invariance-probe harness; `XDP_GRU` switch | §5.7; `results/2026-10-15_l7-p2-smoke/` | **PASSED 2026-10-15** (`ml/smoke_l7.py --p2`, untrained model): P1 transport still clean (0/135 steady drops); live run replayed exactly (13/13 would-bans, 335/335 windows); flood gating live (12 suppressed polls, 57 age-gated windows); exact probes \|Δp\| = 0; only deterministic engines banned. No detection claims: the model is untrained |
-| **P3** | `ml/capture_l7.py`: dual-label capture, diverse benign (§6.2), sub-threshold + held-out attacks (§6.3) | capture tool + manifest schema | **Smoke capture (VM, approval);** manifest, labels, schedule complete; benign diversity verified in the data |
+| **P3** (code ✓, gate pending) | `ml/capture_l7.py` + `l7_webapp.py`, `nginx_l7capture.conf`, `ml/l7_traffic.py`, `ml/l7_gen.py`, `l7_dataset.py`; diverse benign (§6.2), calibrated sub-threshold + held-out attacks (§6.3); dataset manifest (§6.5) | capture tool + manifest schema; 17 tests | 133 tests green, lint clean, `--plan` verified ✓. **Pending: a short capture run (VM, approval).** It passes if: the manifest, labels and schedule are complete; the access log has lines for every benign kind and attack family; **and the feature review shows request-size and URI diversity now carry benign signal** (the P2 R4 finding is addressed) |
 | **P4** | `ml/train_l7.py`: grouped/LOFO splits, policy metrics, probe battery, feature-set variants; **offline, CPU** | model package + model card + metrics report | Metrics review: held-out-family recall, FP/client-hour per profile, probe-battery pass, GRU-vs-lower-threshold comparison |
 | **P5** | Online evaluation: arms (L7-GRU-only / heuristics-only / hybrid), sub-threshold scenarios (§7), benign soak; current + candidate model | published campaign in `results/` | **Each VM run approved individually;** pre-registered hypotheses judged; honest verdict on marginal value |
 | **P6** | `ml/promote_l7.py`: install a vetted model, with hashes and metrics | promoted model | **Explicit approval;** only if P5 shows value at acceptable FP |
