@@ -28,8 +28,11 @@ import stat
 import time
 from collections import defaultdict, deque
 
-# Fields the normalised record keeps (raw "uri"/"ua" are hashed and dropped).
-_NUMERIC = ("msec", "status", "creq", "rt", "uct", "urt", "rlen", "bsent")
+# Numeric fields the normalised record keeps, with their legacy json_ml_format
+# aliases (raw "uri"/"ua" are hashed and dropped, see normalise()).
+_NUMERIC = {"msec": ("msec",), "status": ("status",), "conn": ("conn",), "creq": ("creq",),
+            "rt": ("rt", "request_time"), "uct": ("uct",), "urt": ("urt",),
+            "rlen": ("rlen", "request_length"), "bsent": ("bsent", "bytes_sent")}
 
 DEFAULT_SOCKET_PATH = "/run/ddos_l7.sock"
 DEFAULT_WINDOW = 20          # requests kept per (ip, ua) key
@@ -88,6 +91,26 @@ def looks_truncated(raw):
     return not raw[start:].rstrip().endswith("}")
 
 
+def _num(val):
+    """Coerce a log value to float. Upstream timings can list several values —
+    "0.002, 0.004" across retries, "0.002 : 0.003" across internal redirects —
+    and are summed (total upstream work). "-", blanks and junk count as 0."""
+    if val is None:
+        return 0.0
+    if isinstance(val, (int, float)):
+        return float(val)
+    total = 0.0
+    for part in str(val).replace(":", ",").split(","):
+        part = part.strip()
+        if part in ("", "-"):
+            continue
+        try:
+            total += float(part)
+        except ValueError:
+            continue
+    return total
+
+
 def normalise(obj):
     """Turn a parsed log object into the slim record the window store keeps:
     numeric fields coerced, URI and UA replaced by 32-bit hashes, raw strings
@@ -100,13 +123,10 @@ def normalise(obj):
            "method": obj.get("method") or obj.get("request_method") or "",
            "proto": obj.get("proto") or obj.get("server_protocol") or "",
            "compl": obj.get("compl") or obj.get("request_completion") or "",
-           "lreq": obj.get("lreq") or obj.get("limit_req_status") or ""}
-    for key in _NUMERIC:
-        val = obj.get(key)
-        try:
-            rec[key] = float(val) if val not in (None, "", "-") else 0.0
-        except (TypeError, ValueError):
-            rec[key] = 0.0
+           "lreq": obj.get("lreq") or obj.get("limit_req_status") or "",
+           "tls": obj.get("tls") or "", "reused": obj.get("reused") or ""}
+    for key, names in _NUMERIC.items():
+        rec[key] = _num(next((obj[n] for n in names if n in obj), None))
     return rec
 
 
@@ -154,13 +174,17 @@ class L7WindowStore:
     def window(self, key):
         return self._windows.get(key)
 
-    def evict(self, now):
-        """Drop keys idle for longer than idle_timeout. Return the count dropped."""
+    def evict_keys(self, now):
+        """Drop keys idle for longer than idle_timeout. Return the dropped keys."""
         stale = [k for k, ts in self._last_seen.items() if now - ts > self.idle_timeout]
         for key in stale:
             self._windows.pop(key, None)
             self._last_seen.pop(key, None)
-        return len(stale)
+        return stale
+
+    def evict(self, now):
+        """Drop keys idle for longer than idle_timeout. Return the count dropped."""
+        return len(self.evict_keys(now))
 
     def stats(self):
         full = sum(1 for w in self._windows.values() if len(w) >= self.maxlen)
