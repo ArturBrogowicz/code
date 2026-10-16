@@ -1,0 +1,830 @@
+{
+ "format": "l7-dataset/1",
+ "created": "2026-10-16T15:00:17Z",
+ "seed": 1,
+ "duration_s": 600.0,
+ "access_log": "access.log",
+ "ip_map": {
+  "10.0.1.1": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_3g",
+   "kind": "curl_oneshot",
+   "gate_admissible": true
+  },
+  "10.0.1.2": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "perfect",
+   "kind": "curl_oneshot",
+   "gate_admissible": true
+  },
+  "10.0.1.3": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "broadband",
+   "kind": "keepalive",
+   "gate_admissible": true
+  },
+  "10.0.1.4": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_bad",
+   "kind": "keepalive",
+   "gate_admissible": true
+  },
+  "10.0.1.5": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "broadband",
+   "kind": "http2",
+   "gate_admissible": true
+  },
+  "10.0.1.6": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "broadband",
+   "kind": "api_poll",
+   "gate_admissible": true
+  },
+  "10.0.1.7": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_3g",
+   "kind": "downloader",
+   "gate_admissible": true
+  },
+  "10.0.1.8": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_3g",
+   "kind": "uploader",
+   "gate_admissible": true
+  },
+  "10.0.1.9": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "perfect",
+   "kind": "nat_gateway",
+   "gate_admissible": true
+  },
+  "10.0.1.10": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_bad",
+   "kind": "curl_oneshot",
+   "gate_admissible": true
+  },
+  "10.0.1.11": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_bad",
+   "kind": "curl_oneshot",
+   "gate_admissible": true
+  },
+  "10.0.1.12": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "perfect",
+   "kind": "keepalive",
+   "gate_admissible": true
+  },
+  "10.0.1.13": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "broadband",
+   "kind": "browser_page",
+   "gate_admissible": true
+  },
+  "10.0.1.14": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_3g",
+   "kind": "browser_page",
+   "gate_admissible": true
+  },
+  "10.0.1.15": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_bad",
+   "kind": "browser_page",
+   "gate_admissible": true
+  },
+  "10.0.1.16": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "perfect",
+   "kind": "browser_page",
+   "gate_admissible": true
+  },
+  "10.0.1.17": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "broadband",
+   "kind": "cgnat_browsers",
+   "gate_admissible": true
+  },
+  "10.0.1.18": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_bad",
+   "kind": "cgnat_browsers",
+   "gate_admissible": true
+  },
+  "10.0.1.19": {
+   "class": "benign",
+   "family": null,
+   "held_out": true,
+   "profile": "mobile_3g",
+   "kind": "api_bulk",
+   "gate_admissible": true
+  },
+  "10.0.1.20": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "perfect",
+   "kind": "crawler_polite",
+   "gate_admissible": true
+  },
+  "10.0.2.1": {
+   "class": "attack",
+   "family": "subthreshold_flood",
+   "held_out": false,
+   "params": {
+    "rps": 20,
+    "port": 80,
+    "paths": "mixed"
+   }
+  },
+  "10.0.2.2": {
+   "class": "attack",
+   "family": "subthreshold_flood",
+   "held_out": false,
+   "params": {
+    "rps": 45,
+    "port": 443,
+    "paths": "mixed"
+   }
+  },
+  "10.0.2.3": {
+   "class": "attack",
+   "family": "scraper",
+   "held_out": false,
+   "params": {
+    "rps": 25,
+    "port": 443,
+    "paths": "scrape"
+   }
+  },
+  "10.0.2.4": {
+   "class": "attack",
+   "family": "slowloris",
+   "held_out": false,
+   "params": {
+    "conns": 6,
+    "header_every_s": 3,
+    "port": 80
+   }
+  },
+  "10.0.2.5": {
+   "class": "attack",
+   "family": "slowpost",
+   "held_out": false,
+   "params": {
+    "conns": 6,
+    "byte_every_s": 3,
+    "body_bytes": 60000,
+    "port": 80
+   }
+  },
+  "10.0.2.6": {
+   "class": "attack",
+   "family": "padded_flood",
+   "held_out": true,
+   "params": {
+    "rps": 30,
+    "port": 443,
+    "paths": "mixed",
+    "pad_header_bytes": 500
+   }
+  },
+  "10.0.2.7": {
+   "class": "attack",
+   "family": "credstuff",
+   "held_out": true,
+   "params": {
+    "rps": 20,
+    "port": 443,
+    "path": "/login",
+    "body_bytes": 120
+   }
+  },
+  "10.0.2.8": {
+   "class": "attack",
+   "family": "slowread",
+   "held_out": true,
+   "params": {
+    "conns": 6,
+    "read_every_s": 3,
+    "path": "/download/large",
+    "port": 80
+   }
+  },
+  "10.0.2.9": {
+   "class": "attack",
+   "family": "volumetric_flood",
+   "held_out": false,
+   "params": {
+    "kind": "syn",
+    "dur_s": 8
+   }
+  }
+ },
+ "schedule": [
+  {
+   "ip": "10.0.2.1",
+   "family": "subthreshold_flood",
+   "held_out": false,
+   "mechanism": "rate",
+   "start_s": 213.948,
+   "stop_s": 280.748,
+   "params": {
+    "rps": 20,
+    "port": 80,
+    "paths": "mixed"
+   }
+  },
+  {
+   "ip": "10.0.2.2",
+   "family": "subthreshold_flood",
+   "held_out": false,
+   "mechanism": "rate",
+   "start_s": 150.922,
+   "stop_s": 211.797,
+   "params": {
+    "rps": 45,
+    "port": 443,
+    "paths": "mixed"
+   }
+  },
+  {
+   "ip": "10.0.2.3",
+   "family": "scraper",
+   "held_out": false,
+   "mechanism": "rate",
+   "start_s": 64.412,
+   "stop_s": 122.147,
+   "params": {
+    "rps": 25,
+    "port": 443,
+    "paths": "scrape"
+   }
+  },
+  {
+   "ip": "10.0.2.4",
+   "family": "slowloris",
+   "held_out": false,
+   "mechanism": "conns",
+   "start_s": 23.972,
+   "stop_s": 64.89,
+   "params": {
+    "conns": 6,
+    "header_every_s": 3,
+    "port": 80
+   }
+  },
+  {
+   "ip": "10.0.2.5",
+   "family": "slowpost",
+   "held_out": false,
+   "mechanism": "conns",
+   "start_s": 208.922,
+   "stop_s": 277.097,
+   "params": {
+    "conns": 6,
+    "byte_every_s": 3,
+    "body_bytes": 60000,
+    "port": 80
+   }
+  },
+  {
+   "ip": "10.0.2.6",
+   "family": "padded_flood",
+   "held_out": true,
+   "mechanism": "rate",
+   "start_s": 388.118,
+   "stop_s": 457.189,
+   "params": {
+    "rps": 30,
+    "port": 443,
+    "paths": "mixed",
+    "pad_header_bytes": 500
+   }
+  },
+  {
+   "ip": "10.0.2.7",
+   "family": "credstuff",
+   "held_out": true,
+   "mechanism": "rate",
+   "start_s": 505.025,
+   "stop_s": 567.936,
+   "params": {
+    "rps": 20,
+    "port": 443,
+    "path": "/login",
+    "body_bytes": 120
+   }
+  },
+  {
+   "ip": "10.0.2.8",
+   "family": "slowread",
+   "held_out": true,
+   "mechanism": "conns",
+   "start_s": 375.247,
+   "stop_s": 425.618,
+   "params": {
+    "conns": 6,
+    "read_every_s": 3,
+    "path": "/download/large",
+    "port": 80
+   }
+  },
+  {
+   "ip": "10.0.2.9",
+   "family": "volumetric_flood",
+   "held_out": false,
+   "mechanism": "flood",
+   "start_s": 553.257,
+   "stop_s": 561.257,
+   "params": {
+    "kind": "syn",
+    "dur_s": 8
+   }
+  }
+ ],
+ "provenance": {
+  "git_commit": "f5148e2d32004360f0c2d96ba4ac1973031a8a96",
+  "t0_wall": 1792162214.1427684,
+  "host": "ddos-mitigation",
+  "duration_s": 600.0,
+  "n_benign": 20,
+  "n_attackers": 9,
+  "benign_mix": "overlap",
+  "heuristics": "tolerant",
+  "operating_point": "default",
+  "ready": true,
+  "completed": true,
+  "launched_families": [
+   "slowloris",
+   "scraper",
+   "subthreshold_flood",
+   "slowpost",
+   "subthreshold_flood",
+   "slowread",
+   "padded_flood",
+   "credstuff",
+   "volumetric_flood"
+  ],
+  "inputs_sha256": {
+   "l7_webapp.py": "c9fe7b8d80b95e2e413041ed7f42d90897907e4d8234acf54f73f29a5aa65ac4",
+   "nginx_l7capture.conf": "358961fb8424e14fb1556e049c7f7db32fa2714841e9427b7482c7c25c968cb8",
+   "ml/l7_gen.py": "a2b5365a85cb96b61f93e5672b0acf545c44576267a58dde24d51e08f6126046",
+   "ml/l7_traffic.py": "a01ed0e8c0e4b3c67bff7886d367336211ccc0b4dd894f3f3506c0708078788c",
+   "l7_dataset.py": "976c5f59a11e08f178fb793b16903d32b07f598e501c2e5fe30c03d0a1574801",
+   "control_plane.py": "9f3a70e62e4a317a39f2f6c91703faa0d7014f2af49496a7daa3743bce4b064b",
+   "nginx.conf": "68e120ef3e727e1ae89f74605f759e8538a7da33a9d66b46078e810ca89ab190",
+   "ml/l7_benign.py": "fa88b4077b2b641ee52c20efbad265a81ed55a66d695679d58a6f4309273ff70",
+   "ml/l7_admissibility.py": "f9ae4d7010947e2cf63fb1850d15514ec74fe338815e68fac104408bd2f2a066"
+  },
+  "calibration": {
+   "thresholds": {
+    "l7_rate_ban_rps": 50,
+    "slowconn_ban_conns": 8,
+    "rudy_ban_timeouts": 3,
+    "nginx_limit_req_rps": 30,
+    "nginx_limit_conn": 50,
+    "nginx_body_timeout_s": 5,
+    "nginx_header_timeout_s": 5,
+    "nginx_max_body": 65536,
+    "l7_rate_window_s": 10.0,
+    "l7_rate_min_requests": 5,
+    "l7_error_ratio": 0.8,
+    "l7_error_min_rps": 10,
+    "nginx_limit_req_burst": 100,
+    "nginx_keepalive_timeout_s": 15,
+    "slowconn_idle_bytes": 250,
+    "slowconn_consecutive": 3,
+    "l4_poll_interval_s": 1.0
+   },
+   "trained": [
+    {
+     "family": "subthreshold_flood",
+     "held_out": false,
+     "mechanism": "rate",
+     "rps": 20,
+     "ban_threshold": 50,
+     "margin_ok": true,
+     "nginx_shaped": false,
+     "error_ratio": 0.0,
+     "violations": []
+    },
+    {
+     "family": "subthreshold_flood",
+     "held_out": false,
+     "mechanism": "rate",
+     "rps": 45,
+     "ban_threshold": 50,
+     "margin_ok": true,
+     "nginx_shaped": true,
+     "error_ratio": 0.0,
+     "violations": []
+    },
+    {
+     "family": "scraper",
+     "held_out": false,
+     "mechanism": "rate",
+     "rps": 25,
+     "ban_threshold": 50,
+     "margin_ok": true,
+     "nginx_shaped": false,
+     "error_ratio": 0.0,
+     "violations": []
+    },
+    {
+     "family": "slowloris",
+     "held_out": false,
+     "mechanism": "conns",
+     "conns": 6,
+     "ban_threshold": 8,
+     "margin_ok": true,
+     "header_every_s": 3,
+     "header_every_s_ok": true,
+     "violations": []
+    },
+    {
+     "family": "slowpost",
+     "held_out": false,
+     "mechanism": "conns",
+     "conns": 6,
+     "ban_threshold": 8,
+     "margin_ok": true,
+     "byte_every_s": 3,
+     "byte_every_s_ok": true,
+     "violations": []
+    }
+   ],
+   "held_out": [
+    {
+     "family": "padded_flood",
+     "held_out": true,
+     "mechanism": "rate",
+     "rps": 30,
+     "ban_threshold": 50,
+     "margin_ok": true,
+     "nginx_shaped": false,
+     "error_ratio": 0.0,
+     "violations": []
+    },
+    {
+     "family": "credstuff",
+     "held_out": true,
+     "mechanism": "rate",
+     "rps": 20,
+     "ban_threshold": 50,
+     "margin_ok": true,
+     "nginx_shaped": false,
+     "error_ratio": 1.0,
+     "violations": [
+      "error ratio 1.00 > 0.8 at rps 20 > 10 (rate rule's error-ratio branch)"
+     ]
+    },
+    {
+     "family": "slowread",
+     "held_out": true,
+     "mechanism": "conns",
+     "conns": 6,
+     "ban_threshold": 8,
+     "margin_ok": true,
+     "read_every_s": 3,
+     "read_every_s_ok": true,
+     "violations": []
+    }
+   ],
+   "calibrated": true,
+   "benign_gate": {
+    "seeds": 20,
+    "duration_s": 600.0,
+    "profile": "tolerant",
+    "service_s": 0.002,
+    "benign": [
+     {
+      "kind": "browser_page",
+      "params": {
+       "level": 30,
+       "first_visit_s": [
+        0.0,
+        30.0
+       ]
+      },
+      "seeds": 20,
+      "admissible": true,
+      "trips": {},
+      "median": {
+       "peak_1s": 31,
+       "sustained_10s": 5.3,
+       "sustained_30s": 2.867,
+       "sustained_60s": 2.067,
+       "rule_rps_max": 31.0,
+       "requests": 391
+      },
+      "worst": {
+       "rule_rps_max": 44.0,
+       "inflight_max": 6,
+       "established_max": 6,
+       "sustained_10s": 6.5,
+       "limit_req_rejected": 0
+      },
+      "port": 443,
+      "held_out": false
+     },
+     {
+      "kind": "browser_page",
+      "params": {
+       "level": 30,
+       "first_visit_s": [
+        0.0,
+        30.0
+       ]
+      },
+      "seeds": 20,
+      "admissible": true,
+      "trips": {},
+      "median": {
+       "peak_1s": 31,
+       "sustained_10s": 5.3,
+       "sustained_30s": 2.867,
+       "sustained_60s": 2.067,
+       "rule_rps_max": 31.0,
+       "requests": 391
+      },
+      "worst": {
+       "rule_rps_max": 44.0,
+       "inflight_max": 6,
+       "established_max": 6,
+       "sustained_10s": 6.5,
+       "limit_req_rejected": 0
+      },
+      "port": 80,
+      "held_out": false
+     },
+     {
+      "kind": "browser_page",
+      "params": {
+       "level": 60,
+       "first_visit_s": [
+        0.0,
+        30.0
+       ]
+      },
+      "seeds": 20,
+      "admissible": true,
+      "trips": {},
+      "median": {
+       "peak_1s": 61,
+       "sustained_10s": 10.3,
+       "sustained_30s": 5.533,
+       "sustained_60s": 3.9,
+       "rule_rps_max": 61.0,
+       "requests": 731
+      },
+      "worst": {
+       "rule_rps_max": 82.71,
+       "inflight_max": 6,
+       "established_max": 6,
+       "sustained_10s": 12.5,
+       "limit_req_rejected": 0
+      },
+      "port": 443,
+      "held_out": false
+     },
+     {
+      "kind": "browser_page",
+      "params": {
+       "level": 60,
+       "first_visit_s": [
+        0.0,
+        30.0
+       ]
+      },
+      "seeds": 20,
+      "admissible": true,
+      "trips": {},
+      "median": {
+       "peak_1s": 61,
+       "sustained_10s": 10.3,
+       "sustained_30s": 5.533,
+       "sustained_60s": 3.9,
+       "rule_rps_max": 61.0,
+       "requests": 731
+      },
+      "worst": {
+       "rule_rps_max": 82.71,
+       "inflight_max": 6,
+       "established_max": 6,
+       "sustained_10s": 12.5,
+       "limit_req_rejected": 0
+      },
+      "port": 80,
+      "held_out": false
+     },
+     {
+      "kind": "cgnat_browsers",
+      "params": {
+       "users": 12,
+       "level": 30,
+       "first_visit_s": [
+        0.0,
+        60.0
+       ]
+      },
+      "seeds": 20,
+      "admissible": true,
+      "trips": {},
+      "median": {
+       "peak_1s": 86,
+       "sustained_10s": 24.7,
+       "sustained_30s": 19.867,
+       "sustained_60s": 15.55,
+       "rule_rps_max": 35.55,
+       "requests": 4469
+      },
+      "worst": {
+       "rule_rps_max": 73.0,
+       "inflight_max": 12,
+       "established_max": 72,
+       "sustained_10s": 37.6,
+       "limit_req_rejected": 0
+      },
+      "port": 443,
+      "held_out": false
+     },
+     {
+      "kind": "cgnat_browsers",
+      "params": {
+       "users": 24,
+       "level": 30,
+       "first_visit_s": [
+        0.0,
+        60.0
+       ]
+      },
+      "seeds": 20,
+      "admissible": true,
+      "trips": {},
+      "median": {
+       "peak_1s": 117,
+       "sustained_10s": 47.5,
+       "sustained_30s": 36.667,
+       "sustained_60s": 30.517,
+       "rule_rps_max": 59.07,
+       "requests": 8883
+      },
+      "worst": {
+       "rule_rps_max": 82.61,
+       "inflight_max": 12,
+       "established_max": 138,
+       "sustained_10s": 63.0,
+       "limit_req_rejected": 0
+      },
+      "port": 443,
+      "held_out": false
+     },
+     {
+      "kind": "api_bulk",
+      "params": {
+       "rps": [
+        15.0,
+        20.0
+       ],
+       "endpoints": [
+        2,
+        3
+       ]
+      },
+      "seeds": 20,
+      "admissible": true,
+      "trips": {},
+      "median": {
+       "peak_1s": 33,
+       "sustained_10s": 20.8,
+       "sustained_30s": 18.9,
+       "sustained_60s": 17.983,
+       "rule_rps_max": 22.0,
+       "requests": 10002
+      },
+      "worst": {
+       "rule_rps_max": 28.25,
+       "inflight_max": 1,
+       "established_max": 1,
+       "sustained_10s": 23.6,
+       "limit_req_rejected": 0
+      },
+      "port": 443,
+      "held_out": true
+     },
+     {
+      "kind": "crawler_polite",
+      "params": {
+       "rps": [
+        2.0,
+        5.0
+       ],
+       "level": 30
+      },
+      "seeds": 20,
+      "admissible": true,
+      "trips": {},
+      "median": {
+       "peak_1s": 5,
+       "sustained_10s": 3.6,
+       "sustained_30s": 3.467,
+       "sustained_60s": 3.433,
+       "rule_rps_max": 4.09,
+       "requests": 2020
+      },
+      "worst": {
+       "rule_rps_max": 6.0,
+       "inflight_max": 1,
+       "established_max": 1,
+       "sustained_10s": 5.1,
+       "limit_req_rejected": 0
+      },
+      "port": 443,
+      "held_out": false
+     }
+    ],
+    "fast_attackers": {
+     "subthreshold_flood@20": {
+      "peak_1s": 33,
+      "sustained_10s": 21.8,
+      "sustained_30s": 20.067,
+      "sustained_60s": 19.15
+     },
+     "subthreshold_flood@45": {
+      "peak_1s": 60,
+      "sustained_10s": 45.2,
+      "sustained_30s": 42.367,
+      "sustained_60s": 41.3
+     },
+     "scraper@25": {
+      "peak_1s": 39,
+      "sustained_10s": 27.0,
+      "sustained_30s": 25.0,
+      "sustained_60s": 23.8
+     },
+     "padded_flood@30": {
+      "peak_1s": 44,
+      "sustained_10s": 31.5,
+      "sustained_30s": 29.367,
+      "sustained_60s": 28.35
+     }
+    },
+    "overlap": {
+     "O1_peak": {
+      "lowest_fast_attacker": 33,
+      "highest_admissible_benign": 117,
+      "overlap": true
+     },
+     "O2_sustained": {
+      "lowest_fast_attacker": 19.15,
+      "highest_admissible_benign": 30.517,
+      "overlap": true
+     }
+    }
+   },
+   "launch_inadmissible": false,
+   "heuristics": "tolerant",
+   "benign_dropped": []
+  }
+ },
+ "notes": "L7 capture dataset (P3)"
+}
