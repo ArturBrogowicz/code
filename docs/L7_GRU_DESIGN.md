@@ -1107,9 +1107,12 @@ exactly). The remaining six are kinds the P4 model never trained on (R16).
      `no_size` and `no_uri`.
    * **Load-invariance probe `server_load`.** Every request in a window gets a 10× slower
      server (`rt` and `urt` × 10, the p90 shift measured at P5c.1); the client's request
-     start times are held fixed. Pass: decision flips at the deployed threshold on ≤ 1 % of
-     probe windows (stricter than the 5 % of the other robustness probes, because R17 showed
-     load drives false positives).
+     start times are held fixed. **Pass: exact invariance** (|Δp| ≤ 1e-5, as the other exact
+     probes) — amended 2026-10-16 before any P5c.3 data. The first version allowed ≤ 1 %
+     decision flips; tested on the P4 candidate, it gave opposite verdicts depending on the
+     load in the probe windows (0.9 % flips on the lightly loaded P3 training capture: pass;
+     27 % on the P5c.1 recording: fail), so it would have passed the very shortcut it targets.
+     With exact invariance, in effect only variants without `server_timing` are eligible.
    * **The probe gate is applied to every variant** (the three exact probes plus
      `server_load`); only passing variants are eligible, and the unchanged selection rule
      (most held-out groups detected at ≤ 1 benign FP/client-hour) picks among them. This

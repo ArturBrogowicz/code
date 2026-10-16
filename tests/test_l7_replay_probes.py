@@ -170,9 +170,32 @@ class ProbeTest(unittest.TestCase):
         self.assertFalse(P.gate_pass(rep))
         method = U.StubScorer(seq_len=8, col="m_post", cut=0.5)
         rep = P.run_probes(method, windows)
+        self.assertTrue(rep["server_load"]["exact"])
         self.assertTrue(rep["server_load"]["pass"])
-        self.assertEqual(rep["server_load"]["flip_rate"], 0.0)
+        self.assertLessEqual(rep["server_load"]["max_abs_dp"], P.EXACT_TOL)
         self.assertTrue(P.gate_pass(rep))
+
+    def test_real_gru_without_server_timing_passes_exactly(self):
+        cols = F.columns(tuple(g for g in F.DEFAULT_GROUPS if g != "server_timing"))
+        U.tiny_package(self.dir, cols=cols, seq_len=8)
+        scorer = l7_scorer.L7Scorer.load(self.dir)
+        rep = P.run_probes(scorer, P.windows_from_items(self.items, 8))
+        self.assertTrue(rep["server_load"]["pass"])
+        self.assertTrue(P.gate_pass(rep))
+
+    def test_p4_candidate_fails_the_strict_load_probe(self):
+        # The realised R17 shortcut: the published P4 candidate reads server timing, so the
+        # exact probe rejects it even on its own lightly loaded training capture.
+        pkg = os.path.join(U.REPO, "results", "2026-10-15_l7-p4-train", "model")
+        log = os.path.join(U.REPO, "results", "2026-10-15_l7-p3-capture", "access.log")
+        if not (os.path.isdir(pkg) and os.path.isfile(log)):
+            self.skipTest("published P4/P3 artifacts not present")
+        scorer = l7_scorer.L7Scorer.load(pkg)
+        with open(log, encoding="utf-8") as fh:
+            windows = P.windows_from_items(E.read_stream(fh), scorer.seq_len, stride=3)[:300]
+        rep = P.run_probes(scorer, windows, transforms={"server_load": P.TRANSFORMS["server_load"]})
+        self.assertFalse(rep["server_load"]["pass"])
+        self.assertGreater(rep["server_load"]["max_abs_dp"], P.EXACT_TOL)
 
     def test_gate_requires_server_load(self):
         ok = {"pass": True}

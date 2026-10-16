@@ -92,7 +92,8 @@ class HgbReplayTest(unittest.TestCase):
         for d in (ds, pkg, run):
             self.addCleanup(shutil.rmtree, d, True)
         TT.synth_dataset(ds)
-        T.run(ds, pkg, seed=1, epochs=1, hidden=8, layers=1, variants=("no_size",))
+        T.run(ds, pkg, seed=1, epochs=1, hidden=8, layers=1,
+              variants=("no_size_no_server_timing",))
         with open(os.path.join(ds, "access.log"), encoding="utf-8") as fh:
             objs = [json.loads(line) for line in fh]
         # The synthetic attackers send 40 requests in 2 s: too few 1 s polls for the
@@ -105,7 +106,7 @@ class HgbReplayTest(unittest.TestCase):
         res = B.compute(run, pkg)
         self.assertIn("B4", res["families"])
         self.assertGreater(res["hgb"]["windows"], 0)
-        self.assertEqual(res["hgb"]["variant"], "no_size")
+        self.assertEqual(res["hgb"]["variant"], "no_size_no_server_timing")
         self.assertEqual(len(res["families"]["B4"]), len(B.HGB_THRESHOLDS))
         # the attackers' POST /login windows are what the tiny baseline learned
         low = res["families"]["B4"][f"p>0.5x{T.CONSECUTIVE}"]

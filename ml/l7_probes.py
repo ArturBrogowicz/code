@@ -76,7 +76,6 @@ def iat_jitter(recs, rng):
 
 
 LOAD_FACTOR = 10.0      # server_load: the p90 $request_time shift measured at P5c.1 (R17)
-LOAD_FLIP_TOL = 0.01    # stricter than FLIP_TOL: R17 showed load drives false positives
 
 
 def server_load(recs, rng):
@@ -91,8 +90,10 @@ def server_load(recs, rng):
 
 TRANSFORMS = {"ua_swap": (ua_swap, True), "uri_bijection": (uri_bijection, True),
               "time_offset": (time_offset, True), "pad_request": (pad_request, False),
-              "iat_jitter": (iat_jitter, False), "server_load": (server_load, False)}
-FLIP_TOLS = {"server_load": LOAD_FLIP_TOL}     # per-probe tolerance where it differs
+              "iat_jitter": (iat_jitter, False), "server_load": (server_load, True)}
+# server_load is EXACT (§7.3.2.1, amended): a decision must not move at all when only the
+# server's timing changes. A flip-rate tolerance passed the load-dependent P4 candidate on
+# its lightly loaded training windows (0.9 % flips) while it flipped 27 % under P5c.1 load.
 GATE_PROBES = ("ua_swap", "uri_bijection", "time_offset", "server_load")   # the hard gate
 
 
@@ -132,7 +133,7 @@ def run_probes(scorer, windows, transforms=None, seed=0, flip_tol=FLIP_TOL):
         p = _score(scorer, [fn(w, rng) for w in windows])
         dp = np.abs(p - base)
         flips = float(np.mean((p > scorer.threshold) != base_dec))
-        ok = bool(dp.max() <= EXACT_TOL) if exact else flips <= FLIP_TOLS.get(name, flip_tol)
+        ok = bool(dp.max() <= EXACT_TOL) if exact else flips <= flip_tol
         report[name] = {"exact": exact, "mean_abs_dp": float(dp.mean()),
                         "max_abs_dp": float(dp.max()), "flip_rate": flips, "pass": ok}
     report["all_pass"] = all(v["pass"] for k, v in report.items() if k in transforms)

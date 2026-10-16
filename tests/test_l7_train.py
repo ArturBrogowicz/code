@@ -183,13 +183,16 @@ class RunTest(unittest.TestCase):
         out = tempfile.mkdtemp(prefix="l7pkg_")
         self.addCleanup(shutil.rmtree, out, True)
         report, _best = T.run(d, out, seed=1, epochs=1, hidden=8, layers=1,
-                             variants=("default", "no_size"), do_baseline=True)
+                             variants=("default", "no_server_timing"), do_baseline=True)
+        # the strict load probe rejects the variant that reads server timing (R17)
+        self.assertFalse(report["variants"]["default"]["probe_gate_pass"])
+        self.assertEqual(report["selection"]["chosen"], "no_server_timing")
         # a loadable package was written and never in training_results/
         self.assertNotIn("training_results", os.path.abspath(out))
         scorer = l7_scorer.L7Scorer.load(out)
         self.assertEqual(scorer.threshold, T.THRESHOLD)
+        self.assertNotIn("log_rt", scorer.cols)
         # both variants evaluated, GRU + baseline present
-        self.assertIn("no_size", report["variants"])
         self.assertIn("baseline_hgb", report["variants"]["default"])
         # held-out family reported, benign FP computed, probes ran
         self.assertIn("f_held", report["variants"]["default"]["gru"]["heldout"]["by_family"])
@@ -206,14 +209,13 @@ class RunTest(unittest.TestCase):
         out = tempfile.mkdtemp(prefix="l7pkg_")
         self.addCleanup(shutil.rmtree, out, True)
         report, _ = T.run(d, out, seed=1, epochs=1, hidden=8, layers=1,
-                          variants=("no_size",), do_baseline=True)
-        g = report["variants"]["no_size"]["gru"]
+                          variants=("no_size_no_server_timing",), do_baseline=True)
+        g = report["variants"]["no_size_no_server_timing"]["gru"]
         self.assertEqual(g["benign_heldout"]["n_groups"], 1)
         self.assertIn("fp_per_client_hour", g["benign_heldout_fp"])
         clf, meta = T.load_baseline(out)
-        self.assertEqual(meta["variant"], "no_size")
-        self.assertEqual(meta["columns"], T.F.columns(tuple(x for x in T.F.DEFAULT_GROUPS
-                                                            if x != "size")))
+        self.assertEqual(meta["variant"], "no_size_no_server_timing")
+        self.assertEqual(meta["columns"], T.F.columns(T.variant_groups()["no_size_no_server_timing"]))
         self.assertTrue(hasattr(clf, "predict_proba"))
         with open(os.path.join(out, T.BASELINE_PKL), "ab") as fh:     # tamper
             fh.write(b"x")
