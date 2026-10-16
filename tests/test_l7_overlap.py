@@ -240,5 +240,38 @@ class OverlapMixTest(unittest.TestCase):
         self.assertEqual(set(gate["overlap"]), {"O1_peak", "O2_sustained"})
 
 
+class TolerantProfileTest(unittest.TestCase):
+    """P5c.2 (§7.3.3): the frozen tolerant profile is exactly what the pre-registered rule
+    derives, it only relaxes, and the gate under it admits every realistic benign kind."""
+
+    def test_frozen_profile_equals_the_derivation(self):
+        specs = [(k.kind, k.params) for k in l7_traffic.OVERLAP_KINDS]
+        prof, ev = adm.derive_tolerant(specs, l7_traffic.GATE_DURATION_S, l7_traffic.GATE_SEEDS)
+        self.assertEqual(prof, l7_traffic.THRESHOLDS_TOLERANT)
+        self.assertEqual(ev["tolerance"], 1.3)
+
+    def test_relax_only(self):
+        d, t = l7_traffic.THRESHOLDS, l7_traffic.THRESHOLDS_TOLERANT
+        self.assertEqual(set(d), set(t))
+        changed = {k for k in d if d[k] != t[k]}
+        self.assertEqual(changed, {"l7_rate_ban_rps", "slowconn_ban_conns",
+                                   "nginx_limit_req_rps", "nginx_limit_req_burst"})
+        self.assertTrue(all(t[k] > d[k] for k in changed))
+        self.assertEqual(t["l7_error_ratio"], d["l7_error_ratio"])      # error branch kept
+
+    def test_tolerant_gate_admits_every_kind(self):
+        gate = l7_traffic.benign_gate(FAST_GATE, profile="tolerant")
+        self.assertTrue(all(r["admissible"] for r in gate["benign"]), gate["benign"])
+        ben = l7_traffic.build_plan(1, 12, 300.0, benign_mix="overlap", gate_seeds=FAST_GATE,
+                                    heuristics="tolerant")[0]
+        self.assertEqual(len(ben), 12 + len(l7_traffic.OVERLAP_KINDS))
+        with self.assertRaises(ValueError):
+            l7_traffic.build_plan(1, 12, 300.0, heuristics="lenient")
+
+    def test_bucket_excess(self):
+        self.assertEqual(adm.bucket_excess([0.0] * 10, 30), 9)
+        self.assertLess(adm.bucket_excess([i / 20 for i in range(200)], 30), 1.0)
+
+
 if __name__ == "__main__":
     unittest.main()

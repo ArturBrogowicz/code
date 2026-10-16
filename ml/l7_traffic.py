@@ -53,6 +53,17 @@ THRESHOLDS = {
     "slowconn_consecutive": 3,    # SLOWCONN_CONSECUTIVE
     "l4_poll_interval_s": 1.0,    # L4_POLL_INTERVAL
 }
+# P5c.2 (docs/L7_GRU_DESIGN.md §7.3.3): the production-tolerable profile, frozen here
+# before any P5c.3 data. Derived by l7_admissibility.derive_tolerant(): each threshold the
+# realistic benign kinds trip at the defaults becomes their simulated worst case x 1.3,
+# rounded up (relax only). A test re-derives it and checks it equals these values.
+# control_plane.py (HEURISTIC_PROFILE=tolerant) and the rendered nginx confs use them.
+THRESHOLDS_TOLERANT = {**THRESHOLDS,
+                       "l7_rate_ban_rps": 108,        # worst benign rule rps 82.7 x 1.3
+                       "slowconn_ban_conns": 180,     # worst benign established 138 x 1.3
+                       "nginx_limit_req_rps": 82,     # worst benign 10 s rate 63 x 1.3
+                       "nginx_limit_req_burst": 133}  # worst excess at 82 r/s 102.2 x 1.3
+PROFILES = {"default": THRESHOLDS, "tolerant": THRESHOLDS_TOLERANT}
 # Headroom below a ban threshold we require of a trained attack, so jitter cannot cross it.
 RPS_MARGIN = 5
 CONN_MARGIN = 1
@@ -227,20 +238,22 @@ def calibrate(trained=None, held_out=None, enforce=True):
 _GATE_CACHE = {}
 
 
-def benign_gate(seeds=GATE_SEEDS, duration_s=GATE_DURATION_S):
+def benign_gate(seeds=GATE_SEEDS, duration_s=GATE_DURATION_S, profile="default"):
     """The P5b benign admissibility gate (§7.2, §7.2.1): every OVERLAP_KINDS spec simulated
-    against the deployed mechanisms (ml/l7_admissibility), plus the fast attackers' rate
-    profiles and the overlap check. Deterministic; cached per (seeds, duration)."""
-    key = (tuple(seeds), float(duration_s))
+    against the deployed mechanisms (ml/l7_admissibility) at the `profile` thresholds
+    (P5c.2), plus the fast attackers' rate profiles and the overlap check. Deterministic;
+    cached per (seeds, duration, profile)."""
+    key = (tuple(seeds), float(duration_s), profile)
     if key not in _GATE_CACHE:
         import l7_admissibility as adm
-        benign = [adm.check_spec(s.kind, s.params, duration_s, seeds) for s in OVERLAP_KINDS]
+        lim = PROFILES[profile]
+        benign = [adm.check_spec(s.kind, s.params, duration_s, seeds, lim) for s in OVERLAP_KINDS]
         for spec, r in zip(OVERLAP_KINDS, benign, strict=True):
             r["port"], r["held_out"] = spec.port, spec.held_out
         attacks = {f"{a.family}@{a.params['rps']}": adm.attack_profile(a.params["rps"], 60.0, seeds)
                    for a in TRAINED_ATTACKS + HELDOUT_ATTACKS
                    if a.mechanism == "rate" and a.family in FAST_FAMILIES}
-        _GATE_CACHE[key] = {"seeds": len(seeds), "duration_s": duration_s,
+        _GATE_CACHE[key] = {"seeds": len(seeds), "duration_s": duration_s, "profile": profile,
                             "service_s": adm.SERVICE_S, "benign": benign,
                             "fast_attackers": attacks,
                             "overlap": adm.overlap_check(benign, attacks)}
@@ -249,7 +262,8 @@ def benign_gate(seeds=GATE_SEEDS, duration_s=GATE_DURATION_S):
 
 def build_plan(seed, n_benign, duration_s, *, include_held_out=True, include_flood=True,
                benign_prefix="10.0.1", attack_prefix="10.0.2", warmup_s=10.0,
-               benign_mix="p5", gate_seeds=GATE_SEEDS, launch_inadmissible=False):
+               benign_mix="p5", gate_seeds=GATE_SEEDS, launch_inadmissible=False,
+               heuristics="default"):
     """Assign IPs and start/stop times to benign clients and attackers (seeded).
 
     Benign clients run for the whole capture. Each attacker runs one window inside
@@ -262,10 +276,14 @@ def build_plan(seed, n_benign, duration_s, *, include_held_out=True, include_flo
     launch_inadmissible=True (P5c.1, §7.3.2) ALSO launches the gate-inadmissible overlap
     kinds — so a benign-only run under the DEFAULT thresholds can document the heuristics
     banning realistic high-rate benign. Each overlap client records its gate verdict.
+    heuristics selects the threshold profile the gate checks against (P5c.2): "tolerant"
+    admits the realistic high-rate kinds that "default" rejects.
     Returns (benign_clients, attackers, schedule, calibration_report).
     """
     if benign_mix not in ("p5", "overlap"):
         raise ValueError(f"unknown benign_mix: {benign_mix}")
+    if heuristics not in PROFILES:
+        raise ValueError(f"unknown heuristics profile: {heuristics}")
     import random
     rng = random.Random(seed)
     report = calibrate()                         # raises if a trained attack is mis-set
@@ -301,7 +319,7 @@ def build_plan(seed, n_benign, duration_s, *, include_held_out=True, include_flo
         schedule.append(spec.as_schedule_entry(ip, start, start + spec.params["dur_s"]))
 
     if benign_mix == "overlap":
-        gate = benign_gate(gate_seeds)
+        gate = benign_gate(gate_seeds, profile=heuristics)
         orng = random.Random(f"p5b-overlap:{seed}")
         for j, (spec, rep) in enumerate(zip(OVERLAP_KINDS, gate["benign"], strict=True)):
             cseed = orng.randrange(2**31)        # drawn for every spec: a drop shifts nothing
@@ -314,6 +332,7 @@ def build_plan(seed, n_benign, duration_s, *, include_held_out=True, include_flo
                                    "gate_admissible": rep["admissible"]})
         report["benign_gate"] = gate
         report["launch_inadmissible"] = launch_inadmissible
+        report["heuristics"] = heuristics
         report["benign_dropped"] = [{"kind": r["kind"], "params": r["params"], "trips": r["trips"]}
                                     for r in gate["benign"] if not r["admissible"]]
 

@@ -204,20 +204,20 @@ def _max_in_window(ts, w):
 
 # ───────────────────────── the gate ─────────────────────────
 
-def check_client(kind, params, duration_s, seed):
-    """Simulate one client (one seed) against every mechanism."""
+def check_client(kind, params, duration_s, seed, lim=LIMITS):
+    """Simulate one client (one seed) against every mechanism, at the thresholds `lim`."""
     plan = l7_benign.plan_client(kind, params, duration_s, random.Random(seed))
     starts, ends, statuses, conns = client_wire(plan, duration_s)
-    max_rps, rule_ban = l7_rate_scan(ends, statuses)
-    rejected, _peak = limit_req_scan(starts)
+    max_rps, rule_ban = l7_rate_scan(ends, statuses, lim)
+    rejected, _peak = limit_req_scan(starts, lim)
     inflight = max_concurrent(list(zip(starts, ends, strict=True)))
-    slow_ban, max_est = slowconn_scan(conns, starts, duration_s)
+    slow_ban, max_est = slowconn_scan(conns, starts, duration_s, lim)
     viol = []
-    if rule_ban or max_rps > LIMITS["l7_rate_ban_rps"] - RPS_MARGIN:
+    if rule_ban or max_rps > lim["l7_rate_ban_rps"] - RPS_MARGIN:
         viol.append("l7_rate")
     if rejected:
         viol.append("limit_req")
-    if inflight > LIMITS["nginx_limit_conn"] - CONN_MARGIN:
+    if inflight > lim["nginx_limit_conn"] - CONN_MARGIN:
         viol.append("limit_conn")
     if slow_ban:
         viol.append("slowconn")
@@ -227,10 +227,10 @@ def check_client(kind, params, duration_s, seed):
             **rate_profile(ends), "violations": viol}
 
 
-def check_spec(kind, params, duration_s, seeds):
+def check_spec(kind, params, duration_s, seeds, lim=LIMITS):
     """A spec is admissible iff no simulated seed violates anything. Returns the
     aggregate: per-mechanism trip counts, medians of the rate profile, worst values."""
-    runs = [check_client(kind, params, duration_s, s) for s in seeds]
+    runs = [check_client(kind, params, duration_s, s, lim) for s in seeds]
     trips = collections.Counter(v for r in runs for v in r["violations"])
 
     def med(key):
@@ -243,7 +243,58 @@ def check_spec(kind, params, duration_s, seeds):
             "worst": {"rule_rps_max": max(r["rule_rps_max"] for r in runs),
                       "inflight_max": max(r["inflight_max"] for r in runs),
                       "established_max": max(r["established_max"] for r in runs),
+                      "sustained_10s": max(r["sustained_10s"] for r in runs),
                       "limit_req_rejected": max(r["limit_req_rejected"] for r in runs)}}
+
+
+def bucket_excess(starts, rate):
+    """The largest excess nginx's limit_req bucket reaches at `rate` with no burst cap:
+    the smallest burst that would reject none of these requests."""
+    excess, last, peak = 0.0, None, 0.0
+    for t in sorted(starts):
+        excess = 0.0 if last is None else max(0.0, excess - rate * (t - last) + 1.0)
+        last = t
+        peak = max(peak, excess)
+    return peak
+
+
+TOLERANCE = 1.3          # §7.3.3: benign worst case x 1.3, rounded up; relax only
+
+
+def derive_tolerant(specs, duration_s, seeds, base=LIMITS):
+    """The production-tolerable profile (P5c.2, §7.3.3 as amended in §7.3.2.1): for each
+    mechanism that the benign specs trip at the `base` thresholds, the threshold becomes the
+    simulated worst case over all specs and seeds x TOLERANCE, rounded up; nothing is ever
+    tightened, and a mechanism nothing trips keeps its base value. L3/L4 flood thresholds
+    are not part of this. Returns (profile, evidence)."""
+    import math
+
+    def up(x):
+        return math.ceil(x * TOLERANCE - 1e-9)
+
+    reports = [check_spec(k, p, duration_s, seeds, base) for k, p in specs]
+    tripped = {m for r in reports for m in r["trips"]}
+    worst = {key: max(r["worst"][key] for r in reports)
+             for key in ("rule_rps_max", "established_max", "inflight_max", "sustained_10s")}
+    prof = dict(base)
+    ev = {"tripped": sorted(tripped), "worst": worst, "tolerance": TOLERANCE}
+    if "l7_rate" in tripped:
+        prof["l7_rate_ban_rps"] = max(base["l7_rate_ban_rps"], up(worst["rule_rps_max"]))
+    if "slowconn" in tripped:
+        prof["slowconn_ban_conns"] = max(base["slowconn_ban_conns"], up(worst["established_max"]))
+    if "limit_conn" in tripped:
+        prof["nginx_limit_conn"] = max(base["nginx_limit_conn"], up(worst["inflight_max"]))
+    if "limit_req" in tripped:
+        rate = max(base["nginx_limit_req_rps"], up(worst["sustained_10s"]))
+        excess = 0.0
+        for k, p in specs:
+            for sd in seeds:
+                plan = l7_benign.plan_client(k, p, duration_s, random.Random(sd))
+                excess = max(excess, bucket_excess(client_wire(plan, duration_s)[0], rate))
+        prof["nginx_limit_req_rps"] = rate
+        prof["nginx_limit_req_burst"] = max(base["nginx_limit_req_burst"], up(excess))
+        ev["worst"]["bucket_excess_at_rate"] = round(excess, 2)
+    return prof, ev
 
 
 def attack_profile(rps, span_s, seeds):
