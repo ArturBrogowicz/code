@@ -1,0 +1,211 @@
+{
+ "runs": [
+  "runA1",
+  "runA2",
+  "runA3",
+  "runA4",
+  "runA5"
+ ],
+ "comparison_set": 20,
+ "benign_ips": 100,
+ "gru": {
+  "caught": 20,
+  "benign_flagged": 9
+ },
+ "v1_exclusions": {
+  "runA1": [],
+  "runA2": [],
+  "runA3": [],
+  "runA4": [],
+  "runA5": []
+ },
+ "V0_informative": {
+  "per_run_b0_best_at_0_benign": [
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "per_run_comparison_set": [
+   4,
+   4,
+   4,
+   4,
+   4
+  ],
+  "pass": true
+ },
+ "V2_usable": {
+  "gru_catches_over_half": true,
+  "benign_flagged_share": 0.09,
+  "benign_within_budget": false,
+  "soak_fp_per_client_hour": 1.8,
+  "soak_within_budget": false,
+  "pass": false
+ },
+ "V3_baselines": {
+  "B0": {
+   "param": null,
+   "caught": 0,
+   "fp": 0,
+   "per_run": [
+    {
+     "gru": 4,
+     "baseline": 0
+    },
+    {
+     "gru": 4,
+     "baseline": 0
+    },
+    {
+     "gru": 4,
+     "baseline": 0
+    },
+    {
+     "gru": 4,
+     "baseline": 0
+    },
+    {
+     "gru": 4,
+     "baseline": 0
+    }
+   ],
+   "gru_only": 20,
+   "baseline_only": 0,
+   "mcnemar_p": 0.0,
+   "gru_beats": true,
+   "significant": true
+  },
+  "B1": {
+   "param": "peak1s>50",
+   "caught": 0,
+   "fp": 9,
+   "per_run": [
+    {
+     "gru": 4,
+     "baseline": 0
+    },
+    {
+     "gru": 4,
+     "baseline": 0
+    },
+    {
+     "gru": 4,
+     "baseline": 0
+    },
+    {
+     "gru": 4,
+     "baseline": 0
+    },
+    {
+     "gru": 4,
+     "baseline": 0
+    }
+   ],
+   "gru_only": 20,
+   "baseline_only": 0,
+   "mcnemar_p": 0.0,
+   "gru_beats": true,
+   "significant": true
+  },
+  "B2": {
+   "param": "key:mean60s>10",
+   "caught": 20,
+   "fp": 2,
+   "per_run": [
+    {
+     "gru": 4,
+     "baseline": 4
+    },
+    {
+     "gru": 4,
+     "baseline": 4
+    },
+    {
+     "gru": 4,
+     "baseline": 4
+    },
+    {
+     "gru": 4,
+     "baseline": 4
+    },
+    {
+     "gru": 4,
+     "baseline": 4
+    }
+   ],
+   "gru_only": 0,
+   "baseline_only": 0,
+   "mcnemar_p": 1.0,
+   "gru_beats": false,
+   "significant": false
+  },
+  "B3": {
+   "param": "key:r=10,b=100",
+   "caught": 20,
+   "fp": 2,
+   "per_run": [
+    {
+     "gru": 4,
+     "baseline": 4
+    },
+    {
+     "gru": 4,
+     "baseline": 4
+    },
+    {
+     "gru": 4,
+     "baseline": 4
+    },
+    {
+     "gru": 4,
+     "baseline": 4
+    },
+    {
+     "gru": 4,
+     "baseline": 4
+    }
+   ],
+   "gru_only": 0,
+   "baseline_only": 0,
+   "mcnemar_p": 1.0,
+   "gru_beats": false,
+   "significant": false
+  },
+  "B4": {
+   "param": "p>0.99x3",
+   "caught": 20,
+   "fp": 2,
+   "per_run": [
+    {
+     "gru": 4,
+     "baseline": 4
+    },
+    {
+     "gru": 4,
+     "baseline": 4
+    },
+    {
+     "gru": 4,
+     "baseline": 4
+    },
+    {
+     "gru": 4,
+     "baseline": 4
+    },
+    {
+     "gru": 4,
+     "baseline": 4
+    }
+   ],
+   "gru_only": 0,
+   "baseline_only": 0,
+   "mcnemar_p": 1.0,
+   "gru_beats": false,
+   "significant": false
+  }
+ },
+ "missing_baselines": [],
+ "outcome": "no advantage"
+}

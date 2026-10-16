@@ -1,0 +1,44 @@
+[*] Compiling and loading eBPF code from file: xdp_ddos_filter.c...
+[+] Successfully attached XDP program to interface veth_server.
+[*] Loading data scaler (training_results/scaler_testbed.save)...
+[*] Loading trained GRU model (training_results/gru_testbed_model.pth, input_size=8)...
+[*] Starting tri-engine Anti-DDoS integration (XDP Telemetry + GRU ML + L7 Heuristics)...
+[*] Starting L3/L4 telemetry monitor (Interval: 1.0s)
+[+] Inference worker thread started.
+[*] Listening for Nginx error logs (RUDY detection): /var/log/nginx/error.log
+[+] RUDY detection thread started.
+[+] L7 shadow ingestion thread started (socket /run/ddos_l7.sock).
+[*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log
+[*] L7 shadow ingestion on /run/ddos_l7.sock (SO_RCVBUF=8388608, model 7f6040a5c7dd, record=on).
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+
+[HEURISTIC] L7 anomaly detected - IP: 10.0.2.7 | RPS: 11.0 | Error ratio: 100%
+[XDP] BLOCKED IP: 10.0.2.7. Rule is active on hardware.
+[BAN] 10.0.2.7 banned for 300s. Reason: Heuristic (RPS=11.0, errors=100%)
+[OS] Killed hanging TCP sessions for address 10.0.2.7.
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+
+[L4-DETECT] SYN FLOOD ATTACK - IP: 10.0.2.9 | Rate: 369 SYN/s
+[XDP] BLOCKED IP: 10.0.2.9. Rule is active on hardware.
+[BAN] 10.0.2.9 banned for 300s. Reason: Per-IP SYN flood (369 SYN/s)
+[GC] Evicted tracking data for 2 idle client(s).
+[GC] Evicted tracking data for 2 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).
+[GC] Evicted tracking data for 1 idle client(s).

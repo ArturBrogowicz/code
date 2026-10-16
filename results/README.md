@@ -5,6 +5,7 @@ a new measurement is a new campaign.
 
 | Campaign | Content | Status |
 |---|---|---|
+| [`2026-10-16_l7-p5c4-eval`](2026-10-16_l7-p5c4-eval/) | P5c.4: 5 seeds + soak, tolerant heuristics, realistic benign mix: tolerant rules caught 0/20 fast sub-threshold attackers; GRU 20/20 but 9 % benign flagged; per-(IP, UA) rate rules and the tabular model also 20/20 at 2 % → pre-registered verdict: no advantage | valid; see its README |
 | [`2026-10-16_l7-p5c3-train`](2026-10-16_l7-p5c3-train/) | P5c.3 training: candidate `no_size_no_server_timing`, probe gate PASS (strict server_load, pad_request); held-out attacks 7/8, 0 benign-test FP; held-out API client flagged (R16) | P5c.4 candidate (not promoted); see its README |
 | [`2026-10-16_l7-p5c3-capture`](2026-10-16_l7-p5c3-capture/) | P5c.3 training dataset: full realistic benign mix + calibrated sub-threshold attacks under the tolerant profile; 31,623 lines, all kinds/families present, 0 nginx rejections | gate artifact + P5c.3 training input; see its README |
 | [`2026-10-16_l7-p5c2-tolerant-verify`](2026-10-16_l7-p5c2-tolerant-verify/) | P5c.2 gate: the same benign-only run under the frozen tolerant profile: 0 of 20 benign IPs banned (the 60-asset page and both CGNAT gateways now run in full) | valid; gate PASS; see its README |

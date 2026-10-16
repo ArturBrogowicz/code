@@ -1,0 +1,20 @@
+[*] L7 eval → /var/tmp/ddos_l7_eval/20261016T155054Z  (model model, 20 benign, 1 attackers, soak=True)
+
+[93m[*] Cleaning up all namespaces and processes...[0m
+[92m[+] Cleanup complete.[0m
+[+] daemon + L7 shadow ready.
+  [ 553.7s] launched volumetric_flood from 10.0.2.9 (8s)
+
+[93m[*] Cleaning up all namespaces and processes...[0m
+[92m[+] Cleanup complete.[0m
+[+] Topology cleaned up.
+
+=== L7 eval summary ===
+  volumetric_flood     ips=1 det_banned=1['l4_syn'] would_banned=0 ttd_would=Nones
+  benign would-ban IPs: 2 / 20 (6 events: {'10.0.1.19': 4, '10.0.1.16': 2})
+  GRU totals: {'windows': 7359, 'over': 538, 'would_bans': 6, 'gated_age': 156, 'suppressed_polls': 15}  suppress_on: 1
+[+] Wrote /var/tmp/ddos_l7_eval/20261016T155054Z/summary.json
+[+] Wrote baselines.json (families ['B0', 'B1', 'B2', 'B3', 'B4']); benign shaped by nginx: []
+
+[93m[*] Cleaning up all namespaces and processes...[0m
+[92m[+] Cleanup complete.[0m
