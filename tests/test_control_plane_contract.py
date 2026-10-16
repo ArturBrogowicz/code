@@ -126,6 +126,27 @@ class ControlPlaneContractTest(unittest.TestCase):
                  and n.value.func.id == "drain_inference_results"]
         self.assertEqual(len(calls), 1)         # exactly one call: the guarded one above
 
+    def test_tolerant_profile_matches_the_frozen_derivation(self):
+        # P5c.2 (§7.3.3): HEURISTIC_PROFILE=tolerant overrides exactly the two daemon
+        # thresholds the derivation relaxed, to the frozen values; defaults are unchanged.
+        sys.path.insert(0, os.path.join(REPO, "ml"))
+        import l7_traffic
+        t = l7_traffic.THRESHOLDS_TOLERANT
+        node = next(n for n in self.tree.body if isinstance(n, ast.Assign)
+                    and any(getattr(x, "id", None) == "TOLERANT_OVERRIDES" for x in n.targets))
+        self.assertEqual(ast.literal_eval(node.value),
+                         {"HEURISTIC_MAX_RPS": t["l7_rate_ban_rps"],
+                          "SLOWCONN_CONN_THRESHOLD": t["slowconn_ban_conns"]})
+        self.assertIn("HEURISTIC_MAX_RPS = 50 ", self.source)
+        self.assertIn("SLOWCONN_CONN_THRESHOLD = 8 ", self.source)
+        switch = next(n for n in self.tree.body if isinstance(n, ast.If)
+                      and "HEURISTIC_PROFILE" in ast.unparse(n.test))
+        assigned = {t.id for st in switch.body for t in st.targets}
+        self.assertEqual(assigned, {"HEURISTIC_MAX_RPS", "SLOWCONN_CONN_THRESHOLD"})
+        # it runs at import, before XDP is attached, so a bad profile fails fast
+        self.assertLess(self.source.index("HEURISTIC_PROFILE = os.environ"),
+                        self.source.index("bpf.attach_xdp("))
+
     def test_l7_shadow_thread_is_guarded(self):
         # The shadow thread must start only under `if L7_SHADOW:`, so the default
         # daemon behaviour is unchanged.

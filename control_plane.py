@@ -132,6 +132,19 @@ HEURISTIC_MAX_RPS = 50         # Max requests per second before blocking
 HEURISTIC_ERROR_RATIO = 0.8    # Block if >80% of requests return 4xx/5xx
 HEURISTIC_MIN_REQUESTS = 5     # Minimum requests in window before evaluating
 
+# P5c.2 (docs/L7_GRU_DESIGN.md §7.3.3). HEURISTIC_PROFILE=tolerant relaxes ONLY the
+# thresholds that realistic benign traffic (60-asset page loads, CGNAT keep-alive pools)
+# exceeds: the simulated benign worst case x 1.3, frozen in ml/l7_traffic.THRESHOLDS_TOLERANT
+# (a test cross-checks these values). The L3/L4 flood engines and the error-ratio branch are
+# never relaxed. Default: unchanged.
+HEURISTIC_PROFILE = os.environ.get("HEURISTIC_PROFILE", "default")
+TOLERANT_OVERRIDES = {"HEURISTIC_MAX_RPS": 108, "SLOWCONN_CONN_THRESHOLD": 180}
+if HEURISTIC_PROFILE == "tolerant":
+    HEURISTIC_MAX_RPS = TOLERANT_OVERRIDES["HEURISTIC_MAX_RPS"]
+    SLOWCONN_CONN_THRESHOLD = TOLERANT_OVERRIDES["SLOWCONN_CONN_THRESHOLD"]
+elif HEURISTIC_PROFILE != "default":
+    raise SystemExit(f"[-] unknown HEURISTIC_PROFILE {HEURISTIC_PROFILE!r} (default|tolerant)")
+
 # Eviction timeout for idle client tracking data (seconds)
 CLIENT_IDLE_TIMEOUT = 60.0
 
@@ -922,6 +935,7 @@ try:
         print("[!] GRU_ONLY=1 — all non-GRU ban paths DISABLED (test isolation mode).")
     EVENTS.emit("start", pid=os.getpid(), backend=os.environ.get("MITIGATION_BACKEND", "xdp"),
                 gru_only=GRU_ONLY, xdp_gru=XDP_GRU, l7_shadow=L7_SHADOW,
+                heuristic_profile=HEURISTIC_PROFILE,
                 l7_model=L7_MODEL or None, l7_record=bool(L7_RECORD),
                 interface=INTERFACE, model=MODEL_PATH,
                 model_sha256=ban_events.file_sha256(MODEL_PATH),
