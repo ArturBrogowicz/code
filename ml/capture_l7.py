@@ -147,7 +147,9 @@ class Capture:
             time.sleep(0.5)
         return False
 
-    def gen_cmd(self, node, role, duration):
+    def gen_cmd(self, S, node, role, duration):
+        """The l7_gen command for one node. S is the suite module (passed in, never a
+        module global: eval_l7 reuses this class from another module)."""
         params = dict(node.get("params", {}))
         name = node["kind"] if role == "benign" else node["family"]
         cmd = [S.PYTHON_VENV, GEN, "--role", role, "--host", S.SERVER_IP,
@@ -160,7 +162,7 @@ class Capture:
         t0 = time.time()
         for c in benign:                          # benign run the whole capture
             self.procs.append((f"benign:{c['ip']}",
-                               S.run(self.gen_cmd(c, "benign", self.args.duration),
+                               S.run(self.gen_cmd(S, c, "benign", self.args.duration),
                                      ns=f"b_{c['ip'].replace('.', '_')}", bg=True)))
         pending = sorted(zip(attackers, schedule), key=lambda x: x[1]["start_s"])
         launched = []
@@ -172,7 +174,7 @@ class Capture:
                 ns = f"a_{a['ip'].replace('.', '_')}"
                 role = "attack"
                 self.procs.append((f"attack:{a['family']}:{a['ip']}",
-                                   S.run(self.gen_cmd(a, role, dur), ns=ns, bg=True)))
+                                   S.run(self.gen_cmd(S, a, role, dur), ns=ns, bg=True)))
                 launched.append(a["family"])
                 print(f"  [{now:6.1f}s] launched {a['family']} from {a['ip']} ({dur:.0f}s)")
             time.sleep(1.0)

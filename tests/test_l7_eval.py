@@ -91,6 +91,49 @@ class AnalyseTest(unittest.TestCase):
         self.assertEqual(at50["attacker_ips_caught"], 0)      # 25 < 50: the deployed rule misses it
 
 
+class FakeSuite:
+    """Stands in for test_distributed_suite: records run() calls, starts nothing."""
+    PYTHON_VENV = "/venv/bin/python"
+    SERVER_IP = "10.0.0.1"
+
+    def __init__(self):
+        self.calls = []
+
+    def run(self, cmd, ns=None, bg=False, timeout=None):
+        self.calls.append((ns, list(cmd)))
+
+        class P:
+            def poll(self):
+                return 0
+        return P()
+
+
+class RunCaptureTest(unittest.TestCase):
+    def test_run_capture_needs_no_module_global(self):
+        # The P5 run A crash: gen_cmd read capture_l7's module-global S, which only
+        # capture_l7.main() sets. Reused from eval_l7, it must take S as a parameter.
+        import argparse
+
+        import capture_l7
+        self.assertFalse(hasattr(capture_l7, "S"))       # nobody set the global
+        args = argparse.Namespace(duration=1.2)
+        runner = eval_l7.EvalRunner(args, tempfile.mkdtemp(prefix="l7ev_"), "/pkg")
+        fake = FakeSuite()
+        benign = [{"ip": "10.0.1.1", "kind": "keepalive", "port": 443, "params": {}, "seed": 1}]
+        attackers = [{"ip": "10.0.2.1", "family": "scraper", "port": 443,
+                      "params": {"rps": 25}, "seed": 2}]
+        schedule = [{"ip": "10.0.2.1", "start_s": 0.0, "stop_s": 1.0}]
+        _t0, launched = runner.run_capture(fake, benign, attackers, schedule)
+        self.assertEqual(launched, ["scraper"])
+        nss = [ns for ns, _ in fake.calls]
+        self.assertEqual(nss, ["b_10_0_1_1", "a_10_0_2_1"])
+        cmd = fake.calls[0][1]
+        self.assertEqual(cmd[0], FakeSuite.PYTHON_VENV)
+        self.assertIn("--kind", cmd)
+        self.assertEqual(cmd[cmd.index("--host") + 1], FakeSuite.SERVER_IP)
+        self.assertIn("--family", fake.calls[1][1])
+
+
 class PlanTest(unittest.TestCase):
     def test_soak_filters_to_flood_only(self):
         import argparse
