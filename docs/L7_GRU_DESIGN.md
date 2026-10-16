@@ -70,6 +70,19 @@ out `api_bulk`, 5 seeds, benign FP budget ≤ 5 %. **P5b.0 (the offline build) i
 browsing NAT in every simulated run (R3 realised in the deterministic layer). It also rejects
 the 60-asset page, which the rate rule would ban. The capture (P5b.1) awaits approval.
 
+**P5c (re-calibrated overlap) was approved on 2026-10-16 (§7.3) — a pivot.** P5b.0's finding
+(the default thresholds false-ban realistic benign) is reframed as the thesis's core
+evidence of the collateral-damage-vs-evasion dilemma of static thresholds. Instead of forcing
+benign under rigid thresholds, P5c makes realistic high-rate benign (60-asset bursts, 12/24-
+user CGNAT keep-alive pools, polite crawler, held-out API client) part of the benchmark, and
+**relaxes the deterministic heuristics** to a production-tolerable level. The hypothesis under
+test: the relaxed thresholds then miss the fast sub-threshold floods/scrapers, while the
+behavioral L7-GRU catches them at ≤ 5 % benign FP. Scope is honest (§7.3.1): the GRU's
+demonstrable niche is the **fast** sub-threshold families that log densely; **slow-connection
+abuse stays an open gap (R1)** the access-log GRU cannot close. Steps: P5c.1 live baseline
+confirmation (awaiting approval) → P5c.2 re-calibration → P5c.3 re-capture + retrain →
+P5c.4 evaluation. The verdict is pre-registered; the result may be negative.
+
 **Confirmed decisions (§10).** (1) Scope: GRU owns L7 sub-threshold abuse only. (2)
 Transport: Unix-domain datagram syslog primary + durable file sink. (3) Keying: **IP +
 `ua_h` from the start**, bans map to the source IP for XDP. (4) Slow signal:
@@ -968,6 +981,176 @@ and is not tuned.
 
 ---
 
+## 7.3 P5c — re-calibrated overlap: realistic benign as the benchmark [APPROVED 2026-10-16; pre-registered here before any P5c data]
+
+**The pivot [DECISION].** P5b asked benign traffic to stay under the *current* thresholds,
+and the gate rejected the realistic high-rate kinds (§7.2.2): a 60-asset page burst and a
+12/24-user CGNAT gateway. P5c inverts the question. Realistic benign traffic — asset-heavy
+HTTP bursts and shared-NAT keep-alive pools — is **not** negotiable; it is part of the
+benchmark. The deterministic thresholds are what must adapt. This reframes the experiment
+around the real engineering dilemma, and it is where a behavioral model has a chance to add
+value that a volume threshold cannot.
+
+**The dilemma, stated as the thesis argument [the hypothesis under test].** With a single
+per-IP rate/connection threshold:
+* **relax it** enough to tolerate 60-asset bursts (peak ~60 rps/1 s) and CGNAT pools (24
+  users, ~120 concurrent connections, ~30 rps sustained) — and a sub-threshold flood (20–45
+  rps) or scraper sits comfortably inside the relaxed band, undetected;
+* **tighten it** enough to catch those sub-threshold abusers — and it false-bans modern
+  browsers and shared-NAT IPs (exactly P5b.0's SlowConn / rate-rule result, §7.2.2).
+
+P5c tests whether the L7-GRU's behavioral features (inter-arrival distribution, think-time
+cadence, URI diversity, status mix, (IP, UA) keying) separate the two where a re-calibrated
+*volume* threshold provably cannot.
+
+### 7.3.1 Integrity constraints — so the "target outcome" stays falsifiable [DECISION]
+
+The requested outcome (relaxed heuristics miss the abuse; the GRU catches it at ≤ 5 % benign
+FP) is a **hypothesis**, not a goal to engineer toward. The following make it a real test:
+
+1. **Re-calibration is driven by benign tolerance ALONE, and frozen before the attack/GRU
+   results are seen.** The relaxed thresholds are set to admit the measured realistic benign
+   profile (P5c.1) plus a stated margin — never chosen by looking at where the attackers sit
+   or where the GRU wins. Picking a threshold *so that* 20–45 rps slips through would rig
+   both ends. The P5c.2 commit that sets the thresholds is the pre-registration timestamp.
+2. **The baselines are the re-calibrated thresholds themselves, oracle-tuned (B0–B4 from
+   §7.2, re-run).** "The relaxed heuristic misses the attack" must be shown against the best
+   static threshold that still tolerates benign at the GRU's benign-FP level — not against a
+   strawman. If a per-(IP, UA) limit or a sustained-rate/token-bucket baseline catches the
+   abuse at that benign cost, the GRU's win is attributed to keying/burst-handling, not
+   learning (the §7.2 verdict ladder is reused verbatim).
+3. **Honest scope — the GRU closes only the half it can see.** By R1 (confirmed at P3/P5), a
+   well-behaved 6-socket Slowloris/slow-POST logs ~once per connection, so the **access-log
+   GRU is blind to sub-threshold slow-connection abuse**. Relaxing SlowConn to tolerate CGNAT
+   keep-alive pools reopens that exposure, and the L7-GRU does **not** close it. The
+   demonstrable GRU niche in P5c is the **fast sub-threshold floods and scrapers** that log
+   densely (subthreshold_flood 20/45 rps, scraper 25 rps, padded_flood 30 rps). The slow
+   families are reported per-family as an **open gap** that needs a connection-behavioral
+   signal (a per-(IP, UA) SlowConn, or `ss` in-flight tracking), explicitly *not* the thing
+   the GRU is credited with. The thesis claim is scoped to the fast niche, or it is oversold.
+4. **Security cost is reported, not hidden.** Relaxing SlowConn / `limit_conn` / the rate
+   rule measurably weakens the deterministic defense against genuine Slowloris and
+   mid-rate floods. That cost is the *point* of the dilemma and is quantified (§7.3.4), not
+   buried: the honest framing is "behavioral detection lets you relax volume thresholds for
+   benign without losing fast-flood coverage," conditional on the result.
+5. **Every run reported, pre-registered verdict, and the result may be negative** (relaxed
+   threshold matches the GRU, or the GRU false-positives on bursts) — reported as such.
+
+### 7.3.2 P5c.1 — empirical baseline confirmation [VM workload; first gate, approval requested now]
+
+A short live run on the VM with the **default, unchanged** heuristics (`control_plane.py`,
+`nginx.conf` as they stand) driven by the realistic benign kinds, to (a) document the exact
+deterministic ban events as empirical evidence of the dilemma for the thesis, and (b) measure
+the real benign resource profile (per-IP peak/sustained rps, concurrent established
+connections, idle intervals) that drives the re-calibration in P5c.2 — so the relaxation is
+grounded in measurement, not only the P5b.0 simulation.
+
+* **What runs:** the full deterministic daemon (`XDP_GRU=0`, `L7_SHADOW=1` so the engine
+  *observes* and records but still never bans), real `nginx.conf`, gunicorn `l7_webapp`, and
+  benign generators only: `browser_page` (30 and 60 assets), `cgnat_browsers` (12 and 24
+  users), `crawler_polite`, `api_bulk`. **No attack traffic** in this run — it is a benign
+  false-positive demonstration.
+* **Duration / side effects:** ~4–5 min. Creates namespaces + veths, starts nginx + gunicorn
+  + the daemon in `server_ns`, attaches XDP, sends benign HTTP/HTTPS. No sysctl/iptables
+  changes beyond what the daemon already does; cleaned up on exit (the P5b.0 runner cleanup).
+* **Expected (from the P5b.0 simulation, to be confirmed live):** `l4_slowconn` bans the
+  CGNAT IPs; `l7_rate` bans the 60-asset browser IPs. Published as
+  `results/2026-10-1x_l7-p5c-baseline/` with the `ban_events.jsonl` and the measured benign
+  profile. **Gate:** you review the documented bans + benign profile before P5c.2.
+* **Runner:** a `--benign-only` / `--no-attacks` mode of `ml/eval_l7.py --mix overlap` (no new
+  attack code; offline-testable plan path first).
+
+### 7.3.3 P5c.2 — heuristic re-calibration to a production-tolerable profile [code; frozen before any attack data]
+
+Relax the specific thresholds that collide with realistic benign, to the measured benign
+worst-case (P5c.1) plus a margin. **Candidate** profile (exact values frozen in the P5c.2
+commit after P5c.1 measures the real peaks; the L4 flood/SYN engines are left untouched — we
+relax only the L7 / connection thresholds that false-ban benign):
+
+| Threshold | Now | Candidate relaxed | Benign driver | Security cost |
+|---|---|---|---|---|
+| `HEURISTIC_MAX_RPS` | 50 | ~150 (or a sustained-rate rule over the 10 s window) | CGNAT-24 peak ~117 rps/1 s; 60-asset burst ~61 | a 20–45 rps flood is now far inside the band |
+| `SLOWCONN_CONN_THRESHOLD` | 8 | ~160 | CGNAT-24 ≈ 144 concurrent keep-alive conns | a 6-socket (or ≤160) Slowloris no longer tripped |
+| nginx `limit_conn` | 50 | ~200 | CGNAT-24 concurrency | more concurrent-connection headroom for abuse |
+| nginx `limit_req rate` / `burst` | 30 r/s / 100 | ~60 r/s / ~200 | burst + CGNAT sustained | mid-rate floods shaped less |
+| rate error-ratio branch | keep | keep | — | credstuff stays caught (genuinely abusive) |
+
+* These live in `control_plane.py` and `nginx.conf`; `ml/l7_traffic.THRESHOLDS` and the
+  P5b.0 admissibility gate (`ml/l7_admissibility.py`) read the same values, so re-running the
+  gate against the relaxed profile **must** now show every realistic benign kind admissible
+  (that is the P5c.2 acceptance check — a gate the relaxation has to pass, offline). The
+  tests that pin the old constants (`tests/test_l7_capture.py`, `test_l7_overlap.py`,
+  `test_l7_eval.py`) are updated to the new values with the cross-check intact.
+* **Decision rule (pre-registered):** set each threshold to the measured benign worst-case
+  × 1.3, rounded up; it is **not** retuned afterwards. If a benign kind still trips, that is
+  reported (as at P5b), not papered over.
+* The relaxed `nginx.conf` is a **capture/eval profile** (`nginx_l7relaxed.conf` or a
+  templated override); the deployed `nginx.conf` default is changed only if the thesis
+  concludes in favour (a P6 decision), so production is not silently weakened.
+
+### 7.3.4 P5c.3 — re-capture and retrain on the full realistic mix [capture is a VM workload; retrain offline]
+
+* **Capture** (`ml/capture_l7.py --mix overlap` under the **relaxed** profile): the full
+  realistic benign mix — `browser_page` 30 + 60, `cgnat_browsers` 12 + 24, `crawler_polite`,
+  `api_bulk` (held out) + the existing 12 P5 benign kinds — now admissible, **plus** the
+  calibrated sub-threshold attacks (trained: subthreshold_flood 20/45, scraper, slowloris,
+  slowpost; held-out: padded_flood, credstuff, slowread) and the mid-run SYN flood. Labelled
+  by IP as before; ~10 min; published dataset.
+* **Retrain** (`ml/train_l7.py`, unchanged): GRU + HGB tabular baseline on this richer
+  dataset. The model now *trains on* high-rate bursty benign — the first time it sees legit
+  traffic that overlaps the attack rates — so this directly tests whether it can hold ≤ 5 %
+  benign FP there. `api_bulk` stays the held-out benign kind (decision 1); probe gate as a
+  hard acceptance test; `no_size` selection rule unchanged.
+* **Gate:** dataset manifest/labels complete; probe gate PASS; benign-burst FP on the
+  held-out benign kind reported in the model card before evaluation.
+
+### 7.3.5 P5c.4 — evaluation and the pre-registered verdict [VM workload]
+
+Shadow evaluation (`ml/eval_l7.py --mix overlap`, **relaxed** daemon, `XDP_GRU=0`), 5 seeds
++ a benign soak, exactly as §7.2 decided. The §7.2 verdict machinery (`ml/p5b_report.py`,
+baselines B0–B4) is reused; the only change is that the deterministic engine under test is
+now the **relaxed** one, so its bans (and misses) are part of the comparison.
+
+**Comparison set:** the fast sub-threshold attacker IPs (subthreshold_flood ×2, scraper,
+padded_flood). **Benign set:** the realistic high-rate benign IPs now admitted. Pre-registered
+outcomes:
+
+| Outcome | Condition |
+|---|---|
+| **Marginal value shown — decisive** | Relaxed deterministic engine bans ≈ 0 of the fast sub-threshold attackers AND the GRU would-bans > ½ of them, AND GRU benign FP ≤ 5 % of benign IPs + soak ≤ 1/client-hr, AND the GRU beats every baseline B0–B4 (each oracle-tuned at the GRU's benign-FP level), each McNemar-significant |
+| **Marginal value shown — indicative** | as above, but not every McNemar test is significant |
+| **Advantage is keying/burst-handling, not learning** | GRU beats the per-IP B0 but a per-(IP, UA)/sustained/token-bucket baseline matches it |
+| **No advantage** | a re-calibrated static threshold matches the GRU at equal benign FP, or the GRU exceeds the benign-FP budget on bursts/CGNAT |
+| **Uninformative** | the relaxed benign mix no longer overlaps the attack rates (V0 fails) |
+
+* **Slow families:** reported per-family as the R1 open gap (§7.3.1 pt 3); neither the
+  relaxed heuristic nor the access-log GRU is expected to catch them — this is stated, not
+  counted toward the GRU.
+* **Security-cost table:** for the relaxed profile, the attacks the deterministic engine
+  **stops in P5 but misses now** (e.g. a 6-socket Slowloris that the default SlowConn caught),
+  quantifying the price of relaxation and framing why behavioral detection is needed.
+
+### 7.3.6 Roadmap and gates
+
+| Step | Work | Where / ≈ time | Gate (approval) |
+|---|---|---|---|
+| **P5c.1** | Baseline confirmation: default heuristics vs realistic benign; document bans + benign profile | VM, ~5 min | **Approval requested now.** Review documented `l4_slowconn`/`l7_rate` bans + benign profile |
+| **P5c.2** | Re-calibrate thresholds (`control_plane.py`, relaxed nginx conf, `THRESHOLDS`); update pinned tests; re-run admissibility gate | Offline | Tests + ruff; gate shows realistic benign admissible; you review the frozen profile |
+| **P5c.3** | Capture full realistic mix under relaxed profile; retrain GRU + HGB | VM capture ~10 min; retrain offline | Dataset complete; probe gate PASS; benign-burst FP reported |
+| **P5c.4** | Shadow eval (5 seeds + soak), relaxed daemon; baselines B0–B4; pre-registered verdict | VM ~55 min | Verdict by `ml/p5b_report.py`; published campaign |
+| **P6** | Promotion + (if favoured) making the relaxed profile the deployed default | — | Explicit approval; only on "marginal value shown" |
+
+### 7.3.7 Risks specific to P5c
+
+| # | Risk | Mitigation |
+|---|---|---|
+| R13 | **Re-calibration tuned to manufacture the result** (circular) | Thresholds set from benign tolerance × 1.3, frozen in the P5c.2 commit before attack/GRU data; baselines are those same thresholds, oracle-tuned |
+| R14 | **Overselling: crediting the GRU with the slow-conn half it cannot see (R1)** | Scope the claim to the fast sub-threshold niche; report slow families as an open gap needing a connection-behavioral signal, not the L7-GRU |
+| R15 | **Relaxed profile is a real security regression** if shipped | It is a capture/eval profile; deployed defaults change only on a favourable P6 decision; the security cost is quantified in P5c.4 |
+| R16 | **GRU false-positives on genuine high-rate bursts/CGNAT** it now trains on | The held-out benign kind + the soak + the ≤ 5 % budget are the hard gate; a failure here is a reported negative, not hidden |
+
+---
+
 ## 8. Step-by-step roadmap with verification gates
 
 Each phase ends at a **gate**: an artifact you review and approve before the next phase.
@@ -983,8 +1166,9 @@ the working protocol.
 | **P3** ✓ | `ml/capture_l7.py` + `l7_webapp.py`, `nginx_l7capture.conf`, `ml/l7_traffic.py`, `ml/l7_gen.py`, `l7_dataset.py`; diverse benign (§6.2), calibrated sub-threshold + held-out attacks (§6.3); dataset manifest (§6.5) | capture tool + manifest schema; 17 tests | **PASSED 2026-10-15** (`results/2026-10-15_l7-p3-capture/`): 9012-line dataset, manifest/labels/schedule complete, all families present; R4 closed (size overlaps 5.02 vs 5.35, URI diversity now separates); R1 confirmed (slow families ~1 window vs 58–332 fast) |
 | **P4** ✓ | `ml/train_l7.py`: IP-disjoint benign + family-disjoint held-out splits, policy metrics with Clopper-Pearson CIs + FP/client-hour, exact-invariance probe gate, feature-set variants, GRU + HGB tabular baseline; **offline, CPU** | model package + card + metrics (`results/2026-10-15_l7-p4-train/`) | **PASSED 2026-10-15**: probe gate PASS; `no_size` chosen (held-out 7/8 at 0 FP vs 1/8 with size — the size shortcut confirmed and removed); GRU > baseline; candidate not promoted |
 | **P5** ✓ | Online evaluation in **shadow** (`ml/eval_l7.py`, §7.1): runs A–D, candidate vs with-size, benign soak, `XDP_GRU=0`, H1b threshold sweep | `results/2026-10-16_l7-p5-eval/` | **Done 2026-10-16. Verdict: marginal value NOT shown** — GRU 3/3 fast sub-threshold at 0 benign FP, but a static 10 rps limit matches it; P6 not proposed |
-| **P5b** | Benign-overlap re-test (§7.2, pre-registered): rate-overlapping benign kinds + hard negatives, benign admissibility gate (closes R10), baselines B0–B4; re-capture → retrain → shadow eval | §7.2 | **Approved 2026-10-16** (held-out `api_bulk`, 5 seeds, FP ≤ 5 %). **P5b.0 built** (§7.2.2): gate rejects both NAT kinds (SlowConn) and the 60-asset page (rate rule); P5b.1 capture awaits approval |
-| **P6** | `ml/promote_l7.py`: install a vetted model, with hashes and metrics | promoted model | **Explicit approval;** only if P5/P5b shows value at acceptable FP |
+| **P5b** | Benign-overlap re-test (§7.2, pre-registered): rate-overlapping benign kinds + hard negatives, benign admissibility gate (closes R10), baselines B0–B4; re-capture → retrain → shadow eval | §7.2 | **Approved 2026-10-16** (held-out `api_bulk`, 5 seeds, FP ≤ 5 %). **P5b.0 built** (§7.2.2): gate rejects both NAT kinds (SlowConn) and the 60-asset page (rate rule) under the *default* thresholds → **superseded by P5c**, which relaxes them |
+| **P5c** | Re-calibrated overlap (§7.3, pre-registered): realistic high-rate benign as the benchmark; **relax** the deterministic thresholds to tolerate it; re-capture + retrain + evaluate; show whether the GRU catches fast sub-threshold abuse the relaxed threshold misses | §7.3 | **Approved 2026-10-16.** P5c.1 (live baseline confirmation) **awaits approval** → P5c.2 re-calibrate → P5c.3 capture+retrain → P5c.4 eval. GRU scope limited to the fast niche; slow families an open gap (R1) |
+| **P6** | `ml/promote_l7.py`: install a vetted model (+ optionally make the relaxed profile the default) | promoted model | **Explicit approval;** only if P5c shows value at acceptable FP |
 
 Verification threads through every phase: shadow mode (P1–P2) means the L7 engine can be
 observed on real/replayed traffic *before* it is ever allowed to ban, which directly
