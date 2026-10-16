@@ -5,6 +5,7 @@ a new measurement is a new campaign.
 
 | Campaign | Content | Status |
 |---|---|---|
+| [`2026-10-16_l7-p5c2-tolerant-verify`](2026-10-16_l7-p5c2-tolerant-verify/) | P5c.2 gate: the same benign-only run under the frozen tolerant profile: 0 of 20 benign IPs banned (the 60-asset page and both CGNAT gateways now run in full) | valid; gate PASS; see its README |
 | [`2026-10-16_l7-p5c-baseline`](2026-10-16_l7-p5c-baseline/) | P5c.1: default heuristics vs realistic benign only (1 run): `l7_rate` banned a 60-asset page load, `l4_slowconn` banned both CGNAT gateways (one after only two users); the shadow GRU's flags on P5 clients came from load-driven server timing (R17) | valid; evidence run, not a comparison campaign; see its README |
 | [`2026-10-16_l7-p5-eval`](2026-10-16_l7-p5-eval/) | L7 GRU online evaluation in shadow (P5): 4 runs; GRU flagged all fast sub-threshold attackers at 0 benign FP, but a static 10 rps limit matched it → pre-registered verdict: marginal value NOT shown in this testbed | valid; see its README |
 | [`2026-10-15_l7-p4-train`](2026-10-15_l7-p4-train/) | L7 GRU training (P4 gate): candidate model package + metrics; dropping size features → held-out 7/8 at 0 FP, GRU beats tabular baseline, exact-probe gate PASS | gate artifact + P5 candidate (not promoted); see its README |

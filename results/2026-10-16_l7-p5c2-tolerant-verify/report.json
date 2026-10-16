@@ -1,0 +1,485 @@
+{
+ "run": "2026-10-16_l7-p5c2-tolerant-verify",
+ "seed": 1,
+ "heuristics": "tolerant",
+ "duration_s": 300.0,
+ "t0_wall": 1792161407.3519845,
+ "benign_ips": 20,
+ "det_banned_benign": 0,
+ "rows": [
+  {
+   "ip": "10.0.1.1",
+   "kind": "curl_oneshot",
+   "spec": {},
+   "netem": "mobile_3g",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 122,
+   "distinct_uas": 6,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 1,
+    "sustained_10s": 0.6,
+    "sustained_30s": 0.5,
+    "sustained_60s": 0.45
+   },
+   "gru_would_bans": 0
+  },
+  {
+   "ip": "10.0.1.2",
+   "kind": "curl_oneshot",
+   "spec": {},
+   "netem": "perfect",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 144,
+   "distinct_uas": 6,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 1,
+    "sustained_10s": 0.7,
+    "sustained_30s": 0.567,
+    "sustained_60s": 0.517
+   },
+   "gru_would_bans": 0
+  },
+  {
+   "ip": "10.0.1.3",
+   "kind": "keepalive",
+   "spec": {},
+   "netem": "broadband",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 206,
+   "distinct_uas": 6,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 2,
+    "sustained_10s": 1.0,
+    "sustained_30s": 0.867,
+    "sustained_60s": 0.8
+   },
+   "gru_would_bans": 0
+  },
+  {
+   "ip": "10.0.1.4",
+   "kind": "keepalive",
+   "spec": {},
+   "netem": "mobile_bad",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 127,
+   "distinct_uas": 6,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 1,
+    "sustained_10s": 0.6,
+    "sustained_30s": 0.533,
+    "sustained_60s": 0.483
+   },
+   "gru_would_bans": 0
+  },
+  {
+   "ip": "10.0.1.5",
+   "kind": "http2",
+   "spec": {},
+   "netem": "broadband",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 1038,
+   "distinct_uas": 6,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 6,
+    "sustained_10s": 4.2,
+    "sustained_30s": 3.8,
+    "sustained_60s": 3.6
+   },
+   "gru_would_bans": 0
+  },
+  {
+   "ip": "10.0.1.6",
+   "kind": "api_poll",
+   "spec": {},
+   "netem": "broadband",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 278,
+   "distinct_uas": 1,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 2,
+    "sustained_10s": 1.2,
+    "sustained_30s": 1.033,
+    "sustained_60s": 0.967
+   },
+   "gru_would_bans": 0
+  },
+  {
+   "ip": "10.0.1.7",
+   "kind": "downloader",
+   "spec": {},
+   "netem": "mobile_3g",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 26,
+   "distinct_uas": 1,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 1,
+    "sustained_10s": 0.2,
+    "sustained_30s": 0.133,
+    "sustained_60s": 0.117
+   },
+   "gru_would_bans": 0
+  },
+  {
+   "ip": "10.0.1.8",
+   "kind": "uploader",
+   "spec": {},
+   "netem": "mobile_3g",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 41,
+   "distinct_uas": 1,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 1,
+    "sustained_10s": 0.3,
+    "sustained_30s": 0.2,
+    "sustained_60s": 0.167
+   },
+   "gru_would_bans": 0
+  },
+  {
+   "ip": "10.0.1.9",
+   "kind": "nat_gateway",
+   "spec": {
+    "users": 8
+   },
+   "netem": "perfect",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 1237,
+   "distinct_uas": 6,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 10,
+    "sustained_10s": 5.4,
+    "sustained_30s": 4.4,
+    "sustained_60s": 4.35
+   },
+   "gru_would_bans": 0
+  },
+  {
+   "ip": "10.0.1.10",
+   "kind": "curl_oneshot",
+   "spec": {},
+   "netem": "mobile_bad",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 103,
+   "distinct_uas": 6,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 1,
+    "sustained_10s": 0.5,
+    "sustained_30s": 0.4,
+    "sustained_60s": 0.383
+   },
+   "gru_would_bans": 0
+  },
+  {
+   "ip": "10.0.1.11",
+   "kind": "curl_oneshot",
+   "spec": {},
+   "netem": "mobile_bad",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 86,
+   "distinct_uas": 6,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 1,
+    "sustained_10s": 0.4,
+    "sustained_30s": 0.333,
+    "sustained_60s": 0.317
+   },
+   "gru_would_bans": 0
+  },
+  {
+   "ip": "10.0.1.12",
+   "kind": "keepalive",
+   "spec": {},
+   "netem": "perfect",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 212,
+   "distinct_uas": 6,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 2,
+    "sustained_10s": 1.0,
+    "sustained_30s": 0.867,
+    "sustained_60s": 0.8
+   },
+   "gru_would_bans": 0
+  },
+  {
+   "ip": "10.0.1.13",
+   "kind": "browser_page",
+   "spec": {
+    "level": 30
+   },
+   "netem": "broadband",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 242,
+   "distinct_uas": 1,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 33,
+    "sustained_10s": 8.3,
+    "sustained_30s": 3.733,
+    "sustained_60s": 1.867
+   },
+   "gru_would_bans": 2
+  },
+  {
+   "ip": "10.0.1.14",
+   "kind": "browser_page",
+   "spec": {
+    "level": 30
+   },
+   "netem": "mobile_3g",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 267,
+   "distinct_uas": 1,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 29,
+    "sustained_10s": 4.4,
+    "sustained_30s": 2.567,
+    "sustained_60s": 2.017
+   },
+   "gru_would_bans": 2
+  },
+  {
+   "ip": "10.0.1.15",
+   "kind": "browser_page",
+   "spec": {
+    "level": 60
+   },
+   "netem": "mobile_bad",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 292,
+   "distinct_uas": 1,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 19,
+    "sustained_10s": 8.2,
+    "sustained_30s": 3.5,
+    "sustained_60s": 2.45
+   },
+   "gru_would_bans": 2
+  },
+  {
+   "ip": "10.0.1.16",
+   "kind": "browser_page",
+   "spec": {
+    "level": 60
+   },
+   "netem": "perfect",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 371,
+   "distinct_uas": 1,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 61,
+    "sustained_10s": 8.4,
+    "sustained_30s": 6.933,
+    "sustained_60s": 3.467
+   },
+   "gru_would_bans": 2
+  },
+  {
+   "ip": "10.0.1.17",
+   "kind": "cgnat_browsers",
+   "spec": {
+    "users": 12,
+    "level": 30
+   },
+   "netem": "broadband",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 2731,
+   "distinct_uas": 7,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 82,
+    "sustained_10s": 29.4,
+    "sustained_30s": 20.2,
+    "sustained_60s": 15.583
+   },
+   "gru_would_bans": 19
+  },
+  {
+   "ip": "10.0.1.18",
+   "kind": "cgnat_browsers",
+   "spec": {
+    "users": 24,
+    "level": 30
+   },
+   "netem": "mobile_bad",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 4364,
+   "distinct_uas": 13,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 69,
+    "sustained_10s": 40.5,
+    "sustained_30s": 30.4,
+    "sustained_60s": 24.917
+   },
+   "gru_would_bans": 37
+  },
+  {
+   "ip": "10.0.1.19",
+   "kind": "api_bulk",
+   "spec": {
+    "rps": [
+     15.0,
+     20.0
+    ]
+   },
+   "netem": "mobile_3g",
+   "held_out": true,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 1256,
+   "distinct_uas": 1,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 7,
+    "sustained_10s": 4.9,
+    "sustained_30s": 4.533,
+    "sustained_60s": 4.433
+   },
+   "gru_would_bans": 2
+  },
+  {
+   "ip": "10.0.1.20",
+   "kind": "crawler_polite",
+   "spec": {
+    "rps": [
+     2.0,
+     5.0
+    ],
+    "level": 30
+   },
+   "netem": "perfect",
+   "held_out": false,
+   "gate_admissible": true,
+   "gate_trips": {},
+   "det_ban": null,
+   "requests": 1072,
+   "distinct_uas": 1,
+   "limit_req_rejected": 0,
+   "limit_conn_rejected": 0,
+   "profile": {
+    "peak_1s": 5,
+    "sustained_10s": 3.9,
+    "sustained_30s": 3.733,
+    "sustained_60s": 3.7
+   },
+   "gru_would_bans": 1
+  }
+ ],
+ "gate_vs_live": {
+  "predicted_ban_and_banned": [],
+  "predicted_ban_not_banned": [],
+  "predicted_ok_but_banned": [],
+  "predicted_ok_not_banned": [
+   "10.0.1.1",
+   "10.0.1.10",
+   "10.0.1.11",
+   "10.0.1.12",
+   "10.0.1.13",
+   "10.0.1.14",
+   "10.0.1.15",
+   "10.0.1.16",
+   "10.0.1.17",
+   "10.0.1.18",
+   "10.0.1.19",
+   "10.0.1.2",
+   "10.0.1.20",
+   "10.0.1.3",
+   "10.0.1.4",
+   "10.0.1.5",
+   "10.0.1.6",
+   "10.0.1.7",
+   "10.0.1.8",
+   "10.0.1.9"
+  ]
+ }
+}

@@ -1,0 +1,178 @@
+{
+ "format": "l7-dataset/1",
+ "created": "2026-10-16T14:41:51Z",
+ "seed": 1,
+ "duration_s": 300.0,
+ "access_log": "access.log",
+ "ip_map": {
+  "10.0.1.1": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_3g",
+   "kind": "curl_oneshot",
+   "gate_admissible": true
+  },
+  "10.0.1.2": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "perfect",
+   "kind": "curl_oneshot",
+   "gate_admissible": true
+  },
+  "10.0.1.3": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "broadband",
+   "kind": "keepalive",
+   "gate_admissible": true
+  },
+  "10.0.1.4": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_bad",
+   "kind": "keepalive",
+   "gate_admissible": true
+  },
+  "10.0.1.5": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "broadband",
+   "kind": "http2",
+   "gate_admissible": true
+  },
+  "10.0.1.6": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "broadband",
+   "kind": "api_poll",
+   "gate_admissible": true
+  },
+  "10.0.1.7": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_3g",
+   "kind": "downloader",
+   "gate_admissible": true
+  },
+  "10.0.1.8": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_3g",
+   "kind": "uploader",
+   "gate_admissible": true
+  },
+  "10.0.1.9": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "perfect",
+   "kind": "nat_gateway",
+   "gate_admissible": true
+  },
+  "10.0.1.10": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_bad",
+   "kind": "curl_oneshot",
+   "gate_admissible": true
+  },
+  "10.0.1.11": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_bad",
+   "kind": "curl_oneshot",
+   "gate_admissible": true
+  },
+  "10.0.1.12": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "perfect",
+   "kind": "keepalive",
+   "gate_admissible": true
+  },
+  "10.0.1.13": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "broadband",
+   "kind": "browser_page",
+   "gate_admissible": true
+  },
+  "10.0.1.14": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_3g",
+   "kind": "browser_page",
+   "gate_admissible": true
+  },
+  "10.0.1.15": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_bad",
+   "kind": "browser_page",
+   "gate_admissible": true
+  },
+  "10.0.1.16": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "perfect",
+   "kind": "browser_page",
+   "gate_admissible": true
+  },
+  "10.0.1.17": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "broadband",
+   "kind": "cgnat_browsers",
+   "gate_admissible": true
+  },
+  "10.0.1.18": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_bad",
+   "kind": "cgnat_browsers",
+   "gate_admissible": true
+  },
+  "10.0.1.19": {
+   "class": "benign",
+   "family": null,
+   "held_out": true,
+   "profile": "mobile_3g",
+   "kind": "api_bulk",
+   "gate_admissible": true
+  },
+  "10.0.1.20": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "perfect",
+   "kind": "crawler_polite",
+   "gate_admissible": true
+  }
+ },
+ "schedule": [],
+ "provenance": {
+  "t0_wall": 1792161407.3519845,
+  "model": "results/2026-10-15_l7-p4-train/model",
+  "benign_mix": "overlap",
+  "heuristics": "tolerant",
+  "benign_only": true
+ },
+ "notes": "L7 eval P5c.1 baseline: realistic benign only, default heuristics (shadow GRU)"
+}

@@ -1,0 +1,18 @@
+[*] L7 eval → /var/tmp/ddos_l7_eval/20261016T143622Z  (model model, 20 benign, 0 attackers, soak=False)
+
+[93m[*] Cleaning up all namespaces and processes...[0m
+[92m[+] Cleanup complete.[0m
+[+] daemon + L7 shadow ready.
+
+[93m[*] Cleaning up all namespaces and processes...[0m
+[92m[+] Cleanup complete.[0m
+[+] Topology cleaned up.
+
+=== L7 eval summary ===
+  benign would-ban IPs: 8 / 20 (67 events: {'10.0.1.20': 1, '10.0.1.17': 19, '10.0.1.18': 37, '10.0.1.13': 2, '10.0.1.19': 2, '10.0.1.16': 2, '10.0.1.15': 2, '10.0.1.14': 2})
+  GRU totals: {'windows': 3823, 'over': 1189, 'would_bans': 67, 'gated_age': 0, 'suppressed_polls': 0}  suppress_on: 0
+[+] Wrote /var/tmp/ddos_l7_eval/20261016T143622Z/summary.json
+[+] Wrote baselines.json (families ['B0', 'B1', 'B2', 'B3']); benign shaped by nginx: []
+
+[93m[*] Cleaning up all namespaces and processes...[0m
+[92m[+] Cleanup complete.[0m
