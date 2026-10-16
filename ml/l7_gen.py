@@ -28,6 +28,8 @@ import subprocess
 import sys
 import time
 
+import l7_benign  # ml/ is the script's directory, so it is on sys.path
+
 TESTBED_NET = ipaddress.ip_network("10.0.0.0/16")
 UAS = [
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36",
@@ -168,6 +170,89 @@ def benign_nat_gateway(host, port, params, dur, rng):
         t.start()
     for t in threads:
         t.join()
+
+
+# ── P5b benign kinds (docs/L7_GRU_DESIGN.md §7.2): each executes the plan that
+#    l7_benign.plan_client() builds from this process's seed — the same plan the
+#    admissibility gate (ml/l7_admissibility.py) simulated. ──
+
+def _quiet_get(sess, url):
+    import requests
+    try:
+        sess.get(url, verify=False, timeout=10)
+    except requests.RequestException:
+        pass
+
+
+def _session(ua, conns):
+    """A keep-alive session with `conns` persistent connections (HTTP/1.1, §7.2.1)."""
+    import requests
+    from requests.adapters import HTTPAdapter
+    sess = requests.Session()
+    adapter = HTTPAdapter(pool_connections=1, pool_maxsize=conns)
+    sess.mount("http://", adapter)
+    sess.mount("https://", adapter)
+    sess.headers["User-Agent"] = ua
+    return sess
+
+
+def _browser_device(base, user, start, end):
+    """Load each view's waves in order (a wave fans out over the device's connections),
+    then wait the view's pause. Network time stretches the nominal timeline; it never
+    compresses it."""
+    from concurrent.futures import ThreadPoolExecutor
+    views = user["views"]
+    if not views:
+        return
+    time.sleep(max(0.0, min(start + views[0]["t"], end) - time.time()))
+    with _session(user["ua"], l7_benign.BROWSER_CONNS) as sess, \
+            ThreadPoolExecutor(l7_benign.BROWSER_CONNS) as pool:
+        for v in views:
+            if time.time() >= end:
+                break
+            for wave in v["waves"]:
+                if wave:
+                    list(pool.map(lambda p, _s=sess: _quiet_get(_s, base + p), wave))
+            time.sleep(max(0.0, min(v["pause_s"], end - time.time())))
+
+
+def _paced_user(base, user, end):
+    with _session(user["ua"], 1) as sess:
+        for path, gap in user["requests"]:
+            if time.time() >= end:
+                break
+            _quiet_get(sess, base + path)
+            time.sleep(max(0.0, min(gap, end - time.time())))
+
+
+def _run_plan(kind, host, port, params, dur, rng):
+    import threading
+    plan = l7_benign.plan_client(kind, params, dur, rng)
+    base, start = _base(host, port), time.time()
+    end = start + dur
+    targets = [(_browser_device, (base, u, start, end)) if "views" in u
+               else (_paced_user, (base, u, end)) for u in plan["users"]]
+    threads = [threading.Thread(target=f, args=a, daemon=True) for f, a in targets]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+
+def benign_browser_page(host, port, params, dur, rng):
+    _run_plan("browser_page", host, port, params, dur, rng)
+
+
+def benign_cgnat_browsers(host, port, params, dur, rng):
+    _run_plan("cgnat_browsers", host, port, params, dur, rng)
+
+
+def benign_api_bulk(host, port, params, dur, rng):
+    _run_plan("api_bulk", host, port, params, dur, rng)
+
+
+def benign_crawler_polite(host, port, params, dur, rng):
+    _run_plan("crawler_polite", host, port, params, dur, rng)
 
 
 # ───────────────────────────── attack families ─────────────────────────────
@@ -321,7 +406,9 @@ def attack_volumetric_flood(host, port, params, dur, rng):
 BENIGN = {"curl_oneshot": benign_curl_oneshot, "http2": benign_http2,
           "keepalive": benign_keepalive, "api_poll": benign_api_poll,
           "downloader": benign_downloader, "uploader": benign_uploader,
-          "nat_gateway": benign_nat_gateway}
+          "nat_gateway": benign_nat_gateway, "browser_page": benign_browser_page,
+          "cgnat_browsers": benign_cgnat_browsers, "api_bulk": benign_api_bulk,
+          "crawler_polite": benign_crawler_polite}
 ATTACK = {"subthreshold_flood": attack_subthreshold_flood, "scraper": attack_scraper,
           "padded_flood": attack_padded_flood, "credstuff": attack_credstuff,
           "slowloris": attack_slowloris, "slowpost": attack_slowpost,

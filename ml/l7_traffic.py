@@ -19,6 +19,13 @@ parametric, mirroring the low-and-slow generators already in test_distributed_su
 
 THRESHOLDS mirrors the daemon (control_plane.py) and nginx.conf; a test cross-checks
 the values so they cannot drift.
+
+P5b (docs/L7_GRU_DESIGN.md §7.2) adds OVERLAP_KINDS — benign clients whose rate overlaps
+the attacks, plus two hard negatives — selected with build_plan(benign_mix="overlap").
+They are added AFTER the P5 plan, from their own RNG, so the 12 P5 benign clients and the
+attackers are byte-identical to a P5 plan with the same seed. Each kind must pass the
+benign admissibility gate (ml/l7_admissibility); a kind that fails is reported and not
+launched (§7.2: dropped from the comparison, not retuned).
 """
 import dataclasses
 import json
@@ -34,6 +41,17 @@ THRESHOLDS = {
     "nginx_body_timeout_s": 5,    # client_body_timeout: a slower dribble => a body timeout
     "nginx_header_timeout_s": 5,  # client_header_timeout
     "nginx_max_body": 65536,      # client_max_body_size: a larger body => 413
+    # The rate rule's full shape (control_plane HEURISTIC_*), incl. the error-ratio branch
+    # (R10), and the nginx / SlowConn details the P5b benign gate simulates.
+    "l7_rate_window_s": 10.0,     # HEURISTIC_WINDOW
+    "l7_rate_min_requests": 5,    # HEURISTIC_MIN_REQUESTS
+    "l7_error_ratio": 0.8,        # HEURISTIC_ERROR_RATIO: bans above this ...
+    "l7_error_min_rps": 10,       # ... when rps > 10 too (503 is not an error)
+    "nginx_limit_req_burst": 100,  # limit_req burst (nodelay)
+    "nginx_keepalive_timeout_s": 15,
+    "slowconn_idle_bytes": 250,   # SLOWCONN_IDLE_BYTES
+    "slowconn_consecutive": 3,    # SLOWCONN_CONSECUTIVE
+    "l4_poll_interval_s": 1.0,    # L4_POLL_INTERVAL
 }
 # Headroom below a ban threshold we require of a trained attack, so jitter cannot cross it.
 RPS_MARGIN = 5
@@ -45,6 +63,7 @@ class BenignSpec:
     kind: str
     port: int = 80                 # 80 or 443
     params: dict = dataclasses.field(default_factory=dict)
+    held_out: bool = False         # P5b: never trained on, reported separately
 
 
 @dataclasses.dataclass(frozen=True)
@@ -76,6 +95,25 @@ BENIGN_KINDS = [
     BenignSpec("nat_gateway", 443, {"users": 8, "think_s": [0.5, 3.0], "paths": "browse"}),
 ]
 
+# ── P5b benign kinds (§7.2): rate overlaps the attacks; api_bulk and crawler_polite are
+#    the hard negatives; api_bulk is the held-out benign kind (decision 1). Plans and
+#    model values: ml/l7_benign.py. Fixed IPs: base + 1..8 in this order. ──
+OVERLAP_KINDS = [
+    BenignSpec("browser_page", 443, {"level": 30, "first_visit_s": [0.0, 30.0]}),
+    BenignSpec("browser_page", 80, {"level": 30, "first_visit_s": [0.0, 30.0]}),
+    BenignSpec("browser_page", 443, {"level": 60, "first_visit_s": [0.0, 30.0]}),
+    BenignSpec("browser_page", 80, {"level": 60, "first_visit_s": [0.0, 30.0]}),
+    BenignSpec("cgnat_browsers", 443, {"users": 12, "level": 30, "first_visit_s": [0.0, 60.0]}),
+    BenignSpec("cgnat_browsers", 443, {"users": 24, "level": 30, "first_visit_s": [0.0, 60.0]}),
+    BenignSpec("api_bulk", 443, {"rps": [15.0, 20.0], "endpoints": [2, 3]}, held_out=True),
+    BenignSpec("crawler_polite", 443, {"rps": [2.0, 5.0], "level": 30}),
+]
+# The gate judges a kind over these simulated seeds and the longest run (capture/soak),
+# so the drop decision is the same for every capture and evaluation run.
+GATE_SEEDS = tuple(range(20))
+GATE_DURATION_S = 600.0
+FAST_FAMILIES = ("subthreshold_flood", "scraper", "padded_flood")   # the comparison set
+
 # ── Trained sub-threshold attack families (§6.3). All provably below a ban threshold. ──
 TRAINED_ATTACKS = [
     AttackSpec("subthreshold_flood", "rate", params={"rps": 20, "port": 80, "paths": "mixed"}),
@@ -102,6 +140,27 @@ class CalibrationError(ValueError):
     """A trained attack is not provably below a deterministic ban threshold (§7)."""
 
 
+def expected_error_ratio(spec, n=400):
+    """The share of a rate attack's requests the origin answers with an error the rate
+    rule counts (>= 400, not 503), from the generator's own path model and the web app's
+    routes (l7_gen, l7_webapp.route_status). Offline: nothing is sent."""
+    import random
+
+    import l7_gen
+
+    import l7_webapp
+    p = spec.params
+    method = "POST" if spec.family == "credstuff" else "GET"
+    rng = random.Random(0)
+    paths = ([p["path"]] * n if "path" in p
+             else [l7_gen._paths(p.get("paths", "mixed"), rng) for _ in range(n)])
+    errs = 0
+    for path in paths:
+        st = l7_webapp.route_status(method, path.split("?", 1)[0])
+        errs += st >= 400 and st != 503
+    return errs / n
+
+
 def _check_spec(spec):
     """Return a per-spec calibration record; raise CalibrationError for a TRAINED
     attack that could trip a ban. Held-out specs are reported, not enforced."""
@@ -116,6 +175,13 @@ def _check_spec(spec):
         rec["nginx_shaped"] = rps > THRESHOLDS["nginx_limit_req_rps"]   # expected, not a ban
         if not rec["margin_ok"]:
             violations.append(f"rps {rps} not <= {THRESHOLDS['l7_rate_ban_rps']}-{RPS_MARGIN}")
+        # The rule's error-ratio branch (R10): it bans a lower rate when most answers are errors.
+        err = expected_error_ratio(spec)
+        rec["error_ratio"] = round(err, 3)
+        if err > THRESHOLDS["l7_error_ratio"] and rps > THRESHOLDS["l7_error_min_rps"]:
+            violations.append(f"error ratio {err:.2f} > {THRESHOLDS['l7_error_ratio']} at rps "
+                              f"{rps} > {THRESHOLDS['l7_error_min_rps']} (rate rule's "
+                              f"error-ratio branch)")
     elif spec.mechanism == "conns":
         conns = p["conns"]
         rec["conns"] = conns
@@ -158,16 +224,45 @@ def calibrate(trained=None, held_out=None, enforce=True):
     return report
 
 
+_GATE_CACHE = {}
+
+
+def benign_gate(seeds=GATE_SEEDS, duration_s=GATE_DURATION_S):
+    """The P5b benign admissibility gate (§7.2, §7.2.1): every OVERLAP_KINDS spec simulated
+    against the deployed mechanisms (ml/l7_admissibility), plus the fast attackers' rate
+    profiles and the overlap check. Deterministic; cached per (seeds, duration)."""
+    key = (tuple(seeds), float(duration_s))
+    if key not in _GATE_CACHE:
+        import l7_admissibility as adm
+        benign = [adm.check_spec(s.kind, s.params, duration_s, seeds) for s in OVERLAP_KINDS]
+        for spec, r in zip(OVERLAP_KINDS, benign, strict=True):
+            r["port"], r["held_out"] = spec.port, spec.held_out
+        attacks = {f"{a.family}@{a.params['rps']}": adm.attack_profile(a.params["rps"], 60.0, seeds)
+                   for a in TRAINED_ATTACKS + HELDOUT_ATTACKS
+                   if a.mechanism == "rate" and a.family in FAST_FAMILIES}
+        _GATE_CACHE[key] = {"seeds": len(seeds), "duration_s": duration_s,
+                            "service_s": adm.SERVICE_S, "benign": benign,
+                            "fast_attackers": attacks,
+                            "overlap": adm.overlap_check(benign, attacks)}
+    return _GATE_CACHE[key]
+
+
 def build_plan(seed, n_benign, duration_s, *, include_held_out=True, include_flood=True,
-               benign_prefix="10.0.1", attack_prefix="10.0.2", warmup_s=10.0):
+               benign_prefix="10.0.1", attack_prefix="10.0.2", warmup_s=10.0,
+               benign_mix="p5", gate_seeds=GATE_SEEDS):
     """Assign IPs and start/stop times to benign clients and attackers (seeded).
 
     Benign clients run for the whole capture. Each attacker runs one window inside
     [warmup_s, duration_s], so the capture has clean pre-attack baseline. When
     include_flood, one extra attacker runs a short volumetric flood mid-capture, so
     benign traffic is seen distorted (the contaminated regime, §5.6).
+    benign_mix="overlap" appends the admissible OVERLAP_KINDS clients (P5b, §7.2) at
+    fixed IPs after the P5 ones, seeded from their own RNG so nothing above changes; the
+    gate's report goes into the calibration report under "benign_gate".
     Returns (benign_clients, attackers, schedule, calibration_report).
     """
+    if benign_mix not in ("p5", "overlap"):
+        raise ValueError(f"unknown benign_mix: {benign_mix}")
     import random
     rng = random.Random(seed)
     report = calibrate()                         # raises if a trained attack is mis-set
@@ -201,6 +296,21 @@ def build_plan(seed, n_benign, duration_s, *, include_held_out=True, include_flo
                           "mechanism": spec.mechanism, "params": dict(spec.params),
                           "port": 0, "seed": rng.randrange(2**31)})
         schedule.append(spec.as_schedule_entry(ip, start, start + spec.params["dur_s"]))
+
+    if benign_mix == "overlap":
+        gate = benign_gate(gate_seeds)
+        orng = random.Random(f"p5b-overlap:{seed}")
+        for j, (spec, rep) in enumerate(zip(OVERLAP_KINDS, gate["benign"], strict=True)):
+            cseed = orng.randrange(2**31)        # drawn for every spec: a drop shifts nothing
+            if not rep["admissible"]:
+                continue
+            benign_clients.append({"ip": f"{benign_prefix}.{n_benign + j + 1}",
+                                   "kind": spec.kind, "port": spec.port, "profile": None,
+                                   "params": dict(spec.params), "held_out": spec.held_out,
+                                   "mix": "overlap", "seed": cseed})
+        report["benign_gate"] = gate
+        report["benign_dropped"] = [{"kind": r["kind"], "params": r["params"], "trips": r["trips"]}
+                                    for r in gate["benign"] if not r["admissible"]]
 
     return benign_clients, attackers, schedule, report
 

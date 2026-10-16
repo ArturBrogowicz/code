@@ -42,7 +42,8 @@ WEBAPP = "l7_webapp:app"
 GEN = os.path.join(REPO, "ml", "l7_gen.py")
 NETEM_PROFILES = ["perfect", "broadband", "mobile_3g", "mobile_bad"]
 PROVENANCE_INPUTS = ["l7_webapp.py", "nginx_l7capture.conf", "ml/l7_gen.py",
-                     "ml/l7_traffic.py", "l7_dataset.py", "control_plane.py", "nginx.conf"]
+                     "ml/l7_traffic.py", "l7_dataset.py", "control_plane.py", "nginx.conf",
+                     "ml/l7_benign.py", "ml/l7_admissibility.py"]
 
 
 def sha256(path):
@@ -115,20 +116,59 @@ def git_commit():
 
 
 def build_plan(args):
+    mix = getattr(args, "mix", "p5")
     benign, attackers, schedule, calib = l7_traffic.build_plan(
         args.seed, args.benign, args.duration,
-        include_held_out=not args.no_held_out, include_flood=not args.no_flood)
-    assign_profiles(benign, args.seed)
+        include_held_out=not args.no_held_out, include_flood=not args.no_flood,
+        benign_mix=mix, gate_seeds=getattr(args, "gate_seeds", l7_traffic.GATE_SEEDS))
+    # The P5 clients get exactly the P5 profiles; P5b's added clients are balanced
+    # among themselves (their own seed), so adding them changes nothing above.
+    base = [c for c in benign if c.get("mix") != "overlap"]
+    added = [c for c in benign if c.get("mix") == "overlap"]
+    assign_profiles(base, args.seed)
+    if added:
+        assign_profiles(added, args.seed + 7919)
     return benign, attackers, schedule, calib
+
+
+def gate_lines(gate):
+    """The P5b benign admissibility gate as text (§7.2, §7.2.1), for --plan review."""
+    title = (f"P5b benign admissibility gate ({gate['seeds']} simulated seeds x "
+             f"{gate['duration_s']:.0f} s, service {gate['service_s'] * 1000:.0f} ms/request, "
+             f"fastest profile):")
+    header = (f"  {'kind':15s} {'params':34s} {'admissible':10s} {'peak1s':>6s} {'sus10':>6s} "
+              f"{'sus60':>6s} {'rule_rps':>8s} {'inflight':>8s} {'estab':>5s}  trips (of seeds)")
+    out = [title, header]
+    for r in gate["benign"]:
+        prm = ",".join(f"{k}={v}" for k, v in r["params"].items() if k != "first_visit_s")
+        m, w = r["median"], r["worst"]
+        out.append(f"  {r['kind']:15s} {prm[:34]:34s} {r['admissible']!s:10s} {m['peak_1s']:6d} "
+                   f"{m['sustained_10s']:6.1f} {m['sustained_60s']:6.1f} "
+                   f"{w['rule_rps_max']:8.1f} {w['inflight_max']:8d} {w['established_max']:5d}  "
+                   f"{r['trips'] or '-'}" + ("  [held out]" if r.get("held_out") else ""))
+    out.append("  fast attackers (closed-loop, same timing model):")
+    for name, p in gate["fast_attackers"].items():
+        out.append(f"    {name:24s} peak1s={p['peak_1s']:4d} sus10={p['sustained_10s']:5.1f} "
+                   f"sus60={p['sustained_60s']:5.1f}")
+    for name, o in gate["overlap"].items():
+        out.append(f"  {name}: highest admissible benign {o['highest_admissible_benign']} vs "
+                   f"lowest fast attacker {o['lowest_fast_attacker']} -> overlap={o['overlap']}")
+    return out
 
 
 def print_plan(args):
     benign, attackers, schedule, calib = build_plan(args)
     print(l7_traffic.summary())
     print(f"\ncalibrated: {calib['calibrated']}  (trained attacks all sub-threshold)")
+    if "benign_gate" in calib:
+        print()
+        print("\n".join(gate_lines(calib["benign_gate"])))
+        for d in calib["benign_dropped"]:
+            print(f"  DROPPED (not launched; deterministic-layer FP, §7.2): {d['kind']} {d['params']}")
     print(f"\nbenign clients ({len(benign)}):")
     for c in benign:
-        print(f"  {c['ip']:12s} {c['kind']:14s} :{c['port']} netem={c['profile']}")
+        tag = " [held out]" if c.get("held_out") else ""
+        print(f"  {c['ip']:12s} {c['kind']:14s} :{c['port']} netem={c['profile']}{tag}")
     print(f"\nattackers ({len(attackers)}):")
     for a, s in zip(attackers, schedule):
         print(f"  {a['ip']:12s} {a['family']:20s} held_out={a['held_out']!s:5} "
@@ -227,6 +267,8 @@ def main():
     ap.add_argument("--out", default=DEFAULT_OUT)
     ap.add_argument("--no-held-out", action="store_true", help="omit held-out families")
     ap.add_argument("--no-flood", action="store_true", help="omit the mid-capture SYN flood")
+    ap.add_argument("--mix", choices=("p5", "overlap"), default="p5",
+                    help="benign mix: P5's 12 kinds, or + the P5b overlap kinds (§7.2)")
     ap.add_argument("--plan", action="store_true", help="print the plan and exit (offline)")
     args = ap.parse_args()
 
@@ -279,6 +321,7 @@ def main():
     provenance = {
         "git_commit": git_commit(), "t0_wall": t0, "host": os.uname().nodename,
         "duration_s": args.duration, "n_benign": len(benign), "n_attackers": len(attackers),
+        "benign_mix": args.mix,
         "operating_point": os.environ.get("OPERATING_POINT", "default"),
         "ready": ready, "completed": ok, "launched_families": launched,
         "inputs_sha256": {f: sha256(os.path.join(REPO, f)) for f in PROVENANCE_INPUTS},

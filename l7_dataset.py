@@ -40,12 +40,13 @@ def label_for(ip, ip_map):
 def build_ip_map(benign_clients, attackers):
     """Build the IP->label map.
 
-    benign_clients: iterable of {ip, profile, kind, ...}
+    benign_clients: iterable of {ip, profile, kind, held_out?, ...} (a held-out benign
+                    kind, P5b, is never trained on; the trainer reports it separately)
     attackers:      iterable of {ip, family, held_out, params, ...}
     """
     ip_map = {}
     for c in benign_clients:
-        ip_map[c["ip"]] = {"class": BENIGN, "family": None, "held_out": False,
+        ip_map[c["ip"]] = {"class": BENIGN, "family": None, "held_out": bool(c.get("held_out")),
                            "profile": c.get("profile"), "kind": c.get("kind")}
     for a in attackers:
         ip_map[a["ip"]] = {"class": ATTACK, "family": a["family"],

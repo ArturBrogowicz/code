@@ -241,6 +241,8 @@ def main():
                     help="benign-only (+ one mid-run SYN flood): the H3 FP/suppression run")
     ap.add_argument("--no-held-out", action="store_true", help="omit held-out families")
     ap.add_argument("--no-flood", action="store_true", help="omit the mid-run SYN flood")
+    ap.add_argument("--mix", choices=("p5", "overlap"), default="p5",
+                    help="benign mix: P5's 12 kinds, or + the P5b overlap kinds (§7.2)")
     ap.add_argument("--plan", action="store_true", help="print config and exit (offline)")
     args = ap.parse_args()
 
@@ -295,7 +297,8 @@ def main():
     ip_map = l7_dataset.build_ip_map(benign, attackers)
     manifest = l7_dataset.make_manifest(seed=args.seed, duration_s=args.duration,
                                         ip_map=ip_map, schedule=schedule,
-                                        provenance={"t0_wall": t0, "model": args.model},
+                                        provenance={"t0_wall": t0, "model": args.model,
+                                                    "benign_mix": args.mix},
                                         notes="L7 eval (P5, shadow)")
     l7_dataset.write_dataset_manifest(os.path.join(out_dir, "manifest.json"), manifest)
     report = build_report(out_dir, manifest, t0 or 0.0, args.model, args)
