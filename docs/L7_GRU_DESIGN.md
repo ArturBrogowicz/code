@@ -62,6 +62,11 @@ on CPU; gate **PASSED** (`results/2026-10-15_l7-p4-train/`, a candidate — not 
 
 **P6 (promotion) is not proposed:** the pre-registered condition for it was not met.
 
+**P5b (benign-overlap re-test) is proposed (§7.2), awaiting approval.** It adds legitimate
+clients whose rate overlaps the attacks (asset-heavy page loads, busy NAT addresses), plus
+hard negatives, and stronger baselines. The verdict rule is pre-registered. Nothing is
+built or run yet.
+
 **Confirmed decisions (§10).** (1) Scope: GRU owns L7 sub-threshold abuse only. (2)
 Transport: Unix-domain datagram syslog primary + durable file sink. (3) Keying: **IP +
 `ua_h` from the start**, bans map to the source IP for XDP. (4) Slow signal:
@@ -633,6 +638,211 @@ that coverage at the same benign FP. Otherwise the thesis reports the GRU as
 non-contributing / thresholds suffice — a valid result. Slow families are expected to be
 the deterministic SlowConn path's, not the GRU's (R1), and are reported per family.
 
+### 7.2 P5b — benign-overlap re-test: pre-registered plan [PROPOSED 2026-10-16, awaiting approval]
+
+**Why P5 found no value [FACT, `results/2026-10-16_l7-p5-eval/runA/summary.json`,
+`threshold_sweep.per_ip_peak_rps`].** Rate alone separated the classes. Every benign IP
+peaked at ≤ 10 rps (NAT gateway 10, HTTP/2 client 6, the rest ≤ 2). The fast sub-threshold
+attackers peaked at 24–41 rps (floods 24 and 41, scraper 35, padded flood 31). A threshold
+in that gap is perfect, and no model can beat a perfect threshold.
+
+**The question.** When the benign mix contains legitimate clients whose request rate
+overlaps the attack rates, does the L7 GRU catch the fast sub-threshold attackers at a
+benign false-positive rate that no rate-based or tabular baseline matches? The hypothesis
+is explicitly conditional on that overlap. It is a claim about a class of deployments
+(busy NAT addresses, asset-heavy sites), not about every deployment.
+
+**The circularity hazard [DECISION].** Picking benign traffic *so that* the GRU wins would
+mirror the circularity §7 forbids for attacks. These rules handle it:
+1. **What the kinds are.** New benign kinds are known weaknesses of per-IP rate limits that
+   occur in real deployments. Their parameters come from external evidence where it
+   exists, and from declared assumptions where it does not. They never come from a model
+   score.
+2. **Hard negatives.** Legitimate clients expected to look like attacks *to the GRU* are
+   included as well.
+3. **Strong baselines.** The baselines are strengthened (below), so a win cannot come from
+   a strawman.
+4. **Freeze point.** Kinds, parameters, baselines and the verdict rule are frozen by the
+   commit that adds this section, before any P5b code or data exists. The commit hash is
+   the pre-registration timestamp. Values left to the build (the UA weight table, the
+   per-page asset lists) are frozen by the P5b.0 build commit, before the first capture.
+5. **Changes after the first capture.** Benign parameters change only where the generator
+   fails to conform to this spec, as the conformance check (P5b.1) shows. They never
+   change in response to a score. Any other change is a new pre-registration, and both
+   results are reported.
+6. **Reporting.** Every run is reported, including aborted runs, as at P5.
+
+**One factor changes.** These stay exactly as at P3/P4:
+* attacks: families, rates, counts, user agents and calibration (§6.3);
+* the existing 12 benign clients;
+* the features (`no_size`);
+* the trainer, its variants and its model-selection rule (§6.4).
+
+Only benign kinds are added.
+
+#### Deployed limits the benign mix must stay under [FACT]
+
+A benign client that trips a deterministic rule is a false positive of the deterministic
+layer, outside the GRU's niche. One that nginx shapes is degraded by the existing system,
+and its requests carry the `lreq_limited` signal the GRU learned from attackers. Neither
+gives a fair comparison. So benign kinds are calibrated **below** these limits with
+margin, by the same rule as attacks (§7):
+
+| Mechanism | Setting | Source |
+|---|---|---|
+| L7 rate rule (bans) | rps = n / max(span, 1 s) over a 10 s window, at least 5 requests; bans at > 50 rps, or at error ratio > 0.8 with rps > 10; 503 is not counted as an error | `control_plane.py:130-133`, `:987`, `:1010-1013` |
+| nginx `limit_req` (shapes with 503) | 30 r/s per IP, burst 100, `nodelay` | `nginx.conf:9`, `:85` |
+| nginx `limit_conn` | 50 connections per IP | `nginx.conf:88` |
+| SlowConn (bans) | ≥ 8 established connections from one IP with < 250 B ingress per interval, 3 intervals in a row | `control_plane.py:93-95` |
+
+**The admissible benign band, per IP:**
+* rule-rps ≤ 45;
+* sustained rate ≤ 25 r/s (30 − 5);
+* bursts ≤ 100 above the rate;
+* ≤ 45 connections;
+* never 8 or more idle connections.
+
+The rule's 1 s clamp means a burst after a quiet spell counts in full: 61 requests within
+one second read as 61 rps [INFERENCE from `:1010`]. The admissibility gate therefore
+**simulates** the rule, nginx's token bucket and the connection counts on the seeded
+request schedule that `--plan` produces. Back-of-envelope arithmetic is not enough.
+
+#### New benign kinds
+
+| Kind (IPs per run) | What it models | Parameters [source] | Expected per IP | Overlap / role |
+|---|---|---|---|---|
+| `browser_page` (×4) | One user on an asset-heavy site | **Page view:** the HTML, then the assets in two waves (CSS/JS, then images/fonts). Transport: HTTP/2 on :443, or 6 parallel HTTP/1.1 connections on :80. **First view:** 30 or 60 same-origin assets, 2 IPs at each level. The median page makes 71 (desktop) / 66 (mobile) requests, third-party included [Web Almanac 2024, Page Weight]. 60 is the high level; 30 is a page with about half its requests third-party. **Repeat views:** the HTML plus page-specific assets only. Static assets carry `max-age=3600` (`l7_webapp`), so a browser does not re-request them. **Think time:** negative exponential, mean 7 s, cap 70 s [ASSUMPTION: the TPC-W convention — verify against the spec before citing]. **Visit:** 3–15 views | 1 s peak ≈ 20–45; sustained ≈ 2–8 rps | Overlaps the attackers on **peak**, not on sustained rate |
+| `cgnat_browsers` (×2) | Many users behind one carrier-grade or corporate NAT address | **Users:** M ∈ {12, 24} `browser_page` users at the 30-asset level, each over HTTP/2 on :443 (one connection each, so ≤ 24 < 45). **UAs:** each user draws its UA from a weighted table of **reduced** UA strings. Chrome freezes the minor version and the platform details (from Chrome 101 / 107 / 110) [chromium.org, User-Agent Reduction], so users on the same browser and OS send identical strings, and collisions arise naturally | peak ≈ 25–45; sustained ≈ 10–25 rps | Overlaps on peak **and** on sustained rate; where UAs collide, (IP, UA) keying merges users |
+| `api_bulk` (×1), **hard negative** | A legitimate integration or sync job | Steady 15–20 rps, keep-alive, 2–3 `/api/*` endpoints, one fixed UA | peak ≈ 20–25; sustained 15–20 | Looks like a sub-threshold flood to every detector |
+| `crawler_polite` (×1), **hard negative** | A search or monitoring crawler | `/robots.txt` (new route), then distinct `/page/<n>` and their assets at 2–5 rps, with an identifying bot UA | peak ≈ 5–8; sustained 2–5 | URI diversity like the scraper, at low rate: hard for the GRU, easy for rate limits |
+
+That gives 20 benign IPs per run (the 12 existing + 8 new).
+
+**M, the number of users per NAT address, is an [ASSUMPTION].** It is chosen so the
+sustained aggregate overlaps the 20 rps flood while staying admissible. No external
+source pins it here. Richter et al. (IMC 2016) measure CGN deployment, and their
+address-sharing figures must be checked before the thesis cites a ratio. Choosing M
+against the *rate baselines* is legitimate: it makes the test informative, and the
+hypothesis is conditional on that overlap. Choosing it against the GRU would not be.
+
+**No new shortcut [DECISION].**
+* No conditional requests or 304s are added. Only benign clients would send them, which
+  would recreate the R4 fingerprint problem through status codes.
+* UA is not a model feature; it is used only as a key (§5.3).
+* Request size is not a model input (`no_size`).
+
+#### Baselines (all evaluated on the recorded requests, offline)
+
+| ID | Baseline | Grid |
+|---|---|---|
+| B0 | Per-IP peak rps in 1 s (P5's H1b) | 5, 10, …, 50 |
+| B1 | Per-(IP, UA) peak rps in 1 s — the GRU's own keying, without learning | as B0 |
+| B2 | Sustained rate: mean rps over sliding 10 / 30 / 60 s windows, per IP and per (IP, UA) | 2, 5, 10, 15, 20, 25, 30, 40, 50 |
+| B3 | Token bucket (rate r, burst b) as a ban trigger, per IP and per (IP, UA) — the `limit_req` mechanism, tuned | r ∈ {5, 10, 15, 20, 25, 30}, b ∈ {10, 25, 50, 100} |
+| B4 | The HGB tabular baseline (P4), retrained on the P5b capture and replayed through the engine's own windows and policy | score-threshold sweep |
+
+**Tuning [DECISION — conservative, as at P5].**
+* Each baseline is tuned *on the evaluation runs themselves* (oracle), subject to
+  flagging no more benign IPs than the GRU.
+* The GRU's operating point is fixed at P5b.2 by the unchanged P4 selection rule.
+* This favours the baselines.
+* As a secondary result, baselines are also tuned on the capture, which is the information
+  the GRU had.
+
+#### Pre-registered verdict (`ml/p5b_report.py`, written and unit-tested on fixtures before the evaluation runs)
+
+**Comparison set:** the fast sub-threshold attacker IPs (2 subthreshold_flood, 1 scraper,
+1 padded_flood held out) per run, pooled over seeds. Benign false positives are counted
+in IPs, because enforcement is per IP.
+
+* **V0 — informative.** In every run, B0 at 0 benign flagged catches fewer than all of the
+  comparison set. Otherwise the mix did not create the overlap, and no claim is made either
+  way.
+* **V1 — admissible.** The deterministic engines ban no benign IP and no comparison-set
+  attacker, and nginx shapes no benign request. Any violation is reported, and the affected
+  IPs are listed and excluded from the comparison.
+* **V2 — the GRU is usable.**
+  * The GRU would-bans more than half of the comparison set, pooled.
+  * It flags ≤ 5 % of benign IPs, pooled.
+  * The benign soak C′ gives ≤ 1.0 false positives per benign client-hour.
+* **V3 — the GRU beats every baseline.** For each of B0–B4, at matched benign false
+  positives, the GRU catches strictly more of the comparison set pooled, and no fewer in any
+  single run.
+* **Significance.** An exact one-sided McNemar test on per-attacker-IP outcomes, GRU vs each
+  baseline, at α = 0.05. All tests must pass, which makes this an intersection–union test,
+  so no multiplicity correction is needed.
+
+| Outcome | Condition |
+|---|---|
+| **Advantage shown — decisive** | V0–V3 hold, and every McNemar test is significant |
+| **Advantage shown — indicative** | V0–V3 hold, but not every test is significant |
+| **Advantage from keying or burst handling, not from learning** | The GRU beats B0, but B1, B2 or B3 matches it |
+| **No advantage** | V2 or V3 fails in any other way |
+| **Uninformative** | V0 fails |
+
+**Statistical power [FACT, arithmetic].**
+* Three seeds × 4 attackers gives 12 comparison-set attackers.
+* With no discordant pair against the GRU, significance needs ≥ 5 pairs in its favour
+  (p = 0.5⁵ ≈ 0.031).
+* So if any baseline catches ≥ 8 of 12, "decisive" is unreachable, however good the GRU is.
+* Five seeds (20 attackers) relax this; see open decision 2.
+
+**Predictions, recorded before any data [INFERENCE].**
+* **The 60-asset first view is likely inadmissible:** ~61 requests in under a second read as
+  ~61 rps under the deployed rule. If the gate confirms this, it is reported as a
+  deterministic false positive of the existing rule, and that level is dropped from the GRU
+  comparison. It is not retuned.
+* **B2 (sustained rate) likely neutralises `browser_page`,** whose bursts are short.
+* **B1 likely neutralises `cgnat_browsers` where users' UAs differ.** The GRU's one plausible
+  edge is a NAT address whose users share UA strings. There its behavioural features (many
+  interleaved connections, think-time structure) could separate it from a flood, which no
+  rate baseline can.
+* **`api_bulk`** is likely flagged by every rate baseline that catches the 20 rps flood, and
+  possibly by the GRU.
+* **`crawler_polite`** is the GRU's likely false positive; rate baselines pass it.
+* **Overall:** the likeliest outcomes are "indicative" or "advantage from keying", not
+  "decisive". A negative result is reported as such.
+
+#### Steps and gates (each VM step approved separately, as before)
+
+| Step | Work | Where / ≈ time | Gate |
+|---|---|---|---|
+| P5b.0 | **Generator:** new kinds and the UA table (`ml/l7_gen.py`, `ml/l7_traffic.py`). **Web app:** page→asset lists and `/robots.txt` (`l7_webapp.py`). **Benign admissibility in `calibrate()`:** simulates the rule's actual formula including the error-ratio branch (this closes R10), `limit_req`, `limit_conn` and SlowConn. **`--plan`:** prints each kind's expected peak and sustained rate, and the overlap check. **Baselines:** B0–B4 in `ml/eval_l7.py`. **Verdict:** `ml/p5b_report.py` with fixture tests | Offline | Tests + ruff; you review the `--plan` output |
+| P5b.1 | Capture, ~10 min, no daemon and no XDP (as at P3) | VM, ~15 min including setup | **Conformance:** measured per-kind rates within the expected ranges. **V1 on the capture:** offline replay of the rules. **Capacity guard:** benign upstream p95 and 5xx no worse than at P3 |
+| P5b.2 | Retrain with `ml/train_l7.py` unchanged; the held-out benign kind is reported | Offline, CPU | Probe gate PASS; model card |
+| P5b.3 | Evaluation runs A′1–A′3 (seeds 1–3, ~6 min each) + soak C′ (~12 min); shadow mode, `XDP_GRU=0` | VM, ~40 min | Verdict computed by `ml/p5b_report.py` |
+| P6 | Promotion, only on "advantage shown" | — | Explicit approval |
+
+#### Open decisions (for approval with this plan)
+
+1. **Held-out benign kind.** `api_bulk` (proposed: it tests a legitimate high-rate client
+   the model never saw), `crawler_polite`, or none.
+2. **Seeds.** 3 (proposed), or 5. Five add ~15 min of VM time and make "decisive"
+   reachable when the baselines are strong.
+3. **Benign false-positive budget in V2.** ≤ 5 % of benign IPs (proposed).
+
+#### Threats to validity
+
+* **Synthetic clients.** Requests come from curl and `requests`, not a JS-executing browser,
+  and there are no third-party origins.
+* **External numbers are aggregates,** not traces.
+* **One site,** on a LAN with netem profiles.
+* **Oracle tuning of the baselines** (conservative for the GRU).
+* **Small n** (see the power paragraph).
+* **UA rotation.** An attacker who rotates UAs defeats (IP, UA) keying for both the GRU and
+  B1. This is not tested here (R11).
+
+**External sources** (checked 2026-10-16; re-check before citing in the thesis):
+* HTTP Archive, *Web Almanac 2024*, Page Weight chapter — median requests per page:
+  <https://almanac.httparchive.org/en/2024/page-weight>
+* Chromium, *User-Agent Reduction* — the frozen version and platform fields:
+  <https://www.chromium.org/updates/ua-reduction/>
+* Richter et al., *A Multi-perspective Analysis of Carrier-Grade NAT Deployment*, IMC 2016 —
+  for the NAT sharing assumption (its figures are not yet extracted):
+  <https://arxiv.org/abs/1605.05606>
+* TPC-W think time (negative exponential, mean 7 s) — a widely used convention, **not yet
+  verified against the specification text**.
+
 ---
 
 ## 8. Step-by-step roadmap with verification gates
@@ -650,7 +860,8 @@ the working protocol.
 | **P3** ✓ | `ml/capture_l7.py` + `l7_webapp.py`, `nginx_l7capture.conf`, `ml/l7_traffic.py`, `ml/l7_gen.py`, `l7_dataset.py`; diverse benign (§6.2), calibrated sub-threshold + held-out attacks (§6.3); dataset manifest (§6.5) | capture tool + manifest schema; 17 tests | **PASSED 2026-10-15** (`results/2026-10-15_l7-p3-capture/`): 9012-line dataset, manifest/labels/schedule complete, all families present; R4 closed (size overlaps 5.02 vs 5.35, URI diversity now separates); R1 confirmed (slow families ~1 window vs 58–332 fast) |
 | **P4** ✓ | `ml/train_l7.py`: IP-disjoint benign + family-disjoint held-out splits, policy metrics with Clopper-Pearson CIs + FP/client-hour, exact-invariance probe gate, feature-set variants, GRU + HGB tabular baseline; **offline, CPU** | model package + card + metrics (`results/2026-10-15_l7-p4-train/`) | **PASSED 2026-10-15**: probe gate PASS; `no_size` chosen (held-out 7/8 at 0 FP vs 1/8 with size — the size shortcut confirmed and removed); GRU > baseline; candidate not promoted |
 | **P5** ✓ | Online evaluation in **shadow** (`ml/eval_l7.py`, §7.1): runs A–D, candidate vs with-size, benign soak, `XDP_GRU=0`, H1b threshold sweep | `results/2026-10-16_l7-p5-eval/` | **Done 2026-10-16. Verdict: marginal value NOT shown** — GRU 3/3 fast sub-threshold at 0 benign FP, but a static 10 rps limit matches it; P6 not proposed |
-| **P6** | `ml/promote_l7.py`: install a vetted model, with hashes and metrics | promoted model | **Explicit approval;** only if P5 shows value at acceptable FP |
+| **P5b** | Benign-overlap re-test (§7.2, pre-registered): rate-overlapping benign kinds + hard negatives, benign admissibility gate (closes R10), baselines B0–B4; re-capture → retrain → shadow eval | §7.2 | **Proposed 2026-10-16, awaiting approval**; gates per step in §7.2 |
+| **P6** | `ml/promote_l7.py`: install a vetted model, with hashes and metrics | promoted model | **Explicit approval;** only if P5/P5b shows value at acceptable FP |
 
 Verification threads through every phase: shadow mode (P1–P2) means the L7 engine can be
 observed on real/replayed traffic *before* it is ever allowed to ban, which directly
@@ -666,12 +877,14 @@ answers the "built observability in from day one" lesson (`ML_INVESTIGATION.md` 
 | R2 | **Syslog datagram truncation / drops** under flood corrupt features | Medium / medium — **measured at P1**: 0 in the sub-threshold regime; ~40 % only under a flood burst (`max_dgram_qlen=512` bound) | 0 truncation seen (incl. a 900 B UA); drops are flood-only and that is the rate rule's regime (file-based) with the file sink retaining all. If ever needed for the GRU: raise `net.unix.max_dgram_qlen` (sysctl, needs approval), batch the reader's drain (`recvmmsg`), or fall back to file+tail (§4.3) |
 | R3 | **NAT** mixes users on one IP; a ban over-blocks (§5.3) | Medium / high | IP+UA or IP+connection keys; NAT'd benign profile in capture; **gate: P4 reports NAT FP separately** |
 | R4 | **Fingerprint shortcut recurs** via UA/size (the XDP failure) | **High / high — evidence at P2:** in the current testbed traffic, request size (wrk ≈ 34 B vs curl ≈ 72 B) and connection reuse (curl one-shot vs wrk keep-alive) separate the classes, and URIs carry nothing (one-path app) | Hash-only strings, size as its own droppable group, protocol off by default (done in P2); **P3 must randomise request sizes, add keep-alive and HTTP/2 benign sessions, and serve a multi-path app**; **gate: the invariance probe battery is a hard P4 acceptance test** (\|Δp\| and flips) |
-| R5 | **No genuine niche:** a lower static threshold matches the GRU (§7) | **Realised at P5:** a static 10 rps per-IP limit matched the GRU at 0 benign FP in this testbed, whose benign clients never exceed ~10 rps | Pre-registered comparison applied; the honest result is reported. A niche would need legitimate traffic that also exceeds simple rate limits (busy NAT, asset-heavy pages, API clients) — a richer benign mix is the precondition for any re-test |
+| R5 | **No genuine niche:** a lower static threshold matches the GRU (§7) | **Realised at P5:** a static 10 rps per-IP limit matched the GRU at 0 benign FP in this testbed, whose benign clients never exceed ~10 rps | Pre-registered comparison applied; the honest result is reported. A niche would need legitimate traffic that also exceeds simple rate limits (busy NAT, asset-heavy pages, API clients) — a richer benign mix is the precondition for any re-test. **Re-test proposed as P5b (§7.2)**, with stronger baselines than a per-IP limit |
 | R6 | **Benign diversity still insufficient** → FP on real clients (the recurring data failure) | Medium / high | §6.2 mix incl. keep-alive, H2, NAT, mobile netem; **gate: FP/client-hour per profile at P4 and the soak at P5** |
 | R7 | **HTTP/2 multiplexing** makes connection-level features ambiguous (many requests per conn) | Low / medium | Per-request logging is unaffected (one line each); connection features use `connection_requests`; validate on an H2 benign profile |
 | R8 | **TLS passthrough / L4 LB** in a real deployment removes L7 visibility (§1) | N/A here / high elsewhere | Documented boundary condition; thesis states the architecture's assumption |
 | R9 | **Daemon CPU/GIL** under combined L7 ingest + inference + L4 polling | Low / medium | Batched inference (§4.4); single ingest thread has ~6× head room; **gate: P1/P5 measure daemon CPU/RSS** |
-| R10 | **The calibration gate models the deterministic rules incompletely** | Found at P5: `ml/l7_traffic.calibrate()` checks the rate ban threshold but not the rate rule's error-ratio branch, so a held-out family was caught by an existing rule | Add the error-ratio branch (and every other deterministic ban path) to `THRESHOLDS`/`calibrate()`, with a test that cross-checks `control_plane.py` |
+| R10 | **The calibration gate models the deterministic rules incompletely** | Found at P5: `ml/l7_traffic.calibrate()` checks the rate ban threshold but not the rate rule's error-ratio branch, so a held-out family was caught by an existing rule | Add the error-ratio branch (and every other deterministic ban path) to `THRESHOLDS`/`calibrate()`, with a test that cross-checks `control_plane.py`. Scheduled in P5b.0 (§7.2), which simulates the rule on the planned schedule for benign kinds too |
+| R11 | **(IP, UA) keying is weaker than the testbed suggests.** Real users behind one NAT often share a UA string (Chrome's UA reduction), which merges their windows; an attacker who rotates UAs splits its own traffic into low-rate keys | Medium / high for any NAT-based claim | P5b draws NAT users' UAs from a weighted table of reduced strings, so collisions occur; B1 (per-(IP, UA) limit) isolates how much of any advantage is keying. UA rotation by attackers is **not** tested in P5b and is stated as a limit |
+| R12 | **The benign mix is tuned toward the model** (circularity, the mirror of §7) | Medium / high — it would invalidate a positive P5b result | §7.2 rules: external grounding or declared assumptions, hard negatives, parameters frozen by commit before any data, changes only for conformance, every run reported |
 
 ---
 
