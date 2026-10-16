@@ -1187,6 +1187,8 @@ rendered confs pass `nginx -t` (07c3794). 218 tests green.
 * **Gate:** dataset manifest/labels complete; probe gate PASS; benign-burst FP on the
   held-out benign kind reported in the model card before evaluation.
 
+**P5c.3 result** (`results/2026-10-16_l7-p5c3-capture/`, `results/2026-10-16_l7-p5c3-train/`): 31,623-line capture under the tolerant profile, 0 nginx rejections; candidate `no_size_no_server_timing` passes the full probe gate (strict `server_load`, `pad_request` 0 flips), catches 7/8 held-out attack groups (slowread missed, R1) with 0 benign-test FP; the held-out `api_bulk` client is flagged (R16).
+
 ### 7.3.5 P5c.4 — evaluation and the pre-registered verdict [VM workload]
 
 Shadow evaluation (`ml/eval_l7.py --mix overlap`, **relaxed** daemon, `XDP_GRU=0`), 5 seeds
@@ -1219,7 +1221,7 @@ outcomes:
 |---|---|---|---|
 | **P5c.1** ✓ | Baseline confirmation: default heuristics vs realistic benign; document bans + benign profile | VM, ~5 min | **Done 2026-10-16** (`results/2026-10-16_l7-p5c-baseline/`): 3 benign bans as predicted; R17 found; two decisions needed (§7.3.2.1) |
 | **P5c.2** ✓ (gate PASSED) | Re-calibrate thresholds (`control_plane.py`, relaxed nginx conf, `THRESHOLDS`); update pinned tests; re-run admissibility gate | Offline | Tests + ruff; gate shows realistic benign admissible; you review the frozen profile |
-| **P5c.3** | Capture full realistic mix under relaxed profile; retrain GRU + HGB | VM capture ~10 min; retrain offline | Dataset complete; probe gate PASS; benign-burst FP reported |
+| **P5c.3** ✓ | Capture full realistic mix under relaxed profile; retrain GRU + HGB | VM capture ~10 min; retrain offline | Dataset complete; probe gate PASS; benign-burst FP reported |
 | **P5c.4** | Shadow eval (5 seeds + soak), relaxed daemon; baselines B0–B4; pre-registered verdict | VM ~55 min | Verdict by `ml/p5b_report.py`; published campaign |
 | **P6** | Promotion + (if favoured) making the relaxed profile the deployed default | — | Explicit approval; only on "marginal value shown" |
 
