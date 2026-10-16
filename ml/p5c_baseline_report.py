@@ -136,6 +136,7 @@ def build(run_dir, n_benign=12):
                  "predicted_ok_but_banned": sorted(banned - pred_bad),
                  "predicted_ok_not_banned": sorted({r["ip"] for r in rows} - pred_bad - banned)}
     return {"run": os.path.basename(run_dir.rstrip("/")), "seed": manifest["seed"],
+            "heuristics": manifest["provenance"].get("heuristics", "default"),
             "duration_s": manifest["duration_s"], "t0_wall": t0,
             "benign_ips": len(rows), "det_banned_benign": len(banned),
             "rows": rows, "gate_vs_live": confusion}
@@ -178,7 +179,7 @@ def timing_counterfactual(record, model_dir):
 def to_markdown(rep):
     title = (f"Run `{rep['run']}` (seed {rep['seed']}, {rep['duration_s']:.0f} s): "
              f"{rep['det_banned_benign']} of {rep['benign_ips']} benign IPs banned by the "
-             "default deterministic heuristics.")
+             f"{rep.get('heuristics', 'default')} deterministic heuristics.")
     header = ("| IP | Kind | Spec | Netem | Gate | Deterministic ban | Requests | Peak 1 s | "
               "Sus 10 s | Sus 60 s | nginx 503 (req/conn) | GRU would-bans |")
     lines = [title, "", header, "|---|---|---|---|---|---|---|---|---|---|---|---|"]
