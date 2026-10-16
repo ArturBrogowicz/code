@@ -62,6 +62,33 @@ class WebappTest(unittest.TestCase):
                          [str(l7_webapp._size_for("/static/3.css")),
                           str(l7_webapp._stable_hash("/page/7"))])
 
+    def test_robots_route(self):
+        status, _headers, body = wsgi("GET", "/robots.txt")
+        self.assertEqual(status, "200 OK")
+        self.assertIn(b"User-agent: *", body)
+
+    def test_route_status_matches_app(self):
+        cases = [("GET", p) for p in ("/", "/robots.txt", "/page/3", "/api/x", "/static/1.css",
+                                      "/download/large", "/upload", "/login", "/nope",
+                                      "/static/site30/p7/img0.png")]
+        cases += [("POST", "/upload"), ("POST", "/login"), ("POST", "/nope"), ("GET", "/search")]
+        for method, path in cases:
+            status = wsgi(method, path, b"{}" if method == "POST" else b"")[0]
+            self.assertEqual(int(status.split()[0]), l7_webapp.route_status(method, path),
+                             (method, path))
+
+    def test_site_assets_add_up_to_level_and_are_served(self):
+        for level in (30, 60):
+            wave1, fonts = l7_webapp.site_assets(level)
+            imgs = l7_webapp.page_assets(level, 7)
+            every = wave1 + fonts + imgs
+            self.assertEqual(len(every), level)
+            self.assertEqual(len(set(every)), level)
+            self.assertNotEqual(set(imgs), set(l7_webapp.page_assets(level, 8)))
+            for path in every[:3] + every[-2:]:
+                self.assertEqual(l7_webapp.route_status("GET", path), 200)
+                self.assertEqual(wsgi("GET", path)[0], "200 OK")
+
     def test_large_download_and_search_delay(self):
         self.assertEqual(len(wsgi("GET", "/download/large")[2]), l7_webapp.DOWNLOAD_BYTES)
         import time
