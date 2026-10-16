@@ -1,0 +1,156 @@
+{
+ "out_dir": "/var/tmp/ddos_l7_eval/20261016T082653Z",
+ "model": "/home/artur/DDoS-mitigation/code/results/2026-10-15_l7-p4-train/model",
+ "soak": false,
+ "duration_s": 360.0,
+ "seed": 2,
+ "t0_wall": 1792139223.4760067,
+ "git_commit": "ca5d46c2133af21180941907f8086475577f4d5b",
+ "model_sha256": "2517ff9f9efc31418deb4ca29f24d23de06497089801e9c010724f03fcf61e0c",
+ "analysis": {
+  "by_family": {
+   "subthreshold_flood": {
+    "ips": 2,
+    "det_banned": 0,
+    "would_banned": 2,
+    "det_engines": [],
+    "median_ttd_would_s": 3.63,
+    "median_ttd_det_s": null
+   },
+   "scraper": {
+    "ips": 1,
+    "det_banned": 0,
+    "would_banned": 1,
+    "det_engines": [],
+    "median_ttd_would_s": 3.18,
+    "median_ttd_det_s": null
+   },
+   "slowloris": {
+    "ips": 1,
+    "det_banned": 0,
+    "would_banned": 0,
+    "det_engines": [],
+    "median_ttd_would_s": null,
+    "median_ttd_det_s": null
+   },
+   "slowpost": {
+    "ips": 1,
+    "det_banned": 0,
+    "would_banned": 0,
+    "det_engines": [],
+    "median_ttd_would_s": null,
+    "median_ttd_det_s": null
+   },
+   "padded_flood": {
+    "ips": 1,
+    "det_banned": 0,
+    "would_banned": 1,
+    "det_engines": [],
+    "median_ttd_would_s": 3.63,
+    "median_ttd_det_s": null
+   },
+   "credstuff": {
+    "ips": 1,
+    "det_banned": 1,
+    "would_banned": 0,
+    "det_engines": [
+     "l7_rate"
+    ],
+    "median_ttd_would_s": null,
+    "median_ttd_det_s": 0.88
+   },
+   "slowread": {
+    "ips": 1,
+    "det_banned": 0,
+    "would_banned": 0,
+    "det_engines": [],
+    "median_ttd_would_s": null,
+    "median_ttd_det_s": null
+   },
+   "volumetric_flood": {
+    "ips": 1,
+    "det_banned": 1,
+    "would_banned": 0,
+    "det_engines": [
+     "l4_syn"
+    ],
+    "median_ttd_would_s": null,
+    "median_ttd_det_s": 1.6
+   }
+  },
+  "benign_would_ban_ips": {},
+  "benign_would_ban_count": 0,
+  "benign_ips_total": 12,
+  "gru_totals": {
+   "windows": 2546,
+   "over": 242,
+   "would_bans": 4,
+   "gated_age": 27,
+   "suppressed_polls": 14
+  },
+  "suppress_on_events": 1
+ },
+ "threshold_sweep": {
+  "deployed_l7_rate_ban_rps": 50,
+  "per_ip_peak_rps": {
+   "10.0.1.1": 1.0,
+   "10.0.1.10": 1.0,
+   "10.0.1.11": 1.0,
+   "10.0.1.12": 2.0,
+   "10.0.1.2": 1.0,
+   "10.0.1.3": 2.0,
+   "10.0.1.4": 2.0,
+   "10.0.1.5": 6.0,
+   "10.0.1.6": 2.0,
+   "10.0.1.7": 1.0,
+   "10.0.1.8": 1.0,
+   "10.0.1.9": 9.0,
+   "10.0.2.1": 25.0,
+   "10.0.2.2": 39.0,
+   "10.0.2.3": 34.0,
+   "10.0.2.4": 6.0,
+   "10.0.2.5": 6.0,
+   "10.0.2.6": 32.0,
+   "10.0.2.7": 11.0,
+   "10.0.2.8": 6.0
+  },
+  "sweep": [
+   {
+    "rps_threshold": 10,
+    "attacker_ips_caught": 5,
+    "benign_ips_flagged": 0
+   },
+   {
+    "rps_threshold": 15,
+    "attacker_ips_caught": 4,
+    "benign_ips_flagged": 0
+   },
+   {
+    "rps_threshold": 20,
+    "attacker_ips_caught": 4,
+    "benign_ips_flagged": 0
+   },
+   {
+    "rps_threshold": 25,
+    "attacker_ips_caught": 3,
+    "benign_ips_flagged": 0
+   },
+   {
+    "rps_threshold": 30,
+    "attacker_ips_caught": 3,
+    "benign_ips_flagged": 0
+   },
+   {
+    "rps_threshold": 40,
+    "attacker_ips_caught": 0,
+    "benign_ips_flagged": 0
+   },
+   {
+    "rps_threshold": 50,
+    "attacker_ips_caught": 0,
+    "benign_ips_flagged": 0
+   }
+  ]
+ },
+ "ready": true
+}

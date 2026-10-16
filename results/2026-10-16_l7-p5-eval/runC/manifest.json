@@ -1,0 +1,121 @@
+{
+ "format": "l7-dataset/1",
+ "created": "2026-10-16T08:26:37Z",
+ "seed": 1,
+ "duration_s": 600.0,
+ "access_log": "access.log",
+ "ip_map": {
+  "10.0.1.1": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_3g",
+   "kind": "curl_oneshot"
+  },
+  "10.0.1.2": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "perfect",
+   "kind": "curl_oneshot"
+  },
+  "10.0.1.3": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "broadband",
+   "kind": "keepalive"
+  },
+  "10.0.1.4": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_bad",
+   "kind": "keepalive"
+  },
+  "10.0.1.5": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "broadband",
+   "kind": "http2"
+  },
+  "10.0.1.6": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "broadband",
+   "kind": "api_poll"
+  },
+  "10.0.1.7": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_3g",
+   "kind": "downloader"
+  },
+  "10.0.1.8": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_3g",
+   "kind": "uploader"
+  },
+  "10.0.1.9": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "perfect",
+   "kind": "nat_gateway"
+  },
+  "10.0.1.10": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_bad",
+   "kind": "curl_oneshot"
+  },
+  "10.0.1.11": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_bad",
+   "kind": "curl_oneshot"
+  },
+  "10.0.1.12": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "perfect",
+   "kind": "keepalive"
+  },
+  "10.0.2.9": {
+   "class": "attack",
+   "family": "volumetric_flood",
+   "held_out": false,
+   "params": {
+    "kind": "syn",
+    "dur_s": 8
+   }
+  }
+ },
+ "schedule": [
+  {
+   "ip": "10.0.2.9",
+   "family": "volumetric_flood",
+   "held_out": false,
+   "mechanism": "flood",
+   "start_s": 553.257,
+   "stop_s": 561.257,
+   "params": {
+    "kind": "syn",
+    "dur_s": 8
+   }
+  }
+ ],
+ "provenance": {
+  "t0_wall": 1792138593.301352,
+  "model": "/home/artur/DDoS-mitigation/code/results/2026-10-15_l7-p4-train/model"
+ },
+ "notes": "L7 eval (P5, shadow)"
+}

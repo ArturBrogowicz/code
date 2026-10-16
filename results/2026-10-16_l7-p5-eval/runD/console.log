@@ -1,0 +1,28 @@
+[*] L7 eval → /var/tmp/ddos_l7_eval/20261016T082653Z  (model model, 12 benign, 9 attackers, soak=False)
+
+[+] daemon + L7 shadow ready.
+  [  63.2s] launched credstuff from 10.0.2.7 (45s)
+  [  79.7s] launched padded_flood from 10.0.2.6 (57s)
+  [ 104.8s] launched slowloris from 10.0.2.4 (54s)
+  [ 141.2s] launched subthreshold_flood from 10.0.2.2 (56s)
+  [ 199.9s] launched slowread from 10.0.2.8 (70s)
+  [ 256.1s] launched subthreshold_flood from 10.0.2.1 (64s)
+  [ 257.1s] launched scraper from 10.0.2.3 (67s)
+  [ 273.2s] launched slowpost from 10.0.2.5 (53s)
+  [ 339.4s] launched volumetric_flood from 10.0.2.9 (8s)
+
+[+] Topology cleaned up.
+
+=== L7 eval summary ===
+  credstuff            ips=1 det_banned=1['l7_rate'] would_banned=0 ttd_would=Nones
+  padded_flood         ips=1 det_banned=0[] would_banned=1 ttd_would=3.63s
+  scraper              ips=1 det_banned=0[] would_banned=1 ttd_would=3.18s
+  slowloris            ips=1 det_banned=0[] would_banned=0 ttd_would=Nones
+  slowpost             ips=1 det_banned=0[] would_banned=0 ttd_would=Nones
+  slowread             ips=1 det_banned=0[] would_banned=0 ttd_would=Nones
+  subthreshold_flood   ips=2 det_banned=0[] would_banned=2 ttd_would=3.63s
+  volumetric_flood     ips=1 det_banned=1['l4_syn'] would_banned=0 ttd_would=Nones
+  benign would-ban IPs: 0 / 12 ({})
+  GRU totals: {'windows': 2546, 'over': 242, 'would_bans': 4, 'gated_age': 27, 'suppressed_polls': 14}  suppress_on: 1
+[+] Wrote /var/tmp/ddos_l7_eval/20261016T082653Z/summary.json
+

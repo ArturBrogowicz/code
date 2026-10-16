@@ -1,0 +1,608 @@
+{
+ "runs": {
+  "A": {
+   "model": "/home/artur/DDoS-mitigation/code/results/2026-10-15_l7-p4-train/model",
+   "seed": 1,
+   "soak": false,
+   "analysis": {
+    "by_family": {
+     "subthreshold_flood": {
+      "ips": 2,
+      "det_banned": 0,
+      "would_banned": 2,
+      "det_engines": [],
+      "median_ttd_would_s": 3.81,
+      "median_ttd_det_s": null
+     },
+     "scraper": {
+      "ips": 1,
+      "det_banned": 0,
+      "would_banned": 1,
+      "det_engines": [],
+      "median_ttd_would_s": 3.23,
+      "median_ttd_det_s": null
+     },
+     "slowloris": {
+      "ips": 1,
+      "det_banned": 0,
+      "would_banned": 0,
+      "det_engines": [],
+      "median_ttd_would_s": null,
+      "median_ttd_det_s": null
+     },
+     "slowpost": {
+      "ips": 1,
+      "det_banned": 0,
+      "would_banned": 0,
+      "det_engines": [],
+      "median_ttd_would_s": null,
+      "median_ttd_det_s": null
+     },
+     "padded_flood": {
+      "ips": 1,
+      "det_banned": 0,
+      "would_banned": 1,
+      "det_engines": [],
+      "median_ttd_would_s": 3.51,
+      "median_ttd_det_s": null
+     },
+     "credstuff": {
+      "ips": 1,
+      "det_banned": 1,
+      "would_banned": 0,
+      "det_engines": [
+       "l7_rate"
+      ],
+      "median_ttd_would_s": null,
+      "median_ttd_det_s": 1.24
+     },
+     "slowread": {
+      "ips": 1,
+      "det_banned": 0,
+      "would_banned": 0,
+      "det_engines": [],
+      "median_ttd_would_s": null,
+      "median_ttd_det_s": null
+     },
+     "volumetric_flood": {
+      "ips": 1,
+      "det_banned": 1,
+      "would_banned": 0,
+      "det_engines": [
+       "l4_syn"
+      ],
+      "median_ttd_would_s": null,
+      "median_ttd_det_s": 1.7
+     }
+    },
+    "benign_would_ban_ips": {},
+    "benign_would_ban_count": 0,
+    "benign_ips_total": 12,
+    "gru_totals": {
+     "windows": 2513,
+     "over": 253,
+     "would_bans": 4,
+     "gated_age": 106,
+     "suppressed_polls": 14
+    },
+    "suppress_on_events": 1
+   },
+   "threshold_sweep": {
+    "deployed_l7_rate_ban_rps": 50,
+    "per_ip_peak_rps": {
+     "10.0.1.1": 1.0,
+     "10.0.1.10": 1.0,
+     "10.0.1.11": 1.0,
+     "10.0.1.12": 2.0,
+     "10.0.1.2": 1.0,
+     "10.0.1.3": 2.0,
+     "10.0.1.4": 1.0,
+     "10.0.1.5": 6.0,
+     "10.0.1.6": 2.0,
+     "10.0.1.7": 1.0,
+     "10.0.1.8": 1.0,
+     "10.0.1.9": 10.0,
+     "10.0.2.1": 24.0,
+     "10.0.2.2": 41.0,
+     "10.0.2.3": 35.0,
+     "10.0.2.4": 6.0,
+     "10.0.2.5": 6.0,
+     "10.0.2.6": 31.0,
+     "10.0.2.7": 11.0,
+     "10.0.2.8": 6.0
+    },
+    "sweep": [
+     {
+      "rps_threshold": 10,
+      "attacker_ips_caught": 5,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 15,
+      "attacker_ips_caught": 4,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 20,
+      "attacker_ips_caught": 4,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 25,
+      "attacker_ips_caught": 3,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 30,
+      "attacker_ips_caught": 3,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 40,
+      "attacker_ips_caught": 1,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 50,
+      "attacker_ips_caught": 0,
+      "benign_ips_flagged": 0
+     }
+    ]
+   }
+  },
+  "B": {
+   "model": "/tmp/claude-1000/-home-artur-DDoS-mitigation-code/33a0ef05-7e9b-4a5c-9fdd-7001bd394e0c/scratchpad/l7_model_withsize",
+   "seed": 1,
+   "soak": false,
+   "analysis": {
+    "by_family": {
+     "subthreshold_flood": {
+      "ips": 2,
+      "det_banned": 0,
+      "would_banned": 2,
+      "det_engines": [],
+      "median_ttd_would_s": 2.79,
+      "median_ttd_det_s": null
+     },
+     "scraper": {
+      "ips": 1,
+      "det_banned": 0,
+      "would_banned": 1,
+      "det_engines": [],
+      "median_ttd_would_s": 3.72,
+      "median_ttd_det_s": null
+     },
+     "slowloris": {
+      "ips": 1,
+      "det_banned": 0,
+      "would_banned": 0,
+      "det_engines": [],
+      "median_ttd_would_s": null,
+      "median_ttd_det_s": null
+     },
+     "slowpost": {
+      "ips": 1,
+      "det_banned": 0,
+      "would_banned": 0,
+      "det_engines": [],
+      "median_ttd_would_s": null,
+      "median_ttd_det_s": null
+     },
+     "padded_flood": {
+      "ips": 1,
+      "det_banned": 0,
+      "would_banned": 1,
+      "det_engines": [],
+      "median_ttd_would_s": 3.38,
+      "median_ttd_det_s": null
+     },
+     "credstuff": {
+      "ips": 1,
+      "det_banned": 1,
+      "would_banned": 0,
+      "det_engines": [
+       "l7_rate"
+      ],
+      "median_ttd_would_s": null,
+      "median_ttd_det_s": 1.18
+     },
+     "slowread": {
+      "ips": 1,
+      "det_banned": 0,
+      "would_banned": 0,
+      "det_engines": [],
+      "median_ttd_would_s": null,
+      "median_ttd_det_s": null
+     },
+     "volumetric_flood": {
+      "ips": 1,
+      "det_banned": 1,
+      "would_banned": 0,
+      "det_engines": [
+       "l4_syn"
+      ],
+      "median_ttd_would_s": null,
+      "median_ttd_det_s": 1.54
+     }
+    },
+    "benign_would_ban_ips": {
+     "10.0.1.9": 1
+    },
+    "benign_would_ban_count": 1,
+    "benign_ips_total": 12,
+    "gru_totals": {
+     "windows": 2534,
+     "over": 254,
+     "would_bans": 5,
+     "gated_age": 103,
+     "suppressed_polls": 13
+    },
+    "suppress_on_events": 1
+   },
+   "threshold_sweep": {
+    "deployed_l7_rate_ban_rps": 50,
+    "per_ip_peak_rps": {
+     "10.0.1.1": 1.0,
+     "10.0.1.10": 1.0,
+     "10.0.1.11": 1.0,
+     "10.0.1.12": 2.0,
+     "10.0.1.2": 1.0,
+     "10.0.1.3": 2.0,
+     "10.0.1.4": 1.0,
+     "10.0.1.5": 6.0,
+     "10.0.1.6": 2.0,
+     "10.0.1.7": 1.0,
+     "10.0.1.8": 1.0,
+     "10.0.1.9": 10.0,
+     "10.0.2.1": 26.0,
+     "10.0.2.2": 40.0,
+     "10.0.2.3": 33.0,
+     "10.0.2.4": 6.0,
+     "10.0.2.5": 6.0,
+     "10.0.2.6": 32.0,
+     "10.0.2.7": 11.0,
+     "10.0.2.8": 6.0
+    },
+    "sweep": [
+     {
+      "rps_threshold": 10,
+      "attacker_ips_caught": 5,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 15,
+      "attacker_ips_caught": 4,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 20,
+      "attacker_ips_caught": 4,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 25,
+      "attacker_ips_caught": 4,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 30,
+      "attacker_ips_caught": 3,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 40,
+      "attacker_ips_caught": 0,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 50,
+      "attacker_ips_caught": 0,
+      "benign_ips_flagged": 0
+     }
+    ]
+   }
+  },
+  "C": {
+   "model": "/home/artur/DDoS-mitigation/code/results/2026-10-15_l7-p4-train/model",
+   "seed": 1,
+   "soak": true,
+   "analysis": {
+    "by_family": {
+     "volumetric_flood": {
+      "ips": 1,
+      "det_banned": 1,
+      "would_banned": 0,
+      "det_engines": [
+       "l4_syn"
+      ],
+      "median_ttd_would_s": null,
+      "median_ttd_det_s": 1.25
+     }
+    },
+    "benign_would_ban_ips": {},
+    "benign_would_ban_count": 0,
+    "benign_ips_total": 12,
+    "gru_totals": {
+     "windows": 3966,
+     "over": 0,
+     "would_bans": 0,
+     "gated_age": 120,
+     "suppressed_polls": 14
+    },
+    "suppress_on_events": 1
+   },
+   "threshold_sweep": {
+    "deployed_l7_rate_ban_rps": 50,
+    "per_ip_peak_rps": {
+     "10.0.1.1": 1.0,
+     "10.0.1.10": 1.0,
+     "10.0.1.11": 1.0,
+     "10.0.1.12": 2.0,
+     "10.0.1.2": 1.0,
+     "10.0.1.3": 2.0,
+     "10.0.1.4": 1.0,
+     "10.0.1.5": 6.0,
+     "10.0.1.6": 2.0,
+     "10.0.1.7": 1.0,
+     "10.0.1.8": 1.0,
+     "10.0.1.9": 10.0
+    },
+    "sweep": [
+     {
+      "rps_threshold": 10,
+      "attacker_ips_caught": 0,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 15,
+      "attacker_ips_caught": 0,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 20,
+      "attacker_ips_caught": 0,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 25,
+      "attacker_ips_caught": 0,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 30,
+      "attacker_ips_caught": 0,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 40,
+      "attacker_ips_caught": 0,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 50,
+      "attacker_ips_caught": 0,
+      "benign_ips_flagged": 0
+     }
+    ]
+   }
+  },
+  "D": {
+   "model": "/home/artur/DDoS-mitigation/code/results/2026-10-15_l7-p4-train/model",
+   "seed": 2,
+   "soak": false,
+   "analysis": {
+    "by_family": {
+     "subthreshold_flood": {
+      "ips": 2,
+      "det_banned": 0,
+      "would_banned": 2,
+      "det_engines": [],
+      "median_ttd_would_s": 3.63,
+      "median_ttd_det_s": null
+     },
+     "scraper": {
+      "ips": 1,
+      "det_banned": 0,
+      "would_banned": 1,
+      "det_engines": [],
+      "median_ttd_would_s": 3.18,
+      "median_ttd_det_s": null
+     },
+     "slowloris": {
+      "ips": 1,
+      "det_banned": 0,
+      "would_banned": 0,
+      "det_engines": [],
+      "median_ttd_would_s": null,
+      "median_ttd_det_s": null
+     },
+     "slowpost": {
+      "ips": 1,
+      "det_banned": 0,
+      "would_banned": 0,
+      "det_engines": [],
+      "median_ttd_would_s": null,
+      "median_ttd_det_s": null
+     },
+     "padded_flood": {
+      "ips": 1,
+      "det_banned": 0,
+      "would_banned": 1,
+      "det_engines": [],
+      "median_ttd_would_s": 3.63,
+      "median_ttd_det_s": null
+     },
+     "credstuff": {
+      "ips": 1,
+      "det_banned": 1,
+      "would_banned": 0,
+      "det_engines": [
+       "l7_rate"
+      ],
+      "median_ttd_would_s": null,
+      "median_ttd_det_s": 0.88
+     },
+     "slowread": {
+      "ips": 1,
+      "det_banned": 0,
+      "would_banned": 0,
+      "det_engines": [],
+      "median_ttd_would_s": null,
+      "median_ttd_det_s": null
+     },
+     "volumetric_flood": {
+      "ips": 1,
+      "det_banned": 1,
+      "would_banned": 0,
+      "det_engines": [
+       "l4_syn"
+      ],
+      "median_ttd_would_s": null,
+      "median_ttd_det_s": 1.6
+     }
+    },
+    "benign_would_ban_ips": {},
+    "benign_would_ban_count": 0,
+    "benign_ips_total": 12,
+    "gru_totals": {
+     "windows": 2546,
+     "over": 242,
+     "would_bans": 4,
+     "gated_age": 27,
+     "suppressed_polls": 14
+    },
+    "suppress_on_events": 1
+   },
+   "threshold_sweep": {
+    "deployed_l7_rate_ban_rps": 50,
+    "per_ip_peak_rps": {
+     "10.0.1.1": 1.0,
+     "10.0.1.10": 1.0,
+     "10.0.1.11": 1.0,
+     "10.0.1.12": 2.0,
+     "10.0.1.2": 1.0,
+     "10.0.1.3": 2.0,
+     "10.0.1.4": 2.0,
+     "10.0.1.5": 6.0,
+     "10.0.1.6": 2.0,
+     "10.0.1.7": 1.0,
+     "10.0.1.8": 1.0,
+     "10.0.1.9": 9.0,
+     "10.0.2.1": 25.0,
+     "10.0.2.2": 39.0,
+     "10.0.2.3": 34.0,
+     "10.0.2.4": 6.0,
+     "10.0.2.5": 6.0,
+     "10.0.2.6": 32.0,
+     "10.0.2.7": 11.0,
+     "10.0.2.8": 6.0
+    },
+    "sweep": [
+     {
+      "rps_threshold": 10,
+      "attacker_ips_caught": 5,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 15,
+      "attacker_ips_caught": 4,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 20,
+      "attacker_ips_caught": 4,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 25,
+      "attacker_ips_caught": 3,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 30,
+      "attacker_ips_caught": 3,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 40,
+      "attacker_ips_caught": 0,
+      "benign_ips_flagged": 0
+     },
+     {
+      "rps_threshold": 50,
+      "attacker_ips_caught": 0,
+      "benign_ips_flagged": 0
+     }
+    ]
+   }
+  }
+ },
+ "verdicts": {
+  "A": {
+   "marginal_value": false,
+   "reasons": {
+    "fast_subthreshold": {
+     "ips": 3,
+     "det_banned": 0,
+     "would_banned": 3
+    },
+    "det_bans_fast_near_zero": true,
+    "gru_catches_most_fast": true,
+    "benign_would_bans": 0,
+    "benign_near_zero": true,
+    "gru_attackers_caught_total": 4,
+    "attackers_total": 9,
+    "best_static_threshold_at_0_benign": {
+     "rps_threshold": 10,
+     "attacker_ips_caught": 5,
+     "benign_ips_flagged": 0
+    },
+    "static_matches_gru": true
+   }
+  },
+  "B": {
+   "marginal_value": false,
+   "reasons": {
+    "fast_subthreshold": {
+     "ips": 3,
+     "det_banned": 0,
+     "would_banned": 3
+    },
+    "det_bans_fast_near_zero": true,
+    "gru_catches_most_fast": true,
+    "benign_would_bans": 1,
+    "benign_near_zero": false,
+    "gru_attackers_caught_total": 4,
+    "attackers_total": 9,
+    "best_static_threshold_at_0_benign": {
+     "rps_threshold": 10,
+     "attacker_ips_caught": 5,
+     "benign_ips_flagged": 0
+    },
+    "static_matches_gru": true
+   }
+  },
+  "D": {
+   "marginal_value": false,
+   "reasons": {
+    "fast_subthreshold": {
+     "ips": 3,
+     "det_banned": 0,
+     "would_banned": 3
+    },
+    "det_bans_fast_near_zero": true,
+    "gru_catches_most_fast": true,
+    "benign_would_bans": 0,
+    "benign_near_zero": true,
+    "gru_attackers_caught_total": 4,
+    "attackers_total": 9,
+    "best_static_threshold_at_0_benign": {
+     "rps_threshold": 10,
+     "attacker_ips_caught": 5,
+     "benign_ips_flagged": 0
+    },
+    "static_matches_gru": true
+   }
+  }
+ }
+}

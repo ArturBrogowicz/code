@@ -1,0 +1,313 @@
+{
+ "format": "l7-dataset/1",
+ "created": "2026-10-16T08:08:53Z",
+ "seed": 1,
+ "duration_s": 360.0,
+ "access_log": "access.log",
+ "ip_map": {
+  "10.0.1.1": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_3g",
+   "kind": "curl_oneshot"
+  },
+  "10.0.1.2": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "perfect",
+   "kind": "curl_oneshot"
+  },
+  "10.0.1.3": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "broadband",
+   "kind": "keepalive"
+  },
+  "10.0.1.4": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_bad",
+   "kind": "keepalive"
+  },
+  "10.0.1.5": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "broadband",
+   "kind": "http2"
+  },
+  "10.0.1.6": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "broadband",
+   "kind": "api_poll"
+  },
+  "10.0.1.7": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_3g",
+   "kind": "downloader"
+  },
+  "10.0.1.8": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_3g",
+   "kind": "uploader"
+  },
+  "10.0.1.9": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "perfect",
+   "kind": "nat_gateway"
+  },
+  "10.0.1.10": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_bad",
+   "kind": "curl_oneshot"
+  },
+  "10.0.1.11": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "mobile_bad",
+   "kind": "curl_oneshot"
+  },
+  "10.0.1.12": {
+   "class": "benign",
+   "family": null,
+   "held_out": false,
+   "profile": "perfect",
+   "kind": "keepalive"
+  },
+  "10.0.2.1": {
+   "class": "attack",
+   "family": "subthreshold_flood",
+   "held_out": false,
+   "params": {
+    "rps": 20,
+    "port": 80,
+    "paths": "mixed"
+   }
+  },
+  "10.0.2.2": {
+   "class": "attack",
+   "family": "subthreshold_flood",
+   "held_out": false,
+   "params": {
+    "rps": 45,
+    "port": 443,
+    "paths": "mixed"
+   }
+  },
+  "10.0.2.3": {
+   "class": "attack",
+   "family": "scraper",
+   "held_out": false,
+   "params": {
+    "rps": 25,
+    "port": 443,
+    "paths": "scrape"
+   }
+  },
+  "10.0.2.4": {
+   "class": "attack",
+   "family": "slowloris",
+   "held_out": false,
+   "params": {
+    "conns": 6,
+    "header_every_s": 3,
+    "port": 80
+   }
+  },
+  "10.0.2.5": {
+   "class": "attack",
+   "family": "slowpost",
+   "held_out": false,
+   "params": {
+    "conns": 6,
+    "byte_every_s": 3,
+    "body_bytes": 60000,
+    "port": 80
+   }
+  },
+  "10.0.2.6": {
+   "class": "attack",
+   "family": "padded_flood",
+   "held_out": true,
+   "params": {
+    "rps": 30,
+    "port": 443,
+    "paths": "mixed",
+    "pad_header_bytes": 500
+   }
+  },
+  "10.0.2.7": {
+   "class": "attack",
+   "family": "credstuff",
+   "held_out": true,
+   "params": {
+    "rps": 20,
+    "port": 443,
+    "path": "/login",
+    "body_bytes": 120
+   }
+  },
+  "10.0.2.8": {
+   "class": "attack",
+   "family": "slowread",
+   "held_out": true,
+   "params": {
+    "conns": 6,
+    "read_every_s": 3,
+    "path": "/download/large",
+    "port": 80
+   }
+  },
+  "10.0.2.9": {
+   "class": "attack",
+   "family": "volumetric_flood",
+   "held_out": false,
+   "params": {
+    "kind": "syn",
+    "dur_s": 8
+   }
+  }
+ },
+ "schedule": [
+  {
+   "ip": "10.0.2.1",
+   "family": "subthreshold_flood",
+   "held_out": false,
+   "mechanism": "rate",
+   "start_s": 120.394,
+   "stop_s": 187.194,
+   "params": {
+    "rps": 20,
+    "port": 80,
+    "paths": "mixed"
+   }
+  },
+  {
+   "ip": "10.0.2.2",
+   "family": "subthreshold_flood",
+   "held_out": false,
+   "mechanism": "rate",
+   "start_s": 87.003,
+   "stop_s": 147.878,
+   "params": {
+    "rps": 45,
+    "port": 443,
+    "paths": "mixed"
+   }
+  },
+  {
+   "ip": "10.0.2.3",
+   "family": "scraper",
+   "held_out": false,
+   "mechanism": "rate",
+   "start_s": 39.877,
+   "stop_s": 97.612,
+   "params": {
+    "rps": 25,
+    "port": 443,
+    "paths": "scrape"
+   }
+  },
+  {
+   "ip": "10.0.2.4",
+   "family": "slowloris",
+   "held_out": false,
+   "mechanism": "conns",
+   "start_s": 17.865,
+   "stop_s": 58.783,
+   "params": {
+    "conns": 6,
+    "header_every_s": 3,
+    "port": 80
+   }
+  },
+  {
+   "ip": "10.0.2.5",
+   "family": "slowpost",
+   "held_out": false,
+   "mechanism": "conns",
+   "start_s": 117.433,
+   "stop_s": 185.608,
+   "params": {
+    "conns": 6,
+    "byte_every_s": 3,
+    "body_bytes": 60000,
+    "port": 80
+   }
+  },
+  {
+   "ip": "10.0.2.6",
+   "family": "padded_flood",
+   "held_out": true,
+   "mechanism": "rate",
+   "start_s": 213.913,
+   "stop_s": 282.984,
+   "params": {
+    "rps": 30,
+    "port": 443,
+    "paths": "mixed",
+    "pad_header_bytes": 500
+   }
+  },
+  {
+   "ip": "10.0.2.7",
+   "family": "credstuff",
+   "held_out": true,
+   "mechanism": "rate",
+   "start_s": 279.624,
+   "stop_s": 342.536,
+   "params": {
+    "rps": 20,
+    "port": 443,
+    "path": "/login",
+    "body_bytes": 120
+   }
+  },
+  {
+   "ip": "10.0.2.8",
+   "family": "slowread",
+   "held_out": true,
+   "mechanism": "conns",
+   "start_s": 212.803,
+   "stop_s": 263.174,
+   "params": {
+    "conns": 6,
+    "read_every_s": 3,
+    "path": "/download/large",
+    "port": 80
+   }
+  },
+  {
+   "ip": "10.0.2.9",
+   "family": "volumetric_flood",
+   "held_out": false,
+   "mechanism": "flood",
+   "start_s": 324.718,
+   "stop_s": 332.718,
+   "params": {
+    "kind": "syn",
+    "dur_s": 8
+   }
+  }
+ ],
+ "provenance": {
+  "t0_wall": 1792137767.7557468,
+  "model": "/home/artur/DDoS-mitigation/code/results/2026-10-15_l7-p4-train/model"
+ },
+ "notes": "L7 eval (P5, shadow)"
+}

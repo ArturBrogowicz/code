@@ -48,7 +48,19 @@ on CPU; gate **PASSED** (`results/2026-10-15_l7-p4-train/`, a candidate — not 
 * **Exact-invariance probe gate PASSED**; `slowread` 0/1 is the R1 limit (low-and-slow
   barely logs), reported per family, not a training fault.
 
-Later phases stay gated (§8, §9).
+**P5 (online evaluation, shadow) is complete (§7.1).** Four runs
+(`results/2026-10-16_l7-p5-eval/`), judged by the pre-registered rule:
+* The L7 GRU flagged every fast sub-threshold attacker the deterministic engines missed
+  (3/3, plus the held-out padded flood), in ~3–4 s, with **0 benign false positives**; a
+  10-minute benign soak gave 0 over-threshold windows; identical across two seeds.
+* **Verdict: marginal value NOT shown in this testbed.** A static per-IP limit of 10 rps
+  catches as many attacker IPs at 0 benign false positives (H1b). In this benign mix no
+  client exceeds ~10 rps, so a tuned threshold suffices here (§9 R5).
+* `no_size` holds online: the `with-size` model gave 1 benign false positive, the candidate 0.
+* Two calibration gaps: the slow families evaded **both** layers (§9 R1), and the
+  calibration gate does not model the rate rule's error-ratio branch (§9 R10).
+
+**P6 (promotion) is not proposed:** the pre-registered condition for it was not met.
 
 **Confirmed decisions (§10).** (1) Scope: GRU owns L7 sub-threshold abuse only. (2)
 Transport: Unix-domain datagram syslog primary + durable file sink. (3) Keying: **IP +
@@ -637,7 +649,7 @@ the working protocol.
 | **P2** ✓ | Request-sequence features (§5.2); L7 GRU wired in **shadow mode** (`l7_gru_poll` / `l7_would_ban` events, never bans); load-aware suppression + age gate (§5.6); batched inference; recording + deterministic replay; invariance-probe harness; `XDP_GRU` switch | §5.7; `results/2026-10-15_l7-p2-smoke/` | **PASSED 2026-10-15** (`ml/smoke_l7.py --p2`, untrained model): P1 transport still clean (0/135 steady drops); live run replayed exactly (13/13 would-bans, 335/335 windows); flood gating live (12 suppressed polls, 57 age-gated windows); exact probes \|Δp\| = 0; only deterministic engines banned. No detection claims: the model is untrained |
 | **P3** ✓ | `ml/capture_l7.py` + `l7_webapp.py`, `nginx_l7capture.conf`, `ml/l7_traffic.py`, `ml/l7_gen.py`, `l7_dataset.py`; diverse benign (§6.2), calibrated sub-threshold + held-out attacks (§6.3); dataset manifest (§6.5) | capture tool + manifest schema; 17 tests | **PASSED 2026-10-15** (`results/2026-10-15_l7-p3-capture/`): 9012-line dataset, manifest/labels/schedule complete, all families present; R4 closed (size overlaps 5.02 vs 5.35, URI diversity now separates); R1 confirmed (slow families ~1 window vs 58–332 fast) |
 | **P4** ✓ | `ml/train_l7.py`: IP-disjoint benign + family-disjoint held-out splits, policy metrics with Clopper-Pearson CIs + FP/client-hour, exact-invariance probe gate, feature-set variants, GRU + HGB tabular baseline; **offline, CPU** | model package + card + metrics (`results/2026-10-15_l7-p4-train/`) | **PASSED 2026-10-15**: probe gate PASS; `no_size` chosen (held-out 7/8 at 0 FP vs 1/8 with size — the size shortcut confirmed and removed); GRU > baseline; candidate not promoted |
-| **P5** (runner ✓, runs pending) | Online evaluation in **shadow** (`ml/eval_l7.py`, §7.1): deterministic bans vs L7 would-bans on the sub-threshold scenarios + benign soak, candidate vs with-size model, `XDP_GRU=0`; the H1b threshold sweep | published campaign in `results/` | runner built, `--plan` verified, unit-tested ✓. **Pending: runs A–D (VM, approval each, §7.1);** pre-registered hypotheses judged; honest verdict on marginal value |
+| **P5** ✓ | Online evaluation in **shadow** (`ml/eval_l7.py`, §7.1): runs A–D, candidate vs with-size, benign soak, `XDP_GRU=0`, H1b threshold sweep | `results/2026-10-16_l7-p5-eval/` | **Done 2026-10-16. Verdict: marginal value NOT shown** — GRU 3/3 fast sub-threshold at 0 benign FP, but a static 10 rps limit matches it; P6 not proposed |
 | **P6** | `ml/promote_l7.py`: install a vetted model, with hashes and metrics | promoted model | **Explicit approval;** only if P5 shows value at acceptable FP |
 
 Verification threads through every phase: shadow mode (P1–P2) means the L7 engine can be
@@ -650,15 +662,16 @@ answers the "built observability in from day one" lesson (`ML_INVESTIGATION.md` 
 
 | # | Risk | Likelihood / impact | Mitigation and gate |
 |---|---|---|---|
-| R1 | **Slow attacks emit too few log lines** to fill a window in useful time (§5.5) | High / high — this is the core risk | `$request_completion` + timeout lines as early signal; keep deterministic SlowConn/R.U.D.Y. as fast path; optional `ss` in-flight snapshot; **gate: P5 time-to-detect must beat heuristics in the niche, else report no value** |
+| R1 | **Slow attacks emit too few log lines** to fill a window in useful time (§5.5) | High / high — this is the core risk | `$request_completion` + timeout lines as early signal; keep deterministic SlowConn/R.U.D.Y. as fast path; optional `ss` in-flight snapshot; **gate: P5 time-to-detect must beat heuristics in the niche, else report no value** **Realised at P3/P5:** sub-threshold slow families (below SlowConn's connection threshold) were flagged by neither layer — an open coverage gap |
 | R2 | **Syslog datagram truncation / drops** under flood corrupt features | Medium / medium — **measured at P1**: 0 in the sub-threshold regime; ~40 % only under a flood burst (`max_dgram_qlen=512` bound) | 0 truncation seen (incl. a 900 B UA); drops are flood-only and that is the rate rule's regime (file-based) with the file sink retaining all. If ever needed for the GRU: raise `net.unix.max_dgram_qlen` (sysctl, needs approval), batch the reader's drain (`recvmmsg`), or fall back to file+tail (§4.3) |
 | R3 | **NAT** mixes users on one IP; a ban over-blocks (§5.3) | Medium / high | IP+UA or IP+connection keys; NAT'd benign profile in capture; **gate: P4 reports NAT FP separately** |
 | R4 | **Fingerprint shortcut recurs** via UA/size (the XDP failure) | **High / high — evidence at P2:** in the current testbed traffic, request size (wrk ≈ 34 B vs curl ≈ 72 B) and connection reuse (curl one-shot vs wrk keep-alive) separate the classes, and URIs carry nothing (one-path app) | Hash-only strings, size as its own droppable group, protocol off by default (done in P2); **P3 must randomise request sizes, add keep-alive and HTTP/2 benign sessions, and serve a multi-path app**; **gate: the invariance probe battery is a hard P4 acceptance test** (\|Δp\| and flips) |
-| R5 | **No genuine niche:** a lower static threshold matches the GRU (§7) | Medium / high (to the thesis claim) | Pre-registered GRU-vs-lower-threshold comparison; **gate: P5 must show separation of sub-threshold abuse from benign** |
+| R5 | **No genuine niche:** a lower static threshold matches the GRU (§7) | **Realised at P5:** a static 10 rps per-IP limit matched the GRU at 0 benign FP in this testbed, whose benign clients never exceed ~10 rps | Pre-registered comparison applied; the honest result is reported. A niche would need legitimate traffic that also exceeds simple rate limits (busy NAT, asset-heavy pages, API clients) — a richer benign mix is the precondition for any re-test |
 | R6 | **Benign diversity still insufficient** → FP on real clients (the recurring data failure) | Medium / high | §6.2 mix incl. keep-alive, H2, NAT, mobile netem; **gate: FP/client-hour per profile at P4 and the soak at P5** |
 | R7 | **HTTP/2 multiplexing** makes connection-level features ambiguous (many requests per conn) | Low / medium | Per-request logging is unaffected (one line each); connection features use `connection_requests`; validate on an H2 benign profile |
 | R8 | **TLS passthrough / L4 LB** in a real deployment removes L7 visibility (§1) | N/A here / high elsewhere | Documented boundary condition; thesis states the architecture's assumption |
 | R9 | **Daemon CPU/GIL** under combined L7 ingest + inference + L4 polling | Low / medium | Batched inference (§4.4); single ingest thread has ~6× head room; **gate: P1/P5 measure daemon CPU/RSS** |
+| R10 | **The calibration gate models the deterministic rules incompletely** | Found at P5: `ml/l7_traffic.calibrate()` checks the rate ban threshold but not the rate rule's error-ratio branch, so a held-out family was caught by an existing rule | Add the error-ratio branch (and every other deterministic ban path) to `THRESHOLDS`/`calibrate()`, with a test that cross-checks `control_plane.py` |
 
 ---
 

@@ -5,6 +5,7 @@ a new measurement is a new campaign.
 
 | Campaign | Content | Status |
 |---|---|---|
+| [`2026-10-16_l7-p5-eval`](2026-10-16_l7-p5-eval/) | L7 GRU online evaluation in shadow (P5): 4 runs; GRU flagged all fast sub-threshold attackers at 0 benign FP, but a static 10 rps limit matched it → pre-registered verdict: marginal value NOT shown in this testbed | valid; see its README |
 | [`2026-10-15_l7-p4-train`](2026-10-15_l7-p4-train/) | L7 GRU training (P4 gate): candidate model package + metrics; dropping size features → held-out 7/8 at 0 FP, GRU beats tabular baseline, exact-probe gate PASS | gate artifact + P5 candidate (not promoted); see its README |
 | [`2026-10-15_l7-p3-capture`](2026-10-15_l7-p3-capture/) | L7 capture dataset (P3 gate): labelled l7json access log + manifest; feature review confirms size/URI now behavioural (R4), low-and-slow barely logs (R1) | gate artifact + P4 training input; see its README |
 | [`2026-10-15_l7-p2-smoke`](2026-10-15_l7-p2-smoke/) | L7 shadow-engine P2 verification-gate smoke: scoring, flood gating, record→replay determinism, probes, feature review (untrained model) | gate artifact, **not a comparison campaign**; see its README |
