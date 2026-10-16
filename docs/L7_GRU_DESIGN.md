@@ -1089,18 +1089,33 @@ A replay with only the server timing set to an unloaded server's (1 ms) removes 
 (11 → 6 IPs flagged; 62 → 43 would-bans; the as-recorded replay reproduces the live run
 exactly). The remaining six are kinds the P4 model never trained on (R16).
 
-**Consequences for the next steps (decisions needed before any P5c.2/P5c.3 code):**
-1. **Re-calibration input (amends §7.3.3).** The banned IPs' traffic is dropped by XDP, so
-   their live profiles cover only ~7–9 s: P5c.1 alone cannot supply the "measured benign
-   worst-case" the pre-registered rule asked for. Proposed: take the gate's simulated
-   fastest-profile worst case (an upper bound across netem draws, whose predictions held
-   live) × 1.3, then verify live in P5c.2 with a benign-only run under the relaxed profile,
-   which must show 0 benign bans.
-2. **R17 must be handled before retraining.** If the model keys on origin load, capture-time
-   and evaluation-time load differences would decide P5c.4, not client behaviour. Proposed,
-   offline and before P5c.3: (a) a `no_server_timing` feature variant (drop `log_rt` and
-   `log_urt`, keep the client-side inter-arrival time), chosen by the unchanged selection
-   rule; (b) a load-invariance probe (scale `rt`/`urt`) added to the hard probe gate.
+**Decisions (approved 2026-10-16), recorded before any P5c.2/P5c.3 code:**
+
+1. **Re-calibration input (amends §7.3.3).** The banned IPs' live profiles cover only
+   ~7–9 s, so P5c.1 cannot supply the full benign worst case. Rule: for each deterministic
+   mechanism the realistic benign traffic exceeds, the threshold is set to the
+   admissibility gate's **simulated fastest-profile worst case** over its 20 seeds × 1.3,
+   rounded up to an integer. Thresholds are only relaxed, never tightened; a mechanism the
+   benign traffic already clears with margin keeps its default. The L3/L4 flood engines are
+   not touched. Then a benign-only live run under the relaxed profile must show **0 benign
+   deterministic bans** (the P5c.2 gate).
+2. **R17 handled before retraining (amends the P4 procedure for P5c.3).**
+   * **Features.** The `timing` group is split: `timing` keeps the client-side inter-arrival
+     time (`log_iat`); a new `server_timing` group holds `log_rt` and `log_urt`. Column
+     order is unchanged, so existing packages still load.
+   * **Variants.** `no_server_timing` and `no_size_no_server_timing` join `default`,
+     `no_size` and `no_uri`.
+   * **Load-invariance probe `server_load`.** Every request in a window gets a 10× slower
+     server (`rt` and `urt` × 10, the p90 shift measured at P5c.1); the client's request
+     start times are held fixed. Pass: decision flips at the deployed threshold on ≤ 1 % of
+     probe windows (stricter than the 5 % of the other robustness probes, because R17 showed
+     load drives false positives).
+   * **The probe gate is applied to every variant** (the three exact probes plus
+     `server_load`); only passing variants are eligible, and the unchanged selection rule
+     (most held-out groups detected at ≤ 1 benign FP/client-hour) picks among them. This
+     moves the gate before the selection instead of after it — disclosed as the one change
+     to the P4 procedure. If no variant passes, no candidate is produced and that is
+     reported.
 
 ### 7.3.3 P5c.2 — heuristic re-calibration to a production-tolerable profile [code; frozen before any attack data]
 
@@ -1123,9 +1138,10 @@ relax only the L7 / connection thresholds that false-ban benign):
   (that is the P5c.2 acceptance check — a gate the relaxation has to pass, offline). The
   tests that pin the old constants (`tests/test_l7_capture.py`, `test_l7_overlap.py`,
   `test_l7_eval.py`) are updated to the new values with the cross-check intact.
-* **Decision rule (pre-registered):** set each threshold to the measured benign worst-case
-  × 1.3, rounded up; it is **not** retuned afterwards. If a benign kind still trips, that is
-  reported (as at P5b), not papered over.
+* **Decision rule (pre-registered; input amended 2026-10-16, §7.3.2.1):** set each threshold
+  the realistic benign traffic exceeds to the gate's simulated fastest-profile worst case
+  × 1.3, rounded up (relax only); it is **not** retuned afterwards. If a benign kind still
+  trips, that is reported (as at P5b), not papered over.
 * The relaxed `nginx.conf` is a **capture/eval profile** (`nginx_l7relaxed.conf` or a
   templated override); the deployed `nginx.conf` default is changed only if the thesis
   concludes in favour (a P6 decision), so production is not silently weakened.
