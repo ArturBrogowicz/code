@@ -1183,6 +1183,7 @@ rendered confs pass `nginx -t` (07c3794). 218 tests green.
   traffic that overlaps the attack rates — so this directly tests whether it can hold ≤ 5 %
   benign FP there. `api_bulk` stays the held-out benign kind (decision 1); probe gate as a
   hard acceptance test; `no_size` selection rule unchanged.
+* **Variant resolution (2026-10-16, after training, before any evaluation data).** §7.2 fixed the features as `no_size` (R4); the R17 amendment then added variants with size without retiring that commitment. The first P5c.3 training picked `no_server_timing` (it reads request size) on the validation-loss tie-break, and it fails the `pad_request` robustness probe (5.05 % flips). Resolved in favour of the standing `no_size` decision: P5c.3 trains only `no_size` and `no_size_no_server_timing`, so the strict gate leaves `no_size_no_server_timing`. The five-variant run is still published.
 * **Gate:** dataset manifest/labels complete; probe gate PASS; benign-burst FP on the
   held-out benign kind reported in the model card before evaluation.
 

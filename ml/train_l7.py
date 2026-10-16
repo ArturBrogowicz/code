@@ -564,10 +564,14 @@ def main():
     ap.add_argument("--layers", type=int, default=2)
     ap.add_argument("--report", help="write the full metrics report JSON here")
     ap.add_argument("--no-baseline", action="store_true")
+    ap.add_argument("--variants", nargs="+", choices=VARIANTS, default=list(VARIANTS),
+                    metavar="VARIANT",
+                    help=f"feature variants to train and select among (default: all of {VARIANTS})")
     args = ap.parse_args()
 
     report, _best = run(args.dataset_dir, args.out, seed=args.seed, epochs=args.epochs,
-                       hidden=args.hidden, layers=args.layers, do_baseline=not args.no_baseline)
+                       hidden=args.hidden, layers=args.layers, do_baseline=not args.no_baseline,
+                       variants=tuple(args.variants))
     card = write_card(args.out, report)
     report_path = args.report or os.path.join(args.out, "metrics.json")
     with open(report_path, "w", encoding="utf-8") as fh:

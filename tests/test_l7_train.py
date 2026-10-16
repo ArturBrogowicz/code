@@ -159,6 +159,28 @@ class VariantGateTest(unittest.TestCase):
             self.assertIn("No candidate", fh.read())
 
 
+class CliVariantsTest(unittest.TestCase):
+    def test_variants_flag_restricts_training(self):
+        import subprocess
+        d = tempfile.mkdtemp(prefix="l7ds_")
+        out = tempfile.mkdtemp(prefix="l7pkg_")
+        for x in (d, out):
+            self.addCleanup(shutil.rmtree, x, True)
+        synth_dataset(d)
+        r = subprocess.run([sys.executable, os.path.join(U.REPO, "ml", "train_l7.py"), d,
+                            "--out", out, "--epochs", "1", "--hidden", "8", "--layers", "1",
+                            "--no-baseline", "--variants", "no_size_no_server_timing"],
+                           capture_output=True, text=True, check=False)
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+        with open(os.path.join(out, "metrics.json"), encoding="utf-8") as fh:
+            rep = json.load(fh)
+        self.assertEqual(list(rep["variants"]), ["no_size_no_server_timing"])
+        bad = subprocess.run([sys.executable, os.path.join(U.REPO, "ml", "train_l7.py"), d,
+                              "--out", out, "--variants", "bogus"],
+                             capture_output=True, text=True, check=False)
+        self.assertNotEqual(bad.returncode, 0)
+
+
 class MetricsTest(unittest.TestCase):
     def test_clopper_pearson(self):
         self.assertEqual(T.clopper_pearson(0, 0), (0.0, 1.0))
