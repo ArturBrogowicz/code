@@ -24,6 +24,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -77,6 +78,34 @@ def render_conf(access_log_path):
     if old not in conf:
         raise RuntimeError(f"{CAPTURE_CONF} missing expected access_log line")
     return conf.replace(old, new)
+
+
+L7_NS_RE = re.compile(r"^[ab]_10_0_\d{1,3}_\d{1,3}$")
+L7_VETH_RE = re.compile(r"^vo_[ab]_10_0_\d{1,3}_\d{1,3}$")
+
+
+def l7_leftovers(netns_listing, link_names):
+    """Pure: the namespaces and root-side veths that belong to an L7 capture/eval run
+    (`b_<ip>` benign, `a_<ip>` attacker; veth `vo_<ns>`). The suite's cleanup_all() only
+    knows `server_ns`/`legit_*`/`bot_*`, so without this every run leaked its clients."""
+    ns = [line.split()[0] for line in netns_listing.splitlines()
+          if line.strip() and L7_NS_RE.match(line.split()[0])]
+    links = [n for n in link_names if L7_VETH_RE.match(n)]
+    return ns, links
+
+
+def cleanup_l7_topology():
+    """Delete this runner's own client namespaces and veths. Returns (ns, veths) counts."""
+    r = subprocess.run(["ip", "netns", "list"], capture_output=True, text=True, check=False)
+    lk = subprocess.run(["ip", "-br", "link", "show"], capture_output=True, text=True,
+                        check=False)
+    names = [x.split()[0].split("@")[0] for x in lk.stdout.splitlines() if x.strip()]
+    ns, links = l7_leftovers(r.stdout, names)
+    for n in ns:
+        subprocess.run(["ip", "netns", "del", n], capture_output=True, check=False, timeout=10)
+    for v in links:                    # usually gone with their namespace; harmless if so
+        subprocess.run(["ip", "link", "del", v], capture_output=True, check=False, timeout=5)
+    return len(ns), len(links)
 
 
 def git_commit():
@@ -224,6 +253,7 @@ def main():
     t0 = None
     try:
         S.cleanup_all()
+        cleanup_l7_topology()           # leftovers of a crashed earlier run
         S.create_host_bridge()
         S.create_server_ns()
         for c in benign:
@@ -242,6 +272,7 @@ def main():
             with open(cap.access_log, "rb") as fh:
                 lines = sum(1 for _ in fh)
         S.cleanup_all()
+        cleanup_l7_topology()
         print(f"[+] Topology cleaned up. access.log lines: {lines}")
 
     ip_map = l7_dataset.build_ip_map(benign, attackers)

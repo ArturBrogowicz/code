@@ -175,6 +175,26 @@ class GeneratorScopeTest(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
 
 
+class LeftoverCleanupTest(unittest.TestCase):
+    """The suite's cleanup_all() only deletes server_ns/legit_*/bot_*; the L7 runners'
+    b_*/a_* namespaces leaked (21 after P5 run A). The matcher must catch exactly ours."""
+
+    def test_matches_only_l7_runner_names(self):
+        import capture_l7
+        listing = ("a_10_0_2_9 (id: 21)\nb_10_0_1_12 (id: 12)\nb_10_0_1_1 (id: 1)\n"
+                   "server_ns (id: 30)\nlegit_3 (id: 31)\nbot_2 (id: 32)\n"
+                   "b_test (id: 40)\nab_10_0_1_1 (id: 41)\na_10_0_2_1_extra (id: 42)\n")
+        links = ["lo", "ddos_br0", "vo_b_10_0_1_1", "vo_a_10_0_2_9", "vo_legit_3",
+                 "veth_srv_br", "vo_b_test", "eth0"]
+        ns, veths = capture_l7.l7_leftovers(listing, links)
+        self.assertEqual(sorted(ns), ["a_10_0_2_9", "b_10_0_1_1", "b_10_0_1_12"])
+        self.assertEqual(sorted(veths), ["vo_a_10_0_2_9", "vo_b_10_0_1_1"])
+
+    def test_empty_listing(self):
+        import capture_l7
+        self.assertEqual(capture_l7.l7_leftovers("", []), ([], []))
+
+
 class OrchestratorPlanTest(unittest.TestCase):
     def test_capture_plan_mode_offline(self):
         r = subprocess.run([sys.executable, os.path.join(REPO, "ml", "capture_l7.py"),

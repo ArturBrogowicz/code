@@ -275,6 +275,7 @@ def main():
           f"{len(benign)} benign, {len(attackers)} attackers, soak={args.soak})")
     try:
         S.cleanup_all()
+        capture_l7.cleanup_l7_topology()   # leftovers of a crashed earlier run
         S.create_host_bridge()
         S.create_server_ns()
         for c in benign:
@@ -288,6 +289,7 @@ def main():
     finally:
         runner.kill_all()
         S.cleanup_all()
+        capture_l7.cleanup_l7_topology()
         print("[+] Topology cleaned up.")
 
     ip_map = l7_dataset.build_ip_map(benign, attackers)
