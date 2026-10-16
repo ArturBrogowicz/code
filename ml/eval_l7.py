@@ -59,6 +59,7 @@ class EvalRunner(capture_l7.Capture):
         self.record_path = os.path.join(out_dir, "l7_record.jsonl")
         self.daemon_log = os.path.join(out_dir, "daemon.log")
         self.daemon_proc = None
+        self.heuristics = getattr(args, "heuristics", "default")
 
     def start_stack(self, S):
         subprocess.run(["mkdir", "-p", "/var/log/nginx"], capture_output=True, check=False)
@@ -77,12 +78,20 @@ class EvalRunner(capture_l7.Capture):
                     "--workers", "4", "--threads", "4", "-b", "0.0.0.0:8080",
                     capture_l7.WEBAPP]), ns=S.SERVER_NS, bg=True)))
         time.sleep(1.5)
-        self.procs.append(("nginx", S.run(S._srv(["nginx", "-c", os.path.join(REPO, "nginx.conf")]),
+        conf = os.path.join(REPO, "nginx.conf")
+        if self.heuristics != "default":         # P5c.2: same conf, the profile's limits
+            with open(conf, encoding="utf-8") as fh:
+                text = capture_l7.render_limits(fh.read(), self.heuristics)
+            conf = os.path.join(self.out_dir, f"nginx_{self.heuristics}.conf")
+            with open(conf, "w", encoding="utf-8") as fh:
+                fh.write(text)
+        self.procs.append(("nginx", S.run(S._srv(["nginx", "-c", conf]),
                                           ns=S.SERVER_NS, bg=True)))
         time.sleep(1.0)
         # The daemon: real control_plane, XDP_GRU=0, L7 shadow engine with the candidate
         # model, events + engine-input recorded to this run's dir.
         env = ["env", "L7_SHADOW=1", "XDP_GRU=0", f"L7_MODEL={self.model_path}",
+               f"HEURISTIC_PROFILE={self.heuristics}",
                f"BAN_EVENTS={self.events_path}", f"L7_RECORD={self.record_path}",
                f"L7_SOCKET_PATH={os.environ.get('L7_SOCKET_PATH', '/run/ddos_l7.sock')}"]
         cmd = ["ip", "netns", "exec", S.SERVER_NS, *env, S.PYTHON_VENV, "-u", S.CONTROL_PLANE]
@@ -266,6 +275,9 @@ def main():
                          "realistic-benign false-positive baseline against the default heuristics")
     ap.add_argument("--no-held-out", action="store_true", help="omit held-out families")
     ap.add_argument("--no-flood", action="store_true", help="omit the mid-run SYN flood")
+    ap.add_argument("--heuristics", choices=tuple(l7_traffic.PROFILES), default="default",
+                    help="deterministic threshold profile: daemon HEURISTIC_PROFILE + nginx "
+                         "limits + the benign gate (P5c.2, §7.3.3)")
     ap.add_argument("--mix", choices=("p5", "overlap"), default="p5",
                     help="benign mix: P5's 12 kinds, or + the P5b overlap kinds (§7.2)")
     ap.add_argument("--hgb", help="package dir with baseline_hgb.* for B4 (default: --model)")
@@ -335,6 +347,7 @@ def main():
                                         ip_map=ip_map, schedule=schedule,
                                         provenance={"t0_wall": t0, "model": args.model,
                                                     "benign_mix": args.mix,
+                                                    "heuristics": args.heuristics,
                                                     "benign_only": args.benign_only},
                                         notes=note)
     l7_dataset.write_dataset_manifest(os.path.join(out_dir, "manifest.json"), manifest)

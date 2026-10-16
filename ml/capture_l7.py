@@ -69,16 +69,36 @@ def assign_profiles(benign_clients, seed):
     return benign_clients
 
 
-def render_conf(access_log_path):
+LIMIT_LINES = {               # the deployed default lines, in nginx.conf and the capture conf
+    "nginx_limit_req_rps": ("rate=30r/s", "rate={}r/s"),
+    "nginx_limit_req_burst": ("burst=100 nodelay", "burst={} nodelay"),
+    "nginx_limit_conn": ("limit_conn connlimit 50;", "limit_conn connlimit {};"),
+}
+
+
+def render_limits(conf, heuristics="default"):
+    """The conf text with nginx's limit_req / limit_conn set from a threshold profile
+    (P5c.2, §7.3.3). Each default line must occur exactly once; everything else is
+    untouched, and the default profile returns the text unchanged."""
+    lim = l7_traffic.PROFILES[heuristics]
+    for key, (old, fmt) in LIMIT_LINES.items():
+        if conf.count(old) != 1:
+            raise RuntimeError(f"nginx conf: expected exactly one {old!r}")
+        conf = conf.replace(old, fmt.format(lim[key]))
+    return conf
+
+
+def render_conf(access_log_path, heuristics="default"):
     """A copy of the capture nginx conf with the l7json access_log pointed at this
-    dataset's access.log (absolute path). Returns the conf text."""
+    dataset's access.log (absolute path), and nginx's limits from the `heuristics`
+    profile. Returns the conf text."""
     with open(CAPTURE_CONF, encoding="utf-8") as fh:
         conf = fh.read()
     old = "access_log /var/log/nginx/l7_capture.log l7json;"
     new = f"access_log {access_log_path} l7json;"
     if old not in conf:
         raise RuntimeError(f"{CAPTURE_CONF} missing expected access_log line")
-    return conf.replace(old, new)
+    return render_limits(conf.replace(old, new), heuristics)
 
 
 L7_NS_RE = re.compile(r"^[ab]_10_0_\d{1,3}_\d{1,3}$")
@@ -121,7 +141,8 @@ def build_plan(args):
         args.seed, args.benign, args.duration,
         include_held_out=not args.no_held_out, include_flood=not args.no_flood,
         benign_mix=mix, gate_seeds=getattr(args, "gate_seeds", l7_traffic.GATE_SEEDS),
-        launch_inadmissible=getattr(args, "launch_inadmissible", False))
+        launch_inadmissible=getattr(args, "launch_inadmissible", False),
+        heuristics=getattr(args, "heuristics", "default"))
     # The P5 clients get exactly the P5 profiles; P5b's added clients are balanced
     # among themselves (their own seed), so adding them changes nothing above.
     base = [c for c in benign if c.get("mix") != "overlap"]
@@ -204,7 +225,7 @@ class Capture:
                             "-subj", "/C=PL/ST=Masovian/L=Warsaw/O=PoC/CN=twojadomena.pl"],
                            capture_output=True, check=False)
         with open(self.conf_path, "w", encoding="utf-8") as fh:
-            fh.write(render_conf(self.access_log))
+            fh.write(render_conf(self.access_log, getattr(self.args, "heuristics", "default")))
         self.procs.append(("gunicorn", S.run(
             S._srv([S.PYTHON_VENV, "-m", "gunicorn", "--chdir", REPO,
                     "--workers", "4", "--threads", "4", "-b", "0.0.0.0:8080", WEBAPP]),
@@ -273,6 +294,8 @@ def main():
     ap.add_argument("--out", default=DEFAULT_OUT)
     ap.add_argument("--no-held-out", action="store_true", help="omit held-out families")
     ap.add_argument("--no-flood", action="store_true", help="omit the mid-capture SYN flood")
+    ap.add_argument("--heuristics", choices=tuple(l7_traffic.PROFILES), default="default",
+                    help="threshold profile for nginx limits and the benign gate (P5c.2)")
     ap.add_argument("--mix", choices=("p5", "overlap"), default="p5",
                     help="benign mix: P5's 12 kinds, or + the P5b overlap kinds (§7.2)")
     ap.add_argument("--plan", action="store_true", help="print the plan and exit (offline)")
@@ -327,7 +350,7 @@ def main():
     provenance = {
         "git_commit": git_commit(), "t0_wall": t0, "host": os.uname().nodename,
         "duration_s": args.duration, "n_benign": len(benign), "n_attackers": len(attackers),
-        "benign_mix": args.mix,
+        "benign_mix": args.mix, "heuristics": args.heuristics,
         "operating_point": os.environ.get("OPERATING_POINT", "default"),
         "ready": ready, "completed": ok, "launched_families": launched,
         "inputs_sha256": {f: sha256(os.path.join(REPO, f)) for f in PROVENANCE_INPUTS},

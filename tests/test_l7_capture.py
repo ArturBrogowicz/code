@@ -222,6 +222,43 @@ class LeftoverCleanupTest(unittest.TestCase):
         self.assertEqual(capture_l7.l7_leftovers("", []), ([], []))
 
 
+class RenderLimitsTest(unittest.TestCase):
+    """P5c.2 (§7.3.3): nginx's limits come from the threshold profile; nothing else moves."""
+
+    def confs(self):
+        for name in ("nginx.conf", "nginx_l7capture.conf"):
+            with open(os.path.join(REPO, name), encoding="utf-8") as fh:
+                yield name, fh.read()
+
+    def test_default_profile_is_a_no_op(self):
+        import capture_l7
+        for name, text in self.confs():
+            self.assertEqual(capture_l7.render_limits(text, "default"), text, name)
+
+    def test_tolerant_changes_only_the_limit_lines(self):
+        import capture_l7
+        t = l7_traffic.THRESHOLDS_TOLERANT
+        for name, text in self.confs():
+            out = capture_l7.render_limits(text, "tolerant")
+            self.assertIn(f"rate={t['nginx_limit_req_rps']}r/s", out, name)
+            self.assertIn(f"burst={t['nginx_limit_req_burst']} nodelay", out, name)
+            self.assertIn(f"limit_conn connlimit {t['nginx_limit_conn']};", out, name)
+            changed = [(a, b) for a, b in zip(text.splitlines(), out.splitlines(), strict=True)
+                       if a != b]
+            self.assertEqual(len(changed), 2, (name, changed))       # rate + burst lines
+
+    def test_missing_line_is_an_error(self):
+        import capture_l7
+        with self.assertRaises(RuntimeError):
+            capture_l7.render_limits("http { }", "tolerant")
+
+    def test_capture_conf_gets_log_path_and_profile(self):
+        import capture_l7
+        out = capture_l7.render_conf("/tmp/x/access.log", "tolerant")
+        self.assertIn("access_log /tmp/x/access.log l7json;", out)
+        self.assertIn("rate=82r/s", out)
+
+
 class OrchestratorPlanTest(unittest.TestCase):
     def test_capture_plan_mode_offline(self):
         r = subprocess.run([sys.executable, os.path.join(REPO, "ml", "capture_l7.py"),
@@ -231,6 +268,16 @@ class OrchestratorPlanTest(unittest.TestCase):
         self.assertIn("calibrated: True", r.stdout)
         self.assertIn("netem=", r.stdout)
         self.assertIn("volumetric_flood", r.stdout)
+
+    def test_tolerant_overlap_plan_launches_every_kind(self):
+        r = subprocess.run([sys.executable, os.path.join(REPO, "ml", "capture_l7.py"),
+                            "--plan", "--duration", "300", "--seed", "1", "--mix", "overlap",
+                            "--heuristics", "tolerant"],
+                           capture_output=True, text=True, check=False)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertNotIn("DROPPED", r.stdout)
+        self.assertNotIn("gate: inadmissible", r.stdout)
+        self.assertIn("benign clients (20)", r.stdout)
 
 
 if __name__ == "__main__":
