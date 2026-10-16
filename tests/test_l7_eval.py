@@ -149,5 +149,52 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(len(keep), 1)
 
 
+class SelectAttacksTest(unittest.TestCase):
+    """P5c.1 (§7.3.2): select_attacks is pure, so the filtering is unit-tested."""
+
+    def setUp(self):
+        import capture_l7
+        args = type("A", (), {"seed": 1, "benign": 12, "duration": 600.0,
+                              "no_held_out": False, "no_flood": False, "mix": "overlap"})()
+        _b, self.attackers, self.schedule, _ = capture_l7.build_plan(args)
+        self.assertTrue(any(a["family"] == "volumetric_flood" for a in self.attackers))
+        self.assertTrue(any(a["family"] != "volumetric_flood" for a in self.attackers))
+
+    def test_default_keeps_everything(self):
+        a, s = eval_l7.select_attacks(self.attackers, self.schedule)
+        self.assertEqual(a, self.attackers)
+        self.assertEqual(s, self.schedule)
+
+    def test_soak_keeps_only_the_flood(self):
+        a, s = eval_l7.select_attacks(self.attackers, self.schedule, soak=True)
+        self.assertEqual([x["family"] for x in a], ["volumetric_flood"])
+        self.assertEqual(len(s), 1)
+
+    def test_benign_only_drops_all_attacks(self):
+        a, s = eval_l7.select_attacks(self.attackers, self.schedule, benign_only=True)
+        self.assertEqual((a, s), ([], []))
+
+    def test_benign_only_wins_over_soak(self):
+        self.assertEqual(eval_l7.select_attacks(self.attackers, self.schedule,
+                                                soak=True, benign_only=True), ([], []))
+
+    def test_benign_only_manifest_validates_and_analyses(self):
+        # With no attackers the dataset manifest must still validate, and analyse() must
+        # report benign FPs with an empty by_family (the P5c.1 shape).
+        benign = [{"ip": "10.0.1.1", "profile": "perfect", "kind": "browser_page"},
+                  {"ip": "10.0.1.2", "profile": "perfect", "kind": "cgnat_browsers"}]
+        ip_map = l7_dataset.build_ip_map(benign, [])
+        m = l7_dataset.make_manifest(seed=1, duration_s=300.0, ip_map=ip_map,
+                                     schedule=[], provenance={"t0_wall": 0})
+        l7_dataset.validate_manifest(m)                       # does not raise
+        t0 = 1000.0
+        events = [{"kind": "l7_would_ban", "ip": "10.0.1.1", "t_poll": t0 + 5.0},
+                  {"kind": "ban", "ip": "10.0.1.2", "engine": "l4_slowconn", "t_wall": t0 + 3.0}]
+        a = eval_l7.analyse(events, m, t0)
+        self.assertEqual(a["by_family"], {})
+        self.assertEqual(a["benign_would_ban_count"], 1)
+        self.assertEqual(a["det_banned_ips"], {"10.0.1.2": "l4_slowconn"})
+
+
 if __name__ == "__main__":
     unittest.main()

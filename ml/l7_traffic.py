@@ -249,7 +249,7 @@ def benign_gate(seeds=GATE_SEEDS, duration_s=GATE_DURATION_S):
 
 def build_plan(seed, n_benign, duration_s, *, include_held_out=True, include_flood=True,
                benign_prefix="10.0.1", attack_prefix="10.0.2", warmup_s=10.0,
-               benign_mix="p5", gate_seeds=GATE_SEEDS):
+               benign_mix="p5", gate_seeds=GATE_SEEDS, launch_inadmissible=False):
     """Assign IPs and start/stop times to benign clients and attackers (seeded).
 
     Benign clients run for the whole capture. Each attacker runs one window inside
@@ -259,6 +259,9 @@ def build_plan(seed, n_benign, duration_s, *, include_held_out=True, include_flo
     benign_mix="overlap" appends the admissible OVERLAP_KINDS clients (P5b, §7.2) at
     fixed IPs after the P5 ones, seeded from their own RNG so nothing above changes; the
     gate's report goes into the calibration report under "benign_gate".
+    launch_inadmissible=True (P5c.1, §7.3.2) ALSO launches the gate-inadmissible overlap
+    kinds — so a benign-only run under the DEFAULT thresholds can document the heuristics
+    banning realistic high-rate benign. Each overlap client records its gate verdict.
     Returns (benign_clients, attackers, schedule, calibration_report).
     """
     if benign_mix not in ("p5", "overlap"):
@@ -302,13 +305,15 @@ def build_plan(seed, n_benign, duration_s, *, include_held_out=True, include_flo
         orng = random.Random(f"p5b-overlap:{seed}")
         for j, (spec, rep) in enumerate(zip(OVERLAP_KINDS, gate["benign"], strict=True)):
             cseed = orng.randrange(2**31)        # drawn for every spec: a drop shifts nothing
-            if not rep["admissible"]:
+            if not rep["admissible"] and not launch_inadmissible:
                 continue
             benign_clients.append({"ip": f"{benign_prefix}.{n_benign + j + 1}",
                                    "kind": spec.kind, "port": spec.port, "profile": None,
                                    "params": dict(spec.params), "held_out": spec.held_out,
-                                   "mix": "overlap", "seed": cseed})
+                                   "mix": "overlap", "seed": cseed,
+                                   "gate_admissible": rep["admissible"]})
         report["benign_gate"] = gate
+        report["launch_inadmissible"] = launch_inadmissible
         report["benign_dropped"] = [{"kind": r["kind"], "params": r["params"], "trips": r["trips"]}
                                     for r in gate["benign"] if not r["admissible"]]
 

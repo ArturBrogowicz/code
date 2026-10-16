@@ -47,7 +47,8 @@ def build_ip_map(benign_clients, attackers):
     ip_map = {}
     for c in benign_clients:
         ip_map[c["ip"]] = {"class": BENIGN, "family": None, "held_out": bool(c.get("held_out")),
-                           "profile": c.get("profile"), "kind": c.get("kind")}
+                           "profile": c.get("profile"), "kind": c.get("kind"),
+                           "gate_admissible": c.get("gate_admissible", True)}
     for a in attackers:
         ip_map[a["ip"]] = {"class": ATTACK, "family": a["family"],
                            "held_out": bool(a.get("held_out")), "params": a.get("params", {})}

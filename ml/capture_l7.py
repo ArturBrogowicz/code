@@ -120,7 +120,8 @@ def build_plan(args):
     benign, attackers, schedule, calib = l7_traffic.build_plan(
         args.seed, args.benign, args.duration,
         include_held_out=not args.no_held_out, include_flood=not args.no_flood,
-        benign_mix=mix, gate_seeds=getattr(args, "gate_seeds", l7_traffic.GATE_SEEDS))
+        benign_mix=mix, gate_seeds=getattr(args, "gate_seeds", l7_traffic.GATE_SEEDS),
+        launch_inadmissible=getattr(args, "launch_inadmissible", False))
     # The P5 clients get exactly the P5 profiles; P5b's added clients are balanced
     # among themselves (their own seed), so adding them changes nothing above.
     base = [c for c in benign if c.get("mix") != "overlap"]
@@ -163,11 +164,16 @@ def print_plan(args):
     if "benign_gate" in calib:
         print()
         print("\n".join(gate_lines(calib["benign_gate"])))
+        launched_bad = calib.get("launch_inadmissible")
         for d in calib["benign_dropped"]:
-            print(f"  DROPPED (not launched; deterministic-layer FP, §7.2): {d['kind']} {d['params']}")
+            verb = ("LAUNCHED despite gate (P5c.1 — the ban IS the evidence, §7.3.2)"
+                    if launched_bad else "DROPPED (not launched; deterministic-layer FP, §7.2)")
+            print(f"  {verb}: {d['kind']} {d['params']}")
     print(f"\nbenign clients ({len(benign)}):")
     for c in benign:
         tag = " [held out]" if c.get("held_out") else ""
+        if c.get("gate_admissible") is False:
+            tag += " [gate: inadmissible — expect a deterministic ban]"
         print(f"  {c['ip']:12s} {c['kind']:14s} :{c['port']} netem={c['profile']}{tag}")
     print(f"\nattackers ({len(attackers)}):")
     for a, s in zip(attackers, schedule):

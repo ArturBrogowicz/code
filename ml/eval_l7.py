@@ -187,6 +187,23 @@ def _median(xs):
     return round((s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2), 2)
 
 
+def select_attacks(attackers, schedule, *, soak=False, benign_only=False):
+    """Which (attacker, schedule) entries actually run. Pure, so it is unit-tested.
+
+    benign_only (P5c.1, docs/L7_GRU_DESIGN.md §7.3.2): drop ALL attackers — the
+    realistic-benign false-positive baseline against the default heuristics, no attacks
+    and no flood. soak: keep only the volumetric flood. Otherwise: everything runs.
+    benign_only wins over soak if both are set.
+    """
+    if benign_only:
+        return [], []
+    if soak:
+        keep = [(a, s) for a, s in zip(attackers, schedule, strict=True)
+                if a["family"] == "volumetric_flood"]
+        return [a for a, _ in keep], [s for _, s in keep]
+    return attackers, schedule
+
+
 def threshold_sweep(record_path, manifest, t0, window_s=1.0, thresholds=(10, 15, 20, 25, 30, 40, 50)):
     """H1b: for each static per-IP rps threshold, how many attacker IPs it would ban and
     how many benign IPs it would false-ban — from the recorded requests. A fair, offline
@@ -243,7 +260,10 @@ def main():
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--out", default=DEFAULT_OUT)
     ap.add_argument("--soak", action="store_true",
-                    help="benign-only (+ one mid-run SYN flood): the H3 FP/suppression run")
+                    help="benign (+ one mid-run SYN flood): the H3 FP/suppression run")
+    ap.add_argument("--benign-only", action="store_true",
+                    help="P5c.1 (§7.3.2): benign generators ONLY — no attacks, no flood. The "
+                         "realistic-benign false-positive baseline against the default heuristics")
     ap.add_argument("--no-held-out", action="store_true", help="omit held-out families")
     ap.add_argument("--no-flood", action="store_true", help="omit the mid-run SYN flood")
     ap.add_argument("--mix", choices=("p5", "overlap"), default="p5",
@@ -255,17 +275,25 @@ def main():
     if not os.path.isdir(args.model):
         sys.exit(f"[-] model package not found: {args.model}")
 
-    # In a soak, keep only the volumetric flood; drop the L7 attacks.
+    # P5c.1 (§7.3.2): a benign-only run exists to document the DEFAULT heuristics banning
+    # realistic benign, so it must LAUNCH the gate-inadmissible overlap kinds (the 60-asset
+    # page, the CGNAT gateways) that a capture would otherwise drop. No attacks => no
+    # dataset => no contamination risk from launching them.
+    args.launch_inadmissible = args.benign_only and args.mix == "overlap"
+
+    # benign_only drops every attacker (P5c.1); soak keeps only the volumetric flood.
     benign, attackers, schedule, _calib = capture_l7.build_plan(args)
-    if args.soak:
-        keep = [(a, s) for a, s in zip(attackers, schedule) if a["family"] == "volumetric_flood"]
-        attackers = [a for a, _ in keep]
-        schedule = [s for _, s in keep]
+    attackers, schedule = select_attacks(attackers, schedule, soak=args.soak,
+                                         benign_only=args.benign_only)
 
     if args.plan:
         capture_l7.print_plan(args)
-        print(f"\neval model: {args.model}  soak={args.soak}  XDP_GRU=0  L7 shadow (never bans)")
-        print(f"attackers after soak filter: {[a['family'] for a in attackers]}")
+        print(f"\neval model: {args.model}  soak={args.soak}  benign_only={args.benign_only}  "
+              f"XDP_GRU=0  L7 shadow (never bans)")
+        print(f"attackers after filter: {[a['family'] for a in attackers]}")
+        if args.benign_only:
+            print("[P5c.1] benign-only: default heuristics may ban realistic benign IPs "
+                  "(l4_slowconn / l7_rate) — that is the evidence being documented.")
         return 0
 
     if os.geteuid() != 0:
@@ -301,11 +329,14 @@ def main():
         print("[+] Topology cleaned up.")
 
     ip_map = l7_dataset.build_ip_map(benign, attackers)
+    note = ("L7 eval P5c.1 baseline: realistic benign only, default heuristics (shadow GRU)"
+            if args.benign_only else "L7 eval (P5, shadow)")
     manifest = l7_dataset.make_manifest(seed=args.seed, duration_s=args.duration,
                                         ip_map=ip_map, schedule=schedule,
                                         provenance={"t0_wall": t0, "model": args.model,
-                                                    "benign_mix": args.mix},
-                                        notes="L7 eval (P5, shadow)")
+                                                    "benign_mix": args.mix,
+                                                    "benign_only": args.benign_only},
+                                        notes=note)
     l7_dataset.write_dataset_manifest(os.path.join(out_dir, "manifest.json"), manifest)
     report = build_report(out_dir, manifest, t0 or 0.0, args.model, args)
     report["ready"] = ready

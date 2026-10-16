@@ -183,6 +183,29 @@ class OverlapMixTest(unittest.TestCase):
         for j, r in enumerate(gate["benign"]):        # fixed IPs; dropped kinds not launched
             self.assertEqual(f"10.0.1.{13 + j}" in ips, r["admissible"])
 
+    def test_launch_inadmissible_runs_every_overlap_kind(self):
+        # P5c.1 (§7.3.2): launch_inadmissible launches the gate-rejected kinds too, each
+        # tagged with its gate verdict; the admissible-only plan is a strict subset.
+        base = l7_traffic.build_plan(1, 12, 300.0, benign_mix="overlap", gate_seeds=FAST_GATE)
+        full = l7_traffic.build_plan(1, 12, 300.0, benign_mix="overlap", gate_seeds=FAST_GATE,
+                                     launch_inadmissible=True)
+        added = full[0][12:]
+        self.assertEqual(len(added), len(l7_traffic.OVERLAP_KINDS))     # all 8 launched
+        self.assertTrue(full[3]["launch_inadmissible"])
+        self.assertTrue(any(c["gate_admissible"] is False for c in added))  # the NAT/60-asset kinds
+        self.assertTrue(any(c["gate_admissible"] is True for c in added))
+        base_ips = {c["ip"] for c in base[0][12:]}
+        self.assertLess(base_ips, {c["ip"] for c in added})            # admissible-only ⊂ full
+        self.assertEqual(base[0][:12], full[0][:12])                   # P5 clients unchanged
+
+    def test_launched_inadmissible_ip_carries_gate_verdict(self):
+        full = l7_traffic.build_plan(1, 12, 300.0, benign_mix="overlap", gate_seeds=FAST_GATE,
+                                     launch_inadmissible=True)
+        ip_map = l7_dataset.build_ip_map(full[0], [])
+        inadm = [ip for ip, e in ip_map.items() if e.get("gate_admissible") is False]
+        self.assertTrue(inadm)                                         # recorded in the manifest
+        self.assertTrue(all(ip_map[ip]["class"] == "benign" for ip in inadm))
+
     def test_heldout_benign_is_labelled(self):
         ov = l7_traffic.build_plan(2, 12, 300.0, benign_mix="overlap", gate_seeds=FAST_GATE)
         ip_map = l7_dataset.build_ip_map(ov[0], ov[1])
