@@ -16,8 +16,10 @@ Honest evaluation (the ML_INVESTIGATION lessons):
   * metrics are at the policy, per family and per (IP, ua) group, with Clopper-Pearson
     intervals and the sampling always stated; window counts are shown but flagged as
     non-independent (sliding windows overlap).
-  * the invariance probe battery (ml/l7_probes) is a HARD gate: a model that changes
-    its decision under an exact transform is rejected.
+  * the invariance probe battery (ml/l7_probes) is a HARD gate, applied to EVERY variant
+    before selection (P5c, docs/L7_GRU_DESIGN.md §7.3.2.1): the exact transforms plus
+    server_load (a 10x slower server must flip <= 1 % of decisions, R17). Only passing
+    variants are eligible; the selection rule then picks among them.
   * a tabular baseline (sklearn, decision 6) is trained under the identical split and
     policy, so the thesis can say whether sequence modelling earns its place.
   * feature-set variants (with/without size, uri) are compared, as CF3 did for XDP.
@@ -328,15 +330,35 @@ def evaluate_model(score_fn, sets, threshold, consecutive):
     return out
 
 
+VARIANTS = ("default", "no_size", "no_uri", "no_server_timing", "no_size_no_server_timing")
+
+
+def variant_groups():
+    """Feature-group selection per variant (server_timing: R17, §7.3.2.1)."""
+    def without(*drop):
+        return tuple(g for g in F.DEFAULT_GROUPS if g not in drop)
+    return {"default": F.DEFAULT_GROUPS, "no_size": without("size"), "no_uri": without("uri"),
+            "no_server_timing": without("server_timing"),
+            "no_size_no_server_timing": without("size", "server_timing")}
+
+
+def memory_scorer(model, cols, seq, mean, std, threshold, consecutive):
+    """An L7Scorer over an in-memory model, for probing a variant before any is saved."""
+    import l7_scorer
+    model.eval()
+    cfg = {"columns": list(cols), "seq_len": int(seq), "mean": [float(x) for x in mean],
+           "std": [float(x) for x in std], "threshold": float(threshold),
+           "consecutive": int(consecutive)}
+    return l7_scorer.L7Scorer(model, cfg)
+
+
 def run(dataset_dir, out_dir, *, seed=0, epochs=25, hidden=64, layers=2,
         seq=DEFAULT_SEQ, stride=DEFAULT_STRIDE, threshold=THRESHOLD, consecutive=CONSECUTIVE,
-        variants=("default", "no_size", "no_uri"), do_baseline=True):
+        variants=VARIANTS, do_baseline=True):
     import l7_scorer
     manifest, recs = load_records(dataset_dir)
 
-    GROUPS = {"default": F.DEFAULT_GROUPS,
-              "no_size": tuple(g for g in F.DEFAULT_GROUPS if g != "size"),
-              "no_uri": tuple(g for g in F.DEFAULT_GROUPS if g != "uri")}
+    GROUPS = variant_groups()
     report = {"dataset": os.path.abspath(dataset_dir),
               "dataset_manifest_sha_families": l7_dataset.families(manifest),
               "held_out_families": l7_dataset.families(manifest, held_out=True),
@@ -370,6 +392,17 @@ def run(dataset_dir, out_dir, *, seed=0, epochs=25, hidden=64, layers=2,
         report["variants"][variant] = v
         trained[variant] = (model, cols, mean, std)
 
+    # Hard probe gate on EVERY variant (§7.3.2.1): the exact transforms + server_load (R17).
+    # Only passing variants are eligible for the (unchanged) selection rule below.
+    probe_windows = l7_probes.windows_from_items(
+        [("record", _obj_for(r)) for r in recs], seq, stride=stride)[:2000]
+    for name, (model, cols, mean, std) in trained.items():
+        sc = memory_scorer(model, cols, seq, mean, std, threshold, consecutive)
+        probes = l7_probes.run_probes(sc, probe_windows, seed=seed)
+        report["variants"][name]["probes"] = probes
+        report["variants"][name]["probe_gate_pass"] = l7_probes.gate_pass(probes)
+    eligible = [n for n in report["variants"] if report["variants"][n]["probe_gate_pass"]]
+
     # Pre-registered selection: maximise held-out family groups detected, subject to a
     # benign false-positive budget; tie-break on lower benign FP then lower val loss.
     def score_variant(name):
@@ -379,15 +412,20 @@ def run(dataset_dir, out_dir, *, seed=0, epochs=25, hidden=64, layers=2,
         fp = (g["benign_fp"] or {}).get("fp_per_client_hour") or 0.0
         within = fp <= FP_BUDGET
         return (within, detected, -fp, -report["variants"][name]["val_loss"])
-    chosen = max(report["variants"], key=score_variant)
-    report["selection"] = {"rule": f"max held-out groups detected s.t. benign FP/client-hour "
-                           f"<= {FP_BUDGET}; tie-break lower FP then lower val loss",
-                           "chosen": chosen,
+    rule = (f"probe gate first (exact + server_load); then max held-out groups detected s.t. "
+            f"benign FP/client-hour <= {FP_BUDGET}; tie-break lower FP then lower val loss")
+    os.makedirs(out_dir, exist_ok=True)
+    if not eligible:
+        report["selection"] = {"rule": rule, "chosen": None, "eligible": [],
+                               "caveat": "no variant passed the probe gate: no candidate"}
+        report["probe_gate_pass"] = False
+        return report, None
+    chosen = max(eligible, key=score_variant)
+    report["selection"] = {"rule": rule, "chosen": chosen, "eligible": eligible,
                            "caveat": "one capture, one seed; confirm on another seed/capture "
                                      "before promotion (P6)"}
 
     model, cols, mean, std = trained[chosen]
-    os.makedirs(out_dir, exist_ok=True)
     l7_scorer.save_package(
         out_dir, model, cols, seq, mean, std, threshold, consecutive,
         hidden_size=hidden, num_layers=layers,
@@ -395,19 +433,17 @@ def run(dataset_dir, out_dir, *, seed=0, epochs=25, hidden=64, layers=2,
               "variant": chosen, "feature_groups": [g for g in GROUPS[chosen]],
               "trained_families": l7_dataset.families(manifest, False),
               "held_out_families": l7_dataset.families(manifest, True),
-              "note": "L7 GRU (P4). Validate online (P5) before any promotion (P6)."})
+              "note": "L7 GRU. Validate online before any promotion (P6)."})
     best = (out_dir, cols, seq)
     if chosen in baselines:
         report["baseline_saved"] = save_baseline(out_dir, *baselines[chosen], seq=seq,
                                                  threshold=threshold, consecutive=consecutive,
                                                  variant=chosen, seed=seed)
 
-    # Invariance probes on the SAVED (chosen) model (HARD gate: exact transforms).
+    # Confirm on the SAVED package: the same probes must give the same verdict.
     scorer = l7_scorer.L7Scorer.load(out_dir)
-    probe_windows = l7_probes.windows_from_items(
-        [("record", _obj_for(r)) for r in recs], scorer.seq_len, stride=stride)
-    report["probes"] = l7_probes.run_probes(scorer, probe_windows[:2000], seed=seed)
-    report["probe_gate_pass"] = _exact_probes_pass(report["probes"])
+    report["probes"] = l7_probes.run_probes(scorer, probe_windows, seed=seed)
+    report["probe_gate_pass"] = l7_probes.gate_pass(report["probes"])
     return report, best
 
 
@@ -464,44 +500,55 @@ def _obj_for(rec):
             "reused": rec.get("reused", "")}
 
 
-def _exact_probes_pass(probes):
-    return all(isinstance(probes.get(n), dict) and probes[n]["pass"]
-               for n in ("ua_swap", "uri_bijection", "time_offset"))
-
-
-def write_card(out_dir, report):
-    card = os.path.join(out_dir, "model_card.md")
-    chosen = report["selection"]["chosen"]
-    g = report["variants"][chosen]["gru"]
-    lines = [f"# L7 GRU model card ({time.strftime('%Y-%m-%d', time.gmtime())})", "",
-             f"Dataset: `{report['dataset']}`  seed={report['seed']} epochs={report['epochs']}",
-             f"Held-out (never trained) families: {report['held_out_families']}",
-             f"Policy: p > {report['threshold']} in {report['consecutive']} consecutive windows.",
-             "", f"## Saved model — variant `{chosen}`",
-             f"Selection: {report['selection']['rule']}.",
-             f"Caveat: {report['selection']['caveat']}.", "",
-             (f"- benign test: {g['benign_test'].get('n_groups', 0)} groups, "
-              f"group false-detect rate {g['benign_test'].get('group_detect_rate')} "
-              f"CI {g['benign_test'].get('group_detect_ci95')}"),
-             f"- benign FP/client-hour: {g['benign_fp']}",
-             (f"- held-out benign kind (never trained, not used for selection): "
-              f"{g['benign_heldout'].get('n_groups', 0)} groups, "
-              f"{g['benign_heldout'].get('groups_detected')} flagged; FP/client-hour "
-              f"{g.get('benign_heldout_fp')}") if g.get("benign_heldout") else
-             "- held-out benign kind: none in this dataset",
-             f"- held-out families (policy, per group): {g['heldout'].get('by_family')}",
-             f"- in-distribution trained families: {g['trained_attack_test'].get('by_family')}",
-             f"- exact-invariance probe gate: {report.get('probe_gate_pass')}", "",
-             "## Variant comparison — held-out detection vs benign FP (the size shortcut)", "",
-             "| variant | held-out groups detected | benign FP/client-hr | GRU vs baseline (held-out) |",
-             "|---|---|---|---|"]
+def _variant_table(report):
+    rows = ["## Variant comparison — probe gate, held-out detection, benign FP", "",
+            ("| variant | probe gate (server_load flips) | held-out groups detected | "
+             "benign FP/client-hr | GRU vs baseline (held-out) |"),
+            "|---|---|---|---|---|"]
     for name, v in report["variants"].items():
         ho = v["gru"]["heldout"].get("by_family", {})
         det = f"{sum(f['detected'] for f in ho.values())}/{sum(f['groups'] for f in ho.values())}"
         fp = (v["gru"]["benign_fp"] or {}).get("fp_per_client_hour")
         bho = v.get("baseline_hgb", {}).get("heldout", {}).get("by_family", {})
-        bdet = f"{sum(f['detected'] for f in bho.values())}/{sum(f['groups'] for f in bho.values())}" if bho else "n/a"
-        lines.append(f"| {name} | {det} | {fp} | GRU {det} vs HGB {bdet} |")
+        bdet = (f"{sum(f['detected'] for f in bho.values())}/"
+                f"{sum(f['groups'] for f in bho.values())}") if bho else "n/a"
+        load = (v.get("probes") or {}).get("server_load", {}).get("flip_rate")
+        gate = "PASS" if v.get("probe_gate_pass") else "FAIL"
+        rows.append(f"| {name} | {gate} ({load}) | {det} | {fp} | GRU {det} vs HGB {bdet} |")
+    return rows
+
+
+def write_card(out_dir, report):
+    card = os.path.join(out_dir, "model_card.md")
+    chosen = report["selection"]["chosen"]
+    head = [f"# L7 GRU model card ({time.strftime('%Y-%m-%d', time.gmtime())})", "",
+            f"Dataset: `{report['dataset']}`  seed={report['seed']} epochs={report['epochs']}",
+            f"Held-out (never trained) families: {report['held_out_families']}",
+            f"Policy: p > {report['threshold']} in {report['consecutive']} consecutive windows.",
+            f"Selection: {report['selection']['rule']}.", ""]
+    if chosen is None:
+        lines = [*head, "## No candidate", "",
+                 f"{report['selection']['caveat']}.", "", *_variant_table(report)]
+    else:
+        g = report["variants"][chosen]["gru"]
+        heldout_benign = (
+            (f"- held-out benign kind (never trained, not used for selection): "
+             f"{g['benign_heldout'].get('n_groups', 0)} groups, "
+             f"{g['benign_heldout'].get('groups_detected')} flagged; FP/client-hour "
+             f"{g.get('benign_heldout_fp')}") if g.get("benign_heldout") else
+            "- held-out benign kind: none in this dataset")
+        lines = [*head, f"## Saved model — variant `{chosen}`",
+                 f"Eligible after the probe gate: {report['selection']['eligible']}.",
+                 f"Caveat: {report['selection']['caveat']}.", "",
+                 (f"- benign test: {g['benign_test'].get('n_groups', 0)} groups, "
+                  f"group false-detect rate {g['benign_test'].get('group_detect_rate')} "
+                  f"CI {g['benign_test'].get('group_detect_ci95')}"),
+                 f"- benign FP/client-hour: {g['benign_fp']}",
+                 heldout_benign,
+                 f"- held-out families (policy, per group): {g['heldout'].get('by_family')}",
+                 f"- in-distribution trained families: {g['trained_attack_test'].get('by_family')}",
+                 (f"- probe gate on the saved package (exact + server_load): "
+                  f"{report.get('probe_gate_pass')}"), "", *_variant_table(report)]
     with open(card, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")
     return card
@@ -526,10 +573,10 @@ def main():
     with open(report_path, "w", encoding="utf-8") as fh:
         json.dump(report, fh, indent=1, default=str)
         fh.write("\n")
-    print(f"[+] model package: {args.out}")
+    print(f"[+] model package: {args.out if report['selection']['chosen'] else '(none: no eligible variant)'}")
     print(f"[+] model card:    {card}")
     print(f"[+] metrics:       {report_path}")
-    print(f"[{'+' if report.get('probe_gate_pass') else '!'}] exact-probe gate: "
+    print(f"[{'+' if report.get('probe_gate_pass') else '!'}] probe gate (exact + server_load): "
           f"{'PASS' if report.get('probe_gate_pass') else 'FAIL'}")
     return 0
 

@@ -75,9 +75,25 @@ def iat_jitter(recs, rng):
     return out
 
 
+LOAD_FACTOR = 10.0      # server_load: the p90 $request_time shift measured at P5c.1 (R17)
+LOAD_FLIP_TOL = 0.01    # stricter than FLIP_TOL: R17 showed load drives false positives
+
+
+def server_load(recs, rng):
+    """A LOAD_FACTOR-times slower server: rt and urt scaled, the client's request start
+    times held fixed (so the client-side inter-arrival times do not change)."""
+    out = []
+    for r in recs:
+        rt = r["rt"] * LOAD_FACTOR
+        out.append({**r, "rt": rt, "urt": r["urt"] * LOAD_FACTOR, "msec": F.start_time(r) + rt})
+    return out
+
+
 TRANSFORMS = {"ua_swap": (ua_swap, True), "uri_bijection": (uri_bijection, True),
               "time_offset": (time_offset, True), "pad_request": (pad_request, False),
-              "iat_jitter": (iat_jitter, False)}
+              "iat_jitter": (iat_jitter, False), "server_load": (server_load, False)}
+FLIP_TOLS = {"server_load": LOAD_FLIP_TOL}     # per-probe tolerance where it differs
+GATE_PROBES = ("ua_swap", "uri_bijection", "time_offset", "server_load")   # the hard gate
 
 
 def windows_from_items(items, seq_len, min_events=E.DEFAULT_MIN_EVENTS, stride=5):
@@ -116,11 +132,16 @@ def run_probes(scorer, windows, transforms=None, seed=0, flip_tol=FLIP_TOL):
         p = _score(scorer, [fn(w, rng) for w in windows])
         dp = np.abs(p - base)
         flips = float(np.mean((p > scorer.threshold) != base_dec))
-        ok = bool(dp.max() <= EXACT_TOL) if exact else flips <= flip_tol
+        ok = bool(dp.max() <= EXACT_TOL) if exact else flips <= FLIP_TOLS.get(name, flip_tol)
         report[name] = {"exact": exact, "mean_abs_dp": float(dp.mean()),
                         "max_abs_dp": float(dp.max()), "flip_rate": flips, "pass": ok}
     report["all_pass"] = all(v["pass"] for k, v in report.items() if k in transforms)
     return report
+
+
+def gate_pass(report):
+    """The hard probe gate: the exact probes and server_load all present and passing."""
+    return all(isinstance(report.get(n), dict) and report[n]["pass"] for n in GATE_PROBES)
 
 
 def main():

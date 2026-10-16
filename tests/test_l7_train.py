@@ -108,6 +108,57 @@ class HeldOutBenignTest(unittest.TestCase):
         self.assertTrue(held.isdisjoint(set(ipsplit["benign_test"])))
 
 
+class VariantGateTest(unittest.TestCase):
+    """R17 (§7.3.2.1): server-timing variants exist, every variant is probe-gated before
+    selection, and with no eligible variant no package is produced."""
+
+    def test_variant_groups(self):
+        g = T.variant_groups()
+        self.assertEqual(set(g), set(T.VARIANTS))
+        cols = T.F.columns(g["no_size_no_server_timing"])
+        self.assertIn("log_iat", cols)
+        self.assertNotIn("log_rt", cols)
+        self.assertNotIn("log_urt", cols)
+        self.assertNotIn("log_rlen", cols)
+        self.assertIn("log_rt", T.F.columns(g["no_size"]))
+
+    def test_every_variant_is_gated_and_selection_is_among_eligible(self):
+        d = tempfile.mkdtemp(prefix="l7ds_")
+        out = tempfile.mkdtemp(prefix="l7pkg_")
+        for x in (d, out):
+            self.addCleanup(shutil.rmtree, x, True)
+        synth_dataset(d)
+        report, _ = T.run(d, out, seed=1, epochs=1, hidden=8, layers=1,
+                          variants=("no_size", "no_size_no_server_timing"), do_baseline=False)
+        for v in report["variants"].values():
+            self.assertIn("server_load", v["probes"])
+            self.assertIn("probe_gate_pass", v)
+        eligible = report["selection"]["eligible"]
+        self.assertEqual(eligible, [n for n, v in report["variants"].items()
+                                    if v["probe_gate_pass"]])
+        if report["selection"]["chosen"] is not None:
+            self.assertIn(report["selection"]["chosen"], eligible)
+            self.assertEqual(report["probe_gate_pass"],
+                             report["variants"][report["selection"]["chosen"]]["probe_gate_pass"])
+
+    def test_no_eligible_variant_produces_no_package(self):
+        from unittest import mock
+        d = tempfile.mkdtemp(prefix="l7ds_")
+        out = tempfile.mkdtemp(prefix="l7pkg_")
+        for x in (d, out):
+            self.addCleanup(shutil.rmtree, x, True)
+        synth_dataset(d)
+        with mock.patch.object(T.l7_probes, "gate_pass", return_value=False):
+            report, best = T.run(d, out, seed=1, epochs=1, hidden=8, layers=1,
+                                 variants=("no_size",), do_baseline=False)
+        self.assertIsNone(best)
+        self.assertIsNone(report["selection"]["chosen"])
+        self.assertFalse(report["probe_gate_pass"])
+        self.assertFalse(os.path.exists(os.path.join(out, "config.json")))
+        with open(T.write_card(out, report), encoding="utf-8") as fh:
+            self.assertIn("No candidate", fh.read())
+
+
 class MetricsTest(unittest.TestCase):
     def test_clopper_pearson(self):
         self.assertEqual(T.clopper_pearson(0, 0), (0.0, 1.0))

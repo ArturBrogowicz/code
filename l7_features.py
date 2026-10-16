@@ -29,7 +29,8 @@ VALID = "valid"
 # Feature groups in canonical column order. A model package records which groups
 # (hence which columns) it was trained on; the scorer refuses a mismatch.
 FEATURE_GROUPS = {
-    "timing": ("log_iat", "log_rt", "log_urt"),
+    "timing": ("log_iat",),                    # client-side: gaps between request starts
+    "server_timing": ("log_rt", "log_urt"),    # server-side: also encodes origin load (R17)
     "completion": ("incomplete", "s_timeout"),
     "status": ("s2xx", "s3xx", "s4xx", "s5xx"),
     "method": ("m_get", "m_post", "m_other"),
@@ -39,7 +40,7 @@ FEATURE_GROUPS = {
     "ratelimit": ("lreq_limited",),
     "protocol": ("is_h2", "is_tls", "tls_reused"),
 }
-DEFAULT_GROUPS = ("timing", "completion", "status", "method", "size",
+DEFAULT_GROUPS = ("timing", "server_timing", "completion", "status", "method", "size",
                   "connection", "uri", "ratelimit")
 ALL_FEATURES = tuple(f for feats in FEATURE_GROUPS.values() for f in feats)
 _IDX = {name: i for i, name in enumerate(ALL_FEATURES)}

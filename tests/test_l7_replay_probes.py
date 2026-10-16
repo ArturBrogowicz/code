@@ -153,6 +153,33 @@ class ProbeTest(unittest.TestCase):
         self.assertTrue(report["ua_swap"]["pass"])
         self.assertFalse(report["all_pass"])
 
+    def test_server_load_keeps_client_start_times(self):
+        recs = [U.rec(msec=100.0 + i, rt=0.01, urt="0.005") for i in range(5)]
+        out = P.server_load(recs, None)
+        self.assertEqual([F.start_time(r) for r in out], [F.start_time(r) for r in recs])
+        self.assertAlmostEqual(out[0]["rt"], 0.1)
+        self.assertAlmostEqual(out[0]["urt"], 0.05)
+
+    def test_server_timing_shortcut_is_caught_by_the_gate(self):
+        # R17: a "model" that keys on server time flips when the server is 10x slower;
+        # one that keys on the client's method does not.
+        windows = P.windows_from_items(self.items, 8)
+        timing = U.StubScorer(seq_len=8, col="log_rt", cut=0.05)   # rt 0.01 → log1p ≈ 0.01
+        rep = P.run_probes(timing, windows)
+        self.assertFalse(rep["server_load"]["pass"])
+        self.assertFalse(P.gate_pass(rep))
+        method = U.StubScorer(seq_len=8, col="m_post", cut=0.5)
+        rep = P.run_probes(method, windows)
+        self.assertTrue(rep["server_load"]["pass"])
+        self.assertEqual(rep["server_load"]["flip_rate"], 0.0)
+        self.assertTrue(P.gate_pass(rep))
+
+    def test_gate_requires_server_load(self):
+        ok = {"pass": True}
+        self.assertFalse(P.gate_pass({"ua_swap": ok, "uri_bijection": ok, "time_offset": ok}))
+        self.assertTrue(P.gate_pass({"ua_swap": ok, "uri_bijection": ok, "time_offset": ok,
+                                     "server_load": ok}))
+
 
 if __name__ == "__main__":
     unittest.main()
