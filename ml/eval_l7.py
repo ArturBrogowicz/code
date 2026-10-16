@@ -349,8 +349,8 @@ def main():
     for fam, f in sorted(a["by_family"].items()):
         print(f"  {fam:20s} ips={f['ips']} det_banned={f['det_banned']}{f['det_engines']} "
               f"would_banned={f['would_banned']} ttd_would={f['median_ttd_would_s']}s")
-    print(f"  benign would-ban IPs: {a['benign_would_ban_count']} / {a['benign_ips_total']} "
-          f"({a['benign_would_ban_ips']})")
+    print(f"  benign would-ban IPs: {len(a['benign_would_ban_ips'])} / {a['benign_ips_total']} "
+          f"({a['benign_would_ban_count']} events: {a['benign_would_ban_ips']})")
     print(f"  GRU totals: {a['gru_totals']}  suppress_on: {a['suppress_on_events']}")
     print(f"[+] Wrote {os.path.join(out_dir, 'summary.json')}")
     try:                                  # never at the cost of the summary above
