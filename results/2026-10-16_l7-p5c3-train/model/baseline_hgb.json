@@ -1,0 +1,27 @@
+{
+ "format": "l7-hgb-baseline/1",
+ "columns": [
+  "valid",
+  "log_iat",
+  "incomplete",
+  "s_timeout",
+  "s2xx",
+  "s3xx",
+  "s4xx",
+  "s5xx",
+  "m_get",
+  "m_post",
+  "m_other",
+  "log_creq",
+  "new_conn",
+  "uri_repeat",
+  "lreq_limited"
+ ],
+ "seq_len": 20,
+ "threshold": 0.95,
+ "consecutive": 3,
+ "variant": "no_size_no_server_timing",
+ "seed": 0,
+ "sklearn": "1.9.0",
+ "sha256": "149af27feacff7f126142aa8d343d82afe80d6ca50cdd527e29ef9ce804464f3"
+}

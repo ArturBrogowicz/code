@@ -1,0 +1,89 @@
+{
+ "format": "l7-gru-package/1",
+ "arch": "gru",
+ "columns": [
+  "valid",
+  "log_iat",
+  "incomplete",
+  "s_timeout",
+  "s2xx",
+  "s3xx",
+  "s4xx",
+  "s5xx",
+  "m_get",
+  "m_post",
+  "m_other",
+  "log_creq",
+  "new_conn",
+  "uri_repeat",
+  "lreq_limited"
+ ],
+ "seq_len": 20,
+ "hidden_size": 64,
+ "num_layers": 2,
+ "mean": [
+  0.0,
+  0.37697723507881165,
+  0.00011218211147934198,
+  6.903514440637082e-05,
+  0.9998533129692078,
+  0.0,
+  0.00011218211147934198,
+  3.451757220318541e-05,
+  0.9958578944206238,
+  0.004142108839005232,
+  0.0,
+  2.5065605640411377,
+  0.15251590311527252,
+  0.11160394549369812,
+  0.0
+ ],
+ "std": [
+  1.0,
+  0.6977817416191101,
+  0.010590698570013046,
+  0.008308300748467445,
+  0.012110606767237186,
+  1.0,
+  0.010590698570013046,
+  0.005875010509043932,
+  0.06430688500404358,
+  0.06430688500404358,
+  1.0,
+  1.8626172542572021,
+  0.3596362769603729,
+  0.3151519298553467,
+  1.0
+ ],
+ "threshold": 0.95,
+ "consecutive": 3,
+ "weights_sha256": "7f6040a5c7dd8b758b6c5a3d1282104614af073eb842cb29170ee2b7757045a6",
+ "meta": {
+  "dataset": "/home/artur/DDoS-mitigation/code/results/2026-10-16_l7-p5c3-capture",
+  "seed": 0,
+  "epochs": 25,
+  "variant": "no_size_no_server_timing",
+  "feature_groups": [
+   "timing",
+   "completion",
+   "status",
+   "method",
+   "connection",
+   "uri",
+   "ratelimit"
+  ],
+  "trained_families": [
+   "scraper",
+   "slowloris",
+   "slowpost",
+   "subthreshold_flood",
+   "volumetric_flood"
+  ],
+  "held_out_families": [
+   "credstuff",
+   "padded_flood",
+   "slowread"
+  ],
+  "note": "L7 GRU. Validate online before any promotion (P6)."
+ }
+}

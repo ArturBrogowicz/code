@@ -1,0 +1,4 @@
+[+] model package: results/2026-10-16_l7-p5c3-train/model
+[+] model card:    results/2026-10-16_l7-p5c3-train/model/model_card.md
+[+] metrics:       results/2026-10-16_l7-p5c3-train/l7_metrics.json
+[+] probe gate (exact + server_load): PASS
