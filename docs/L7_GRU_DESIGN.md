@@ -1149,6 +1149,27 @@ relax only the L7 / connection thresholds that false-ban benign):
   templated override); the deployed `nginx.conf` default is changed only if the thesis
   concludes in favour (a P6 decision), so production is not silently weakened.
 
+#### 7.3.3.1 P5c.2 build (offline, done 2026-10-16)
+
+Profile frozen in `ml/l7_traffic.THRESHOLDS_TOLERANT` by the §7.3.2.1 rule (gate worst case
+over 8 benign kinds x 20 seeds, x 1.3, rounded up, relax only):
+
+| Threshold | Default | Tolerant |
+|---|---|---|
+| L7 rate rule | 50 rps | 108 |
+| SlowConn | 8 conns | 180 |
+| nginx limit_req | 30 r/s, burst 100 | 82 r/s, burst 133 |
+| nginx limit_conn | 50 | 50 (unchanged) |
+
+Under this profile the gate admits all 8 benign kinds in 20/20 seeds.
+
+Code: `derive_tolerant()` (1ead083, test re-derives the frozen values);
+`HEURISTIC_PROFILE=tolerant` in `control_plane.py`, default unchanged (539c4d4);
+`--heuristics default|tolerant` on both runners, nginx limits rendered from the profile,
+rendered confs pass `nginx -t` (07c3794). 218 tests green.
+
+Next gate: a benign-only live run under the tolerant profile must show 0 benign bans.
+
 ### 7.3.4 P5c.3 — re-capture and retrain on the full realistic mix [capture is a VM workload; retrain offline]
 
 * **Capture** (`ml/capture_l7.py --mix overlap` under the **relaxed** profile): the full
@@ -1196,7 +1217,7 @@ outcomes:
 | Step | Work | Where / ≈ time | Gate (approval) |
 |---|---|---|---|
 | **P5c.1** ✓ | Baseline confirmation: default heuristics vs realistic benign; document bans + benign profile | VM, ~5 min | **Done 2026-10-16** (`results/2026-10-16_l7-p5c-baseline/`): 3 benign bans as predicted; R17 found; two decisions needed (§7.3.2.1) |
-| **P5c.2** | Re-calibrate thresholds (`control_plane.py`, relaxed nginx conf, `THRESHOLDS`); update pinned tests; re-run admissibility gate | Offline | Tests + ruff; gate shows realistic benign admissible; you review the frozen profile |
+| **P5c.2** (built) | Re-calibrate thresholds (`control_plane.py`, relaxed nginx conf, `THRESHOLDS`); update pinned tests; re-run admissibility gate | Offline | Tests + ruff; gate shows realistic benign admissible; you review the frozen profile |
 | **P5c.3** | Capture full realistic mix under relaxed profile; retrain GRU + HGB | VM capture ~10 min; retrain offline | Dataset complete; probe gate PASS; benign-burst FP reported |
 | **P5c.4** | Shadow eval (5 seeds + soak), relaxed daemon; baselines B0–B4; pre-registered verdict | VM ~55 min | Verdict by `ml/p5b_report.py`; published campaign |
 | **P6** | Promotion + (if favoured) making the relaxed profile the deployed default | — | Explicit approval; only on "marginal value shown" |
