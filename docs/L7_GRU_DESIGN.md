@@ -79,9 +79,11 @@ user CGNAT keep-alive pools, polite crawler, held-out API client) part of the be
 test: the relaxed thresholds then miss the fast sub-threshold floods/scrapers, while the
 behavioral L7-GRU catches them at ≤ 5 % benign FP. Scope is honest (§7.3.1): the GRU's
 demonstrable niche is the **fast** sub-threshold families that log densely; **slow-connection
-abuse stays an open gap (R1)** the access-log GRU cannot close. Steps: P5c.1 live baseline
-confirmation (awaiting approval) → P5c.2 re-calibration → P5c.3 re-capture + retrain →
-P5c.4 evaluation. The verdict is pre-registered; the result may be negative.
+abuse stays an open gap (R1)** the access-log GRU cannot close. **P5c.1 is done**
+(`results/2026-10-16_l7-p5c-baseline/`): the default heuristics banned a 60-asset page load
+(`l7_rate`) and both CGNAT gateways (`l4_slowconn`, the 12-user one after only two users had
+started). It also found **R17**: the shadow GRU flags clients when the server is busy,
+because it uses server-side timing. Two decisions precede P5c.2/P5c.3 (§7.3.2.1).
 
 **Confirmed decisions (§10).** (1) Scope: GRU owns L7 sub-threshold abuse only. (2)
 Transport: Unix-domain datagram syslog primary + durable file sink. (3) Keying: **IP +
@@ -1060,6 +1062,46 @@ grounded in measurement, not only the P5b.0 simulation.
 * **Runner:** a `--benign-only` / `--no-attacks` mode of `ml/eval_l7.py --mix overlap` (no new
   attack code; offline-testable plan path first).
 
+#### 7.3.2.1 P5c.1 result [FACT: `results/2026-10-16_l7-p5c-baseline/`, one run, seed 1, 300 s]
+
+**The default heuristics banned 3 of 20 legitimate IPs, each one predicted by the
+admissibility gate:**
+
+| Benign client | Netem | Deterministic ban |
+|---|---|---|
+| browser, 60-asset page | perfect | `l7_rate` at 7.0 s — 51 rps, on its first page view |
+| CGNAT gateway, 12 users | broadband | `l4_slowconn` at 9.3 s — 12 idle connections, 0 bytes |
+| CGNAT gateway, 24 users | mobile_bad | `l4_slowconn` at 264.9 s — 54 connections, 0 bytes |
+| browser, 60-asset page | mobile_bad | not banned: 300 ms latency spread its burst (1 s peak 20) |
+
+* **Two users suffice for SlowConn.** When the 12-user gateway was banned, only two users
+  had started: one page view each (31 requests at 2.9 s and 5.4 s), then idle reading. Two
+  browser pools of 6 keep-alive connections = 12 idle connections > 8, for 3 quiet seconds.
+* Gate vs live: 3 of 4 predicted bans happened; the miss is the gate's fastest-profile
+  worst case meeting a `mobile_bad` draw. No admissible client was banned. nginx rejected
+  nothing.
+
+**New finding — R17: the shadow GRU's decisions depend on origin load.** The P4 candidate
+(0 benign false positives in P5) flagged 11 of 20 benign IPs, including five P5 clients that
+were clean in P5 with the same kind and netem. For those clients, `$request_time` rose about
+tenfold at p90 (≈ 2 → 18–25 ms) because the extra legitimate load made the origin slower.
+A replay with only the server timing set to an unloaded server's (1 ms) removes all five
+(11 → 6 IPs flagged; 62 → 43 would-bans; the as-recorded replay reproduces the live run
+exactly). The remaining six are kinds the P4 model never trained on (R16).
+
+**Consequences for the next steps (decisions needed before any P5c.2/P5c.3 code):**
+1. **Re-calibration input (amends §7.3.3).** The banned IPs' traffic is dropped by XDP, so
+   their live profiles cover only ~7–9 s: P5c.1 alone cannot supply the "measured benign
+   worst-case" the pre-registered rule asked for. Proposed: take the gate's simulated
+   fastest-profile worst case (an upper bound across netem draws, whose predictions held
+   live) × 1.3, then verify live in P5c.2 with a benign-only run under the relaxed profile,
+   which must show 0 benign bans.
+2. **R17 must be handled before retraining.** If the model keys on origin load, capture-time
+   and evaluation-time load differences would decide P5c.4, not client behaviour. Proposed,
+   offline and before P5c.3: (a) a `no_server_timing` feature variant (drop `log_rt` and
+   `log_urt`, keep the client-side inter-arrival time), chosen by the unchanged selection
+   rule; (b) a load-invariance probe (scale `rt`/`urt`) added to the hard probe gate.
+
 ### 7.3.3 P5c.2 — heuristic re-calibration to a production-tolerable profile [code; frozen before any attack data]
 
 Relax the specific thresholds that collide with realistic benign, to the measured benign
@@ -1134,7 +1176,7 @@ outcomes:
 
 | Step | Work | Where / ≈ time | Gate (approval) |
 |---|---|---|---|
-| **P5c.1** | Baseline confirmation: default heuristics vs realistic benign; document bans + benign profile | VM, ~5 min | **Approval requested now.** Review documented `l4_slowconn`/`l7_rate` bans + benign profile |
+| **P5c.1** ✓ | Baseline confirmation: default heuristics vs realistic benign; document bans + benign profile | VM, ~5 min | **Done 2026-10-16** (`results/2026-10-16_l7-p5c-baseline/`): 3 benign bans as predicted; R17 found; two decisions needed (§7.3.2.1) |
 | **P5c.2** | Re-calibrate thresholds (`control_plane.py`, relaxed nginx conf, `THRESHOLDS`); update pinned tests; re-run admissibility gate | Offline | Tests + ruff; gate shows realistic benign admissible; you review the frozen profile |
 | **P5c.3** | Capture full realistic mix under relaxed profile; retrain GRU + HGB | VM capture ~10 min; retrain offline | Dataset complete; probe gate PASS; benign-burst FP reported |
 | **P5c.4** | Shadow eval (5 seeds + soak), relaxed daemon; baselines B0–B4; pre-registered verdict | VM ~55 min | Verdict by `ml/p5b_report.py`; published campaign |
@@ -1148,6 +1190,7 @@ outcomes:
 | R14 | **Overselling: crediting the GRU with the slow-conn half it cannot see (R1)** | Scope the claim to the fast sub-threshold niche; report slow families as an open gap needing a connection-behavioral signal, not the L7-GRU |
 | R15 | **Relaxed profile is a real security regression** if shipped | It is a capture/eval profile; deployed defaults change only on a favourable P6 decision; the security cost is quantified in P5c.4 |
 | R16 | **GRU false-positives on genuine high-rate bursts/CGNAT** it now trains on | The held-out benign kind + the soak + the ≤ 5 % budget are the hard gate; a failure here is a reported negative, not hidden |
+| R17 | **Server-side timing encodes origin load** (`$request_time`, `$upstream_response_time`), so the model can flag clients because the server is busy | **Realised at P5c.1:** five P5 clients flagged under heavier legitimate load; a replay with unloaded timing removes all five (§7.3.2.1). Before P5c.3: a `no_server_timing` variant + a load-invariance probe in the hard gate |
 
 ---
 
@@ -1167,7 +1210,7 @@ the working protocol.
 | **P4** ✓ | `ml/train_l7.py`: IP-disjoint benign + family-disjoint held-out splits, policy metrics with Clopper-Pearson CIs + FP/client-hour, exact-invariance probe gate, feature-set variants, GRU + HGB tabular baseline; **offline, CPU** | model package + card + metrics (`results/2026-10-15_l7-p4-train/`) | **PASSED 2026-10-15**: probe gate PASS; `no_size` chosen (held-out 7/8 at 0 FP vs 1/8 with size — the size shortcut confirmed and removed); GRU > baseline; candidate not promoted |
 | **P5** ✓ | Online evaluation in **shadow** (`ml/eval_l7.py`, §7.1): runs A–D, candidate vs with-size, benign soak, `XDP_GRU=0`, H1b threshold sweep | `results/2026-10-16_l7-p5-eval/` | **Done 2026-10-16. Verdict: marginal value NOT shown** — GRU 3/3 fast sub-threshold at 0 benign FP, but a static 10 rps limit matches it; P6 not proposed |
 | **P5b** | Benign-overlap re-test (§7.2, pre-registered): rate-overlapping benign kinds + hard negatives, benign admissibility gate (closes R10), baselines B0–B4; re-capture → retrain → shadow eval | §7.2 | **Approved 2026-10-16** (held-out `api_bulk`, 5 seeds, FP ≤ 5 %). **P5b.0 built** (§7.2.2): gate rejects both NAT kinds (SlowConn) and the 60-asset page (rate rule) under the *default* thresholds → **superseded by P5c**, which relaxes them |
-| **P5c** | Re-calibrated overlap (§7.3, pre-registered): realistic high-rate benign as the benchmark; **relax** the deterministic thresholds to tolerate it; re-capture + retrain + evaluate; show whether the GRU catches fast sub-threshold abuse the relaxed threshold misses | §7.3 | **Approved 2026-10-16.** P5c.1 (live baseline confirmation) **awaits approval** → P5c.2 re-calibrate → P5c.3 capture+retrain → P5c.4 eval. GRU scope limited to the fast niche; slow families an open gap (R1) |
+| **P5c** | Re-calibrated overlap (§7.3, pre-registered): realistic high-rate benign as the benchmark; **relax** the deterministic thresholds to tolerate it; re-capture + retrain + evaluate; show whether the GRU catches fast sub-threshold abuse the relaxed threshold misses | §7.3 | **Approved 2026-10-16.** **P5c.1 done** (default heuristics banned a 60-asset page load and both CGNAT gateways; R17 found) → P5c.2 re-calibrate → P5c.3 capture+retrain → P5c.4 eval. GRU scope limited to the fast niche; slow families an open gap (R1) |
 | **P6** | `ml/promote_l7.py`: install a vetted model (+ optionally make the relaxed profile the default) | promoted model | **Explicit approval;** only if P5c shows value at acceptable FP |
 
 Verification threads through every phase: shadow mode (P1–P2) means the L7 engine can be
