@@ -62,10 +62,10 @@ on CPU; gate **PASSED** (`results/2026-10-15_l7-p4-train/`, a candidate — not 
 
 **P6 (promotion) is not proposed:** the pre-registered condition for it was not met.
 
-**P5b (benign-overlap re-test) is proposed (§7.2), awaiting approval.** It adds legitimate
+**P5b (benign-overlap re-test) was approved on 2026-10-16 (§7.2).** It adds legitimate
 clients whose rate overlaps the attacks (asset-heavy page loads, busy NAT addresses), plus
-hard negatives, and stronger baselines. The verdict rule is pre-registered. Nothing is
-built or run yet.
+hard negatives, and stronger baselines. The verdict rule is pre-registered. Decisions: hold
+out `api_bulk`, 5 seeds, benign FP budget ≤ 5 %. P5b.0 (the offline build) is in progress.
 
 **Confirmed decisions (§10).** (1) Scope: GRU owns L7 sub-threshold abuse only. (2)
 Transport: Unix-domain datagram syslog primary + durable file sink. (3) Keying: **IP +
@@ -638,7 +638,7 @@ that coverage at the same benign FP. Otherwise the thesis reports the GRU as
 non-contributing / thresholds suffice — a valid result. Slow families are expected to be
 the deterministic SlowConn path's, not the GRU's (R1), and are reported per family.
 
-### 7.2 P5b — benign-overlap re-test: pre-registered plan [PROPOSED 2026-10-16, awaiting approval]
+### 7.2 P5b — benign-overlap re-test: pre-registered plan [APPROVED 2026-10-16; pre-registered in `09f58ca`, amended before any data — §7.2.1]
 
 **Why P5 found no value [FACT, `results/2026-10-16_l7-p5-eval/runA/summary.json`,
 `threshold_sweep.per_ip_peak_rps`].** Rate alone separated the classes. Every benign IP
@@ -692,14 +692,14 @@ margin, by the same rule as attacks (§7):
 |---|---|---|
 | L7 rate rule (bans) | rps = n / max(span, 1 s) over a 10 s window, at least 5 requests; bans at > 50 rps, or at error ratio > 0.8 with rps > 10; 503 is not counted as an error | `control_plane.py:130-133`, `:987`, `:1010-1013` |
 | nginx `limit_req` (shapes with 503) | 30 r/s per IP, burst 100, `nodelay` | `nginx.conf:9`, `:85` |
-| nginx `limit_conn` | 50 connections per IP | `nginx.conf:88` |
+| nginx `limit_conn` | 50 per IP — counts requests *being processed*, and under HTTP/2 each concurrent stream separately; idle keep-alive connections are not counted [amended, §7.2.1] | `nginx.conf:88`; nginx `ngx_http_limit_conn_module` docs |
 | SlowConn (bans) | ≥ 8 established connections from one IP with < 250 B ingress per interval, 3 intervals in a row | `control_plane.py:93-95` |
 
 **The admissible benign band, per IP:**
 * rule-rps ≤ 45;
 * sustained rate ≤ 25 r/s (30 − 5);
 * bursts ≤ 100 above the rate;
-* ≤ 45 connections;
+* ≤ 45 requests in flight at once [amended, §7.2.1];
 * never 8 or more idle connections.
 
 The rule's 1 s clamp means a burst after a quiet spell counts in full: 61 requests within
@@ -711,8 +711,8 @@ request schedule that `--plan` produces. Back-of-envelope arithmetic is not enou
 
 | Kind (IPs per run) | What it models | Parameters [source] | Expected per IP | Overlap / role |
 |---|---|---|---|---|
-| `browser_page` (×4) | One user on an asset-heavy site | **Page view:** the HTML, then the assets in two waves (CSS/JS, then images/fonts). Transport: HTTP/2 on :443, or 6 parallel HTTP/1.1 connections on :80. **First view:** 30 or 60 same-origin assets, 2 IPs at each level. The median page makes 71 (desktop) / 66 (mobile) requests, third-party included [Web Almanac 2024, Page Weight]. 60 is the high level; 30 is a page with about half its requests third-party. **Repeat views:** the HTML plus page-specific assets only. Static assets carry `max-age=3600` (`l7_webapp`), so a browser does not re-request them. **Think time:** negative exponential, mean 7 s, cap 70 s [ASSUMPTION: the TPC-W convention — verify against the spec before citing]. **Visit:** 3–15 views | 1 s peak ≈ 20–45; sustained ≈ 2–8 rps | Overlaps the attackers on **peak**, not on sustained rate |
-| `cgnat_browsers` (×2) | Many users behind one carrier-grade or corporate NAT address | **Users:** M ∈ {12, 24} `browser_page` users at the 30-asset level, each over HTTP/2 on :443 (one connection each, so ≤ 24 < 45). **UAs:** each user draws its UA from a weighted table of **reduced** UA strings. Chrome freezes the minor version and the platform details (from Chrome 101 / 107 / 110) [chromium.org, User-Agent Reduction], so users on the same browser and OS send identical strings, and collisions arise naturally | peak ≈ 25–45; sustained ≈ 10–25 rps | Overlaps on peak **and** on sustained rate; where UAs collide, (IP, UA) keying merges users |
+| `browser_page` (×4) | One user on an asset-heavy site | **Page view:** the HTML, then the assets in two waves (CSS/JS, then images/fonts). Transport: HTTP/2 on :443, or 6 parallel HTTP/1.1 connections on :80 [amended, §7.2.1: HTTP/1.1 with 6 persistent connections on both ports]. **First view:** 30 or 60 same-origin assets, 2 IPs at each level. The median page makes 71 (desktop) / 66 (mobile) requests, third-party included [Web Almanac 2024, Page Weight]. 60 is the high level; 30 is a page with about half its requests third-party. **Repeat views:** the HTML plus page-specific assets only. Static assets carry `max-age=3600` (`l7_webapp`), so a browser does not re-request them. **Think time:** negative exponential, mean 7 s, cap 70 s [ASSUMPTION: the TPC-W convention — verify against the spec before citing]. **Visit:** 3–15 views | 1 s peak ≈ 20–45; sustained ≈ 2–8 rps | Overlaps the attackers on **peak**, not on sustained rate |
+| `cgnat_browsers` (×2) | Many users behind one carrier-grade or corporate NAT address | **Users:** M ∈ {12, 24} `browser_page` users at the 30-asset level, each over HTTP/2 on :443 (one connection each, so ≤ 24 < 45) [amended, §7.2.1: HTTP/1.1 with 6 persistent connections per user; the gate simulates in-flight requests and SlowConn]. **UAs:** each user draws its UA from a weighted table of **reduced** UA strings. Chrome freezes the minor version and the platform details (from Chrome 101 / 107 / 110) [chromium.org, User-Agent Reduction], so users on the same browser and OS send identical strings, and collisions arise naturally | peak ≈ 25–45; sustained ≈ 10–25 rps | Overlaps on peak **and** on sustained rate; where UAs collide, (IP, UA) keying merges users |
 | `api_bulk` (×1), **hard negative** | A legitimate integration or sync job | Steady 15–20 rps, keep-alive, 2–3 `/api/*` endpoints, one fixed UA | peak ≈ 20–25; sustained 15–20 | Looks like a sub-threshold flood to every detector |
 | `crawler_polite` (×1), **hard negative** | A search or monitoring crawler | `/robots.txt` (new route), then distinct `/page/<n>` and their assets at 2–5 rps, with an identifying bot UA | peak ≈ 5–8; sustained 2–5 | URI diversity like the scraper, at low rate: hard for the GRU, easy for rate limits |
 
@@ -781,11 +781,13 @@ in IPs, because enforcement is per IP.
 | **Uninformative** | V0 fails |
 
 **Statistical power [FACT, arithmetic].**
-* Three seeds × 4 attackers gives 12 comparison-set attackers.
+* **Five seeds (decision 2)** × 4 attackers give 20 comparison-set attackers. (The
+  pre-registered text assumed three: 12 attackers, where a baseline catching ≥ 8 made
+  "decisive" unreachable.)
 * With no discordant pair against the GRU, significance needs ≥ 5 pairs in its favour
   (p = 0.5⁵ ≈ 0.031).
-* So if any baseline catches ≥ 8 of 12, "decisive" is unreachable, however good the GRU is.
-* Five seeds (20 attackers) relax this; see open decision 2.
+* So if any baseline catches ≥ 16 of 20, "decisive" is unreachable, however good the GRU is.
+  With one discordant pair against the GRU, ≥ 7 in its favour are needed (p ≈ 0.035).
 
 **Predictions, recorded before any data [INFERENCE].**
 * **The 60-asset first view is likely inadmissible:** ~61 requests in under a second read as
@@ -810,27 +812,53 @@ in IPs, because enforcement is per IP.
 | P5b.0 | **Generator:** new kinds and the UA table (`ml/l7_gen.py`, `ml/l7_traffic.py`). **Web app:** page→asset lists and `/robots.txt` (`l7_webapp.py`). **Benign admissibility in `calibrate()`:** simulates the rule's actual formula including the error-ratio branch (this closes R10), `limit_req`, `limit_conn` and SlowConn. **`--plan`:** prints each kind's expected peak and sustained rate, and the overlap check. **Baselines:** B0–B4 in `ml/eval_l7.py`. **Verdict:** `ml/p5b_report.py` with fixture tests | Offline | Tests + ruff; you review the `--plan` output |
 | P5b.1 | Capture, ~10 min, no daemon and no XDP (as at P3) | VM, ~15 min including setup | **Conformance:** measured per-kind rates within the expected ranges. **V1 on the capture:** offline replay of the rules. **Capacity guard:** benign upstream p95 and 5xx no worse than at P3 |
 | P5b.2 | Retrain with `ml/train_l7.py` unchanged; the held-out benign kind is reported | Offline, CPU | Probe gate PASS; model card |
-| P5b.3 | Evaluation runs A′1–A′3 (seeds 1–3, ~6 min each) + soak C′ (~12 min); shadow mode, `XDP_GRU=0` | VM, ~40 min | Verdict computed by `ml/p5b_report.py` |
+| P5b.3 | Evaluation runs A′1–A′5 (seeds 1–5, ~6 min each) + soak C′ (~12 min); shadow mode, `XDP_GRU=0` | VM, ~55 min | Verdict computed by `ml/p5b_report.py` |
 | P6 | Promotion, only on "advantage shown" | — | Explicit approval |
 
-#### Open decisions (for approval with this plan)
+#### Decisions (approved 2026-10-16)
 
-1. **Held-out benign kind.** `api_bulk` (proposed: it tests a legitimate high-rate client
-   the model never saw), `crawler_polite`, or none.
-2. **Seeds.** 3 (proposed), or 5. Five add ~15 min of VM time and make "decisive"
-   reachable when the baselines are strong.
-3. **Benign false-positive budget in V2.** ≤ 5 % of benign IPs (proposed).
+1. **Held-out benign kind: `api_bulk`.** It is never trained on; it tests a legitimate
+   high-rate client the model never saw. Its windows are reported as a separate benign
+   test set and are not used for model selection (the P4 rule is unchanged).
+2. **Seeds: 5** (A′1–A′5), so 20 comparison-set attackers.
+3. **Benign false-positive budget in V2: ≤ 5 % of benign IPs**, pooled.
 
 #### Threats to validity
 
 * **Synthetic clients.** Requests come from curl and `requests`, not a JS-executing browser,
   and there are no third-party origins.
+* **No HTTP/2 multiplexing for the new kinds** (§7.2.1, amendment 3): a real HTTP/2
+  browser issues its whole burst on one connection, which `limit_conn` counts per stream.
 * **External numbers are aggregates,** not traces.
 * **One site,** on a LAN with netem profiles.
 * **Oracle tuning of the baselines** (conservative for the GRU).
 * **Small n** (see the power paragraph).
 * **UA rotation.** An attacker who rotates UAs defeats (IP, UA) keying for both the GRU and
   B1. This is not tested here (R11).
+
+#### 7.2.1 Amendments made at P5b.0, before any P5b data [DECISION]
+
+Found while building, before any capture; each is disclosed here rather than silently
+applied. None changes a kind, a baseline or the verdict rule.
+
+1. **`limit_conn` counts in-flight requests, not TCP connections [FACT, nginx docs].** A
+   connection counts only while it has a request being processed, and under HTTP/2 each
+   concurrent stream counts separately. The pre-registered "one connection each, ≤ 24 < 45"
+   argument was therefore wrong; the gate instead simulates in-flight requests per IP.
+2. **SlowConn sees idle keep-alive connections [FACT, `control_plane.py:780`].** It bans an IP
+   with ≥ 8 ESTABLISHED connections and < 250 B ingress per 1 s interval for 3 intervals in
+   a row. A NAT address whose users hold keep-alive connections (nginx closes them after
+   15 s idle) can meet that during a quiet few seconds. The gate simulates it; a kind it
+   trips is a deterministic-layer false positive (R3) and is handled by the pre-registered
+   rule: reported, dropped from the comparison, not retuned.
+3. **Transport of the new browser-like kinds: HTTP/1.1 with 6 persistent connections per
+   user, on both ports.** No Python HTTP/2 client is installed (`httpx`/`h2` absent), and
+   curl cannot keep a connection across page views, so an HTTP/2 model would reconnect on
+   every view — a connection-reuse pattern no browser has, and one that would separate the
+   new benign kinds from the keep-alive attackers for the wrong reason (R4). HTTP/1.1 with
+   6 connections per host is how browsers behave on HTTP/1.1. The `protocol` feature group
+   is off, so the model cannot see the difference; HTTP/2 multiplexing is listed as a
+   threat to validity.
 
 **External sources** (checked 2026-10-16; re-check before citing in the thesis):
 * HTTP Archive, *Web Almanac 2024*, Page Weight chapter — median requests per page:
@@ -860,7 +888,7 @@ the working protocol.
 | **P3** ✓ | `ml/capture_l7.py` + `l7_webapp.py`, `nginx_l7capture.conf`, `ml/l7_traffic.py`, `ml/l7_gen.py`, `l7_dataset.py`; diverse benign (§6.2), calibrated sub-threshold + held-out attacks (§6.3); dataset manifest (§6.5) | capture tool + manifest schema; 17 tests | **PASSED 2026-10-15** (`results/2026-10-15_l7-p3-capture/`): 9012-line dataset, manifest/labels/schedule complete, all families present; R4 closed (size overlaps 5.02 vs 5.35, URI diversity now separates); R1 confirmed (slow families ~1 window vs 58–332 fast) |
 | **P4** ✓ | `ml/train_l7.py`: IP-disjoint benign + family-disjoint held-out splits, policy metrics with Clopper-Pearson CIs + FP/client-hour, exact-invariance probe gate, feature-set variants, GRU + HGB tabular baseline; **offline, CPU** | model package + card + metrics (`results/2026-10-15_l7-p4-train/`) | **PASSED 2026-10-15**: probe gate PASS; `no_size` chosen (held-out 7/8 at 0 FP vs 1/8 with size — the size shortcut confirmed and removed); GRU > baseline; candidate not promoted |
 | **P5** ✓ | Online evaluation in **shadow** (`ml/eval_l7.py`, §7.1): runs A–D, candidate vs with-size, benign soak, `XDP_GRU=0`, H1b threshold sweep | `results/2026-10-16_l7-p5-eval/` | **Done 2026-10-16. Verdict: marginal value NOT shown** — GRU 3/3 fast sub-threshold at 0 benign FP, but a static 10 rps limit matches it; P6 not proposed |
-| **P5b** | Benign-overlap re-test (§7.2, pre-registered): rate-overlapping benign kinds + hard negatives, benign admissibility gate (closes R10), baselines B0–B4; re-capture → retrain → shadow eval | §7.2 | **Proposed 2026-10-16, awaiting approval**; gates per step in §7.2 |
+| **P5b** | Benign-overlap re-test (§7.2, pre-registered): rate-overlapping benign kinds + hard negatives, benign admissibility gate (closes R10), baselines B0–B4; re-capture → retrain → shadow eval | §7.2 | **Approved 2026-10-16** (held-out `api_bulk`, 5 seeds, FP ≤ 5 %); P5b.0 in progress; gates per step in §7.2 |
 | **P6** | `ml/promote_l7.py`: install a vetted model, with hashes and metrics | promoted model | **Explicit approval;** only if P5/P5b shows value at acceptable FP |
 
 Verification threads through every phase: shadow mode (P1–P2) means the L7 engine can be
