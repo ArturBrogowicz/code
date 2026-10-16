@@ -23,12 +23,15 @@ import l7_scorer
 torch.set_num_threads(1)
 
 
-def synth_dataset(path, n_benign=6, n_attack=3, per=40):
+def synth_dataset(path, n_benign=6, n_attack=3, per=40, held_benign=0):
     """A tiny labelled dataset: benign GET a mix of paths slowly; attackers POST one
-    path fast. Enough structure for the pipeline, not for a detection claim."""
+    path fast. Enough structure for the pipeline, not for a detection claim.
+    `held_benign` adds that many held-out benign IPs (P5b decision 1)."""
     os.makedirs(path, exist_ok=True)
     benign = [{"ip": f"10.0.1.{i + 1}", "kind": "mix", "profile": "perfect"}
               for i in range(n_benign)]
+    benign += [{"ip": f"10.0.1.{n_benign + i + 1}", "kind": "api", "profile": "perfect",
+                "held_out": True} for i in range(held_benign)]
     attackers = [{"ip": f"10.0.2.{i + 1}", "family": "f_train", "held_out": False,
                   "params": {}} for i in range(n_attack - 1)]
     attackers.append({"ip": f"10.0.2.{n_attack}", "family": "f_held", "held_out": True,
@@ -89,6 +92,22 @@ class LoadSplitTest(unittest.TestCase):
         self.assertTrue((std > 0).all())
 
 
+class HeldOutBenignTest(unittest.TestCase):
+    def test_heldout_benign_is_its_own_set(self):
+        d = tempfile.mkdtemp(prefix="l7ds_")
+        self.addCleanup(shutil.rmtree, d, True)
+        synth_dataset(d, held_benign=2)
+        _, recs = T.load_records(d)
+        windows = T.group_windows(recs, 20, T.F.columns(), 3, 5)
+        sets, ipsplit = T.split(windows, seed=1)
+        held = {"10.0.1.7", "10.0.1.8"}
+        self.assertEqual(set(ipsplit["benign_heldout"]), held)
+        self.assertEqual({w["ip"] for w in sets["benign_heldout"]}, held)
+        for name in ("train", "val", "benign_test"):
+            self.assertTrue(held.isdisjoint({w["ip"] for w in sets[name]}), name)
+        self.assertTrue(held.isdisjoint(set(ipsplit["benign_test"])))
+
+
 class MetricsTest(unittest.TestCase):
     def test_clopper_pearson(self):
         self.assertEqual(T.clopper_pearson(0, 0), (0.0, 1.0))
@@ -128,6 +147,29 @@ class RunTest(unittest.TestCase):
         self.assertIn("ua_swap", report["probes"])
         card = T.write_card(out, report)
         self.assertTrue(os.path.getsize(card) > 0)
+
+    def test_heldout_benign_reported_and_baseline_saved(self):
+        d = tempfile.mkdtemp(prefix="l7ds_")
+        self.addCleanup(shutil.rmtree, d, True)
+        synth_dataset(d, held_benign=1)
+        out = tempfile.mkdtemp(prefix="l7pkg_")
+        self.addCleanup(shutil.rmtree, out, True)
+        report, _ = T.run(d, out, seed=1, epochs=1, hidden=8, layers=1,
+                          variants=("no_size",), do_baseline=True)
+        g = report["variants"]["no_size"]["gru"]
+        self.assertEqual(g["benign_heldout"]["n_groups"], 1)
+        self.assertIn("fp_per_client_hour", g["benign_heldout_fp"])
+        clf, meta = T.load_baseline(out)
+        self.assertEqual(meta["variant"], "no_size")
+        self.assertEqual(meta["columns"], T.F.columns(tuple(x for x in T.F.DEFAULT_GROUPS
+                                                            if x != "size")))
+        self.assertTrue(hasattr(clf, "predict_proba"))
+        with open(os.path.join(out, T.BASELINE_PKL), "ab") as fh:     # tamper
+            fh.write(b"x")
+        with self.assertRaises(ValueError):
+            T.load_baseline(out)
+        with open(T.write_card(out, report), encoding="utf-8") as fh:
+            self.assertIn("held-out benign kind", fh.read())
 
 
 if __name__ == "__main__":

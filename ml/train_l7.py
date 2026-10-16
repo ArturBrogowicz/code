@@ -21,6 +21,11 @@ Honest evaluation (the ML_INVESTIGATION lessons):
   * a tabular baseline (sklearn, decision 6) is trained under the identical split and
     policy, so the thesis can say whether sequence modelling earns its place.
   * feature-set variants (with/without size, uri) are compared, as CF3 did for XDP.
+  * a HELD-OUT benign kind (P5b, docs/L7_GRU_DESIGN.md §7.2 decision 1) is never trained
+    on and is reported as its own benign set; model selection still uses the ordinary
+    benign test IPs only, so the P4 selection rule is unchanged.
+  * the chosen variant's tabular baseline is saved beside the package
+    (baseline_hgb.pkl + .json) so the online evaluation can replay it (P5b baseline B4).
 
     ./venv/bin/python ml/train_l7.py DATASET_DIR --out ml/l7_models/<name> [--epochs 25]
 """
@@ -97,18 +102,21 @@ def group_windows(recs, seq_len, cols, stride, min_events, max_per_group=MAX_WIN
 
 
 def split(windows, seed, benign_bounds=(0.67, 0.83), attack_time_bounds=(0.85,)):
-    """Split windows. Benign is IP-disjoint (train/val/test). Held-out families are a
-    separate eval set. Trained attacks go to train, with a time tail in val for early
-    stopping. Returns dict of named window-lists."""
+    """Split windows. Benign is IP-disjoint (train/val/test); a held-out benign kind's
+    windows are their own set (benign_heldout), never trained or selected on. Held-out
+    families are a separate eval set. Trained attacks go to train, with a time tail in val
+    for early stopping. Returns dict of named window-lists."""
     import random
     rng = random.Random(seed)
-    benign_ips = sorted({w["ip"] for w in windows if w["cls"] == l7_dataset.BENIGN})
+    benign_ips = sorted({w["ip"] for w in windows
+                         if w["cls"] == l7_dataset.BENIGN and not w["held"]})
     rng.shuffle(benign_ips)
     a = int(len(benign_ips) * benign_bounds[0])
     b = int(len(benign_ips) * benign_bounds[1])
     ben_train, ben_val, ben_test = set(benign_ips[:a]), set(benign_ips[a:b]), set(benign_ips[b:])
 
-    sets = {k: [] for k in ("train", "val", "benign_test", "heldout", "trained_attack_test")}
+    sets = {k: [] for k in ("train", "val", "benign_test", "heldout", "trained_attack_test",
+                            "benign_heldout")}
     # time split point for trained-attack windows, per family
     atk = [w for w in windows if w["cls"] == l7_dataset.ATTACK and not w["held"]]
     tmax = {}
@@ -117,7 +125,9 @@ def split(windows, seed, benign_bounds=(0.67, 0.83), attack_time_bounds=(0.85,))
     cut = {f: (min(ts), max(ts)) for f, ts in tmax.items()}
 
     for w in windows:
-        if w["cls"] == l7_dataset.BENIGN:
+        if w["cls"] == l7_dataset.BENIGN and w["held"]:
+            sets["benign_heldout"].append(w)
+        elif w["cls"] == l7_dataset.BENIGN:
             if w["ip"] in ben_train:
                 sets["train"].append(w)
             elif w["ip"] in ben_val:
@@ -135,7 +145,8 @@ def split(windows, seed, benign_bounds=(0.67, 0.83), attack_time_bounds=(0.85,))
                 sets["val"].append(w)
                 sets["trained_attack_test"].append(w)
     return sets, {"benign_train": sorted(ben_train), "benign_val": sorted(ben_val),
-                  "benign_test": sorted(ben_test)}
+                  "benign_test": sorted(ben_test),
+                  "benign_heldout": sorted({w["ip"] for w in sets["benign_heldout"]})}
 
 
 def fit_scaling(train_windows, n_cols):
@@ -309,6 +320,11 @@ def evaluate_model(score_fn, sets, threshold, consecutive):
                              by_family=(name in ("heldout", "trained_attack_test")))
     bt = sets["benign_test"]
     out["benign_fp"] = fp_per_client_hour(bt, score_fn(bt), threshold)
+    bh = sets.get("benign_heldout") or []
+    if bh:                                   # reported, never used for selection
+        p = score_fn(bh)
+        out["benign_heldout"] = eval_set("benign_heldout", bh, p, threshold, consecutive)
+        out["benign_heldout_fp"] = fp_per_client_hour(bh, p, threshold)
     return out
 
 
@@ -329,6 +345,7 @@ def run(dataset_dir, out_dir, *, seed=0, epochs=25, hidden=64, layers=2,
 
     FP_BUDGET = 1.0        # benign false detections per client-hour a variant may have
     trained = {}
+    baselines = {}
     for variant in variants:
         cols = F.columns(GROUPS[variant])
         windows = group_windows(recs, seq, cols, stride, DEFAULT_MIN_EVENTS)
@@ -349,6 +366,7 @@ def run(dataset_dir, out_dir, *, seed=0, epochs=25, hidden=64, layers=2,
             def bfn(ws, _c=clf, _cols=cols):
                 return baseline_scores(_c, ws, _cols)
             v["baseline_hgb"] = evaluate_model(bfn, sets, threshold, consecutive)
+            baselines[variant] = (clf, cols)
         report["variants"][variant] = v
         trained[variant] = (model, cols, mean, std)
 
@@ -379,6 +397,10 @@ def run(dataset_dir, out_dir, *, seed=0, epochs=25, hidden=64, layers=2,
               "held_out_families": l7_dataset.families(manifest, True),
               "note": "L7 GRU (P4). Validate online (P5) before any promotion (P6)."})
     best = (out_dir, cols, seq)
+    if chosen in baselines:
+        report["baseline_saved"] = save_baseline(out_dir, *baselines[chosen], seq=seq,
+                                                 threshold=threshold, consecutive=consecutive,
+                                                 variant=chosen, seed=seed)
 
     # Invariance probes on the SAVED (chosen) model (HARD gate: exact transforms).
     scorer = l7_scorer.L7Scorer.load(out_dir)
@@ -387,6 +409,46 @@ def run(dataset_dir, out_dir, *, seed=0, epochs=25, hidden=64, layers=2,
     report["probes"] = l7_probes.run_probes(scorer, probe_windows[:2000], seed=seed)
     report["probe_gate_pass"] = _exact_probes_pass(report["probes"])
     return report, best
+
+
+BASELINE_PKL = "baseline_hgb.pkl"
+BASELINE_META = "baseline_hgb.json"
+
+
+def save_baseline(out_dir, clf, cols, *, seq, threshold, consecutive, variant, seed):
+    """Save the chosen variant's HGB baseline for online replay (P5b baseline B4): the
+    pickle plus a sidecar with its columns, policy and the pickle's SHA-256, which
+    load_baseline() verifies before unpickling (only ever load our own artifact)."""
+    import hashlib
+    import pickle
+
+    import sklearn
+    path = os.path.join(out_dir, BASELINE_PKL)
+    with open(path, "wb") as fh:
+        pickle.dump(clf, fh)
+    with open(path, "rb") as fh:
+        digest = hashlib.sha256(fh.read()).hexdigest()
+    meta = {"format": "l7-hgb-baseline/1", "columns": list(cols), "seq_len": int(seq),
+            "threshold": float(threshold), "consecutive": int(consecutive),
+            "variant": variant, "seed": seed, "sklearn": sklearn.__version__,
+            "sha256": digest}
+    with open(os.path.join(out_dir, BASELINE_META), "w", encoding="utf-8") as fh:
+        json.dump(meta, fh, indent=1)
+        fh.write("\n")
+    return meta
+
+
+def load_baseline(pkg_dir):
+    """(clf, meta) for a saved baseline; raises ValueError if the pickle's hash differs."""
+    import hashlib
+    import pickle
+    with open(os.path.join(pkg_dir, BASELINE_META), encoding="utf-8") as fh:
+        meta = json.load(fh)
+    with open(os.path.join(pkg_dir, BASELINE_PKL), "rb") as fh:
+        blob = fh.read()
+    if hashlib.sha256(blob).hexdigest() != meta.get("sha256"):
+        raise ValueError(f"baseline pickle in {pkg_dir} does not match its recorded SHA-256")
+    return pickle.loads(blob), meta          # our own artifact, hash-verified above
 
 
 def _obj_for(rec):
@@ -422,6 +484,11 @@ def write_card(out_dir, report):
               f"group false-detect rate {g['benign_test'].get('group_detect_rate')} "
               f"CI {g['benign_test'].get('group_detect_ci95')}"),
              f"- benign FP/client-hour: {g['benign_fp']}",
+             (f"- held-out benign kind (never trained, not used for selection): "
+              f"{g['benign_heldout'].get('n_groups', 0)} groups, "
+              f"{g['benign_heldout'].get('groups_detected')} flagged; FP/client-hour "
+              f"{g.get('benign_heldout_fp')}") if g.get("benign_heldout") else
+             "- held-out benign kind: none in this dataset",
              f"- held-out families (policy, per group): {g['heldout'].get('by_family')}",
              f"- in-distribution trained families: {g['trained_attack_test'].get('by_family')}",
              f"- exact-invariance probe gate: {report.get('probe_gate_pass')}", "",
