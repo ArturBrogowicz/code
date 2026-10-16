@@ -1168,7 +1168,7 @@ Code: `derive_tolerant()` (1ead083, test re-derives the frozen values);
 `--heuristics default|tolerant` on both runners, nginx limits rendered from the profile,
 rendered confs pass `nginx -t` (07c3794). 218 tests green.
 
-Next gate: a benign-only live run under the tolerant profile must show 0 benign bans.
+**Gate PASSED** (`results/2026-10-16_l7-p5c2-tolerant-verify/`): the benign-only live run under the tolerant profile banned 0 of 20 benign IPs, and nginx rejected nothing; the 60-asset page and both CGNAT gateways ran the full 300 s.
 
 ### 7.3.4 P5c.3 — re-capture and retrain on the full realistic mix [capture is a VM workload; retrain offline]
 
@@ -1217,7 +1217,7 @@ outcomes:
 | Step | Work | Where / ≈ time | Gate (approval) |
 |---|---|---|---|
 | **P5c.1** ✓ | Baseline confirmation: default heuristics vs realistic benign; document bans + benign profile | VM, ~5 min | **Done 2026-10-16** (`results/2026-10-16_l7-p5c-baseline/`): 3 benign bans as predicted; R17 found; two decisions needed (§7.3.2.1) |
-| **P5c.2** (built) | Re-calibrate thresholds (`control_plane.py`, relaxed nginx conf, `THRESHOLDS`); update pinned tests; re-run admissibility gate | Offline | Tests + ruff; gate shows realistic benign admissible; you review the frozen profile |
+| **P5c.2** ✓ (gate PASSED) | Re-calibrate thresholds (`control_plane.py`, relaxed nginx conf, `THRESHOLDS`); update pinned tests; re-run admissibility gate | Offline | Tests + ruff; gate shows realistic benign admissible; you review the frozen profile |
 | **P5c.3** | Capture full realistic mix under relaxed profile; retrain GRU + HGB | VM capture ~10 min; retrain offline | Dataset complete; probe gate PASS; benign-burst FP reported |
 | **P5c.4** | Shadow eval (5 seeds + soak), relaxed daemon; baselines B0–B4; pre-registered verdict | VM ~55 min | Verdict by `ml/p5b_report.py`; published campaign |
 | **P6** | Promotion + (if favoured) making the relaxed profile the deployed default | — | Explicit approval; only on "marginal value shown" |
