@@ -16,6 +16,8 @@ Measured from the daemon's own events (ban_events.jsonl) and its recorded engine
   * flood suppression / age-gating while a volumetric flood runs;
   * H1b: a static-rps-threshold sweep on the recorded requests — could a lower threshold
     match the GRU without false-banning benign?
+  * P5b (§7.2): baselines B0-B4 on the same recording (ml/l7_baselines), written to
+    baselines.json after summary.json; ml/p5b_report.py applies the pre-registered verdict.
 
 This IS a VM workload (namespaces, XDP via the real daemon, nginx+gunicorn, traffic,
 one short SYN flood). Run with sudo. `--plan` prints the config and exits offline.
@@ -36,6 +38,7 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "ml"))
 import capture_l7
+import l7_baselines
 import l7_traffic
 
 import l7_dataset
@@ -168,6 +171,8 @@ def analyse(events, manifest, t0):
 
     benign_ips = [ip for ip, e in ip_map.items() if e.get("class") == l7_dataset.BENIGN]
     return {"by_family": families,
+            "would_ban_ips": sorted(would),
+            "det_banned_ips": {ip: v[0] for ip, v in sorted(det_ban.items())},
             "benign_would_ban_ips": dict(benign_would),
             "benign_would_ban_count": int(sum(benign_would.values())),
             "benign_ips_total": len(benign_ips),
@@ -243,6 +248,7 @@ def main():
     ap.add_argument("--no-flood", action="store_true", help="omit the mid-run SYN flood")
     ap.add_argument("--mix", choices=("p5", "overlap"), default="p5",
                     help="benign mix: P5's 12 kinds, or + the P5b overlap kinds (§7.2)")
+    ap.add_argument("--hgb", help="package dir with baseline_hgb.* for B4 (default: --model)")
     ap.add_argument("--plan", action="store_true", help="print config and exit (offline)")
     args = ap.parse_args()
 
@@ -316,6 +322,15 @@ def main():
           f"({a['benign_would_ban_ips']})")
     print(f"  GRU totals: {a['gru_totals']}  suppress_on: {a['suppress_on_events']}")
     print(f"[+] Wrote {os.path.join(out_dir, 'summary.json')}")
+    try:                                  # never at the cost of the summary above
+        bl = l7_baselines.compute(out_dir, args.hgb or args.model)
+        with open(os.path.join(out_dir, "baselines.json"), "w", encoding="utf-8") as fh:
+            json.dump(bl, fh, indent=1)
+            fh.write("\n")
+        print(f"[+] Wrote baselines.json (families {sorted(bl['families'])}); "
+              f"benign shaped by nginx: {[ip for ip in bl['shaped_ips'] if ip_map.get(ip, {}).get('class') == 'benign']}")
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"[!] baselines not computed ({exc}); rerun ml/l7_baselines.py {out_dir}")
     return 0
 
 

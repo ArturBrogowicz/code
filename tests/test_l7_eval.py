@@ -63,6 +63,9 @@ class AnalyseTest(unittest.TestCase):
         self.assertEqual(fam["slowloris"]["would_banned"], 0)                      # GRU misses it (R1)
         self.assertEqual(a["gru_totals"]["windows"], 40)
         self.assertEqual(a["suppress_on_events"], 1)
+        # P5b: the per-IP sets the verdict compares (§7.2)
+        self.assertEqual(a["would_ban_ips"], ["10.0.2.1", "10.0.2.2"])
+        self.assertEqual(a["det_banned_ips"], {"10.0.2.3": "l4_slowconn"})
 
     def test_benign_would_ban_is_fp(self):
         events = [{"kind": "l7_would_ban", "ip": "10.0.1.1", "t_poll": self.t0 + 50.0},
