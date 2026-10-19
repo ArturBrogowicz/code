@@ -67,6 +67,13 @@ int xdp_ddos_mitigation(struct xdp_md *ctx) {
         return XDP_DROP;                // banned IP: drop before anything else
     }
 
+    // Reject malformed IPv4 (IHL < 5 words / 20 bytes): otherwise ip->ihl*4
+    // would place the L4 header INSIDE the IP header and SYN/FIN flags would be
+    // read from the wrong bytes (audit §2a). Done AFTER the blacklist drop so a
+    // banned source cannot evade the block with a crafted IHL.
+    if (ip->ihl < 5)
+        return XDP_PASS;
+
     u16 tot_len   = bpf_ntohs(ip->tot_len);
     u32 ihl_bytes = ip->ihl * 4;
     u8  proto     = ip->protocol;
