@@ -38,7 +38,7 @@ running anything.
 Environment variables of `test_distributed_suite.py`. Every default of the suite's own
 settings reproduces its historical behaviour (pinned by `tests/test_suite_harness.py`).
 The daemon switches at the end of the table are read by `control_plane.py`; `XDP_GRU`
-changed its default on 2026-10-19.
+changed its default on 2026-10-19 (see "Defaults changed on 2026-10-19" below).
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -84,6 +84,45 @@ therefore equal only with `ATTACK_DURATION` ≥ 26 s for UDP / ACK / fragmentati
 scenarios any value above ≈ 16 s works (30 s for the HTTP flood alone). The report
 warns when an attack ran longer than `ATTACK_DURATION`, and the achieved exposure is
 recorded per scenario (`Exposure_s`).
+
+## Defaults changed on 2026-10-19
+
+The second independent audit (`/root/project_analysis_v2/REPORT.md`, root-only, SHA-256
+`4d37f1dfc6b5f7dd4167afcffa4628f4c9a7713d39eccd7ba6f06d7ae438d3c9`; §10.5, §12 lead 15,
+§13 G-16/G-17/G-18/G-23, §14.1 item 1) led to four changes, made together. They change
+what a default run executes, so a run recorded before them is not a like-for-like
+baseline for one recorded after.
+
+| Change | Before | Now | Why |
+|---|---|---|---|
+| `XDP_GRU` | 1 | **0** | 0 true bans and 1 false ban (legit 10.0.1.6, P1 smoke `20261014T152428Z`, p = 0.999, 3 hits) in 71 ban-event logs [FACT, recounted]; ≈ 0.065 wrongful 300-s bans per client-hour at least [INFERENCE: one ban in ≈ 15.5 client-hours, audit §6.1]. `XDP_GRU=1` opts in; `GRU_ONLY=1` implies it |
+| L7 syslog sink in the nginx confs | `access_log syslog:…` in `nginx.conf` and `nginx_unprotected.conf`, always | only in the copy the L7 runners serve (`ml/eval_l7.py`, `ml/smoke_l7.py`) | with `L7_SHADOW=0` no socket is bound, so nginx logged one `[warn] send() to syslog failed` per request (868 in one second of the P1 flood burst). The file `access_log` and the `l7json` format stay |
+| XDP `ihl` check | none | `ihl < 5` → `XDP_PASS`, after the blacklist drop | G-17, in part: the IPv6 / 802.1Q bypass and the `doff`, fragment and `tot_len` handling stay open |
+| XDP `telemetry_map` | per-CPU hash, 100 k entries | per-CPU **LRU** hash, 100 k entries | G-18: once a spoofed-source flood had filled the map, new sources went uncounted by the per-IP L4 rules |
+
+What this means for earlier results:
+
+* The 38 daemon logs of 2026-10-12 to 2026-10-14 (EXP-2a, the full-suite runs, the R1 and
+  P1 smokes) predate the switch: their `start` events have no `xdp_gru` field and
+  those runs had the XDP-fed GRU on. To repeat one with the current harness, export
+  `XDP_GRU=1`. The campaign runner passes it through, but records it only in the daemon's
+  `start` event, not in `campaign.json`.
+* The 27 logs of 2026-10-15/16 (the L7 runners pin it) recorded `xdp_gru: false` and are
+  unaffected by that switch. Those runs served `nginx.conf` with the socket sink, as the
+  runners still do. The other 6 of the 71 logs are empty (the modes without a daemon).
+* A hand-started suite with `L7_SHADOW=1` no longer gets the sink: add the line where the
+  marker is (`docs/L7_GRU_DESIGN.md` 4.3).
+* Not changed: `L7_SHADOW` stays 0 and `HEURISTIC_PROFILE` stays `default` (audit §10.5).
+
+Evidence when the change was made [FACT]: 235 unit tests pass (16 new: the `XDP_GRU` default, its
+opt-in and the `GRU_ONLY` coupling, the `xdp_gru` field of the `start` event, and the sink
+in the confs and in what the runners write); `nginx -t` on copies of the confs under a
+temp dir reports "syntax is ok" for both default confs and for the rendered ones.
+**Not run**, because each changes system state and needs approval: loading the XDP
+program (BPF verifier / bcc; the two XDP commits are cherry-picks whose original messages
+claim a verifier pass [CLAIMED]); a spoofed-source scenario with more than 100 k sources
+for the LRU map; `nginx -t` on the real confs; a smoke run with `L7_SHADOW=1` to confirm the
+runners still get their socket sink.
 
 ## Outputs of a run (`RESULTS_DIR`)
 
