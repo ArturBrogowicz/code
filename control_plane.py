@@ -76,10 +76,12 @@ MAX_GRU_FLOWS_PER_POLL = 2000
 # R.U.D.Y. log detector) is disabled so the GRU engine can be validated end-to-
 # end on its own. Default off → production behaviour is unchanged.
 GRU_ONLY = os.environ.get("GRU_ONLY", "0") == "1"
-# The XDP-fed GRU (flow_map snapshots → GRU). XDP_GRU=0 skips its feed and drain, for
-# evaluation arms that must exclude it (it false-banned a legit client during the P1
-# smoke, docs/L7_GRU_DESIGN.md §2). Default on → production behaviour is unchanged.
-XDP_GRU = os.environ.get("XDP_GRU", "1") == "1"
+# The XDP-fed GRU (flow_map snapshots → GRU). OFF by default since the 2026-10-19 audit
+# (G-16): across 71 ban-event logs it made 0 true bans and 1 false ban (legit 10.0.1.6,
+# P1 smoke, docs/L7_GRU_DESIGN.md §2). XDP_GRU=1 opts in and runs the feed and the drain
+# as before. GRU_ONLY=1 implies it (that mode exists to test this engine alone) unless
+# XDP_GRU is set explicitly.
+XDP_GRU = os.environ.get("XDP_GRU", "1" if GRU_ONLY else "0") == "1"
 L4_POLL_INTERVAL = 1.0
 SYN_FLOOD_THRESHOLD = 200
 UDP_FLOOD_THRESHOLD = 5000

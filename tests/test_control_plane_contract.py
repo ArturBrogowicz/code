@@ -8,6 +8,7 @@ console line that test_distributed_suite.py parses keeps its format.
 import ast
 import os
 import sys
+import types
 import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -125,6 +126,36 @@ class ControlPlaneContractTest(unittest.TestCase):
                  and isinstance(n.value.func, ast.Name)
                  and n.value.func.id == "drain_inference_results"]
         self.assertEqual(len(calls), 1)         # exactly one call: the guarded one above
+
+    def _switches(self, **env):
+        """(GRU_ONLY, XDP_GRU) as control_plane.py's own two assignments evaluate under `env`.
+        The module cannot be imported offline, so the statements run against a stub `os`."""
+        names = ("GRU_ONLY", "XDP_GRU")
+        stmts = [n for n in self.tree.body if isinstance(n, ast.Assign)
+                 and getattr(n.targets[0], "id", None) in names]
+        self.assertEqual([s.targets[0].id for s in stmts], list(names))     # source order
+        scope = {"os": types.SimpleNamespace(environ=env)}
+        exec(compile(ast.Module(stmts, []), "control_plane.py", "exec"), scope)  # noqa: S102
+        return scope["GRU_ONLY"], scope["XDP_GRU"]
+
+    def test_xdp_gru_is_off_by_default(self):
+        # Audit G-16 (2026-10-19): 0 true bans and 1 false ban in 71 ban-event logs.
+        self.assertEqual(self._switches(), (False, False))
+        self.assertEqual(self._switches(XDP_GRU="1"), (False, True))       # opt-in still works
+        self.assertEqual(self._switches(XDP_GRU="0"), (False, False))
+
+    def test_gru_only_still_runs_the_xdp_gru(self):
+        # GRU_ONLY=1 disables every other engine. With the XDP-fed GRU off as well, nothing
+        # could ban, so the isolation mode implies it unless XDP_GRU says otherwise.
+        self.assertEqual(self._switches(GRU_ONLY="1"), (True, True))
+        self.assertEqual(self._switches(GRU_ONLY="1", XDP_GRU="0"), (True, False))
+
+    def test_start_event_records_the_xdp_gru_setting(self):
+        # No campaign file records XDP_GRU, so the daemon's start event is the provenance.
+        starts = [c for c in self.emit_calls if c.args and getattr(c.args[0], "value", None)
+                  == "start"]
+        self.assertEqual(len(starts), 1)
+        self.assertIn("xdp_gru", {k.arg for k in starts[0].keywords})
 
     def test_tolerant_profile_matches_the_frozen_derivation(self):
         # P5c.2 (§7.3.3): HEURISTIC_PROFILE=tolerant overrides exactly the two daemon

@@ -35,8 +35,10 @@ running anything.
 
 ## Settings
 
-Environment variables of `test_distributed_suite.py`. Every default reproduces the
-historical behaviour of the suite (pinned by `tests/test_suite_harness.py`).
+Environment variables of `test_distributed_suite.py`. Every default of the suite's own
+settings reproduces its historical behaviour (pinned by `tests/test_suite_harness.py`).
+The daemon switches at the end of the table are read by `control_plane.py`; `XDP_GRU`
+changed its default on 2026-10-19.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -52,7 +54,8 @@ historical behaviour of the suite (pinned by `tests/test_suite_harness.py`).
 | `RESULTS_DIR` | new directory under `RESULTS_ROOT` | where this run's results go |
 | `RESULTS_ROOT` | `/var/tmp/ddos_campaigns` | survives reboots, unlike `/tmp`; outside the repository |
 | `ONLY_SCENARIOS` | all | e.g. `4` or `4,7,8,9` |
-| `GRU_ONLY` | 0 | 1 = only the GRU may ban (isolation tests) |
+| `GRU_ONLY` | 0 | 1 = only the XDP-fed GRU may ban (isolation tests); implies `XDP_GRU=1` unless that is set explicitly |
+| `XDP_GRU` | 0 | 1 = also run the XDP-fed GRU (`flow_map` → GRU feed and drain). Off by default since 2026-10-19; recorded in the daemon's `start` event |
 
 Operating points (a variable of the same name overrides a value):
 
@@ -113,7 +116,7 @@ at the run directory; standalone default `/var/log/ddos/ban_events.jsonl`; `""` 
 
 | `kind` | Fields |
 |---|---|
-| `start` | `pid`, `backend`, `gru_only`, `interface`, `model`, `model_sha256`, `scaler_sha256`, `xdp_sha256`, `thresholds` |
+| `start` | `pid`, `backend`, `gru_only`, `xdp_gru`, `interface`, `model`, `model_sha256`, `scaler_sha256`, `xdp_sha256`, `thresholds` |
 | `ban` | `ip`, `engine`, `reason`, `backend`, `enforced`, `ttl_s`, `value`, `threshold`; plus `bytes` (`l4_slowconn`), `error_ratio` (`l7_rate`), `hits` (`gru`) |
 | `unban` | `ip`, `backend`, `age_s` |
 | `suppress_on`, `suppress_off` | `syn_delta`, `pkt_delta`: the GRU pause during volumetric floods (observed once per 1-s poll) |

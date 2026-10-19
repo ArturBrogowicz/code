@@ -104,7 +104,7 @@ shadow mode to never-ban and guarded-start.
 * `l7_scorer.py`: model packages and batched scoring.
 * `l7_engine.py`: the shadow engine, gating, recording format and `build_engine`.
 * `control_plane.py`: wiring (`L7_MODEL`, `L7_RECORD`, and the `XDP_GRU` switch,
-  default on).
+  default on in P2; **default off since 2026-10-19**, see §2).
 * `ml/replay_l7.py`: deterministic offline replay and the features CSV.
 * `ml/l7_probes.py`: the invariance-probe harness.
 * `ml/smoke_l7.py --p2`: the gate runner.
@@ -182,11 +182,16 @@ not hold; the thesis should state this.
   the same `ban_ip()`, which enforces in XDP.
 * **The GRU no longer reads `flow_map`** (target state). The XDP→GRU feed and its F-45
   cap defect (`ML_INVESTIGATION.md` §2.9) are retired once the L7 GRU is promoted (P6).
-  * P2 adds the switch: `XDP_GRU=0` skips that feed and its drain. It defaults to
-    **on**, so production behaviour is unchanged, and contract tests pin the guards.
-    Evaluation arms (P2 gate, P5) run with it off: the XDP-fed GRU false-banned a
+  * P2 adds the switch: `XDP_GRU=0` skips that feed and its drain. It defaulted to
+    **on**, so production behaviour was unchanged, and contract tests pin the guards.
+    Evaluation arms (P2 gate, P5) ran with it off: the XDP-fed GRU false-banned a
     legit client in the P1 smoke.
-  * Flipping the default before P6 is your call.
+  * [DECISION, 2026-10-19] The default is now **off**. The second audit's G-16: across
+    71 ban-event logs the XDP-fed GRU made 0 true bans and 1 false ban (that legit
+    client). `XDP_GRU=1` opts back in; `GRU_ONLY=1` implies it unless `XDP_GRU` is set
+    explicitly. Contract tests pin the default and the guards. Runs whose `start` event
+    has no `xdp_gru` field (the suite campaigns of 2026-10-12/13, the P1 smoke) ran with
+    it on (`docs/EVALUATION.md`, "Defaults changed on 2026-10-19").
   * `flow_map` may stay for the L4 rules or be simplified later; that is a separate
     change.
 * **TLS/HTTP2 become visible.** Today clients use `http://` only (REPORT §4.3); the L7

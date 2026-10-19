@@ -12,6 +12,9 @@ and a long-User-Agent probe, and measures what only a live run can show:
   * truncation — datagrams that arrived cut short (counted in the daemon);
   * ingest CPU — the control_plane python process's CPU while ingesting.
 
+The XDP-fed GRU is off here as well: XDP_GRU defaults to 0 since 2026-10-19 (it had
+false-banned a legit client in the first P1 smoke), and this gate does not set it.
+
 --p2 — the P2 gate (the shadow scoring engine end to end), additionally:
 
   * records the engine's exact input stream (L7_RECORD) and replays it offline
@@ -24,8 +27,8 @@ and a long-User-Agent probe, and measures what only a live run can show:
     0.5) unless --model is given. This exercises scoring, the decision policy and
     the probes; its scores say nothing about detection (no L7 model is trained
     before P4);
-  * runs with XDP_GRU=0, so the XDP-fed GRU's known false positive cannot
-    confound the run;
+  * pins XDP_GRU=0 explicitly (the daemon's default as well, see above), so the
+    XDP-fed GRU's known false positive cannot confound the run;
   * writes windows.csv (one feature summary per scored window) for the feature
     review, and the invariance-probe report.
 
