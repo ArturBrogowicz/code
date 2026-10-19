@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Online evaluation of the L7 GRU in SHADOW mode (docs/L7_GRU_DESIGN.md §7, §8; Phase P5).
 
-Brings up the deployed stack — the multi-path origin behind the real nginx.conf, with the
-control_plane daemon running `XDP_GRU=0` and the L7 shadow engine loaded with a model
+Brings up the deployed stack — the multi-path origin behind the real nginx.conf (a copy with
+the L7 socket sink rendered in; the default conf has none), with the control_plane daemon
+running `XDP_GRU=0` and the L7 shadow engine loaded with a model
 package (`L7_MODEL`) — and drives it with the calibrated sub-threshold + held-out + slow
 attacks and diverse benign clients (ml/l7_traffic, ml/l7_gen, reused from P3). The L7 GRU
 NEVER bans here (shadow): the deterministic engines do the real banning, and we measure
@@ -50,7 +51,7 @@ DETERMINISTIC = {"l4_syn", "l4_volumetric", "l4_slowconn", "l4_lowsyn", "l7_rate
 
 class EvalRunner(capture_l7.Capture):
     """Capture runner, but the server stack also starts the daemon (XDP_GRU=0, L7 shadow
-    with a model), and nginx uses the real nginx.conf (socket + file), as deployed."""
+    with a model), and nginx serves the deployed nginx.conf plus the L7 socket sink."""
 
     def __init__(self, args, out_dir, model_path):
         super().__init__(args, out_dir)
@@ -60,6 +61,13 @@ class EvalRunner(capture_l7.Capture):
         self.daemon_log = os.path.join(out_dir, "daemon.log")
         self.daemon_proc = None
         self.heuristics = getattr(args, "heuristics", "default")
+
+    def write_nginx_conf(self, socket_path):
+        """The conf this run serves: nginx.conf as deployed, with the profile's limits
+        (P5c.2) and the sink for the daemon's socket, which the default conf lacks (G-23)."""
+        return capture_l7.write_deployed_conf(
+            os.path.join(self.out_dir, f"nginx_{self.heuristics}.conf"),
+            self.heuristics, socket_path)
 
     def start_stack(self, S):
         subprocess.run(["mkdir", "-p", "/var/log/nginx"], capture_output=True, check=False)
@@ -72,19 +80,16 @@ class EvalRunner(capture_l7.Capture):
                             "-out", "/etc/ssl/certs/nginx-selfsigned.crt",
                             "-subj", "/C=PL/ST=Masovian/L=Warsaw/O=PoC/CN=twojadomena.pl"],
                            capture_output=True, check=False)
-        # Multi-path origin (so URIs carry signal), then the REAL nginx.conf (socket+file).
+        # Multi-path origin (so URIs carry signal), then nginx.conf as deployed (file log)
+        # plus the socket sink: the default conf has none (audit G-23), and this run's daemon
+        # binds the socket, so nginx and the daemon take its path from the same place.
         self.procs.append(("gunicorn", S.run(
             S._srv([S.PYTHON_VENV, "-m", "gunicorn", "--chdir", REPO,
                     "--workers", "4", "--threads", "4", "-b", "0.0.0.0:8080",
                     capture_l7.WEBAPP]), ns=S.SERVER_NS, bg=True)))
         time.sleep(1.5)
-        conf = os.path.join(REPO, "nginx.conf")
-        if self.heuristics != "default":         # P5c.2: same conf, the profile's limits
-            with open(conf, encoding="utf-8") as fh:
-                text = capture_l7.render_limits(fh.read(), self.heuristics)
-            conf = os.path.join(self.out_dir, f"nginx_{self.heuristics}.conf")
-            with open(conf, "w", encoding="utf-8") as fh:
-                fh.write(text)
+        socket_path = os.environ.get("L7_SOCKET_PATH", l7_ingest.DEFAULT_SOCKET_PATH)
+        conf = self.write_nginx_conf(socket_path)
         self.procs.append(("nginx", S.run(S._srv(["nginx", "-c", conf]),
                                           ns=S.SERVER_NS, bg=True)))
         time.sleep(1.0)
@@ -93,7 +98,7 @@ class EvalRunner(capture_l7.Capture):
         env = ["env", "L7_SHADOW=1", "XDP_GRU=0", f"L7_MODEL={self.model_path}",
                f"HEURISTIC_PROFILE={self.heuristics}",
                f"BAN_EVENTS={self.events_path}", f"L7_RECORD={self.record_path}",
-               f"L7_SOCKET_PATH={os.environ.get('L7_SOCKET_PATH', '/run/ddos_l7.sock')}"]
+               f"L7_SOCKET_PATH={socket_path}"]
         cmd = ["ip", "netns", "exec", S.SERVER_NS, *env, S.PYTHON_VENV, "-u", S.CONTROL_PLANE]
         log_fd = open(self.daemon_log, "w")      # noqa: SIM115 (lives for the daemon's life)
         self.daemon_proc = subprocess.Popen(cmd, stdout=log_fd, stderr=subprocess.STDOUT)

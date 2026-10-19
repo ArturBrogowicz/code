@@ -123,6 +123,15 @@ def control_plane_pid():
     return None
 
 
+def write_nginx_conf(out_dir, socket_path):
+    """The conf this run starts nginx from: nginx.conf as deployed plus the sink for the
+    daemon's socket, which the default conf lacks (audit G-23). Returns its path."""
+    sys.path.insert(0, os.path.join(REPO, "ml"))
+    import capture_l7
+    return capture_l7.write_deployed_conf(os.path.join(out_dir, "nginx_l7sink.conf"),
+                                          "default", socket_path)
+
+
 def make_untrained_package(path):
     """A seeded, UNTRAINED GRU package of production size (hidden 64, 2 layers,
     20-step windows), threshold 0.5: for pipeline mechanics only."""
@@ -261,6 +270,8 @@ def main():
 
     S.LEGIT_COUNT = args.legit
     S.BOTNET_COUNT = args.bots
+    # The suite starts nginx from S.NGINX_CONF (read when the stack comes up).
+    S.NGINX_CONF = write_nginx_conf(out_dir, os.environ["L7_SOCKET_PATH"])
     access_log = ACCESS_LOG
 
     report = {"out_dir": out_dir, "mode": "p2" if args.p2 else "p1",

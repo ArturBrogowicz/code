@@ -38,6 +38,8 @@ import l7_dataset
 
 DEFAULT_OUT = "/var/tmp/ddos_l7_datasets"
 CAPTURE_CONF = os.path.join(REPO, "nginx_l7capture.conf")
+DEPLOYED_CONF = os.path.join(REPO, "nginx.conf")
+L7_SINK_MARKER = "# L7-SYSLOG-SINK"      # stands for the sink line in the deployed confs
 WEBAPP = "l7_webapp:app"
 GEN = os.path.join(REPO, "ml", "l7_gen.py")
 NETEM_PROFILES = ["perfect", "broadband", "mobile_3g", "mobile_bad"]
@@ -99,6 +101,36 @@ def render_conf(access_log_path, heuristics="default"):
     if old not in conf:
         raise RuntimeError(f"{CAPTURE_CONF} missing expected access_log line")
     return render_limits(conf.replace(old, new), heuristics)
+
+
+def render_l7_sink(conf, socket_path):
+    """A deployed nginx conf with the syslog access_log for the daemon's L7 socket written
+    in at its marker line. The default confs carry no sink (audit G-23): with no daemon bound
+    to the socket nginx logs one "[warn] send() to syslog failed" per request, so only a runner
+    that starts the daemon with L7_SHADOW=1 adds it. Exactly one marker line must occur and
+    everything else is untouched."""
+    if not re.fullmatch(r"/[\w./-]+", socket_path):
+        raise ValueError(f"unusable L7 socket path {socket_path!r}")
+    lines = conf.splitlines(keepends=True)
+    hits = [i for i, line in enumerate(lines) if line.strip().startswith(L7_SINK_MARKER)]
+    if len(hits) != 1:
+        raise RuntimeError(f"nginx conf: expected exactly one {L7_SINK_MARKER!r} line, "
+                           f"found {len(hits)}")
+    i = hits[0]
+    indent = lines[i][:len(lines[i]) - len(lines[i].lstrip())]
+    lines[i] = f"{indent}access_log syslog:server=unix:{socket_path},nohostname,tag=l7 l7json;\n"
+    return "".join(lines)
+
+
+def write_deployed_conf(path, heuristics, socket_path):
+    """Write the deployed nginx.conf as a runner with the L7 shadow engine serves it: the
+    `heuristics` profile's limits (P5c.2; unchanged for `default`) plus the L7 sink.
+    Returns `path`."""
+    with open(DEPLOYED_CONF, encoding="utf-8") as fh:
+        text = render_l7_sink(render_limits(fh.read(), heuristics), socket_path)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    return path
 
 
 L7_NS_RE = re.compile(r"^[ab]_10_0_\d{1,3}_\d{1,3}$")

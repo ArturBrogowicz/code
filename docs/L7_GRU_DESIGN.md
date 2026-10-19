@@ -96,8 +96,9 @@ summaries) at P4 to test whether sequence modelling earns its place.
 **P1 implementation map.** `l7_ingest.py` (parser, `(IP, ua_h)` window store,
 `SyslogDatagramReader`); shadow thread in `control_plane.py` (`l7_shadow_monitor`, off
 unless `L7_SHADOW=1`, never bans); `l7json` format + socket sink in both nginx confs
-(both pass `nginx -t`); `tests/test_l7_ingest.py` (16) and two contract tests that pin
-shadow mode to never-ban and guarded-start.
+(both pass `nginx -t`; the sink line left the default confs on 2026-10-19, see §4.3);
+`tests/test_l7_ingest.py` (16) and two contract tests that pin shadow mode to never-ban
+and guarded-start.
 
 **P2 implementation map (details in §5.7).**
 * `l7_features.py`: features, window matrices, scaling and summaries (numpy only).
@@ -283,6 +284,17 @@ log is lost when no reader is attached — so it is not considered.)
 ### 4.3 [DECISION] Unix-domain datagram syslog, with file as the durable sink
 * `access_log syslog:server=unix:/run/ddos_l7.sock,nohostname,tag=l7 l7json;` plus a second
   `access_log` to a file for evidence.
+* **Where that line lives [DECISION, 2026-10-19, audit G-23].** P1 put it in both default
+  confs. With `L7_SHADOW=0` (the default) nothing binds the socket, so nginx logged
+  `[warn] send() to syslog failed while logging request` for every request: 880 such
+  lines in `error.log.3.gz`, 868 of them in the single second 2026-10-14 15:38:51 (the P1
+  flood burst) [FACT, re-counted 2026-10-19]. `nginx.conf` and `nginx_unprotected.conf` now
+  hold the file `access_log`, the `l7json` format and a marker line instead. The runners
+  that start the daemon with `L7_SHADOW=1` (`ml/eval_l7.py`, `ml/smoke_l7.py`) serve a
+  copy in which `capture_l7.render_l7_sink()` replaces the marker with the line above, for
+  the daemon's `L7_SOCKET_PATH`; a static test pins both halves. To run the shadow engine
+  by hand, put the line where the marker is: after the `l7json` format, because nginx
+  rejects it before ("unknown log format").
 * The daemon binds the socket, raises `SO_RCVBUF`, and reads datagrams in a thread that
   replaces `tail_nginx_logs`.
 * **Why:** under an L7 flood the worker must never block on a slow consumer; a datagram
