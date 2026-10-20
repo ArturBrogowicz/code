@@ -1,0 +1,31 @@
+scenario,mode,period,runs,n,ok,success_pct,ci_lo,ci_hi,per_run_pct
+Distributed SYN Flood,xdp,before,1,31,31,100.000,100.000,100.000,100
+Distributed SYN Flood,xdp,during,1,24,24,100.000,100.000,100.000,100
+Distributed SYN Flood,xdp,after,1,70,70,100.000,100.000,100.000,100
+Distributed Low & Slow SYN,xdp,before,1,31,31,100.000,100.000,100.000,100
+Distributed Low & Slow SYN,xdp,during,1,42,42,100.000,100.000,100.000,100
+Distributed Low & Slow SYN,xdp,after,1,70,70,100.000,100.000,100.000,100
+Distributed UDP Flood,xdp,before,1,29,29,100.000,100.000,100.000,100
+Distributed UDP Flood,xdp,during,1,110,110,100.000,100.000,100.000,100
+Distributed UDP Flood,xdp,after,1,68,68,100.000,100.000,100.000,100
+Distributed HTTP Flood,xdp,before,1,30,30,100.000,100.000,100.000,100
+Distributed HTTP Flood,xdp,during,1,19,19,100.000,100.000,100.000,100
+Distributed HTTP Flood,xdp,after,1,70,70,100.000,100.000,100.000,100
+Distributed ACK Flood,xdp,before,1,31,31,100.000,100.000,100.000,100
+Distributed ACK Flood,xdp,during,1,110,110,100.000,100.000,100.000,100
+Distributed ACK Flood,xdp,after,1,68,68,100.000,100.000,100.000,100
+Distributed IP Fragmentation Flood,xdp,before,1,29,29,100.000,100.000,100.000,100
+Distributed IP Fragmentation Flood,xdp,during,1,116,116,100.000,100.000,100.000,100
+Distributed IP Fragmentation Flood,xdp,after,1,71,71,100.000,100.000,100.000,100
+Distributed Slowloris,xdp,before,1,26,26,100.000,100.000,100.000,100
+Distributed Slowloris,xdp,during,1,41,41,100.000,100.000,100.000,100
+Distributed Slowloris,xdp,after,1,72,72,100.000,100.000,100.000,100
+Distributed R.U.D.Y.,xdp,before,1,31,31,100.000,100.000,100.000,100
+Distributed R.U.D.Y.,xdp,during,1,37,37,100.000,100.000,100.000,100
+Distributed R.U.D.Y.,xdp,after,1,74,74,100.000,100.000,100.000,100
+Distributed Yo-Yo,xdp,before,1,31,31,100.000,100.000,100.000,100
+Distributed Yo-Yo,xdp,during,1,20,20,100.000,100.000,100.000,100
+Distributed Yo-Yo,xdp,after,1,70,70,100.000,100.000,100.000,100
+Multi-Vector Distributed Attack,xdp,before,1,30,30,100.000,100.000,100.000,100
+Multi-Vector Distributed Attack,xdp,during,1,114,114,100.000,100.000,100.000,100
+Multi-Vector Distributed Attack,xdp,after,1,66,66,100.000,100.000,100.000,100
