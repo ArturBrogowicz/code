@@ -188,7 +188,8 @@ not hold; the thesis should state this.
     Evaluation arms (P2 gate, P5) ran with it off: the XDP-fed GRU false-banned a
     legit client in the P1 smoke.
   * [DECISION, 2026-10-19] The default is now **off**. The second audit's G-16: across
-    71 ban-event logs the XDP-fed GRU made 0 true bans and 1 false ban (that legit
+    the 39 distinct ban-event logs up to 2026-10-19 (the audit first counted 71 files,
+    including raw copies) the XDP-fed GRU made 0 true bans and 1 false ban (that legit
     client). `XDP_GRU=1` opts back in; `GRU_ONLY=1` implies it unless `XDP_GRU` is set
     explicitly. Contract tests pin the default and the guards. Runs whose `start` event
     has no `xdp_gru` field (the suite campaigns of 2026-10-12/13, the P1 smoke) ran with
