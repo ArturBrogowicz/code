@@ -1,5 +1,13 @@
 # Design & implementation plan: moving the GRU to Nginx request logs (L7)
 
+**Latest (2026-10-20).** The track closed on 2026-10-16 with the pre-registered verdict *no
+advantage* at P5c.4; P6 (promotion) is not proposed. An independent review on 2026-10-19
+re-ran every published analysis, verdict report and model of this track and reproduced them
+bit for bit, so no verdict is retracted. It also found that several results mean less than
+their wording says; those points are collected in "Post-hoc audit notes" below, with their
+evidence in `results/2026-10-20_audit-derived/` and corrections to campaign READMEs in the
+errata of `results/README.md`. The status blocks that follow are as written on their dates.
+
 **Status (2026-10-15):** approved. **P1 (ingestion, shadow mode) is complete.** Its gate, a
 3-minute smoke capture on the VM, **PASSED** (`results/2026-10-14_l7-p1-smoke/`):
 * In the GRU's sub-threshold regime the socket transport is clean: 0 real drops, 0
@@ -84,6 +92,49 @@ abuse stays an open gap (R1)** the access-log GRU cannot close. **P5c.1 is done*
 (`l7_rate`) and both CGNAT gateways (`l4_slowconn`, the 12-user one after only two users had
 started). It also found **R17**: the shadow GRU flags clients when the server is busy,
 because it uses server-side timing. Two decisions precede P5c.2/P5c.3 (§7.3.2.1).
+
+**Post-hoc audit notes (2026-10-19/20).** Written after the results, to qualify what they show.
+They change no pre-registered rule, run or number above or in §7. Evidence:
+`results/2026-10-20_audit-derived/` (regenerate with its `regenerate.sh`).
+1. **Harm was never measured.** §7 admits a scenario only if it causes measurable harm. In P5c.4
+   benign success was 1.0 and the median server time 2.0 ms (p95 10-42 ms) with and without a
+   fast attacker active, in all five runs. The families are labelled clients, not demonstrated
+   threats, so P5/P5c show that a model can classify them, not that it mitigates anything.
+2. **The model does not read the order of the requests.** Shuffling the rows of every scored
+   window (same per-request features) flags the same IPs in every run (20/20 attackers, 11 benign
+   flags, as recorded); 60 of 29 171 windows (0.21 %) change their decision, none at IP level
+   (`ml/order_ablation.py`). Single windows can move by up to 0.98, so the effect is negligible
+   rather than exactly zero. The P4 statement that sequence modelling "earns its place" is not
+   supported by this model on this data.
+3. **"GRU 7/8 vs HGB 1/8" (P5c.3) is one attacker IP.** The held-out `credstuff` client changes its
+   User-Agent on every request and so counts as 6 (IP, UA) groups: the GRU catches all 6, the HGB
+   none, and the other two held-out groups come out the same (`padded_flood` caught by both,
+   `slowread` by neither). In P4 the same client is 6/6 vs 5/6 groups (GRU 7/8, HGB 6/8). The online
+   comparison excludes this family (the error-ratio rule bans it), and there the GRU and the HGB
+   both catch 20/20 attackers.
+4. **Units.** "20 attackers" and "100 benign IPs" are 4 and 20 roles in 5 seeds. Evaluation seed 1
+   reuses the capture's per-client plans (P3 and P5 runs A-C; P5c.3 and P5c.4 run A1), so those runs
+   are partly in-sample, and the McNemar tests treat replicates of one role as independent.
+5. **Netem confound.** Attackers have no netem profile in any capture or run; benign clients are
+   spread over four. The GRU flagged a 60-asset browser exactly when its profile was `perfect`
+   (4 of 4 such runs, 0 of 6 others). No probe tests RTT invariance.
+6. **Conformance was not checked.** §7.2 rule 5 requires measured per-kind rates to match the
+   spec; `api_bulk`, specified at 15-20 rps, ran at 2.5-4.4 rps in four of five runs.
+7. **"The dilemma, measured"** is true for per-IP peak and connection-count rules. The evasion side
+   holds by construction (attacks calibrated at most 45 rps against a tolerant rule of 108 rps);
+   per-(IP, UA) sustained-rate rules and the tabular model escape it (20/20 at 2 benign flags).
+8. **The security-cost table promised in §7.3.5 was never produced.** The tolerant SlowConn
+   threshold (180) is above the socket counts of the suite's Slowloris (8) and R.U.D.Y. (10)
+   scenarios, so the tolerant profile probably no longer bans them [inference from the code,
+   unmeasured]. The 6-socket example in §7.3.5 ("that the default SlowConn caught") is wrong:
+   6 < 8, and the slow families were caught by nothing in P5.
+9. **Ingest cost.** §4.4 quotes about 200 k lines/s per core (5 µs per line) from a benchmark of a
+   synthetic parser. The deployed path (`parse_l7_line`, `normalise`, window store) costs about
+   16 µs per line (about 61 k lines/s per core): head-room over the 31 k lines/s peak is about 2x,
+   not 6x.
+10. **The P1 false ban** is not shown to be a stalled-flow false positive (`results/README.md`,
+    errata): it came 56 s after the burst's bans, from a loss-free client, and the event holds no
+    flow.
 
 **Confirmed decisions (§10).** (1) Scope: GRU owns L7 sub-threshold abuse only. (2)
 Transport: Unix-domain datagram syslog primary + durable file sink. (3) Keying: **IP +
