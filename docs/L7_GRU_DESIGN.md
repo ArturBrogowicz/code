@@ -103,8 +103,9 @@ They change no pre-registered rule, run or number above or in §7. Evidence:
 2. **The model does not read the order of the requests.** Shuffling the rows of every scored
    window (same per-request features) flags the same IPs in every run (20/20 attackers, 11 benign
    flags, as recorded); 60 of 29 171 windows (0.21 %) change their decision, none at IP level
-   (`ml/order_ablation.py`). Single windows can move by up to 0.98, so the effect is negligible
-   rather than exactly zero. The P4 statement that sequence modelling "earns its place" is not
+   (`ml/order_ablation.py`). Reversing the order also catches 20/20 and drops 2 of the 11 benign
+   flags (the two 60-asset browsers, one run each). Single windows can move by up to 0.98, so the
+   effect is negligible rather than exactly zero. The P4 statement that sequence modelling "earns its place" is not
    supported by this model on this data.
 3. **"GRU 7/8 vs HGB 1/8" (P5c.3) is one attacker IP.** The held-out `credstuff` client changes its
    User-Agent on every request and so counts as 6 (IP, UA) groups: the GRU catches all 6, the HGB

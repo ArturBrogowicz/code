@@ -24,11 +24,13 @@ CPU forward pass (one torch thread); on another CPU the last digits can differ.
 1. **Order is not what the model reads** (`order_ablation.md`). Replaying the five P5c.4 runs and the
    soak through the published P5c.3 model, with the requests of every scored window shuffled
    (same per-request features, order destroyed) flags the same IPs in every run: 20 of 20
-   attackers and 11 benign flags, as recorded. Reversing the order flags 20 of 20 and 9.
-   60 of 29 171 windows (0.21 %) change their over/under-threshold decision when shuffled, 47
-   (0.16 %) when reversed; none changes an IP-level decision. Single windows can still move a
-   lot (the maximum |dp| per run is in the JSON, up to 0.98), and the mean is 0.003. So order has a
-   negligible effect on this model's decisions here; it is not literally zero per window.
+   attackers and 11 benign flags, as recorded. Reversing the order also catches 20 of 20 and flags
+   9 benign: the two 60-asset browsers lose their flag (10.0.1.16 in runA2, 10.0.1.15 in runA3)
+   and no IP gains one. At window level, 60 of 29 171 (0.21 %) change their over/under-threshold
+   decision when shuffled and 47 (0.16 %) when reversed. Single windows can still move a lot (the
+   maximum |dp| per run is in the JSON, up to 0.98), and the mean is 0.003. So order has a
+   negligible effect on this model's decisions here: none on the attackers, 2 of the 11 benign
+   flags under reversal. It is not literally zero.
 2. **The attackers do not hurt anyone** (`l7_harm_p5c4.md`). Benign success is 1.0 and the median
    server time 2.0 ms in all five runs both while a fast attacker is active and while none is
    (p95 10-42 ms in both). `docs/L7_GRU_DESIGN.md` section 7 admits a scenario only if it causes
@@ -62,4 +64,5 @@ CPU forward pass (one torch thread); on another CPU the last digits can differ.
   R4 use the same three `PROFILE_SEED`s and EXP-2a was unseeded, so those are not nine
   independent blocks.
 * "The GRU does not use order" becomes: order has a negligible effect on its decisions (0.21 % of
-  windows flip, none at IP level).
+  windows flip when shuffled and no IP-level decision changes; reversing the order drops 2 of
+  the 11 benign flags).
