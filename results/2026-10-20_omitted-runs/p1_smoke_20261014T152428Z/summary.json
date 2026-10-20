@@ -1,0 +1,22 @@
+{
+  "out_dir": "/var/tmp/ddos_l7_smoke/20261014T152428Z",
+  "duration_s": 180.0,
+  "legit": 6,
+  "bots": 4,
+  "socket": "/run/ddos_l7.sock",
+  "shadow_ready": true,
+  "file_lines_delta": 5105,
+  "socket_received_delta": 1741,
+  "estimated_drops": 3364,
+  "drop_pct": 65.896,
+  "truncated_total": 0,
+  "parse_errors_total": 0,
+  "parsed_total": 1750,
+  "received_total": 1750,
+  "active_keys": 5,
+  "distinct_ips": 5,
+  "full_windows": 5,
+  "daemon_cpu_pct_mean": 5.6,
+  "daemon_cpu_pct_max": 96.9,
+  "cpu_n_samples": 89
+}
