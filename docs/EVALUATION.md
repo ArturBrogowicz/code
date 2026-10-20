@@ -269,7 +269,10 @@ quoted for them. An effect of the size of R3's limits-only difference (−6 pp, 
 
 `run_campaign.py` refuses to start on uncommitted changes to tracked files (results must
 map to a commit; `--allow-dirty` overrides and is recorded) or while namespaces or
-processes of an earlier run remain.
+processes of an earlier run remain. The L7 runners (`ml/capture_l7.py`, `ml/eval_l7.py`,
+`ml/smoke_l7.py`) do the same since 2026-10-20 and record `git` (commit, branch, `dirty`,
+`dirty_files`) in the manifest or summary of the run, next to the older `git_commit` key.
+`--plan` does not check; runs published before that date carry the commit only.
 
 ## Tests
 

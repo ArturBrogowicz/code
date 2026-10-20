@@ -19,6 +19,9 @@ the system (offline review).
 
     sudo ./venv/bin/python ml/capture_l7.py --duration 300 --benign 12 --seed 1
     ./venv/bin/python ml/capture_l7.py --plan --duration 300 --benign 12 --seed 1
+
+A run refuses to start on uncommitted changes to tracked files (--allow-dirty overrides);
+the manifest records the commit, branch and dirty state.
 """
 import argparse
 import hashlib
@@ -161,10 +164,42 @@ def cleanup_l7_topology():
     return len(ns), len(links)
 
 
-def git_commit():
-    res = subprocess.run(["git", "-C", REPO, "rev-parse", "HEAD"], check=False,
-                         capture_output=True, text=True)
-    return res.stdout.strip() or None
+def _git(repo, *args):
+    """Output of `git <args>` in `repo`, or None. Marked safe for this call: the runners run
+    as root in a checkout owned by the user, which git refuses otherwise."""
+    try:
+        res = subprocess.run(["git", "-c", f"safe.directory={repo}", "-C", repo, *args],
+                             capture_output=True, text=True, timeout=10, check=False)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return res.stdout.rstrip("\n") if res.returncode == 0 else None
+
+
+def git_commit(repo=REPO):
+    return _git(repo, "rev-parse", "HEAD") or None
+
+
+def git_state(repo=REPO):
+    """The code a run used, in the schema of the suite's provenance.json (audit G-14): commit,
+    branch, dirty (uncommitted changes to tracked files) and the first 50 such files. Empty
+    when `repo` is not a git checkout."""
+    dirty = _git(repo, "status", "--porcelain", "--untracked-files=no")
+    return {"commit": _git(repo, "rev-parse", "HEAD") or None,
+            "branch": _git(repo, "rev-parse", "--abbrev-ref", "HEAD") or None,
+            "dirty": None if dirty is None else bool(dirty),
+            "dirty_files": dirty.splitlines()[:50] if dirty else []}
+
+
+def require_clean_tree(allow_dirty, repo=REPO):
+    """git_state(), or exit when tracked files have uncommitted changes (as
+    eval/run_campaign.py does): a recorded run must name the code it ran. Returns the state
+    to record in the run's manifest."""
+    state = git_state(repo)
+    if state["dirty"] and not allow_dirty:
+        sys.exit("[-] uncommitted changes to tracked files:\n    "
+                 + "\n    ".join(state["dirty_files"])
+                 + "\n    commit them (a run must map to a commit) or pass --allow-dirty")
+    return state
 
 
 def build_plan(args):
@@ -331,6 +366,9 @@ def main():
     ap.add_argument("--mix", choices=("p5", "overlap"), default="p5",
                     help="benign mix: P5's 12 kinds, or + the P5b overlap kinds (§7.2)")
     ap.add_argument("--plan", action="store_true", help="print the plan and exit (offline)")
+    ap.add_argument("--allow-dirty", action="store_true",
+                    help="run although tracked files have uncommitted changes (the manifest "
+                         "then records them)")
     args = ap.parse_args()
 
     if args.plan:
@@ -340,6 +378,7 @@ def main():
         sys.exit("[-] Must run as root (namespaces). Use sudo. (Use --plan for offline review.)")
     if not os.access(os.path.join(REPO, "venv/bin/python"), os.X_OK):
         sys.exit("[-] No venv at venv/bin/python in this checkout.")
+    git0 = require_clean_tree(args.allow_dirty)
 
     global S
     import test_distributed_suite as S
@@ -380,7 +419,7 @@ def main():
 
     ip_map = l7_dataset.build_ip_map(benign, attackers)
     provenance = {
-        "git_commit": git_commit(), "t0_wall": t0, "host": os.uname().nodename,
+        "git_commit": git0["commit"], "git": git0, "t0_wall": t0, "host": os.uname().nodename,
         "duration_s": args.duration, "n_benign": len(benign), "n_attackers": len(attackers),
         "benign_mix": args.mix, "heuristics": args.heuristics,
         "operating_point": os.environ.get("OPERATING_POINT", "default"),

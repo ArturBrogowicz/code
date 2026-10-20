@@ -40,6 +40,9 @@ The deterministic rules still run and ban the attack bots (expected).
 
     sudo ./venv/bin/python ml/smoke_l7.py [--duration 180] [--legit 6] [--bots 4]
     sudo ./venv/bin/python ml/smoke_l7.py --p2 [--model PKG]
+
+A run refuses to start on uncommitted changes to tracked files (--allow-dirty overrides);
+summary.json records the commit, branch and dirty state.
 """
 import argparse
 import itertools
@@ -241,10 +244,16 @@ def main():
     ap.add_argument("--out", default=DEFAULT_OUT, help="results directory root")
     ap.add_argument("--p2", action="store_true", help="run the P2 gate (see module doc)")
     ap.add_argument("--model", help="with --p2: a model package instead of the untrained one")
+    ap.add_argument("--allow-dirty", action="store_true",
+                    help="run although tracked files have uncommitted changes (the summary "
+                         "then records them)")
     args = ap.parse_args()
 
     if os.geteuid() != 0:
         sys.exit("[-] Must run as root (namespaces + XDP). Use sudo.")
+    sys.path.insert(0, os.path.join(REPO, "ml"))
+    import capture_l7
+    git0 = capture_l7.require_clean_tree(args.allow_dirty)
     if args.p2 and args.bots < 2:
         sys.exit("[-] --p2 needs >= 2 bots (one half bursts, the other floods).")
 
@@ -275,6 +284,7 @@ def main():
     access_log = ACCESS_LOG
 
     report = {"out_dir": out_dir, "mode": "p2" if args.p2 else "p1",
+              "git_commit": git0["commit"], "git": git0,
               "duration_s": args.duration, "legit": args.legit, "bots": args.bots,
               "socket": os.environ["L7_SOCKET_PATH"], "model": model_path,
               "model_untrained": bool(args.p2 and not args.model)}

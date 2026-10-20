@@ -26,6 +26,9 @@ one short SYN flood). Run with sudo. `--plan` prints the config and exits offlin
     sudo ./venv/bin/python ml/eval_l7.py --model results/2026-10-15_l7-p4-train/model \
         --duration 360 --benign 12 --seed 1
     sudo ./venv/bin/python ml/eval_l7.py --model <pkg> --soak --duration 600   # H3 benign soak
+
+A run refuses to start on uncommitted changes to tracked files (--allow-dirty overrides);
+summary.json records the commit, branch and dirty state.
 """
 import argparse
 import collections
@@ -252,11 +255,12 @@ def threshold_sweep(record_path, manifest, t0, window_s=1.0, thresholds=(10, 15,
             "sweep": rows}
 
 
-def build_report(out_dir, manifest, t0, model_path, args):
+def build_report(out_dir, manifest, t0, model_path, args, git=None):
     events = read_events(os.path.join(out_dir, "ban_events.jsonl"))
+    git = git or capture_l7.git_state()
     rep = {"out_dir": out_dir, "model": model_path, "soak": bool(args.soak),
            "duration_s": args.duration, "seed": args.seed, "t0_wall": t0,
-           "git_commit": capture_l7.git_commit(),
+           "git_commit": git["commit"], "git": git,
            "model_sha256": capture_l7.sha256(os.path.join(model_path, "config.json")),
            "analysis": analyse(events, manifest, t0),
            "threshold_sweep": threshold_sweep(os.path.join(out_dir, "l7_record.jsonl"),
@@ -287,6 +291,9 @@ def main():
                     help="benign mix: P5's 12 kinds, or + the P5b overlap kinds (§7.2)")
     ap.add_argument("--hgb", help="package dir with baseline_hgb.* for B4 (default: --model)")
     ap.add_argument("--plan", action="store_true", help="print config and exit (offline)")
+    ap.add_argument("--allow-dirty", action="store_true",
+                    help="run although tracked files have uncommitted changes (the summary "
+                         "then records them)")
     args = ap.parse_args()
 
     if not os.path.isdir(args.model):
@@ -315,6 +322,7 @@ def main():
 
     if os.geteuid() != 0:
         sys.exit("[-] Must run as root. Use sudo. (Use --plan for offline review.)")
+    git0 = capture_l7.require_clean_tree(args.allow_dirty)
 
     global S
     import test_distributed_suite as S
@@ -356,7 +364,7 @@ def main():
                                                     "benign_only": args.benign_only},
                                         notes=note)
     l7_dataset.write_dataset_manifest(os.path.join(out_dir, "manifest.json"), manifest)
-    report = build_report(out_dir, manifest, t0 or 0.0, args.model, args)
+    report = build_report(out_dir, manifest, t0 or 0.0, args.model, args, git0)
     report["ready"] = ready
     with open(os.path.join(out_dir, "summary.json"), "w", encoding="utf-8") as fh:
         json.dump(report, fh, indent=1, default=str)
