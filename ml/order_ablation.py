@@ -220,7 +220,10 @@ def main(argv=None):
     ap.add_argument("--out", help="write the report as JSON")
     ap.add_argument("--md", help="write the report as Markdown")
     args = ap.parse_args(argv)
-    import l7_scorer  # torch is imported only here
+    import torch  # imported only here, like l7_scorer
+
+    import l7_scorer
+    torch.set_num_threads(1)  # as the daemon: one thread, so the output is reproducible
     rep = ablate(l7_scorer.L7Scorer.load(args.package), args.runs, args.seed)
     rep["package"]["path"] = args.package
     text = to_markdown(rep)
