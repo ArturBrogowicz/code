@@ -223,6 +223,41 @@ independently. Fisher's exact test on pooled requests is secondary: it ignores c
 by run and client. With three runs per mode the intervals only show the spread of those
 runs; thesis claims should rest on ≥ 10 interleaved runs per mode (review §6.3).
 
+**Read those intervals as descriptive below about ten blocks (audit G-06).** A bootstrap
+over 3 blocks has only 10 distinct resamples, so its "95 % interval" is roughly the range
+of the block means, and the pooled Fisher p treats the ~100 requests of one run as
+independent. Neither is inference. The tool for that is `eval/run_level_stats.py`:
+
+    ./venv/bin/python eval/run_level_stats.py results/<campaign> [--reference unprotected]
+
+It takes the run as the unit, pairs modes by `PROFILE_SEED` block, and reports the mean
+block difference with its t-interval, the paired t p, the exact sign-flip p, the share of
+blocks with the sign of the mean and the number of blocks that would give 80 % power. With
+n paired blocks the smallest attainable sign-flip p is 2 / 2^n (0.25 for n = 3).
+Campaigns without shared seeds (the EXP-2a import) are compared unpaired and carry no
+decision.
+
+The decision rule is fixed in the tool, in the commit that added it, before any 10-block
+data exist: a paired contrast is *supported* iff it has ≥ 10 blocks, the 95 % t-interval
+of the mean block difference excludes 0, and ≥ 80 % of the blocks have the sign of the
+mean; otherwise it is *not shown*, which is not evidence of no effect. On the published
+campaigns it gives (exact ok / n per run, so up to 0.6 pp from the rounded figures of the
+audit report §9.3):
+
+| Campaign | Contrast (during the flood) | Mean block difference | 95 % t-interval | Sign-flip p |
+|---|---|---|---|---|
+| R3 (3 blocks) | daemon − unprotected | +21.0 pp | [−5.5, +47.4] | 0.25 |
+| R3 | limits only − unprotected | −6.4 pp | [−33.8, +21.0] | 0.50 |
+| R4 (3 blocks, 30 s) | daemon − unprotected | +28.0 pp | [−15.3, +71.3] | 0.25 |
+| R4 | limits only − unprotected | −34.9 pp | [−85.4, +15.7] | 0.25 |
+
+None is significant at run level, and 3 blocks cannot be by the sign-flip test. What is
+consistent is the direction: the daemon modes served 100 % in every one of the 9 knee runs
+(EXP-2a, R3, R4) and were above unprotected in each. Those are not 9 independent blocks: R3
+and R4 reuse the same three `PROFILE_SEED`s and EXP-2a was unseeded, so no sign-test p is
+quoted for them. An effect of the size of R3's limits-only difference (−6 pp, block SD
+11 pp) would need about 26 paired blocks; one of R4's size, about 5.
+
 ## Side effects of a suite run (root)
 
 * `pkill` of `control_plane.py`, gunicorn, nginx, hping3, wrk and `_dist_*` scripts;
