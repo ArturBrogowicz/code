@@ -141,6 +141,9 @@ class AblateTest(unittest.TestCase):
         self.assertTrue(s["decisions_identical"])
         self.assertTrue(s["windows_aligned"])
         self.assertEqual((s["flip_rate"], s["mean_abs_dp"], s["max_abs_dp"]), (0.0, 0.0, 0.0))
+        self.assertEqual(s["windows_flipped"], 0)
+        self.assertEqual(rep["pooled"]["shuffled"]["windows_flipped"], 0)
+        self.assertEqual(rep["windows"], rep["runs"][0]["windows"])
 
     def test_an_order_only_scorer_is_caught_out(self):
         rep = OA.ablate(AscendingScorer(col="log_rlen"), [self.run_dir])
@@ -152,6 +155,9 @@ class AblateTest(unittest.TestCase):
         # Only the attacker's windows flip (the benign client is never flagged), and they are
         # about half of all scored windows.
         self.assertGreaterEqual(modes["shuffled"]["flip_rate"], 0.4)
+        flipped = modes["shuffled"]["windows_flipped"]
+        self.assertEqual(flipped, round(modes["shuffled"]["flip_rate"] * rep["runs"][0]["windows"]))
+        self.assertEqual(rep["pooled"]["shuffled"]["windows_flipped"], flipped)
         self.assertEqual(rep["verdict"], "order-sensitive")
         self.assertEqual(rep["pooled"]["shuffled"]["comparison_flagged"], 0)
 

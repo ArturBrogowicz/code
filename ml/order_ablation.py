@@ -155,7 +155,9 @@ def ablate_run(inner, run_dir, seed=DEFAULT_SEED):
                 d = np.abs(p - base_p)
                 entry["mean_abs_dp"] = _r(d.mean())
                 entry["max_abs_dp"] = _r(d.max())
-                entry["flip_rate"] = _r(((p > thr) != (base_p > thr)).mean())
+                flips = (p > thr) != (base_p > thr)
+                entry["windows_flipped"] = int(flips.sum())
+                entry["flip_rate"] = _r(flips.mean())
                 entry["p_correlation"] = _r(np.corrcoef(p, base_p)[0, 1]
                                             if p.std() > 0 and base_p.std() > 0 else None)
         modes[mode] = entry
@@ -178,13 +180,16 @@ def ablate(inner, run_dirs, seed=DEFAULT_SEED):
     pooled = {m: {"comparison_flagged": sum(r["modes"][m]["comparison_flagged"] for r in runs),
                   "benign_flagged": sum(r["modes"][m]["benign_flagged"] for r in runs)}
               for m in MODES}
+    for m in MODES[1:]:                      # the replays that differ from the recorded one
+        pooled[m]["windows_flipped"] = sum(r["modes"][m].get("windows_flipped", 0) for r in runs)
+    total_windows = sum(r["windows"] for r in runs)
     v = verdict(runs)
     return {"format": FORMAT, "seed": seed,
             "package": {"weights_sha256": getattr(inner, "sha256", ""), "seq_len": inner.seq_len,
                         "threshold": inner.threshold, "consecutive": inner.consecutive},
             "order_free_max_flip": ORDER_FREE_MAX_FLIP,
             "comparison_attackers": sum(r["comparison_attackers"] for r in runs),
-            "benign_ips": sum(r["benign_ips"] for r in runs),
+            "benign_ips": sum(r["benign_ips"] for r in runs), "windows": total_windows,
             "runs": runs, "pooled": pooled, "verdict": v}
 
 
@@ -205,9 +210,13 @@ def to_markdown(rep):
     p = rep["pooled"]
     pooled = "; ".join(f"{m} {p[m]['comparison_flagged']}/{rep['comparison_attackers']} "
                        f"attackers, {p[m]['benign_flagged']} benign flags" for m in MODES)
+    flips = "; ".join(f"{m}: {p[m]['windows_flipped']} of {rep['windows']} windows "
+                      f"({100 * p[m]['windows_flipped'] / max(rep['windows'], 1):.2f} %) change "
+                      f"their decision" for m in MODES[1:])
     verdict_line = (f"**Verdict: {rep['verdict']}** (order-free = identical flagged IPs in "
                     f"every run and a window flip rate below {rep['order_free_max_flip']}).")
-    lines += ["", f"Pooled: {pooled}", "", verdict_line]
+    lines += ["", f"Pooled: {pooled}", "", f"Against the recorded replay, {flips}.", "",
+              verdict_line]
     return "\n".join(lines) + "\n"
 
 
