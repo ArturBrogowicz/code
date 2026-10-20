@@ -114,15 +114,48 @@ What this means for earlier results:
   marker is (`docs/L7_GRU_DESIGN.md` 4.3).
 * Not changed: `L7_SHADOW` stays 0 and `HEURISTIC_PROFILE` stays `default` (audit §10.5).
 
-Evidence when the change was made [FACT]: 235 unit tests pass (16 new: the `XDP_GRU` default, its
-opt-in and the `GRU_ONLY` coupling, the `xdp_gru` field of the `start` event, and the sink
-in the confs and in what the runners write); `nginx -t` on copies of the confs under a
-temp dir reports "syntax is ok" for both default confs and for the rendered ones.
-**Not run**, because each changes system state and needs approval: loading the XDP
-program (BPF verifier / bcc; the two XDP commits are cherry-picks whose original messages
-claim a verifier pass [CLAIMED]); a spoofed-source scenario with more than 100 k sources
-for the LRU map; `nginx -t` on the real confs; a smoke run with `L7_SHADOW=1` to confirm the
-runners still get their socket sink.
+**Verification, 2026-10-19/20** [FACT unless tagged; raw output under `/var/tmp`, not
+versioned: `ddos_verify_20261020/`, `ddos_l7_smoke/20261020T073029Z`,
+`ddos_l7_eval/20261020T073642Z`]. All live runs were made on a clean tree (the XDP program,
+`control_plane.py` and the confs as committed) on the namespace testbed.
+
+* **Unit tests:** 242 pass, 23 of them new (the `XDP_GRU` default, its opt-in and the
+  `GRU_ONLY` coupling, the `xdp_gru` field of the `start` event, the sink in the confs and in
+  what the runners write, and the offline helpers of `bench/xdp_test_run.py`).
+* **`nginx -t`**, as root with the real paths and `listen 80/443` inside a throw-away network
+  namespace: successful for both default confs and for the three confs the runners write.
+* **Kernel, `bench/xdp_test_run.py`** (load without attach, then `BPF_PROG_TEST_RUN`;
+  `--reference` is the program of 3086e27): 28 of 28 checks. The verifier accepts both
+  programs (1896 B translated each). `ihl` 4 is passed on uncounted (the reference counts it
+  into garbage flows); a blacklisted source with `ihl` 4 is still dropped. After 150 000
+  distinct sources the current table holds 99 988 entries, counts the latest source and a
+  newcomer; the reference stops at 100 000 and counts neither. Reading the full table takes
+  0.4 s, and 2.3-4.2 s while another thread adds sources, with no duplicates.
+* **`ml/smoke_l7.py` (P1 gate, `L7_SHADOW=1`, 180 s):** nginx served the rendered
+  `nginx_l7sink.conf`; the daemon ran without `XDP_GRU` (`start.xdp_gru: false`), received
+  and parsed 2 563 lines with 0 parse errors and 0 truncation, and banned all four bots with
+  `l7_rate`. The runner's verdict is REVIEW (steady-regime gap 13 against its tolerance of 5).
+  That is lag, not loss: the gap's minima stay at 7 277-7 283 from 68 s to the end of the
+  run, and its saw-tooth is the 5-s `l7_shadow` report interval times about 2.4 requests/s
+  (about 12 lines). The published P1 smoke got 3 only because its window edges fell on
+  similar phases. The flood burst dropped 7 399
+  of 9 407 lines in its interval (74 % overall of 9 816, against 40 % of 2 190 in the
+  published run), and nginx logged 7 276 `send() to syslog failed` warnings in those two
+  seconds, one per dropped datagram: the sink-off default avoids them, shadow mode does not.
+* **`ml/eval_l7.py --benign-only --duration 60 --benign 4`:** nginx served
+  `nginx_default.conf`; 113 of the 119 lines of the file log had reached the daemon at its
+  last 5-s report (lag), with 0 parse errors, 0 syslog failures, 35 windows scored and no
+  would-ban.
+* **Suite scenario 4 (HTTP flood) in default mode** (`L7_SHADOW=0`, `XDP_GRU` unset): 5 of 5
+  bots banned by `l7_rate`, TTM median 0.455 s (0.680 s in the unreplicated baseline run of
+  `main`, 2026-10-19 15:32), no false positive, legit 15 of 15, and 0 `send() to syslog
+  failed` among 4 152 `limit_req` rejections in nginx's error log. One run each: no claim on
+  TTM.
+
+Still open: the full ten-scenario suite on this change set against that baseline run; a live
+`hping3 --rand-source` flood with the daemon polling (the kernel map semantics and the
+userspace read are covered above, the daemon under a real flood is not); and the remaining G-17
+checks (`doff`, fragments, IPv6 / 802.1Q, `tot_len`), which the program still lacks.
 
 ## Outputs of a run (`RESULTS_DIR`)
 
