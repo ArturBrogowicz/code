@@ -44,10 +44,12 @@ CPU forward pass (one torch thread); on another CPU the last digits can differ.
    specified at 15-20 rps, ran at a 60-s mean of 2.5-4.4 rps in the four runs where it had a mobile
    profile and 11.5 rps with `broadband`. Realised rates of the fast attackers: 11-25 rps sustained
    against a nominal 20-45.
-5. **At run level no knee contrast is significant** (`run_level_*.md`): R3 daemon - unprotected
-   +21.0 pp [-5.5, +47.4], limits only -6.4 pp [-33.8, +21.0]; R4 +28.0 [-15.3, +71.3] and
-   -34.9 [-85.4, +15.7]. Three blocks cannot give a sign-flip p below 0.25 (`docs/EVALUATION.md`,
-   "Statistics"). EXP-2a had no shared seeds and is compared unpaired.
+5. **No knee contrast meets the decision rule** (`run_level_*.md`; it needs at least 10 paired
+   blocks, `docs/EVALUATION.md`, "Statistics"). R3, daemon - unprotected: +21.0 pp [-5.5, +47.4],
+   limits only -6.4 pp [-33.8, +21.0]; R4: +28.0 [-15.3, +71.3] and -34.9 [-85.4, +15.7]. Three
+   paired blocks cannot give a sign-flip p below 0.25. EXP-2a had no shared seeds, so it is
+   compared unpaired and only describes: +10.2 [+2.7, +17.6] and limits only -37.6 [-44.6, -30.7]
+   (Welch p 0.028 and 0.001; the exact permutation p cannot go below 0.10 with 3 runs per arm).
 6. **One GRU ban in 40 distinct logs** (`events_census.md`): the false ban of legit 10.0.1.6 in
    `../2026-10-20_omitted-runs/p1_smoke_20261014T152428Z/`. Bans in total: `l7_rate` 234,
    `l4_volumetric` 59, `l4_syn` 39, `l4_slowconn` 32, `l4_lowsyn` 15, `gru` 1.
