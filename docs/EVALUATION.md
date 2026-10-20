@@ -283,6 +283,20 @@ since importing the daemon attaches XDP), the suite's settings and bookkeeping (
 suite is imported with its atexit cleanup disabled), the analysis, and the published
 EXP-2a numbers.
 
+The daemon's live rules are tested by running their real code against fakes
+(`tests/daemon_harness.py`, `tests/test_daemon_rules.py`; audit G-29). The harness executes
+`control_plane.py`'s functions and the bodies of its two loops (the L3/L4 telemetry monitor, the
+Nginx-log loop) and `tail_nginx_error_logs` in a private namespace, with a fake clock, a fake
+`subprocess` and dict-like BPF tables; it skips every top-level statement that would attach XDP,
+load the model or start a thread. The tests pin each rule's thresholds and their strictness
+(`>` against `>=`), the resets, the TTL, the iptables commands, the `GRU_ONLY` switch and the
+tolerant profile, and they document the known weaknesses as tests named `..._weakness`: a
+steady trickle that defeats SlowConn (G-19), a failed iptables call that still counts as a
+ban, and a double ban that leaves a rule behind (F-18). They describe what the rules do, not
+what they should do; a change to a rule changes its test. Mutating the thresholds of a copy of
+the daemon makes at least one test fail for each mutation tried but one, which is equivalent
+(`HEURISTIC_MIN_REQUESTS` is redundant under the one-second clamp).
+
 ## Campaigns recorded before this harness
 
 `eval/import_legacy_campaign.py` converts the prototype-era campaigns of
