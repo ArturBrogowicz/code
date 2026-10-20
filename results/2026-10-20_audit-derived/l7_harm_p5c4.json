@@ -1,0 +1,90 @@
+{
+ "view": "harm",
+ "runs": [
+  {
+   "run": "runA1",
+   "attackers_active": {
+    "n": 10033,
+    "p50_ms": 2.0,
+    "p95_ms": 27.0,
+    "p99_ms": 74.0,
+    "success": 1.0
+   },
+   "no_attacker": {
+    "n": 5675,
+    "p50_ms": 2.0,
+    "p95_ms": 32.0,
+    "p99_ms": 77.0,
+    "success": 1.0
+   }
+  },
+  {
+   "run": "runA2",
+   "attackers_active": {
+    "n": 7005,
+    "p50_ms": 2.0,
+    "p95_ms": 22.0,
+    "p99_ms": 306.0,
+    "success": 1.0
+   },
+   "no_attacker": {
+    "n": 8381,
+    "p50_ms": 2.0,
+    "p95_ms": 42.0,
+    "p99_ms": 272.0,
+    "success": 1.0
+   }
+  },
+  {
+   "run": "runA3",
+   "attackers_active": {
+    "n": 4070,
+    "p50_ms": 2.0,
+    "p95_ms": 15.0,
+    "p99_ms": 54.0,
+    "success": 1.0
+   },
+   "no_attacker": {
+    "n": 11004,
+    "p50_ms": 2.0,
+    "p95_ms": 12.0,
+    "p99_ms": 51.0,
+    "success": 1.0
+   }
+  },
+  {
+   "run": "runA4",
+   "attackers_active": {
+    "n": 7641,
+    "p50_ms": 2.0,
+    "p95_ms": 10.0,
+    "p99_ms": 45.0,
+    "success": 1.0
+   },
+   "no_attacker": {
+    "n": 10432,
+    "p50_ms": 2.0,
+    "p95_ms": 13.0,
+    "p99_ms": 49.0,
+    "success": 1.0
+   }
+  },
+  {
+   "run": "runA5",
+   "attackers_active": {
+    "n": 7002,
+    "p50_ms": 2.0,
+    "p95_ms": 13.0,
+    "p99_ms": 46.0,
+    "success": 1.0
+   },
+   "no_attacker": {
+    "n": 7389,
+    "p50_ms": 2.0,
+    "p95_ms": 20.0,
+    "p99_ms": 72.0,
+    "success": 1.0
+   }
+  }
+ ]
+}

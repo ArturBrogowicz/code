@@ -1,0 +1,4 @@
+scenario,mode,reference,period,design,blocks,mean_diff_pp,ci_lo,ci_hi,t_p,perm_p,same_sign,decision,blocks_for_80pct_power
+Distributed HTTP Flood,xdp,unprotected,during,paired by PROFILE_SEED (3 blocks),3,20.9531,-5.5330,47.4392,0.0765,0.2500,1.0000,too few blocks (3 < 10),5
+Distributed HTTP Flood,iptables,unprotected,during,paired by PROFILE_SEED (3 blocks),3,20.9531,-5.5330,47.4392,0.0765,0.2500,1.0000,too few blocks (3 < 10),5
+Distributed HTTP Flood,nginxlimits,unprotected,during,paired by PROFILE_SEED (3 blocks),3,-6.3742,-33.7606,21.0122,0.4221,0.5000,0.6667,too few blocks (3 < 10),26

@@ -1,0 +1,515 @@
+{
+ "view": "rates",
+ "runs": [
+  {
+   "run": "runA1",
+   "seed": 1,
+   "clients": [
+    {
+     "ip": "10.0.1.13",
+     "role": "browser_page",
+     "netem": "broadband",
+     "requests": 308,
+     "peak_1s": 33,
+     "max_60s_mean_rps": 1.9
+    },
+    {
+     "ip": "10.0.1.14",
+     "role": "browser_page",
+     "netem": "mobile_3g",
+     "requests": 286,
+     "peak_1s": 19,
+     "max_60s_mean_rps": 2.0
+    },
+    {
+     "ip": "10.0.1.15",
+     "role": "browser_page",
+     "netem": "mobile_bad",
+     "requests": 430,
+     "peak_1s": 19,
+     "max_60s_mean_rps": 2.5
+    },
+    {
+     "ip": "10.0.1.16",
+     "role": "browser_page",
+     "netem": "perfect",
+     "requests": 440,
+     "peak_1s": 61,
+     "max_60s_mean_rps": 3.5
+    },
+    {
+     "ip": "10.0.1.17",
+     "role": "cgnat_browsers",
+     "netem": "broadband",
+     "requests": 2884,
+     "peak_1s": 68,
+     "max_60s_mean_rps": 15.6
+    },
+    {
+     "ip": "10.0.1.18",
+     "role": "cgnat_browsers",
+     "netem": "mobile_bad",
+     "requests": 5212,
+     "peak_1s": 85,
+     "max_60s_mean_rps": 25.1
+    },
+    {
+     "ip": "10.0.1.19",
+     "role": "api_bulk",
+     "netem": "mobile_3g",
+     "requests": 1484,
+     "peak_1s": 7,
+     "max_60s_mean_rps": 4.3
+    },
+    {
+     "ip": "10.0.1.20",
+     "role": "crawler_polite",
+     "netem": "perfect",
+     "requests": 1304,
+     "peak_1s": 5,
+     "max_60s_mean_rps": 3.8
+    },
+    {
+     "ip": "10.0.2.1",
+     "role": "subthreshold_flood",
+     "netem": null,
+     "requests": 908,
+     "peak_1s": 27,
+     "max_60s_mean_rps": 13.5
+    },
+    {
+     "ip": "10.0.2.2",
+     "role": "subthreshold_flood",
+     "netem": null,
+     "requests": 1438,
+     "peak_1s": 40,
+     "max_60s_mean_rps": 23.7
+    },
+    {
+     "ip": "10.0.2.3",
+     "role": "scraper",
+     "netem": null,
+     "requests": 1103,
+     "peak_1s": 34,
+     "max_60s_mean_rps": 18.4
+    },
+    {
+     "ip": "10.0.2.6",
+     "role": "padded_flood",
+     "netem": null,
+     "requests": 1255,
+     "peak_1s": 32,
+     "max_60s_mean_rps": 18.2
+    }
+   ]
+  },
+  {
+   "run": "runA2",
+   "seed": 2,
+   "clients": [
+    {
+     "ip": "10.0.1.13",
+     "role": "browser_page",
+     "netem": "mobile_3g",
+     "requests": 302,
+     "peak_1s": 24,
+     "max_60s_mean_rps": 2.0
+    },
+    {
+     "ip": "10.0.1.14",
+     "role": "browser_page",
+     "netem": "broadband",
+     "requests": 231,
+     "peak_1s": 42,
+     "max_60s_mean_rps": 1.8
+    },
+    {
+     "ip": "10.0.1.15",
+     "role": "browser_page",
+     "netem": "mobile_bad",
+     "requests": 251,
+     "peak_1s": 20,
+     "max_60s_mean_rps": 2.7
+    },
+    {
+     "ip": "10.0.1.16",
+     "role": "browser_page",
+     "netem": "perfect",
+     "requests": 504,
+     "peak_1s": 61,
+     "max_60s_mean_rps": 2.8
+    },
+    {
+     "ip": "10.0.1.17",
+     "role": "cgnat_browsers",
+     "netem": "broadband",
+     "requests": 3099,
+     "peak_1s": 64,
+     "max_60s_mean_rps": 16.3
+    },
+    {
+     "ip": "10.0.1.18",
+     "role": "cgnat_browsers",
+     "netem": "mobile_bad",
+     "requests": 5744,
+     "peak_1s": 77,
+     "max_60s_mean_rps": 29.6
+    },
+    {
+     "ip": "10.0.1.19",
+     "role": "api_bulk",
+     "netem": "mobile_3g",
+     "requests": 1486,
+     "peak_1s": 7,
+     "max_60s_mean_rps": 4.4
+    },
+    {
+     "ip": "10.0.1.20",
+     "role": "crawler_polite",
+     "netem": "perfect",
+     "requests": 1129,
+     "peak_1s": 4,
+     "max_60s_mean_rps": 3.2
+    },
+    {
+     "ip": "10.0.2.1",
+     "role": "subthreshold_flood",
+     "netem": null,
+     "requests": 916,
+     "peak_1s": 24,
+     "max_60s_mean_rps": 14.5
+    },
+    {
+     "ip": "10.0.2.2",
+     "role": "subthreshold_flood",
+     "netem": null,
+     "requests": 1301,
+     "peak_1s": 39,
+     "max_60s_mean_rps": 21.7
+    },
+    {
+     "ip": "10.0.2.3",
+     "role": "scraper",
+     "netem": null,
+     "requests": 1335,
+     "peak_1s": 35,
+     "max_60s_mean_rps": 20.0
+    },
+    {
+     "ip": "10.0.2.6",
+     "role": "padded_flood",
+     "netem": null,
+     "requests": 1051,
+     "peak_1s": 29,
+     "max_60s_mean_rps": 17.5
+    }
+   ]
+  },
+  {
+   "run": "runA3",
+   "seed": 3,
+   "clients": [
+    {
+     "ip": "10.0.1.13",
+     "role": "browser_page",
+     "netem": "broadband",
+     "requests": 301,
+     "peak_1s": 31,
+     "max_60s_mean_rps": 2.4
+    },
+    {
+     "ip": "10.0.1.14",
+     "role": "browser_page",
+     "netem": "mobile_3g",
+     "requests": 210,
+     "peak_1s": 16,
+     "max_60s_mean_rps": 1.3
+    },
+    {
+     "ip": "10.0.1.15",
+     "role": "browser_page",
+     "netem": "perfect",
+     "requests": 314,
+     "peak_1s": 61,
+     "max_60s_mean_rps": 2.1
+    },
+    {
+     "ip": "10.0.1.16",
+     "role": "browser_page",
+     "netem": "mobile_3g",
+     "requests": 380,
+     "peak_1s": 35,
+     "max_60s_mean_rps": 3.8
+    },
+    {
+     "ip": "10.0.1.17",
+     "role": "cgnat_browsers",
+     "netem": "perfect",
+     "requests": 3149,
+     "peak_1s": 95,
+     "max_60s_mean_rps": 15.7
+    },
+    {
+     "ip": "10.0.1.18",
+     "role": "cgnat_browsers",
+     "netem": "mobile_bad",
+     "requests": 5360,
+     "peak_1s": 69,
+     "max_60s_mean_rps": 25.9
+    },
+    {
+     "ip": "10.0.1.19",
+     "role": "api_bulk",
+     "netem": "mobile_bad",
+     "requests": 843,
+     "peak_1s": 5,
+     "max_60s_mean_rps": 2.5
+    },
+    {
+     "ip": "10.0.1.20",
+     "role": "crawler_polite",
+     "netem": "broadband",
+     "requests": 1218,
+     "peak_1s": 5,
+     "max_60s_mean_rps": 3.5
+    },
+    {
+     "ip": "10.0.2.1",
+     "role": "subthreshold_flood",
+     "netem": null,
+     "requests": 743,
+     "peak_1s": 28,
+     "max_60s_mean_rps": 12.4
+    },
+    {
+     "ip": "10.0.2.2",
+     "role": "subthreshold_flood",
+     "netem": null,
+     "requests": 1423,
+     "peak_1s": 37,
+     "max_60s_mean_rps": 23.7
+    },
+    {
+     "ip": "10.0.2.3",
+     "role": "scraper",
+     "netem": null,
+     "requests": 1220,
+     "peak_1s": 31,
+     "max_60s_mean_rps": 19.6
+    },
+    {
+     "ip": "10.0.2.6",
+     "role": "padded_flood",
+     "netem": null,
+     "requests": 1001,
+     "peak_1s": 30,
+     "max_60s_mean_rps": 16.7
+    }
+   ]
+  },
+  {
+   "run": "runA4",
+   "seed": 4,
+   "clients": [
+    {
+     "ip": "10.0.1.13",
+     "role": "browser_page",
+     "netem": "perfect",
+     "requests": 255,
+     "peak_1s": 31,
+     "max_60s_mean_rps": 2.2
+    },
+    {
+     "ip": "10.0.1.14",
+     "role": "browser_page",
+     "netem": "mobile_bad",
+     "requests": 200,
+     "peak_1s": 16,
+     "max_60s_mean_rps": 1.2
+    },
+    {
+     "ip": "10.0.1.15",
+     "role": "browser_page",
+     "netem": "mobile_3g",
+     "requests": 462,
+     "peak_1s": 36,
+     "max_60s_mean_rps": 3.5
+    },
+    {
+     "ip": "10.0.1.16",
+     "role": "browser_page",
+     "netem": "mobile_bad",
+     "requests": 393,
+     "peak_1s": 20,
+     "max_60s_mean_rps": 2.4
+    },
+    {
+     "ip": "10.0.1.17",
+     "role": "cgnat_browsers",
+     "netem": "broadband",
+     "requests": 3106,
+     "peak_1s": 62,
+     "max_60s_mean_rps": 15.7
+    },
+    {
+     "ip": "10.0.1.18",
+     "role": "cgnat_browsers",
+     "netem": "mobile_3g",
+     "requests": 5840,
+     "peak_1s": 82,
+     "max_60s_mean_rps": 30.7
+    },
+    {
+     "ip": "10.0.1.19",
+     "role": "api_bulk",
+     "netem": "broadband",
+     "requests": 3910,
+     "peak_1s": 20,
+     "max_60s_mean_rps": 11.5
+    },
+    {
+     "ip": "10.0.1.20",
+     "role": "crawler_polite",
+     "netem": "perfect",
+     "requests": 1267,
+     "peak_1s": 5,
+     "max_60s_mean_rps": 3.6
+    },
+    {
+     "ip": "10.0.2.1",
+     "role": "subthreshold_flood",
+     "netem": null,
+     "requests": 669,
+     "peak_1s": 24,
+     "max_60s_mean_rps": 11.2
+    },
+    {
+     "ip": "10.0.2.2",
+     "role": "subthreshold_flood",
+     "netem": null,
+     "requests": 1550,
+     "peak_1s": 38,
+     "max_60s_mean_rps": 24.5
+    },
+    {
+     "ip": "10.0.2.3",
+     "role": "scraper",
+     "netem": null,
+     "requests": 883,
+     "peak_1s": 29,
+     "max_60s_mean_rps": 14.7
+    },
+    {
+     "ip": "10.0.2.6",
+     "role": "padded_flood",
+     "netem": null,
+     "requests": 815,
+     "peak_1s": 32,
+     "max_60s_mean_rps": 13.6
+    }
+   ]
+  },
+  {
+   "run": "runA5",
+   "seed": 5,
+   "clients": [
+    {
+     "ip": "10.0.1.13",
+     "role": "browser_page",
+     "netem": "mobile_3g",
+     "requests": 245,
+     "peak_1s": 19,
+     "max_60s_mean_rps": 2.0
+    },
+    {
+     "ip": "10.0.1.14",
+     "role": "browser_page",
+     "netem": "perfect",
+     "requests": 254,
+     "peak_1s": 31,
+     "max_60s_mean_rps": 1.6
+    },
+    {
+     "ip": "10.0.1.15",
+     "role": "browser_page",
+     "netem": "broadband",
+     "requests": 464,
+     "peak_1s": 61,
+     "max_60s_mean_rps": 2.8
+    },
+    {
+     "ip": "10.0.1.16",
+     "role": "browser_page",
+     "netem": "perfect",
+     "requests": 423,
+     "peak_1s": 61,
+     "max_60s_mean_rps": 2.8
+    },
+    {
+     "ip": "10.0.1.17",
+     "role": "cgnat_browsers",
+     "netem": "broadband",
+     "requests": 2990,
+     "peak_1s": 89,
+     "max_60s_mean_rps": 15.2
+    },
+    {
+     "ip": "10.0.1.18",
+     "role": "cgnat_browsers",
+     "netem": "mobile_3g",
+     "requests": 5599,
+     "peak_1s": 83,
+     "max_60s_mean_rps": 28.0
+    },
+    {
+     "ip": "10.0.1.19",
+     "role": "api_bulk",
+     "netem": "mobile_bad",
+     "requests": 843,
+     "peak_1s": 5,
+     "max_60s_mean_rps": 2.5
+    },
+    {
+     "ip": "10.0.1.20",
+     "role": "crawler_polite",
+     "netem": "mobile_bad",
+     "requests": 449,
+     "peak_1s": 3,
+     "max_60s_mean_rps": 1.4
+    },
+    {
+     "ip": "10.0.2.1",
+     "role": "subthreshold_flood",
+     "netem": null,
+     "requests": 771,
+     "peak_1s": 25,
+     "max_60s_mean_rps": 12.8
+    },
+    {
+     "ip": "10.0.2.2",
+     "role": "subthreshold_flood",
+     "netem": null,
+     "requests": 1393,
+     "peak_1s": 36,
+     "max_60s_mean_rps": 22.7
+    },
+    {
+     "ip": "10.0.2.3",
+     "role": "scraper",
+     "netem": null,
+     "requests": 1322,
+     "peak_1s": 34,
+     "max_60s_mean_rps": 19.7
+    },
+    {
+     "ip": "10.0.2.6",
+     "role": "padded_flood",
+     "netem": null,
+     "requests": 861,
+     "peak_1s": 33,
+     "max_60s_mean_rps": 14.3
+    }
+   ]
+  }
+ ]
+}

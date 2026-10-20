@@ -1,0 +1,259 @@
+{
+ "view": "roles",
+ "runs": [
+  {
+   "run": "runA1",
+   "seed": 1,
+   "comparison_attackers": 4,
+   "benign_ips": 20,
+   "deterministic_caught": 0,
+   "detectors": {
+    "GRU": {
+     "caught": 4,
+     "benign_flagged": 2,
+     "benign_roles": [
+      "10.0.1.16 browser_page/perfect",
+      "10.0.1.19 api_bulk/mobile_3g"
+     ]
+    },
+    "B2": {
+     "caught": 4,
+     "benign_flagged": 0,
+     "benign_roles": []
+    },
+    "B3": {
+     "caught": 4,
+     "benign_flagged": 0,
+     "benign_roles": []
+    },
+    "B4": {
+     "caught": 4,
+     "benign_flagged": 0,
+     "benign_roles": []
+    },
+    "B4@0.95": {
+     "caught": 4,
+     "benign_flagged": 1,
+     "benign_roles": [
+      "10.0.1.16 browser_page/perfect"
+     ]
+    }
+   }
+  },
+  {
+   "run": "runA2",
+   "seed": 2,
+   "comparison_attackers": 4,
+   "benign_ips": 20,
+   "deterministic_caught": 0,
+   "detectors": {
+    "GRU": {
+     "caught": 4,
+     "benign_flagged": 2,
+     "benign_roles": [
+      "10.0.1.16 browser_page/perfect",
+      "10.0.1.19 api_bulk/mobile_3g"
+     ]
+    },
+    "B2": {
+     "caught": 4,
+     "benign_flagged": 1,
+     "benign_roles": [
+      "10.0.1.18 cgnat_browsers/mobile_bad"
+     ]
+    },
+    "B3": {
+     "caught": 4,
+     "benign_flagged": 1,
+     "benign_roles": [
+      "10.0.1.18 cgnat_browsers/mobile_bad"
+     ]
+    },
+    "B4": {
+     "caught": 4,
+     "benign_flagged": 0,
+     "benign_roles": []
+    },
+    "B4@0.95": {
+     "caught": 4,
+     "benign_flagged": 0,
+     "benign_roles": []
+    }
+   }
+  },
+  {
+   "run": "runA3",
+   "seed": 3,
+   "comparison_attackers": 4,
+   "benign_ips": 20,
+   "deterministic_caught": 0,
+   "detectors": {
+    "GRU": {
+     "caught": 4,
+     "benign_flagged": 2,
+     "benign_roles": [
+      "10.0.1.15 browser_page/perfect",
+      "10.0.1.19 api_bulk/mobile_bad"
+     ]
+    },
+    "B2": {
+     "caught": 4,
+     "benign_flagged": 0,
+     "benign_roles": []
+    },
+    "B3": {
+     "caught": 4,
+     "benign_flagged": 0,
+     "benign_roles": []
+    },
+    "B4": {
+     "caught": 4,
+     "benign_flagged": 0,
+     "benign_roles": []
+    },
+    "B4@0.95": {
+     "caught": 4,
+     "benign_flagged": 0,
+     "benign_roles": []
+    }
+   }
+  },
+  {
+   "run": "runA4",
+   "seed": 4,
+   "comparison_attackers": 4,
+   "benign_ips": 20,
+   "deterministic_caught": 0,
+   "detectors": {
+    "GRU": {
+     "caught": 4,
+     "benign_flagged": 1,
+     "benign_roles": [
+      "10.0.1.19 api_bulk/broadband"
+     ]
+    },
+    "B2": {
+     "caught": 4,
+     "benign_flagged": 1,
+     "benign_roles": [
+      "10.0.1.19 api_bulk/broadband"
+     ]
+    },
+    "B3": {
+     "caught": 4,
+     "benign_flagged": 1,
+     "benign_roles": [
+      "10.0.1.19 api_bulk/broadband"
+     ]
+    },
+    "B4": {
+     "caught": 4,
+     "benign_flagged": 1,
+     "benign_roles": [
+      "10.0.1.19 api_bulk/broadband"
+     ]
+    },
+    "B4@0.95": {
+     "caught": 4,
+     "benign_flagged": 1,
+     "benign_roles": [
+      "10.0.1.19 api_bulk/broadband"
+     ]
+    }
+   }
+  },
+  {
+   "run": "runA5",
+   "seed": 5,
+   "comparison_attackers": 4,
+   "benign_ips": 20,
+   "deterministic_caught": 0,
+   "detectors": {
+    "GRU": {
+     "caught": 4,
+     "benign_flagged": 2,
+     "benign_roles": [
+      "10.0.1.16 browser_page/perfect",
+      "10.0.1.19 api_bulk/mobile_bad"
+     ]
+    },
+    "B2": {
+     "caught": 4,
+     "benign_flagged": 0,
+     "benign_roles": []
+    },
+    "B3": {
+     "caught": 4,
+     "benign_flagged": 0,
+     "benign_roles": []
+    },
+    "B4": {
+     "caught": 4,
+     "benign_flagged": 1,
+     "benign_roles": [
+      "10.0.1.16 browser_page/perfect"
+     ]
+    },
+    "B4@0.95": {
+     "caught": 4,
+     "benign_flagged": 1,
+     "benign_roles": [
+      "10.0.1.16 browser_page/perfect"
+     ]
+    }
+   }
+  }
+ ],
+ "summary": {
+  "runs": 5,
+  "comparison_attackers": 20,
+  "benign_ips": 100,
+  "pooled": {
+   "GRU": {
+    "caught": 20,
+    "benign_flagged": 9
+   },
+   "B2": {
+    "caught": 20,
+    "benign_flagged": 2
+   },
+   "B3": {
+    "caught": 20,
+    "benign_flagged": 2
+   },
+   "B4": {
+    "caught": 20,
+    "benign_flagged": 2
+   },
+   "B4@0.95": {
+    "caught": 20,
+    "benign_flagged": 3
+   }
+  },
+  "benign_flags_by_role": {
+   "GRU": {
+    "10.0.1.15 browser_page/perfect": 1,
+    "10.0.1.16 browser_page/perfect": 3,
+    "10.0.1.19 api_bulk/broadband": 1,
+    "10.0.1.19 api_bulk/mobile_3g": 2,
+    "10.0.1.19 api_bulk/mobile_bad": 2
+   },
+   "B2": {
+    "10.0.1.18 cgnat_browsers/mobile_bad": 1,
+    "10.0.1.19 api_bulk/broadband": 1
+   },
+   "B3": {
+    "10.0.1.18 cgnat_browsers/mobile_bad": 1,
+    "10.0.1.19 api_bulk/broadband": 1
+   },
+   "B4": {
+    "10.0.1.16 browser_page/perfect": 1,
+    "10.0.1.19 api_bulk/broadband": 1
+   },
+   "B4@0.95": {
+    "10.0.1.16 browser_page/perfect": 2,
+    "10.0.1.19 api_bulk/broadband": 1
+   }
+  }
+ }
+}

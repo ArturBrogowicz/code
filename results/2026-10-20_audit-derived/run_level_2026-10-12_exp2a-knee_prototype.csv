@@ -1,0 +1,4 @@
+scenario,mode,reference,period,design,blocks,mean_diff_pp,ci_lo,ci_hi,t_p,perm_p,same_sign,decision,blocks_for_80pct_power
+Distributed HTTP Flood,xdp,unprotected,during,unpaired (3 vs 3 runs),3,10.1543,2.7235,17.5851,0.0277,0.1000,,unpaired: descriptive only,
+Distributed HTTP Flood,iptables,unprotected,during,unpaired (3 vs 3 runs),3,10.1543,2.7235,17.5851,0.0277,0.1000,,unpaired: descriptive only,
+Distributed HTTP Flood,nginxlimits,unprotected,during,unpaired (3 vs 3 runs),3,-37.6409,-44.5521,-30.7297,0.0013,0.1000,,unpaired: descriptive only,
