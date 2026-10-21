@@ -1,0 +1,49 @@
+{
+ "schema": 1,
+ "campaign_id": "20261020T140057Z_default_sall",
+ "created_utc": "2026-10-20T14:00:57+00:00",
+ "command": [
+  "eval/run_campaign.py",
+  "--modes",
+  "xdp",
+  "--runs",
+  "1",
+  "--seed-base=-1"
+ ],
+ "python": "/usr/bin/python3",
+ "settings": {
+  "modes": [
+   "xdp"
+  ],
+  "runs": 1,
+  "scenarios": "",
+  "operating_point": "default",
+  "attack_duration": 0.0,
+  "seed_base": -1,
+  "order_seed": 0,
+  "set": {}
+ },
+ "plan": [
+  {
+   "block": 1,
+   "mode": "xdp",
+   "profile_seed": 0,
+   "dir": "xdp/run1"
+  }
+ ],
+ "runs": {
+  "xdp/run1": {
+   "exit_code": 0,
+   "seconds": 666.5,
+   "finished_utc": "2026-10-20T14:12:03+00:00",
+   "leftovers": []
+  }
+ },
+ "status": "completed",
+ "updated_utc": "2026-10-20T14:12:03+00:00",
+ "git": {
+  "commit": "618b2fcaf542127308d5f6bee1fc7c0858f3bb40",
+  "branch": "feat/audit-must-do-2-5",
+  "dirty": false
+ }
+}
