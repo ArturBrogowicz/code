@@ -152,10 +152,19 @@ versioned: `ddos_verify_20261020/`, `ddos_l7_smoke/20261020T073029Z`,
   failed` among 4 152 `limit_req` rejections in nginx's error log. One run each: no claim on
   TTM.
 
-Still open: the full ten-scenario suite on this change set against that baseline run; a live
-`hping3 --rand-source` flood with the daemon polling (the kernel map semantics and the
-userspace read are covered above, the daemon under a real flood is not); and the remaining G-17
-checks (`doff`, fragments, IPv6 / 802.1Q, `tot_len`), which the program still lacks.
+**Full suite on the change set, 2026-10-20** [FACT]: `results/2026-10-20_regression-after-audit-defaults/`,
+one run of all ten scenarios in XDP mode at default settings and `PROFILE_SEED = 0`, taken against
+the baseline above at commit `618b2fc` (clean tree), three minutes after a VM restart. 10/10 PASS;
+five of five bots banned in every scenario by the same engines as in the baseline; no false positive,
+no unenforced ban, no GRU event (`xdp_gru: false`, XDP program `1f9e8606...`); legit success 100 %
+before, during and after every scenario; 0.85-1.81 M packets/s arriving on the interface in the
+four volumetric scenarios with at most 214 packets/s at the IP layer. R.U.D.Y. took 4.64 s (3.57-3.88 s
+in the three earlier runs), one polling interval more; the other scenarios are within the earlier
+spread or the 1-s poll. One run each: no claim on TTM.
+
+Still open: a live `hping3 --rand-source` flood with the daemon polling (the kernel map semantics
+and the userspace read are covered above, the daemon under a real flood is not); and the remaining
+G-17 checks (`doff`, fragments, IPv6 / 802.1Q, `tot_len`), which the program still lacks.
 
 ## Outputs of a run (`RESULTS_DIR`)
 
@@ -251,12 +260,24 @@ audit report §9.3):
 | R4 (3 blocks, 30 s) | daemon − unprotected | +28.0 pp | [−15.3, +71.3] | 0.25 |
 | R4 | limits only − unprotected | −34.9 pp | [−85.4, +15.7] | 0.25 |
 
-None is significant at run level, and 3 blocks cannot be by the sign-flip test. What is
-consistent is the direction: the daemon modes served 100 % in every one of the 9 knee runs
+None of those is significant at run level, and 3 blocks cannot be by the sign-flip test. What
+is consistent is the direction: the daemon modes served 100 % in every one of the 9 knee runs
 (EXP-2a, R3, R4) and were above unprotected in each. Those are not 9 independent blocks: R3
 and R4 reuse the same three `PROFILE_SEED`s and EXP-2a was unseeded, so no sign-test p is
 quoted for them. An effect of the size of R3's limits-only difference (−6 pp, block SD
 11 pp) would need about 26 paired blocks; one of R4's size, about 5.
+
+**EXP-A** (`results/2026-10-20_expa-knee-10-blocks/`, 2026-10-20) is the first campaign that meets
+the rule: ten paired blocks (`PROFILE_SEED` 101-110), recorded six hours after the commit that
+fixed the rule. Since then only the helper that formats the table has changed.
+
+| Campaign | Contrast (during the flood) | Mean block difference | 95 % t-interval | Sign-flip p | Decision |
+|---|---|---|---|---|---|
+| EXP-A (10 blocks, 30 s) | daemon (XDP or iptables) − unprotected | +33.2 pp | [+26.1, +40.2] | 0.002 | supported (+) |
+| EXP-A | limits only − unprotected | −22.5 pp | [−32.0, −13.1] | 0.002 | supported (−) |
+
+Every contrast has the same sign in 10 of 10 blocks; 0.002 is the smallest sign-flip p ten blocks
+can give. The effect sizes needed 3 and 5 blocks for 80 % power.
 
 ## Side effects of a suite run (root)
 
