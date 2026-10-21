@@ -77,10 +77,10 @@ MAX_GRU_FLOWS_PER_POLL = 2000
 # end on its own. Default off → production behaviour is unchanged.
 GRU_ONLY = os.environ.get("GRU_ONLY", "0") == "1"
 # The XDP-fed GRU (flow_map snapshots → GRU). OFF by default since the 2026-10-19 audit
-# (G-16): across the 39 distinct ban-event logs it made 0 true bans and 1 false ban
-# (legit 10.0.1.6, P1 smoke, docs/L7_GRU_DESIGN.md §2). XDP_GRU=1 opts in and runs the
-# feed and the drain as before. GRU_ONLY=1 implies it (that mode exists to test this
-# engine alone) unless XDP_GRU is set explicitly.
+# (G-16): across the published ban-event logs it made 0 true bans and 1 false ban (legit
+# 10.0.1.6, P1 smoke; counts: results/2026-10-20_audit-derived/events_census.md). XDP_GRU=1
+# opts in and runs the feed and the drain as before. GRU_ONLY=1 implies it (that mode exists
+# to test this engine alone) unless XDP_GRU is set explicitly.
 XDP_GRU = os.environ.get("XDP_GRU", "1" if GRU_ONLY else "0") == "1"
 L4_POLL_INTERVAL = 1.0
 SYN_FLOOD_THRESHOLD = 200

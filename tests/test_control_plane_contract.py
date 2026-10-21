@@ -139,7 +139,8 @@ class ControlPlaneContractTest(unittest.TestCase):
         return scope["GRU_ONLY"], scope["XDP_GRU"]
 
     def test_xdp_gru_is_off_by_default(self):
-        # Audit G-16 (2026-10-19): 0 true bans and 1 false ban in 39 distinct ban-event logs.
+        # Audit G-16 (2026-10-19): 0 true bans and 1 false ban in the published ban-event logs
+        # (results/2026-10-20_audit-derived/events_census.md).
         self.assertEqual(self._switches(), (False, False))
         self.assertEqual(self._switches(XDP_GRU="1"), (False, True))       # opt-in still works
         self.assertEqual(self._switches(XDP_GRU="0"), (False, False))
