@@ -1,0 +1,49 @@
+scenario,mode,profile,n,p50_ms,p95_ms,p99_ms
+Distributed SYN Flood,xdp,ALL,67,42.500,432.350,795.322
+Distributed SYN Flood,xdp,broadband,27,43.800,68.910,99.076
+Distributed SYN Flood,xdp,mobile_3g,15,334.700,757.190,1291.038
+Distributed SYN Flood,xdp,perfect,25,2.100,40.340,43.388
+Distributed Low & Slow SYN,xdp,ALL,136,41.300,361.750,645.260
+Distributed Low & Slow SYN,xdp,broadband,52,44.000,58.450,95.509
+Distributed Low & Slow SYN,xdp,mobile_3g,27,334.100,529.360,659.156
+Distributed Low & Slow SYN,xdp,mobile_bad,1,1483.900,1483.900,1483.900
+Distributed Low & Slow SYN,xdp,perfect,56,2.050,4.950,11.735
+Distributed UDP Flood,xdp,ALL,399,44.500,456.150,657.154
+Distributed UDP Flood,xdp,broadband,156,47.700,400.275,469.615
+Distributed UDP Flood,xdp,mobile_3g,80,358.250,550.725,785.161
+Distributed UDP Flood,xdp,mobile_bad,5,703.900,784.600,787.560
+Distributed UDP Flood,xdp,perfect,158,2.900,30.400,119.778
+Distributed HTTP Flood,xdp,ALL,75,47.400,392.460,472.216
+Distributed HTTP Flood,xdp,broadband,31,49.400,182.700,291.560
+Distributed HTTP Flood,xdp,mobile_3g,15,369.300,479.680,584.176
+Distributed HTTP Flood,xdp,perfect,29,2.900,231.960,243.056
+Distributed ACK Flood,xdp,ALL,405,45.400,513.180,936.368
+Distributed ACK Flood,xdp,broadband,159,53.600,283.470,436.918
+Distributed ACK Flood,xdp,mobile_3g,75,380.600,779.080,1368.318
+Distributed ACK Flood,xdp,mobile_bad,5,885.200,1558.260,1682.212
+Distributed ACK Flood,xdp,perfect,166,2.600,22.325,160.815
+Distributed IP Fragmentation Flood,xdp,ALL,410,47.100,626.455,1357.525
+Distributed IP Fragmentation Flood,xdp,broadband,160,73.150,267.925,664.801
+Distributed IP Fragmentation Flood,xdp,mobile_3g,78,406.950,1322.395,1714.389
+Distributed IP Fragmentation Flood,xdp,mobile_bad,6,641.350,1527.475,1700.935
+Distributed IP Fragmentation Flood,xdp,perfect,166,2.800,45.175,1012.815
+Distributed Slowloris,xdp,ALL,1019,43.900,501.420,832.312
+Distributed Slowloris,xdp,broadband,404,49.650,129.595,175.250
+Distributed Slowloris,xdp,mobile_3g,186,366.450,719.625,1451.360
+Distributed Slowloris,xdp,mobile_bad,13,736.100,1234.820,1434.884
+Distributed Slowloris,xdp,perfect,416,2.150,7.500,16.970
+Distributed R.U.D.Y.,xdp,ALL,1000,44.200,478.845,812.109
+Distributed R.U.D.Y.,xdp,broadband,391,49.600,132.050,212.500
+Distributed R.U.D.Y.,xdp,mobile_3g,185,366.900,756.200,1339.952
+Distributed R.U.D.Y.,xdp,mobile_bad,14,640.050,884.655,992.451
+Distributed R.U.D.Y.,xdp,perfect,410,2.000,8.355,36.277
+Distributed Yo-Yo,xdp,ALL,70,46.250,433.570,579.995
+Distributed Yo-Yo,xdp,broadband,29,53.100,290.260,302.124
+Distributed Yo-Yo,xdp,mobile_3g,11,357.400,485.900,517.900
+Distributed Yo-Yo,xdp,mobile_bad,2,607.850,691.145,698.549
+Distributed Yo-Yo,xdp,perfect,28,2.300,237.710,329.756
+Multi-Vector Distributed Attack,xdp,ALL,425,43.500,468.520,816.204
+Multi-Vector Distributed Attack,xdp,broadband,171,46.300,259.050,597.390
+Multi-Vector Distributed Attack,xdp,mobile_3g,82,331.750,777.070,949.069
+Multi-Vector Distributed Attack,xdp,mobile_bad,5,604.400,823.600,844.400
+Multi-Vector Distributed Attack,xdp,perfect,167,2.100,11.570,20.534

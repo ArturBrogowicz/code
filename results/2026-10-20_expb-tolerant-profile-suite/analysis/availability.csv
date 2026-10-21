@@ -1,0 +1,31 @@
+scenario,mode,period,runs,n,ok,success_pct,ci_lo,ci_hi,per_run_pct
+Distributed SYN Flood,xdp,before,3,107,107,100.000,100.000,100.000,100/100/100
+Distributed SYN Flood,xdp,during,3,67,67,100.000,100.000,100.000,100/100/100
+Distributed SYN Flood,xdp,after,3,240,240,100.000,100.000,100.000,100/100/100
+Distributed Low & Slow SYN,xdp,before,3,104,104,100.000,100.000,100.000,100/100/100
+Distributed Low & Slow SYN,xdp,during,3,136,136,100.000,100.000,100.000,100/100/100
+Distributed Low & Slow SYN,xdp,after,3,234,234,100.000,100.000,100.000,100/100/100
+Distributed UDP Flood,xdp,before,3,103,103,100.000,100.000,100.000,100/100/100
+Distributed UDP Flood,xdp,during,3,399,399,100.000,100.000,100.000,100/100/100
+Distributed UDP Flood,xdp,after,3,229,229,100.000,100.000,100.000,100/100/100
+Distributed HTTP Flood,xdp,before,3,102,102,100.000,100.000,100.000,100/100/100
+Distributed HTTP Flood,xdp,during,3,75,75,100.000,100.000,100.000,100/100/100
+Distributed HTTP Flood,xdp,after,3,248,248,100.000,100.000,100.000,100/100/100
+Distributed ACK Flood,xdp,before,3,107,107,100.000,100.000,100.000,100/100/100
+Distributed ACK Flood,xdp,during,3,405,405,100.000,100.000,100.000,100/100/100
+Distributed ACK Flood,xdp,after,3,241,241,100.000,100.000,100.000,100/100/100
+Distributed IP Fragmentation Flood,xdp,before,3,102,102,100.000,100.000,100.000,100/100/100
+Distributed IP Fragmentation Flood,xdp,during,3,410,410,100.000,100.000,100.000,100/100/100
+Distributed IP Fragmentation Flood,xdp,after,3,240,240,100.000,100.000,100.000,100/100/100
+Distributed Slowloris,xdp,before,3,104,104,100.000,100.000,100.000,100/100/100
+Distributed Slowloris,xdp,during,3,1019,1019,100.000,100.000,100.000,100/100/100
+Distributed Slowloris,xdp,after,3,241,241,100.000,100.000,100.000,100/100/100
+Distributed R.U.D.Y.,xdp,before,3,110,110,100.000,100.000,100.000,100/100/100
+Distributed R.U.D.Y.,xdp,during,3,1000,1000,100.000,100.000,100.000,100/100/100
+Distributed R.U.D.Y.,xdp,after,3,233,233,100.000,100.000,100.000,100/100/100
+Distributed Yo-Yo,xdp,before,3,97,97,100.000,100.000,100.000,100/100/100
+Distributed Yo-Yo,xdp,during,3,70,70,100.000,100.000,100.000,100/100/100
+Distributed Yo-Yo,xdp,after,3,245,245,100.000,100.000,100.000,100/100/100
+Multi-Vector Distributed Attack,xdp,before,3,106,106,100.000,100.000,100.000,100/100/100
+Multi-Vector Distributed Attack,xdp,during,3,425,425,100.000,100.000,100.000,100/100/100
+Multi-Vector Distributed Attack,xdp,after,3,235,235,100.000,100.000,100.000,100/100/100

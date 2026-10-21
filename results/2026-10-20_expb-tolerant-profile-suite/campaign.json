@@ -1,0 +1,76 @@
+{
+ "schema": 1,
+ "campaign_id": "20261020_tolerant-suite",
+ "created_utc": "2026-10-20T14:14:14+00:00",
+ "command": [
+  "eval/run_campaign.py",
+  "--modes",
+  "xdp",
+  "--runs",
+  "3",
+  "--seed-base",
+  "200",
+  "--out",
+  "/var/tmp/ddos_campaigns/20261020_tolerant-suite"
+ ],
+ "python": "/usr/bin/python3",
+ "settings": {
+  "modes": [
+   "xdp"
+  ],
+  "runs": 3,
+  "scenarios": "",
+  "operating_point": "default",
+  "attack_duration": 0.0,
+  "seed_base": 200,
+  "order_seed": 0,
+  "set": {}
+ },
+ "plan": [
+  {
+   "block": 1,
+   "mode": "xdp",
+   "profile_seed": 201,
+   "dir": "xdp/run1"
+  },
+  {
+   "block": 2,
+   "mode": "xdp",
+   "profile_seed": 202,
+   "dir": "xdp/run2"
+  },
+  {
+   "block": 3,
+   "mode": "xdp",
+   "profile_seed": 203,
+   "dir": "xdp/run3"
+  }
+ ],
+ "runs": {
+  "xdp/run1": {
+   "exit_code": 0,
+   "seconds": 652.5,
+   "finished_utc": "2026-10-20T14:25:07+00:00",
+   "leftovers": []
+  },
+  "xdp/run2": {
+   "exit_code": 0,
+   "seconds": 671.4,
+   "finished_utc": "2026-10-20T14:36:18+00:00",
+   "leftovers": []
+  },
+  "xdp/run3": {
+   "exit_code": 0,
+   "seconds": 664.6,
+   "finished_utc": "2026-10-20T14:47:23+00:00",
+   "leftovers": []
+  }
+ },
+ "status": "completed",
+ "updated_utc": "2026-10-20T14:47:23+00:00",
+ "git": {
+  "commit": "618b2fcaf542127308d5f6bee1fc7c0858f3bb40",
+  "branch": "feat/audit-must-do-2-5",
+  "dirty": false
+ }
+}
