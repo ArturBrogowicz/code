@@ -16,7 +16,8 @@ CPU forward pass (one torch thread); on another CPU the last digits can differ.
 | `l7_harm_p5c4.{md,json}` | `ml/l7_run_audit.py harm` | do the labelled P5c.4 attackers harm benign clients? |
 | `l7_roles_p5c4.{md,json}` | `ml/l7_run_audit.py roles` | who do the GRU and the baselines flag, per run and per role? |
 | `l7_rates_p5c4.{md,json}` | `ml/l7_run_audit.py rates` | what request rates did the plan actually produce? |
-| `run_level_<campaign>.{md,csv}` | `eval/run_level_stats.py` | EXP-2a, R3 and R4 with the run as the unit of analysis |
+| `run_level_<campaign>.{md,csv}` | `eval/run_level_stats.py` | EXP-2a, R3, R4 and EXP-A with the run as the unit of analysis |
+| `suite_compare.md` | `eval/suite_compare.py` | the five complete full-suite campaigns side by side: bans, engines, time to mitigate, and the bound per engine |
 | `events_census.{md,json}` | `eval/events_census.py` | which engine banned whom in the 40 distinct published ban-event logs? |
 
 ## What they show
@@ -46,15 +47,21 @@ CPU forward pass (one torch thread); on another CPU the last digits can differ.
    specified at 15-20 rps, ran at a 60-s mean of 2.5-4.4 rps in the four runs where it had a mobile
    profile and 11.5 rps with `broadband`. Realised rates of the fast attackers: 11-25 rps sustained
    against a nominal 20-45.
-5. **No knee contrast meets the decision rule** (`run_level_*.md`; it needs at least 10 paired
-   blocks, `docs/EVALUATION.md`, "Statistics"). R3, daemon - unprotected: +21.0 pp [-5.5, +47.4],
-   limits only -6.4 pp [-33.8, +21.0]; R4: +28.0 [-15.3, +71.3] and -34.9 [-85.4, +15.7]. Three
-   paired blocks cannot give a sign-flip p below 0.25. EXP-2a had no shared seeds, so it is
-   compared unpaired and only describes: +10.2 [+2.7, +17.6] and limits only -37.6 [-44.6, -30.7]
-   (Welch p 0.028 and 0.001; the exact permutation p cannot go below 0.10 with 3 runs per arm).
+5. **The three-block knee campaigns do not meet the decision rule; EXP-A does** (`run_level_*.md`;
+   the rule needs at least 10 paired blocks, `docs/EVALUATION.md`, "Statistics"). R3, daemon -
+   unprotected: +21.0 pp [-5.5, +47.4], limits only -6.4 pp [-33.8, +21.0]; R4: +28.0 [-15.3, +71.3]
+   and -34.9 [-85.4, +15.7]. Three paired blocks cannot give a sign-flip p below 0.25. EXP-2a had no
+   shared seeds, so it is compared unpaired and only describes: +10.2 [+2.7, +17.6] and limits only
+   -37.6 [-44.6, -30.7] (Welch p 0.028 and 0.001; the exact permutation p cannot go below 0.10 with
+   3 runs per arm). EXP-A (`../2026-10-20_expa-knee-10-blocks/`, ten blocks, recorded after the rule
+   was committed): XDP and iptables minus unprotected +33.2 pp [+26.1, +40.2] and limits only minus
+   unprotected -22.5 pp [-32.0, -13.1], the same sign in 10 of 10 blocks: all three *supported*.
 6. **One GRU ban in 40 distinct logs** (`events_census.md`): the false ban of legit 10.0.1.6 in
    `../2026-10-20_omitted-runs/p1_smoke_20261014T152428Z/`. Bans in total: `l7_rate` 234,
-   `l4_volumetric` 59, `l4_syn` 39, `l4_slowconn` 32, `l4_lowsyn` 15, `gru` 1.
+   `l4_volumetric` 59, `l4_syn` 39, `l4_slowconn` 32, `l4_lowsyn` 15, `gru` 1. The census covers the
+   logs published up to the morning of 2026-10-20. The campaigns recorded later that day
+   (`2026-10-20_regression-after-audit-defaults`, `_expb-...`, `_expa-...`) ran with `xdp_gru: false`;
+   they could not add evidence about the XDP-fed GRU and are left out.
 
 ## What changed in the audit report because of this
 
@@ -62,7 +69,7 @@ CPU forward pass (one torch thread); on another CPU the last digits can differ.
   both counted; by content there are 39 distinct logs at audit time and 40 here.
 * "Daemon above unprotected in 9 of 9 runs, sign test p = 0.002" is withdrawn as inference: R3 and
   R4 use the same three `PROFILE_SEED`s and EXP-2a was unseeded, so those are not nine
-  independent blocks.
+  independent blocks. EXP-A has since supplied ten independent paired blocks (item 5).
 * "The GRU does not use order" becomes: order has a negligible effect on its decisions (0.21 % of
   windows flip when shuffled and no IP-level decision changes; reversing the order drops 2 of
   the 11 benign flags).
