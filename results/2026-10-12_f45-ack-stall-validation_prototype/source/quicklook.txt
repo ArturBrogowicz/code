@@ -1,0 +1,24 @@
+===== F45 patched ACK run 1/6 =====
+  [PASS] Distributed ACK Flood
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.11s
+===== F45 patched ACK run 2/6 =====
+  [PASS] Distributed ACK Flood
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.16s
+===== F45 patched ACK run 3/6 =====
+  [PASS] Distributed ACK Flood
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.13s
+===== F45 patched ACK run 4/6 =====
+  [FAIL] Distributed ACK Flood
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.16s
+===== F45 patched ACK run 5/6 =====
+  [PASS] Distributed ACK Flood
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.74s
+===== F45 patched ACK run 6/6 =====
+  [PASS] Distributed ACK Flood
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.28s

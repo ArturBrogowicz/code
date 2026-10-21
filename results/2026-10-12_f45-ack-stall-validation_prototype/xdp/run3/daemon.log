@@ -1,0 +1,30 @@
+1791811759.892 [*] Starting tri-engine Anti-DDoS integration (XDP Telemetry + GRU ML + L7 Heuristics)...
+1791811759.892 [*] Starting L3/L4 telemetry monitor (Interval: 1.0s)
+1791811759.893 [+] Inference worker thread started.
+1791811759.893 [*] Listening for Nginx error logs (RUDY detection): /var/log/nginx/error.log
+1791811759.893 [+] RUDY detection thread started.
+1791811759.893 [*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log
+1791811772.792 
+1791811772.792 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.3 | Rate: 129873 pkts/s
+1791811772.792 [XDP] BLOCKED IP: 10.0.2.3. Rule is active on hardware.
+1791811772.792 [BAN] 10.0.2.3 banned for 300s. Reason: Volumetric packet flood (129873 pkts/s)
+1791811772.792 
+1791811772.792 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.4 | Rate: 131765 pkts/s
+1791811772.792 [XDP] BLOCKED IP: 10.0.2.4. Rule is active on hardware.
+1791811772.792 [BAN] 10.0.2.4 banned for 300s. Reason: Volumetric packet flood (131765 pkts/s)
+1791811772.792 
+1791811772.792 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.2 | Rate: 130130 pkts/s
+1791811772.792 [XDP] BLOCKED IP: 10.0.2.2. Rule is active on hardware.
+1791811772.792 [BAN] 10.0.2.2 banned for 300s. Reason: Volumetric packet flood (130130 pkts/s)
+1791811772.792 
+1791811772.792 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.1 | Rate: 125947 pkts/s
+1791811772.792 [XDP] BLOCKED IP: 10.0.2.1. Rule is active on hardware.
+1791811772.792 [BAN] 10.0.2.1 banned for 300s. Reason: Volumetric packet flood (125947 pkts/s)
+1791811772.792 
+1791811772.792 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.5 | Rate: 127293 pkts/s
+1791811772.792 [XDP] BLOCKED IP: 10.0.2.5. Rule is active on hardware.
+1791811772.792 [BAN] 10.0.2.5 banned for 300s. Reason: Volumetric packet flood (127293 pkts/s)
+1791811839.887 [*] Compiling and loading eBPF code from file: xdp_ddos_filter.c...
+1791811840.954 [+] Successfully attached XDP program to interface veth_server.
+1791811840.954 [*] Loading data scaler (training_results/scaler_testbed.save)...
+1791811841.563 [*] Loading trained GRU model (training_results/gru_testbed_model.pth, input_size=8)...

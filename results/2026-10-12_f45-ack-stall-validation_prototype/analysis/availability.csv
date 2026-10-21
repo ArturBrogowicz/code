@@ -1,0 +1,4 @@
+scenario,mode,period,runs,n,ok,success_pct,ci_lo,ci_hi,per_run_pct
+Distributed ACK Flood,xdp,before,6,180,180,100.000,100.000,100.000,100/100/100/100/100/100
+Distributed ACK Flood,xdp,during,6,758,758,100.000,100.000,100.000,100/100/100/100/100/100
+Distributed ACK Flood,xdp,after,6,434,434,100.000,100.000,100.000,100/100/100/100/100/100

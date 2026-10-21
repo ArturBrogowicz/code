@@ -1,0 +1,2 @@
+scenario,mode,CPU_Nginx_Pct,CPU_Total_Pct,CPU_Daemon_Pct,PPS_Rx,IP_InReceives,PreStack_Dropped,TCP_Estab,TCP_SynRecv
+Distributed ACK Flood,xdp,0.883,49.023,3.217,1467305.933,77343.267,1389962.667,1.000,1.000

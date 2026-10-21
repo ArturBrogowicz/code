@@ -1,0 +1,26 @@
+1791812011.693 [*] Starting tri-engine Anti-DDoS integration (XDP Telemetry + GRU ML + L7 Heuristics)...
+1791812011.693 [*] Starting L3/L4 telemetry monitor (Interval: 1.0s)
+1791812011.694 [+] Inference worker thread started.
+1791812011.695 [*] Listening for Nginx error logs (RUDY detection): /var/log/nginx/error.log
+1791812011.695 [+] RUDY detection thread started.
+1791812011.695 [*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log
+1791812023.167 
+1791812023.167 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.5 | Rate: 18076 pkts/s
+1791812023.167 [XDP] BLOCKED IP: 10.0.2.5. Rule is active on hardware.
+1791812023.167 [BAN] 10.0.2.5 banned for 300s. Reason: Volumetric packet flood (18076 pkts/s)
+1791812023.167 
+1791812023.167 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.4 | Rate: 18798 pkts/s
+1791812023.167 [XDP] BLOCKED IP: 10.0.2.4. Rule is active on hardware.
+1791812023.167 [BAN] 10.0.2.4 banned for 300s. Reason: Volumetric packet flood (18798 pkts/s)
+1791812023.167 
+1791812023.167 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.3 | Rate: 17089 pkts/s
+1791812023.167 [XDP] BLOCKED IP: 10.0.2.3. Rule is active on hardware.
+1791812023.167 [BAN] 10.0.2.3 banned for 300s. Reason: Volumetric packet flood (17089 pkts/s)
+1791812023.167 
+1791812023.167 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.2 | Rate: 18157 pkts/s
+1791812023.167 [XDP] BLOCKED IP: 10.0.2.2. Rule is active on hardware.
+1791812023.167 [BAN] 10.0.2.2 banned for 300s. Reason: Volumetric packet flood (18157 pkts/s)
+1791812023.167 
+1791812023.167 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.1 | Rate: 17402 pkts/s
+1791812023.167 [XDP] BLOCKED IP: 10.0.2.1. Rule is active on hardware.
+1791812023.167 [BAN] 10.0.2.1 banned for 300s. Reason: Volumetric packet flood (17402 pkts/s)

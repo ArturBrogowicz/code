@@ -1,0 +1,2 @@
+scenario,mode,runs,bots,banned,ttm_median_s,ttm_min_s,ttm_max_s,engines,gru_bans,fp_count,fp_ips,fp_source,exposure_mean_s
+Distributed ACK Flood,xdp,6,30,30,0.797,0.268,2.096,l4_volumetric:30,0,0,,ban events,16.464

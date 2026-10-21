@@ -1,0 +1,63 @@
+===== F45 patched ACK run 2/6 =====
+
+╔══════════════════════════════════════════════════════════════╗
+║   DISTRIBUTED DDoS MITIGATION TESTING SUITE                ║
+║   20 Legit Clients  |  5 Botnet Nodes                      ║
+╚══════════════════════════════════════════════════════════════╝
+
+
+[*] Cleaning up all namespaces and processes...
+[+] Cleanup complete.
+
+[*] Building network topology...
+[*] Creating 20 legitimate client namespaces...
+[+] Legitimate clients ready. Profile distribution:
+    perfect: 6 nodes
+    broadband: 5 nodes
+    mobile_3g: 6 nodes
+    mobile_bad: 3 nodes
+[*] Creating 5 botnet attacker namespaces...
+[+] Botnet ready: 5 nodes.
+[+] 25 unique client/bot MACs verified.
+[*] Waiting for mitigation daemon to initialize........
+[+] Mitigation daemon is ready.
+[+] Started background traffic from 20 legitimate users.
+
+[*] Baseline settling period (5s)...
+[!] ONLY_SCENARIOS=5 → running scenarios [5]
+
+======================================================================
+  SCENARIO 5: Distributed ACK Flood
+======================================================================
+    [*] Sustained stress measurement (10s)...
+
+  [PASS] Distributed ACK Flood
+  ├── Botnet banned:     5/5 (✅)
+  ├── Avg TTM:           1.16s
+  ├── Engines:           L4 Volumetric
+  ├── Legit HTTP:        15/15 OK (✅)
+  ├── Availability:      before 100% (n=27) · during 100% (n=120, p95 1194ms) · after 100% (n=71)
+  └── False Positives:   None ✅
+
+==========================================================================================
+  DISTRIBUTED TEST SUMMARY
+==========================================================================================
+  Scenario                            | Banned     | Avg TTM    | Engine(s)          | FP       | Result
+  ----------------------------------------------------------------------------------------
+  Distributed ACK Flood               | 5/5        | 1.16s      | L4 Volumetric      | Clean    | PASS
+
+  Passed: 1  |  Failed: 0  |  Total: 1
+
+==============================================================================================
+  SERVICE AVAILABILITY (legitimate clients, continuous — before/during/after)
+==============================================================================================
+  Scenario                         | Period | Succ%  | Reqs  | p50     | p95     | p99     | TOs
+  --------------------------------------------------------------------------------------------
+  Distributed ACK Flood            | before | 100.0 | 27    |   49ms |  524ms |  591ms | 0
+                                   | during | 100.0 | 120   |   52ms | 1194ms | 1823ms | 0
+                                   | after  | 100.0 | 71    |   42ms |  763ms | 1304ms | 0
+
+  Availability CSVs: /tmp/availability_<performance|iptables|unprotected>.csv (+ _raw_ per-request dumps)
+
+[*] Cleaning up all namespaces and processes...
+[+] Cleanup complete.

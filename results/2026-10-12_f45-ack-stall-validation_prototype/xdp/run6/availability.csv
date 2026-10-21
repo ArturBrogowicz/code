@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-12T13:34:10.833314,Distributed ACK Flood,before,ALL,active,xdp,25,25,100.0,0,0,0,0.0,48.5,395.5,651.8,154.4,651.8
+2026-10-12T13:34:10.833314,Distributed ACK Flood,before,broadband,active,xdp,12,12,100.0,0,0,0,0.0,44.2,53.2,53.2,44.9,53.2
+2026-10-12T13:34:10.833314,Distributed ACK Flood,before,mobile_3g,active,xdp,9,9,100.0,0,0,0,0.0,313.4,395.5,395.5,295.3,395.5
+2026-10-12T13:34:10.833314,Distributed ACK Flood,before,mobile_bad,active,xdp,1,1,100.0,0,0,0,0.0,651.8,651.8,651.8,651.8,651.8
+2026-10-12T13:34:10.833314,Distributed ACK Flood,before,perfect,active,xdp,3,3,100.0,0,0,0,0.0,2.5,7.8,7.8,4.0,7.8
+2026-10-12T13:34:10.833314,Distributed ACK Flood,during,ALL,active,xdp,118,118,100.0,0,0,0,0.0,310.0,647.3,1054.7,313.9,1083.8
+2026-10-12T13:34:10.833314,Distributed ACK Flood,during,broadband,active,xdp,54,54,100.0,0,0,0,0.0,239.0,397.4,1083.8,250.1,1083.8
+2026-10-12T13:34:10.833314,Distributed ACK Flood,during,mobile_3g,active,xdp,44,44,100.0,0,0,0,0.0,443.9,647.3,934.7,460.9,934.7
+2026-10-12T13:34:10.833314,Distributed ACK Flood,during,mobile_bad,active,xdp,3,3,100.0,0,0,0,0.0,605.2,832.3,832.3,652.7,832.3
+2026-10-12T13:34:10.833314,Distributed ACK Flood,during,perfect,active,xdp,17,17,100.0,0,0,0,0.0,2.3,1054.7,1054.7,76.0,1054.7
+2026-10-12T13:34:10.833314,Distributed ACK Flood,after,ALL,active,xdp,70,70,100.0,0,0,0,0.0,55.4,657.7,1451.3,189.1,1451.3
+2026-10-12T13:34:10.833314,Distributed ACK Flood,after,broadband,active,xdp,37,37,100.0,0,0,0,0.0,51.7,103.4,106.4,56.5,106.4
+2026-10-12T13:34:10.833314,Distributed ACK Flood,after,mobile_3g,active,xdp,20,20,100.0,0,0,0,0.0,377.3,1365.7,1451.3,475.1,1451.3
+2026-10-12T13:34:10.833314,Distributed ACK Flood,after,mobile_bad,active,xdp,2,2,100.0,0,0,0,0.0,657.7,965.8,965.8,811.8,965.8
+2026-10-12T13:34:10.833314,Distributed ACK Flood,after,perfect,active,xdp,11,11,100.0,0,0,0,0.0,1.7,3.8,3.8,1.9,3.8

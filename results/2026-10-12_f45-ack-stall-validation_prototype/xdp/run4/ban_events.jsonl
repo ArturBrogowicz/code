@@ -1,0 +1,6 @@
+{"t_wall":1791811841.568,"t_mono_ns":null,"kind":"start","source":"observer"}
+{"t_wall":1791811854.055,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.4","engine":"l4_volumetric","reason":"Volumetric packet flood (58453 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791811854.055,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.5","engine":"l4_volumetric","reason":"Volumetric packet flood (56153 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791811854.055,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.3","engine":"l4_volumetric","reason":"Volumetric packet flood (55976 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791811854.055,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.2","engine":"l4_volumetric","reason":"Volumetric packet flood (56241 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791811854.055,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.1","engine":"l4_volumetric","reason":"Volumetric packet flood (56790 pkts/s)","ttl_s":300,"source":"observer"}

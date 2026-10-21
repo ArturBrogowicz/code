@@ -1,0 +1,6 @@
+scenario,mode,profile,n,p50_ms,p95_ms,p99_ms
+Distributed ACK Flood,xdp,ALL,758,52.650,747.520,1415.640
+Distributed ACK Flood,xdp,broadband,241,112.200,390.100,992.400
+Distributed ACK Flood,xdp,mobile_3g,185,426.400,927.200,1283.376
+Distributed ACK Flood,xdp,mobile_bad,32,734.300,1822.995,2003.552
+Distributed ACK Flood,xdp,perfect,300,2.300,23.195,1054.760

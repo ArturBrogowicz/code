@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-12T13:32:51.147638,Distributed ACK Flood,before,ALL,active,xdp,36,36,100.0,0,0,0,0.0,1.9,564.8,846.4,149.3,846.4
+2026-10-12T13:32:51.147638,Distributed ACK Flood,before,broadband,active,xdp,8,8,100.0,0,0,0,0.0,50.6,544.7,544.7,122.1,544.7
+2026-10-12T13:32:51.147638,Distributed ACK Flood,before,mobile_3g,active,xdp,7,7,100.0,0,0,0,0.0,520.6,564.8,564.8,502.3,564.8
+2026-10-12T13:32:51.147638,Distributed ACK Flood,before,mobile_bad,active,xdp,1,1,100.0,0,0,0,0.0,846.4,846.4,846.4,846.4,846.4
+2026-10-12T13:32:51.147638,Distributed ACK Flood,before,perfect,active,xdp,20,20,100.0,0,0,0,0.0,1.7,1.9,1.9,1.7,1.9
+2026-10-12T13:32:51.147638,Distributed ACK Flood,during,ALL,active,xdp,151,151,100.0,0,0,0,0.0,7.2,661.6,1210.5,147.7,1274.4
+2026-10-12T13:32:51.147638,Distributed ACK Flood,during,broadband,active,xdp,30,30,100.0,0,0,0,0.0,92.8,454.0,855.3,148.1,855.3
+2026-10-12T13:32:51.147638,Distributed ACK Flood,during,mobile_3g,active,xdp,29,29,100.0,0,0,0,0.0,417.6,1210.5,1274.4,527.3,1274.4
+2026-10-12T13:32:51.147638,Distributed ACK Flood,during,mobile_bad,active,xdp,3,3,100.0,0,0,0,0.0,661.6,841.9,841.9,699.3,841.9
+2026-10-12T13:32:51.147638,Distributed ACK Flood,during,perfect,active,xdp,89,89,100.0,0,0,0,0.0,2.5,13.4,82.8,5.3,82.8
+2026-10-12T13:32:51.147638,Distributed ACK Flood,after,ALL,active,xdp,77,77,100.0,0,0,0,0.0,2.9,499.0,602.1,103.1,602.1
+2026-10-12T13:32:51.147638,Distributed ACK Flood,after,broadband,active,xdp,16,16,100.0,0,0,0,0.0,53.1,602.1,602.1,107.6,602.1
+2026-10-12T13:32:51.147638,Distributed ACK Flood,after,mobile_3g,active,xdp,14,14,100.0,0,0,0,0.0,368.1,563.8,563.8,394.6,563.8
+2026-10-12T13:32:51.147638,Distributed ACK Flood,after,mobile_bad,active,xdp,1,1,100.0,0,0,0,0.0,579.0,579.0,579.0,579.0,579.0
+2026-10-12T13:32:51.147638,Distributed ACK Flood,after,perfect,active,xdp,46,46,100.0,0,0,0,0.0,2.0,4.4,13.7,2.4,13.7

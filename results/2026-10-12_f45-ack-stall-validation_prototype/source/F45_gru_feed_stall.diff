@@ -1,0 +1,52 @@
+--- /home/artur/DDoS-mitigation/code/control_plane.py	2026-10-10 12:15:14.811694076 +0000
++++ /root/project_analysis/patches/work/cp_f45/control_plane.py	2026-10-12 11:27:07.755936339 +0000
+@@ -47,6 +47,11 @@
+ 
+ PREDICTION_THRESHOLD = 0.95
+ GRU_CONSECUTIVE_THRESH = 3
++# F-45 fix: hard cap on flow_map entries visited per poll in the GRU feed. A TCP flood
++# (e.g. ACK with incrementing source ports) fills the 262k-entry LRU flow_map; iterating and
++# scaling all of it stalled the telemetry loop ~10 s and delayed the L4 bans. Legit traffic has
++# only tens of active flows per poll, so this never affects it.
++MAX_GRU_FLOWS_PER_POLL = 2000
+ 
+ # Test-only isolation switch (T1d/Option B). When GRU_ONLY=1, every NON-GRU ban
+ # path (L4 SYN/volumetric/slow-conn, aggregate SYN cookies, L7 rate heuristic,
+@@ -706,6 +711,11 @@
+         # GRU_CONSECUTIVE_THRESH consecutive-detection requirement.
+         # Detect the flood→clear transition and stamp the clean baseline: from this
+         # instant the GRU only trusts flows that START afterwards (see loop header).
++        # F-45 fix: arm volumetric suppression from THIS poll's aggregate deltas BEFORE the feed,
++        # not only from the previous poll's — so a flood that begins mid-poll skips the feed now.
++        if (total_global_syn_delta > GLOBAL_SYN_THRESHOLD
++                or total_global_pkt_delta > GLOBAL_PPS_THRESHOLD):
++            volumetric_active_until = time.time() + VOLUMETRIC_COOLDOWN
+         suppressing = time.time() < volumetric_active_until
+         if was_suppressing and not suppressing:
+             gru_trust_flows_after_ns = time.monotonic_ns()  # same clock as ff.first_seen_ns (bpf_ktime, §6e)
+@@ -722,7 +732,11 @@
+         else:
+             with banned_ips_lock:
+                 banned_snapshot = set(banned_ips)
++            visited = 0
+             for fk, ff in flow_map.items():
++                visited += 1
++                if visited > MAX_GRU_FLOWS_PER_POLL:
++                    break   # F-45: bound per-poll work (flood fills flow_map)
+                 if fk.proto != socket.IPPROTO_TCP:
+                     continue
+                 ip_str = network_bytes_to_ip(fk.src_ip)
+@@ -752,12 +766,7 @@
+                 if seq_ready:
+                     inference_queue.put((ip_str, scaler.transform(raw_sequence)))
+ 
+-        # Keep the GRU paused under aggregate volumetric load (distributed floods
+-        # that may not trip any single per-IP threshold). Runs in all modes — the
+-        # GRU must never act on flood-distorted legit flows.
+-        if (total_global_syn_delta > GLOBAL_SYN_THRESHOLD
+-                or total_global_pkt_delta > GLOBAL_PPS_THRESHOLD):
+-            volumetric_active_until = time.time() + VOLUMETRIC_COOLDOWN
++        # (volumetric suppression is now armed BEFORE the feed, above — F-45 fix)
+ 
+         # Detect spoofed-IP SYN floods via aggregate rate
+         if total_global_syn_delta > GLOBAL_SYN_THRESHOLD and not syn_cookies_enabled and not GRU_ONLY:

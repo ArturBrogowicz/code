@@ -7,6 +7,7 @@ per-run files with eval/campaign.py. A campaign is not edited after publication,
 here means the code changed (or the data was touched), not the number.
 """
 import collections
+import datetime
 import glob
 import hashlib
 import json
@@ -27,6 +28,7 @@ except ImportError:                      # system python without pandas: skip th
 
 EXP1 = os.path.join(REPO, "results", "2026-10-12_exp1-default-4modes_prototype")
 EXP2B = os.path.join(REPO, "results", "2026-10-12_exp2b-knee-nginxtuned_prototype")
+F45 = os.path.join(REPO, "results", "2026-10-12_f45-ack-stall-validation_prototype")
 HTTP, YOYO, UDP = "Distributed HTTP Flood", "Distributed Yo-Yo", "Distributed UDP Flood"
 
 
@@ -187,6 +189,59 @@ class Exp2bTunedNginxTest(unittest.TestCase):
         with open(os.path.join(EXP2B, "source", "nginx_limits_tuned.conf"), "rb") as fh:
             digest = hashlib.sha256(fh.read()).hexdigest()
         self.assertIn(digest, recorded.values())
+
+
+@unittest.skipUnless(HAVE_STACK and os.path.isdir(F45), "needs the venv and results/ F-45 data")
+class F45ValidationTest(unittest.TestCase):
+    """README of 2026-10-12_f45-ack-stall-validation_prototype (addendum §L)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.data = C.load(F45)
+        cls.sc = cls.data["scenarios"]
+
+    def test_six_runs_of_the_ack_flood(self):
+        self.assertEqual(self.data["runs"].groupby("mode").size().to_dict(), {"xdp": 6})
+        self.assertEqual(set(self.sc.Data_Scenario), {"Distributed ACK Flood"})
+        self.assertEqual(self.sc.Result.tolist(), ["PASS", "PASS", "PASS", "FAIL", "PASS", "PASS"])
+        self.assertEqual(self.sc.Banned_Harness.tolist(), [5] * 6)
+        self.assertEqual(harness_fp_lines(F45), {"xdp": 1})                  # run 4, the ping check
+        self.assertEqual(self.sc.FP_IPs.tolist(), ["[]"] * 6)
+
+    def test_all_bans_are_l4_volumetric_bans_of_bots(self):
+        bans = bans_of(F45)
+        self.assertEqual(len(bans), 30)
+        self.assertEqual({b["engine"] for b in bans}, {"l4_volumetric"})
+        self.assertEqual(sorted({b["ip"] for b in bans}), [f"10.0.2.{i}" for i in range(1, 6)])
+
+    def test_time_to_mitigate_from_phase_1_and_phase_2(self):
+        worst = {}
+        for r in self.sc.itertuples():
+            worst[r.run] = max(json.loads(r.TTM_Exact_By_Bot).values())
+        for run, want in {"run1": 0.870, "run2": 0.705, "run3": 0.863, "run4": 0.731, "run5": 2.096,
+                          "run6": 0.268}.items():
+            self.assertAlmostEqual(worst[run], want, delta=0.002, msg=run)
+        # the addendum's 0.97 s is run 5's last ban measured from the Phase-2 row
+        m = self.data["metrics"].copy()
+        m["ts"] = m.Timestamp.map(lambda t: (datetime.datetime.fromisoformat(t)
+                                              - datetime.datetime(1970, 1, 1)).total_seconds())
+        ev = self.data["events"]
+        for run, (gap, last_vs_p2) in {"run1": (1.11, -0.240), "run5": (1.13, 0.969),
+                                       "run6": (1.28, -1.014)}.items():
+            g = m[m.run == run]
+            p1 = g[g.Phase.str.startswith("Phase 1")].ts.iloc[0]
+            p2 = g[g.Phase.str.startswith("Phase 2:")].ts.iloc[0]
+            last = ev[(ev.run == run) & (ev.kind == "ban")].t_wall.max()
+            self.assertAlmostEqual(p2 - p1, gap, delta=0.006, msg=run)
+            self.assertAlmostEqual(last - p2, last_vs_p2, delta=0.002, msg=run)
+
+    def test_availability_and_daemon_load(self):
+        av = C.availability(self.data["raw"])
+        self.assertEqual({(r.period, r.n, r.ok) for r in av.itertuples()},
+                         {("before", 180, 180), ("during", 758, 758), ("after", 434, 434)})
+        m = self.data["metrics"]
+        self.assertAlmostEqual(m.CPU_Daemon_Pct.max(), 43.3, delta=0.05)
+        self.assertAlmostEqual(m.RAM_Daemon_MB.max(), 481.7, delta=0.05)
 
 
 if __name__ == "__main__":
