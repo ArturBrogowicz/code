@@ -26,6 +26,7 @@ a new measurement is a new campaign.
 | [`2026-10-13_exp2a-knee_equal-exposure-30s`](2026-10-13_exp2a-knee_equal-exposure-30s/) | R4: as R3, but every attack runs 30 s in every mode (equal exposure) | valid; 3 paired runs per mode |
 | [`2026-10-13_exp2a-knee_reproduction`](2026-10-13_exp2a-knee_reproduction/) | R3: EXP-2a re-recorded with the reproducible harness (interleaved, paired by `PROFILE_SEED`) | valid; 3 paired runs per mode |
 | [`2026-10-12_exp2a-knee_prototype`](2026-10-12_exp2a-knee_prototype/) | HTTP flood at the capacity-limited operating point, 4 modes × 3 runs (addendum §J) | valid; recorded with the prototype harness and imported; 3 runs per mode |
+| [`2026-10-12_exp1-default-4modes_prototype`](2026-10-12_exp1-default-4modes_prototype/) | EXP-1, 1b, 1c: the full suite (10 scenarios) at the default operating point, 4 modes × 3 runs: legit success 100 % in every mode (17,363 requests during the attacks, 1 failed); the modes differ in L7 latency, Nginx CPU and pre-stack drop; 300 bans, all of bots, none by the GRU (addendum §C-§I) | valid; prototype harness, imported (approximations in its README); independent unseeded runs |
 | [`2026-10-11_superseded-dup-mac`](2026-10-11_superseded-dup-mac/) | 3 modes × 3 runs, all 10 scenarios, on the duplicate-MAC testbed | **superseded**, see its README |
 
 ## Layout of a campaign

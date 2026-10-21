@@ -1,0 +1,11 @@
+Scenario,Data_Scenario,Mode,Operating_Point,Profile_Seed,Attack_Duration_s,Scenario_T0,Attack_Start,Attack_End,Exposure_s,Bots,Banned_Harness,Banned_Events,TTM_Harness_Mean_s,TTM_Exact_Median_s,TTM_Exact_Max_s,TTM_Exact_By_Bot,Engine_By_Bot,FP_Source,FP_IPs,FP_Ping_IPs,Legit_HTTP_OK,Legit_HTTP_Total,Result
+Distributed SYN Flood,Distributed SYN Flood,unprotected,default,,0.0,1791798814.295,1791798818.295,1791798830.357,12.062,5,0,,,,,{},{},no daemon,[],,15,15,FAIL
+Distributed Low & Slow SYN,Distributed Low & Slow SYN,unprotected,default,,0.0,1791798869.866,1791798873.866,1791798905.235,31.369,5,0,,,,,{},{},no daemon,[],,15,15,FAIL
+Distributed UDP Flood,Distributed UDP Flood,unprotected,default,,0.0,1791798944.450,1791798948.450,1791798973.936,25.486,5,0,,,,,{},{},no daemon,[],,15,15,FAIL
+Distributed HTTP Flood,Distributed HTTP Flood,unprotected,default,,0.0,1791799013.951,1791799017.951,1791799035.810,17.859,5,0,,,,,{},{},no daemon,[],,15,15,FAIL
+Distributed ACK Flood,Distributed ACK Flood,unprotected,default,,0.0,1791799074.828,1791799078.828,1791799105.102,26.275,5,0,,,,,{},{},no daemon,[],,15,15,FAIL
+Distributed Fragmentation,Distributed IP Fragmentation Flood,unprotected,default,,0.0,1791799145.562,1791799149.562,1791799175.250,25.688,5,0,,,,,{},{},no daemon,[],,15,15,FAIL
+Distributed Slowloris,Distributed Slowloris,unprotected,default,,0.0,1791799214.807,1791799218.807,1791799260.398,41.591,5,0,,,,,{},{},no daemon,[],,15,15,FAIL
+Distributed R.U.D.Y.,Distributed R.U.D.Y.,unprotected,default,,0.0,1791799299.154,1791799303.154,1791799344.556,41.402,5,0,,,,,{},{},no daemon,[],,15,15,FAIL
+Distributed Yo-Yo,Distributed Yo-Yo,unprotected,default,,0.0,1791799386.237,1791799390.237,1791799417.574,27.337,5,0,,,,,{},{},no daemon,[],,15,15,FAIL
+Multi-Vector Attack,Multi-Vector Distributed Attack,unprotected,default,,0.0,1791799456.889,1791799460.889,1791799498.629,37.739,5,0,,,,,{},{},no daemon,[],,15,15,FAIL

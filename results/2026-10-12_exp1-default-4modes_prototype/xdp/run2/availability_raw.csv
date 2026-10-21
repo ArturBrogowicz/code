@@ -1,0 +1,1832 @@
+Timestamp,Scenario,Period,Profile,HTTP_Code,Latency_ms,OK,Client_IP,T_Start
+2026-10-12T08:21:35.700643,Distributed SYN Flood,before,broadband,200,43.8,1,,1791793295.657
+2026-10-12T08:21:35.888735,Distributed SYN Flood,before,broadband,200,44.0,1,,1791793295.845
+2026-10-12T08:21:36.494459,Distributed SYN Flood,before,perfect,200,1.6,1,,1791793296.493
+2026-10-12T08:21:36.525230,Distributed SYN Flood,before,perfect,200,1.5,1,,1791793296.524
+2026-10-12T08:21:37.013510,Distributed SYN Flood,before,broadband,200,50.1,1,,1791793296.963
+2026-10-12T08:21:37.060893,Distributed SYN Flood,before,perfect,200,1.6,1,,1791793297.059
+2026-10-12T08:21:37.070611,Distributed SYN Flood,before,broadband,200,77.4,1,,1791793296.993
+2026-10-12T08:21:37.101127,Distributed SYN Flood,before,broadband,200,41.7,1,,1791793297.059
+2026-10-12T08:21:37.111695,Distributed SYN Flood,before,perfect,200,2.1,1,,1791793297.110
+2026-10-12T08:21:37.246386,Distributed SYN Flood,before,broadband,200,45.1,1,,1791793297.201
+2026-10-12T08:21:37.763550,Distributed SYN Flood,before,broadband,200,62.0,1,,1791793297.702
+2026-10-12T08:21:37.777563,Distributed SYN Flood,before,perfect,200,1.4,1,,1791793297.776
+2026-10-12T08:21:37.818986,Distributed SYN Flood,before,broadband,200,45.6,1,,1791793297.773
+2026-10-12T08:21:37.824107,Distributed SYN Flood,before,broadband,200,51.7,1,,1791793297.772
+2026-10-12T08:21:38.205492,Distributed SYN Flood,before,mobile_3g,200,419.9,1,,1791793297.786
+2026-10-12T08:21:38.299761,Distributed SYN Flood,before,mobile_3g,200,619.4,1,,1791793297.680
+2026-10-12T08:21:38.319323,Distributed SYN Flood,before,perfect,200,1.7,1,,1791793298.318
+2026-10-12T08:21:38.323388,Distributed SYN Flood,before,mobile_3g,200,479.3,1,,1791793297.844
+2026-10-12T08:21:38.488762,Distributed SYN Flood,before,mobile_3g,200,249.3,1,,1791793298.239
+2026-10-12T08:21:38.732449,Distributed SYN Flood,before,perfect,200,1.9,1,,1791793298.731
+2026-10-12T08:21:38.949246,Distributed SYN Flood,before,mobile_3g,200,430.7,1,,1791793298.519
+2026-10-12T08:21:39.023198,Distributed SYN Flood,before,mobile_3g,200,356.2,1,,1791793298.667
+2026-10-12T08:21:39.086289,Distributed SYN Flood,before,perfect,200,2.9,1,,1791793299.083
+2026-10-12T08:21:39.100511,Distributed SYN Flood,before,mobile_3g,200,503.7,1,,1791793298.597
+2026-10-12T08:21:39.423667,Distributed SYN Flood,before,mobile_3g,200,351.6,1,,1791793299.072
+2026-10-12T08:21:39.430125,Distributed SYN Flood,before,perfect,200,1.7,1,,1791793299.428
+2026-10-12T08:21:39.508496,Distributed SYN Flood,before,broadband,200,41.5,1,,1791793299.467
+2026-10-12T08:21:39.571521,Distributed SYN Flood,before,broadband,200,46.3,1,,1791793299.525
+2026-10-12T08:21:39.587323,Distributed SYN Flood,before,broadband,200,47.5,1,,1791793299.540
+2026-10-12T08:21:39.628909,Distributed SYN Flood,before,broadband,200,42.5,1,,1791793299.586
+2026-10-12T08:21:39.643295,Distributed SYN Flood,before,mobile_3g,200,346.9,1,,1791793299.296
+2026-10-12T08:21:39.738525,Distributed SYN Flood,before,broadband,200,40.6,1,,1791793299.698
+2026-10-12T08:21:40.076835,Distributed SYN Flood,during,broadband,200,68.7,1,,1791793300.008
+2026-10-12T08:21:40.151469,Distributed SYN Flood,during,perfect,200,2.2,1,,1791793300.149
+2026-10-12T08:21:40.360399,Distributed SYN Flood,during,broadband,200,44.8,1,,1791793300.316
+2026-10-12T08:21:40.802420,Distributed SYN Flood,during,perfect,200,1.7,1,,1791793300.801
+2026-10-12T08:21:40.891746,Distributed SYN Flood,during,perfect,200,2.8,1,,1791793300.889
+2026-10-12T08:21:41.544908,Distributed SYN Flood,during,mobile_3g,200,340.9,1,,1791793301.204
+2026-10-12T08:21:41.621660,Distributed SYN Flood,during,perfect,200,1.2,1,,1791793301.620
+2026-10-12T08:21:41.770557,Distributed SYN Flood,during,mobile_3g,200,268.3,1,,1791793301.502
+2026-10-12T08:21:41.810753,Distributed SYN Flood,during,broadband,200,42.3,1,,1791793301.768
+2026-10-12T08:21:41.863835,Distributed SYN Flood,during,perfect,200,5.3,1,,1791793301.859
+2026-10-12T08:21:41.896720,Distributed SYN Flood,during,perfect,200,14.2,1,,1791793301.883
+2026-10-12T08:21:41.990265,Distributed SYN Flood,during,broadband,200,42.4,1,,1791793301.948
+2026-10-12T08:21:42.026482,Distributed SYN Flood,during,broadband,200,42.1,1,,1791793301.984
+2026-10-12T08:21:42.166723,Distributed SYN Flood,during,broadband,200,45.7,1,,1791793302.121
+2026-10-12T08:21:42.259928,Distributed SYN Flood,during,broadband,200,53.1,1,,1791793302.207
+2026-10-12T08:21:42.329444,Distributed SYN Flood,during,broadband,200,48.3,1,,1791793302.281
+2026-10-12T08:21:42.338746,Distributed SYN Flood,during,mobile_3g,200,345.1,1,,1791793301.994
+2026-10-12T08:21:42.527137,Distributed SYN Flood,during,mobile_3g,200,472.4,1,,1791793302.055
+2026-10-12T08:21:42.576400,Distributed SYN Flood,during,mobile_3g,200,343.0,1,,1791793302.233
+2026-10-12T08:21:42.807652,Distributed SYN Flood,during,mobile_3g,200,484.4,1,,1791793302.323
+2026-10-12T08:21:42.955765,Distributed SYN Flood,after,broadband,200,45.7,1,,1791793302.910
+2026-10-12T08:21:43.005679,Distributed SYN Flood,after,perfect,200,1.8,1,,1791793303.004
+2026-10-12T08:21:43.172742,Distributed SYN Flood,after,perfect,200,1.6,1,,1791793303.171
+2026-10-12T08:21:43.391274,Distributed SYN Flood,after,mobile_3g,200,495.5,1,,1791793302.896
+2026-10-12T08:21:43.543512,Distributed SYN Flood,after,mobile_3g,200,530.3,1,,1791793303.013
+2026-10-12T08:21:43.628100,Distributed SYN Flood,after,broadband,200,50.9,1,,1791793303.577
+2026-10-12T08:21:44.012173,Distributed SYN Flood,after,mobile_3g,200,1498.7,1,,1791793302.513
+2026-10-12T08:21:44.171191,Distributed SYN Flood,after,broadband,200,121.7,1,,1791793304.049
+2026-10-12T08:21:44.171553,Distributed SYN Flood,after,perfect,200,8.0,1,,1791793304.164
+2026-10-12T08:21:44.204592,Distributed SYN Flood,after,broadband,200,52.8,1,,1791793304.152
+2026-10-12T08:21:44.392642,Distributed SYN Flood,after,perfect,200,2.8,1,,1791793304.390
+2026-10-12T08:21:44.395342,Distributed SYN Flood,after,broadband,200,66.4,1,,1791793304.329
+2026-10-12T08:21:44.797616,Distributed SYN Flood,after,mobile_3g,200,659.8,1,,1791793304.138
+2026-10-12T08:21:44.806195,Distributed SYN Flood,after,perfect,200,1.4,1,,1791793304.805
+2026-10-12T08:21:44.854557,Distributed SYN Flood,after,broadband,200,47.6,1,,1791793304.807
+2026-10-12T08:21:45.213663,Distributed SYN Flood,after,perfect,200,1.5,1,,1791793305.212
+2026-10-12T08:21:45.303679,Distributed SYN Flood,after,broadband,200,76.5,1,,1791793305.227
+2026-10-12T08:21:45.357394,Distributed SYN Flood,after,broadband,200,44.4,1,,1791793305.313
+2026-10-12T08:21:45.754341,Distributed SYN Flood,after,mobile_3g,200,342.8,1,,1791793305.412
+2026-10-12T08:21:45.813433,Distributed SYN Flood,after,broadband,200,55.7,1,,1791793305.758
+2026-10-12T08:21:45.880230,Distributed SYN Flood,after,mobile_3g,200,498.3,1,,1791793305.382
+2026-10-12T08:21:45.885460,Distributed SYN Flood,after,perfect,200,1.7,1,,1791793305.884
+2026-10-12T08:21:45.949810,Distributed SYN Flood,after,mobile_3g,200,593.3,1,,1791793305.357
+2026-10-12T08:21:45.984334,Distributed SYN Flood,after,perfect,200,1.5,1,,1791793305.983
+2026-10-12T08:21:46.004070,Distributed SYN Flood,after,broadband,200,43.7,1,,1791793305.960
+2026-10-12T08:21:46.053939,Distributed SYN Flood,after,broadband,200,55.0,1,,1791793305.999
+2026-10-12T08:21:46.292480,Distributed SYN Flood,after,broadband,200,67.0,1,,1791793306.225
+2026-10-12T08:21:46.311688,Distributed SYN Flood,after,perfect,200,1.4,1,,1791793306.310
+2026-10-12T08:21:46.522352,Distributed SYN Flood,after,mobile_3g,200,293.9,1,,1791793306.228
+2026-10-12T08:21:47.236434,Distributed SYN Flood,after,mobile_3g,200,618.9,1,,1791793306.618
+2026-10-12T08:21:47.249683,Distributed SYN Flood,after,perfect,200,1.7,1,,1791793307.248
+2026-10-12T08:21:47.255923,Distributed SYN Flood,after,broadband,200,51.1,1,,1791793307.205
+2026-10-12T08:21:47.471231,Distributed SYN Flood,after,mobile_3g,200,790.5,1,,1791793306.681
+2026-10-12T08:21:47.515437,Distributed SYN Flood,after,perfect,200,2.1,1,,1791793307.513
+2026-10-12T08:21:47.569796,Distributed SYN Flood,after,mobile_3g,200,365.8,1,,1791793307.204
+2026-10-12T08:21:47.577175,Distributed SYN Flood,after,mobile_3g,200,341.9,1,,1791793307.235
+2026-10-12T08:21:48.173666,Distributed SYN Flood,after,perfect,200,1.8,1,,1791793308.172
+2026-10-12T08:21:48.210222,Distributed SYN Flood,after,perfect,200,1.7,1,,1791793308.209
+2026-10-12T08:21:48.226910,Distributed SYN Flood,after,broadband,200,51.6,1,,1791793308.175
+2026-10-12T08:21:48.227273,Distributed SYN Flood,after,broadband,200,185.5,1,,1791793308.042
+2026-10-12T08:21:48.455869,Distributed SYN Flood,after,broadband,200,55.9,1,,1791793308.400
+2026-10-12T08:21:48.458587,Distributed SYN Flood,after,broadband,200,47.1,1,,1791793308.411
+2026-10-12T08:21:48.770564,Distributed SYN Flood,after,mobile_3g,200,598.6,1,,1791793308.172
+2026-10-12T08:21:48.847856,Distributed SYN Flood,after,broadband,200,54.9,1,,1791793308.793
+2026-10-12T08:21:49.000099,Distributed SYN Flood,after,broadband,200,53.9,1,,1791793308.946
+2026-10-12T08:21:49.091509,Distributed SYN Flood,after,mobile_3g,200,414.3,1,,1791793308.677
+2026-10-12T08:21:49.235861,Distributed SYN Flood,after,mobile_3g,200,487.7,1,,1791793308.748
+2026-10-12T08:21:49.299469,Distributed SYN Flood,after,perfect,200,1.6,1,,1791793309.298
+2026-10-12T08:21:49.337204,Distributed SYN Flood,after,perfect,200,1.9,1,,1791793309.335
+2026-10-12T08:21:49.582711,Distributed SYN Flood,after,broadband,200,44.0,1,,1791793309.539
+2026-10-12T08:21:49.951778,Distributed SYN Flood,after,mobile_3g,200,607.7,1,,1791793309.344
+2026-10-12T08:21:49.962712,Distributed SYN Flood,after,perfect,200,1.5,1,,1791793309.961
+2026-10-12T08:21:50.006774,Distributed SYN Flood,after,broadband,200,46.3,1,,1791793309.960
+2026-10-12T08:21:50.275592,Distributed SYN Flood,after,broadband,200,67.1,1,,1791793310.208
+2026-10-12T08:21:50.336418,Distributed SYN Flood,after,broadband,200,45.6,1,,1791793310.291
+2026-10-12T08:21:50.976918,Distributed SYN Flood,after,mobile_3g,200,907.5,1,,1791793310.069
+2026-10-12T08:21:50.977390,Distributed SYN Flood,after,mobile_3g,200,419.3,1,,1791793310.558
+2026-10-12T08:21:50.995105,Distributed SYN Flood,after,broadband,200,309.7,1,,1791793310.685
+2026-10-12T08:21:51.185228,Distributed SYN Flood,after,mobile_3g,200,565.0,1,,1791793310.620
+2026-10-12T08:21:51.211459,Distributed SYN Flood,after,perfect,200,2.0,1,,1791793311.209
+2026-10-12T08:21:51.211949,Distributed SYN Flood,after,perfect,200,2.3,1,,1791793311.210
+2026-10-12T08:21:51.302621,Distributed SYN Flood,after,perfect,200,1.4,1,,1791793311.301
+2026-10-12T08:21:51.337277,Distributed SYN Flood,after,mobile_3g,200,352.5,1,,1791793310.985
+2026-10-12T08:21:51.693535,Distributed SYN Flood,after,perfect,200,1.9,1,,1791793311.692
+2026-10-12T08:21:51.829052,Distributed SYN Flood,after,mobile_3g,200,461.9,1,,1791793311.367
+2026-10-12T08:21:52.388101,Distributed SYN Flood,after,perfect,200,1.5,1,,1791793312.387
+2026-10-12T08:21:52.413517,Distributed SYN Flood,after,broadband,200,41.4,1,,1791793312.372
+2026-10-12T08:21:52.420317,Distributed SYN Flood,after,broadband,200,48.4,1,,1791793312.372
+2026-10-12T08:22:25.503402,Distributed Low & Slow SYN,before,broadband,200,75.1,1,,1791793345.428
+2026-10-12T08:22:25.655797,Distributed Low & Slow SYN,before,broadband,200,74.3,1,,1791793345.581
+2026-10-12T08:22:25.833463,Distributed Low & Slow SYN,before,perfect,200,1.5,1,,1791793345.832
+2026-10-12T08:22:25.840401,Distributed Low & Slow SYN,before,mobile_3g,200,404.0,1,,1791793345.436
+2026-10-12T08:22:25.996391,Distributed Low & Slow SYN,before,broadband,200,44.2,1,,1791793345.952
+2026-10-12T08:22:26.003284,Distributed Low & Slow SYN,before,broadband,200,43.8,1,,1791793345.959
+2026-10-12T08:22:26.008458,Distributed Low & Slow SYN,before,perfect,200,1.6,1,,1791793346.007
+2026-10-12T08:22:26.384177,Distributed Low & Slow SYN,before,perfect,200,1.4,1,,1791793346.383
+2026-10-12T08:22:26.408899,Distributed Low & Slow SYN,before,mobile_3g,200,503.0,1,,1791793345.906
+2026-10-12T08:22:26.660805,Distributed Low & Slow SYN,before,mobile_3g,200,502.4,1,,1791793346.158
+2026-10-12T08:22:26.693924,Distributed Low & Slow SYN,before,broadband,200,41.3,1,,1791793346.653
+2026-10-12T08:22:26.726587,Distributed Low & Slow SYN,before,broadband,200,47.6,1,,1791793346.679
+2026-10-12T08:22:27.037162,Distributed Low & Slow SYN,before,perfect,200,2.2,1,,1791793347.035
+2026-10-12T08:22:27.108645,Distributed Low & Slow SYN,before,mobile_3g,200,333.9,1,,1791793346.775
+2026-10-12T08:22:27.281543,Distributed Low & Slow SYN,before,mobile_3g,200,287.8,1,,1791793346.994
+2026-10-12T08:22:27.289594,Distributed Low & Slow SYN,before,perfect,200,2.1,1,,1791793347.287
+2026-10-12T08:22:27.341206,Distributed Low & Slow SYN,before,mobile_3g,200,354.8,1,,1791793346.986
+2026-10-12T08:22:27.739798,Distributed Low & Slow SYN,before,broadband,200,71.2,1,,1791793347.669
+2026-10-12T08:22:27.751235,Distributed Low & Slow SYN,before,perfect,200,1.9,1,,1791793347.749
+2026-10-12T08:22:27.765154,Distributed Low & Slow SYN,before,mobile_3g,200,390.2,1,,1791793347.375
+2026-10-12T08:22:27.859608,Distributed Low & Slow SYN,before,broadband,200,204.0,1,,1791793347.656
+2026-10-12T08:22:27.956205,Distributed Low & Slow SYN,before,broadband,200,67.8,1,,1791793347.888
+2026-10-12T08:22:28.020854,Distributed Low & Slow SYN,before,broadband,200,39.7,1,,1791793347.981
+2026-10-12T08:22:28.215664,Distributed Low & Slow SYN,before,perfect,200,1.7,1,,1791793348.214
+2026-10-12T08:22:28.337049,Distributed Low & Slow SYN,before,broadband,200,51.2,1,,1791793348.286
+2026-10-12T08:22:28.354306,Distributed Low & Slow SYN,before,perfect,200,1.7,1,,1791793348.353
+2026-10-12T08:22:28.441055,Distributed Low & Slow SYN,before,mobile_3g,200,424.2,1,,1791793348.017
+2026-10-12T08:22:28.467294,Distributed Low & Slow SYN,before,perfect,200,1.4,1,,1791793348.466
+2026-10-12T08:22:29.261149,Distributed Low & Slow SYN,before,broadband,200,53.3,1,,1791793349.208
+2026-10-12T08:22:29.313070,Distributed Low & Slow SYN,before,broadband,200,60.3,1,,1791793349.253
+2026-10-12T08:22:29.760390,Distributed Low & Slow SYN,during,perfect,200,1.8,1,,1791793349.759
+2026-10-12T08:22:29.763601,Distributed Low & Slow SYN,during,broadband,200,39.4,1,,1791793349.724
+2026-10-12T08:22:29.766671,Distributed Low & Slow SYN,during,perfect,200,4.8,1,,1791793349.762
+2026-10-12T08:22:30.030369,Distributed Low & Slow SYN,during,mobile_3g,200,272.2,1,,1791793349.758
+2026-10-12T08:22:30.042312,Distributed Low & Slow SYN,during,perfect,200,2.1,1,,1791793350.040
+2026-10-12T08:22:30.066610,Distributed Low & Slow SYN,during,mobile_3g,200,307.6,1,,1791793349.759
+2026-10-12T08:22:30.199636,Distributed Low & Slow SYN,during,perfect,200,1.5,1,,1791793350.198
+2026-10-12T08:22:30.256488,Distributed Low & Slow SYN,during,mobile_3g,200,274.5,1,,1791793349.982
+2026-10-12T08:22:30.354042,Distributed Low & Slow SYN,during,broadband,200,54.8,1,,1791793350.299
+2026-10-12T08:22:30.488744,Distributed Low & Slow SYN,during,mobile_3g,200,346.6,1,,1791793350.142
+2026-10-12T08:22:30.677626,Distributed Low & Slow SYN,during,broadband,200,58.1,1,,1791793350.620
+2026-10-12T08:22:30.714925,Distributed Low & Slow SYN,during,mobile_3g,200,228.4,1,,1791793350.487
+2026-10-12T08:22:30.784561,Distributed Low & Slow SYN,during,broadband,200,37.6,1,,1791793350.747
+2026-10-12T08:22:30.896613,Distributed Low & Slow SYN,during,mobile_3g,200,196.2,1,,1791793350.700
+2026-10-12T08:22:30.897838,Distributed Low & Slow SYN,during,broadband,200,54.3,1,,1791793350.844
+2026-10-12T08:22:30.908629,Distributed Low & Slow SYN,during,perfect,200,2.2,1,,1791793350.906
+2026-10-12T08:22:31.409862,Distributed Low & Slow SYN,during,broadband,200,54.8,1,,1791793351.355
+2026-10-12T08:22:31.424333,Distributed Low & Slow SYN,during,perfect,200,1.7,1,,1791793351.423
+2026-10-12T08:22:31.583107,Distributed Low & Slow SYN,during,mobile_3g,200,297.9,1,,1791793351.285
+2026-10-12T08:22:31.764663,Distributed Low & Slow SYN,during,mobile_3g,200,395.0,1,,1791793351.370
+2026-10-12T08:22:31.843089,Distributed Low & Slow SYN,during,perfect,200,2.2,1,,1791793351.841
+2026-10-12T08:22:32.066759,Distributed Low & Slow SYN,during,broadband,200,49.8,1,,1791793352.017
+2026-10-12T08:22:32.453699,Distributed Low & Slow SYN,during,perfect,200,1.5,1,,1791793352.452
+2026-10-12T08:22:32.470820,Distributed Low & Slow SYN,during,perfect,200,2.0,1,,1791793352.469
+2026-10-12T08:22:32.585356,Distributed Low & Slow SYN,during,broadband,200,47.3,1,,1791793352.538
+2026-10-12T08:22:32.694922,Distributed Low & Slow SYN,during,broadband,200,44.1,1,,1791793352.651
+2026-10-12T08:22:32.705932,Distributed Low & Slow SYN,during,broadband,200,43.3,1,,1791793352.663
+2026-10-12T08:22:32.857660,Distributed Low & Slow SYN,during,mobile_3g,200,1008.0,1,,1791793351.850
+2026-10-12T08:22:32.890642,Distributed Low & Slow SYN,during,mobile_3g,200,291.6,1,,1791793352.599
+2026-10-12T08:22:32.966793,Distributed Low & Slow SYN,during,broadband,200,45.2,1,,1791793352.922
+2026-10-12T08:22:33.095805,Distributed Low & Slow SYN,during,mobile_3g,200,385.6,1,,1791793352.710
+2026-10-12T08:22:33.144593,Distributed Low & Slow SYN,during,broadband,200,49.0,1,,1791793353.096
+2026-10-12T08:22:33.421847,Distributed Low & Slow SYN,during,mobile_3g,200,280.5,1,,1791793353.141
+2026-10-12T08:22:33.490104,Distributed Low & Slow SYN,during,perfect,200,1.7,1,,1791793353.488
+2026-10-12T08:22:33.552938,Distributed Low & Slow SYN,during,broadband,200,49.8,1,,1791793353.503
+2026-10-12T08:22:33.560812,Distributed Low & Slow SYN,during,perfect,200,2.8,1,,1791793353.558
+2026-10-12T08:22:34.071581,Distributed Low & Slow SYN,during,broadband,200,36.0,1,,1791793354.036
+2026-10-12T08:22:34.142762,Distributed Low & Slow SYN,during,mobile_3g,200,325.4,1,,1791793353.817
+2026-10-12T08:22:34.163370,Distributed Low & Slow SYN,during,broadband,200,44.6,1,,1791793354.119
+2026-10-12T08:22:34.199925,Distributed Low & Slow SYN,during,mobile_3g,200,313.8,1,,1791793353.886
+2026-10-12T08:22:34.271629,Distributed Low & Slow SYN,during,mobile_3g,200,384.2,1,,1791793353.887
+2026-10-12T08:22:34.377796,Distributed Low & Slow SYN,during,perfect,200,1.8,1,,1791793354.376
+2026-10-12T08:22:34.383727,Distributed Low & Slow SYN,during,broadband,200,45.6,1,,1791793354.338
+2026-10-12T08:22:34.403259,Distributed Low & Slow SYN,during,broadband,200,40.9,1,,1791793354.362
+2026-10-12T08:22:34.642417,Distributed Low & Slow SYN,during,broadband,200,40.4,1,,1791793354.602
+2026-10-12T08:22:34.776189,Distributed Low & Slow SYN,during,perfect,200,1.3,1,,1791793354.775
+2026-10-12T08:22:34.951783,Distributed Low & Slow SYN,during,mobile_3g,200,222.6,1,,1791793354.729
+2026-10-12T08:22:35.133788,Distributed Low & Slow SYN,during,mobile_3g,200,295.6,1,,1791793354.838
+2026-10-12T08:22:35.162186,Distributed Low & Slow SYN,after,perfect,200,1.7,1,,1791793355.160
+2026-10-12T08:22:35.518112,Distributed Low & Slow SYN,after,perfect,200,1.2,1,,1791793355.517
+2026-10-12T08:22:35.825522,Distributed Low & Slow SYN,after,mobile_3g,200,285.5,1,,1791793355.540
+2026-10-12T08:22:35.977807,Distributed Low & Slow SYN,after,perfect,200,1.8,1,,1791793355.976
+2026-10-12T08:22:35.985324,Distributed Low & Slow SYN,after,broadband,200,470.1,1,,1791793355.515
+2026-10-12T08:22:36.085848,Distributed Low & Slow SYN,after,broadband,200,60.9,1,,1791793356.025
+2026-10-12T08:22:36.308154,Distributed Low & Slow SYN,after,mobile_3g,200,304.3,1,,1791793356.004
+2026-10-12T08:22:36.322699,Distributed Low & Slow SYN,after,broadband,200,41.5,1,,1791793356.281
+2026-10-12T08:22:36.342221,Distributed Low & Slow SYN,after,broadband,200,48.8,1,,1791793356.293
+2026-10-12T08:22:36.466840,Distributed Low & Slow SYN,after,broadband,200,39.1,1,,1791793356.428
+2026-10-12T08:22:36.478889,Distributed Low & Slow SYN,after,broadband,200,50.4,1,,1791793356.428
+2026-10-12T08:22:36.508905,Distributed Low & Slow SYN,after,mobile_3g,200,297.5,1,,1791793356.211
+2026-10-12T08:22:36.753839,Distributed Low & Slow SYN,after,perfect,200,1.3,1,,1791793356.753
+2026-10-12T08:22:37.012799,Distributed Low & Slow SYN,after,broadband,200,61.8,1,,1791793356.951
+2026-10-12T08:22:37.077760,Distributed Low & Slow SYN,after,perfect,200,1.7,1,,1791793357.076
+2026-10-12T08:22:37.233740,Distributed Low & Slow SYN,after,mobile_3g,200,325.0,1,,1791793356.909
+2026-10-12T08:22:37.689448,Distributed Low & Slow SYN,after,broadband,200,43.3,1,,1791793357.646
+2026-10-12T08:22:37.794021,Distributed Low & Slow SYN,after,broadband,200,55.7,1,,1791793357.738
+2026-10-12T08:22:37.907857,Distributed Low & Slow SYN,after,broadband,200,43.8,1,,1791793357.864
+2026-10-12T08:22:37.915220,Distributed Low & Slow SYN,after,perfect,200,3.9,1,,1791793357.911
+2026-10-12T08:22:37.950105,Distributed Low & Slow SYN,after,perfect,200,1.4,1,,1791793357.949
+2026-10-12T08:22:38.066388,Distributed Low & Slow SYN,after,perfect,200,1.5,1,,1791793358.065
+2026-10-12T08:22:38.136207,Distributed Low & Slow SYN,after,mobile_3g,200,338.1,1,,1791793357.798
+2026-10-12T08:22:38.358604,Distributed Low & Slow SYN,after,mobile_3g,200,645.0,1,,1791793357.714
+2026-10-12T08:22:38.438348,Distributed Low & Slow SYN,after,perfect,200,1.6,1,,1791793358.437
+2026-10-12T08:22:38.816771,Distributed Low & Slow SYN,after,mobile_3g,200,400.6,1,,1791793358.416
+2026-10-12T08:22:38.899044,Distributed Low & Slow SYN,after,broadband,200,43.0,1,,1791793358.856
+2026-10-12T08:22:38.940465,Distributed Low & Slow SYN,after,broadband,200,40.4,1,,1791793358.900
+2026-10-12T08:22:39.156600,Distributed Low & Slow SYN,after,broadband,200,100.6,1,,1791793359.056
+2026-10-12T08:22:39.177233,Distributed Low & Slow SYN,after,mobile_3g,200,1282.4,1,,1791793357.895
+2026-10-12T08:22:39.224022,Distributed Low & Slow SYN,after,broadband,200,43.5,1,,1791793359.181
+2026-10-12T08:22:39.334833,Distributed Low & Slow SYN,after,perfect,200,1.9,1,,1791793359.333
+2026-10-12T08:22:39.482545,Distributed Low & Slow SYN,after,mobile_3g,200,455.9,1,,1791793359.027
+2026-10-12T08:22:39.738763,Distributed Low & Slow SYN,after,perfect,200,1.7,1,,1791793359.737
+2026-10-12T08:22:39.846887,Distributed Low & Slow SYN,after,broadband,200,41.7,1,,1791793359.805
+2026-10-12T08:22:39.949409,Distributed Low & Slow SYN,after,mobile_3g,200,483.6,1,,1791793359.466
+2026-10-12T08:22:39.983418,Distributed Low & Slow SYN,after,broadband,200,45.9,1,,1791793359.938
+2026-10-12T08:22:40.087635,Distributed Low & Slow SYN,after,mobile_3g,200,389.5,1,,1791793359.698
+2026-10-12T08:22:40.159845,Distributed Low & Slow SYN,after,perfect,200,1.7,1,,1791793360.158
+2026-10-12T08:22:40.261610,Distributed Low & Slow SYN,after,broadband,200,57.3,1,,1791793360.204
+2026-10-12T08:22:40.271764,Distributed Low & Slow SYN,after,perfect,200,1.6,1,,1791793360.270
+2026-10-12T08:22:40.478879,Distributed Low & Slow SYN,after,mobile_3g,200,299.3,1,,1791793360.180
+2026-10-12T08:22:40.724589,Distributed Low & Slow SYN,after,mobile_3g,200,255.3,1,,1791793360.469
+2026-10-12T08:22:41.371201,Distributed Low & Slow SYN,after,perfect,200,1.6,1,,1791793361.370
+2026-10-12T08:22:41.426303,Distributed Low & Slow SYN,after,mobile_3g,200,522.6,1,,1791793360.904
+2026-10-12T08:22:41.563001,Distributed Low & Slow SYN,after,broadband,200,53.7,1,,1791793361.509
+2026-10-12T08:22:41.622195,Distributed Low & Slow SYN,after,broadband,200,54.3,1,,1791793361.568
+2026-10-12T08:22:41.685923,Distributed Low & Slow SYN,after,mobile_3g,200,277.0,1,,1791793361.409
+2026-10-12T08:22:41.722106,Distributed Low & Slow SYN,after,broadband,200,59.1,1,,1791793361.663
+2026-10-12T08:22:41.731633,Distributed Low & Slow SYN,after,perfect,200,1.5,1,,1791793361.730
+2026-10-12T08:22:41.816949,Distributed Low & Slow SYN,after,broadband,200,60.3,1,,1791793361.757
+2026-10-12T08:22:41.935534,Distributed Low & Slow SYN,after,broadband,200,54.0,1,,1791793361.882
+2026-10-12T08:22:41.954569,Distributed Low & Slow SYN,after,mobile_3g,200,386.7,1,,1791793361.568
+2026-10-12T08:22:42.257507,Distributed Low & Slow SYN,after,broadband,200,64.3,1,,1791793362.193
+2026-10-12T08:22:42.282510,Distributed Low & Slow SYN,after,mobile_3g,200,386.4,1,,1791793361.896
+2026-10-12T08:22:42.481339,Distributed Low & Slow SYN,after,perfect,200,6.6,1,,1791793362.475
+2026-10-12T08:22:42.496654,Distributed Low & Slow SYN,after,broadband,200,44.2,1,,1791793362.452
+2026-10-12T08:22:42.719754,Distributed Low & Slow SYN,after,perfect,200,1.8,1,,1791793362.718
+2026-10-12T08:22:43.385963,Distributed Low & Slow SYN,after,perfect,200,1.9,1,,1791793363.384
+2026-10-12T08:22:44.025181,Distributed Low & Slow SYN,after,mobile_3g,200,641.4,1,,1791793363.384
+2026-10-12T08:22:44.044194,Distributed Low & Slow SYN,after,perfect,200,2.0,1,,1791793364.042
+2026-10-12T08:22:44.136828,Distributed Low & Slow SYN,after,broadband,200,43.6,1,,1791793364.093
+2026-10-12T08:22:44.193495,Distributed Low & Slow SYN,after,perfect,200,1.5,1,,1791793364.192
+2026-10-12T08:22:44.209100,Distributed Low & Slow SYN,after,broadband,200,50.2,1,,1791793364.159
+2026-10-12T08:22:44.329514,Distributed Low & Slow SYN,after,mobile_3g,200,553.2,1,,1791793363.776
+2026-10-12T08:22:44.495917,Distributed Low & Slow SYN,after,mobile_3g,200,309.8,1,,1791793364.186
+2026-10-12T08:22:44.553125,Distributed Low & Slow SYN,after,broadband,200,44.7,1,,1791793364.508
+2026-10-12T08:22:44.558673,Distributed Low & Slow SYN,after,mobile_3g,200,365.4,1,,1791793364.193
+2026-10-12T08:22:44.561936,Distributed Low & Slow SYN,after,broadband,200,44.1,1,,1791793364.518
+2026-10-12T08:22:44.567417,Distributed Low & Slow SYN,after,mobile_3g,200,297.7,1,,1791793364.270
+2026-10-12T08:22:44.606326,Distributed Low & Slow SYN,after,broadband,200,39.0,1,,1791793364.567
+2026-10-12T08:22:44.769213,Distributed Low & Slow SYN,after,broadband,200,46.8,1,,1791793364.722
+2026-10-12T08:22:44.804523,Distributed Low & Slow SYN,after,perfect,200,1.4,1,,1791793364.803
+2026-10-12T08:22:44.844655,Distributed Low & Slow SYN,after,broadband,200,50.4,1,,1791793364.794
+2026-10-12T08:23:19.757074,Distributed UDP Flood,before,broadband,200,144.9,1,,1791793399.612
+2026-10-12T08:23:19.825809,Distributed UDP Flood,before,broadband,200,85.7,1,,1791793399.740
+2026-10-12T08:23:20.097507,Distributed UDP Flood,before,broadband,200,48.3,1,,1791793400.049
+2026-10-12T08:23:20.116571,Distributed UDP Flood,before,broadband,200,50.3,1,,1791793400.066
+2026-10-12T08:23:20.118024,Distributed UDP Flood,before,perfect,200,1.8,1,,1791793400.116
+2026-10-12T08:23:20.303296,Distributed UDP Flood,before,broadband,200,78.5,1,,1791793400.225
+2026-10-12T08:23:20.526059,Distributed UDP Flood,before,broadband,200,44.1,1,,1791793400.482
+2026-10-12T08:23:20.541532,Distributed UDP Flood,before,broadband,200,40.5,1,,1791793400.501
+2026-10-12T08:23:20.577569,Distributed UDP Flood,before,mobile_3g,200,424.2,1,,1791793400.153
+2026-10-12T08:23:20.693918,Distributed UDP Flood,before,perfect,200,1.6,1,,1791793400.692
+2026-10-12T08:23:20.728064,Distributed UDP Flood,before,perfect,200,3.1,1,,1791793400.725
+2026-10-12T08:23:20.738543,Distributed UDP Flood,before,perfect,200,1.7,1,,1791793400.737
+2026-10-12T08:23:20.882192,Distributed UDP Flood,before,mobile_3g,200,322.0,1,,1791793400.560
+2026-10-12T08:23:20.924345,Distributed UDP Flood,before,mobile_3g,200,455.5,1,,1791793400.469
+2026-10-12T08:23:21.267416,Distributed UDP Flood,before,mobile_3g,200,454.3,1,,1791793400.813
+2026-10-12T08:23:21.306341,Distributed UDP Flood,before,mobile_3g,200,1111.0,1,,1791793400.195
+2026-10-12T08:23:21.433683,Distributed UDP Flood,before,mobile_3g,200,276.0,1,,1791793401.158
+2026-10-12T08:23:21.554590,Distributed UDP Flood,before,mobile_3g,200,567.4,1,,1791793400.987
+2026-10-12T08:23:21.566710,Distributed UDP Flood,before,perfect,200,1.8,1,,1791793401.565
+2026-10-12T08:23:21.604276,Distributed UDP Flood,before,mobile_3g,200,285.2,1,,1791793401.319
+2026-10-12T08:23:21.774274,Distributed UDP Flood,before,perfect,200,1.6,1,,1791793401.773
+2026-10-12T08:23:21.857498,Distributed UDP Flood,before,mobile_3g,200,262.0,1,,1791793401.595
+2026-10-12T08:23:21.887017,Distributed UDP Flood,before,broadband,200,60.1,1,,1791793401.827
+2026-10-12T08:23:21.888842,Distributed UDP Flood,before,perfect,200,2.1,1,,1791793401.887
+2026-10-12T08:23:22.806493,Distributed UDP Flood,before,broadband,200,43.9,1,,1791793402.763
+2026-10-12T08:23:22.823923,Distributed UDP Flood,before,broadband,200,44.7,1,,1791793402.779
+2026-10-12T08:23:22.824425,Distributed UDP Flood,before,broadband,200,45.6,1,,1791793402.779
+2026-10-12T08:23:22.865047,Distributed UDP Flood,before,broadband,200,87.2,1,,1791793402.778
+2026-10-12T08:23:22.865669,Distributed UDP Flood,before,perfect,200,2.4,1,,1791793402.863
+2026-10-12T08:23:22.894937,Distributed UDP Flood,before,broadband,200,44.2,1,,1791793402.851
+2026-10-12T08:23:22.932004,Distributed UDP Flood,before,perfect,200,1.5,1,,1791793402.931
+2026-10-12T08:23:22.985693,Distributed UDP Flood,before,broadband,200,39.6,1,,1791793402.946
+2026-10-12T08:23:24.213018,Distributed UDP Flood,during,perfect,200,9.9,1,,1791793404.203
+2026-10-12T08:23:24.240617,Distributed UDP Flood,during,perfect,200,10.5,1,,1791793404.230
+2026-10-12T08:23:24.248984,Distributed UDP Flood,during,perfect,200,14.1,1,,1791793404.235
+2026-10-12T08:23:24.393176,Distributed UDP Flood,during,mobile_3g,200,365.5,1,,1791793404.028
+2026-10-12T08:23:24.757436,Distributed UDP Flood,during,broadband,200,171.2,1,,1791793404.586
+2026-10-12T08:23:24.757810,Distributed UDP Flood,during,broadband,200,156.6,1,,1791793404.601
+2026-10-12T08:23:24.759661,Distributed UDP Flood,during,mobile_3g,200,356.2,1,,1791793404.403
+2026-10-12T08:23:24.769495,Distributed UDP Flood,during,mobile_3g,200,242.4,1,,1791793404.527
+2026-10-12T08:23:24.775124,Distributed UDP Flood,during,perfect,200,1.5,1,,1791793404.774
+2026-10-12T08:23:24.775646,Distributed UDP Flood,during,broadband,200,101.4,1,,1791793404.674
+2026-10-12T08:23:24.943751,Distributed UDP Flood,during,mobile_3g,200,423.2,1,,1791793404.521
+2026-10-12T08:23:24.945112,Distributed UDP Flood,during,broadband,200,265.3,1,,1791793404.680
+2026-10-12T08:23:24.959221,Distributed UDP Flood,during,mobile_3g,200,425.5,1,,1791793404.534
+2026-10-12T08:23:25.182832,Distributed UDP Flood,during,mobile_3g,200,507.9,1,,1791793404.675
+2026-10-12T08:23:25.346620,Distributed UDP Flood,during,mobile_3g,200,414.8,1,,1791793404.932
+2026-10-12T08:23:25.349643,Distributed UDP Flood,during,mobile_3g,200,394.7,1,,1791793404.955
+2026-10-12T08:23:25.671808,Distributed UDP Flood,during,perfect,200,4.9,1,,1791793405.667
+2026-10-12T08:23:25.675974,Distributed UDP Flood,during,broadband,200,128.8,1,,1791793405.547
+2026-10-12T08:23:25.956563,Distributed UDP Flood,during,mobile_3g,200,274.7,1,,1791793405.682
+2026-10-12T08:23:26.126377,Distributed UDP Flood,during,broadband,200,154.3,1,,1791793405.972
+2026-10-12T08:23:26.129432,Distributed UDP Flood,during,perfect,200,12.5,1,,1791793406.117
+2026-10-12T08:23:26.132684,Distributed UDP Flood,during,broadband,200,168.3,1,,1791793405.964
+2026-10-12T08:23:26.512971,Distributed UDP Flood,during,perfect,200,9.0,1,,1791793406.504
+2026-10-12T08:23:26.870213,Distributed UDP Flood,during,broadband,200,364.5,1,,1791793406.506
+2026-10-12T08:23:26.890661,Distributed UDP Flood,during,perfect,200,2.6,1,,1791793406.888
+2026-10-12T08:23:27.012188,Distributed UDP Flood,during,perfect,200,1.5,1,,1791793407.011
+2026-10-12T08:23:27.029971,Distributed UDP Flood,during,broadband,200,146.1,1,,1791793406.884
+2026-10-12T08:23:27.479117,Distributed UDP Flood,during,broadband,200,204.9,1,,1791793407.274
+2026-10-12T08:23:28.490084,Distributed UDP Flood,during,mobile_3g,200,321.7,1,,1791793408.168
+2026-10-12T08:23:28.558922,Distributed UDP Flood,during,broadband,200,711.5,1,,1791793407.847
+2026-10-12T08:23:28.560119,Distributed UDP Flood,during,perfect,200,37.1,1,,1791793408.523
+2026-10-12T08:23:28.560647,Distributed UDP Flood,during,broadband,200,731.8,1,,1791793407.829
+2026-10-12T08:23:28.562776,Distributed UDP Flood,during,perfect,200,13.8,1,,1791793408.549
+2026-10-12T08:23:28.575513,Distributed UDP Flood,during,perfect,200,6.0,1,,1791793408.570
+2026-10-12T08:23:28.599737,Distributed UDP Flood,during,broadband,200,49.0,1,,1791793408.551
+2026-10-12T08:23:28.720432,Distributed UDP Flood,during,broadband,200,160.3,1,,1791793408.560
+2026-10-12T08:23:28.726095,Distributed UDP Flood,during,mobile_3g,200,1110.5,1,,1791793407.616
+2026-10-12T08:23:28.734802,Distributed UDP Flood,during,mobile_3g,200,204.8,1,,1791793408.530
+2026-10-12T08:23:29.051157,Distributed UDP Flood,during,mobile_3g,200,498.0,1,,1791793408.553
+2026-10-12T08:23:29.067833,Distributed UDP Flood,during,broadband,200,314.5,1,,1791793408.753
+2026-10-12T08:23:29.068466,Distributed UDP Flood,during,mobile_3g,200,485.6,1,,1791793408.583
+2026-10-12T08:23:29.068559,Distributed UDP Flood,during,mobile_3g,200,487.7,1,,1791793408.581
+2026-10-12T08:23:29.069015,Distributed UDP Flood,during,broadband,200,310.9,1,,1791793408.758
+2026-10-12T08:23:29.260207,Distributed UDP Flood,during,broadband,200,181.3,1,,1791793409.079
+2026-10-12T08:23:29.278205,Distributed UDP Flood,during,perfect,200,4.8,1,,1791793409.273
+2026-10-12T08:23:29.417453,Distributed UDP Flood,during,mobile_3g,200,338.4,1,,1791793409.079
+2026-10-12T08:23:29.504789,Distributed UDP Flood,during,mobile_3g,200,420.6,1,,1791793409.084
+2026-10-12T08:23:30.285090,Distributed UDP Flood,during,perfect,200,1.5,1,,1791793410.284
+2026-10-12T08:23:30.473674,Distributed UDP Flood,during,mobile_3g,200,607.4,1,,1791793409.866
+2026-10-12T08:23:30.474492,Distributed UDP Flood,during,broadband,200,238.3,1,,1791793410.236
+2026-10-12T08:23:30.633232,Distributed UDP Flood,during,broadband,200,73.6,1,,1791793410.560
+2026-10-12T08:23:30.649331,Distributed UDP Flood,during,perfect,200,1.4,1,,1791793410.648
+2026-10-12T08:23:31.051470,Distributed UDP Flood,during,broadband,200,280.8,1,,1791793410.771
+2026-10-12T08:23:31.072437,Distributed UDP Flood,during,perfect,200,7.2,1,,1791793411.065
+2026-10-12T08:23:31.075171,Distributed UDP Flood,during,perfect,200,3.6,1,,1791793411.072
+2026-10-12T08:23:31.275974,Distributed UDP Flood,during,broadband,200,86.1,1,,1791793411.190
+2026-10-12T08:23:31.280189,Distributed UDP Flood,during,broadband,200,197.1,1,,1791793411.083
+2026-10-12T08:23:31.796810,Distributed UDP Flood,during,broadband,200,173.8,1,,1791793411.623
+2026-10-12T08:23:31.852422,Distributed UDP Flood,during,perfect,200,1.5,1,,1791793411.851
+2026-10-12T08:23:32.100831,Distributed UDP Flood,during,mobile_3g,200,482.9,1,,1791793411.618
+2026-10-12T08:23:32.228171,Distributed UDP Flood,during,broadband,200,113.0,1,,1791793412.115
+2026-10-12T08:23:32.234908,Distributed UDP Flood,during,mobile_3g,200,427.7,1,,1791793411.807
+2026-10-12T08:23:32.238804,Distributed UDP Flood,during,perfect,200,5.2,1,,1791793412.234
+2026-10-12T08:23:32.258462,Distributed UDP Flood,during,perfect,200,3.4,1,,1791793412.255
+2026-10-12T08:23:32.271124,Distributed UDP Flood,during,mobile_3g,200,467.3,1,,1791793411.804
+2026-10-12T08:23:32.386360,Distributed UDP Flood,during,perfect,200,2.4,1,,1791793412.384
+2026-10-12T08:23:32.423633,Distributed UDP Flood,during,broadband,200,43.8,1,,1791793412.380
+2026-10-12T08:23:32.667827,Distributed UDP Flood,during,mobile_3g,200,306.5,1,,1791793412.361
+2026-10-12T08:23:32.800860,Distributed UDP Flood,during,mobile_3g,200,267.0,1,,1791793412.534
+2026-10-12T08:23:32.807845,Distributed UDP Flood,during,broadband,200,44.1,1,,1791793412.764
+2026-10-12T08:23:32.925009,Distributed UDP Flood,during,perfect,200,2.9,1,,1791793412.922
+2026-10-12T08:23:33.170259,Distributed UDP Flood,during,mobile_3g,200,317.8,1,,1791793412.852
+2026-10-12T08:23:33.436860,Distributed UDP Flood,during,mobile_3g,200,393.4,1,,1791793413.043
+2026-10-12T08:23:33.490381,Distributed UDP Flood,during,perfect,200,37.2,1,,1791793413.453
+2026-10-12T08:23:33.564943,Distributed UDP Flood,during,broadband,200,42.9,1,,1791793413.522
+2026-10-12T08:23:34.178557,Distributed UDP Flood,during,broadband,200,364.1,1,,1791793413.814
+2026-10-12T08:23:34.185777,Distributed UDP Flood,during,mobile_3g,200,1117.1,1,,1791793413.069
+2026-10-12T08:23:34.185836,Distributed UDP Flood,during,broadband,200,203.7,1,,1791793413.982
+2026-10-12T08:23:34.649833,Distributed UDP Flood,during,broadband,200,210.3,1,,1791793414.440
+2026-10-12T08:23:34.697972,Distributed UDP Flood,during,perfect,200,1.3,1,,1791793414.697
+2026-10-12T08:23:34.704268,Distributed UDP Flood,during,perfect,200,8.2,1,,1791793414.696
+2026-10-12T08:23:34.706762,Distributed UDP Flood,during,broadband,200,743.8,1,,1791793413.963
+2026-10-12T08:23:34.707547,Distributed UDP Flood,during,broadband,200,301.3,1,,1791793414.406
+2026-10-12T08:23:34.840324,Distributed UDP Flood,during,mobile_3g,200,441.4,1,,1791793414.399
+2026-10-12T08:23:35.325049,Distributed UDP Flood,during,broadband,200,476.7,1,,1791793414.848
+2026-10-12T08:23:35.395765,Distributed UDP Flood,during,perfect,200,2.9,1,,1791793415.393
+2026-10-12T08:23:35.677941,Distributed UDP Flood,during,broadband,200,43.2,1,,1791793415.635
+2026-10-12T08:23:35.697509,Distributed UDP Flood,during,mobile_3g,200,301.7,1,,1791793415.396
+2026-10-12T08:23:35.700951,Distributed UDP Flood,during,mobile_3g,200,360.2,1,,1791793415.341
+2026-10-12T08:23:35.858191,Distributed UDP Flood,during,perfect,200,2.2,1,,1791793415.856
+2026-10-12T08:23:35.863647,Distributed UDP Flood,during,perfect,200,12.9,1,,1791793415.851
+2026-10-12T08:23:35.874199,Distributed UDP Flood,during,mobile_3g,200,274.8,1,,1791793415.599
+2026-10-12T08:23:36.351995,Distributed UDP Flood,during,broadband,200,206.5,1,,1791793416.145
+2026-10-12T08:23:36.434489,Distributed UDP Flood,during,broadband,200,160.2,1,,1791793416.274
+2026-10-12T08:23:36.573950,Distributed UDP Flood,during,perfect,200,48.1,1,,1791793416.526
+2026-10-12T08:23:36.579376,Distributed UDP Flood,during,mobile_3g,200,511.2,1,,1791793416.068
+2026-10-12T08:23:36.581137,Distributed UDP Flood,during,mobile_3g,200,228.0,1,,1791793416.353
+2026-10-12T08:23:36.597679,Distributed UDP Flood,during,perfect,200,5.4,1,,1791793416.592
+2026-10-12T08:23:36.964808,Distributed UDP Flood,during,broadband,200,40.8,1,,1791793416.924
+2026-10-12T08:23:36.988742,Distributed UDP Flood,during,broadband,200,49.4,1,,1791793416.939
+2026-10-12T08:23:37.128164,Distributed UDP Flood,during,mobile_3g,200,342.7,1,,1791793416.785
+2026-10-12T08:23:37.277777,Distributed UDP Flood,during,broadband,200,39.9,1,,1791793417.238
+2026-10-12T08:23:37.393397,Distributed UDP Flood,during,broadband,200,47.1,1,,1791793417.346
+2026-10-12T08:23:37.539934,Distributed UDP Flood,during,perfect,200,2.2,1,,1791793417.538
+2026-10-12T08:23:37.547576,Distributed UDP Flood,during,mobile_3g,200,202.0,1,,1791793417.346
+2026-10-12T08:23:37.744183,Distributed UDP Flood,during,perfect,200,1.4,1,,1791793417.743
+2026-10-12T08:23:37.793090,Distributed UDP Flood,during,mobile_3g,200,404.9,1,,1791793417.388
+2026-10-12T08:23:37.855379,Distributed UDP Flood,during,broadband,200,44.6,1,,1791793417.811
+2026-10-12T08:23:38.155064,Distributed UDP Flood,during,broadband,200,43.1,1,,1791793418.112
+2026-10-12T08:23:38.249505,Distributed UDP Flood,during,perfect,200,2.4,1,,1791793418.247
+2026-10-12T08:23:38.263289,Distributed UDP Flood,during,perfect,200,3.1,1,,1791793418.260
+2026-10-12T08:23:38.610184,Distributed UDP Flood,during,mobile_3g,200,302.2,1,,1791793418.308
+2026-10-12T08:23:38.704230,Distributed UDP Flood,during,perfect,200,2.1,1,,1791793418.702
+2026-10-12T08:23:38.725548,Distributed UDP Flood,during,mobile_3g,200,299.6,1,,1791793418.426
+2026-10-12T08:23:39.023074,Distributed UDP Flood,during,mobile_3g,200,337.0,1,,1791793418.686
+2026-10-12T08:23:39.114029,Distributed UDP Flood,during,broadband,200,53.7,1,,1791793419.060
+2026-10-12T08:23:39.116881,Distributed UDP Flood,during,broadband,200,52.8,1,,1791793419.064
+2026-10-12T08:23:39.215620,Distributed UDP Flood,during,broadband,200,43.9,1,,1791793419.172
+2026-10-12T08:23:39.246107,Distributed UDP Flood,during,broadband,200,45.1,1,,1791793419.201
+2026-10-12T08:23:39.564429,Distributed UDP Flood,after,perfect,200,1.5,1,,1791793419.563
+2026-10-12T08:23:39.869581,Distributed UDP Flood,after,broadband,200,47.2,1,,1791793419.822
+2026-10-12T08:23:39.935859,Distributed UDP Flood,after,mobile_3g,200,285.1,1,,1791793419.651
+2026-10-12T08:23:39.959373,Distributed UDP Flood,after,mobile_3g,200,194.0,1,,1791793419.765
+2026-10-12T08:23:40.011785,Distributed UDP Flood,after,broadband,200,44.5,1,,1791793419.967
+2026-10-12T08:23:40.112516,Distributed UDP Flood,after,broadband,200,52.9,1,,1791793420.060
+2026-10-12T08:23:40.313400,Distributed UDP Flood,after,perfect,200,1.6,1,,1791793420.312
+2026-10-12T08:23:40.575246,Distributed UDP Flood,after,perfect,200,7.4,1,,1791793420.568
+2026-10-12T08:23:40.577408,Distributed UDP Flood,after,perfect,200,2.0,1,,1791793420.575
+2026-10-12T08:23:40.618085,Distributed UDP Flood,after,mobile_3g,200,967.1,1,,1791793419.651
+2026-10-12T08:23:40.676801,Distributed UDP Flood,after,mobile_3g,200,439.7,1,,1791793420.237
+2026-10-12T08:23:40.801983,Distributed UDP Flood,after,broadband,200,51.9,1,,1791793420.750
+2026-10-12T08:23:40.875054,Distributed UDP Flood,after,perfect,200,1.7,1,,1791793420.873
+2026-10-12T08:23:41.117927,Distributed UDP Flood,after,broadband,200,46.1,1,,1791793421.072
+2026-10-12T08:23:41.139831,Distributed UDP Flood,after,broadband,200,44.0,1,,1791793421.096
+2026-10-12T08:23:41.279006,Distributed UDP Flood,after,broadband,200,46.4,1,,1791793421.233
+2026-10-12T08:23:41.591798,Distributed UDP Flood,after,mobile_3g,200,407.1,1,,1791793421.185
+2026-10-12T08:23:41.682349,Distributed UDP Flood,after,broadband,200,45.3,1,,1791793421.637
+2026-10-12T08:23:41.875952,Distributed UDP Flood,after,perfect,200,1.4,1,,1791793421.875
+2026-10-12T08:23:41.984546,Distributed UDP Flood,after,perfect,200,1.6,1,,1791793421.983
+2026-10-12T08:23:41.985507,Distributed UDP Flood,after,mobile_3g,200,356.9,1,,1791793421.629
+2026-10-12T08:23:42.012661,Distributed UDP Flood,after,mobile_3g,200,977.0,1,,1791793421.036
+2026-10-12T08:23:42.094890,Distributed UDP Flood,after,mobile_3g,200,332.4,1,,1791793421.762
+2026-10-12T08:23:42.147324,Distributed UDP Flood,after,broadband,200,44.4,1,,1791793422.103
+2026-10-12T08:23:42.302004,Distributed UDP Flood,after,mobile_3g,200,379.3,1,,1791793421.923
+2026-10-12T08:23:42.633174,Distributed UDP Flood,after,perfect,200,2.0,1,,1791793422.631
+2026-10-12T08:23:42.757285,Distributed UDP Flood,after,broadband,200,45.1,1,,1791793422.712
+2026-10-12T08:23:42.838491,Distributed UDP Flood,after,mobile_3g,200,229.9,1,,1791793422.609
+2026-10-12T08:23:43.058787,Distributed UDP Flood,after,perfect,200,1.7,1,,1791793423.057
+2026-10-12T08:23:43.096495,Distributed UDP Flood,after,broadband,200,42.8,1,,1791793423.054
+2026-10-12T08:23:43.269664,Distributed UDP Flood,after,mobile_3g,200,389.9,1,,1791793422.880
+2026-10-12T08:23:43.285115,Distributed UDP Flood,after,perfect,200,1.5,1,,1791793423.284
+2026-10-12T08:23:43.302394,Distributed UDP Flood,after,broadband,200,41.6,1,,1791793423.261
+2026-10-12T08:23:43.364289,Distributed UDP Flood,after,broadband,200,53.8,1,,1791793423.310
+2026-10-12T08:23:43.437714,Distributed UDP Flood,after,broadband,200,45.1,1,,1791793423.393
+2026-10-12T08:23:43.910607,Distributed UDP Flood,after,perfect,200,1.7,1,,1791793423.909
+2026-10-12T08:23:43.975922,Distributed UDP Flood,after,broadband,200,48.7,1,,1791793423.927
+2026-10-12T08:23:44.039495,Distributed UDP Flood,after,mobile_3g,200,439.3,1,,1791793423.600
+2026-10-12T08:23:44.068863,Distributed UDP Flood,after,broadband,200,78.0,1,,1791793423.991
+2026-10-12T08:23:44.124402,Distributed UDP Flood,after,mobile_3g,200,262.3,1,,1791793423.862
+2026-10-12T08:23:44.497601,Distributed UDP Flood,after,perfect,200,1.4,1,,1791793424.496
+2026-10-12T08:23:45.147457,Distributed UDP Flood,after,broadband,200,45.7,1,,1791793425.102
+2026-10-12T08:23:45.247761,Distributed UDP Flood,after,perfect,200,1.5,1,,1791793425.246
+2026-10-12T08:23:45.279007,Distributed UDP Flood,after,perfect,200,1.7,1,,1791793425.277
+2026-10-12T08:23:45.541700,Distributed UDP Flood,after,mobile_3g,200,385.2,1,,1791793425.156
+2026-10-12T08:23:45.601224,Distributed UDP Flood,after,broadband,200,53.6,1,,1791793425.548
+2026-10-12T08:23:45.689792,Distributed UDP Flood,after,mobile_3g,200,630.1,1,,1791793425.060
+2026-10-12T08:23:45.696829,Distributed UDP Flood,after,perfect,200,1.6,1,,1791793425.695
+2026-10-12T08:23:45.868587,Distributed UDP Flood,after,mobile_3g,200,299.4,1,,1791793425.569
+2026-10-12T08:23:46.092820,Distributed UDP Flood,after,mobile_3g,200,433.8,1,,1791793425.659
+2026-10-12T08:23:46.113355,Distributed UDP Flood,after,broadband,200,164.0,1,,1791793425.949
+2026-10-12T08:23:46.495165,Distributed UDP Flood,after,perfect,200,1.4,1,,1791793426.494
+2026-10-12T08:23:46.503200,Distributed UDP Flood,after,mobile_3g,200,583.6,1,,1791793425.920
+2026-10-12T08:23:46.503728,Distributed UDP Flood,after,broadband,200,411.2,1,,1791793426.093
+2026-10-12T08:23:46.508540,Distributed UDP Flood,after,perfect,200,5.3,1,,1791793426.503
+2026-10-12T08:23:47.066719,Distributed UDP Flood,after,perfect,200,1.3,1,,1791793427.065
+2026-10-12T08:23:47.089631,Distributed UDP Flood,after,broadband,200,586.3,1,,1791793426.503
+2026-10-12T08:23:47.101980,Distributed UDP Flood,after,broadband,200,596.5,1,,1791793426.505
+2026-10-12T08:23:47.105661,Distributed UDP Flood,after,broadband,200,604.5,1,,1791793426.501
+2026-10-12T08:23:47.190058,Distributed UDP Flood,after,mobile_3g,200,677.3,1,,1791793426.513
+2026-10-12T08:23:47.287234,Distributed UDP Flood,after,mobile_3g,200,781.6,1,,1791793426.506
+2026-10-12T08:23:47.569867,Distributed UDP Flood,after,perfect,200,1.9,1,,1791793427.568
+2026-10-12T08:23:47.752229,Distributed UDP Flood,after,mobile_3g,200,427.0,1,,1791793427.325
+2026-10-12T08:23:47.759371,Distributed UDP Flood,after,mobile_3g,200,389.0,1,,1791793427.370
+2026-10-12T08:23:47.866168,Distributed UDP Flood,after,broadband,200,45.4,1,,1791793427.821
+2026-10-12T08:23:47.897977,Distributed UDP Flood,after,perfect,200,1.7,1,,1791793427.896
+2026-10-12T08:23:48.100818,Distributed UDP Flood,after,broadband,200,60.3,1,,1791793428.041
+2026-10-12T08:23:48.164227,Distributed UDP Flood,after,broadband,200,54.5,1,,1791793428.110
+2026-10-12T08:23:48.968008,Distributed UDP Flood,after,perfect,200,1.8,1,,1791793428.966
+2026-10-12T08:23:49.010466,Distributed UDP Flood,after,broadband,200,510.1,1,,1791793428.500
+2026-10-12T08:23:49.019116,Distributed UDP Flood,after,perfect,200,1.3,1,,1791793429.018
+2026-10-12T08:23:49.264962,Distributed UDP Flood,after,broadband,200,298.6,1,,1791793428.966
+2026-10-12T08:23:49.350494,Distributed UDP Flood,after,broadband,200,68.9,1,,1791793429.282
+2026-10-12T08:23:49.367449,Distributed UDP Flood,after,mobile_3g,200,401.2,1,,1791793428.966
+2026-10-12T08:24:27.902998,Distributed HTTP Flood,before,perfect,200,1.7,1,,1791793467.901
+2026-10-12T08:24:28.292507,Distributed HTTP Flood,before,broadband,200,57.8,1,,1791793468.235
+2026-10-12T08:24:28.572438,Distributed HTTP Flood,before,broadband,200,72.5,1,,1791793468.500
+2026-10-12T08:24:28.729584,Distributed HTTP Flood,before,perfect,200,1.7,1,,1791793468.728
+2026-10-12T08:24:28.729913,Distributed HTTP Flood,before,broadband,200,64.3,1,,1791793468.666
+2026-10-12T08:24:29.248471,Distributed HTTP Flood,before,perfect,200,3.3,1,,1791793469.245
+2026-10-12T08:24:29.258765,Distributed HTTP Flood,before,mobile_3g,200,556.2,1,,1791793468.703
+2026-10-12T08:24:29.473180,Distributed HTTP Flood,before,perfect,200,1.7,1,,1791793469.471
+2026-10-12T08:24:29.664966,Distributed HTTP Flood,before,perfect,200,1.6,1,,1791793469.663
+2026-10-12T08:24:29.699578,Distributed HTTP Flood,before,mobile_3g,200,454.6,1,,1791793469.245
+2026-10-12T08:24:29.723777,Distributed HTTP Flood,before,broadband,200,120.1,1,,1791793469.604
+2026-10-12T08:24:29.974960,Distributed HTTP Flood,before,broadband,200,80.7,1,,1791793469.894
+2026-10-12T08:24:30.000182,Distributed HTTP Flood,before,broadband,200,40.1,1,,1791793469.960
+2026-10-12T08:24:30.124045,Distributed HTTP Flood,before,mobile_3g,200,650.7,1,,1791793469.473
+2026-10-12T08:24:30.216630,Distributed HTTP Flood,before,broadband,200,82.9,1,,1791793470.134
+2026-10-12T08:24:30.217152,Distributed HTTP Flood,before,mobile_3g,200,279.0,1,,1791793469.938
+2026-10-12T08:24:30.344162,Distributed HTTP Flood,before,broadband,200,55.7,1,,1791793470.288
+2026-10-12T08:24:30.590758,Distributed HTTP Flood,before,broadband,200,46.6,1,,1791793470.544
+2026-10-12T08:24:30.653718,Distributed HTTP Flood,before,perfect,200,2.8,1,,1791793470.651
+2026-10-12T08:24:30.654034,Distributed HTTP Flood,before,perfect,200,4.9,1,,1791793470.649
+2026-10-12T08:24:31.013385,Distributed HTTP Flood,before,mobile_3g,200,662.2,1,,1791793470.351
+2026-10-12T08:24:31.041446,Distributed HTTP Flood,before,perfect,200,1.6,1,,1791793471.040
+2026-10-12T08:24:31.245751,Distributed HTTP Flood,before,perfect,200,1.6,1,,1791793471.244
+2026-10-12T08:24:31.286828,Distributed HTTP Flood,before,broadband,200,43.2,1,,1791793471.244
+2026-10-12T08:24:31.466520,Distributed HTTP Flood,before,mobile_3g,200,340.3,1,,1791793471.126
+2026-10-12T08:24:31.617512,Distributed HTTP Flood,before,broadband,200,45.3,1,,1791793471.572
+2026-10-12T08:24:31.621220,Distributed HTTP Flood,before,broadband,200,49.6,1,,1791793471.572
+2026-10-12T08:24:31.687716,Distributed HTTP Flood,before,mobile_3g,200,385.7,1,,1791793471.302
+2026-10-12T08:24:31.778853,Distributed HTTP Flood,before,mobile_3g,200,1249.5,1,,1791793470.529
+2026-10-12T08:24:31.846148,Distributed HTTP Flood,before,mobile_3g,200,641.5,1,,1791793471.205
+2026-10-12T08:24:32.709119,Distributed HTTP Flood,during,broadband,200,170.8,1,,1791793472.538
+2026-10-12T08:24:32.762081,Distributed HTTP Flood,during,perfect,200,110.5,1,,1791793472.652
+2026-10-12T08:24:32.766420,Distributed HTTP Flood,before,mobile_3g,200,554.3,1,,1791793472.212
+2026-10-12T08:24:32.848816,Distributed HTTP Flood,before,broadband,200,446.2,1,,1791793472.403
+2026-10-12T08:24:32.928600,Distributed HTTP Flood,during,perfect,200,97.0,1,,1791793472.832
+2026-10-12T08:24:32.964870,Distributed HTTP Flood,during,broadband,200,91.4,1,,1791793472.873
+2026-10-12T08:24:33.002862,Distributed HTTP Flood,during,perfect,200,4.0,1,,1791793472.999
+2026-10-12T08:24:33.007134,Distributed HTTP Flood,during,perfect,200,4.7,1,,1791793473.002
+2026-10-12T08:24:33.013729,Distributed HTTP Flood,during,broadband,200,48.3,1,,1791793472.965
+2026-10-12T08:24:33.228118,Distributed HTTP Flood,during,mobile_3g,200,325.5,1,,1791793472.903
+2026-10-12T08:24:33.239906,Distributed HTTP Flood,during,broadband,200,41.7,1,,1791793473.198
+2026-10-12T08:24:33.307779,Distributed HTTP Flood,during,mobile_3g,200,336.8,1,,1791793472.971
+2026-10-12T08:24:33.598279,Distributed HTTP Flood,during,broadband,200,67.3,1,,1791793473.531
+2026-10-12T08:24:34.173348,Distributed HTTP Flood,during,perfect,200,1.9,1,,1791793474.171
+2026-10-12T08:24:34.234073,Distributed HTTP Flood,during,perfect,200,1.8,1,,1791793474.232
+2026-10-12T08:24:34.302678,Distributed HTTP Flood,during,broadband,200,49.0,1,,1791793474.254
+2026-10-12T08:24:34.373271,Distributed HTTP Flood,during,mobile_3g,200,231.1,1,,1791793474.142
+2026-10-12T08:24:34.688323,Distributed HTTP Flood,during,broadband,200,70.2,1,,1791793474.618
+2026-10-12T08:24:34.700290,Distributed HTTP Flood,during,perfect,200,1.8,1,,1791793474.698
+2026-10-12T08:24:34.717566,Distributed HTTP Flood,during,mobile_3g,200,185.5,1,,1791793474.532
+2026-10-12T08:24:34.800012,Distributed HTTP Flood,during,broadband,200,56.9,1,,1791793474.743
+2026-10-12T08:24:34.855014,Distributed HTTP Flood,during,mobile_3g,200,346.6,1,,1791793474.508
+2026-10-12T08:24:34.977888,Distributed HTTP Flood,during,perfect,200,1.4,1,,1791793474.976
+2026-10-12T08:24:34.983922,Distributed HTTP Flood,during,broadband,200,50.7,1,,1791793474.933
+2026-10-12T08:24:35.048413,Distributed HTTP Flood,during,broadband,200,49.5,1,,1791793474.999
+2026-10-12T08:24:35.167499,Distributed HTTP Flood,during,broadband,200,46.6,1,,1791793475.121
+2026-10-12T08:24:35.232008,Distributed HTTP Flood,during,mobile_3g,200,235.8,1,,1791793474.996
+2026-10-12T08:24:35.250300,Distributed HTTP Flood,during,mobile_3g,200,290.0,1,,1791793474.960
+2026-10-12T08:24:35.487504,Distributed HTTP Flood,during,mobile_3g,200,526.7,1,,1791793474.961
+2026-10-12T08:24:35.490532,Distributed HTTP Flood,during,broadband,200,57.0,1,,1791793475.434
+2026-10-12T08:24:35.703097,Distributed HTTP Flood,after,perfect,200,1.7,1,,1791793475.701
+2026-10-12T08:24:36.015726,Distributed HTTP Flood,after,perfect,200,1.3,1,,1791793476.014
+2026-10-12T08:24:36.250729,Distributed HTTP Flood,after,perfect,200,1.8,1,,1791793476.249
+2026-10-12T08:24:36.297307,Distributed HTTP Flood,after,mobile_3g,200,250.6,1,,1791793476.047
+2026-10-12T08:24:36.774081,Distributed HTTP Flood,after,mobile_3g,200,517.0,1,,1791793476.257
+2026-10-12T08:24:36.877623,Distributed HTTP Flood,after,broadband,200,96.5,1,,1791793476.781
+2026-10-12T08:24:36.877843,Distributed HTTP Flood,after,broadband,200,103.0,1,,1791793476.775
+2026-10-12T08:24:36.877888,Distributed HTTP Flood,after,broadband,200,87.3,1,,1791793476.791
+2026-10-12T08:24:36.916331,Distributed HTTP Flood,after,mobile_3g,200,375.8,1,,1791793476.541
+2026-10-12T08:24:37.119433,Distributed HTTP Flood,after,broadband,200,49.7,1,,1791793477.070
+2026-10-12T08:24:37.212023,Distributed HTTP Flood,after,perfect,200,1.5,1,,1791793477.211
+2026-10-12T08:24:37.257704,Distributed HTTP Flood,after,broadband,200,45.2,1,,1791793477.213
+2026-10-12T08:24:37.339380,Distributed HTTP Flood,after,broadband,200,54.3,1,,1791793477.285
+2026-10-12T08:24:37.345106,Distributed HTTP Flood,after,perfect,200,1.4,1,,1791793477.344
+2026-10-12T08:24:37.715263,Distributed HTTP Flood,after,mobile_3g,200,447.7,1,,1791793477.268
+2026-10-12T08:24:37.759101,Distributed HTTP Flood,after,perfect,200,1.9,1,,1791793477.757
+2026-10-12T08:24:38.030951,Distributed HTTP Flood,after,broadband,200,52.2,1,,1791793477.979
+2026-10-12T08:24:38.358073,Distributed HTTP Flood,after,perfect,200,1.7,1,,1791793478.356
+2026-10-12T08:24:38.451538,Distributed HTTP Flood,after,broadband,200,54.3,1,,1791793478.397
+2026-10-12T08:24:38.566376,Distributed HTTP Flood,after,mobile_3g,200,549.3,1,,1791793478.017
+2026-10-12T08:24:38.626267,Distributed HTTP Flood,after,mobile_3g,200,336.9,1,,1791793478.289
+2026-10-12T08:24:38.691885,Distributed HTTP Flood,after,broadband,200,48.9,1,,1791793478.643
+2026-10-12T08:24:38.939760,Distributed HTTP Flood,after,perfect,200,1.8,1,,1791793478.938
+2026-10-12T08:24:39.042008,Distributed HTTP Flood,after,mobile_3g,200,364.7,1,,1791793478.677
+2026-10-12T08:24:39.171506,Distributed HTTP Flood,after,mobile_3g,200,549.4,1,,1791793478.622
+2026-10-12T08:24:39.254018,Distributed HTTP Flood,after,broadband,200,63.2,1,,1791793479.191
+2026-10-12T08:24:39.336405,Distributed HTTP Flood,after,mobile_3g,200,344.0,1,,1791793478.992
+2026-10-12T08:24:39.362094,Distributed HTTP Flood,after,mobile_3g,200,400.3,1,,1791793478.962
+2026-10-12T08:24:39.582951,Distributed HTTP Flood,after,perfect,200,1.6,1,,1791793479.581
+2026-10-12T08:24:39.595482,Distributed HTTP Flood,after,broadband,200,49.0,1,,1791793479.546
+2026-10-12T08:24:39.786375,Distributed HTTP Flood,after,perfect,200,2.1,1,,1791793479.784
+2026-10-12T08:24:39.859062,Distributed HTTP Flood,after,mobile_3g,200,514.1,1,,1791793479.345
+2026-10-12T08:24:39.982786,Distributed HTTP Flood,after,mobile_3g,200,350.1,1,,1791793479.633
+2026-10-12T08:24:40.053561,Distributed HTTP Flood,after,broadband,200,66.6,1,,1791793479.987
+2026-10-12T08:24:40.308407,Distributed HTTP Flood,after,broadband,200,44.4,1,,1791793480.264
+2026-10-12T08:24:40.336540,Distributed HTTP Flood,after,broadband,200,43.0,1,,1791793480.294
+2026-10-12T08:24:40.643241,Distributed HTTP Flood,after,perfect,200,1.7,1,,1791793480.642
+2026-10-12T08:24:40.687922,Distributed HTTP Flood,after,broadband,200,49.2,1,,1791793480.639
+2026-10-12T08:24:40.720913,Distributed HTTP Flood,after,perfect,200,2.7,1,,1791793480.718
+2026-10-12T08:24:40.955984,Distributed HTTP Flood,after,broadband,200,60.0,1,,1791793480.896
+2026-10-12T08:24:40.975292,Distributed HTTP Flood,after,perfect,200,1.8,1,,1791793480.973
+2026-10-12T08:24:41.308778,Distributed HTTP Flood,after,mobile_3g,200,389.6,1,,1791793480.919
+2026-10-12T08:24:41.352500,Distributed HTTP Flood,after,perfect,200,2.3,1,,1791793481.350
+2026-10-12T08:24:41.553574,Distributed HTTP Flood,after,mobile_3g,200,326.7,1,,1791793481.227
+2026-10-12T08:24:41.748517,Distributed HTTP Flood,after,mobile_3g,200,393.4,1,,1791793481.355
+2026-10-12T08:24:41.831447,Distributed HTTP Flood,after,broadband,200,48.2,1,,1791793481.783
+2026-10-12T08:24:41.948119,Distributed HTTP Flood,after,broadband,200,41.6,1,,1791793481.907
+2026-10-12T08:24:41.973790,Distributed HTTP Flood,after,perfect,200,1.5,1,,1791793481.972
+2026-10-12T08:24:42.012314,Distributed HTTP Flood,after,broadband,200,51.8,1,,1791793481.961
+2026-10-12T08:24:42.169739,Distributed HTTP Flood,after,broadband,200,45.4,1,,1791793482.124
+2026-10-12T08:24:42.198612,Distributed HTTP Flood,after,mobile_3g,200,445.6,1,,1791793481.753
+2026-10-12T08:24:42.409518,Distributed HTTP Flood,after,perfect,200,1.4,1,,1791793482.408
+2026-10-12T08:24:42.536771,Distributed HTTP Flood,after,perfect,200,1.7,1,,1791793482.535
+2026-10-12T08:24:42.751564,Distributed HTTP Flood,after,broadband,200,40.4,1,,1791793482.711
+2026-10-12T08:24:42.804522,Distributed HTTP Flood,after,mobile_3g,200,277.5,1,,1791793482.527
+2026-10-12T08:24:42.858784,Distributed HTTP Flood,after,mobile_3g,200,261.3,1,,1791793482.597
+2026-10-12T08:24:42.882311,Distributed HTTP Flood,after,broadband,200,55.8,1,,1791793482.827
+2026-10-12T08:24:43.235509,Distributed HTTP Flood,after,mobile_3g,200,417.7,1,,1791793482.818
+2026-10-12T08:24:43.238486,Distributed HTTP Flood,after,mobile_3g,200,382.0,1,,1791793482.856
+2026-10-12T08:24:43.562490,Distributed HTTP Flood,after,broadband,200,47.5,1,,1791793483.515
+2026-10-12T08:24:43.564114,Distributed HTTP Flood,after,perfect,200,2.9,1,,1791793483.561
+2026-10-12T08:24:43.601598,Distributed HTTP Flood,after,broadband,200,40.2,1,,1791793483.561
+2026-10-12T08:24:43.897967,Distributed HTTP Flood,after,perfect,200,1.6,1,,1791793483.896
+2026-10-12T08:24:43.943494,Distributed HTTP Flood,after,perfect,200,2.5,1,,1791793483.941
+2026-10-12T08:24:43.969527,Distributed HTTP Flood,after,perfect,200,1.6,1,,1791793483.968
+2026-10-12T08:24:44.029015,Distributed HTTP Flood,after,mobile_3g,200,408.5,1,,1791793483.621
+2026-10-12T08:24:44.264615,Distributed HTTP Flood,after,mobile_3g,200,167.2,1,,1791793484.097
+2026-10-12T08:24:44.281173,Distributed HTTP Flood,after,broadband,200,41.3,1,,1791793484.240
+2026-10-12T08:24:44.304312,Distributed HTTP Flood,after,broadband,200,41.0,1,,1791793484.263
+2026-10-12T08:24:44.669490,Distributed HTTP Flood,after,broadband,200,56.5,1,,1791793484.613
+2026-10-12T08:24:44.951719,Distributed HTTP Flood,after,broadband,200,50.1,1,,1791793484.902
+2026-10-12T08:24:45.060718,Distributed HTTP Flood,after,mobile_3g,200,343.2,1,,1791793484.718
+2026-10-12T08:24:45.084348,Distributed HTTP Flood,after,perfect,200,5.2,1,,1791793485.079
+2026-10-12T08:24:45.214199,Distributed HTTP Flood,after,perfect,200,1.4,1,,1791793485.213
+2026-10-12T08:24:45.526870,Distributed HTTP Flood,after,mobile_3g,200,343.8,1,,1791793485.183
+2026-10-12T08:25:19.358611,Distributed ACK Flood,before,broadband,200,49.0,1,,1791793519.310
+2026-10-12T08:25:19.393188,Distributed ACK Flood,before,perfect,200,1.5,1,,1791793519.392
+2026-10-12T08:25:19.846956,Distributed ACK Flood,before,perfect,200,1.6,1,,1791793519.845
+2026-10-12T08:25:19.973716,Distributed ACK Flood,before,mobile_3g,200,287.1,1,,1791793519.687
+2026-10-12T08:25:20.019557,Distributed ACK Flood,before,broadband,200,54.9,1,,1791793519.965
+2026-10-12T08:25:20.069757,Distributed ACK Flood,before,broadband,200,42.5,1,,1791793520.027
+2026-10-12T08:25:20.383571,Distributed ACK Flood,before,mobile_3g,200,599.7,1,,1791793519.784
+2026-10-12T08:25:20.383758,Distributed ACK Flood,before,mobile_3g,200,380.6,1,,1791793520.003
+2026-10-12T08:25:20.401615,Distributed ACK Flood,before,broadband,200,46.8,1,,1791793520.355
+2026-10-12T08:25:20.438320,Distributed ACK Flood,before,mobile_3g,200,455.1,1,,1791793519.983
+2026-10-12T08:25:20.448593,Distributed ACK Flood,before,perfect,200,1.7,1,,1791793520.447
+2026-10-12T08:25:20.540155,Distributed ACK Flood,before,mobile_3g,200,479.0,1,,1791793520.061
+2026-10-12T08:25:20.547560,Distributed ACK Flood,before,perfect,200,1.8,1,,1791793520.546
+2026-10-12T08:25:20.637404,Distributed ACK Flood,before,broadband,200,40.4,1,,1791793520.597
+2026-10-12T08:25:21.218803,Distributed ACK Flood,before,perfect,200,3.7,1,,1791793521.215
+2026-10-12T08:25:21.219684,Distributed ACK Flood,before,perfect,200,1.4,1,,1791793521.218
+2026-10-12T08:25:21.262096,Distributed ACK Flood,before,broadband,200,44.4,1,,1791793521.218
+2026-10-12T08:25:21.279122,Distributed ACK Flood,before,broadband,200,50.7,1,,1791793521.228
+2026-10-12T08:25:21.963027,Distributed ACK Flood,before,broadband,200,45.8,1,,1791793521.917
+2026-10-12T08:25:22.324382,Distributed ACK Flood,before,broadband,200,50.7,1,,1791793522.274
+2026-10-12T08:25:22.506277,Distributed ACK Flood,before,mobile_3g,200,592.9,1,,1791793521.913
+2026-10-12T08:25:22.812854,Distributed ACK Flood,before,mobile_3g,200,572.2,1,,1791793522.241
+2026-10-12T08:25:22.813941,Distributed ACK Flood,before,perfect,200,1.3,1,,1791793522.813
+2026-10-12T08:25:22.817601,Distributed ACK Flood,before,perfect,200,1.4,1,,1791793522.816
+2026-10-12T08:25:22.818776,Distributed ACK Flood,before,perfect,200,3.8,1,,1791793522.815
+2026-10-12T08:25:22.856998,Distributed ACK Flood,before,broadband,200,45.1,1,,1791793522.812
+2026-10-12T08:25:22.891795,Distributed ACK Flood,before,perfect,200,1.3,1,,1791793522.890
+2026-10-12T08:25:22.944057,Distributed ACK Flood,before,mobile_3g,200,535.2,1,,1791793522.409
+2026-10-12T08:25:22.945513,Distributed ACK Flood,before,mobile_3g,200,457.7,1,,1791793522.488
+2026-10-12T08:25:22.951188,Distributed ACK Flood,before,broadband,200,47.1,1,,1791793522.904
+2026-10-12T08:25:23.391172,Distributed ACK Flood,during,broadband,200,45.5,1,,1791793523.346
+2026-10-12T08:25:23.392925,Distributed ACK Flood,during,broadband,200,61.7,1,,1791793523.331
+2026-10-12T08:25:23.465075,Distributed ACK Flood,before,mobile_3g,200,298.0,1,,1791793523.167
+2026-10-12T08:25:23.806794,Distributed ACK Flood,during,broadband,200,50.3,1,,1791793523.756
+2026-10-12T08:25:23.877803,Distributed ACK Flood,during,broadband,200,57.6,1,,1791793523.820
+2026-10-12T08:25:24.049184,Distributed ACK Flood,during,perfect,200,3.0,1,,1791793524.046
+2026-10-12T08:25:24.063861,Distributed ACK Flood,during,perfect,200,4.8,1,,1791793524.059
+2026-10-12T08:25:24.244401,Distributed ACK Flood,during,broadband,200,43.1,1,,1791793524.201
+2026-10-12T08:25:24.247075,Distributed ACK Flood,during,mobile_3g,200,249.0,1,,1791793523.998
+2026-10-12T08:25:24.253799,Distributed ACK Flood,during,mobile_3g,200,268.2,1,,1791793523.986
+2026-10-12T08:25:24.496741,Distributed ACK Flood,during,mobile_3g,200,271.1,1,,1791793524.226
+2026-10-12T08:25:24.497494,Distributed ACK Flood,during,mobile_3g,200,538.0,1,,1791793523.959
+2026-10-12T08:25:24.781126,Distributed ACK Flood,during,perfect,200,4.4,1,,1791793524.777
+2026-10-12T08:25:25.411288,Distributed ACK Flood,during,perfect,200,2.6,1,,1791793525.409
+2026-10-12T08:25:25.450896,Distributed ACK Flood,during,broadband,200,45.1,1,,1791793525.406
+2026-10-12T08:25:25.465169,Distributed ACK Flood,during,broadband,200,40.9,1,,1791793525.424
+2026-10-12T08:25:25.466163,Distributed ACK Flood,during,broadband,200,46.2,1,,1791793525.420
+2026-10-12T08:25:25.555623,Distributed ACK Flood,during,broadband,200,48.3,1,,1791793525.507
+2026-10-12T08:25:25.713229,Distributed ACK Flood,during,mobile_3g,200,304.7,1,,1791793525.409
+2026-10-12T08:25:25.724802,Distributed ACK Flood,during,broadband,200,49.2,1,,1791793525.676
+2026-10-12T08:25:26.521946,Distributed ACK Flood,during,perfect,200,2.8,1,,1791793526.519
+2026-10-12T08:25:26.536930,Distributed ACK Flood,during,perfect,200,5.2,1,,1791793526.532
+2026-10-12T08:25:27.337538,Distributed ACK Flood,during,mobile_3g,200,790.0,1,,1791793526.548
+2026-10-12T08:25:27.346032,Distributed ACK Flood,during,perfect,200,10.1,1,,1791793527.336
+2026-10-12T08:25:27.492600,Distributed ACK Flood,during,perfect,200,2.2,1,,1791793527.490
+2026-10-12T08:25:27.494599,Distributed ACK Flood,during,mobile_3g,200,767.1,1,,1791793526.727
+2026-10-12T08:25:27.498476,Distributed ACK Flood,during,mobile_3g,200,768.0,1,,1791793526.730
+2026-10-12T08:25:27.771885,Distributed ACK Flood,during,broadband,200,423.7,1,,1791793527.348
+2026-10-12T08:25:27.772426,Distributed ACK Flood,during,mobile_3g,200,426.1,1,,1791793527.346
+2026-10-12T08:25:27.775532,Distributed ACK Flood,during,mobile_3g,200,428.7,1,,1791793527.347
+2026-10-12T08:25:27.787745,Distributed ACK Flood,during,broadband,200,417.9,1,,1791793527.370
+2026-10-12T08:25:27.802004,Distributed ACK Flood,during,perfect,200,3.8,1,,1791793527.798
+2026-10-12T08:25:28.164955,Distributed ACK Flood,during,mobile_3g,200,816.9,1,,1791793527.348
+2026-10-12T08:25:28.175387,Distributed ACK Flood,during,mobile_3g,200,655.6,1,,1791793527.520
+2026-10-12T08:25:28.505455,Distributed ACK Flood,during,broadband,200,713.5,1,,1791793527.792
+2026-10-12T08:25:28.508520,Distributed ACK Flood,during,broadband,200,708.1,1,,1791793527.800
+2026-10-12T08:25:29.521641,Distributed ACK Flood,during,broadband,200,1322.5,1,,1791793528.199
+2026-10-12T08:25:29.526153,Distributed ACK Flood,during,mobile_3g,200,1316.8,1,,1791793528.209
+2026-10-12T08:25:29.533764,Distributed ACK Flood,during,broadband,200,1323.3,1,,1791793528.210
+2026-10-12T08:25:29.536677,Distributed ACK Flood,during,perfect,200,6.7,1,,1791793529.530
+2026-10-12T08:25:29.542180,Distributed ACK Flood,during,perfect,200,1.8,1,,1791793529.540
+2026-10-12T08:25:29.542351,Distributed ACK Flood,during,perfect,200,1.1,1,,1791793529.541
+2026-10-12T08:25:29.546304,Distributed ACK Flood,during,broadband,200,1361.2,1,,1791793528.185
+2026-10-12T08:25:29.978905,Distributed ACK Flood,during,perfect,200,1.4,1,,1791793529.978
+2026-10-12T08:25:30.435951,Distributed ACK Flood,during,mobile_3g,200,768.2,1,,1791793529.668
+2026-10-12T08:25:31.021198,Distributed ACK Flood,during,broadband,200,517.7,1,,1791793530.503
+2026-10-12T08:25:31.531306,Distributed ACK Flood,during,broadband,200,486.3,1,,1791793531.045
+2026-10-12T08:25:31.533895,Distributed ACK Flood,during,broadband,200,475.0,1,,1791793531.059
+2026-10-12T08:25:31.534086,Distributed ACK Flood,during,mobile_3g,200,1017.1,1,,1791793530.517
+2026-10-12T08:25:31.537991,Distributed ACK Flood,during,broadband,200,489.3,1,,1791793531.049
+2026-10-12T08:25:31.946182,Distributed ACK Flood,during,perfect,200,400.6,1,,1791793531.546
+2026-10-12T08:25:31.953781,Distributed ACK Flood,during,mobile_3g,200,908.9,1,,1791793531.045
+2026-10-12T08:25:31.979162,Distributed ACK Flood,during,perfect,200,9.2,1,,1791793531.970
+2026-10-12T08:25:31.981598,Distributed ACK Flood,during,perfect,200,15.5,1,,1791793531.966
+2026-10-12T08:25:31.983371,Distributed ACK Flood,during,perfect,200,1.3,1,,1791793531.982
+2026-10-12T08:25:31.984513,Distributed ACK Flood,during,broadband,200,457.0,1,,1791793531.528
+2026-10-12T08:25:31.989446,Distributed ACK Flood,during,broadband,200,432.5,1,,1791793531.557
+2026-10-12T08:25:32.274472,Distributed ACK Flood,during,mobile_3g,200,721.2,1,,1791793531.553
+2026-10-12T08:25:32.274800,Distributed ACK Flood,during,mobile_3g,200,729.7,1,,1791793531.545
+2026-10-12T08:25:32.276222,Distributed ACK Flood,during,mobile_3g,200,733.7,1,,1791793531.543
+2026-10-12T08:25:32.502208,Distributed ACK Flood,during,mobile_3g,200,502.9,1,,1791793531.999
+2026-10-12T08:25:33.489635,Distributed ACK Flood,during,broadband,200,949.4,1,,1791793532.540
+2026-10-12T08:25:33.506329,Distributed ACK Flood,during,perfect,200,9.4,1,,1791793533.497
+2026-10-12T08:25:33.513491,Distributed ACK Flood,during,perfect,200,7.4,1,,1791793533.506
+2026-10-12T08:25:33.720468,Distributed ACK Flood,during,perfect,200,6.0,1,,1791793533.714
+2026-10-12T08:25:33.813171,Distributed ACK Flood,during,mobile_3g,200,1736.5,1,,1791793532.077
+2026-10-12T08:25:33.835638,Distributed ACK Flood,during,broadband,200,333.6,1,,1791793533.502
+2026-10-12T08:25:33.841100,Distributed ACK Flood,during,broadband,200,317.4,1,,1791793533.524
+2026-10-12T08:25:33.846865,Distributed ACK Flood,during,broadband,200,317.1,1,,1791793533.530
+2026-10-12T08:25:33.848480,Distributed ACK Flood,during,perfect,200,1.4,1,,1791793533.847
+2026-10-12T08:25:33.914943,Distributed ACK Flood,during,mobile_3g,200,398.9,1,,1791793533.516
+2026-10-12T08:25:34.133405,Distributed ACK Flood,during,broadband,200,284.2,1,,1791793533.849
+2026-10-12T08:25:34.191834,Distributed ACK Flood,during,broadband,200,279.9,1,,1791793533.912
+2026-10-12T08:25:34.379802,Distributed ACK Flood,during,mobile_3g,200,456.7,1,,1791793533.923
+2026-10-12T08:25:34.511154,Distributed ACK Flood,during,broadband,200,99.5,1,,1791793534.412
+2026-10-12T08:25:35.016788,Distributed ACK Flood,during,perfect,200,10.5,1,,1791793535.006
+2026-10-12T08:25:35.360736,Distributed ACK Flood,during,mobile_3g,200,456.6,1,,1791793534.904
+2026-10-12T08:25:35.428007,Distributed ACK Flood,during,perfect,200,12.0,1,,1791793535.416
+2026-10-12T08:25:35.446094,Distributed ACK Flood,during,perfect,200,7.1,1,,1791793535.439
+2026-10-12T08:25:36.076835,Distributed ACK Flood,during,broadband,200,289.0,1,,1791793535.788
+2026-10-12T08:25:36.121741,Distributed ACK Flood,during,perfect,200,18.1,1,,1791793536.104
+2026-10-12T08:25:36.122891,Distributed ACK Flood,during,perfect,200,17.8,1,,1791793536.105
+2026-10-12T08:25:36.166359,Distributed ACK Flood,during,broadband,200,62.1,1,,1791793536.104
+2026-10-12T08:25:36.506318,Distributed ACK Flood,during,mobile_3g,200,718.8,1,,1791793535.788
+2026-10-12T08:25:36.516476,Distributed ACK Flood,during,broadband,200,390.1,1,,1791793536.126
+2026-10-12T08:25:36.517450,Distributed ACK Flood,during,broadband,200,394.6,1,,1791793536.123
+2026-10-12T08:25:36.517647,Distributed ACK Flood,during,broadband,200,394.6,1,,1791793536.123
+2026-10-12T08:25:36.545478,Distributed ACK Flood,during,perfect,200,7.1,1,,1791793536.538
+2026-10-12T08:25:36.624125,Distributed ACK Flood,during,mobile_3g,200,451.4,1,,1791793536.173
+2026-10-12T08:25:36.645319,Distributed ACK Flood,during,broadband,200,87.6,1,,1791793536.558
+2026-10-12T08:25:36.833177,Distributed ACK Flood,during,mobile_3g,200,550.6,1,,1791793536.283
+2026-10-12T08:25:36.842460,Distributed ACK Flood,during,broadband,200,218.1,1,,1791793536.624
+2026-10-12T08:25:37.009646,Distributed ACK Flood,during,mobile_3g,200,441.8,1,,1791793536.568
+2026-10-12T08:25:37.019650,Distributed ACK Flood,during,mobile_3g,200,460.3,1,,1791793536.559
+2026-10-12T08:25:37.020506,Distributed ACK Flood,during,mobile_3g,200,424.2,1,,1791793536.596
+2026-10-12T08:25:37.881808,Distributed ACK Flood,during,mobile_3g,200,563.6,1,,1791793537.318
+2026-10-12T08:25:37.883091,Distributed ACK Flood,during,mobile_3g,200,560.0,1,,1791793537.323
+2026-10-12T08:25:37.928398,Distributed ACK Flood,during,perfect,200,21.4,1,,1791793537.907
+2026-10-12T08:25:37.937513,Distributed ACK Flood,during,perfect,200,12.9,1,,1791793537.925
+2026-10-12T08:25:38.006588,Distributed ACK Flood,during,perfect,200,3.1,1,,1791793538.003
+2026-10-12T08:25:38.158792,Distributed ACK Flood,during,perfect,200,10.1,1,,1791793538.149
+2026-10-12T08:25:38.506573,Distributed ACK Flood,during,broadband,200,339.2,1,,1791793538.167
+2026-10-12T08:25:38.729935,Distributed ACK Flood,during,broadband,200,205.7,1,,1791793538.524
+2026-10-12T08:25:39.130345,Distributed ACK Flood,during,mobile_3g,200,626.6,1,,1791793538.504
+2026-10-12T08:25:39.134748,Distributed ACK Flood,during,broadband,200,366.4,1,,1791793538.768
+2026-10-12T08:25:39.339364,Distributed ACK Flood,during,broadband,200,442.6,1,,1791793538.897
+2026-10-12T08:25:39.341520,Distributed ACK Flood,during,broadband,200,449.1,1,,1791793538.892
+2026-10-12T08:25:39.368634,Distributed ACK Flood,during,perfect,200,12.2,1,,1791793539.356
+2026-10-12T08:25:39.492931,Distributed ACK Flood,during,broadband,200,345.2,1,,1791793539.148
+2026-10-12T08:25:39.657507,Distributed ACK Flood,during,mobile_3g,200,459.8,1,,1791793539.198
+2026-10-12T08:25:40.080673,Distributed ACK Flood,during,broadband,200,336.3,1,,1791793539.744
+2026-10-12T08:25:40.356979,Distributed ACK Flood,during,perfect,200,9.1,1,,1791793540.348
+2026-10-12T08:25:40.483383,Distributed ACK Flood,during,perfect,200,110.3,1,,1791793540.373
+2026-10-12T08:25:40.511255,Distributed ACK Flood,during,mobile_3g,200,415.0,1,,1791793540.096
+2026-10-12T08:25:40.514985,Distributed ACK Flood,during,mobile_3g,200,426.4,1,,1791793540.089
+2026-10-12T08:25:40.559330,Distributed ACK Flood,during,perfect,200,7.5,1,,1791793540.552
+2026-10-12T08:25:40.795910,Distributed ACK Flood,during,broadband,200,201.1,1,,1791793540.595
+2026-10-12T08:25:40.946851,Distributed ACK Flood,during,mobile_3g,200,421.2,1,,1791793540.526
+2026-10-12T08:25:40.950018,Distributed ACK Flood,during,mobile_3g,200,363.6,1,,1791793540.586
+2026-10-12T08:25:40.963124,Distributed ACK Flood,during,mobile_3g,200,422.9,1,,1791793540.540
+2026-10-12T08:25:41.095632,Distributed ACK Flood,during,perfect,200,8.0,1,,1791793541.088
+2026-10-12T08:25:41.250499,Distributed ACK Flood,during,broadband,200,134.1,1,,1791793541.116
+2026-10-12T08:25:41.260090,Distributed ACK Flood,during,mobile_3g,200,426.2,1,,1791793540.834
+2026-10-12T08:25:41.289955,Distributed ACK Flood,during,broadband,200,198.7,1,,1791793541.091
+2026-10-12T08:25:41.492524,Distributed ACK Flood,during,mobile_3g,200,391.5,1,,1791793541.101
+2026-10-12T08:25:41.754658,Distributed ACK Flood,during,perfect,200,6.3,1,,1791793541.748
+2026-10-12T08:25:41.755318,Distributed ACK Flood,during,broadband,200,165.1,1,,1791793541.590
+2026-10-12T08:25:42.096052,Distributed ACK Flood,during,broadband,200,153.1,1,,1791793541.943
+2026-10-12T08:25:42.348917,Distributed ACK Flood,during,perfect,200,162.8,1,,1791793542.186
+2026-10-12T08:25:42.502062,Distributed ACK Flood,during,broadband,200,302.7,1,,1791793542.199
+2026-10-12T08:25:42.505552,Distributed ACK Flood,during,mobile_3g,200,388.1,1,,1791793542.117
+2026-10-12T08:25:42.562190,Distributed ACK Flood,during,perfect,200,3.7,1,,1791793542.558
+2026-10-12T08:25:42.832595,Distributed ACK Flood,during,mobile_3g,200,318.5,1,,1791793542.514
+2026-10-12T08:25:42.837514,Distributed ACK Flood,during,broadband,200,183.6,1,,1791793542.654
+2026-10-12T08:25:42.888666,Distributed ACK Flood,during,broadband,200,57.2,1,,1791793542.831
+2026-10-12T08:25:43.300204,Distributed ACK Flood,during,perfect,200,15.6,1,,1791793543.285
+2026-10-12T08:25:43.718678,Distributed ACK Flood,during,broadband,200,202.8,1,,1791793543.516
+2026-10-12T08:25:43.731568,Distributed ACK Flood,during,broadband,200,205.3,1,,1791793543.526
+2026-10-12T08:25:43.957353,Distributed ACK Flood,during,mobile_3g,200,200.7,1,,1791793543.757
+2026-10-12T08:25:43.958586,Distributed ACK Flood,during,broadband,200,184.8,1,,1791793543.774
+2026-10-12T08:25:44.077389,Distributed ACK Flood,during,mobile_3g,200,330.5,1,,1791793543.747
+2026-10-12T08:25:44.090751,Distributed ACK Flood,during,perfect,200,13.3,1,,1791793544.077
+2026-10-12T08:25:44.468915,Distributed ACK Flood,during,mobile_3g,200,365.2,1,,1791793544.104
+2026-10-12T08:25:44.483262,Distributed ACK Flood,during,mobile_3g,200,501.6,1,,1791793543.982
+2026-10-12T08:25:44.605747,Distributed ACK Flood,during,perfect,200,8.3,1,,1791793544.597
+2026-10-12T08:25:44.614975,Distributed ACK Flood,during,broadband,200,51.6,1,,1791793544.563
+2026-10-12T08:25:44.621324,Distributed ACK Flood,during,broadband,200,118.9,1,,1791793544.502
+2026-10-12T08:25:44.630253,Distributed ACK Flood,during,mobile_3g,200,461.8,1,,1791793544.168
+2026-10-12T08:25:44.956339,Distributed ACK Flood,during,broadband,200,166.3,1,,1791793544.790
+2026-10-12T08:25:44.963615,Distributed ACK Flood,during,perfect,200,9.8,1,,1791793544.954
+2026-10-12T08:25:45.107272,Distributed ACK Flood,during,mobile_3g,200,799.0,1,,1791793544.308
+2026-10-12T08:25:45.129142,Distributed ACK Flood,during,perfect,200,4.6,1,,1791793545.125
+2026-10-12T08:25:45.138341,Distributed ACK Flood,during,broadband,200,166.4,1,,1791793544.972
+2026-10-12T08:25:45.246045,Distributed ACK Flood,during,mobile_3g,200,618.3,1,,1791793544.628
+2026-10-12T08:25:45.950717,Distributed ACK Flood,during,perfect,200,2.9,1,,1791793545.948
+2026-10-12T08:25:45.986869,Distributed ACK Flood,during,broadband,200,63.3,1,,1791793545.924
+2026-10-12T08:25:45.986977,Distributed ACK Flood,during,broadband,200,50.4,1,,1791793545.937
+2026-10-12T08:25:46.012599,Distributed ACK Flood,during,perfect,200,4.1,1,,1791793546.008
+2026-10-12T08:25:46.680705,Distributed ACK Flood,during,mobile_3g,200,414.7,1,,1791793546.266
+2026-10-12T08:25:46.692027,Distributed ACK Flood,during,broadband,200,150.4,1,,1791793546.542
+2026-10-12T08:25:47.138632,Distributed ACK Flood,during,broadband,200,426.8,1,,1791793546.712
+2026-10-12T08:25:47.183533,Distributed ACK Flood,during,broadband,200,497.0,1,,1791793546.687
+2026-10-12T08:25:47.185073,Distributed ACK Flood,during,perfect,200,2.2,1,,1791793547.183
+2026-10-12T08:25:47.186486,Distributed ACK Flood,during,broadband,200,487.6,1,,1791793546.699
+2026-10-12T08:25:47.335560,Distributed ACK Flood,during,mobile_3g,200,556.6,1,,1791793546.779
+2026-10-12T08:25:47.475948,Distributed ACK Flood,during,mobile_3g,200,274.0,1,,1791793547.202
+2026-10-12T08:25:47.490404,Distributed ACK Flood,during,perfect,200,7.1,1,,1791793547.483
+2026-10-12T08:25:47.569979,Distributed ACK Flood,during,perfect,200,5.9,1,,1791793547.564
+2026-10-12T08:25:47.752769,Distributed ACK Flood,during,mobile_3g,200,550.5,1,,1791793547.202
+2026-10-12T08:25:47.877460,Distributed ACK Flood,during,mobile_3g,200,533.8,1,,1791793547.344
+2026-10-12T08:25:47.962010,Distributed ACK Flood,during,broadband,200,190.7,1,,1791793547.771
+2026-10-12T08:25:48.028403,Distributed ACK Flood,during,broadband,200,129.2,1,,1791793547.899
+2026-10-12T08:25:48.152026,Distributed ACK Flood,during,mobile_3g,200,383.1,1,,1791793547.769
+2026-10-12T08:25:48.235558,Distributed ACK Flood,during,mobile_3g,200,466.0,1,,1791793547.770
+2026-10-12T08:25:48.242968,Distributed ACK Flood,during,perfect,200,7.4,1,,1791793548.236
+2026-10-12T08:25:48.478283,Distributed ACK Flood,during,broadband,200,235.2,1,,1791793548.243
+2026-10-12T08:25:48.521958,Distributed ACK Flood,during,perfect,200,5.6,1,,1791793548.516
+2026-10-12T08:25:48.705996,Distributed ACK Flood,during,mobile_3g,200,206.6,1,,1791793548.499
+2026-10-12T08:25:48.884556,Distributed ACK Flood,during,mobile_3g,200,324.9,1,,1791793548.560
+2026-10-12T08:25:49.246635,Distributed ACK Flood,during,broadband,200,336.1,1,,1791793548.911
+2026-10-12T08:25:49.586834,Distributed ACK Flood,during,broadband,200,60.9,1,,1791793549.526
+2026-10-12T08:25:49.612775,Distributed ACK Flood,during,mobile_3g,200,338.3,1,,1791793549.274
+2026-10-12T08:25:49.667403,Distributed ACK Flood,during,broadband,200,54.3,1,,1791793549.613
+2026-10-12T08:25:49.692812,Distributed ACK Flood,during,broadband,200,53.8,1,,1791793549.639
+2026-10-12T08:25:49.837750,Distributed ACK Flood,during,perfect,200,5.2,1,,1791793549.833
+2026-10-12T08:25:50.043660,Distributed ACK Flood,during,broadband,200,43.1,1,,1791793550.001
+2026-10-12T08:25:50.060096,Distributed ACK Flood,during,perfect,200,3.0,1,,1791793550.057
+2026-10-12T08:25:50.067931,Distributed ACK Flood,during,perfect,200,3.0,1,,1791793550.065
+2026-10-12T08:25:50.086704,Distributed ACK Flood,during,perfect,200,1.7,1,,1791793550.085
+2026-10-12T08:25:50.489815,Distributed ACK Flood,after,broadband,200,35.3,1,,1791793550.455
+2026-10-12T08:25:50.884601,Distributed ACK Flood,during,mobile_3g,200,777.4,1,,1791793550.107
+2026-10-12T08:25:51.525177,Distributed ACK Flood,after,broadband,200,521.9,1,,1791793551.003
+2026-10-12T08:25:51.566007,Distributed ACK Flood,after,broadband,200,45.6,1,,1791793551.520
+2026-10-12T08:25:51.569833,Distributed ACK Flood,after,broadband,200,43.4,1,,1791793551.526
+2026-10-12T08:25:51.712241,Distributed ACK Flood,after,mobile_3g,200,811.4,1,,1791793550.901
+2026-10-12T08:25:51.722111,Distributed ACK Flood,after,broadband,200,46.7,1,,1791793551.675
+2026-10-12T08:25:51.801812,Distributed ACK Flood,after,mobile_3g,200,279.9,1,,1791793551.522
+2026-10-12T08:25:51.802846,Distributed ACK Flood,after,mobile_3g,200,280.8,1,,1791793551.522
+2026-10-12T08:25:51.842074,Distributed ACK Flood,after,perfect,200,3.4,1,,1791793551.839
+2026-10-12T08:25:51.908331,Distributed ACK Flood,after,mobile_3g,200,380.6,1,,1791793551.528
+2026-10-12T08:25:51.913158,Distributed ACK Flood,after,perfect,200,3.2,1,,1791793551.910
+2026-10-12T08:25:51.922583,Distributed ACK Flood,after,perfect,200,3.0,1,,1791793551.920
+2026-10-12T08:25:52.145461,Distributed ACK Flood,after,mobile_3g,200,379.1,1,,1791793551.766
+2026-10-12T08:25:52.316264,Distributed ACK Flood,after,mobile_3g,200,258.2,1,,1791793552.058
+2026-10-12T08:25:52.423720,Distributed ACK Flood,after,mobile_3g,200,318.5,1,,1791793552.105
+2026-10-12T08:25:52.514279,Distributed ACK Flood,after,perfect,200,7.0,1,,1791793552.507
+2026-10-12T08:25:52.665772,Distributed ACK Flood,after,broadband,200,57.4,1,,1791793552.608
+2026-10-12T08:25:52.741483,Distributed ACK Flood,after,broadband,200,57.5,1,,1791793552.684
+2026-10-12T08:25:53.715888,Distributed ACK Flood,after,perfect,200,201.6,1,,1791793553.514
+2026-10-12T08:25:53.766569,Distributed ACK Flood,after,broadband,200,54.5,1,,1791793553.712
+2026-10-12T08:25:53.787576,Distributed ACK Flood,after,broadband,200,59.2,1,,1791793553.728
+2026-10-12T08:25:53.963261,Distributed ACK Flood,after,perfect,200,3.0,1,,1791793553.960
+2026-10-12T08:25:53.967506,Distributed ACK Flood,after,perfect,200,6.6,1,,1791793553.961
+2026-10-12T08:25:54.027050,Distributed ACK Flood,after,mobile_3g,200,312.5,1,,1791793553.715
+2026-10-12T08:25:54.032500,Distributed ACK Flood,after,broadband,200,49.6,1,,1791793553.983
+2026-10-12T08:25:54.131390,Distributed ACK Flood,after,mobile_3g,200,395.0,1,,1791793553.736
+2026-10-12T08:25:54.240820,Distributed ACK Flood,after,broadband,200,45.1,1,,1791793554.196
+2026-10-12T08:25:54.412800,Distributed ACK Flood,after,perfect,200,9.6,1,,1791793554.403
+2026-10-12T08:25:54.436639,Distributed ACK Flood,after,broadband,200,44.3,1,,1791793554.392
+2026-10-12T08:25:54.533131,Distributed ACK Flood,after,broadband,200,46.3,1,,1791793554.487
+2026-10-12T08:25:54.905397,Distributed ACK Flood,after,mobile_3g,200,251.2,1,,1791793554.654
+2026-10-12T08:25:55.068433,Distributed ACK Flood,after,perfect,200,1.6,1,,1791793555.067
+2026-10-12T08:25:55.093544,Distributed ACK Flood,after,broadband,200,50.9,1,,1791793555.043
+2026-10-12T08:25:55.459834,Distributed ACK Flood,after,mobile_3g,200,344.9,1,,1791793555.115
+2026-10-12T08:25:55.491347,Distributed ACK Flood,after,broadband,200,44.9,1,,1791793555.446
+2026-10-12T08:25:55.521622,Distributed ACK Flood,after,mobile_3g,200,277.1,1,,1791793555.245
+2026-10-12T08:25:55.707510,Distributed ACK Flood,after,mobile_3g,200,258.0,1,,1791793555.450
+2026-10-12T08:25:55.839431,Distributed ACK Flood,after,mobile_3g,200,449.7,1,,1791793555.390
+2026-10-12T08:25:55.857687,Distributed ACK Flood,after,perfect,200,3.2,1,,1791793555.854
+2026-10-12T08:25:55.919459,Distributed ACK Flood,after,broadband,200,66.0,1,,1791793555.853
+2026-10-12T08:25:56.709022,Distributed ACK Flood,after,perfect,200,9.9,1,,1791793556.699
+2026-10-12T08:25:56.710257,Distributed ACK Flood,after,perfect,200,8.4,1,,1791793556.702
+2026-10-12T08:25:56.711342,Distributed ACK Flood,after,mobile_3g,200,865.1,1,,1791793555.846
+2026-10-12T08:25:56.718489,Distributed ACK Flood,after,perfect,200,1.5,1,,1791793556.717
+2026-10-12T08:25:56.750275,Distributed ACK Flood,after,broadband,200,41.2,1,,1791793556.709
+2026-10-12T08:25:56.768707,Distributed ACK Flood,after,broadband,200,48.6,1,,1791793556.720
+2026-10-12T08:25:56.777286,Distributed ACK Flood,after,broadband,200,52.1,1,,1791793556.725
+2026-10-12T08:25:56.967884,Distributed ACK Flood,after,mobile_3g,200,260.9,1,,1791793556.707
+2026-10-12T08:25:56.978477,Distributed ACK Flood,after,broadband,200,66.2,1,,1791793556.912
+2026-10-12T08:25:57.156798,Distributed ACK Flood,after,perfect,200,3.9,1,,1791793557.153
+2026-10-12T08:25:57.215704,Distributed ACK Flood,after,broadband,200,51.6,1,,1791793557.164
+2026-10-12T08:25:57.526929,Distributed ACK Flood,after,mobile_3g,200,358.8,1,,1791793557.168
+2026-10-12T08:25:58.021769,Distributed ACK Flood,after,perfect,200,4.7,1,,1791793558.017
+2026-10-12T08:25:58.320061,Distributed ACK Flood,after,mobile_3g,200,323.0,1,,1791793557.997
+2026-10-12T08:25:58.326983,Distributed ACK Flood,after,perfect,200,2.3,1,,1791793558.325
+2026-10-12T08:25:58.339717,Distributed ACK Flood,after,broadband,200,45.8,1,,1791793558.294
+2026-10-12T08:25:58.340804,Distributed ACK Flood,after,broadband,200,43.0,1,,1791793558.298
+2026-10-12T08:25:59.105825,Distributed ACK Flood,after,mobile_3g,200,1568.7,1,,1791793557.537
+2026-10-12T08:25:59.124041,Distributed ACK Flood,after,perfect,200,5.3,1,,1791793559.119
+2026-10-12T08:25:59.135823,Distributed ACK Flood,after,perfect,200,2.7,1,,1791793559.133
+2026-10-12T08:25:59.151129,Distributed ACK Flood,after,broadband,200,44.2,1,,1791793559.107
+2026-10-12T08:25:59.170657,Distributed ACK Flood,after,broadband,200,44.8,1,,1791793559.126
+2026-10-12T08:25:59.492905,Distributed ACK Flood,after,mobile_3g,200,368.9,1,,1791793559.124
+2026-10-12T08:25:59.494631,Distributed ACK Flood,after,mobile_3g,200,382.6,1,,1791793559.112
+2026-10-12T08:25:59.513554,Distributed ACK Flood,after,perfect,200,6.9,1,,1791793559.507
+2026-10-12T08:25:59.551365,Distributed ACK Flood,after,broadband,200,45.9,1,,1791793559.505
+2026-10-12T08:25:59.552981,Distributed ACK Flood,after,broadband,200,44.7,1,,1791793559.508
+2026-10-12T08:25:59.591287,Distributed ACK Flood,after,mobile_3g,200,470.5,1,,1791793559.121
+2026-10-12T08:25:59.683209,Distributed ACK Flood,after,mobile_3g,200,562.6,1,,1791793559.121
+2026-10-12T08:26:00.045257,Distributed ACK Flood,after,broadband,200,42.8,1,,1791793560.002
+2026-10-12T08:26:00.182141,Distributed ACK Flood,after,broadband,200,42.8,1,,1791793560.139
+2026-10-12T08:26:00.240972,Distributed ACK Flood,after,mobile_3g,200,330.8,1,,1791793559.910
+2026-10-12T08:26:37.552465,Distributed IP Fragmentation Flood,before,broadband,200,42.8,1,,1791793597.510
+2026-10-12T08:26:37.803201,Distributed IP Fragmentation Flood,before,perfect,200,1.6,1,,1791793597.802
+2026-10-12T08:26:37.912716,Distributed IP Fragmentation Flood,before,broadband,200,44.6,1,,1791793597.868
+2026-10-12T08:26:37.935558,Distributed IP Fragmentation Flood,before,broadband,200,48.4,1,,1791793597.887
+2026-10-12T08:26:38.252064,Distributed IP Fragmentation Flood,before,broadband,200,46.9,1,,1791793598.205
+2026-10-12T08:26:38.353341,Distributed IP Fragmentation Flood,before,broadband,200,46.3,1,,1791793598.307
+2026-10-12T08:26:39.021292,Distributed IP Fragmentation Flood,before,perfect,200,1.6,1,,1791793599.020
+2026-10-12T08:26:39.170074,Distributed IP Fragmentation Flood,before,broadband,200,63.3,1,,1791793599.107
+2026-10-12T08:26:39.250395,Distributed IP Fragmentation Flood,before,mobile_3g,200,313.4,1,,1791793598.937
+2026-10-12T08:26:39.377087,Distributed IP Fragmentation Flood,before,mobile_3g,200,270.4,1,,1791793599.107
+2026-10-12T08:26:39.410653,Distributed IP Fragmentation Flood,before,mobile_3g,200,324.8,1,,1791793599.086
+2026-10-12T08:26:39.414217,Distributed IP Fragmentation Flood,before,mobile_3g,200,357.9,1,,1791793599.056
+2026-10-12T08:26:39.427354,Distributed IP Fragmentation Flood,before,mobile_3g,200,269.9,1,,1791793599.157
+2026-10-12T08:26:39.455198,Distributed IP Fragmentation Flood,before,mobile_3g,200,370.0,1,,1791793599.085
+2026-10-12T08:26:39.544587,Distributed IP Fragmentation Flood,before,perfect,200,2.0,1,,1791793599.543
+2026-10-12T08:26:39.557549,Distributed IP Fragmentation Flood,before,perfect,200,1.6,1,,1791793599.556
+2026-10-12T08:26:39.622558,Distributed IP Fragmentation Flood,before,mobile_3g,200,344.5,1,,1791793599.278
+2026-10-12T08:26:39.777033,Distributed IP Fragmentation Flood,before,perfect,200,1.6,1,,1791793599.775
+2026-10-12T08:26:39.978772,Distributed IP Fragmentation Flood,before,broadband,200,45.4,1,,1791793599.933
+2026-10-12T08:26:40.024470,Distributed IP Fragmentation Flood,before,mobile_3g,200,411.2,1,,1791793599.613
+2026-10-12T08:26:40.306112,Distributed IP Fragmentation Flood,before,broadband,200,62.1,1,,1791793600.244
+2026-10-12T08:26:40.443448,Distributed IP Fragmentation Flood,before,mobile_3g,200,727.9,1,,1791793599.716
+2026-10-12T08:26:40.501068,Distributed IP Fragmentation Flood,before,broadband,200,39.5,1,,1791793600.462
+2026-10-12T08:26:40.536483,Distributed IP Fragmentation Flood,before,broadband,200,52.6,1,,1791793600.484
+2026-10-12T08:26:40.690311,Distributed IP Fragmentation Flood,before,broadband,200,43.9,1,,1791793600.646
+2026-10-12T08:26:41.157573,Distributed IP Fragmentation Flood,before,broadband,200,65.5,1,,1791793601.092
+2026-10-12T08:26:41.352000,Distributed IP Fragmentation Flood,before,perfect,200,1.4,1,,1791793601.351
+2026-10-12T08:26:41.543708,Distributed IP Fragmentation Flood,before,perfect,200,1.4,1,,1791793601.542
+2026-10-12T08:26:41.556769,Distributed IP Fragmentation Flood,before,perfect,200,1.5,1,,1791793601.555
+2026-10-12T08:26:41.572216,Distributed IP Fragmentation Flood,before,broadband,200,46.4,1,,1791793601.526
+2026-10-12T08:26:41.772699,Distributed IP Fragmentation Flood,during,perfect,200,6.8,1,,1791793601.766
+2026-10-12T08:26:42.790431,Distributed IP Fragmentation Flood,during,broadband,200,218.6,1,,1791793602.572
+2026-10-12T08:26:43.066245,Distributed IP Fragmentation Flood,during,mobile_3g,200,494.3,1,,1791793602.572
+2026-10-12T08:26:43.066947,Distributed IP Fragmentation Flood,during,broadband,200,207.1,1,,1791793602.860
+2026-10-12T08:26:43.185356,Distributed IP Fragmentation Flood,during,mobile_3g,200,389.8,1,,1791793602.796
+2026-10-12T08:26:43.401836,Distributed IP Fragmentation Flood,during,broadband,200,217.8,1,,1791793603.184
+2026-10-12T08:26:43.406968,Distributed IP Fragmentation Flood,during,broadband,200,209.6,1,,1791793603.197
+2026-10-12T08:26:43.469824,Distributed IP Fragmentation Flood,during,mobile_3g,200,378.1,1,,1791793603.092
+2026-10-12T08:26:43.471848,Distributed IP Fragmentation Flood,during,broadband,200,1264.5,1,,1791793602.207
+2026-10-12T08:26:43.488138,Distributed IP Fragmentation Flood,during,mobile_3g,200,385.5,1,,1791793603.103
+2026-10-12T08:26:43.491283,Distributed IP Fragmentation Flood,during,mobile_3g,200,389.1,1,,1791793603.102
+2026-10-12T08:26:43.814313,Distributed IP Fragmentation Flood,during,mobile_3g,200,1539.9,1,,1791793602.274
+2026-10-12T08:26:43.824830,Distributed IP Fragmentation Flood,during,perfect,200,8.1,1,,1791793603.817
+2026-10-12T08:26:43.827055,Distributed IP Fragmentation Flood,during,perfect,200,2.8,1,,1791793603.824
+2026-10-12T08:26:44.034352,Distributed IP Fragmentation Flood,during,perfect,200,2.9,1,,1791793604.031
+2026-10-12T08:26:44.130862,Distributed IP Fragmentation Flood,during,mobile_3g,200,539.3,1,,1791793603.592
+2026-10-12T08:26:44.130975,Distributed IP Fragmentation Flood,during,broadband,200,237.2,1,,1791793603.894
+2026-10-12T08:26:44.144561,Distributed IP Fragmentation Flood,during,broadband,200,310.9,1,,1791793603.834
+2026-10-12T08:26:44.145097,Distributed IP Fragmentation Flood,during,perfect,200,3.6,1,,1791793604.141
+2026-10-12T08:26:44.293533,Distributed IP Fragmentation Flood,during,mobile_3g,200,486.9,1,,1791793603.807
+2026-10-12T08:26:44.502967,Distributed IP Fragmentation Flood,during,mobile_3g,200,449.6,1,,1791793604.053
+2026-10-12T08:26:45.273347,Distributed IP Fragmentation Flood,during,broadband,200,129.0,1,,1791793605.144
+2026-10-12T08:26:45.421889,Distributed IP Fragmentation Flood,during,perfect,200,2.3,1,,1791793605.420
+2026-10-12T08:26:45.423362,Distributed IP Fragmentation Flood,during,perfect,200,1.4,1,,1791793605.422
+2026-10-12T08:26:45.424438,Distributed IP Fragmentation Flood,during,broadband,200,126.8,1,,1791793605.298
+2026-10-12T08:26:45.434040,Distributed IP Fragmentation Flood,during,perfect,200,1.4,1,,1791793605.433
+2026-10-12T08:26:45.663918,Distributed IP Fragmentation Flood,during,perfect,200,1.7,1,,1791793605.662
+2026-10-12T08:26:45.691525,Distributed IP Fragmentation Flood,during,broadband,200,172.3,1,,1791793605.519
+2026-10-12T08:26:45.759662,Distributed IP Fragmentation Flood,during,broadband,200,98.0,1,,1791793605.662
+2026-10-12T08:26:46.165411,Distributed IP Fragmentation Flood,during,broadband,200,164.8,1,,1791793606.001
+2026-10-12T08:26:46.437884,Distributed IP Fragmentation Flood,during,mobile_3g,200,474.2,1,,1791793605.964
+2026-10-12T08:26:46.457782,Distributed IP Fragmentation Flood,during,broadband,200,147.2,1,,1791793606.311
+2026-10-12T08:26:46.605632,Distributed IP Fragmentation Flood,during,mobile_3g,200,430.4,1,,1791793606.175
+2026-10-12T08:26:46.616812,Distributed IP Fragmentation Flood,during,perfect,200,1.1,1,,1791793606.616
+2026-10-12T08:26:46.619250,Distributed IP Fragmentation Flood,during,perfect,200,1.8,1,,1791793606.617
+2026-10-12T08:26:46.941953,Distributed IP Fragmentation Flood,during,mobile_3g,200,338.3,1,,1791793606.604
+2026-10-12T08:26:47.141700,Distributed IP Fragmentation Flood,during,perfect,200,2.7,1,,1791793607.139
+2026-10-12T08:26:47.151732,Distributed IP Fragmentation Flood,during,broadband,200,188.7,1,,1791793606.963
+2026-10-12T08:26:47.193506,Distributed IP Fragmentation Flood,during,broadband,200,45.1,1,,1791793607.148
+2026-10-12T08:26:47.385889,Distributed IP Fragmentation Flood,during,mobile_3g,200,425.1,1,,1791793606.961
+2026-10-12T08:26:47.547755,Distributed IP Fragmentation Flood,during,perfect,200,1.2,1,,1791793607.547
+2026-10-12T08:26:47.558091,Distributed IP Fragmentation Flood,during,mobile_3g,200,409.2,1,,1791793607.149
+2026-10-12T08:26:47.874059,Distributed IP Fragmentation Flood,during,broadband,200,298.8,1,,1791793607.575
+2026-10-12T08:26:48.032070,Distributed IP Fragmentation Flood,during,mobile_3g,200,644.1,1,,1791793607.388
+2026-10-12T08:26:48.032420,Distributed IP Fragmentation Flood,during,perfect,200,1.8,1,,1791793608.031
+2026-10-12T08:26:48.341331,Distributed IP Fragmentation Flood,during,mobile_3g,200,346.2,1,,1791793607.995
+2026-10-12T08:26:48.360999,Distributed IP Fragmentation Flood,during,mobile_3g,200,488.4,1,,1791793607.873
+2026-10-12T08:26:48.436062,Distributed IP Fragmentation Flood,during,perfect,200,1.5,1,,1791793608.435
+2026-10-12T08:26:48.497165,Distributed IP Fragmentation Flood,during,broadband,200,133.2,1,,1791793608.364
+2026-10-12T08:26:48.501254,Distributed IP Fragmentation Flood,during,broadband,200,123.5,1,,1791793608.378
+2026-10-12T08:26:48.501477,Distributed IP Fragmentation Flood,during,broadband,200,135.6,1,,1791793608.366
+2026-10-12T08:26:48.680000,Distributed IP Fragmentation Flood,during,perfect,200,1.4,1,,1791793608.679
+2026-10-12T08:26:48.686931,Distributed IP Fragmentation Flood,during,mobile_3g,200,315.3,1,,1791793608.372
+2026-10-12T08:26:48.758742,Distributed IP Fragmentation Flood,during,broadband,200,93.3,1,,1791793608.665
+2026-10-12T08:26:49.286616,Distributed IP Fragmentation Flood,during,perfect,200,1.5,1,,1791793609.285
+2026-10-12T08:26:49.363210,Distributed IP Fragmentation Flood,during,broadband,200,82.2,1,,1791793609.281
+2026-10-12T08:26:50.022507,Distributed IP Fragmentation Flood,during,perfect,200,38.9,1,,1791793609.984
+2026-10-12T08:26:50.039902,Distributed IP Fragmentation Flood,during,mobile_3g,200,308.7,1,,1791793609.731
+2026-10-12T08:26:50.244128,Distributed IP Fragmentation Flood,during,broadband,200,194.7,1,,1791793610.049
+2026-10-12T08:26:50.371973,Distributed IP Fragmentation Flood,during,perfect,200,8.8,1,,1791793610.363
+2026-10-12T08:26:50.379731,Distributed IP Fragmentation Flood,during,perfect,200,2.9,1,,1791793610.377
+2026-10-12T08:26:50.395578,Distributed IP Fragmentation Flood,during,mobile_3g,200,350.3,1,,1791793610.045
+2026-10-12T08:26:50.401998,Distributed IP Fragmentation Flood,during,broadband,200,138.1,1,,1791793610.264
+2026-10-12T08:26:50.702918,Distributed IP Fragmentation Flood,during,perfect,200,1.3,1,,1791793610.702
+2026-10-12T08:26:51.119186,Distributed IP Fragmentation Flood,during,broadband,200,237.3,1,,1791793610.882
+2026-10-12T08:26:51.308825,Distributed IP Fragmentation Flood,during,mobile_3g,200,426.5,1,,1791793610.882
+2026-10-12T08:26:51.309051,Distributed IP Fragmentation Flood,during,broadband,200,285.6,1,,1791793611.023
+2026-10-12T08:26:51.311136,Distributed IP Fragmentation Flood,during,broadband,200,284.0,1,,1791793611.027
+2026-10-12T08:26:51.491883,Distributed IP Fragmentation Flood,during,broadband,200,52.9,1,,1791793611.439
+2026-10-12T08:26:51.563218,Distributed IP Fragmentation Flood,during,broadband,200,112.2,1,,1791793611.451
+2026-10-12T08:26:51.684291,Distributed IP Fragmentation Flood,during,mobile_3g,200,499.8,1,,1791793611.184
+2026-10-12T08:26:51.734923,Distributed IP Fragmentation Flood,during,mobile_3g,200,356.0,1,,1791793611.379
+2026-10-12T08:26:51.807568,Distributed IP Fragmentation Flood,during,perfect,200,58.8,1,,1791793611.749
+2026-10-12T08:26:52.120528,Distributed IP Fragmentation Flood,during,mobile_3g,200,375.0,1,,1791793611.746
+2026-10-12T08:26:52.488422,Distributed IP Fragmentation Flood,during,broadband,200,205.3,1,,1791793612.283
+2026-10-12T08:26:52.598064,Distributed IP Fragmentation Flood,during,perfect,200,2.9,1,,1791793612.595
+2026-10-12T08:26:52.633035,Distributed IP Fragmentation Flood,during,mobile_3g,200,349.1,1,,1791793612.284
+2026-10-12T08:26:52.755713,Distributed IP Fragmentation Flood,during,mobile_3g,200,620.7,1,,1791793612.135
+2026-10-12T08:26:52.905516,Distributed IP Fragmentation Flood,during,perfect,200,118.6,1,,1791793612.787
+2026-10-12T08:26:52.912005,Distributed IP Fragmentation Flood,during,mobile_3g,200,404.4,1,,1791793612.508
+2026-10-12T08:26:52.925240,Distributed IP Fragmentation Flood,during,perfect,200,1.1,1,,1791793612.924
+2026-10-12T08:26:53.107080,Distributed IP Fragmentation Flood,during,broadband,200,102.8,1,,1791793613.004
+2026-10-12T08:26:53.132877,Distributed IP Fragmentation Flood,during,perfect,200,7.4,1,,1791793613.125
+2026-10-12T08:26:53.148407,Distributed IP Fragmentation Flood,during,broadband,200,121.8,1,,1791793613.027
+2026-10-12T08:26:53.489694,Distributed IP Fragmentation Flood,during,broadband,200,303.9,1,,1791793613.186
+2026-10-12T08:26:53.516043,Distributed IP Fragmentation Flood,during,broadband,200,74.2,1,,1791793613.442
+2026-10-12T08:26:53.547722,Distributed IP Fragmentation Flood,during,broadband,200,62.2,1,,1791793613.486
+2026-10-12T08:26:53.805147,Distributed IP Fragmentation Flood,during,mobile_3g,200,603.4,1,,1791793613.202
+2026-10-12T08:26:54.105178,Distributed IP Fragmentation Flood,during,perfect,200,1.7,1,,1791793614.103
+2026-10-12T08:26:54.213386,Distributed IP Fragmentation Flood,during,broadband,200,194.1,1,,1791793614.019
+2026-10-12T08:26:54.259197,Distributed IP Fragmentation Flood,during,perfect,200,1.6,1,,1791793614.258
+2026-10-12T08:26:54.636131,Distributed IP Fragmentation Flood,during,perfect,200,9.8,1,,1791793614.626
+2026-10-12T08:26:54.838503,Distributed IP Fragmentation Flood,during,mobile_3g,200,374.8,1,,1791793614.464
+2026-10-12T08:26:54.957572,Distributed IP Fragmentation Flood,during,mobile_3g,200,372.0,1,,1791793614.586
+2026-10-12T08:26:55.158990,Distributed IP Fragmentation Flood,during,mobile_3g,200,532.8,1,,1791793614.626
+2026-10-12T08:26:55.175230,Distributed IP Fragmentation Flood,during,perfect,200,1.9,1,,1791793615.173
+2026-10-12T08:26:55.495313,Distributed IP Fragmentation Flood,during,mobile_3g,200,609.0,1,,1791793614.886
+2026-10-12T08:26:55.495986,Distributed IP Fragmentation Flood,during,broadband,200,281.4,1,,1791793615.215
+2026-10-12T08:26:55.686097,Distributed IP Fragmentation Flood,during,broadband,200,170.0,1,,1791793615.516
+2026-10-12T08:26:55.690698,Distributed IP Fragmentation Flood,during,broadband,200,173.5,1,,1791793615.517
+2026-10-12T08:26:55.696799,Distributed IP Fragmentation Flood,during,perfect,200,4.5,1,,1791793615.692
+2026-10-12T08:26:55.770709,Distributed IP Fragmentation Flood,during,broadband,200,51.0,1,,1791793615.720
+2026-10-12T08:26:55.979522,Distributed IP Fragmentation Flood,during,mobile_3g,200,314.2,1,,1791793615.665
+2026-10-12T08:26:56.101862,Distributed IP Fragmentation Flood,during,broadband,200,263.5,1,,1791793615.838
+2026-10-12T08:26:56.172308,Distributed IP Fragmentation Flood,during,broadband,200,189.1,1,,1791793615.983
+2026-10-12T08:26:56.184709,Distributed IP Fragmentation Flood,during,broadband,200,187.5,1,,1791793615.997
+2026-10-12T08:26:56.376340,Distributed IP Fragmentation Flood,during,mobile_3g,200,385.6,1,,1791793615.991
+2026-10-12T08:26:56.509664,Distributed IP Fragmentation Flood,during,mobile_3g,200,382.9,1,,1791793616.127
+2026-10-12T08:26:56.517031,Distributed IP Fragmentation Flood,during,perfect,200,1.8,1,,1791793616.515
+2026-10-12T08:26:56.742489,Distributed IP Fragmentation Flood,during,perfect,200,1.4,1,,1791793616.741
+2026-10-12T08:26:56.894378,Distributed IP Fragmentation Flood,during,mobile_3g,200,381.4,1,,1791793616.513
+2026-10-12T08:26:56.906082,Distributed IP Fragmentation Flood,during,perfect,200,1.6,1,,1791793616.904
+2026-10-12T08:26:57.401067,Distributed IP Fragmentation Flood,during,mobile_3g,200,495.5,1,,1791793616.906
+2026-10-12T08:26:57.842869,Distributed IP Fragmentation Flood,during,broadband,200,49.5,1,,1791793617.793
+2026-10-12T08:26:57.842959,Distributed IP Fragmentation Flood,during,broadband,200,46.1,1,,1791793617.797
+2026-10-12T08:26:57.853168,Distributed IP Fragmentation Flood,during,perfect,200,2.0,1,,1791793617.851
+2026-10-12T08:26:57.877021,Distributed IP Fragmentation Flood,during,broadband,200,47.8,1,,1791793617.829
+2026-10-12T08:26:58.065738,Distributed IP Fragmentation Flood,during,perfect,200,2.0,1,,1791793618.064
+2026-10-12T08:26:58.217664,Distributed IP Fragmentation Flood,during,broadband,200,48.3,1,,1791793618.169
+2026-10-12T08:26:58.249920,Distributed IP Fragmentation Flood,during,mobile_3g,200,459.6,1,,1791793617.790
+2026-10-12T08:26:58.309210,Distributed IP Fragmentation Flood,during,perfect,200,1.8,1,,1791793618.307
+2026-10-12T08:26:58.421590,Distributed IP Fragmentation Flood,after,broadband,200,52.8,1,,1791793618.369
+2026-10-12T08:26:58.529787,Distributed IP Fragmentation Flood,after,perfect,200,1.9,1,,1791793618.528
+2026-10-12T08:26:58.917319,Distributed IP Fragmentation Flood,after,mobile_3g,200,340.8,1,,1791793618.577
+2026-10-12T08:26:59.168718,Distributed IP Fragmentation Flood,after,mobile_3g,200,479.1,1,,1791793618.690
+2026-10-12T08:26:59.182693,Distributed IP Fragmentation Flood,after,broadband,200,38.3,1,,1791793619.144
+2026-10-12T08:26:59.228249,Distributed IP Fragmentation Flood,after,broadband,200,44.4,1,,1791793619.184
+2026-10-12T08:26:59.253021,Distributed IP Fragmentation Flood,after,mobile_3g,200,389.8,1,,1791793618.863
+2026-10-12T08:26:59.631402,Distributed IP Fragmentation Flood,after,perfect,200,1.5,1,,1791793619.630
+2026-10-12T08:26:59.679908,Distributed IP Fragmentation Flood,after,perfect,200,1.7,1,,1791793619.678
+2026-10-12T08:26:59.751994,Distributed IP Fragmentation Flood,after,mobile_3g,200,1274.2,1,,1791793618.478
+2026-10-12T08:27:00.010554,Distributed IP Fragmentation Flood,after,broadband,200,39.4,1,,1791793619.971
+2026-10-12T08:27:00.025872,Distributed IP Fragmentation Flood,after,broadband,200,54.8,1,,1791793619.971
+2026-10-12T08:27:00.064578,Distributed IP Fragmentation Flood,after,perfect,200,1.9,1,,1791793620.063
+2026-10-12T08:27:00.126452,Distributed IP Fragmentation Flood,after,broadband,200,50.9,1,,1791793620.076
+2026-10-12T08:27:00.236344,Distributed IP Fragmentation Flood,after,mobile_3g,200,467.6,1,,1791793619.769
+2026-10-12T08:27:00.423841,Distributed IP Fragmentation Flood,after,mobile_3g,200,289.2,1,,1791793620.135
+2026-10-12T08:27:00.462427,Distributed IP Fragmentation Flood,after,broadband,200,43.1,1,,1791793620.419
+2026-10-12T08:27:00.491365,Distributed IP Fragmentation Flood,after,mobile_3g,200,383.1,1,,1791793620.108
+2026-10-12T08:27:00.825573,Distributed IP Fragmentation Flood,after,perfect,200,1.7,1,,1791793620.824
+2026-10-12T08:27:00.885603,Distributed IP Fragmentation Flood,after,perfect,200,2.3,1,,1791793620.883
+2026-10-12T08:27:00.971461,Distributed IP Fragmentation Flood,after,broadband,200,44.3,1,,1791793620.927
+2026-10-12T08:27:01.305401,Distributed IP Fragmentation Flood,after,perfect,200,1.6,1,,1791793621.304
+2026-10-12T08:27:01.575752,Distributed IP Fragmentation Flood,after,mobile_3g,200,549.9,1,,1791793621.026
+2026-10-12T08:27:01.757457,Distributed IP Fragmentation Flood,after,broadband,200,45.0,1,,1791793621.712
+2026-10-12T08:27:01.757726,Distributed IP Fragmentation Flood,after,broadband,200,44.7,1,,1791793621.713
+2026-10-12T08:27:01.872573,Distributed IP Fragmentation Flood,after,broadband,200,48.6,1,,1791793621.824
+2026-10-12T08:27:02.090182,Distributed IP Fragmentation Flood,after,mobile_3g,200,361.8,1,,1791793621.728
+2026-10-12T08:27:02.134198,Distributed IP Fragmentation Flood,after,broadband,200,50.1,1,,1791793622.084
+2026-10-12T08:27:02.257428,Distributed IP Fragmentation Flood,after,perfect,200,1.6,1,,1791793622.256
+2026-10-12T08:27:02.335665,Distributed IP Fragmentation Flood,after,mobile_3g,200,312.4,1,,1791793622.023
+2026-10-12T08:27:02.440682,Distributed IP Fragmentation Flood,after,broadband,200,52.9,1,,1791793622.388
+2026-10-12T08:27:02.522320,Distributed IP Fragmentation Flood,after,perfect,200,4.0,1,,1791793622.518
+2026-10-12T08:27:02.535251,Distributed IP Fragmentation Flood,after,mobile_3g,200,1398.3,1,,1791793621.137
+2026-10-12T08:27:02.632047,Distributed IP Fragmentation Flood,after,mobile_3g,200,292.9,1,,1791793622.339
+2026-10-12T08:27:02.813060,Distributed IP Fragmentation Flood,after,perfect,200,1.6,1,,1791793622.811
+2026-10-12T08:27:02.893410,Distributed IP Fragmentation Flood,after,perfect,200,2.2,1,,1791793622.891
+2026-10-12T08:27:03.098551,Distributed IP Fragmentation Flood,after,broadband,200,39.1,1,,1791793623.059
+2026-10-12T08:27:03.537601,Distributed IP Fragmentation Flood,after,mobile_3g,200,363.6,1,,1791793623.174
+2026-10-12T08:27:03.613325,Distributed IP Fragmentation Flood,after,broadband,200,43.7,1,,1791793623.570
+2026-10-12T08:27:03.827881,Distributed IP Fragmentation Flood,after,broadband,200,54.0,1,,1791793623.774
+2026-10-12T08:27:03.850679,Distributed IP Fragmentation Flood,after,mobile_3g,200,304.0,1,,1791793623.547
+2026-10-12T08:27:03.916378,Distributed IP Fragmentation Flood,after,broadband,200,52.5,1,,1791793623.864
+2026-10-12T08:27:04.138147,Distributed IP Fragmentation Flood,after,perfect,200,1.6,1,,1791793624.137
+2026-10-12T08:27:04.168735,Distributed IP Fragmentation Flood,after,mobile_3g,200,300.6,1,,1791793623.868
+2026-10-12T08:27:04.290870,Distributed IP Fragmentation Flood,after,perfect,200,1.5,1,,1791793624.289
+2026-10-12T08:27:04.305184,Distributed IP Fragmentation Flood,after,broadband,200,45.0,1,,1791793624.260
+2026-10-12T08:27:04.398513,Distributed IP Fragmentation Flood,after,perfect,200,1.8,1,,1791793624.397
+2026-10-12T08:27:04.553463,Distributed IP Fragmentation Flood,after,mobile_3g,200,399.8,1,,1791793624.154
+2026-10-12T08:27:04.554742,Distributed IP Fragmentation Flood,after,perfect,200,1.6,1,,1791793624.553
+2026-10-12T08:27:04.735477,Distributed IP Fragmentation Flood,after,broadband,200,44.5,1,,1791793624.691
+2026-10-12T08:27:05.028376,Distributed IP Fragmentation Flood,after,broadband,200,53.7,1,,1791793624.975
+2026-10-12T08:27:05.139592,Distributed IP Fragmentation Flood,after,broadband,200,40.6,1,,1791793625.099
+2026-10-12T08:27:05.275516,Distributed IP Fragmentation Flood,after,mobile_3g,200,317.7,1,,1791793624.958
+2026-10-12T08:27:05.460333,Distributed IP Fragmentation Flood,after,broadband,200,45.1,1,,1791793625.415
+2026-10-12T08:27:05.877662,Distributed IP Fragmentation Flood,after,mobile_3g,200,429.5,1,,1791793625.448
+2026-10-12T08:27:05.911604,Distributed IP Fragmentation Flood,after,broadband,200,46.1,1,,1791793625.866
+2026-10-12T08:27:05.931443,Distributed IP Fragmentation Flood,after,perfect,200,6.1,1,,1791793625.925
+2026-10-12T08:27:05.931846,Distributed IP Fragmentation Flood,after,perfect,200,4.8,1,,1791793625.927
+2026-10-12T08:27:05.942095,Distributed IP Fragmentation Flood,after,mobile_3g,200,223.6,1,,1791793625.718
+2026-10-12T08:27:05.953295,Distributed IP Fragmentation Flood,after,broadband,200,42.5,1,,1791793625.911
+2026-10-12T08:27:06.191831,Distributed IP Fragmentation Flood,after,perfect,200,1.6,1,,1791793626.190
+2026-10-12T08:27:06.408635,Distributed IP Fragmentation Flood,after,mobile_3g,200,450.3,1,,1791793625.958
+2026-10-12T08:27:06.432588,Distributed IP Fragmentation Flood,after,mobile_3g,200,405.3,1,,1791793626.027
+2026-10-12T08:27:06.478767,Distributed IP Fragmentation Flood,after,perfect,200,1.7,1,,1791793626.477
+2026-10-12T08:27:07.129100,Distributed IP Fragmentation Flood,after,perfect,200,1.5,1,,1791793627.128
+2026-10-12T08:27:07.139310,Distributed IP Fragmentation Flood,after,mobile_3g,200,489.0,1,,1791793626.650
+2026-10-12T08:27:07.205264,Distributed IP Fragmentation Flood,after,broadband,200,49.6,1,,1791793627.156
+2026-10-12T08:27:07.451845,Distributed IP Fragmentation Flood,after,mobile_3g,200,265.5,1,,1791793627.186
+2026-10-12T08:27:07.471550,Distributed IP Fragmentation Flood,after,perfect,200,1.9,1,,1791793627.470
+2026-10-12T08:27:07.719625,Distributed IP Fragmentation Flood,after,broadband,200,49.3,1,,1791793627.670
+2026-10-12T08:27:07.782110,Distributed IP Fragmentation Flood,after,broadband,200,48.3,1,,1791793627.734
+2026-10-12T08:27:08.076040,Distributed IP Fragmentation Flood,after,mobile_3g,200,261.5,1,,1791793627.815
+2026-10-12T08:27:08.110335,Distributed IP Fragmentation Flood,after,perfect,200,2.0,1,,1791793628.108
+2026-10-12T08:27:08.117385,Distributed IP Fragmentation Flood,after,broadband,200,41.5,1,,1791793628.076
+2026-10-12T08:27:08.170952,Distributed IP Fragmentation Flood,after,broadband,200,110.3,1,,1791793628.061
+2026-10-12T08:27:08.334526,Distributed IP Fragmentation Flood,after,broadband,200,35.7,1,,1791793628.299
+2026-10-12T08:27:08.346467,Distributed IP Fragmentation Flood,after,mobile_3g,200,238.4,1,,1791793628.108
+2026-10-12T08:27:42.883900,Distributed Slowloris,before,perfect,200,1.5,1,,1791793662.882
+2026-10-12T08:27:43.229712,Distributed Slowloris,before,broadband,200,102.5,1,,1791793663.127
+2026-10-12T08:27:43.377430,Distributed Slowloris,before,broadband,200,43.6,1,,1791793663.334
+2026-10-12T08:27:43.486943,Distributed Slowloris,before,mobile_3g,200,389.5,1,,1791793663.097
+2026-10-12T08:27:43.598457,Distributed Slowloris,before,perfect,200,2.8,1,,1791793663.596
+2026-10-12T08:27:44.093138,Distributed Slowloris,before,mobile_3g,200,608.0,1,,1791793663.485
+2026-10-12T08:27:44.107488,Distributed Slowloris,before,perfect,200,1.9,1,,1791793664.106
+2026-10-12T08:27:44.287351,Distributed Slowloris,before,perfect,200,1.7,1,,1791793664.286
+2026-10-12T08:27:44.314715,Distributed Slowloris,before,perfect,200,1.7,1,,1791793664.313
+2026-10-12T08:27:44.375749,Distributed Slowloris,before,broadband,200,49.8,1,,1791793664.326
+2026-10-12T08:27:44.490990,Distributed Slowloris,before,mobile_3g,200,322.7,1,,1791793664.168
+2026-10-12T08:27:44.664272,Distributed Slowloris,before,mobile_3g,200,408.7,1,,1791793664.256
+2026-10-12T08:27:44.684385,Distributed Slowloris,before,perfect,200,1.7,1,,1791793664.683
+2026-10-12T08:27:44.737333,Distributed Slowloris,before,broadband,200,45.5,1,,1791793664.692
+2026-10-12T08:27:44.754214,Distributed Slowloris,before,broadband,200,52.8,1,,1791793664.701
+2026-10-12T08:27:45.029831,Distributed Slowloris,before,broadband,200,60.9,1,,1791793664.969
+2026-10-12T08:27:45.062958,Distributed Slowloris,before,broadband,200,113.1,1,,1791793664.950
+2026-10-12T08:27:45.475997,Distributed Slowloris,before,mobile_3g,200,738.2,1,,1791793664.738
+2026-10-12T08:27:45.530550,Distributed Slowloris,before,mobile_3g,200,592.5,1,,1791793664.938
+2026-10-12T08:27:45.558921,Distributed Slowloris,before,broadband,200,55.0,1,,1791793665.504
+2026-10-12T08:27:45.936006,Distributed Slowloris,before,broadband,200,56.6,1,,1791793665.879
+2026-10-12T08:27:46.139781,Distributed Slowloris,before,perfect,200,1.3,1,,1791793666.138
+2026-10-12T08:27:46.185226,Distributed Slowloris,before,mobile_3g,200,427.7,1,,1791793665.758
+2026-10-12T08:27:46.199903,Distributed Slowloris,before,perfect,200,2.0,1,,1791793666.198
+2026-10-12T08:27:46.405580,Distributed Slowloris,before,perfect,200,1.3,1,,1791793666.404
+2026-10-12T08:27:46.765486,Distributed Slowloris,before,perfect,200,1.3,1,,1791793666.764
+2026-10-12T08:27:46.776052,Distributed Slowloris,before,mobile_3g,200,583.0,1,,1791793666.193
+2026-10-12T08:27:46.781083,Distributed Slowloris,before,mobile_3g,200,406.9,1,,1791793666.374
+2026-10-12T08:27:47.067085,Distributed Slowloris,before,mobile_3g,200,327.6,1,,1791793666.739
+2026-10-12T08:27:47.209921,Distributed Slowloris,during,broadband,200,56.2,1,,1791793667.154
+2026-10-12T08:27:47.244347,Distributed Slowloris,during,broadband,200,50.9,1,,1791793667.193
+2026-10-12T08:27:47.495184,Distributed Slowloris,during,perfect,200,1.4,1,,1791793667.494
+2026-10-12T08:27:47.563394,Distributed Slowloris,during,broadband,200,53.7,1,,1791793667.510
+2026-10-12T08:27:47.749038,Distributed Slowloris,during,broadband,200,55.6,1,,1791793667.693
+2026-10-12T08:27:47.858933,Distributed Slowloris,during,broadband,200,66.5,1,,1791793667.792
+2026-10-12T08:27:47.871823,Distributed Slowloris,during,mobile_3g,200,366.4,1,,1791793667.505
+2026-10-12T08:27:48.064770,Distributed Slowloris,during,mobile_3g,200,411.1,1,,1791793667.654
+2026-10-12T08:27:48.074720,Distributed Slowloris,during,perfect,200,2.8,1,,1791793668.072
+2026-10-12T08:27:48.137562,Distributed Slowloris,during,broadband,200,66.3,1,,1791793668.071
+2026-10-12T08:27:48.307149,Distributed Slowloris,during,mobile_3g,200,550.4,1,,1791793667.757
+2026-10-12T08:27:48.352237,Distributed Slowloris,during,perfect,200,1.6,1,,1791793668.351
+2026-10-12T08:27:48.412578,Distributed Slowloris,during,mobile_3g,200,350.9,1,,1791793668.062
+2026-10-12T08:27:48.529043,Distributed Slowloris,during,broadband,200,50.1,1,,1791793668.479
+2026-10-12T08:27:48.614217,Distributed Slowloris,during,perfect,200,1.9,1,,1791793668.612
+2026-10-12T08:27:48.933352,Distributed Slowloris,during,perfect,200,1.9,1,,1791793668.931
+2026-10-12T08:27:49.283624,Distributed Slowloris,during,broadband,200,84.6,1,,1791793669.199
+2026-10-12T08:27:49.331049,Distributed Slowloris,during,broadband,200,42.3,1,,1791793669.289
+2026-10-12T08:27:49.816179,Distributed Slowloris,during,mobile_3g,200,546.7,1,,1791793669.269
+2026-10-12T08:27:49.848962,Distributed Slowloris,during,broadband,200,60.9,1,,1791793669.788
+2026-10-12T08:27:50.079442,Distributed Slowloris,during,broadband,200,74.6,1,,1791793670.005
+2026-10-12T08:27:50.401189,Distributed Slowloris,during,perfect,200,1.9,1,,1791793670.399
+2026-10-12T08:27:50.484212,Distributed Slowloris,during,mobile_3g,200,414.4,1,,1791793670.070
+2026-10-12T08:27:50.589798,Distributed Slowloris,during,mobile_3g,200,337.4,1,,1791793670.252
+2026-10-12T08:27:50.590252,Distributed Slowloris,during,broadband,200,58.4,1,,1791793670.532
+2026-10-12T08:27:50.615732,Distributed Slowloris,during,broadband,200,46.4,1,,1791793670.569
+2026-10-12T08:27:50.638693,Distributed Slowloris,during,mobile_3g,200,517.4,1,,1791793670.121
+2026-10-12T08:27:50.840653,Distributed Slowloris,during,perfect,200,2.0,1,,1791793670.839
+2026-10-12T08:27:51.077273,Distributed Slowloris,during,perfect,200,1.8,1,,1791793671.075
+2026-10-12T08:27:51.120541,Distributed Slowloris,during,mobile_3g,200,545.6,1,,1791793670.575
+2026-10-12T08:27:51.250949,Distributed Slowloris,during,perfect,200,3.0,1,,1791793671.248
+2026-10-12T08:27:51.313342,Distributed Slowloris,during,broadband,200,40.9,1,,1791793671.272
+2026-10-12T08:27:51.398109,Distributed Slowloris,during,broadband,200,46.2,1,,1791793671.352
+2026-10-12T08:27:51.415624,Distributed Slowloris,during,mobile_3g,200,324.7,1,,1791793671.091
+2026-10-12T08:27:51.719632,Distributed Slowloris,during,broadband,200,60.5,1,,1791793671.659
+2026-10-12T08:27:51.832573,Distributed Slowloris,during,broadband,200,51.3,1,,1791793671.781
+2026-10-12T08:27:51.906114,Distributed Slowloris,during,perfect,200,1.8,1,,1791793671.904
+2026-10-12T08:27:52.186380,Distributed Slowloris,during,perfect,200,3.2,1,,1791793672.183
+2026-10-12T08:27:52.195423,Distributed Slowloris,during,mobile_3g,200,311.8,1,,1791793671.884
+2026-10-12T08:27:52.210293,Distributed Slowloris,during,perfect,200,5.4,1,,1791793672.205
+2026-10-12T08:27:52.239381,Distributed Slowloris,during,broadband,200,44.2,1,,1791793672.195
+2026-10-12T08:27:52.267146,Distributed Slowloris,during,mobile_3g,200,305.0,1,,1791793671.962
+2026-10-12T08:27:52.295722,Distributed Slowloris,during,broadband,200,45.8,1,,1791793672.250
+2026-10-12T08:27:52.315383,Distributed Slowloris,during,broadband,200,41.2,1,,1791793672.274
+2026-10-12T08:27:52.748573,Distributed Slowloris,during,mobile_3g,200,415.7,1,,1791793672.333
+2026-10-12T08:27:52.889419,Distributed Slowloris,after,perfect,200,2.0,1,,1791793672.887
+2026-10-12T08:27:53.148432,Distributed Slowloris,after,perfect,200,1.4,1,,1791793673.147
+2026-10-12T08:27:53.215147,Distributed Slowloris,after,broadband,200,44.9,1,,1791793673.170
+2026-10-12T08:27:53.515434,Distributed Slowloris,after,broadband,200,65.0,1,,1791793673.450
+2026-10-12T08:27:53.529868,Distributed Slowloris,after,mobile_3g,200,638.5,1,,1791793672.891
+2026-10-12T08:27:53.763236,Distributed Slowloris,after,broadband,200,72.4,1,,1791793673.691
+2026-10-12T08:27:53.837438,Distributed Slowloris,after,perfect,200,1.5,1,,1791793673.836
+2026-10-12T08:27:53.845903,Distributed Slowloris,after,mobile_3g,200,422.0,1,,1791793673.424
+2026-10-12T08:27:54.116174,Distributed Slowloris,after,broadband,200,38.4,1,,1791793674.078
+2026-10-12T08:27:54.126499,Distributed Slowloris,after,mobile_3g,200,341.2,1,,1791793673.785
+2026-10-12T08:27:54.157378,Distributed Slowloris,after,broadband,200,49.2,1,,1791793674.108
+2026-10-12T08:27:54.250630,Distributed Slowloris,after,broadband,200,48.9,1,,1791793674.202
+2026-10-12T08:27:54.253929,Distributed Slowloris,after,perfect,200,1.6,1,,1791793674.252
+2026-10-12T08:27:54.309644,Distributed Slowloris,after,mobile_3g,200,539.5,1,,1791793673.770
+2026-10-12T08:27:54.619436,Distributed Slowloris,after,perfect,200,1.4,1,,1791793674.618
+2026-10-12T08:27:54.861180,Distributed Slowloris,after,perfect,200,1.6,1,,1791793674.860
+2026-10-12T08:27:55.073372,Distributed Slowloris,after,broadband,200,213.0,1,,1791793674.860
+2026-10-12T08:27:55.129962,Distributed Slowloris,after,mobile_3g,200,243.0,1,,1791793674.887
+2026-10-12T08:27:55.181876,Distributed Slowloris,after,mobile_3g,200,567.7,1,,1791793674.614
+2026-10-12T08:27:55.580682,Distributed Slowloris,after,broadband,200,80.9,1,,1791793675.500
+2026-10-12T08:27:55.704490,Distributed Slowloris,after,broadband,200,49.2,1,,1791793675.655
+2026-10-12T08:27:55.811310,Distributed Slowloris,after,mobile_3g,200,515.3,1,,1791793675.296
+2026-10-12T08:27:55.879390,Distributed Slowloris,after,broadband,200,60.5,1,,1791793675.819
+2026-10-12T08:27:55.949918,Distributed Slowloris,after,perfect,200,1.9,1,,1791793675.948
+2026-10-12T08:27:56.131409,Distributed Slowloris,after,perfect,200,2.0,1,,1791793676.129
+2026-10-12T08:27:56.248847,Distributed Slowloris,after,broadband,200,76.8,1,,1791793676.172
+2026-10-12T08:27:56.704957,Distributed Slowloris,after,perfect,200,1.9,1,,1791793676.703
+2026-10-12T08:27:56.708555,Distributed Slowloris,after,mobile_3g,200,423.2,1,,1791793676.285
+2026-10-12T08:27:56.746730,Distributed Slowloris,after,mobile_3g,200,516.9,1,,1791793676.230
+2026-10-12T08:27:56.836199,Distributed Slowloris,after,broadband,200,80.8,1,,1791793676.755
+2026-10-12T08:27:57.071871,Distributed Slowloris,after,mobile_3g,200,353.6,1,,1791793676.718
+2026-10-12T08:27:57.114476,Distributed Slowloris,after,mobile_3g,200,397.5,1,,1791793676.717
+2026-10-12T08:27:57.129597,Distributed Slowloris,after,perfect,200,1.8,1,,1791793677.128
+2026-10-12T08:27:57.145119,Distributed Slowloris,after,perfect,200,1.8,1,,1791793677.143
+2026-10-12T08:27:57.179736,Distributed Slowloris,after,broadband,200,135.3,1,,1791793677.044
+2026-10-12T08:27:57.215755,Distributed Slowloris,after,broadband,200,49.8,1,,1791793677.166
+2026-10-12T08:27:57.605148,Distributed Slowloris,after,mobile_3g,200,930.1,1,,1791793676.675
+2026-10-12T08:27:57.863457,Distributed Slowloris,after,perfect,200,2.3,1,,1791793677.861
+2026-10-12T08:27:57.906908,Distributed Slowloris,after,broadband,200,45.2,1,,1791793677.862
+2026-10-12T08:27:57.923225,Distributed Slowloris,after,perfect,200,1.9,1,,1791793677.921
+2026-10-12T08:27:57.964742,Distributed Slowloris,after,broadband,200,43.5,1,,1791793677.921
+2026-10-12T08:27:58.380011,Distributed Slowloris,after,mobile_3g,200,555.2,1,,1791793677.825
+2026-10-12T08:27:58.455105,Distributed Slowloris,after,broadband,200,47.8,1,,1791793678.407
+2026-10-12T08:27:58.695118,Distributed Slowloris,after,perfect,200,1.5,1,,1791793678.694
+2026-10-12T08:27:59.071960,Distributed Slowloris,after,mobile_3g,200,595.8,1,,1791793678.476
+2026-10-12T08:27:59.074760,Distributed Slowloris,after,perfect,200,2.0,1,,1791793679.073
+2026-10-12T08:27:59.123174,Distributed Slowloris,after,broadband,200,42.4,1,,1791793679.081
+2026-10-12T08:27:59.140330,Distributed Slowloris,after,broadband,200,35.4,1,,1791793679.105
+2026-10-12T08:27:59.150218,Distributed Slowloris,after,broadband,200,42.0,1,,1791793679.108
+2026-10-12T08:27:59.571029,Distributed Slowloris,after,mobile_3g,200,498.4,1,,1791793679.073
+2026-10-12T08:27:59.591136,Distributed Slowloris,after,perfect,200,1.5,1,,1791793679.590
+2026-10-12T08:27:59.652632,Distributed Slowloris,after,broadband,200,42.2,1,,1791793679.610
+2026-10-12T08:27:59.733264,Distributed Slowloris,after,perfect,200,1.5,1,,1791793679.732
+2026-10-12T08:28:00.045877,Distributed Slowloris,after,perfect,200,2.4,1,,1791793680.043
+2026-10-12T08:28:00.085915,Distributed Slowloris,after,broadband,200,41.2,1,,1791793680.045
+2026-10-12T08:28:00.428681,Distributed Slowloris,after,mobile_3g,200,635.2,1,,1791793679.793
+2026-10-12T08:28:00.446046,Distributed Slowloris,after,mobile_3g,200,624.5,1,,1791793679.822
+2026-10-12T08:28:00.739353,Distributed Slowloris,after,mobile_3g,200,320.4,1,,1791793680.419
+2026-10-12T08:28:00.756316,Distributed Slowloris,after,mobile_3g,200,688.9,1,,1791793680.067
+2026-10-12T08:28:00.852369,Distributed Slowloris,after,broadband,200,60.4,1,,1791793680.792
+2026-10-12T08:28:01.015241,Distributed Slowloris,after,perfect,200,2.2,1,,1791793681.013
+2026-10-12T08:28:01.024103,Distributed Slowloris,after,broadband,200,46.0,1,,1791793680.978
+2026-10-12T08:28:01.045886,Distributed Slowloris,after,mobile_3g,200,281.0,1,,1791793680.765
+2026-10-12T08:28:01.048295,Distributed Slowloris,after,mobile_3g,200,315.5,1,,1791793680.733
+2026-10-12T08:28:01.196687,Distributed Slowloris,after,broadband,200,71.1,1,,1791793681.126
+2026-10-12T08:28:01.285231,Distributed Slowloris,after,broadband,200,61.6,1,,1791793681.224
+2026-10-12T08:28:01.436244,Distributed Slowloris,after,perfect,200,1.7,1,,1791793681.435
+2026-10-12T08:28:02.020236,Distributed Slowloris,after,broadband,200,59.1,1,,1791793681.961
+2026-10-12T08:28:02.021530,Distributed Slowloris,after,mobile_3g,200,535.8,1,,1791793681.486
+2026-10-12T08:28:02.069741,Distributed Slowloris,after,perfect,200,1.9,1,,1791793682.068
+2026-10-12T08:28:02.103087,Distributed Slowloris,after,broadband,200,41.7,1,,1791793682.061
+2026-10-12T08:28:35.198025,Distributed R.U.D.Y.,before,perfect,200,1.8,1,,1791793715.196
+2026-10-12T08:28:35.350240,Distributed R.U.D.Y.,before,broadband,200,49.1,1,,1791793715.301
+2026-10-12T08:28:35.368551,Distributed R.U.D.Y.,before,mobile_3g,200,273.0,1,,1791793715.096
+2026-10-12T08:28:35.512919,Distributed R.U.D.Y.,before,broadband,200,59.3,1,,1791793715.454
+2026-10-12T08:28:35.616361,Distributed R.U.D.Y.,before,broadband,200,57.7,1,,1791793715.559
+2026-10-12T08:28:35.886926,Distributed R.U.D.Y.,before,perfect,200,1.8,1,,1791793715.885
+2026-10-12T08:28:35.916345,Distributed R.U.D.Y.,before,perfect,200,1.8,1,,1791793715.915
+2026-10-12T08:28:36.075072,Distributed R.U.D.Y.,before,broadband,200,54.6,1,,1791793716.020
+2026-10-12T08:28:36.668893,Distributed R.U.D.Y.,before,mobile_3g,200,279.9,1,,1791793716.389
+2026-10-12T08:28:36.699841,Distributed R.U.D.Y.,before,broadband,200,51.0,1,,1791793716.649
+2026-10-12T08:28:36.765059,Distributed R.U.D.Y.,before,perfect,200,1.6,1,,1791793716.763
+2026-10-12T08:28:36.982131,Distributed R.U.D.Y.,before,mobile_3g,200,301.9,1,,1791793716.680
+2026-10-12T08:28:37.037780,Distributed R.U.D.Y.,before,mobile_3g,200,265.1,1,,1791793716.773
+2026-10-12T08:28:37.048466,Distributed R.U.D.Y.,before,mobile_3g,200,334.0,1,,1791793716.714
+2026-10-12T08:28:37.143439,Distributed R.U.D.Y.,before,perfect,200,2.2,1,,1791793717.141
+2026-10-12T08:28:37.469302,Distributed R.U.D.Y.,before,perfect,200,1.2,1,,1791793717.468
+2026-10-12T08:28:37.554337,Distributed R.U.D.Y.,before,broadband,200,41.1,1,,1791793717.513
+2026-10-12T08:28:37.596156,Distributed R.U.D.Y.,before,broadband,200,53.8,1,,1791793717.542
+2026-10-12T08:28:37.781684,Distributed R.U.D.Y.,before,perfect,200,1.8,1,,1791793717.780
+2026-10-12T08:28:37.782483,Distributed R.U.D.Y.,before,mobile_3g,200,616.3,1,,1791793717.166
+2026-10-12T08:28:37.936858,Distributed R.U.D.Y.,before,broadband,200,59.8,1,,1791793717.877
+2026-10-12T08:28:38.252251,Distributed R.U.D.Y.,before,broadband,200,45.8,1,,1791793718.206
+2026-10-12T08:28:38.349281,Distributed R.U.D.Y.,before,perfect,200,2.0,1,,1791793718.347
+2026-10-12T08:28:38.361480,Distributed R.U.D.Y.,before,broadband,200,48.3,1,,1791793718.313
+2026-10-12T08:28:38.496042,Distributed R.U.D.Y.,before,broadband,200,50.1,1,,1791793718.446
+2026-10-12T08:28:38.590811,Distributed R.U.D.Y.,before,perfect,200,2.8,1,,1791793718.588
+2026-10-12T08:28:38.798072,Distributed R.U.D.Y.,before,mobile_3g,200,361.9,1,,1791793718.436
+2026-10-12T08:28:38.815439,Distributed R.U.D.Y.,before,mobile_3g,200,395.1,1,,1791793718.420
+2026-10-12T08:28:39.047883,Distributed R.U.D.Y.,before,perfect,200,1.8,1,,1791793719.046
+2026-10-12T08:28:39.118606,Distributed R.U.D.Y.,before,mobile_3g,200,390.1,1,,1791793718.729
+2026-10-12T08:28:39.194599,Distributed R.U.D.Y.,before,broadband,200,58.8,1,,1791793719.136
+2026-10-12T08:28:39.340915,Distributed R.U.D.Y.,before,mobile_3g,200,294.7,1,,1791793719.046
+2026-10-12T08:28:39.425663,Distributed R.U.D.Y.,during,broadband,200,49.3,1,,1791793719.376
+2026-10-12T08:28:39.643798,Distributed R.U.D.Y.,during,broadband,200,43.2,1,,1791793719.601
+2026-10-12T08:28:39.673349,Distributed R.U.D.Y.,during,broadband,200,57.4,1,,1791793719.616
+2026-10-12T08:28:40.014436,Distributed R.U.D.Y.,during,perfect,200,1.9,1,,1791793720.013
+2026-10-12T08:28:40.043316,Distributed R.U.D.Y.,during,perfect,200,1.6,1,,1791793720.042
+2026-10-12T08:28:40.073102,Distributed R.U.D.Y.,during,broadband,200,41.2,1,,1791793720.032
+2026-10-12T08:28:40.116539,Distributed R.U.D.Y.,during,perfect,200,1.6,1,,1791793720.115
+2026-10-12T08:28:40.425215,Distributed R.U.D.Y.,during,mobile_3g,200,310.7,1,,1791793720.115
+2026-10-12T08:28:40.767220,Distributed R.U.D.Y.,during,broadband,200,51.8,1,,1791793720.715
+2026-10-12T08:28:40.923453,Distributed R.U.D.Y.,during,mobile_3g,200,453.7,1,,1791793720.470
+2026-10-12T08:28:41.083896,Distributed R.U.D.Y.,during,broadband,200,51.7,1,,1791793721.032
+2026-10-12T08:28:41.105276,Distributed R.U.D.Y.,during,mobile_3g,200,381.7,1,,1791793720.724
+2026-10-12T08:28:41.117681,Distributed R.U.D.Y.,during,perfect,200,1.6,1,,1791793721.116
+2026-10-12T08:28:41.152231,Distributed R.U.D.Y.,during,broadband,200,51.9,1,,1791793721.100
+2026-10-12T08:28:41.187017,Distributed R.U.D.Y.,during,perfect,200,1.7,1,,1791793721.185
+2026-10-12T08:28:41.215511,Distributed R.U.D.Y.,during,perfect,200,1.8,1,,1791793721.214
+2026-10-12T08:28:41.401618,Distributed R.U.D.Y.,during,mobile_3g,200,379.4,1,,1791793721.022
+2026-10-12T08:28:41.458315,Distributed R.U.D.Y.,during,broadband,200,48.4,1,,1791793721.410
+2026-10-12T08:28:41.558454,Distributed R.U.D.Y.,during,broadband,200,49.8,1,,1791793721.509
+2026-10-12T08:28:41.726612,Distributed R.U.D.Y.,during,mobile_3g,200,370.2,1,,1791793721.356
+2026-10-12T08:28:42.239666,Distributed R.U.D.Y.,during,mobile_3g,200,464.2,1,,1791793721.775
+2026-10-12T08:28:42.258599,Distributed R.U.D.Y.,during,perfect,200,3.4,1,,1791793722.255
+2026-10-12T08:28:42.313364,Distributed R.U.D.Y.,during,broadband,200,50.5,1,,1791793722.263
+2026-10-12T08:28:42.322802,Distributed R.U.D.Y.,during,mobile_3g,200,1298.5,1,,1791793721.024
+2026-10-12T08:28:42.443825,Distributed R.U.D.Y.,during,perfect,200,3.5,1,,1791793722.440
+2026-10-12T08:28:42.492150,Distributed R.U.D.Y.,during,mobile_3g,200,249.0,1,,1791793722.243
+2026-10-12T08:28:42.514943,Distributed R.U.D.Y.,during,broadband,200,39.1,1,,1791793722.476
+2026-10-12T08:28:42.755990,Distributed R.U.D.Y.,during,mobile_3g,200,243.3,1,,1791793722.513
+2026-10-12T08:28:42.972983,Distributed R.U.D.Y.,during,perfect,200,1.5,1,,1791793722.971
+2026-10-12T08:28:43.057089,Distributed R.U.D.Y.,during,broadband,200,55.9,1,,1791793723.001
+2026-10-12T08:28:43.221624,Distributed R.U.D.Y.,during,broadband,200,51.5,1,,1791793723.170
+2026-10-12T08:28:43.828551,Distributed R.U.D.Y.,during,perfect,200,1.7,1,,1791793723.827
+2026-10-12T08:28:43.882508,Distributed R.U.D.Y.,during,mobile_3g,200,270.6,1,,1791793723.612
+2026-10-12T08:28:44.034460,Distributed R.U.D.Y.,during,mobile_3g,200,422.4,1,,1791793723.612
+2026-10-12T08:28:44.043212,Distributed R.U.D.Y.,during,perfect,200,1.9,1,,1791793724.041
+2026-10-12T08:28:44.051929,Distributed R.U.D.Y.,during,broadband,200,229.0,1,,1791793723.823
+2026-10-12T08:28:44.080130,Distributed R.U.D.Y.,during,broadband,200,39.0,1,,1791793724.041
+2026-10-12T08:28:44.384470,Distributed R.U.D.Y.,after,perfect,200,2.7,1,,1791793724.382
+2026-10-12T08:28:44.494848,Distributed R.U.D.Y.,after,broadband,200,55.5,1,,1791793724.439
+2026-10-12T08:28:44.979470,Distributed R.U.D.Y.,after,mobile_3g,200,558.5,1,,1791793724.421
+2026-10-12T08:28:45.156842,Distributed R.U.D.Y.,after,broadband,200,62.9,1,,1791793725.094
+2026-10-12T08:28:45.263637,Distributed R.U.D.Y.,after,perfect,200,1.6,1,,1791793725.262
+2026-10-12T08:28:45.278307,Distributed R.U.D.Y.,after,perfect,200,1.6,1,,1791793725.277
+2026-10-12T08:28:45.339694,Distributed R.U.D.Y.,after,mobile_3g,200,352.7,1,,1791793724.987
+2026-10-12T08:28:45.362506,Distributed R.U.D.Y.,after,broadband,200,45.7,1,,1791793725.317
+2026-10-12T08:28:45.682332,Distributed R.U.D.Y.,after,perfect,200,2.1,1,,1791793725.680
+2026-10-12T08:28:45.723495,Distributed R.U.D.Y.,after,broadband,200,44.9,1,,1791793725.679
+2026-10-12T08:28:45.796844,Distributed R.U.D.Y.,after,mobile_3g,200,244.6,1,,1791793725.552
+2026-10-12T08:28:45.830158,Distributed R.U.D.Y.,after,broadband,200,51.2,1,,1791793725.779
+2026-10-12T08:28:45.839222,Distributed R.U.D.Y.,after,mobile_3g,200,422.9,1,,1791793725.416
+2026-10-12T08:28:45.902928,Distributed R.U.D.Y.,after,broadband,200,46.9,1,,1791793725.856
+2026-10-12T08:28:45.904655,Distributed R.U.D.Y.,after,mobile_3g,200,382.7,1,,1791793725.522
+2026-10-12T08:28:46.079279,Distributed R.U.D.Y.,after,broadband,200,59.4,1,,1791793726.020
+2026-10-12T08:28:46.278357,Distributed R.U.D.Y.,after,perfect,200,1.8,1,,1791793726.277
+2026-10-12T08:28:46.474411,Distributed R.U.D.Y.,after,mobile_3g,200,419.1,1,,1791793726.055
+2026-10-12T08:28:46.558702,Distributed R.U.D.Y.,after,perfect,200,2.1,1,,1791793726.557
+2026-10-12T08:28:46.766062,Distributed R.U.D.Y.,after,mobile_3g,200,578.5,1,,1791793726.188
+2026-10-12T08:28:47.284423,Distributed R.U.D.Y.,after,broadband,200,48.1,1,,1791793727.236
+2026-10-12T08:28:47.386688,Distributed R.U.D.Y.,after,broadband,200,62.5,1,,1791793727.324
+2026-10-12T08:28:47.395308,Distributed R.U.D.Y.,after,broadband,200,48.2,1,,1791793727.347
+2026-10-12T08:28:47.462923,Distributed R.U.D.Y.,after,mobile_3g,200,380.6,1,,1791793727.082
+2026-10-12T08:28:47.668268,Distributed R.U.D.Y.,after,perfect,200,2.2,1,,1791793727.666
+2026-10-12T08:28:47.690331,Distributed R.U.D.Y.,after,broadband,200,51.4,1,,1791793727.639
+2026-10-12T08:28:47.732491,Distributed R.U.D.Y.,after,perfect,200,1.6,1,,1791793727.731
+2026-10-12T08:28:47.894542,Distributed R.U.D.Y.,after,mobile_3g,200,220.6,1,,1791793727.674
+2026-10-12T08:28:47.898984,Distributed R.U.D.Y.,after,perfect,200,1.8,1,,1791793727.897
+2026-10-12T08:28:48.040042,Distributed R.U.D.Y.,after,broadband,200,181.7,1,,1791793727.858
+2026-10-12T08:28:48.101015,Distributed R.U.D.Y.,after,broadband,200,49.8,1,,1791793728.051
+2026-10-12T08:28:48.605846,Distributed R.U.D.Y.,after,mobile_3g,200,430.7,1,,1791793728.175
+2026-10-12T08:28:48.720254,Distributed R.U.D.Y.,after,perfect,200,1.7,1,,1791793728.719
+2026-10-12T08:28:49.133891,Distributed R.U.D.Y.,after,broadband,200,213.8,1,,1791793728.920
+2026-10-12T08:28:49.454042,Distributed R.U.D.Y.,after,broadband,200,45.5,1,,1791793729.409
+2026-10-12T08:28:49.546926,Distributed R.U.D.Y.,after,perfect,200,2.2,1,,1791793729.545
+2026-10-12T08:28:49.631275,Distributed R.U.D.Y.,after,broadband,200,45.3,1,,1791793729.586
+2026-10-12T08:28:49.665524,Distributed R.U.D.Y.,after,broadband,200,42.1,1,,1791793729.623
+2026-10-12T08:28:49.682965,Distributed R.U.D.Y.,after,mobile_3g,200,589.9,1,,1791793729.093
+2026-10-12T08:28:49.689875,Distributed R.U.D.Y.,after,mobile_3g,200,516.3,1,,1791793729.174
+2026-10-12T08:28:49.750879,Distributed R.U.D.Y.,after,perfect,200,1.5,1,,1791793729.749
+2026-10-12T08:28:49.769609,Distributed R.U.D.Y.,after,broadband,200,44.0,1,,1791793729.726
+2026-10-12T08:28:49.858426,Distributed R.U.D.Y.,after,mobile_3g,200,377.9,1,,1791793729.481
+2026-10-12T08:28:49.913696,Distributed R.U.D.Y.,after,mobile_3g,200,295.9,1,,1791793729.618
+2026-10-12T08:28:49.920567,Distributed R.U.D.Y.,after,perfect,200,1.5,1,,1791793729.919
+2026-10-12T08:28:50.047785,Distributed R.U.D.Y.,after,mobile_3g,200,385.4,1,,1791793729.662
+2026-10-12T08:28:50.069080,Distributed R.U.D.Y.,after,perfect,200,1.9,1,,1791793730.067
+2026-10-12T08:28:50.243176,Distributed R.U.D.Y.,after,mobile_3g,200,376.0,1,,1791793729.867
+2026-10-12T08:28:50.310941,Distributed R.U.D.Y.,after,broadband,200,45.2,1,,1791793730.266
+2026-10-12T08:28:51.665819,Distributed R.U.D.Y.,after,perfect,200,1.6,1,,1791793731.664
+2026-10-12T08:28:51.687822,Distributed R.U.D.Y.,after,perfect,200,1.8,1,,1791793731.686
+2026-10-12T08:28:51.795208,Distributed R.U.D.Y.,after,broadband,200,47.5,1,,1791793731.748
+2026-10-12T08:28:51.798052,Distributed R.U.D.Y.,after,broadband,200,36.0,1,,1791793731.762
+2026-10-12T08:28:51.800220,Distributed R.U.D.Y.,after,broadband,200,37.7,1,,1791793731.763
+2026-10-12T08:28:51.883848,Distributed R.U.D.Y.,after,mobile_3g,200,398.9,1,,1791793731.485
+2026-10-12T08:28:51.890762,Distributed R.U.D.Y.,after,perfect,200,1.5,1,,1791793731.889
+2026-10-12T08:28:51.898661,Distributed R.U.D.Y.,after,broadband,200,46.2,1,,1791793731.852
+2026-10-12T08:28:52.018392,Distributed R.U.D.Y.,after,mobile_3g,200,256.3,1,,1791793731.762
+2026-10-12T08:28:52.045286,Distributed R.U.D.Y.,after,mobile_3g,200,285.5,1,,1791793731.760
+2026-10-12T08:28:52.324232,Distributed R.U.D.Y.,after,perfect,200,1.8,1,,1791793732.322
+2026-10-12T08:28:52.334162,Distributed R.U.D.Y.,after,broadband,200,48.0,1,,1791793732.286
+2026-10-12T08:28:52.348857,Distributed R.U.D.Y.,after,broadband,200,77.0,1,,1791793732.272
+2026-10-12T08:28:52.733437,Distributed R.U.D.Y.,after,broadband,200,62.6,1,,1791793732.671
+2026-10-12T08:28:52.884531,Distributed R.U.D.Y.,after,perfect,200,1.9,1,,1791793732.883
+2026-10-12T08:28:52.981510,Distributed R.U.D.Y.,after,mobile_3g,200,310.3,1,,1791793732.671
+2026-10-12T08:28:53.113899,Distributed R.U.D.Y.,after,mobile_3g,200,310.6,1,,1791793732.803
+2026-10-12T08:28:53.187797,Distributed R.U.D.Y.,after,mobile_3g,200,310.5,1,,1791793732.877
+2026-10-12T08:28:53.256907,Distributed R.U.D.Y.,after,perfect,200,1.7,1,,1791793733.255
+2026-10-12T08:28:53.491838,Distributed R.U.D.Y.,after,broadband,200,63.5,1,,1791793733.428
+2026-10-12T08:28:53.714509,Distributed R.U.D.Y.,after,perfect,200,1.9,1,,1791793733.713
+2026-10-12T08:28:53.899532,Distributed R.U.D.Y.,after,mobile_3g,200,357.0,1,,1791793733.543
+2026-10-12T08:28:53.943131,Distributed R.U.D.Y.,after,broadband,200,38.9,1,,1791793733.904
+2026-10-12T08:28:54.026931,Distributed R.U.D.Y.,after,mobile_3g,200,391.3,1,,1791793733.636
+2026-10-12T08:28:54.215717,Distributed R.U.D.Y.,after,broadband,200,49.9,1,,1791793734.166
+2026-10-12T08:28:54.228306,Distributed R.U.D.Y.,after,perfect,200,1.5,1,,1791793734.227
+2026-10-12T08:28:54.237948,Distributed R.U.D.Y.,after,mobile_3g,200,428.3,1,,1791793733.810
+2026-10-12T08:28:54.323713,Distributed R.U.D.Y.,after,broadband,200,54.1,1,,1791793734.270
+2026-10-12T08:29:29.910204,Distributed Yo-Yo,before,perfect,200,1.3,1,,1791793769.909
+2026-10-12T08:29:30.147126,Distributed Yo-Yo,before,broadband,200,48.7,1,,1791793770.098
+2026-10-12T08:29:30.201791,Distributed Yo-Yo,before,broadband,200,115.5,1,,1791793770.086
+2026-10-12T08:29:30.236220,Distributed Yo-Yo,before,broadband,200,52.8,1,,1791793770.183
+2026-10-12T08:29:30.286325,Distributed Yo-Yo,before,mobile_3g,200,775.7,1,,1791793769.511
+2026-10-12T08:29:30.286769,Distributed Yo-Yo,before,mobile_3g,200,213.4,1,,1791793770.073
+2026-10-12T08:29:30.497302,Distributed Yo-Yo,before,perfect,200,1.2,1,,1791793770.496
+2026-10-12T08:29:30.545796,Distributed Yo-Yo,before,perfect,200,1.7,1,,1791793770.544
+2026-10-12T08:29:30.739613,Distributed Yo-Yo,before,mobile_3g,200,555.7,1,,1791793770.184
+2026-10-12T08:29:30.775225,Distributed Yo-Yo,before,broadband,200,91.9,1,,1791793770.683
+2026-10-12T08:29:30.883865,Distributed Yo-Yo,before,mobile_3g,200,401.1,1,,1791793770.483
+2026-10-12T08:29:30.885600,Distributed Yo-Yo,before,broadband,200,54.5,1,,1791793770.831
+2026-10-12T08:29:30.908514,Distributed Yo-Yo,before,mobile_3g,200,387.4,1,,1791793770.521
+2026-10-12T08:29:30.927975,Distributed Yo-Yo,before,mobile_3g,200,620.8,1,,1791793770.307
+2026-10-12T08:29:30.931956,Distributed Yo-Yo,before,perfect,200,2.1,1,,1791793770.930
+2026-10-12T08:29:31.275759,Distributed Yo-Yo,before,perfect,200,1.5,1,,1791793771.274
+2026-10-12T08:29:31.428967,Distributed Yo-Yo,before,broadband,200,35.0,1,,1791793771.394
+2026-10-12T08:29:31.649248,Distributed Yo-Yo,before,mobile_3g,200,508.7,1,,1791793771.141
+2026-10-12T08:29:31.667750,Distributed Yo-Yo,before,perfect,200,2.1,1,,1791793771.666
+2026-10-12T08:29:31.950209,Distributed Yo-Yo,before,broadband,200,52.0,1,,1791793771.898
+2026-10-12T08:29:32.305492,Distributed Yo-Yo,before,perfect,200,1.9,1,,1791793772.304
+2026-10-12T08:29:32.598561,Distributed Yo-Yo,before,mobile_3g,200,355.0,1,,1791793772.244
+2026-10-12T08:29:32.626868,Distributed Yo-Yo,before,perfect,200,1.5,1,,1791793772.625
+2026-10-12T08:29:32.627988,Distributed Yo-Yo,before,broadband,200,43.3,1,,1791793772.585
+2026-10-12T08:29:32.635676,Distributed Yo-Yo,before,broadband,200,50.8,1,,1791793772.585
+2026-10-12T08:29:32.648771,Distributed Yo-Yo,before,perfect,200,1.9,1,,1791793772.647
+2026-10-12T08:29:32.802440,Distributed Yo-Yo,before,broadband,200,53.6,1,,1791793772.749
+2026-10-12T08:29:32.891917,Distributed Yo-Yo,before,perfect,200,1.6,1,,1791793772.890
+2026-10-12T08:29:33.019829,Distributed Yo-Yo,before,broadband,200,55.9,1,,1791793772.964
+2026-10-12T08:29:33.883974,Distributed Yo-Yo,during,broadband,200,249.4,1,,1791793773.635
+2026-10-12T08:29:34.159746,Distributed Yo-Yo,during,mobile_3g,200,456.8,1,,1791793773.703
+2026-10-12T08:29:34.162273,Distributed Yo-Yo,during,perfect,200,412.5,1,,1791793773.750
+2026-10-12T08:29:34.247998,Distributed Yo-Yo,during,mobile_3g,200,327.9,1,,1791793773.920
+2026-10-12T08:29:34.270416,Distributed Yo-Yo,during,broadband,200,402.8,1,,1791793773.868
+2026-10-12T08:29:34.272554,Distributed Yo-Yo,during,broadband,200,43.5,1,,1791793774.229
+2026-10-12T08:29:34.273381,Distributed Yo-Yo,during,mobile_3g,200,659.5,1,,1791793773.614
+2026-10-12T08:29:34.303478,Distributed Yo-Yo,during,perfect,200,3.6,1,,1791793774.300
+2026-10-12T08:29:34.541196,Distributed Yo-Yo,during,mobile_3g,200,267.6,1,,1791793774.274
+2026-10-12T08:29:34.599724,Distributed Yo-Yo,during,mobile_3g,200,327.0,1,,1791793774.273
+2026-10-12T08:29:34.605316,Distributed Yo-Yo,during,broadband,200,43.8,1,,1791793774.562
+2026-10-12T08:29:34.711864,Distributed Yo-Yo,during,broadband,200,51.5,1,,1791793774.660
+2026-10-12T08:29:34.883945,Distributed Yo-Yo,during,broadband,200,61.0,1,,1791793774.823
+2026-10-12T08:29:34.884394,Distributed Yo-Yo,during,broadband,200,51.3,1,,1791793774.833
+2026-10-12T08:29:34.908386,Distributed Yo-Yo,during,mobile_3g,200,318.1,1,,1791793774.590
+2026-10-12T08:29:35.065807,Distributed Yo-Yo,during,mobile_3g,200,823.6,1,,1791793774.242
+2026-10-12T08:29:35.156622,Distributed Yo-Yo,during,perfect,200,2.1,1,,1791793775.155
+2026-10-12T08:29:35.179491,Distributed Yo-Yo,during,perfect,200,1.6,1,,1791793775.178
+2026-10-12T08:29:35.574554,Distributed Yo-Yo,during,mobile_3g,200,1325.2,1,,1791793774.249
+2026-10-12T08:29:35.833575,Distributed Yo-Yo,during,mobile_3g,200,302.3,1,,1791793775.531
+2026-10-12T08:29:36.302960,Distributed Yo-Yo,during,broadband,200,51.9,1,,1791793776.251
+2026-10-12T08:29:36.419419,Distributed Yo-Yo,during,broadband,200,46.2,1,,1791793776.373
+2026-10-12T08:29:36.534979,Distributed Yo-Yo,during,perfect,200,1.3,1,,1791793776.534
+2026-10-12T08:29:36.583056,Distributed Yo-Yo,during,broadband,200,51.1,1,,1791793776.532
+2026-10-12T08:29:36.608389,Distributed Yo-Yo,after,perfect,200,1.7,1,,1791793776.607
+2026-10-12T08:29:36.724628,Distributed Yo-Yo,after,broadband,200,56.9,1,,1791793776.668
+2026-10-12T08:29:36.734693,Distributed Yo-Yo,after,broadband,200,57.8,1,,1791793776.677
+2026-10-12T08:29:37.362943,Distributed Yo-Yo,after,broadband,200,66.2,1,,1791793777.297
+2026-10-12T08:29:37.421753,Distributed Yo-Yo,after,perfect,200,3.0,1,,1791793777.419
+2026-10-12T08:29:37.464052,Distributed Yo-Yo,after,perfect,200,1.8,1,,1791793777.462
+2026-10-12T08:29:37.601309,Distributed Yo-Yo,after,mobile_3g,200,399.9,1,,1791793777.201
+2026-10-12T08:29:37.604772,Distributed Yo-Yo,after,mobile_3g,200,400.4,1,,1791793777.204
+2026-10-12T08:29:37.740831,Distributed Yo-Yo,after,mobile_3g,200,364.3,1,,1791793777.377
+2026-10-12T08:29:37.751565,Distributed Yo-Yo,after,perfect,200,1.6,1,,1791793777.750
+2026-10-12T08:29:37.764648,Distributed Yo-Yo,after,broadband,200,147.0,1,,1791793777.618
+2026-10-12T08:29:37.812760,Distributed Yo-Yo,after,perfect,200,1.6,1,,1791793777.811
+2026-10-12T08:29:38.307781,Distributed Yo-Yo,after,mobile_3g,200,558.7,1,,1791793777.749
+2026-10-12T08:29:38.568870,Distributed Yo-Yo,after,mobile_3g,200,819.4,1,,1791793777.749
+2026-10-12T08:29:38.597560,Distributed Yo-Yo,after,perfect,200,1.7,1,,1791793778.596
+2026-10-12T08:29:38.617788,Distributed Yo-Yo,after,broadband,200,43.5,1,,1791793778.574
+2026-10-12T08:29:38.663097,Distributed Yo-Yo,after,mobile_3g,200,244.1,1,,1791793778.419
+2026-10-12T08:29:38.721316,Distributed Yo-Yo,after,broadband,200,56.0,1,,1791793778.665
+2026-10-12T08:29:38.885858,Distributed Yo-Yo,after,broadband,200,60.2,1,,1791793778.826
+2026-10-12T08:29:38.889765,Distributed Yo-Yo,after,mobile_3g,200,324.9,1,,1791793778.565
+2026-10-12T08:29:39.064618,Distributed Yo-Yo,after,perfect,200,1.7,1,,1791793779.063
+2026-10-12T08:29:39.082802,Distributed Yo-Yo,after,mobile_3g,200,517.9,1,,1791793778.565
+2026-10-12T08:29:39.217394,Distributed Yo-Yo,after,broadband,200,42.5,1,,1791793779.175
+2026-10-12T08:29:39.227006,Distributed Yo-Yo,after,broadband,200,43.0,1,,1791793779.184
+2026-10-12T08:29:39.228877,Distributed Yo-Yo,after,broadband,200,45.8,1,,1791793779.183
+2026-10-12T08:29:39.860679,Distributed Yo-Yo,after,mobile_3g,200,570.5,1,,1791793779.290
+2026-10-12T08:29:40.057055,Distributed Yo-Yo,after,broadband,200,98.0,1,,1791793779.959
+2026-10-12T08:29:40.109308,Distributed Yo-Yo,after,perfect,200,2.7,1,,1791793780.107
+2026-10-12T08:29:40.110014,Distributed Yo-Yo,after,perfect,200,7.8,1,,1791793780.102
+2026-10-12T08:29:40.610068,Distributed Yo-Yo,after,broadband,200,50.3,1,,1791793780.560
+2026-10-12T08:29:40.658621,Distributed Yo-Yo,after,mobile_3g,200,503.5,1,,1791793780.155
+2026-10-12T08:29:40.705802,Distributed Yo-Yo,after,perfect,200,1.7,1,,1791793780.704
+2026-10-12T08:29:40.742113,Distributed Yo-Yo,after,broadband,200,42.7,1,,1791793780.699
+2026-10-12T08:29:40.982430,Distributed Yo-Yo,after,broadband,200,44.3,1,,1791793780.938
+2026-10-12T08:29:41.116695,Distributed Yo-Yo,after,perfect,200,1.9,1,,1791793781.115
+2026-10-12T08:29:41.432036,Distributed Yo-Yo,after,broadband,200,45.7,1,,1791793781.386
+2026-10-12T08:29:41.527103,Distributed Yo-Yo,after,broadband,200,43.8,1,,1791793781.483
+2026-10-12T08:29:41.798961,Distributed Yo-Yo,after,mobile_3g,200,339.5,1,,1791793781.459
+2026-10-12T08:29:41.838699,Distributed Yo-Yo,after,mobile_3g,200,519.8,1,,1791793781.319
+2026-10-12T08:29:41.854471,Distributed Yo-Yo,after,perfect,200,1.3,1,,1791793781.853
+2026-10-12T08:29:41.935908,Distributed Yo-Yo,after,perfect,200,1.5,1,,1791793781.934
+2026-10-12T08:29:41.984658,Distributed Yo-Yo,after,mobile_3g,200,457.1,1,,1791793781.528
+2026-10-12T08:29:42.066114,Distributed Yo-Yo,after,mobile_3g,200,228.8,1,,1791793781.837
+2026-10-12T08:29:42.219477,Distributed Yo-Yo,after,perfect,200,1.7,1,,1791793782.218
+2026-10-12T08:29:42.231374,Distributed Yo-Yo,after,broadband,200,155.1,1,,1791793782.076
+2026-10-12T08:29:42.315857,Distributed Yo-Yo,after,perfect,200,2.0,1,,1791793782.314
+2026-10-12T08:29:42.423581,Distributed Yo-Yo,after,mobile_3g,200,1490.9,1,,1791793780.933
+2026-10-12T08:29:42.519030,Distributed Yo-Yo,after,broadband,200,65.4,1,,1791793782.454
+2026-10-12T08:29:42.682996,Distributed Yo-Yo,after,mobile_3g,200,1265.3,1,,1791793781.418
+2026-10-12T08:29:42.927105,Distributed Yo-Yo,after,mobile_3g,200,499.1,1,,1791793782.428
+2026-10-12T08:29:42.935093,Distributed Yo-Yo,after,broadband,200,52.1,1,,1791793782.883
+2026-10-12T08:29:42.999969,Distributed Yo-Yo,after,broadband,200,48.7,1,,1791793782.951
+2026-10-12T08:29:43.235399,Distributed Yo-Yo,after,broadband,200,64.0,1,,1791793783.171
+2026-10-12T08:29:43.236997,Distributed Yo-Yo,after,broadband,200,66.8,1,,1791793783.170
+2026-10-12T08:29:43.436291,Distributed Yo-Yo,after,broadband,200,39.2,1,,1791793783.397
+2026-10-12T08:29:43.465364,Distributed Yo-Yo,after,perfect,200,1.6,1,,1791793783.464
+2026-10-12T08:29:43.474359,Distributed Yo-Yo,after,perfect,200,3.2,1,,1791793783.471
+2026-10-12T08:29:43.850271,Distributed Yo-Yo,after,mobile_3g,200,217.5,1,,1791793783.633
+2026-10-12T08:29:43.855901,Distributed Yo-Yo,after,perfect,200,1.5,1,,1791793783.854
+2026-10-12T08:29:44.378190,Distributed Yo-Yo,after,perfect,200,2.3,1,,1791793784.376
+2026-10-12T08:29:44.495387,Distributed Yo-Yo,after,broadband,200,164.1,1,,1791793784.331
+2026-10-12T08:29:44.519995,Distributed Yo-Yo,after,perfect,200,1.8,1,,1791793784.518
+2026-10-12T08:29:44.745887,Distributed Yo-Yo,after,mobile_3g,200,319.2,1,,1791793784.427
+2026-10-12T08:29:44.815012,Distributed Yo-Yo,after,mobile_3g,200,579.7,1,,1791793784.235
+2026-10-12T08:29:44.858714,Distributed Yo-Yo,after,broadband,200,41.7,1,,1791793784.817
+2026-10-12T08:29:45.073694,Distributed Yo-Yo,after,mobile_3g,200,602.9,1,,1791793784.471
+2026-10-12T08:29:45.079434,Distributed Yo-Yo,after,broadband,200,120.4,1,,1791793784.959
+2026-10-12T08:29:45.326551,Distributed Yo-Yo,after,broadband,200,44.4,1,,1791793785.282
+2026-10-12T08:29:45.390354,Distributed Yo-Yo,after,broadband,200,74.8,1,,1791793785.316
+2026-10-12T08:29:45.505225,Distributed Yo-Yo,after,mobile_3g,200,421.5,1,,1791793785.084
+2026-10-12T08:29:45.713299,Distributed Yo-Yo,after,perfect,200,1.8,1,,1791793785.711
+2026-10-12T08:29:45.771939,Distributed Yo-Yo,after,perfect,200,1.5,1,,1791793785.770
+2026-10-12T08:29:45.791720,Distributed Yo-Yo,after,mobile_3g,200,426.7,1,,1791793785.365
+2026-10-12T08:29:45.821460,Distributed Yo-Yo,after,perfect,200,1.7,1,,1791793785.820
+2026-10-12T08:29:45.822572,Distributed Yo-Yo,after,mobile_3g,200,449.4,1,,1791793785.373
+2026-10-12T08:29:45.889327,Distributed Yo-Yo,after,broadband,200,50.9,1,,1791793785.838
+2026-10-12T08:29:45.945153,Distributed Yo-Yo,after,perfect,200,1.5,1,,1791793785.944
+2026-10-12T08:29:46.067106,Distributed Yo-Yo,after,broadband,200,47.1,1,,1791793786.020
+2026-10-12T08:29:46.425490,Distributed Yo-Yo,after,mobile_3g,200,712.6,1,,1791793785.713
+2026-10-12T08:29:46.519291,Distributed Yo-Yo,after,mobile_3g,200,476.3,1,,1791793786.043
+2026-10-12T08:30:22.283171,Multi-Vector Distributed Attack,before,perfect,200,1.9,1,,1791793822.281
+2026-10-12T08:30:22.345276,Multi-Vector Distributed Attack,before,perfect,200,2.4,1,,1791793822.343
+2026-10-12T08:30:22.505877,Multi-Vector Distributed Attack,before,perfect,200,1.6,1,,1791793822.504
+2026-10-12T08:30:22.716164,Multi-Vector Distributed Attack,before,mobile_3g,200,329.8,1,,1791793822.386
+2026-10-12T08:30:22.804644,Multi-Vector Distributed Attack,before,broadband,200,60.3,1,,1791793822.744
+2026-10-12T08:30:22.822394,Multi-Vector Distributed Attack,before,mobile_3g,200,364.5,1,,1791793822.458
+2026-10-12T08:30:22.844777,Multi-Vector Distributed Attack,before,mobile_3g,200,340.4,1,,1791793822.504
+2026-10-12T08:30:22.902421,Multi-Vector Distributed Attack,before,mobile_3g,200,369.2,1,,1791793822.533
+2026-10-12T08:30:23.126305,Multi-Vector Distributed Attack,before,broadband,200,60.9,1,,1791793823.065
+2026-10-12T08:30:23.202409,Multi-Vector Distributed Attack,before,broadband,200,51.7,1,,1791793823.151
+2026-10-12T08:30:23.203054,Multi-Vector Distributed Attack,before,broadband,200,51.7,1,,1791793823.151
+2026-10-12T08:30:23.208429,Multi-Vector Distributed Attack,before,broadband,200,42.4,1,,1791793823.166
+2026-10-12T08:30:23.228858,Multi-Vector Distributed Attack,before,broadband,200,41.8,1,,1791793823.187
+2026-10-12T08:30:23.260843,Multi-Vector Distributed Attack,before,mobile_3g,200,274.0,1,,1791793822.987
+2026-10-12T08:30:23.619096,Multi-Vector Distributed Attack,before,perfect,200,2.3,1,,1791793823.617
+2026-10-12T08:30:23.619871,Multi-Vector Distributed Attack,before,perfect,200,1.7,1,,1791793823.618
+2026-10-12T08:30:24.607964,Multi-Vector Distributed Attack,before,perfect,200,2.2,1,,1791793824.606
+2026-10-12T08:30:24.617848,Multi-Vector Distributed Attack,before,broadband,200,92.3,1,,1791793824.526
+2026-10-12T08:30:24.619557,Multi-Vector Distributed Attack,before,perfect,200,1.7,1,,1791793824.618
+2026-10-12T08:30:25.018664,Multi-Vector Distributed Attack,before,perfect,200,1.5,1,,1791793825.017
+2026-10-12T08:30:25.272469,Multi-Vector Distributed Attack,before,broadband,200,63.7,1,,1791793825.209
+2026-10-12T08:30:25.318073,Multi-Vector Distributed Attack,before,perfect,200,3.5,1,,1791793825.315
+2026-10-12T08:30:25.319407,Multi-Vector Distributed Attack,before,broadband,200,302.4,1,,1791793825.017
+2026-10-12T08:30:25.389826,Multi-Vector Distributed Attack,before,broadband,200,46.4,1,,1791793825.343
+2026-10-12T08:30:25.503154,Multi-Vector Distributed Attack,before,broadband,200,57.3,1,,1791793825.446
+2026-10-12T08:30:25.630448,Multi-Vector Distributed Attack,before,mobile_3g,200,325.6,1,,1791793825.305
+2026-10-12T08:30:25.690298,Multi-Vector Distributed Attack,before,broadband,200,40.4,1,,1791793825.650
+2026-10-12T08:30:25.778527,Multi-Vector Distributed Attack,before,broadband,200,48.8,1,,1791793825.730
+2026-10-12T08:30:25.815722,Multi-Vector Distributed Attack,before,perfect,200,1.8,1,,1791793825.814
+2026-10-12T08:30:25.838097,Multi-Vector Distributed Attack,before,mobile_3g,200,405.3,1,,1791793825.433
+2026-10-12T08:30:26.188700,Multi-Vector Distributed Attack,before,mobile_3g,200,359.5,1,,1791793825.829
+2026-10-12T08:30:26.218497,Multi-Vector Distributed Attack,before,mobile_3g,200,269.8,1,,1791793825.949
+2026-10-12T08:30:26.226083,Multi-Vector Distributed Attack,before,mobile_3g,200,316.5,1,,1791793825.910
+2026-10-12T08:30:26.259076,Multi-Vector Distributed Attack,before,mobile_3g,200,282.8,1,,1791793825.976
+2026-10-12T08:30:26.512383,Multi-Vector Distributed Attack,during,perfect,200,3.1,1,,1791793826.509
+2026-10-12T08:30:26.551956,Multi-Vector Distributed Attack,during,broadband,200,45.1,1,,1791793826.507
+2026-10-12T08:30:26.592870,Multi-Vector Distributed Attack,during,perfect,200,2.0,1,,1791793826.591
+2026-10-12T08:30:26.791948,Multi-Vector Distributed Attack,during,mobile_3g,200,318.1,1,,1791793826.474
+2026-10-12T08:30:26.794819,Multi-Vector Distributed Attack,during,perfect,200,1.7,1,,1791793826.793
+2026-10-12T08:30:26.979737,Multi-Vector Distributed Attack,during,mobile_3g,200,411.5,1,,1791793826.568
+2026-10-12T08:30:27.248960,Multi-Vector Distributed Attack,during,broadband,200,188.0,1,,1791793827.061
+2026-10-12T08:30:27.254797,Multi-Vector Distributed Attack,during,mobile_3g,200,455.3,1,,1791793826.799
+2026-10-12T08:30:27.334151,Multi-Vector Distributed Attack,during,broadband,200,201.3,1,,1791793827.133
+2026-10-12T08:30:27.816581,Multi-Vector Distributed Attack,during,perfect,200,1.4,1,,1791793827.815
+2026-10-12T08:30:27.949167,Multi-Vector Distributed Attack,during,broadband,200,252.0,1,,1791793827.697
+2026-10-12T08:30:27.957514,Multi-Vector Distributed Attack,during,broadband,200,248.8,1,,1791793827.709
+2026-10-12T08:30:27.970619,Multi-Vector Distributed Attack,during,perfect,200,1.9,1,,1791793827.969
+2026-10-12T08:30:28.100113,Multi-Vector Distributed Attack,during,broadband,200,120.3,1,,1791793827.980
+2026-10-12T08:30:28.297705,Multi-Vector Distributed Attack,during,perfect,200,5.5,1,,1791793828.292
+2026-10-12T08:30:28.347580,Multi-Vector Distributed Attack,during,broadband,200,147.4,1,,1791793828.200
+2026-10-12T08:30:28.900958,Multi-Vector Distributed Attack,during,broadband,200,196.9,1,,1791793828.704
+2026-10-12T08:30:29.058367,Multi-Vector Distributed Attack,during,perfect,200,2.8,1,,1791793829.056
+2026-10-12T08:30:29.135623,Multi-Vector Distributed Attack,during,broadband,200,56.0,1,,1791793829.080
+2026-10-12T08:30:29.188961,Multi-Vector Distributed Attack,during,perfect,200,2.0,1,,1791793829.187
+2026-10-12T08:30:29.336938,Multi-Vector Distributed Attack,during,mobile_3g,200,272.7,1,,1791793829.064
+2026-10-12T08:30:29.505217,Multi-Vector Distributed Attack,during,mobile_3g,200,260.5,1,,1791793829.245
+2026-10-12T08:30:29.539838,Multi-Vector Distributed Attack,during,broadband,200,52.6,1,,1791793829.487
+2026-10-12T08:30:29.546302,Multi-Vector Distributed Attack,during,mobile_3g,200,292.4,1,,1791793829.254
+2026-10-12T08:30:29.612454,Multi-Vector Distributed Attack,during,mobile_3g,200,353.6,1,,1791793829.259
+2026-10-12T08:30:29.764689,Multi-Vector Distributed Attack,during,mobile_3g,200,320.1,1,,1791793829.445
+2026-10-12T08:30:29.917459,Multi-Vector Distributed Attack,during,perfect,200,4.1,1,,1791793829.913
+2026-10-12T08:30:29.966495,Multi-Vector Distributed Attack,during,mobile_3g,200,377.9,1,,1791793829.589
+2026-10-12T08:30:30.202206,Multi-Vector Distributed Attack,during,perfect,200,2.1,1,,1791793830.200
+2026-10-12T08:30:30.364413,Multi-Vector Distributed Attack,during,broadband,200,164.2,1,,1791793830.200
+2026-10-12T08:30:30.491566,Multi-Vector Distributed Attack,during,mobile_3g,200,289.0,1,,1791793830.203
+2026-10-12T08:30:30.492240,Multi-Vector Distributed Attack,during,broadband,200,108.0,1,,1791793830.384
+2026-10-12T08:30:30.492426,Multi-Vector Distributed Attack,during,broadband,200,109.3,1,,1791793830.383
+2026-10-12T08:30:30.585507,Multi-Vector Distributed Attack,during,broadband,200,144.9,1,,1791793830.441
+2026-10-12T08:30:30.778939,Multi-Vector Distributed Attack,during,perfect,200,13.4,1,,1791793830.766
+2026-10-12T08:30:30.937664,Multi-Vector Distributed Attack,during,mobile_3g,200,496.6,1,,1791793830.441
+2026-10-12T08:30:31.439099,Multi-Vector Distributed Attack,during,mobile_3g,200,240.4,1,,1791793831.199
+2026-10-12T08:30:31.500562,Multi-Vector Distributed Attack,during,perfect,200,1.5,1,,1791793831.499
+2026-10-12T08:30:31.615075,Multi-Vector Distributed Attack,during,perfect,200,1.7,1,,1791793831.613
+2026-10-12T08:30:32.048633,Multi-Vector Distributed Attack,during,broadband,200,185.0,1,,1791793831.864
+2026-10-12T08:30:32.052120,Multi-Vector Distributed Attack,during,broadband,200,187.7,1,,1791793831.864
+2026-10-12T08:30:32.232248,Multi-Vector Distributed Attack,during,broadband,200,73.8,1,,1791793832.158
+2026-10-12T08:30:32.351919,Multi-Vector Distributed Attack,during,perfect,200,2.8,1,,1791793832.349
+2026-10-12T08:30:32.405353,Multi-Vector Distributed Attack,during,broadband,200,47.6,1,,1791793832.358
+2026-10-12T08:30:32.424697,Multi-Vector Distributed Attack,during,broadband,200,60.3,1,,1791793832.364
+2026-10-12T08:30:32.636701,Multi-Vector Distributed Attack,during,broadband,200,241.0,1,,1791793832.396
+2026-10-12T08:30:32.700331,Multi-Vector Distributed Attack,during,perfect,200,1.3,1,,1791793832.699
+2026-10-12T08:30:32.757503,Multi-Vector Distributed Attack,during,mobile_3g,200,324.9,1,,1791793832.433
+2026-10-12T08:30:32.919395,Multi-Vector Distributed Attack,during,broadband,200,51.1,1,,1791793832.868
+2026-10-12T08:30:33.375155,Multi-Vector Distributed Attack,during,perfect,200,1.9,1,,1791793833.373
+2026-10-12T08:30:33.629428,Multi-Vector Distributed Attack,during,mobile_3g,200,437.1,1,,1791793833.192
+2026-10-12T08:30:33.845353,Multi-Vector Distributed Attack,during,perfect,200,1.5,1,,1791793833.844
+2026-10-12T08:30:34.054825,Multi-Vector Distributed Attack,during,perfect,200,1.4,1,,1791793834.053
+2026-10-12T08:30:34.207160,Multi-Vector Distributed Attack,during,mobile_3g,200,345.9,1,,1791793833.861
+2026-10-12T08:30:34.239624,Multi-Vector Distributed Attack,during,mobile_3g,200,350.0,1,,1791793833.890
+2026-10-12T08:30:34.246899,Multi-Vector Distributed Attack,during,mobile_3g,200,1521.2,1,,1791793832.726
+2026-10-12T08:30:34.310163,Multi-Vector Distributed Attack,during,broadband,200,55.8,1,,1791793834.254
+2026-10-12T08:30:34.355546,Multi-Vector Distributed Attack,during,mobile_3g,200,1751.3,1,,1791793832.604
+2026-10-12T08:30:34.365947,Multi-Vector Distributed Attack,during,perfect,200,1.4,1,,1791793834.365
+2026-10-12T08:30:34.425175,Multi-Vector Distributed Attack,during,mobile_3g,200,282.8,1,,1791793834.142
+2026-10-12T08:30:34.538253,Multi-Vector Distributed Attack,during,mobile_3g,200,262.4,1,,1791793834.276
+2026-10-12T08:30:34.780395,Multi-Vector Distributed Attack,during,broadband,200,136.1,1,,1791793834.644
+2026-10-12T08:30:34.864542,Multi-Vector Distributed Attack,during,broadband,200,124.7,1,,1791793834.740
+2026-10-12T08:30:34.867509,Multi-Vector Distributed Attack,during,broadband,200,128.7,1,,1791793834.739
+2026-10-12T08:30:35.017062,Multi-Vector Distributed Attack,during,perfect,200,1.4,1,,1791793835.016
+2026-10-12T08:30:35.215132,Multi-Vector Distributed Attack,during,mobile_3g,200,2579.7,1,,1791793832.635
+2026-10-12T08:30:35.216079,Multi-Vector Distributed Attack,during,broadband,200,198.9,1,,1791793835.017
+2026-10-12T08:30:35.557141,Multi-Vector Distributed Attack,during,broadband,200,132.5,1,,1791793835.425
+2026-10-12T08:30:35.720969,Multi-Vector Distributed Attack,during,perfect,200,1.5,1,,1791793835.719
+2026-10-12T08:30:36.015012,Multi-Vector Distributed Attack,during,broadband,200,179.4,1,,1791793835.836
+2026-10-12T08:30:36.030938,Multi-Vector Distributed Attack,during,perfect,200,1.7,1,,1791793836.029
+2026-10-12T08:30:36.431062,Multi-Vector Distributed Attack,during,perfect,200,1.3,1,,1791793836.430
+2026-10-12T08:30:36.721061,Multi-Vector Distributed Attack,during,broadband,200,209.5,1,,1791793836.512
+2026-10-12T08:30:36.735908,Multi-Vector Distributed Attack,during,perfect,200,2.1,1,,1791793836.734
+2026-10-12T08:30:36.991897,Multi-Vector Distributed Attack,during,broadband,200,252.2,1,,1791793836.740
+2026-10-12T08:30:36.993484,Multi-Vector Distributed Attack,during,broadband,200,172.9,1,,1791793836.821
+2026-10-12T08:30:37.110401,Multi-Vector Distributed Attack,during,mobile_3g,200,593.8,1,,1791793836.517
+2026-10-12T08:30:37.166122,Multi-Vector Distributed Attack,during,broadband,200,44.1,1,,1791793837.122
+2026-10-12T08:30:37.177255,Multi-Vector Distributed Attack,during,mobile_3g,200,299.7,1,,1791793836.878
+2026-10-12T08:30:37.298225,Multi-Vector Distributed Attack,during,perfect,200,9.4,1,,1791793837.289
+2026-10-12T08:30:37.305492,Multi-Vector Distributed Attack,during,perfect,200,1.8,1,,1791793837.304
+2026-10-12T08:30:37.507215,Multi-Vector Distributed Attack,during,mobile_3g,200,502.9,1,,1791793837.004
+2026-10-12T08:30:37.517446,Multi-Vector Distributed Attack,during,mobile_3g,200,383.1,1,,1791793837.134
+2026-10-12T08:30:37.570676,Multi-Vector Distributed Attack,during,mobile_3g,200,382.3,1,,1791793837.188
+2026-10-12T08:30:37.621953,Multi-Vector Distributed Attack,during,mobile_3g,200,321.2,1,,1791793837.301
+2026-10-12T08:30:37.639421,Multi-Vector Distributed Attack,during,mobile_3g,200,380.1,1,,1791793837.259
+2026-10-12T08:30:37.661978,Multi-Vector Distributed Attack,during,mobile_3g,200,397.2,1,,1791793837.265
+2026-10-12T08:30:37.995364,Multi-Vector Distributed Attack,during,broadband,200,79.3,1,,1791793837.916
+2026-10-12T08:30:38.214144,Multi-Vector Distributed Attack,during,perfect,200,1.9,1,,1791793838.212
+2026-10-12T08:30:38.380221,Multi-Vector Distributed Attack,during,broadband,200,165.2,1,,1791793838.215
+2026-10-12T08:30:38.476379,Multi-Vector Distributed Attack,during,broadband,200,172.1,1,,1791793838.304
+2026-10-12T08:30:38.751512,Multi-Vector Distributed Attack,during,mobile_3g,200,358.7,1,,1791793838.393
+2026-10-12T08:30:38.971325,Multi-Vector Distributed Attack,during,perfect,200,1.7,1,,1791793838.970
+2026-10-12T08:30:39.061741,Multi-Vector Distributed Attack,during,perfect,200,3.9,1,,1791793839.058
+2026-10-12T08:30:39.276897,Multi-Vector Distributed Attack,during,broadband,200,62.6,1,,1791793839.214
+2026-10-12T08:30:39.448096,Multi-Vector Distributed Attack,during,broadband,200,47.1,1,,1791793839.401
+2026-10-12T08:30:39.828398,Multi-Vector Distributed Attack,during,broadband,200,168.5,1,,1791793839.660
+2026-10-12T08:30:39.834794,Multi-Vector Distributed Attack,during,perfect,200,1.5,1,,1791793839.833
+2026-10-12T08:30:39.841376,Multi-Vector Distributed Attack,during,perfect,200,1.6,1,,1791793839.840
+2026-10-12T08:30:40.224905,Multi-Vector Distributed Attack,during,broadband,200,161.4,1,,1791793840.064
+2026-10-12T08:30:40.498411,Multi-Vector Distributed Attack,during,broadband,200,258.9,1,,1791793840.240
+2026-10-12T08:30:40.630152,Multi-Vector Distributed Attack,during,perfect,200,1.4,1,,1791793840.629
+2026-10-12T08:30:40.733419,Multi-Vector Distributed Attack,during,mobile_3g,200,414.8,1,,1791793840.319
+2026-10-12T08:30:40.744598,Multi-Vector Distributed Attack,during,mobile_3g,200,501.8,1,,1791793840.243
+2026-10-12T08:30:40.745562,Multi-Vector Distributed Attack,during,broadband,200,236.6,1,,1791793840.509
+2026-10-12T08:30:40.970073,Multi-Vector Distributed Attack,during,perfect,200,1.2,1,,1791793840.969
+2026-10-12T08:30:40.970982,Multi-Vector Distributed Attack,during,perfect,200,1.4,1,,1791793840.970
+2026-10-12T08:30:41.028726,Multi-Vector Distributed Attack,during,mobile_3g,200,794.3,1,,1791793840.234
+2026-10-12T08:30:41.040385,Multi-Vector Distributed Attack,during,perfect,200,1.2,1,,1791793841.039
+2026-10-12T08:30:41.154733,Multi-Vector Distributed Attack,during,mobile_3g,200,404.3,1,,1791793840.750
+2026-10-12T08:30:41.233917,Multi-Vector Distributed Attack,during,mobile_3g,200,197.8,1,,1791793841.036
+2026-10-12T08:30:41.235442,Multi-Vector Distributed Attack,during,broadband,200,127.7,1,,1791793841.108
+2026-10-12T08:30:41.429036,Multi-Vector Distributed Attack,during,broadband,200,162.0,1,,1791793841.267
+2026-10-12T08:30:41.487724,Multi-Vector Distributed Attack,during,mobile_3g,200,325.6,1,,1791793841.162
+2026-10-12T08:30:41.632222,Multi-Vector Distributed Attack,during,broadband,200,516.1,1,,1791793841.116
+2026-10-12T08:30:41.791589,Multi-Vector Distributed Attack,during,mobile_3g,200,869.1,1,,1791793840.922
+2026-10-12T08:30:41.851096,Multi-Vector Distributed Attack,during,mobile_3g,200,348.7,1,,1791793841.502
+2026-10-12T08:30:42.033067,Multi-Vector Distributed Attack,during,mobile_3g,200,386.4,1,,1791793841.647
+2026-10-12T08:30:42.045417,Multi-Vector Distributed Attack,during,perfect,200,1.4,1,,1791793842.044
+2026-10-12T08:30:42.368957,Multi-Vector Distributed Attack,during,perfect,200,1.2,1,,1791793842.368
+2026-10-12T08:30:42.387348,Multi-Vector Distributed Attack,during,perfect,200,1.4,1,,1791793842.386
+2026-10-12T08:30:42.737833,Multi-Vector Distributed Attack,during,broadband,200,44.0,1,,1791793842.694
+2026-10-12T08:30:42.748789,Multi-Vector Distributed Attack,during,broadband,200,46.5,1,,1791793842.702
+2026-10-12T08:30:42.816610,Multi-Vector Distributed Attack,during,broadband,200,49.0,1,,1791793842.768
+2026-10-12T08:30:42.818431,Multi-Vector Distributed Attack,during,perfect,200,2.6,1,,1791793842.816
+2026-10-12T08:30:43.197457,Multi-Vector Distributed Attack,during,broadband,200,56.5,1,,1791793843.141
+2026-10-12T08:30:43.200383,Multi-Vector Distributed Attack,during,broadband,200,42.4,1,,1791793843.158
+2026-10-12T08:30:43.241518,Multi-Vector Distributed Attack,during,broadband,200,39.2,1,,1791793843.202
+2026-10-12T08:30:43.329859,Multi-Vector Distributed Attack,during,perfect,200,1.3,1,,1791793843.329
+2026-10-12T08:30:43.683097,Multi-Vector Distributed Attack,during,perfect,200,27.4,1,,1791793843.656
+2026-10-12T08:30:44.234630,Multi-Vector Distributed Attack,during,broadband,200,40.0,1,,1791793844.195
+2026-10-12T08:30:44.252938,Multi-Vector Distributed Attack,during,mobile_3g,200,890.8,1,,1791793843.362
+2026-10-12T08:30:44.292581,Multi-Vector Distributed Attack,during,mobile_3g,200,637.8,1,,1791793843.655
+2026-10-12T08:30:44.319509,Multi-Vector Distributed Attack,during,mobile_3g,200,291.7,1,,1791793844.028
+2026-10-12T08:30:44.394998,Multi-Vector Distributed Attack,during,perfect,200,2.1,1,,1791793844.393
+2026-10-12T08:30:44.446395,Multi-Vector Distributed Attack,during,broadband,200,43.7,1,,1791793844.403
+2026-10-12T08:30:44.466086,Multi-Vector Distributed Attack,during,mobile_3g,200,330.5,1,,1791793844.136
+2026-10-12T08:30:44.694471,Multi-Vector Distributed Attack,during,mobile_3g,200,416.9,1,,1791793844.278
+2026-10-12T08:30:44.845014,Multi-Vector Distributed Attack,during,mobile_3g,200,260.4,1,,1791793844.585
+2026-10-12T08:30:44.901093,Multi-Vector Distributed Attack,during,perfect,200,7.2,1,,1791793844.894
+2026-10-12T08:30:44.936639,Multi-Vector Distributed Attack,during,broadband,200,42.7,1,,1791793844.894
+2026-10-12T08:30:45.028608,Multi-Vector Distributed Attack,during,broadband,200,47.8,1,,1791793844.981
+2026-10-12T08:30:45.035399,Multi-Vector Distributed Attack,during,broadband,200,45.5,1,,1791793844.990
+2026-10-12T08:30:45.045196,Multi-Vector Distributed Attack,during,perfect,200,3.9,1,,1791793845.041
+2026-10-12T08:30:45.187049,Multi-Vector Distributed Attack,during,mobile_3g,200,329.5,1,,1791793844.858
+2026-10-12T08:30:45.268674,Multi-Vector Distributed Attack,during,broadband,200,46.2,1,,1791793845.222
+2026-10-12T08:30:45.269443,Multi-Vector Distributed Attack,during,mobile_3g,200,315.4,1,,1791793844.954
+2026-10-12T08:30:45.433854,Multi-Vector Distributed Attack,during,perfect,200,1.5,1,,1791793845.432
+2026-10-12T08:30:45.571393,Multi-Vector Distributed Attack,during,mobile_3g,200,324.4,1,,1791793845.247
+2026-10-12T08:30:45.756351,Multi-Vector Distributed Attack,after,perfect,200,1.9,1,,1791793845.754
+2026-10-12T08:30:45.864462,Multi-Vector Distributed Attack,after,broadband,200,61.9,1,,1791793845.803
+2026-10-12T08:30:46.540114,Multi-Vector Distributed Attack,after,perfect,200,3.2,1,,1791793846.537
+2026-10-12T08:30:46.558739,Multi-Vector Distributed Attack,after,broadband,200,137.7,1,,1791793846.421
+2026-10-12T08:30:46.558989,Multi-Vector Distributed Attack,after,broadband,200,47.7,1,,1791793846.511
+2026-10-12T08:30:46.835122,Multi-Vector Distributed Attack,after,broadband,200,42.1,1,,1791793846.793
+2026-10-12T08:30:46.906607,Multi-Vector Distributed Attack,after,broadband,200,61.2,1,,1791793846.845
+2026-10-12T08:30:47.408110,Multi-Vector Distributed Attack,after,mobile_3g,200,586.0,1,,1791793846.822
+2026-10-12T08:30:47.455866,Multi-Vector Distributed Attack,after,mobile_3g,200,363.3,1,,1791793847.093
+2026-10-12T08:30:47.472166,Multi-Vector Distributed Attack,after,perfect,200,2.4,1,,1791793847.470
+2026-10-12T08:30:47.479473,Multi-Vector Distributed Attack,after,broadband,200,47.0,1,,1791793847.432
+2026-10-12T08:30:47.502198,Multi-Vector Distributed Attack,after,perfect,200,3.4,1,,1791793847.499
+2026-10-12T08:30:47.540544,Multi-Vector Distributed Attack,after,broadband,200,41.1,1,,1791793847.499
+2026-10-12T08:30:47.702438,Multi-Vector Distributed Attack,after,mobile_3g,200,377.0,1,,1791793847.325
+2026-10-12T08:30:47.712590,Multi-Vector Distributed Attack,after,mobile_3g,200,242.2,1,,1791793847.470
+2026-10-12T08:30:47.783479,Multi-Vector Distributed Attack,after,mobile_3g,200,237.3,1,,1791793847.546
+2026-10-12T08:30:48.190171,Multi-Vector Distributed Attack,after,perfect,200,1.9,1,,1791793848.188
+2026-10-12T08:30:48.207822,Multi-Vector Distributed Attack,after,broadband,200,45.2,1,,1791793848.163
+2026-10-12T08:30:48.353038,Multi-Vector Distributed Attack,after,mobile_3g,200,248.6,1,,1791793848.104
+2026-10-12T08:30:48.561382,Multi-Vector Distributed Attack,after,perfect,200,1.7,1,,1791793848.560
+2026-10-12T08:30:48.819487,Multi-Vector Distributed Attack,after,broadband,200,55.4,1,,1791793848.764
+2026-10-12T08:30:48.856029,Multi-Vector Distributed Attack,after,mobile_3g,200,440.4,1,,1791793848.416
+2026-10-12T08:30:48.882066,Multi-Vector Distributed Attack,after,broadband,200,42.4,1,,1791793848.840
+2026-10-12T08:30:48.921889,Multi-Vector Distributed Attack,after,mobile_3g,200,316.0,1,,1791793848.606
+2026-10-12T08:30:49.115617,Multi-Vector Distributed Attack,after,perfect,200,19.1,1,,1791793849.097
+2026-10-12T08:30:49.252368,Multi-Vector Distributed Attack,after,mobile_3g,200,228.0,1,,1791793849.024
+2026-10-12T08:30:49.581031,Multi-Vector Distributed Attack,after,broadband,200,45.0,1,,1791793849.536
+2026-10-12T08:30:49.653565,Multi-Vector Distributed Attack,after,broadband,200,60.3,1,,1791793849.593
+2026-10-12T08:30:49.657586,Multi-Vector Distributed Attack,after,broadband,200,46.9,1,,1791793849.611
+2026-10-12T08:30:49.971442,Multi-Vector Distributed Attack,after,perfect,200,5.1,1,,1791793849.966
+2026-10-12T08:30:49.974150,Multi-Vector Distributed Attack,after,perfect,200,1.5,1,,1791793849.973
+2026-10-12T08:30:50.477543,Multi-Vector Distributed Attack,after,broadband,200,47.0,1,,1791793850.431
+2026-10-12T08:30:50.482585,Multi-Vector Distributed Attack,after,broadband,200,43.0,1,,1791793850.440
+2026-10-12T08:30:50.553691,Multi-Vector Distributed Attack,after,broadband,200,44.8,1,,1791793850.509
+2026-10-12T08:30:50.829882,Multi-Vector Distributed Attack,after,mobile_3g,200,393.1,1,,1791793850.437
+2026-10-12T08:30:50.886448,Multi-Vector Distributed Attack,after,perfect,200,1.6,1,,1791793850.885
+2026-10-12T08:30:50.907803,Multi-Vector Distributed Attack,after,broadband,200,50.0,1,,1791793850.858
+2026-10-12T08:30:51.289160,Multi-Vector Distributed Attack,after,perfect,200,2.6,1,,1791793851.287
+2026-10-12T08:30:51.305592,Multi-Vector Distributed Attack,after,perfect,200,1.5,1,,1791793851.304
+2026-10-12T08:30:51.328722,Multi-Vector Distributed Attack,after,perfect,200,1.6,1,,1791793851.327
+2026-10-12T08:30:51.623266,Multi-Vector Distributed Attack,after,broadband,200,58.6,1,,1791793851.565
+2026-10-12T08:30:51.647776,Multi-Vector Distributed Attack,after,mobile_3g,200,302.1,1,,1791793851.346
+2026-10-12T08:30:51.651080,Multi-Vector Distributed Attack,after,mobile_3g,200,371.2,1,,1791793851.280
+2026-10-12T08:30:51.711424,Multi-Vector Distributed Attack,after,mobile_3g,200,439.6,1,,1791793851.272
+2026-10-12T08:30:51.822527,Multi-Vector Distributed Attack,after,mobile_3g,200,336.4,1,,1791793851.486
+2026-10-12T08:30:51.915211,Multi-Vector Distributed Attack,after,perfect,200,4.4,1,,1791793851.911
+2026-10-12T08:30:52.156980,Multi-Vector Distributed Attack,after,broadband,200,49.4,1,,1791793852.108
+2026-10-12T08:30:52.247856,Multi-Vector Distributed Attack,after,mobile_3g,200,414.0,1,,1791793851.834
+2026-10-12T08:30:52.317311,Multi-Vector Distributed Attack,after,broadband,200,43.4,1,,1791793852.274
+2026-10-12T08:30:52.395679,Multi-Vector Distributed Attack,after,broadband,200,43.4,1,,1791793852.352
+2026-10-12T08:30:52.421951,Multi-Vector Distributed Attack,after,perfect,200,2.0,1,,1791793852.420
+2026-10-12T08:30:52.644165,Multi-Vector Distributed Attack,after,mobile_3g,200,341.5,1,,1791793852.303
+2026-10-12T08:30:52.699796,Multi-Vector Distributed Attack,after,mobile_3g,200,406.0,1,,1791793852.294
+2026-10-12T08:30:52.792027,Multi-Vector Distributed Attack,after,mobile_3g,200,279.5,1,,1791793852.513
+2026-10-12T08:30:52.882367,Multi-Vector Distributed Attack,after,broadband,200,56.1,1,,1791793852.826
+2026-10-12T08:30:53.107667,Multi-Vector Distributed Attack,after,perfect,200,1.7,1,,1791793853.106
+2026-10-12T08:30:53.169851,Multi-Vector Distributed Attack,after,broadband,200,50.6,1,,1791793853.119
+2026-10-12T08:30:53.191151,Multi-Vector Distributed Attack,after,perfect,200,1.7,1,,1791793853.189
+2026-10-12T08:30:53.628180,Multi-Vector Distributed Attack,after,broadband,200,51.7,1,,1791793853.576
+2026-10-12T08:30:54.163538,Multi-Vector Distributed Attack,after,perfect,200,2.4,1,,1791793854.161
+2026-10-12T08:30:54.287280,Multi-Vector Distributed Attack,after,perfect,200,2.9,1,,1791793854.284
+2026-10-12T08:30:54.367644,Multi-Vector Distributed Attack,after,broadband,200,71.6,1,,1791793854.296
+2026-10-12T08:30:54.408424,Multi-Vector Distributed Attack,after,perfect,200,2.4,1,,1791793854.406
+2026-10-12T08:30:54.422386,Multi-Vector Distributed Attack,after,perfect,200,1.6,1,,1791793854.421
+2026-10-12T08:30:54.447916,Multi-Vector Distributed Attack,after,broadband,200,42.3,1,,1791793854.406
+2026-10-12T08:30:54.725806,Multi-Vector Distributed Attack,after,mobile_3g,200,321.6,1,,1791793854.404
+2026-10-12T08:30:54.860846,Multi-Vector Distributed Attack,after,mobile_3g,200,259.2,1,,1791793854.602
+2026-10-12T08:30:54.909636,Multi-Vector Distributed Attack,after,mobile_3g,200,365.8,1,,1791793854.544
+2026-10-12T08:30:54.978634,Multi-Vector Distributed Attack,after,broadband,200,57.9,1,,1791793854.921
+2026-10-12T08:30:55.276422,Multi-Vector Distributed Attack,after,broadband,200,66.0,1,,1791793855.210
+2026-10-12T08:30:55.360060,Multi-Vector Distributed Attack,after,broadband,200,44.5,1,,1791793855.316
+2026-10-12T08:30:55.444199,Multi-Vector Distributed Attack,after,perfect,200,1.8,1,,1791793855.442

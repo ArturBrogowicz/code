@@ -1,0 +1,81 @@
+scenario,mode,profile,window_s,n,success_pct,p50_ms,p95_ms
+Distributed SYN Flood,xdp,ALL,10.000,235,100.000,45.700,595.310
+Distributed SYN Flood,xdp,perfect,10.000,88,100.000,2.000,20.900
+Distributed SYN Flood,iptables,ALL,10.000,249,100.000,39.100,408.680
+Distributed SYN Flood,iptables,perfect,10.000,130,100.000,2.050,33.705
+Distributed SYN Flood,nginxlimits,ALL,10.000,245,100.000,46.200,389.080
+Distributed SYN Flood,nginxlimits,perfect,10.000,98,100.000,3.350,38.945
+Distributed SYN Flood,unprotected,ALL,10.000,217,100.000,58.300,603.600
+Distributed SYN Flood,unprotected,perfect,10.000,67,100.000,3.200,37.800
+Distributed Low & Slow SYN,xdp,ALL,10.000,257,100.000,43.200,479.560
+Distributed Low & Slow SYN,xdp,perfect,10.000,93,100.000,2.000,4.640
+Distributed Low & Slow SYN,iptables,ALL,10.000,248,100.000,38.000,412.095
+Distributed Low & Slow SYN,iptables,perfect,10.000,123,100.000,2.200,6.070
+Distributed Low & Slow SYN,nginxlimits,ALL,10.000,247,100.000,42.400,446.790
+Distributed Low & Slow SYN,nginxlimits,perfect,10.000,99,100.000,2.100,9.460
+Distributed Low & Slow SYN,unprotected,ALL,10.000,222,100.000,43.800,549.315
+Distributed Low & Slow SYN,unprotected,perfect,10.000,69,100.000,2.500,14.500
+Distributed UDP Flood,xdp,ALL,10.000,226,100.000,74.150,549.425
+Distributed UDP Flood,xdp,perfect,10.000,87,100.000,3.100,13.410
+Distributed UDP Flood,iptables,ALL,10.000,228,100.000,43.000,587.190
+Distributed UDP Flood,iptables,perfect,10.000,120,100.000,2.350,113.080
+Distributed UDP Flood,nginxlimits,ALL,10.000,220,100.000,55.050,713.130
+Distributed UDP Flood,nginxlimits,perfect,10.000,86,100.000,2.450,46.725
+Distributed UDP Flood,unprotected,ALL,10.000,217,100.000,160.800,808.500
+Distributed UDP Flood,unprotected,perfect,10.000,65,100.000,2.300,54.180
+Distributed HTTP Flood,xdp,ALL,10.000,236,100.000,49.000,528.975
+Distributed HTTP Flood,xdp,perfect,10.000,86,100.000,1.800,13.300
+Distributed HTTP Flood,iptables,ALL,10.000,243,100.000,41.300,491.620
+Distributed HTTP Flood,iptables,perfect,10.000,122,100.000,1.800,139.520
+Distributed HTTP Flood,nginxlimits,ALL,10.000,229,100.000,64.100,556.360
+Distributed HTTP Flood,nginxlimits,perfect,10.000,85,100.000,20.200,283.540
+Distributed HTTP Flood,unprotected,ALL,10.000,188,100.000,383.200,1075.805
+Distributed HTTP Flood,unprotected,perfect,10.000,54,100.000,273.650,580.670
+Distributed ACK Flood,xdp,ALL,10.000,213,100.000,170.000,1012.000
+Distributed ACK Flood,xdp,perfect,10.000,80,100.000,3.950,90.510
+Distributed ACK Flood,iptables,ALL,10.000,246,100.000,8.750,571.775
+Distributed ACK Flood,iptables,perfect,10.000,129,100.000,2.400,8.660
+Distributed ACK Flood,nginxlimits,ALL,10.000,213,100.000,205.200,784.960
+Distributed ACK Flood,nginxlimits,perfect,10.000,81,100.000,2.000,30.100
+Distributed ACK Flood,unprotected,ALL,10.000,204,100.000,223.950,833.605
+Distributed ACK Flood,unprotected,perfect,10.000,62,100.000,2.100,114.115
+Distributed IP Fragmentation Flood,xdp,ALL,10.000,230,100.000,46.950,597.065
+Distributed IP Fragmentation Flood,xdp,perfect,10.000,84,100.000,3.050,15.100
+Distributed IP Fragmentation Flood,iptables,ALL,10.000,232,100.000,38.750,592.350
+Distributed IP Fragmentation Flood,iptables,perfect,10.000,119,100.000,2.400,17.310
+Distributed IP Fragmentation Flood,nginxlimits,ALL,10.000,222,100.000,50.600,653.405
+Distributed IP Fragmentation Flood,nginxlimits,perfect,10.000,89,100.000,2.200,13.040
+Distributed IP Fragmentation Flood,unprotected,ALL,10.000,199,100.000,204.300,884.990
+Distributed IP Fragmentation Flood,unprotected,perfect,10.000,59,100.000,2.400,11.080
+Distributed Slowloris,xdp,ALL,10.000,244,100.000,46.300,552.440
+Distributed Slowloris,xdp,perfect,10.000,88,100.000,1.800,4.665
+Distributed Slowloris,iptables,ALL,10.000,260,100.000,8.950,440.895
+Distributed Slowloris,iptables,perfect,10.000,131,100.000,1.800,3.750
+Distributed Slowloris,nginxlimits,ALL,10.000,240,100.000,44.600,587.550
+Distributed Slowloris,nginxlimits,perfect,10.000,96,100.000,1.750,4.425
+Distributed Slowloris,unprotected,ALL,10.000,206,100.000,48.550,750.150
+Distributed Slowloris,unprotected,perfect,10.000,65,100.000,1.800,3.080
+Distributed R.U.D.Y.,xdp,ALL,10.000,235,100.000,44.900,545.410
+Distributed R.U.D.Y.,xdp,perfect,10.000,87,100.000,1.700,3.470
+Distributed R.U.D.Y.,iptables,ALL,10.000,253,100.000,4.600,512.140
+Distributed R.U.D.Y.,iptables,perfect,10.000,130,100.000,1.850,4.300
+Distributed R.U.D.Y.,nginxlimits,ALL,10.000,236,100.000,44.550,609.950
+Distributed R.U.D.Y.,nginxlimits,perfect,10.000,92,100.000,1.750,3.890
+Distributed R.U.D.Y.,unprotected,ALL,10.000,210,100.000,47.000,783.625
+Distributed R.U.D.Y.,unprotected,perfect,10.000,68,100.000,1.700,2.995
+Distributed Yo-Yo,xdp,ALL,10.000,245,100.000,46.200,568.140
+Distributed Yo-Yo,xdp,perfect,10.000,88,100.000,1.700,64.155
+Distributed Yo-Yo,iptables,ALL,10.000,249,100.000,38.400,436.240
+Distributed Yo-Yo,iptables,perfect,10.000,127,100.000,1.800,17.630
+Distributed Yo-Yo,nginxlimits,ALL,10.000,227,100.000,53.200,624.740
+Distributed Yo-Yo,nginxlimits,perfect,10.000,87,100.000,2.300,217.230
+Distributed Yo-Yo,unprotected,ALL,10.000,206,100.000,221.450,814.425
+Distributed Yo-Yo,unprotected,perfect,10.000,60,100.000,2.050,548.570
+Multi-Vector Distributed Attack,xdp,ALL,10.000,239,100.000,43.800,459.430
+Multi-Vector Distributed Attack,xdp,perfect,10.000,90,100.000,2.400,7.610
+Multi-Vector Distributed Attack,iptables,ALL,10.000,249,100.000,9.500,488.340
+Multi-Vector Distributed Attack,iptables,perfect,10.000,128,100.000,2.700,8.020
+Multi-Vector Distributed Attack,nginxlimits,ALL,10.000,231,100.000,55.200,691.300
+Multi-Vector Distributed Attack,nginxlimits,perfect,10.000,91,100.000,2.700,26.450
+Multi-Vector Distributed Attack,unprotected,ALL,10.000,192,100.000,107.550,530.945
+Multi-Vector Distributed Attack,unprotected,perfect,10.000,54,100.000,48.000,144.950

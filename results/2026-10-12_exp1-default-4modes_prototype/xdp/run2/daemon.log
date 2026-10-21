@@ -1,0 +1,322 @@
+1791793288.003 [*] Starting tri-engine Anti-DDoS integration (XDP Telemetry + GRU ML + L7 Heuristics)...
+1791793288.004 [*] Starting L3/L4 telemetry monitor (Interval: 1.0s)
+1791793288.004 [+] Inference worker thread started.
+1791793288.005 [*] Listening for Nginx error logs (RUDY detection): /var/log/nginx/error.log
+1791793288.005 [+] RUDY detection thread started.
+1791793288.005 [*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log
+1791793300.330 
+1791793300.330 [L4-DETECT] SYN FLOOD ATTACK - IP: 10.0.2.4 | Rate: 352 SYN/s
+1791793300.330 [XDP] BLOCKED IP: 10.0.2.4. Rule is active on hardware.
+1791793300.330 [BAN] 10.0.2.4 banned for 300s. Reason: Per-IP SYN flood (352 SYN/s)
+1791793300.330 
+1791793300.330 [L4-DETECT] SYN FLOOD ATTACK - IP: 10.0.2.3 | Rate: 343 SYN/s
+1791793300.330 [XDP] BLOCKED IP: 10.0.2.3. Rule is active on hardware.
+1791793300.330 [BAN] 10.0.2.3 banned for 300s. Reason: Per-IP SYN flood (343 SYN/s)
+1791793300.330 
+1791793300.330 [L4-DETECT] SYN FLOOD ATTACK - IP: 10.0.2.5 | Rate: 351 SYN/s
+1791793300.330 [XDP] BLOCKED IP: 10.0.2.5. Rule is active on hardware.
+1791793300.330 [BAN] 10.0.2.5 banned for 300s. Reason: Per-IP SYN flood (351 SYN/s)
+1791793300.330 
+1791793300.330 [L4-DETECT] SYN FLOOD ATTACK - IP: 10.0.2.1 | Rate: 346 SYN/s
+1791793300.330 [XDP] BLOCKED IP: 10.0.2.1. Rule is active on hardware.
+1791793300.330 [BAN] 10.0.2.1 banned for 300s. Reason: Per-IP SYN flood (346 SYN/s)
+1791793300.330 
+1791793300.330 [L4-DETECT] SYN FLOOD ATTACK - IP: 10.0.2.2 | Rate: 348 SYN/s
+1791793300.330 [XDP] BLOCKED IP: 10.0.2.2. Rule is active on hardware.
+1791793300.330 [BAN] 10.0.2.2 banned for 300s. Reason: Per-IP SYN flood (348 SYN/s)
+1791793342.087 [*] Compiling and loading eBPF code from file: xdp_ddos_filter.c...
+1791793343.119 [+] Successfully attached XDP program to interface veth_server.
+1791793343.120 [*] Loading data scaler (training_results/scaler_testbed.save)...
+1791793343.736 [*] Loading trained GRU model (training_results/gru_testbed_model.pth, input_size=8)...
+1791793343.740 [*] Starting tri-engine Anti-DDoS integration (XDP Telemetry + GRU ML + L7 Heuristics)...
+1791793343.740 [*] Starting L3/L4 telemetry monitor (Interval: 1.0s)
+1791793343.741 [+] Inference worker thread started.
+1791793343.741 [*] Listening for Nginx error logs (RUDY detection): /var/log/nginx/error.log
+1791793343.742 [+] RUDY detection thread started.
+1791793343.742 [*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log
+1791793353.089 
+1791793353.089 [L4-DETECT] LOW-AND-SLOW SYN - IP: 10.0.2.4 | 10 SYN/s, 0 established, no handshake in 15s
+1791793353.089 [XDP] BLOCKED IP: 10.0.2.4. Rule is active on hardware.
+1791793353.089 [BAN] 10.0.2.4 banned for 300s. Reason: Low-and-slow SYN (10 SYN/s, no handshake)
+1791793353.089 
+1791793353.089 [L4-DETECT] LOW-AND-SLOW SYN - IP: 10.0.2.2 | 10 SYN/s, 0 established, no handshake in 15s
+1791793353.089 [XDP] BLOCKED IP: 10.0.2.2. Rule is active on hardware.
+1791793353.089 [BAN] 10.0.2.2 banned for 300s. Reason: Low-and-slow SYN (10 SYN/s, no handshake)
+1791793353.089 
+1791793353.089 [L4-DETECT] LOW-AND-SLOW SYN - IP: 10.0.2.1 | 10 SYN/s, 0 established, no handshake in 15s
+1791793353.089 [XDP] BLOCKED IP: 10.0.2.1. Rule is active on hardware.
+1791793353.089 [BAN] 10.0.2.1 banned for 300s. Reason: Low-and-slow SYN (10 SYN/s, no handshake)
+1791793353.089 
+1791793353.089 [L4-DETECT] LOW-AND-SLOW SYN - IP: 10.0.2.3 | 10 SYN/s, 0 established, no handshake in 15s
+1791793353.089 [XDP] BLOCKED IP: 10.0.2.3. Rule is active on hardware.
+1791793353.089 [BAN] 10.0.2.3 banned for 300s. Reason: Low-and-slow SYN (10 SYN/s, no handshake)
+1791793353.089 
+1791793353.089 [L4-DETECT] LOW-AND-SLOW SYN - IP: 10.0.2.5 | 10 SYN/s, 0 established, no handshake in 15s
+1791793353.089 [XDP] BLOCKED IP: 10.0.2.5. Rule is active on hardware.
+1791793353.089 [BAN] 10.0.2.5 banned for 300s. Reason: Low-and-slow SYN (10 SYN/s, no handshake)
+1791793395.692 [*] Compiling and loading eBPF code from file: xdp_ddos_filter.c...
+1791793396.765 [+] Successfully attached XDP program to interface veth_server.
+1791793396.765 [*] Loading data scaler (training_results/scaler_testbed.save)...
+1791793397.351 [*] Loading trained GRU model (training_results/gru_testbed_model.pth, input_size=8)...
+1791793397.357 [*] Starting tri-engine Anti-DDoS integration (XDP Telemetry + GRU ML + L7 Heuristics)...
+1791793397.357 [*] Starting L3/L4 telemetry monitor (Interval: 1.0s)
+1791793397.357 [+] Inference worker thread started.
+1791793397.358 [*] Listening for Nginx error logs (RUDY detection): /var/log/nginx/error.log
+1791793397.358 [+] RUDY detection thread started.
+1791793397.358 [*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log
+1791793403.920 
+1791793403.920 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.5 | Rate: 191083 pkts/s
+1791793403.920 [XDP] BLOCKED IP: 10.0.2.5. Rule is active on hardware.
+1791793403.920 [BAN] 10.0.2.5 banned for 300s. Reason: Volumetric packet flood (191083 pkts/s)
+1791793403.920 
+1791793403.920 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.2 | Rate: 189041 pkts/s
+1791793403.920 [XDP] BLOCKED IP: 10.0.2.2. Rule is active on hardware.
+1791793403.920 [BAN] 10.0.2.2 banned for 300s. Reason: Volumetric packet flood (189041 pkts/s)
+1791793403.920 
+1791793403.920 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.1 | Rate: 187384 pkts/s
+1791793403.920 [XDP] BLOCKED IP: 10.0.2.1. Rule is active on hardware.
+1791793403.920 [BAN] 10.0.2.1 banned for 300s. Reason: Volumetric packet flood (187384 pkts/s)
+1791793403.920 
+1791793403.920 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.4 | Rate: 196225 pkts/s
+1791793403.920 [XDP] BLOCKED IP: 10.0.2.4. Rule is active on hardware.
+1791793403.920 [BAN] 10.0.2.4 banned for 300s. Reason: Volumetric packet flood (196225 pkts/s)
+1791793403.920 
+1791793403.920 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.3 | Rate: 191290 pkts/s
+1791793403.920 [XDP] BLOCKED IP: 10.0.2.3. Rule is active on hardware.
+1791793403.920 [BAN] 10.0.2.3 banned for 300s. Reason: Volumetric packet flood (191290 pkts/s)
+1791793464.354 [*] Compiling and loading eBPF code from file: xdp_ddos_filter.c...
+1791793465.399 [+] Successfully attached XDP program to interface veth_server.
+1791793465.401 [*] Loading data scaler (training_results/scaler_testbed.save)...
+1791793465.984 [*] Loading trained GRU model (training_results/gru_testbed_model.pth, input_size=8)...
+1791793465.989 [*] Starting tri-engine Anti-DDoS integration (XDP Telemetry + GRU ML + L7 Heuristics)...
+1791793465.989 [*] Starting L3/L4 telemetry monitor (Interval: 1.0s)
+1791793465.990 [+] Inference worker thread started.
+1791793465.991 [*] Listening for Nginx error logs (RUDY detection): /var/log/nginx/error.log
+1791793465.991 [+] RUDY detection thread started.
+1791793465.991 [*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log
+1791793472.509 
+1791793472.509 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.1 | RPS: 51.0 | Error ratio: 0%
+1791793472.509 [XDP] BLOCKED IP: 10.0.2.1. Rule is active on hardware.
+1791793472.509 [BAN] 10.0.2.1 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791793472.636 [OS] Killed hanging TCP sessions for address 10.0.2.1.
+1791793472.704 
+1791793472.704 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.2 | RPS: 51.0 | Error ratio: 0%
+1791793472.704 [XDP] BLOCKED IP: 10.0.2.2. Rule is active on hardware.
+1791793472.704 [BAN] 10.0.2.2 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791793472.969 [OS] Killed hanging TCP sessions for address 10.0.2.2.
+1791793472.969 
+1791793472.969 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.4 | RPS: 51.0 | Error ratio: 0%
+1791793472.969 [XDP] BLOCKED IP: 10.0.2.4. Rule is active on hardware.
+1791793472.969 [BAN] 10.0.2.4 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791793472.992 [OS] Killed hanging TCP sessions for address 10.0.2.4.
+1791793472.992 
+1791793472.992 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.5 | RPS: 51.0 | Error ratio: 0%
+1791793473.007 [XDP] BLOCKED IP: 10.0.2.5. Rule is active on hardware.
+1791793473.007 [BAN] 10.0.2.5 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791793473.030 [OS] Killed hanging TCP sessions for address 10.0.2.5.
+1791793473.030 
+1791793473.030 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.3 | RPS: 51.0 | Error ratio: 0%
+1791793473.030 [XDP] BLOCKED IP: 10.0.2.3. Rule is active on hardware.
+1791793473.030 [BAN] 10.0.2.3 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791793473.044 [OS] Killed hanging TCP sessions for address 10.0.2.3.
+1791793516.069 [*] Compiling and loading eBPF code from file: xdp_ddos_filter.c...
+1791793517.203 [+] Successfully attached XDP program to interface veth_server.
+1791793517.203 [*] Loading data scaler (training_results/scaler_testbed.save)...
+1791793517.836 [*] Loading trained GRU model (training_results/gru_testbed_model.pth, input_size=8)...
+1791793517.839 [*] Starting tri-engine Anti-DDoS integration (XDP Telemetry + GRU ML + L7 Heuristics)...
+1791793517.840 [*] Starting L3/L4 telemetry monitor (Interval: 1.0s)
+1791793517.840 [+] Inference worker thread started.
+1791793517.841 [*] Listening for Nginx error logs (RUDY detection): /var/log/nginx/error.log
+1791793517.841 [+] RUDY detection thread started.
+1791793517.841 [*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log
+1791793533.489 
+1791793533.489 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.3 | Rate: 1461286 pkts/s
+1791793533.489 [XDP] BLOCKED IP: 10.0.2.3. Rule is active on hardware.
+1791793533.489 [BAN] 10.0.2.3 banned for 300s. Reason: Volumetric packet flood (1461286 pkts/s)
+1791793533.489 
+1791793533.489 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.2 | Rate: 1458343 pkts/s
+1791793533.489 [XDP] BLOCKED IP: 10.0.2.2. Rule is active on hardware.
+1791793533.489 [BAN] 10.0.2.2 banned for 300s. Reason: Volumetric packet flood (1458343 pkts/s)
+1791793533.489 
+1791793533.489 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.1 | Rate: 1350230 pkts/s
+1791793533.489 [XDP] BLOCKED IP: 10.0.2.1. Rule is active on hardware.
+1791793533.489 [BAN] 10.0.2.1 banned for 300s. Reason: Volumetric packet flood (1350230 pkts/s)
+1791793533.489 
+1791793533.489 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.5 | Rate: 1423258 pkts/s
+1791793533.489 [XDP] BLOCKED IP: 10.0.2.5. Rule is active on hardware.
+1791793533.489 [BAN] 10.0.2.5 banned for 300s. Reason: Volumetric packet flood (1423258 pkts/s)
+1791793533.489 
+1791793533.489 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.4 | Rate: 1471750 pkts/s
+1791793533.489 [XDP] BLOCKED IP: 10.0.2.4. Rule is active on hardware.
+1791793533.489 [BAN] 10.0.2.4 banned for 300s. Reason: Volumetric packet flood (1471750 pkts/s)
+1791793583.866 [GC] Evicted tracking data for 5 idle client(s).
+1791793594.343 [*] Compiling and loading eBPF code from file: xdp_ddos_filter.c...
+1791793595.385 [+] Successfully attached XDP program to interface veth_server.
+1791793595.385 [*] Loading data scaler (training_results/scaler_testbed.save)...
+1791793595.997 [*] Loading trained GRU model (training_results/gru_testbed_model.pth, input_size=8)...
+1791793596.014 [*] Starting tri-engine Anti-DDoS integration (XDP Telemetry + GRU ML + L7 Heuristics)...
+1791793596.014 [*] Starting L3/L4 telemetry monitor (Interval: 1.0s)
+1791793596.017 [+] Inference worker thread started.
+1791793596.017 [*] Listening for Nginx error logs (RUDY detection): /var/log/nginx/error.log
+1791793596.017 [+] RUDY detection thread started.
+1791793596.017 [*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log
+1791793602.791 
+1791793602.791 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.5 | Rate: 67376 pkts/s
+1791793602.791 [XDP] BLOCKED IP: 10.0.2.5. Rule is active on hardware.
+1791793602.791 [BAN] 10.0.2.5 banned for 300s. Reason: Volumetric packet flood (67376 pkts/s)
+1791793602.791 
+1791793602.791 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.2 | Rate: 135567 pkts/s
+1791793602.791 [XDP] BLOCKED IP: 10.0.2.2. Rule is active on hardware.
+1791793602.791 [BAN] 10.0.2.2 banned for 300s. Reason: Volumetric packet flood (135567 pkts/s)
+1791793602.791 
+1791793602.791 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.3 | Rate: 141312 pkts/s
+1791793602.791 [XDP] BLOCKED IP: 10.0.2.3. Rule is active on hardware.
+1791793602.791 [BAN] 10.0.2.3 banned for 300s. Reason: Volumetric packet flood (141312 pkts/s)
+1791793602.791 
+1791793602.791 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.4 | Rate: 133323 pkts/s
+1791793602.791 [XDP] BLOCKED IP: 10.0.2.4. Rule is active on hardware.
+1791793602.791 [BAN] 10.0.2.4 banned for 300s. Reason: Volumetric packet flood (133323 pkts/s)
+1791793602.791 
+1791793602.791 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.1 | Rate: 72743 pkts/s
+1791793602.791 [XDP] BLOCKED IP: 10.0.2.1. Rule is active on hardware.
+1791793602.791 [BAN] 10.0.2.1 banned for 300s. Reason: Volumetric packet flood (72743 pkts/s)
+1791793660.065 [*] Compiling and loading eBPF code from file: xdp_ddos_filter.c...
+1791793661.189 [+] Successfully attached XDP program to interface veth_server.
+1791793661.190 [*] Loading data scaler (training_results/scaler_testbed.save)...
+1791793661.794 [*] Loading trained GRU model (training_results/gru_testbed_model.pth, input_size=8)...
+1791793661.798 [*] Starting tri-engine Anti-DDoS integration (XDP Telemetry + GRU ML + L7 Heuristics)...
+1791793661.799 [*] Starting L3/L4 telemetry monitor (Interval: 1.0s)
+1791793661.799 [+] Inference worker thread started.
+1791793661.800 [*] Listening for Nginx error logs (RUDY detection): /var/log/nginx/error.log
+1791793661.800 [+] RUDY detection thread started.
+1791793661.800 [*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log
+1791793670.306 
+1791793670.306 [L4-DETECT] SLOW CONNECTION ABUSE - IP: 10.0.2.4 | Est. conns: 8 | Bytes/interval: 0
+1791793670.306 [XDP] BLOCKED IP: 10.0.2.4. Rule is active on hardware.
+1791793670.306 [BAN] 10.0.2.4 banned for 300s. Reason: Slow connection abuse (8 conns)
+1791793670.317 [OS] Killed hanging TCP sessions for address 10.0.2.4.
+1791793670.317 
+1791793670.317 [L4-DETECT] SLOW CONNECTION ABUSE - IP: 10.0.2.2 | Est. conns: 8 | Bytes/interval: 0
+1791793670.317 [XDP] BLOCKED IP: 10.0.2.2. Rule is active on hardware.
+1791793670.317 [BAN] 10.0.2.2 banned for 300s. Reason: Slow connection abuse (8 conns)
+1791793670.328 [OS] Killed hanging TCP sessions for address 10.0.2.2.
+1791793670.328 
+1791793670.328 [L4-DETECT] SLOW CONNECTION ABUSE - IP: 10.0.2.5 | Est. conns: 8 | Bytes/interval: 0
+1791793670.328 [XDP] BLOCKED IP: 10.0.2.5. Rule is active on hardware.
+1791793670.328 [BAN] 10.0.2.5 banned for 300s. Reason: Slow connection abuse (8 conns)
+1791793670.339 [OS] Killed hanging TCP sessions for address 10.0.2.5.
+1791793670.339 
+1791793670.339 [L4-DETECT] SLOW CONNECTION ABUSE - IP: 10.0.2.3 | Est. conns: 8 | Bytes/interval: 0
+1791793670.339 [XDP] BLOCKED IP: 10.0.2.3. Rule is active on hardware.
+1791793670.339 [BAN] 10.0.2.3 banned for 300s. Reason: Slow connection abuse (8 conns)
+1791793670.351 [OS] Killed hanging TCP sessions for address 10.0.2.3.
+1791793670.351 
+1791793670.351 [L4-DETECT] SLOW CONNECTION ABUSE - IP: 10.0.2.1 | Est. conns: 8 | Bytes/interval: 0
+1791793670.351 [XDP] BLOCKED IP: 10.0.2.1. Rule is active on hardware.
+1791793670.351 [BAN] 10.0.2.1 banned for 300s. Reason: Slow connection abuse (8 conns)
+1791793670.362 [OS] Killed hanging TCP sessions for address 10.0.2.1.
+1791793711.956 [*] Compiling and loading eBPF code from file: xdp_ddos_filter.c...
+1791793712.992 [+] Successfully attached XDP program to interface veth_server.
+1791793712.993 [*] Loading data scaler (training_results/scaler_testbed.save)...
+1791793713.614 [*] Loading trained GRU model (training_results/gru_testbed_model.pth, input_size=8)...
+1791793713.619 [*] Starting tri-engine Anti-DDoS integration (XDP Telemetry + GRU ML + L7 Heuristics)...
+1791793713.619 [*] Starting L3/L4 telemetry monitor (Interval: 1.0s)
+1791793713.620 [+] Inference worker thread started.
+1791793713.620 [*] Listening for Nginx error logs (RUDY detection): /var/log/nginx/error.log
+1791793713.620 [+] RUDY detection thread started.
+1791793713.620 [*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log
+1791793722.723 
+1791793722.723 [L4-DETECT] SLOW CONNECTION ABUSE - IP: 10.0.2.5 | Est. conns: 10 | Bytes/interval: 0
+1791793722.723 [XDP] BLOCKED IP: 10.0.2.5. Rule is active on hardware.
+1791793722.723 [BAN] 10.0.2.5 banned for 300s. Reason: Slow connection abuse (10 conns)
+1791793722.733 [OS] Killed hanging TCP sessions for address 10.0.2.5.
+1791793722.733 
+1791793722.733 [L4-DETECT] SLOW CONNECTION ABUSE - IP: 10.0.2.4 | Est. conns: 10 | Bytes/interval: 0
+1791793722.733 [XDP] BLOCKED IP: 10.0.2.4. Rule is active on hardware.
+1791793722.733 [BAN] 10.0.2.4 banned for 300s. Reason: Slow connection abuse (10 conns)
+1791793722.743 [OS] Killed hanging TCP sessions for address 10.0.2.4.
+1791793722.743 
+1791793722.743 [L4-DETECT] SLOW CONNECTION ABUSE - IP: 10.0.2.3 | Est. conns: 10 | Bytes/interval: 0
+1791793722.743 [XDP] BLOCKED IP: 10.0.2.3. Rule is active on hardware.
+1791793722.743 [BAN] 10.0.2.3 banned for 300s. Reason: Slow connection abuse (10 conns)
+1791793722.754 [OS] Killed hanging TCP sessions for address 10.0.2.3.
+1791793722.754 
+1791793722.754 [L4-DETECT] SLOW CONNECTION ABUSE - IP: 10.0.2.1 | Est. conns: 10 | Bytes/interval: 0
+1791793722.754 [XDP] BLOCKED IP: 10.0.2.1. Rule is active on hardware.
+1791793722.754 [BAN] 10.0.2.1 banned for 300s. Reason: Slow connection abuse (10 conns)
+1791793722.767 [OS] Killed hanging TCP sessions for address 10.0.2.1.
+1791793722.767 
+1791793722.767 [L4-DETECT] SLOW CONNECTION ABUSE - IP: 10.0.2.2 | Est. conns: 10 | Bytes/interval: 0
+1791793722.767 [XDP] BLOCKED IP: 10.0.2.2. Rule is active on hardware.
+1791793722.767 [BAN] 10.0.2.2 banned for 300s. Reason: Slow connection abuse (10 conns)
+1791793722.778 [OS] Killed hanging TCP sessions for address 10.0.2.2.
+1791793766.410 [*] Compiling and loading eBPF code from file: xdp_ddos_filter.c...
+1791793767.482 [+] Successfully attached XDP program to interface veth_server.
+1791793767.483 [*] Loading data scaler (training_results/scaler_testbed.save)...
+1791793768.134 [*] Loading trained GRU model (training_results/gru_testbed_model.pth, input_size=8)...
+1791793768.140 [*] Starting tri-engine Anti-DDoS integration (XDP Telemetry + GRU ML + L7 Heuristics)...
+1791793768.140 [*] Starting L3/L4 telemetry monitor (Interval: 1.0s)
+1791793768.141 [+] Inference worker thread started.
+1791793768.142 [*] Listening for Nginx error logs (RUDY detection): /var/log/nginx/error.log
+1791793768.142 [+] RUDY detection thread started.
+1791793768.142 [*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log
+1791793773.756 
+1791793773.756 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.3 | RPS: 51.0 | Error ratio: 0%
+1791793773.756 [XDP] BLOCKED IP: 10.0.2.3. Rule is active on hardware.
+1791793773.756 [BAN] 10.0.2.3 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791793773.945 [OS] Killed hanging TCP sessions for address 10.0.2.3.
+1791793773.945 
+1791793773.945 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.1 | RPS: 51.0 | Error ratio: 0%
+1791793773.945 [XDP] BLOCKED IP: 10.0.2.1. Rule is active on hardware.
+1791793773.945 [BAN] 10.0.2.1 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791793774.092 [OS] Killed hanging TCP sessions for address 10.0.2.1.
+1791793774.092 
+1791793774.092 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.4 | RPS: 51.0 | Error ratio: 0%
+1791793774.092 [XDP] BLOCKED IP: 10.0.2.4. Rule is active on hardware.
+1791793774.092 [BAN] 10.0.2.4 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791793774.158 [OS] Killed hanging TCP sessions for address 10.0.2.4.
+1791793774.158 
+1791793774.158 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.2 | RPS: 51.0 | Error ratio: 0%
+1791793774.158 [XDP] BLOCKED IP: 10.0.2.2. Rule is active on hardware.
+1791793774.158 [BAN] 10.0.2.2 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791793774.276 [OS] Killed hanging TCP sessions for address 10.0.2.2.
+1791793774.277 
+1791793774.277 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.5 | RPS: 51.0 | Error ratio: 0%
+1791793774.277 [XDP] BLOCKED IP: 10.0.2.5. Rule is active on hardware.
+1791793774.277 [BAN] 10.0.2.5 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791793774.299 [OS] Killed hanging TCP sessions for address 10.0.2.5.
+1791793818.944 [*] Compiling and loading eBPF code from file: xdp_ddos_filter.c...
+1791793819.989 [+] Successfully attached XDP program to interface veth_server.
+1791793819.990 [*] Loading data scaler (training_results/scaler_testbed.save)...
+1791793820.601 [*] Loading trained GRU model (training_results/gru_testbed_model.pth, input_size=8)...
+1791793820.605 [*] Starting tri-engine Anti-DDoS integration (XDP Telemetry + GRU ML + L7 Heuristics)...
+1791793820.606 [*] Starting L3/L4 telemetry monitor (Interval: 1.0s)
+1791793820.606 [+] Inference worker thread started.
+1791793820.607 [*] Listening for Nginx error logs (RUDY detection): /var/log/nginx/error.log
+1791793820.607 [+] RUDY detection thread started.
+1791793820.607 [*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log
+1791793826.350 
+1791793826.350 [HEURISTIC] L7 anomaly detected - IP: 10.0.2.2 | RPS: 51.0 | Error ratio: 0%
+1791793826.350 [XDP] BLOCKED IP: 10.0.2.2. Rule is active on hardware.
+1791793826.350 [BAN] 10.0.2.2 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+1791793826.367 [OS] Killed hanging TCP sessions for address 10.0.2.2.
+1791793826.791 
+1791793826.791 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.4 | Rate: 76785 pkts/s
+1791793826.791 [XDP] BLOCKED IP: 10.0.2.4. Rule is active on hardware.
+1791793826.791 [BAN] 10.0.2.4 banned for 300s. Reason: Volumetric packet flood (76785 pkts/s)
+1791793826.791 
+1791793826.791 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.5 | Rate: 76361 pkts/s
+1791793826.791 [XDP] BLOCKED IP: 10.0.2.5. Rule is active on hardware.
+1791793826.791 [BAN] 10.0.2.5 banned for 300s. Reason: Volumetric packet flood (76361 pkts/s)
+1791793826.791 
+1791793826.791 [L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: 10.0.2.3 | Rate: 79559 pkts/s
+1791793826.791 [XDP] BLOCKED IP: 10.0.2.3. Rule is active on hardware.
+1791793826.791 [BAN] 10.0.2.3 banned for 300s. Reason: Volumetric packet flood (79559 pkts/s)
+1791793829.919 
+1791793829.919 [L4-DETECT] SYN FLOOD ATTACK - IP: 10.0.2.1 | Rate: 415 SYN/s
+1791793829.919 [XDP] BLOCKED IP: 10.0.2.1. Rule is active on hardware.
+1791793829.919 [BAN] 10.0.2.1 banned for 300s. Reason: Per-IP SYN flood (415 SYN/s)
+1791793891.370 [*] Compiling and loading eBPF code from file: xdp_ddos_filter.c...
+1791793892.505 [+] Successfully attached XDP program to interface veth_server.
+1791793892.506 [*] Loading data scaler (training_results/scaler_testbed.save)...
+1791793893.106 [*] Loading trained GRU model (training_results/gru_testbed_model.pth, input_size=8)...

@@ -1,0 +1,58 @@
+--- b/test_distributed_suite.py	2026-10-11 17:18:14.890794186 +0000
++++ c/test_distributed_suite.py	2026-10-12 10:14:44.596802088 +0000
+@@ -52,6 +52,9 @@
+ CONTROL_PLANE = f"{PROJECT_DIR}/control_plane.py"
+ PYTHON_VENV = f"{PROJECT_DIR}/venv/bin/python"
+ LOG_FILE = "/tmp/mitigation_distributed_test.log"
++# EXP-1c (experiment-only): MITIGATION_MODE=none + NGINX_PROTECTED=1 -> no daemon, but the PROTECTED
++# nginx.conf (limit_req/limit_conn); outputs tagged "nginxlimits" so no other CSV is appended to.
++NGINX_PROTECTED = os.environ.get("NGINX_PROTECTED", "0") == "1"
+ 
+ # ─────────────────────────────── ANSI COLORS ─────────────────────────────────
+ 
+@@ -151,7 +154,8 @@
+     iptables vs unprotected availability can be compared across separate runs."""
+     mode = os.environ.get("MITIGATION_MODE", "active")
+     backend = os.environ.get("MITIGATION_BACKEND", "xdp")
+-    tag = "unprotected" if mode == "none" else ("iptables" if backend == "iptables" else "performance")
++    tag = (("nginxlimits" if NGINX_PROTECTED else "unprotected") if mode == "none"
++           else ("iptables" if backend == "iptables" else "performance"))
+     return f"/tmp/availability_{tag}.csv", f"/tmp/availability_raw_{tag}.csv", mode, backend
+ 
+ 
+@@ -498,7 +502,7 @@
+ 
+     # Start Nginx
+     mode = os.environ.get("MITIGATION_MODE", "active")
+-    active_conf = NGINX_UNPROTECTED_CONF if mode == "none" else NGINX_CONF
++    active_conf = NGINX_UNPROTECTED_CONF if (mode == "none" and not NGINX_PROTECTED) else NGINX_CONF
+     run(["nginx", "-c", active_conf], ns=SERVER_NS, bg=True)
+     time.sleep(0.5)
+     _wait_http_ready()   # ensure gunicorn/nginx actually serve before proceeding (clean baseline)
+@@ -537,7 +541,7 @@
+             print(f"{GREEN}[+] Mitigation daemon is ready.{RESET}")
+             time.sleep(2)
+     else:
+-        print(f"{YELLOW}[!] MITIGATION_MODE=none: Server is running UNPROTECTED.{RESET}")
++        print(f"{YELLOW}[!] MITIGATION_MODE=none: no daemon; nginx conf = {active_conf}{RESET}")
+         time.sleep(1)
+ 
+ 
+@@ -591,7 +595,7 @@
+ 
+     # Restart Nginx
+     mode = os.environ.get("MITIGATION_MODE", "active")
+-    active_conf = NGINX_UNPROTECTED_CONF if mode == "none" else NGINX_CONF
++    active_conf = NGINX_UNPROTECTED_CONF if (mode == "none" and not NGINX_PROTECTED) else NGINX_CONF
+     run(["nginx", "-c", active_conf], ns=SERVER_NS, bg=True)
+     time.sleep(0.5)
+     _wait_http_ready()   # ensure gunicorn/nginx actually serve before proceeding (clean baseline)
+@@ -989,7 +993,7 @@
+             mode = os.environ.get("MITIGATION_MODE", "active")
+             backend = os.environ.get("MITIGATION_BACKEND", "xdp")
+             if mode == "none":
+-                csv_file = "/tmp/metrics_unprotected.csv"
++                csv_file = "/tmp/metrics_nginxlimits.csv" if NGINX_PROTECTED else "/tmp/metrics_unprotected.csv"
+             elif backend == "iptables":
+                 csv_file = "/tmp/metrics_iptables.csv"
+             else:

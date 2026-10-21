@@ -1,0 +1,41 @@
+scenario,mode,CPU_Nginx_Pct,CPU_Total_Pct,CPU_Daemon_Pct,PPS_Rx,IP_InReceives,PreStack_Dropped,TCP_Estab,TCP_SynRecv
+Distributed SYN Flood,xdp,3.550,36.600,36.767,3078.833,1933.333,1279.500,0.500,0.167
+Distributed SYN Flood,iptables,5.467,60.050,104.583,2915.667,3429.833,0.000,0.500,0.833
+Distributed SYN Flood,nginxlimits,4.667,44.517,0.000,4448.667,4938.500,0.000,0.667,0.167
+Distributed SYN Flood,unprotected,4.133,35.217,0.000,4147.500,4697.833,0.000,0.667,0.167
+Distributed Low & Slow SYN,xdp,0.917,4.333,0.917,136.667,234.167,0.000,0.500,0.333
+Distributed Low & Slow SYN,iptables,1.383,6.783,1.067,130.000,228.833,0.000,0.667,0.833
+Distributed Low & Slow SYN,nginxlimits,1.567,4.883,0.000,152.500,267.667,0.000,0.167,0.333
+Distributed Low & Slow SYN,unprotected,0.900,7.583,0.000,152.167,260.833,0.000,1.167,0.167
+Distributed UDP Flood,xdp,0.593,53.153,8.120,1712671.333,119339.267,1593332.067,0.800,1.000
+Distributed UDP Flood,iptables,0.493,48.793,9.927,1203760.133,1274761.733,0.000,0.867,0.467
+Distributed UDP Flood,nginxlimits,0.633,43.053,0.000,1526938.667,1618275.800,0.000,0.933,0.333
+Distributed UDP Flood,unprotected,0.500,53.433,0.000,1405265.600,1460574.867,0.000,0.933,1.067
+Distributed HTTP Flood,xdp,52.217,24.717,31.617,5009.167,7174.500,62.167,0.167,0.333
+Distributed HTTP Flood,iptables,55.217,34.617,62.283,7000.667,10177.000,0.000,0.500,0.500
+Distributed HTTP Flood,nginxlimits,434.117,94.283,0.000,48652.333,59466.500,0.000,257.000,0.333
+Distributed HTTP Flood,unprotected,111.867,87.650,0.000,1189.167,20772.333,0.000,713.333,0.333
+Distributed ACK Flood,xdp,0.687,55.327,74.353,1601284.067,105608.400,1496908.267,0.933,0.800
+Distributed ACK Flood,iptables,0.840,57.940,3.687,1004573.400,1047987.800,0.000,0.667,0.600
+Distributed ACK Flood,nginxlimits,0.473,49.067,0.000,1140010.800,1186441.200,0.000,1.000,0.600
+Distributed ACK Flood,unprotected,0.493,52.093,0.000,1029199.933,1094931.000,0.000,1.067,1.000
+Distributed IP Fragmentation Flood,xdp,0.587,55.493,2.513,1537114.200,64860.333,1472253.867,0.800,357.800
+Distributed IP Fragmentation Flood,iptables,0.660,42.213,0.827,1164007.667,1200175.867,0.000,1.200,357.533
+Distributed IP Fragmentation Flood,nginxlimits,0.533,48.640,0.000,1482486.133,1521729.533,0.000,0.867,2.800
+Distributed IP Fragmentation Flood,unprotected,0.480,50.780,0.000,1365749.533,1433712.800,0.000,1.067,2.267
+Distributed Slowloris,xdp,1.067,2.383,0.300,53.667,157.500,0.000,21.167,43.000
+Distributed Slowloris,iptables,1.000,1.900,0.433,56.333,172.167,0.000,20.500,0.667
+Distributed Slowloris,nginxlimits,0.750,2.383,0.000,103.667,238.500,0.000,29.167,0.500
+Distributed Slowloris,unprotected,0.450,2.150,0.000,66.500,152.167,0.000,31.833,0.000
+Distributed R.U.D.Y.,xdp,0.767,1.617,0.450,40.333,128.500,0.000,25.500,0.167
+Distributed R.U.D.Y.,iptables,0.767,2.250,0.300,46.167,143.000,0.000,25.500,0.500
+Distributed R.U.D.Y.,nginxlimits,0.850,2.267,0.000,55.333,180.833,0.000,26.167,0.500
+Distributed R.U.D.Y.,unprotected,1.083,2.583,0.000,55.500,176.167,0.000,26.167,0.333
+Distributed Yo-Yo,xdp,24.267,15.967,22.450,1650.667,3424.333,11.167,1.333,0.167
+Distributed Yo-Yo,iptables,52.117,23.950,45.800,6113.000,8267.500,0.000,0.167,0.667
+Distributed Yo-Yo,nginxlimits,373.500,87.433,0.000,42854.333,52501.000,0.000,143.833,0.167
+Distributed Yo-Yo,unprotected,110.417,87.083,0.000,1317.167,19048.667,0.000,25.667,0.167
+Multi-Vector Distributed Attack,xdp,1.227,35.987,3.640,788108.000,115010.733,675089.333,0.600,0.333
+Multi-Vector Distributed Attack,iptables,1.720,34.653,0.700,652360.200,672666.800,0.000,0.533,0.400
+Multi-Vector Distributed Attack,nginxlimits,114.807,61.973,0.000,640859.533,678512.667,0.000,30.667,0.600
+Multi-Vector Distributed Attack,unprotected,40.093,65.507,0.000,423702.000,463023.933,0.000,51.133,0.200

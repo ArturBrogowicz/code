@@ -1,0 +1,16 @@
+start 2026-10-12T10:15:05.927876284
+env: MITIGATION_MODE=none NGINX_PROTECTED=1
+6fc27fac29238a7289263b45c3bd84577f1d86d3
+?? docs/D1_D2_unique_mac_and_nginx_restart.patch
+?? docs/REPORT.md
+?? docs/REPORT_ADDENDUM_EXP0_EXP1.md
+Linux ddos-mitigation 7.0.0-38-generic #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:10:14 UTC 2026 x86_64 GNU/Linux
+702b514b610965db12bdaeb167690347618d5655124b1d17abfcf16f2909ec83  /root/project_analysis/patches/work/c/test_distributed_suite.py
+9f786908ac018dfaa977d9092db8d98d2428fc97961469b4ecaf485293cdc427  /root/project_analysis/patches/work/b/test_distributed_suite.py
+32b241a35e431456b5c2960d32dfd7599df55d7a8fe1075ae1c844b67fb830fe  test_distributed_suite.py
+f2432140d54fa7312441d5531aa7238372c906fc3f0afb18a15e9cfc586a7a7d  nginx.conf
+c817e9a6c38d8aa2925d3d728e41b20b8ebeb7a5245fe8624f7d1901c693bbca  nginx_unprotected.conf
+-- cursor: s=a5d13f71cc344955ba34a30613e121d7;i=2f093;b=cf64da42eb81445ebd0dc3aa45a4f479;m=1a86f280a;t=65da1d6d7fb29;x=34524cb0cea72ff
+end 2026-10-12T10:52:58.315045039
+nginx processes after final cleanup: 0
+netns after: 0

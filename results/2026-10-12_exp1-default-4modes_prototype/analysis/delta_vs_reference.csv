@@ -1,0 +1,31 @@
+scenario,mode,reference,delta_pp,ci_lo,ci_hi,method,fisher_p
+Distributed SYN Flood,xdp,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed SYN Flood,iptables,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed SYN Flood,nginxlimits,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed Low & Slow SYN,xdp,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed Low & Slow SYN,iptables,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed Low & Slow SYN,nginxlimits,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed UDP Flood,xdp,unprotected,0.180,0.000,0.599,independent runs,1.000
+Distributed UDP Flood,iptables,unprotected,0.180,0.000,0.599,independent runs,1.000
+Distributed UDP Flood,nginxlimits,unprotected,0.180,0.000,0.599,independent runs,0.479
+Distributed HTTP Flood,xdp,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed HTTP Flood,iptables,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed HTTP Flood,nginxlimits,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed ACK Flood,xdp,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed ACK Flood,iptables,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed ACK Flood,nginxlimits,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed IP Fragmentation Flood,xdp,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed IP Fragmentation Flood,iptables,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed IP Fragmentation Flood,nginxlimits,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed Slowloris,xdp,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed Slowloris,iptables,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed Slowloris,nginxlimits,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed R.U.D.Y.,xdp,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed R.U.D.Y.,iptables,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed R.U.D.Y.,nginxlimits,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed Yo-Yo,xdp,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed Yo-Yo,iptables,unprotected,0.000,0.000,0.000,independent runs,1.000
+Distributed Yo-Yo,nginxlimits,unprotected,0.000,0.000,0.000,independent runs,1.000
+Multi-Vector Distributed Attack,xdp,unprotected,0.000,0.000,0.000,independent runs,1.000
+Multi-Vector Distributed Attack,iptables,unprotected,0.000,0.000,0.000,independent runs,1.000
+Multi-Vector Distributed Attack,nginxlimits,unprotected,0.000,0.000,0.000,independent runs,1.000

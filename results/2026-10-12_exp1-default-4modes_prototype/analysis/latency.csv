@@ -1,0 +1,201 @@
+scenario,mode,profile,n,p50_ms,p95_ms,p99_ms
+Distributed SYN Flood,xdp,ALL,80,45.450,473.000,601.209
+Distributed SYN Flood,xdp,broadband,31,48.900,96.200,140.540
+Distributed SYN Flood,xdp,mobile_3g,15,317.700,514.850,571.690
+Distributed SYN Flood,xdp,mobile_bad,3,571.100,650.030,657.046
+Distributed SYN Flood,xdp,perfect,31,3.100,42.900,53.330
+Distributed SYN Flood,iptables,ALL,98,41.600,374.710,1390.563
+Distributed SYN Flood,iptables,broadband,28,58.300,87.440,94.278
+Distributed SYN Flood,iptables,mobile_3g,17,297.200,616.520,1237.384
+Distributed SYN Flood,iptables,mobile_bad,1,1390.500,1390.500,1390.500
+Distributed SYN Flood,iptables,perfect,52,9.450,44.590,63.206
+Distributed SYN Flood,nginxlimits,ALL,299,45.900,407.130,850.356
+Distributed SYN Flood,nginxlimits,broadband,129,55.100,93.000,101.388
+Distributed SYN Flood,nginxlimits,mobile_3g,37,322.600,409.620,730.548
+Distributed SYN Flood,nginxlimits,mobile_bad,14,679.300,1064.360,1378.232
+Distributed SYN Flood,nginxlimits,perfect,119,3.400,37.100,48.866
+Distributed SYN Flood,unprotected,ALL,260,55.850,563.645,762.888
+Distributed SYN Flood,unprotected,broadband,108,57.700,90.145,97.760
+Distributed SYN Flood,unprotected,mobile_3g,52,329.900,440.545,480.345
+Distributed SYN Flood,unprotected,mobile_bad,20,629.200,860.140,1284.828
+Distributed SYN Flood,unprotected,perfect,80,4.500,34.550,48.999
+Distributed Low & Slow SYN,xdp,ALL,147,42.000,385.180,723.654
+Distributed Low & Slow SYN,xdp,broadband,60,43.900,54.955,66.792
+Distributed Low & Slow SYN,xdp,mobile_3g,30,298.100,450.005,848.152
+Distributed Low & Slow SYN,xdp,mobile_bad,3,534.600,849.690,877.698
+Distributed Low & Slow SYN,xdp,perfect,54,2.100,6.445,14.100
+Distributed Low & Slow SYN,iptables,ALL,134,38.000,364.815,693.809
+Distributed Low & Slow SYN,iptables,broadband,40,43.600,49.965,52.420
+Distributed Low & Slow SYN,iptables,mobile_3g,25,323.100,408.980,1151.000
+Distributed Low & Slow SYN,iptables,mobile_bad,3,631.700,715.130,722.546
+Distributed Low & Slow SYN,iptables,perfect,66,2.400,6.175,15.810
+Distributed Low & Slow SYN,nginxlimits,ALL,766,42.400,423.125,875.760
+Distributed Low & Slow SYN,nginxlimits,broadband,324,44.500,63.340,130.653
+Distributed Low & Slow SYN,nginxlimits,mobile_3g,104,318.400,421.955,1347.875
+Distributed Low & Slow SYN,nginxlimits,mobile_bad,36,641.550,1513.950,2135.525
+Distributed Low & Slow SYN,nginxlimits,perfect,302,2.100,9.035,42.330
+Distributed Low & Slow SYN,unprotected,ALL,713,44.200,621.380,1220.128
+Distributed Low & Slow SYN,unprotected,broadband,303,44.500,62.650,80.820
+Distributed Low & Slow SYN,unprotected,mobile_3g,141,316.400,593.900,889.320
+Distributed Low & Slow SYN,unprotected,mobile_bad,53,632.400,1642.340,1931.292
+Distributed Low & Slow SYN,unprotected,perfect,216,2.500,9.700,20.490
+Distributed UDP Flood,xdp,ALL,388,89.300,613.965,1574.118
+Distributed UDP Flood,xdp,broadband,155,160.200,365.280,737.320
+Distributed UDP Flood,xdp,mobile_3g,74,417.200,1112.810,1376.296
+Distributed UDP Flood,xdp,mobile_bad,11,771.100,1931.250,1938.570
+Distributed UDP Flood,xdp,perfect,148,2.850,48.685,178.758
+Distributed UDP Flood,iptables,ALL,406,38.800,620.125,1351.140
+Distributed UDP Flood,iptables,broadband,111,234.500,444.850,832.880
+Distributed UDP Flood,iptables,mobile_3g,74,445.250,844.995,1592.981
+Distributed UDP Flood,iptables,mobile_bad,7,918.300,2115.460,2227.492
+Distributed UDP Flood,iptables,perfect,214,2.600,61.055,238.959
+Distributed UDP Flood,nginxlimits,ALL,603,57.100,678.370,1059.664
+Distributed UDP Flood,nginxlimits,broadband,248,179.750,421.625,590.779
+Distributed UDP Flood,nginxlimits,mobile_3g,84,430.650,786.530,1178.124
+Distributed UDP Flood,nginxlimits,mobile_bad,29,775.100,1673.620,2711.940
+Distributed UDP Flood,nginxlimits,perfect,242,1.850,33.015,176.861
+Distributed UDP Flood,unprotected,ALL,554,164.450,848.505,1679.882
+Distributed UDP Flood,unprotected,broadband,230,177.000,430.065,539.305
+Distributed UDP Flood,unprotected,mobile_3g,111,402.800,1508.050,1663.630
+Distributed UDP Flood,unprotected,mobile_bad,43,744.200,1787.420,2187.640
+Distributed UDP Flood,unprotected,perfect,170,2.300,41.635,122.996
+Distributed HTTP Flood,xdp,ALL,70,51.150,469.660,1932.107
+Distributed HTTP Flood,xdp,broadband,32,51.150,218.480,273.744
+Distributed HTTP Flood,xdp,mobile_3g,14,319.750,785.350,1169.630
+Distributed HTTP Flood,xdp,mobile_bad,1,3415.400,3415.400,3415.400
+Distributed HTTP Flood,xdp,perfect,23,1.900,114.550,189.256
+Distributed HTTP Flood,iptables,ALL,74,52.000,456.575,701.062
+Distributed HTTP Flood,iptables,broadband,23,59.800,459.910,688.144
+Distributed HTTP Flood,iptables,mobile_3g,15,317.100,413.910,435.582
+Distributed HTTP Flood,iptables,mobile_bad,1,684.700,684.700,684.700
+Distributed HTTP Flood,iptables,perfect,35,2.600,258.610,423.696
+Distributed HTTP Flood,nginxlimits,ALL,398,73.900,552.040,1345.379
+Distributed HTTP Flood,nginxlimits,broadband,172,77.850,243.825,486.220
+Distributed HTTP Flood,nginxlimits,mobile_3g,56,362.850,487.450,880.695
+Distributed HTTP Flood,nginxlimits,mobile_bad,21,615.900,1856.500,2080.580
+Distributed HTTP Flood,nginxlimits,perfect,149,26.800,208.280,329.308
+Distributed HTTP Flood,unprotected,ALL,347,354.700,967.790,1618.796
+Distributed HTTP Flood,unprotected,broadband,149,295.600,613.020,812.992
+Distributed HTTP Flood,unprotected,mobile_3g,71,645.900,1156.250,1428.320
+Distributed HTTP Flood,unprotected,mobile_bad,27,920.100,1702.420,1825.212
+Distributed HTTP Flood,unprotected,perfect,100,273.650,604.985,726.087
+Distributed ACK Flood,xdp,ALL,463,150.400,733.300,1322.804
+Distributed ACK Flood,xdp,broadband,186,203.900,495.075,1322.620
+Distributed ACK Flood,xdp,mobile_3g,97,451.400,930.540,1470.772
+Distributed ACK Flood,xdp,mobile_bad,11,653.700,1376.550,1670.910
+Distributed ACK Flood,xdp,perfect,169,4.100,78.580,241.516
+Distributed ACK Flood,iptables,ALL,406,18.950,550.650,765.680
+Distributed ACK Flood,iptables,broadband,114,99.250,399.040,454.352
+Distributed ACK Flood,iptables,mobile_3g,76,401.300,755.600,1365.400
+Distributed ACK Flood,iptables,mobile_bad,7,657.800,820.800,847.440
+Distributed ACK Flood,iptables,perfect,209,2.400,10.120,71.456
+Distributed ACK Flood,nginxlimits,ALL,569,171.200,765.880,1032.472
+Distributed ACK Flood,nginxlimits,broadband,232,277.400,657.630,748.261
+Distributed ACK Flood,nginxlimits,mobile_3g,83,532.500,778.300,916.388
+Distributed ACK Flood,nginxlimits,mobile_bad,27,885.200,1588.270,1818.484
+Distributed ACK Flood,nginxlimits,perfect,227,2.300,12.990,125.146
+Distributed ACK Flood,unprotected,ALL,536,197.400,814.875,1179.235
+Distributed ACK Flood,unprotected,broadband,222,214.900,554.545,721.081
+Distributed ACK Flood,unprotected,mobile_3g,110,472.050,827.525,1141.971
+Distributed ACK Flood,unprotected,mobile_bad,41,778.900,1411.700,1855.700
+Distributed ACK Flood,unprotected,perfect,163,2.400,98.010,226.814
+Distributed IP Fragmentation Flood,xdp,ALL,393,47.800,593.960,1079.496
+Distributed IP Fragmentation Flood,xdp,broadband,160,57.600,304.250,716.810
+Distributed IP Fragmentation Flood,xdp,mobile_3g,75,381.400,612.510,1147.330
+Distributed IP Fragmentation Flood,xdp,mobile_bad,12,738.350,1498.530,2022.746
+Distributed IP Fragmentation Flood,xdp,perfect,146,2.850,17.125,247.990
+Distributed IP Fragmentation Flood,iptables,ALL,403,32.000,576.870,1112.788
+Distributed IP Fragmentation Flood,iptables,broadband,113,157.300,349.300,1015.640
+Distributed IP Fragmentation Flood,iptables,mobile_3g,77,393.700,683.740,1668.268
+Distributed IP Fragmentation Flood,iptables,mobile_bad,7,706.600,1366.010,1559.282
+Distributed IP Fragmentation Flood,iptables,perfect,206,2.300,11.200,89.570
+Distributed IP Fragmentation Flood,nginxlimits,ALL,585,87.300,678.020,979.252
+Distributed IP Fragmentation Flood,nginxlimits,broadband,244,217.650,466.150,700.472
+Distributed IP Fragmentation Flood,nginxlimits,mobile_3g,82,461.600,756.275,892.723
+Distributed IP Fragmentation Flood,nginxlimits,mobile_bad,28,749.050,1926.790,2448.336
+Distributed IP Fragmentation Flood,nginxlimits,perfect,231,2.200,14.100,50.840
+Distributed IP Fragmentation Flood,unprotected,ALL,530,192.450,839.965,1678.457
+Distributed IP Fragmentation Flood,unprotected,broadband,222,205.950,446.840,529.926
+Distributed IP Fragmentation Flood,unprotected,mobile_3g,106,452.600,1405.800,1715.565
+Distributed IP Fragmentation Flood,unprotected,mobile_bad,41,810.700,1955.000,2227.960
+Distributed IP Fragmentation Flood,unprotected,perfect,161,2.200,11.800,19.160
+Distributed Slowloris,xdp,ALL,139,45.800,528.770,683.696
+Distributed Slowloris,xdp,broadband,60,50.400,85.845,145.839
+Distributed Slowloris,xdp,mobile_3g,27,366.400,549.290,577.410
+Distributed Slowloris,xdp,mobile_bad,3,685.900,1032.670,1063.494
+Distributed Slowloris,xdp,perfect,49,1.800,4.660,6.960
+Distributed Slowloris,iptables,ALL,135,6.200,481.600,1206.132
+Distributed Slowloris,iptables,broadband,37,47.100,97.540,139.412
+Distributed Slowloris,iptables,mobile_3g,25,328.100,1145.180,1366.960
+Distributed Slowloris,iptables,mobile_bad,3,744.700,996.520,1018.904
+Distributed Slowloris,iptables,perfect,70,1.900,4.610,8.741
+Distributed Slowloris,nginxlimits,ALL,986,44.500,627.775,994.635
+Distributed Slowloris,nginxlimits,broadband,417,49.800,193.680,417.848
+Distributed Slowloris,nginxlimits,mobile_3g,132,372.650,780.785,1164.653
+Distributed Slowloris,nginxlimits,mobile_bad,47,699.400,1473.650,2285.812
+Distributed Slowloris,nginxlimits,perfect,390,1.700,4.265,12.311
+Distributed Slowloris,unprotected,ALL,903,47.300,740.060,1383.558
+Distributed Slowloris,unprotected,broadband,388,47.800,148.105,356.002
+Distributed Slowloris,unprotected,mobile_3g,177,373.800,756.680,1216.052
+Distributed Slowloris,unprotected,mobile_bad,65,747.300,1610.080,2834.344
+Distributed Slowloris,unprotected,perfect,273,1.800,3.240,5.096
+Distributed R.U.D.Y.,xdp,ALL,129,43.200,507.200,1006.632
+Distributed R.U.D.Y.,xdp,broadband,53,49.600,133.060,350.296
+Distributed R.U.D.Y.,xdp,mobile_3g,23,379.400,672.880,1164.498
+Distributed R.U.D.Y.,xdp,mobile_bad,4,631.200,1056.230,1115.246
+Distributed R.U.D.Y.,xdp,perfect,49,1.700,3.460,10.084
+Distributed R.U.D.Y.,iptables,ALL,134,4.250,633.285,1259.075
+Distributed R.U.D.Y.,iptables,broadband,35,46.800,75.410,162.204
+Distributed R.U.D.Y.,iptables,mobile_3g,25,384.600,1263.300,1307.344
+Distributed R.U.D.Y.,iptables,mobile_bad,3,636.600,738.210,747.242
+Distributed R.U.D.Y.,iptables,perfect,71,1.900,4.250,4.900
+Distributed R.U.D.Y.,nginxlimits,ALL,992,44.500,664.935,1245.100
+Distributed R.U.D.Y.,nginxlimits,broadband,427,48.200,161.370,396.038
+Distributed R.U.D.Y.,nginxlimits,mobile_3g,134,390.450,878.440,1060.974
+Distributed R.U.D.Y.,nginxlimits,mobile_bad,45,777.000,1976.240,3070.264
+Distributed R.U.D.Y.,nginxlimits,perfect,386,1.700,4.200,12.510
+Distributed R.U.D.Y.,unprotected,ALL,913,47.500,730.840,1425.768
+Distributed R.U.D.Y.,unprotected,broadband,389,48.100,81.420,255.348
+Distributed R.U.D.Y.,unprotected,mobile_3g,178,383.450,792.600,1353.553
+Distributed R.U.D.Y.,unprotected,mobile_bad,68,731.200,1803.630,2288.798
+Distributed R.U.D.Y.,unprotected,perfect,278,1.800,3.260,6.246
+Distributed Yo-Yo,xdp,ALL,73,51.900,575.140,964.048
+Distributed Yo-Yo,xdp,broadband,29,51.500,332.280,386.672
+Distributed Yo-Yo,xdp,mobile_3g,16,357.900,949.000,1249.960
+Distributed Yo-Yo,xdp,mobile_bad,2,466.200,513.630,517.846
+Distributed Yo-Yo,xdp,perfect,26,2.050,252.925,379.925
+Distributed Yo-Yo,iptables,ALL,72,39.350,359.255,507.801
+Distributed Yo-Yo,iptables,broadband,20,48.850,119.825,211.405
+Distributed Yo-Yo,iptables,mobile_3g,14,308.250,410.855,412.571
+Distributed Yo-Yo,iptables,mobile_bad,1,739.900,739.900,739.900
+Distributed Yo-Yo,iptables,perfect,37,1.800,263.460,283.988
+Distributed Yo-Yo,nginxlimits,ALL,627,48.800,585.960,1237.430
+Distributed Yo-Yo,nginxlimits,broadband,268,54.250,178.045,393.965
+Distributed Yo-Yo,nginxlimits,mobile_3g,83,365.200,578.770,1653.216
+Distributed Yo-Yo,nginxlimits,mobile_bad,31,704.900,1735.350,2150.290
+Distributed Yo-Yo,nginxlimits,perfect,245,1.900,107.460,316.272
+Distributed Yo-Yo,unprotected,ALL,563,97.700,784.400,1348.110
+Distributed Yo-Yo,unprotected,broadband,245,54.400,499.440,749.172
+Distributed Yo-Yo,unprotected,mobile_3g,111,396.500,864.050,1343.710
+Distributed Yo-Yo,unprotected,mobile_bad,41,749.800,1542.800,1935.280
+Distributed Yo-Yo,unprotected,perfect,166,2.150,477.700,630.090
+Multi-Vector Distributed Attack,xdp,ALL,436,43.600,497.900,1275.730
+Multi-Vector Distributed Attack,xdp,broadband,176,45.450,230.600,274.125
+Multi-Vector Distributed Attack,xdp,mobile_3g,87,338.000,884.290,1867.276
+Multi-Vector Distributed Attack,xdp,mobile_bad,11,648.300,1107.350,1416.910
+Multi-Vector Distributed Attack,xdp,perfect,162,2.400,7.485,13.868
+Multi-Vector Distributed Attack,iptables,ALL,411,16.800,486.950,1360.030
+Multi-Vector Distributed Attack,iptables,broadband,116,47.150,281.125,389.770
+Multi-Vector Distributed Attack,iptables,mobile_3g,74,320.650,1006.815,1381.566
+Multi-Vector Distributed Attack,iptables,mobile_bad,9,714.100,1618.320,1638.864
+Multi-Vector Distributed Attack,iptables,perfect,212,2.400,9.445,76.835
+Multi-Vector Distributed Attack,nginxlimits,ALL,840,55.950,609.645,930.020
+Multi-Vector Distributed Attack,nginxlimits,broadband,350,107.750,355.000,565.783
+Multi-Vector Distributed Attack,nginxlimits,mobile_3g,116,392.950,783.450,1395.755
+Multi-Vector Distributed Attack,nginxlimits,mobile_bad,42,702.350,976.205,1495.125
+Multi-Vector Distributed Attack,nginxlimits,perfect,332,3.100,40.850,170.297
+Multi-Vector Distributed Attack,unprotected,ALL,787,106.000,670.610,1313.140
+Multi-Vector Distributed Attack,unprotected,broadband,335,93.200,260.020,332.626
+Multi-Vector Distributed Attack,unprotected,mobile_3g,160,380.250,801.420,1340.244
+Multi-Vector Distributed Attack,unprotected,mobile_bad,60,667.750,1521.795,1785.722
+Multi-Vector Distributed Attack,unprotected,perfect,232,33.500,173.280,254.969

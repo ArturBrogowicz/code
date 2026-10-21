@@ -1,0 +1,44 @@
+{
+ "schema": 1,
+ "run_id": "run1",
+ "status": "completed",
+ "imported": {
+  "tool": "eval/import_legacy_campaign.py",
+  "from": "/tmp/claude-1000/-home-artur-DDoS-mitigation-code--claude-worktrees-gracious-chaum-772c9c/18f3d31d-d00d-4763-81e4-ee06b096898d/scratchpad/conv/src_unprotected/unprotected",
+  "note": "Recorded with a prototype copy of test_distributed_suite.py before the reproducible harness existed; attack start/end approximated by the Phase-1/Phase-3 metrics timestamps, event times by a tail -F observer (its replay of the previous mode's log and its own notices removed), client profiles unseeded (plan not recorded)."
+ },
+ "started_utc": "2026-10-12T09:27:02+00:00",
+ "git": {
+  "commit": "6fc27fac29238a7289263b45c3bd84577f1d86d3",
+  "branch": null,
+  "dirty": null,
+  "dirty_files": []
+ },
+ "mode": {
+  "label": "unprotected",
+  "MITIGATION_MODE": "none",
+  "MITIGATION_BACKEND": "xdp",
+  "NGINX_PROTECTED": false,
+  "GRU_ONLY": false
+ },
+ "operating_point": {
+  "name": "default"
+ },
+ "settings": {
+  "ATTACK_DURATION": 0.0,
+  "PROFILE_SEED": null,
+  "ONLY_SCENARIOS": ""
+ },
+ "profile_plan": [],
+ "inputs_sha256": {
+  "/root/project_analysis/patches/work/b/test_distributed_suite.py": "9f786908ac018dfaa977d9092db8d98d2428fc97961469b4ecaf485293cdc427",
+  "test_distributed_suite.py": "32b241a35e431456b5c2960d32dfd7599df55d7a8fe1075ae1c844b67fb830fe",
+  "control_plane.py": "e3d95ad2f8e06fe81fe280b224396d46e8bc0ca5a776a0add1ca04a00af99b6f",
+  "xdp_ddos_filter.c": "dc215f94be034d87bffaf4f674377a826a07d4c0dfe2bc01c85f9eb18c5384a3",
+  "nginx.conf": "f2432140d54fa7312441d5531aa7238372c906fc3f0afb18a15e9cfc586a7a7d",
+  "nginx_unprotected.conf": "c817e9a6c38d8aa2925d3d728e41b20b8ebeb7a5245fe8624f7d1901c693bbca",
+  "training_results/gru_testbed_model.pth": "4b8bb940a44b4459d955441b0ef689d919b9b4ba294f99cab4e59587bebd0052",
+  "training_results/scaler_testbed.save": "91431ff97b8934db3b386cffbf8f097acf80d23bec7df78a492a618bc0c64afa",
+  "training_results/feature_config_testbed.json": "f24709772bdfdd2a97916fd81965f5e064d552842eee5a61379d27dec7a1740c"
+ }
+}

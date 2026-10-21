@@ -1,0 +1,41 @@
+scenario,mode,runs,bots,banned,ttm_median_s,ttm_min_s,ttm_max_s,engines,gru_bans,fp_count,fp_ips,fp_source,exposure_mean_s
+Distributed SYN Flood,xdp,3,15,15,1.537,0.636,1.829,l4_syn:15,0,0,,ban events,2.921
+Distributed SYN Flood,iptables,3,15,15,1.697,1.427,2.185,l4_syn:15,0,0,,ban events,3.640
+Distributed SYN Flood,nginxlimits,3,15,0,,,,,0,0,,no daemon,11.597
+Distributed SYN Flood,unprotected,3,15,0,,,,,0,0,,no daemon,11.721
+Distributed Low & Slow SYN,xdp,3,15,15,3.742,3.572,3.985,l4_lowsyn:15,0,0,,ban events,5.094
+Distributed Low & Slow SYN,iptables,3,15,15,3.776,3.575,4.084,l4_lowsyn:15,0,0,,ban events,5.084
+Distributed Low & Slow SYN,nginxlimits,3,15,0,,,,,0,0,,no daemon,31.301
+Distributed Low & Slow SYN,unprotected,3,15,0,,,,,0,0,,no daemon,31.341
+Distributed UDP Flood,xdp,3,15,15,0.616,0.413,0.920,l4_volumetric:15,0,0,,ban events,16.511
+Distributed UDP Flood,iptables,3,15,15,0.727,0.438,1.072,l4_volumetric:15,0,0,,ban events,16.864
+Distributed UDP Flood,nginxlimits,3,15,0,,,,,0,0,,no daemon,25.755
+Distributed UDP Flood,unprotected,3,15,0,,,,,0,0,,no daemon,25.615
+Distributed HTTP Flood,xdp,3,15,15,0.784,0.109,1.005,l7_rate:15,0,0,,ban events,2.563
+Distributed HTTP Flood,iptables,3,15,15,0.965,0.320,1.792,l7_rate:15,0,0,,ban events,2.838
+Distributed HTTP Flood,nginxlimits,3,15,0,,,,,0,0,,no daemon,17.093
+Distributed HTTP Flood,unprotected,3,15,0,,,,,0,0,,no daemon,17.787
+Distributed ACK Flood,xdp,3,15,15,1.354,0.123,10.316,l4_volumetric:15,0,0,,ban events,19.932
+Distributed ACK Flood,iptables,3,15,15,0.946,0.612,1.091,l4_volumetric:15,0,0,,ban events,16.330
+Distributed ACK Flood,nginxlimits,3,15,0,,,,,0,0,,no daemon,26.080
+Distributed ACK Flood,unprotected,3,15,0,,,,,0,0,,no daemon,25.662
+Distributed IP Fragmentation Flood,xdp,3,15,15,0.550,0.417,1.203,l4_volumetric:15,0,0,,ban events,16.491
+Distributed IP Fragmentation Flood,iptables,3,15,15,0.445,0.164,0.531,l4_volumetric:15,0,0,,ban events,16.296
+Distributed IP Fragmentation Flood,nginxlimits,3,15,0,,,,,0,0,,no daemon,25.619
+Distributed IP Fragmentation Flood,unprotected,3,15,0,,,,,0,0,,no daemon,25.469
+Distributed Slowloris,xdp,3,15,15,3.937,3.256,4.169,l4_slowconn:15,0,0,,ban events,5.314
+Distributed Slowloris,iptables,3,15,15,3.696,3.398,3.765,l4_slowconn:15,0,0,,ban events,4.957
+Distributed Slowloris,nginxlimits,3,15,0,,,,,0,0,,no daemon,41.134
+Distributed Slowloris,unprotected,3,15,0,,,,,0,0,,no daemon,41.544
+Distributed R.U.D.Y.,xdp,3,15,15,3.772,3.557,4.043,l4_slowconn:15,0,0,,ban events,5.153
+Distributed R.U.D.Y.,iptables,3,15,15,3.595,3.336,3.884,l4_slowconn:15,0,0,,ban events,5.019
+Distributed R.U.D.Y.,nginxlimits,3,15,0,,,,,0,0,,no daemon,41.455
+Distributed R.U.D.Y.,unprotected,3,15,0,,,,,0,0,,no daemon,41.338
+Distributed Yo-Yo,xdp,3,15,15,0.542,0.148,0.811,l7_rate:15,0,0,,ban events,2.758
+Distributed Yo-Yo,iptables,3,15,15,0.861,0.453,1.099,l7_rate:15,0,0,,ban events,2.824
+Distributed Yo-Yo,nginxlimits,3,15,0,,,,,0,0,,no daemon,26.762
+Distributed Yo-Yo,unprotected,3,15,0,,,,,0,0,,no daemon,27.225
+Multi-Vector Distributed Attack,xdp,3,15,15,1.259,0.052,3.689,"l4_syn:3, l4_volumetric:9, l7_rate:3",0,0,,ban events,17.782
+Multi-Vector Distributed Attack,iptables,3,15,15,0.521,0.093,1.533,"l4_syn:3, l4_volumetric:9, l7_rate:3",0,0,,ban events,16.212
+Multi-Vector Distributed Attack,nginxlimits,3,15,0,,,,,0,0,,no daemon,35.877
+Multi-Vector Distributed Attack,unprotected,3,15,0,,,,,0,0,,no daemon,38.313

@@ -1,0 +1,235 @@
+===== NGINXLIMITS-MACFIX run 3/3 =====
+
+╔══════════════════════════════════════════════════════════════╗
+║   DISTRIBUTED DDoS MITIGATION TESTING SUITE                ║
+║   20 Legit Clients  |  5 Botnet Nodes                      ║
+╚══════════════════════════════════════════════════════════════╝
+
+
+[*] Cleaning up all namespaces and processes...
+[+] Cleanup complete.
+
+[*] Building network topology...
+[*] Creating 20 legitimate client namespaces...
+[+] Legitimate clients ready. Profile distribution:
+    perfect: 4 nodes
+    broadband: 9 nodes
+    mobile_3g: 5 nodes
+    mobile_bad: 2 nodes
+[*] Creating 5 botnet attacker namespaces...
+[+] Botnet ready: 5 nodes.
+[+] 25 unique client/bot MACs verified.
+[!] MITIGATION_MODE=none: no daemon; nginx conf = /home/artur/DDoS-mitigation/code/nginx.conf
+[+] Started background traffic from 20 legitimate users.
+
+[*] Baseline settling period (5s)...
+
+======================================================================
+  SCENARIO 1: Distributed SYN Flood (1000 SYN/s per bot)
+======================================================================
+
+  [FAIL] Distributed SYN Flood
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  ├── Availability:      before 100% (n=31) · during 100% (n=99, p95 391ms) · after 100% (n=71)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 2: Distributed Low & Slow SYN (GRU ML Target)
+======================================================================
+
+  [FAIL] Distributed Low & Slow SYN
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  ├── Availability:      before 100% (n=32) · during 100% (n=250, p95 422ms) · after 100% (n=78)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 3: Distributed UDP Flood
+======================================================================
+    [*] Sustained stress measurement (10s)...
+
+  [FAIL] Distributed UDP Flood
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  ├── Availability:      before 100% (n=32) · during 100% (n=194, p95 578ms) · after 100% (n=74)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 4: Distributed HTTP Flood
+======================================================================
+
+  [FAIL] Distributed HTTP Flood
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  ├── Availability:      before 100% (n=29) · during 100% (n=128, p95 569ms) · after 100% (n=72)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 5: Distributed ACK Flood
+======================================================================
+    [*] Sustained stress measurement (10s)...
+
+  [FAIL] Distributed ACK Flood
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  ├── Availability:      before 100% (n=31) · during 100% (n=189, p95 794ms) · after 100% (n=73)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 6: Distributed IP Fragmentation Flood
+======================================================================
+    [*] Sustained stress measurement (10s)...
+
+  [FAIL] Distributed Fragmentation
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  ├── Availability:      before 100% (n=34) · during 100% (n=197, p95 755ms) · after 100% (n=75)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 7: Distributed Slowloris
+======================================================================
+
+  [FAIL] Distributed Slowloris
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  ├── Availability:      before 100% (n=32) · during 100% (n=316, p95 702ms) · after 100% (n=74)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 8: Distributed R.U.D.Y. (Slow POST)
+======================================================================
+
+  [FAIL] Distributed R.U.D.Y.
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  ├── Availability:      before 100% (n=34) · during 100% (n=315, p95 569ms) · after 100% (n=76)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 9: Distributed Yo-Yo (Pulsing) Attack
+======================================================================
+
+  [FAIL] Distributed Yo-Yo
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  ├── Availability:      before 100% (n=34) · during 100% (n=202, p95 579ms) · after 100% (n=74)
+  └── False Positives:   None ✅
+
+[*] Resetting mitigation environment...
+[!] MITIGATION_MODE=none: Environment reset complete (Unprotected).
+
+======================================================================
+  SCENARIO 10: Multi-Vector Distributed Attack
+======================================================================
+    [*] Sustained stress measurement (10s)...
+
+  [FAIL] Multi-Vector Attack
+  ├── Botnet banned:     0/5 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  ├── Availability:      before 100% (n=33) · during 100% (n=266, p95 614ms) · after 100% (n=79)
+  └── False Positives:   None ✅
+
+==========================================================================================
+  DISTRIBUTED TEST SUMMARY
+==========================================================================================
+  Scenario                            | Banned     | Avg TTM    | Engine(s)          | FP       | Result
+  ----------------------------------------------------------------------------------------
+  Distributed SYN Flood               | 0/5        | N/A        | None               | Clean    | FAIL
+  Distributed Low & Slow SYN          | 0/5        | N/A        | None               | Clean    | FAIL
+  Distributed UDP Flood               | 0/5        | N/A        | None               | Clean    | FAIL
+  Distributed HTTP Flood              | 0/5        | N/A        | None               | Clean    | FAIL
+  Distributed ACK Flood               | 0/5        | N/A        | None               | Clean    | FAIL
+  Distributed Fragmentation           | 0/5        | N/A        | None               | Clean    | FAIL
+  Distributed Slowloris               | 0/5        | N/A        | None               | Clean    | FAIL
+  Distributed R.U.D.Y.                | 0/5        | N/A        | None               | Clean    | FAIL
+  Distributed Yo-Yo                   | 0/5        | N/A        | None               | Clean    | FAIL
+  Multi-Vector Attack                 | 0/5        | N/A        | None               | Clean    | FAIL
+
+  Passed: 0  |  Failed: 10  |  Total: 10
+
+==============================================================================================
+  SERVICE AVAILABILITY (legitimate clients, continuous — before/during/after)
+==============================================================================================
+  Scenario                         | Period | Succ%  | Reqs  | p50     | p95     | p99     | TOs
+  --------------------------------------------------------------------------------------------
+  Distributed SYN Flood            | before | 100.0 | 31    |   42ms |  808ms | 1136ms | 0
+                                   | during | 100.0 | 99    |   51ms |  391ms | 1457ms | 0
+                                   | after  | 100.0 | 71    |   47ms |  638ms | 1296ms | 0
+  Distributed Low & Slow SYN       | before | 100.0 | 32    |   55ms |  985ms | 1258ms | 0
+                                   | during | 100.0 | 250   |   42ms |  422ms | 1216ms | 0
+                                   | after  | 100.0 | 78    |   52ms |  664ms | 1079ms | 0
+  Distributed UDP Flood            | before | 100.0 | 32    |   48ms |  577ms | 1390ms | 0
+                                   | during | 100.0 | 194   |  138ms |  578ms |  825ms | 0
+                                   | after  | 100.0 | 74    |   47ms |  564ms | 1212ms | 0
+  Distributed HTTP Flood           | before | 100.0 | 29    |   48ms |  730ms | 1072ms | 0
+                                   | during | 100.0 | 128   |   80ms |  569ms |  599ms | 0
+                                   | after  | 100.0 | 72    |   48ms |  690ms | 1319ms | 0
+  Distributed ACK Flood            | before | 100.0 | 31    |   46ms |  825ms | 1477ms | 0
+                                   | during | 100.0 | 189   |  248ms |  794ms | 1041ms | 0
+                                   | after  | 100.0 | 73    |   48ms |  479ms |  827ms | 0
+  Distributed IP Fragmentation Flo | before | 100.0 | 34    |   51ms | 1653ms | 1698ms | 0
+                                   | during | 100.0 | 197   |  229ms |  755ms |  994ms | 0
+                                   | after  | 100.0 | 75    |   48ms |  575ms |  864ms | 0
+  Distributed Slowloris            | before | 100.0 | 32    |   44ms |  816ms | 1508ms | 0
+                                   | during | 100.0 | 316   |   49ms |  702ms | 1222ms | 0
+                                   | after  | 100.0 | 74    |   47ms |  636ms | 2012ms | 0
+  Distributed R.U.D.Y.             | before | 100.0 | 34    |   45ms |  579ms |  634ms | 0
+                                   | during | 100.0 | 315   |   47ms |  569ms |  959ms | 0
+                                   | after  | 100.0 | 76    |   48ms |  570ms | 1019ms | 0
+  Distributed Yo-Yo                | before | 100.0 | 34    |   56ms |  815ms |  902ms | 0
+                                   | during | 100.0 | 202   |   54ms |  579ms |  929ms | 0
+                                   | after  | 100.0 | 74    |   48ms |  682ms |  937ms | 0
+  Multi-Vector Distributed Attack  | before | 100.0 | 33    |   49ms |  620ms | 1426ms | 0
+                                   | during | 100.0 | 266   |   85ms |  614ms |  845ms | 0
+                                   | after  | 100.0 | 79    |   43ms |  763ms | 1336ms | 0
+
+  Availability CSVs: /tmp/availability_<performance|iptables|unprotected>.csv (+ _raw_ per-request dumps)
+
+[*] Cleaning up all namespaces and processes...
+[+] Cleanup complete.

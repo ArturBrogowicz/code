@@ -1,0 +1,60 @@
+{"t_wall":1791793288.003,"t_mono_ns":null,"kind":"start","source":"observer"}
+{"t_wall":1791793300.33,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.4","engine":"l4_syn","reason":"Per-IP SYN flood (352 SYN/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793300.33,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.3","engine":"l4_syn","reason":"Per-IP SYN flood (343 SYN/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793300.33,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.5","engine":"l4_syn","reason":"Per-IP SYN flood (351 SYN/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793300.33,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.1","engine":"l4_syn","reason":"Per-IP SYN flood (346 SYN/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793300.33,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.2","engine":"l4_syn","reason":"Per-IP SYN flood (348 SYN/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793343.74,"t_mono_ns":null,"kind":"start","source":"observer"}
+{"t_wall":1791793353.089,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.4","engine":"l4_lowsyn","reason":"Low-and-slow SYN (10 SYN/s, no handshake)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793353.089,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.2","engine":"l4_lowsyn","reason":"Low-and-slow SYN (10 SYN/s, no handshake)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793353.089,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.1","engine":"l4_lowsyn","reason":"Low-and-slow SYN (10 SYN/s, no handshake)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793353.089,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.3","engine":"l4_lowsyn","reason":"Low-and-slow SYN (10 SYN/s, no handshake)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793353.089,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.5","engine":"l4_lowsyn","reason":"Low-and-slow SYN (10 SYN/s, no handshake)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793397.357,"t_mono_ns":null,"kind":"start","source":"observer"}
+{"t_wall":1791793403.92,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.5","engine":"l4_volumetric","reason":"Volumetric packet flood (191083 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793403.92,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.2","engine":"l4_volumetric","reason":"Volumetric packet flood (189041 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793403.92,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.1","engine":"l4_volumetric","reason":"Volumetric packet flood (187384 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793403.92,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.4","engine":"l4_volumetric","reason":"Volumetric packet flood (196225 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793403.92,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.3","engine":"l4_volumetric","reason":"Volumetric packet flood (191290 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793465.989,"t_mono_ns":null,"kind":"start","source":"observer"}
+{"t_wall":1791793472.509,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.1","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793472.704,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.2","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793472.969,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.4","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793473.007,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.5","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793473.03,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.3","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793517.839,"t_mono_ns":null,"kind":"start","source":"observer"}
+{"t_wall":1791793533.489,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.3","engine":"l4_volumetric","reason":"Volumetric packet flood (1461286 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793533.489,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.2","engine":"l4_volumetric","reason":"Volumetric packet flood (1458343 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793533.489,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.1","engine":"l4_volumetric","reason":"Volumetric packet flood (1350230 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793533.489,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.5","engine":"l4_volumetric","reason":"Volumetric packet flood (1423258 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793533.489,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.4","engine":"l4_volumetric","reason":"Volumetric packet flood (1471750 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793596.014,"t_mono_ns":null,"kind":"start","source":"observer"}
+{"t_wall":1791793602.791,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.5","engine":"l4_volumetric","reason":"Volumetric packet flood (67376 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793602.791,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.2","engine":"l4_volumetric","reason":"Volumetric packet flood (135567 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793602.791,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.3","engine":"l4_volumetric","reason":"Volumetric packet flood (141312 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793602.791,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.4","engine":"l4_volumetric","reason":"Volumetric packet flood (133323 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793602.791,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.1","engine":"l4_volumetric","reason":"Volumetric packet flood (72743 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793661.798,"t_mono_ns":null,"kind":"start","source":"observer"}
+{"t_wall":1791793670.306,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.4","engine":"l4_slowconn","reason":"Slow connection abuse (8 conns)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793670.317,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.2","engine":"l4_slowconn","reason":"Slow connection abuse (8 conns)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793670.328,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.5","engine":"l4_slowconn","reason":"Slow connection abuse (8 conns)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793670.339,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.3","engine":"l4_slowconn","reason":"Slow connection abuse (8 conns)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793670.351,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.1","engine":"l4_slowconn","reason":"Slow connection abuse (8 conns)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793713.619,"t_mono_ns":null,"kind":"start","source":"observer"}
+{"t_wall":1791793722.723,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.5","engine":"l4_slowconn","reason":"Slow connection abuse (10 conns)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793722.733,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.4","engine":"l4_slowconn","reason":"Slow connection abuse (10 conns)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793722.743,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.3","engine":"l4_slowconn","reason":"Slow connection abuse (10 conns)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793722.754,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.1","engine":"l4_slowconn","reason":"Slow connection abuse (10 conns)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793722.767,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.2","engine":"l4_slowconn","reason":"Slow connection abuse (10 conns)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793768.14,"t_mono_ns":null,"kind":"start","source":"observer"}
+{"t_wall":1791793773.756,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.3","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793773.945,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.1","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793774.092,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.4","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793774.158,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.2","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793774.277,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.5","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793820.605,"t_mono_ns":null,"kind":"start","source":"observer"}
+{"t_wall":1791793826.35,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.2","engine":"l7_rate","reason":"Heuristic (RPS=51.0, errors=0%)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793826.791,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.4","engine":"l4_volumetric","reason":"Volumetric packet flood (76785 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793826.791,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.5","engine":"l4_volumetric","reason":"Volumetric packet flood (76361 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793826.791,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.3","engine":"l4_volumetric","reason":"Volumetric packet flood (79559 pkts/s)","ttl_s":300,"source":"observer"}
+{"t_wall":1791793829.919,"t_mono_ns":null,"kind":"ban","ip":"10.0.2.1","engine":"l4_syn","reason":"Per-IP SYN flood (415 SYN/s)","ttl_s":300,"source":"observer"}

@@ -1,0 +1,149 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-12T09:07:59.784216,Distributed SYN Flood,before,ALL,active,iptables,29,29,100.0,0,0,0,0.0,57.9,432.9,574.5,143.1,574.5
+2026-10-12T09:07:59.784216,Distributed SYN Flood,before,broadband,active,iptables,9,9,100.0,0,0,0,0.0,57.9,115.8,115.8,61.9,115.8
+2026-10-12T09:07:59.784216,Distributed SYN Flood,before,mobile_3g,active,iptables,9,9,100.0,0,0,0,0.0,341.6,432.9,432.9,333.1,432.9
+2026-10-12T09:07:59.784216,Distributed SYN Flood,before,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,574.5,574.5,574.5,574.5,574.5
+2026-10-12T09:07:59.784216,Distributed SYN Flood,before,perfect,active,iptables,10,10,100.0,0,0,0,0.0,1.9,4.6,4.6,2.1,4.6
+2026-10-12T09:07:59.784216,Distributed SYN Flood,during,ALL,active,iptables,29,29,100.0,0,0,0,0.0,52.7,368.4,1392.6,152.3,1392.6
+2026-10-12T09:07:59.784216,Distributed SYN Flood,during,broadband,active,iptables,9,9,100.0,0,0,0,0.0,57.0,88.0,88.0,60.7,88.0
+2026-10-12T09:07:59.784216,Distributed SYN Flood,during,mobile_3g,active,iptables,9,9,100.0,0,0,0,0.0,290.3,1392.6,1392.6,415.9,1392.6
+2026-10-12T09:07:59.784216,Distributed SYN Flood,during,perfect,active,iptables,11,11,100.0,0,0,0,0.0,4.2,40.6,40.6,11.6,40.6
+2026-10-12T09:07:59.784216,Distributed SYN Flood,after,ALL,active,iptables,72,72,100.0,0,0,0,0.0,45.9,475.0,820.6,159.4,820.6
+2026-10-12T09:07:59.784216,Distributed SYN Flood,after,broadband,active,iptables,19,19,100.0,0,0,0,0.0,46.3,145.3,145.3,55.0,145.3
+2026-10-12T09:07:59.784216,Distributed SYN Flood,after,mobile_3g,active,iptables,24,24,100.0,0,0,0,0.0,369.5,475.0,481.1,371.6,481.1
+2026-10-12T09:07:59.784216,Distributed SYN Flood,after,mobile_bad,active,iptables,2,2,100.0,0,0,0,0.0,645.3,820.6,820.6,733.0,820.6
+2026-10-12T09:07:59.784216,Distributed SYN Flood,after,perfect,active,iptables,27,27,100.0,0,0,0,0.0,1.7,2.5,2.6,1.8,2.6
+2026-10-12T09:08:55.923508,Distributed Low & Slow SYN,before,ALL,active,iptables,31,31,100.0,0,0,0,0.0,49.1,586.7,684.7,142.1,684.7
+2026-10-12T09:08:55.923508,Distributed Low & Slow SYN,before,broadband,active,iptables,8,8,100.0,0,0,0,0.0,50.0,57.2,57.2,50.1,57.2
+2026-10-12T09:08:55.923508,Distributed Low & Slow SYN,before,mobile_3g,active,iptables,9,9,100.0,0,0,0,0.0,334.6,586.7,586.7,366.0,586.7
+2026-10-12T09:08:55.923508,Distributed Low & Slow SYN,before,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,684.7,684.7,684.7,684.7,684.7
+2026-10-12T09:08:55.923508,Distributed Low & Slow SYN,before,perfect,active,iptables,13,13,100.0,0,0,0,0.0,2.0,2.8,2.8,2.0,2.8
+2026-10-12T09:08:55.923508,Distributed Low & Slow SYN,during,ALL,active,iptables,39,39,100.0,0,0,0,0.0,43.7,411.9,631.7,142.8,631.7
+2026-10-12T09:08:55.923508,Distributed Low & Slow SYN,during,broadband,active,iptables,10,10,100.0,0,0,0,0.0,43.3,53.2,53.2,43.8,53.2
+2026-10-12T09:08:55.923508,Distributed Low & Slow SYN,during,mobile_3g,active,iptables,15,15,100.0,0,0,0,0.0,320.9,411.9,411.9,297.1,411.9
+2026-10-12T09:08:55.923508,Distributed Low & Slow SYN,during,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,631.7,631.7,631.7,631.7,631.7
+2026-10-12T09:08:55.923508,Distributed Low & Slow SYN,during,perfect,active,iptables,13,13,100.0,0,0,0,0.0,2.3,6.7,6.7,3.2,6.7
+2026-10-12T09:08:55.923508,Distributed Low & Slow SYN,after,ALL,active,iptables,74,74,100.0,0,0,0,0.0,44.1,465.4,680.3,139.5,680.3
+2026-10-12T09:08:55.923508,Distributed Low & Slow SYN,after,broadband,active,iptables,23,23,100.0,0,0,0,0.0,46.3,69.0,70.7,48.9,70.7
+2026-10-12T09:08:55.923508,Distributed Low & Slow SYN,after,mobile_3g,active,iptables,23,23,100.0,0,0,0,0.0,347.8,477.4,581.4,367.9,581.4
+2026-10-12T09:08:55.923508,Distributed Low & Slow SYN,after,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,680.3,680.3,680.3,680.3,680.3
+2026-10-12T09:08:55.923508,Distributed Low & Slow SYN,after,perfect,active,iptables,27,27,100.0,0,0,0,0.0,1.8,3.0,6.1,2.1,6.1
+2026-10-12T09:10:02.881733,Distributed UDP Flood,before,ALL,active,iptables,33,33,100.0,0,0,0,0.0,43.1,420.4,826.8,128.5,826.8
+2026-10-12T09:10:02.881733,Distributed UDP Flood,before,broadband,active,iptables,9,9,100.0,0,0,0,0.0,46.7,55.6,55.6,47.0,55.6
+2026-10-12T09:10:02.881733,Distributed UDP Flood,before,mobile_3g,active,iptables,10,10,100.0,0,0,0,0.0,288.0,420.4,420.4,296.3,420.4
+2026-10-12T09:10:02.881733,Distributed UDP Flood,before,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,826.8,826.8,826.8,826.8,826.8
+2026-10-12T09:10:02.881733,Distributed UDP Flood,before,perfect,active,iptables,13,13,100.0,0,0,0,0.0,1.7,7.4,7.4,2.2,7.4
+2026-10-12T09:10:02.881733,Distributed UDP Flood,during,ALL,active,iptables,118,118,100.0,0,0,0,0.0,142.3,840.7,939.0,239.9,1365.6
+2026-10-12T09:10:02.881733,Distributed UDP Flood,during,broadband,active,iptables,31,31,100.0,0,0,0,0.0,193.0,369.9,374.6,187.7,374.6
+2026-10-12T09:10:02.881733,Distributed UDP Flood,during,mobile_3g,active,iptables,39,39,100.0,0,0,0,0.0,505.4,850.0,1365.6,518.7,1365.6
+2026-10-12T09:10:02.881733,Distributed UDP Flood,during,mobile_bad,active,iptables,2,2,100.0,0,0,0,0.0,854.5,939.0,939.0,896.7,939.0
+2026-10-12T09:10:02.881733,Distributed UDP Flood,during,perfect,active,iptables,46,46,100.0,0,0,0,0.0,3.5,21.5,246.2,10.2,246.2
+2026-10-12T09:10:02.881733,Distributed UDP Flood,after,ALL,active,iptables,71,71,100.0,0,0,0,0.0,52.8,751.3,1483.5,208.7,1483.5
+2026-10-12T09:10:02.881733,Distributed UDP Flood,after,broadband,active,iptables,21,21,100.0,0,0,0,0.0,52.8,107.1,355.8,72.2,355.8
+2026-10-12T09:10:02.881733,Distributed UDP Flood,after,mobile_3g,active,iptables,23,23,100.0,0,0,0,0.0,444.4,972.6,1483.5,508.6,1483.5
+2026-10-12T09:10:02.881733,Distributed UDP Flood,after,mobile_bad,active,iptables,2,2,100.0,0,0,0,0.0,742.2,817.6,817.6,779.9,817.6
+2026-10-12T09:10:02.881733,Distributed UDP Flood,after,perfect,active,iptables,25,25,100.0,0,0,0,0.0,1.7,2.9,3.4,1.8,3.4
+2026-10-12T09:10:55.780717,Distributed HTTP Flood,before,ALL,active,iptables,32,32,100.0,0,0,0,0.0,47.2,593.7,710.0,195.0,710.0
+2026-10-12T09:10:55.780717,Distributed HTTP Flood,before,broadband,active,iptables,9,9,100.0,0,0,0,0.0,52.7,182.0,182.0,71.2,182.0
+2026-10-12T09:10:55.780717,Distributed HTTP Flood,before,mobile_3g,active,iptables,10,10,100.0,0,0,0,0.0,455.5,593.7,593.7,486.1,593.7
+2026-10-12T09:10:55.780717,Distributed HTTP Flood,before,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,710.0,710.0,710.0,710.0,710.0
+2026-10-12T09:10:55.780717,Distributed HTTP Flood,before,perfect,active,iptables,12,12,100.0,0,0,0,0.0,1.8,5.0,5.0,2.4,5.0
+2026-10-12T09:10:55.780717,Distributed HTTP Flood,during,ALL,active,iptables,24,24,100.0,0,0,0,0.0,49.5,379.8,391.7,123.9,391.7
+2026-10-12T09:10:55.780717,Distributed HTTP Flood,during,broadband,active,iptables,9,9,100.0,0,0,0,0.0,49.5,124.1,124.1,60.0,124.1
+2026-10-12T09:10:55.780717,Distributed HTTP Flood,during,mobile_3g,active,iptables,7,7,100.0,0,0,0,0.0,306.6,391.7,391.7,314.5,391.7
+2026-10-12T09:10:55.780717,Distributed HTTP Flood,during,perfect,active,iptables,8,8,100.0,0,0,0,0.0,1.7,196.7,196.7,29.0,196.7
+2026-10-12T09:10:55.780717,Distributed HTTP Flood,after,ALL,active,iptables,75,75,100.0,0,0,0,0.0,50.8,692.1,800.8,173.4,800.8
+2026-10-12T09:10:55.780717,Distributed HTTP Flood,after,broadband,active,iptables,20,20,100.0,0,0,0,0.0,52.8,75.2,482.3,75.9,482.3
+2026-10-12T09:10:55.780717,Distributed HTTP Flood,after,mobile_3g,active,iptables,23,23,100.0,0,0,0,0.0,386.9,734.1,800.8,438.1,800.8
+2026-10-12T09:10:55.780717,Distributed HTTP Flood,after,mobile_bad,active,iptables,2,2,100.0,0,0,0,0.0,632.8,715.8,715.8,674.3,715.8
+2026-10-12T09:10:55.780717,Distributed HTTP Flood,after,perfect,active,iptables,30,30,100.0,0,0,0,0.0,1.8,3.4,7.1,2.1,7.1
+2026-10-12T09:11:59.075860,Distributed ACK Flood,before,ALL,active,iptables,29,29,100.0,0,0,0,0.0,47.8,624.3,871.4,224.0,871.4
+2026-10-12T09:11:59.075860,Distributed ACK Flood,before,broadband,active,iptables,7,7,100.0,0,0,0,0.0,47.0,67.2,67.2,50.6,67.2
+2026-10-12T09:11:59.075860,Distributed ACK Flood,before,mobile_3g,active,iptables,11,11,100.0,0,0,0,0.0,462.5,624.3,624.3,477.4,624.3
+2026-10-12T09:11:59.075860,Distributed ACK Flood,before,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,871.4,871.4,871.4,871.4,871.4
+2026-10-12T09:11:59.075860,Distributed ACK Flood,before,perfect,active,iptables,10,10,100.0,0,0,0,0.0,1.6,3.4,3.4,1.8,3.4
+2026-10-12T09:11:59.075860,Distributed ACK Flood,during,ALL,active,iptables,122,122,100.0,0,0,0,0.0,104.8,589.4,1310.4,213.6,1530.4
+2026-10-12T09:11:59.075860,Distributed ACK Flood,during,broadband,active,iptables,33,33,100.0,0,0,0,0.0,136.2,400.6,414.8,169.7,414.8
+2026-10-12T09:11:59.075860,Distributed ACK Flood,during,mobile_3g,active,iptables,40,40,100.0,0,0,0,0.0,396.2,789.9,1530.4,466.5,1530.4
+2026-10-12T09:11:59.075860,Distributed ACK Flood,during,mobile_bad,active,iptables,2,2,100.0,0,0,0,0.0,630.7,854.1,854.1,742.4,854.1
+2026-10-12T09:11:59.075860,Distributed ACK Flood,during,perfect,active,iptables,47,47,100.0,0,0,0,0.0,2.3,9.2,149.4,6.7,149.4
+2026-10-12T09:11:59.075860,Distributed ACK Flood,after,ALL,active,iptables,74,74,100.0,0,0,0,0.0,47.8,639.8,744.1,154.8,744.1
+2026-10-12T09:11:59.075860,Distributed ACK Flood,after,broadband,active,iptables,22,22,100.0,0,0,0,0.0,52.6,60.9,73.2,52.1,73.2
+2026-10-12T09:11:59.075860,Distributed ACK Flood,after,mobile_3g,active,iptables,22,22,100.0,0,0,0,0.0,378.0,639.8,670.6,401.4,670.6
+2026-10-12T09:11:59.075860,Distributed ACK Flood,after,mobile_bad,active,iptables,2,2,100.0,0,0,0,0.0,660.2,744.1,744.1,702.2,744.1
+2026-10-12T09:11:59.075860,Distributed ACK Flood,after,perfect,active,iptables,28,28,100.0,0,0,0,0.0,2.0,4.7,9.4,2.5,9.4
+2026-10-12T09:13:02.541713,Distributed IP Fragmentation Flood,before,ALL,active,iptables,33,33,100.0,0,0,0,0.0,44.9,1200.8,1356.7,190.6,1356.7
+2026-10-12T09:13:02.541713,Distributed IP Fragmentation Flood,before,broadband,active,iptables,10,10,100.0,0,0,0,0.0,45.6,57.8,57.8,47.3,57.8
+2026-10-12T09:13:02.541713,Distributed IP Fragmentation Flood,before,mobile_3g,active,iptables,9,9,100.0,0,0,0,0.0,455.0,1356.7,1356.7,566.7,1356.7
+2026-10-12T09:13:02.541713,Distributed IP Fragmentation Flood,before,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,688.2,688.2,688.2,688.2,688.2
+2026-10-12T09:13:02.541713,Distributed IP Fragmentation Flood,before,perfect,active,iptables,13,13,100.0,0,0,0,0.0,1.9,6.1,6.1,2.2,6.1
+2026-10-12T09:13:02.541713,Distributed IP Fragmentation Flood,during,ALL,active,iptables,121,121,100.0,0,0,0,0.0,192.0,679.5,1611.1,251.0,1849.3
+2026-10-12T09:13:02.541713,Distributed IP Fragmentation Flood,during,broadband,active,iptables,33,33,100.0,0,0,0,0.0,186.0,1087.7,1113.3,222.9,1113.3
+2026-10-12T09:13:02.541713,Distributed IP Fragmentation Flood,during,mobile_3g,active,iptables,42,42,100.0,0,0,0,0.0,399.2,871.6,1849.3,491.7,1849.3
+2026-10-12T09:13:02.541713,Distributed IP Fragmentation Flood,during,mobile_bad,active,iptables,3,3,100.0,0,0,0,0.0,679.5,802.3,802.3,686.6,802.3
+2026-10-12T09:13:02.541713,Distributed IP Fragmentation Flood,during,perfect,active,iptables,43,43,100.0,0,0,0,0.0,2.3,18.3,90.5,7.1,90.5
+2026-10-12T09:13:02.541713,Distributed IP Fragmentation Flood,after,ALL,active,iptables,67,67,100.0,0,0,0,0.0,54.0,634.4,1357.8,180.4,1357.8
+2026-10-12T09:13:02.541713,Distributed IP Fragmentation Flood,after,broadband,active,iptables,21,21,100.0,0,0,0,0.0,63.2,119.6,131.1,68.1,131.1
+2026-10-12T09:13:02.541713,Distributed IP Fragmentation Flood,after,mobile_3g,active,iptables,19,19,100.0,0,0,0,0.0,447.4,1357.8,1357.8,519.3,1357.8
+2026-10-12T09:13:02.541713,Distributed IP Fragmentation Flood,after,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,742.5,742.5,742.5,742.5,742.5
+2026-10-12T09:13:02.541713,Distributed IP Fragmentation Flood,after,perfect,active,iptables,26,26,100.0,0,0,0,0.0,1.6,2.9,3.8,1.8,3.8
+2026-10-12T09:13:57.302028,Distributed Slowloris,before,ALL,active,iptables,31,31,100.0,0,0,0,0.0,49.1,619.9,1347.9,174.4,1347.9
+2026-10-12T09:13:57.302028,Distributed Slowloris,before,broadband,active,iptables,9,9,100.0,0,0,0,0.0,50.7,58.3,58.3,50.5,58.3
+2026-10-12T09:13:57.302028,Distributed Slowloris,before,mobile_3g,active,iptables,9,9,100.0,0,0,0,0.0,405.3,1347.9,1347.9,478.9,1347.9
+2026-10-12T09:13:57.302028,Distributed Slowloris,before,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,619.9,619.9,619.9,619.9,619.9
+2026-10-12T09:13:57.302028,Distributed Slowloris,before,perfect,active,iptables,12,12,100.0,0,0,0,0.0,1.7,2.1,2.1,1.7,2.1
+2026-10-12T09:13:57.302028,Distributed Slowloris,during,ALL,active,iptables,41,41,100.0,0,0,0,0.0,44.0,668.8,1388.2,185.7,1388.2
+2026-10-12T09:13:57.302028,Distributed Slowloris,during,broadband,active,iptables,10,10,100.0,0,0,0,0.0,44.0,92.0,92.0,50.4,92.0
+2026-10-12T09:13:57.302028,Distributed Slowloris,during,mobile_3g,active,iptables,13,13,100.0,0,0,0,0.0,328.1,1388.2,1388.2,492.6,1388.2
+2026-10-12T09:13:57.302028,Distributed Slowloris,during,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,668.8,668.8,668.8,668.8,668.8
+2026-10-12T09:13:57.302028,Distributed Slowloris,during,perfect,active,iptables,17,17,100.0,0,0,0,0.0,1.8,4.7,4.7,2.2,4.7
+2026-10-12T09:13:57.302028,Distributed Slowloris,after,ALL,active,iptables,75,75,100.0,0,0,0,0.0,49.4,561.9,1388.2,167.6,1388.2
+2026-10-12T09:13:57.302028,Distributed Slowloris,after,broadband,active,iptables,22,22,100.0,0,0,0,0.0,50.3,132.8,268.1,66.7,268.1
+2026-10-12T09:13:57.302028,Distributed Slowloris,after,mobile_3g,active,iptables,24,24,100.0,0,0,0,0.0,361.2,740.1,1388.2,428.3,1388.2
+2026-10-12T09:13:57.302028,Distributed Slowloris,after,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,772.4,772.4,772.4,772.4,772.4
+2026-10-12T09:13:57.302028,Distributed Slowloris,after,perfect,active,iptables,28,28,100.0,0,0,0,0.0,1.8,3.3,3.9,1.9,3.9
+2026-10-12T09:14:50.947540,Distributed R.U.D.Y.,before,ALL,active,iptables,32,32,100.0,0,0,0,0.0,50.4,468.9,871.0,157.4,871.0
+2026-10-12T09:14:50.947540,Distributed R.U.D.Y.,before,broadband,active,iptables,10,10,100.0,0,0,0,0.0,51.9,168.5,168.5,70.2,168.5
+2026-10-12T09:14:50.947540,Distributed R.U.D.Y.,before,mobile_3g,active,iptables,9,9,100.0,0,0,0,0.0,372.3,468.9,468.9,380.6,468.9
+2026-10-12T09:14:50.947540,Distributed R.U.D.Y.,before,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,871.0,871.0,871.0,871.0,871.0
+2026-10-12T09:14:50.947540,Distributed R.U.D.Y.,before,perfect,active,iptables,12,12,100.0,0,0,0,0.0,1.8,18.0,18.0,3.3,18.0
+2026-10-12T09:14:50.947540,Distributed R.U.D.Y.,during,ALL,active,iptables,37,37,100.0,0,0,0,0.0,52.6,688.7,749.5,193.6,749.5
+2026-10-12T09:14:50.947540,Distributed R.U.D.Y.,during,broadband,active,iptables,11,11,100.0,0,0,0,0.0,47.9,204.5,204.5,65.3,204.5
+2026-10-12T09:14:50.947540,Distributed R.U.D.Y.,during,mobile_3g,active,iptables,13,13,100.0,0,0,0,0.0,392.7,688.7,688.7,436.1,688.7
+2026-10-12T09:14:50.947540,Distributed R.U.D.Y.,during,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,749.5,749.5,749.5,749.5,749.5
+2026-10-12T09:14:50.947540,Distributed R.U.D.Y.,during,perfect,active,iptables,12,12,100.0,0,0,0,0.0,1.9,4.3,4.3,2.3,4.3
+2026-10-12T09:14:50.947540,Distributed R.U.D.Y.,after,ALL,active,iptables,74,74,100.0,0,0,0,0.0,61.4,520.6,731.5,166.5,731.5
+2026-10-12T09:14:50.947540,Distributed R.U.D.Y.,after,broadband,active,iptables,21,21,100.0,0,0,0,0.0,62.6,230.1,244.2,82.7,244.2
+2026-10-12T09:14:50.947540,Distributed R.U.D.Y.,after,mobile_3g,active,iptables,25,25,100.0,0,0,0,0.0,394.1,554.5,607.2,392.0,607.2
+2026-10-12T09:14:50.947540,Distributed R.U.D.Y.,after,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,731.5,731.5,731.5,731.5,731.5
+2026-10-12T09:14:50.947540,Distributed R.U.D.Y.,after,perfect,active,iptables,27,27,100.0,0,0,0,0.0,1.7,4.3,4.5,2.0,4.5
+2026-10-12T09:15:44.288732,Distributed Yo-Yo,before,ALL,active,iptables,31,31,100.0,0,0,0,0.0,49.5,471.4,663.0,149.6,663.0
+2026-10-12T09:15:44.288732,Distributed Yo-Yo,before,broadband,active,iptables,10,10,100.0,0,0,0,0.0,49.2,225.0,225.0,66.7,225.0
+2026-10-12T09:15:44.288732,Distributed Yo-Yo,before,mobile_3g,active,iptables,10,10,100.0,0,0,0,0.0,300.1,471.4,471.4,329.1,471.4
+2026-10-12T09:15:44.288732,Distributed Yo-Yo,before,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,663.0,663.0,663.0,663.0,663.0
+2026-10-12T09:15:44.288732,Distributed Yo-Yo,before,perfect,active,iptables,10,10,100.0,0,0,0,0.0,1.6,2.8,2.8,1.8,2.8
+2026-10-12T09:15:44.288732,Distributed Yo-Yo,during,ALL,active,iptables,22,22,100.0,0,0,0,0.0,43.2,409.7,739.9,161.1,739.9
+2026-10-12T09:15:44.288732,Distributed Yo-Yo,during,broadband,active,iptables,5,5,100.0,0,0,0,0.0,43.2,75.5,75.5,48.3,75.5
+2026-10-12T09:15:44.288732,Distributed Yo-Yo,during,mobile_3g,active,iptables,7,7,100.0,0,0,0,0.0,331.4,409.7,409.7,318.8,409.7
+2026-10-12T09:15:44.288732,Distributed Yo-Yo,during,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,739.9,739.9,739.9,739.9,739.9
+2026-10-12T09:15:44.288732,Distributed Yo-Yo,during,perfect,active,iptables,9,9,100.0,0,0,0,0.0,3.2,294.5,294.5,36.7,294.5
+2026-10-12T09:15:44.288732,Distributed Yo-Yo,after,ALL,active,iptables,78,78,100.0,0,0,0,0.0,45.6,514.4,1545.4,157.8,1545.4
+2026-10-12T09:15:44.288732,Distributed Yo-Yo,after,broadband,active,iptables,23,23,100.0,0,0,0,0.0,46.7,61.1,68.7,47.4,68.7
+2026-10-12T09:15:44.288732,Distributed Yo-Yo,after,mobile_3g,active,iptables,26,26,100.0,0,0,0,0.0,353.1,551.5,1545.4,403.6,1545.4
+2026-10-12T09:15:44.288732,Distributed Yo-Yo,after,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,673.8,673.8,673.8,673.8,673.8
+2026-10-12T09:15:44.288732,Distributed Yo-Yo,after,perfect,active,iptables,28,28,100.0,0,0,0,0.0,1.7,2.9,3.2,1.8,3.2
+2026-10-12T09:16:47.277836,Multi-Vector Distributed Attack,before,ALL,active,iptables,30,30,100.0,0,0,0,0.0,52.5,494.8,758.4,159.8,758.4
+2026-10-12T09:16:47.277836,Multi-Vector Distributed Attack,before,broadband,active,iptables,7,7,100.0,0,0,0,0.0,52.5,62.3,62.3,51.6,62.3
+2026-10-12T09:16:47.277836,Multi-Vector Distributed Attack,before,mobile_3g,active,iptables,11,11,100.0,0,0,0,0.0,310.9,494.8,494.8,331.8,494.8
+2026-10-12T09:16:47.277836,Multi-Vector Distributed Attack,before,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,758.4,758.4,758.4,758.4,758.4
+2026-10-12T09:16:47.277836,Multi-Vector Distributed Attack,before,perfect,active,iptables,11,11,100.0,0,0,0,0.0,1.9,4.0,4.0,2.2,4.0
+2026-10-12T09:16:47.277836,Multi-Vector Distributed Attack,during,ALL,active,iptables,121,121,100.0,0,0,0,0.0,42.7,424.9,1374.8,158.8,1422.3
+2026-10-12T09:16:47.277836,Multi-Vector Distributed Attack,during,broadband,active,iptables,36,36,100.0,0,0,0,0.0,42.7,268.0,280.3,64.6,280.3
+2026-10-12T09:16:47.277836,Multi-Vector Distributed Attack,during,mobile_3g,active,iptables,39,39,100.0,0,0,0,0.0,306.6,1366.5,1422.3,361.2,1422.3
+2026-10-12T09:16:47.277836,Multi-Vector Distributed Attack,during,mobile_bad,active,iptables,3,3,100.0,0,0,0,0.0,714.1,1374.8,1374.8,892.7,1374.8
+2026-10-12T09:16:47.277836,Multi-Vector Distributed Attack,during,perfect,active,iptables,43,43,100.0,0,0,0,0.0,2.4,4.8,12.8,3.0,12.8
+2026-10-12T09:16:47.277836,Multi-Vector Distributed Attack,after,ALL,active,iptables,74,74,100.0,0,0,0,0.0,49.0,449.4,602.3,138.1,602.3
+2026-10-12T09:16:47.277836,Multi-Vector Distributed Attack,after,broadband,active,iptables,22,22,100.0,0,0,0,0.0,49.0,65.3,69.0,51.7,69.0
+2026-10-12T09:16:47.277836,Multi-Vector Distributed Attack,after,mobile_3g,active,iptables,25,25,100.0,0,0,0,0.0,334.8,456.8,481.6,337.1,481.6
+2026-10-12T09:16:47.277836,Multi-Vector Distributed Attack,after,mobile_bad,active,iptables,1,1,100.0,0,0,0,0.0,602.3,602.3,602.3,602.3,602.3
+2026-10-12T09:16:47.277836,Multi-Vector Distributed Attack,after,perfect,active,iptables,26,26,100.0,0,0,0,0.0,1.7,3.4,4.9,1.9,4.9
