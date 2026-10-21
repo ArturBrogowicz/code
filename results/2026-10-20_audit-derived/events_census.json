@@ -1,31 +1,31 @@
 {
- "files": 45,
- "distinct_logs": 40,
+ "files": 66,
+ "distinct_logs": 52,
  "logs_without_events": 1,
- "duplicates_removed": 5,
+ "duplicates_removed": 14,
  "events_by_kind": {
-  "ban": 380,
+  "ban": 710,
   "l7_gru_poll": 960,
   "l7_shadow": 1072,
   "l7_would_ban": 208,
-  "start": 67,
+  "start": 133,
   "suppress_off": 27,
   "suppress_on": 27,
   "unban": 1
  },
  "bans_by_engine": {
-  "l7_rate": 234,
-  "l4_volumetric": 59,
-  "l4_syn": 39,
-  "l4_slowconn": 32,
-  "l4_lowsyn": 15,
+  "l7_rate": 300,
+  "l4_volumetric": 197,
+  "l4_slowconn": 92,
+  "l4_syn": 75,
+  "l4_lowsyn": 45,
   "gru": 1
  },
- "total_bans": 380,
+ "total_bans": 710,
  "start_configs": {
   "xdp_gru=False l7_shadow=True profile=None": 7,
   "xdp_gru=False l7_shadow=True profile=tolerant": 7,
-  "xdp_gru=None l7_shadow=None profile=None": 43,
+  "xdp_gru=None l7_shadow=None profile=None": 109,
   "xdp_gru=True l7_shadow=False profile=default": 10
  },
  "legit_bans": [

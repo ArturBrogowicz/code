@@ -5,8 +5,10 @@
 #     sh results/2026-10-20_audit-derived/regenerate.sh
 #     (cd results/2026-10-20_audit-derived && sha256sum -c SHA256SUMS)
 #
-# The ban-event census names its campaigns explicitly (those published on 2026-10-20), so
-# this directory stays what it was when it was published.
+# The ban-event census names its campaigns explicitly: the campaigns published up to
+# 2026-10-21 whose daemon could run the XDP-fed GRU, including the converted prototype campaigns
+# of 2026-10-12 (folded in on 2026-10-21). The three campaigns recorded on 2026-10-20 after the
+# default change (`xdp_gru: false`) are left out: they cannot add evidence about that engine.
 set -eu
 cd "$(dirname "$0")/../.."
 PY="${PYTHON:-./venv/bin/python}"
@@ -41,6 +43,8 @@ $PY eval/suite_compare.py R2=$S/2026-10-13_regression-default-full-suite \
 # Ban events of every published campaign: who banned whom (audit G-16, G-11)
 $PY eval/events_census.py \
     results/2026-10-11_superseded-dup-mac results/2026-10-12_exp2a-knee_prototype \
+    results/2026-10-12_exp1-default-4modes_prototype results/2026-10-12_exp2b-knee-nginxtuned_prototype \
+    results/2026-10-12_f45-ack-stall-validation_prototype \
     results/2026-10-13_exp2a-knee_equal-exposure-30s results/2026-10-13_exp2a-knee_reproduction \
     results/2026-10-13_regression-default-full-suite \
     results/2026-10-13_regression-default-full-suite-replicate results/2026-10-14_l7-p1-smoke \

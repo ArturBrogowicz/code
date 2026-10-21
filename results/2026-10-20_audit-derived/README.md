@@ -18,7 +18,7 @@ CPU forward pass (one torch thread); on another CPU the last digits can differ.
 | `l7_rates_p5c4.{md,json}` | `ml/l7_run_audit.py rates` | what request rates did the plan actually produce? |
 | `run_level_<campaign>.{md,csv}` | `eval/run_level_stats.py` | EXP-2a, R3, R4 and EXP-A with the run as the unit of analysis |
 | `suite_compare.md` | `eval/suite_compare.py` | the five complete full-suite campaigns side by side: bans, engines, time to mitigate, and the bound per engine |
-| `events_census.{md,json}` | `eval/events_census.py` | which engine banned whom in the 40 distinct published ban-event logs? |
+| `events_census.{md,json}` | `eval/events_census.py` | which engine banned whom in the 52 distinct published ban-event logs of the runs up to 2026-10-21, the converted prototype campaigns of 2026-10-12 included? |
 
 ## What they show
 
@@ -56,17 +56,26 @@ CPU forward pass (one torch thread); on another CPU the last digits can differ.
    3 runs per arm). EXP-A (`../2026-10-20_expa-knee-10-blocks/`, ten blocks, recorded after the rule
    was committed): XDP and iptables minus unprotected +33.2 pp [+26.1, +40.2] and limits only minus
    unprotected -22.5 pp [-32.0, -13.1], the same sign in 10 of 10 blocks: all three *supported*.
-6. **One GRU ban in 40 distinct logs** (`events_census.md`): the false ban of legit 10.0.1.6 in
-   `../2026-10-20_omitted-runs/p1_smoke_20261014T152428Z/`. Bans in total: `l7_rate` 234,
-   `l4_volumetric` 59, `l4_syn` 39, `l4_slowconn` 32, `l4_lowsyn` 15, `gru` 1. The census covers the
-   logs published up to the morning of 2026-10-20. The campaigns recorded later that day
+6. **One GRU ban in 52 distinct logs** (`events_census.md`): the false ban of legit 10.0.1.6 in
+   `../2026-10-20_omitted-runs/p1_smoke_20261014T152428Z/`. Bans in total (710): `l7_rate` 300,
+   `l4_volumetric` 197, `l4_slowconn` 92, `l4_syn` 75, `l4_lowsyn` 45, `gru` 1. Of the 52 logs, 37
+   come from daemons that had the XDP-fed GRU on (36 recorded before the `xdp_gru` field existed,
+   when it was the default, and the pre-change baseline), 14 are the L7 track's logs of 2026-10-15/16
+   (`xdp_gru: false`) and 1 is empty. The four bans of legitimate clients are the same as before:
+   three by the deterministic rules in the P5c.1 run, one by the GRU.
+   The census covers the logs published up to 2026-10-21. The converted prototype campaigns of
+   2026-10-12 (`../2026-10-12_exp1-default-4modes_prototype/`, `..._exp2b-...`, `..._f45-...`) were
+   folded in on 2026-10-21 at the user's request: 12 more non-empty logs and 330 bans, every one of a
+   bot (10.0.2.1-5) and none by the GRU (`../2026-10-21_prototype-claims-check/events_census_prototype.md`
+   is the prototype-only view). The three campaigns recorded on 2026-10-20 after the default change
    (`2026-10-20_regression-after-audit-defaults`, `_expb-...`, `_expa-...`) ran with `xdp_gru: false`;
    they could not add evidence about the XDP-fed GRU and are left out.
 
 ## What changed in the audit report because of this
 
 * "71 ban-event logs" (and 529 bans) were file counts. A published log and its raw copy were
-  both counted; by content there are 39 distinct logs at audit time and 40 here.
+  both counted; by content there were 39 distinct logs at audit time, 40 with the omitted runs and
+  52 with the prototype campaigns.
 * "Daemon above unprotected in 9 of 9 runs, sign test p = 0.002" is withdrawn as inference: R3 and
   R4 use the same three `PROFILE_SEED`s and EXP-2a was unseeded, so those are not nine
   independent blocks. EXP-A has since supplied ten independent paired blocks (item 5).

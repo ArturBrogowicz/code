@@ -1,9 +1,9 @@
 **Ban-event census**
 
-* Files found: 45; distinct logs (by content): 40 (5 byte-identical copies removed); logs without events: 1.
-* Events: ban 380, l7_gru_poll 960, l7_shadow 1072, l7_would_ban 208, start 67, suppress_off 27, suppress_on 27, unban 1
-* Bans: 380 (l7_rate 234, l4_volumetric 59, l4_syn 39, l4_slowconn 32, l4_lowsyn 15, gru 1)
-* Daemon configurations seen in `start` events: xdp_gru=False l7_shadow=True profile=None x7; xdp_gru=False l7_shadow=True profile=tolerant x7; xdp_gru=None l7_shadow=None profile=None x43; xdp_gru=True l7_shadow=False profile=default x10
+* Files found: 66; distinct logs (by content): 52 (14 byte-identical copies removed); logs without events: 1.
+* Events: ban 710, l7_gru_poll 960, l7_shadow 1072, l7_would_ban 208, start 133, suppress_off 27, suppress_on 27, unban 1
+* Bans: 710 (l7_rate 300, l4_volumetric 197, l4_slowconn 92, l4_syn 75, l4_lowsyn 45, gru 1)
+* Daemon configurations seen in `start` events: xdp_gru=False l7_shadow=True profile=None x7; xdp_gru=False l7_shadow=True profile=tolerant x7; xdp_gru=None l7_shadow=None profile=None x109; xdp_gru=True l7_shadow=False profile=default x10
 * **GRU bans: 1, of which 1 of legitimate clients.**
   * `results/2026-10-20_omitted-runs/p1_smoke_20261014T152428Z/ban_events.jsonl`: 10.0.1.6, p = 0.999013, hits = 3
 
