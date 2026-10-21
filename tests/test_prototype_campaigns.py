@@ -7,6 +7,7 @@ per-run files with eval/campaign.py. A campaign is not edited after publication,
 here means the code changed (or the data was touched), not the number.
 """
 import collections
+import csv
 import datetime
 import glob
 import hashlib
@@ -29,6 +30,15 @@ except ImportError:                      # system python without pandas: skip th
 EXP1 = os.path.join(REPO, "results", "2026-10-12_exp1-default-4modes_prototype")
 EXP2B = os.path.join(REPO, "results", "2026-10-12_exp2b-knee-nginxtuned_prototype")
 F45 = os.path.join(REPO, "results", "2026-10-12_f45-ack-stall-validation_prototype")
+CALIB = os.path.join(REPO, "results", "2026-10-12_exp1d-calibration-sweep_raw")
+PUBLISHED = (EXP1, EXP2B, F45, CALIB)
+CALIB_EXPECTED = {  # config: {period: (percent, requests)}
+    "w1t1_cpu0_c50_b5": {"before": (100.0, 40), "during": (100.0, 124), "after": (100.0, 74)},
+    "w1t1_cpu0_c200_b5": {"before": (100.0, 29), "during": (100.0, 110), "after": (100.0, 70)},
+    "w1t1_cpu0_c200_b10": {"before": (100.0, 34), "during": (100.0, 103), "after": (100.0, 74)},
+    "w1t1_cpu0_c400_b10": {"before": (100.0, 32), "during": (76.7, 60), "after": (84.2, 38)},
+    "w2t2_cpu01_c200_b10": {"before": (100.0, 33), "during": (100.0, 112), "after": (100.0, 71)},
+}
 HTTP, YOYO, UDP = "Distributed HTTP Flood", "Distributed Yo-Yo", "Distributed UDP Flood"
 
 
@@ -242,6 +252,52 @@ class F45ValidationTest(unittest.TestCase):
         m = self.data["metrics"]
         self.assertAlmostEqual(m.CPU_Daemon_Pct.max(), 43.3, delta=0.05)
         self.assertAlmostEqual(m.RAM_Daemon_MB.max(), 481.7, delta=0.05)
+
+
+class PublishedBundlesIntegrityTest(unittest.TestCase):
+    """A published campaign is not edited: its SHA256SUMS lists every file of the directory and
+    every hash matches."""
+
+    def test_sha256sums_match_the_directory(self):
+        for root in PUBLISHED:
+            if not os.path.isdir(root):
+                continue
+            listed = {}
+            with open(os.path.join(root, "SHA256SUMS"), encoding="utf-8") as fh:
+                for line in fh:
+                    digest, _, rel = line.rstrip("\n").partition("  ")
+                    listed[rel] = digest
+            found = {os.path.relpath(os.path.join(d, f), root)
+                     for d, _, files in os.walk(root) for f in files} - {"SHA256SUMS"}
+            self.assertEqual(set(listed), found, root)
+            for rel, digest in listed.items():
+                with open(os.path.join(root, rel), "rb") as fh:
+                    self.assertEqual(hashlib.sha256(fh.read()).hexdigest(), digest, (root, rel))
+
+
+@unittest.skipUnless(os.path.isdir(CALIB), "needs results/ calibration sweep")
+class CalibrationSweepRawTest(unittest.TestCase):
+    """README of 2026-10-12_exp1d-calibration-sweep_raw: the table equals the raw requests."""
+
+    def test_availability_by_period_from_the_request_files(self):
+        for config, want in CALIB_EXPECTED.items():
+            counts = collections.defaultdict(lambda: [0, 0])
+            with open(os.path.join(CALIB, config, "availability_raw_unprotected.csv"),
+                      newline="", encoding="utf-8") as fh:
+                for row in csv.DictReader(fh):
+                    c = counts[row["Period"]]
+                    c[0] += int(row["OK"])
+                    c[1] += 1
+            got = {p: (round(100.0 * ok / n, 1), n) for p, (ok, n) in counts.items()}
+            self.assertEqual(got, want, config)
+
+    def test_sweep_log_agrees(self):
+        with open(os.path.join(CALIB, "sweep.log"), encoding="utf-8") as fh:
+            text = fh.read()
+        for config in CALIB_EXPECTED:
+            self.assertIn(config, text)
+        self.assertIn("during 77% (n=60", text)
+        self.assertIn("nginx=0 netns=0", text)
 
 
 if __name__ == "__main__":

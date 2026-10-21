@@ -1,0 +1,8 @@
+sweep start 2026-10-12T11:24:16  HEAD 6fc27fa
+config                 | result   | HTTP availability before/during/after
+w1t1_cpu0_c50_b5       | [FAIL]   | before 100% (n=40) · during 100% (n=124, p95 543ms) · after 100% (n=74)
+w1t1_cpu0_c200_b5      | [FAIL]   | before 100% (n=29) · during 100% (n=110, p95 906ms) · after 100% (n=70)
+w1t1_cpu0_c200_b10     | [FAIL]   | before 100% (n=34) · during 100% (n=103, p95 1337ms) · after 100% (n=74)
+w1t1_cpu0_c400_b10     | [FAIL]   | before 100% (n=32) · during 77% (n=60, p95 9582ms) · after 84% (n=38)
+w2t2_cpu01_c200_b10    | [FAIL]   | before 100% (n=33) · during 100% (n=112, p95 1063ms) · after 100% (n=71)
+sweep end 2026-10-12T11:30:35  nginx=0 netns=0

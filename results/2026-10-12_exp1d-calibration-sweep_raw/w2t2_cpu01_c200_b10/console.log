@@ -1,0 +1,61 @@
+===== CALIB w2t2_cpu01_c200_b10 (GUNICORN_WORKERS=2 GUNICORN_THREADS=2 SERVER_CPUS=0-1 WRK_CONNS=200 BOTNET_COUNT=10) =====
+
+[1m[96m╔══════════════════════════════════════════════════════════════╗
+║   DISTRIBUTED DDoS MITIGATION TESTING SUITE                ║
+║   20 Legit Clients  |  10 Botnet Nodes                      ║
+╚══════════════════════════════════════════════════════════════╝[0m
+
+
+[93m[*] Cleaning up all namespaces and processes...[0m
+[92m[+] Cleanup complete.[0m
+
+[1m[96m[*] Building network topology...[0m
+[96m[*] Creating 20 legitimate client namespaces...[0m
+[92m[+] Legitimate clients ready. Profile distribution:[0m
+    perfect: 4 nodes
+    broadband: 10 nodes
+    mobile_3g: 3 nodes
+    mobile_bad: 3 nodes
+[96m[*] Creating 10 botnet attacker namespaces...[0m
+[92m[+] Botnet ready: 10 nodes.[0m
+[92m[+] 30 unique client/bot MACs verified.[0m
+[93m[!] MITIGATION_MODE=none: no daemon; nginx conf = /home/artur/DDoS-mitigation/code/nginx_unprotected.conf[0m
+[+] Started background traffic from 20 legitimate users.
+
+[96m[*] Baseline settling period (5s)...[0m
+[93m[!] ONLY_SCENARIOS=4 → running scenarios [4][0m
+
+[93m======================================================================
+  SCENARIO 4: Distributed HTTP Flood
+======================================================================[0m
+
+  [[91mFAIL[0m] [1mDistributed HTTP Flood[0m
+  ├── Botnet banned:     0/10 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  ├── Availability:      before 100% (n=33) · during 100% (n=112, p95 1063ms) · after 100% (n=71)
+  └── False Positives:   None ✅
+
+[1m[93m==========================================================================================
+  DISTRIBUTED TEST SUMMARY
+==========================================================================================[0m
+  Scenario                            | Banned     | Avg TTM    | Engine(s)          | FP       | Result
+  ----------------------------------------------------------------------------------------
+  Distributed HTTP Flood              | 0/10       | N/A        | None               | Clean    | [91mFAIL[0m
+
+  [92mPassed: 0[0m  |  [91mFailed: 1[0m  |  Total: 1
+
+[1m[93m==============================================================================================
+  SERVICE AVAILABILITY (legitimate clients, continuous — before/during/after)
+==============================================================================================[0m
+  Scenario                         | Period | Succ%  | Reqs  | p50     | p95     | p99     | TOs
+  --------------------------------------------------------------------------------------------
+  Distributed HTTP Flood           | before | [92m100.0[0m | 33    |   48ms |  630ms |  824ms | 0
+                                   | during | [92m100.0[0m | 112   |  577ms | 1063ms | 1252ms | 0
+                                   | after  | [92m100.0[0m | 71    |   46ms |  807ms | 1430ms | 0
+
+  [96mAvailability CSVs: /tmp/availability_<performance|iptables|unprotected>.csv (+ _raw_ per-request dumps)[0m
+
+[93m[*] Cleaning up all namespaces and processes...[0m
+[92m[+] Cleanup complete.[0m
