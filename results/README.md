@@ -5,6 +5,7 @@ a new measurement is a new campaign.
 
 | Campaign | Content | Status |
 |---|---|---|
+| [`2026-10-21_prototype-claims-check`](2026-10-21_prototype-claims-check/) | The addendum of 2026-10-12 (sections A-I, K, L, M) against the published prototype campaigns: 139 comparisons, 129 match, 4 differ, 6 cannot be checked; the ban events of the converted campaigns: 330 bans, none by the GRU | derived, not a measurement; `regenerate.sh` rebuilds it byte for byte |
 | [`2026-10-20_expa-knee-10-blocks`](2026-10-20_expa-knee-10-blocks/) | EXP-A: the HTTP flood at the knee, 4 modes × 10 paired blocks, 30 s exposure: the daemon (XDP or iptables) served 100 % of the legit requests in all 10 blocks against 66.8 % unprotected (+33.2 pp [+26.1, +40.2]); Nginx limits only 44.4 % (-22.5 pp [-32.0, -13.1]); all three contrasts meet the pre-registered run-level rule | valid; 10 paired runs per mode; one scenario, a closed-loop attacker; see its README |
 | [`2026-10-20_expb-tolerant-profile-suite`](2026-10-20_expb-tolerant-profile-suite/) | EXP-B: the full suite (10 scenarios, XDP) under the tolerant heuristic profile, 3 runs: Slowloris and R.U.D.Y. 0/5 banned in every run (the predicted cost of SlowConn 180), the other 8 scenarios 5/5 | valid; 3 runs; the security-cost table the L7 track never produced; see its README |
 | [`2026-10-20_regression-after-audit-defaults`](2026-10-20_regression-after-audit-defaults/) | The full suite (10 scenarios, XDP, default settings) on the 2026-10-19 change set, XDP-fed GRU off: 10/10 PASS, the same engines as the baseline | a single run, taken 3 minutes after a VM restart; the post-change run the baseline README announces; see its README |
@@ -31,6 +32,39 @@ a new measurement is a new campaign.
 | [`2026-10-12_exp1d-calibration-sweep_raw`](2026-10-12_exp1d-calibration-sweep_raw/) | EXP-1d: five single unprotected HTTP-flood runs with different server capacity and attack intensity; only 1 worker x 1 thread on cpu0 with `wrk -c400` from 10 bots lost legit requests (76.7 % during, 14 of 60 failed) (addendum §J, §M) | **raw files, not converted** (five operating points with one run each; the suite copy of the time is not recorded); see its README |
 | [`2026-10-12_exp1-default-4modes_prototype`](2026-10-12_exp1-default-4modes_prototype/) | EXP-1, 1b, 1c: the full suite (10 scenarios) at the default operating point, 4 modes × 3 runs: legit success 100 % in every mode (17,363 requests during the attacks, 1 failed); the modes differ in L7 latency, Nginx CPU and pre-stack drop; 300 bans, all of bots, none by the GRU (addendum §C-§I) | valid; prototype harness, imported (approximations in its README); independent unseeded runs |
 | [`2026-10-11_superseded-dup-mac`](2026-10-11_superseded-dup-mac/) | 3 modes × 3 runs, all 10 scenarios, on the duplicate-MAC testbed | **superseded**, see its README |
+
+## Prototype campaigns of 2026-10-12
+
+The experiments of `docs/REPORT_ADDENDUM_EXP0_EXP1.md` were recorded with a prototype copy of the
+suite, before the reproducible harness existed. Their data are published (index above):
+`2026-10-12_exp1-default-4modes_prototype` (EXP-1, 1b, 1c: sections C-I), `..._exp2b-knee-nginxtuned_prototype`
+(K), `..._f45-ack-stall-validation_prototype` (L), `..._exp1d-calibration-sweep_raw` (raw files, not
+converted) and, since 2026-10-13, `2026-10-12_exp2a-knee_prototype` (J). Each README states the
+approximations of the import and the provenance, checked against this repository.
+
+`2026-10-21_prototype-claims-check/` recomputes each number of the addendum from those files, with the
+definitions of the earlier session's scripts:
+
+| Addendum | Comparisons | Match | Differ | Cannot be checked |
+|---|---|---|---|---|
+| A, B: run times, end state, EXP-0 | 7 | 5 | 0 | 2 |
+| C: EXP-1 against the duplicate-MAC baseline | 27 | 26 | 0 | 1 |
+| D: exact detection data | 25 | 25 | 0 | 0 |
+| E: the F-45 stall in EXP-1 | 11 | 10 | 0 | 1 |
+| H: EXP-1b | 40 | 36 | 3 | 1 |
+| I: EXP-1c | 19 | 19 | 0 | 0 |
+| K: EXP-2b | 3 | 3 | 0 | 0 |
+| L: F-45 validation | 5 | 3 | 1 | 1 |
+| J, M: calibration sweep, totals | 2 | 2 | 0 | 0 |
+| **All** | **139** | **129** | **4** | **6** |
+
+The four that differ (details in `2026-10-21_prototype-claims-check/claims_check.md` and the Errata below):
+L-3, the F-45 "TTM ≤ 0.97 s" is measured from the Phase-2 row (2.10 s from the attack start); H-25, the
+"constant 512 in all modes" holds for the unprotected mode only; H-26, "58 %" is the mean of three run
+percentages (pooled 62.7 %); H-2, "every run is 100 %" except one unprotected UDP-flood run (99.4 %).
+The six that cannot be checked rest on data that was not recorded or published: the VM reboot (A-6), EXP-0
+(B-1), the kernel's duplicate-address messages (C-26), the EXP-5 benchmark (L-5), and two [INFERENCE]
+statements (E-11, H-27).
 
 ## Layout of a campaign
 
@@ -63,7 +97,8 @@ identical bytes (`git status` stays clean). How campaigns are recorded and publi
 ## Errata
 
 A published campaign is not edited afterwards, so corrections to what a campaign README says
-are collected here. Evidence: `2026-10-20_audit-derived/` and the second audit of 2026-10-19.
+are collected here. Evidence: `2026-10-20_audit-derived/` and the second audit of 2026-10-19; for the rows
+on the addendum and the prototype campaigns, `2026-10-21_prototype-claims-check/`.
 
 | Campaign | What its README says | Correction |
 |---|---|---|
@@ -75,4 +110,8 @@ are collected here. Evidence: `2026-10-20_audit-derived/` and the second audit o
 | `2026-10-16_l7-p5-eval`, `2026-10-16_l7-p5c4-eval` | attackers are "sub-threshold abusers" the heuristics miss | they cause no measurable harm: benign success 1.0 and median server time 2.0 ms with and without them (`2026-10-20_audit-derived/l7_harm_p5c4.md`) |
 | `2026-10-12_exp2a-knee_prototype`, `2026-10-13_exp2a-knee_reproduction`, `2026-10-13_exp2a-knee_equal-exposure-30s` | "95 % interval", Fisher p | a bootstrap over 3 blocks and a pooled-request test are descriptive. Run-level contrasts: `docs/EVALUATION.md` "Statistics" and `2026-10-20_audit-derived/run_level_*.md`. Ten paired blocks, which meet the pre-registered rule, are in `2026-10-20_expa-knee-10-blocks/` |
 | `2026-10-19_baseline-before-audit-defaults` | "The post-change run is still to be recorded" | recorded on 2026-10-20: `2026-10-20_regression-after-audit-defaults/` (10/10 PASS, the same engines in every scenario) |
+| `2026-10-20_omitted-runs` ("Still not published"), `docs/THESIS_CLAIMS.md` Q1, M1, M2 | the prototype campaigns of 2026-10-12 behind the addendum's cross-mode claims are not published | published on 2026-10-21: `2026-10-12_exp1-default-4modes_prototype`, `..._exp2b-knee-nginxtuned_prototype`, `..._f45-ack-stall-validation_prototype`, `..._exp1d-calibration-sweep_raw`; 129 of 139 comparisons with the addendum match (`2026-10-21_prototype-claims-check/`) |
+| `docs/REPORT_ADDENDUM_EXP0_EXP1.md` §L (F-45) | "exact last-ban TTM ≤ 0.97 s", "Max TTM across all 6 patched runs = 0.97 s" | measured from the Phase-2 metrics row, written 1.1-1.3 s after the Phase-1 row. From the attack start (the Phase-1 timestamp) the slowest run is 2.10 s; in five of six runs every ban precedes the Phase-2 row. No run approached the 10.32 s stall: `2026-10-12_f45-ack-stall-validation_prototype/README.md` |
+| `docs/REPORT_ADDENDUM_EXP0_EXP1.md` §H.4 | "The constant 512 seen in all modes on 2026-10-11 was a product of the L2 defect" | constant only for the unprotected mode (512-513 in 15 of 15 flood samples). XDP and iptables show 512 in Phase 2 and 2A (1/3) and about 255 afterwards, with unique MACs too: `claims_check.md` H-23 to H-25 |
+| `docs/REPORT_ADDENDUM_EXP0_EXP1.md` §H.1 | "yesterday's unprotected HTTP 58 %"; "Every run is 100 %" | the 2026-10-11 unprotected HTTP flood is 62.7 % pooled (58 % is the mean of the runs 70, 33, 72); one unprotected UDP-flood run of EXP-1b is 99.4 %: `claims_check.md` H-26, H-2 |
 | `2026-10-16_l7-p5c4-eval`, `docs/L7_GRU_DESIGN.md` 7.3.5 | the cost of the tolerant profile in security is to be tabulated | measured on 2026-10-20 for the suite's ten attacks: `2026-10-20_expb-tolerant-profile-suite/` (Slowloris and R.U.D.Y. unbanned in 3 of 3 runs, nothing else lost) |

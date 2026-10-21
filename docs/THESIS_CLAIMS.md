@@ -11,6 +11,12 @@ author's call.
 EXP-A; `results/2026-10-20_*`). M4 moved from inconclusive to supported with scope; M2, M3, M6, M7
 and L4 gained evidence; M1 now rests on four complete runs.
 
+**Updated 2026-10-21** with the prototype campaigns of 2026-10-12, now published
+(`results/2026-10-12_*_prototype`, `results/2026-10-12_exp1d-calibration-sweep_raw`) and compared
+number by number with the addendum (`results/2026-10-21_prototype-claims-check/`: 139 comparisons,
+129 match, 4 differ, 6 cannot be checked). M1 and M2 lose their [CLAIMED] items and gain evidence;
+Q1 loses its first limit. No verdict changes; M2's enforcement-latency half is scoped to the HTTP flood.
+
 **Tags.** **[FACT]** recomputed from files in this repository (paths given). **[INFERENCE]**
 reasoned from code or design, not measured. **[CLAIMED]** stated in an earlier document with no
 data in `results/`. **[NOT RUN]** needs a VM workload and explicit approval.
@@ -63,12 +69,19 @@ four runs, the 200 bans are `l4_volumetric` 72, `l7_rate` 44, `l4_slowconn` 40, 
 scenario as the three runs before it. Under the tolerant profile 8 of the 10 scenarios stay at
 5/5 (M7).
 
+The three XDP runs of `2026-10-12_exp1-default-4modes_prototype` (an older code state with the
+XDP-fed GRU on, recorded with the prototype harness) agree: ban events show all 5 bots banned in each
+of the 30 scenario-runs, with the same engines, no legitimate client banned and no GRU ban among 150
+first bans. One ACK flood was banned only 10.32 s after its start (finding F-45, since fixed): the
+harness reported 0/5 and FAIL.
+
 **It does not show.**
 * Detection by anything other than the rules: no GRU ban occurs in these runs.
-* Harm without mitigation. At the default point the addendum reports 100 % availability in
-  every mode, unprotected included [CLAIMED, `docs/REPORT_ADDENDUM_EXP0_EXP1.md`, from campaigns
-  that are not published]. "Mitigates" here means "bans". Service is protected only at the
-  knee (M3).
+* Harm without mitigation. At the default point every mode, unprotected included, served 100 % of
+  the legitimate requests started during the attacks (17,363 requests, one failed: an unprotected
+  UDP-flood request) [FACT, `results/2026-10-12_exp1-default-4modes_prototype`; addendum §H.1 and
+  §I.1, reproduced]. There is no harm to prevent at that point: "mitigates" here means "bans".
+  Service is protected only at the knee (M3).
 * Attacks away from the calibration points (other rates, socket counts, ports), or more than
   four runs.
 
@@ -77,8 +90,9 @@ calibrated operating point per scenario.
 
 ### M2. XDP outperforms iptables
 
-**Verdict: partly supported.** Enforcement latency (ten blocks, post hoc) and packet drop before
-the IP stack: yes. Availability: no difference.
+**Verdict: partly supported.** Enforcement latency for the HTTP flood (ten blocks, post hoc) and
+packet drop before the IP stack: yes. Availability: no difference. Enforcement latency in the other
+scenarios of the full suite: no consistent difference.
 
 **Wording.** "At the HTTP-flood knee, XDP and iptables both kept legitimate success at 100 % in
 every run (19 runs each). XDP banned the flood's bots sooner: 0.075 s on average per block in the
@@ -102,12 +116,24 @@ the IP stack."
   phases): the UDP, ACK, IP-fragmentation and multi-vector scenarios put 0.84-1.66 M packets/s
   on the server interface while `IP_InReceives` stayed at or below 227 packets/s and
   `PreStack_Dropped` was within 0.02 % of `PPS_Rx`.
+* The same full suite with iptables as the backend, recorded with the prototype harness
+  (`2026-10-12_exp1-default-4modes_prototype`, three runs per mode, an older code state): in the UDP,
+  ACK and fragmentation floods iptables and unprotected passed 1.07-1.44 M packets/s into the IP
+  layer, against 108-199 k/s for XDP (mean of Phases 2, 2A (2/3) and 3) and 147-169 packets/s in its
+  sustained phases, with 1.24-1.36 M/s dropped before the stack (`2026-10-21_prototype-claims-check`,
+  rows H-14 to H-16 and C-20).
+* Outside the HTTP flood, neither backend is consistently faster to ban in that suite. The median
+  time to mitigate is lower with XDP in 5 of the 10 scenarios (SYN flood, Low & Slow SYN, UDP flood,
+  HTTP flood, Yo-Yo) and lower with iptables in the other 5 (ACK flood, fragmentation, Slowloris,
+  R.U.D.Y., multi-vector), by 0.04-0.74 s, from three unpaired runs per mode. Legitimate success is
+  100 % in both modes in all ten scenarios.
 
 **It does not show.**
 * The cause of the 0.08-0.17 s difference. Plausibly the serial `iptables` calls against a map
-  update [INFERENCE].
-* An iptables flood run in the same harness. Its pre-stack comparison is in the addendum
-  [CLAIMED].
+  update [INFERENCE]. Nor that the advantage holds beyond the HTTP flood (see the last evidence
+  bullet).
+* The pre-stack comparison on the current code and harness: it comes from the prototype harness
+  (three runs per mode, 2026-10-12), not from `eval/run_campaign.py`.
 * The effect on a physical NIC. The testbed uses veth pairs.
 
 ### M3. The daemon preserves availability under an HTTP flood
@@ -332,8 +358,11 @@ verdict reports and retrained the P5c.3 model (seed 0, 25 epochs, about 80 s on 
 identical files. The audit-derived directory regenerates from `results/` alone.
 
 **Limits.**
-* The prototype campaigns of 2026-10-12 behind the addendum's cross-mode claims are not
-  published (`results/2026-10-20_omitted-runs/README.md`, "Still not published").
+* The prototype campaigns of 2026-10-12 behind the addendum's cross-mode claims have been published
+  since 2026-10-21, and 129 of the 139 comparisons with the addendum's numbers that rest on them match
+  (`results/2026-10-21_prototype-claims-check/`). They were converted from prototype-harness files
+  with documented approximations (attack start, event times, unseeded client profiles). Not in the
+  repository: the kernel log of the EXP-1 runs, EXP-0, and the EXP-5 benchmark output.
 * L7 runs published before 2026-10-20 record the commit but no dirty flag; since 9202f61 the L7
   runners record commit, branch and dirty state and refuse a dirty tree.
 * The deployed XDP-GRU cannot be rebuilt from the repository alone: its training flows and the
@@ -362,6 +391,8 @@ addendum next to it. They matter here because three sentences were stronger than
 ```bash
 sh results/2026-10-20_audit-derived/regenerate.sh      # PYTHON=... if ./venv is elsewhere
 (cd results/2026-10-20_audit-derived && sha256sum -c SHA256SUMS)
+sh results/2026-10-21_prototype-claims-check/regenerate.sh
+(cd results/2026-10-21_prototype-claims-check && sha256sum -c SHA256SUMS)
 for c in results/20*/; do                              # prints only failures
   if [ -f "$c/SHA256SUMS" ]; then
     (cd "$c" && sha256sum --quiet -c SHA256SUMS) || echo "FAILED: $c"
@@ -387,4 +418,6 @@ Still open [NOT RUN], each needing a VM workload and your approval, or offline w
 * Slow attacks around and below the SlowConn threshold (M7).
 * A live `hping3 --rand-source` flood with the daemon polling, and the remaining G-17 checks
   (`docs/EVALUATION.md`, verification record).
-* Publishing the prototype campaigns of 2026-10-12 (M1, M2 [CLAIMED] items; offline).
+
+Done offline on 2026-10-21, no VM workload: the prototype campaigns of 2026-10-12 are published
+(M1, M2, Q1) and compared with the addendum (`results/2026-10-21_prototype-claims-check/`).
