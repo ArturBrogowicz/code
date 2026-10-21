@@ -124,10 +124,13 @@ They change no pre-registered rule, run or number above or in §7. Evidence:
 7. **"The dilemma, measured"** is true for per-IP peak and connection-count rules. The evasion side
    holds by construction (attacks calibrated at most 45 rps against a tolerant rule of 108 rps);
    per-(IP, UA) sustained-rate rules and the tabular model escape it (20/20 at 2 benign flags).
-8. **The security-cost table promised in §7.3.5 was never produced.** The tolerant SlowConn
+   For the connection-count rule the evasion side was measured on 2026-10-20 (note 8).
+8. **The security-cost table promised in §7.3.5 was not produced in this track; it was measured on
+   2026-10-20** (EXP-B, `results/2026-10-20_expb-tolerant-profile-suite/`). The tolerant SlowConn
    threshold (180) is above the socket counts of the suite's Slowloris (8) and R.U.D.Y. (10)
-   scenarios, so the tolerant profile probably no longer bans them [inference from the code,
-   unmeasured]. The 6-socket example in §7.3.5 ("that the default SlowConn caught") is wrong:
+   scenarios, and under the tolerant profile both went unbanned: 0 of 5 bots in each of three runs,
+   while the other eight scenarios stayed at 5 of 5 and legitimate clients were not affected during
+   the two attacks. The 6-socket example in §7.3.5 ("that the default SlowConn caught") is wrong:
    6 < 8, and the slow families were caught by nothing in P5.
 9. **Ingest cost.** §4.4 quotes about 200 k lines/s per core (5 µs per line) from a benchmark of a
    synthetic parser. The deployed path (`parse_l7_line`, `normalise`, window store) costs about
