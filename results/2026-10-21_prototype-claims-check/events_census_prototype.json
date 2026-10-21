@@ -1,0 +1,24 @@
+{
+ "files": 21,
+ "distinct_logs": 13,
+ "logs_without_events": 1,
+ "duplicates_removed": 8,
+ "events_by_kind": {
+  "ban": 330,
+  "start": 66
+ },
+ "bans_by_engine": {
+  "l4_volumetric": 138,
+  "l7_rate": 66,
+  "l4_slowconn": 60,
+  "l4_syn": 36,
+  "l4_lowsyn": 30
+ },
+ "total_bans": 330,
+ "start_configs": {
+  "xdp_gru=None l7_shadow=None profile=None": 66
+ },
+ "legit_bans": [],
+ "gru_bans": [],
+ "gru_bans_of_legit_clients": 0
+}
