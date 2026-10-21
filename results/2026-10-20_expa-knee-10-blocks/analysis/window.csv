@@ -1,0 +1,9 @@
+scenario,mode,profile,window_s,n,success_pct,p50_ms,p95_ms
+Distributed HTTP Flood,xdp,ALL,10.000,790,100.000,44.300,640.770
+Distributed HTTP Flood,xdp,perfect,10.000,346,100.000,1.100,92.625
+Distributed HTTP Flood,iptables,ALL,10.000,787,100.000,43.200,700.440
+Distributed HTTP Flood,iptables,perfect,10.000,348,100.000,1.200,102.830
+Distributed HTTP Flood,nginxlimits,ALL,10.000,199,22.111,9722.850,9959.840
+Distributed HTTP Flood,nginxlimits,perfect,10.000,65,23.077,9509.400,9985.420
+Distributed HTTP Flood,unprotected,ALL,10.000,534,84.270,925.700,6295.035
+Distributed HTTP Flood,unprotected,perfect,10.000,213,82.160,869.300,6336.230

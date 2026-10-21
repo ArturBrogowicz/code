@@ -1,0 +1,21 @@
+scenario,mode,profile,n,p50_ms,p95_ms,p99_ms
+Distributed HTTP Flood,xdp,ALL,2541,42.500,601.800,1093.020
+Distributed HTTP Flood,xdp,broadband,898,48.250,139.100,245.062
+Distributed HTTP Flood,xdp,mobile_3g,412,371.500,853.425,1344.034
+Distributed HTTP Flood,xdp,mobile_bad,101,754.900,1765.800,2049.300
+Distributed HTTP Flood,xdp,perfect,1130,1.100,4.565,215.188
+Distributed HTTP Flood,iptables,ALL,2503,42.500,611.530,1292.246
+Distributed HTTP Flood,iptables,broadband,879,49.500,145.730,336.900
+Distributed HTTP Flood,iptables,mobile_3g,419,369.200,813.670,1389.966
+Distributed HTTP Flood,iptables,mobile_bad,101,738.700,1822.600,3130.700
+Distributed HTTP Flood,iptables,perfect,1104,1.100,11.225,267.061
+Distributed HTTP Flood,nginxlimits,ALL,258,6579.250,9952.045,9987.248
+Distributed HTTP Flood,nginxlimits,broadband,89,6516.300,9941.560,9968.884
+Distributed HTTP Flood,nginxlimits,mobile_3g,68,3424.500,9945.680,9967.730
+Distributed HTTP Flood,nginxlimits,mobile_bad,9,9688.200,9916.800,9946.880
+Distributed HTTP Flood,nginxlimits,perfect,92,7316.600,9978.555,9994.669
+Distributed HTTP Flood,unprotected,ALL,759,1025.500,6541.820,8984.180
+Distributed HTTP Flood,unprotected,broadband,269,942.000,6254.700,7517.888
+Distributed HTTP Flood,unprotected,mobile_3g,154,1789.000,8627.855,9586.423
+Distributed HTTP Flood,unprotected,mobile_bad,39,2648.100,8716.140,9008.488
+Distributed HTTP Flood,unprotected,perfect,297,882.900,6446.500,8222.384

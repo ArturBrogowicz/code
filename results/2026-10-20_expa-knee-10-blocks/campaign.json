@@ -1,0 +1,525 @@
+{
+ "schema": 1,
+ "campaign_id": "20261020T144746Z_knee_s4",
+ "created_utc": "2026-10-20T14:47:46+00:00",
+ "command": [
+  "eval/run_campaign.py",
+  "--operating-point",
+  "knee",
+  "--scenarios",
+  "4",
+  "--runs",
+  "10",
+  "--attack-duration",
+  "30",
+  "--seed-base",
+  "100"
+ ],
+ "python": "/usr/bin/python3",
+ "settings": {
+  "modes": [
+   "xdp",
+   "iptables",
+   "nginxlimits",
+   "unprotected"
+  ],
+  "runs": 10,
+  "scenarios": "4",
+  "operating_point": "knee",
+  "attack_duration": 30.0,
+  "seed_base": 100,
+  "order_seed": 0,
+  "set": {}
+ },
+ "plan": [
+  {
+   "block": 1,
+   "mode": "nginxlimits",
+   "profile_seed": 101,
+   "dir": "nginxlimits/run1"
+  },
+  {
+   "block": 1,
+   "mode": "xdp",
+   "profile_seed": 101,
+   "dir": "xdp/run1"
+  },
+  {
+   "block": 1,
+   "mode": "iptables",
+   "profile_seed": 101,
+   "dir": "iptables/run1"
+  },
+  {
+   "block": 1,
+   "mode": "unprotected",
+   "profile_seed": 101,
+   "dir": "unprotected/run1"
+  },
+  {
+   "block": 2,
+   "mode": "xdp",
+   "profile_seed": 102,
+   "dir": "xdp/run2"
+  },
+  {
+   "block": 2,
+   "mode": "iptables",
+   "profile_seed": 102,
+   "dir": "iptables/run2"
+  },
+  {
+   "block": 2,
+   "mode": "unprotected",
+   "profile_seed": 102,
+   "dir": "unprotected/run2"
+  },
+  {
+   "block": 2,
+   "mode": "nginxlimits",
+   "profile_seed": 102,
+   "dir": "nginxlimits/run2"
+  },
+  {
+   "block": 3,
+   "mode": "xdp",
+   "profile_seed": 103,
+   "dir": "xdp/run3"
+  },
+  {
+   "block": 3,
+   "mode": "nginxlimits",
+   "profile_seed": 103,
+   "dir": "nginxlimits/run3"
+  },
+  {
+   "block": 3,
+   "mode": "iptables",
+   "profile_seed": 103,
+   "dir": "iptables/run3"
+  },
+  {
+   "block": 3,
+   "mode": "unprotected",
+   "profile_seed": 103,
+   "dir": "unprotected/run3"
+  },
+  {
+   "block": 4,
+   "mode": "iptables",
+   "profile_seed": 104,
+   "dir": "iptables/run4"
+  },
+  {
+   "block": 4,
+   "mode": "xdp",
+   "profile_seed": 104,
+   "dir": "xdp/run4"
+  },
+  {
+   "block": 4,
+   "mode": "unprotected",
+   "profile_seed": 104,
+   "dir": "unprotected/run4"
+  },
+  {
+   "block": 4,
+   "mode": "nginxlimits",
+   "profile_seed": 104,
+   "dir": "nginxlimits/run4"
+  },
+  {
+   "block": 5,
+   "mode": "nginxlimits",
+   "profile_seed": 105,
+   "dir": "nginxlimits/run5"
+  },
+  {
+   "block": 5,
+   "mode": "xdp",
+   "profile_seed": 105,
+   "dir": "xdp/run5"
+  },
+  {
+   "block": 5,
+   "mode": "unprotected",
+   "profile_seed": 105,
+   "dir": "unprotected/run5"
+  },
+  {
+   "block": 5,
+   "mode": "iptables",
+   "profile_seed": 105,
+   "dir": "iptables/run5"
+  },
+  {
+   "block": 6,
+   "mode": "unprotected",
+   "profile_seed": 106,
+   "dir": "unprotected/run6"
+  },
+  {
+   "block": 6,
+   "mode": "iptables",
+   "profile_seed": 106,
+   "dir": "iptables/run6"
+  },
+  {
+   "block": 6,
+   "mode": "nginxlimits",
+   "profile_seed": 106,
+   "dir": "nginxlimits/run6"
+  },
+  {
+   "block": 6,
+   "mode": "xdp",
+   "profile_seed": 106,
+   "dir": "xdp/run6"
+  },
+  {
+   "block": 7,
+   "mode": "nginxlimits",
+   "profile_seed": 107,
+   "dir": "nginxlimits/run7"
+  },
+  {
+   "block": 7,
+   "mode": "xdp",
+   "profile_seed": 107,
+   "dir": "xdp/run7"
+  },
+  {
+   "block": 7,
+   "mode": "unprotected",
+   "profile_seed": 107,
+   "dir": "unprotected/run7"
+  },
+  {
+   "block": 7,
+   "mode": "iptables",
+   "profile_seed": 107,
+   "dir": "iptables/run7"
+  },
+  {
+   "block": 8,
+   "mode": "unprotected",
+   "profile_seed": 108,
+   "dir": "unprotected/run8"
+  },
+  {
+   "block": 8,
+   "mode": "iptables",
+   "profile_seed": 108,
+   "dir": "iptables/run8"
+  },
+  {
+   "block": 8,
+   "mode": "nginxlimits",
+   "profile_seed": 108,
+   "dir": "nginxlimits/run8"
+  },
+  {
+   "block": 8,
+   "mode": "xdp",
+   "profile_seed": 108,
+   "dir": "xdp/run8"
+  },
+  {
+   "block": 9,
+   "mode": "iptables",
+   "profile_seed": 109,
+   "dir": "iptables/run9"
+  },
+  {
+   "block": 9,
+   "mode": "xdp",
+   "profile_seed": 109,
+   "dir": "xdp/run9"
+  },
+  {
+   "block": 9,
+   "mode": "nginxlimits",
+   "profile_seed": 109,
+   "dir": "nginxlimits/run9"
+  },
+  {
+   "block": 9,
+   "mode": "unprotected",
+   "profile_seed": 109,
+   "dir": "unprotected/run9"
+  },
+  {
+   "block": 10,
+   "mode": "xdp",
+   "profile_seed": 110,
+   "dir": "xdp/run10"
+  },
+  {
+   "block": 10,
+   "mode": "unprotected",
+   "profile_seed": 110,
+   "dir": "unprotected/run10"
+  },
+  {
+   "block": 10,
+   "mode": "iptables",
+   "profile_seed": 110,
+   "dir": "iptables/run10"
+  },
+  {
+   "block": 10,
+   "mode": "nginxlimits",
+   "profile_seed": 110,
+   "dir": "nginxlimits/run10"
+  }
+ ],
+ "runs": {
+  "nginxlimits/run1": {
+   "exit_code": 0,
+   "seconds": 90.9,
+   "finished_utc": "2026-10-20T14:49:17+00:00",
+   "leftovers": []
+  },
+  "xdp/run1": {
+   "exit_code": 0,
+   "seconds": 93.6,
+   "finished_utc": "2026-10-20T14:50:50+00:00",
+   "leftovers": []
+  },
+  "iptables/run1": {
+   "exit_code": 0,
+   "seconds": 94.8,
+   "finished_utc": "2026-10-20T14:52:25+00:00",
+   "leftovers": []
+  },
+  "unprotected/run1": {
+   "exit_code": 0,
+   "seconds": 94.1,
+   "finished_utc": "2026-10-20T14:53:59+00:00",
+   "leftovers": []
+  },
+  "xdp/run2": {
+   "exit_code": 0,
+   "seconds": 89.7,
+   "finished_utc": "2026-10-20T14:55:29+00:00",
+   "leftovers": []
+  },
+  "iptables/run2": {
+   "exit_code": 0,
+   "seconds": 90.4,
+   "finished_utc": "2026-10-20T14:56:59+00:00",
+   "leftovers": []
+  },
+  "unprotected/run2": {
+   "exit_code": 0,
+   "seconds": 88.3,
+   "finished_utc": "2026-10-20T14:58:28+00:00",
+   "leftovers": []
+  },
+  "nginxlimits/run2": {
+   "exit_code": 0,
+   "seconds": 91.2,
+   "finished_utc": "2026-10-20T14:59:59+00:00",
+   "leftovers": []
+  },
+  "xdp/run3": {
+   "exit_code": 0,
+   "seconds": 93.6,
+   "finished_utc": "2026-10-20T15:01:32+00:00",
+   "leftovers": []
+  },
+  "nginxlimits/run3": {
+   "exit_code": 0,
+   "seconds": 90.7,
+   "finished_utc": "2026-10-20T15:03:03+00:00",
+   "leftovers": []
+  },
+  "iptables/run3": {
+   "exit_code": 0,
+   "seconds": 95.2,
+   "finished_utc": "2026-10-20T15:04:38+00:00",
+   "leftovers": []
+  },
+  "unprotected/run3": {
+   "exit_code": 0,
+   "seconds": 90.9,
+   "finished_utc": "2026-10-20T15:06:09+00:00",
+   "leftovers": []
+  },
+  "iptables/run4": {
+   "exit_code": 0,
+   "seconds": 94.5,
+   "finished_utc": "2026-10-20T15:07:44+00:00",
+   "leftovers": []
+  },
+  "xdp/run4": {
+   "exit_code": 0,
+   "seconds": 96.6,
+   "finished_utc": "2026-10-20T15:09:20+00:00",
+   "leftovers": []
+  },
+  "unprotected/run4": {
+   "exit_code": 0,
+   "seconds": 91.6,
+   "finished_utc": "2026-10-20T15:10:52+00:00",
+   "leftovers": []
+  },
+  "nginxlimits/run4": {
+   "exit_code": 0,
+   "seconds": 91.5,
+   "finished_utc": "2026-10-20T15:12:23+00:00",
+   "leftovers": []
+  },
+  "nginxlimits/run5": {
+   "exit_code": 0,
+   "seconds": 90.4,
+   "finished_utc": "2026-10-20T15:13:54+00:00",
+   "leftovers": []
+  },
+  "xdp/run5": {
+   "exit_code": 0,
+   "seconds": 95.9,
+   "finished_utc": "2026-10-20T15:15:30+00:00",
+   "leftovers": []
+  },
+  "unprotected/run5": {
+   "exit_code": 0,
+   "seconds": 91.0,
+   "finished_utc": "2026-10-20T15:17:01+00:00",
+   "leftovers": []
+  },
+  "iptables/run5": {
+   "exit_code": 0,
+   "seconds": 95.1,
+   "finished_utc": "2026-10-20T15:18:36+00:00",
+   "leftovers": []
+  },
+  "unprotected/run6": {
+   "exit_code": 0,
+   "seconds": 94.9,
+   "finished_utc": "2026-10-20T15:20:11+00:00",
+   "leftovers": []
+  },
+  "iptables/run6": {
+   "exit_code": 0,
+   "seconds": 97.8,
+   "finished_utc": "2026-10-20T15:21:49+00:00",
+   "leftovers": []
+  },
+  "nginxlimits/run6": {
+   "exit_code": 0,
+   "seconds": 90.3,
+   "finished_utc": "2026-10-20T15:23:19+00:00",
+   "leftovers": []
+  },
+  "xdp/run6": {
+   "exit_code": 0,
+   "seconds": 99.2,
+   "finished_utc": "2026-10-20T15:24:58+00:00",
+   "leftovers": []
+  },
+  "nginxlimits/run7": {
+   "exit_code": 0,
+   "seconds": 94.8,
+   "finished_utc": "2026-10-20T15:26:33+00:00",
+   "leftovers": []
+  },
+  "xdp/run7": {
+   "exit_code": 0,
+   "seconds": 95.2,
+   "finished_utc": "2026-10-20T15:28:08+00:00",
+   "leftovers": []
+  },
+  "unprotected/run7": {
+   "exit_code": 0,
+   "seconds": 94.5,
+   "finished_utc": "2026-10-20T15:29:43+00:00",
+   "leftovers": []
+  },
+  "iptables/run7": {
+   "exit_code": 0,
+   "seconds": 96.5,
+   "finished_utc": "2026-10-20T15:31:19+00:00",
+   "leftovers": []
+  },
+  "unprotected/run8": {
+   "exit_code": 0,
+   "seconds": 96.9,
+   "finished_utc": "2026-10-20T15:32:56+00:00",
+   "leftovers": []
+  },
+  "iptables/run8": {
+   "exit_code": 0,
+   "seconds": 95.8,
+   "finished_utc": "2026-10-20T15:34:32+00:00",
+   "leftovers": []
+  },
+  "nginxlimits/run8": {
+   "exit_code": 0,
+   "seconds": 91.5,
+   "finished_utc": "2026-10-20T15:36:03+00:00",
+   "leftovers": []
+  },
+  "xdp/run8": {
+   "exit_code": 0,
+   "seconds": 95.6,
+   "finished_utc": "2026-10-20T15:37:39+00:00",
+   "leftovers": []
+  },
+  "iptables/run9": {
+   "exit_code": 0,
+   "seconds": 93.8,
+   "finished_utc": "2026-10-20T15:39:13+00:00",
+   "leftovers": []
+  },
+  "xdp/run9": {
+   "exit_code": 0,
+   "seconds": 91.9,
+   "finished_utc": "2026-10-20T15:40:45+00:00",
+   "leftovers": []
+  },
+  "nginxlimits/run9": {
+   "exit_code": 0,
+   "seconds": 91.3,
+   "finished_utc": "2026-10-20T15:42:16+00:00",
+   "leftovers": []
+  },
+  "unprotected/run9": {
+   "exit_code": 0,
+   "seconds": 92.4,
+   "finished_utc": "2026-10-20T15:43:48+00:00",
+   "leftovers": []
+  },
+  "xdp/run10": {
+   "exit_code": 0,
+   "seconds": 92.8,
+   "finished_utc": "2026-10-20T15:45:21+00:00",
+   "leftovers": []
+  },
+  "unprotected/run10": {
+   "exit_code": 0,
+   "seconds": 90.4,
+   "finished_utc": "2026-10-20T15:46:52+00:00",
+   "leftovers": []
+  },
+  "iptables/run10": {
+   "exit_code": 0,
+   "seconds": 92.3,
+   "finished_utc": "2026-10-20T15:48:24+00:00",
+   "leftovers": []
+  },
+  "nginxlimits/run10": {
+   "exit_code": 0,
+   "seconds": 89.5,
+   "finished_utc": "2026-10-20T15:49:53+00:00",
+   "leftovers": []
+  }
+ },
+ "status": "completed",
+ "updated_utc": "2026-10-20T15:49:53+00:00",
+ "git": {
+  "commit": "618b2fcaf542127308d5f6bee1fc7c0858f3bb40",
+  "branch": "feat/audit-must-do-2-5",
+  "dirty": false
+ }
+}

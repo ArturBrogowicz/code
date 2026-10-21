@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-20T15:19:35.533411,Distributed HTTP Flood,before,ALL,none,xdp,34,34,100.0,0,0,0,0.0,42.9,941.3,975.5,173.2,975.5
+2026-10-20T15:19:35.533411,Distributed HTTP Flood,before,broadband,none,xdp,9,9,100.0,0,0,0,0.0,45.7,92.4,92.4,55.7,92.4
+2026-10-20T15:19:35.533411,Distributed HTTP Flood,before,mobile_3g,none,xdp,7,7,100.0,0,0,0,0.0,364.9,471.0,471.0,380.5,471.0
+2026-10-20T15:19:35.533411,Distributed HTTP Flood,before,mobile_bad,none,xdp,3,3,100.0,0,0,0,0.0,941.3,975.5,975.5,893.8,975.5
+2026-10-20T15:19:35.533411,Distributed HTTP Flood,before,perfect,none,xdp,15,15,100.0,0,0,0,0.0,1.2,19.6,19.6,2.9,19.6
+2026-10-20T15:19:35.533411,Distributed HTTP Flood,during,ALL,none,xdp,108,72,66.7,0,12,24,11.1,1048.9,6149.7,8663.7,2095.5,8663.7
+2026-10-20T15:19:35.533411,Distributed HTTP Flood,during,broadband,none,xdp,25,19,76.0,0,1,5,4.0,945.0,6149.7,6149.7,2307.8,6149.7
+2026-10-20T15:19:35.533411,Distributed HTTP Flood,during,mobile_3g,none,xdp,30,19,63.3,0,6,5,20.0,1202.1,7588.5,7588.5,2332.0,7588.5
+2026-10-20T15:19:35.533411,Distributed HTTP Flood,during,mobile_bad,none,xdp,10,5,50.0,0,0,5,0.0,2296.5,6857.4,6857.4,3529.1,6857.4
+2026-10-20T15:19:35.533411,Distributed HTTP Flood,during,perfect,none,xdp,43,29,67.4,0,5,9,11.6,864.7,6123.3,8663.7,1554.2,8663.7
+2026-10-20T15:19:35.533411,Distributed HTTP Flood,after,ALL,none,xdp,20,8,40.0,0,0,12,0.0,328.5,3170.4,3170.4,1154.2,3170.4
+2026-10-20T15:19:35.533411,Distributed HTTP Flood,after,broadband,none,xdp,5,2,40.0,0,0,3,0.0,157.6,328.5,328.5,243.0,328.5
+2026-10-20T15:19:35.533411,Distributed HTTP Flood,after,mobile_3g,none,xdp,6,1,16.7,0,0,5,0.0,261.4,261.4,261.4,261.4,261.4
+2026-10-20T15:19:35.533411,Distributed HTTP Flood,after,mobile_bad,none,xdp,2,0,0.0,0,0,2,0.0,0.0,0.0,0.0,0.0,0.0
+2026-10-20T15:19:35.533411,Distributed HTTP Flood,after,perfect,none,xdp,7,5,71.4,0,0,2,0.0,2252.6,3170.4,3170.4,1697.3,3170.4

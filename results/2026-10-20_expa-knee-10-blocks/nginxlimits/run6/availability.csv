@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-20T15:22:47.795120,Distributed HTTP Flood,before,ALL,none,xdp,33,32,97.0,0,1,0,3.0,41.8,878.2,882.2,165.0,882.2
+2026-10-20T15:22:47.795120,Distributed HTTP Flood,before,broadband,none,xdp,8,8,100.0,0,0,0,0.0,49.5,77.3,77.3,52.8,77.3
+2026-10-20T15:22:47.795120,Distributed HTTP Flood,before,mobile_3g,none,xdp,7,6,85.7,0,1,0,14.3,308.1,882.2,882.2,402.3,882.2
+2026-10-20T15:22:47.795120,Distributed HTTP Flood,before,mobile_bad,none,xdp,3,3,100.0,0,0,0,0.0,807.4,878.2,878.2,771.1,878.2
+2026-10-20T15:22:47.795120,Distributed HTTP Flood,before,perfect,none,xdp,15,15,100.0,0,0,0,0.0,1.3,64.7,64.7,8.7,64.7
+2026-10-20T15:22:47.795120,Distributed HTTP Flood,during,ALL,none,xdp,56,28,50.0,0,28,0,50.0,6376.9,9897.0,9909.6,6764.1,9909.6
+2026-10-20T15:22:47.795120,Distributed HTTP Flood,during,broadband,none,xdp,12,5,41.7,0,7,0,58.3,5418.3,9392.4,9392.4,5922.0,9392.4
+2026-10-20T15:22:47.795120,Distributed HTTP Flood,during,mobile_3g,none,xdp,20,16,80.0,0,4,0,20.0,9357.4,9909.6,9909.6,6769.8,9909.6
+2026-10-20T15:22:47.795120,Distributed HTTP Flood,during,mobile_bad,none,xdp,6,1,16.7,0,5,0,83.3,9703.2,9703.2,9703.2,9703.2,9703.2
+2026-10-20T15:22:47.795120,Distributed HTTP Flood,during,perfect,none,xdp,18,6,33.3,0,12,0,66.7,6376.9,8587.8,8587.8,6960.7,8587.8
+2026-10-20T15:22:47.795120,Distributed HTTP Flood,after,ALL,none,xdp,65,65,100.0,0,0,0,0.0,50.3,951.2,1783.8,240.4,1783.8
+2026-10-20T15:22:47.795120,Distributed HTTP Flood,after,broadband,none,xdp,15,15,100.0,0,0,0,0.0,88.1,783.1,783.1,166.7,783.1
+2026-10-20T15:22:47.795120,Distributed HTTP Flood,after,mobile_3g,none,xdp,14,14,100.0,0,0,0,0.0,458.1,1453.9,1453.9,533.3,1453.9
+2026-10-20T15:22:47.795120,Distributed HTTP Flood,after,mobile_bad,none,xdp,6,6,100.0,0,0,0,0.0,702.8,1783.8,1783.8,934.2,1783.8
+2026-10-20T15:22:47.795120,Distributed HTTP Flood,after,perfect,none,xdp,30,30,100.0,0,0,0,0.0,1.2,2.5,17.8,1.8,17.8
