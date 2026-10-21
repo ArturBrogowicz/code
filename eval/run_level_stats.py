@@ -228,7 +228,10 @@ def contrasts(data, reference="unprotected", period="during", scenarios=None,
 
 
 def _fmt(x, spec):
-    return "—" if x is None or (isinstance(x, float) and math.isnan(x)) else format(x, spec)
+    if x is None or (isinstance(x, float) and math.isnan(x)):
+        return "—"
+    # A column that holds a missing value is float64, so whole numbers arrive as 12.0.
+    return format(int(x), spec) if spec == "d" else format(x, spec)
 
 
 def to_markdown(df, title="Run-level contrasts"):

@@ -148,6 +148,24 @@ class PowerTest(unittest.TestCase):
 
 
 @unittest.skipUnless(HAVE_STACK, "needs pandas/numpy/scipy (run with venv/bin/python)")
+class FormattingTest(unittest.TestCase):
+    def test_a_float_column_with_a_missing_value_still_formats_whole_blocks(self):
+        # The "before" period of a campaign in which every mode served every request has
+        # zero differences, hence no power estimate for some contrasts; the column then
+        # becomes float64 and the integer format used to raise on 12.0.
+        import pandas as pd
+        base = {"scenario": "S", "mode": "xdp", "reference": "unprotected", "period": "before",
+                "design": "paired by PROFILE_SEED (10 blocks)", "blocks": 10, "mean_diff_pp": 0.0,
+                "ci_lo": 0.0, "ci_hi": 0.0, "t_p": math.nan, "perm_p": 1.0, "same_sign": 0.0,
+                "decision": "not shown"}
+        df = pd.DataFrame([{**base, "blocks_for_80pct_power": None},
+                           {**base, "mode": "iptables", "blocks_for_80pct_power": 12}])
+        lines = RLS.to_markdown(df).splitlines()
+        self.assertTrue(lines[-2].endswith("| — |"), lines[-2])
+        self.assertTrue(lines[-1].endswith("| 12 |"), lines[-1])
+
+
+@unittest.skipUnless(HAVE_STACK, "needs pandas/numpy/scipy (run with venv/bin/python)")
 class CampaignTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
