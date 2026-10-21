@@ -95,7 +95,7 @@ baseline for one recorded after.
 
 | Change | Before | Now | Why |
 |---|---|---|---|
-| `XDP_GRU` | 1 | **0** | 0 true bans and 1 false ban (legit 10.0.1.6, P1 smoke `20261014T152428Z`, p = 0.999, 3 hits) in the 39 distinct ban-event logs recorded up to the audit (71 files: 32 were raw copies of published logs; `eval/events_census.py`) [FACT, recounted]; ≈ 0.065 wrongful 300-s bans per client-hour at least [INFERENCE: one ban in ≈ 15.5 client-hours, audit §6.1]. `XDP_GRU=1` opts in; `GRU_ONLY=1` implies it |
+| `XDP_GRU` | 1 | **0** | 0 true bans and 1 false ban (legit 10.0.1.6, P1 smoke `20261014T152428Z`, p = 0.999, 3 hits) in the 39 distinct ban-event logs recorded up to the audit (71 files: 32 were raw copies of published logs; `eval/events_census.py`) [FACT, recounted; with the converted prototype campaigns of 2026-10-12 folded in on 2026-10-21 the census is 52 distinct logs and 710 bans, still that one GRU ban: `results/2026-10-20_audit-derived/events_census.md`]; ≈ 0.065 wrongful 300-s bans per client-hour at least [INFERENCE: one ban in ≈ 15.5 client-hours, audit §6.1]. `XDP_GRU=1` opts in; `GRU_ONLY=1` implies it |
 | L7 syslog sink in the nginx confs | `access_log syslog:…` in `nginx.conf` and `nginx_unprotected.conf`, always | only in the copy the L7 runners serve (`ml/eval_l7.py`, `ml/smoke_l7.py`) | with `L7_SHADOW=0` no socket is bound, so nginx logged one `[warn] send() to syslog failed` per request (868 in one second of the P1 flood burst). The file `access_log` and the `l7json` format stay |
 | XDP `ihl` check | none | `ihl < 5` → `XDP_PASS`, after the blacklist drop | G-17, in part: the IPv6 / 802.1Q bypass and the `doff`, fragment and `tot_len` handling stay open |
 | XDP `telemetry_map` | per-CPU hash, 100 k entries | per-CPU **LRU** hash, 100 k entries | G-18: once a spoofed-source flood had filled the map, new sources went uncounted by the per-IP L4 rules |
@@ -106,7 +106,8 @@ What this means for earlier results:
   R1 and P1 smokes; 38 files with the raw copies) predate the switch: their `start` events have no `xdp_gru` field and
   those runs had the XDP-fed GRU on. To repeat one with the current harness, export
   `XDP_GRU=1`. The campaign runner passes it through, but records it only in the daemon's
-  `start` event, not in `campaign.json`.
+  `start` event, not in `campaign.json`. The converted prototype campaigns of 2026-10-12
+  (`results/2026-10-12_*_prototype`: 12 further distinct non-empty logs) predate it too.
 * The 14 distinct logs of 2026-10-15/16 (27 files; the L7 runners pin it) recorded `xdp_gru: false` and are
   unaffected by that switch. Those runs served `nginx.conf` with the socket sink, as the
   runners still do. The remaining distinct log is empty (the modes without a daemon: 6 identical files).

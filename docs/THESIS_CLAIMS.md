@@ -16,6 +16,8 @@ and L4 gained evidence; M1 now rests on four complete runs.
 number by number with the addendum (`results/2026-10-21_prototype-claims-check/`: 139 comparisons,
 129 match, 4 differ, 6 cannot be checked). M1 and M2 lose their [CLAIMED] items and gain evidence;
 Q1 loses its first limit. No verdict changes; M2's enforcement-latency half is scoped to the HTTP flood.
+The ban-event census of the audit-derived directory includes the prototype campaigns since the same
+day: 52 distinct logs and 710 bans, still one GRU ban (L1, M5).
 
 **Tags.** **[FACT]** recomputed from files in this repository (paths given). **[INFERENCE]**
 reasoned from code or design, not measured. **[CLAIMED]** stated in an earlier document with no
@@ -204,7 +206,7 @@ clients the default deterministic rules banned three of them, and the only ban t
 made in the recorded ban-event logs hit a legitimate client."
 
 **Evidence [FACT].** `events_census.md` in the audit-derived directory lists 4 bans of legitimate
-clients in 40 distinct ban-event logs: in `2026-10-16_l7-p5c-baseline` a browser with a 60-asset
+clients in 52 distinct ban-event logs (710 bans): in `2026-10-16_l7-p5c-baseline` a browser with a 60-asset
 page (10.0.1.16, `l7_rate` at 7.0 s) and two carrier-grade NAT gateways (10.0.1.17 and 10.0.1.18,
 `l4_slowconn`); in `2026-10-20_omitted-runs/p1_smoke_20261014T152428Z` client 10.0.1.6 by the GRU
 (p = 0.999013, 127 s after the daemon started, 56 s after the burst's bans).
@@ -273,13 +275,17 @@ L7 track's 6-socket slow families were caught by no engine (`docs/L7_GRU_DESIGN.
 
 **Verdict: contradicted.**
 
-**Wording.** "The GRU fed with XDP flow telemetry banned no attacker in any recorded run: in 40
-distinct ban-event logs it made no true ban and one false ban. A heuristic bans the same IP
+**Wording.** "The GRU fed with XDP flow telemetry banned no attacker in any recorded run: in the 37
+distinct ban-event logs recorded with it on (52 logs and 710 bans in all) it made no true ban and
+one false ban. A heuristic bans the same IP
 first in every scenario, and the model's inputs let it learn tool and TCP-stack fingerprints
 (request size) rather than behaviour. It is off by default since 2026-10-19."
 
-**Evidence [FACT].** `events_census.md` (audit-derived directory): `gru` 1 of 380 bans, a
-legitimate client. `docs/ML_INVESTIGATION.md` §1: the GRU never decides before a heuristic bans
+**Evidence [FACT].** `events_census.md` (audit-derived directory; the converted prototype
+campaigns of 2026-10-12 folded in on 2026-10-21): `gru` 1 of 710 bans, a legitimate client. Of the 52
+distinct logs, 37 come from daemons with the XDP-fed GRU on (36 recorded before the `xdp_gru` field
+existed, when it was the default, and the pre-change baseline), 14 are L7-track logs with it off and 1
+is empty; the 12 logs and 330 bans added by the prototype campaigns hold no GRU ban. `docs/ML_INVESTIGATION.md` §1: the GRU never decides before a heuristic bans
 the same IP; with only the request size changed, held-out R.U.D.Y. detection goes from 19-29 % to
 100 %; the CIC-IDS2017 AUC of about 0.1 depends on how benign hosts are sampled (0.115 per host,
 0.52 per flow). `control_plane.py:84`: `XDP_GRU` defaults to off.
@@ -382,7 +388,8 @@ the negative verdict is not an artefact of bias against it.
 The report is checksummed and lives outside the repository; its corrections are recorded in an
 addendum next to it. They matter here because three sentences were stronger than the data:
 1. "71 ban-event logs, 529 bans" counted a published log and its raw copy twice. By content there
-   were 39 distinct logs at review time and 40 now (45 files, 5 byte-identical copies, 380 bans).
+   were 39 distinct logs at review time and 52 now (66 files, 14 byte-identical copies, 710 bans,
+   the prototype campaigns of 2026-10-12 included since 2026-10-21).
 2. "Daemon above unprotected in 9 of 9 runs, sign test p = 0.002" is withdrawn as inference (M3).
 3. "The GRU does not use order" is refined to "order has a negligible effect" (L3).
 
