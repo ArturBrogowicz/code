@@ -1,0 +1,2 @@
+scenario,mode,CPU_Nginx_Pct,CPU_Total_Pct,CPU_Daemon_Pct,PPS_Rx,IP_InReceives,PreStack_Dropped,TCP_Estab,TCP_SynRecv
+Distributed HTTP Flood,nginxlimits,96.467,21.683,0.000,50332.833,53698.167,0.000,5036.000,0.667

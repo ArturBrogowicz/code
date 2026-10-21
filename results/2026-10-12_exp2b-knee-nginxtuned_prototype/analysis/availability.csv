@@ -1,0 +1,4 @@
+scenario,mode,period,runs,n,ok,success_pct,ci_lo,ci_hi,per_run_pct
+Distributed HTTP Flood,nginxlimits,before,3,104,103,99.038,97.059,100.000,100/100/97
+Distributed HTTP Flood,nginxlimits,during,3,116,72,62.069,48.649,77.500,59/78/49
+Distributed HTTP Flood,nginxlimits,after,3,232,232,100.000,100.000,100.000,100/100/100

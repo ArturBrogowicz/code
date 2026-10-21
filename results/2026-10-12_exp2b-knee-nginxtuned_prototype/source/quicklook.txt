@@ -1,0 +1,3 @@
+  before 100% (n=38) · during 59% (n=39, p95 9944ms) · after 100% (n=82)
+  before 100% (n=32) · during 78% (n=40, p95 9843ms) · after 100% (n=70)
+  before 97% (n=34) · during 49% (n=37, p95 4311ms) · after 100% (n=80)

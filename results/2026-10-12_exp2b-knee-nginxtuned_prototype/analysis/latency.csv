@@ -1,0 +1,6 @@
+scenario,mode,profile,n,p50_ms,p95_ms,p99_ms
+Distributed HTTP Flood,nginxlimits,ALL,72,3650.500,9839.305,9948.743
+Distributed HTTP Flood,nginxlimits,broadband,25,3620.600,9629.320,9806.428
+Distributed HTTP Flood,nginxlimits,mobile_3g,18,2121.900,9578.650,9784.690
+Distributed HTTP Flood,nginxlimits,mobile_bad,4,6020.600,9432.935,9550.187
+Distributed HTTP Flood,nginxlimits,perfect,25,4112.500,9931.440,9956.592

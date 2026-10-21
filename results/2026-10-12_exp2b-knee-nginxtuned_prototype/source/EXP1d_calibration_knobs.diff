@@ -1,0 +1,111 @@
+--- c/test_distributed_suite.py	2026-10-12 10:14:44.596802088 +0000
++++ d/test_distributed_suite.py	2026-10-12 13:20:48.013712140 +0000
+@@ -40,14 +40,14 @@
+ LEGIT_COUNT = 20               # Number of legitimate client namespaces
+ LEGIT_IP_PREFIX = "10.0.1"     # Legit IPs: 10.0.1.1 – 10.0.1.40
+ 
+-BOTNET_COUNT = 5              # Number of botnet attacker namespaces
++BOTNET_COUNT = int(os.environ.get("BOTNET_COUNT", "5"))   # env-overridable for calibration
+ BOTNET_IP_PREFIX = "10.0.2"    # Botnet IPs: 10.0.2.1 – 10.0.2.10
+ 
+ SUBNET_MASK = "/16"            # All nodes in 10.0.0.0/16
+ HTTP_URL = f"http://{SERVER_IP}/"
+ 
+ PROJECT_DIR = "/home/artur/DDoS-mitigation/code"
+-NGINX_CONF = f"{PROJECT_DIR}/nginx.conf"
++NGINX_CONF = os.environ.get("NGINX_CONF_OVERRIDE", f"{PROJECT_DIR}/nginx.conf")
+ NGINX_UNPROTECTED_CONF = f"{PROJECT_DIR}/nginx_unprotected.conf"
+ CONTROL_PLANE = f"{PROJECT_DIR}/control_plane.py"
+ PYTHON_VENV = f"{PROJECT_DIR}/venv/bin/python"
+@@ -55,6 +55,15 @@
+ # EXP-1c (experiment-only): MITIGATION_MODE=none + NGINX_PROTECTED=1 -> no daemon, but the PROTECTED
+ # nginx.conf (limit_req/limit_conn); outputs tagged "nginxlimits" so no other CSV is appended to.
+ NGINX_PROTECTED = os.environ.get("NGINX_PROTECTED", "0") == "1"
++# EXP-1d (calibration, experiment-only): server-capacity + attack-intensity knobs.
++GUNICORN_WORKERS = os.environ.get("GUNICORN_WORKERS", "8")
++GUNICORN_THREADS = os.environ.get("GUNICORN_THREADS", "4")
++WRK_CONNS = os.environ.get("WRK_CONNS", "50")
++WRK_THREADS = os.environ.get("WRK_THREADS", "2")
++SERVER_CPUS = os.environ.get("SERVER_CPUS", "")   # taskset list for nginx+gunicorn; empty = no pin
++ATTACK_CPUS = os.environ.get("ATTACK_CPUS", "")   # taskset list for bot_* generators; empty = no pin
++def _srv(cmd):
++    return (["taskset", "-c", SERVER_CPUS] + cmd) if SERVER_CPUS else cmd
+ 
+ # ─────────────────────────────── ANSI COLORS ─────────────────────────────────
+ 
+@@ -238,6 +247,8 @@
+     full_cmd = []
+     if ns:
+         full_cmd.extend(["ip", "netns", "exec", ns])
++        if ATTACK_CPUS and ns.startswith("bot_"):
++            full_cmd.extend(["taskset", "-c", ATTACK_CPUS])   # pin attack generators off the server CPU
+     if isinstance(cmd, str):
+         full_cmd.extend(cmd.split())
+     else:
+@@ -495,15 +506,15 @@
+         )
+ 
+     # Start Gunicorn
+-    run([PYTHON_VENV, "-m", "gunicorn", "--chdir", PROJECT_DIR,
+-         "--workers", "8", "--threads", "4", "-b", "0.0.0.0:8080",
+-         "dummy_app:app"], ns=SERVER_NS, bg=True)
++    run(_srv([PYTHON_VENV, "-m", "gunicorn", "--chdir", PROJECT_DIR,
++         "--workers", GUNICORN_WORKERS, "--threads", GUNICORN_THREADS, "-b", "0.0.0.0:8080",
++         "dummy_app:app"]), ns=SERVER_NS, bg=True)
+     time.sleep(1)
+ 
+     # Start Nginx
+     mode = os.environ.get("MITIGATION_MODE", "active")
+     active_conf = NGINX_UNPROTECTED_CONF if (mode == "none" and not NGINX_PROTECTED) else NGINX_CONF
+-    run(["nginx", "-c", active_conf], ns=SERVER_NS, bg=True)
++    run(_srv(["nginx", "-c", active_conf]), ns=SERVER_NS, bg=True)
+     time.sleep(0.5)
+     _wait_http_ready()   # ensure gunicorn/nginx actually serve before proceeding (clean baseline)
+ 
+@@ -588,15 +599,15 @@
+         open(lf, "w").close()
+ 
+     # Restart Gunicorn
+-    run([PYTHON_VENV, "-m", "gunicorn", "--chdir", PROJECT_DIR,
+-         "--workers", "8", "--threads", "4", "-b", "0.0.0.0:8080",
+-         "dummy_app:app"], ns=SERVER_NS, bg=True)
++    run(_srv([PYTHON_VENV, "-m", "gunicorn", "--chdir", PROJECT_DIR,
++         "--workers", GUNICORN_WORKERS, "--threads", GUNICORN_THREADS, "-b", "0.0.0.0:8080",
++         "dummy_app:app"]), ns=SERVER_NS, bg=True)
+     time.sleep(1)
+ 
+     # Restart Nginx
+     mode = os.environ.get("MITIGATION_MODE", "active")
+     active_conf = NGINX_UNPROTECTED_CONF if (mode == "none" and not NGINX_PROTECTED) else NGINX_CONF
+-    run(["nginx", "-c", active_conf], ns=SERVER_NS, bg=True)
++    run(_srv(["nginx", "-c", active_conf]), ns=SERVER_NS, bg=True)
+     time.sleep(0.5)
+     _wait_http_ready()   # ensure gunicorn/nginx actually serve before proceeding (clean baseline)
+ 
+@@ -1232,7 +1243,7 @@
+     attack_start = time.time()
+     log_pos = _get_log_size()
+     procs = launch_botnet(botnet, lambda ns, ip:
+-        run(f"wrk -t2 -c50 -d30s {HTTP_URL}", ns=ns, bg=True))
++        run(f"wrk -t{WRK_THREADS} -c{WRK_CONNS} -d30s {HTTP_URL}", ns=ns, bg=True))
+     capture_metrics("Distributed HTTP Flood", "Phase 2: Pre-Mitigation")
+     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=15, attack_start=attack_start, log_start_pos=log_pos)
+     capture_metrics("Distributed HTTP Flood", "Phase 3: Post-Mitigation")
+@@ -1393,7 +1404,7 @@
+     script = "/tmp/_dist_yoyo.sh"
+     _write_script(script, f"""#!/bin/bash
+ while true; do
+-    wrk -t2 -c50 -d2s {HTTP_URL} > /dev/null 2>&1
++    wrk -t{WRK_THREADS} -c{WRK_CONNS} -d2s {HTTP_URL} > /dev/null 2>&1
+     sleep 6
+ done
+ """)
+@@ -1425,7 +1436,7 @@
+         if p: procs.append((p, ns, ip))
+ 
+     for ns, ip in botnet[third:2*third]:
+-        p = run(f"wrk -t2 -c50 -d30s {HTTP_URL}", ns=ns, bg=True)
++        p = run(f"wrk -t{WRK_THREADS} -c{WRK_CONNS} -d30s {HTTP_URL}", ns=ns, bg=True)
+         if p: procs.append((p, ns, ip))
+ 
+     for ns, ip in botnet[2*third:]:

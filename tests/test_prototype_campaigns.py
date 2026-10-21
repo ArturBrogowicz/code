@@ -8,6 +8,8 @@ here means the code changed (or the data was touched), not the number.
 """
 import collections
 import glob
+import hashlib
+import json
 import os
 import sys
 import unittest
@@ -24,6 +26,7 @@ except ImportError:                      # system python without pandas: skip th
     HAVE_STACK = False
 
 EXP1 = os.path.join(REPO, "results", "2026-10-12_exp1-default-4modes_prototype")
+EXP2B = os.path.join(REPO, "results", "2026-10-12_exp2b-knee-nginxtuned_prototype")
 HTTP, YOYO, UDP = "Distributed HTTP Flood", "Distributed Yo-Yo", "Distributed UDP Flood"
 
 
@@ -136,6 +139,54 @@ class Exp1DefaultPointTest(unittest.TestCase):
     def test_exposure(self):
         exposure = self.data["scenarios"].groupby("mode").Exposure_s.mean().round(1).to_dict()
         self.assertEqual(exposure, {"iptables": 9.0, "nginxlimits": 28.3, "unprotected": 28.6, "xdp": 9.5})
+
+
+@unittest.skipUnless(HAVE_STACK and os.path.isdir(EXP2B), "needs the venv and results/ EXP-2b data")
+class Exp2bTunedNginxTest(unittest.TestCase):
+    """README of 2026-10-12_exp2b-knee-nginxtuned_prototype (addendum §K)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.data = C.load(EXP2B)
+        cls.raw = cls.data["raw"]
+
+    def test_three_runs_of_the_http_flood_without_a_daemon(self):
+        runs = self.data["runs"]
+        self.assertEqual(runs.groupby("mode").size().to_dict(), {"nginxlimits": 3})
+        self.assertEqual(set(self.data["scenarios"].Data_Scenario), {HTTP})
+        self.assertEqual(bans_of(EXP2B), [])
+        self.assertEqual(self.data["scenarios"].Result.tolist(), ["FAIL"] * 3)
+        self.assertTrue(self.data["scenarios"].Exposure_s.between(16.3, 16.4).all())
+
+    def test_availability_before_during_after(self):
+        av = C.availability(self.raw).set_index("period")
+        self.assertEqual((av.loc["during"].ok, av.loc["during"].n), (72, 116))
+        self.assertEqual(av.loc["during"].per_run_pct, "59/78/49")
+        self.assertAlmostEqual(av.loc["during"].success_pct, 62.07, delta=0.01)
+        self.assertEqual((av.loc["before"].ok, av.loc["before"].n, av.loc["before"].per_run_pct),
+                         (103, 104, "100/100/97"))
+        self.assertEqual((av.loc["after"].ok, av.loc["after"].n), (232, 232))
+
+    def test_latency_and_first_ten_seconds(self):
+        lat = C.latency(self.raw).set_index("profile")
+        for profile, (n, p50, p95) in {"perfect": (25, 4112, 9931), "ALL": (72, 3650, 9839)}.items():
+            self.assertEqual((int(lat.loc[profile].n), round(lat.loc[profile].p50_ms),
+                              round(lat.loc[profile].p95_ms)), (n, p50, p95), profile)
+        w = C.window(self.raw, 10.0).set_index("profile")
+        self.assertEqual((int(w.loc["perfect"].n), round(w.loc["perfect"].success_pct, 1)), (20, 25.0))
+        self.assertEqual((int(w.loc["ALL"].n), round(w.loc["ALL"].success_pct, 1)), (59, 25.4))
+
+    def test_server_load(self):
+        row = C.server(self.data["metrics"]).iloc[0]
+        self.assertEqual((round(row.CPU_Nginx_Pct), round(row.CPU_Total_Pct), round(row.PPS_Rx),
+                          round(row.IP_InReceives), round(row.TCP_Estab)), (96, 22, 50333, 53698, 5036))
+
+    def test_the_tuned_config_is_the_recorded_input(self):
+        with open(os.path.join(EXP2B, "nginxlimits", "run1", "provenance.json"), encoding="utf-8") as fh:
+            recorded = json.load(fh)["inputs_sha256"]
+        with open(os.path.join(EXP2B, "source", "nginx_limits_tuned.conf"), "rb") as fh:
+            digest = hashlib.sha256(fh.read()).hexdigest()
+        self.assertIn(digest, recorded.values())
 
 
 if __name__ == "__main__":
