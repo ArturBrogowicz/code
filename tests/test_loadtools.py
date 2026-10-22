@@ -588,6 +588,16 @@ class RunPlanTest(unittest.TestCase):
             self.assertIn(key, on_disk)
         self.assertIsNone(on_disk["script_sha256"])
 
+    def test_every_step_records_the_cpu_it_used(self):
+        py = [sys.executable, "-c"]
+        burn = "import time\nt = time.process_time()\nwhile time.process_time() - t < 0.2: pass"
+        prov = LT.run_plan(self.plan([LT.Step("burn", py + [burn]), LT.Step("idle", py + ["pass"])]))
+        cpu = {s["label"]: s["cpu_s"]["user"] + s["cpu_s"]["system"] for s in prov["steps"]}
+        self.assertGreaterEqual(cpu["burn"], 0.15)
+        self.assertLess(cpu["idle"], cpu["burn"])
+        total = prov["children_cpu_s"]
+        self.assertAlmostEqual(sum(cpu.values()), total["user"] + total["system"], delta=0.01)
+
     def test_the_first_failure_stops_the_run(self):
         py = [sys.executable, "-c"]
         plan = self.plan([LT.Step("bad", py + ["raise SystemExit(3)"]),

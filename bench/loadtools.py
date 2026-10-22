@@ -465,6 +465,7 @@ def run_plan(plan, runner=subprocess.run):
     cpu0 = resource.getrusage(resource.RUSAGE_CHILDREN)
     for step in plan.steps:
         t0 = time.monotonic()
+        step_cpu0 = resource.getrusage(resource.RUSAGE_CHILDREN)
         rc = None
         with open(step.stdout or os.devnull, "wb") as so, open(step.stderr or os.devnull, "wb") as se:
             try:
@@ -472,8 +473,11 @@ def run_plan(plan, runner=subprocess.run):
                             timeout=step.timeout or None, check=False).returncode
             except subprocess.TimeoutExpired:
                 rc = "timeout"
+        step_cpu1 = resource.getrusage(resource.RUSAGE_CHILDREN)
         prov["steps"].append({"label": step.label, "argv": step.argv, "env": step.env,
-                              "returncode": rc, "seconds": round(time.monotonic() - t0, 3)})
+                              "returncode": rc, "seconds": round(time.monotonic() - t0, 3),
+                              "cpu_s": {"user": round(step_cpu1.ru_utime - step_cpu0.ru_utime, 3),
+                                        "system": round(step_cpu1.ru_stime - step_cpu0.ru_stime, 3)}})
         if rc != 0:
             break
     cpu1 = resource.getrusage(resource.RUSAGE_CHILDREN)

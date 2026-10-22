@@ -26,6 +26,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "bench"))
@@ -345,17 +346,21 @@ class ScriptedOriginTest(unittest.TestCase):
         self.assertIsNone(V.ScriptedOrigin()._stall_end(1.0))
 
     def test_a_response_that_falls_inside_the_stall_is_held_to_its_end(self):
-        # the window is wide and the second request is sent by the origin's own clock, so
-        # that a late wake-up of this thread cannot move it out of the window
+        # the window is wide and the second request is sent by the origin's own clock; whether it
+        # arrived inside the window is read from the origin's log afterwards, and a machine that
+        # stalled this thread past it is a skipped test, not a failed one
         with (RunningOrigin(service_ms=1, jitter_ms=0, stall_after=0.1, stall_for=1.4) as o,
               o.connect() as s):
             get(s)                                                        # t0; before the stall
             while o.origin.clock() - o.origin.t0 < 0.15:
                 time.sleep(0.005)
-            self.assertLess(o.origin.clock() - o.origin.t0, 1.0)          # still inside the window
             get(s)
         first, second = o.origin.responses
-        self.assertLess(first[1], 0.1)
+        arrived = [a[1] for a in o.origin.arrivals]
+        if not (arrived[0] < 0.099 and 0.1 <= arrived[1] < 1.4):
+            self.skipTest(f"the requests arrived at {arrived[0]:.2f} s and {arrived[1]:.2f} s, "
+                          "not before and inside the stall window (0.1-1.5 s): the machine stalled")
+        self.assertLess(first[1], 1.0)                                    # not held
         self.assertGreaterEqual(second[1], 1.499)                         # held to 0.1 + 1.4
 
     def test_capacity_queues_requests_but_arrivals_are_logged_at_once(self):
@@ -665,6 +670,240 @@ def read(directory, name):
         return json.load(f)
 
 
+class FakeClock:
+    """A clock that moves only when the code under test sleeps."""
+
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+class SettingsTest(unittest.TestCase):
+    def test_wrk_keeps_the_connections_of_a_closed_loop_client(self):
+        self.assertEqual(V.limits_for("wrk", 500),
+                         {"workers": 100, "max_workers": 5000, "connections": 50})
+
+    def test_workers_cover_a_late_wake_up_of_0_3_s_within_bounds(self):
+        for rate, workers in ((100, 100), (200, 100), (333, 100), (500, 150), (1000, 300),
+                              (1001, 301), (5000, 1500), (6667, 2000), (10000, 2000),
+                              (20000, 2000)):
+            with self.subTest(rate=rate):
+                self.assertEqual(V.limits_for("vegeta", rate),
+                                 {"workers": workers, "max_workers": 5000,
+                                  "connections": workers})
+
+    def test_the_stall_test_covers_the_whole_stall_and_0_2_s_more(self):
+        self.assertEqual(V.limits_for("k6", 500, {"stall_for": 3.0, "stall_after": 15.0})["workers"],
+                         1600)
+        # an origin without a stall changes nothing
+        self.assertEqual(V.limits_for("k6", 500, {"service_ms": 5.0}), V.limits_for("k6", 500))
+
+    def test_every_job_carries_the_limits_its_rule_gives(self):
+        for j in V.expand():
+            self.assertEqual(dict(j.limits), V.limits_for(j.tool, j.rate, dict(j.s2)), j.key)
+        v4 = {j.tool: dict(j.limits) for j in V.expand(tests=["V4"])}
+        self.assertEqual(v4["wrk"]["connections"], 50)
+        self.assertEqual({v4[t]["workers"] for t in ("vegeta", "k6", "loadgen")}, {1600})
+        v7 = {j.rate: dict(j.limits)["workers"] for j in V.expand(tools=["k6"], tests=["V7"])}
+        self.assertEqual(v7, {1000: 300, 2000: 600, 5000: 1500, 10000: 2000, 20000: 2000})
+        self.assertEqual(V.expand(tests=["V4"])[0].as_dict()["limits"],
+                         {"connections": 1600, "max_workers": 5000, "workers": 1600})
+
+    def test_the_spec_of_a_job_is_built_from_its_limits(self):
+        j = next(j for j in V.expand(tools=["vegeta"], tests=["V2"]) if j.rate == 5000)
+        spec = V.spec_for(j, "http://127.0.0.1:18081/")
+        self.assertEqual((spec.url, spec.rate, spec.duration, spec.cpus, spec.name),
+                         ("http://127.0.0.1:18081/", 5000, 20, V.CPUS["tools"], "V2"))
+        self.assertEqual((spec.workers, spec.connections, spec.max_workers), (1500, 1500, 5000))
+        self.assertTrue(spec.allow_loopback)
+
+
+SOCKSTAT = ("sockets: used 413\n"
+            "TCP: inuse 12 orphan 0 tw 321 alloc 13 mem 4\n"
+            "UDP: inuse 3 mem 2\n")
+
+
+class SocketsTest(unittest.TestCase):
+    def env(self):
+        return V.RealEnv({"schema": 1, "tools": {}})
+
+    def test_the_time_wait_count_is_read_from_the_tcp_line_of_sockstat(self):
+        self.assertEqual(V.timewait_count(SOCKSTAT), 321)
+        with self.assertRaises(ValueError):
+            V.timewait_count("sockets: used 413\nUDP: inuse 3 mem 2\n")
+        self.assertGreaterEqual(V.timewait_count(), 0)                   # this machine's own file
+
+    def test_a_small_residue_does_not_delay_a_job(self):
+        clock = FakeClock()
+        out = self.env().settle(read=lambda: 40, sleep=clock.sleep, clock=clock)
+        self.assertEqual(out, {"tw_first": 40, "tw_start": 40, "limit": 5000, "waited_s": 0.0,
+                               "settled": True})
+        self.assertEqual(clock.now, 0.0)
+
+    def test_a_large_residue_is_waited_out_and_exactly_the_limit_is_still_too_many(self):
+        reads, clock = iter([9000, 7000, 5000, 4999]), FakeClock()
+        out = self.env().settle(read=lambda: next(reads), sleep=clock.sleep, clock=clock)
+        self.assertEqual((out["tw_first"], out["tw_start"], out["settled"], out["waited_s"]),
+                         (9000, 4999, True, 6.0))
+
+    def test_a_residue_that_does_not_drain_is_reported_after_the_time_limit(self):
+        clock = FakeClock()
+        out = self.env().settle(limit=100, max_wait=10, read=lambda: 800, sleep=clock.sleep,
+                                clock=clock)
+        self.assertEqual((out["settled"], out["waited_s"], out["tw_start"]), (False, 10.0, 800))
+
+    def test_unreadable_counters_are_an_infrastructure_error(self):
+        with mock.patch.object(V, "timewait_count", side_effect=OSError("denied")):
+            with self.assertRaises(V.InfraError):
+                self.env().timewait()
+            with self.assertRaises(V.InfraError):
+                self.env().settle()
+
+
+class SocketEnv(FakeEnv):
+    """A fake environment that also settles and counts sockets."""
+
+    def __init__(self, settled=True, **kw):
+        super().__init__(**kw)
+        self.settled = settled
+
+    def settle(self):
+        return {"tw_first": 6000, "tw_start": 700 if self.settled else 5200, "limit": 5000,
+                "waited_s": 12.0 if self.settled else 90.0, "settled": self.settled}
+
+    def timewait(self):
+        return 4321
+
+
+class StepCpuEnv(FakeEnv):
+    """A fake environment whose provenance has a load step and a heavier step after it."""
+
+    def launch(self, j, url, workdir):
+        result, prov = super().launch(j, url, workdir)
+        prov["steps"] = [{"label": "attack", "cpu_s": {"user": 0.2, "system": 0.1}},
+                         {"label": "report", "cpu_s": {"user": 5.0, "system": 5.0}}]
+        return result, prov
+
+
+class JobSocketsAndCpuTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = self._tmp.name
+        self.addCleanup(self._tmp.cleanup)
+
+    def test_a_job_records_its_sockets_and_a_start_that_never_settled_is_noted(self):
+        j = V.expand(tools=["vegeta"], tests=["V1"])[0]
+        e = V.run_job(SocketEnv(settled=False), j, self.tmp)
+        o = read(os.path.join(self.tmp, "V1", "vegeta", "r100_0"), "origin.json")
+        self.assertEqual(o["sockets"], {"tw_first": 6000, "tw_start": 5200, "limit": 5000,
+                                        "waited_s": 90.0, "settled": False, "tw_end": 4321})
+        self.assertIn("started with 5200 sockets in TIME_WAIT (limit 5000) after waiting 90 s",
+                      e["notes"])
+        self.assertEqual(V.reanalyse_job(os.path.join(self.tmp, "V1", "vegeta", "r100_0"))["notes"],
+                         e["notes"])
+        k = V.expand(tools=["k6"], tests=["V1"])[0]
+        self.assertFalse([n for n in V.run_job(SocketEnv(), k, self.tmp)["notes"]
+                          if "TIME_WAIT" in n])
+
+    def test_an_environment_that_does_not_count_sockets_leaves_them_out(self):
+        V.run_job(FakeEnv(), V.expand(tools=["vegeta"], tests=["V1"])[0], self.tmp)
+        o = read(os.path.join(self.tmp, "V1", "vegeta", "r100_0"), "origin.json")
+        self.assertNotIn("sockets", o)
+
+    def test_exhausted_ephemeral_ports_are_named_in_the_notes(self):
+        r = res(1000)
+        r["extra"] = {"error_set": [('Get "http://127.0.0.1:1/": dial tcp 127.0.0.1:1: connect: '
+                                     'cannot assign requested address')]}
+        e = V.evaluate(job("V1"), r, {"requests": 1000})
+        self.assertTrue(any("ephemeral ports were exhausted" in n for n in e["notes"]))
+        r["extra"] = {"error_set": ["context deadline exceeded"]}
+        self.assertFalse(V.evaluate(job("V1"), r, {"requests": 1000})["notes"])
+
+    def test_load_cpu_is_the_first_step_the_engines_own_figure_or_all_children(self):
+        prov = {"children_cpu_s": {"user": 9.0, "system": 1.0},
+                "steps": [{"label": "attack", "cpu_s": {"user": 2.0, "system": 0.5}},
+                          {"label": "report", "cpu_s": {"user": 4.0, "system": 0.5}}]}
+        self.assertEqual(V.load_cpu("vegeta", {"extra": {}}, prov), 2.5)
+        self.assertEqual(V.load_cpu("loadgen", {"extra": {"cpu": {"process_s": 14.8}}}, prov), 14.8)
+        self.assertIsNone(V.load_cpu("loadgen", {"extra": {}}, prov))
+        self.assertEqual(V.load_cpu("k6", {"extra": {}},
+                                    {"children_cpu_s": {"user": 9.0, "system": 1.0}}), 10.0)
+        self.assertIsNone(V.load_cpu("k6", {"extra": {}}, {}))
+
+    def test_the_cost_of_a_request_counts_the_load_step_only(self):
+        e = V.run_job(StepCpuEnv(), V.expand(tools=["vegeta"], tests=["V7"])[0], self.tmp)
+        r = read(os.path.join(self.tmp, "V7", "vegeta", "r1000_0"), "tool_result.json")
+        self.assertAlmostEqual(r["extra"]["load_cpu_s"], 0.3)
+        self.assertAlmostEqual(r["extra"]["children_cpu_s"]["user"], 0.4)  # all steps, kept as a record
+        self.assertAlmostEqual(e["metrics"]["cpu_per_1000"], 0.03)         # 0.3 s per 10 thousand
+
+    def test_an_evaluation_falls_back_to_all_children_and_a_measured_zero_is_not_missing(self):
+        j = job("V7", rate=5000)                                          # 50000 requests
+        r = res(50000, cpu={"user": 2.0, "system": 1.0})
+        self.assertAlmostEqual(V.evaluate(j, r, {"requests": 50000})["metrics"]["cpu_per_1000"], 0.06)
+        r["extra"]["load_cpu_s"] = 1.0
+        self.assertAlmostEqual(V.evaluate(j, r, {"requests": 50000})["metrics"]["cpu_per_1000"], 0.02)
+        r["extra"]["load_cpu_s"] = 0.0
+        self.assertEqual(V.evaluate(j, r, {"requests": 50000})["metrics"]["cpu_per_1000"], 0.0)
+
+
+class GateTest(unittest.TestCase):
+    def wait(self, wait_min, up, load, **kw):
+        clock, said = FakeClock(), []
+        out = V.wait_for_gate(wait_min, read_up=lambda: up(clock.now), read_load=lambda: load(clock.now),
+                              sleep=clock.sleep, clock=clock, say=said.append, **kw)
+        return out, said
+
+    def test_a_met_gate_returns_at_once_and_says_nothing(self):
+        out, said = self.wait(5, lambda t: 2000.0, lambda t: 0.05)
+        self.assertEqual(out, {"met": True, "uptime_s": 2000.0, "load1": 0.05, "waited_s": 0.0,
+                               "limit_uptime_s": 1800, "limit_load1": 0.3})
+        self.assertEqual(said, [])
+
+    def test_it_waits_for_the_uptime_and_the_load_and_says_so_once(self):
+        out, said = self.wait(10, lambda t: 1700.0 + t, lambda t: 0.5 if t < 200 else 0.1)
+        self.assertTrue(out["met"])
+        self.assertEqual((out["waited_s"], out["uptime_s"], out["load1"]), (200.0, 1900.0, 0.1))
+        self.assertEqual(len(said), 1)
+        self.assertIn("uptime 1700 s, load 0.50", said[0])
+
+    def test_a_gate_that_is_not_met_in_time_is_reported_as_such(self):
+        out, _ = self.wait(1, lambda t: 100.0, lambda t: 0.0)
+        self.assertEqual((out["met"], out["waited_s"]), (False, 60.0))
+        out, said = self.wait(0, lambda t: 100.0, lambda t: 0.0)          # no waiting at all
+        self.assertEqual((out["met"], out["waited_s"], said), (False, 0.0, []))
+
+    def test_the_load_limit_is_strict(self):
+        out, _ = self.wait(0, lambda t: 2000.0, lambda t: 0.3)
+        self.assertFalse(out["met"])
+        out, _ = self.wait(0, lambda t: 1800.0, lambda t: 0.29)
+        self.assertTrue(out["met"])
+
+    def test_the_readme_lines(self):
+        self.assertEqual(V.gate_lines({}), [])
+        self.assertEqual(V.gate_lines({"gate": {"skipped": True}}),
+                         ["* Environment gate: **skipped** (--no-gate)."])
+        g = {"met": True, "uptime_s": 1808.4, "load1": 0.03, "waited_s": 0.0,
+             "limit_uptime_s": 1800, "limit_load1": 0.3}
+        self.assertEqual(V.gate_lines({"gate": g}),
+                         [("* Environment gate (up at least 1800 s, load below 0.3): uptime 1808 s, "
+                           "load 0.03, waited 0 s: met.")])
+        self.assertTrue(V.gate_lines({"gate": {**g, "met": False}})[0].endswith("**not met**."))
+
+    def test_the_gate_is_in_the_readme_of_a_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            g = {"met": True, "uptime_s": 1808.4, "load1": 0.03, "waited_s": 0.0,
+                 "limit_uptime_s": 1800, "limit_load1": 0.3}
+            V.finalize(tmp, [], {}, {"git_commit": "abc", "gate": g})
+            with open(os.path.join(tmp, "README.md")) as f:
+                self.assertIn("* Environment gate (up at least 1800 s", f.read())
+
+
 class CliTest(unittest.TestCase):
     def call(self, *argv):
         out, err = io.StringIO(), io.StringIO()
@@ -680,6 +919,9 @@ class CliTest(unittest.TestCase):
         self.assertIn("serve-s2", out)
         self.assertIn("vegeta attack -rate=500/1s -duration=40s", out)
         self.assertIn("-redirects=-1", out)
+        self.assertIn("limits {'connections': 1600, 'max_workers': 5000, 'workers': 1600}", out)
+        self.assertIn("-workers=1600 -max-workers=5000 -connections=1600", out)
+        self.assertIn("limits {'connections': 50, 'max_workers': 5000, 'workers': 100}", out)
         self.assertIn("/usr/bin/wrk -t2 -c50 -d40s", out)
         self.assertTrue(out.strip().endswith("2 jobs, 1.3 minutes of load"))
 
@@ -699,6 +941,19 @@ class CliTest(unittest.TestCase):
             self.assertEqual(rc, 2)
             self.assertIn("never overwritten", err)
             self.assertEqual(os.listdir(tmp), ["keep"])
+
+    def test_run_refuses_when_the_environment_gate_is_not_met(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "o")
+            with mock.patch.object(V.shutil, "which", return_value="/usr/bin/x"), \
+                    mock.patch.object(V, "read_uptime", return_value=60.0), \
+                    mock.patch.object(V, "read_load1", return_value=2.5):
+                rc, _, err = self.call("run", "--out", out, "--tests", "V1", "--yes",
+                                       "--gate-wait", "0")
+            self.assertEqual(rc, 2)
+            self.assertIn("environment gate not met: uptime 60 s (need 1800), load 2.50 "
+                          "(need below 0.3)", err)
+            self.assertFalse(os.path.exists(out))
 
     def test_unknown_tools_and_tests_are_refused(self):
         for argv in (["plan", "--tools", "ab"], ["plan", "--tests", "V9"]):

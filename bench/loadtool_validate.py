@@ -28,6 +28,12 @@ The pass criteria are CRITERIA below, written before any measurement. A tool tha
 unfit; one that fails only V3-V6 is verified with restrictions (no latency or overload claims).
 Nothing is tuned until it passes. CPUs: S1 on 0-1, S2 on 2-3, the tools on 4-7 (V7: on 4).
 
+Each test gives a tool the settings it needs (limits_for: workers or VUs for a 0.3 s late wake-up,
+or for the whole stall; 5000 in flight at most; an idle pool as large as the workers). A job starts
+only when fewer than 5000 sockets are in TIME_WAIT (it waits up to 90 s and records what it found),
+the CPU time of a job is that of the load step, and `run` waits for the environment gate of the
+design (up 30 minutes, 1-minute load below 0.3) or refuses.
+
     ./venv/bin/python bench/loadtool_validate.py plan [--tools vegeta,k6,wrk] [--tests V1,V4]
     ./venv/bin/python bench/loadtool_validate.py run --out DIR --yes [--tools ...] [--tests ...]
     ./venv/bin/python bench/loadtool_validate.py reanalyse DIR
@@ -46,6 +52,7 @@ import datetime
 import gzip
 import hashlib
 import json
+import math
 import os
 import platform
 import random
@@ -118,6 +125,7 @@ class Job:
     s2: tuple = ()                    # S2 settings as sorted (key, value) pairs
     cpus: str = CPUS["tools"]
     role: str = "subject"             # "control" for the closed-loop wrk in V4
+    limits: tuple = ()                # workers, max_workers, connections as sorted pairs
 
     @property
     def key(self):
@@ -126,8 +134,34 @@ class Job:
     def as_dict(self):
         d = dataclasses.asdict(self)
         d["s2"] = dict(self.s2)
+        d["limits"] = dict(self.limits)
         d["key"] = self.key
         return d
+
+
+def limits_for(tool, rate, s2=None):
+    """The settings a test needs, by one rule for every test (docs/BENCHMARK_HARM_DESIGN.md, 8.4):
+    workers (initial workers of vegeta, pre-allocated VUs of k6) enough for a late wake-up of
+    0.3 s, rate x 0.3, or for the whole stall and 0.2 s more when the origin stalls, at least 100
+    and at most 2000; 5000 in flight at most for every tool (what a tool does at its cap is what V5
+    looks at); an idle connection pool as large as the workers, so that a burst is not connection
+    churn. The closed-loop wrk control keeps 50 connections."""
+    if tool == "wrk":
+        return {"workers": 100, "max_workers": 5000, "connections": 50}
+    need = rate * 0.3
+    if s2 and s2.get("stall_for"):
+        need = max(need, rate * (s2["stall_for"] + 0.2))
+    workers = max(100, min(2000, math.ceil(need)))
+    return {"workers": workers, "max_workers": 5000, "connections": workers}
+
+
+def spec_for(job, url):
+    """The LoadSpec of a job; `run` and `plan` both build it here."""
+    lim = dict(job.limits)
+    return LT.LoadSpec(url=url, rate=job.rate, duration=job.duration, cpus=job.cpus,
+                       connections=lim["connections"], workers=lim["workers"],
+                       max_workers=lim["max_workers"], threads=2, allow_loopback=True,
+                       name=job.test)
 
 
 def expand(tools=None, tests=None):
@@ -145,7 +179,8 @@ def expand(tools=None, tests=None):
                     jobs.append(Job(tid, tool, rate, t["duration"], rep, t["origin"],
                                     tuple(sorted(t.get("s2", {}).items())),
                                     t.get("cpus", CPUS["tools"]),
-                                    "control" if tool in t.get("control", ()) else "subject"))
+                                    "control" if tool in t.get("control", ()) else "subject",
+                                    tuple(sorted(limits_for(tool, rate, t.get("s2")).items()))))
     return jobs
 
 
@@ -484,10 +519,18 @@ def _v6(job, res, origin):
                    CRITERIA["v6_rel"])], []
 
 
+def _load_cpu(res):
+    """CPU seconds of the load step; for runs that did not separate it, of all the steps."""
+    extra = res.get("extra") or {}
+    cpu = extra.get("load_cpu_s")
+    if cpu is None and extra.get("children_cpu_s"):
+        cpu = extra["children_cpu_s"]["user"] + extra["children_cpu_s"]["system"]
+    return cpu
+
+
 def _v7(job, res, origin):
     n, tol = job["rate"] * job["duration"], CRITERIA["v7_rate"]
-    cpu = (res.get("extra") or {}).get("children_cpu_s")
-    cpu_s = cpu["user"] + cpu["system"] if cpu else None
+    cpu_s = _load_cpu(res)
     notes = ([f"CPU per 1000 requests: {cpu_s / (res['requests'] / 1000):.3f} s"]
              if cpu_s is not None and res["requests"] else [])
     return [_check("requests the origin counted", origin["requests"], n,
@@ -503,13 +546,21 @@ def evaluate(job, res, origin):
     """The verdict of one job from its parameters (a dict), the tool's parsed result and the
     origin's summary."""
     checks, notes = EVALUATORS[job["test"]](job, res, origin)
-    cpu = (res.get("extra") or {}).get("children_cpu_s")
-    raised = sorted(k for k, v in ((res.get("extra") or {}).get("flags") or {}).items() if v)
+    extra = res.get("extra") or {}
+    raised = sorted(k for k, v in (extra.get("flags") or {}).items() if v)
     if raised:
         notes = [*notes, "the tool's own validity flags: " + ", ".join(raised)]
+    sock = origin.get("sockets") or {}
+    if sock.get("settled") is False:
+        notes = [*notes, (f"started with {sock['tw_start']} sockets in TIME_WAIT (limit "
+                          f"{sock['limit']}) after waiting {sock['waited_s']:g} s")]
+    if any("cannot assign requested address" in str(e) for e in extra.get("error_set") or []):
+        notes = [*notes, ("ephemeral ports were exhausted (the tool reported 'cannot assign "
+                          "requested address')")]
     metrics = {}
-    if cpu and res["requests"]:
-        metrics["cpu_per_1000"] = (cpu["user"] + cpu["system"]) / (res["requests"] / 1000)
+    cpu_s = _load_cpu(res)
+    if cpu_s is not None and res["requests"]:
+        metrics["cpu_per_1000"] = cpu_s / (res["requests"] / 1000)
     return {"key": job["key"], "test": job["test"], "tool": job["tool"], "role": job["role"],
             "rate": job["rate"], "repeat": job["repeat"], "pass": all(c["pass"] for c in checks),
             "checks": checks, "notes": notes, "metrics": metrics}
@@ -583,6 +634,68 @@ def read_json(path):
         return json.load(f)
 
 
+# TIME_WAIT sockets tolerated at the start of a job, and how long to wait for fewer: a sixth of the
+# 28 232 ephemeral ports (32768-60999), so that the residue of one job plus the 5000 connections
+# of the largest cannot exhaust them
+TW_LIMIT, TW_WAIT_S = 5000, 90
+GATE = {"uptime_s": 1800, "load1": 0.3}   # the environment gate of the design (7.2, step 0)
+
+
+def timewait_count(text=None):
+    """Sockets in TIME_WAIT: the "tw" of the TCP line of /proc/net/sockstat."""
+    if text is None:
+        with open("/proc/net/sockstat") as f:
+            text = f.read()
+    for line in text.splitlines():
+        if line.startswith("TCP:"):
+            words = line.split()
+            return int(words[words.index("tw") + 1])
+    raise ValueError("no TCP line in /proc/net/sockstat")
+
+
+def load_cpu(tool, res, prov):
+    """CPU seconds of the load step of a run: the engine's own figure for its run, else the
+    first step of the provenance (vegeta's attack, the single step of k6 and wrk), else all."""
+    if tool == "loadgen":
+        return ((res.get("extra") or {}).get("cpu") or {}).get("process_s")
+    steps = prov.get("steps") or []
+    if steps and "cpu_s" in steps[0]:
+        return steps[0]["cpu_s"]["user"] + steps[0]["cpu_s"]["system"]
+    c = prov.get("children_cpu_s")
+    return c["user"] + c["system"] if c else None
+
+
+def read_uptime():
+    with open("/proc/uptime") as f:
+        return float(f.read().split()[0])
+
+
+def read_load1():
+    with open("/proc/loadavg") as f:
+        return float(f.read().split()[0])
+
+
+def wait_for_gate(wait_min, read_up=None, read_load=None, sleep=time.sleep, clock=time.monotonic,
+                  say=None):
+    """The environment gate of the design: up at least 30 minutes, 1-minute load below 0.3.
+    Waits up to `wait_min` minutes for it; returns what was seen and whether it was met."""
+    read_up, read_load = read_up or read_uptime, read_load or read_load1
+    say = say or (lambda m: print(m, flush=True))
+    t0, told = clock(), False
+    while True:
+        up, load = read_up(), read_load()
+        met = up >= GATE["uptime_s"] and load < GATE["load1"]
+        waited = clock() - t0
+        if met or waited >= wait_min * 60:
+            return {"met": met, "uptime_s": up, "load1": load, "waited_s": round(waited, 1),
+                    "limit_uptime_s": GATE["uptime_s"], "limit_load1": GATE["load1"]}
+        if not told:
+            say(f"gate: uptime {up:.0f} s, load {load:.2f}; waiting up to {wait_min:g} min for "
+                f"uptime {GATE['uptime_s']} s and load below {GATE['load1']}")
+            told = True
+        sleep(20)
+
+
 class RealEnv:
     """The real environment: Nginx and S2 on loopback, the tools through bench/loadtools.py."""
 
@@ -609,12 +722,27 @@ class RealEnv:
             return Nginx(workdir)
         return S2Process(workdir, dict(job.s2))
 
+    def settle(self, limit=TW_LIMIT, max_wait=TW_WAIT_S, read=None, sleep=time.sleep,
+               clock=time.monotonic):
+        """Wait until fewer than `limit` sockets are in TIME_WAIT, so that a job does not start
+        while the ephemeral ports of the one before are still held; at most `max_wait` s."""
+        read = read or self.timewait
+        t0 = clock()
+        first = last = read()
+        while last >= limit and clock() - t0 < max_wait:
+            sleep(2)
+            last = read()
+        return {"tw_first": first, "tw_start": last, "limit": limit,
+                "waited_s": round(clock() - t0, 1), "settled": last < limit}
+
+    def timewait(self):
+        try:
+            return timewait_count()
+        except (OSError, ValueError) as exc:
+            raise InfraError(f"cannot read the TIME_WAIT sockets: {exc}") from exc
+
     def launch(self, job, url, workdir):
-        spec = LT.LoadSpec(url=url, rate=job.rate, duration=job.duration, cpus=job.cpus,
-                           connections=50 if job.tool == "wrk" else 100, workers=100,
-                           max_workers=5000, threads=2, allow_loopback=True,
-                           name=job.test)
-        plan = LT.build_plan(job.tool, spec, workdir, self.manifest, self.root,
+        plan = LT.build_plan(job.tool, spec_for(job, url), workdir, self.manifest, self.root,
                              allow_unverified=True)
         prov = LT.run_plan(plan)
         if not prov["ok"]:
@@ -631,6 +759,8 @@ def run_job(env, job, out_dir, keep_raw=False):
     wd = os.path.join(out_dir, *job.key.split("/"))
     os.makedirs(wd, exist_ok=True)
     write_json(os.path.join(wd, "job.json"), job.as_dict())
+    settle = getattr(env, "settle", None)
+    sockets = settle() if settle else {}
     try:
         with env.origin(job, wd) as origin:
             result, prov = env.launch(job, origin.url, wd)
@@ -642,6 +772,10 @@ def run_job(env, job, out_dir, keep_raw=False):
                 "checks": [], "notes": [], "metrics": {}}
     res = result.to_dict()
     res["extra"]["children_cpu_s"] = prov["children_cpu_s"]
+    res["extra"]["load_cpu_s"] = load_cpu(job.tool, res, prov)
+    if settle:
+        sockets["tw_end"] = env.timewait()
+        summary["sockets"] = sockets
     write_json(os.path.join(wd, "tool_result.json"), res)
     write_json(os.path.join(wd, "origin.json"), summary)
     if not keep_raw:
@@ -687,6 +821,17 @@ def timer_lines(env):
     return out
 
 
+def gate_lines(env):
+    g = env.get("gate")
+    if not g:
+        return []
+    if g.get("skipped"):
+        return ["* Environment gate: **skipped** (--no-gate)."]
+    return [f"* Environment gate (up at least {g['limit_uptime_s']:g} s, load below "
+            f"{g['limit_load1']:g}): uptime {g['uptime_s']:.0f} s, load {g['load1']:.2f}, waited "
+            f"{g['waited_s']:g} s: " + ("met." if g["met"] else "**not met**.")]
+
+
 def render_readme(results):
     s, env = results["summary"], results["environment"]
     lines = ["# Verification of the HTTP load generators (V0-V7)", "",
@@ -695,7 +840,7 @@ def render_readme(results):
               "constants of that script, fixed before any measurement."), "",
              (f"* Commit: `{env.get('git_commit')}` (dirty: {fmt(env.get('git_dirty'))}); "
               f"host: {env.get('uname')}; created {env.get('created_utc')}."),
-             *timer_lines(env), "",
+             *gate_lines(env), *timer_lines(env), "",
              "## Verdict per tool and test", "",
              "| Tool | V0 | " + " | ".join(TESTS) + " | Suggested status |",
              "|---|---|" + "---|" * len(TESTS) + "---|"]
@@ -708,7 +853,7 @@ def render_readme(results):
                    "closed-loop tool should. The manifest (`bench/loadtools.json`) is edited by "
                    "hand from these suggestions; nothing here writes it."),
               "", "## V7: ceiling and cost", "",
-              "| Tool | Highest rate held (requests/s) | CPU s per 1000 requests, by rate |",
+              "| Tool | Highest rate held (requests/s) | CPU s per 1000 requests (load step), by rate |",
               "|---|---|---|"]
     for tool, v in s.items():
         t = v["tests"].get("V7")
@@ -778,7 +923,7 @@ def timer_lateness(samples=200, interval=0.01):
 TIMER_WARN_MS = 10.0                      # p99 above this: schedules of any tool will slip
 
 
-def environment(timer=True):
+def environment(timer=True, gate=None):
     def git(*a):
         try:
             cp = subprocess.run(["git", "-C", REPO, *a], capture_output=True, text=True,
@@ -791,7 +936,7 @@ def environment(timer=True):
             "uname": " ".join(platform.uname()), "cpus": os.cpu_count(),
             "python": sys.version.split()[0], "git_commit": git("rev-parse", "HEAD"),
             "git_dirty": None if dirty is None else bool(dirty),
-            "timer": timer_lateness() if timer else None}
+            "gate": gate, "timer": timer_lateness() if timer else None}
 
 
 def run_all(env, jobs, out_dir, tools_info, keep_raw=False, stop_on_error=False):
@@ -857,6 +1002,10 @@ def main(argv=None):
             s.add_argument("--yes", action="store_true", help="confirm: this generates load")
             s.add_argument("--keep-raw", action="store_true")
             s.add_argument("--stop-on-error", action="store_true")
+            s.add_argument("--gate-wait", type=float, default=60.0,
+                           help="minutes to wait for the environment gate (default 60)")
+            s.add_argument("--no-gate", action="store_true",
+                           help="skip the environment gate; the README says so")
     s = sub.add_parser("reanalyse", help="re-evaluate a results directory, offline")
     s.add_argument("dir")
     s = sub.add_parser("serve-s2", help="the S2 origin process (started by run)")
@@ -882,14 +1031,11 @@ def main(argv=None):
     if a.cmd == "plan":
         for job in jobs:
             wd = "/OUT/" + job.key
-            print(f"{job.key}: origin {job.origin} {job.role}")
+            print(f"{job.key}: origin {job.origin} {job.role} limits {dict(job.limits)}")
             origin = Nginx(wd) if job.origin == "s1" else S2Process(wd, dict(job.s2))
             print("    origin: " + " ".join(origin.command()))
-            plan = LT.build_plan(job.tool, LT.LoadSpec(
-                url=origin.url, rate=job.rate, duration=job.duration, cpus=job.cpus,
-                workers=100, max_workers=5000, connections=50 if job.tool == "wrk" else 100,
-                allow_loopback=True, name=job.test), wd, manifest, a.root,
-                allow_unverified=True, check=False)
+            plan = LT.build_plan(job.tool, spec_for(job, origin.url), wd, manifest, a.root,
+                                 allow_unverified=True, check=False)
             for step in plan.steps:
                 print("    " + " ".join(step.argv))
         print(f"{len(jobs)} jobs, {sum(j.duration for j in jobs) / 60:.1f} minutes of load")
@@ -906,8 +1052,14 @@ def main(argv=None):
     if shutil.which("nginx") is None or shutil.which("taskset") is None:
         print("[-] nginx and taskset are needed", file=sys.stderr)
         return 2
+    gate = {"skipped": True} if a.no_gate else wait_for_gate(a.gate_wait)
+    if not gate.get("skipped") and not gate["met"]:
+        print(f"[-] environment gate not met: uptime {gate['uptime_s']:.0f} s (need "
+              f"{GATE['uptime_s']}), load {gate['load1']:.2f} (need below {GATE['load1']}); "
+              "wait, or pass --no-gate", file=sys.stderr)
+        return 2
     os.makedirs(a.out, exist_ok=True)
-    env_before = environment()
+    env_before = environment(gate=gate)
     env = RealEnv(manifest, a.root)
     tools_info = env.tools_info(sorted({j.tool for j in jobs}))
     write_json(os.path.join(a.out, "tools.json"), tools_info)
