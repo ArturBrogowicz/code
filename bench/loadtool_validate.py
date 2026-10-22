@@ -67,7 +67,6 @@ import hashlib
 import http.client
 import itertools
 import json
-import math
 import os
 import platform
 import random
@@ -184,19 +183,8 @@ class Job:
 
 
 def limits_for(tool, rate, s2=None):
-    """The settings a test needs, by one rule for every test (docs/BENCHMARK_HARM_DESIGN.md, 8.4):
-    workers (initial workers of vegeta, pre-allocated VUs of k6) enough for a late wake-up of
-    0.3 s, rate x 0.3, or for the whole stall and 0.2 s more when the origin stalls, at least 100
-    and at most 2000; 5000 in flight at most for every tool (what a tool does at its cap is what V5
-    looks at); an idle connection pool as large as the workers, so that a burst is not connection
-    churn. The closed-loop wrk control keeps 50 connections."""
-    if tool == "wrk":
-        return {"workers": 100, "max_workers": 5000, "connections": 50}
-    need = rate * 0.3
-    if s2 and s2.get("stall_for"):
-        need = max(need, rate * (s2["stall_for"] + 0.2))
-    workers = max(100, min(2000, math.ceil(need)))
-    return {"workers": workers, "max_workers": 5000, "connections": workers}
+    """The settings a test needs: the one rule of loadtools.limits_for, the stall of S2 included."""
+    return LT.limits_for(tool, rate, (s2 or {}).get("stall_for") or 0.0)
 
 
 def spec_for(job, url):

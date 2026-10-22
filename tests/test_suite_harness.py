@@ -6,6 +6,7 @@ test processes and deletes the namespaces. The import below patches
 atexit.register and signal.signal so neither handler is ever installed.
 """
 import csv
+import hashlib
 import json
 import os
 import sys
@@ -15,8 +16,10 @@ from unittest import mock
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
+sys.path.insert(0, os.path.join(REPO, "bench"))
 with mock.patch("atexit.register"), mock.patch("signal.signal"):
     import test_distributed_suite as S
+import loadtools as LT
 
 PROFILES = ["perfect", "broadband", "mobile_3g", "mobile_bad"]
 WEIGHTS = [0.30, 0.35, 0.25, 0.10]
@@ -227,6 +230,246 @@ class ResultsFilesTest(unittest.TestCase):
                          S.ban_events.file_sha256(os.path.join(REPO, "control_plane.py")))
         self.assertIn(prov["operating_point"]["name"], S.OPERATING_POINTS)
         self.assertEqual(len(prov["git"]["commit"] or ""), 40)
+
+
+def sha(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def flood_manifest(tmp):
+    """A manifest for the flood's preflight: the real engine file, a stand-in k6 binary and a vegeta
+    that is only smoke-tested."""
+    tools = {"loadgen": {"kind": "builtin", "version": "1", "path": "bench/loadgen.py",
+                         "sha256": LT.sha256_file(os.path.join(REPO, "bench", "loadgen.py")),
+                         "status": "verified"}}
+    for name, status in (("k6", "verified"), ("vegeta", "smoke-tested")):
+        path = os.path.join(tmp, name)
+        with open(path, "wb") as f:
+            f.write(f"stand-in {name}".encode())
+        os.chmod(path, 0o755)
+        tools[name] = {"kind": "external", "version": "v1", "path": name,
+                       "sha256": sha(f"stand-in {name}".encode()), "status": status}
+    return {"schema": 1, "root": tmp, "tools": tools}
+
+
+class FakeBot:
+    def __init__(self, alive=True):
+        self.alive, self.killed = alive, False
+
+    def poll(self):
+        return None if self.alive else 1
+
+    def kill(self):
+        self.killed = True
+
+    def wait(self, timeout=None):
+        return 0
+
+
+class FloodSettingTest(unittest.TestCase):
+    def test_the_default_is_the_closed_loop_wrk_without_a_rate(self):
+        for env in ({}, {"FLOOD_TOOL": "wrk"}, {"FLOOD_TOOL": "wrk", "FLOOD_RATE": ""},
+                    {"FLOOD_TOOL": "wrk", "FLOOD_RATE": "0"}):
+            self.assertEqual(S.resolve_flood(env), ("wrk", 0.0))
+        self.assertEqual((S.FLOOD_TOOL, S.FLOOD_RATE), ("wrk", 0.0))   # the environment of these tests
+
+    def test_an_open_loop_tool_takes_a_rate_per_bot(self):
+        self.assertEqual(S.resolve_flood({"FLOOD_TOOL": "loadgen", "FLOOD_RATE": "100"}),
+                         ("loadgen", 100.0))
+        self.assertEqual(S.resolve_flood({"FLOOD_TOOL": " k6 ", "FLOOD_RATE": "62.5"}), ("k6", 62.5))
+
+    def test_settings_that_do_not_go_together_are_refused(self):
+        for env in ({"FLOOD_TOOL": "vegeta", "FLOOD_RATE": "100"},      # not a flood tool
+                    {"FLOOD_TOOL": "wrk2", "FLOOD_RATE": "100"},
+                    {"FLOOD_TOOL": "wrk", "FLOOD_RATE": "100"},         # wrk is closed-loop
+                    {"FLOOD_TOOL": "loadgen"},                          # open-loop needs a rate
+                    {"FLOOD_TOOL": "k6", "FLOOD_RATE": "0"},
+                    {"FLOOD_TOOL": "k6", "FLOOD_RATE": "-5"},
+                    {"FLOOD_TOOL": "k6", "FLOOD_RATE": "fast"},
+                    {"FLOOD_TOOL": "k6", "FLOOD_RATE": "nan"},
+                    {"FLOOD_TOOL": "k6", "FLOOD_RATE": "inf"}):
+            with self.subTest(env=env), self.assertRaises(ValueError):
+                S.resolve_flood(env)
+
+    def test_the_tools_are_those_the_wrapper_lists(self):
+        self.assertEqual(S.FLOOD_TOOLS, LT.FLOOD_TOOLS)
+        self.assertEqual(S.FLOOD_TOOLS, ("wrk",) + LT.OPEN_LOOP_TOOLS)
+
+    def test_the_label_names_an_open_loop_flood_and_the_default_label_is_unchanged(self):
+        with mock.patch.dict(os.environ, {"MITIGATION_MODE": "none"}), \
+                mock.patch.object(S, "NGINX_PROTECTED", False):
+            self.assertEqual(S._mode_label(), "unprotected")
+            with mock.patch.object(S, "FLOOD_TOOL", "loadgen"), mock.patch.object(S, "FLOOD_RATE", 100.0):
+                self.assertEqual(S._mode_label(), "unprotected@loadgen100")
+            with mock.patch.object(S, "FLOOD_TOOL", "k6"), mock.patch.object(S, "FLOOD_RATE", 62.5):
+                self.assertEqual(S._mode_label(), "unprotected@k662.5")
+
+
+class FloodCommandTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = self._tmp.name
+        self.addCleanup(self._tmp.cleanup)
+        self.manifest = flood_manifest(self.tmp)
+
+    def launched(self, ns="bot_3"):
+        with mock.patch.object(S.subprocess, "Popen") as popen:
+            S.start_flood(ns, "10.0.2.3")
+        return popen.call_args.args[0]
+
+    def test_the_default_flood_is_exactly_the_historical_wrk_command(self):
+        with mock.patch.object(S, "WRK_THREADS", "2"), mock.patch.object(S, "WRK_CONNS", "400"), \
+                mock.patch.object(S, "ATTACK_DURATION", 0.0), mock.patch.object(S, "ATTACK_CPUS", "1-7"):
+            self.assertEqual(self.launched(), ["ip", "netns", "exec", "bot_3", "taskset", "-c", "1-7",
+                                              "wrk", "-t2", "-c400", "-d30s", "http://10.0.0.1/"])
+        with mock.patch.object(S, "WRK_THREADS", "2"), mock.patch.object(S, "WRK_CONNS", "50"), \
+                mock.patch.object(S, "ATTACK_DURATION", 60.0), mock.patch.object(S, "ATTACK_CPUS", ""):
+            self.assertEqual(self.launched(), ["ip", "netns", "exec", "bot_3", "wrk", "-t2", "-c50",
+                                              "-d65s", "http://10.0.0.1/"])
+
+    def test_the_engine_runs_in_the_bots_namespace_with_its_own_open_file_limit(self):
+        with mock.patch.object(S, "FLOOD_TOOL", "loadgen"), mock.patch.object(S, "FLOOD_RATE", 100.0), \
+                mock.patch.object(S, "ATTACK_DURATION", 0.0), mock.patch.object(S, "ATTACK_CPUS", "1-7"), \
+                mock.patch.object(S, "_results_dir", self.tmp):
+            argv = S.flood_argv("bot_3", manifest=self.manifest, root=self.tmp)
+            with mock.patch.object(S, "flood_argv", return_value=argv):
+                full = self.launched()
+        self.assertEqual(full[:10], ["ip", "netns", "exec", "bot_3", "taskset", "-c", "1-7",
+                                     "prlimit", "--nofile=16384", "--"])
+        self.assertEqual(argv[:3], ["prlimit", "--nofile=16384", "--"])
+        rest = argv[3:]
+        self.assertEqual(rest[:2], [sys.executable, os.path.join(REPO, "bench", "loadgen.py")])
+        for flag, value in (("--url", "http://10.0.0.1/"), ("--rate", "100"), ("--duration", "30"),
+                            ("--timeout", "10"), ("--max-inflight", "5000"), ("--pool", "100"),
+                            ("--method", "GET")):
+            self.assertEqual(rest[rest.index(flag) + 1], value, flag)
+        self.assertNotIn("taskset", argv)                        # run() adds the pinning
+        self.assertNotIn("--allow-loopback", argv)               # the target is inside the testbed
+        self.assertTrue(os.path.isdir(os.path.join(self.tmp, "attackers", "bot_3")))
+
+    def test_k6_gets_its_script_and_never_reports_usage(self):
+        with mock.patch.object(S, "FLOOD_TOOL", "k6"), mock.patch.object(S, "FLOOD_RATE", 200.0), \
+                mock.patch.object(S, "ATTACK_DURATION", 0.0), mock.patch.object(S, "_results_dir", self.tmp):
+            argv = S.flood_argv("bot_1", manifest=self.manifest, root=self.tmp)
+        self.assertIn("--no-usage-report", argv)
+        self.assertEqual(argv[argv.index("RATE=200") - 1], "-e")
+        self.assertIn("PRE_VUS=100", argv)                       # 200 x 0.3 s, at least 100
+        self.assertTrue(os.path.isfile(os.path.join(self.tmp, "attackers", "bot_1", "k6.js")))
+
+    def test_the_rate_sets_the_pool_by_the_rule_of_the_verification(self):
+        with mock.patch.object(S, "FLOOD_TOOL", "loadgen"), mock.patch.object(S, "_results_dir", self.tmp):
+            argv = S.flood_argv("bot_1", rate=1000.0, manifest=self.manifest, root=self.tmp)
+        self.assertEqual(argv[argv.index("--pool") + 1], "300")   # 1000 x 0.3 s
+
+    def test_the_launch_check_needs_every_generator_alive(self):
+        bots = [(FakeBot(), f"bot_{i}", f"10.0.2.{i}") for i in range(3)]
+        with mock.patch.object(S, "FLOOD_TOOL", "loadgen"), mock.patch.object(S.time, "sleep") as sleep:
+            S.flood_alive(bots, 3)
+            sleep.assert_called_once_with(S.FLOOD_LAUNCH_CHECK_S)
+            for procs, bots_n, why in (([*bots[:2], (FakeBot(alive=False), "bot_2", "10.0.2.2")], 3, "exited"),
+                                       (bots[:2], 3, "launched: 2")):
+                with self.subTest(why=why), mock.patch.object(S, "kill_procs") as kill, \
+                        self.assertRaisesRegex(RuntimeError, "did not start"):
+                    S.flood_alive(procs, bots_n)
+                kill.assert_called_once()
+
+    def test_wrk_needs_no_launch_check_and_loses_no_time(self):
+        with mock.patch.object(S.time, "sleep") as sleep:
+            S.flood_alive([], 10)
+        sleep.assert_not_called()
+
+    def test_kill_procs_stops_open_loop_generators_too_and_nothing_extra_for_wrk(self):
+        for tool, extra in (("wrk", []), ("loadgen", ["pkill -9 -f bench/loadgen.py", "pkill -9 -x k6"])):
+            with self.subTest(tool=tool), mock.patch.object(S, "FLOOD_TOOL", tool), \
+                    mock.patch.object(S, "run") as run, mock.patch.dict(S._attack):
+                S.kill_procs([(FakeBot(), "bot_1", "10.0.2.1")])
+            self.assertEqual([c.args[0] for c in run.call_args_list],
+                             ["pkill -9 -f hping3", "pkill -9 -f wrk", "pkill -9 -f _dist_", *extra])
+
+
+class FloodPreflightTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = self._tmp.name
+        self.addCleanup(self._tmp.cleanup)
+        self.manifest = flood_manifest(self.tmp)
+
+    def check(self, tool, **kw):
+        with mock.patch.object(S.shutil, "which", return_value="/usr/bin/prlimit"):
+            return S.flood_preflight(tool, self.manifest, self.tmp, **kw)
+
+    def test_wrk_needs_nothing(self):
+        self.assertIsNone(S.flood_preflight("wrk", {"tools": {}}))
+
+    def test_verified_tools_pass(self):
+        self.assertIsNone(self.check("loadgen"))
+        self.assertIsNone(self.check("k6"))
+
+    def test_a_tool_that_is_not_verified_is_refused(self):
+        self.assertRegex(self.check("vegeta"), "FLOOD_TOOL=vegeta.*not 'verified'")
+
+    def test_a_changed_or_missing_binary_is_refused(self):
+        with open(os.path.join(self.tmp, "k6"), "ab") as f:
+            f.write(b" tampered")
+        self.assertRegex(self.check("k6"), "binary changed")
+        os.remove(os.path.join(self.tmp, "k6"))
+        self.assertRegex(self.check("k6"), "missing")
+
+    def test_a_target_outside_the_testbed_is_refused(self):
+        with mock.patch.object(S, "HTTP_URL", "http://8.8.8.8/"):
+            self.assertIsNotNone(self.check("loadgen"))
+
+    def test_without_prlimit_the_open_file_limit_cannot_be_raised(self):
+        with mock.patch.object(S.shutil, "which", return_value=None):
+            self.assertRegex(S.flood_preflight("loadgen", self.manifest, self.tmp), "needs prlimit")
+
+    def test_a_refusal_stops_main_before_the_run_starts(self):
+        with mock.patch.object(S.os, "geteuid", return_value=0), \
+                mock.patch.object(S.os, "access", return_value=True), \
+                mock.patch.object(S, "flood_preflight", return_value="FLOOD_TOOL=vegeta: not verified"), \
+                mock.patch.object(S.atexit, "register"), \
+                mock.patch.object(S, "_init_results_dir") as init_results, \
+                mock.patch.object(S, "build_topology") as build_topology, \
+                mock.patch("builtins.print"), \
+                self.assertRaises(SystemExit) as cm:
+            S.main()
+        self.assertEqual(cm.exception.code, 1)
+        init_results.assert_not_called()
+        build_topology.assert_not_called()
+
+
+class FloodProvenanceTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = self._tmp.name
+        self.addCleanup(self._tmp.cleanup)
+
+    def provenance(self):
+        with mock.patch.object(S, "_results_dir", self.dir):
+            S._write_provenance("running")
+        with open(os.path.join(self.dir, "provenance.json")) as fh:
+            return json.load(fh)
+
+    def test_a_default_run_records_wrk_and_no_flood_block(self):
+        prov = self.provenance()
+        self.assertEqual((prov["settings"]["FLOOD_TOOL"], prov["settings"]["FLOOD_RATE"]), ("wrk", 0.0))
+        self.assertNotIn("flood", prov)
+        self.assertFalse([f for f in prov["inputs_sha256"] if f.startswith("bench/")])
+
+    def test_an_open_loop_run_records_the_tool_its_settings_and_the_files_that_define_them(self):
+        with mock.patch.object(S, "FLOOD_TOOL", "loadgen"), mock.patch.object(S, "FLOOD_RATE", 100.0), \
+                mock.patch.object(S, "BOTNET_COUNT", 10):
+            prov = self.provenance()
+        flood, manifest = prov["flood"], LT.load_manifest()["tools"]["loadgen"]
+        self.assertEqual((flood["tool"], flood["rate_per_bot"], flood["bots"], flood["scenario"]),
+                         ("loadgen", 100.0, 10, 4))
+        self.assertEqual(flood["limits"], {"workers": 100, "max_workers": 5000, "connections": 100})
+        self.assertEqual(flood["manifest"], {"version": manifest["version"], "sha256": manifest["sha256"],
+                                             "status": manifest["status"]})
+        self.assertEqual(prov["settings"]["FLOOD_RATE"], 100.0)
+        for name in ("bench/loadtools.py", "bench/loadtools.json", "bench/loadgen.py"):
+            self.assertEqual(prov["inputs_sha256"][name],
+                             S.ban_events.file_sha256(os.path.join(REPO, name)))
 
 
 if __name__ == "__main__":

@@ -30,7 +30,9 @@ import psutil
 import csv
 import datetime
 import json
+import math
 import platform
+import shutil
 import statistics
 
 import ban_events
@@ -82,7 +84,36 @@ def resolve_operating_point(env):
     return name, {k: env.get(k, v) for k, v in OPERATING_POINTS[name].items()}
 
 
+# Load model of the HTTP flood (scenario 4 only), docs/EXPC_ATTACKER_SETTING_DESIGN.md. "wrk" is
+# closed-loop and the historical default; "loadgen" and "k6" are open-loop generators that are
+# `verified` in bench/loadtools.json. FLOOD_RATE is requests/s per bot, a constant schedule.
+FLOOD_TOOLS = ("wrk", "loadgen", "k6")
+FLOOD_NOFILE = 16384          # open-file limit of one open-loop generator (> its 5000 in flight)
+FLOOD_LAUNCH_CHECK_S = 2.0    # every open-loop generator must be alive this long after launch
+
+
+def resolve_flood(env):
+    """(tool, requests/s per bot) from env["FLOOD_TOOL"] and env["FLOOD_RATE"]; ValueError when
+    they do not go together: wrk is closed-loop and takes no rate, an open-loop tool needs one."""
+    tool = (env.get("FLOOD_TOOL") or "wrk").strip()
+    if tool not in FLOOD_TOOLS:
+        raise ValueError(f"unknown FLOOD_TOOL={tool!r} (known: {', '.join(FLOOD_TOOLS)})")
+    raw = (env.get("FLOOD_RATE") or "").strip()
+    try:
+        rate = float(raw) if raw else 0.0
+    except ValueError:
+        raise ValueError(f"FLOOD_RATE={raw!r} is not a number") from None
+    if not math.isfinite(rate) or rate < 0:
+        raise ValueError(f"FLOOD_RATE={raw!r}: a finite rate of at least 0 is needed")
+    if tool == "wrk" and rate:
+        raise ValueError("FLOOD_RATE needs an open-loop FLOOD_TOOL: wrk is closed-loop")
+    if tool != "wrk" and rate <= 0:
+        raise ValueError(f"FLOOD_TOOL={tool} needs FLOOD_RATE (requests/s per bot)")
+    return tool, rate
+
+
 OPERATING_POINT, _OP = resolve_operating_point(os.environ)
+FLOOD_TOOL, FLOOD_RATE = resolve_flood(os.environ)
 BOTNET_COUNT = int(_OP["BOTNET_COUNT"])    # Number of botnet attacker namespaces
 GUNICORN_WORKERS = _OP["GUNICORN_WORKERS"]
 GUNICORN_THREADS = _OP["GUNICORN_THREADS"]
@@ -216,10 +247,17 @@ def _mode_tag():
     return "iptables" if backend == "iptables" else "performance"
 
 
+def _flood_suffix():
+    """"" for the historical wrk flood, else @<tool><rate per bot>, e.g. @loadgen100: the analysis
+    groups runs by the mode label, so two load models must not share one."""
+    return "" if FLOOD_TOOL == "wrk" else f"@{FLOOD_TOOL}{FLOOD_RATE:g}"
+
+
 def _mode_label():
-    """Mode name used in results and provenance: xdp | iptables | nginxlimits | unprotected."""
+    """Mode name used in results and provenance: xdp | iptables | nginxlimits | unprotected,
+    plus the flood's suffix when it is open-loop."""
     tag = _mode_tag()
-    return "xdp" if tag == "performance" else tag
+    return ("xdp" if tag == "performance" else tag) + _flood_suffix()
 
 
 def _out_paths(legacy_path, run_file):
@@ -372,6 +410,9 @@ def cleanup_all():
     subprocess.run(["pkill", "-9", "-f", "hping3"], capture_output=True)
     subprocess.run(["pkill", "-9", "-f", "_dist_"], capture_output=True)
     subprocess.run(["pkill", "-9", "-f", "wrk"], capture_output=True)
+    if FLOOD_TOOL != "wrk":
+        subprocess.run(["pkill", "-9", "-f", "bench/loadgen.py"], capture_output=True, check=False)
+        subprocess.run(["pkill", "-9", "-x", "k6"], capture_output=True, check=False)
     if _daemon_proc and _daemon_proc.poll() is None:
         _daemon_proc.kill()
         _daemon_proc.wait()
@@ -1256,6 +1297,78 @@ def kill_procs(procs):
         run("pkill -9 -f hping3", ns=ns)
         run("pkill -9 -f wrk", ns=ns)
         run("pkill -9 -f _dist_", ns=ns)
+        if FLOOD_TOOL != "wrk":
+            run("pkill -9 -f bench/loadgen.py", ns=ns)
+            run("pkill -9 -x k6", ns=ns)
+
+
+# ── HTTP-flood load model (scenario 4): wrk as ever, or a verified open-loop generator ─────
+
+def _loadtools():
+    """bench/loadtools.py, imported only when an open-loop flood is asked for: a default run
+    never loads it."""
+    path = os.path.join(PROJECT_DIR, "bench")
+    if path not in sys.path:
+        sys.path.insert(0, path)
+    import loadtools
+    return loadtools
+
+
+def flood_preflight(tool=None, manifest=None, root=None):
+    """None when the HTTP flood can run as configured, else why not. wrk needs nothing; an open-loop
+    tool must be `verified` in bench/loadtools.json with the sha256 pinned there, the target must
+    pass the scope lock of bench/loadtools.py, and prlimit must exist."""
+    tool = tool or FLOOD_TOOL
+    if tool == "wrk":
+        return None
+    lt = _loadtools()
+    try:
+        lt.resolve_tool(manifest or lt.load_manifest(), tool, root)
+        lt.check_scope(HTTP_URL)
+    except (lt.ToolError, lt.ScopeError, OSError, ValueError) as exc:
+        return f"FLOOD_TOOL={tool}: {exc}"
+    if shutil.which("prlimit") is None:
+        return f"FLOOD_TOOL={tool} needs prlimit (util-linux) to raise the open-file limit"
+    return None
+
+
+def flood_argv(ns, tool=None, rate=None, manifest=None, root=None):
+    """The command of one bot's open-loop generator, for run() to prefix with `ip netns exec <ns>`
+    and `taskset`: the loadtools command for the tool at the settings the verification used
+    (loadtools.limits_for), for as long as wrk would run, with the open-file limit raised for the
+    generator alone. The binary's hash was checked by flood_preflight; here only the status is."""
+    tool, rate = tool or FLOOD_TOOL, FLOOD_RATE if rate is None else rate
+    lt = _loadtools()
+    lim = lt.limits_for(tool, rate)
+    spec = lt.LoadSpec(url=HTTP_URL, rate=rate, duration=_wrk_seconds(), method="GET", timeout=10.0,
+                       connections=lim["connections"], workers=lim["workers"],
+                       max_workers=lim["max_workers"], name="http-flood")
+    workdir = (os.path.join(_results_dir, "attackers", ns) if _results_dir
+               else os.path.join("/tmp", f"_dist_flood_{ns}"))
+    plan = lt.build_plan(tool, spec, workdir, manifest, root, check=False)
+    lt.write_inputs(plan)
+    return ["prlimit", f"--nofile={FLOOD_NOFILE}", "--", *plan.steps[0].argv]
+
+
+def start_flood(ns, ip):
+    """One bot's HTTP flood. For wrk this is exactly the historical command."""
+    if FLOOD_TOOL == "wrk":
+        return run(f"wrk -t{WRK_THREADS} -c{WRK_CONNS} -d{_wrk_seconds()}s {HTTP_URL}",
+                   ns=ns, bg=True)
+    return run(flood_argv(ns), ns=ns, bg=True)
+
+
+def flood_alive(procs, bots, wait=None):
+    """Open-loop only: raise unless every bot's generator is still running `wait` seconds after
+    launch. A generator that never started would read as "the attack does no harm"."""
+    if FLOOD_TOOL == "wrk":
+        return
+    time.sleep(FLOOD_LAUNCH_CHECK_S if wait is None else wait)
+    dead = [ns for p, ns, _ in procs if p.poll() is not None]
+    if dead or len(procs) != bots:
+        kill_procs(procs)
+        raise RuntimeError(f"the {FLOOD_TOOL} flood did not start on all {bots} bots "
+                           f"(exited: {dead or 'none'}; launched: {len(procs)})")
 
 
 def _write_script(path, content):
@@ -1476,15 +1589,15 @@ def scenario_udp_flood(botnet, legit):
 
 
 def scenario_http_flood(botnet, legit):
-    """S4: Distributed HTTP flood using wrk."""
+    """S4: Distributed HTTP flood: wrk, or the open-loop FLOOD_TOOL at FLOOD_RATE per bot."""
     print(f"\n{YELLOW}{'='*70}")
     print(f"  SCENARIO 4: Distributed HTTP Flood")
     print(f"{'='*70}{RESET}")
     capture_metrics("Distributed HTTP Flood", "Phase 1: Baseline")
     attack_start = _attack_begin()
     log_pos = _get_log_size()
-    procs = launch_botnet(botnet, lambda ns, ip:
-        run(f"wrk -t{WRK_THREADS} -c{WRK_CONNS} -d{_wrk_seconds()}s {HTTP_URL}", ns=ns, bg=True))
+    procs = launch_botnet(botnet, start_flood)
+    flood_alive(procs, len(botnet))
     capture_metrics("Distributed HTTP Flood", "Phase 2: Pre-Mitigation")
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=15, attack_start=attack_start, log_start_pos=log_pos)
     capture_metrics("Distributed HTTP Flood", "Phase 3: Post-Mitigation")
@@ -1743,6 +1856,8 @@ def _write_provenance(status):
     if not _results_dir:
         return
     files = list(_PROVENANCE_INPUTS)
+    if FLOOD_TOOL != "wrk":
+        files += ["bench/loadtools.py", "bench/loadtools.json", "bench/loadgen.py"]
     try:
         with open(os.path.join(PROJECT_DIR, "training_results/feature_config_testbed.json")) as f:
             gru_cfg = json.load(f)
@@ -1774,6 +1889,7 @@ def _write_provenance(status):
                  "nginx_conf": os.path.basename(_nginx_conf())},
         "operating_point": {"name": OPERATING_POINT, **_OP},
         "settings": {"ATTACK_DURATION": ATTACK_DURATION, "PROFILE_SEED": PROFILE_SEED,
+                     "FLOOD_TOOL": FLOOD_TOOL, "FLOOD_RATE": FLOOD_RATE,
                      "ONLY_SCENARIOS": os.environ.get("ONLY_SCENARIOS", ""),
                      "LEGIT_COUNT": LEGIT_COUNT, "BOTNET_COUNT": BOTNET_COUNT,
                      "AVAIL_BEFORE_SECONDS": AVAIL_BEFORE_SECONDS,
@@ -1783,11 +1899,28 @@ def _write_provenance(status):
                  "python": sys.version.split()[0], "nginx": nginx_v},
         "inputs_sha256": {f: ban_events.file_sha256(os.path.join(PROJECT_DIR, f)) for f in files},
     }
+    if FLOOD_TOOL != "wrk":
+        prov["flood"] = _flood_provenance()
     path = os.path.join(_results_dir, "provenance.json")
     with open(path + ".tmp", "w") as f:
         json.dump(prov, f, indent=1)
         f.write("\n")
     os.replace(path + ".tmp", path)
+
+
+def _flood_provenance():
+    """The open-loop flood of this run: tool, per-bot rate, the settings it runs with and the
+    manifest entry that cleared it (scenario 4 only; the other scenarios keep wrk)."""
+    out = {"tool": FLOOD_TOOL, "rate_per_bot": FLOOD_RATE, "bots": BOTNET_COUNT, "scenario": 4,
+           "nofile": FLOOD_NOFILE, "timeout_s": 10.0}
+    try:
+        lt = _loadtools()
+        entry = lt.load_manifest()["tools"][FLOOD_TOOL]
+        out["limits"] = lt.limits_for(FLOOD_TOOL, FLOOD_RATE)
+        out["manifest"] = {k: entry.get(k) for k in ("version", "sha256", "status")}
+    except (OSError, ValueError, KeyError, RuntimeError) as exc:
+        out["error"] = str(exc)
+    return out
 
 
 def _chown_results():
@@ -1887,6 +2020,10 @@ def main():
               f"from it). Create venv/ in this checkout or symlink an existing one.{RESET}")
         sys.exit(1)
 
+    if problem := flood_preflight():
+        print(f"{RED}[-] {problem}{RESET}")
+        sys.exit(1)
+
     _init_results_dir()
     atexit.register(_finish_run)   # also after an abnormal exit; runs before cleanup_all (LIFO)
     _write_provenance("running")
@@ -1908,6 +2045,9 @@ def main():
     print(f"{CYAN}[*] Mode: {_mode_label()} · operating point: {OPERATING_POINT} · "
           f"PROFILE_SEED={PROFILE_SEED}"
           f"{f' · ATTACK_DURATION={ATTACK_DURATION:g}s' if ATTACK_DURATION > 0 else ''}{RESET}")
+    if FLOOD_TOOL != "wrk":
+        print(f"{CYAN}[*] HTTP flood (scenario 4 only): {FLOOD_TOOL}, open-loop, "
+              f"{FLOOD_RATE:g} requests/s per bot{RESET}")
     print(f"{CYAN}[*] Results directory: {_results_dir}{RESET}")
 
     legit, botnet = build_topology()

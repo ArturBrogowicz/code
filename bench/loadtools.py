@@ -33,6 +33,7 @@ import datetime
 import hashlib
 import ipaddress
 import json
+import math
 import os
 import platform
 import re
@@ -111,6 +112,27 @@ class LoadSpec:
     cpus: str = ""                    # taskset list, e.g. "4-7"
     allow_loopback: bool = False
     name: str = "load"                # run label
+
+
+FLOOD_TOOLS = ("wrk", "loadgen", "k6")    # what the suite's HTTP flood may run: closed-loop wrk, and
+OPEN_LOOP_TOOLS = ("loadgen", "k6")       # the open-loop tools that passed V1 and V2 (docs/BENCHMARK_HARM_DESIGN.md)
+
+
+def limits_for(tool, rate, stall_for=0.0):
+    """The settings the verification gave a tool at a rate, by one rule for every test and for the
+    suite's open-loop flood (docs/BENCHMARK_HARM_DESIGN.md, 8.4): workers (initial workers of
+    vegeta, pre-allocated VUs of k6) enough for a late wake-up of 0.3 s, rate x 0.3, or for the
+    whole stall and 0.2 s more when the origin stalls for `stall_for` seconds, at least 100 and at
+    most 2000; 5000 in flight at most for every tool (what a tool does at its cap is what V5 looks
+    at); an idle connection pool as large as the workers, so that a burst is not connection churn.
+    The closed-loop wrk control keeps 50 connections."""
+    if tool == "wrk":
+        return {"workers": 100, "max_workers": 5000, "connections": 50}
+    need = rate * 0.3
+    if stall_for:
+        need = max(need, rate * (stall_for + 0.2))
+    workers = max(100, min(2000, math.ceil(need)))
+    return {"workers": workers, "max_workers": 5000, "connections": workers}
 
 
 def validate(spec):
@@ -449,14 +471,20 @@ def clean_env(environ=None):
     return env
 
 
-def run_plan(plan, runner=subprocess.run):
-    """Write the inputs, run the steps in order (stop at the first failure), write
-    provenance.json and return it. `runner` is subprocess.run, replaceable in tests."""
+def write_inputs(plan):
+    """Create the working directory and write the files the commands read (k6's script, vegeta's
+    targets)."""
     os.makedirs(plan.workdir, exist_ok=True)
-    base_env = clean_env()
     for path, text in plan.inputs.items():
         with open(path, "w") as f:
             f.write(text)
+
+
+def run_plan(plan, runner=subprocess.run):
+    """Write the inputs, run the steps in order (stop at the first failure), write
+    provenance.json and return it. `runner` is subprocess.run, replaceable in tests."""
+    write_inputs(plan)
+    base_env = clean_env()
     prov = {"schema": 1, "tool": plan.tool, "tool_info": plan.tool_info,
             "proxy_vars_removed": sorted(k for k in os.environ if k.lower() in PROXY_VARS),
             "spec": dataclasses.asdict(plan.spec), "started_utc": _utc_now(), "steps": [],

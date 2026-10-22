@@ -83,6 +83,31 @@ def unproven_verified(manifest, repo=REPO):
     return problems
 
 
+class LimitsTest(unittest.TestCase):
+    def test_workers_cover_a_late_wake_up_within_bounds_and_wrk_keeps_its_connections(self):
+        self.assertEqual(LT.limits_for("wrk", 500), {"workers": 100, "max_workers": 5000, "connections": 50})
+        for rate, workers in ((50, 100), (200, 100), (1000, 300), (1001, 301), (5000, 1500),
+                              (6667, 2000), (20000, 2000)):
+            self.assertEqual(LT.limits_for("k6", rate),
+                             {"workers": workers, "max_workers": 5000, "connections": workers}, rate)
+
+    def test_a_stall_asks_for_the_whole_stall_and_0_2_s_more(self):
+        self.assertEqual(LT.limits_for("k6", 500, 3.0)["workers"], 1600)
+        self.assertEqual(LT.limits_for("k6", 500, 0.0), LT.limits_for("k6", 500))
+
+    def test_the_flood_tools_are_wrk_and_the_open_loop_tools_that_passed(self):
+        self.assertEqual(LT.FLOOD_TOOLS, ("wrk", "loadgen", "k6"))
+        self.assertEqual(LT.OPEN_LOOP_TOOLS, ("loadgen", "k6"))
+
+    def test_write_inputs_creates_the_directory_and_the_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            wd = os.path.join(tmp, "a", "b")
+            plan = LT.Plan("k6", SPEC, wd, [], {}, {os.path.join(wd, "k6.js"): "text"}, {})
+            LT.write_inputs(plan)
+            with open(os.path.join(wd, "k6.js")) as f:
+                self.assertEqual(f.read(), "text")
+
+
 class ScopeTest(unittest.TestCase):
     def test_testbed_addresses_are_allowed(self):
         self.assertEqual(LT.check_scope("http://10.0.0.1/"), ("10.0.0.1", 80))

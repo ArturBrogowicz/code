@@ -872,6 +872,13 @@ class SettingsTest(unittest.TestCase):
         # an origin without a stall changes nothing
         self.assertEqual(V.limits_for("k6", 500, {"service_ms": 5.0}), V.limits_for("k6", 500))
 
+    def test_the_validators_rule_is_the_wrappers_with_the_stall_of_the_origin(self):
+        for tool in ("vegeta", "k6", "loadgen", "wrk"):
+            for rate in (100, 500, 5000, 20000):
+                for s2 in (None, {}, {"service_ms": 5.0}, {"stall_for": 3.0}):
+                    self.assertEqual(V.limits_for(tool, rate, s2),
+                                     LT.limits_for(tool, rate, (s2 or {}).get("stall_for") or 0.0))
+
     def test_every_job_carries_the_limits_its_rule_gives(self):
         for j in V.expand():
             self.assertEqual(dict(j.limits), V.limits_for(j.tool, j.rate, dict(j.s2)), j.key)

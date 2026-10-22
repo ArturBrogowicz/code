@@ -51,6 +51,8 @@ changed its default on 2026-10-19 (see "Defaults changed on 2026-10-19" below).
 | `NGINX_PROTECTED` | 0 | 1 = keep the protected `nginx.conf` when `MITIGATION_MODE=none` |
 | `PROFILE_SEED` | 0 | seed of the client network-profile plan; the same plan in every mode |
 | `ATTACK_DURATION` | 0 | > 0: every attack lasts exactly this long in every mode (equal exposure); 0 = stop as soon as the bans are seen (historical) |
+| `FLOOD_TOOL` | `wrk` | load model of the HTTP flood (scenario 4 only): `wrk` (closed-loop, as ever) or an open-loop generator that is `verified` in `bench/loadtools.json`, `loadgen` or `k6`; anything else, or an unverified or changed binary, stops the run before it starts |
+| `FLOOD_RATE` | (none) | requests/s **per bot** for an open-loop `FLOOD_TOOL`, constant schedule; empty for `wrk`. The mode label becomes `<mode>@<tool><rate>`, e.g. `unprotected@loadgen100` |
 | `RESULTS_DIR` | new directory under `RESULTS_ROOT` | where this run's results go |
 | `RESULTS_ROOT` | `/var/tmp/ddos_campaigns` | survives reboots, unlike `/tmp`; outside the repository |
 | `ONLY_SCENARIOS` | all | e.g. `4` or `4,7,8,9` |
@@ -71,6 +73,17 @@ Operating points (a variable of the same name overrides a value):
 over-provisioned server no attack degrades availability in any mode, so success rate
 cannot discriminate between modes there (addendum §H). The volumetric floods need their
 own CPU-bound operating point; that calibration has not been done yet.
+
+**Open-loop HTTP flood** (`docs/EXPC_ATTACKER_SETTING_DESIGN.md`, for EXP-C). With `FLOOD_TOOL=loadgen` or
+`k6`, scenario 4 starts one generator per bot, `ip netns exec <bot> [taskset -c ATTACK_CPUS] prlimit
+--nofile=16384 -- <command of bench/loadtools.py>`, at `FLOOD_RATE` requests/s for as long as wrk would run,
+with the settings of the verification (`loadtools.limits_for`: workers = rate x 0.3 s between 100 and 2,000,
+at most 5,000 in flight, request timeout 10 s). Two seconds after launch every generator must be alive,
+otherwise the run stops with an error. The generators are killed at the end like wrk, so they leave no
+summary of their own. `provenance.json` records `settings.FLOOD_TOOL` and `FLOOD_RATE`, a `flood` block (tool,
+rate, limits, manifest entry) and the hashes of `bench/loadtools.py`, `bench/loadtools.json` and
+`bench/loadgen.py`. Scenarios 9 and 10 keep wrk. The request differs from wrk's by about 35 bytes: the engine
+adds `User-Agent` and `Accept`, k6 its own user agent.
 
 `PROFILE_SEED=0` gives 3 perfect, 8 broadband, 5 mobile_3g and 4 mobile_bad clients.
 The campaign runner uses seeds 1…N, one per block, so the modes of a block share their
