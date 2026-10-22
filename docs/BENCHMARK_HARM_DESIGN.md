@@ -2,8 +2,10 @@
 
 **Status (2026-10-22): the design is approved; HG1a is written; its first run (a pilot) found faults in
 the harness, the harness was corrected, and the corrected run was approved and made the same day:
-k6 and the in-repo engine pass V1-V6, vegeta fails V3 and V5; the manifest statuses are not yet
-changed (Appendix F.7).**
+k6 and the in-repo engine pass V1-V6, vegeta fails V3 and V5; on your decision the manifest now marks
+k6 and the engine `verified` and leaves vegeta `smoke-tested` (Appendix F.7); a V3 repeat session
+(3 repeats per tool, with a warm-up) then showed that only the engine meets V3 at p99 on this VM
+(Appendix F.8).**
 Decisions: D4 decided (both generators); D1-D3 and D5-D12 approved at the recommended defaults; D13
 (two post hoc amendments to the verification criteria) adopted. Stage 1 of Appendix E was run:
 vegeta and k6 are installed and smoke-tested, wrk2 is unavailable on this OS. HG1a (the wrapper, the
@@ -1257,9 +1259,9 @@ What the run showed [FACT unless tagged]:
    tools' jobs (maxima 241, 48 and 983 ms), so the tolerance (the larger of 1 ms and 10 %) was 1.8, 2.5 and
    15.3 ms, and vegeta's failure is in the job in which the origin itself stalled. With one repeat per tool
    V3 cannot tell a tool from this VM (F.5).
-5. **The engine's slip gate (p99 above 50 ms) fires on this VM at every rate**, 100/s included, and CPU
-   is no limit there; its `--spin-ms` was not used. At 10,000/s it also exceeds its CPU limit (0.95 of the
-   core against 0.70).
+5. **The engine's slip gate (p99 above 50 ms) fired on this VM at rates from 100 to 10,000/s** (V1, two V2
+   runs, V7 at 2,000, 5,000 and 10,000/s), 100/s included, where CPU is no limit; its `--spin-ms` was not
+   used. At 10,000/s it also exceeds its CPU limit (0.95 of the core against 0.70).
 6. **V7's adherence measure is strict at a start-up transient.** vegeta at 5,000/s delivered all 50,000
    requests (3,326, 4,435, 7,103, then about 5,000 a second); the registered measure gives 0.9538 and
    fails it. A view by lateness (within 1 s of the slot), computed offline and not part of any verdict,
@@ -1269,12 +1271,14 @@ What the run showed [FACT unless tagged]:
 8. **Socket hygiene** worked as designed: seven jobs waited 34-62 s (366 s in total) for TIME_WAIT to fall
    below 5,000; none started above it.
 
-**Open decisions for you** (nothing below has been changed):
+**Decisions** (O1 was decided afterwards; nothing else below has been changed):
 
-* **O1** The manifest statuses. The results suggest k6 and the engine `verified` and vegeta `verified`
-  with restrictions (no latency or overload claims); the manifest has no such status (`unavailable`,
-  `installed`, `smoke-tested`, `verified`, `unfit`; only `verified` is runnable), so vegeta would be
-  `verified` with its restrictions in `notes`, or stay `smoke-tested`. Edited by hand, after you decide.
+* **O1 (decided and applied 2026-10-22, `bdac0be` on `feat/loadtools-harness`)** The manifest statuses.
+  k6 and the engine are `verified`, vegeta stays `smoke-tested` until V3 is repeated; the manifest has no
+  "verified with restrictions" (statuses `unavailable`, `installed`, `smoke-tested`, `verified`, `unfit`;
+  only `verified` is runnable), so restrictions go in `notes`. The notes of each tool cite the published
+  run. A guard test requires a runnable tool to cite a published run in which V1 and V2 passed for exactly
+  the sha256 pinned in the manifest, so editing `bench/loadgen.py` fails the suite until a new run is cited.
 * **O2** V3. More repeats, or a tolerance that follows the noise measured in the same run: the second is
   a third post hoc change and yours to make.
 * **O3** Whether the V7 adherence measure stays as registered (6.).
@@ -1283,3 +1287,42 @@ What the run showed [FACT unless tagged]:
 * **O5** Merging `feat/loadtools-harness` (eleven commits since main) and `design/benchmark-harm`; EXP-C
   needs a per-bot rate and tool setting in `test_distributed_suite.py` and `eval/run_campaign.py`, not yet
   written.
+
+### F.8 The V3 repeat session (2026-10-22)
+
+Part of decision O2: V3 alone, three repeats per tool, all must pass, with an unscored warm-up job that I
+added because both earlier vegeta V3 jobs were the first on the scripted origin's CPUs after ten idle
+minutes (`--repeats 3 --warmup`, added in `d373c7d`). Run 15:11:51-15:17:35 UTC on loopback without root;
+exit 0, nothing left over, binaries unchanged. Published as
+`results/2026-10-22_loadtool-validation-v3-repeat/` (`8fcd0cf`) with a `NOTES.md`. The repetition and the
+rule are post hoc and labelled so; the V3 checks are unchanged (criteria version 2).
+
+| Tool | Scored jobs passing | p99 excess over the origin's own (ms) | V3 |
+|---|---|---|---|
+| vegeta | 0 of 3 (the warm-up fails too) | +16.3, +5.2, +8.7 (warm-up +12.7) | fail |
+| k6 | 1 of 3 | +5.3, +5.9, +1.6 | fail |
+| in-repo engine | 3 of 3 | +1.8, +0.9, +1.5 (from the actual send) | pass (A2) |
+
+The tolerance was 1.7-2.8 ms (the larger of 1 ms and 10 % of the origin's p99); the p50 check passes in
+every job (+0.5 to +0.7 ms). What it showed [FACT unless tagged]:
+
+1. **The origin's own tail was calm**: p99 16.6-28.4 ms in all ten jobs, largest response 41-165 ms. The
+   stalls of 578 and 983 ms in the two earlier vegeta jobs did not recur, so they cannot explain these
+   failures.
+2. **The warm-up did not differ from the scored vegeta jobs.** The first-job-after-idle explanation is
+   neither shown nor ruled out: the CPUs were not idle for ten minutes before this session [INFERENCE].
+3. **The Go tools' tails read 5-16 ms above the origin's on this VM**; the pinned timer probes on the tool
+   CPUs read p99 12-16 ms, the same order, while the single-threaded engine is within 2 ms. The excess is
+   probably on the tools' side [INFERENCE; the Go scheduler was not looked into].
+4. k6's p99 excess over the five runs so far ranges from +0.5 to +5.9 ms against a tolerance of about 2 ms,
+   so its two earlier passes were the lowest values.
+
+By the rule of 8.4 (a generator that fails only V3-V6 is verified with restrictions), the engine is
+unchanged, k6 would carry "no latency claims at millisecond precision", and vegeta "no latency or overload
+claims". Nothing enforces notes, and an overload experiment driven by vegeta would silently lose offered
+load (V5), so my recommendation is: k6 stays `verified` with the restriction in its notes; vegeta stays
+`smoke-tested` with the repeat recorded in its notes, since k6 and the engine already drive open-loop load.
+
+* **O1b** The statuses of k6 and vegeta after the repeat (above). Notes only, if you agree; no status changes.
+* **O2b** V3's tolerance: leave it, so that only the engine can make millisecond-level latency claims on this
+  VM, or let it follow the noise measured in the same session, which would be a third post hoc change.
