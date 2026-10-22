@@ -26,7 +26,9 @@
         "Stage 1 smoke 2026-10-22: 100 requests/s for 10 s on loopback, origin counted 1000 of 1000",
         "latency percentiles in its JSON report come from a t-digest; the CSV encoding gives exact ones",
         "run 2, 2026-10-22 (results/2026-10-22_loadtool-validation-run2, criteria version 2): V1, V2, V4, V6 pass; V3 fail (the origin's own p99 was 152.6 ms in that job: confounded by a stall) and V5 fail (silent shortfall: 20,307 of 40,000 requests missing, nothing reported); V7 one-core ceiling 2,000 requests/s",
-        "kept at smoke-tested by the owner's decision of 2026-10-22 until V3 is repeated; if it is run meanwhile (allow_unverified): no latency claims, no overload claims, and check the offered rate at the origin"
+        "kept at smoke-tested by the owner's decision of 2026-10-22 until V3 is repeated; if it is run meanwhile (allow_unverified): no latency claims, no overload claims, and check the offered rate at the origin",
+        "V3 repeated 3 times with a warm-up on 2026-10-22 (results/2026-10-22_loadtool-validation-v3-repeat, criteria version 2, d373c7d): V3 fails, 0 of 3 (the warm-up fails too); its p99 reads +16.3, +5.2 and +8.7 ms (warm-up +12.7) above the origin's own against a tolerance of about 1.7 ms, while the origin's tail was calm (p99 16.6-28.4 ms), so the failure in run 2 was not only an origin stall; p50 within 1 ms",
+        "stays smoke-tested by the owner's decision of 2026-10-22, after the repeat; the restrictions above apply if it is run (allow_unverified): no latency claims, no overload claims (V5)"
       ]
     },
     "k6": {
@@ -44,7 +46,9 @@
         "Stage 1 smoke 2026-10-22: 100 iterations/s for 10 s on loopback, origin counted 1001 of 1000",
         "reports anonymous usage on every run unless --no-usage-report; the Stage 1 smoke run did not pass it, the wrapper always does",
         "verified 2026-10-22 by the owner's decision after results/2026-10-22_loadtool-validation-run2 (criteria version 2, 58 jobs at 58412df): V1-V6 pass; V7 one-core ceiling 2,000 requests/s (at 5,000/s 47,376 of 50,000 arrived and 2,566 were reported dropped)",
-        "reports every request it fails to start (dropped_iterations); keep the pre-allocated VUs at rate x 0.3 s or more (limits_for): with 100 it failed V2 (2 of 9 runs) and V4 (621 of 1,500 arrivals in the stall) in the pilot"
+        "reports every request it fails to start (dropped_iterations); keep the pre-allocated VUs at rate x 0.3 s or more (limits_for): with 100 it failed V2 (2 of 9 runs) and V4 (621 of 1,500 arrivals in the stall) in the pilot",
+        "V3 repeated 3 times with a warm-up on 2026-10-22 (results/2026-10-22_loadtool-validation-v3-repeat, criteria version 2, d373c7d): V3 fails, 1 of 3 jobs pass; its p99 reads +5.3, +5.9 and +1.6 ms above the origin's own against a tolerance of about 2 ms (p50 always within 1 ms), which supersedes the V3 pass above under the three-repeat rule",
+        "restriction by the owner's decision of 2026-10-22: no latency claims at millisecond precision; it stays verified, V1, V2, V4, V5 and V6 pass"
       ]
     },
     "wrk": {
