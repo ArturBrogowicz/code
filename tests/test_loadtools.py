@@ -48,6 +48,9 @@ def fake_root(tmp, status="verified"):
     os.chmod(wrk, 0o755)
     tools["wrk"] = {"kind": "system", "version": "4", "path": wrk, "sha256": sha(b"fake wrk"),
                     "status": status}
+    tools["loadgen"] = {"kind": "builtin", "version": "1", "path": "bench/loadgen.py",
+                        "sha256": LT.sha256_file(os.path.join(REPO, "bench", "loadgen.py")),
+                        "status": status}
     tools["wrk2"] = {"kind": "external", "version": "x", "path": "wrk2/wrk2",
                      "sha256": sha(b"x"), "status": "unavailable", "reason": "Lua panic"}
     return {"schema": 1, "root": tmp, "tools": tools}
@@ -114,7 +117,7 @@ class SpecTest(unittest.TestCase):
 class ManifestTest(unittest.TestCase):
     def test_the_committed_manifest_is_valid(self):
         m = LT.load_manifest()
-        self.assertEqual(set(m["tools"]), {"vegeta", "k6", "wrk", "wrk2"})
+        self.assertEqual(set(m["tools"]), {"vegeta", "k6", "wrk", "loadgen", "wrk2"})
 
     def test_stage_1_facts_are_pinned(self):
         t = LT.load_manifest()["tools"]
@@ -127,6 +130,15 @@ class ManifestTest(unittest.TestCase):
         self.assertEqual(t["wrk2"]["status"], "unavailable")
         self.assertIn("PANIC", t["wrk2"]["reason"])
         self.assertEqual(t["wrk"]["kind"], "system")
+
+    def test_the_builtin_engine_is_pinned_to_its_file(self):
+        import loadgen
+        t = LT.load_manifest()["tools"]["loadgen"]
+        self.assertEqual(t["kind"], "builtin")
+        self.assertEqual(t["sha256"], LT.sha256_file(os.path.join(REPO, "bench", "loadgen.py")),
+                         "bench/loadgen.py changed: pin its new sha256 in bench/loadtools.json "
+                         "and verify it again")
+        self.assertEqual(t["version"], loadgen.ENGINE_VERSION)
 
     def test_nothing_is_runnable_before_the_verification(self):
         for name, t in LT.load_manifest()["tools"].items():
@@ -194,6 +206,18 @@ class ManifestTest(unittest.TestCase):
             self.assertEqual((out, ok), ("Version: v12.13.0", True))
             m["tools"]["vegeta"]["version"] = "v13.0.0"
             self.assertFalse(LT.probe_version(m, "vegeta", tmp)[1])
+
+    def test_a_builtin_tool_is_a_file_of_the_repository(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            m = fake_root(tmp)
+            self.assertEqual(LT.resolve_tool(m, "loadgen", tmp),
+                             os.path.join(REPO, "bench", "loadgen.py"))
+            self.assertEqual(LT.probe_version(m, "loadgen", tmp), ("loadgen 1", True))
+            m["tools"]["loadgen"]["version"] = "2"
+            self.assertFalse(LT.probe_version(m, "loadgen", tmp)[1])
+            m["tools"]["loadgen"]["sha256"] = "0" * 64
+            with self.assertRaisesRegex(LT.ToolError, "binary changed"):
+                LT.resolve_tool(m, "loadgen", tmp)
 
     def test_the_tools_directory_comes_from_the_environment(self):
         m = {"root": "~/somewhere", "tools": {}}
@@ -283,6 +307,21 @@ class BuilderTest(unittest.TestCase):
             self.plan("wrk")                                     # SPEC has a source address
         with self.assertRaises(LT.ToolError):
             self.plan("wrk", dataclasses.replace(SPEC, local_addr="", method="HEAD"))
+
+    def test_loadgen_command_line(self):
+        p = self.plan("loadgen")
+        wd = self.wd
+        self.assertEqual(p.steps[0].argv, [
+            "taskset", "-c", "4-7", sys.executable, os.path.join(REPO, "bench", "loadgen.py"),
+            "--url", "http://10.0.0.1/", "--rate", "100", "--duration", "10", "--timeout", "10",
+            "--max-inflight", "5000", "--pool", "100", "--method", "GET",
+            "--summary", f"{wd}/loadgen.summary.json", "--records", f"{wd}/loadgen.records.csv.gz",
+            "--header", "X-A: b", "--local-addr", "10.0.2.5"])
+        self.assertEqual(p.inputs, {})
+        loop = self.plan("loadgen", dataclasses.replace(SPEC, url="http://127.0.0.1:1/",
+                                                        local_addr="", allow_loopback=True))
+        self.assertIn("--allow-loopback", loop.steps[0].argv)
+        self.assertNotIn("--allow-loopback", p.steps[0].argv)
 
     def test_no_pinning_without_cpus(self):
         argv = self.plan("vegeta", dataclasses.replace(SPEC, cpus="")).steps[0].argv
@@ -459,6 +498,28 @@ class ParserTest(unittest.TestCase):
         self.assertEqual((r.responses, r.ok2xx, r.non2xx, r.errors, r.dropped),
                          (950, 800, 150, 50, 37))
         self.assertIsNone(r.latency["p99"])
+
+    def test_loadgen_summary(self):
+        s = {"sent": 990, "dropped": 10, "completed": 980, "wall_s": 10.2,
+             "status": {"200": 900, "503": 80}, "errors": {"timeout": 10, "dropped": 10},
+             "latency_s": {"mean": 0.02, "min": 0.001, "p50": 0.005, "p90": 0.01, "p95": 0.02,
+                           "p99": 0.5, "max": 0.9},
+             "slip_s": {"p99": 0.01}, "service_s": {"p99": 0.4}, "cpu": {"share": 0.4},
+             "spin_ms": 0, "per_second": {"sent": [99] * 10},
+             "flags": {"slip": False, "dropped": True}, "valid": False}
+        write(os.path.join(self.tmp, "l.json"), json.dumps(s))
+        r = LT.parse_loadgen(os.path.join(self.tmp, "l.json"))
+        self.assertEqual((r.requests, r.responses, r.ok2xx, r.non2xx, r.errors, r.dropped),
+                         (990, 980, 900, 80, 10, 10))
+        self.assertEqual(r.latency["p99"], 0.5)
+        self.assertEqual(r.quantiles, "exact-intended-time")
+        self.assertEqual((r.extra["valid"], r.extra["flags"]["dropped"]), (False, True))
+        self.assertEqual(r.extra["error_classes"], {"timeout": 10, "dropped": 10})
+        write(os.path.join(self.tmp, "loadgen.summary.json"), json.dumps(s))
+        self.assertEqual(LT.parse_dir("loadgen", self.tmp).tool, "loadgen")
+        write(os.path.join(self.tmp, "bad.json"), "{}")
+        with self.assertRaises(LT.ToolError):
+            LT.parse_loadgen(os.path.join(self.tmp, "bad.json"))
 
     def test_wrk_output(self):
         write(os.path.join(self.tmp, "w.out"), WRK_OUT)

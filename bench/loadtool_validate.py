@@ -85,21 +85,21 @@ REASON = {200: b"OK", 503: b"Service Unavailable"}
 S2_BASE = {"service_ms": 5.0, "jitter_ms": 5.0}
 TESTS = {
     "V1": {"origin": "s1", "rates": (100,), "duration": 10, "repeats": 1,
-           "tools": ("vegeta", "k6")},
+           "tools": ("vegeta", "k6", "loadgen")},
     "V2": {"origin": "s1", "rates": (200, 1000, 5000), "duration": 20, "repeats": 3,
-           "tools": ("vegeta", "k6")},
+           "tools": ("vegeta", "k6", "loadgen")},
     "V3": {"origin": "s2", "rates": (500,), "duration": 30, "repeats": 1,
-           "tools": ("vegeta", "k6"), "s2": S2_BASE},
+           "tools": ("vegeta", "k6", "loadgen"), "s2": S2_BASE},
     "V4": {"origin": "s2", "rates": (500,), "duration": 40, "repeats": 1,
-           "tools": ("vegeta", "k6", "wrk"), "control": ("wrk",),
+           "tools": ("vegeta", "k6", "loadgen", "wrk"), "control": ("wrk",),
            "s2": {**S2_BASE, "stall_after": 15.0, "stall_for": 3.0}},
     "V5": {"origin": "s2", "rates": (2000,), "duration": 20, "repeats": 1,
-           "tools": ("vegeta", "k6"),
+           "tools": ("vegeta", "k6", "loadgen"),
            "s2": {"service_ms": 50.0, "jitter_ms": 0.0, "capacity": 50}},
     "V6": {"origin": "s2", "rates": (500,), "duration": 20, "repeats": 1,
-           "tools": ("vegeta", "k6"), "s2": {**S2_BASE, "error_every": 10}},
+           "tools": ("vegeta", "k6", "loadgen"), "s2": {**S2_BASE, "error_every": 10}},
     "V7": {"origin": "s1", "rates": (1000, 2000, 5000, 10000, 20000), "duration": 10,
-           "repeats": 1, "tools": ("vegeta", "k6"), "cpus": CPUS["one_core"]},
+           "repeats": 1, "tools": ("vegeta", "k6", "loadgen"), "cpus": CPUS["one_core"]},
 }
 
 
@@ -504,6 +504,9 @@ def evaluate(job, res, origin):
     origin's summary."""
     checks, notes = EVALUATORS[job["test"]](job, res, origin)
     cpu = (res.get("extra") or {}).get("children_cpu_s")
+    raised = [k for k, v in ((res.get("extra") or {}).get("flags") or {}).items() if v]
+    if raised:
+        notes = [*notes, "the tool's own validity flags: " + ", ".join(raised)]
     metrics = {}
     if cpu and res["requests"]:
         metrics["cpu_per_1000"] = (cpu["user"] + cpu["system"]) / (res["requests"] / 1000)
@@ -619,7 +622,7 @@ class RealEnv:
         return LT.parse_dir(job.tool, workdir), prov
 
 
-RAW = ("vegeta.bin", "vegeta.csv", "vegeta.targets")
+RAW = ("vegeta.bin", "vegeta.csv", "vegeta.targets", "loadgen.records.csv.gz")
 
 
 def run_job(env, job, out_dir, keep_raw=False):

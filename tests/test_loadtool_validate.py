@@ -61,9 +61,9 @@ class MatrixTest(unittest.TestCase):
         per_test = {}
         for j in jobs:
             per_test[j.test] = per_test.get(j.test, 0) + 1
-        self.assertEqual(per_test, {"V1": 2, "V2": 18, "V3": 2, "V4": 3, "V5": 2, "V6": 2, "V7": 10})
+        self.assertEqual(per_test, {"V1": 3, "V2": 27, "V3": 3, "V4": 4, "V5": 3, "V6": 3, "V7": 15})
         self.assertEqual(len({j.key for j in jobs}), len(jobs))
-        self.assertAlmostEqual(sum(j.duration for j in jobs) / 60, 12.3, places=1)
+        self.assertAlmostEqual(sum(j.duration for j in jobs) / 60, 18.2, places=1)
 
     def test_wrk_is_only_the_control_of_the_stall_test(self):
         wrk = [j for j in V.expand() if j.tool == "wrk"]
@@ -163,6 +163,14 @@ class EvaluatorTest(unittest.TestCase):
         self.assertAlmostEqual(e["metrics"]["cpu_per_1000"], 0.06)
         self.assertFalse(self.passes(j, res(50000, errors=3), {"requests": 50000}))
         self.assertFalse(self.passes(j, res(50000), {"requests": 49400}))
+
+    def test_a_tool_that_raised_its_own_validity_flags_says_so(self):
+        r = res(1000)
+        r["extra"] = {"flags": {"slip": True, "cpu": False, "dropped": True}}
+        e = V.evaluate(job("V1"), r, {"requests": 1000})
+        self.assertIn("the tool's own validity flags: slip, dropped", e["notes"])
+        self.assertTrue(e["pass"])                                        # a note, not a criterion
+        self.assertEqual(V.evaluate(job("V1"), res(1000), {"requests": 1000})["notes"], [])
 
     def test_every_check_carries_what_it_compared(self):
         e = V.evaluate(job("V1"), res(1000), {"requests": 1000})
@@ -504,7 +512,8 @@ class FakeEnv:
 
 
 TOOLS_INFO = {t: {"v0_ok": True, "status": "smoke-tested", "sha256": "0" * 64,
-                  "pinned_version": "v1", "version_output": "v1"} for t in ("vegeta", "k6", "wrk")}
+                  "pinned_version": "v1", "version_output": "v1"}
+              for t in ("vegeta", "k6", "loadgen", "wrk")}
 
 
 class FlowTest(unittest.TestCase):
@@ -526,11 +535,12 @@ class FlowTest(unittest.TestCase):
 
     def test_a_perfect_environment_verifies_every_tool(self):
         _, evals = self.silently(self.run_all)
-        self.assertEqual(len(evals), 39)
+        self.assertEqual(len(evals), 58)
         self.assertTrue(all(e["pass"] for e in evals), [e["key"] for e in evals if not e["pass"]])
         s = read(self.out, "results.json")["summary"]
         self.assertEqual(s["vegeta"]["suggested_status"], "verified")
         self.assertEqual(s["k6"]["suggested_status"], "verified")
+        self.assertEqual(s["loadgen"]["suggested_status"], "verified")
         self.assertEqual(s["wrk"]["suggested_status"], "control")
         self.assertEqual(s["k6"]["tests"]["V7"]["ceiling"], 20000)
 
@@ -584,7 +594,8 @@ class FlowTest(unittest.TestCase):
         jobs = read(self.out, "results.json")["jobs"]
         order = [(e["test"], e["tool"], e["rate"], e["repeat"]) for e in jobs]
         self.assertEqual(order, sorted(order))
-        self.assertEqual([e["key"] for e in jobs[:2]], ["V1/k6/r100_0", "V1/vegeta/r100_0"])
+        self.assertEqual([e["key"] for e in jobs[:3]],
+                         ["V1/k6/r100_0", "V1/loadgen/r100_0", "V1/vegeta/r100_0"])
 
     def test_the_readme_has_the_verdicts_and_the_checks(self):
         self.silently(self.run_all)
@@ -611,7 +622,7 @@ class FlowTest(unittest.TestCase):
         _env, evals = self.silently(self.run_all, FakeEnv(fail_tools=("k6",)), stop_on_error=True)
         self.assertEqual(evals[-1]["tool"], "k6")
         self.assertEqual(sum("error" in e for e in evals), 1)
-        self.assertLess(len(evals), 39)
+        self.assertLess(len(evals), 58)
 
     def test_a_tool_whose_v0_failed_is_not_run(self):
         env = FakeEnv()

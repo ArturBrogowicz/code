@@ -48,7 +48,8 @@ TESTBED_NET = ipaddress.ip_network("10.0.0.0/16")             # as in ml/l7_gen.
 LOOPBACK_NETS = (ipaddress.ip_network("127.0.0.0/8"), ipaddress.ip_network("::1/128"))
 STATUSES = ("unavailable", "installed", "smoke-tested", "verified", "unfit")
 RUNNABLE = ("verified",)                  # statuses a benchmark run accepts
-VERSION_ARGS = {"vegeta": ["-version"], "k6": ["version"], "wrk": ["--version"]}
+VERSION_ARGS = {"vegeta": ["-version"], "k6": ["version"], "wrk": ["--version"],
+                "loadgen": ["--version"]}
 PROXY_VARS = ("http_proxy", "https_proxy", "all_proxy", "no_proxy")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -63,7 +64,7 @@ class ToolError(RuntimeError):
 
 # --- scope lock ---------------------------------------------------------------------------
 
-def _in_scope(text, allow_loopback):
+def check_address(text, allow_loopback):
     try:
         ip = ipaddress.ip_address(text)
     except ValueError:
@@ -84,7 +85,7 @@ def check_scope(url, allow_loopback=False):
         raise ScopeError(f"{url!r}: credentials in the URL")
     if not parts.hostname:
         raise ScopeError(f"{url!r}: no host")
-    host = _in_scope(parts.hostname, allow_loopback)
+    host = check_address(parts.hostname, allow_loopback)
     try:
         port = parts.port or (443 if parts.scheme == "https" else 80)
     except ValueError:
@@ -116,7 +117,7 @@ def validate(spec):
     """Check a spec before anything is built; ScopeError or ValueError."""
     check_scope(spec.url, spec.allow_loopback)
     if spec.local_addr:
-        _in_scope(spec.local_addr, spec.allow_loopback)
+        check_address(spec.local_addr, spec.allow_loopback)
     if not spec.rate > 0:
         raise ValueError(f"rate must be positive, got {spec.rate}")
     if not spec.duration >= 1:
@@ -254,8 +255,8 @@ def validate_manifest(m):
     if m.get("schema") != 1 or not isinstance(m.get("tools"), dict):
         raise ToolError("manifest: schema 1 with a 'tools' table expected")
     for name, t in m["tools"].items():
-        if t.get("kind") not in ("external", "system"):
-            raise ToolError(f"manifest: {name}: kind must be external or system")
+        if t.get("kind") not in ("external", "system", "builtin"):
+            raise ToolError(f"manifest: {name}: kind must be external, system or builtin")
         if t.get("status") not in STATUSES:
             raise ToolError(f"manifest: {name}: status must be one of {STATUSES}")
         if not (isinstance(t.get("version"), str) and isinstance(t.get("path"), str)):
@@ -288,6 +289,8 @@ def tool_file(m, name, root=None):
     t = m["tools"].get(name)
     if t is None:
         raise ToolError(f"unknown tool {name!r} (known: {', '.join(m['tools'])})")
+    if t["kind"] == "builtin":                                # a file of this repository
+        return os.path.join(REPO, t["path"])
     return t["path"] if os.path.isabs(t["path"]) else os.path.join(tools_root(m, root), t["path"])
 
 
@@ -301,7 +304,7 @@ def resolve_tool(m, name, root=None, allow_unverified=False, check=True):
         raise ToolError(f"{name} has status {t['status']!r}, not 'verified' "
                         "(--allow-unverified is for the verification only)")
     if check:
-        if not (os.path.isfile(path) and os.access(path, os.X_OK)):
+        if not (os.path.isfile(path) and (os.access(path, os.X_OK) or t["kind"] == "builtin")):
             raise ToolError(f"{name}: {path} is missing or not executable")
         got = sha256_file(path)
         if got != t["sha256"]:
@@ -313,8 +316,10 @@ def resolve_tool(m, name, root=None, allow_unverified=False, check=True):
 def probe_version(m, name, root=None):
     """Run the tool's version command; (output, matches the pinned version)."""
     path = resolve_tool(m, name, root, allow_unverified=True)
-    cp = subprocess.run([path] + VERSION_ARGS[name], capture_output=True, text=True,
-                        timeout=15, check=False)
+    argv = [path] + VERSION_ARGS[name]
+    if m["tools"][name]["kind"] == "builtin":
+        argv = [sys.executable] + argv
+    cp = subprocess.run(argv, capture_output=True, text=True, timeout=15, check=False)
     out = (cp.stdout + cp.stderr).strip()
     return out, m["tools"][name]["version"] in out
 
@@ -385,7 +390,25 @@ def _plan_wrk(exe, spec, wd):
                   timeout=spec.duration + spec.timeout + 30)], f, {})
 
 
-BUILDERS = {"vegeta": _plan_vegeta, "k6": _plan_k6, "wrk": _plan_wrk}
+def _plan_loadgen(exe, spec, wd):
+    f = {"summary": os.path.join(wd, "loadgen.summary.json"),
+         "records": os.path.join(wd, "loadgen.records.csv.gz")}
+    argv = _pin(spec) + [sys.executable, exe, "--url", spec.url, "--rate", f"{spec.rate:g}",
+                         "--duration", f"{spec.duration:g}", "--timeout", f"{spec.timeout:g}",
+                         "--max-inflight", str(spec.max_workers), "--pool", str(spec.connections),
+                         "--method", spec.method, "--summary", f["summary"],
+                         "--records", f["records"]]
+    for h in spec.headers:
+        argv += ["--header", h]
+    if spec.local_addr:
+        argv += ["--local-addr", spec.local_addr]
+    if spec.allow_loopback:
+        argv.append("--allow-loopback")
+    return ([Step("run", argv, stderr=os.path.join(wd, "loadgen.stderr"),
+                  timeout=spec.duration + spec.timeout + 60)], f, {})
+
+
+BUILDERS = {"vegeta": _plan_vegeta, "k6": _plan_k6, "wrk": _plan_wrk, "loadgen": _plan_loadgen}
 
 
 def build_plan(tool, spec, workdir, manifest=None, root=None, allow_unverified=False,
@@ -631,6 +654,27 @@ def parse_wrk(path):
                        "note": "wrk counts 3xx as ok; ok2xx here is requests minus Non-2xx or 3xx"})
 
 
+def parse_loadgen(path):
+    try:
+        with open(path) as f:
+            d = json.load(f)
+        st = {str(k): int(v) for k, v in d["status"].items()}
+        errs = {k: int(v) for k, v in d["errors"].items()}
+        lat = d["latency_s"]
+        sent, dropped = int(d["sent"]), int(d["dropped"])
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise ToolError(f"{path}: not a bench/loadgen.py summary ({exc})") from None
+    responses = sum(st.values())
+    ok2xx = sum(n for c, n in st.items() if 200 <= int(c) < 300)
+    return ToolResult("loadgen", sent, responses, ok2xx, responses - ok2xx,
+                      sum(n for k, n in errs.items() if k != "dropped"), st,
+                      {k: lat[k] for k in ("mean", "min", "p50", "p90", "p95", "p99", "max")},
+                      "exact-intended-time", d["wall_s"], dropped,
+                      {"flags": d["flags"], "valid": d["valid"], "slip_s": d["slip_s"],
+                       "service_s": d["service_s"], "cpu": d["cpu"], "spin_ms": d["spin_ms"],
+                       "per_second": d["per_second"], "error_classes": errs})
+
+
 def parse_dir(tool, workdir):
     """Re-read the outputs of an earlier run from its directory."""
     if tool == "vegeta":
@@ -641,6 +685,8 @@ def parse_dir(tool, workdir):
         return parse_k6(os.path.join(workdir, "k6.summary.json"))
     if tool == "wrk":
         return parse_wrk(os.path.join(workdir, "wrk.out"))
+    if tool == "loadgen":
+        return parse_loadgen(os.path.join(workdir, "loadgen.summary.json"))
     raise ToolError(f"no parser for {tool!r}")
 
 

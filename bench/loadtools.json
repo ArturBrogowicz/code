@@ -55,6 +55,19 @@
         "the generator the suite uses for the HTTP flood; not smoke-tested by the wrapper"
       ]
     },
+    "loadgen": {
+      "kind": "builtin",
+      "role": "in-repo open-loop engine (the primary generator)",
+      "version": "1",
+      "path": "bench/loadgen.py",
+      "sha256": "91aab0837ce688982c30cc2f8b9e867482f830d5ff49b9ec703888ac80ba92a1",
+      "source": "this repository",
+      "status": "installed",
+      "notes": [
+        "pinned to the file: any edit of bench/loadgen.py needs a new sha256 here and a new verification",
+        "not yet run through the verification harness"
+      ]
+    },
     "wrk2": {
       "kind": "external",
       "role": "constant-throughput driver (was)",
