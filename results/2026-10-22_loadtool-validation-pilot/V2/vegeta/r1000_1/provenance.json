@@ -1,0 +1,99 @@
+{
+ "schema": 1,
+ "tool": "vegeta",
+ "tool_info": {
+  "version": "v12.13.0",
+  "sha256": "c54d905541485153542dfcb850f9ab8ef801e7ab1a652d2cfc69cafdd4a5363f",
+  "status": "smoke-tested",
+  "path": "/home/artur/loadtools/vegeta-12.13.0/vegeta"
+ },
+ "proxy_vars_removed": [],
+ "spec": {
+  "url": "http://127.0.0.1:18081/",
+  "rate": 1000,
+  "duration": 20,
+  "method": "GET",
+  "headers": [],
+  "timeout": 10.0,
+  "connections": 100,
+  "workers": 100,
+  "max_workers": 5000,
+  "threads": 2,
+  "local_addr": "",
+  "cpus": "4-7",
+  "allow_loopback": true,
+  "name": "V2"
+ },
+ "started_utc": "2026-10-22T12:34:26Z",
+ "steps": [
+  {
+   "label": "attack",
+   "argv": [
+    "taskset",
+    "-c",
+    "4-7",
+    "/home/artur/loadtools/vegeta-12.13.0/vegeta",
+    "attack",
+    "-rate=1000/1s",
+    "-duration=20s",
+    "-timeout=10s",
+    "-workers=100",
+    "-max-workers=5000",
+    "-connections=100",
+    "-keepalive=true",
+    "-http2=false",
+    "-redirects=-1",
+    "-max-body=0",
+    "-name=V2",
+    "-targets=/var/tmp/loadtool_validation/20261022_loadtool-validation/V2/vegeta/r1000_1/vegeta.targets",
+    "-output=/var/tmp/loadtool_validation/20261022_loadtool-validation/V2/vegeta/r1000_1/vegeta.bin"
+   ],
+   "env": {},
+   "returncode": 0,
+   "seconds": 20.022
+  },
+  {
+   "label": "report",
+   "argv": [
+    "/home/artur/loadtools/vegeta-12.13.0/vegeta",
+    "report",
+    "-type=json",
+    "-output=/var/tmp/loadtool_validation/20261022_loadtool-validation/V2/vegeta/r1000_1/vegeta.report.json",
+    "/var/tmp/loadtool_validation/20261022_loadtool-validation/V2/vegeta/r1000_1/vegeta.bin"
+   ],
+   "env": {},
+   "returncode": 0,
+   "seconds": 0.117
+  },
+  {
+   "label": "encode",
+   "argv": [
+    "/home/artur/loadtools/vegeta-12.13.0/vegeta",
+    "encode",
+    "-to=csv",
+    "-output=/var/tmp/loadtool_validation/20261022_loadtool-validation/V2/vegeta/r1000_1/vegeta.csv",
+    "/var/tmp/loadtool_validation/20261022_loadtool-validation/V2/vegeta/r1000_1/vegeta.bin"
+   ],
+   "env": {},
+   "returncode": 0,
+   "seconds": 0.183
+  }
+ ],
+ "script_sha256": null,
+ "manifest_sha256": "f93b9aa94c9371c7bcab78a18ae9e60466975641d2f33654196e8d9e6f711283",
+ "ok": true,
+ "children_cpu_s": {
+  "user": 2.775,
+  "system": 11.99
+ },
+ "git": {
+  "commit": "210399ce4bf755adc2e9f0ab6a1db091b624ef2b",
+  "dirty": false
+ },
+ "host": {
+  "uname": "Linux ddos-mitigation 7.0.0-38-generic #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:10:14 UTC 2026 x86_64 ",
+  "cpus": 8,
+  "python": "3.14.4"
+ },
+ "finished_utc": "2026-10-22T12:34:46Z"
+}

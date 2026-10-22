@@ -1,0 +1,17 @@
+{
+ "cpus": "4-7",
+ "duration": 40,
+ "key": "V4/wrk/r500_0",
+ "origin": "s2",
+ "rate": 500,
+ "repeat": 0,
+ "role": "control",
+ "s2": {
+  "jitter_ms": 5.0,
+  "service_ms": 5.0,
+  "stall_after": 15.0,
+  "stall_for": 3.0
+ },
+ "test": "V4",
+ "tool": "wrk"
+}

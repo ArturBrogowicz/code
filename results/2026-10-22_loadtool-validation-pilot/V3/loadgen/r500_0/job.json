@@ -1,0 +1,15 @@
+{
+ "cpus": "4-7",
+ "duration": 30,
+ "key": "V3/loadgen/r500_0",
+ "origin": "s2",
+ "rate": 500,
+ "repeat": 0,
+ "role": "subject",
+ "s2": {
+  "jitter_ms": 5.0,
+  "service_ms": 5.0
+ },
+ "test": "V3",
+ "tool": "loadgen"
+}
