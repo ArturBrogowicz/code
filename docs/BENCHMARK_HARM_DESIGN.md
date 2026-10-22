@@ -1,8 +1,9 @@
 # Design plan: a benchmark in which attacks cause measurable harm
 
-**Status (2026-10-22): the design is approved; HG1a is written and was run once as a pilot, which
-found faults in the harness; the harness is corrected offline and the corrected run awaits your
-approval (Appendix F).**
+**Status (2026-10-22): the design is approved; HG1a is written; its first run (a pilot) found faults in
+the harness, the harness was corrected, and the corrected run was approved and made the same day:
+k6 and the in-repo engine pass V1-V6, vegeta fails V3 and V5; the manifest statuses are not yet
+changed (Appendix F.7).**
 Decisions: D4 decided (both generators); D1-D3 and D5-D12 approved at the recommended defaults; D13
 (two post hoc amendments to the verification criteria) adopted. Stage 1 of Appendix E was run:
 vegeta and k6 are installed and smoke-tested, wrk2 is unavailable on this OS. HG1a (the wrapper, the
@@ -1173,7 +1174,7 @@ is measured and is your call: a lowest-priority busy loop on every vCPU (keeps t
 raises the load average, shares SMT and caches with the tool), the engine's `--spin-ms`, or moving
 the tool to vCPU 6.
 
-### F.6 Proposed corrected run (awaiting your approval; nothing below has been started)
+### F.6 The corrected run, as proposed and approved (made 2026-10-22; outcome in F.7)
 
 Two sessions, each on loopback, without root, from the worktree `audit-must-do-2-5`
 (`feat/loadtools-harness` at `58412df`, clean):
@@ -1218,3 +1219,67 @@ timeout -s INT 3600 ./venv/bin/python bench/loadtool_validate.py run --yes \
   on the measured noise would be a third, separate, post hoc decision for you.
 * **After the run.** Publish C2 as `results/2026-10-22_loadtool-validation-run2` with a `NOTES.md`
   (the pilot stays); then, and only then, edit the manifest statuses by hand.
+
+### F.7 Outcome of the corrected run (2026-10-22)
+
+Approved as written in F.6 ("C1, then C2 if C1 shows no infrastructure error and all three tools'
+results parse"). **C1**: 13:55:33-13:56:40 UTC, 3 jobs, all pass, not published. **C2**: 13:57:12-14:24:11
+UTC (27 min against the 25 expected), 58 jobs, exit code 0, after the gate (uptime 6900 s, load 0.24);
+no infrastructure error, no process or listening port left over, `/usr/bin/wrk` and every tool binary
+unchanged. Published on `feat/loadtools-harness` (`6d5ee97`) as `results/2026-10-22_loadtool-validation-run2/`
+with a `NOTES.md`; the pilot is marked superseded in the index.
+
+Verdicts by criteria version 2:
+
+| Tool | V1 | V2 | V3 | V4 | V5 | V6 | V7: highest rate held on one core |
+|---|---|---|---|---|---|---|---|
+| vegeta v12.13.0 | pass | pass (9/9) | fail | pass | fail | pass | 2,000 |
+| k6 v2.3.0 | pass | pass (9/9) | pass | pass | pass | pass | 2,000 |
+| in-repo engine | pass | pass (9/9) | pass (A2) | pass | pass | pass | 10,000 |
+| wrk 4.1.0 (control) | - | - | - | control ok (A1) | - | - | - |
+
+What the run showed [FACT unless tagged]:
+
+1. **The settings fix did what it was meant to.** k6's two pilot failures are gone (V2 9/9; V4 1,496 of
+   1,500 arrivals in the stall, p99 2.625 s against 2.6075 s) with 300-1,600 pre-allocated VUs instead of
+   100 [INFERENCE that this was the cause: the timer noise also differs between runs]. k6 starts 2,000 VUs
+   in at most 1.6 s, so the 50 ms-per-VU timeout margin was far larger than needed.
+2. **A1 and A2 behave as intended on corrected-harness data.** The engine's latency from the actual
+   send is within 0.5 ms of the origin's own; from the intended time it is 3.0 / 18.7 ms (p50 / p99)
+   above, which is its schedule slip (2.1 / 20.6 ms). wrk sent 0 requests into the stall and reported
+   p99 3.0 s.
+3. **vegeta is silent under overload (V5: 20,307 of 40,000 missing, nothing reported) and loses the
+   schedule above 5,000/s on one core** (27 % of the 10,000/s step, 66 % of the 20,000/s step).
+   TIME_WAIT grew by 9.8 k and 14.4 k during the 5,000 and 10,000/s jobs, so it opens thousands of
+   connections a second despite an idle pool as large as its workers; no error was reported, so port
+   exhaustion is still not shown.
+4. **V3 is noise-dominated.** The origin's own p99 service time was 17.6, 25.4 and 152.6 ms in the three
+   tools' jobs (maxima 241, 48 and 983 ms), so the tolerance (the larger of 1 ms and 10 %) was 1.8, 2.5 and
+   15.3 ms, and vegeta's failure is in the job in which the origin itself stalled. With one repeat per tool
+   V3 cannot tell a tool from this VM (F.5).
+5. **The engine's slip gate (p99 above 50 ms) fires on this VM at every rate**, 100/s included, and CPU
+   is no limit there; its `--spin-ms` was not used. At 10,000/s it also exceeds its CPU limit (0.95 of the
+   core against 0.70).
+6. **V7's adherence measure is strict at a start-up transient.** vegeta at 5,000/s delivered all 50,000
+   requests (3,326, 4,435, 7,103, then about 5,000 a second); the registered measure gives 0.9538 and
+   fails it. A view by lateness (within 1 s of the slot), computed offline and not part of any verdict,
+   gives 100 % with a largest lag of 0.65 s and agrees with the registered verdict for every other V7 job.
+7. **Timers.** Pinned 10 ms probes read p99 10-27 ms before and 13-15 ms after the run; the unpinned probe
+   before the run caught a 0.86 s stall.
+8. **Socket hygiene** worked as designed: seven jobs waited 34-62 s (366 s in total) for TIME_WAIT to fall
+   below 5,000; none started above it.
+
+**Open decisions for you** (nothing below has been changed):
+
+* **O1** The manifest statuses. The results suggest k6 and the engine `verified` and vegeta `verified`
+  with restrictions (no latency or overload claims); the manifest has no such status (`unavailable`,
+  `installed`, `smoke-tested`, `verified`, `unfit`; only `verified` is runnable), so vegeta would be
+  `verified` with its restrictions in `notes`, or stay `smoke-tested`. Edited by hand, after you decide.
+* **O2** V3. More repeats, or a tolerance that follows the noise measured in the same run: the second is
+  a third post hoc change and yours to make.
+* **O3** Whether the V7 adherence measure stays as registered (6.).
+* **O4** Whether the engine runs with `--spin-ms` in the harm-gate benchmark, at the cost of a core per
+  stream; and the V7 steps of 10 s, in which one stall of 70-90 ms flags p99.
+* **O5** Merging `feat/loadtools-harness` (eleven commits since main) and `design/benchmark-harm`; EXP-C
+  needs a per-bot rate and tool setting in `test_distributed_suite.py` and `eval/run_campaign.py`, not yet
+  written.
