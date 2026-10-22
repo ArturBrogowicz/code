@@ -371,8 +371,9 @@ def _plan_k6(exe, spec, wd):
     if spec.local_addr:
         argv.append(f"--local-ips={spec.local_addr}")
     argv.append(f["script"])
+    # k6 starts every pre-allocated VU before the run; 50 ms each is a margin, not a measurement
     step = Step("run", argv, env={"K6_NO_USAGE_REPORT": "true"}, stdout=f["stdout"],
-                stderr=f["stderr"], timeout=spec.duration + spec.timeout + 60)
+                stderr=f["stderr"], timeout=spec.duration + spec.timeout + 60 + 0.05 * spec.workers)
     return [step], f, {f["script"]: K6_SCRIPT}
 
 

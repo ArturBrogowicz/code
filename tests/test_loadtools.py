@@ -289,6 +289,11 @@ class BuilderTest(unittest.TestCase):
         self.assertIn("constant-arrival-rate", LT.K6_SCRIPT)
         self.assertIn("handleSummary", LT.K6_SCRIPT)
 
+    def test_k6_gets_time_to_start_its_pre_allocated_vus(self):
+        small = self.plan("k6", dataclasses.replace(SPEC, workers=50)).steps[0].timeout
+        big = self.plan("k6", dataclasses.replace(SPEC, workers=2000)).steps[0].timeout
+        self.assertEqual((small, big), (10 + 10 + 60 + 2.5, 10 + 10 + 60 + 100))
+
     def test_k6_fractional_rate_becomes_a_ratio(self):
         argv = self.plan("k6", dataclasses.replace(SPEC, rate=12.5, headers=())).steps[0].argv
         self.assertIn("RATE=25", argv)
