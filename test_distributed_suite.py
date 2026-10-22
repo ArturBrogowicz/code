@@ -1439,7 +1439,13 @@ def aggregate_access_log(lines, attack_start=None):
     """(rows, unparsable lines) from the lines of the Nginx JSON access log (nginx.conf,
     json_ml_format): per second, client class and status, how many requests the server got and
     their mean and largest request time. T_Rel_s counts from the second of attack_start (blank
-    without one). The log's timestamps are whole seconds with an offset."""
+    without one).
+
+    Nginx writes a line when a request ends, in a timestamp of whole seconds (truncated), and
+    request_time is how long it took. A request is therefore binned by the second it ARRIVED:
+    the log second plus half a second (the mean of the truncated part) minus request_time, so the
+    estimate is within half a second, and a request that waited 8 s in an overloaded server counts
+    where the generator sent it, not where the server finished with it."""
     seconds, cells, bad = {}, {}, 0
     for line in lines:
         try:
@@ -1447,9 +1453,10 @@ def aggregate_access_log(lines, attack_start=None):
             stamp = rec["timestamp"]
             if stamp not in seconds:
                 seconds[stamp] = int(datetime.datetime.fromisoformat(stamp).timestamp())
-            key = (seconds[stamp], _client_class(rec["client_ip"]), int(rec["status"]))
             took = float(rec["request_time"])
-        except (ValueError, KeyError, TypeError, AttributeError):
+            key = (math.floor(seconds[stamp] + 0.5 - took), _client_class(rec["client_ip"]),
+                   int(rec["status"]))
+        except (ValueError, KeyError, TypeError, AttributeError, OverflowError):
             bad += 1
             continue
         cell = cells.setdefault(key, [0, 0.0, 0.0])

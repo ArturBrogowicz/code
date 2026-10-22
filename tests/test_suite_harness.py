@@ -509,6 +509,22 @@ class ServerRequestsTest(unittest.TestCase):
         rows, _ = S.aggregate_access_log(self.LINES)
         self.assertEqual({r[1] for r in rows}, {""})
 
+    def test_a_request_is_binned_by_the_second_it_arrived_not_the_second_it_ended(self):
+        end = epoch(stamp(10))
+        rows, bad = S.aggregate_access_log([
+            log_line(stamp(10), "10.0.2.1", 200, 0.2),       # 10.5 - 0.2: the second it ended in
+            log_line(stamp(10), "10.0.2.1", 200, 0.6),       # 9.9: the one before
+            log_line(stamp(10), "10.0.2.1", 499, 2.3),       # 8.2
+            log_line(stamp(10), "10.0.2.1", 499, 10.4)])     # 0.1
+        self.assertEqual(bad, 0)
+        self.assertEqual([(r[0] - end, r[3]) for r in rows],
+                         [(-10, 499), (-2, 499), (-1, 200), (0, 200)])
+
+    def test_a_fast_request_stays_in_its_log_second(self):
+        rows, _ = S.aggregate_access_log([log_line(stamp(7), "10.0.2.1", 200, t)
+                                          for t in (0.0, 0.001, 0.2, 0.49)])
+        self.assertEqual([r[0] for r in rows], [epoch(stamp(7))])
+
     def test_the_offset_of_the_timestamp_is_honoured(self):
         rows, _ = S.aggregate_access_log([log_line("1970-01-01T01:00:10+01:00", "10.0.2.1"),
                                           log_line("1970-01-01T00:00:10+00:00", "10.0.2.1")])
@@ -519,6 +535,16 @@ class ServerRequestsTest(unittest.TestCase):
             "not json", "{}", '{"timestamp": "x"}', '{"timestamp": 5, "client_ip": "10.0.2.1"}',
             log_line("garbage", "10.0.2.1"), log_line(stamp(3), "10.0.2.1")])
         self.assertEqual(bad, 5)
+        self.assertEqual(len(rows), 1)
+
+    def test_a_request_time_that_is_not_a_finite_number_is_unreadable_not_fatal(self):
+        def line(value):
+            return (f'{{"timestamp": "{stamp(3)}", "client_ip": "10.0.2.1", "status": 200, '
+                    f'"request_time": {value}}}')
+
+        rows, bad = S.aggregate_access_log([line("Infinity"), line("NaN"), line("-Infinity"),
+                                            line('"-"'), line("0.5")])
+        self.assertEqual(bad, 4)
         self.assertEqual(len(rows), 1)
 
     def test_an_empty_log_gives_no_rows(self):

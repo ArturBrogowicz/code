@@ -208,8 +208,10 @@ The legacy `/tmp/{mitigation_performance,metrics_*,availability_*}.csv` files ar
 appended exactly as before. The directory is handed to the user who ran `sudo`.
 
 `server_requests.csv` is aggregated from Nginx's access log at the end of each scenario, before the next
-reset truncates the log: `Data_Scenario`, `Mode`, `T_Epoch_s` (the log's second), `T_Rel_s` (seconds from the
-second of the attack's start; negative before it), `Client_Class` (`bot` 10.0.2.x, `legit` 10.0.1.x, `other`),
+reset truncates the log: `Data_Scenario`, `Mode`, `T_Epoch_s` (the second the request **arrived**: the log's
+second, which is when it ended and is truncated, plus half a second, minus its request time; so within half a
+second, and a request that waited in an overloaded server counts where it was sent), `T_Rel_s` (seconds from
+the second of the attack's start; negative before it), `Client_Class` (`bot` 10.0.2.x, `legit` 10.0.1.x, `other`),
 `Status`, `Requests`, `Request_Time_Mean_s`, `Request_Time_Max_s`. It includes the 503s that `limit_req` sends
 and the requests the legit clients and the harness's own checks make, so the offered rate of the attack is the
 `bot` rows, in every mode; the generator's own report is lost when it is killed. A run recorded before this file
