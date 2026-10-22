@@ -1,10 +1,11 @@
 # Design plan: a benchmark in which attacks cause measurable harm
 
-**Status (2026-10-22): draft for your review. Design only: no production code, no VM workload.**
-Decided so far: D4 (2026-10-22). Nothing described here exists yet. The usual protocol applies:
-feature branch, static analysis first, approval of the design before code, approval of every VM
-workload with its duration and side effects, one concern per commit gated on `unittest` + ruff, you
-merge and push.
+**Status (2026-10-22): draft for your review. Design only: no production code, no benchmark run.**
+Decided so far: D4 (2026-10-22). Stage 1 of Appendix E was run the same day: vegeta and k6 are
+installed and smoke-tested, wrk2 is unavailable on this OS. Apart from those tools, nothing described
+here exists yet. The usual protocol applies: feature branch, static analysis first, approval of the
+design before code, approval of every VM workload with its duration and side effects, one concern
+per commit gated on `unittest` + ruff, you merge and push.
 
 **Tags.** **[FACT]** read from a file or a published result (path given). **[INFERENCE]** reasoned,
 not measured. **[PROPOSAL]** a value or choice for you to confirm or change (decisions D1-D12,
@@ -33,16 +34,16 @@ detector, and it does not change any detector, threshold or model.
    with a drift check and a transferability probe for L3/L4 floods on veth; (D) open-loop scheduled
    load with intended-time latency and generator-validity gates; (E) entities drawn per seed from
    parametric families, with seed namespaces and one netem distribution for every class.
-4. **Order.** The external load tools first (installed and verified, D4), then EXP-C: it needs no new
-   origin, answers G-13 on its own, and a verified external driver is enough, so it does not wait
-   for the in-repo engine, which everything else needs (section 12).
+4. **Order.** The external load tools first (D4; vegeta and k6 are installed, wrk2 is unavailable),
+   then EXP-C: it needs no new origin, answers G-13 on its own, and a verified external driver is
+   enough, so it does not wait for the in-repo engine, which everything else needs (section 12).
 5. **Cost.** 14-19 working days of code (9-11 for the minimum version) and about 18 VM hours in
-   sessions you approve one by one (7.5 h for the smallest useful cut).
+   sessions you approve one by one (7 h for the smallest useful cut).
 6. **Limits, stated up front.** The cost model is a design choice, so conclusions are conditional
    on it and tested against it (x0.5 / x2); L3/L4 harm may be unproducible on veth;
    slow-connection harm needs a regime far above today's socket counts (6.4); nothing here is
    built to make a learned model win.
-7. **What I need.** Decisions D1-D12 (section 15); D4 is decided (both, 2026-10-22). The two that
+7. **What I need.** Decisions D1-D12 (section 15); D4 is decided (2026-10-22). The two that
    move cost most: D6 (first-wave scope) and D11 (EXP-C first, on the legacy origin).
 
 ## 1. The problem
@@ -407,30 +408,35 @@ at Nginx, so the offered request rate of EXP-A's closed-loop arms is known only 
 ### 8.4 Generators, their roles and how they are verified (D4: decided 2026-10-22)
 
 **Decision: both.** The in-repo asyncio engine is the primary generator. `wrk2`, `vegeta` and `k6`
-are installed, pinned and verified as well (Appendix E), as independent cross-checks of the in-repo
-engine and of each other, and as alternative drivers where the in-repo ceiling is too low. The
-closed-loop `wrk` already on the VM (Ubuntu package 4.1.0) stays the closed-loop model and serves as
-the *negative control* of the verification: it must fail the coordinated-omission test.
+were to be installed, pinned and verified as well (Appendix E), as independent cross-checks of the
+in-repo engine and of each other, and as alternative drivers where the in-repo ceiling is too low.
+Stage 1 (2026-10-22) installed and smoke-tested vegeta and k6; **wrk2 builds but panics in Lua at
+the start of a run and is recorded as unavailable on this OS** (E.3). The closed-loop `wrk` already
+on the VM (Ubuntu package 4.1.0) stays the closed-loop model and serves as the *negative control* of
+the verification: it must fail the coordinated-omission test. The reference for the correction is
+the analytic value of V4, which does not depend on any tool.
 
 | Generator | Role | For | Against |
 |---|---|---|---|
 | **In-repo asyncio** (`bench/loadgen.py`, new; stdlib) | primary: legit populations, L7 families, one source address per identity, seeds, scope lock, our per-request record schema | one engine for legit and attack load; deterministic schedules; reviewable | Python: a ceiling of a few thousand requests/s per core (to be measured); must itself pass the verification |
-| **wrk2** (`giltene/wrk2` @ `44a94c1`, built from source; Apache-2.0) | high-rate constant-throughput driver; the reference implementation of the correction | `-R` total rate, HdrHistogram latency, efficient C | default-branch head is a 2019 merge; links OpenSSL unconditionally (3.5 here, may not build); one URL per run unless scripted in Lua; no source-address option (to be confirmed from `--help`) |
+| **wrk2** (`giltene/wrk2` @ `44a94c1`; Apache-2.0): **unavailable on this OS** | was: high-rate constant-throughput driver, the reference implementation of the correction | `-R` total rate, HdrHistogram latency, efficient C | builds (GCC 15.2, OpenSSL 3.5.5) but exits at the start of every run with `PANIC: unprotected error in call to Lua API (attempt to index a nil value)`; its bundled LuaJIT is 2.0.3 (2014) and the default-branch head is a 2019 merge; cause not diagnosed, no retry made (E.3) |
 | **vegeta** (v12.13.0, release binary; MIT [verify]) | open-loop constant-rate driver with many targets | `-laddr`, JSON and HDR reports, PGP-signed checksum file | its README defines latency as the time taken for a response to be read, so the correction semantics are for the verification to establish |
 | **k6** (v2.3.0, release binary; AGPL-3.0 [verify]) | scenario-rich open-model driver (`constant-arrival-rate`, `ramping-arrival-rate`) | arrival-rate executors, thresholds, JS scripting for sessions | heaviest per request; v2 is a recent major version; checksums but no signature |
 
 **Provisioning rules for every external tool.**
 
 * Pinned versions (above), each in its own new directory under `/home/artur/loadtools/`, outside
-  the repository; binaries are never committed. `wrk2` is installed under the name `wrk2` and
-  never on `PATH`: the suite calls `wrk`, and `/usr/bin/wrk` must be byte-identical afterwards.
+  the repository; binaries are never committed. No external tool is put on `PATH` under the
+  name `wrk` (the suite calls `wrk`); `/usr/bin/wrk` was checksummed before and after Stage 1 and
+  is unchanged.
 * Integrity: the sha256 of every download is compared with the release's checksum file and with
   the digest GitHub reports for the asset; for vegeta also the PGP signature of its checksum file
   (the key ships in the same release, so this shows consistency, not independent authenticity; the
   fingerprint is recorded); for wrk2 the commit hash after checkout. Any mismatch stops the
   procedure. Building wrk2 executes upstream Makefile code, as the unprivileged user, never as root.
-* A manifest (`tools.json`: name, version, source URL, sha256, install path, and for wrk2 the
-  compiler version and the build-log hash) is committed with the results. The verification load
+* A manifest (`tools.json`: name, version, source URL, sha256, install path, status; wrk2 is
+  listed as `unavailable` with its build-log hash and the panic as the reason) is committed with
+  the results. The verification load
   runs unprivileged on loopback; only later, inside the testbed namespaces, do the tools run as
   root.
 * Execution goes through a thin wrapper (`bench/loadtools.py`) that builds the command line from a
@@ -631,8 +637,8 @@ the others live:
 | Phase | Work | Files (working names) | Effort | VM time | Gate to proceed |
 |---|---|---|---|---|---|
 | **HG0** | this review | `docs/BENCHMARK_HARM_DESIGN.md` | - | none | your decisions D1-D12 |
-| **HG1a-0** external tools | Stage 1 of Appendix E: packages, pinned downloads, wrk2 build, V0 and V1 | `/home/artur/loadtools/` (outside the repo), manifest | S, no repo code | about 0.5 h | your go on the exact commands |
-| **HG1a** generators | wrapper with scope lock and provenance; verification harness (two loopback origins, V2-V7, analysis); in-repo asyncio engine (schedules, intended-time latency, validity flags, records); a per-bot rate and tool setting for the HTTP flood (default unchanged) | `bench/loadtools.py`, `bench/loadtool_validate.py`, `bench/loadgen.py`, a setting in `test_distributed_suite.py` and `eval/run_campaign.py`, tests | 6-8 days | V2-V7 for the external tools and `wrk`, then for the in-repo engine: about 0.75 h | tests and ruff green; every generator verified or documented as unfit |
+| **HG1a-0** external tools | Stage 1 of Appendix E: packages, pinned downloads, wrk2 build, V0 and V1. **Done 2026-10-22**: vegeta and k6 installed and smoke-tested, wrk2 unavailable (E.3) | `/home/artur/loadtools/` (outside the repo), manifest | S, no repo code | done: about 3 min | your go on the exact commands (given) |
+| **HG1a** generators | wrapper with scope lock and provenance; verification harness (two loopback origins, V2-V7, analysis); in-repo asyncio engine (schedules, intended-time latency, validity flags, records); a per-bot rate and tool setting for the HTTP flood (default unchanged) | `bench/loadtools.py`, `bench/loadtool_validate.py`, `bench/loadgen.py`, a setting in `test_distributed_suite.py` and `eval/run_campaign.py`, tests | 6-8 days | V2-V7 for vegeta, k6 and `wrk`, then for the in-repo engine: about 0.65 h | tests and ruff green; every generator verified or documented as unfit |
 | **EXP-C** | section 8.5, driven by a verified generator | a campaign | S | about 3.5 h | HYP-5 and HYP-6 reported |
 | **HG1b** offline build | cost-calibrated origin; populations and seed namespaces; scenario specification and `--plan`; harm-gate analysis (time-resolved metrics, placebo, HRR); calibration runner and freeze file | `bench/origin.py`, `bench/population.py`, `bench/calibrate.py`, `eval/harm_gate.py`, tests | 8-11 days | none | tests and ruff green; golden `--plan` files |
 | **HG2** calibration | steps 0-5 of 7.2: gates, origin check, capacity, transferability probe, ladders, freeze | `bench/calibration/*.json`, campaigns | - | about 3 h in 1-2 sessions | frozen file committed |
@@ -654,8 +660,8 @@ for 40 runs). Both are recomputed from the first real run.
 
 | Step | Runs | Min/run | Hours |
 |---|---|---|---|
-| External tools: packages, downloads, wrk2 build, V0, V1 (Stage 1) | - | - | 0.5 |
-| External tools and `wrk` as negative control: V2-V7 on loopback | - | - | 0.5 |
+| External tools: packages, downloads, wrk2 build, V0, V1 (Stage 1, done: about 3 min) | - | - | 0.1 |
+| vegeta, k6 and `wrk` as negative control: V2-V7 on loopback | - | - | 0.4 |
 | In-repo engine: V1-V7 on loopback | - | - | 0.25 |
 | EXP-C: capacity probe + 3 modes x 4 load models x 10 blocks | 1 + 120 | 1.6 | 0.25 + 3.2 |
 | HG2: environment gate, origin check, capacity probe, transferability probe | - | - | 0.7 |
@@ -664,14 +670,13 @@ for 40 runs). Both are recomputed from the first real run.
 | HG3: second-level confirmation for one family whose first level failed (contingency) | 30 | 2.5 | 1.25 |
 | HG3: sensitivity arm, costly-route family at cost x0.5 (probe + 10 blocks x 3 runs) | 30 | 2.5 | 1.5 |
 | HG4: 2 admitted L7 scenarios x (control + 4 modes) x 10 blocks | 100 | 2.5 | 4.2 |
-| **Minimum viable version** | | | **about 18 h** (17 h without the contingency) |
+| **Minimum viable version** | | | **about 18 h** (16.5 h without the contingency) |
 
-Smaller cuts (D10), each including the 1.25 h for the load tools: the two L7 families through
-HG2-HG4 plus EXP-C, with no L3/L4 family and no sensitivity arm, is about 13.5 h; EXP-C plus one
-costly-route family through HG2-HG3 is about 7.5 h. Not included: the `bench-stock` and SYN-cookie
+Smaller cuts (D10), each including the 0.75 h for the load tools: the two L7 families through
+HG2-HG4 plus EXP-C, with no L3/L4 family and no sensitivity arm, is about 13 h; EXP-C plus one
+costly-route family through HG2-HG3 is about 7 h. Not included: the `bench-stock` and SYN-cookie
 arms (about 1.5 h each, D3), re-runs of invalid blocks (at most 6 runs per gate), a cross-tool
-repeat of EXP-C's 1 x R50 cell (30 runs, about 0.8 h), a wrk2 build that needs diagnosis (up to
-0.5 h), and the second-wave families.
+repeat of EXP-C's 1 x R50 cell (30 runs, about 0.8 h), and the second-wave families.
 
 ### 12.3 Approvals and side effects
 
@@ -679,10 +684,10 @@ Each VM session is proposed separately with its exact command, duration and side
 EXP-A and EXP-B. Campaign sessions: root; namespaces, Nginx, the origin and generators started and
 stopped; XDP programs attached and removed; traffic inside the testbed only; results written under
 `/var/tmp/ddos_campaigns` and published afterwards (`docs/EVALUATION.md`, "Side effects of a suite
-run"). HG1b runs nothing on the VM except offline unit tests. Stage 1 of Appendix E is different
-in kind: root is needed for `apt-get` only; it adds 24 packages, downloads from GitHub and the
-Ubuntu mirrors, and generates loopback traffic for about a minute; its exact side effects and the
-way to undo them are in Appendix E.
+run"). HG1b runs nothing on the VM except offline unit tests. Stage 1 of Appendix E was different
+in kind (run 2026-10-22): root for `apt-get` only; it added 24 packages, downloaded from GitHub
+and the Ubuntu mirrors, and generated loopback traffic for about a minute; its side effects and
+the way to undo them are in Appendix E.
 
 ## 13. Validity threats and risks
 
@@ -699,7 +704,7 @@ way to undo them are in Appendix E.
 | Time budget | the full plan is several weeks | MVP (D6); the thesis does not depend on it; the negative result of `docs/THESIS_CLAIMS.md` L2 stands without it |
 | Safety | load generators can be pointed anywhere | scope lock in every generator and in the wrapper of 8.4; only namespace addresses; no external targets |
 | External binaries (supply chain) | third-party code runs on the testbed host: unprivileged for the verification, as root inside the namespaces later | pinned versions and commit; sha256 against the checksum file and GitHub's digest; PGP where offered (the key ships in the same release: consistency, not independent authenticity); dedicated directory, never on `PATH`; scope-locking wrapper; manifest committed |
-| wrk2 does not build or run here | its default branch ends in 2019; OpenSSL 3.5 and GCC 15 are newer than anything it was tested with | the build log is kept; a failure is recorded as "unavailable", not patched beyond documented compiler flags; vegeta and k6 remain |
+| wrk2 does not build or run here | its default branch ends in 2019; OpenSSL 3.5 and GCC 15 are newer than anything it was tested with | **Realised 2026-10-22:** it builds but panics in Lua at the start of every run. Recorded as "unavailable", not patched or retried; vegeta and k6 remain, so the plan loses one cross-check and one efficient C driver, not the design |
 | Tools measure latency differently | wrk2 reports intended-time latency; vegeta and k6 time from the actual send, which equals the intended time only while their worker pools keep up | V3-V5 measure each tool against the origin's ground truth; the thesis states which metric of which tool each number uses |
 | A second `wrk` on `PATH` would change the suite | the suite calls `wrk` | wrk2 is installed as `wrk2` in its own directory; `/usr/bin/wrk` is checksummed before and after |
 
@@ -731,13 +736,13 @@ need Gate A as a prerequisite (REPORT 11.8).
 | D1 | Harm definition: SLO table (6.1); floor 10 pp or p95 x 2; 10 blocks; 95 % interval excluding 0 and 80 % same-sign share (10) | Accept. 10 pp is what 10 blocks detect at the EXP-A spread; a 5 pp floor would need 34 blocks per gate (about three times the HG3 time). The pilot SD re-derives the floor before any confirmation data |
 | D2 | Nominal legit load at 50 % of the SLO capacity (6.1) | Accept; vary to 40 / 60 % only if a verdict is borderline |
 | D3 | Server profiles: `bench-testbed` only, or also `bench-stock` (60-s timeouts) and a SYN arm (cookies off, small backlog) as sensitivity | `bench-testbed` first; add the other two in HG3 if time allows (about 1.5 h each) |
-| D4 | Open-loop generator: in-repo asyncio, or install `wrk2` / `vegeta` / `k6` (needs network, a compiler for `wrk2`, and your approval); a one-off cross-check install? | **Decided 2026-10-22: both.** In-repo asyncio is primary; `wrk2`, `vegeta` and `k6` are installed, pinned and verified (8.4, Appendix E). Stage 1 of the install still needs your go on the exact commands |
+| D4 | Open-loop generator: in-repo asyncio, or install `wrk2` / `vegeta` / `k6` (needs network, a compiler for `wrk2`, and your approval); a one-off cross-check install? | **Decided 2026-10-22: both.** In-repo asyncio is primary; external tools are installed, pinned and verified (8.4, Appendix E). Stage 1 done: vegeta and k6 installed and smoke-tested; wrk2 unavailable on this OS (E.3), no retry |
 | D5 | Population size: 200+ benign, 8+ attacker instantiations per family; reduced to 120 / 40 if the VM cannot hold it | Accept, with the reduction rule |
 | D6 | First wave: cheap-route L7 flood, costly-route family (C3/C4), L3/L4 transferability probe + one packet flood. Second wave: slow connections, credential stuffing, pulsing and low-rate variants | Accept |
 | D7 | Where code lives: new modules in `bench/` (it holds two component micro-benchmarks today, run as scripts) and `eval/harm_gate.py`, or a new package `harm/` | `bench/` + `eval/`; `ml/` stays for the L7 model track |
 | D8 | Second VM or physical NIC for L3/L4 | Out of scope; revisit only if the probe says CPU harm is not producible here |
 | D9 | How a gate FAIL appears in the thesis: labelled "label-detection only", or dropped | Report it, labelled |
-| D10 | VM budget ceiling: minimum viable version about 18 h; two L7 families + EXP-C about 13.5 h; EXP-C + one costly-route family about 7.5 h (each includes 1.25 h for the load tools) | Stage it: tools and EXP-C first, then HG2 for the costly-route family, look at the result, then decide. Each session is approved separately anyway; the ceiling is for planning |
+| D10 | VM budget ceiling: minimum viable version about 18 h; two L7 families + EXP-C about 13 h; EXP-C + one costly-route family about 7 h (each includes 0.75 h for the load tools) | Stage it: tools and EXP-C first, then HG2 for the costly-route family, look at the result, then decide. Each session is approved separately anyway; the ceiling is for planning |
 | D11 | EXP-C: first, on the legacy origin (comparable with EXP-A), with a closed-loop arm in the same campaign (120 runs, about 3.5 h); or reuse EXP-A as the closed-loop reference (90 runs, about 2.7 h, comparing across days); or wait for the calibrated origin | First option |
 | D12 | Gate B (harm that remains under the deterministic daemon): reported here as the daemon's HRR in HG4, with the ML admissibility rule left to the ML track; or implemented now as a second gate with its own floor | Report HRR; decide the ML rule when the ML track resumes |
 
@@ -836,10 +841,11 @@ the arrival-rate executors.
 
 ## Appendix E: installing and verifying the external load tools (D4)
 
-Two stages. Stage 1 needs your go on the exact commands below and writes no repository code.
-Stage 2 is part of HG1a and needs the design approved, because it is code.
+Two stages. Stage 1 needed your go on the exact commands below and wrote no repository code; it was
+run on 2026-10-22 (outcome in E.3). Stage 2 is part of HG1a and needs the design approved, because
+it is code.
 
-### E.1 Stage 1: provision, check integrity, smoke-test (about 0.5 h, one session)
+### E.1 Stage 1: provision, check integrity, smoke-test (planned 0.5 h; took about 3 min)
 
 Pins found on 2026-10-22 from the GitHub API and the repository pages. The VM recomputes every
 hash; any mismatch stops the procedure.
@@ -848,7 +854,7 @@ hash; any mismatch stops the procedure.
 |---|---|---|---|---|
 | vegeta | v12.13.0 (2025-10-31) | `vegeta_12.13.0_linux_amd64.tar.gz` | e8759ce45c14... | checksum file, GitHub digest, PGP signature of the checksum file |
 | k6 | v2.3.0 (2026-09-21) | `k6-v2.3.0-linux-amd64.tar.gz` | 39c3117b6af8... | checksum file, GitHub digest (no signature is published) |
-| wrk2 | `44a94c17d8e6a0bac8559b53da76848e430cb7a7` (master, 2019-09-24) | source by `git clone` | - | commit hash |
+| wrk2 (unavailable, E.3) | `44a94c17d8e6a0bac8559b53da76848e430cb7a7` (master, 2019-09-24) | source by `git clone` | - | commit hash |
 
 Commands, run one block at a time and stopped at the first failure. `$T` is a scratch directory
 outside the repository (the session scratchpad), `$L` the tools directory.
@@ -955,13 +961,14 @@ nginx -p $S -c $S/nginx.conf -e $S/error.log -s stop
 **Side effects.** Root is used for the two `apt-get` commands only. They add 24 packages (the
 `gcc-15` toolchain, `make`, `libssl-dev`, `zlib1g-dev` and their dependencies; the exact list is
 `$T/pkgs.diff` and goes into the manifest); nothing is upgraded or removed. Outbound HTTPS goes to
-`github.com`, `api.github.com`, the release-asset hosts and the Ubuntu mirrors. `/home/artur/loadtools/`
-grows by roughly 250 MB. Loopback traffic lasts about a minute in total. Not touched: namespaces, the
-bridge, XDP, iptables, sysctl, the suite, any tracked file of the repository; `/usr/bin/wrk` is
-checksummed before and after.
+`github.com`, `api.github.com`, the release-asset hosts and the Ubuntu mirrors.
+`/home/artur/loadtools/` grew by 133 MB (estimate: 250 MB). Loopback traffic lasted about a minute
+in total. Not touched: namespaces, the bridge, XDP, iptables, sysctl, the suite, any tracked file
+of the repository; `/usr/bin/wrk` is checksummed before and after.
 
-**To undo.** `rm -rf /home/artur/loadtools`; `sudo apt-get remove --purge` with the package names in
-`$T/pkgs.diff` (not `autoremove`, which could take other packages with it).
+**To undo.** `rm -rf /home/artur/loadtools`; `sudo apt-get remove --purge` with the package names
+in `$T/pkgs.diff` (not `autoremove`, which could take other packages with it). After Stage 1 the
+same list is in `/home/artur/loadtools/stage1-record/pkgs.diff` and in apt's own log.
 
 **Failure handling.** A failed download, checksum, signature or commit check stops the procedure and
 is reported; nothing is retried silently. A wrk2 build failure keeps `build.log`, gets one retry
@@ -971,8 +978,42 @@ unavailable on this OS"; vegeta and k6 are unaffected.
 ### E.2 Stage 2: the verification harness (HG1a, code)
 
 `bench/loadtool_validate.py` starts S1 and S2 on loopback, runs V1-V7 of 8.4 for `wrk` (negative
-control), `wrk2`, `vegeta`, `k6` and, once it exists, the in-repo engine, parses each tool's own
+control), `vegeta`, `k6` and, once it exists, the in-repo engine, parses each tool's own
 report, compares it with the origin-side ground truth, and writes a campaign-like directory
 (`results/<date>_loadtool-validation/`: manifest, raw outputs, analysis, `SHA256SUMS`, README with
 the verdict per tool and test). It is offline-testable with canned tool outputs (Appendix C), and
-its runs on the VM are about 0.75 h. Nothing in Stage 2 starts before the design is approved.
+its runs on the VM are about 0.65 h. Nothing in Stage 2 starts before the design is approved.
+
+### E.3 Stage 1 outcome (run 2026-10-22, 07:46-07:50 on the VM clock, about 3 minutes of machine time)
+
+Run with your approval, commands as in E.1 with these additions: logs redirected to files, an
+`nginx -t` config test before the origin started, and a `trap` that stops the origin. The smoke
+block did not abort when wrk2 failed, so the vegeta and k6 smoke runs also took place (both are in
+the approved block). One slip: gpg had started a `gpg-agent` for the throwaway keyring, which I did
+not notice until afterwards; I stopped it with `gpgconf --kill` and deleted that temporary keyring.
+No agent or tool process is left running.
+
+| Step | Result |
+|---|---|
+| Baseline | `/usr/bin/wrk` (Ubuntu 4.1.0) sha256 `f6536e3f9479584fa2b4a97d12c56671487be9f1011f309dc7a3b1bb0f6ea06c`; unchanged afterwards |
+| apt | 24 packages added (57.4 MB download, 192 MB on disk), none upgraded or removed; `gcc` 15.2.0, `make` 4.4.1; list kept in `stage1-record/pkgs.diff` |
+| vegeta v12.13.0 | sha256 `e8759ce45c14e18374bdccd3ba6068197bc3a9f9b7e484db3837f701b9d12e61` equals the checksum file and GitHub's digest; PGP signature of the checksum file good (signer "Vegeta CI", ed25519 key `9D94 22EC BBE6 237A 4EC6 D3BC D0B7 33D0 7608 C86C`, created 2023-07-11); binary reports v12.13.0, commit `507c4f02`, go1.22.12 |
+| k6 v2.3.0 | sha256 `39c3117b6af817592dcd0ce4242105c0a7af10948c2a425306f0be8f7a8a8ab1` equals the checksum file and GitHub's digest; binary reports v2.3.0 (`e088784614`, go1.26.8) |
+| wrk2 `44a94c1` | commit verified, tree clean, LuaJIT 2.0.3 sources present; `make` exit 0, 338 log lines, 49 lines mentioning warnings (largest groups: `_BSD_SOURCE` deprecation, format, misleading indentation), 0 errors; `-R` and `-L` present |
+| Smoke, vegeta | origin counted 1,000 of 1,000; status 200 for all; latency p50 1.05 ms, p99 13.1 ms, max 28.7 ms |
+| Smoke, k6 | origin counted 1,001; 0 failed; 100.08 requests/s; median 0.83 ms, p95 2.4 ms |
+| Smoke, wrk2 | **failed**: exit 1, origin counted 0, output `PANIC: unprotected error in call to Lua API (attempt to index a nil value)` |
+
+**Notes.**
+
+1. The vegeta key expired on 2026-07-10; the signature is dated 2025-10-31, while the key was valid,
+   so GnuPG reports a good signature by an expired key. As planned, the key ships in the same
+   release, so this shows consistency, not independent authenticity.
+2. wrk2 prints its usage and then dies when a run starts, before sending anything. Its source
+   ignores the result of loading its own Lua module (`src/script.c`, line 51), so a failure there
+   surfaces as this panic. The bundled LuaJIT (2.0.3, 2014) built with GCC 15 is the suspect; this
+   was not tested. Decision (2026-10-22): record wrk2 as unavailable on this OS and do not retry.
+   Its directory and build log stay as evidence; the manifest lists it as `unavailable`.
+3. The evidence is kept in `/home/artur/loadtools/stage1-record/` (apt logs, package lists, the
+   Nginx configuration and k6 script used, the three tools' smoke outputs). It is not yet in the
+   manifest or in `results/`.
