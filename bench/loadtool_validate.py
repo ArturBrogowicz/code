@@ -30,6 +30,13 @@ The pass criteria are CRITERIA below, written before any measurement. A tool tha
 unfit; one that fails only V3-V6 is verified with restrictions (no latency or overload claims).
 Nothing is tuned until it passes. CPUs: S1 on 0-1, S2 on 2-3, the tools on 4-7 (V7: on 4).
 
+Criteria version 1 is the pre-registered set. Version 2 (CRITERIA_VERSION) adds two amendments made
+after the first run and labelled post hoc wherever they appear (AMENDMENTS: A1 the V4 control,
+A2 V3 latency from the actual send) and applies the design's own V7 criterion, schedule adherence,
+which the first run did not. A results directory records the version it was judged by; `reanalyse`
+keeps it, and a directory is judged by another version only into a new one (--rejudge-into), so
+published verdicts are never changed in place.
+
 Each test gives a tool the settings it needs (limits_for: workers or VUs for a 0.3 s late wake-up,
 or for the whole stall; 5000 in flight at most; an idle pool as large as the workers). A job starts
 only when fewer than 5000 sockets are in TIME_WAIT (it waits up to 90 s and records what it found),
@@ -38,7 +45,7 @@ design (up 30 minutes, 1-minute load below 0.3) or refuses.
 
     ./venv/bin/python bench/loadtool_validate.py plan [--tools vegeta,k6,wrk] [--tests V1,V4]
     ./venv/bin/python bench/loadtool_validate.py run --out DIR --yes [--tools ...] [--tests ...]
-    ./venv/bin/python bench/loadtool_validate.py reanalyse DIR
+    ./venv/bin/python bench/loadtool_validate.py reanalyse DIR [--rejudge-into NEW --criteria 2]
 
 `run` starts Nginx and S2 on loopback and generates load for about a quarter of an hour; it needs
 the owner's approval and --yes. plan and reanalyse start nothing. serve-s2 is the origin process
@@ -93,7 +100,33 @@ CRITERIA = {
     "v6_abs": 2,
     "v7_rate": 0.01,            # origin count within 1 % at a step that counts as held
     "v7_adherence": 0.99,       # and this share of the intended requests in its own part of the schedule
+    "v3_slip_s": 0.05,          # version 2 (A2): intended-time latency may exceed the origin's by this
 }
+CRITERIA_VERSION = 2
+AMENDMENTS = [
+    {"id": "A1", "post_hoc": True, "tests": ["V4"], "decided": "2026-10-22",
+     "what": ("The closed-loop control is judged by the requests that arrive at the origin during "
+              "the stall (fewer than 10 % of rate x stall), not by its reported p99, which is "
+              "shown but not counted."),
+     "why": ("The first run (pilot) showed that wrk 4.1.0 held its connections and sent nothing "
+             "during the stall, yet reported p99 2.61 s: its percentiles appear to be corrected "
+             "for coordinated omission after the run, so they do not tell a closed-loop tool "
+             "from an open-loop one; its arrivals do.")},
+    {"id": "A2", "post_hoc": True, "tests": ["V3"], "decided": "2026-10-22",
+     "what": ("Latency is judged from the actual send for every tool. A tool that also reports "
+              "it from the intended time (loadgen) is judged on both: from the actual send "
+              "within the V3 tolerance, from the intended time within the slip limit above the "
+              "origin's, the difference being the schedule slip."),
+     "why": ("The first run (pilot) showed that loadgen's latency from the actual send agrees "
+             "with the origin's own within 0.5 ms; the 5 ms by which its reported p99 exceeded it "
+             "is its schedule slip, which intended-time accounting includes on purpose and the "
+             "validity limit (p99 slip below 50 ms) bounds.")},
+    {"id": "C1", "post_hoc": False, "tests": ["V7"], "decided": "2026-10-22",
+     "what": ("The ceiling needs at least 99 % schedule adherence, read from the origin's "
+              "counter once a second."),
+     "why": ("This is the design's own V7 criterion; the first run's harness counted totals "
+             "only. Not an amendment: jobs that recorded no readings are not judged on it.")},
+]
 SAMPLE_EVERY_S = 1.0            # how often the S1 origin reads its own request counter
 REASON = {200: b"OK", 503: b"Service Unavailable"}
 S2_BASE = {"service_ms": 5.0, "jitter_ms": 5.0}
@@ -483,12 +516,14 @@ def _rel(observed, expected):
     return abs(observed - expected) / expected if expected else float("inf")
 
 
-def _check(name, observed, expected, ok, tolerance=None):
+def _check(name, observed, expected, ok, tolerance=None, counts=True, post_hoc=None):
+    """One comparison. `counts` False: shown for the record, not part of the verdict. `post_hoc`
+    names the amendment that put the check here or took it out of the verdict."""
     return {"name": name, "observed": observed, "expected": expected, "tolerance": tolerance,
-            "pass": bool(ok)}
+            "pass": bool(ok), "counts": counts, "post_hoc": post_hoc}
 
 
-def _v1(job, res, origin):
+def _v1(job, res, origin, version):
     n, tol = job["rate"] * job["duration"], CRITERIA["v1_rate"]
     return [_check("the tool reports no errors", res["errors"], 0, res["errors"] == 0),
             _check("requests the tool sent", res["requests"], n,
@@ -497,24 +532,47 @@ def _v1(job, res, origin):
                    _rel(origin["requests"], n) <= tol, tol)], []
 
 
-def _v2(job, res, origin):
+def _v2(job, res, origin, version):
     n, tol = job["rate"] * job["duration"], CRITERIA["v2_rate"]
     return [_check("requests the origin counted", origin["requests"], n,
                    _rel(origin["requests"], n) <= tol, tol)], [
         f"the tool counted {res['requests']} and reported {res['errors']} errors"]
 
 
-def _v3(job, res, origin):
+def _v3(job, res, origin, version):
+    notes = [f"percentiles from: {res['quantiles']}"]
+    from_send = (res.get("extra") or {}).get("service_s") if version >= 2 else None
     checks = []
     for q in ("p50", "p99"):
-        got, truth = res["latency"].get(q), origin["service_s"][q]
+        truth = origin["service_s"][q]
         tol = max(CRITERIA["v3_abs_s"], CRITERIA["v3_rel"] * truth)
-        checks.append(_check(f"reported {q} against the origin's own", got, truth,
-                             got is not None and abs(got - truth) <= tol, tol))
-    return checks, [f"percentiles from: {res['quantiles']}"]
+        if not from_send:             # the tool reports from the actual send (vegeta, k6)
+            got = res["latency"].get(q)
+            checks.append(_check(f"reported {q} against the origin's own", got, truth,
+                                 got is not None and abs(got - truth) <= tol, tol))
+            continue
+        got = from_send.get(q)
+        checks.append(_check(f"latency from the actual send, {q}, against the origin's own", got,
+                             truth, got is not None and abs(got - truth) <= tol, tol,
+                             post_hoc="A2"))
+    if from_send:                     # A2: and the tool's own, from the intended time
+        for q in ("p50", "p99"):
+            truth = origin["service_s"][q]
+            tol = max(CRITERIA["v3_abs_s"], CRITERIA["v3_rel"] * truth)
+            got = res["latency"].get(q)
+            over = None if got is None else got - truth
+            checks.append(_check(f"latency from the intended time, {q}, above the origin's "
+                                 "(the schedule slip)", over, 0.0,
+                                 over is not None and -tol <= over <= CRITERIA["v3_slip_s"],
+                                 CRITERIA["v3_slip_s"], post_hoc="A2"))
+        slip = (res.get("extra") or {}).get("slip_s") or {}
+        if slip.get("p99") is not None:
+            notes.append(f"the tool's schedule slip: p50 {slip['p50'] * 1e3:.1f} ms, "
+                         f"p99 {slip['p99'] * 1e3:.1f} ms")
+    return checks, notes
 
 
-def _v4(job, res, origin):
+def _v4(job, res, origin, version):
     s2 = job["s2"]
     service = (s2["service_ms"] + s2["jitter_ms"] / 2) / 1000
     expected = analytic_stall_p99(job["rate"], job["duration"], s2["stall_for"], service=service)
@@ -522,9 +580,19 @@ def _v4(job, res, origin):
     notes = [f"percentiles from: {res['quantiles']}"]
     if job["role"] == "control":
         tol = CRITERIA["v4_control"] * expected
-        return [_check("the closed-loop control reports far below the analytic p99", got,
-                       expected, got is not None and got <= tol, tol)], notes + [
-            "pass means the control behaved as a closed-loop tool does, so the test can tell"]
+        reported = _check("the closed-loop control reports far below the analytic p99", got,
+                          expected, got is not None and got <= tol, tol)
+        if version < 2:
+            return [reported], notes + [
+                "pass means the control behaved as a closed-loop tool does, so the test can tell"]
+        want = job["rate"] * s2["stall_for"]
+        limit, in_stall = CRITERIA["v4_control"] * want, origin.get("arrivals_in_stall")
+        reported.update(counts=False, post_hoc="A1")
+        return [_check("the closed-loop control sends little during the stall", in_stall, want,
+                       in_stall is not None and in_stall <= limit, limit, post_hoc="A1"),
+                reported], notes + [
+            ("pass means the control sent almost nothing while its connections waited, as a "
+             "closed-loop tool does, so the test can tell; its reported p99 is shown, not counted")]
     tol = CRITERIA["v4_rel"] * expected
     want = job["rate"] * s2["stall_for"]
     in_stall = origin["arrivals_in_stall"]
@@ -535,7 +603,7 @@ def _v4(job, res, origin):
                    CRITERIA["v4_stall_arrivals"])], notes
 
 
-def _v5(job, res, origin):
+def _v5(job, res, origin, version):
     n, tol = job["rate"] * job["duration"], CRITERIA["v5_rate"]
     arrivals, dropped = origin["arrivals"], res["dropped"]
     ok = arrivals >= (1 - tol) * n or arrivals + dropped >= (1 - tol) * n
@@ -545,7 +613,7 @@ def _v5(job, res, origin):
         f"tool errors: {res['errors']}"]
 
 
-def _v6(job, res, origin):
+def _v6(job, res, origin, version):
     truth = origin["status"].get("503", 0)
     tol = max(CRITERIA["v6_abs"], CRITERIA["v6_rel"] * truth)
     return [_check("non-2xx the tool counted against the 503s the origin sent", res["non2xx"],
@@ -585,29 +653,33 @@ def schedule_adherence(samples, rate, duration):
 
 
 def _load_cpu(res):
-    """CPU seconds of the load step; for runs that did not separate it, of all the steps."""
+    """(CPU seconds, True when they are those of the load step alone). A run from before the load
+    step was separated has only the total of all the tool's steps, an upper bound."""
     extra = res.get("extra") or {}
-    cpu = extra.get("load_cpu_s")
-    if cpu is None and extra.get("children_cpu_s"):
-        cpu = extra["children_cpu_s"]["user"] + extra["children_cpu_s"]["system"]
-    return cpu
+    if extra.get("load_cpu_s") is not None:
+        return extra["load_cpu_s"], True
+    c = extra.get("children_cpu_s")
+    return (c["user"] + c["system"], False) if c else (None, False)
 
 
-def _v7(job, res, origin):
+def _v7(job, res, origin, version):
     n, tol = job["rate"] * job["duration"], CRITERIA["v7_rate"]
-    cpu_s = _load_cpu(res)
-    notes = ([f"CPU per 1000 requests: {cpu_s / (res['requests'] / 1000):.3f} s"]
+    cpu_s, load_only = _load_cpu(res)
+    notes = ([f"CPU per 1000 requests: {cpu_s / (res['requests'] / 1000):.3f} s"
+              + ("" if load_only else " (all of the tool's steps: an upper bound)")]
              if cpu_s is not None and res["requests"] else [])
     checks = [_check("requests the origin counted", origin["requests"], n,
                      _rel(origin["requests"], n) <= tol, tol),
               _check("no tool errors and no non-2xx", res["errors"] + res["non2xx"], 0,
                      res["errors"] + res["non2xx"] == 0)]
+    if version < 2:
+        return checks, notes
     if origin.get("samples"):
         adh = schedule_adherence(origin["samples"], job["rate"], job["duration"])
         want = CRITERIA["v7_adherence"]
         checks.append(_check("intended requests that arrived in their own part of the schedule",
                              round(adh["adherence"], 4), 1.0, adh["adherence"] >= want,
-                             round(1 - want, 4)))
+                             round(1 - want, 4), post_hoc="C1"))
         if adh["late_s"] and adh["late_s"] >= 0.1:
             notes.append(f"arrivals went on for about {adh['late_s']:g} s after the end of the "
                          "schedule")
@@ -619,10 +691,10 @@ def _v7(job, res, origin):
 EVALUATORS = {"V1": _v1, "V2": _v2, "V3": _v3, "V4": _v4, "V5": _v5, "V6": _v6, "V7": _v7}
 
 
-def evaluate(job, res, origin):
+def evaluate(job, res, origin, version=CRITERIA_VERSION):
     """The verdict of one job from its parameters (a dict), the tool's parsed result and the
-    origin's summary."""
-    checks, notes = EVALUATORS[job["test"]](job, res, origin)
+    origin's summary, by the criteria of `version`."""
+    checks, notes = EVALUATORS[job["test"]](job, res, origin, version)
     extra = res.get("extra") or {}
     raised = sorted(k for k, v in (extra.get("flags") or {}).items() if v)
     if raised:
@@ -635,16 +707,17 @@ def evaluate(job, res, origin):
         notes = [*notes, ("ephemeral ports were exhausted (the tool reported 'cannot assign "
                           "requested address')")]
     metrics = {}
-    cpu_s = _load_cpu(res)
+    cpu_s, load_only = _load_cpu(res)
     if cpu_s is not None and res["requests"]:
         metrics["cpu_per_1000"] = cpu_s / (res["requests"] / 1000)
-    if cpu_s is not None and job["duration"]:
+    if load_only and job["duration"]:
         metrics["cpu_cores"] = cpu_s / job["duration"]
     if origin.get("samples"):
         metrics["adherence"] = schedule_adherence(origin["samples"], job["rate"],
                                                   job["duration"])["adherence"]
     return {"key": job["key"], "test": job["test"], "tool": job["tool"], "role": job["role"],
-            "rate": job["rate"], "repeat": job["repeat"], "pass": all(c["pass"] for c in checks),
+            "rate": job["rate"], "repeat": job["repeat"],
+            "pass": all(c["pass"] for c in checks if c["counts"]),
             "checks": checks, "notes": notes, "metrics": metrics}
 
 
@@ -870,8 +943,8 @@ def run_job(env, job, out_dir, keep_raw=False):
     return evaluate(job.as_dict(), res, summary)
 
 
-def reanalyse_job(wd):
-    """The evaluation of a job directory, from the files a run left."""
+def reanalyse_job(wd, version=CRITERIA_VERSION):
+    """The evaluation of a job directory, from the files a run left, by the criteria of `version`."""
     job = read_json(os.path.join(wd, "job.json"))
     if os.path.exists(os.path.join(wd, "error.json")):
         return {"key": job["key"], "test": job["test"], "tool": job["tool"], "role": job["role"],
@@ -879,7 +952,7 @@ def reanalyse_job(wd):
                 "error": read_json(os.path.join(wd, "error.json"))["error"], "pass": False,
                 "checks": [], "notes": [], "metrics": {}}
     return evaluate(job, read_json(os.path.join(wd, "tool_result.json")),
-                    read_json(os.path.join(wd, "origin.json")))
+                    read_json(os.path.join(wd, "origin.json")), version)
 
 
 # --- the results directory -----------------------------------------------------------------
@@ -917,6 +990,39 @@ def gate_lines(env):
             f"{g['waited_s']:g} s: " + ("met." if g["met"] else "**not met**.")]
 
 
+def criteria_lines(results):
+    ver = results.get("criteria_version", 1)
+    lines = ["## Criteria", ""]
+    if ver < 2:
+        return lines + [("Version 1: the pre-registered criteria (`docs/BENCHMARK_HARM_DESIGN.md`, "
+                         "8.4), without amendments."), ""]
+    lines.append(f"Version {ver}: the pre-registered criteria (version 1) with the changes below. "
+                 "**Post hoc** marks a change decided after the first run; it is labelled the same "
+                 "way next to every check it affects.")
+    lines.append("")
+    for a in results.get("amendments", []):
+        tag = f"{a['id']}, post hoc" if a["post_hoc"] else f"{a['id']}, not post hoc"
+        lines.append(f"* **{tag}** ({', '.join(a['tests'])}, decided {a['decided']}): "
+                     f"{a['what']} Why: {a['why']}")
+    r = results.get("rejudged")
+    if r:
+        lines += ["", (f"Re-judged from `{r['from']}`, which was judged by version "
+                        f"{r['from_criteria_version']}; that directory is unchanged and keeps its "
+                        "verdicts."), ""]
+        lines += ([f"* `{c['key']}`: {fmt(c['before'])} -> {fmt(c['after'])}" for c in r["changed"]]
+                  or ["* No job's verdict changed."])
+        lines += [f"* {tool} {test}: {b} -> {a}" for tool, test, b, a in r["verdicts_changed"]]
+    return [*lines, ""]
+
+
+def check_label(c, amendments):
+    ph = c.get("post_hoc")
+    if not ph:
+        return c["name"]
+    post = next((a["post_hoc"] for a in amendments if a["id"] == ph), True)
+    return f"{c['name']} [{ph}{', post hoc' if post else ''}]"
+
+
 def render_readme(results):
     s, env = results["summary"], results["environment"]
     lines = ["# Verification of the HTTP load generators (V0-V7)", "",
@@ -926,6 +1032,7 @@ def render_readme(results):
              (f"* Commit: `{env.get('git_commit')}` (dirty: {fmt(env.get('git_dirty'))}); "
               f"host: {env.get('uname')}; created {env.get('created_utc')}."),
              *gate_lines(env), *timer_lines(env), "",
+             *criteria_lines(results),
              "## Verdict per tool and test", "",
              "| Tool | V0 | " + " | ".join(TESTS) + " | Suggested status |",
              "|---|---|" + "---|" * len(TESTS) + "---|"]
@@ -948,6 +1055,10 @@ def render_readme(results):
             cpu = ", ".join(f"{r}: {fmt(c)} ({fmt(t.get('cpu_cores', {}).get(r))})"
                             for r, c in t["cpu_per_1000"].items())
             lines.append(f"| {tool} | {fmt(t['ceiling'])} | {share} | {cpu} |")
+    lines += ["", ("A `-` for the share on schedule means no per-second arrivals were recorded for "
+                   "that job, so adherence was not part of its verdict; a `-` for the cores means "
+                   "the cost covers all the tool's steps, not the load step alone (an upper "
+                   "bound). k6's cost includes the start of its virtual users."), ""]
     lines += ["", "## Checks", "", "| Job | Check | Observed | Expected | Tolerance | Pass |",
               "|---|---|---|---|---|---|"]
     for e in results["jobs"]:
@@ -955,8 +1066,10 @@ def render_readme(results):
             lines.append(f"| {e['key']} | **did not run** | {e['error']} | | | no |")
             continue
         for c in e["checks"]:
-            lines.append(f"| {e['key']} | {c['name']} | {fmt(c['observed'])} | "
-                         f"{fmt(c['expected'])} | {fmt(c['tolerance'])} | {fmt(c['pass'])} |")
+            verdict = fmt(c["pass"]) + ("" if c.get("counts", True) else " (not counted)")
+            lines.append(f"| {e['key']} | {check_label(c, results.get('amendments', []))} | "
+                         f"{fmt(c['observed'])} | {fmt(c['expected'])} | {fmt(c['tolerance'])} | "
+                         f"{verdict} |")
     notes = [(e["key"], n) for e in results["jobs"] for n in e.get("notes", [])]
     if notes:
         lines += ["", "## Notes", ""] + [f"* `{k}`: {n}" for k, n in notes]
@@ -981,11 +1094,14 @@ def tree_hashes(root):
     return dict(sorted(out.items()))
 
 
-def finalize(out_dir, evals, tools_info, environment):
-    """Write results.json, README.md and SHA256SUMS of a results directory."""
+def finalize(out_dir, evals, tools_info, environment, version=CRITERIA_VERSION, extra=None):
+    """Write results.json, README.md and SHA256SUMS of a results directory judged by the
+    criteria of `version`; `extra` adds keys (the record of a re-judgement)."""
     evals = sorted(evals, key=lambda e: (e["test"], e["tool"], e["rate"], e["repeat"]))
-    results = {"schema": 1, "environment": environment, "criteria": CRITERIA,
-               "tools": tools_info, "jobs": evals, "summary": summarise(evals, tools_info)}
+    results = {"schema": 1, "criteria_version": version, "environment": environment,
+               "criteria": CRITERIA, "amendments": AMENDMENTS if version >= 2 else [],
+               "tools": tools_info, "jobs": evals, "summary": summarise(evals, tools_info),
+               **(extra or {})}
     write_json(os.path.join(out_dir, "results.json"), results)
     with open(os.path.join(out_dir, "README.md"), "w") as f:
         f.write(render_readme(results))
@@ -1075,6 +1191,58 @@ def serve_s2(a):
     return 0
 
 
+def rejudged_info(source, prev, version, evals):
+    """What a re-judgement changed against the results it started from."""
+    before = {e["key"]: e["pass"] for e in prev["jobs"]}
+    changed = [{"key": e["key"], "before": before[e["key"]], "after": e["pass"]}
+               for e in sorted(evals, key=lambda e: e["key"])
+               if e["key"] in before and before[e["key"]] != e["pass"]]
+    now = summarise(evals, prev["tools"])
+    verdicts = [[tool, test, v["tests"][test]["verdict"], now[tool]["tests"][test]["verdict"]]
+                for tool, v in prev["summary"].items() for test in v["tests"]
+                if test in now.get(tool, {}).get("tests", {})
+                and v["tests"][test]["verdict"] != now[tool]["tests"][test]["verdict"]]
+    return {"from": os.path.abspath(source), "from_criteria_version": prev.get("criteria_version", 1),
+            "criteria_version": version, "changed": changed, "verdicts_changed": verdicts}
+
+
+def reanalyse(a):
+    """`reanalyse DIR` keeps the criteria version DIR was judged by (1 when it records none), so
+    published verdicts do not change under it; another version is judged into a new directory."""
+    prev = read_json(os.path.join(a.dir, "results.json"))
+    recorded = prev.get("criteria_version", 1)
+    version = a.criteria or recorded
+    if a.rejudge_into is None and version != recorded:
+        print(f"[-] {a.dir} was judged by criteria version {recorded}; judging it by {version} "
+              "would change its verdicts, so it goes into a new directory: --rejudge-into NEW",
+              file=sys.stderr)
+        return 2
+    target, extra = a.dir, {k: prev[k] for k in ("rejudged",) if k in prev}
+    if a.rejudge_into is not None:
+        if os.path.exists(a.rejudge_into) and os.listdir(a.rejudge_into):
+            print(f"[-] {a.rejudge_into} exists and is not empty; results are never overwritten",
+                  file=sys.stderr)
+            return 2
+        target = a.rejudge_into
+        shutil.copytree(a.dir, target, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("README.md", "results.json", "SHA256SUMS"))
+    evals = [reanalyse_job(d, version) for d in
+             sorted(d for d, _, files in os.walk(target) if "job.json" in files)]
+    if a.rejudge_into is not None:
+        extra["rejudged"] = rejudged_info(a.dir, prev, version, evals)
+    finalize(target, evals, prev["tools"], prev["environment"], version=version, extra=extra)
+    print(f"[+] re-evaluated {len(evals)} jobs in {target} by criteria version {version}")
+    if a.rejudge_into is not None:
+        r = extra["rejudged"]
+        for c in r["changed"]:
+            print(f"    {c['key']}: {c['before']} -> {c['after']}")
+        for tool, test, before, after in r["verdicts_changed"]:
+            print(f"    {tool} {test}: {before} -> {after}")
+        if not r["changed"]:
+            print("    no job's verdict changed")
+    return 0
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -1096,6 +1264,10 @@ def main(argv=None):
                            help="skip the environment gate; the README says so")
     s = sub.add_parser("reanalyse", help="re-evaluate a results directory, offline")
     s.add_argument("dir")
+    s.add_argument("--criteria", type=int,
+                   help="criteria version to judge by (default: the one DIR was judged by)")
+    s.add_argument("--rejudge-into", metavar="NEW",
+                   help="write the re-judgement into a new directory; DIR is left as it is")
     s = sub.add_parser("serve-s2", help="the S2 origin process (started by run)")
     s.add_argument("--port", type=int, default=S2_PORT)
     s.add_argument("--log", required=True)
@@ -1105,12 +1277,7 @@ def main(argv=None):
     if a.cmd == "serve-s2":
         return serve_s2(a)
     if a.cmd == "reanalyse":
-        evals = [reanalyse_job(d) for d in
-                 sorted(d for d, _, files in os.walk(a.dir) if "job.json" in files)]
-        prev = read_json(os.path.join(a.dir, "results.json"))
-        finalize(a.dir, evals, prev["tools"], prev["environment"])
-        print(f"[+] re-evaluated {len(evals)} jobs in {a.dir}")
-        return 0
+        return reanalyse(a)
 
     tools = _csv(a.tools, tools_all)
     tests = _csv(a.tests, list(TESTS))

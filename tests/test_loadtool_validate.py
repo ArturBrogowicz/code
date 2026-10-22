@@ -130,14 +130,71 @@ class EvaluatorTest(unittest.TestCase):
         self.assertFalse(self.passes(j, res(p99=want), {"arrivals_in_stall": 1000}))
         self.assertFalse(self.passes(j, res(p99=None), o))
 
-    def test_v4_control_passes_by_failing_to_see_the_stall(self):
+    def test_v4_control_version_1_is_judged_by_its_reported_p99(self):
         j = job("V4", tool="wrk", role="control")
-        o = {"arrivals_in_stall": None}
-        self.assertTrue(self.passes(j, res(p99=0.012), o))
-        self.assertTrue(self.passes(j, res(p99=0.26), o))
-        self.assertFalse(self.passes(j, res(p99=0.27), o))                # saw too much of it
-        e = V.evaluate(j, res(p99=0.012), o)
-        self.assertEqual(e["role"], "control")
+        o = {"arrivals_in_stall": 0}
+        self.assertTrue(V.evaluate(j, res(p99=0.012), o, version=1)["pass"])
+        self.assertTrue(V.evaluate(j, res(p99=0.26), o, version=1)["pass"])
+        self.assertFalse(V.evaluate(j, res(p99=0.27), o, version=1)["pass"])
+        self.assertFalse(V.evaluate(j, res(p99=2.61), o, version=1)["pass"])   # the pilot's wrk
+
+    def test_v4_control_a1_is_judged_by_its_arrivals_in_the_stall(self):
+        j = job("V4", tool="wrk", role="control")                         # 500/s x 3 s: 1500
+        for arrivals, ok in ((0, True), (50, True), (150, True), (151, False), (1500, False),
+                             (None, False)):
+            with self.subTest(arrivals=arrivals):
+                e = V.evaluate(j, res(p99=2.61), {"arrivals_in_stall": arrivals})
+                self.assertEqual(e["pass"], ok)
+        counted, shown = V.evaluate(j, res(p99=2.61), {"arrivals_in_stall": 0})["checks"]
+        self.assertEqual((counted["counts"], counted["post_hoc"], counted["pass"]),
+                         (True, "A1", True))
+        self.assertEqual((shown["counts"], shown["post_hoc"], shown["pass"]),
+                         (False, "A1", False))                              # shown, not counted
+        self.assertEqual(V.evaluate(j, res(p99=0.012), {"arrivals_in_stall": 0})["role"], "control")
+
+    def test_v4_subjects_are_judged_the_same_by_both_versions(self):
+        j, want = job("V4"), V.analytic_stall_p99(500, 40, 3, service=0.0075)
+        for r, o in ((res(p99=want), {"arrivals_in_stall": 1500}),
+                     (res(p99=0.012), {"arrivals_in_stall": 1500}),
+                     (res(p99=want), {"arrivals_in_stall": 1000})):
+            v1, v2 = V.evaluate(j, r, o, version=1), V.evaluate(j, r, o)
+            self.assertEqual((v1["pass"], v1["checks"]), (v2["pass"], v2["checks"]))
+
+    def test_v3_a2_judges_a_tool_that_reports_from_the_intended_time_on_both(self):
+        j = job("V3", tool="loadgen")
+        o = {"service_s": {"p50": 0.0075, "p99": 0.0100}}
+        r = res(p50=0.0093, p99=0.0150)                 # from the intended time: origin + slip
+        r["extra"] = {"service_s": {"p50": 0.0078, "p99": 0.0104},
+                      "slip_s": {"p50": 0.0012, "p99": 0.0079}}
+        self.assertFalse(V.evaluate(j, r, o, version=1)["pass"])              # the pilot's verdict
+        e = V.evaluate(j, r, o)
+        self.assertTrue(e["pass"])
+        self.assertEqual([(c["post_hoc"], c["counts"]) for c in e["checks"]], [("A2", True)] * 4)
+        self.assertIn("the tool's schedule slip: p50 1.2 ms, p99 7.9 ms", e["notes"])
+        r["extra"]["service_s"]["p99"] = 0.0125                 # off from the actual send: fails
+        self.assertFalse(V.evaluate(j, r, o)["pass"])
+        r["extra"]["service_s"]["p99"] = 0.0104
+        r["latency"]["p99"] = 0.0100 + 0.0501                   # more than the slip limit above
+        self.assertFalse(V.evaluate(j, r, o)["pass"])
+        r["latency"]["p99"] = 0.0070                            # below by more than the tolerance
+        self.assertFalse(V.evaluate(j, r, o)["pass"])
+        r["latency"]["p99"] = None
+        self.assertFalse(V.evaluate(j, r, o)["pass"])
+
+    def test_v3_a2_leaves_a_tool_that_reports_from_the_actual_send_as_it_was(self):
+        j, o = job("V3"), {"service_s": {"p50": 0.0075, "p99": 0.0200}}
+        for r in (res(p50=0.0084, p99=0.0219), res(p50=0.0086, p99=0.0200),
+                  res(p50=0.0075, p99=0.0225)):
+            v1, v2 = V.evaluate(j, r, o, version=1), V.evaluate(j, r, o)
+            self.assertEqual((v1["pass"], v1["checks"]), (v2["pass"], v2["checks"]))
+            self.assertEqual({c["post_hoc"] for c in v2["checks"]}, {None})
+
+    def test_v7_version_1_has_no_adherence_check_even_when_readings_exist(self):
+        j = job("V7", rate=1000)
+        late = {"requests": 10000, "samples": readings(schedule(1000, 10, 2.4, speed=0.8), 20)}
+        self.assertTrue(V.evaluate(j, res(10000), late, version=1)["pass"])
+        self.assertFalse(V.evaluate(j, res(10000), late)["pass"])
+        self.assertEqual(V.evaluate(j, res(10000), late)["checks"][-1]["post_hoc"], "C1")
 
     def test_v5_arrivals_follow_the_rate_or_the_tool_reports_the_difference(self):
         j = job("V5")                                                     # 2000/s for 20 s
@@ -164,7 +221,14 @@ class EvaluatorTest(unittest.TestCase):
         e = V.evaluate(j, res(50000, cpu=cpu), {"requests": 50000})
         self.assertTrue(e["pass"])
         self.assertAlmostEqual(e["metrics"]["cpu_per_1000"], 0.06)
-        self.assertAlmostEqual(e["metrics"]["cpu_cores"], 0.3)             # 3 s of CPU in 10 s
+        self.assertNotIn("cpu_cores", e["metrics"])           # all steps: not a figure for the load
+        self.assertIn("CPU per 1000 requests: 0.060 s (all of the tool's steps: an upper bound)",
+                      e["notes"])
+        r = res(50000, cpu=cpu)
+        r["extra"]["load_cpu_s"] = 2.0
+        e = V.evaluate(j, r, {"requests": 50000})
+        self.assertAlmostEqual(e["metrics"]["cpu_cores"], 0.2)             # 2 s of CPU in 10 s
+        self.assertIn("CPU per 1000 requests: 0.040 s", e["notes"])
         self.assertFalse(self.passes(j, res(50000, errors=3), {"requests": 50000}))
         self.assertFalse(self.passes(j, res(50000), {"requests": 49400}))
 
@@ -205,7 +269,8 @@ class EvaluatorTest(unittest.TestCase):
     def test_every_check_carries_what_it_compared(self):
         e = V.evaluate(job("V1"), res(1000), {"requests": 1000})
         for c in e["checks"]:
-            self.assertEqual(set(c), {"name", "observed", "expected", "tolerance", "pass"})
+            self.assertEqual(set(c), {"name", "observed", "expected", "tolerance", "pass",
+                                      "counts", "post_hoc"})
 
 
 def ev(test, tool, ok=True, rate=1000, role="subject", cpu=0.05, error=None):
@@ -515,8 +580,8 @@ def fake_summary(j):
     s2 = j["s2"]
     out = {"kind": "s2", "arrivals": n, "responses": n, "status": {"200": n},
            "service_s": {"p50": 0.0075, "p99": 0.0099}, "arrivals_in_stall": None}
-    if "stall_for" in s2:
-        out["arrivals_in_stall"] = j["rate"] * s2["stall_for"]
+    if "stall_for" in s2:                      # a closed-loop control sends nothing into a stall
+        out["arrivals_in_stall"] = 0 if j["role"] == "control" else j["rate"] * s2["stall_for"]
     if "error_every" in s2:
         out["status"] = {"200": n * 0.9, "503": n * 0.1}
     return out
@@ -1024,7 +1089,8 @@ class SamplerTest(unittest.TestCase):
 
     def test_readings_come_on_a_schedule_and_one_that_fails_is_skipped(self):
         # driven by what the sampler has done, not by how long it took: this VM wakes sleepers late
-        counts = iter([OSError("refused"), 5, ValueError("not a status page"), 9, 14])
+        counts = itertools.chain([OSError("refused"), 5, ValueError("not a status page"), 9, 14],
+                                 itertools.count(20, 5))
 
         def counter():
             c = next(counts)
@@ -1067,6 +1133,118 @@ class SamplerTest(unittest.TestCase):
         self.assertEqual(sum(stretches), 10)                          # none lost, none counted twice
         self.assertEqual(summary["counter_after"] - summary["counter_before"],
                          10 + len(samples) - 1)
+
+
+class RejudgeTest(unittest.TestCase):
+    """A directory judged by version 1, as the pilot was, and what version 2 does with it."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = self._tmp.name
+        self.addCleanup(self._tmp.cleanup)
+        self.pilot = os.path.join(self.tmp, "pilot")
+        os.makedirs(self.pilot)
+        with contextlib.redirect_stdout(io.StringIO()):
+            V.finalize(self.pilot, V.run_all(FakeEnv(), V.expand(tests=["V3", "V4"]), self.pilot,
+                                             TOOLS_INFO), TOOLS_INFO, {"git_commit": "abc"})
+        # the pilot's two cases: wrk reports a p99 of 2.61 s although nothing arrived in the
+        # stall, and loadgen reports latency from the intended time, 5 ms above the origin's
+        self.edit("V4/wrk/r500_0/tool_result.json", lambda d: d["latency"].update(p99=2.61))
+        self.edit("V3/loadgen/r500_0/tool_result.json", lambda d: (
+            d["latency"].update(p50=0.0093, p99=0.0150),
+            d["extra"].update(service_s={"p50": 0.0078, "p99": 0.0104},
+                              slip_s={"p50": 0.0012, "p99": 0.0079})))
+        self.edit("V4/wrk/r500_0/origin.json", lambda d: d.update(arrivals_in_stall=0))
+        self.edit("results.json", lambda d: (d.pop("criteria_version"), d.update(amendments=[])))
+        with contextlib.redirect_stdout(io.StringIO()):
+            V.main(["reanalyse", self.pilot])                     # in place: stays version 1
+
+    def edit(self, rel, change):
+        path = os.path.join(self.pilot, *rel.split("/"))
+        d = read(os.path.dirname(path), os.path.basename(path))
+        change(d)
+        with open(path, "w") as f:
+            json.dump(d, f)
+
+    def call(self, *argv):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = V.main(list(argv))
+        return rc, out.getvalue(), err.getvalue()
+
+    def hashes(self):
+        return V.tree_hashes(self.pilot)
+
+    def test_a_directory_without_a_version_is_version_1_and_keeps_its_verdicts(self):
+        r = read(self.pilot, "results.json")
+        self.assertEqual((r["criteria_version"], r["amendments"]), (1, []))
+        s = r["summary"]
+        self.assertEqual(s["loadgen"]["tests"]["V3"]["verdict"], "fail")
+        self.assertEqual(s["wrk"]["tests"]["V4"]["verdict"], "control NOT as expected")
+        with open(os.path.join(self.pilot, "README.md")) as f:
+            self.assertIn("Version 1: the pre-registered criteria", f.read())
+
+    def test_reanalysing_in_place_does_not_change_the_version_or_the_verdicts(self):
+        self.call("reanalyse", self.pilot)
+        before = self.hashes()
+        rc, out, _ = self.call("reanalyse", self.pilot)
+        self.assertEqual(rc, 0)
+        self.assertEqual(self.hashes(), before)                   # byte for byte
+        self.assertIn("by criteria version 1", out)
+
+    def test_judging_by_another_version_in_place_is_refused(self):
+        before = self.hashes()
+        rc, _, err = self.call("reanalyse", self.pilot, "--criteria", "2")
+        self.assertEqual(rc, 2)
+        self.assertIn("--rejudge-into", err)
+        self.assertEqual(self.hashes(), before)
+
+    def test_rejudging_into_a_new_directory_shows_what_the_amendments_change(self):
+        before = self.hashes()
+        new = os.path.join(self.tmp, "v2")
+        rc, out, _ = self.call("reanalyse", self.pilot, "--criteria", "2", "--rejudge-into", new)
+        self.assertEqual(rc, 0)
+        self.assertEqual(self.hashes(), before)                   # the source is untouched
+        r = read(new, "results.json")
+        self.assertEqual(r["criteria_version"], 2)
+        self.assertEqual([a["id"] for a in r["amendments"]], ["A1", "A2", "C1"])
+        self.assertEqual(r["rejudged"]["changed"],
+                         [{"key": "V3/loadgen/r500_0", "before": False, "after": True},
+                          {"key": "V4/wrk/r500_0", "before": False, "after": True}])
+        self.assertEqual(r["rejudged"]["verdicts_changed"],
+                         [["loadgen", "V3", "fail", "pass"],
+                          ["wrk", "V4", "control NOT as expected", "control ok"]])
+        self.assertIn("V3/loadgen/r500_0: False -> True", out)
+        with open(os.path.join(new, "README.md")) as f:
+            text = f.read()
+        self.assertIn("Re-judged from", text)
+        self.assertIn("**A1, post hoc** (V4", text)
+        self.assertIn("**A2, post hoc** (V3", text)
+        self.assertIn("**C1, not post hoc** (V7", text)
+        self.assertIn("the closed-loop control sends little during the stall [A1, post hoc]", text)
+        self.assertIn("the closed-loop control reports far below the analytic p99 [A1, post hoc] "
+                      "| 2.61 | 2.607 | 0.2607 | no (not counted)", text)
+        self.assertIn("latency from the actual send, p99, against the origin's own [A2, post hoc]",
+                      text)
+        self.assertTrue(os.path.isfile(os.path.join(new, "SHA256SUMS")))
+
+    def test_an_existing_directory_is_never_overwritten(self):
+        new = os.path.join(self.tmp, "taken")
+        os.makedirs(new)
+        with open(os.path.join(new, "keep"), "w") as f:
+            f.write("x")
+        rc, _, err = self.call("reanalyse", self.pilot, "--rejudge-into", new)
+        self.assertEqual(rc, 2)
+        self.assertIn("never overwritten", err)
+        self.assertEqual(os.listdir(new), ["keep"])
+
+    def test_a_rejudged_directory_keeps_its_record_when_reanalysed_in_place(self):
+        new = os.path.join(self.tmp, "v2")
+        self.call("reanalyse", self.pilot, "--criteria", "2", "--rejudge-into", new)
+        before = V.tree_hashes(new)
+        rc, _, _ = self.call("reanalyse", new)
+        self.assertEqual(rc, 0)
+        self.assertEqual(V.tree_hashes(new), before)
 
 
 class CliTest(unittest.TestCase):
