@@ -10,6 +10,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -385,7 +386,51 @@ class FloodCommandTest(unittest.TestCase):
                     mock.patch.object(S, "run") as run, mock.patch.dict(S._attack):
                 S.kill_procs([(FakeBot(), "bot_1", "10.0.2.1")])
             self.assertEqual([c.args[0] for c in run.call_args_list],
-                             ["pkill -9 -f hping3", "pkill -9 -f wrk", "pkill -9 -f _dist_", *extra])
+                             ["pkill -9 -f hping3", "pkill -9 -x wrk", "pkill -9 -f _dist_", *extra])
+
+    def test_cleanup_kills_wrk_by_exact_name_and_nothing_by_a_substring_of_its_own_runner(self):
+        with mock.patch.object(S.subprocess, "run") as sub_run, mock.patch.object(S.time, "sleep"), \
+                mock.patch.object(S, "_daemon_proc", None), mock.patch("builtins.print"):
+            sub_run.return_value = mock.Mock(stdout="", returncode=0)
+            S.cleanup_all()
+        killed = [c.args[0] for c in sub_run.call_args_list if c.args and c.args[0][:1] == ["pkill"]]
+        self.assertIn(["pkill", "-9", "-x", "wrk"], killed)
+        self.assertNotIn(["pkill", "-9", "-f", "wrk"], killed)
+
+    RUNNER_COMMAND_LINES = (
+        "python3 eval/run_campaign.py --operating-point knee --scenarios 4 --runs 10 --attack-duration 30",
+        ("sudo timeout -s INT 600 python3 eval/run_campaign.py --operating-point knee --scenarios 4 "
+         "--attack-duration 30 --modes unprotected --runs 1 --seed-base 100 --loads wrk,loadgen:20"),
+        "sudo python3 eval/run_campaign.py --modes xdp,iptables,nginxlimits,unprotected --set FLOOD_TOOL=wrk",
+        ("sudo python3 eval/run_campaign.py --modes unprotected,nginxlimits,xdp --runs 10 "
+         "--loads wrk,loadgen:50,loadgen:100,loadgen:200 --attack-duration 30"),
+        "sudo python3 eval/run_campaign.py --loads loadgen:40,loadgen:80,k6:160 --scenarios 4,7,8,9",
+    )
+
+    def kill_patterns(self):
+        """Every pattern the suite hands to `pkill -f` or `pgrep -f`, read from its source."""
+        with open(os.path.join(REPO, "test_distributed_suite.py"), encoding="utf-8") as fh:
+            src = fh.read()
+        patterns = set()
+        for m in re.finditer(r'\[\s*"(?:pkill|pgrep)"([^\]]*)\]', src):
+            args = re.findall(r'"([^"]*)"', m.group(1))
+            if "-f" in args:
+                patterns.add(args[args.index("-f") + 1])
+        patterns.update(m.group(2) for m in re.finditer(r'pkill\s+((?:-\S+\s+)*)-f\s+([^\s"]+)', src))
+        return patterns
+
+    def test_no_pattern_the_suite_kills_by_matches_the_command_line_of_a_campaign_runner(self):
+        # The suite kills with `pkill -f <pattern>`, which matches the whole command line of every
+        # process on the machine. A runner whose arguments match kills itself (it did, with
+        # `--loads wrk,...`, on 2026-10-22). Unit tests never run pkill, so read the patterns.
+        patterns = self.kill_patterns()
+        self.assertTrue({"control_plane.py", "gunicorn", "hping3", "_dist_", "nginx: master process",
+                         "bench/loadgen.py"} <= patterns, patterns)
+        self.assertNotIn("wrk", patterns)
+        for line in self.RUNNER_COMMAND_LINES:
+            for pattern in patterns:
+                with self.subTest(pattern=pattern, line=line[:60]):
+                    self.assertIsNone(re.search(pattern, line))
 
 
 class FloodPreflightTest(unittest.TestCase):

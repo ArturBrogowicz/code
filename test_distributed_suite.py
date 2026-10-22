@@ -409,7 +409,9 @@ def cleanup_all():
     subprocess.run(["pkill", "-9", "-f", "nginx: (master|worker) process"], capture_output=True)
     subprocess.run(["pkill", "-9", "-f", "hping3"], capture_output=True)
     subprocess.run(["pkill", "-9", "-f", "_dist_"], capture_output=True)
-    subprocess.run(["pkill", "-9", "-f", "wrk"], capture_output=True)
+    # wrk by its exact process name: -f matches every command line that contains "wrk", the
+    # campaign runner's (--loads wrk,...) and its sudo and timeout included
+    subprocess.run(["pkill", "-9", "-x", "wrk"], capture_output=True)
     if FLOOD_TOOL != "wrk":
         subprocess.run(["pkill", "-9", "-f", "bench/loadgen.py"], capture_output=True, check=False)
         subprocess.run(["pkill", "-9", "-x", "k6"], capture_output=True, check=False)
@@ -1295,7 +1297,7 @@ def kill_procs(procs):
         except Exception:
             pass
         run("pkill -9 -f hping3", ns=ns)
-        run("pkill -9 -f wrk", ns=ns)
+        run("pkill -9 -x wrk", ns=ns)        # exact name, see cleanup_all
         run("pkill -9 -f _dist_", ns=ns)
         if FLOOD_TOOL != "wrk":
             run("pkill -9 -f bench/loadgen.py", ns=ns)

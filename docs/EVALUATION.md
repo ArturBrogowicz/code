@@ -317,7 +317,10 @@ can give. The effect sizes needed 3 and 5 blocks for 80 % power.
 
 ## Side effects of a suite run (root)
 
-* `pkill` of `control_plane.py`, gunicorn, nginx, hping3, wrk and `_dist_*` scripts;
+* `pkill` of `control_plane.py`, gunicorn, nginx, hping3, wrk and `_dist_*` scripts (wrk by its exact process
+  name, because `pkill -f` matches every command line on the machine that contains the word: a runner started with
+  `--loads wrk,...` killed itself that way on 2026-10-22; a test now checks the patterns the suite kills by against
+  the runner's command lines);
 * deletion and re-creation of `server_ns`, `legit_*`, `bot_*` and the `ddos_br0` bridge;
 * XDP attach/detach on `veth_server`, `iptables -F` in `server_ns`;
 * truncation of `/var/log/nginx/ddos_ml_access.log` and `error.log`;
