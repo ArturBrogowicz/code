@@ -1423,6 +1423,64 @@ def _write_scenario_result(rec):
                     [[rec.get(k, "") for k in SCENARIO_RESULT_FIELDS]])
 
 
+NGINX_ACCESS_LOG = "/var/log/nginx/ddos_ml_access.log"
+SERVER_REQUESTS_FIELDS = ["Data_Scenario", "Mode", "T_Epoch_s", "T_Rel_s", "Client_Class", "Status",
+                          "Requests", "Request_Time_Mean_s", "Request_Time_Max_s"]
+
+
+def _client_class(ip):
+    """bot | legit | other, by the testbed's address plan."""
+    if ip.startswith(BOTNET_IP_PREFIX + "."):
+        return "bot"
+    return "legit" if ip.startswith(LEGIT_IP_PREFIX + ".") else "other"
+
+
+def aggregate_access_log(lines, attack_start=None):
+    """(rows, unparsable lines) from the lines of the Nginx JSON access log (nginx.conf,
+    json_ml_format): per second, client class and status, how many requests the server got and
+    their mean and largest request time. T_Rel_s counts from the second of attack_start (blank
+    without one). The log's timestamps are whole seconds with an offset."""
+    seconds, cells, bad = {}, {}, 0
+    for line in lines:
+        try:
+            rec = json.loads(line)
+            stamp = rec["timestamp"]
+            if stamp not in seconds:
+                seconds[stamp] = int(datetime.datetime.fromisoformat(stamp).timestamp())
+            key = (seconds[stamp], _client_class(rec["client_ip"]), int(rec["status"]))
+            took = float(rec["request_time"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            bad += 1
+            continue
+        cell = cells.setdefault(key, [0, 0.0, 0.0])
+        cell[0] += 1
+        cell[1] += took
+        cell[2] = max(cell[2], took)
+    t0 = None if attack_start is None else int(attack_start)
+    rows = [[sec, "" if t0 is None else sec - t0, cls, status, n, round(total / n, 6), round(top, 6)]
+            for (sec, cls, status), (n, total, top) in sorted(cells.items())]
+    return rows, bad
+
+
+def _archive_server_requests(scenario):
+    """Aggregate this scenario's Nginx access log into <results_dir>/server_requests.csv, before the
+    next reset truncates it. It is the load as the server received it, in every mode and under every
+    load model, which a generator that is killed at the end cannot report. Never stops the run."""
+    if not _results_dir:
+        return
+    try:
+        with open(NGINX_ACCESS_LOG, encoding="utf-8", errors="replace") as fh:
+            rows, bad = aggregate_access_log(fh, _attack["start"])
+    except OSError as exc:
+        print(f"  {YELLOW}[!] server_requests.csv: the access log is unreadable ({exc}){RESET}")
+        return
+    mode = _mode_label()
+    _append_csv(os.path.join(_results_dir, "server_requests.csv"), SERVER_REQUESTS_FIELDS,
+                [[scenario, mode, *row] for row in rows])
+    if bad:
+        print(f"  {YELLOW}[!] server_requests.csv: {bad} access-log lines could not be read{RESET}")
+
+
 def report(name, ban_results, botnet_nodes, legit_nodes):
     """Evaluate and display results for a distributed attack scenario."""
     _avail_finalize()   # aggregate availability FIRST (bounds 'after' to the post-kill window,
@@ -1518,6 +1576,7 @@ def report(name, ban_results, botnet_nodes, legit_nodes):
         "Legit_HTTP_OK": http_ok, "Legit_HTTP_Total": http_total,
         "Result": "PASS" if overall else "FAIL",
     })
+    _archive_server_requests(_avail_scenario)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

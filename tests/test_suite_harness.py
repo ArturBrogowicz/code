@@ -6,6 +6,7 @@ test processes and deletes the namespaces. The import below patches
 atexit.register and signal.signal so neither handler is ever installed.
 """
 import csv
+import datetime
 import hashlib
 import json
 import os
@@ -470,6 +471,128 @@ class FloodProvenanceTest(unittest.TestCase):
         for name in ("bench/loadtools.py", "bench/loadtools.json", "bench/loadgen.py"):
             self.assertEqual(prov["inputs_sha256"][name],
                              S.ban_events.file_sha256(os.path.join(REPO, name)))
+
+
+def log_line(stamp, ip, status=200, took=0.001):
+    """A line of nginx.conf's json_ml_format."""
+    return json.dumps({"timestamp": stamp, "client_ip": ip, "request_method": "GET", "request_uri": "/",
+                       "status": status, "request_time": took, "request_length": 60, "bytes_sent": 300,
+                       "user_agent": ""})
+
+
+def stamp(second):
+    return f"2026-10-22T17:00:{second:02d}+00:00"
+
+
+def epoch(text):
+    return int(datetime.datetime.fromisoformat(text).timestamp())
+
+
+class ServerRequestsTest(unittest.TestCase):
+    LINES = (log_line(stamp(1), "10.0.2.1", 200, 0.010), log_line(stamp(1), "10.0.2.2", 200, 0.030),
+             log_line(stamp(1), "10.0.2.3", 503, 0.0), log_line(stamp(1), "10.0.1.7", 200, 0.002),
+             log_line(stamp(2), "10.0.0.1", 200, 0.001), log_line(stamp(2), "10.0.2.1", 200, 0.050))
+
+    def test_requests_are_counted_per_second_client_class_and_status(self):
+        rows, bad = S.aggregate_access_log(self.LINES, epoch(stamp(1)) + 0.4)
+        sec = epoch(stamp(1))
+        self.assertEqual(bad, 0)
+        self.assertEqual(rows, [[sec, 0, "bot", 200, 2, 0.02, 0.03],
+                                [sec, 0, "bot", 503, 1, 0.0, 0.0],
+                                [sec, 0, "legit", 200, 1, 0.002, 0.002],
+                                [sec + 1, 1, "bot", 200, 1, 0.05, 0.05],
+                                [sec + 1, 1, "other", 200, 1, 0.001, 0.001]])
+
+    def test_time_before_the_attack_is_negative_and_blank_without_an_attack(self):
+        rows, _ = S.aggregate_access_log(self.LINES, epoch(stamp(2)) + 0.9)
+        self.assertEqual([r[1] for r in rows], [-1, -1, -1, 0, 0])
+        rows, _ = S.aggregate_access_log(self.LINES)
+        self.assertEqual({r[1] for r in rows}, {""})
+
+    def test_the_offset_of_the_timestamp_is_honoured(self):
+        rows, _ = S.aggregate_access_log([log_line("1970-01-01T01:00:10+01:00", "10.0.2.1"),
+                                          log_line("1970-01-01T00:00:10+00:00", "10.0.2.1")])
+        self.assertEqual(rows, [[10, "", "bot", 200, 2, 0.001, 0.001]])
+
+    def test_lines_that_cannot_be_read_are_counted_not_fatal(self):
+        rows, bad = S.aggregate_access_log([
+            "not json", "{}", '{"timestamp": "x"}', '{"timestamp": 5, "client_ip": "10.0.2.1"}',
+            log_line("garbage", "10.0.2.1"), log_line(stamp(3), "10.0.2.1")])
+        self.assertEqual(bad, 5)
+        self.assertEqual(len(rows), 1)
+
+    def test_an_empty_log_gives_no_rows(self):
+        self.assertEqual(S.aggregate_access_log([]), ([], 0))
+
+    def test_client_classes_follow_the_address_plan(self):
+        self.assertEqual([S._client_class(ip) for ip in ("10.0.2.1", "10.0.2.10", "10.0.1.40", "10.0.0.1",
+                                                          "10.0.21.1", "127.0.0.1")],
+                         ["bot", "bot", "legit", "other", "other", "other"])
+
+
+class ServerRequestsFileTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = self._tmp.name
+        self.addCleanup(self._tmp.cleanup)
+        self.log = os.path.join(self.dir, "access.log")
+        with open(self.log, "w") as f:
+            f.write("\n".join(ServerRequestsTest.LINES) + "\nnot json\n")
+
+    def archive(self, scenario, **patches):
+        with mock.patch.object(S, "NGINX_ACCESS_LOG", self.log), \
+                mock.patch.object(S, "_results_dir", patches.get("results_dir", self.dir)), \
+                mock.patch.dict(S._attack, {"start": epoch(stamp(1)) + 0.4}), \
+                mock.patch.dict(os.environ, {"MITIGATION_MODE": "none"}), \
+                mock.patch.object(S, "NGINX_PROTECTED", False), \
+                mock.patch("builtins.print") as printed:
+            S._archive_server_requests(scenario)
+        return printed
+
+    def rows(self):
+        with open(os.path.join(self.dir, "server_requests.csv"), newline="") as f:
+            return list(csv.reader(f))
+
+    def test_each_scenario_appends_its_rows_under_one_header(self):
+        self.archive("Distributed HTTP Flood")
+        self.archive("Distributed UDP Flood")
+        rows = self.rows()
+        self.assertEqual(rows[0], S.SERVER_REQUESTS_FIELDS)
+        self.assertEqual(rows.count(S.SERVER_REQUESTS_FIELDS), 1)
+        self.assertEqual({r[0] for r in rows[1:]}, {"Distributed HTTP Flood", "Distributed UDP Flood"})
+        self.assertEqual({r[1] for r in rows[1:]}, {"unprotected"})        # the mode label of the run
+        first = [r for r in rows[1:] if r[0] == "Distributed HTTP Flood"]
+        self.assertEqual(len(first), 5)
+        self.assertEqual(first[0][2:], [str(epoch(stamp(1))), "0", "bot", "200", "2", "0.02", "0.03"])
+
+    def test_lines_it_could_not_read_are_reported(self):
+        printed = self.archive("Distributed HTTP Flood")
+        self.assertIn("1 access-log lines could not be read", printed.call_args.args[0])
+
+    def test_without_a_results_directory_nothing_is_written(self):
+        self.archive("Distributed HTTP Flood", results_dir=None)
+        self.assertFalse(os.path.exists(os.path.join(self.dir, "server_requests.csv")))
+
+    def test_an_unreadable_log_is_a_warning_not_an_error(self):
+        os.remove(self.log)
+        printed = self.archive("Distributed HTTP Flood")
+        self.assertIn("access log is unreadable", printed.call_args.args[0])
+        self.assertFalse(os.path.exists(os.path.join(self.dir, "server_requests.csv")))
+
+    def test_every_scenario_ends_by_archiving_its_log(self):
+        with mock.patch.object(S, "_avail_finalize"), \
+                mock.patch.object(S, "check_collateral_damage", return_value=(True, [])), \
+                mock.patch.object(S, "_scenario_events", return_value={"available": False, "fp": set(),
+                                                                       "ttm": {}, "engine": {}}), \
+                mock.patch.object(S, "verify_legit_http", return_value=(1, 0, 1)), \
+                mock.patch.object(S, "_write_scenario_result"), \
+                mock.patch.object(S, "_archive_server_requests") as archive, \
+                mock.patch.object(S, "_avail_scenario", "Distributed HTTP Flood"), \
+                mock.patch.object(S, "results", []), \
+                mock.patch("builtins.print"):
+            S.report("Distributed HTTP Flood", {"10.0.2.1": ("XDP", 1.0)}, [("bot_1", "10.0.2.1")],
+                     [("legit_1", "10.0.1.1", "perfect")])
+        archive.assert_called_once_with("Distributed HTTP Flood")
 
 
 if __name__ == "__main__":

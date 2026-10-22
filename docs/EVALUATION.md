@@ -197,6 +197,7 @@ G-17 checks (`doff`, fragments, IPv6 / 802.1Q, `tot_len`), which the program sti
 |---|---|
 | `provenance.json` | status, git commit, branch and dirty state, mode, operating point, settings, client-profile plan, host (uname, CPUs, Python, nginx), SHA-256 of the suite, daemon, XDP program, nginx configs, model, scaler and feature config |
 | `scenario_results.csv` | one row per scenario (columns below) |
+| `server_requests.csv` | the load as the Nginx server received it: per scenario, second, client class and status, the requests and their mean and largest request time (columns below) |
 | `availability.csv` | legit success and latency per period (before / during / after) and client profile |
 | `availability_raw.csv` | one row per legit request, with `Client_IP` and `T_Start` (epoch s) |
 | `metrics.csv` | server metrics per phase (CPU total / daemon / nginx, PPS, `IP_InReceives`, `PreStack_Dropped`, TCP states) |
@@ -205,6 +206,14 @@ G-17 checks (`doff`, fragments, IPv6 / 802.1Q, `tot_len`), which the program sti
 
 The legacy `/tmp/{mitigation_performance,metrics_*,availability_*}.csv` files are still
 appended exactly as before. The directory is handed to the user who ran `sudo`.
+
+`server_requests.csv` is aggregated from Nginx's access log at the end of each scenario, before the next
+reset truncates the log: `Data_Scenario`, `Mode`, `T_Epoch_s` (the log's second), `T_Rel_s` (seconds from the
+second of the attack's start; negative before it), `Client_Class` (`bot` 10.0.2.x, `legit` 10.0.1.x, `other`),
+`Status`, `Requests`, `Request_Time_Mean_s`, `Request_Time_Max_s`. It includes the 503s that `limit_req` sends
+and the requests the legit clients and the harness's own checks make, so the offered rate of the attack is the
+`bot` rows, in every mode; the generator's own report is lost when it is killed. A run recorded before this file
+existed has none.
 
 `scenario_results.csv`: `Scenario`, `Data_Scenario` (the name used in the other CSVs),
 `Mode`, `Operating_Point`, `Profile_Seed`, `Attack_Duration_s`, `Scenario_T0`,
