@@ -1,8 +1,14 @@
 # EXP-C prerequisites: the HTTP flood's load model as a setting (design note)
 
-**Status (2026-10-22): static analysis done, nothing written, nothing run.** Branch
-`feat/expc-attacker-setting`, off `feat/loadtools-harness` (it needs `bench/loadtools.py` and the
-verified generators). Tags: **[FACT]** read from the code or a published file; **[PROPOSAL]** for you to
+**Status (2026-10-22): implemented as recommended, nothing run on the VM.** Commits on
+`feat/expc-attacker-setting` (off `feat/loadtools-harness`, which holds `bench/loadtools.py` and the verified
+generators): `6df18a9` the suite settings (2.1), `bc8adc4` the runner's `--loads` (2.2), `76a66b4`
+`server_requests.csv` (2.3); 715 tests pass. Taken as recommended: the engine is the primary open-loop tool
+and k6 is supported, scenario 4 only, the ~35-byte request-shape difference is accepted and recorded, the
+label scheme is `<mode>@<tool><rate>`. The settings rule moved into `loadtools.limits_for`. Checked offline: the
+default `wrk` command is pinned by a test, the default `--dry-run` is byte-identical to the previous runner's,
+and the dry-run of the EXP-C plan (3 modes x 4 loads x 10 blocks) lists 120 runs. Not done: the R50 probe, the
+three rates, the analysis by cell, and a first run of the open-loop flood in the testbed. Tags: **[FACT]** read from the code or a published file; **[PROPOSAL]** for you to
 confirm; **[RISK]** a hazard with its mitigation. The experiment itself is `docs/BENCHMARK_HARM_DESIGN.md`
 8.5 on `design/benchmark-harm`: EXP-A's design with only the attacker's load model changed, in the same
 campaign: the closed-loop `wrk -c400` reference arm and open-loop arms at 0.5, 1 and 2 x R50 split over the
