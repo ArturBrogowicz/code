@@ -168,8 +168,10 @@ class EvaluatorTest(unittest.TestCase):
         r = res(1000)
         r["extra"] = {"flags": {"slip": True, "cpu": False, "dropped": True}}
         e = V.evaluate(job("V1"), r, {"requests": 1000})
-        self.assertIn("the tool's own validity flags: slip, dropped", e["notes"])
+        self.assertIn("the tool's own validity flags: dropped, slip", e["notes"])
         self.assertTrue(e["pass"])                                        # a note, not a criterion
+        r["extra"] = {"flags": {"dropped": True, "cpu": False, "slip": True}}   # another key order
+        self.assertEqual(V.evaluate(job("V1"), r, {"requests": 1000})["notes"], e["notes"])
         self.assertEqual(V.evaluate(job("V1"), res(1000), {"requests": 1000})["notes"], [])
 
     def test_every_check_carries_what_it_compared(self):

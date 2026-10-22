@@ -504,7 +504,7 @@ def evaluate(job, res, origin):
     origin's summary."""
     checks, notes = EVALUATORS[job["test"]](job, res, origin)
     cpu = (res.get("extra") or {}).get("children_cpu_s")
-    raised = [k for k, v in ((res.get("extra") or {}).get("flags") or {}).items() if v]
+    raised = sorted(k for k, v in ((res.get("extra") or {}).get("flags") or {}).items() if v)
     if raised:
         notes = [*notes, "the tool's own validity flags: " + ", ".join(raised)]
     metrics = {}
