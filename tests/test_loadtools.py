@@ -13,6 +13,7 @@ import io
 import json
 import os
 import random
+import re
 import sys
 import tempfile
 import unittest
@@ -54,6 +55,32 @@ def fake_root(tmp, status="verified"):
     tools["wrk2"] = {"kind": "external", "version": "x", "path": "wrk2/wrk2",
                      "sha256": sha(b"x"), "status": "unavailable", "reason": "Lua panic"}
     return {"schema": 1, "root": tmp, "tools": tools}
+
+
+def unproven_verified(manifest, repo=REPO):
+    """The tools marked runnable whose notes do not cite a published verification run in which
+    V1 and V2 passed for exactly the binary (or the engine's file) that is pinned now."""
+    problems = []
+    for name, tool in manifest["tools"].items():
+        if tool["status"] not in LT.RUNNABLE:
+            continue
+        cited = sorted({m.group(0) for n in tool.get("notes", [])
+                        for m in re.finditer(r"results/\d{4}-\d{2}-\d{2}_[\w.-]+", n)})
+        proven = False
+        for run in cited:
+            folder = os.path.join(repo, run)
+            if not os.path.isfile(os.path.join(folder, "results.json")):
+                continue
+            with open(os.path.join(folder, "results.json")) as f:
+                tests = json.load(f)["summary"].get(name, {}).get("tests", {})
+            with open(os.path.join(folder, "tools.json")) as f:
+                used = json.load(f).get(name, {})
+            proven = proven or (all(tests.get(v, {}).get("verdict") == "pass" for v in ("V1", "V2"))
+                                and used.get("sha256") == tool["sha256"])
+        if not proven:
+            problems.append(f"{name} is marked verified, but {cited or 'no run'} in its notes "
+                            "does not show V1 and V2 passed on the sha256 pinned in the manifest")
+    return problems
 
 
 class ScopeTest(unittest.TestCase):
@@ -140,10 +167,28 @@ class ManifestTest(unittest.TestCase):
                          "and verify it again")
         self.assertEqual(t["version"], loadgen.ENGINE_VERSION)
 
-    def test_nothing_is_runnable_before_the_verification(self):
-        for name, t in LT.load_manifest()["tools"].items():
-            if t["status"] in LT.RUNNABLE:
-                self.fail(f"{name} is marked verified: that needs the V-test results first")
+    def test_a_tool_marked_verified_cites_a_published_run_that_verified_this_very_file(self):
+        self.assertEqual(unproven_verified(LT.load_manifest()), [])
+
+    def test_the_evidence_guard_catches_a_changed_pin_a_missing_citation_and_a_failed_run(self):
+        run2 = "results/2026-10-22_loadtool-validation-run2"
+        with open(os.path.join(REPO, run2, "tools.json")) as f:
+            pinned = json.load(f)["k6"]["sha256"]
+        k6 = {"kind": "external", "version": "v2.3.0", "path": "k6", "status": "verified",
+              "sha256": pinned, "notes": [f"verified by {run2}"]}
+
+        def problems(**change):
+            return unproven_verified({"tools": {"k6": {**k6, **change}}})
+
+        self.assertEqual(problems(), [])                                     # the published evidence
+        self.assertEqual(problems(status="smoke-tested", notes=[]), [])      # not runnable: not checked
+        for change in ({"sha256": "0" * 64},                                 # the pin moved
+                       {"notes": []},                                        # no citation
+                       {"notes": ["verified by results/2026-01-01_nothing"]},   # no such run
+                       {"notes": ["verified by results/2026-10-22_loadtool-validation-pilot"]}):
+            with self.subTest(change=change):                                # k6 failed V2 in the pilot
+                self.assertEqual(len(problems(**change)), 1)
+                self.assertIn("k6", problems(**change)[0])
 
     def test_invalid_manifests(self):
         with tempfile.TemporaryDirectory() as tmp:

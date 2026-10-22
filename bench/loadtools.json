@@ -24,7 +24,9 @@
       "status": "smoke-tested",
       "notes": [
         "Stage 1 smoke 2026-10-22: 100 requests/s for 10 s on loopback, origin counted 1000 of 1000",
-        "latency percentiles in its JSON report come from a t-digest; the CSV encoding gives exact ones"
+        "latency percentiles in its JSON report come from a t-digest; the CSV encoding gives exact ones",
+        "run 2, 2026-10-22 (results/2026-10-22_loadtool-validation-run2, criteria version 2): V1, V2, V4, V6 pass; V3 fail (the origin's own p99 was 152.6 ms in that job: confounded by a stall) and V5 fail (silent shortfall: 20,307 of 40,000 requests missing, nothing reported); V7 one-core ceiling 2,000 requests/s",
+        "kept at smoke-tested by the owner's decision of 2026-10-22 until V3 is repeated; if it is run meanwhile (allow_unverified): no latency claims, no overload claims, and check the offered rate at the origin"
       ]
     },
     "k6": {
@@ -37,10 +39,12 @@
       "source": "https://github.com/grafana/k6/releases/tag/v2.3.0",
       "archive": "k6-v2.3.0-linux-amd64.tar.gz",
       "archive_sha256": "39c3117b6af817592dcd0ce4242105c0a7af10948c2a425306f0be8f7a8a8ab1",
-      "status": "smoke-tested",
+      "status": "verified",
       "notes": [
         "Stage 1 smoke 2026-10-22: 100 iterations/s for 10 s on loopback, origin counted 1001 of 1000",
-        "reports anonymous usage on every run unless --no-usage-report; the Stage 1 smoke run did not pass it, the wrapper always does"
+        "reports anonymous usage on every run unless --no-usage-report; the Stage 1 smoke run did not pass it, the wrapper always does",
+        "verified 2026-10-22 by the owner's decision after results/2026-10-22_loadtool-validation-run2 (criteria version 2, 58 jobs at 58412df): V1-V6 pass; V7 one-core ceiling 2,000 requests/s (at 5,000/s 47,376 of 50,000 arrived and 2,566 were reported dropped)",
+        "reports every request it fails to start (dropped_iterations); keep the pre-allocated VUs at rate x 0.3 s or more (limits_for): with 100 it failed V2 (2 of 9 runs) and V4 (621 of 1,500 arrivals in the stall) in the pilot"
       ]
     },
     "wrk": {
@@ -62,10 +66,11 @@
       "path": "bench/loadgen.py",
       "sha256": "91aab0837ce688982c30cc2f8b9e867482f830d5ff49b9ec703888ac80ba92a1",
       "source": "this repository",
-      "status": "installed",
+      "status": "verified",
       "notes": [
         "pinned to the file: any edit of bench/loadgen.py needs a new sha256 here and a new verification",
-        "not yet run through the verification harness"
+        "verified 2026-10-22 by the owner's decision after results/2026-10-22_loadtool-validation-run2 (criteria version 2, 58 jobs at 58412df, this sha256): V1-V6 pass, V3 by the post hoc amendment A2 (latency from the actual send within 0.5 ms of the origin's own); V7 one-core ceiling 10,000 requests/s by the registered criterion",
+        "at 10,000/s it flags its own cpu (0.95 of the core against the 0.70 limit) and slip; its slip gate (p99 above 50 ms) fired in that run at rates from 100 to 10,000/s (V1, two V2 runs, V7 at 2,000, 5,000 and 10,000/s), which the VM's late timer wake-ups explain (docs/BENCHMARK_HARM_DESIGN.md F.5); --spin-ms not yet tried"
       ]
     },
     "wrk2": {
