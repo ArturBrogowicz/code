@@ -1,0 +1,29 @@
+{
+ "k6": {
+  "hash_ok": true,
+  "pinned_version": "v2.3.0",
+  "sha256": "e001bbf39ba67424a85c9c8516440ba5c73ecf7a6021be96c76194380c15f260",
+  "status": "verified",
+  "v0_ok": true,
+  "version_ok": true,
+  "version_output": "k6 v2.3.0 (commit/e088784614, go1.26.8, linux/amd64)"
+ },
+ "loadgen": {
+  "hash_ok": true,
+  "pinned_version": "1",
+  "sha256": "91aab0837ce688982c30cc2f8b9e867482f830d5ff49b9ec703888ac80ba92a1",
+  "status": "verified",
+  "v0_ok": true,
+  "version_ok": true,
+  "version_output": "loadgen 1"
+ },
+ "vegeta": {
+  "hash_ok": true,
+  "pinned_version": "v12.13.0",
+  "sha256": "c54d905541485153542dfcb850f9ab8ef801e7ab1a652d2cfc69cafdd4a5363f",
+  "status": "smoke-tested",
+  "v0_ok": true,
+  "version_ok": true,
+  "version_output": "Version: v12.13.0\nCommit: 507c4f028fbad80168f3b734dab9530d3aabfefa\nRuntime: go1.22.12 linux/amd64\nDate: 2025-10-31T11:31:52Z+0000"
+ }
+}

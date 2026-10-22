@@ -1,0 +1,20 @@
+{
+ "cpus": "4-7",
+ "duration": 30,
+ "key": "V3/loadgen/r500_1",
+ "limits": {
+  "connections": 150,
+  "max_workers": 5000,
+  "workers": 150
+ },
+ "origin": "s2",
+ "rate": 500,
+ "repeat": 1,
+ "role": "subject",
+ "s2": {
+  "jitter_ms": 5.0,
+  "service_ms": 5.0
+ },
+ "test": "V3",
+ "tool": "loadgen"
+}
