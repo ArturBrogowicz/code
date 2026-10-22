@@ -1,0 +1,70 @@
+{
+ "schema": 1,
+ "tool": "wrk",
+ "tool_info": {
+  "version": "debian/4.1.0-4build3",
+  "sha256": "f6536e3f9479584fa2b4a97d12c56671487be9f1011f309dc7a3b1bb0f6ea06c",
+  "status": "installed",
+  "path": "/usr/bin/wrk"
+ },
+ "proxy_vars_removed": [],
+ "spec": {
+  "url": "http://127.0.0.1:18083/",
+  "rate": 500,
+  "duration": 40,
+  "method": "GET",
+  "headers": [],
+  "timeout": 10.0,
+  "connections": 50,
+  "workers": 100,
+  "max_workers": 5000,
+  "threads": 2,
+  "local_addr": "",
+  "cpus": "4-7",
+  "allow_loopback": true,
+  "name": "V4"
+ },
+ "started_utc": "2026-10-22T14:11:58Z",
+ "steps": [
+  {
+   "label": "run",
+   "argv": [
+    "taskset",
+    "-c",
+    "4-7",
+    "/usr/bin/wrk",
+    "-t2",
+    "-c50",
+    "-d40s",
+    "--timeout",
+    "10s",
+    "--latency",
+    "http://127.0.0.1:18083/"
+   ],
+   "env": {},
+   "returncode": 0,
+   "seconds": 40.239,
+   "cpu_s": {
+    "user": 0.682,
+    "system": 4.295
+   }
+  }
+ ],
+ "script_sha256": null,
+ "manifest_sha256": "f93b9aa94c9371c7bcab78a18ae9e60466975641d2f33654196e8d9e6f711283",
+ "ok": true,
+ "children_cpu_s": {
+  "user": 0.682,
+  "system": 4.295
+ },
+ "git": {
+  "commit": "58412df35cd78a333fb04ca810f2fb15a734273b",
+  "dirty": false
+ },
+ "host": {
+  "uname": "Linux ddos-mitigation 7.0.0-38-generic #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:10:14 UTC 2026 x86_64 ",
+  "cpus": 8,
+  "python": "3.14.4"
+ },
+ "finished_utc": "2026-10-22T14:12:39Z"
+}
