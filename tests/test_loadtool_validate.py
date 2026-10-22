@@ -85,6 +85,22 @@ class MatrixTest(unittest.TestCase):
         self.assertEqual(dict(v4.s2), {"service_ms": 5.0, "jitter_ms": 5.0,
                                        "stall_after": 15.0, "stall_for": 3.0})
 
+    def test_repeats_run_the_selection_round_after_round_so_that_the_tools_take_turns(self):
+        jobs = V.expand(tests=["V3"], repeats=3)
+        self.assertEqual([j.key for j in jobs],
+                         [f"V3/{t}/r500_{r}" for r in range(3) for t in ("vegeta", "k6", "loadgen")])
+        self.assertEqual(sum(j.duration for j in jobs) / 60, 4.5)
+        one = V.expand(repeats=1)                                  # one round of the whole matrix
+        self.assertEqual((len(one), {j.repeat for j in one}), (40, {0}))
+
+    def test_without_repeats_the_matrix_and_its_order_are_as_registered(self):
+        keys = [j.key for j in V.expand()]
+        self.assertEqual(keys[:6], ["V1/vegeta/r100_0", "V1/k6/r100_0", "V1/loadgen/r100_0",
+                                    "V2/vegeta/r200_0", "V2/vegeta/r200_1", "V2/vegeta/r200_2"])
+        self.assertEqual([j.key for j in V.expand(tests=["V3"])],
+                         [f"V3/{t}/r500_0" for t in ("vegeta", "k6", "loadgen")])
+        self.assertEqual(V.expand(), V.expand(repeats=None))
+
     def test_the_analytic_stall_quantile(self):
         self.assertAlmostEqual(V.analytic_stall_p99(500, 40, 3), 2.6)
         self.assertAlmostEqual(V.analytic_stall_p99(500, 40, 3, service=0.0075), 2.6075)
@@ -129,6 +145,14 @@ class EvaluatorTest(unittest.TestCase):
         self.assertFalse(self.passes(j, res(p99=0.012), o))               # CO: stall not reported
         self.assertFalse(self.passes(j, res(p99=want), {"arrivals_in_stall": 1000}))
         self.assertFalse(self.passes(j, res(p99=None), o))
+
+    def test_v3_notes_the_origins_own_service_time_when_it_is_known(self):
+        j, r = job("V3"), res(p50=0.0078, p99=0.0102)
+        e = V.evaluate(j, r, {"service_s": {"p50": 0.0075, "p99": 0.0099, "max": 0.9831}})
+        self.assertIn("the origin's own service time: p50 7.5 ms, p99 9.9 ms, max 983.1 ms", e["notes"])
+        for own in ({"p50": 0.0075, "p99": 0.0099}, {"p50": 0.0075, "p99": 0.0099, "max": None}):
+            e = V.evaluate(j, r, {"service_s": own})
+            self.assertFalse([n for n in e["notes"] if n.startswith("the origin's own")])
 
     def test_v4_control_version_1_is_judged_by_its_reported_p99(self):
         j = job("V4", tool="wrk", role="control")
@@ -1274,6 +1298,115 @@ class RejudgeTest(unittest.TestCase):
         self.assertEqual(V.tree_hashes(new), before)
 
 
+class FakeRealEnv(FakeEnv):
+    """Stands in for RealEnv in a run through main()."""
+
+    def __init__(self, manifest, root):
+        super().__init__()
+
+    def tools_info(self, tools):
+        return {t: TOOLS_INFO[t] for t in tools}
+
+
+class RepeatSessionTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = self._tmp.name
+        self.out = os.path.join(self.tmp, "run")
+        os.makedirs(self.out)
+        self.addCleanup(self._tmp.cleanup)
+
+    def readme(self, directory):
+        with open(os.path.join(directory, "README.md")) as f:
+            return f.read()
+
+    def session(self, repeats=2):
+        env, jobs = FakeEnv(), V.expand(tests=["V3"], repeats=repeats)
+        with contextlib.redirect_stdout(io.StringIO()):
+            warm = V.run_warmup(env, jobs[0], self.out)
+            evals = V.run_all(env, jobs, self.out, TOOLS_INFO)
+            V.finalize(self.out, evals, TOOLS_INFO,
+                       {"git_commit": "abc", "protocol": {"repeats": repeats, "warmup": True}},
+                       extra={"warmup": warm})
+        return env, jobs, evals, warm
+
+    def test_the_warmup_runs_the_first_job_once_more_and_is_kept_apart(self):
+        env, jobs, evals, _ = self.session()
+        self.assertEqual(env.launched, [jobs[0].key] + [j.key for j in jobs])
+        self.assertEqual(len(evals), 6)                                   # the warm-up is not one of them
+        self.assertTrue(os.path.isfile(os.path.join(self.out, "warmup", "V3", "vegeta", "r500_0",
+                                                    "job.json")))
+        r = read(self.out, "results.json")
+        self.assertEqual((len(r["jobs"]), r["warmup"]["key"]), (6, "V3/vegeta/r500_0"))
+        self.assertEqual([e["key"] for e in r["jobs"] if e["tool"] == "vegeta"],
+                         ["V3/vegeta/r500_0", "V3/vegeta/r500_1"])
+        self.assertTrue(all("warmup" not in e["key"] for e in r["jobs"]))
+
+    def test_the_readme_says_what_was_repeated_post_hoc_and_lists_the_warmup(self):
+        self.session()
+        text = self.readme(self.out)
+        self.assertIn("* Repeats: the selected tests were run 2 times over, round after round "
+                      "(--repeats 2), so that the tools take turns; the pre-registered matrix has "
+                      "V3 1 -> 2, a protocol change made after it, **post hoc**.", text)
+        self.assertIn("* Warm-up: `V3/vegeta/r500_0` ran once before the scored jobs and is **not "
+                      "scored**", text)
+        self.assertIn("## Warm-up (not scored)", text)
+        self.assertIn("| reported p99 against the origin's own |", text.split("## Warm-up")[1])
+        self.assertNotIn("**post hoc**.", V.protocol_lines(
+            {"environment": {"protocol": {"repeats": 3}}, "jobs": [{"test": "V2"}]})[0])
+
+    def test_reanalysis_keeps_the_warmup_out_of_the_jobs_and_judges_it_again(self):
+        self.session()
+        before = read(self.out, "results.json")
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(V.main(["reanalyse", self.out]), 0)
+        after = read(self.out, "results.json")
+        self.assertEqual(before["jobs"], after["jobs"])
+        self.assertEqual(before["warmup"], after["warmup"])
+        self.assertEqual(self.readme(self.out).count("## Warm-up (not scored)"), 1)
+
+    def test_a_run_through_main_warms_up_first_and_records_the_protocol(self):
+        gate = {"met": True, "uptime_s": 9999.0, "load1": 0.0, "waited_s": 0.0,
+                "limit_uptime_s": 1800, "limit_load1": 0.3}
+        quiet = {"interval_s": 0.01, "samples": 200, "p50_ms": 1.0, "p99_ms": 2.0, "max_ms": 3.0}
+        out, stdout = os.path.join(self.tmp, "main"), io.StringIO()
+        with (mock.patch.object(V.shutil, "which", return_value="/usr/bin/x"),
+              mock.patch.object(V, "wait_for_gate", return_value=gate),
+              mock.patch.object(V, "environment", lambda gate=None: {"git_commit": "abc",
+                                                                     "gate": gate}),
+              mock.patch.object(V, "timer_lateness", return_value=quiet),
+              mock.patch.object(V, "timer_lateness_by_cpus", return_value={}),
+              mock.patch.object(V, "RealEnv", FakeRealEnv),
+              contextlib.redirect_stdout(stdout)):
+            rc = V.main(["run", "--yes", "--tests", "V3", "--repeats", "2", "--warmup", "--out", out])
+        self.assertEqual(rc, 0)
+        lines = [ln for ln in stdout.getvalue().splitlines() if ln.startswith("[")]
+        self.assertEqual(lines[0], "[w] warm-up V3/vegeta/r500_0, not scored: pass")
+        self.assertEqual([ln.split()[1] for ln in lines[1:7]],
+                         [f"V3/{t}/r500_{r}" for r in range(2) for t in ("vegeta", "k6", "loadgen")])
+        r = read(out, "results.json")
+        self.assertEqual(r["environment"]["protocol"], {"repeats": 2, "warmup": True})
+        self.assertEqual((len(r["jobs"]), r["warmup"]["key"]), (6, "V3/vegeta/r500_0"))
+        self.assertEqual({s["verdict"] for t in r["summary"].values() for s in t["tests"].values()},
+                         {"pass"})
+
+    def test_a_run_without_the_options_has_no_protocol_lines_and_no_warmup(self):
+        out = os.path.join(self.tmp, "plain")
+        with (mock.patch.object(V.shutil, "which", return_value="/usr/bin/x"),
+              mock.patch.object(V, "wait_for_gate", return_value={"skipped": True}),
+              mock.patch.object(V, "environment", lambda gate=None: {"git_commit": "abc"}),
+              mock.patch.object(V, "timer_lateness", return_value={}),
+              mock.patch.object(V, "timer_lateness_by_cpus", return_value={}),
+              mock.patch.object(V, "RealEnv", FakeRealEnv),
+              contextlib.redirect_stdout(io.StringIO())):
+            self.assertEqual(V.main(["run", "--yes", "--tests", "V3", "--no-gate", "--out", out]), 0)
+        text = self.readme(out)
+        self.assertNotIn("Repeats:", text)
+        self.assertNotIn("Warm-up", text)
+        self.assertFalse(os.path.exists(os.path.join(out, "warmup")))
+        self.assertNotIn("warmup", read(out, "results.json"))
+
+
 class CliTest(unittest.TestCase):
     def call(self, *argv):
         out, err = io.StringIO(), io.StringIO()
@@ -1294,6 +1427,22 @@ class CliTest(unittest.TestCase):
         self.assertIn("limits {'connections': 50, 'max_workers': 5000, 'workers': 100}", out)
         self.assertIn("/usr/bin/wrk -t2 -c50 -d40s", out)
         self.assertTrue(out.strip().endswith("2 jobs, 1.3 minutes of load"))
+
+    def test_plan_with_repeats_and_warmup_lists_the_warmup_and_counts_it(self):
+        rc, out, _ = self.call("plan", "--tests", "V3", "--repeats", "3", "--warmup")
+        self.assertEqual(rc, 0)
+        self.assertIn("WARM-UP, not scored: V3/vegeta/r500_0 runs once more", out)
+        self.assertEqual(re.findall(r"^V3/\w+/r500_\d(?=:)", out, re.MULTILINE),
+                         [f"V3/{t}/r500_{r}" for r in range(3) for t in ("vegeta", "k6", "loadgen")])
+        self.assertTrue(out.strip().endswith("9 scored jobs + 1 warm-up, 5.0 minutes of load"))
+        rc, out, _ = self.call("plan", "--tests", "V3", "--repeats", "3")
+        self.assertNotIn("WARM-UP", out)
+        self.assertTrue(out.strip().endswith("9 jobs, 4.5 minutes of load"))
+
+    def test_repeats_must_be_a_whole_number_of_at_least_one(self):
+        for bad in ("0", "-1", "two"):
+            with self.subTest(repeats=bad), self.assertRaises(SystemExit):
+                self.call("plan", "--tests", "V3", "--repeats", bad)
 
     def test_run_needs_yes(self):
         with tempfile.TemporaryDirectory() as tmp:

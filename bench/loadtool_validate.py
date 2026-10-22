@@ -47,6 +47,10 @@ design (up 30 minutes, 1-minute load below 0.3) or refuses.
     ./venv/bin/python bench/loadtool_validate.py run --out DIR --yes [--tools ...] [--tests ...]
     ./venv/bin/python bench/loadtool_validate.py reanalyse DIR [--rejudge-into NEW --criteria 2]
 
+`--repeats N` runs the selected tests N times over, round after round, so that the tools take turns
+(a protocol change against the pre-registered matrix: the README labels it post hoc); `--warmup`
+runs the first job once more before the scored ones, into `warmup/`, unscored.
+
 `run` starts Nginx and S2 on loopback and generates load for about a quarter of an hour; it needs
 the owner's approval and --yes. plan and reanalyse start nothing. serve-s2 is the origin process
 that `run` starts. The results directory is laid out like a published campaign (README.md,
@@ -204,23 +208,28 @@ def spec_for(job, url):
                        name=job.test)
 
 
-def expand(tools=None, tests=None):
+def _job(tid, t, tool, rate, rep):
+    return Job(tid, tool, rate, t["duration"], rep, t["origin"],
+               tuple(sorted(t.get("s2", {}).items())), t.get("cpus", CPUS["tools"]),
+               "control" if tool in t.get("control", ()) else "subject",
+               tuple(sorted(limits_for(tool, rate, t.get("s2")).items())))
+
+
+def expand(tools=None, tests=None, repeats=None):
     """The jobs of the matrix, test by test and tool by tool, so that the tools of one test
-    run next to each other."""
+    run next to each other. `repeats` runs the selected part of the matrix that many times over,
+    round after round (a round has one repeat of every job), so that the tools take turns."""
     jobs = []
-    for tid, t in TESTS.items():
-        if tests and tid not in tests:
-            continue
-        for tool in t["tools"]:
-            if tools and tool not in tools:
+    for rnd in range(repeats) if repeats else [None]:
+        for tid, t in TESTS.items():
+            if tests and tid not in tests:
                 continue
-            for rate in t["rates"]:
-                for rep in range(t["repeats"]):
-                    jobs.append(Job(tid, tool, rate, t["duration"], rep, t["origin"],
-                                    tuple(sorted(t.get("s2", {}).items())),
-                                    t.get("cpus", CPUS["tools"]),
-                                    "control" if tool in t.get("control", ()) else "subject",
-                                    tuple(sorted(limits_for(tool, rate, t.get("s2")).items()))))
+            for tool in t["tools"]:
+                if tools and tool not in tools:
+                    continue
+                for rate in t["rates"]:
+                    for rep in range(t["repeats"]) if rnd is None else [rnd]:
+                        jobs.append(_job(tid, t, tool, rate, rep))
     return jobs
 
 
@@ -569,6 +578,10 @@ def _v3(job, res, origin, version):
         if slip.get("p99") is not None:
             notes.append(f"the tool's schedule slip: p50 {slip['p50'] * 1e3:.1f} ms, "
                          f"p99 {slip['p99'] * 1e3:.1f} ms")
+    own = origin["service_s"]
+    if all(own.get(k) is not None for k in ("p50", "p99", "max")):
+        notes.append("the origin's own service time: p50 {:.1f} ms, p99 {:.1f} ms, max {:.1f} ms".format(
+            own["p50"] * 1e3, own["p99"] * 1e3, own["max"] * 1e3))
     return checks, notes
 
 
@@ -979,6 +992,40 @@ def timer_lines(env):
     return out
 
 
+def protocol_lines(results):
+    p = (results.get("environment") or {}).get("protocol") or {}
+    lines, n = [], p.get("repeats")
+    if n:
+        changed = [f"{tid} {TESTS[tid]['repeats']} -> {n}"
+                   for tid in TESTS if tid in {e["test"] for e in results["jobs"]}
+                   and TESTS[tid]["repeats"] != n]
+        lines.append(f"* Repeats: the selected tests were run {n} times over, round after round "
+                     f"(--repeats {n}), so that the tools take turns"
+                     + (f"; the pre-registered matrix has {', '.join(changed)}, a protocol change "
+                        "made after it, **post hoc**." if changed else "."))
+    w = results.get("warmup")
+    if w:
+        lines.append(f"* Warm-up: `{w['key']}` ran once before the scored jobs and is **not scored** "
+                     "(--warmup); its record is in `warmup/` and its checks are listed below.")
+    return lines
+
+
+def warmup_lines(results):
+    w = results.get("warmup")
+    if not w:
+        return []
+    rows = ["", "## Warm-up (not scored)", "",
+            (f"`warmup/{w['key']}` ran once before the scored jobs, to bring the CPUs, the origin and "
+             "the tool out of idle. Its checks and notes, for the record; they are not part of any "
+             "verdict:"), ""]
+    if "error" in w:
+        return rows + [f"* did not run: {w['error']}"]
+    rows += ["| Check | Observed | Expected | Tolerance | Pass |", "|---|---|---|---|---|"]
+    rows += [f"| {c['name']} | {fmt(c['observed'])} | {fmt(c['expected'])} | {fmt(c['tolerance'])} | "
+             f"{fmt(c['pass'])} |" for c in w["checks"]]
+    return rows + [""] + [f"* {n}" for n in w["notes"]]
+
+
 def timer_cpu_lines(env):
     before, after = env.get("timer_cpus"), env.get("timer_cpus_after")
     if not before and not after:
@@ -1050,7 +1097,7 @@ def render_readme(results):
               "constants of that script, fixed before any measurement."), "",
              (f"* Commit: `{env.get('git_commit')}` (dirty: {fmt(env.get('git_dirty'))}); "
               f"host: {env.get('uname')}; created {env.get('created_utc')}."),
-             *gate_lines(env), *timer_lines(env), *timer_cpu_lines(env), "",
+             *gate_lines(env), *protocol_lines(results), *timer_lines(env), *timer_cpu_lines(env), "",
              *criteria_lines(results),
              "## Verdict per tool and test", "",
              "| Tool | V0 | " + " | ".join(TESTS) + " | Suggested status |",
@@ -1092,6 +1139,7 @@ def render_readme(results):
     notes = [(e["key"], n) for e in results["jobs"] for n in e.get("notes", [])]
     if notes:
         lines += ["", "## Notes", ""] + [f"* `{k}`: {n}" for k, n in notes]
+    lines += warmup_lines(results)
     lines += ["", "## Tools", "", "| Tool | Pinned version | Printed | Manifest status | sha256 |",
               "|---|---|---|---|---|"]
     for tool, i in results["tools"].items():
@@ -1199,6 +1247,16 @@ def run_all(env, jobs, out_dir, tools_info, keep_raw=False, stop_on_error=False)
     return evals
 
 
+def run_warmup(env, job, out_dir, keep_raw=False):
+    """Run `job` once before the scored jobs, into out_dir/warmup, and return its evaluation. It is
+    not part of the results: it brings the CPUs, the origin and the tool out of idle (the first job
+    on idle CPUs was the slowest in both earlier full runs). Its record is kept."""
+    e = run_job(env, job, os.path.join(out_dir, "warmup"), keep_raw)
+    print(f"[w] warm-up {job.key}, not scored: {'pass' if e['pass'] else 'fail'}"
+          + (f"  {e['error']}" if "error" in e else ""), flush=True)
+    return e
+
+
 # --- command line --------------------------------------------------------------------------
 
 def _csv(text, universe):
@@ -1254,7 +1312,7 @@ def reanalyse(a):
               "would change its verdicts, so it goes into a new directory: --rejudge-into NEW",
               file=sys.stderr)
         return 2
-    target, extra = a.dir, {k: prev[k] for k in ("rejudged",) if k in prev}
+    target, extra = a.dir, {k: prev[k] for k in ("rejudged", "warmup") if k in prev}
     if a.rejudge_into is not None:
         if os.path.exists(a.rejudge_into) and os.listdir(a.rejudge_into):
             print(f"[-] {a.rejudge_into} exists and is not empty; results are never overwritten",
@@ -1263,8 +1321,11 @@ def reanalyse(a):
         target = a.rejudge_into
         shutil.copytree(a.dir, target, dirs_exist_ok=True,
                         ignore=shutil.ignore_patterns("README.md", "results.json", "SHA256SUMS"))
-    evals = [reanalyse_job(d, version) for d in
-             sorted(d for d, _, files in os.walk(target) if "job.json" in files)]
+    dirs = sorted(d for d, _, files in os.walk(target) if "job.json" in files)
+    warm = [d for d in dirs if os.path.relpath(d, target).split(os.sep)[0] == "warmup"]
+    evals = [reanalyse_job(d, version) for d in dirs if d not in warm]
+    if warm:                                           # not scored, but judged by the same version
+        extra["warmup"] = reanalyse_job(warm[0], version)
     if a.rejudge_into is not None:
         extra["rejudged"] = rejudged_info(a.dir, prev, version, evals)
     finalize(target, evals, prev["tools"], prev["environment"], version=version, extra=extra)
@@ -1280,6 +1341,16 @@ def reanalyse(a):
     return 0
 
 
+def _positive_int(text):
+    try:
+        n = int(text)
+    except ValueError:
+        n = 0
+    if n < 1:
+        raise argparse.ArgumentTypeError(f"{text!r}: a whole number of at least 1 is needed")
+    return n
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -1290,6 +1361,10 @@ def main(argv=None):
         s.add_argument("--tests", help=f"comma list of {', '.join(TESTS)} (default all)")
         s.add_argument("--manifest", default=LT.MANIFEST)
         s.add_argument("--root", default=None)
+        s.add_argument("--repeats", type=_positive_int,
+                       help="run the selected tests this many times over, round after round")
+        s.add_argument("--warmup", action="store_true",
+                       help="run the first job once more beforehand, unscored (in warmup/)")
         if name == "run":
             s.add_argument("--out", required=True, help="new results directory")
             s.add_argument("--yes", action="store_true", help="confirm: this generates load")
@@ -1324,9 +1399,12 @@ def main(argv=None):
 
     tools = _csv(a.tools, tools_all)
     tests = _csv(a.tests, list(TESTS))
-    jobs = expand(tools, tests)
+    jobs = expand(tools, tests, a.repeats)
     manifest = LT.load_manifest(a.manifest)
     if a.cmd == "plan":
+        if a.warmup and jobs:
+            print(f"WARM-UP, not scored: {jobs[0].key} runs once more, before the jobs below, "
+                  "with the same commands (its record goes to warmup/)")
         for job in jobs:
             wd = "/OUT/" + job.key
             print(f"{job.key}: origin {job.origin} {job.role} limits {dict(job.limits)}")
@@ -1336,7 +1414,9 @@ def main(argv=None):
                                  allow_unverified=True, check=False)
             for step in plan.steps:
                 print("    " + " ".join(step.argv))
-        print(f"{len(jobs)} jobs, {sum(j.duration for j in jobs) / 60:.1f} minutes of load")
+        warm = [jobs[0]] if a.warmup and jobs else []
+        print(f"{len(jobs)} {'scored ' if warm else ''}jobs{' + 1 warm-up' if warm else ''}, "
+              f"{sum(j.duration for j in jobs + warm) / 60:.1f} minutes of load")
         return 0
 
     if not a.yes:
@@ -1357,18 +1437,23 @@ def main(argv=None):
               "wait, or pass --no-gate", file=sys.stderr)
         return 2
     os.makedirs(a.out, exist_ok=True)
-    env_before = environment(gate=gate)
+    env_before = {**environment(gate=gate), "protocol": {"repeats": a.repeats,
+                                                         "warmup": bool(a.warmup)}}
     env = RealEnv(manifest, a.root)
     tools_info = env.tools_info(sorted({j.tool for j in jobs}))
     write_json(os.path.join(a.out, "tools.json"), tools_info)
     shutil.copy(a.manifest, os.path.join(a.out, "loadtools.manifest.json"))
+    warm = None
     try:
+        if a.warmup and jobs and tools_info.get(jobs[0].tool, {}).get("v0_ok") is not False:
+            warm = run_warmup(env, jobs[0], a.out, a.keep_raw)
         evals = run_all(env, jobs, a.out, tools_info, a.keep_raw, a.stop_on_error)
     except InfraError as exc:
         print(f"[-] stopped: {exc}", file=sys.stderr)
         return 1
     finalize(a.out, evals, tools_info, {**env_before, "timer_after": timer_lateness(),
-                                        "timer_cpus_after": timer_lateness_by_cpus()})
+                                        "timer_cpus_after": timer_lateness_by_cpus()},
+             extra={"warmup": warm} if warm else None)
     print(f"[+] {a.out}/README.md")
     return 0
 
