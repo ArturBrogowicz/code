@@ -21,8 +21,10 @@ bench/loadtools.py on loopback (127.0.0.1, nothing else) against one of two orig
   V5  overload honesty: twice the origin's capacity; arrivals follow the intended rate or the
       tool reports what it dropped
   V6  status accounting: S2 answers every 10th request with 503; the tool's count must agree
-  V7  ceiling and cost: 1k to 20k requests/s on one pinned core; the highest rate held, and the
-      CPU time per 1000 requests
+  V7  ceiling and cost: 1k to 20k requests/s on one pinned core; the highest rate held (the
+      origin counts the intended requests, no errors, and 99 % of them arrive in their own part
+      of the schedule, read from the origin's counter once a second), and the CPU time per 1000
+      requests
 
 The pass criteria are CRITERIA below, written before any measurement. A tool that fails V0-V2 is
 unfit; one that fails only V3-V6 is verified with restrictions (no latency or overload claims).
@@ -51,6 +53,8 @@ import dataclasses
 import datetime
 import gzip
 import hashlib
+import http.client
+import itertools
 import json
 import math
 import os
@@ -61,6 +65,7 @@ import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 
 try:
@@ -87,7 +92,9 @@ CRITERIA = {
     "v6_rel": 0.01,             # non-2xx within 1 % (or 2) of the 503s sent
     "v6_abs": 2,
     "v7_rate": 0.01,            # origin count within 1 % at a step that counts as held
+    "v7_adherence": 0.99,       # and this share of the intended requests in its own part of the schedule
 }
+SAMPLE_EVERY_S = 1.0            # how often the S1 origin reads its own request counter
 REASON = {200: b"OK", 503: b"Service Unavailable"}
 S2_BASE = {"service_ms": 5.0, "jitter_ms": 5.0}
 TESTS = {
@@ -325,6 +332,7 @@ class Nginx:
         self.url = f"http://{HOST}:{port}/"
         self.proc = None
         self.before = None
+        self.samples, self._t0, self._stop, self._thread = [], None, None, None
 
     def config(self):
         d = self.dir
@@ -352,13 +360,29 @@ http {{
                 os.path.join(self.dir, "nginx.conf"), "-e", os.path.join(self.dir, "error.log")]
 
     def counter(self):
-        import http.client
         conn = http.client.HTTPConnection(HOST, self.port, timeout=5)
         try:
             conn.request("GET", "/status")
             return int(conn.getresponse().read().decode().splitlines()[2].split()[2])
         finally:
             conn.close()
+
+    def _read(self):
+        """(seconds since the first reading, the counter), the time taken in the middle of the
+        request. The status request is itself counted by Nginx."""
+        t0 = time.monotonic()
+        n = self.counter()
+        return (t0 + time.monotonic()) / 2 - self._t0, n
+
+    def _sample(self):
+        """One reading every SAMPLE_EVERY_S on a fixed schedule; a reading that fails is skipped,
+        which widens the next stretch (the stretches carry their own lengths)."""
+        step = 0
+        while not self._stop.wait(max(0.0, self._t0 + (step + 1) * SAMPLE_EVERY_S
+                                      - time.monotonic())):
+            step += 1
+            with contextlib.suppress(OSError, ValueError, IndexError, http.client.HTTPException):
+                self.samples.append(self._read())
 
     def __enter__(self):
         if port_in_use(self.port):
@@ -372,16 +396,29 @@ http {{
         if not wait_port(self.port):
             _stop(self.proc)
             raise InfraError("nginx did not start (see s1/error.log)")
+        self._t0 = time.monotonic()
         self.before = self.counter()
+        self.samples = [(0.0, self.before)]
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._sample, daemon=True)
+        self._thread.start()
         return self
 
     def finish(self):
         time.sleep(0.5)                                   # let the last responses leave
-        after = self.counter()
-        return {"kind": "s1", "requests": after - self.before - 1,    # minus the poll itself
-                "counter_before": self.before, "counter_after": after}
+        self._stop.set()
+        self._thread.join(10)
+        self.samples.append(self._read())                 # the last reading is not optional
+        after = self.samples[-1][1]
+        polls = len(self.samples) - 1                     # readings after the first, each counted
+        return {"kind": "s1", "requests": after - self.before - polls,
+                "counter_before": self.before, "counter_after": after,
+                "samples": [[round(t, 3), n] for t, n in self.samples]}
 
     def __exit__(self, *exc):
+        if self._stop:
+            self._stop.set()
+            self._thread.join(10)
         _stop(self.proc)
 
 
@@ -519,6 +556,34 @@ def _v6(job, res, origin):
                    CRITERIA["v6_rel"])], []
 
 
+def schedule_adherence(samples, rate, duration):
+    """The share of the intended requests that reached the origin in their own part of the
+    schedule, from readings (seconds, counter) of its request counter about once a second.
+
+    Between two readings the counter rose by the requests that arrived plus the second reading
+    itself. The schedule is taken to start where the first stretch with arrivals says it did: the
+    tool delivered n requests in a stretch ending at b, so it began at b - n / rate (not before
+    the stretch began). It lasts `duration`. In every stretch at most rate x (the part of the
+    stretch inside the schedule) counts as on schedule, so a burst after a stall, a request that
+    comes a stretch late and everything after the schedule's end are not on schedule, and the
+    share is taken of rate x duration. A tool that keeps the rate gets 1 whatever the phase of
+    its start against the readings; one that delivers 16 000 of 20 000 a second gets 0.8, even if
+    it delivers every request in the end."""
+    stretches = [(a, b, max(0, n1 - n0 - 1))
+                 for (a, n0), (b, n1) in itertools.pairwise(samples)]
+    first = next((i for i, (_, _, n) in enumerate(stretches) if n > 0), None)
+    if first is None:
+        return {"adherence": 0.0, "start_s": None, "late_s": None}
+    a, b, n = stretches[first]
+    start = max(a, b - n / rate)
+    end = start + duration
+    on = sum(min(n, rate * max(0.0, min(b, end) - max(a, start))) for a, b, n in stretches)
+    a, b, n = [s for s in stretches if s[2] > 0][-1]
+    last = a + min(n / rate, b - a)                   # about when the last request came
+    return {"adherence": on / (rate * duration), "start_s": round(start, 3),
+            "late_s": round(max(0.0, last - end), 3)}
+
+
 def _load_cpu(res):
     """CPU seconds of the load step; for runs that did not separate it, of all the steps."""
     extra = res.get("extra") or {}
@@ -533,10 +598,22 @@ def _v7(job, res, origin):
     cpu_s = _load_cpu(res)
     notes = ([f"CPU per 1000 requests: {cpu_s / (res['requests'] / 1000):.3f} s"]
              if cpu_s is not None and res["requests"] else [])
-    return [_check("requests the origin counted", origin["requests"], n,
-                   _rel(origin["requests"], n) <= tol, tol),
-            _check("no tool errors and no non-2xx", res["errors"] + res["non2xx"], 0,
-                   res["errors"] + res["non2xx"] == 0)], notes
+    checks = [_check("requests the origin counted", origin["requests"], n,
+                     _rel(origin["requests"], n) <= tol, tol),
+              _check("no tool errors and no non-2xx", res["errors"] + res["non2xx"], 0,
+                     res["errors"] + res["non2xx"] == 0)]
+    if origin.get("samples"):
+        adh = schedule_adherence(origin["samples"], job["rate"], job["duration"])
+        want = CRITERIA["v7_adherence"]
+        checks.append(_check("intended requests that arrived in their own part of the schedule",
+                             round(adh["adherence"], 4), 1.0, adh["adherence"] >= want,
+                             round(1 - want, 4)))
+        if adh["late_s"] and adh["late_s"] >= 0.1:
+            notes.append(f"arrivals went on for about {adh['late_s']:g} s after the end of the "
+                         "schedule")
+    else:
+        notes.append("no per-second arrivals were recorded: schedule adherence is not evaluated")
+    return checks, notes
 
 
 EVALUATORS = {"V1": _v1, "V2": _v2, "V3": _v3, "V4": _v4, "V5": _v5, "V6": _v6, "V7": _v7}
@@ -561,6 +638,11 @@ def evaluate(job, res, origin):
     cpu_s = _load_cpu(res)
     if cpu_s is not None and res["requests"]:
         metrics["cpu_per_1000"] = cpu_s / (res["requests"] / 1000)
+    if cpu_s is not None and job["duration"]:
+        metrics["cpu_cores"] = cpu_s / job["duration"]
+    if origin.get("samples"):
+        metrics["adherence"] = schedule_adherence(origin["samples"], job["rate"],
+                                                  job["duration"])["adherence"]
     return {"key": job["key"], "test": job["test"], "tool": job["tool"], "role": job["role"],
             "rate": job["rate"], "repeat": job["repeat"], "pass": all(c["pass"] for c in checks),
             "checks": checks, "notes": notes, "metrics": metrics}
@@ -617,8 +699,11 @@ def _ceiling(es):
         if not e["pass"]:
             break
         ceiling = e["rate"]
-    return {"ceiling": ceiling, "cpu_per_1000": {f"{e['rate']:g}": e["metrics"].get("cpu_per_1000")
-                                                 for e in sorted(es, key=lambda e: e["rate"])}}
+    by_rate = sorted(es, key=lambda e: e["rate"])
+    return {"ceiling": ceiling,
+            "cpu_per_1000": {f"{e['rate']:g}": e["metrics"].get("cpu_per_1000") for e in by_rate},
+            "cpu_cores": {f"{e['rate']:g}": e["metrics"].get("cpu_cores") for e in by_rate},
+            "adherence": {f"{e['rate']:g}": e["metrics"].get("adherence") for e in by_rate}}
 
 
 # --- running a job -------------------------------------------------------------------------
@@ -853,13 +938,16 @@ def render_readme(results):
                    "closed-loop tool should. The manifest (`bench/loadtools.json`) is edited by "
                    "hand from these suggestions; nothing here writes it."),
               "", "## V7: ceiling and cost", "",
-              "| Tool | Highest rate held (requests/s) | CPU s per 1000 requests (load step), by rate |",
-              "|---|---|---|"]
+              ("| Tool | Highest rate held (requests/s) | Share on schedule, by rate | "
+               "CPU s per 1000 requests (load step; cores used), by rate |"),
+              "|---|---|---|---|"]
     for tool, v in s.items():
         t = v["tests"].get("V7")
         if t and t["verdict"] == "measured":
-            cpu = ", ".join(f"{r}: {fmt(c)}" for r, c in t["cpu_per_1000"].items())
-            lines.append(f"| {tool} | {fmt(t['ceiling'])} | {cpu} |")
+            share = ", ".join(f"{r}: {fmt(a)}" for r, a in t.get("adherence", {}).items())
+            cpu = ", ".join(f"{r}: {fmt(c)} ({fmt(t.get('cpu_cores', {}).get(r))})"
+                            for r, c in t["cpu_per_1000"].items())
+            lines.append(f"| {tool} | {fmt(t['ceiling'])} | {share} | {cpu} |")
     lines += ["", "## Checks", "", "| Job | Check | Observed | Expected | Tolerance | Pass |",
               "|---|---|---|---|---|---|"]
     for e in results["jobs"]:

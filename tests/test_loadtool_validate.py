@@ -12,10 +12,12 @@ No load tool is started and nothing leaves the machine; the only traffic is the 
 on 127.0.0.1.
 """
 import asyncio
+import bisect
 import contextlib
 import gzip
 import hashlib
 import io
+import itertools
 import json
 import os
 import re
@@ -162,8 +164,33 @@ class EvaluatorTest(unittest.TestCase):
         e = V.evaluate(j, res(50000, cpu=cpu), {"requests": 50000})
         self.assertTrue(e["pass"])
         self.assertAlmostEqual(e["metrics"]["cpu_per_1000"], 0.06)
+        self.assertAlmostEqual(e["metrics"]["cpu_cores"], 0.3)             # 3 s of CPU in 10 s
         self.assertFalse(self.passes(j, res(50000, errors=3), {"requests": 50000}))
         self.assertFalse(self.passes(j, res(50000), {"requests": 49400}))
+
+    def test_v7_without_readings_of_the_origin_says_adherence_was_not_evaluated(self):
+        e = V.evaluate(job("V7", rate=5000), res(50000), {"requests": 50000})
+        self.assertTrue(e["pass"])
+        self.assertEqual(len(e["checks"]), 2)
+        self.assertIn("no per-second arrivals were recorded: schedule adherence is not evaluated",
+                      e["notes"])
+        self.assertNotIn("adherence", e["metrics"])
+
+    def test_v7_a_tool_that_delivers_every_request_but_late_does_not_hold_the_rate(self):
+        j = job("V7", rate=1000)                                          # 10 s: 10000
+        late = {"requests": 10000, "samples": readings(schedule(1000, 10, 2.4, speed=0.8), 20)}
+        e = V.evaluate(j, res(10000), late)
+        self.assertFalse(e["pass"])
+        failed = [c for c in e["checks"] if not c["pass"]]
+        self.assertEqual([c["name"] for c in failed],
+                         ["intended requests that arrived in their own part of the schedule"])
+        self.assertAlmostEqual(failed[0]["observed"], 0.82, delta=0.01)
+        self.assertEqual((failed[0]["expected"], failed[0]["tolerance"]), (1.0, 0.01))
+        self.assertTrue(any("went on for about" in n for n in e["notes"]))
+        ok = V.evaluate(j, res(10000), {"requests": 10000, "samples": perfect_samples(1000, 10)})
+        self.assertTrue(ok["pass"])
+        self.assertGreaterEqual(ok["metrics"]["adherence"], 0.999)
+        self.assertFalse([n for n in ok["notes"] if "went on" in n])
 
     def test_a_tool_that_raised_its_own_validity_flags_says_so(self):
         r = res(1000)
@@ -454,11 +481,37 @@ class ProcessTest(unittest.TestCase):
             self.assertFalse(V.port_in_use(port))
 
 
+def schedule(rate, duration, start, speed=1.0, stall=None):
+    """When the requests of a tool reach the origin: `rate` x `duration` of them from `start` at
+    `speed` x the rate; those that fall into stall = (begin, length) are held to its end and
+    released at five times the rate."""
+    times = [start + k / (rate * speed) for k in range(int(rate * duration))]
+    if stall:
+        begin, length = stall
+        held = [t for t in times if begin <= t < begin + length]
+        times = [t for t in times if not begin <= t < begin + length]
+        times += [begin + length + j / (5 * rate) for j in range(len(held))]
+    return sorted(times)
+
+
+def readings(arrivals, t_end, base=7, times=None):
+    """What the origin's counter shows at each reading: the arrivals so far, the readings before
+    and including this one (Nginx counts the status request itself) and what was there at the start."""
+    times = times or [float(i) for i in range(int(t_end) + 1)]
+    return [(t, base + bisect.bisect_right(arrivals, t) + i + 1) for i, t in enumerate(times)]
+
+
+def perfect_samples(rate, duration, start=2.4):
+    """The readings for a tool that keeps the rate, without building the arrivals one by one."""
+    return [(float(i), 8 + i + round(rate * min(max(i - start, 0.0), duration)))
+            for i in range(int(start + duration) + 4)]
+
+
 def fake_summary(j):
     """What a well-behaved origin would have seen for job j (a dict)."""
     n = j["rate"] * j["duration"]
     if j["origin"] == "s1":
-        return {"kind": "s1", "requests": n}
+        return {"kind": "s1", "requests": n, "samples": perfect_samples(j["rate"], j["duration"])}
     s2 = j["s2"]
     out = {"kind": "s2", "arrivals": n, "responses": n, "status": {"200": n},
            "service_s": {"p50": 0.0075, "p99": 0.0099}, "arrivals_in_stall": None}
@@ -902,6 +955,118 @@ class GateTest(unittest.TestCase):
             V.finalize(tmp, [], {}, {"git_commit": "abc", "gate": g})
             with open(os.path.join(tmp, "README.md")) as f:
                 self.assertIn("* Environment gate (up at least 1800 s", f.read())
+
+
+class AdherenceTest(unittest.TestCase):
+    RATE, DURATION = 1000, 10
+
+    def adherence(self, **kw):
+        arrivals = schedule(self.RATE, self.DURATION, kw.pop("start", 2.4), **kw)
+        return V.schedule_adherence(readings(arrivals, 20), self.RATE, self.DURATION)
+
+    def test_a_tool_that_keeps_the_rate_gets_one_whatever_the_phase_of_its_start(self):
+        for start in (2.0, 2.01, 2.3, 2.5, 2.99):
+            with self.subTest(start=start):
+                out = self.adherence(start=start)
+                self.assertGreaterEqual(out["adherence"], 0.999)
+                self.assertAlmostEqual(out["start_s"], start, delta=0.01)
+                self.assertLess(out["late_s"], 0.1)
+
+    def test_a_tool_that_delivers_four_fifths_of_the_rate_is_late_even_if_every_request_comes(self):
+        # 800 of every 1000 a second. The schedule is anchored on the first stretch, which holds 480
+        # requests from 0.6 s, so it is placed 0.12 s late: 8200 of 10000 are on it, not 8000
+        out = self.adherence(speed=0.8)
+        self.assertAlmostEqual(out["adherence"], 0.82, delta=0.01)
+        self.assertAlmostEqual(out["late_s"], 2.4, delta=0.3)              # 12.5 s of arrivals
+
+    def test_a_tool_ahead_of_the_schedule_is_not_on_it_either(self):
+        # twice the rate for 5 s: only the seconds it sends in count, 5.8 of the 10
+        self.assertAlmostEqual(self.adherence(speed=2.0)["adherence"], 0.58, delta=0.02)
+
+    def test_a_short_stall_that_is_made_up_inside_the_stretch_costs_nothing(self):
+        self.assertGreaterEqual(self.adherence(stall=(5.2, 0.1))["adherence"], 0.99)
+
+    def test_a_long_stall_costs_the_stretch_it_emptied_and_the_burst_after_it_is_not_credited(self):
+        # [5, 6) gets 200 of 1000; the burst after the stall fills [6, 7), and what is above the cap
+        # of a stretch does not make up for another one
+        out = self.adherence(stall=(5.2, 1.5))
+        self.assertAlmostEqual(out["adherence"], 0.92, delta=0.01)
+
+    def test_a_tool_that_stops_after_a_third_has_a_third(self):
+        arrivals = [t for t in schedule(self.RATE, self.DURATION, 2.4) if t < 5.7]
+        out = V.schedule_adherence(readings(arrivals, 20), self.RATE, self.DURATION)
+        self.assertAlmostEqual(out["adherence"], 0.33, delta=0.02)
+
+    def test_no_arrivals_and_too_few_readings_give_zero(self):
+        self.assertEqual(V.schedule_adherence(readings([], 20), 1000, 10)["adherence"], 0.0)
+        self.assertEqual(V.schedule_adherence([(0.0, 8)], 1000, 10)["adherence"], 0.0)
+        self.assertEqual(V.schedule_adherence([], 1000, 10)["adherence"], 0.0)
+
+    def test_readings_that_are_missing_or_late_do_not_change_the_answer(self):
+        arrivals = schedule(self.RATE, self.DURATION, 2.4)
+        times = [0.0, 1.0, 2.0, 4.0, 5.3, 6.0, 7.0, 8.4, 9.0, 11.0, 12.0, 14.0, 15.0]  # gaps, jitter
+        out = V.schedule_adherence(readings(arrivals, 20, times=times), self.RATE, self.DURATION)
+        self.assertGreaterEqual(out["adherence"], 0.999)
+
+    def test_a_fast_catch_up_is_capped_and_a_slow_start_is_not_hidden(self):
+        # nothing for the first three seconds of the schedule, then the rest at the intended rate
+        arrivals = [t for t in schedule(self.RATE, self.DURATION, 2.4) if t >= 5.4]
+        out = V.schedule_adherence(readings(arrivals, 20), self.RATE, self.DURATION)
+        self.assertLess(out["adherence"], 0.75)
+
+
+class SamplerTest(unittest.TestCase):
+    def wait_for(self, condition, seconds=15.0):
+        end = time.monotonic() + seconds
+        while not condition() and time.monotonic() < end:
+            time.sleep(0.02)
+        self.assertTrue(condition())
+
+    def test_readings_come_on_a_schedule_and_one_that_fails_is_skipped(self):
+        # driven by what the sampler has done, not by how long it took: this VM wakes sleepers late
+        counts = iter([OSError("refused"), 5, ValueError("not a status page"), 9, 14])
+
+        def counter():
+            c = next(counts)
+            if isinstance(c, Exception):
+                raise c
+            return c
+
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(V, "SAMPLE_EVERY_S", 0.03):
+            n = V.Nginx(tmp)
+            n.counter, n._t0, n._stop = counter, time.monotonic(), threading.Event()
+            n.samples = [(0.0, 1)]
+            thread = threading.Thread(target=n._sample, daemon=True)
+            thread.start()
+            self.wait_for(lambda: len(n.samples) >= 4)
+            n._stop.set()
+            thread.join(10)
+        self.assertEqual([c for _, c in n.samples[:4]], [1, 5, 9, 14])    # the two failures left no trace
+        times = [t for t, _ in n.samples]
+        self.assertEqual(times, sorted(times))
+        self.assertGreater(times[1], 0.0)
+
+    @unittest.skipUnless(shutil.which("nginx") and shutil.which("taskset"),
+                         "needs nginx and taskset")
+    def test_the_s1_origin_counts_each_request_once_whatever_the_readings_in_between(self):
+        port = free_port()
+        with (tempfile.TemporaryDirectory() as tmp, V.Nginx(tmp, port=port, cpus="0") as n):
+            with socket.create_connection(("127.0.0.1", port), timeout=5) as s:
+                for _ in range(5):
+                    get(s)
+                time.sleep(1.2)
+                for _ in range(5):
+                    get(s)
+            summary = n.finish()
+        samples = summary["samples"]
+        self.assertEqual(summary["requests"], 10)
+        self.assertGreaterEqual(len(samples), 2)                      # the first and the last at least
+        self.assertEqual(samples[0][0], 0.0)
+        self.assertEqual([t for t, _ in samples], sorted(t for t, _ in samples))
+        stretches = [m1 - m0 - 1 for (_, m0), (_, m1) in itertools.pairwise(samples)]
+        self.assertEqual(sum(stretches), 10)                          # none lost, none counted twice
+        self.assertEqual(summary["counter_after"] - summary["counter_before"],
+                         10 + len(samples) - 1)
 
 
 class CliTest(unittest.TestCase):
