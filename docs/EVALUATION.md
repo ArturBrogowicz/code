@@ -24,6 +24,17 @@ effects below):
 `run_campaign.py --dry-run` prints the plan and the environment of every run without
 running anything.
 
+`--loads wrk,loadgen:50,loadgen:100,loadgen:200` makes the load model of the HTTP flood a factor of the
+block (EXP-C, `docs/EXPC_ATTACKER_SETTING_DESIGN.md`): a cell is `wrk`, the closed-loop default, or a
+`verified` open-loop tool and its requests/s **per bot**. Every block runs every (mode, load) pair once, in a
+random order from `--order-seed`, all with the block's `PROFILE_SEED`, so every cell of a block is paired.
+Run directories and mode labels are `<mode>` for `wrk` and `<mode>@<tool><rate>` otherwise, e.g.
+`xdp@loadgen100/run3`; `campaign.json` records `loads` only when it is not the default, so earlier campaigns
+resume as before, and `--loads wrk` alone is the plan it always was. The runner refuses the cells (before
+anything starts) when a tool is not `verified` in `bench/loadtools.json` or its binary is not the pinned one.
+`--set FLOOD_TOOL=... --set FLOOD_RATE=...` sets one load model for every run; the two options do not
+combine. The runner also reports a leftover `bench/loadgen.py` or `k6` process as it does a leftover `wrk`.
+
 ## Modes
 
 | Mode | Environment of the suite | What runs |
