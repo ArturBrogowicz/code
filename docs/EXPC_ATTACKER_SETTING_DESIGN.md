@@ -1,14 +1,24 @@
 # EXP-C prerequisites: the HTTP flood's load model as a setting (design note)
 
-**Status (2026-10-22): implemented as recommended, nothing run on the VM.** Commits on
+**Status (2026-10-22, after the R50 probe): implemented as recommended and run once in the testbed.** Commits on
 `feat/expc-attacker-setting` (off `feat/loadtools-harness`, which holds `bench/loadtools.py` and the verified
 generators): `6df18a9` the suite settings (2.1), `bc8adc4` the runner's `--loads` (2.2), `76a66b4`
-`server_requests.csv` (2.3); 715 tests pass. Taken as recommended: the engine is the primary open-loop tool
+`server_requests.csv` (2.3), then the fixes the first real run needed: `3f4feea` the CSV bins by arrival, `8235d39`
+the suite kills `wrk` by its exact name (it had killed its own runner), and `e1e8247` + `875b5de` the probe table
+helper and the published probe, `results/2026-10-22_expc-r50-probe/`; 729 tests pass. Taken as recommended: the engine
+is the primary open-loop tool
 and k6 is supported, scenario 4 only, the ~35-byte request-shape difference is accepted and recorded, the
 label scheme is `<mode>@<tool><rate>`. The settings rule moved into `loadtools.limits_for`. Checked offline: the
 default `wrk` command is pinned by a test, the default `--dry-run` is byte-identical to the previous runner's,
-and the dry-run of the EXP-C plan (3 modes x 4 loads x 10 blocks) lists 120 runs. Not done: the R50 probe, the
-three rates, the analysis by cell, and a first run of the open-loop flood in the testbed. Tags: **[FACT]** read from the code or a published file; **[PROPOSAL]** for you to
+and the dry-run of the EXP-C plan (3 modes x 4 loads x 10 blocks) lists 120 runs. **The probe** (unprotected, one run
+per rate): the open-loop path works in the testbed; the legit clients see 100 % up to 160 requests/s per bot and
+19.7 % and 1.8 % at 320 and 640, so success crosses 50 % between 1,600 and 3,200 requests/s in total, and the logged
+rate stops near 1.6 k/s, so R50 as pre-registered (a measured offered rate) is not defined and the refinement rule
+(bracketing runs more than 40 pp apart) applies. **Two findings, not yet fixed:** the 2 s launch check of
+`flood_alive` runs before the Phase-2 capture that sets the period "during", so the first seconds of an open-loop flood
+count as "before" in the suite's own figures (the probe tables count from `Attack_Start`); and above the limit the
+server log is a floor of the offered load (49 % of nominal at 320, 20 % at 640), so the check that 2.3 planned works
+only below it. Not done: the refinement ramp, the three rates, the analysis by cell. Tags: **[FACT]** read from the code or a published file; **[PROPOSAL]** for you to
 confirm; **[RISK]** a hazard with its mitigation. The experiment itself is `docs/BENCHMARK_HARM_DESIGN.md`
 8.5 on `design/benchmark-harm`: EXP-A's design with only the attacker's load model changed, in the same
 campaign: the closed-loop `wrk -c400` reference arm and open-loop arms at 0.5, 1 and 2 x R50 split over the
