@@ -35,6 +35,12 @@ anything starts) when a tool is not `verified` in `bench/loadtools.json` or its 
 `--set FLOOD_TOOL=... --set FLOOD_RATE=...` sets one load model for every run; the two options do not
 combine. The runner also reports a leftover `bench/loadgen.py` or `k6` process as it does a leftover `wrk`.
 
+`python3 eval/expc_probe.py <campaign dir>... [--md T.md] [--json T.json]` tabulates such runs from the raw
+records, for a probe that places the cells: the requests per second the bots offered and the server answered
+(`server_requests.csv`, by arrival), and what the legit clients saw in the first 30 s from the attack's real
+start (`availability_raw.csv`, not the "during" label, which for an open-loop flood begins about two seconds
+after the launch). A percentile is printed only from ten successes.
+
 ## Modes
 
 | Mode | Environment of the suite | What runs |
