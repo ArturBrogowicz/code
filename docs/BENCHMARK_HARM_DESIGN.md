@@ -1,9 +1,12 @@
 # Design plan: a benchmark in which attacks cause measurable harm
 
-**Status (2026-10-22): draft for your review. Design only: no production code, no benchmark run.**
-Decided so far: D4 (2026-10-22). Stage 1 of Appendix E was run the same day: vegeta and k6 are
-installed and smoke-tested, wrk2 is unavailable on this OS. Apart from those tools, nothing described
-here exists yet. The usual protocol applies: feature branch, static analysis first, approval of the
+**Status (2026-10-22): the design is approved; HG1a is written and not yet run on the VM.**
+Decisions: D4 decided (both generators); D1-D3 and D5-D12 approved at the recommended defaults.
+Stage 1 of Appendix E was run: vegeta and k6 are installed and smoke-tested, wrk2 is unavailable on
+this OS. HG1a (the wrapper, the verification harness and the engine, `bench/loadtools.py`,
+`bench/loadtool_validate.py`, `bench/loadgen.py`) is committed on the branch `feat/loadtools-harness`
+and has not generated any load; everything else described here does not exist yet. The usual
+protocol applies: feature branch, static analysis first, approval of the
 design before code, approval of every VM workload with its duration and side effects, one concern
 per commit gated on `unittest` + ruff, you merge and push.
 
@@ -313,7 +316,10 @@ An attack harms by saturating a *resource*; calibration is per resource, not per
 0. **Environment gate.** Clean tree, `uptime` above 30 minutes (the full-suite run of 2026-10-20
    started three minutes after a restart and its HTTP-flood time to mitigate was 1.08 s against
    0.55-0.69 s in warm runs; one run could not separate warm-up from phase), load average below
-   0.3, governor and steal time recorded.
+   0.3, governor and steal time recorded, and the timer wake-up lateness (`time.sleep(10 ms)`,
+   200 samples; the harness measures it before and after every run) with p99 below 10 ms. On
+   2026-10-22 the VM gave p50 12 ms and a maximum of 389 ms in a 20-sample probe, with no steal time
+   and no scheduling gap in a busy loop: its idle vCPUs are woken late.
 1. **Origin check.** Unloaded cost per route against the frozen table (5.3).
 2. **Capacity probe.** Legit workload only, open-loop ramp in 10 steps of 20 s, three repeats:
    `C_slo` (largest load with `Q` >= 99 %) and `C_sat` (`Q` < 50 %). `rho` = 0.5 x `C_slo`.
@@ -697,6 +703,7 @@ the way to undo them are in Appendix E.
 | The cost model *creates* the niche for low-rate harm [RISK] | a backend built so that cheap requests can hurt makes any rule-evading story easy | classes anchored to external grounding; ratios, not tuning; sensitivity at x0.5 / x2; controls where rules win and hard negatives that use expensive routes; conclusions stated as conditional (principle 4) |
 | Goodhart: tuning the gate until a scenario passes | an admitted scenario would mean nothing | frozen floor and SLOs; stopping rules (7.5); all candidates and the placebo reported |
 | Generator is the bottleneck | harm would be measured on the client, not the server | validity rules (8.3); CPU pinning; server-side count check |
+| Late timer wake-ups on the VM | a generator that sleeps until its next send slips by tens or hundreds of milliseconds; every tool's schedule suffers, and so does a daemon that polls once a second | the probe above, before and after every run; the validity gates (slip p99 below 50 ms) catch the effect; `bench/loadgen.py --spin-ms` busy-waits and the CPU flag ignores that time; if the VM cannot meet the gates, say so and move the generators to a host that can (D8) |
 | Host drift, cold start | the run of 2026-10-20 started 3 minutes after a restart; its HTTP-flood time to mitigate was 1.08 s against 0.55-0.69 s warm, and warm-up could not be separated from phase | environment gate and drift check (7.2); boot time in provenance |
 | Veth charges the receive work to the sender | L3/L4 CPU harm and XDP-vs-iptables CPU may not transfer | transferability probe; the limit stated; second VM as future work |
 | The unprotected stack is already hardened | slow-connection and SYN harm may be invisible | `bench-stock` and SYN sensitivity arms (D3); a FAIL is reported as such |
@@ -978,12 +985,16 @@ unavailable on this OS"; vegeta and k6 are unaffected.
 
 ### E.2 Stage 2: the verification harness (HG1a, code)
 
-`bench/loadtool_validate.py` starts S1 and S2 on loopback, runs V1-V7 of 8.4 for `wrk` (negative
-control), `vegeta`, `k6` and, once it exists, the in-repo engine, parses each tool's own
-report, compares it with the origin-side ground truth, and writes a campaign-like directory
-(`results/<date>_loadtool-validation/`: manifest, raw outputs, analysis, `SHA256SUMS`, README with
-the verdict per tool and test). It is offline-testable with canned tool outputs (Appendix C), and
-its runs on the VM are about 0.65 h. Nothing in Stage 2 starts before the design is approved.
+Written (branch `feat/loadtools-harness`, three commits): `bench/loadtools.py` (wrapper, scope
+lock, manifest `bench/loadtools.json`, readers), `bench/loadtool_validate.py` and `bench/loadgen.py`.
+The harness starts S1 (a user-level Nginx on 127.0.0.1:18081, CPUs 0-1) and S2 (the scripted
+origin on 127.0.0.1:18083, CPUs 2-3), runs V1-V7 of 8.4 for `vegeta`, `k6`, the engine and `wrk`
+(the negative control of V4 only) on CPUs 4-7, parses each tool's own report, compares it with the
+origin's ground truth, and writes a campaign-like directory (README, `results.json`, one directory
+per job, `SHA256SUMS`). The matrix is 58 jobs and 18 minutes of load; `plan` prints every command
+and starts nothing; `run` needs `--yes`. The readers for vegeta, k6 and wrk were written from the
+tools' documented formats and are checked against real output by the first session. The first
+session is proposed in two steps: V1 alone (3 jobs), then the full matrix.
 
 ### E.3 Stage 1 outcome (run 2026-10-22, 07:46-07:50 on the VM clock, about 3 minutes of machine time)
 
