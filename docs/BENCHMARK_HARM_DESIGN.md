@@ -421,7 +421,7 @@ the analytic value of V4, which does not depend on any tool.
 | **In-repo asyncio** (`bench/loadgen.py`, new; stdlib) | primary: legit populations, L7 families, one source address per identity, seeds, scope lock, our per-request record schema | one engine for legit and attack load; deterministic schedules; reviewable | Python: a ceiling of a few thousand requests/s per core (to be measured); must itself pass the verification |
 | **wrk2** (`giltene/wrk2` @ `44a94c1`; Apache-2.0): **unavailable on this OS** | was: high-rate constant-throughput driver, the reference implementation of the correction | `-R` total rate, HdrHistogram latency, efficient C | builds (GCC 15.2, OpenSSL 3.5.5) but exits at the start of every run with `PANIC: unprotected error in call to Lua API (attempt to index a nil value)`; its bundled LuaJIT is 2.0.3 (2014) and the default-branch head is a 2019 merge; cause not diagnosed, no retry made (E.3) |
 | **vegeta** (v12.13.0, release binary; MIT [verify]) | open-loop constant-rate driver with many targets | `-laddr`, JSON and HDR reports, PGP-signed checksum file | its README defines latency as the time taken for a response to be read, so the correction semantics are for the verification to establish |
-| **k6** (v2.3.0, release binary; AGPL-3.0 [verify]) | scenario-rich open-model driver (`constant-arrival-rate`, `ramping-arrival-rate`) | arrival-rate executors, thresholds, JS scripting for sessions | heaviest per request; v2 is a recent major version; checksums but no signature |
+| **k6** (v2.3.0, release binary; AGPL-3.0 [verify]) | scenario-rich open-model driver (`constant-arrival-rate`, `ramping-arrival-rate`) | arrival-rate executors, thresholds, JS scripting for sessions | heaviest per request; v2 is a recent major version; checksums but no signature; reports anonymous usage on every run unless given `--no-usage-report` |
 
 **Provisioning rules for every external tool.**
 
@@ -441,8 +441,9 @@ the analytic value of V4, which does not depend on any tool.
   root.
 * Execution goes through a thin wrapper (`bench/loadtools.py`) that builds the command line from a
   schedule, refuses a target outside the testbed subnet (or loopback, for the verification), pins
-  CPUs, and records the exact command, version and sha256 in the run's provenance. Direct
-  invocation is for the verification only.
+  CPUs, never follows redirects (a redirect could leave the subnet), starts k6 with
+  `--no-usage-report`, and records the exact command, version and sha256 in the run's provenance.
+  Direct invocation is for the verification only.
 
 **Verification protocol.** The acceptance criteria are written down here, before any measurement,
 and apply to every generator including the in-repo one. Two loopback origins: S1, a user-level
@@ -1017,3 +1018,9 @@ No agent or tool process is left running.
 3. The evidence is kept in `/home/artur/loadtools/stage1-record/` (apt logs, package lists, the
    Nginx configuration and k6 script used, the three tools' smoke outputs). It is not yet in the
    manifest or in `results/`.
+4. k6 sends an anonymous usage report each time it runs unless `--no-usage-report` (or
+   `K6_NO_USAGE_REPORT`) is set. The Stage 1 smoke run did not set it, so one report was very likely
+   sent (the VM has outbound HTTPS). According to k6's documentation it holds an installation ID,
+   the k6 version, VU, duration and iteration settings, OS and architecture, the imported modules
+   and outputs, and the build origin; no target address and no script content. This side effect was
+   not in the approved list and I had not foreseen it. The wrapper of 8.4 always passes the flag.
