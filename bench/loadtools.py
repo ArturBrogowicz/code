@@ -504,8 +504,8 @@ def quantile(sorted_values, q):
 
 def _exact_latency(csv_path):
     """Latencies (s) of every row of a `vegeta encode -to=csv` file, plus those of 2xx rows,
-    and the first and last request timestamps (ns)."""
-    allv, okv, first, last = [], [], None, None
+    and the request timestamps (ns)."""
+    allv, okv, stamps = [], [], []
     with open(csv_path, newline="") as f:
         for row in csv.reader(f):
             if len(row) < 3:
@@ -514,9 +514,19 @@ def _exact_latency(csv_path):
             allv.append(lat)
             if 200 <= code < 300:
                 okv.append(lat)
-            first = ts if first is None else min(first, ts)
-            last = ts if last is None else max(last, ts)
-    return sorted(allv), sorted(okv), first, last
+            stamps.append(ts)
+    return sorted(allv), sorted(okv), stamps
+
+
+def sent_per_second(stamps):
+    """Requests started in each second since the first one: how well the schedule was kept."""
+    if not stamps:
+        return []
+    first = min(stamps)
+    counts = [0] * ((max(stamps) - first) // 1_000_000_000 + 1)
+    for ts in stamps:
+        counts[(ts - first) // 1_000_000_000] += 1
+    return counts
 
 
 def _latency_dict(values):
@@ -546,12 +556,13 @@ def parse_vegeta(report_path, csv_path=None):
                                    "wait_s": rep.get("wait", 0) / 1e9,
                                    "error_set": (rep.get("errors") or [])[:5]}
     if csv_path:
-        allv, okv, first, last = _exact_latency(csv_path)
+        allv, okv, stamps = _exact_latency(csv_path)
         if len(allv) != requests:
             raise ToolError(f"{csv_path}: {len(allv)} rows but the report counts {requests}")
         latency, quantiles = _latency_dict(allv), "exact"
         extra["latency_2xx"] = _latency_dict(okv)
-        extra["first_ts_ns"], extra["last_ts_ns"] = first, last
+        extra["first_ts_ns"], extra["last_ts_ns"] = min(stamps), max(stamps)
+        extra["sent_per_s"] = sent_per_second(stamps)
     return ToolResult("vegeta", requests, responses, ok2xx, responses - ok2xx, errors, codes,
                       latency, quantiles, rep["duration"] / 1e9, 0, extra)
 

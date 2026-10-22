@@ -415,6 +415,13 @@ class ParserTest(unittest.TestCase):
         self.assertAlmostEqual(r.extra["latency_2xx"]["max"], 0.003)
         self.assertEqual((r.extra["first_ts_ns"], r.extra["last_ts_ns"]),
                          (1_000_000_000, 1_040_000_000))
+        self.assertEqual(r.extra["sent_per_s"], [5])
+
+    def test_sent_per_second(self):
+        s = 1_000_000_000
+        self.assertEqual(LT.sent_per_second([]), [])
+        self.assertEqual(LT.sent_per_second([5 * s, 5 * s + 1, 6 * s - 1, 6 * s, 8 * s + 5]),
+                         [3, 1, 0, 1])
 
     def test_vegeta_csv_that_disagrees_with_the_report_is_refused(self):
         write(os.path.join(self.tmp, "r.json"), json.dumps(VEGETA_REPORT))
