@@ -1,11 +1,14 @@
 # Design plan: a benchmark in which attacks cause measurable harm
 
-**Status (2026-10-22): the design is approved; HG1a is written and not yet run on the VM.**
-Decisions: D4 decided (both generators); D1-D3 and D5-D12 approved at the recommended defaults.
-Stage 1 of Appendix E was run: vegeta and k6 are installed and smoke-tested, wrk2 is unavailable on
-this OS. HG1a (the wrapper, the verification harness and the engine, `bench/loadtools.py`,
-`bench/loadtool_validate.py`, `bench/loadgen.py`) is committed on the branch `feat/loadtools-harness`
-and has not generated any load; everything else described here does not exist yet. The usual
+**Status (2026-10-22): the design is approved; HG1a is written and was run once as a pilot, which
+found faults in the harness; the harness is corrected offline and the corrected run awaits your
+approval (Appendix F).**
+Decisions: D4 decided (both generators); D1-D3 and D5-D12 approved at the recommended defaults; D13
+(two post hoc amendments to the verification criteria) adopted. Stage 1 of Appendix E was run:
+vegeta and k6 are installed and smoke-tested, wrk2 is unavailable on this OS. HG1a (the wrapper, the
+verification harness and the engine, `bench/loadtools.py`, `bench/loadtool_validate.py`,
+`bench/loadgen.py`) is on the branch `feat/loadtools-harness`; its first full run is published as a
+pilot whose verdicts are not used. Nothing else described here exists yet. The usual
 protocol applies: feature branch, static analysis first, approval of the
 design before code, approval of every VM workload with its duration and side effects, one concern
 per commit gated on `unittest` + ruff, you merge and push.
@@ -468,6 +471,13 @@ tests).
 | V6 status accounting | S2 answers 10 % of requests with 503 | the tool's non-2xx count is within 1 % of the origin's |
 | V7 ceiling and cost | ramp 1k, 2k, 5k, 10k, 20k requests/s, 10 s each, one pinned core | highest rate with at least 99 % schedule adherence and no errors; CPU per 1,000 requests/s recorded |
 
+**Criteria version 2 (added 2026-10-22).** The table above is criteria version 1, fixed before any
+measurement and used for the first run. Version 2 adds two amendments adopted *after* that run, each
+labelled **post hoc** wherever it appears (A1: the V4 control is judged by its arrivals in the stall,
+not by its reported p99; A2: V3 latency is judged from the actual send for every tool), and applies
+this table's own V7 criterion, schedule adherence, which the first run did not (C1, not an
+amendment). Every results directory records the version that judged it. Appendix F.4.
+
 Each tool gets the documented settings a test needs (for V4 enough workers or VUs to cover 3 s of
 arrivals, at least 1,500 plus margin); the settings are recorded, and a tool that passes only with
 settings the benchmark cannot afford (CPU, descriptors) is reported with that restriction. A
@@ -753,6 +763,7 @@ need Gate A as a prerequisite (REPORT 11.8).
 | D10 | VM budget ceiling: minimum viable version about 18 h; two L7 families + EXP-C about 13 h; EXP-C + one costly-route family about 7 h (each includes 0.75 h for the load tools) | Stage it: tools and EXP-C first, then HG2 for the costly-route family, look at the result, then decide. Each session is approved separately anyway; the ceiling is for planning |
 | D11 | EXP-C: first, on the legacy origin (comparable with EXP-A), with a closed-loop arm in the same campaign (120 runs, about 3.5 h); or reuse EXP-A as the closed-loop reference (90 runs, about 2.7 h, comparing across days); or wait for the calibrated origin | First option |
 | D12 | Gate B (harm that remains under the deterministic daemon): reported here as the daemon's HRR in HG4, with the ML admissibility rule left to the ML track; or implemented now as a second gate with its own floor | Report HRR; decide the ML rule when the ML track resumes |
+| D13 | Two changes to pre-registered verification criteria after the first run: A1 (the V4 control judged by its arrivals in the stall) and A2 (V3 latency judged from the actual send for every tool) | **Adopted 2026-10-22**, labelled post hoc wherever they appear; the first run keeps its original verdicts (Appendix F.4) |
 
 ## Appendix A: worked example with illustrative numbers
 
@@ -995,6 +1006,8 @@ per job, `SHA256SUMS`). The matrix is 58 jobs and 18 minutes of load; `plan` pri
 and starts nothing; `run` needs `--yes`. The readers for vegeta, k6 and wrk were written from the
 tools' documented formats and are checked against real output by the first session. The first
 session is proposed in two steps: V1 alone (3 jobs), then the full matrix.
+(This paragraph is the text from before the first run; what happened and what was corrected
+afterwards is in Appendix F.)
 
 ### E.3 Stage 1 outcome (run 2026-10-22, 07:46-07:50 on the VM clock, about 3 minutes of machine time)
 
@@ -1035,3 +1048,173 @@ No agent or tool process is left running.
    the k6 version, VU, duration and iteration settings, OS and architecture, the imported modules
    and outputs, and the build origin; no target address and no script content. This side effect was
    not in the approved list and I had not foreseen it. The wrapper of 8.4 always passes the flag.
+
+## Appendix F: verification sessions of the load generators (HG1a)
+
+Added 2026-10-22, after the first verification run. Tags as at the top.
+
+### F.1 What was run
+
+Both sessions were approved separately, on loopback, without root, with the commands that `plan`
+prints (E.2).
+
+* **Session A**: V1 alone, 3 jobs, 41 s. All three tools passed.
+* **Session B**: the full matrix, 58 jobs, 18 min of load, 12:32:21-12:52:48 UTC, commit `210399c`
+  (clean tree). It started after the gate (uptime 1808 s, 1-minute load 0.03) and ended with exit
+  code 0, no infrastructure error and no process left over; `/usr/bin/wrk` is unchanged. The real
+  output of vegeta, k6 and the engine parsed with the readers written from the documented formats.
+* Output is in `/var/tmp/loadtool_validation/` (the approved `/var/tmp/ddos_campaigns` is owned by
+  root). It is published as a *pilot* on `feat/loadtools-harness` (`455a6f0`):
+  `results/2026-10-22_loadtool-validation-pilot/`, with a `NOTES.md` that says which of its
+  verdicts not to use.
+
+### F.2 What the first full run showed
+
+Verdicts as computed by criteria version 1 (the table of 8.4):
+
+| Tool | V1 | V2 | V3 | V4 | V5 | V6 | V7 |
+|---|---|---|---|---|---|---|---|
+| vegeta v12.13.0 | pass | pass (9/9) | fail (p99) | pass | fail | pass | held 2k, collapsed from 5k |
+| k6 v2.3.0 | pass | fail (7/9) | pass | fail | pass | pass | held 2k, drops from 5k |
+| in-repo engine | pass | pass (9/9) | fail (p50, p99) | pass | pass | pass | schedule held to 10k |
+| wrk 4.1.0 (control) | - | - | - | control NOT as expected | - | - | - |
+
+**These verdicts are not used.** The run exposed six faults in the harness and protocol, mixed into
+them (details and numbers in the pilot's `NOTES.md`):
+
+1. **Generic settings.** Every tool ran with 100 VUs or an idle pool of 100, whatever the test. k6
+   under-delivered in 2 of 9 V2 runs (it reported `dropped_iterations` equal to the shortfall) and
+   sent 621 of the 1,500 requests due during the stall [FACT]; a pre-allocated pool too small for a
+   late wake-up is the likely cause [INFERENCE].
+2. **V7 counted totals, not schedule adherence.** The engine delivered all 200,000 requests of the
+   20,000/s step but only 16,000/s on schedule, finishing 2.3 s late, and the README called
+   20,000 held [FACT]. Its schedule was exact to 10,000/s.
+3. **No socket monitoring.** vegeta at 5,000/s sent bursts then nothing for 7 s with 1,780 timeouts
+   and mostly system CPU time (13.8 s against 2.4 s of user time), and at 10,000 and 20,000/s only
+   about 370 requests/s reached the origin [FACT]; connection churn and ephemeral-port exhaustion
+   are suspected and not shown [INFERENCE].
+4. **CPU per 1,000 requests included the steps after the load** (vegeta `report` and `encode`, the
+   engine's summary), so it was an upper bound.
+5. **The negative control was not one.** wrk 4.1.0 held its 50 connections and sent nothing during
+   the stall (0 arrivals), yet reported p99 2.61 s against an analytic 2.6075 s [FACT]; its latency
+   statistics appear to be corrected for coordinated omission after the run [INFERENCE].
+6. **V3 did not tell apart latency from the intended time from latency from the actual send.** The
+   engine's latency from the actual send agreed with the origin's own within 0.4 ms (p50) and 0.5 ms
+   (p99); the 1.8 and 5.0 ms by which its reported figures exceed them are its schedule slip, which
+   intended-time accounting includes on purpose [FACT].
+
+Also [FACT]: k6 reports every request it fails to start; vegeta stops starting requests silently
+once its `-max-workers` are busy (V5: 20,289 of 40,000 missing, nothing reported).
+
+### F.3 What was corrected (offline; nothing run)
+
+| Fault | Correction | Commit |
+|---|---|---|
+| 1 settings | `limits_for`: workers (vegeta workers, k6 pre-allocated VUs) = rate x 0.3 s between 100 and 2,000, for the stall test rate x (3 s + 0.2 s) = 1,600; 5,000 in flight at most for every tool; idle pool = workers; wrk keeps 50 connections; `plan` and `run` build the same spec and `job.json` records it. k6's kill timeout grows by 50 ms per VU (a margin, not a measurement) | `03186f4`, `58412df` |
+| 2 V7 | the S1 origin reads its request counter once a second; `schedule_adherence` = share of rate x duration that arrived in its own part of the schedule (the schedule starts where the first stretch with arrivals puts it; per stretch at most rate x the part inside the schedule counts); a third V7 check, >= 0.99 | `8288401` |
+| 3 sockets | a job starts only with fewer than 5,000 sockets in TIME_WAIT (a sixth of the 28,232 ephemeral ports; waits up to 90 s and says so); TIME_WAIT is recorded at start and end; "cannot assign requested address" is named in the notes | `03186f4` |
+| 4 CPU | the wrapper records the CPU of every step; the cost is that of the load step (the engine: its own figure); cores used are reported | `03186f4` |
+| 5 control | A1 | `cf4a1d3` |
+| 6 V3 | A2 | `cf4a1d3` |
+| (new) environment | `run` waits up to 30 min for the gate of 7.2 (up 30 min, 1-minute load below 0.3) or refuses; the timer probe also runs pinned to each CPU set in use, before and after (F.5) | `03186f4`, `59e873e` |
+
+Tests: 648 pass, ruff is clean. Several unit tests that assumed this VM wakes a sleeping thread
+within a second were rewritten to assert invariants or to skip when the machine stalled (F.5).
+
+### F.4 Criteria version 2, and what it changes
+
+* **A1 (post hoc, V4).** The closed-loop control is judged by the requests that reach the origin
+  during the stall (at most 10 % of rate x stall = 150), not by its reported p99, which stays in
+  the README marked "not counted". Reason: the pilot's wrk sent nothing during the stall and still
+  reported 2.61 s.
+* **A2 (post hoc, V3).** Latency is judged from the actual send for every tool. A tool that also
+  reports it from the intended time (the engine) is judged on both: the figure from the actual send
+  within the V3 tolerance of the origin's; the figure from the intended time at most the slip limit
+  (50 ms, 8.3) above it, the difference being the schedule slip. vegeta and k6 report from the
+  actual send and are judged as before.
+* **C1 (not post hoc, V7).** Schedule adherence, the design's own criterion, which the first run did
+  not apply. Jobs that recorded no readings are not judged on it.
+
+Mechanics: `CRITERIA_VERSION` and `AMENDMENTS` are written to `results.json` and to a "Criteria"
+section of the README; every check carries `counts` and `post_hoc`, and the README prints the
+label next to each affected check. `reanalyse DIR` keeps the version DIR was judged by (1 when it
+records none), so published verdicts cannot change under it; judging by another version needs
+`--rejudge-into NEW`, which copies the job files, never overwrites, and records what changed.
+**Effect on the pilot** [FACT; a scratch copy re-judged by version 2, the published directory
+untouched]: exactly two verdicts change, the engine's V3 from fail to pass and the wrk V4 control
+from "NOT as expected" to "ok". Every other verdict is unchanged; V7 cannot be re-judged because the
+pilot recorded no readings. The first run keeps its original verdicts.
+
+### F.5 The VM's timer noise, per vCPU (2026-10-22, about 13:30 UTC)
+
+Passive probes (a process sleeping and timing its wake-ups, pinned with `taskset`, no traffic) [FACT]:
+
+* 8 probes at once, 50 ms sleeps, 30 s: vCPUs 0-5 and 7 p50 25.5-30.7 ms, p99 102.8-113.6 ms, max
+  112-305 ms; **vCPU 6: p50 1.4 ms, p99 6.1 ms, max 7.6 ms**.
+* 2 probes (vCPU 5 and 6), 45 s: vCPU 5 p50 66.4 ms, p99 250.1 ms, max 395.8 ms, 87 sleeps over
+  100 ms (57 of them in the last 18 s); vCPU 6 p50 1.9 ms, none over 100 ms.
+* one probe at a time, 10 ms sleeps, 3 s: p50 0.5-3.7 ms, p99 6.9-39.4 ms, max up to 79.8 ms; the
+  four CPU sets of the harness (0-1, 2-3, 4-7, 4) p99 14-38 ms.
+* the harness's own unpinned probe (200 x 10 ms) at the same time: p50 4.2-5.1 ms, p99 9.7-12.5 ms.
+* inside one unit-test run a `sleep(1.4)` returned after 2.95 s, and a step that begins with a
+  `sleep(0.5)` took 2.4 s.
+* steal time 0, 1-minute load 0.3-0.4, clocksource `tsc`.
+
+Reading [INFERENCE]: the lateness belongs to the vCPU, grows with the time it sat idle and with how
+many vCPUs idle together, and is not a VM-wide freeze; its cause (timer delivery to halted vCPUs) is
+not diagnosed. Consequences: (a) V3's tolerance, the larger of 1 ms and 10 %, is below this noise
+for any tool that sleeps between sends or between arrivals, so a V3 failure says as much about the
+VM as about the tool (the pilot's vegeta p99 +7 ms may be this); (b) V7 at 1,000-2,000/s leaves
+the tool idle between sends, so a late wake-up becomes a burst, which the one-second stretches
+tolerate when it is short and charge when it is long; (c) time-to-mitigate figures taken on this VM
+carry the same jitter. Since 59e873e the run records the probe for every CPU set it uses, before and
+after, and its README is to be read with them. Mitigations **not taken**, because each changes what
+is measured and is your call: a lowest-priority busy loop on every vCPU (keeps them out of halt,
+raises the load average, shares SMT and caches with the tool), the engine's `--spin-ms`, or moving
+the tool to vCPU 6.
+
+### F.6 Proposed corrected run (awaiting your approval; nothing below has been started)
+
+Two sessions, each on loopback, without root, from the worktree `audit-must-do-2-5`
+(`feat/loadtools-harness` at `58412df`, clean):
+
+```bash
+# 0. offline, starts nothing: the 58 jobs with their commands and limits
+./venv/bin/python bench/loadtool_validate.py plan
+
+# C1: V1 alone (3 jobs, 30 s of load; about 2 min including the gate and the timer probes)
+timeout -s INT 600 ./venv/bin/python bench/loadtool_validate.py run --yes --tests V1 \
+    --gate-wait 30 --out /var/tmp/loadtool_validation/20261022_loadtool-validation-c1
+
+# C2: the full matrix, only if C1 shows no infrastructure error and all three tools' results parse
+timeout -s INT 3600 ./venv/bin/python bench/loadtool_validate.py run --yes \
+    --gate-wait 30 --out /var/tmp/loadtool_validation/20261022_loadtool-validation-c2
+```
+
+* **Duration.** C2 is 58 jobs and 18.2 min of load. The first run took 20.5 min wall. Added: the
+  timer probes (about 0.5 min), k6's start of up to 2,000 VUs (not measured), and waits for TIME_WAIT
+  to fall below 5,000 after jobs with large pools (at most 90 s each). Expect about 25 min, at most
+  about 45; plus up to 30 min of waiting for the gate if the VM is not idle at the start (the run
+  refuses after that).
+* **Side effects.** Processes on 127.0.0.1 only: a user-level Nginx (port 18081, CPUs 0-1), the
+  scripted origin (port 18083, CPUs 2-3), vegeta, k6, the engine and wrk (CPUs 4-7, V7 on CPU 4),
+  all stopped by the harness; up to about 5,000 sockets in TIME_WAIT and up to 5,000 connections
+  and as many goroutines or VUs at a time (the first run reached 4,637 VUs without trouble); the
+  1-minute load average rises well above the gate's 0.3 and takes minutes to fall; output of about
+  7-10 MB under `/var/tmp/loadtool_validation/` (raw tool output is dropped). No root, no packages, no sysctl, XDP, iptables or namespaces, no
+  external traffic (proxy variables are stripped; k6 runs with `--no-usage-report`). Afterwards I
+  check for leftover processes and listening ports and that `/usr/bin/wrk` and the tool binaries
+  are unchanged. Nothing else is run on the VM during C2, including my unit tests; please do the
+  same.
+* **Stop rules.** Stop and report on an infrastructure error or a leftover process; a tool that
+  fails a job is a result, not a stop. If the timer probe after the run is far worse than before,
+  the session is reported as suspect, not re-run silently.
+* **What I expect (a guess, not a criterion).** V1 and V2 pass for all three; V4 passes for the three
+  subjects and the control; V5 shows vegeta's silent cap again; V3 is the least predictable (F.5):
+  vegeta fails again if the lateness is on the client, the others depend on the moment; V7 holds
+  to 10,000/s for the engine (at about 90 % of a core, above the 70 % validity limit), and to
+  2,000-5,000/s for vegeta and k6, with k6's cost including the start of its VUs. If V3 fails for
+  every tool that does not spin, that is a finding about the VM, and whether to rebase V3's tolerance
+  on the measured noise would be a third, separate, post hoc decision for you.
+* **After the run.** Publish C2 as `results/2026-10-22_loadtool-validation-run2` with a `NOTES.md`
+  (the pilot stays); then, and only then, edit the manifest statuses by hand.
