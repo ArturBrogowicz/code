@@ -979,6 +979,25 @@ def timer_lines(env):
     return out
 
 
+def timer_cpu_lines(env):
+    before, after = env.get("timer_cpus"), env.get("timer_cpus_after")
+    if not before and not after:
+        return []
+
+    def cell(t):
+        if not t:
+            return "-"
+        warn = " **above the limit**" if t["p99_ms"] > TIMER_WARN_MS else ""
+        return f"{t['p50_ms']:.1f} / {t['p99_ms']:.1f} / {t['max_ms']:.1f}{warn}"
+
+    rows = ["", ("Timer wake-up lateness on the CPUs in use (a probe pinned to them, sleep 10 ms, "
+                 "200 samples; p50 / p99 / max in ms):"), "",
+            "| CPUs | Used for | Before the run | After the run |", "|---|---|---|---|"]
+    rows += [f"| {cpus} | {role} | {cell((before or {}).get(cpus))} | "
+             f"{cell((after or {}).get(cpus))} |" for cpus, role in CPU_ROLES.items()]
+    return rows
+
+
 def gate_lines(env):
     g = env.get("gate")
     if not g:
@@ -1031,7 +1050,7 @@ def render_readme(results):
               "constants of that script, fixed before any measurement."), "",
              (f"* Commit: `{env.get('git_commit')}` (dirty: {fmt(env.get('git_dirty'))}); "
               f"host: {env.get('uname')}; created {env.get('created_utc')}."),
-             *gate_lines(env), *timer_lines(env), "",
+             *gate_lines(env), *timer_lines(env), *timer_cpu_lines(env), "",
              *criteria_lines(results),
              "## Verdict per tool and test", "",
              "| Tool | V0 | " + " | ".join(TESTS) + " | Suggested status |",
@@ -1125,6 +1144,23 @@ def timer_lateness(samples=200, interval=0.01):
 
 
 TIMER_WARN_MS = 10.0                      # p99 above this: schedules of any tool will slip
+CPU_ROLES = {CPUS["s1"]: "S1 (Nginx)", CPUS["s2"]: "S2 (scripted origin)",
+             CPUS["tools"]: "tools", CPUS["one_core"]: "the tool in V7"}
+
+
+def timer_lateness_by_cpus(samples=200, interval=0.01):
+    """The timer probe run pinned to each CPU set that a run uses. An idle vCPU is woken late and
+    not every vCPU alike, so the unpinned probe can look fine while the CPUs in use are not."""
+    out = {}
+    for cpus in CPU_ROLES:
+        cp = subprocess.run(["taskset", "-c", cpus, sys.executable, os.path.abspath(__file__),
+                             "timer-probe", "--samples", str(samples), "--interval", str(interval)],
+                            capture_output=True, text=True, timeout=120, check=False)
+        try:
+            out[cpus] = json.loads(cp.stdout)
+        except ValueError:
+            out[cpus] = None
+    return out
 
 
 def environment(timer=True, gate=None):
@@ -1140,7 +1176,8 @@ def environment(timer=True, gate=None):
             "uname": " ".join(platform.uname()), "cpus": os.cpu_count(),
             "python": sys.version.split()[0], "git_commit": git("rev-parse", "HEAD"),
             "git_dirty": None if dirty is None else bool(dirty),
-            "gate": gate, "timer": timer_lateness() if timer else None}
+            "gate": gate, "timer": timer_lateness() if timer else None,
+            "timer_cpus": timer_lateness_by_cpus() if timer else None}
 
 
 def run_all(env, jobs, out_dir, tools_info, keep_raw=False, stop_on_error=False):
@@ -1268,6 +1305,9 @@ def main(argv=None):
                    help="criteria version to judge by (default: the one DIR was judged by)")
     s.add_argument("--rejudge-into", metavar="NEW",
                    help="write the re-judgement into a new directory; DIR is left as it is")
+    s = sub.add_parser("timer-probe", help="print the timer lateness probe as JSON (used by run)")
+    s.add_argument("--samples", type=int, default=200)
+    s.add_argument("--interval", type=float, default=0.01)
     s = sub.add_parser("serve-s2", help="the S2 origin process (started by run)")
     s.add_argument("--port", type=int, default=S2_PORT)
     s.add_argument("--log", required=True)
@@ -1276,6 +1316,9 @@ def main(argv=None):
 
     if a.cmd == "serve-s2":
         return serve_s2(a)
+    if a.cmd == "timer-probe":
+        print(json.dumps(timer_lateness(a.samples, a.interval)))
+        return 0
     if a.cmd == "reanalyse":
         return reanalyse(a)
 
@@ -1324,7 +1367,8 @@ def main(argv=None):
     except InfraError as exc:
         print(f"[-] stopped: {exc}", file=sys.stderr)
         return 1
-    finalize(a.out, evals, tools_info, {**env_before, "timer_after": timer_lateness()})
+    finalize(a.out, evals, tools_info, {**env_before, "timer_after": timer_lateness(),
+                                        "timer_cpus_after": timer_lateness_by_cpus()})
     print(f"[+] {a.out}/README.md")
     return 0
 

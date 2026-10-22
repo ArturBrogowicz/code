@@ -714,6 +714,33 @@ class FlowTest(unittest.TestCase):
         self.assertIn("lateness after the run (sleep 10 ms, 200 samples): p50 0.1 ms, "
                       "p99 0.5 ms, max 1.0 ms.\n", text)
 
+    @unittest.skipUnless(shutil.which("taskset"), "needs taskset")
+    def test_the_timer_probe_runs_pinned_to_each_cpu_set_a_run_uses(self):
+        out = V.timer_lateness_by_cpus(samples=20, interval=0.002)
+        self.assertEqual(list(out), ["0-1", "2-3", "4-7", "4"])
+        for cpus, t in out.items():
+            with self.subTest(cpus=cpus):
+                self.assertEqual((t["samples"], t["interval_s"]), (20, 0.002))
+                self.assertTrue(0 <= t["p50_ms"] <= t["p99_ms"] <= t["max_ms"])
+
+    def test_the_readme_lists_the_timer_lateness_of_every_cpu_set_and_warns(self):
+        slow = {"interval_s": 0.01, "samples": 200, "p50_ms": 27.0, "p99_ms": 105.0, "max_ms": 114.7}
+        fine = {**slow, "p50_ms": 1.4, "p99_ms": 6.1, "max_ms": 7.6}
+        env = {"git_commit": "abc", "timer_cpus": {"0-1": slow, "2-3": fine, "4-7": slow, "4": None},
+               "timer_cpus_after": {"0-1": fine, "2-3": fine, "4-7": fine, "4": fine}}
+        with tempfile.TemporaryDirectory() as tmp:
+            V.finalize(tmp, [], {}, env)
+            with open(os.path.join(tmp, "README.md")) as f:
+                text = f.read()
+        self.assertIn("| 0-1 | S1 (Nginx) | 27.0 / 105.0 / 114.7 **above the limit** | "
+                      "1.4 / 6.1 / 7.6 |", text)
+        self.assertIn("| 2-3 | S2 (scripted origin) | 1.4 / 6.1 / 7.6 | 1.4 / 6.1 / 7.6 |", text)
+        self.assertIn("| 4 | the tool in V7 | - | 1.4 / 6.1 / 7.6 |", text)
+        with tempfile.TemporaryDirectory() as tmp:                       # no probe, no table
+            V.finalize(tmp, [], {}, {"git_commit": "abc"})
+            with open(os.path.join(tmp, "README.md")) as f:
+                self.assertNotIn("CPUs in use", f.read())
+
     def test_the_evaluations_are_listed_in_a_fixed_order(self):
         self.silently(self.run_all)
         jobs = read(self.out, "results.json")["jobs"]
