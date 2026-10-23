@@ -336,6 +336,27 @@ fixed the rule. Since then only the helper that formats the table has changed.
 Every contrast has the same sign in 10 of 10 blocks; 0.002 is the smallest sign-flip p ten blocks
 can give. The effect sizes needed 3 and 5 blocks for 80 % power.
 
+**EXP-C** (`results/2026-10-23_expc-open-vs-closed-loop/`, 2026-10-23, protocol `docs/EXPC_PROTOCOL.md` fixed before the
+data) repeats EXP-A's design with the attacker's load model as a second factor (`--loads`): the same ten `PROFILE_SEED`s,
+three modes, and every contrast drawn inside a load cell, against the unprotected arm of the same cell. The open-loop
+cells are `bench/loadgen.py` at 125, 250 and 500 requests/s per bot (10 bots).
+
+| Load cell | Contrast (during the flood) | Mean block difference | 95 % t-interval | Sign-flip p | Decision | Unprotected arm |
+|---|---|---|---|---|---|---|
+| `wrk`, closed loop | daemon (XDP) − unprotected | +22.5 pp | [+16.0, +29.0] | 0.002 | supported (+) | 77.5 % |
+| `wrk`, closed loop | limits only − unprotected | −34.3 pp | [−45.4, −23.2] | 0.002 | supported (−) | 77.5 % |
+| 125 per bot | daemon (XDP) − unprotected | −0.0 pp | [−0.1, +0.1] | 1.000 | not shown | 100.0 % (not harmed) |
+| 125 per bot | limits only − unprotected | +0.0 pp | [+0.0, +0.0] | 1.000 | not shown | 100.0 % (not harmed) |
+| 250 per bot | daemon (XDP) − unprotected | +57.9 pp | [+52.6, +63.2] | 0.002 | supported (+) | 42.1 % |
+| 250 per bot | limits only − unprotected | +57.9 pp | [+52.6, +63.2] | 0.002 | supported (+) | 42.1 % |
+| 500 per bot | daemon (XDP) − unprotected | +88.6 pp | [+84.7, +92.5] | 0.002 | supported (+) | 11.4 % |
+| 500 per bot | limits only − unprotected | +88.6 pp | [+84.7, +92.5] | 0.002 | supported (+) | 11.4 % |
+
+Where both mitigations served 100 % in every block the two contrasts are identical: that is the ceiling, not a tie
+that was tested. In the closed-loop cell the contrasts keep EXP-A's signs and differ in size; the difference is in the
+unprotected arm (77.5 % against 66.8 %). A cell whose unprotected arm keeps 90 % or more is "not harmed" and tests
+nothing about mitigation (`run_level_stats.HARM_BELOW_PCT`).
+
 ## Side effects of a suite run (root)
 
 * `pkill` of `control_plane.py`, gunicorn, nginx, hping3, wrk and `_dist_*` scripts (wrk by its exact process
