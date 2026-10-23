@@ -21,8 +21,10 @@ count at 190 per bot and 82, 63, 49 and 20 % at 230, 270, 320 and 640, so the ch
 limit (not changed). **Done 2026-10-23 after that:** the user fixed the rates at 125, 250 and 500 per bot; the analysis
 works by load cell (`92c2aef`: contrasts inside a cell, `offered.csv`, one figure per cell; the analysis of all 12 published
 campaigns regenerates byte for byte); `publish_campaign.py` copies `server_requests.csv` (`97b3bf0`); the protocol is
-written down in `docs/EXPC_PROTOCOL.md` (`095684d`). Not done: the EXP-C campaign itself, which needs the user's approval
-of its command. Tags: **[FACT]** read from the code or a published file; **[PROPOSAL]** for you to
+written down in `docs/EXPC_PROTOCOL.md` (`095684d`). **The EXP-C campaign ran on 2026-10-23** (120 runs, all exit 0, no
+leftover) and is published as `results/2026-10-23_expc-open-vs-closed-loop/` (`2709781`): against an open-loop attacker limits-only
+and the daemon both serve 100 % in every block at 125, 250 and 500 requests/s per bot (unprotected 100, 42.1 and 11.4 %), and the
+closed-loop `wrk` cell gives the daemon +22.5 pp and limits-only -34.3 pp. Tags: **[FACT]** read from the code or a published file; **[PROPOSAL]** for you to
 confirm; **[RISK]** a hazard with its mitigation. The experiment itself is `docs/BENCHMARK_HARM_DESIGN.md`
 8.5 on `design/benchmark-harm`: EXP-A's design with only the attacker's load model changed, in the same
 campaign: the closed-loop `wrk -c400` reference arm and open-loop arms at 0.5, 1 and 2 x R50 split over the
