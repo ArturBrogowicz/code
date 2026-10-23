@@ -433,6 +433,44 @@ class FloodCommandTest(unittest.TestCase):
                     self.assertIsNone(re.search(pattern, line))
 
 
+class FloodPeriodTest(unittest.TestCase):
+    """The legit clients' period is "during" from the moment the flood is launched, so the seconds of the
+    launch check count as the attack (the probe of 2026-10-22 found them labelled "before")."""
+
+    def run_scenario(self, tool):
+        seen = {"captures": []}
+
+        def alive(procs, bots, wait=None):
+            seen["at_launch_check"] = S._avail_period
+
+        def capture(scenario, phase):
+            seen["captures"].append((phase, S._avail_period))
+
+        with mock.patch.object(S, "FLOOD_TOOL", tool), mock.patch.object(S, "_avail_period", "before"), \
+                mock.patch.object(S, "capture_metrics", side_effect=capture), \
+                mock.patch.object(S, "_attack_begin", return_value=1.0), \
+                mock.patch.object(S, "_get_log_size", return_value=0), \
+                mock.patch.object(S, "launch_botnet", return_value=[(FakeBot(), "bot_1", "10.0.2.1")]), \
+                mock.patch.object(S, "flood_alive", side_effect=alive), \
+                mock.patch.object(S, "tail_logs_for_bans", return_value=[]), \
+                mock.patch.object(S, "kill_procs"), mock.patch.object(S, "report"), \
+                mock.patch.object(S.time, "sleep"), mock.patch("builtins.print"):
+            S.scenario_http_flood([("bot_1", "10.0.2.1")], [])
+            seen["end"] = S._avail_period
+        return seen
+
+    def test_the_launch_check_runs_in_the_during_period_and_the_baseline_stays_before(self):
+        for tool in ("loadgen", "wrk"):
+            with self.subTest(tool=tool):
+                seen = self.run_scenario(tool)
+                self.assertEqual(seen["at_launch_check"], "during")
+                self.assertEqual(seen["captures"][0], ("Phase 1: Baseline", "before"))
+                self.assertEqual([phase for phase, _ in seen["captures"][1:]],
+                                 ["Phase 2: Pre-Mitigation", "Phase 3: Post-Mitigation"])
+                self.assertEqual({period for _, period in seen["captures"][1:]}, {"during"})
+                self.assertEqual(seen["end"], "after")
+
+
 class FloodPreflightTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

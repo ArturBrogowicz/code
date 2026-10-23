@@ -1665,6 +1665,7 @@ def scenario_http_flood(botnet, legit):
     attack_start = _attack_begin()
     log_pos = _get_log_size()
     procs = launch_botnet(botnet, start_flood)
+    _avail_phase("during")     # live from the launch: the launch check's seconds are not 'before'
     flood_alive(procs, len(botnet))
     capture_metrics("Distributed HTTP Flood", "Phase 2: Pre-Mitigation")
     bans = tail_logs_for_bans([ip for _, ip in botnet], timeout=15, attack_start=attack_start, log_start_pos=log_pos)
