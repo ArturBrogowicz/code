@@ -291,6 +291,18 @@ n paired blocks the smallest attainable sign-flip p is 2 / 2^n (0.25 for n = 3).
 Campaigns without shared seeds (the EXP-2a import) are compared unpaired and carry no
 decision.
 
+A campaign recorded with `--loads` (run labels `mode@cell`; a plain label is the closed-loop `wrk` cell) is
+analysed inside each load cell: `analyze_campaign.py` and `run_level_stats.py` compare every label with the
+reference mode of its own cell, never across load models, and add a `cell` column (`wrk` for the closed-loop
+one). `run_level_stats.py` also prints the reference arm's mean success and whether the cell is "harmed", that
+mean being below 90 %: a cell in which the unprotected server keeps 90 % or more tests nothing about
+mitigation. The decision rule above is unchanged. `analyze_campaign.py` adds `offered.csv` and a summary
+section from `server_requests.csv` (the bots' request lines per second at the server, by arrival, and the
+answers by status; a floor of the offered load above the server's limit), and `plot_campaign.py` one
+availability figure per cell, `availability_<scenario>__<cell>.png`. `publish_campaign.py` copies
+`server_requests.csv` with the other run files. Campaigns without cells or without that file are analysed
+exactly as before.
+
 The decision rule is fixed in the tool, in the commit that added it, before any 10-block
 data exist: a paired contrast is *supported* iff it has ≥ 10 blocks, the 95 % t-interval
 of the mean block difference excludes 0, and ≥ 80 % of the blocks have the sign of the

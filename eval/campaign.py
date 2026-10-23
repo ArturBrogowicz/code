@@ -39,9 +39,43 @@ def natural_key(s):
     return [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", str(s))]
 
 
-def ordered_modes(modes):
-    modes = set(modes)
-    return [m for m in MODE_ORDER if m in modes] + sorted(modes - set(MODE_ORDER))
+def split_label(label):
+    """(mode, cell) of a run label. A campaign recorded with `--loads` (EXP-C) labels a run `mode@cell`, e.g.
+    `xdp@loadgen125`; a plain label is the closed-loop `wrk` default, whose cell is ''."""
+    mode, _, cell = str(label).partition("@")
+    return mode, cell
+
+
+def cells(labels):
+    """The load cells of a set of run labels, the closed-loop one ('') first, the others in natural order."""
+    return sorted({split_label(m)[1] for m in labels}, key=natural_key)
+
+
+def has_cells(labels):
+    return any(split_label(m)[1] for m in labels)
+
+
+def reference_label(reference, cell):
+    """The label of the reference mode inside a load cell."""
+    return reference + ("@" + cell if cell else "")
+
+
+def mode_name(label):
+    return MODE_NAMES.get(split_label(label)[0], split_label(label)[0])
+
+
+def display_name(label):
+    mode, cell = split_label(label)
+    return f"{MODE_NAMES.get(mode, mode)} ({cell})" if cell else MODE_NAMES.get(mode, mode)
+
+
+def ordered_modes(labels):
+    """Run labels in table order: by load cell (closed-loop first), then the usual mode order, then the
+    other modes alphabetically. Without cells that is the order campaigns have always had."""
+    def key(label):
+        mode, cell = split_label(label)
+        return natural_key(cell), MODE_ORDER.index(mode) if mode in MODE_ORDER else len(MODE_ORDER), mode
+    return sorted(set(labels), key=key)
 
 
 def _read_json(path):
@@ -76,7 +110,8 @@ def load(path):
     if not found:
         raise SystemExit(f"no runs (provenance.json) under {path}")
     files = {"raw": "availability_raw.csv", "agg": "availability.csv",
-             "metrics": "metrics.csv", "scenarios": "scenario_results.csv"}
+             "metrics": "metrics.csv", "scenarios": "scenario_results.csv",
+             "server_requests": "server_requests.csv"}
     tables = {k: [] for k in files}
     runs, events = [], []
     for mode, run, rdir in found:
@@ -217,6 +252,58 @@ def delta_vs_reference(raw, runs, reference="unprotected", period="during"):
     return _sort(pd.DataFrame(rows), _scenario_order(raw))
 
 
+def delta_vs_reference_by_cell(raw, runs, reference="unprotected", period="during"):
+    """delta_vs_reference inside each load cell of a `--loads` campaign: every label is compared with the
+    `reference` mode of its own cell, never across load models. The first column, `cell`, is '' for the
+    closed-loop default."""
+    frames = []
+    for cell in cells(raw["mode"]):
+        part = raw[raw["mode"].map(lambda label, cell=cell: split_label(label)[1] == cell)]
+        df = delta_vs_reference(part, runs, reference_label(reference, cell), period)
+        if not df.empty:
+            df.insert(0, "cell", cell)
+            frames.append(df)
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+
+OFFERED_STATUSES = ("200", "503", "499")       # the rest of the statuses is summed as "other"
+DEFAULT_WINDOW_S = 30                           # the attack's length when the run recorded none
+
+
+def offered(server_requests, runs):
+    """The load the server received from the bots (server_requests.csv: the Nginx access log by the second a
+    request arrived), per scenario and run label over the first ATTACK_DURATION seconds of each run: the mean
+    per second over the runs, the median second (the first, in which the generators start, left out) and
+    the answers by status. Empty without the file."""
+    if server_requests.empty:
+        return pd.DataFrame()
+    window = {(r.mode, r.run): (int(float(r.attack_duration)) if pd.notna(r.attack_duration)
+                                and float(r.attack_duration) > 0 else DEFAULT_WINDOW_S)
+              for r in runs.itertuples()}
+    bots = server_requests[(server_requests.Client_Class == "bot") & server_requests.T_Rel_s.notna()]
+    rows = []
+    for (scen, mode), g in bots.groupby(["Data_Scenario", "mode"], sort=False):
+        per_run = []
+        for run, gr in g.groupby("run", sort=False):
+            w = window[(mode, run)]
+            gr = gr[(gr.T_Rel_s >= 0) & (gr.T_Rel_s < w)]
+            by_second = gr.groupby(gr.T_Rel_s.astype(int)).Requests.sum().reindex(range(w), fill_value=0)
+            by_status = gr.groupby(gr.Status.astype(str)).Requests.sum()
+            known = {s: by_status.get(s, 0) for s in OFFERED_STATUSES}
+            per_run.append({"w": w, "total": by_second.sum(), "median": by_second.iloc[1:].median() if w > 1 else np.nan,
+                            **known, "other": by_status.sum() - sum(known.values())})
+        n = len(per_run)
+        w = per_run[0]["w"]
+        rows.append({"scenario": scen, "mode": mode, "runs": n, "window_s": w,
+                     "offered_per_s": sum(p["total"] / p["w"] for p in per_run) / n,
+                     "offered_median_per_s": float(np.nanmean([p["median"] for p in per_run])),
+                     "status_200_per_s": sum(p["200"] / p["w"] for p in per_run) / n,
+                     "status_503_per_s": sum(p["503"] / p["w"] for p in per_run) / n,
+                     "status_499_per_s": sum(p["499"] / p["w"] for p in per_run) / n,
+                     "other_status_per_s": sum(p["other"] / p["w"] for p in per_run) / n})
+    return _sort(pd.DataFrame(rows), _scenario_order(server_requests, "Data_Scenario"))
+
+
 def _latency_row(values):
     v = values.astype(float)
     return {"n": len(v), "p50_ms": v.quantile(.5) if len(v) else np.nan,
@@ -320,7 +407,7 @@ def summary_markdown(title, data, tables, window_s, reference):
            ("Generated by `eval/analyze_campaign.py` (deterministic: re-running it on this "
             "directory reproduces this file)."), ""]
     out.append(_table(["", ""], [
-        ["Runs per mode", ", ".join(f"{MODE_NAMES.get(m, m)}: {per_mode[m]}"
+        ["Runs per mode", ", ".join(f"{display_name(m)}: {per_mode[m]}"
                                     for m in ordered_modes(per_mode.index))],
         ["Commit(s)", ", ".join(sorted(str(c)[:12] for c in runs.commit.dropna().unique())) or "—"],
         ["Operating point(s)", ", ".join(sorted(map(str, runs.operating_point.dropna().unique()))) or "—"],
@@ -336,14 +423,20 @@ def summary_markdown(title, data, tables, window_s, reference):
         for r in d.itertuples():
             b = other.success_pct.get((r.scenario, r.mode, "before"), np.nan)
             a = other.success_pct.get((r.scenario, r.mode, "after"), np.nan)
-            rows.append([r.scenario, MODE_NAMES.get(r.mode, r.mode), f"**{_f(r.success_pct)} %**",
+            rows.append([r.scenario, display_name(r.mode), f"**{_f(r.success_pct)} %**",
                          f"{_f(r.ci_lo)}–{_f(r.ci_hi)}", r.per_run_pct, r.n, _f(b), _f(a)])
         out.append(_table(["Scenario", "Mode", "During", "95 % CI (runs)", "Per run", "n",
                            "Before %", "After %"], rows))
-    if not dl.empty:
-        out += ["", f"## Difference vs {MODE_NAMES.get(reference, reference)} (during)", ""]
+    if not dl.empty and "cell" in dl.columns:
+        out += ["", f"## Difference vs the {display_name(reference)} arm of the same load cell (during)", ""]
+        out.append(_table(["Cell", "Scenario", "Mode", "Δ pp", "95 % CI", "Resampling", "Fisher p (pooled)"],
+                          [[r.cell or "wrk", r.scenario, mode_name(r.mode), _f(r.delta_pp, "{:+.1f}"),
+                            f"{_f(r.ci_lo, '{:+.1f}')} to {_f(r.ci_hi, '{:+.1f}')}", r.method,
+                            _f(r.fisher_p, "{:.2g}")] for r in dl.itertuples()]))
+    elif not dl.empty:
+        out += ["", f"## Difference vs {display_name(reference)} (during)", ""]
         out.append(_table(["Scenario", "Mode", "Δ pp", "95 % CI", "Resampling", "Fisher p (pooled)"],
-                          [[r.scenario, MODE_NAMES.get(r.mode, r.mode), _f(r.delta_pp, "{:+.1f}"),
+                          [[r.scenario, display_name(r.mode), _f(r.delta_pp, "{:+.1f}"),
                             f"{_f(r.ci_lo, '{:+.1f}')} to {_f(r.ci_hi, '{:+.1f}')}", r.method,
                             _f(r.fisher_p, "{:.2g}")] for r in dl.itertuples()]))
     if not lat.empty:
@@ -358,7 +451,7 @@ def summary_markdown(title, data, tables, window_s, reference):
                     return "—"
                 return f"{_f(byp[p].p50_ms, '{:.0f}')} / {_f(byp[p].p95_ms, '{:.0f}')} (n={byp[p].n})"
 
-            rows.append([scen, MODE_NAMES.get(mode, mode), cell("perfect"), cell("ALL")])
+            rows.append([scen, display_name(mode), cell("perfect"), cell("ALL")])
         out.append(_table(["Scenario", "Mode", "perfect clients p50 / p95", "all clients p50 / p95"],
                           rows))
     if not win.empty:
@@ -373,13 +466,13 @@ def summary_markdown(title, data, tables, window_s, reference):
                 return (f"{_f(byp[p].success_pct)} % (n={byp[p].n}), "
                         f"p50 {_f(byp[p].p50_ms, '{:.0f}')} ms")
 
-            rows.append([scen, MODE_NAMES.get(mode, mode), cell("perfect"), cell("ALL")])
+            rows.append([scen, display_name(mode), cell("perfect"), cell("ALL")])
         out.append(_table(["Scenario", "Mode", "perfect clients", "all clients"], rows))
     if not det.empty:
         out += ["", "## Detection (ban events)", ""]
         out.append(_table(["Scenario", "Mode", "Banned / bots", "TTM median (min–max) s",
                            "First-ban engines", "GRU bans", "False positives", "Exposure s"],
-                          [[r.scenario, MODE_NAMES.get(r.mode, r.mode), f"{r.banned}/{r.bots}",
+                          [[r.scenario, display_name(r.mode), f"{r.banned}/{r.bots}",
                             (f"{_f(r.ttm_median_s, '{:.2f}')} ({_f(r.ttm_min_s, '{:.2f}')}–"
                              f"{_f(r.ttm_max_s, '{:.2f}')})"), r.engines or "—", r.gru_bans,
                             f"{r.fp_count} [{r.fp_source}]" + (f": {r.fp_ips}" if r.fp_ips else ""),
@@ -388,8 +481,18 @@ def summary_markdown(title, data, tables, window_s, reference):
         out += ["", "## Server load, mean over the attack phases", ""]
         cols = [c for c in SERVER_COLUMNS if c in srv]
         out.append(_table(["Scenario", "Mode"] + cols,
-                          [[r["scenario"], MODE_NAMES.get(r["mode"], r["mode"])]
+                          [[r["scenario"], display_name(r["mode"])]
                            + [_f(r[c], "{:.0f}") for c in cols] for _, r in srv.iterrows()]))
+    off = tables.get("offered")
+    has_offered = off is not None and not off.empty
+    if has_offered:
+        out += ["", "## Offered load at the server (bot addresses), mean per second over the attack", ""]
+        out.append(_table(["Scenario", "Mode", "Runs", "Window s", "Offered /s", "Median second /s",
+                           "200 /s", "503 /s", "499 /s", "Other /s"],
+                          [[r.scenario, display_name(r.mode), r.runs, r.window_s, _f(r.offered_per_s, "{:.0f}"),
+                            _f(r.offered_median_per_s, "{:.0f}"), _f(r.status_200_per_s, "{:.0f}"),
+                            _f(r.status_503_per_s, "{:.0f}"), _f(r.status_499_per_s, "{:.0f}"),
+                            _f(r.other_status_per_s, "{:.0f}")] for r in off.itertuples()]))
     out += ["", "## Notes", "",
             ("* Availability counts every legit request by the period in which it *started* "
              "(curl `--max-time 10`); a timeout counts as a failure."),
@@ -399,5 +502,11 @@ def summary_markdown(title, data, tables, window_s, reference):
             ("* Time-to-mitigate is the first ban event of each bot minus the recorded attack "
              "start; false positives are ban events for legit clients (`ban events`), none by "
              "construction without a daemon (`no daemon`), or the legacy ping check (`ping`)."),
-            ""]
+            ]
+    if has_offered:
+        out.append("* Offered load counts the request lines of the bot addresses in the Nginx access log by the "
+                   "second a request arrived. A line is written when a request finishes, so above the server's "
+                   "limit it is a floor of what reached the server. 503 is the status of a `limit_req` or "
+                   "`limit_conn` rejection; 499 is a client that closed first.")
+    out.append("")
     return "\n".join(out)

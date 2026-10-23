@@ -30,6 +30,14 @@ its timestamp). A paired contrast is "supported" iff
 Otherwise it is "not shown" (or "too few blocks"). A contrast that is not supported is
 reported as such; it is not evidence of no effect.
 
+A campaign recorded with `--loads` (EXP-C, labels `mode@cell`; a plain label is the closed-loop `wrk`
+cell) is compared inside each load cell: every label against the reference mode of its own cell, never
+across load models. Each contrast then also carries the reference arm's mean success over its blocks and
+whether the cell is "harmed", i.e. that mean is below HARM_BELOW_PCT: a cell in which the unprotected
+server keeps 90 % or more tests nothing about mitigation (docs/BENCHMARK_HARM_DESIGN.md 8.5; ten blocks
+certify a harm of about 10 pp, section 11). The harm check is reported next to the decision; it does not
+change it.
+
     ./venv/bin/python eval/run_level_stats.py CAMPAIGN [--reference unprotected]
         [--period during] [--scenario NAME ...] [--min-blocks N] [--md FILE] [--csv FILE]
 """
@@ -55,6 +63,7 @@ MC_DRAWS = 200_000
 MC_SEED = 20261020
 POWER = 0.8
 ALPHA = 0.05
+HARM_BELOW_PCT = 90.0            # a load cell is "harmed" when its unprotected arm averages below this
 
 
 def t_interval(d, level=LEVEL):
@@ -183,8 +192,9 @@ def run_percentages(raw, scenario, mode, period):
 
 
 def contrasts(data, reference="unprotected", period="during", scenarios=None,
-              min_blocks=MIN_BLOCKS):
-    """One row per (scenario, mode) contrast against `reference`."""
+              min_blocks=MIN_BLOCKS, reference_mean=False):
+    """One row per (scenario, mode) contrast against `reference`; with `reference_mean` the reference arm's
+    mean success (over the blocks of the contrast) is a column too."""
     raw, runs = data["raw"], data["runs"]
     if raw.empty or reference not in set(raw["mode"]):
         return pd.DataFrame()
@@ -210,6 +220,7 @@ def contrasts(data, reference="unprotected", period="during", scenarios=None,
                 blocks = sorted(set(seeds_c) & set(seeds_r))
                 d = np.array([seeds_c[k] - seeds_r[k] for k in blocks])
                 mean, lo, hi = t_interval(d)
+                ref_mean = float(np.mean([seeds_r[k] for k in blocks]))
                 row.update(design=f"paired by PROFILE_SEED ({len(d)} blocks)", blocks=len(d),
                            mean_diff_pp=mean, ci_lo=lo, ci_hi=hi, t_p=paired_t_p(d),
                            perm_p=signflip_p(d), same_sign=same_sign_share(d),
@@ -218,13 +229,35 @@ def contrasts(data, reference="unprotected", period="during", scenarios=None,
                                                                    if len(d) > 1 else None))
             else:
                 a, b = np.array(list(cur.values())), np.array(list(ref.values()))
+                ref_mean = float(b.mean())
                 mean, lo, hi, p = welch(a, b)
                 row.update(design=f"unpaired ({len(a)} vs {len(b)} runs)", blocks=min(len(a), len(b)),
                            mean_diff_pp=mean, ci_lo=lo, ci_hi=hi, t_p=p,
                            perm_p=exact_permutation_p(a, b), same_sign=math.nan,
                            decision="unpaired: descriptive only", blocks_for_80pct_power=None)
+            if reference_mean:
+                row["reference_mean_pp"] = ref_mean
             rows.append(row)
     return pd.DataFrame(rows)
+
+
+def contrasts_by_cell(data, reference="unprotected", period="during", scenarios=None,
+                      min_blocks=MIN_BLOCKS):
+    """contrasts() inside each load cell of a `--loads` campaign: every label is compared with the `reference`
+    mode of its own cell. Columns added: `cell` ('' is the closed-loop default; first), the reference arm's mean
+    success over the blocks of the contrast and `harmed` (that mean is below HARM_BELOW_PCT)."""
+    raw, runs = data["raw"], data["runs"]
+    frames = []
+    for cell in C.cells(raw["mode"]):
+        keep = {m for m in set(raw["mode"]) if C.split_label(m)[1] == cell}
+        part = {**data, "raw": raw[raw["mode"].isin(keep)], "runs": runs[runs["mode"].isin(keep)]}
+        df = contrasts(part, C.reference_label(reference, cell), period, scenarios, min_blocks,
+                       reference_mean=True)
+        if not df.empty:
+            df["harmed"] = df["reference_mean_pp"] < HARM_BELOW_PCT
+            df.insert(0, "cell", cell)
+            frames.append(df)
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
 def _fmt(x, spec):
@@ -235,16 +268,20 @@ def _fmt(x, spec):
 
 
 def to_markdown(df, title="Run-level contrasts"):
-    head = ("| Scenario | Mode vs reference | Design | Mean diff (pp) | 95 % t-interval | "
-            "Paired t p | Sign-flip / permutation p | Same-sign blocks | Decision | "
-            "Blocks for 80 % power |")
-    lines = [f"**{title}**", "", head, "|---|---|---|---|---|---|---|---|---|---|"]
+    by_cell = "cell" in df.columns
+    head = ("| " + ("Load cell | " if by_cell else "") + "Scenario | Mode vs reference | Design | Mean diff (pp) | "
+            "95 % t-interval | Paired t p | Sign-flip / permutation p | Same-sign blocks | Decision | "
+            "Blocks for 80 % power |" + (" Reference mean (%) | Harm check |" if by_cell else ""))
+    lines = [f"**{title}**", "", head, "|" + "---|" * (10 + (3 if by_cell else 0))]
     for r in df.itertuples():
-        lines.append(
-            f"| {r.scenario} | {r.mode} vs {r.reference} ({r.period}) | {r.design} "
-            f"| {_fmt(r.mean_diff_pp, '+.1f')} | [{_fmt(r.ci_lo, '+.1f')}, {_fmt(r.ci_hi, '+.1f')}] "
-            f"| {_fmt(r.t_p, '.3f')} | {_fmt(r.perm_p, '.4f')} | {_fmt(r.same_sign, '.2f')} "
-            f"| {r.decision} | {_fmt(r.blocks_for_80pct_power, 'd')} |")
+        row = (f"| {r.scenario} | {r.mode} vs {r.reference} ({r.period}) | {r.design} "
+               f"| {_fmt(r.mean_diff_pp, '+.1f')} | [{_fmt(r.ci_lo, '+.1f')}, {_fmt(r.ci_hi, '+.1f')}] "
+               f"| {_fmt(r.t_p, '.3f')} | {_fmt(r.perm_p, '.4f')} | {_fmt(r.same_sign, '.2f')} "
+               f"| {r.decision} | {_fmt(r.blocks_for_80pct_power, 'd')} |")
+        if by_cell:
+            row = (f"| {r.cell or 'wrk'} " + row + f" {_fmt(r.reference_mean_pp, '.1f')} | "
+                   f"{'harmed' if r.harmed else 'not harmed'} |")
+        lines.append(row)
     return "\n".join(lines) + "\n"
 
 
@@ -259,8 +296,10 @@ def main(argv=None):
     ap.add_argument("--md", help="write the table as Markdown")
     ap.add_argument("--csv", help="write the table as CSV")
     args = ap.parse_args(argv)
-    df = contrasts(C.load(args.campaign), args.reference, args.period, args.scenario,
-                   args.min_blocks)
+    data = C.load(args.campaign)
+    by_cell = C.has_cells(data["raw"].get("mode", [])) and "@" not in args.reference
+    df = (contrasts_by_cell if by_cell else contrasts)(data, args.reference, args.period, args.scenario,
+                                                       args.min_blocks)
     if df.empty:
         raise SystemExit(f"no contrasts: no runs of the reference mode {args.reference!r} "
                          f"with availability data under {args.campaign}")

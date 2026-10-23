@@ -4,8 +4,11 @@
     venv/bin/python eval/analyze_campaign.py <campaign_dir> [--window 10] [--reference unprotected]
 
 Writes <campaign_dir>/analysis/{summary.md, availability.csv, delta_vs_reference.csv,
-latency.csv, window.csv, detection.csv, server.csv}. Deterministic: running it again on
-the same data reproduces the files byte for byte (see docs/EVALUATION.md).
+latency.csv, window.csv, detection.csv, server.csv} and, for runs that archived the load the
+server received (server_requests.csv), offered.csv. A campaign recorded with `--loads`
+(labels `mode@cell`) is compared inside each load cell: every label against the reference
+mode of its own cell, with a `cell` column. Deterministic: running it again on the same data
+reproduces the files byte for byte (see docs/EVALUATION.md).
 """
 import argparse
 import json
@@ -20,15 +23,19 @@ def analyse(campaign_dir, out_dir=None, window_s=10.0, reference="unprotected"):
     data = C.load(campaign_dir)
     out_dir = out_dir or os.path.join(campaign_dir, "analysis")
     os.makedirs(out_dir, exist_ok=True)
+    delta = C.delta_vs_reference_by_cell if C.has_cells(data["raw"].get("mode", [])) else C.delta_vs_reference
     tables = {
         "availability": C.availability(data["raw"]),
-        "delta_vs_reference": C.delta_vs_reference(data["raw"], data["runs"], reference),
+        "delta_vs_reference": delta(data["raw"], data["runs"], reference),
         "latency": C.latency(data["raw"]),
         "window": C.window(data["raw"], window_s),
         "detection": C.detection(data["scenarios"]),
         "server": C.server(data["metrics"]),
+        "offered": C.offered(data["server_requests"], data["runs"]),
     }
     for name, df in tables.items():
+        if name == "offered" and df.empty:
+            continue                      # campaigns recorded before server_requests.csv keep their files
         df.to_csv(os.path.join(out_dir, f"{name}.csv"), index=False, float_format="%.3f",
                   lineterminator="\n")
     # Title from the campaign's own record, not its path: the output must not change when
