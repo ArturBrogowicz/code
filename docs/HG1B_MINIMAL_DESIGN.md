@@ -1,7 +1,8 @@
 # HG1b minimal cut: design delta (written before the code)
 
-**Status (2026-10-23): approved, nothing built yet.** The user approved deltas 1-10, O4 as D14 and the full cut (D17) on
-2026-10-23: eight commits on `feat/hg1b-minimal`, off `feat/expc-attacker-setting`, offline only. The base is
+**Status (2026-10-23): built, offline, unmerged and unpushed; section 9 says how it differs from this note.** The user
+approved deltas 1-10, O4 as D14 and the full cut (D17) on 2026-10-23: eight commits on `feat/hg1b-minimal`, off
+`feat/expc-attacker-setting`, offline only (ten were made, section 9). The base is
 `docs/BENCHMARK_HARM_DESIGN.md` on `design/benchmark-harm`; its section numbers are cited as "design N". This file is its
 delta, to be folded into it by whoever merges that branch. Nothing here changes `bench/loadgen.py` (its sha256 stays as
 pinned in `bench/loadtools.json`), `test_distributed_suite.py`, the Nginx configurations, the daemon, or a published result.
@@ -107,7 +108,8 @@ reproduces `Q` within 2 pp and p95 within 25 % (7.2 step 7).
 * **Addresses:** benign 10.0.1.0/24 (then 10.0.3.0/24), attackers 10.0.2.0/24, all inside the scope lock of `bench/loadtools.py`; the suite's own convention
   (10.0.1.x legit, 10.0.2.x bots), so its false-positive and class logic keeps working.
 * **A stream spec** is: `id`, `kind` (`legit` or `attack`), `class`, `route_class`, `process` and its `period`/`duty`, `rate`, `seed`, `netem`, `ns_index`,
-  `addresses`, `ua`, `paths`, `start_s`, `duration_s`, `cpu` (`legit` or `attack`), and the engine's `pool`. It converts to a `LoadSpec` for the wrapper.
+  `addresses`, `paths`, `start_s`, `duration_s`, `cpu` (`legit` or `attack`), and the engine's `pool`. It converts to a `LoadSpec` for the wrapper.
+  There is no `ua`: the engine sends `User-Agent: loadgen/1` on every request (section 9).
 
 ### 5.4 The scenario record and `--plan` (`bench/scenario.py`)
 
@@ -165,3 +167,92 @@ suite, but the suite registers `atexit` and signal handlers and keeps module sta
 * The costs are placeholders until HG2 measures them; every conclusion is conditional on the cost model (design principle 4).
 * A population of class-pure streams is coarser than the design's sessions; the number of processes it implies is part of the plan output and may need the reduction rule of D5.
 * Nothing here has run on the VM. The first contact with it is HG1c, then HG2.
+
+## 9. As built (2026-10-23)
+
+Branch `feat/hg1b-minimal`, off `feat/expc-attacker-setting` (f96c30c); unmerged, unpushed. Offline only: no VM workload,
+no sudo run, no namespace, no traffic. Ten commits, because two defects found while writing the tests and the plan each
+got a commit of their own.
+
+| Commit | What |
+|---|---|
+| e73da79 | this note |
+| 4ec6b45 | `bench/loadtools.py`: the wrapper builds multi-identity commands for the engine (`local_addrs`, `paths`, `process`, `seed`, `period`, `duty`, `ramp_to`, `spin_ms`); the default argv is unchanged and the other tools refuse these options |
+| fa31372 | `bench/origin.py`, the cost-calibrated origin |
+| 36ce15f | `bench/calibration.py` and `bench/calibration/placeholder.json` |
+| 0a037fc | `bench/population.py` |
+| 9ecc4df | fix: an attack group is split evenly and never past the engine's ceiling |
+| 217f42a | `bench/scenario.py`, three specs, three golden plans |
+| e501121 | the plan prints the worst-case in-flight requests of each stream against the engine's cap |
+| 91491cc | `eval/harm_gate.py` |
+| the one that adds this section | `docs/EVALUATION.md` and this section |
+
+Tests: 7 new in `test_loadtools` (69), 23 origin, 19 calibration, 28 population, 54 scenario, 73 harm gate; the whole
+suite was 958 tests OK at 91491cc, and ruff was clean on every new file at every commit.
+
+### 9.1 Where the build differs from sections 3 to 6
+
+* **No `ua` in a stream.** [FACT: `bench/loadgen.py` sends `User-Agent: loadgen/1` on every request.] The daemon's L7 engine
+  keys on (IP, User-Agent); in this population the second part is one constant. Gate A does not read it; a study of
+  detectors that does would need an engine change, which changes its pinned hash and its verification.
+* **Streams are per namespace.** An engine process runs in one network namespace and a namespace carries one link profile, so
+  a stream is a (process, route class, profile) combination: 29 legit and 4 attack streams at 200 identities (33 processes, about
+  1 GB at 30 MB each) with four namespaces. An identity in several streams has one idle pool in each: the printed idle-pool
+  figure (2,892 for 200 identities) is an upper bound on idle connections, not on concurrency.
+* **A pulse sends whole requests per period**: `rate = max(1, round(rate x 15 s)) / 15 s`, so the smallest pulse stream sends one
+  request every 15 s, and the legit total is 90.07 req/s for a rho of 90.
+* **Rates inside a stream are equal.** The engine splits a stream's schedule round-robin over its addresses, so the per-identity
+  spread of rates survives between classes and streams and is lost inside one.
+* **`/export` takes `?r=<digits>`** (at most six; anything else is a 400), so that the C5 URLs differ: a single URL would
+  have a single work factor.
+* **The split of an attack group.** The first version took every n-th address and left streams without an address, or above
+  the ceiling, when one address alone exceeded 5,000 req/s or the addresses divided unevenly (9ecc4df). A group is now cut into
+  balanced streams of at most floor(ceiling / per-source rate) addresses; one address above the ceiling is carried by several
+  processes that share it.
+* **The scenario record** has `first_seed`, `benign {identities, per_profile}`, `intensity.level` as a number or `"knee"` (the
+  calibration's recorded knee, an error if it has none), and `controls {control, placebo: "repeat"}`. The SLOs and floors stay in
+  the calibration. `gate.metrics` is honoured by `eval/harm_gate.py --metrics`.
+
+### 9.2 What the build found [ARITHMETIC on placeholder numbers, not results]
+
+* With rho = 90 req/s and a mean cost of 6.14 ms, S is 0.5523 CPU-s/s. The shipped sub-threshold scenario (level 2 on C3, 100
+  sources) is 36.8 req/s in total and **0.37 req/s per source: 81 times below `limit_req`'s 30 r/s and 136 times below the L7
+  rule's 50**. The cheap flood (level 4 on C1, 5 sources) is 147 req/s per source: 4.9 times and 2.9 times above them, and
+  it takes 25 sources to bring a source below `limit_req`.
+* **Validity must not read the attack's effect.** The relative profile counts a legit stream's drop and any stream's `sent` below
+  99 %; the engine drops only when its in-flight cap is full, which is when the server stalls. The plan therefore prints the
+  largest stream's rate times the request timeout against the cap: legit 118 of 2,000; attack 140 of 5,000 for the search
+  scenario and **4,418 of 5,000 for the cheap flood at level 4**, and a warning at level 8.
+* **Both shipped attack scenarios are "likely PASS" under the cost-rate model** (A = 2 and 4). There is no negative control for
+  Gate A among them (a level of 0.25 would be one); whether to ship one is open.
+* The legit route mix drawn from the classes is within 1.8 pp of the calibration's (C1 +1.8, C2 -1.2).
+
+### 9.3 Decided in the gate's code, beyond 5.6
+
+* A run's slip is judged twice: the gross ceiling on each stream's summary, and the difference to the control on the p99 pooled from
+  the legit records.
+* The p95 criterion is *not evaluable* when a valid block has no p95 (an attack run without a single success); Q then carries the
+  verdict, and `--metrics p95` alone is INVALID with that reason.
+* The placebo is reported with the verdict and does not change it; a placebo that passes is stated in the report as making the
+  verdict unreliable. `dL'` is computed with `dQ'`.
+* A mitigated run that is not valid is left out of its HRR and does not spoil its block. The block's `order` lists C, Cp and U only.
+* `slo_scale` exists in the analysis for the design's x0.5 and x2 sensitivity and is not on the command line.
+* An exit status of 0 means a verdict was reached, whatever it is; 1 is an error in the data or the calibration.
+
+### 9.4 How it was tested, and what was not
+
+* A mutation check of 24 single-line edits to the gate's rule, validity, re-run, placebo, HRR and dry-run lines: 23 are caught.
+  The survivor turns `lo > 0` into `lo >= 0`, which differs only when a t-interval's lower end is exactly 0.0.
+* One older test, `test_loadtool_validate.ScriptedOriginTest.test_a_response_that_falls_inside_the_stall_is_held_to_its_end`, failed
+  once in a full run with a 5 s socket timeout while the VM stalled, and passed alone and in every later run. Its skip logic covers
+  a late arrival and not a stalled read. It was not changed here. [RISK]
+* **Nothing has run on the VM.** The origin's real costs, the engine's 0.1 ms of CPU per request and 30 MB per process (figures from the
+  HG1a verification), 33 processes together, about 300 address aliases, the per-process descriptor limit the plan prints (5,216 for the
+  search scenario), and the records of a real multi-stream run are all untested. The first contact is HG1c.
+
+### 9.5 What HG1c still has to do
+
+The executor: four client namespaces with the aliases the plan counts (106, 102, 68 and 24 at seed 1), the server stack with the origin
+under gunicorn and the Nginx profile, `prlimit`, `taskset` and start times as printed, the run contract of 5.5, tear-down and the suite's leftover
+checks. The calibration runner: the capacity probe, the ladders, the knee, and the freeze (`calibration.freeze` and `dump`) with the drift
+check before every later campaign. The choice between the options (a) and (b) of section 7 is still open and needs its own note.

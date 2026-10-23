@@ -376,6 +376,63 @@ processes of an earlier run remain. The L7 runners (`ml/capture_l7.py`, `ml/eval
 `dirty_files`) in the manifest or summary of the run, next to the older `git_commit` key.
 `--plan` does not check; runs published before that date carry the commit only.
 
+## The harm benchmark's offline tools (HG1b)
+
+`docs/BENCHMARK_HARM_DESIGN.md` (branch `design/benchmark-harm`) asks that an attack cause measurable harm on an
+unprotected server before any mitigation is judged against it; `docs/HG1B_MINIMAL_DESIGN.md` is the part built
+so far. These tools send no traffic and need no root. What is missing is the executor that runs a scenario in
+the namespaces and the calibration runner (HG1c). Until they exist the calibration is
+`bench/calibration/placeholder.json`, the design's illustrative numbers, and the gate refuses a verdict on it
+(`--dry-run` allows one and labels everything it prints). **Nothing in this section is a statement about the
+testbed.**
+
+| Tool | What it is |
+|---|---|
+| `bench/origin.py` | a cost-calibrated WSGI origin (`gunicorn --chdir bench origin:app`): `GET /static/<n>` (C0), `/page/<id>` (C1), `/api/item/<id>` (C2), `/search?q=` (C3), `/export` (C5), real work and no sleeps, a per-URL work factor from a hash of the URL. `--routes` prints the table; `--calibrate` and `--check CAL.json` time the routes in process on this host (CPU, no network) |
+| `bench/calibration.py` | the calibration record: route costs, knobs, capacity, legit mix, SLOs, the gate's constants, the generator-validity rules, the hash. `check FILE`, `show FILE` (rho, the mean cost, the spare capacity S), `rehash FILE` (placeholders only) |
+| `bench/population.py` | seeds, identities and streams: seed namespaces `calib` 1-99, `train` 100-199, `val` 200-299, `test` 300-399; eight benign classes and three attack families (assumptions, labelled); one link-profile distribution for every identity; attack intensity as a cost rate in units of S |
+| `bench/scenario.py` | the scenario record (JSON, `bench/scenarios/`) and its plan |
+| `eval/harm_gate.py` | Gate A: PASS, FAIL or INVALID from blocks written under the run contract |
+
+    python3 bench/scenario.py --check bench/scenarios/*.json
+    python3 bench/scenario.py --plan bench/scenarios/costly_search_sub_threshold.json
+    python3 bench/scenario.py --plan --calibration FILE --seed 7 --json SPEC
+    ./venv/bin/python eval/harm_gate.py CAMPAIGN --calibration FILE [--dry-run] [--metrics Q,p95] [--md R.md] [--json R.json]
+
+**The plan** prints, for one block of a scenario: the entity seeds; the legit load per behaviour class and its
+route mix against the calibration's; the attack's total, per-source and cost rate in units of S; each source's
+rate against the deployed per-source rules (`limit_req` 30 r/s, the daemon's L7 rule at 50 r/s) and how many
+sources it takes to fall below each; the load on the generator (processes, CPU, descriptors, memory, the
+requests a stalled server would hold in flight against the engine's cap); and the gate class the cost-rate model
+expects (A of 2 or more likely PASS, 0.5 or less likely FAIL). The deployed thresholds are printed and never
+used: no intensity is chosen, moved or clipped by them, and a test scales them to prove it. The three shipped
+plans are golden files in `tests/golden/`; a change to the population changes them, and the failure message says
+how to regenerate them. A plan with the placeholder calibration carries a banner.
+
+**The run contract** an executor must write (`docs/HG1B_MINIMAL_DESIGN.md` 5.5): per block `block.json`
+(scenario, block number, attempt, seed namespace and seed, calibration sha256, timeline, the order the runs were
+made in); per run `C`, `Cp` (the placebo, a second attack-free run), `U` and later `M_<mode>` a `run.json`
+(role, mode, and per stream its id, kind, route class, summary, records and offset) and per stream the engine's
+`--summary` and `--records`.
+
+**The rule** (design section 10, constants in the calibration): `Q` is the share of the legit requests intended
+in the attack window that completed 2xx within their class's SLO, the service time from the actual send; a
+request never sent, dropped, timed out or answered non-2xx fails. Per block `dQ = Q(C) - Q(U)` (pp),
+`dL = log2(p95(U) / p95(C))` and, for the placebo, `dQ'` and `dL'`. PASS iff the mean `dQ` reaches the floor
+(10 pp), its 95 % t-interval excludes 0 and at least 80 % of the blocks have its sign, or the same holds for
+`dL` with a floor of 1; the interval and the sign share are `eval/run_level_stats.py`'s. FAIL otherwise. INVALID
+when fewer than ten blocks are valid or the campaign broke the re-run rule: a failed block is re-run once with
+its seed, at most twice in a gate, a valid block never. A block is valid when its runs meet the validity profile
+of the calibration (`relative`, the default: a gross slip ceiling and a difference to the control; `strict`:
+every engine flag clear and slip p99 under 50 ms, computed always) and its control is healthy. The placebo must
+not pass and is reported when it does; HRR, with a block-bootstrap interval, exists only after a PASS.
+
+**Limits.** The p95 is over the successes, so a server that fails its slowest requests looks faster (Q counts the
+failures and is the primary number); the pooled p95 weighs the route classes by their share of the mix; the
+benign classes and the attack families are assumptions; every cost is a placeholder until HG2 measures it; a
+population of class-pure streams is coarser than sessions. `docs/HG1B_MINIMAL_DESIGN.md` section 9 lists what the
+build found.
+
 ## Tests
 
     venv/bin/python -m unittest discover -s tests -v
