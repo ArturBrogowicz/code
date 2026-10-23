@@ -141,6 +141,60 @@ class CommandLineTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             P.main([self.tmp.name])
 
+    def test_r50_adds_the_result_under_the_tables_only_when_asked(self):
+        for per_bot, ok in ((100, 9), (200, 1)):
+            make_run(self.tmp.name, label=f"unprotected@loadgen{per_bot}", rate=per_bot, server=[],
+                     legit=[legit_row(i, "200" if i < ok else "000") for i in range(10)])
+        for flag, expected in (([], False), (["--r50"], True)):
+            out = io.StringIO()
+            with self.subTest(flag=flag), contextlib.redirect_stdout(out):
+                P.main([self.tmp.name, *flag])
+            self.assertEqual("R50 (amendment A" in out.getvalue(), expected)
+        self.assertIn("1414 requests/s, 141 per bot. 0.5, 1 and 2 x that, per bot: 71, 141, 283.", out.getvalue())
+
+
+def ladder_row(per_bot, success, tool="loadgen", bots=10):
+    return {"tool": tool, "rate_per_bot": per_bot, "nominal_total": per_bot * bots if tool != "wrk" else None,
+            "legit": {"success": success}}
+
+
+class R50Test(unittest.TestCase):
+    """Amendment A of docs/EXPC_ATTACKER_SETTING_DESIGN.md, section 6."""
+
+    def test_interpolates_linearly_in_log_rate_between_the_adjacent_rates(self):
+        rows = [ladder_row(r, s) for r, s in ((160, 100.0), (190, 100.0), (230, 60.0), (270, 20.0), (320, 5.0))]
+        out = P.r50(rows)
+        self.assertEqual((out["lo"], out["hi"]), (2300, 2700))           # 60 % and 20 %: a quarter of the way
+        self.assertAlmostEqual(out["r50"], 2300 * (2700 / 2300) ** 0.25)
+        self.assertAlmostEqual(out["per_bot"], out["r50"] / 10)
+        self.assertEqual(out["cells_per_bot"], [round(out["per_bot"] * f) for f in (0.5, 1, 2)])
+
+    def test_the_order_of_the_rows_does_not_matter(self):
+        rows = [ladder_row(r, s) for r, s in ((320, 5.0), (160, 100.0), (270, 20.0), (230, 60.0))]
+        self.assertEqual(P.r50(rows), P.r50(sorted(rows, key=lambda r: r["rate_per_bot"])))
+
+    def test_exactly_50_percent_counts_as_at_or_above(self):
+        out = P.r50([ladder_row(100, 80.0), ladder_row(200, 50.0), ladder_row(400, 10.0)])
+        self.assertEqual((out["lo"], out["hi"]), (2000, 4000))
+        self.assertAlmostEqual(out["r50"], 2000)
+
+    def test_closed_loop_rows_are_ignored(self):
+        out = P.r50([ladder_row(100, 90.0), ladder_row(200, 10.0), ladder_row(0, 70.0, tool="wrk")])
+        self.assertEqual((out["lo"], out["hi"]), (1000, 2000))
+
+    def test_there_is_no_r50_unless_the_ladder_crosses_50_percent_once(self):
+        cases = {"not monotone": [(100, 90.0), (200, 10.0), (400, 60.0)],
+                 "50 % or more at every rate": [(100, 90.0), (200, 60.0)],
+                 "below 50 % at the lowest rate": [(100, 10.0), (200, 5.0)],
+                 "two runs at one rate": [(100, 90.0), (100, 10.0)],
+                 "no open-loop run": []}
+        for why, ladder in cases.items():
+            with self.subTest(why=why):
+                out = P.r50([ladder_row(r, s) for r, s in ladder])
+                self.assertIsNone(out["r50"])
+                self.assertIn(why, out["why"])
+                self.assertIn("not defined", P.r50_text(out))
+
 
 if __name__ == "__main__":
     unittest.main()

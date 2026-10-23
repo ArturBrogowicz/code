@@ -39,7 +39,10 @@ combine. The runner also reports a leftover `bench/loadgen.py` or `k6` process a
 records, for a probe that places the cells: the requests per second the bots offered and the server answered
 (`server_requests.csv`, by arrival), and what the legit clients saw in the first 30 s from the attack's real
 start (`availability_raw.csv`, not the "during" label, which for an open-loop flood begins about two seconds
-after the launch). A percentile is printed only from ten successes.
+after the launch). A percentile is printed only from ten successes. `--r50` adds R50 of amendment A
+(`docs/EXPC_ATTACKER_SETTING_DESIGN.md`, section 6): the nominal total rate where the legit success crosses 50 %,
+linear in log-rate between the two adjacent open-loop rates of all the directories given, or the reason there is none
+(no crossing, not monotone, two runs at one rate).
 
 ## Modes
 

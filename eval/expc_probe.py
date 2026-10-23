@@ -9,21 +9,24 @@ check of an open-loop flood runs before the label changes to "during", so the fi
 flood fall into "before". The window is the first --window seconds from that start (default 30, the
 attack's duration), for the bots and the legit clients alike.
 
-    python3 eval/expc_probe.py RUN_OR_CAMPAIGN_DIR... [--window 30] [--md OUT.md] [--json OUT.json]
+    python3 eval/expc_probe.py RUN_OR_CAMPAIGN_DIR... [--window 30] [--r50] [--md OUT.md] [--json OUT.json]
 
-A directory is a run (it holds provenance.json) or holds runs at any depth below it. Read-only;
-standard library only.
+A directory is a run (it holds provenance.json) or holds runs at any depth below it. --r50 adds R50 of
+amendment A (docs/EXPC_ATTACKER_SETTING_DESIGN.md, section 6) from the open-loop runs of all the
+directories given. Read-only; standard library only.
 """
 import argparse
 import collections
 import csv
 import glob
 import json
+import math
 import os
 import statistics
 import sys
 
 MIN_OK_FOR_PERCENTILES = 10     # a percentile of fewer successes than this says nothing
+CELL_FACTORS = (0.5, 1, 2)      # EXP-C's default proposal: these multiples of R50
 
 
 def read_csv(path):
@@ -103,11 +106,47 @@ def analyse_run(run_dir, window=30):
     return out
 
 
+def r50(rows):
+    """R50 under amendment A (docs/EXPC_ATTACKER_SETTING_DESIGN.md, section 6): the nominal total rate where the legit
+    success crosses 50 %, linear in log-rate between two adjacent open-loop rates, the lower with 50 % or more and the
+    higher below it. A dict with the bracket and the value, or {"r50": None, "why": ...} when the ladder has no single
+    crossing; one run per rate is assumed."""
+    ladder = sorted((r["nominal_total"], r["legit"]["success"], r["rate_per_bot"]) for r in rows
+                    if r["tool"] != "wrk" and r["legit"]["success"] is not None)
+    if not ladder:
+        return {"r50": None, "why": "no open-loop run with legit requests"}
+    if len({rate for rate, _, _ in ladder}) != len(ladder):
+        return {"r50": None, "why": "two runs at one rate"}
+    above = [success >= 50 for _, success, _ in ladder]
+    if all(above):
+        return {"r50": None, "why": "the success is 50 % or more at every rate"}
+    if not above[0]:
+        return {"r50": None, "why": "the success is below 50 % at the lowest rate"}
+    first_below = above.index(False)
+    if any(above[first_below:]):
+        return {"r50": None, "why": "not monotone: a rate above one that is below 50 % is back at 50 % or more"}
+    (lo, s_lo, per_bot_lo), (hi, s_hi, _) = ladder[first_below - 1], ladder[first_below]
+    value = math.exp(math.log(lo) + (s_lo - 50) / (s_lo - s_hi) * (math.log(hi) - math.log(lo)))
+    bots = lo / per_bot_lo
+    return {"r50": value, "per_bot": value / bots, "lo": lo, "hi": hi, "success_lo": s_lo, "success_hi": s_hi,
+            "cells_per_bot": [round(value / bots * f) for f in CELL_FACTORS]}
+
+
+def r50_text(result):
+    if result["r50"] is None:
+        return f"R50 (amendment A): not defined, {result['why']}.\n"
+    cells = ", ".join(str(c) for c in result["cells_per_bot"])
+    return (f"R50 (amendment A, nominal total rate, linear in log-rate between {result['lo']:g} requests/s at "
+            f"{result['success_lo']:.1f} % and {result['hi']:g} at {result['success_hi']:.1f} %): "
+            f"{result['r50']:.0f} requests/s, {result['per_bot']:.0f} per bot. "
+            f"0.5, 1 and 2 x that, per bot: {cells}.\n")
+
+
 def _f(value, spec="{:.0f}"):
     return "-" if value is None else spec.format(value)
 
 
-def render_markdown(rows, window=30):
+def render_markdown(rows, window=30, r50_result=None):
     load_intro = (f"Load the server received from the bots, by arrival, in the first {window} s of the attack "
                   "(`Offered` counts every request line of a bot address, `Served` those with status 200; "
                   "the median leaves out the first second, in which the generators start):")
@@ -131,13 +170,15 @@ def render_markdown(rows, window=30):
                     f"{_f(legit['timeout'], '{:.1f}')} | {_f(before['success'], '{:.1f}')} ({before['n']}) | "
                     f"{_f(r['legit_first_5s']['success'], '{:.1f}')} | {_f(r['legit_last_10s']['success'], '{:.1f}')} | "
                     f"{_f(legit['p50_ms'])} | {_f(legit['p95_ms'])} |")
-    return "\n".join(load + seen) + "\n"
+    text = "\n".join(load + seen) + "\n"
+    return text if r50_result is None else text + "\n" + r50_text(r50_result)
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("dirs", nargs="+")
     ap.add_argument("--window", type=int, default=30, help="seconds from the attack's start (default 30)")
+    ap.add_argument("--r50", action="store_true", help="add R50 of amendment A from the open-loop runs")
     ap.add_argument("--md", help="write the tables here")
     ap.add_argument("--json", help="write all figures here")
     a = ap.parse_args(argv)
@@ -146,7 +187,7 @@ def main(argv=None):
         sys.exit("no runs (provenance.json) under the given directories")
     rows = sorted((analyse_run(r, a.window) for r in runs),
                   key=lambda r: (r["tool"] != "wrk", r["rate_per_bot"], r["campaign"], r["run"]))
-    table = render_markdown(rows, a.window)
+    table = render_markdown(rows, a.window, r50(rows) if a.r50 else None)
     print(table, end="")
     if a.md:
         with open(a.md, "w", encoding="utf-8") as fh:
