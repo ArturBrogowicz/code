@@ -127,3 +127,28 @@ compatibility; `--dry-run`; the access-log aggregation on a synthetic log.
 Commits on this branch, each gated on the full suite and ruff: (1) suite settings, tests and the table in
 `docs/EVALUATION.md`; (2) runner `--loads`, tests; (3) the server-side CSV, if you agree. Then a `--dry-run`
 of the EXP-C campaign (no VM) and, separately approved, the R50 probe session. No VM workload before that.
+
+## 6. Reading R50: amendment A (post hoc, 2026-10-23)
+
+**Pre-registered (proposal of 2026-10-22, approved before the first open-loop run).** R50 is the *measured* total
+offered rate at which the legit success crosses 50 %, interpolated in log-rate between the two bracketing runs; if
+those differ by more than 40 pp, a three-rate refinement ramp follows; EXP-C's rates are 0.5, 1 and 2 x R50.
+
+**What the probe showed** (`results/2026-10-22_expc-r50-probe/`, 8 runs). The bracketing runs, 160 per bot (100 %) and
+320 per bot (19.7 %), differ by 80 pp, so the refinement rule applies. The logged rate cannot be the axis: it is 1,587
+and 1,569 requests/s at the two, and above the limit it is a floor of the offered load (49 % of nominal at 320, 20 % at
+640).
+
+**Amendment A.** Written after the eight probe runs and before any refinement run; the pre-registered reading stands
+in the published probe, and where it differs this one is labelled post hoc. Approved 2026-10-23.
+
+1. The axis is the **nominal** total rate (per-bot rate x 10 bots), which is the setting, not a measurement. The logged
+   rate is reported next to it and not used.
+2. The outcome is the legit success in the first 30 s from `Attack_Start`, from `availability_raw.csv` (HTTP 200 within
+   10 s), as `eval/expc_probe.py` tabulates it; not the suite's period labels.
+3. R50 is interpolated linearly in log-rate between the two adjacent rates of the ladder 20, 40, 80, 160, 190, 230, 270,
+   320, 640 per bot, the lower with success at or above 50 % and the higher below it. If the success is not monotone along
+   the ladder (a rate above one that is below 50 % is back at 50 % or more), no R50 is computed and that is reported.
+4. One run per rate: R50 places the cells and carries no interval. The EXP-C cells, ten blocks each, are what measure.
+5. The three rates are fixed by the user after the ramp. 0.5, 1 and 2 x R50, split over the 10 bots and rounded to a whole
+   per-bot rate, stay the default proposal.
