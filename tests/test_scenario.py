@@ -335,6 +335,9 @@ class PlanNumbersTest(unittest.TestCase):
             self.assertAlmostEqual(k["cores"], k["rate"] * 0.1 / 1000)
             self.assertAlmostEqual(k["share"], k["cores"] / k["cpus"])
         self.assertEqual((g["kinds"]["legit"]["cpus"], g["kinds"]["attack"]["cpus"]), (1, 4))
+        for k in g["kinds"].values():
+            self.assertAlmostEqual(k["inflight"], k["max_stream_rate"] * 10.0)         # the request timeout
+        self.assertEqual((g["kinds"]["legit"]["cap"], g["kinds"]["attack"]["cap"]), (2000, 5000))
         self.assertEqual(g["memory_mb"], g["processes"] * 30)
         self.assertEqual((g["ceiling_rps"], g["cpu_share_limit"]), (5000, 0.7))
         biggest = max((s for s in p["streams"] if s["kind"] == "legit"), key=lambda s: s["addresses"])
@@ -446,6 +449,15 @@ class WarningsTest(unittest.TestCase):
         self.assertLessEqual(p["generator"]["kinds"]["attack"]["max_stream_rate"], 5000)
         ok = plan_of("cheap_static_flood")
         self.assertNotIn("the run would be invalid", self.words(ok))
+
+    def test_a_stream_that_could_fill_the_engines_cap_is_flagged(self):
+        # a stalled server holds rate x timeout requests in flight; at the cap the engine drops, and a run would be
+        # valid or not according to the attack's effect
+        for name in NAMES:
+            self.assertNotIn("in flight", self.words(plan_of(name)), name)
+        p = plan_of("cheap_static_flood", intensity__level=8)
+        self.assertIn("requests in flight, at or above the engine's cap of 5000", self.words(p))
+        self.assertGreaterEqual(p["generator"]["kinds"]["attack"]["inflight"], 5000)
 
     def test_fewer_blocks_than_the_gate_needs_is_flagged(self):
         p = plan_of("costly_search_sub_threshold", gate__blocks=6)

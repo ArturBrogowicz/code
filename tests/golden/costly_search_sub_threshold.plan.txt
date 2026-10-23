@@ -51,10 +51,11 @@ attack        costly_search_flood on C3 (30 ms unloaded) from 100 sources
   connections a source: idle pool 4, about 0.011 in flight at the unloaded cost (limit_conn 50, SlowConn from 8)
 
 generator     in-repo engine; at most 5000 req/s a stream; 0.1 ms of CPU a request
-  kind    streams  req/s  largest  vCPU   cores  share  limit  idle pool  nofile  split
-  legit        29  90.07    11.80  6      0.009   0.9%    70%       2892    2394      0
-  attack        4  36.82    13.99  3-5,7  0.004   0.1%    70%        400    5216      0
+  kind    streams  req/s  largest  in flight   cap  vCPU   cores  share  limit  idle pool  nofile  split
+  legit        29  90.07    11.80        118  2000  6      0.009   0.9%    70%       2892    2394      0
+  attack        4  36.82    13.99        140  5000  3-5,7  0.004   0.1%    70%        400    5216      0
   33 processes, memory about 990 MB (30 MB each)
+  in flight: the largest stream's rate x the request timeout, the most it can hold when the server stalls; cap: the engine's limit on it
   idle pool: an upper bound over all processes; nofile: what the largest process needs; split: streams the ceiling added
   client namespaces and the aliases each must carry: client_perfect_1 106, client_broadband_1 102, client_mobile_3g_1 68, client_mobile_bad_1 24
   streams:

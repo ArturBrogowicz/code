@@ -37,9 +37,10 @@ legit load    rho 90 req/s = 0.5 x c_slo 180; mean cost 6.14 ms; the SLO capacit
     C5     0.010        0.010  +0.0 pp
 
 generator     in-repo engine; at most 5000 req/s a stream; 0.1 ms of CPU a request
-  kind   streams  req/s  largest  vCPU  cores  share  limit  idle pool  nofile  split
-  legit       29  90.07    11.80  6     0.009   0.9%    70%       2892    2394      0
+  kind   streams  req/s  largest  in flight   cap  vCPU  cores  share  limit  idle pool  nofile  split
+  legit       29  90.07    11.80        118  2000  6     0.009   0.9%    70%       2892    2394      0
   29 processes, memory about 870 MB (30 MB each)
+  in flight: the largest stream's rate x the request timeout, the most it can hold when the server stalls; cap: the engine's limit on it
   idle pool: an upper bound over all processes; nofile: what the largest process needs; split: streams the ceiling added
   client namespaces and the aliases each must carry: client_perfect_1 78, client_broadband_1 64, client_mobile_3g_1 40, client_mobile_bad_1 18
   streams:

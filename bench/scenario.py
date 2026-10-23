@@ -370,6 +370,8 @@ def _generator(pop, cal):
         cpus = _cpu_count(P.PIN_PLAN[kind])
         cores = rate * P.CPU_MS_PER_REQUEST / 1000
         kinds[kind] = {"streams": len(streams), "rate": rate, "max_stream_rate": max(s.rate for s in streams),
+                       "inflight": max(s.rate * sp.timeout for s, sp in zip(streams, specs, strict=True)),
+                       "cap": specs[0].max_workers,
                        "pin": P.PIN_PLAN[kind], "cpus": cpus, "cores": cores, "share": cores / cpus,
                        "keepalive": sum(len(s.addresses) * sp.connections for s, sp in zip(streams, specs, strict=True)),
                        "nofile": max(len(s.addresses) * sp.connections + sp.max_workers + 64
@@ -406,6 +408,10 @@ def _warnings(scn, cal, out):
         if k["max_stream_rate"] > g["ceiling_rps"]:
             w.append(f"a {kind} stream plans {k['max_stream_rate']:.0f} req/s, above the engine's ceiling of "
                      f"{g['ceiling_rps']} req/s")
+        if k["inflight"] >= k["cap"]:
+            w.append(f"a {kind} stream could have {k['inflight']:.0f} requests in flight, at or above the engine's cap "
+                     f"of {k['cap']}: a stalled server would make it drop requests, and whether the run is valid "
+                     "would depend on the attack's effect")
     if scn.gate and scn.gate["blocks"] < cal["gate"]["min_blocks"]:
         w.append(f"{scn.gate['blocks']} blocks are fewer than the {cal['gate']['min_blocks']} the gate needs: "
                  "the verdict would be INVALID by construction")
@@ -563,11 +569,14 @@ def _render_attack(a, b, c):
 def _render_generator(g, p):
     out = [_kv("generator", f"in-repo engine; at most {g['ceiling_rps']} req/s a stream; {g['ms_per_request']:g} ms of "
                             "CPU a request")]
-    out += _table(("kind", "streams", "req/s", "largest", "vCPU", "cores", "share", "limit", "idle pool", "nofile", "split"),
-                  [(kind, k["streams"], f"{k['rate']:.2f}", f"{k['max_stream_rate']:.2f}", k["pin"],
-                    f"{k['cores']:.3f}", f"{k['share']:.1%}", f"{g['cpu_share_limit']:.0%}", k["keepalive"],
-                    k["nofile"], k["split"]) for kind, k in g["kinds"].items()], "<>>><>>>>>>")
+    out += _table(("kind", "streams", "req/s", "largest", "in flight", "cap", "vCPU", "cores", "share", "limit",
+                   "idle pool", "nofile", "split"),
+                  [(kind, k["streams"], f"{k['rate']:.2f}", f"{k['max_stream_rate']:.2f}", f"{k['inflight']:.0f}",
+                    k["cap"], k["pin"], f"{k['cores']:.3f}", f"{k['share']:.1%}", f"{g['cpu_share_limit']:.0%}",
+                    k["keepalive"], k["nofile"], k["split"]) for kind, k in g["kinds"].items()], "<>>>>><>>>>>>")
     out.append(f"  {g['processes']} processes, memory about {g['memory_mb']} MB ({P.PROCESS_MB} MB each)")
+    out.append("  in flight: the largest stream's rate x the request timeout, the most it can hold when the server "
+               "stalls; cap: the engine's limit on it")
     out.append("  idle pool: an upper bound over all processes; nofile: what the largest process needs; "
                "split: streams the ceiling added")
     out.append("  client namespaces and the aliases each must carry: "
