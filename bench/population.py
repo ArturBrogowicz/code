@@ -308,6 +308,18 @@ def _legit_streams(namespace, seed, idents, rho_rps, timeline):
     return out
 
 
+def _attack_chunks(addresses, per_source):
+    """[(addresses, rate)] for the streams of one link-profile group: balanced, none above the engine's ceiling.
+    One address above the ceiling by itself is carried by several processes that share it (the server sees one
+    source either way)."""
+    if per_source > ENGINE_CEILING_RPS:
+        shares = math.ceil(per_source / ENGINE_CEILING_RPS)
+        return [((a,), per_source / shares) for a in addresses for _ in range(shares)]
+    per_stream = max(1, int(ENGINE_CEILING_RPS // per_source))
+    chunks = math.ceil(len(addresses) / per_stream)
+    return [(tuple(addresses[j::chunks]), per_source * len(addresses[j::chunks])) for j in range(chunks)]
+
+
 def _attack_streams(namespace, seed, idents, family, total_rate, timeline):
     per_source = total_rate / len(idents)
     by_ns = collections.defaultdict(list)
@@ -315,14 +327,12 @@ def _attack_streams(namespace, seed, idents, family, total_rate, timeline):
         by_ns[(ident.netem, ident.ns_index)].append(ident.address)
     out = []
     for (netem, ns_index), addresses in sorted(by_ns.items(), key=lambda kv: kv[0][1]):
-        rate = per_source * len(addresses)
-        chunks = max(1, math.ceil(rate / ENGINE_CEILING_RPS))
-        for j in range(chunks):
-            part = addresses[j::chunks]
-            sid = f"A-{family.name}-{netem}-{ns_index}" + (f"-{j}" if chunks > 1 else "")
+        chunks = _attack_chunks(addresses, per_source)
+        for j, (part, rate) in enumerate(chunks):
+            sid = f"A-{family.name}-{netem}-{ns_index}" + (f"-{j}" if len(chunks) > 1 else "")
             out.append(_make_stream(namespace, seed, sid, "attack", family.name, family.route_class,
-                                    family.process, per_source * len(part), netem, ns_index, part,
-                                    timeline.baseline_s, timeline.attack_s))
+                                    family.process, rate, netem, ns_index, part, timeline.baseline_s,
+                                    timeline.attack_s))
     return out
 
 

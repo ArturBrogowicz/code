@@ -149,6 +149,28 @@ class DrawTest(unittest.TestCase):
         self.assertEqual(len(addresses), len(set(addresses)))
         self.assertEqual(len({s.id for s in streams}), len(streams))
 
+    def test_the_split_balances_the_addresses_and_keeps_every_stream_under_the_ceiling(self):
+        for sources, total in ((10, 14_000.0), (7, 33_000.0), (100, 49_000.0), (3, 5_000.0), (60, 150_000.0)):
+            with self.subTest(sources=sources, total=total):
+                streams = P.draw("calib", 1, RHO, 200, ("cheap_static_flood", sources, total)).of_kind("attack")
+                self.assertTrue(all(s.addresses for s in streams))
+                self.assertTrue(all(s.rate <= P.ENGINE_CEILING_RPS + 1e-6 for s in streams), [s.rate for s in streams])
+                self.assertAlmostEqual(sum(s.rate for s in streams), total, places=3)
+                per_address = {}
+                for s in streams:
+                    for a in s.addresses:
+                        per_address[a] = per_address.get(a, 0) + 1
+                self.assertEqual(len(per_address), sources)
+
+    def test_one_address_above_the_ceiling_is_shared_by_several_processes(self):
+        streams = P.draw("calib", 1, RHO, 200, ("cheap_static_flood", 1, 20_000.0)).of_kind("attack")
+        self.assertEqual(len(streams), 4)
+        self.assertEqual({s.addresses for s in streams}, {streams[0].addresses})
+        self.assertEqual(len(streams[0].addresses), 1)
+        self.assertTrue(all(abs(s.rate - 5_000.0) < 1e-6 for s in streams))
+        self.assertEqual(len({s.id for s in streams}), 4)
+        self.assertEqual(len({s.seed for s in streams}), 4)
+
     def test_a_pulse_stream_sends_whole_requests_every_period(self):
         pulses = [s for s in POP.of_kind("legit") if s.process == "pulse"]
         self.assertTrue(pulses)
