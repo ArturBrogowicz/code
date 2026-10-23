@@ -1,0 +1,65 @@
+
+╔══════════════════════════════════════════════════════════════╗
+║   DISTRIBUTED DDoS MITIGATION TESTING SUITE                ║
+║   20 Legit Clients  |  10 Botnet Nodes                      ║
+╚══════════════════════════════════════════════════════════════╝
+
+[*] Mode: unprotected@loadgen125 · operating point: knee · PROFILE_SEED=101 · ATTACK_DURATION=30s
+[*] HTTP flood (scenario 4 only): loadgen, open-loop, 125 requests/s per bot
+[*] Results directory: /var/tmp/ddos_campaigns/20261023T074219Z_knee_s4/unprotected@loadgen125/run1
+
+[*] Cleaning up all namespaces and processes...
+[+] Cleanup complete.
+
+[*] Building network topology...
+[*] Creating 20 legitimate client namespaces...
+[+] Legitimate clients ready. Profile distribution (PROFILE_SEED=101):
+    perfect: 8 nodes
+    broadband: 6 nodes
+    mobile_3g: 3 nodes
+    mobile_bad: 3 nodes
+[*] Creating 10 botnet attacker namespaces...
+[+] Botnet ready: 10 nodes.
+[+] 30 unique client/bot MACs verified.
+[!] MITIGATION_MODE=none: Server is running UNPROTECTED.
+[+] Started background traffic from 20 legitimate users.
+
+[*] Baseline settling period (5s)...
+[!] ONLY_SCENARIOS=4 → running scenarios [4]
+
+======================================================================
+  SCENARIO 4: Distributed HTTP Flood
+======================================================================
+    [*] Equal exposure: attack continues 14.8s more (ATTACK_DURATION=30s)...
+
+  [FAIL] Distributed HTTP Flood
+  ├── Botnet banned:     0/10 (❌)
+  ├── Avg TTM:           N/A
+  ├── Engines:           None
+  ├── Legit HTTP:        15/15 OK (✅)
+  ├── Availability:      before 100% (n=38) · during 100% (n=268, p95 464ms) · after 100% (n=77)
+  └── False Positives:   None ✅ [no daemon]
+
+==========================================================================================
+  DISTRIBUTED TEST SUMMARY
+==========================================================================================
+  Scenario                            | Banned     | Avg TTM    | Engine(s)          | FP       | Result
+  ----------------------------------------------------------------------------------------
+  Distributed HTTP Flood              | 0/10       | N/A        | None               | Clean    | FAIL
+
+  Passed: 0  |  Failed: 1  |  Total: 1
+
+==============================================================================================
+  SERVICE AVAILABILITY (legitimate clients, continuous — before/during/after)
+==============================================================================================
+  Scenario                         | Period | Succ%  | Reqs  | p50     | p95     | p99     | TOs
+  --------------------------------------------------------------------------------------------
+  Distributed HTTP Flood           | before | 100.0 | 38    |   13ms |  688ms | 1014ms | 0
+                                   | during | 100.0 | 268   |   23ms |  464ms |  673ms | 0
+                                   | after  | 100.0 | 77    |    2ms |  497ms |  853ms | 0
+
+  Availability CSVs: /tmp/availability_<performance|iptables|nginxlimits|unprotected>.csv (+ _raw_ per-request dumps)
+  Results directory (this run, with ban events + provenance): /var/tmp/ddos_campaigns/20261023T074219Z_knee_s4/unprotected@loadgen125/run1
+
+[*] Cleaning up all namespaces and processes...
+[+] Cleanup complete.

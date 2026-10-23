@@ -1,0 +1,166 @@
+{
+ "schema": 1,
+ "run_id": "run10",
+ "status": "completed",
+ "started_utc": "2026-10-23T11:14:07+00:00",
+ "updated_utc": "2026-10-23T11:15:36+00:00",
+ "argv": [
+  "/home/artur/DDoS-mitigation/code/.claude/worktrees/audit-must-do-2-5/test_distributed_suite.py"
+ ],
+ "git": {
+  "commit": "20e7cb847c3ee3cf0a6b02dd0ff880ffe4d3e72e",
+  "branch": "feat/expc-attacker-setting",
+  "dirty": false,
+  "dirty_files": []
+ },
+ "mode": {
+  "label": "nginxlimits@loadgen125",
+  "MITIGATION_MODE": "none",
+  "MITIGATION_BACKEND": "xdp",
+  "NGINX_PROTECTED": true,
+  "GRU_ONLY": false,
+  "nginx_conf": "nginx.conf"
+ },
+ "operating_point": {
+  "name": "knee",
+  "GUNICORN_WORKERS": "1",
+  "GUNICORN_THREADS": "1",
+  "WRK_CONNS": "400",
+  "WRK_THREADS": "2",
+  "BOTNET_COUNT": "10",
+  "SERVER_CPUS": "0",
+  "ATTACK_CPUS": "1-7"
+ },
+ "settings": {
+  "ATTACK_DURATION": 30.0,
+  "PROFILE_SEED": 110,
+  "FLOOD_TOOL": "loadgen",
+  "FLOOD_RATE": 125.0,
+  "ONLY_SCENARIOS": "4",
+  "LEGIT_COUNT": 20,
+  "BOTNET_COUNT": 10,
+  "AVAIL_BEFORE_SECONDS": 3,
+  "AVAIL_AFTER_SECONDS": 10
+ },
+ "profile_plan": [
+  {
+   "ip": "10.0.1.1",
+   "profile": "mobile_bad"
+  },
+  {
+   "ip": "10.0.1.2",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.3",
+   "profile": "mobile_3g"
+  },
+  {
+   "ip": "10.0.1.4",
+   "profile": "perfect"
+  },
+  {
+   "ip": "10.0.1.5",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.6",
+   "profile": "perfect"
+  },
+  {
+   "ip": "10.0.1.7",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.8",
+   "profile": "perfect"
+  },
+  {
+   "ip": "10.0.1.9",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.10",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.11",
+   "profile": "perfect"
+  },
+  {
+   "ip": "10.0.1.12",
+   "profile": "mobile_3g"
+  },
+  {
+   "ip": "10.0.1.13",
+   "profile": "mobile_bad"
+  },
+  {
+   "ip": "10.0.1.14",
+   "profile": "perfect"
+  },
+  {
+   "ip": "10.0.1.15",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.16",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.17",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.18",
+   "profile": "broadband"
+  },
+  {
+   "ip": "10.0.1.19",
+   "profile": "mobile_3g"
+  },
+  {
+   "ip": "10.0.1.20",
+   "profile": "perfect"
+  }
+ ],
+ "host": {
+  "uname": "Linux ddos-mitigation 7.0.0-38-generic #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:10:14 UTC 2026 x86_64 ",
+  "cpus": 8,
+  "python": "3.14.4",
+  "nginx": "nginx version: nginx/1.28.3 (Ubuntu)"
+ },
+ "inputs_sha256": {
+  "test_distributed_suite.py": "68fbe492812f573e95e981339a7451b74dc98ebc6d29a38809ea79001e2af8b8",
+  "control_plane.py": "c850e4fd1cf660c29111cce38bbd676ad284935e4ff36e12043b15d0ebf17e0b",
+  "ban_events.py": "b9e7b938495e98f3fa481a0146fc36186f69d30ffb218000209d3e2f842bdbd3",
+  "xdp_ddos_filter.c": "1f9e86067ca3890d762e25912ae494389466c77494e0a10a4dcb0067a2650cfe",
+  "GRU_ML_model.py": "95d35a299cbc8f15f82a4aebf558aad42427a08f300e47c67aa31fe675c352ec",
+  "nginx.conf": "45d36104e1ccde3d4ab3ddd283601abf028b1ae60ccb50ac974b4f0fbdd7ae7a",
+  "nginx_unprotected.conf": "55f867904d18615b3f5405e3017ab17d425106d2e34d1b265ac4cf352135dfdb",
+  "training_results/feature_config_testbed.json": "f24709772bdfdd2a97916fd81965f5e064d552842eee5a61379d27dec7a1740c",
+  "bench/loadtools.py": "f65859833e502b3ff1e8ca3e121a46598a2cdb2677cf5556abf3eb37e63d5be7",
+  "bench/loadtools.json": "cf3a3ee072d5b817f2ece019d6ef1955cae78e0b69959bd70b76e7e9e9f9036d",
+  "bench/loadgen.py": "91aab0837ce688982c30cc2f8b9e867482f830d5ff49b9ec703888ac80ba92a1",
+  "training_results/gru_testbed_model.pth": "4b8bb940a44b4459d955441b0ef689d919b9b4ba294f99cab4e59587bebd0052",
+  "training_results/scaler_testbed.save": "91431ff97b8934db3b386cffbf8f097acf80d23bec7df78a492a618bc0c64afa"
+ },
+ "flood": {
+  "tool": "loadgen",
+  "rate_per_bot": 125.0,
+  "bots": 10,
+  "scenario": 4,
+  "nofile": 16384,
+  "timeout_s": 10.0,
+  "limits": {
+   "workers": 100,
+   "max_workers": 5000,
+   "connections": 100
+  },
+  "manifest": {
+   "version": "1",
+   "sha256": "91aab0837ce688982c30cc2f8b9e867482f830d5ff49b9ec703888ac80ba92a1",
+   "status": "verified"
+  }
+ }
+}

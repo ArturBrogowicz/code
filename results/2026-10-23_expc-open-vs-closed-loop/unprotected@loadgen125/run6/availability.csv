@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-23T10:00:34.452800,Distributed HTTP Flood,before,ALL,none,xdp,35,35,100.0,0,0,0,0.0,42.2,1037.9,3984.8,251.7,3984.8
+2026-10-23T10:00:34.452800,Distributed HTTP Flood,before,broadband,none,xdp,8,8,100.0,0,0,0,0.0,43.8,55.1,55.1,46.9,55.1
+2026-10-23T10:00:34.452800,Distributed HTTP Flood,before,mobile_3g,none,xdp,7,7,100.0,0,0,0,0.0,395.0,603.7,603.7,385.3,603.7
+2026-10-23T10:00:34.452800,Distributed HTTP Flood,before,mobile_bad,none,xdp,3,3,100.0,0,0,0,0.0,1037.9,3984.8,3984.8,1906.2,3984.8
+2026-10-23T10:00:34.452800,Distributed HTTP Flood,before,perfect,none,xdp,17,17,100.0,0,0,0,0.0,1.0,1.2,1.2,1.0,1.2
+2026-10-23T10:00:34.452800,Distributed HTTP Flood,during,ALL,none,xdp,242,242,100.0,0,0,0,0.0,44.4,698.6,1614.7,171.6,1716.3
+2026-10-23T10:00:34.452800,Distributed HTTP Flood,during,broadband,none,xdp,54,54,100.0,0,0,0,0.0,45.8,121.3,321.5,58.4,321.5
+2026-10-23T10:00:34.452800,Distributed HTTP Flood,during,mobile_3g,none,xdp,63,63,100.0,0,0,0,0.0,329.9,698.6,1383.3,364.3,1383.3
+2026-10-23T10:00:34.452800,Distributed HTTP Flood,during,mobile_bad,none,xdp,15,15,100.0,0,0,0,0.0,757.1,1716.3,1716.3,906.3,1716.3
+2026-10-23T10:00:34.452800,Distributed HTTP Flood,during,perfect,none,xdp,110,110,100.0,0,0,0,0.0,1.5,90.0,195.0,16.6,578.6
+2026-10-23T10:00:34.452800,Distributed HTTP Flood,after,ALL,none,xdp,71,71,100.0,0,0,0,0.0,44.3,1076.2,1428.7,222.5,1428.7
+2026-10-23T10:00:34.452800,Distributed HTTP Flood,after,broadband,none,xdp,17,17,100.0,0,0,0,0.0,58.3,406.8,406.8,90.9,406.8
+2026-10-23T10:00:34.452800,Distributed HTTP Flood,after,mobile_3g,none,xdp,17,17,100.0,0,0,0,0.0,540.6,1428.7,1428.7,568.8,1428.7
+2026-10-23T10:00:34.452800,Distributed HTTP Flood,after,mobile_bad,none,xdp,4,4,100.0,0,0,0,0.0,1076.2,1281.1,1281.1,1135.8,1281.1
+2026-10-23T10:00:34.452800,Distributed HTTP Flood,after,perfect,none,xdp,33,33,100.0,0,0,0,0.0,0.9,3.2,3.7,1.2,3.7

@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-23T08:28:25.431369,Distributed HTTP Flood,before,ALL,none,xdp,34,34,100.0,0,0,0,0.0,1.3,580.1,844.5,85.8,844.5
+2026-10-23T08:28:25.431369,Distributed HTTP Flood,before,broadband,none,xdp,6,6,100.0,0,0,0,0.0,44.9,63.4,63.4,49.9,63.4
+2026-10-23T08:28:25.431369,Distributed HTTP Flood,before,mobile_3g,none,xdp,5,5,100.0,0,0,0,0.0,291.9,580.1,580.1,349.2,580.1
+2026-10-23T08:28:25.431369,Distributed HTTP Flood,before,mobile_bad,none,xdp,1,1,100.0,0,0,0,0.0,844.5,844.5,844.5,844.5,844.5
+2026-10-23T08:28:25.431369,Distributed HTTP Flood,before,perfect,none,xdp,22,22,100.0,0,0,0,0.0,1.0,1.6,6.4,1.3,6.4
+2026-10-23T08:28:25.431369,Distributed HTTP Flood,during,ALL,none,xdp,283,283,100.0,0,0,0,0.0,6.5,375.0,909.5,84.7,1251.0
+2026-10-23T08:28:25.431369,Distributed HTTP Flood,during,broadband,none,xdp,54,54,100.0,0,0,0,0.0,45.4,96.5,329.0,57.3,329.0
+2026-10-23T08:28:25.431369,Distributed HTTP Flood,during,mobile_3g,none,xdp,44,44,100.0,0,0,0,0.0,333.2,466.9,1092.2,349.3,1092.2
+2026-10-23T08:28:25.431369,Distributed HTTP Flood,during,mobile_bad,none,xdp,5,5,100.0,0,0,0,0.0,626.8,1251.0,1251.0,733.6,1251.0
+2026-10-23T08:28:25.431369,Distributed HTTP Flood,during,perfect,none,xdp,180,180,100.0,0,0,0,0.0,1.7,23.1,272.5,10.1,278.6
+2026-10-23T08:28:25.431369,Distributed HTTP Flood,after,ALL,none,xdp,87,87,100.0,0,0,0,0.0,1.3,573.9,793.3,103.0,793.3
+2026-10-23T08:28:25.431369,Distributed HTTP Flood,after,broadband,none,xdp,16,16,100.0,0,0,0,0.0,47.0,573.9,573.9,82.2,573.9
+2026-10-23T08:28:25.431369,Distributed HTTP Flood,after,mobile_3g,none,xdp,14,14,100.0,0,0,0,0.0,419.7,793.3,793.3,446.0,793.3
+2026-10-23T08:28:25.431369,Distributed HTTP Flood,after,mobile_bad,none,xdp,2,2,100.0,0,0,0,0.0,618.1,706.6,706.6,662.4,706.6
+2026-10-23T08:28:25.431369,Distributed HTTP Flood,after,perfect,none,xdp,55,55,100.0,0,0,0,0.0,1.1,4.5,5.3,1.4,5.3

@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-23T10:45:37.421473,Distributed HTTP Flood,before,ALL,none,xdp,38,38,100.0,0,0,0,0.0,1.1,1246.4,1663.2,184.2,1663.2
+2026-10-23T10:45:37.421473,Distributed HTTP Flood,before,broadband,none,xdp,7,7,100.0,0,0,0,0.0,45.1,62.8,62.8,47.9,62.8
+2026-10-23T10:45:37.421473,Distributed HTTP Flood,before,mobile_3g,none,xdp,6,6,100.0,0,0,0,0.0,359.3,636.0,636.0,423.6,636.0
+2026-10-23T10:45:37.421473,Distributed HTTP Flood,before,mobile_bad,none,xdp,3,3,100.0,0,0,0,0.0,1246.4,1663.2,1663.2,1366.8,1663.2
+2026-10-23T10:45:37.421473,Distributed HTTP Flood,before,perfect,none,xdp,22,22,100.0,0,0,0,0.0,1.0,1.5,2.3,1.1,2.3
+2026-10-23T10:45:37.421473,Distributed HTTP Flood,during,ALL,none,xdp,90,39,43.3,0,38,13,42.2,1234.6,6356.4,6442.8,1384.0,6442.8
+2026-10-23T10:45:37.421473,Distributed HTTP Flood,during,broadband,none,xdp,20,10,50.0,0,7,3,35.0,1410.5,6442.8,6442.8,1468.7,6442.8
+2026-10-23T10:45:37.421473,Distributed HTTP Flood,during,mobile_3g,none,xdp,15,6,40.0,0,8,1,53.3,1643.2,4813.3,4813.3,2084.7,4813.3
+2026-10-23T10:45:37.421473,Distributed HTTP Flood,during,mobile_bad,none,xdp,9,2,22.2,0,5,2,55.6,2206.9,2244.5,2244.5,2225.7,2244.5
+2026-10-23T10:45:37.421473,Distributed HTTP Flood,during,perfect,none,xdp,46,21,45.7,0,18,7,39.1,730.3,1683.2,6356.4,1063.2,6356.4
+2026-10-23T10:45:37.421473,Distributed HTTP Flood,after,ALL,none,xdp,7,0,0.0,0,0,7,0.0,0.0,0.0,0.0,0.0,0.0
+2026-10-23T10:45:37.421473,Distributed HTTP Flood,after,broadband,none,xdp,2,0,0.0,0,0,2,0.0,0.0,0.0,0.0,0.0,0.0
+2026-10-23T10:45:37.421473,Distributed HTTP Flood,after,mobile_3g,none,xdp,1,0,0.0,0,0,1,0.0,0.0,0.0,0.0,0.0,0.0
+2026-10-23T10:45:37.421473,Distributed HTTP Flood,after,mobile_bad,none,xdp,1,0,0.0,0,0,1,0.0,0.0,0.0,0.0,0.0,0.0
+2026-10-23T10:45:37.421473,Distributed HTTP Flood,after,perfect,none,xdp,3,0,0.0,0,0,3,0.0,0.0,0.0,0.0,0.0,0.0

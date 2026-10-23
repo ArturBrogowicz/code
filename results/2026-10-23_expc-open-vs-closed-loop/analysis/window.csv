@@ -1,0 +1,25 @@
+scenario,mode,profile,window_s,n,success_pct,p50_ms,p95_ms
+Distributed HTTP Flood,xdp,ALL,10.000,798,100.000,42.950,537.005
+Distributed HTTP Flood,xdp,perfect,10.000,341,100.000,1.100,3.600
+Distributed HTTP Flood,nginxlimits,ALL,10.000,196,23.980,9563.400,9916.590
+Distributed HTTP Flood,nginxlimits,perfect,10.000,67,14.925,9403.950,9607.585
+Distributed HTTP Flood,unprotected,ALL,10.000,541,91.497,928.000,6005.270
+Distributed HTTP Flood,unprotected,perfect,10.000,222,89.640,841.900,5271.260
+Distributed HTTP Flood,xdp@loadgen125,ALL,10.000,819,99.878,40.100,517.810
+Distributed HTTP Flood,xdp@loadgen125,perfect,10.000,352,100.000,1.100,2.535
+Distributed HTTP Flood,nginxlimits@loadgen125,ALL,10.000,814,100.000,40.650,505.605
+Distributed HTTP Flood,nginxlimits@loadgen125,perfect,10.000,349,100.000,1.300,5.360
+Distributed HTTP Flood,unprotected@loadgen125,ALL,10.000,819,100.000,40.700,415.890
+Distributed HTTP Flood,unprotected@loadgen125,perfect,10.000,364,100.000,2.100,20.645
+Distributed HTTP Flood,xdp@loadgen250,ALL,10.000,825,100.000,41.200,429.420
+Distributed HTTP Flood,xdp@loadgen250,perfect,10.000,366,100.000,1.200,118.925
+Distributed HTTP Flood,nginxlimits@loadgen250,ALL,10.000,804,100.000,43.600,634.840
+Distributed HTTP Flood,nginxlimits@loadgen250,perfect,10.000,357,100.000,2.100,251.000
+Distributed HTTP Flood,unprotected@loadgen250,ALL,10.000,443,64.560,1349.100,2443.200
+Distributed HTTP Flood,unprotected@loadgen250,perfect,10.000,176,68.182,1032.250,2103.220
+Distributed HTTP Flood,xdp@loadgen500,ALL,10.000,821,100.000,41.100,495.400
+Distributed HTTP Flood,xdp@loadgen500,perfect,10.000,355,100.000,1.300,33.810
+Distributed HTTP Flood,nginxlimits@loadgen500,ALL,10.000,578,100.000,1004.900,2400.595
+Distributed HTTP Flood,nginxlimits@loadgen500,perfect,10.000,243,100.000,844.600,2265.110
+Distributed HTTP Flood,unprotected@loadgen500,ALL,10.000,230,12.174,88.350,2596.365
+Distributed HTTP Flood,unprotected@loadgen500,perfect,10.000,81,18.519,22.500,1955.520

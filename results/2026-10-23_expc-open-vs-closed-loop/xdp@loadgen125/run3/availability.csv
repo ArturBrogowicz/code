@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-23T08:23:52.024381,Distributed HTTP Flood,before,ALL,active,xdp,36,36,100.0,0,0,0,0.0,1.1,453.4,539.6,82.0,539.6
+2026-10-23T08:23:52.024381,Distributed HTTP Flood,before,broadband,active,xdp,6,6,100.0,0,0,0,0.0,56.3,200.0,200.0,82.3,200.0
+2026-10-23T08:23:52.024381,Distributed HTTP Flood,before,mobile_3g,active,xdp,5,5,100.0,0,0,0,0.0,432.8,539.6,539.6,406.2,539.6
+2026-10-23T08:23:52.024381,Distributed HTTP Flood,before,mobile_bad,active,xdp,1,1,100.0,0,0,0,0.0,399.9,399.9,399.9,399.9,399.9
+2026-10-23T08:23:52.024381,Distributed HTTP Flood,before,perfect,active,xdp,24,24,100.0,0,0,0,0.0,1.0,1.7,1.7,1.1,1.7
+2026-10-23T08:23:52.024381,Distributed HTTP Flood,during,ALL,active,xdp,286,286,100.0,0,0,0,0.0,1.4,351.7,720.2,75.0,1911.2
+2026-10-23T08:23:52.024381,Distributed HTTP Flood,during,broadband,active,xdp,55,55,100.0,0,0,0,0.0,42.0,53.8,67.6,42.8,67.6
+2026-10-23T08:23:52.024381,Distributed HTTP Flood,during,mobile_3g,active,xdp,44,44,100.0,0,0,0,0.0,290.2,409.6,425.2,307.7,425.2
+2026-10-23T08:23:52.024381,Distributed HTTP Flood,during,mobile_bad,active,xdp,5,5,100.0,0,0,0,0.0,720.2,1911.2,1911.2,1068.2,1911.2
+2026-10-23T08:23:52.024381,Distributed HTTP Flood,during,perfect,active,xdp,182,182,100.0,0,0,0,0.0,1.1,2.1,4.5,1.2,5.2
+2026-10-23T08:23:52.024381,Distributed HTTP Flood,after,ALL,active,xdp,90,90,100.0,0,0,0,0.0,1.2,452.5,616.0,83.6,616.0
+2026-10-23T08:23:52.024381,Distributed HTTP Flood,after,broadband,active,xdp,18,18,100.0,0,0,0,0.0,48.4,437.6,437.6,83.7,437.6
+2026-10-23T08:23:52.024381,Distributed HTTP Flood,after,mobile_3g,active,xdp,13,13,100.0,0,0,0,0.0,367.6,530.6,530.6,370.7,530.6
+2026-10-23T08:23:52.024381,Distributed HTTP Flood,after,mobile_bad,active,xdp,2,2,100.0,0,0,0,0.0,512.3,616.0,616.0,564.1,616.0
+2026-10-23T08:23:52.024381,Distributed HTTP Flood,after,perfect,active,xdp,57,57,100.0,0,0,0,0.0,1.0,2.0,4.5,1.2,4.5

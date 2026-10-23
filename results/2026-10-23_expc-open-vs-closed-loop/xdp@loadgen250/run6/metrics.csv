@@ -1,0 +1,4 @@
+Timestamp,Scenario,Phase,CPU_Total_Pct,CPU_Daemon_Pct,CPU_Nginx_Pct,RAM_Total_MB,RAM_Daemon_MB,TCP_Estab,TCP_TimeWait,TCP_SynRecv,PPS_Rx,Bps_Rx,SoftIRQ_NET_RX_Total,SoftIRQ_NET_RX_HotCore,HotCore_ID,HotCore_CPU_Pct,IP_InReceives,PreStack_Dropped
+2026-10-23T09:35:05.302922,Distributed HTTP Flood,Phase 1: Baseline,1.6,0.0,0.0,1318.7,460.8,0,77,0,51,3260,120,87,0,2.0,146,0
+2026-10-23T09:35:08.425432,Distributed HTTP Flood,Phase 2: Pre-Mitigation,9.7,0.9,0.0,1514.0,460.9,3,659,2,6177,377136,2880,519,4,12.9,130,6047
+2026-10-23T09:35:36.432354,Distributed HTTP Flood,Phase 3: Post-Mitigation,12.7,1.9,0.0,1747.5,460.9,0,872,0,17968,1078844,3144,492,5,12.5,144,17824

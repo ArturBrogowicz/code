@@ -1,0 +1,13 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-23T08:17:41.391848,Distributed HTTP Flood,before,ALL,none,xdp,36,36,100.0,0,0,0,0.0,41.9,524.0,822.7,93.6,822.7
+2026-10-23T08:17:41.391848,Distributed HTTP Flood,before,broadband,none,xdp,18,18,100.0,0,0,0,0.0,43.6,138.8,138.8,50.6,138.8
+2026-10-23T08:17:41.391848,Distributed HTTP Flood,before,mobile_3g,none,xdp,5,5,100.0,0,0,0,0.0,462.4,822.7,822.7,489.2,822.7
+2026-10-23T08:17:41.391848,Distributed HTTP Flood,before,perfect,none,xdp,13,13,100.0,0,0,0,0.0,1.1,1.5,1.5,1.1,1.5
+2026-10-23T08:17:41.391848,Distributed HTTP Flood,during,ALL,none,xdp,60,21,35.0,0,39,0,65.0,5920.4,8265.4,9805.2,5827.7,9805.2
+2026-10-23T08:17:41.391848,Distributed HTTP Flood,during,broadband,none,xdp,30,11,36.7,0,19,0,63.3,6026.4,9805.2,9805.2,6360.0,9805.2
+2026-10-23T08:17:41.391848,Distributed HTTP Flood,during,mobile_3g,none,xdp,15,5,33.3,0,10,0,66.7,3458.3,4792.6,4792.6,3497.5,4792.6
+2026-10-23T08:17:41.391848,Distributed HTTP Flood,during,perfect,none,xdp,15,5,33.3,0,10,0,66.7,6654.7,8265.4,8265.4,6986.9,8265.4
+2026-10-23T08:17:41.391848,Distributed HTTP Flood,after,ALL,none,xdp,75,75,100.0,0,0,0,0.0,48.4,482.2,1322.2,103.9,1322.2
+2026-10-23T08:17:41.391848,Distributed HTTP Flood,after,broadband,none,xdp,39,39,100.0,0,0,0,0.0,52.8,128.7,165.0,61.7,165.0
+2026-10-23T08:17:41.391848,Distributed HTTP Flood,after,mobile_3g,none,xdp,10,10,100.0,0,0,0,0.0,414.9,1322.2,1322.2,535.5,1322.2
+2026-10-23T08:17:41.391848,Distributed HTTP Flood,after,perfect,none,xdp,26,26,100.0,0,0,0,0.0,1.0,1.6,1.7,1.1,1.7
