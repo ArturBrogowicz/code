@@ -18,8 +18,11 @@ default cells (0.5, 1 and 2 x) are 125, 250 and 500 per bot. The server answers 
 transition is a slope, not the cliff the first part's two points suggested. **Findings:** the launch check's seconds were
 labelled "before" (fixed in `78122bc`; "before" is 100 % in the refinement runs); the server log holds 97 % of the nominal
 count at 190 per bot and 82, 63, 49 and 20 % at 230, 270, 320 and 640, so the check that 2.3 planned works only below the
-limit (not changed). Not done: fixing the three rates (the user's), the analysis by cell, and `publish_campaign.py`
-copying `server_requests.csv`. Tags: **[FACT]** read from the code or a published file; **[PROPOSAL]** for you to
+limit (not changed). **Done 2026-10-23 after that:** the user fixed the rates at 125, 250 and 500 per bot; the analysis
+works by load cell (`92c2aef`: contrasts inside a cell, `offered.csv`, one figure per cell; the analysis of all 12 published
+campaigns regenerates byte for byte); `publish_campaign.py` copies `server_requests.csv` (`97b3bf0`); the protocol is
+written down in `docs/EXPC_PROTOCOL.md` (`095684d`). Not done: the EXP-C campaign itself, which needs the user's approval
+of its command. Tags: **[FACT]** read from the code or a published file; **[PROPOSAL]** for you to
 confirm; **[RISK]** a hazard with its mitigation. The experiment itself is `docs/BENCHMARK_HARM_DESIGN.md`
 8.5 on `design/benchmark-harm`: EXP-A's design with only the attacker's load model changed, in the same
 campaign: the closed-loop `wrk -c400` reference arm and open-loop arms at 0.5, 1 and 2 x R50 split over the
