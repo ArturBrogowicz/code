@@ -112,6 +112,20 @@ class LoadSpec:
     cpus: str = ""                    # taskset list, e.g. "4-7"
     allow_loopback: bool = False
     name: str = "load"                # run label
+    # Options of the in-repo engine only (the other tools refuse them): one engine process can carry
+    # several identities and a path list, and follows one schedule (docs/HG1B_MINIMAL_DESIGN.md, 5.3).
+    local_addrs: tuple = ()           # more source addresses; the rate is split round-robin over them
+    paths: tuple = ()                 # request paths, uniform choice, a repeated path is a weight
+    process: str = "constant"         # constant | poisson | pulse | ramp
+    seed: int = 1                     # schedule and path choice
+    period: float = 1.0               # pulse: seconds per on/off cycle
+    duty: float = 0.5                 # pulse: share of the period that is on
+    ramp_to: float = 0.0              # ramp: the rate at the end
+    spin_ms: float = 0.0              # busy-wait this long before each send: a core per stream
+
+
+PROCESSES = ("constant", "poisson", "pulse", "ramp")       # the engine's arrival processes
+ENGINE_ONLY = ("local_addrs", "paths", "process", "seed", "period", "duty", "ramp_to", "spin_ms")
 
 
 FLOOD_TOOLS = ("wrk", "loadgen", "k6")    # what the suite's HTTP flood may run: closed-loop wrk, and
@@ -140,6 +154,12 @@ def validate(spec):
     check_scope(spec.url, spec.allow_loopback)
     if spec.local_addr:
         check_address(spec.local_addr, spec.allow_loopback)
+    if spec.local_addr and spec.local_addrs:
+        raise ValueError("local_addr and local_addrs are two ways to say the same thing: use one")
+    for addr in spec.local_addrs:
+        check_address(addr, spec.allow_loopback)
+    if len(set(spec.local_addrs)) != len(spec.local_addrs):
+        raise ValueError("local_addrs: an address twice")
     if not spec.rate > 0:
         raise ValueError(f"rate must be positive, got {spec.rate}")
     if not spec.duration >= 1:
@@ -154,6 +174,19 @@ def validate(spec):
     for h in spec.headers:
         if ":" not in h or "\n" in h or "\r" in h:
             raise ValueError(f"header {h!r}: expected 'Name: value' on one line")
+    for path in spec.paths:
+        if not re.fullmatch(r"/[!-~]{0,2047}", path):
+            raise ValueError(f"path {path!r}: expected '/' and printable characters, no spaces")
+    if spec.process not in PROCESSES:
+        raise ValueError(f"process {spec.process!r}: one of {', '.join(PROCESSES)}")
+    if spec.process == "pulse" and not (spec.period > 0 and 0 < spec.duty <= 1):
+        raise ValueError("pulse needs a period above 0 and a duty in (0, 1]")
+    if spec.process == "ramp" and not spec.ramp_to > 0:
+        raise ValueError("ramp needs ramp_to above 0")
+    if type(spec.seed) is not int:                     # not a bool, not a string
+        raise ValueError(f"seed {spec.seed!r}: an integer")
+    if not spec.spin_ms >= 0:
+        raise ValueError(f"spin_ms must not be negative, got {spec.spin_ms}")
     if spec.cpus and not re.fullmatch(r"[0-9]+([,-][0-9]+)*", spec.cpus):
         raise ValueError(f"cpus {spec.cpus!r}: expected a taskset list such as 4-7")
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", spec.name):
@@ -352,7 +385,16 @@ def _pin(spec):
     return ["taskset", "-c", spec.cpus] if spec.cpus else []
 
 
+def _engine_only(tool, spec):
+    """The options only the in-repo engine honours must not be silently dropped by another tool."""
+    default = LoadSpec(url="", rate=1, duration=1)
+    set_here = [name for name in ENGINE_ONLY if getattr(spec, name) != getattr(default, name)]
+    if set_here:
+        raise ToolError(f"{tool}: {', '.join(set_here)} are options of the in-repo engine only")
+
+
 def _plan_vegeta(exe, spec, wd):
+    _engine_only("vegeta", spec)
     n, secs = rate_parts(spec.rate)
     f = {k: os.path.join(wd, v) for k, v in
          {"targets": "vegeta.targets", "bin": "vegeta.bin", "report": "vegeta.report.json",
@@ -377,6 +419,7 @@ def _plan_vegeta(exe, spec, wd):
 
 
 def _plan_k6(exe, spec, wd):
+    _engine_only("k6", spec)
     n, secs = rate_parts(spec.rate)
     f = {"script": os.path.join(wd, "k6.js"), "summary": os.path.join(wd, "k6.summary.json"),
          "stdout": os.path.join(wd, "k6.stdout"), "stderr": os.path.join(wd, "k6.stderr")}
@@ -400,6 +443,7 @@ def _plan_k6(exe, spec, wd):
 
 
 def _plan_wrk(exe, spec, wd):
+    _engine_only("wrk", spec)
     if spec.method != "GET" or spec.local_addr:
         raise ToolError("wrk: GET only and no source-address option")
     f = {"stdout": os.path.join(wd, "wrk.out")}
@@ -423,8 +467,22 @@ def _plan_loadgen(exe, spec, wd):
                          "--records", f["records"]]
     for h in spec.headers:
         argv += ["--header", h]
-    if spec.local_addr:
-        argv += ["--local-addr", spec.local_addr]
+    for addr in ([spec.local_addr] if spec.local_addr else []) + list(spec.local_addrs):
+        argv += ["--local-addr", addr]
+    # the flags below appear only when they differ from the engine's defaults, so that the command of a
+    # single-identity run stays what it was
+    if spec.process != "constant":
+        argv += ["--process", spec.process]
+    if spec.process == "pulse":
+        argv += ["--period", f"{spec.period:g}", "--duty", f"{spec.duty:g}"]
+    if spec.process == "ramp":
+        argv += ["--ramp-to", f"{spec.ramp_to:g}"]
+    if spec.seed != 1:
+        argv += ["--seed", str(spec.seed)]
+    for path in spec.paths:
+        argv += ["--path", path]
+    if spec.spin_ms:
+        argv += ["--spin-ms", f"{spec.spin_ms:g}"]
     if spec.allow_loopback:
         argv.append("--allow-loopback")
     return ([Step("run", argv, stderr=os.path.join(wd, "loadgen.stderr"),

@@ -471,6 +471,99 @@ Transfer/sec:      5.95MB
 """
 
 
+MULTI = dataclasses.replace(SPEC, local_addr="", local_addrs=("10.0.1.5", "10.0.1.6"),
+                            paths=("/a", "/a", "/b?x=1"), process="pulse", period=20, duty=0.15,
+                            seed=7, spin_ms=5)
+
+
+class MultiIdentityTest(unittest.TestCase):
+    """One engine process with several identities, a path list and its own schedule (the populations
+    of docs/HG1B_MINIMAL_DESIGN.md 5.3): the extra options reach the engine, change nothing for a
+    single-identity run, and are refused by the tools that cannot honour them."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = self._tmp.name
+        self.m = fake_root(self.tmp)
+        self.wd = os.path.join(self.tmp, "run")
+        self.addCleanup(self._tmp.cleanup)
+
+    def plan(self, tool, spec, **kw):
+        return LT.build_plan(tool, spec, self.wd, self.m, self.tmp, **kw)
+
+    def test_a_single_identity_run_gets_none_of_the_new_flags(self):
+        argv = self.plan("loadgen", SPEC).steps[0].argv
+        for flag in ("--process", "--period", "--duty", "--ramp-to", "--seed", "--path", "--spin-ms"):
+            self.assertNotIn(flag, argv)
+        self.assertEqual(argv.count("--local-addr"), 1)
+
+    def test_the_command_line_of_a_multi_identity_stream(self):
+        argv = self.plan("loadgen", MULTI).steps[0].argv
+        wd = self.wd
+        self.assertEqual(argv, [
+            "taskset", "-c", "4-7", sys.executable, os.path.join(REPO, "bench", "loadgen.py"),
+            "--url", "http://10.0.0.1/", "--rate", "100", "--duration", "10", "--timeout", "10",
+            "--max-inflight", "5000", "--pool", "100", "--method", "GET",
+            "--summary", f"{wd}/loadgen.summary.json", "--records", f"{wd}/loadgen.records.csv.gz",
+            "--header", "X-A: b", "--local-addr", "10.0.1.5", "--local-addr", "10.0.1.6",
+            "--process", "pulse", "--period", "20", "--duty", "0.15", "--seed", "7",
+            "--path", "/a", "--path", "/a", "--path", "/b?x=1", "--spin-ms", "5"])
+
+    def test_the_real_engine_accepts_every_flag_the_builder_writes(self):
+        import loadgen as LG
+        for spec in (MULTI, dataclasses.replace(MULTI, process="ramp", ramp_to=400),
+                     dataclasses.replace(MULTI, process="poisson", spin_ms=0)):
+            with self.subTest(process=spec.process):
+                argv = self.plan("loadgen", spec).steps[0].argv
+                tail = argv[argv.index(os.path.join(REPO, "bench", "loadgen.py")) + 1:]
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    self.assertEqual(LG.main([*tail, "--plan"]), 0)
+                self.assertIn("requests over 10 s", out.getvalue())
+
+    def test_ramp_and_poisson_write_only_their_own_flags(self):
+        ramp = self.plan("loadgen", dataclasses.replace(MULTI, process="ramp", ramp_to=400)).steps[0].argv
+        self.assertEqual(ramp[ramp.index("--process"):ramp.index("--seed")],
+                         ["--process", "ramp", "--ramp-to", "400"])
+        poisson = self.plan("loadgen", dataclasses.replace(MULTI, process="poisson")).steps[0].argv
+        for flag in ("--period", "--duty", "--ramp-to"):
+            self.assertNotIn(flag, poisson)
+
+    def test_the_other_tools_refuse_options_they_would_drop(self):
+        changes = {"local_addrs": ("10.0.1.5",), "paths": ("/a",), "process": "poisson", "seed": 2,
+                   "period": 5.0, "duty": 0.2, "ramp_to": 9.0, "spin_ms": 1.0}
+        for tool in ("vegeta", "k6", "wrk"):
+            for field, value in changes.items():
+                with self.subTest(tool=tool, field=field), self.assertRaisesRegex(LT.ToolError, field):
+                    self.plan(tool, dataclasses.replace(SPEC, local_addr="", **{field: value}))
+
+    def test_bad_values_are_refused(self):
+        bad = {"paths": ("a",), "process": "burst", "seed": "1", "spin_ms": -1.0,
+               "local_addrs": ("10.0.1.5", "10.0.1.5")}
+        for field, value in bad.items():
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                LT.validate(dataclasses.replace(SPEC, local_addr="", **{field: value}))
+        for paths in (("/a b",), ("/a\r\nHost: x",), ("/" + "x" * 2048,)):
+            with self.subTest(paths=paths[0][:12]), self.assertRaises(ValueError):
+                LT.validate(dataclasses.replace(SPEC, paths=paths))
+        with self.assertRaises(ValueError):                    # an address given twice over: local_addr and local_addrs
+            LT.validate(dataclasses.replace(SPEC, local_addrs=("10.0.1.5",)))
+        with self.assertRaises(ValueError):
+            LT.validate(dataclasses.replace(SPEC, process="pulse", duty=0))
+        with self.assertRaises(ValueError):
+            LT.validate(dataclasses.replace(SPEC, process="ramp"))
+        with self.assertRaises(ValueError):
+            LT.validate(dataclasses.replace(SPEC, seed=True))
+
+    def test_the_scope_lock_checks_every_address(self):
+        with self.assertRaises(LT.ScopeError):
+            LT.validate(dataclasses.replace(MULTI, local_addrs=("10.0.1.5", "8.8.8.8")))
+        with self.assertRaises(LT.ScopeError):
+            LT.validate(dataclasses.replace(MULTI, local_addrs=("10.0.1.5", "127.0.0.1")))
+        LT.validate(dataclasses.replace(MULTI, url="http://127.0.0.1:1/", allow_loopback=True,
+                                        local_addrs=("127.0.0.2",)))
+
+
 def write(path, text):
     with open(path, "w") as f:
         f.write(text)
