@@ -1,0 +1,99 @@
+== costly_search_sub_threshold: attack, costly_search_flood, class B ==
+Requests to the search route spread over 100 sources: the total cost rate is the level, each source's rate is far below every per-source rule.
+calibration   PLACEHOLDER sha256:5e7b5e70: illustrative numbers, not measurements; nothing below is a result
+grounding     OWASP API4:2023 unrestricted resource consumption
+resource      app_cpu
+seeds         calib 1 (this plan); 10 blocks use calib 1-10
+timeline      30 s baseline + 45 s attack + 30 s recovery = 105 s a run
+control       benign_control (same draw, rho and timeline); the placebo is a second run of it
+gate          metrics Q, p95; floor 10 pp; at least 10 valid blocks (the calibration's)
+
+entity seeds  first 8 bytes of sha256("calib|1|<role>|<index>")
+  role                          n  first               last
+  benign:page_browser          70  0x927be56375b2f00e  0x02394c8ce2dd6777
+  benign:spa_burst             12  0x70a0f690507a84f8  0x9085b5c894428f6c
+  benign:api_steady            10  0xb69b872ccfdd8c17  0x514f498ea27d872b
+  benign:api_bursty            10  0x3fb6c05d5c0ddce4  0xd9b2294b14db1ad7
+  benign:search_user           30  0xfad6655c242d6fa9  0x99d395f49f7b9bfb
+  benign:crawler_polite         6  0xf133e4a3afc0939a  0x659f10e20efbd56b
+  benign:nat_pool               8  0x090a0aa067296a25  0x583ad14214c06968
+  benign:downloader            54  0xa76bdb53925e9133  0xd689f45b0405e53d
+  attack:costly_search_flood  100  0x3cd0b8ca53f4ac9b  0x82db8808f1b1be72
+
+legit load    rho 90 req/s = 0.5 x c_slo 180; mean cost 6.14 ms; the SLO capacity is 1.1046 CPU-s/s
+  every class below is assumed, none is sourced
+  class           ids  share  process  req/s  CPU-s/s   util
+  page_browser     70   0.40  poisson  36.00   0.0442  0.040
+  spa_burst        12   0.08  pulse     7.20   0.0648  0.059
+  api_steady       10   0.08  poisson   7.20   0.0144  0.013
+  api_bursty       10   0.06  pulse     5.40   0.0113  0.010
+  search_user      30   0.10  poisson   9.00   0.2196  0.199
+  crawler_polite    6   0.08  poisson   7.20   0.0159  0.014
+  nat_pool          8   0.18  poisson  16.20   0.0441  0.040
+  downloader       54   0.02  poisson   1.80   0.1377  0.125
+  drawn into streams: 90.07 req/s, 0.5522 CPU-s/s, utilisation 0.500; route mix against the calibration's:
+    route  drawn  calibration      gap
+    C0     0.326        0.330  -0.4 pp
+    C1     0.238        0.220  +1.8 pp
+    C2     0.318        0.330  -1.2 pp
+    C3     0.109        0.110  -0.1 pp
+    C5     0.010        0.010  +0.0 pp
+
+attack        costly_search_flood on C3 (30 ms unloaded) from 100 sources
+  level 2 x S, S = 0.5523 CPU-s/s; ladder 0.125 0.25 0.5 1 2 4 8; knee not measured
+  total 36.82 req/s = 0.368 req/s a source; cost 1.1046 CPU-s/s = 2.000 S
+  model utilisation: legit 0.500 + attack 1.000 = 1.500 of the SLO capacity; saturation (c_sat) is at 1.444
+  a source against the deployed rules (Gate A runs without them; printed, never used):
+    rule          limit   rate  ratio  this source
+    limit_req  30 req/s  0.368  0.012  below
+    l7_rule    50 req/s  0.368  0.007  below
+  at this rate: limit_req does not shed; the L7 rule does not ban; the error-ratio branch does not apply
+  connections a source: idle pool 4, about 0.011 in flight at the unloaded cost (limit_conn 50, SlowConn from 8)
+
+generator     in-repo engine; at most 5000 req/s a stream; 0.1 ms of CPU a request
+  kind    streams  req/s  largest  vCPU   cores  share  limit  idle pool  nofile  split
+  legit        29  90.07    11.80  6      0.009   0.9%    70%       2892    2394      0
+  attack        4  36.82    13.99  3-5,7  0.004   0.1%    70%        400    5216      0
+  33 processes, memory about 990 MB (30 MB each)
+  idle pool: an upper bound over all processes; nofile: what the largest process needs; split: streams the ceiling added
+  client namespaces and the aliases each must carry: client_perfect_1 106, client_broadband_1 102, client_mobile_3g_1 68, client_mobile_bad_1 24
+  streams:
+    id                                  route  process  req/s  addrs  ns  vCPU   start        seed
+    L-poisson-C0-broadband-1            C0     poisson  11.80     25   1  6          0   489528663
+    L-poisson-C0-mobile_3g-2            C0     poisson   5.42     18   2  6          0  1416140998
+    L-poisson-C0-mobile_bad-3           C0     poisson   2.49      9   3  6          0  1339393272
+    L-poisson-C0-perfect-0              C0     poisson   9.63     32   0  6          0  1853810916
+    L-poisson-C1-broadband-1            C1     poisson   7.82     40   1  6          0  1640100807
+    L-poisson-C1-mobile_3g-2            C1     poisson   3.69     28   2  6          0   156624610
+    L-poisson-C1-mobile_bad-3           C1     poisson   1.48     15   3  6          0   463976929
+    L-poisson-C1-perfect-0              C1     poisson   7.89     55   0  6          0  1575444594
+    L-poisson-C2-broadband-1            C2     poisson   6.80     41   1  6          0   533969622
+    L-poisson-C2-mobile_3g-2            C2     poisson   2.18     26   2  6          0  1036549470
+    L-poisson-C2-mobile_bad-3           C2     poisson   1.18     12   3  6          0  1067617013
+    L-poisson-C2-perfect-0              C2     poisson   8.12     45   0  6          0  2145378850
+    L-poisson-C3-broadband-1            C3     poisson   2.72     15   1  6          0  1631329322
+    L-poisson-C3-mobile_3g-2            C3     poisson   2.10     10   2  6          0   426962457
+    L-poisson-C3-mobile_bad-3           C3     poisson   0.61      3   3  6          0   444786490
+    L-poisson-C3-perfect-0              C3     poisson   2.58     10   0  6          0   955006928
+    L-poisson-C5-broadband-1            C5     poisson   0.30     15   1  6          0  1256269712
+    L-poisson-C5-mobile_3g-2            C5     poisson   0.07     10   2  6          0  1200560428
+    L-poisson-C5-mobile_bad-3           C5     poisson   0.11      6   3  6          0  1746156071
+    L-poisson-C5-perfect-0              C5     poisson   0.41     23   0  6          0  1195775076
+    L-pulse-C1-broadband-1              C1     pulse     0.07      2   1  6          0   548712329
+    L-pulse-C1-mobile_3g-2              C1     pulse     0.07      1   2  6          0  1980105487
+    L-pulse-C1-perfect-0                C1     pulse     0.40      7   0  6          0  1529779097
+    L-pulse-C2-broadband-1              C2     pulse     3.07      8   1  6          0   972913533
+    L-pulse-C2-mobile_3g-2              C2     pulse     1.53      4   2  6          0   323420468
+    L-pulse-C2-perfect-0                C2     pulse     5.73     10   0  6          0  1239707200
+    L-pulse-C3-broadband-1              C3     pulse     0.73      6   1  6          0  1701428432
+    L-pulse-C3-mobile_3g-2              C3     pulse     0.40      3   2  6          0   258445907
+    L-pulse-C3-perfect-0                C3     pulse     0.67      3   0  6          0  1258960736
+    A-costly_search_flood-perfect-0     C3     poisson  10.31     28   0  3-5,7     30  2002208121
+    A-costly_search_flood-broadband-1   C3     poisson  13.99     38   1  3-5,7     30  2093131214
+    A-costly_search_flood-mobile_3g-2   C3     poisson  10.31     28   2  3-5,7     30   954416770
+    A-costly_search_flood-mobile_bad-3  C3     poisson   2.21      6   3  3-5,7     30  1502146743
+
+expected gate likely PASS (A = 2 S; PASS is expected from 2, FAIL up to 0.5; first order)
+
+warnings
+  - the calibration is a placeholder: every cost, rate and capacity here is an illustration, and the harm gate refuses a verdict on it

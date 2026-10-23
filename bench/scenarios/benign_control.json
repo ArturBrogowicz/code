@@ -1,0 +1,19 @@
+{
+ "schema": 1,
+ "id": "benign_control",
+ "description": "The legit population alone: the control C and the placebo C' of every block, and the baseline the attack is judged against.",
+ "family": "benign",
+ "class": "G",
+ "grounding": "assumed",
+ "resource": "app_cpu",
+ "routes": {},
+ "intensity": null,
+ "sources": 0,
+ "arrival": null,
+ "benign": {"identities": 200, "per_profile": 1},
+ "netem": "suite_mix",
+ "timeline": {"baseline_s": 30, "attack_s": 45, "recovery_s": 30},
+ "seed_namespace": "calib",
+ "gate": null,
+ "controls": null
+}
