@@ -4,9 +4,10 @@
     venv/bin/python eval/publish_campaign.py <campaign_dir> [--name ID] [--force]
 
 Copies campaign.json (if any) and, per run, provenance.json, scenario_results.csv,
-availability.csv, availability_raw.csv, metrics.csv, ban_events.jsonl, daemon.log,
-console.log (ANSI colour codes stripped) and DONE; then regenerates analysis/ in the
-copy with eval/analyze_campaign.py and eval/plot_campaign.py and writes SHA256SUMS.
+availability.csv, availability_raw.csv, metrics.csv, server_requests.csv (the load the
+server received), ban_events.jsonl, daemon.log, console.log (ANSI colour codes stripped)
+and DONE; then regenerates analysis/ in the copy with eval/analyze_campaign.py and
+eval/plot_campaign.py and writes SHA256SUMS.
 If the source already had an analysis/, the regenerated one must match it byte for
 byte (proof that the published numbers come from the published data). Nothing outside
 results/<id>/ is touched; committing is left to you.
@@ -26,8 +27,8 @@ from plot_campaign import plot_all
 
 REPO = os.path.dirname(HERE)
 RUN_FILES = ["provenance.json", "scenario_results.csv", "availability.csv",
-             "availability_raw.csv", "metrics.csv", "ban_events.jsonl", "daemon.log",
-             "console.log", "DONE"]
+             "availability_raw.csv", "metrics.csv", "server_requests.csv", "ban_events.jsonl",
+             "daemon.log", "console.log", "DONE"]
 ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 WARN_BYTES, MAX_BYTES = 20 << 20, 100 << 20
 
