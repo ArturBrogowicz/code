@@ -336,8 +336,12 @@ class RerunRuleTest(CampaignCase):
         self.assertEqual(H.analyse(self.path(), self.CAL)["reasons"], gate["reasons"])
 
     def test_an_unsound_run_ends_its_attempt_and_the_block_is_re_run(self):
-        host = self.host(startup_s=lambda sid, index, kind: (1.8 if kind == "legit" else 0.3) + (0.9 if index == 7 else 0.0))
-        state = self.run_campaign(host=host)
+        started = []
+
+        def startup(sid, index, kind):                   # the 8th stream the campaign starts is 0.9 s late, in its first run only
+            started.append(sid)
+            return (1.8 if kind == "legit" else 0.3) + (0.9 if len(started) == 8 else 0.0)
+        state = self.run_campaign(host=self.host(startup_s=startup))
         first = self.json("b01_a1", "block.json")
         self.assertEqual(len(first["order"]), 1, "the first run was made and found unsound; the others were not made")
         self.assertEqual(first["aborted"], first["planned_order"][0])

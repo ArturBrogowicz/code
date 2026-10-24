@@ -26,7 +26,7 @@ import scenario as S
 
 SPECS = os.path.join(REPO, "bench", "scenarios")
 GOLDEN = os.path.join(REPO, "tests", "golden")
-NAMES = ("benign_control", "costly_search_sub_threshold", "cheap_static_flood")
+NAMES = ("benign_control", "costly_search_sub_threshold", "cheap_static_flood", "costly_export_sub_threshold")
 CAL = C.load(C.PLACEHOLDER)
 RHO, SPARE = C.rho_rps(CAL), C.spare_capacity(CAL)
 
@@ -581,8 +581,8 @@ class CommandLineTest(unittest.TestCase):
     def test_check_lists_the_specs_and_their_controls(self):
         code, out, err = run_main("--check", *[path_of(n) for n in NAMES])
         self.assertEqual((code, err), (0, ""))
-        self.assertEqual(out.count(": valid"), 3)
-        self.assertEqual(out.count("paired with benign_control"), 2)
+        self.assertEqual(out.count(": valid"), 4)
+        self.assertEqual(out.count("paired with benign_control"), 3)
 
     def test_plan_is_the_default_and_prints_each_scenario(self):
         code, out, _ = run_main(path_of("benign_control"), path_of("cheap_static_flood"))

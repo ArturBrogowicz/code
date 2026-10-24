@@ -86,13 +86,13 @@ class SimHost(X.Host):
     2nd... one is built per run) to faults that are armed when it is built, which is how a campaign's later runs are made to fail.
     `dies` is a predicate on a stream id: those streams die at their start. The names the tests use:
     missing_address, duplicate_mac, no_netem, ping_fails, nginx_fails, origin_dies, not_ready, wrong_class, wrong_tag,
-    stubborn_origin, stubborn_nginx, leftover_nginx_after_teardown, server_address_missing, stream_dies, stream_silent,
+    stubborn_origin, stubborn_nginx, origin_session_fails, leftover_nginx_after_teardown, server_address_missing, stream_dies, stream_silent,
     stream_nonzero, stream_hangs, table_unreadable."""
 
     def __init__(self, root=True, dirty=False, nofile=(524288, 524288), uptime_s=7200.0, load1=0.05, timer_p99_ms=1.0,
                  preexisting=(), startup_s=None, exit_delay_s=0.04, exit_delay_per_request_s=0.0, faults=None,
                  log_lines=20, tag="placeholder", python_exists=True, steal_share=0.0, on_sleep=None, server=None,
-                 fault_schedule=None, dies=None):
+                 fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,)):
         self.t = 0.0
         self.pids = itertools.count(1000)
         self.events, self.seq = [], itertools.count()
@@ -105,12 +105,14 @@ class SimHost(X.Host):
         self.startup_s = startup_s or (lambda sid, index, kind: (1.8 if kind == "legit" else 0.3) + 0.002 * index)
         self.faults = dict(faults or {})
         self.fault_schedule, self.topologies, self.dies = dict(fault_schedule or {}), 0, dies
+        self.registry = {}                    # run directory -> the streams started in it, for a server that has a load
+        self.origin_costs, self.origin_noise, self.origin_calls = origin_costs, tuple(origin_noise), 0
         self.log_lines, self.tag, self.python_exists, self.steal_share = log_lines, tag, python_exists, steal_share
         self.on_sleep, self.server = on_sleep, server
         self.table_extra = []                 # (pid, ppid, args) of processes that are not the model's: an editor, a shell
         self.shield, self.unshielded = False, []
         self.pinned = None
-        self.stream_index = 0
+        self.stream_index, self.batch_at = 0, None
         self.launch_times = {}
         self.access_log = None
         self.origin_ready_at = None
@@ -201,6 +203,8 @@ class SimHost(X.Host):
         sid = os.path.basename(os.path.dirname(opts["--summary"]))
         kind = "legit" if sid.startswith("L-") else "attack"
         proc = self.spawn(argv, ns, "python3", "stream")
+        if self.t != self.batch_at:                    # the start-up contention is among the streams launched together
+            self.batch_at, self.stream_index = self.t, 0
         index, self.stream_index = self.stream_index, self.stream_index + 1
         self.launch_times[sid] = self.t
         if self.fault("stream_hangs"):
@@ -214,6 +218,9 @@ class SimHost(X.Host):
                 stderr.write(b"Traceback: the simulated engine died\n")
             self.schedule(loop_start + 3.0, lambda: self.end(proc, 2))
             return proc
+        self.registry.setdefault(_run_dir(opts), []).append(
+            {"kind": kind, "begin": loop_start, "end": loop_start + X.ENGINE_T0_OFFSET_S + duration, "rate": rate,
+             "route": parse_stream_id(sid)[1]})
         exit_at = loop_start + wall + self.exit_delay_s + self.exit_delay_per_request_s * n
         silent, code = self.fault("stream_silent"), 3 if self.fault("stream_nonzero") else 0
         self.schedule(exit_at, lambda: self._finish_stream(proc, sid, opts, local, loop_start, wall, n, silent, code))
@@ -230,7 +237,7 @@ class SimHost(X.Host):
         duration = float(opts["--duration"])
         os.makedirs(os.path.dirname(opts["--summary"]), exist_ok=True)
         if self.server is not None:
-            n = self.server.write(sid, opts, wall, max(1, len(local)))
+            n = self.server.write(sid, opts, wall, max(1, len(local)), self.registry.get(_run_dir(opts), ()), loop_start)
         else:
             with gzip.open(opts["--records"], "wt") as fh:
                 fh.write(RECORD_HEADER)
@@ -376,9 +383,22 @@ class SimHost(X.Host):
         if "timer-probe" in rest:
             return X.Result(0, json.dumps({"interval_s": 0.01, "samples": 200, "p50_ms": 0.1, "p99_ms": self.timer_p99_ms,
                                            "max_ms": self.timer_p99_ms * 2}), "")
+        if "origin-session" in rest:
+            return self._origin_session()
         if rest and rest[0] == "nginx":
             return self._cmd_nginx(rest[1:], ns, stdin, cpus=a[1])
         return X.Result(127, "", f"fake: no such command under taskset: {rest[:1]}")
+
+    def _origin_session(self):
+        """One session of the calibrator's step 1: the cost of each route in ms, each session scaled by its own factor of
+        `origin_noise` (cycled), so that sessions can disagree by a known amount."""
+        costs = self.origin_costs or ({k: v * 1000.0 for k, v in self.server.cost.items()} if self.server else
+                                      {klass: 1.0 for klass in O.CLASSES})
+        factor = 1.0 + self.origin_noise[self.origin_calls % len(self.origin_noise)]
+        self.origin_calls += 1
+        if self.fault("origin_session_fails"):
+            return X.Result(1, "", "Traceback: the simulated session failed")
+        return X.Result(0, json.dumps({k: v * factor for k, v in costs.items()}), "")
 
     def _cmd_nginx(self, a, ns, stdin, cpus=None):
         if self.fault("nginx_fails"):
@@ -582,36 +602,66 @@ def parse_stream_id(sid):
 
 class SyntheticServer:
     """The effect of a simulated stack on a run's requests: each legit request costs its route's time from the calibration plus
-    its link's delay, and in a run named in `effects` the legit requests inside the attack's window fail with probability `fail_p`
-    (a timeout) and the others take `slow` times as long. `effects` maps a run name (C, Cp, U) to {"fail_p", "slow", "slip"}; the
-    random draws depend on the run, so two attack-free runs differ the way a control and its placebo do. Not a model of any
-    server: it makes a harm of a known size so that the protocol around it can be seen to find it, or not to."""
+    its link's delay, and then one of two things happens to it.
 
-    def __init__(self, cal, timeline, effects=None, seed=1):
+    With `effects`, a run named in it (C, Cp, U) has the legit requests inside the attack's window fail with probability
+    `fail_p` (a timeout) and the others take `slow` times as long: a harm of a known size, for the tests of the gate and of
+    the campaign. `effects` maps a run name to {"fail_p", "slow", "slip"}.
+
+    With `capacity_cpu` (CPU-seconds a second the server can do), the harm comes from the load: at each request's time the streams
+    of the run that are running offer rate x route cost, and where that exceeds the capacity the share that does not fit fails
+    and the rest take as many times longer as the load is over the capacity (u = load / capacity; a request fails with
+    probability 1 - 1/u when u > 1). The capacity and the ladders of the calibrator find a known capacity and a known knee in it.
+
+    The random draws depend on the run's directory and its parent's name (b03_a1/U), so two attack-free runs of a block differ the way a
+    control and its placebo do, and the repeats of a level differ from one another; the same run made again is the same. Not a model
+    of any server."""
+
+    def __init__(self, cal, timeline, effects=None, seed=1, capacity_cpu=None):
         self.cost = {klass: ms / 1000.0 for klass, ms in cal["route_costs_ms"].items()}
         baseline, attack = float(timeline[0]), float(timeline[1])
         self.window = (baseline, baseline + attack)
         self.effects = effects or {}
         self.seed = seed
+        self.capacity_cpu = capacity_cpu
 
-    def write(self, sid, opts, wall, identities):
+    def utilisation(self, times, begin, others):
+        """Load over capacity at `times` (seconds into the stream) of a stream that began at `begin`, from the streams in
+        `others` (dicts with kind, begin, end, rate, route; times of the host's clock): the run's axis starts where the first
+        legit stream began."""
+        zero = min((o["begin"] for o in others if o["kind"] == "legit"), default=begin)
+        at = (begin - zero) + times
+        load = np.zeros(len(times))
+        for o in others:
+            load += np.where((at >= o["begin"] - zero) & (at < o["end"] - zero), o["rate"] * self.cost[o["route"]], 0.0)
+        return load / self.capacity_cpu
+
+    def write(self, sid, opts, wall, identities, others=(), begin=0.0):
         """The records and the summary of one stream at the paths in `opts`; returns the number of requests it intended."""
-        run = os.path.basename(_run_dir(opts))
+        run_dir = _run_dir(opts)
+        run = os.path.basename(run_dir)
+        label = f"{os.path.basename(os.path.dirname(run_dir))}/{run}"          # b03_a1/U, 07_L2_r1/U: what makes a run this run
         kind, route, profile = parse_stream_id(sid)
         sched = np.array(LG.schedule(opts.get("--process", "constant"), float(opts["--rate"]), float(opts["--duration"]),
                                      int(opts.get("--seed", 1)), period=float(opts.get("--period", 1.0)),
                                      duty=float(opts.get("--duty", 0.5))))
         n = len(sched)
-        rng = np.random.default_rng([self.seed, zlib.crc32(run.encode()), zlib.crc32(sid.encode()), int(opts.get("--seed", 1))])
+        rng = np.random.default_rng([self.seed, zlib.crc32(label.encode()), zlib.crc32(sid.encode()), int(opts.get("--seed", 1))])
         effect = self.effects.get(run, {}) if kind == "legit" else {}
         slip = effect.get("slip", 0.002) * (0.5 + rng.random(n))
         sent = sched + slip
         service = self.cost[route] * rng.lognormal(0.0, 0.2, n)
         mean, jitter, loss = LINKS[profile]
         link = np.maximum(0.0, rng.normal(mean, jitter, n)) + np.where(rng.random(n) < loss, RETRANSMIT_S, 0.0)
-        hit = (sched >= self.window[0]) & (sched < self.window[1]) & (kind == "legit")
-        bad = hit & (rng.random(n) < effect.get("fail_p", 0.0))
-        service = np.where(hit & ~bad, service * effect.get("slow", 1.0), service) + link
+        if self.capacity_cpu and kind == "legit":
+            u = self.utilisation(sched, begin, others)
+            over = np.maximum(u, 1.0)
+            bad = rng.random(n) < 1.0 - 1.0 / over
+            service = service * over + link
+        else:
+            hit = (sched >= self.window[0]) & (sched < self.window[1]) & (kind == "legit")
+            bad = hit & (rng.random(n) < effect.get("fail_p", 0.0))
+            service = np.where(hit & ~bad, service * effect.get("slow", 1.0), service) + link
         done = sent + service
         done[bad] = sent[bad] + TIMEOUT_S
         rows = n if kind == "legit" else min(n, ATTACK_RECORDS)

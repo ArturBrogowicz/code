@@ -52,7 +52,7 @@ class SyntheticServerTest(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
 
     def write(self, run="C", sid="L-constant-C1-perfect-0", rate=20.0, duration=30.0, effects=None, seed=5, identities=3):
-        workdir = os.path.join(self.tmp.name, run, "streams", sid)
+        workdir = os.path.join(self.tmp.name, "block", run, "streams", sid)          # the parent's name is part of the draw
         os.makedirs(workdir, exist_ok=True)
         opts = {"--rate": str(rate), "--duration": str(duration), "--process": "constant", "--seed": str(seed),
                 "--summary": os.path.join(workdir, "loadgen.summary.json"),
@@ -145,7 +145,7 @@ class SyntheticServerTest(unittest.TestCase):
         self.assertEqual([r["t_intended"] for r in a], [r["t_intended"] for r in c], "the same clients in both")
 
     def test_the_stream_seed_changes_the_schedule_of_a_random_process(self):
-        workdir = os.path.join(self.tmp.name, "C", "streams", "L-poisson-C1-perfect-0")
+        workdir = os.path.join(self.tmp.name, "block", "C", "streams", "L-poisson-C1-perfect-0")
         os.makedirs(workdir)
         times = []
         for seed in (1, 2):
@@ -162,6 +162,95 @@ class SyntheticServerTest(unittest.TestCase):
         self.assertEqual((n, summary["intended"], summary["sent"]), (3000, 3000, 3000))
 
 
+class LoadModelTest(unittest.TestCase):
+    """A server with a capacity: what fits is served, what does not fit fails, and a full server is slow."""
+    COST_C1 = CAL["route_costs_ms"]["C1"] / 1000          # 3 ms: 100 requests/s offer 0.3 CPU-s/s
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    @staticmethod
+    def stream(kind="legit", begin=0.0, duration=30.0, rate=100.0, route="C1"):
+        return {"kind": kind, "begin": begin, "end": begin + duration, "rate": rate, "route": route}
+
+    def server(self, capacity_cpu):
+        return S.SyntheticServer(CAL, TIMELINE, capacity_cpu=capacity_cpu)
+
+    def write(self, capacity_cpu, own, others, run="C", sid="L-constant-C1-perfect-0", seed=5):
+        workdir = os.path.join(self.tmp.name, "block", run, "streams", sid)
+        os.makedirs(workdir, exist_ok=True)
+        opts = {"--rate": str(own["rate"]), "--duration": str(own["end"] - own["begin"]), "--process": "constant",
+                "--seed": str(seed), "--summary": os.path.join(workdir, "loadgen.summary.json"),
+                "--records": os.path.join(workdir, "loadgen.records.csv.gz")}
+        self.server(capacity_cpu).write(sid, opts, 30.5, 1, others, own["begin"])
+        with gzip.open(opts["--records"], "rt", newline="") as fh:
+            rows = list(csv.DictReader(fh))
+        return {k: np.array([float(r[k]) if k != "err" else r[k] == "timeout" for r in rows])
+                for k in ("t_intended", "t_sent", "t_done", "status", "err")}
+
+    def test_utilisation_is_the_load_of_the_streams_that_are_running_over_the_capacity(self):
+        own = self.stream()
+        extra = self.stream(begin=10.0, duration=10.0, rate=200.0)
+        server = self.server(0.6)
+        times = np.array([0.0, 9.9, 10.0, 19.9, 20.0, 29.9])
+        u = server.utilisation(times, 0.0, [own, extra])
+        self.assertTrue(np.allclose(u, [0.5, 0.5, 1.5, 1.5, 0.5, 0.5]), u)
+
+    def test_the_axis_starts_where_the_first_legit_stream_began(self):
+        first, late = self.stream(begin=100.0), self.stream(begin=110.0, duration=10.0, rate=200.0)
+        u = self.server(0.6).utilisation(np.array([0.0, 5.0]), 110.0, [first, late])
+        self.assertTrue(np.allclose(u, [1.5, 1.5]), "the late stream's own time 0 is 10 s into the run")
+
+    def test_an_attack_adds_its_cost_while_it_runs_and_a_step_only_its_own(self):
+        legit = self.stream()
+        attack = self.stream(kind="attack", begin=10.0, duration=10.0, rate=10.0, route="C3")      # 10 x 30 ms = 0.3 CPU-s/s
+        u = self.server(0.6).utilisation(np.array([5.0, 15.0, 25.0]), 0.0, [legit, attack])
+        self.assertTrue(np.allclose(u, [0.5, 1.0, 0.5]), u)
+        step0, step1 = self.stream(duration=6.0), self.stream(begin=6.0, duration=6.0, rate=200.0)
+        u = self.server(0.6).utilisation(np.array([3.0, 9.0]), 0.0, [step0, step1])
+        self.assertTrue(np.allclose(u, [0.5, 1.0]), "the steps do not add up: one ends where the next begins")
+
+    def test_below_the_capacity_nothing_fails_and_nothing_is_slow(self):
+        own = self.stream()
+        loaded = self.write(0.6, own, [own])
+        idle = self.write(1e9, own, [own], run="Cp")
+        self.assertFalse(loaded["err"].any())
+        lat = lambda r: float(np.mean(r["t_done"] - r["t_sent"]))
+        self.assertAlmostEqual(lat(loaded), lat(idle), delta=0.002)
+
+    def test_over_the_capacity_the_share_that_does_not_fit_fails(self):
+        own = self.stream(rate=200.0)                       # 0.6 CPU-s/s on a server that does 0.3: u = 2
+        r = self.write(0.3, own, [own])
+        self.assertAlmostEqual(float(r["err"].mean()), 0.5, delta=0.04)
+
+    def test_a_server_over_its_capacity_is_slower_by_the_load_over_the_capacity(self):
+        own = self.stream(rate=300.0)                       # u = 3
+        full = self.write(0.3, own, [own])
+        idle = self.write(1e9, own, [own], run="Cp")
+        ok = ~full["err"]
+        slow = float(np.mean((full["t_done"] - full["t_sent"])[ok]))
+        quick = float(np.mean(idle["t_done"] - idle["t_sent"]))
+        self.assertAlmostEqual(slow / quick, 3.0, delta=0.4)
+
+    def test_the_harm_is_where_the_attack_is(self):
+        own = self.stream(rate=100.0)
+        attack = self.stream(kind="attack", begin=10.0, duration=10.0, rate=40.0, route="C3")      # +1.2 CPU-s/s on 0.4: u = 4
+        r = self.write(0.4, own, [own, attack])
+        inside = (r["t_intended"] >= 10.0) & (r["t_intended"] < 20.0)
+        self.assertFalse(r["err"][~inside].any(), "outside the attack the server has room")
+        self.assertGreater(float(r["err"][inside].mean()), 0.5)
+
+    def test_an_attack_stream_is_not_itself_hurt(self):
+        attack = self.stream(kind="attack", rate=40.0, route="C3")
+        r = self.write(0.1, attack, [self.stream(), attack], run="U", sid="A-costly_search_flood-perfect-0")
+        self.assertFalse(r["err"].any())
+
+    def test_a_run_that_has_no_capacity_model_uses_its_effects(self):
+        server = S.SyntheticServer(CAL, TIMELINE, {"U": {"fail_p": 1.0}})
+        self.assertIsNone(server.capacity_cpu)
+
+
 class SimulatedRunTest(unittest.TestCase):
     """A run through the executor on the simulated host, read by the harm gate."""
 
@@ -172,7 +261,7 @@ class SimulatedRunTest(unittest.TestCase):
 
     def run_kind(self, kind, effects):
         host = S.SimHost(server=S.SyntheticServer(CAL, TIMELINE, effects))
-        plan = X.plan_run(self.scn, CAL, kind, 1, os.path.join(self.tmp.name, kind), C.PLACEHOLDER, "x",
+        plan = X.plan_run(self.scn, CAL, kind, 1, os.path.join(self.tmp.name, "block", kind), C.PLACEHOLDER, "x",
                           settings={"readiness_timeout_s": 5.0}, rho=40.0, timeline=TIMELINE)
         result = X.execute(plan, host)
         self.assertTrue(result.ok, result.reasons)

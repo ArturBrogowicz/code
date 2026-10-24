@@ -232,7 +232,7 @@ class TimelineTest(RunCase):
         self.assertLess(abs(self.run_json(plan)["executor"]["attack_start_error_s"]), 0.06)
 
     def test_an_exit_delay_that_grows_with_the_requests_is_taken_off_when_it_is_known(self):
-        per = 4e-5                             # the attack streams have thousands of requests, the legit ones a few hundred
+        per = 5e-3                             # the attack streams have tens of requests more than the legit ones: 5 ms each
         host = F.SimHost(exit_delay_per_request_s=per)
         plan, _, uncorrected = self.go("U", host, plan_args={"rho": 20.0, "name": "raw/U"})
         err_raw = self.run_json(plan)["executor"]["attack_start_error_s"]
@@ -240,7 +240,7 @@ class TimelineTest(RunCase):
         plan, _, corrected = self.go("U", host, plan_args={"name": "fixed/U", "settings": {"exit_delay_per_request_s": per}})
         err_fixed = self.run_json(plan)["executor"]["attack_start_error_s"]
         self.assertTrue(uncorrected.ok and corrected.ok)
-        self.assertGreater(abs(err_raw), abs(err_fixed))
+        self.assertGreater(abs(err_raw), 0.1)
         self.assertLess(abs(err_fixed), 0.06)
 
     def test_telemetry_is_sampled_over_the_whole_timeline_and_the_attack_launch_does_not_skip_a_tick(self):
