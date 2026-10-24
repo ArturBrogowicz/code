@@ -790,10 +790,10 @@ class SimulatedCalibrationTest(unittest.TestCase):
         self.assertTrue(bad["reasons"][0].startswith("legit probe: Q"), bad["reasons"])
         self.assertTrue(os.path.exists(os.path.join(self.tmp.name, "d2", "drift", "drift.json")))
 
-    def cli(self, *args):
+    def cli(self, *args, host=None):
         out, err = io.StringIO(), io.StringIO()
         with mock.patch.object(X.signal, "signal"), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = K.main(list(args))
+            code = K.main(list(args), host=host)
         return code, out.getvalue(), err.getvalue()
 
     def test_the_drift_command_exits_zero_on_the_same_server_and_three_on_another(self):
@@ -807,6 +807,26 @@ class SimulatedCalibrationTest(unittest.TestCase):
                                 "--sim-capacity-cpu", str(CAPACITY_CPU * 0.25))
         self.assertEqual(code, K.EXIT_INVALID)
         self.assertIn("OUT of it", out)
+        self.assertIn("drift check 1 of 2 failed; making it once more", out)
+        self.assertIn("drift check 2 of 2 failed; it stops here", out)
+        self.assertTrue(os.path.exists(os.path.join(self.tmp.name, "c2.second", "drift", "drift.json")))
+
+    def test_a_drift_check_that_fails_is_made_once_more_after_the_gate_and_can_then_pass(self):
+        path = os.path.join(self.tmp.name, "cli_cal2.json")
+        C.dump(self.frozen, path)
+        server = S.SyntheticServer(self.frozen, (30, 45, 30), capacity_cpu=CAPACITY_CPU * 0.25)
+
+        def recover(host):                          # the first attempt takes about 250 s of the host's time; then the server is well again
+            if host.t > 260.0:
+                server.capacity_cpu = CAPACITY_CPU
+        host = S.SimHost(server=server, tag=S.origin_tag(self.frozen), on_sleep=recover)
+        with mock.patch.object(K.Runner, "__init__", autospec=True, side_effect=K.Runner.__init__) as made:
+            code, out, _ = self.cli("drift", "--calibration", path, "--out", os.path.join(self.tmp.name, "c3"), host=host)
+        self.assertEqual(code, K.EXIT_OK, out)
+        self.assertIn("drift check 1 of 2 failed; making it once more", out)
+        self.assertEqual(made.call_count, 2, "a new runner for the second attempt, which waits for the full gate again")
+        self.assertFalse(K.read_json(os.path.join(self.tmp.name, "c3", "drift", "drift.json"))["ok"])
+        self.assertTrue(K.read_json(os.path.join(self.tmp.name, "c3.second", "drift", "drift.json"))["ok"])
 
     def test_a_screening_whose_controls_are_unhealthy_is_invalid_and_exits_three(self):
         dest = self.copy_session()                      # not the session itself: this overwrites a screening

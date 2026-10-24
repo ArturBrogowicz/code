@@ -766,9 +766,15 @@ def _dispatch(args, host):
         cal = C.load(args.calibration)
         timeline = args.timeline
         host = host or _host_for(args, cal, timeline)
-        runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate)
-        result = drift_step(runner, cal, os.path.abspath(args.calibration), os.path.abspath(args.out), args.family, timeline)
-        return EXIT_OK if result["ok"] else EXIT_INVALID
+        out = os.path.abspath(args.out)
+        for attempt in (1, 2):                  # a failure is made once more after the environment gate; twice stops (design 7.5)
+            runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate)       # a new runner waits for the full gate
+            result = drift_step(runner, cal, os.path.abspath(args.calibration), out if attempt == 1 else out + ".second",
+                                args.family, timeline)
+            if result["ok"]:
+                return EXIT_OK
+            print(f"drift check {attempt} of 2 failed" + ("; making it once more" if attempt == 1 else "; it stops here"))
+        return EXIT_INVALID
     template = C.load(args.template)
     cal_path, out = os.path.abspath(args.template), os.path.abspath(args.out)
     timeline = getattr(args, "timeline", None)
