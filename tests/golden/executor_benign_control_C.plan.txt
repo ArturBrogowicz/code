@@ -5,7 +5,7 @@ run directory /var/tmp/ddos_campaigns/example/b01_a1/C
 timeline      the 29 legit streams are launched at L; their loops start about 1.8 s later, which is T = 0, and run 105 s
 plan hash     1054ec8289c0 (the legit streams: equal in C, Cp and U of a block)
 nginx.conf    sha256:d84fd57c34ce (nginx_unprotected.conf with its two log paths changed)
-settings      startup_delay_legit_s 1.8, startup_delay_attack_s 0.3, readiness_timeout_s 30.0, warmup_requests 2, t0_spread_limit_s 0.5, attack_start_limit_s 0.5, term_grace_s 2.0, min_nofile 16384
+settings      startup_delay_legit_s 1.8, startup_delay_attack_s 0.3, readiness_timeout_s 30.0, warmup_requests 2, t0_spread_limit_s 0.5, attack_start_limit_s 0.5, term_grace_s 2.0, min_nofile 16384, exit_delay_per_request_s 0.0
 
 topology: 4 client namespaces carrying 200 addresses
       hg_0_perfect       perfect       78 addresses, first 10.0.1.2, veth vo_hg_0_perfect

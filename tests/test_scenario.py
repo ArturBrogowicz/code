@@ -388,6 +388,16 @@ class PopulationOfTest(unittest.TestCase):
         with self.assertRaisesRegex(S.ScenarioError, "outside the namespace"):
             S.population_of(scenario("benign_control"), CAL, 100)
 
+    def test_a_load_given_replaces_the_calibrations_and_nothing_else_about_the_draw(self):
+        scn = scenario("costly_search_sub_threshold")
+        nominal, level = S.population_of(scn, CAL, 1)
+        smoke, same_level = S.population_of(scn, CAL, 1, rho=20.0)
+        self.assertAlmostEqual(sum(s.rate for s in smoke.of_kind("legit")), 20.0, delta=0.5)
+        self.assertGreater(sum(s.rate for s in nominal.of_kind("legit")), 80.0)
+        self.assertEqual(same_level, level)
+        self.assertEqual([s.rate for s in smoke.of_kind("attack")], [s.rate for s in nominal.of_kind("attack")])
+        self.assertEqual([s.id for s in smoke.streams], [s.id for s in nominal.streams])
+
     def test_plan_uses_it(self):
         pop, _ = S.population_of(scenario("costly_search_sub_threshold"), CAL, 3)
         self.assertEqual(len(plan_of("costly_search_sub_threshold", seed=3)["streams"]), len(pop.streams))

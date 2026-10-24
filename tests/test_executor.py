@@ -251,7 +251,7 @@ class PlanTest(unittest.TestCase):
     def test_settings_are_recorded_and_can_be_overridden(self):
         p = plan()
         self.assertEqual(p.settings, EX.SETTINGS)
-        q = EX.plan_run(scenario(), CAL, "U", 1, OUT, C.PLACEHOLDER, settings={"startup_delay_legit_s": 2.5})
+        q = EX.plan_run(scenario(), CAL, "U", 1, f"{OUT}/U", C.PLACEHOLDER, settings={"startup_delay_legit_s": 2.5})
         self.assertEqual(q.settings["startup_delay_legit_s"], 2.5)
         self.assertAlmostEqual(EX.launch_attack_after(q), 32.2)
 
@@ -271,6 +271,42 @@ class PlanTest(unittest.TestCase):
         self.assertEqual({x["do"] for x in data["stack"]}, {"mkdir", "write", "cmd"})
         self.assertEqual(len(data["streams"]), 33)
         self.assertEqual(data["plan_sha256"], a.plan_sha256)
+
+    def test_a_run_directory_is_called_after_its_kind_because_the_gate_reads_the_role_from_the_name(self):
+        for kind, name in (("U", "C"), ("C", "run1"), ("Cp", "Cp_old")):
+            with self.subTest(kind=kind, name=name), self.assertRaisesRegex(EX.PlanError, "is called"):
+                EX.plan_run(scenario(), CAL, kind, 1, f"{OUT}/{name}", C.PLACEHOLDER)
+        self.assertEqual(EX.plan_run(scenario(), CAL, "Cp", 1, f"{OUT}/Cp/", C.PLACEHOLDER).kind, "Cp")
+
+    def test_a_smoke_test_overrides_the_load_and_says_so(self):
+        p = EX.plan_run(scenario(), CAL, "C", 1, f"{OUT}/C", C.PLACEHOLDER, rho=20.0)
+        self.assertEqual(p.overrides, {"rho_rps": 20.0})
+        self.assertAlmostEqual(sum(s.rate for s in p.streams), 20.0, delta=0.5)
+        self.assertEqual(plan().overrides, {})
+        self.assertIn("OVERRIDES", EX.describe(p))
+        self.assertNotIn("OVERRIDES", EX.describe(plan()))
+        self.assertNotEqual(p.plan_sha256, plan("C").plan_sha256)
+
+    def test_a_smoke_test_can_shorten_the_timeline_and_says_so(self):
+        p = EX.plan_run(scenario(), CAL, "U", 1, f"{OUT}/U", C.PLACEHOLDER, timeline=(10.0, 12.0, 8.0))
+        self.assertEqual(p.overrides, {"timeline_s": [10.0, 12.0, 8.0]})
+        self.assertEqual(p.timeline, {"baseline_s": 10.0, "attack_s": 12.0, "recovery_s": 8.0, "total_s": 30.0})
+        self.assertEqual({s.duration_s for s in p.streams if s.kind == "legit"}, {30.0})
+        self.assertEqual({(s.start_s, s.duration_s) for s in p.streams if s.kind == "attack"}, {(10.0, 12.0)})
+        self.assertEqual(EX.launch_attack_after(p), 10.0 + 1.8 - 0.3)
+        self.assertIn("timeline_s", EX.describe(p))
+        both = EX.plan_run(scenario(), CAL, "U", 1, f"{OUT}/U", C.PLACEHOLDER, rho=20.0, timeline=(10.0, 12.0, 8.0))
+        self.assertEqual(both.overrides, {"rho_rps": 20.0, "timeline_s": [10.0, 12.0, 8.0]})
+
+    def test_a_timeline_that_is_not_three_positive_numbers_is_refused(self):
+        for bad in ((10.0, 10.0), (10.0, 0.0, 10.0), (10.0, -1.0, 10.0)):
+            with self.subTest(timeline=bad), self.assertRaises(EX.PlanError):
+                EX.plan_run(scenario(), CAL, "C", 1, f"{OUT}/C", C.PLACEHOLDER, timeline=bad)
+
+    def test_a_load_that_is_not_a_positive_number_is_refused(self):
+        for bad in (0, -5.0, float("nan"), float("inf"), "20", True):
+            with self.subTest(rho=bad), self.assertRaises(EX.PlanError):
+                EX.plan_run(scenario(), CAL, "C", 1, f"{OUT}/C", C.PLACEHOLDER, rho=bad)
 
     def test_a_relative_run_directory_becomes_absolute(self):
         p = EX.plan_run(scenario(), CAL, "C", 1, "runs/C", C.PLACEHOLDER)

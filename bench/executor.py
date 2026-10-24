@@ -12,18 +12,37 @@ process of a run, with no clock, no file and no process. `python3 bench/executor
 and without importing the suite. The second half (below the plan) runs it through a `Host`.
 
     python3 bench/executor.py plan SPEC --calibration FILE --kind U --seed 1 [--out DIR] [--json]
+    sudo ./venv/bin/python bench/executor.py run SPEC --calibration FILE --kind C --seed 1 --out DIR/C   # one run, root
+    sudo ./venv/bin/python bench/executor.py smoke-topology SPEC --out DIR/C      # S2: the topology only, then taken down
+    ./venv/bin/python bench/executor.py clock-probe SPEC --duration 30 [--attack] # S1: the engine's start-up, no root
 
 The suite (test_distributed_suite.py) is used the way ml/capture_l7.py uses it: only its testbed primitives, imported
 lazily after the checks (docs/HG1C_DESIGN.md 5). Everything the benchmark adds is here: the aliases, the stack, the
 streams, the timeline, the telemetry, the cleanup and the leftovers. Nothing here kills a process by pattern.
 """
 import argparse
+import atexit
+import collections
+import contextlib
+import csv
 import dataclasses
+import datetime
+import gzip
 import hashlib
+import ipaddress
 import json
+import math
 import os
+import platform
 import re
+import resource
+import shutil
+import signal
+import statistics
+import subprocess
 import sys
+import threading
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -51,7 +70,7 @@ READY_PATH = O.SAMPLE_URLS["C0"]          # the origin has no route at "/": it a
 # proposals, frozen after S1 and S4 (docs/HG1C_DESIGN.md 6.6, 10) and recorded in every plan
 SETTINGS = {"startup_delay_legit_s": 1.8, "startup_delay_attack_s": 0.3, "readiness_timeout_s": 30.0,
             "warmup_requests": 2, "t0_spread_limit_s": 0.5, "attack_start_limit_s": 0.5, "term_grace_s": 2.0,
-            "min_nofile": 16384}
+            "min_nofile": 16384, "exit_delay_per_request_s": 0.0}
 
 
 class PlanError(ValueError):
@@ -141,6 +160,7 @@ class RunPlan:
     nginx_conf_sha256: str
     plan_sha256: str
     settings: dict
+    overrides: dict                  # what a smoke test changed (rho, timeline); empty in a real run
 
 
 # --- names -------------------------------------------------------------------------------------
@@ -238,6 +258,10 @@ def teardown_steps(namespaces):
 
 # --- the plan ----------------------------------------------------------------------------------
 
+def _positive(x):
+    return isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x) and x > 0
+
+
 def _legit_hash(streams):
     rows = [{"id": s.id, "route": s.route_class, "netem": s.netem, "process": s.process, "rate": s.rate,
              "period": s.period, "duty": s.duty, "seed": s.seed, "ns": s.ns_index, "addresses": list(s.addresses),
@@ -247,15 +271,29 @@ def _legit_hash(streams):
 
 
 def plan_run(scn, cal, kind, seed, out, calibration_path, scenario_sha256="", manifest=None, root=None, settings=None,
-             python=None):
+             python=None, rho=None, timeline=None):
     """Everything a run will do, as data. `scn` is a bench/scenario.Scenario, `cal` a calibration record read from
-    `calibration_path`, `kind` one of C, Cp and U, `out` the run's directory."""
+    `calibration_path`, `kind` one of C, Cp and U, `out` the run's directory, which must be called after its kind (the
+    gate reads the role from the name). `rho` replaces the nominal load and `timeline` (baseline, attack, recovery seconds)
+    the scenario's, for a smoke test; both are recorded as overrides."""
     if kind not in KINDS:
         raise PlanError(f"kind: one of {', '.join(KINDS)}, got {kind!r}")
+    if os.path.basename(os.path.normpath(out)) != kind:
+        raise PlanError(f"the run directory of a {kind} run is called {kind}, not {os.path.basename(os.path.normpath(out))!r}")
     if kind == "U" and scn.is_control:
         raise PlanError(f"{scn.id} is attack-free: it has no attack run")
+    overrides = {}
+    if rho is not None:
+        if not _positive(rho):
+            raise PlanError(f"rho: a positive number of requests per second, got {rho!r}")
+        overrides["rho_rps"] = rho
+    if timeline is not None:
+        if len(timeline) != 3 or not all(_positive(v) for v in timeline):
+            raise PlanError(f"timeline: baseline, attack and recovery seconds, all positive, got {timeline!r}")
+        scn = dataclasses.replace(scn, timeline=P.Timeline(*timeline))
+        overrides["timeline_s"] = list(timeline)
     try:
-        pop, level = SC.population_of(scn, cal, seed, attack=kind == "U")
+        pop, level = SC.population_of(scn, cal, seed, attack=kind == "U", rho=rho)
     except SC.ScenarioError as exc:
         raise PlanError(str(exc)) from exc
     out = os.path.abspath(out) if not os.path.isabs(out) else out
@@ -286,7 +324,8 @@ def plan_run(scn, cal, kind, seed, out, calibration_path, scenario_sha256="", ma
         namespaces=namespaces, topology=topology_steps(namespaces),
         stack=stack_steps(out, os.path.abspath(calibration_path), python, pins, conf_sha256), checks=check_paths(),
         streams=tuple(streams), teardown=teardown_steps(namespaces), nginx_conf=conf, nginx_conf_sha256=conf_sha256,
-        plan_sha256=_legit_hash(pop.of_kind("legit")), settings={**SETTINGS, **(settings or {})})
+        plan_sha256=_legit_hash(pop.of_kind("legit")), settings={**SETTINGS, **(settings or {})},
+        overrides=overrides)
 
 
 # --- the plan as data and as text --------------------------------------------------------------
@@ -354,6 +393,7 @@ def describe(plan, python=None):
            + (f"; the {len(attack)} attack streams are launched at L + {launch_attack_after(plan):g} s to start at "
               f"T = {t['baseline_s']:g} s and run {t['attack_s']:g} s" if attack else ""),
            f"plan hash     {plan.plan_sha256[:12]} (the legit streams: equal in C, Cp and U of a block)",
+           *([f"OVERRIDES     {plan.overrides}: a smoke test, not a result"] if plan.overrides else []),
            f"nginx.conf    sha256:{plan.nginx_conf_sha256[:12]} (nginx_unprotected.conf with its two log paths changed)",
            "settings      " + ", ".join(f"{k} {v}" for k, v in plan.settings.items()), ""]
     n_aliases = sum(len(n.addresses) for n in plan.namespaces)
@@ -383,7 +423,1181 @@ def describe(plan, python=None):
     return "\n".join(out) + "\n"
 
 
-# --- the command line --------------------------------------------------------------------------
+# --- the run: the plan through a Host ------------------------------------------------------------
+
+Result = collections.namedtuple("Result", "code out err")
+RunResult = collections.namedtuple("RunResult", "ok reasons out setup_retries seconds")
+ENGINE_T0_OFFSET_S = 0.05            # bench/loadgen.py: the schedule's zero is 50 ms after its loop starts
+EARLY_SLACK_S = 2.0                  # a stream that exits this much before its end has died
+DRAIN_S = 12.0                       # the engine waits for requests in flight for its timeout (10 s) plus 2 s
+MAX_SETUP_RETRIES = 2
+TICK_S = 1.0
+REATTACH_EVERY = 10                  # ticks between two looks at which processes the server namespace holds
+# what the suite reads from the environment when it is imported; tests/test_executor_run.py checks that this is
+# eval/run_campaign.EVAL_VARS
+SUITE_ENV_VARS = ("MITIGATION_MODE", "MITIGATION_BACKEND", "NGINX_PROTECTED", "OPERATING_POINT", "GUNICORN_WORKERS",
+                  "GUNICORN_THREADS", "WRK_CONNS", "WRK_THREADS", "BOTNET_COUNT", "SERVER_CPUS", "ATTACK_CPUS",
+                  "ATTACK_DURATION", "PROFILE_SEED", "FLOOD_TOOL", "FLOOD_RATE", "RESULTS_DIR", "RESULTS_ROOT",
+                  "ONLY_SCENARIOS", "GRU_ONLY", "BAN_EVENTS")
+LEFTOVER_NS = re.compile(r"(server_ns|legit_|bot_|hg_)")
+LEFTOVER_LINKS = re.compile(r"(vo_|veth_srv_br$|ddos_br0$)")
+# what a testbed leaves running, by what the process runs: the first word of its command line or, for an interpreter, the
+# script or module it was given. Looked for in the process table; no pattern is ever matched over whole command lines
+LEFTOVER_PROGRAMS = ("nginx", "wrk", "k6", "hping3", "gunicorn", "loadgen.py", "control_plane.py")
+INTERPRETER_VALUES = ("-W", "-X", "--check-hash-based-pycs")          # Python options followed by a value
+EXIT_OK, EXIT_USAGE, EXIT_FAILED, EXIT_UNSOUND = 0, 1, 2, 3
+
+
+class RunFailed(RuntimeError):
+    """The run could not be carried out, as opposed to being carried out and found unsound."""
+
+
+class PreflightRefused(RunFailed):
+    """A precondition of the run does not hold; nothing was built."""
+
+
+class EnvironmentRefused(RunFailed):
+    """The machine is not in the state the gate asks for (timers, load, uptime); nothing was built."""
+
+
+class SetupFailed(RunFailed):
+    """The topology or the stack could not be brought up."""
+
+
+class LeftoverError(RunFailed):
+    """Something of the run is still there after the teardown."""
+
+
+class TableUnreadable(RunFailed):
+    """The machine would not say what is on it (namespaces, links, processes). A check that cannot look does not call the
+    machine clean."""
+
+
+def cpu_list(text):
+    """{0, 1} for "0-1" and {3, 4, 5, 7} for "3-5,7"."""
+    cpus = set()
+    for part in text.split(","):
+        lo, _, hi = part.partition("-")
+        cpus.update(range(int(lo), int(hi or lo) + 1))
+    return cpus
+
+
+class Host:
+    """What the executor needs of the machine: commands, processes, the suite's primitives, the clocks and a few
+    files of /proc and /sys. RealHost does them; tests/fake_host.py scripts them on a clock of its own."""
+
+    def run(self, argv, ns="", stdin="", env=None, timeout=None):
+        """Run a command to completion, in a network namespace if `ns`: a Result (code, stdout, stderr). A command that
+        fails comes back with its code; only a host that cannot run it at all raises."""
+        raise NotImplementedError
+
+    def popen(self, argv, ns="", env=None, stdout=None, stderr=None):
+        """Start a process and keep it: an object with pid, poll(), terminate(), kill() and exit_time (the wall-clock
+        time at which it was seen to exit, stamped by a watcher of its own)."""
+        raise NotImplementedError
+
+    def prim(self, name, *args):
+        """One of the suite's testbed primitives: bridge, server_ns, client_ns, netem."""
+        raise NotImplementedError
+
+    def time(self):
+        raise NotImplementedError
+
+    def monotonic(self):
+        raise NotImplementedError
+
+    def sleep(self, seconds):
+        raise NotImplementedError
+
+    def read_text(self, path):
+        """The text of a file; OSError when it is not there."""
+        raise NotImplementedError
+
+    def exists(self, path):
+        raise NotImplementedError
+
+    def is_root(self):
+        raise NotImplementedError
+
+    def nofile_limit(self):
+        """(soft, hard) open-file limit of this process, which its children inherit."""
+        raise NotImplementedError
+
+    def clk_tck(self):
+        raise NotImplementedError
+
+    def facts(self):
+        """uname, CPUs, memory, and the versions of Python, Nginx and gunicorn."""
+        raise NotImplementedError
+
+    def pin(self, cpus):
+        """Pin the executor itself to `cpus`."""
+        raise NotImplementedError
+
+    def pid(self):
+        """The executor's own process id."""
+        raise NotImplementedError
+
+    @contextlib.contextmanager
+    def shielded(self):
+        """A stretch in which the executor cannot be interrupted: the teardown, which a second Ctrl-C must not cut short."""
+        yield
+
+
+class RealProc:
+    """A process started by RealHost. A thread reaps it and stamps the moment, so that the exit time does not wait for the
+    executor's loop."""
+
+    def __init__(self, popen):
+        self._p = popen
+        self.pid = popen.pid
+        self.returncode = None
+        self.exit_time = None
+        threading.Thread(target=self._watch, daemon=True).start()
+
+    def _watch(self):
+        rc = self._p.wait()
+        self.exit_time = time.time()
+        self.returncode = rc
+
+    def poll(self):
+        return self.returncode
+
+    def terminate(self):
+        with contextlib.suppress(ProcessLookupError):
+            self._p.terminate()
+
+    def kill(self):
+        with contextlib.suppress(ProcessLookupError):
+            self._p.kill()
+
+
+class RealHost(Host):
+    COMMAND_TIMEOUT_S = 120
+
+    def __init__(self, suite=None):
+        self._suite = suite
+
+    def suite(self):
+        """The suite, imported now and not before: after the checks, with its evaluation variables out of the environment
+        (it reads them as it is imported), and with the two things it does at import taken back: its `atexit` cleanup
+        (a system-wide `pkill -9 -f gunicorn`, among others) and its signal handlers. This runner never kills by pattern."""
+        if self._suite is None:
+            for name in SUITE_ENV_VARS:
+                os.environ.pop(name, None)
+            sys.path.insert(0, REPO)
+            handlers = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
+            import test_distributed_suite
+            atexit.unregister(test_distributed_suite.cleanup_all)
+            for sig, handler in handlers.items():
+                signal.signal(sig, handler)
+            self._suite = test_distributed_suite
+        return self._suite
+
+    @staticmethod
+    def _env(extra):
+        return {**LT.clean_env(), **dict(extra or {})}
+
+    def run(self, argv, ns="", stdin="", env=None, timeout=None):
+        full = (["ip", "netns", "exec", ns] if ns else []) + list(argv)
+        feed = {"input": stdin} if stdin else {"stdin": subprocess.DEVNULL}
+        try:
+            cp = subprocess.run(full, capture_output=True, text=True, check=False, env=self._env(env),
+                                timeout=timeout or self.COMMAND_TIMEOUT_S, **feed)
+        except subprocess.TimeoutExpired:
+            return Result(-1, "", "timeout")
+        except OSError as exc:
+            return Result(127, "", str(exc))
+        return Result(cp.returncode, cp.stdout, cp.stderr)
+
+    def popen(self, argv, ns="", env=None, stdout=None, stderr=None):
+        full = (["ip", "netns", "exec", ns] if ns else []) + list(argv)
+        return RealProc(subprocess.Popen(full, stdin=subprocess.DEVNULL, env=self._env(env), start_new_session=True,
+                                         stdout=subprocess.DEVNULL if stdout is None else stdout,
+                                         stderr=subprocess.DEVNULL if stderr is None else stderr))
+
+    def prim(self, name, *args):
+        s = self.suite()
+        {"bridge": s.create_host_bridge, "server_ns": s.create_server_ns, "client_ns": s.create_client_ns,
+         "netem": s.apply_tc}[name](*args)
+
+    def time(self):
+        return time.time()
+
+    def monotonic(self):
+        return time.monotonic()
+
+    def sleep(self, seconds):
+        time.sleep(seconds)
+
+    def read_text(self, path):
+        with open(path, encoding="utf-8") as fh:
+            return fh.read()
+
+    def exists(self, path):
+        return os.path.exists(path)
+
+    def is_root(self):
+        return os.geteuid() == 0
+
+    def nofile_limit(self):
+        return resource.getrlimit(resource.RLIMIT_NOFILE)
+
+    def clk_tck(self):
+        return os.sysconf("SC_CLK_TCK")
+
+    def facts(self):
+        def first_line(argv):
+            r = self.run(argv)
+            lines = (r.out or r.err).strip().splitlines()
+            return lines[0] if lines else None
+        mem = next((int(line.split()[1]) // 1024 for line in self.read_text("/proc/meminfo").splitlines()
+                    if line.startswith("MemTotal:")), None)
+        return {"uname": " ".join(platform.uname()), "cpus": os.cpu_count(), "mem_mib": mem,
+                "python": sys.version.split()[0], "nginx": first_line(["nginx", "-v"]),
+                "gunicorn": first_line([os.path.join(REPO, "venv", "bin", "python"), "-m", "gunicorn", "--version"])}
+
+    def pin(self, cpus):
+        os.sched_setaffinity(0, cpu_list(cpus))
+
+    def pid(self):
+        return os.getpid()
+
+    @contextlib.contextmanager
+    def shielded(self):
+        """Ctrl-C, TERM and HUP are ignored inside (and the handlers put back after): a second interrupt while the testbed is
+        being taken down would leave it standing, which the next run's preflight then refuses."""
+        if threading.current_thread() is not threading.main_thread():
+            yield
+            return
+        old = {sig: signal.signal(sig, signal.SIG_IGN) for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
+        try:
+            yield
+        finally:
+            for sig, handler in old.items():
+                signal.signal(sig, handler)
+
+
+# --- what is left of any testbed -----------------------------------------------------------------
+
+def _lines(result):
+    return [line for line in result.out.splitlines() if line.strip()]
+
+
+def _table(host, argv):
+    """The non-empty lines a listing command prints; TableUnreadable when it does not run."""
+    r = host.run(argv)
+    if r.code != 0:
+        raise TableUnreadable(f"`{' '.join(argv)}` exited {r.code}: {(r.err or r.out).strip()[:120]}")
+    return _lines(r)
+
+
+def program_of(argv):
+    """What a process runs: the name of its first word (`nginx:` for Nginx's own process titles), or for a Python interpreter
+    the script, or the module (`-m gunicorn`), it was given: the first word that is not an option, the options that take a value
+    (`-W ignore`) skipped."""
+    head = os.path.basename(argv[0].rstrip(":"))
+    if head.startswith("python"):
+        rest, i = argv[1:], 0
+        while i < len(rest):
+            word = rest[i]
+            if word in INTERPRETER_VALUES:
+                i += 2
+                continue
+            if not word.startswith("-"):
+                return os.path.basename(word)
+            i += 1
+    return head
+
+
+def process_leftovers(host):
+    """Processes of any testbed that are still there, read from the process table by what each runs (`program_of`), never by
+    a substring of its command line: the executor's own command line, or its parent's, may contain any word (a results
+    directory called `gunicorn`), and a pattern would find it. The executor and the processes above it are left out whatever
+    they run. Looking only; nothing here kills."""
+    table = {}
+    for line in _table(host, ["ps", "-eo", "pid=,ppid=,args="]):
+        words = line.split()
+        if len(words) >= 3 and words[0].isdigit() and words[1].isdigit():
+            table[int(words[0])] = (int(words[1]), words[2:])
+    mine, pid = set(), host.pid()
+    while pid in table and pid not in mine:
+        mine.add(pid)
+        pid = table[pid][0]
+    mine.add(host.pid())
+    return [f"process {program_of(argv)} pid {pid}" for pid, (_, argv) in sorted(table.items())
+            if pid not in mine and program_of(argv) in LEFTOVER_PROGRAMS]
+
+
+def leftovers(host):
+    """What of any testbed is still there: namespaces and links of the suite's and of this runner's, and processes.
+    Looking only; nothing here kills."""
+    found = [f"netns {n}" for n in (line.split()[0] for line in _table(host, ["ip", "netns", "list"]))
+             if LEFTOVER_NS.match(n)]
+    found += [f"link {n}" for n in (line.split()[0].split("@")[0] for line in _table(host, ["ip", "-br", "link", "show"]))
+              if LEFTOVER_LINKS.match(n)]
+    return found + process_leftovers(host)
+
+
+def namespace_pids(host, ns):
+    return [int(p) for p in host.run(["ip", "netns", "pids", ns]).out.split() if p.isdigit()]
+
+
+def destroy(host, namespaces, links, grace, log=None):
+    """Take down `namespaces` and `links`: every process in a namespace (found with `ip netns pids`) gets TERM, then KILL
+    after `grace` seconds if it is still there; then the namespaces go, then the links their deletion left."""
+    pids = [p for ns in namespaces for p in namespace_pids(host, ns)]
+    if pids:
+        host.run(["kill", "-TERM", *map(str, pids)])
+        waited, alive = 0.0, pids
+        while alive and waited < grace:
+            host.sleep(0.1)
+            waited += 0.1
+            alive = [p for p in alive if host.exists(f"/proc/{p}")]
+        if alive:
+            if log:
+                log(f"KILL {len(alive)} processes of the namespaces that ignored TERM for {grace:g} s")
+            host.run(["kill", "-KILL", *map(str, alive)])
+            host.sleep(0.2)
+    for ns in namespaces:
+        host.run(["ip", "netns", "del", ns])
+    for link in links:
+        host.run(["ip", "link", "del", link])
+
+
+def discover(host):
+    """The namespaces and links of any testbed that is still there, as destroy() takes them."""
+    found = leftovers(host)
+    return ([f.split()[1] for f in found if f.startswith("netns ")],
+            [f.split()[1] for f in found if f.startswith("link ")])
+
+
+# --- the events of a run --------------------------------------------------------------------------
+
+class EventLog:
+    """executor.log: what happened and when, in seconds since the run began; also said to the console if `say` is given."""
+
+    def __init__(self, path, host, say=None):
+        self.path, self.host, self.say, self.t0 = path, host, say, host.time()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    def __call__(self, message):
+        line = f"{self.host.time() - self.t0:9.3f} {message}"
+        with open(self.path, "a", encoding="utf-8") as fh:
+            fh.write(line + "\n")
+        if self.say:
+            self.say(line)
+
+
+def _utc(t):
+    return datetime.datetime.fromtimestamp(t, datetime.UTC).isoformat(timespec="seconds")
+
+
+def write_json(path, obj):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".tmp", "w", encoding="utf-8") as fh:
+        json.dump(obj, fh, indent=1, sort_keys=True)
+        fh.write("\n")
+    os.replace(path + ".tmp", path)
+
+
+# --- preflight and the environment ----------------------------------------------------------------
+
+def git_state(host):
+    def git(*args):
+        r = host.run(["git", "-c", f"safe.directory={REPO}", "-C", REPO, *args])
+        return r.out.rstrip() if r.code == 0 else None          # not strip(): the first status line starts with a space
+    dirty = git("status", "--porcelain", "--untracked-files=no")
+    return {"commit": git("rev-parse", "HEAD"), "branch": git("rev-parse", "--abbrev-ref", "HEAD"),
+            "dirty": None if dirty is None else bool(dirty), "dirty_files": dirty.splitlines()[:50] if dirty else []}
+
+
+def preflight(host, plan, allow_dirty=False, clean=False):
+    """The conditions of a run: root, the venv, enough descriptors, a clean tree, no leftovers. Refuses, builds nothing.
+    The engine's pinned hash and the scope lock were checked when the plan was made (loadtools.build_plan)."""
+    python = os.path.join(REPO, "venv", "bin", "python")
+    if not host.is_root():
+        raise PreflightRefused("needs root (namespaces): sudo ./venv/bin/python bench/executor.py run ...")
+    if not host.exists(python):
+        raise PreflightRefused(f"no Python venv at {python} (gunicorn runs from it)")
+    soft, _ = host.nofile_limit()
+    if soft < plan.settings["min_nofile"]:
+        raise PreflightRefused(f"the open-file limit is {soft}, below {plan.settings['min_nofile']}")
+    git = git_state(host)
+    if git["dirty"] and not allow_dirty:
+        raise PreflightRefused("uncommitted changes to tracked files (a result must map to a commit; --allow-dirty "
+                               "records them): " + ", ".join(git["dirty_files"][:5]))
+    left = leftovers(host)
+    if left and clean:
+        namespaces, links = discover(host)
+        destroy(host, namespaces, links, plan.settings["term_grace_s"])
+        left = leftovers(host)
+    if left:
+        raise PreflightRefused("a testbed is still present (--clean takes down its namespaces and links):\n  " + "\n  ".join(left))
+    return {"git": git, "nofile_soft": soft, "allow_dirty": allow_dirty}
+
+
+PROVENANCE_FILES = ("origin.py", "loadgen.py", "loadtools.json", "population.py", "scenario.py", "executor.py")
+
+
+def provenance(plan):
+    """sha256 of what a result depends on, as the executor finds it: the files of bench/ that make the load and the origin, this
+    runner, the Nginx configuration as it is in the repository and as rendered for this run, and the engine as the tool manifest
+    pins it."""
+    manifest = LT.load_manifest()
+    files = {name: sha256_file(os.path.join(HERE, name)) for name in PROVENANCE_FILES}
+    return {"files": files, "nginx_source_sha256": sha256_file(NGINX_CONF), "nginx_rendered_sha256": plan.nginx_conf_sha256,
+            "engine_pinned_sha256": manifest["tools"]["loadgen"]["sha256"],
+            "engine_is_pinned": files["loadgen.py"] == manifest["tools"]["loadgen"]["sha256"]}
+
+
+def timer_probe(host, cpus, samples=200, interval=0.01):
+    """The timer-lateness probe of the HG1a harness, pinned to `cpus`: how late the machine wakes a sleeper."""
+    import loadtool_validate as V
+    r = host.run(["taskset", "-c", cpus, sys.executable, V.__file__, "timer-probe", "--samples", str(samples),
+                  "--interval", str(interval)], timeout=60)
+    try:
+        return json.loads(r.out)
+    except ValueError:
+        return None
+
+
+def environment(host, plan, gate="full", wait_gate_min=30.0, say=None):
+    """The environment gate (docs/HG1B_MINIMAL_DESIGN.md 7.2 step 0). The timer on the legit CPU must wake on time, always.
+    Uptime and load are the gate of a campaign's start (`gate="full"`: waits up to `wait_gate_min` for them); between the
+    runs of a campaign (`gate="timer"`) they are only recorded, since the load a run leaves is its own and would make
+    every next run wait for it to decay. Refuses with EnvironmentRefused; the caller may wait and ask again."""
+    import loadtool_validate as V
+    say = say or (lambda m: None)
+    up, load = float(host.read_text("/proc/uptime").split()[0]), float(host.read_text("/proc/loadavg").split()[0])
+    if gate == "full":
+        seen = V.wait_for_gate(wait_gate_min, read_up=lambda: float(host.read_text("/proc/uptime").split()[0]),
+                               read_load=lambda: float(host.read_text("/proc/loadavg").split()[0]), sleep=host.sleep,
+                               clock=host.monotonic, say=say)
+        if not seen["met"]:
+            raise EnvironmentRefused(f"the machine is not quiet enough: uptime {seen['uptime_s']:.0f} s (needs "
+                                     f"{seen['limit_uptime_s']}), load {seen['load1']:.2f} (needs below {seen['limit_load1']})")
+    else:
+        seen = {"met": None, "uptime_s": up, "load1": load, "waited_s": 0.0}
+    probe = timer_probe(host, P.PIN_PLAN["legit"])
+    if probe is None or probe["p99_ms"] >= V.TIMER_WARN_MS:
+        raise EnvironmentRefused(f"timer wake-up on CPU {P.PIN_PLAN['legit']} (the legit streams'): p99 "
+                                 f"{'unknown' if probe is None else format(probe['p99_ms'], '.1f') + ' ms'}, needs below "
+                                 f"{V.TIMER_WARN_MS:g} ms")
+    stat = host.read_text("/proc/stat").splitlines()[0].split()
+    try:
+        governor = host.read_text("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor").strip()
+    except OSError:
+        governor = None
+    return {"gate_mode": gate, "gate": seen, "timer_legit": probe, "governor": governor,
+            "steal_jiffies": int(stat[8]) if len(stat) > 8 else None, "jiffies": sum(map(int, stat[1:9]))}
+
+
+# --- telemetry: recorded, not judged --------------------------------------------------------------
+
+class Sampler:
+    """One row a tick: the load, the busy share of each CPU and of all, the steal share, the CPU of the origin and of Nginx,
+    and the listen-queue counters and sockets of the server namespace. Every read may fail; a failed read is an empty cell."""
+
+    def __init__(self, host):
+        self.host, self.rows, self.pids, self._last, self._ticks = host, [], {}, None, 0
+        self.tck = host.clk_tck()
+
+    def attach(self):
+        """Find the server namespace's processes, grouped by what they are (Nginx and the origin)."""
+        self.pids = {}
+        for pid in namespace_pids(self.host, SERVER_NS):
+            try:
+                comm = self.host.read_text(f"/proc/{pid}/comm").strip()
+            except OSError:
+                continue
+            self.pids[pid] = "nginx" if comm.startswith("nginx") else "origin"
+
+    def _cpu(self):
+        out = {}
+        for line in self.host.read_text("/proc/stat").splitlines():
+            parts = line.split()
+            if parts[0].startswith("cpu"):
+                v = list(map(int, parts[1:]))
+                out[parts[0]] = (sum(v[:8]), v[3] + v[4], v[7] if len(v) > 7 else 0)     # guest time is in user's already
+        return out
+
+    def _proc_jiffies(self):
+        out = {"origin": 0, "nginx": 0}
+        for pid, group in self.pids.items():
+            try:
+                f = self.host.read_text(f"/proc/{pid}/stat").rsplit(")", 1)[1].split()
+                out[group] += int(f[11]) + int(f[12])                                  # utime + stime
+            except (OSError, IndexError, ValueError):
+                pass
+        return out
+
+    def _tcp(self):
+        out = {"listen_overflows": None, "listen_drops": None, "tcp_inuse": None, "tcp_tw": None}
+        pid = next(iter(self.pids), None)
+        if pid is None:
+            return out
+        try:
+            lines = self.host.read_text(f"/proc/{pid}/net/netstat").splitlines()
+            for head, vals in zip(lines[::2], lines[1::2], strict=False):
+                if head.startswith("TcpExt:"):
+                    named = dict(zip(head.split()[1:], vals.split()[1:], strict=False))
+                    out["listen_overflows"], out["listen_drops"] = int(named["ListenOverflows"]), int(named["ListenDrops"])
+        except (OSError, ValueError, KeyError):
+            pass
+        try:
+            for line in self.host.read_text(f"/proc/{pid}/net/sockstat").splitlines():
+                if line.startswith("TCP:"):
+                    w = line.split()
+                    out["tcp_inuse"], out["tcp_tw"] = int(w[w.index("inuse") + 1]), int(w[w.index("tw") + 1])
+        except (OSError, ValueError, IndexError):
+            pass
+        return out
+
+    def sample(self, t_rel):
+        if self._ticks and self._ticks % REATTACH_EVERY == 0:
+            self.attach()
+        self._ticks += 1
+        row = {"t_epoch": round(self.host.time(), 3), "t_rel": round(t_rel, 3), "load1": None}
+        try:
+            row["load1"] = float(self.host.read_text("/proc/loadavg").split()[0])
+            now = {"cpu": self._cpu(), "proc": self._proc_jiffies()}
+        except (OSError, ValueError, IndexError):
+            self.rows.append(row)
+            return
+        if self._last is not None:
+            before, dt = self._last, max(row["t_epoch"] - self._last["t"], 1e-6)
+            for name, (total, idle, steal) in now["cpu"].items():
+                b = before["cpu"].get(name)
+                if b and total > b[0]:
+                    row[f"{name}_busy_pct"] = round(100.0 * (1 - (idle - b[1]) / (total - b[0])), 1)
+                    if name == "cpu":
+                        row["steal_pct"] = round(100.0 * (steal - b[2]) / (total - b[0]), 2)
+            for group in ("origin", "nginx"):
+                row[f"{group}_cpu_pct"] = round(100.0 * (now["proc"][group] - before["proc"][group]) / (self.tck * dt), 1)
+        row.update(self._tcp())
+        self._last = {**now, "t": row["t_epoch"]}
+        self.rows.append(row)
+
+    def write(self, path):
+        names = ["t_epoch", "t_rel", "load1", "steal_pct", "origin_cpu_pct", "nginx_cpu_pct", "listen_overflows",
+                 "listen_drops", "tcp_inuse", "tcp_tw"]
+        names += sorted({k for r in self.rows for k in r if k.endswith("_busy_pct")}, key=lambda k: (len(k), k))
+        with open(path, "w", newline="", encoding="utf-8") as fh:
+            w = csv.writer(fh)
+            w.writerow(names)
+            for r in self.rows:
+                w.writerow(["" if r.get(k) is None else r[k] for k in names])
+
+
+def _limit(text, name):
+    """(soft, hard) of a row of /proc/<pid>/limits, as numbers or the word `unlimited`."""
+    for line in text.splitlines():
+        if line.startswith(name):
+            words = line[len(name):].split()
+            return [int(w) if w.isdigit() else w for w in words[:2]]
+    return None
+
+
+def stack_facts(host, sampler):
+    """What the stack was started with, read back from the running processes: for the origin and for Nginx, how many
+    processes there are, the open-file limit they inherited and the CPUs they may run on (design 4.3: the limits are ambient,
+    so this is where they are recorded)."""
+    sampler.attach()
+    out = {}
+    for group in ("origin", "nginx"):
+        pids = sorted(p for p, g in sampler.pids.items() if g == group)
+        cpus, limits = set(), set()
+        for pid in pids:
+            try:
+                status = host.read_text(f"/proc/{pid}/status")
+                cpus.add(next(line.split(":", 1)[1].strip() for line in status.splitlines()
+                              if line.startswith("Cpus_allowed_list:")))
+                limits.add(tuple(_limit(host.read_text(f"/proc/{pid}/limits"), "Max open files") or ()))
+            except (OSError, StopIteration):
+                pass
+        out[group] = {"processes": len(pids), "cpus_allowed": sorted(cpus),
+                      "nofile_soft_hard": sorted(list(x) for x in limits)}
+    return out
+
+
+def aggregate_access_log(lines, t_zero):
+    """Rows of server_requests.csv from the lines of the Nginx JSON access log: per second since `t_zero` of ARRIVAL, client
+    class and status, how many requests and their mean and largest request time. Nginx writes a line when a request ends,
+    in whole seconds (truncated); a request is put where it arrived: the log second plus half a second less the request
+    time, as test_distributed_suite.aggregate_access_log does. The class is the address prefix of the population. Lines
+    that are not JSON or lack a field are counted and left out."""
+    cells, bad = {}, 0
+    for line in lines:
+        try:
+            r = json.loads(line)
+            ended = float(int(datetime.datetime.fromisoformat(r["timestamp"]).timestamp()))
+            took = float(r["request_time"])
+            ip = ipaddress.ip_address(r["client_ip"])
+            klass = ("attack" if any(ip in n for n in P.ATTACK_NETS) else "legit" if any(ip in n for n in P.BENIGN_NETS)
+                     else "other")
+            key = (math.floor(ended + 0.5 - took - t_zero), klass, int(r["status"]))
+        except (ValueError, KeyError, TypeError, OverflowError):
+            bad += 1
+            continue
+        cell = cells.setdefault(key, [0, 0.0, 0.0])
+        cell[0] += 1
+        cell[1] += took
+        cell[2] = max(cell[2], took)
+    return [(sec, klass, status, n, total / n, top) for (sec, klass, status), (n, total, top) in sorted(cells.items())], bad
+
+
+# --- the clocks of the streams --------------------------------------------------------------------
+
+def estimate_t0(t_exit, wall_s, intended=0, per_request_s=0.0):
+    """When a stream's schedule began, on the executor's clock, up to the time between the end of its loop and its exit
+    (summary, records, interpreter shutdown). That time is nearly the same for every stream and cancels in the offsets; the
+    part of it that grows with the number of requests can be taken off with `per_request_s` (S1 measures it; 0 until then)."""
+    return t_exit - wall_s + ENGINE_T0_OFFSET_S - per_request_s * intended
+
+
+def alignment(plan, found):
+    """The run's clocks from what the streams reported. `found` maps a stream id to (t_exit, wall_s, intended). Returns the
+    offsets of the streams from the median legit start, the spread of the legit starts, the error of the attack's start
+    against the end of the baseline, and the reasons for which the run is unsound (executor.ok is false when there are any)."""
+    per = plan.settings["exit_delay_per_request_s"]
+    t0 = {sid: estimate_t0(t_exit, wall, n, per) for sid, (t_exit, wall, n) in found.items()}
+    legit = [t0[s.id] for s in plan.streams if s.kind == "legit" and s.id in t0]
+    attack = [t0[s.id] for s in plan.streams if s.kind == "attack" and s.id in t0]
+    if not legit:
+        return {"offsets": {}, "t0_spread_legit_s": None, "attack_start_error_s": None,
+                "reasons": ["no legit stream reported"], "zero": None}
+    reasons = []
+    zero = statistics.median(legit)
+    spread = max(legit) - min(legit)
+    if spread > plan.settings["t0_spread_limit_s"]:
+        reasons.append(f"the legit streams began {spread:.2f} s apart (limit {plan.settings['t0_spread_limit_s']:g} s)")
+    error = None
+    if any(s.kind == "attack" for s in plan.streams):
+        if attack:
+            error = statistics.median(attack) - (zero + plan.timeline["baseline_s"])
+            if abs(error) > plan.settings["attack_start_limit_s"]:
+                reasons.append(f"the attack began {error:+.2f} s from the end of the baseline "
+                               f"(limit {plan.settings['attack_start_limit_s']:g} s)")
+        else:
+            reasons.append("no attack stream reported")
+    return {"offsets": {sid: v - zero for sid, v in t0.items()}, "t0_spread_legit_s": spread,
+            "attack_start_error_s": error, "reasons": reasons, "zero": zero}
+
+
+# --- building the testbed -------------------------------------------------------------------------
+
+def _do(host, step, plan, log, procs):
+    """One step of the plan. A command that fails raises SetupFailed with what it said."""
+    if isinstance(step, Prim):
+        host.prim(step.name, *step.args)
+    elif isinstance(step, Mkdir):
+        for path in step.paths:
+            os.makedirs(path, exist_ok=True)
+    elif isinstance(step, Write):
+        if step.path != f"{plan.out}/nginx.conf" or _sha(plan.nginx_conf) != step.sha256:
+            raise SetupFailed(f"{step.path}: the plan holds no text with that hash")
+        with open(step.path, "w", encoding="utf-8") as fh:
+            fh.write(plan.nginx_conf)
+    elif step.when.startswith("absent:") and host.exists(step.when[len("absent:"):]):
+        return
+    elif step.keep:
+        with open(f"{plan.out}/gunicorn.log", "ab") as err:
+            procs["origin"] = host.popen(list(step.argv), ns=step.ns, env=dict(step.env) or None, stderr=err)
+        log(f"started the origin as pid {procs['origin'].pid}")
+    else:
+        r = host.run(list(step.argv), ns=step.ns, stdin=step.stdin, env=dict(step.env) or None)
+        if r.code != 0:
+            raise SetupFailed(f"{' '.join(map(str, step.argv))[:120]} exited {r.code}: {(r.err or r.out).strip()[:200]}")
+
+
+def verify_topology(host, plan):
+    """What the suite's primitives left, read back: the addresses of each namespace against the plan, one MAC each, the
+    server's address, and the netem qdisc of the profiles that have one. The suite's `run` swallows failures, so this is
+    where a missing address shows."""
+    problems, macs = [], {}
+    for ns in plan.namespaces:
+        r = host.run(["ip", "-j", "addr", "show", "dev", CLIENT_IF], ns=ns.name)
+        try:
+            have = sorted(a["local"] for i in json.loads(r.out) for a in i["addr_info"] if a["family"] == "inet")
+        except (ValueError, KeyError, TypeError):
+            problems.append(f"{ns.name}: no readable addresses ({(r.err or r.out).strip()[:80]})")
+            continue
+        want = sorted(ns.addresses)
+        if have != want:
+            problems.append(f"{ns.name}: {len(have)} addresses, expected {len(want)} (missing "
+                            f"{len(set(want) - set(have))}, extra {len(set(have) - set(want))})")
+        r = host.run(["ip", "-j", "link", "show", CLIENT_IF], ns=ns.name)
+        try:
+            mac = json.loads(r.out)[0]["address"]
+        except (ValueError, KeyError, IndexError, TypeError):
+            problems.append(f"{ns.name}: no readable MAC")
+            continue
+        if mac in macs:
+            problems.append(f"{ns.name}: the MAC {mac} is also {macs[mac]}'s")
+        macs[mac] = ns.name
+        qdisc = host.run(["tc", "qdisc", "show", "dev", CLIENT_IF], ns=ns.name).out
+        if (ns.profile != "perfect") != ("netem" in qdisc):
+            problems.append(f"{ns.name}: {'no netem' if ns.profile != 'perfect' else 'a netem qdisc'} on a {ns.profile} link")
+    r = host.run(["ip", "-j", "addr", "show", "dev", "veth_server"], ns=SERVER_NS)
+    if SERVER_IP not in r.out:
+        problems.append(f"{SERVER_NS}: no {SERVER_IP} on veth_server")
+    return problems
+
+
+def connectivity(host, plan):
+    """One ping to the server from each namespace and from its last alias (the alias is then the source address)."""
+    problems = []
+    for ns in plan.namespaces:
+        for source in dict.fromkeys([None, ns.addresses[-1]]):
+            argv = ["ping", "-c", "1", "-W", "3", *(["-I", source] if source else []), SERVER_IP]
+            if host.run(argv, ns=ns.name, timeout=10).code != 0:
+                problems.append(f"{ns.name}: no answer from {SERVER_IP}" + (f" to {source}" if source else ""))
+    return problems
+
+
+def build_topology(host, plan, log, procs):
+    t = host.monotonic()
+    for step in plan.topology:
+        _do(host, step, plan, log, procs)
+    problems = verify_topology(host, plan) + connectivity(host, plan)
+    if problems:
+        raise SetupFailed("topology: " + "; ".join(problems))
+    log(f"topology: {len(plan.namespaces)} namespaces, {sum(len(n.addresses) for n in plan.namespaces)} addresses, "
+        f"verified in {host.monotonic() - t:.1f} s")
+
+
+def _curl(host, path, headers=False, timeout=5):
+    argv = ["curl", "-s", "--max-time", str(timeout), "-o", "/dev/null"]
+    argv += ["-D", "-"] if headers else ["-w", "%{http_code}"]
+    return host.run([*argv, HTTP_URL[:-1] + path], ns=SERVER_NS, timeout=timeout + 5)
+
+
+def start_stack(host, plan, log, procs):
+    """The origin, then Nginx; ready when the cheapest route answers 200 and every route answers with its own class, under
+    this calibration. Then the warm-up. SetupFailed when the stack does not come up."""
+    for step in plan.stack:
+        _do(host, step, plan, log, procs)
+    deadline = host.monotonic() + plan.settings["readiness_timeout_s"]
+    while True:
+        r = _curl(host, READY_PATH, timeout=2)
+        if r.code == 0 and r.out.strip() == "200":
+            break
+        if procs["origin"].poll() is not None:
+            raise SetupFailed(f"the origin exited with {procs['origin'].poll()} (see gunicorn.log)")
+        if host.monotonic() > deadline:
+            raise SetupFailed(f"the stack did not answer 200 at {READY_PATH} within {plan.settings['readiness_timeout_s']:g} s")
+        host.sleep(0.3)
+    tag = "placeholder" if plan.calibration_status != "frozen" else f"frozen:{plan.calibration_sha256[:8]}"
+    for klass, path in plan.checks:
+        head = {k.strip().lower(): v.strip() for line in _curl(host, path, headers=True).out.splitlines()
+                if ":" in line for k, v in [line.split(":", 1)]}
+        if head.get("x-route-class") != klass:
+            raise SetupFailed(f"{path} answered with route class {head.get('x-route-class')!r}, not {klass}")
+        if head.get("x-origin-calibration") != tag:
+            raise SetupFailed(f"{path}: the origin runs calibration {head.get('x-origin-calibration')!r}, the plan's is {tag}")
+    for _ in range(plan.settings["warmup_requests"]):
+        for _, path in plan.checks:
+            _curl(host, path)
+    log(f"stack ready: {len(plan.checks)} routes answer with their own class under calibration {tag}; warmed up")
+
+
+# --- the timeline and what it leaves --------------------------------------------------------------
+
+def launch_streams(host, streams, log, procs):
+    for s in streams:
+        os.makedirs(s.workdir, exist_ok=True)
+        with open(f"{s.workdir}/loadgen.stderr", "wb") as err:
+            procs[s.id] = host.popen(list(s.argv), ns=s.ns, stderr=err)
+    log(f"launched {len(streams)} {streams[0].kind} streams" if streams else "no streams to launch")
+
+
+def run_timeline(host, plan, log, procs, sampler):
+    """Launch the legit streams, the attack streams at their moment, sample once a second, and wait for all of them to
+    exit. Returns the launch times and the reasons the timeline went wrong (a stream that died, one that never ended)."""
+    s = plan.settings
+    legit = [x for x in plan.streams if x.kind == "legit"]
+    attack = [x for x in plan.streams if x.kind == "attack"]
+    t_launch = host.time()
+    launched = {"legit": t_launch}
+    launch_streams(host, legit, log, procs)
+    sampler.attach()
+    attack_due = t_launch + launch_attack_after(plan)
+    deadline = t_launch + s["startup_delay_legit_s"] + plan.timeline["total_s"] + DRAIN_S + s["term_grace_s"] + 10.0
+    ends = {x.id: t_launch + s["startup_delay_legit_s"] + x.duration_s for x in legit}
+    reasons = []
+    while True:
+        now = host.time()
+        if attack and "attack" not in launched and now >= attack_due:
+            launched["attack"] = now
+            launch_streams(host, attack, log, procs)
+            ends.update({x.id: now + s["startup_delay_attack_s"] + x.duration_s for x in attack})
+        sampler.sample(now - t_launch)
+        early = [x for x in plan.streams if x.id in procs and procs[x.id].poll() is not None
+                 and now < ends[x.id] - EARLY_SLACK_S]
+        if early:
+            reasons += [f"stream {x.id} exited with {procs[x.id].poll()} at T+{now - t_launch:.1f} s, "
+                        f"{ends[x.id] - now:.0f} s before its end" for x in early]
+            break
+        running = [x for x in plan.streams if x.id in procs and procs[x.id].poll() is None]
+        if not running and ("attack" in launched or not attack):
+            break
+        if now > deadline:
+            reasons.append(f"{len(running)} streams were still running {now - t_launch:.0f} s after the launch")
+            break
+        due = [attack_due - now] if attack and "attack" not in launched else []
+        host.sleep(max(0.01, min([TICK_S, *due])))
+    log(f"timeline over after {host.time() - t_launch:.1f} s" + (f"; {len(reasons)} problems" if reasons else ""))
+    return launched, reasons
+
+
+def stop_all(host, procs, plan, log):
+    """TERM, then KILL after the grace, for the processes this run started and holds a handle of; the namespaces' other
+    processes (Nginx, gunicorn's workers) go in the teardown."""
+    live = [p for p in procs.values() if p.poll() is None]
+    if not live:
+        return
+    for p in live:
+        p.terminate()
+    waited = 0.0
+    while any(p.poll() is None for p in live) and waited < plan.settings["term_grace_s"]:
+        host.sleep(0.1)
+        waited += 0.1
+    for p in live:
+        if p.poll() is None:
+            log(f"KILL pid {p.pid}")
+            p.kill()
+
+
+def _tail(path, n=1):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            lines = [x.strip() for x in fh.read().splitlines() if x.strip()]
+        return " | ".join(lines[-n:])
+    except OSError:
+        return ""
+
+
+def collect(plan, procs, launched, problems):
+    """The run contract from what the streams left, with the executor's verdict on the run. Returns (the executor block, the
+    stream rows of run.json, the zero of the axis). A run in which no legit stream left an output raises RunFailed:
+    there is nothing to judge."""
+    found, streams, reasons = {}, [], list(problems)
+    for s in plan.streams:
+        p = procs.get(s.id)
+        if p is None:
+            reasons.append(f"stream {s.id} was never launched")
+            continue
+        if p.poll() is None or not (os.path.exists(s.summary) and os.path.exists(s.records)):
+            said = _tail(f"{s.workdir}/loadgen.stderr")
+            reasons.append(f"stream {s.id} left no output (exit {p.poll()})" + (f": {said}" if said else ""))
+            continue
+        if p.poll() != 0:
+            reasons.append(f"stream {s.id} exited with {p.poll()}")
+        try:
+            with open(s.summary, encoding="utf-8") as fh:
+                summary = json.load(fh)
+            found[s.id] = (p.exit_time, float(summary["wall_s"]), int(summary["intended"]))
+        except (OSError, ValueError, KeyError, TypeError):
+            reasons.append(f"stream {s.id}: unreadable summary")
+            continue
+        streams.append(s)
+    if not any(s.kind == "legit" for s in streams):
+        raise RunFailed("no legit stream left an output: " + "; ".join(reasons))
+    al = alignment(plan, found)
+    reasons += al["reasons"]
+    block = {"ok": not reasons, "reasons": reasons, "t0_spread_legit_s": al["t0_spread_legit_s"],
+             "attack_start_error_s": al["attack_start_error_s"], "estimator": "exit-minus-wall",
+             "launch_attack_after_s": launch_attack_after(plan) if "attack" in launched else None}
+    rows = [{"id": s.id, "kind": s.kind, "route_class": s.route_class, "netem": s.netem,
+             "summary": os.path.relpath(s.summary, plan.out), "records": os.path.relpath(s.records, plan.out),
+             "offset_s": round(al["offsets"][s.id], 4)} for s in streams]
+    return block, rows, al["zero"]
+
+
+def finish_logs(plan, zero, log):
+    """server_requests.csv from the Nginx access log, then the log compressed: it is large and read once."""
+    path = f"{plan.out}/nginx_access.log"
+    if not os.path.exists(path):
+        return
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        lines = fh.read().splitlines()
+    rows, bad = aggregate_access_log(lines, zero) if zero is not None else ([], len(lines))
+    with open(f"{plan.out}/server_requests.csv", "w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh)
+        w.writerow(["T_Rel_s", "Client_Class", "Status", "Requests", "Request_Time_Mean_s", "Request_Time_Max_s"])
+        w.writerows([(sec, klass, status, n, f"{mean:.4f}", f"{top:.4f}") for sec, klass, status, n, mean, top in rows])
+    with open(path, "rb") as src, gzip.open(path + ".gz", "wb") as dst:
+        shutil.copyfileobj(src, dst)
+    os.remove(path)
+    log(f"nginx access log: {len(lines)} lines ({bad} unparsed), server_requests.csv written, log compressed")
+
+
+def teardown(host, plan, log):
+    """Everything of this run, by namespace; then a look at what is left. LeftoverError if anything is."""
+    names = [ns.name for ns in plan.namespaces] + [SERVER_NS]
+    links = [outer_veth(ns.name) for ns in plan.namespaces] + [SERVER_VETH_HOST_END, BRIDGE]
+    destroy(host, names, links, plan.settings["term_grace_s"], log)
+    left = leftovers(host)
+    if left:
+        raise LeftoverError("still there after the teardown:\n  " + "\n  ".join(left))
+    log("teardown complete: no namespace, link or process of the testbed is left")
+
+
+KEEP_ON_RETRY = ("plan.json", "executor.log", "environment.json")
+
+
+def _reset(out):
+    """The run directory as it was after the plan was written: what a failed setup attempt made is removed."""
+    for name in os.listdir(out):
+        if name not in KEEP_ON_RETRY:
+            path = os.path.join(out, name)
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
+
+
+def _failed(out, exc):
+    with open(f"{out}/FAILED", "w", encoding="utf-8") as fh:
+        fh.write(f"{type(exc).__name__}: {exc}\n")
+
+
+def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_min=30.0, say=None, sampler=None):
+    """Carry out `plan`. Returns a RunResult and leaves the run contract in plan.out; ok is false when the executor found the
+    run unsound (the gate then calls its block invalid). Raises RunFailed when the run could not be carried out, after the
+    teardown; the campaign stops on that. A directory that already holds something is refused: one run, one directory."""
+    out = plan.out
+    if os.path.isdir(out) and os.listdir(out):
+        raise PreflightRefused(f"{out} is not empty: a run directory is made for one run")
+    os.makedirs(out, exist_ok=True)
+    log = EventLog(f"{out}/executor.log", host, say)
+    t_begin = host.monotonic()
+    try:
+        pre = preflight(host, plan, allow_dirty, clean)
+        env = environment(host, plan, gate, wait_gate_min, say)
+    except RunFailed as exc:
+        log(f"refused: {exc}")
+        _failed(out, exc)
+        raise
+    record = {**env, **pre, "facts": host.facts(), "calibration_sha256": plan.calibration_sha256,
+              "scenario_sha256": plan.scenario_sha256, "provenance": provenance(plan), "checked_utc": _utc(host.time())}
+    write_json(f"{out}/environment.json", record)
+    write_json(f"{out}/plan.json", as_json(plan))
+    log(f"run {plan.kind} of {plan.scenario}, seed {plan.seed}: preflight and environment passed")
+    procs, sampler = {}, sampler or Sampler(host)
+    try:
+        retries = 0
+        while True:
+            try:
+                procs.clear()
+                build_topology(host, plan, log, procs)
+                start_stack(host, plan, log, procs)
+                write_json(f"{out}/environment.json", {**record, "stack": stack_facts(host, sampler)})
+                break
+            except SetupFailed as exc:
+                log(f"setup failed: {exc}")
+                stop_all(host, procs, plan, log)
+                teardown(host, plan, log)
+                _reset(out)
+                retries += 1
+                if retries > MAX_SETUP_RETRIES:
+                    raise
+                log(f"retrying the setup ({retries} of {MAX_SETUP_RETRIES})")
+        launched, problems = run_timeline(host, plan, log, procs, sampler)
+        stop_all(host, procs, plan, log)
+        block, rows, zero = collect(plan, procs, launched, problems)
+        sampler.write(f"{out}/server.csv")
+        finish_logs(plan, zero, log)
+        write_json(f"{out}/run.json", {
+            "role": KINDS_OF_RUN[plan.kind], "mode": None, "started_utc": _utc(launched["legit"]),
+            "scenario": plan.scenario, "seed": plan.seed, "plan_sha256": plan.plan_sha256,
+            "calibration_sha256": plan.calibration_sha256, "overrides": plan.overrides,
+            "executor": {**block, "setup_retries": retries}, "streams": rows})
+        log("run.json written; the run is " + ("sound" if block["ok"] else "UNSOUND: " + "; ".join(block["reasons"])))
+        return RunResult(block["ok"], block["reasons"], out, retries, host.monotonic() - t_begin)
+    except BaseException as exc:
+        log(f"failed: {exc!r}")
+        _failed(out, exc)
+        raise
+    finally:
+        with host.shielded():
+            stop_all(host, procs, plan, log)
+            try:
+                teardown(host, plan, log)
+            except LeftoverError as exc:
+                log(f"failed: {exc}")
+                _failed(out, exc)
+                raise
+
+
+def smoke_topology(plan, host, say=None, allow_dirty=True, clean=False):
+    """S2: build the topology of the plan, verify it, ping the server, take it down. No stack, no streams. Returns the
+    seconds the build and the verification took."""
+    out = plan.out
+    if os.path.isdir(out) and os.listdir(out):
+        raise PreflightRefused(f"{out} is not empty")
+    os.makedirs(out, exist_ok=True)
+    log = EventLog(f"{out}/executor.log", host, say)
+    preflight(host, plan, allow_dirty, clean)
+    try:
+        t = host.monotonic()
+        build_topology(host, plan, log, {})
+        return host.monotonic() - t
+    finally:
+        with host.shielded():
+            teardown(host, plan, log)
+
+
+# --- S1: the clocks of the streams, measured on loopback ------------------------------------------
+
+def _rss_mib(host, pid):
+    """Resident memory of a process in MiB, 0 if it cannot be read (it has just gone)."""
+    try:
+        line = next(x for x in host.read_text(f"/proc/{pid}/status").splitlines() if x.startswith("VmRSS:"))
+        return int(line.split()[1]) / 1024
+    except (OSError, StopIteration, ValueError, IndexError):
+        return 0.0
+
+
+def _first_sent(path):
+    """t_sent (seconds after the schedule's zero) of the first request that was sent, from an engine records file."""
+    try:
+        with gzip.open(path, "rt", encoding="utf-8", newline="") as fh:
+            rows = csv.reader(fh)
+            col = next(rows).index("t_sent")
+            for row in rows:
+                value = float(row[col])
+                if math.isfinite(value):
+                    return value
+    except (OSError, StopIteration, ValueError):
+        pass
+    return None
+
+
+def clock_probe(scn, cal, seed, duration, out, host=None, attack=False, say=print):
+    """S1 (docs/HG1C_DESIGN.md 10): the legit streams of a scenario at their rates, pinned as in a run, each against its own
+    scripted origin on loopback, and the estimator against what each origin saw first. Needs no root and no namespace.
+    With `attack`, the attack streams of the scenario too, which have the large request counts the exit delay may depend
+    on. Writes clock_probe.json to `out` and returns it: the start-up delay and spread of the streams after their launch,
+    the error of estimate_t0 against the first arrival at the origin, memory and CPU per process, and a fit of the error
+    against the number of requests."""
+    import asyncio
+
+    import loadtool_validate as V
+    host = host or RealHost()
+    pop, _ = SC.population_of(scn, cal, seed, attack=attack)
+    streams = pop.of_kind("legit") + (pop.of_kind("attack") if attack else [])
+    os.makedirs(out, exist_ok=True)
+    origins, servers, ready = [], [], threading.Event()
+    loop = asyncio.new_event_loop()
+
+    def serve():
+        asyncio.set_event_loop(loop)
+        try:
+            for _ in streams:
+                origin = V.ScriptedOrigin(service_ms=1.0, jitter_ms=0.0, clock=time.time)
+                servers.append(loop.run_until_complete(origin.start("127.0.0.1", 0)))
+                origins.append(origin)
+            ready.set()
+            loop.run_forever()
+        finally:
+            for server in servers:
+                server.close()
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
+            loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+            loop.close()
+            ready.set()
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    ready.wait(30)
+    procs, launch_t, rss = {}, {}, {}
+    try:
+        for s, o in zip(streams, origins, strict=True):
+            workdir = os.path.join(out, "streams", s.id)
+            os.makedirs(workdir, exist_ok=True)
+            spec = dataclasses.replace(P.to_load_spec(s, f"http://127.0.0.1:{o.port}/"), duration=duration,
+                                       local_addrs=(), allow_loopback=True)
+            argv = LT.build_plan("loadgen", spec, workdir).steps[0].argv
+            with open(f"{workdir}/loadgen.stderr", "wb") as err:
+                launch_t[s.id] = host.time()
+                procs[s.id] = host.popen(list(argv), stderr=err)
+        end = host.time() + duration + DRAIN_S + 30
+        while any(p.poll() is None for p in procs.values()) and host.time() < end:
+            for sid, p in procs.items():
+                if p.poll() is None:
+                    rss[sid] = max(rss.get(sid, 0.0), _rss_mib(host, p.pid))
+            host.sleep(0.5)
+    finally:
+        for p in procs.values():
+            if p.poll() is None:
+                p.kill()
+        loop.call_soon_threadsafe(loop.stop)
+        thread.join(10)
+    rows = []
+    for s, o in zip(streams, origins, strict=True):
+        workdir = os.path.join(out, "streams", s.id)
+        sent = _first_sent(os.path.join(workdir, "loadgen.records.csv.gz"))
+        try:
+            with open(os.path.join(workdir, "loadgen.summary.json"), encoding="utf-8") as fh:
+                summary = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        if o.t0 is None or sent is None or procs[s.id].exit_time is None:
+            continue
+        truth = o.t0 - sent               # the first arrival less the first send: the schedule's zero, to about a millisecond
+        rows.append({"id": s.id, "kind": s.kind, "rate": s.rate, "intended": summary["intended"],
+                     "start_after_launch_s": truth - launch_t[s.id],
+                     "estimator_minus_truth_s": estimate_t0(procs[s.id].exit_time, summary["wall_s"]) - truth,
+                     "wall_s": summary["wall_s"], "cpu_s": (summary.get("cpu") or {}).get("process_s"),
+                     "rss_mib": rss.get(s.id)})
+    result = clock_summary(rows, len(streams), duration)
+    write_json(os.path.join(out, "clock_probe.json"), result)
+    return result
+
+
+def _spread(values):
+    return {"min": min(values, default=None), "median": statistics.median(values) if values else None,
+            "max": max(values, default=None), "spread": (max(values) - min(values)) if values else None}
+
+
+def clock_summary(rows, n_streams, duration):
+    """The figures of S1 from its per-stream rows: the start-up after launch, the estimator's bias and its scatter around
+    the bias (what matters, since a common bias cancels in the offsets), and its dependence on the request count."""
+    errors = [r["estimator_minus_truth_s"] for r in rows]
+    bias = statistics.median(errors) if errors else None
+    scatter = sorted(abs(e - bias) for e in errors) if errors else []
+    legit = [r["estimator_minus_truth_s"] for r in rows if r["kind"] == "legit"]
+    fit = None
+    if len(rows) >= 3 and len({r["intended"] for r in rows}) >= 2:
+        slope, intercept = statistics.linear_regression([r["intended"] for r in rows], errors)
+        fit = {"per_request_s": slope, "base_s": intercept}
+    return {"streams": n_streams, "reported": len(rows), "duration_s": duration,
+            "start_after_launch_s": _spread([r["start_after_launch_s"] for r in rows]),
+            "estimator_bias_s": bias,
+            "estimator_error_s": {"p50": LT.quantile(scatter, .5), "p95": LT.quantile(scatter, .95),
+                                  "max": scatter[-1] if scatter else None},
+            "legit_error_spread_s": (max(legit) - min(legit)) if legit else None,
+            "exit_delay_fit": fit,
+            "rss_mib": {"max": max((r["rss_mib"] for r in rows if r["rss_mib"]), default=None),
+                        "total": sum(r["rss_mib"] or 0 for r in rows) or None},
+            "cpu_s_total": sum(r["cpu_s"] or 0 for r in rows), "rows": rows}
+
+
+# --- the command line -----------------------------------------------------------------------------
+
+def _timeline_arg(text):
+    try:
+        values = tuple(float(x) for x in text.split(","))
+    except ValueError:
+        values = ()
+    if len(values) != 3 or not all(math.isfinite(v) and v > 0 for v in values):
+        raise argparse.ArgumentTypeError("three positive seconds: BASELINE,ATTACK,RECOVERY")
+    return values
+
 
 def _plan_from_args(args):
     scn = SC.load(args.spec)
@@ -392,27 +1606,101 @@ def _plan_from_args(args):
         scenario_sha = hashlib.sha256(fh.read()).hexdigest()
     seed = scn.first_seed if args.seed is None else args.seed
     out = args.out or f"/var/tmp/ddos_campaigns/example/{args.kind}"
-    return plan_run(scn, cal, args.kind, seed, out, args.calibration, scenario_sha)
+    return plan_run(scn, cal, args.kind, seed, out, args.calibration, scenario_sha, rho=args.rho, timeline=args.timeline)
 
 
-def main(argv=None):
+def _add_plan_args(p, kind_required=True):
+    p.add_argument("spec", help="a scenario record (bench/scenarios/*.json)")
+    p.add_argument("--calibration", default=C.PLACEHOLDER, help="calibration record (default: the placeholder)")
+    p.add_argument("--kind", choices=KINDS, required=kind_required, default="C")
+    p.add_argument("--seed", type=int, default=None, help="the block's seed (default: the scenario's first)")
+    p.add_argument("--out", help="the run directory (named after its kind)")
+    p.add_argument("--rho", type=float, default=None, help="smoke test: the benign load in requests/s, instead of the calibration's")
+    p.add_argument("--timeline", type=_timeline_arg, default=None, metavar="B,A,R",
+                   help="smoke test: baseline, attack and recovery seconds, instead of the scenario's")
+
+
+def _install_signal_handlers():
+    """SIGTERM and SIGHUP end the run the way Ctrl-C does, through the `finally` that takes the testbed down."""
+    def stop(signum, _frame):
+        raise KeyboardInterrupt(f"signal {signum}")
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, stop)
+
+
+def main(argv=None, host=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="command", required=True)
     p = sub.add_parser("plan", help="print what a run would do (offline, no root, no suite)")
-    p.add_argument("spec", help="a scenario record (bench/scenarios/*.json)")
-    p.add_argument("--calibration", default=C.PLACEHOLDER, help="calibration record (default: the placeholder)")
-    p.add_argument("--kind", choices=KINDS, required=True)
-    p.add_argument("--seed", type=int, default=None, help="the block's seed (default: the scenario's first)")
-    p.add_argument("--out", help="the run directory it would write")
+    _add_plan_args(p)
     p.add_argument("--json", action="store_true", help="print the plan as JSON (the plan.json of a run)")
+    p = sub.add_parser("run", help="carry out one run (root; builds and takes down the testbed)")
+    _add_plan_args(p)
+    p.add_argument("--allow-dirty", action="store_true", help="run with uncommitted changes; they are recorded")
+    p.add_argument("--clean", action="store_true", help="take down the namespaces and links of an earlier testbed first")
+    p.add_argument("--gate", choices=("full", "timer"), default="full",
+                   help="full: wait for uptime and load as well (a campaign's first run); timer: the timer only")
+    p.add_argument("--wait-gate", type=float, default=30.0, metavar="MIN", help="minutes to wait for the full gate")
+    p = sub.add_parser("smoke-topology", help="S2: build and verify the topology of a plan, then take it down (root)")
+    _add_plan_args(p, kind_required=False)
+    p.add_argument("--allow-dirty", action="store_true")
+    p.add_argument("--clean", action="store_true")
+    p = sub.add_parser("clock-probe", help="S1: the engine's start-up and the estimator's error, on loopback (no root)")
+    _add_plan_args(p, kind_required=False)
+    p.add_argument("--duration", type=float, default=30.0, help="seconds each stream runs (default 30)")
+    p.add_argument("--attack", action="store_true", help="also the scenario's attack streams, at their rates")
     args = ap.parse_args(argv)
     try:
+        if args.command == "plan":
+            plan = _plan_from_args(args)
+            print(json.dumps(as_json(plan), indent=1, sort_keys=True) if args.json else describe(plan), end="" if not args.json else "\n")
+            return EXIT_OK
+        if args.command == "clock-probe":
+            scn, cal = SC.load(args.spec), C.load(args.calibration)
+            seed = scn.first_seed if args.seed is None else args.seed
+            out = args.out or "/var/tmp/ddos_campaigns/clock_probe"
+            real = host or RealHost()
+            real.pin(P.PIN_PLAN["daemon"])
+            result = clock_probe(scn, cal, seed, args.duration, out, real, attack=args.attack)
+            print(clock_text(result, out))
+            return EXIT_OK if result["reported"] else EXIT_FAILED
         plan = _plan_from_args(args)
-    except (PlanError, SC.ScenarioError, C.RecordError, LT.ToolError, OSError) as exc:
+        real = host or RealHost()
+        real.pin(P.PIN_PLAN["daemon"])
+        _install_signal_handlers()
+        if args.command == "smoke-topology":
+            seconds = smoke_topology(plan, real, print, args.allow_dirty, args.clean)
+            print(f"topology of {plan.scenario} seed {plan.seed}: built and verified in {seconds:.1f} s, taken down, nothing left")
+            return EXIT_OK
+        result = execute(plan, real, args.gate, args.allow_dirty, args.clean, args.wait_gate, print)
+        print(f"run {plan.kind} of {plan.scenario}: " + ("sound" if result.ok else "UNSOUND: " + "; ".join(result.reasons))
+              + f" ({result.seconds:.0f} s, {result.setup_retries} setup retries) in {result.out}")
+        return EXIT_OK if result.ok else EXIT_UNSOUND
+    except RunFailed as exc:
+        print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
+        return EXIT_FAILED
+    except (PlanError, SC.ScenarioError, C.RecordError, LT.ToolError, LT.ScopeError, OSError) as exc:
         print(exc, file=sys.stderr)
-        return 1
-    print(json.dumps(as_json(plan), indent=1, sort_keys=True) if args.json else describe(plan), end="" if not args.json else "\n")
-    return 0
+        return EXIT_USAGE
+
+
+def clock_text(result, out):
+    """The probe's result for the terminal."""
+    start, err = result["start_after_launch_s"], result["estimator_error_s"]
+
+    def f(x, spec=".3f"):
+        return "-" if x is None else format(x, spec)
+    lines = [f"clock probe: {result['reported']} of {result['streams']} streams gave a reference ({result['duration_s']:g} s each)",
+             f"  start after launch (s)  min {f(start['min'])}  median {f(start['median'])}  max {f(start['max'])}  spread {f(start['spread'])}",
+             (f"  estimator bias {f(result['estimator_bias_s'])} s (common to all streams: cancels); scatter around it p50 "
+              f"{f(err['p50'])}  p95 {f(err['p95'])}  max {f(err['max'])} s; legit streams' spread "
+              f"{f(result['legit_error_spread_s'])} s")]
+    fit = result["exit_delay_fit"]
+    if fit:
+        lines.append(f"  error against requests: {fit['per_request_s'] * 1e6:.1f} us per request, {f(fit['base_s'])} s base")
+    lines.append(f"  memory per process, largest {f(result['rss_mib']['max'], '.0f')} MiB, total {f(result['rss_mib']['total'], '.0f')} MiB; "
+                 f"CPU of all {result['cpu_s_total']:.1f} s; written to {out}/clock_probe.json")
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":

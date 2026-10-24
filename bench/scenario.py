@@ -429,10 +429,10 @@ def _warnings(scn, cal, out):
     return w
 
 
-def population_of(scn, cal, seed, attack=True):
+def population_of(scn, cal, seed, attack=True, rho=None):
     """The population of one block of `scn` and the level of its attack (None without one): the draw that the plan and
     the executor both make. `attack=False` draws the attack-free runs, C and Cp, whose legit streams are the attack
-    run's."""
+    run's. `rho` replaces the calibration's nominal load, for a smoke test."""
     try:
         P.check_seed(scn.seed_namespace, seed)
     except ValueError as exc:
@@ -443,8 +443,8 @@ def population_of(scn, cal, seed, attack=True):
         route = P.ATTACK_FAMILIES[scn.family].route_class
         drawn = (scn.family, scn.sources, P.attack_rate(level, C.spare_capacity(cal), cal["route_costs_ms"][route]))
     try:
-        pop = P.draw(scn.seed_namespace, seed, C.rho_rps(cal), scn.benign_identities, drawn, scn.timeline,
-                     scn.per_profile)
+        pop = P.draw(scn.seed_namespace, seed, C.rho_rps(cal) if rho is None else rho, scn.benign_identities, drawn,
+                     scn.timeline, scn.per_profile)
     except ValueError as exc:
         raise ScenarioError(str(exc)) from exc
     return pop, level
