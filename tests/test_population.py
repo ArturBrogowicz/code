@@ -314,5 +314,56 @@ class CommandTest(unittest.TestCase):
             LT.validate(P.to_load_spec(POP.streams[0], "http://8.8.8.8/"))
 
 
+class StagedTest(unittest.TestCase):
+    LEVELS = (20.0, 40.0, 80.0)
+    STAGED = P.staged("calib", 1, LEVELS, 6.0)
+
+    def test_the_steps_follow_each_other_and_each_has_the_streams_of_a_draw_at_its_level(self):
+        plain = P.draw("calib", 1, 20.0, 200, None, P.Timeline(6.0, 0.0, 0.0), 1)
+        for k, level in enumerate(self.LEVELS):
+            step = [s for s in self.STAGED.streams if s.id.startswith(f"S{k:02d}-")]
+            with self.subTest(step=k):
+                self.assertEqual(len(step), len(plain.streams))
+                self.assertEqual({(s.start_s, s.duration_s) for s in step}, {(k * 6.0, 6.0)})
+                self.assertAlmostEqual(sum(s.rate for s in step), level, delta=0.005 * level)
+                self.assertEqual({s.kind for s in step}, {"legit"})
+        self.assertEqual(self.STAGED.timeline.total_s, 18.0)
+
+    def test_every_stream_id_is_unique_and_keeps_its_old_id_after_the_step(self):
+        ids = [s.id for s in self.STAGED.streams]
+        self.assertEqual(len(ids), len(set(ids)))
+        plain = {s.id for s in P.draw("calib", 1, 20.0, 200, None, P.Timeline(6.0, 0.0, 0.0), 1).streams}
+        self.assertEqual({i.split("-", 1)[1] for i in ids}, plain)
+
+    def test_the_identities_and_the_alias_plan_are_those_of_one_draw(self):
+        plain = P.draw("calib", 1, 20.0, 200, None, P.Timeline(6.0, 0.0, 0.0), 1)
+        self.assertEqual(self.STAGED.identities, plain.identities)
+        self.assertEqual(self.STAGED.alias_plan(), plain.alias_plan())
+        self.assertEqual(self.STAGED.namespaces, plain.namespaces)
+
+    def test_no_stream_is_an_attack_and_the_legit_rates_are_those_of_the_levels(self):
+        self.assertEqual(self.STAGED.of_kind("attack"), ())
+        self.assertAlmostEqual(sum(self.STAGED.route_rates("legit").values()), sum(self.LEVELS), delta=0.005 * sum(self.LEVELS))
+
+    def test_a_staged_load_is_deterministic(self):
+        self.assertEqual(P.staged("calib", 1, self.LEVELS, 6.0), self.STAGED)
+        self.assertNotEqual(P.staged("calib", 2, self.LEVELS, 6.0).streams, self.STAGED.streams)
+
+    def test_it_needs_levels_and_a_step(self):
+        for levels, step in (([], 6.0), ([0.0], 6.0), ([-5.0, 10.0], 6.0), ([10.0], 0.0), (["x"], 6.0)):
+            with self.subTest(levels=levels, step=step), self.assertRaises(ValueError):
+                P.staged("calib", 1, levels, step)
+
+    def test_a_seed_outside_the_namespace_is_refused_as_a_draw_does(self):
+        with self.assertRaises(ValueError):
+            P.staged("calib", 100, self.LEVELS, 6.0)
+
+    def test_every_step_stream_is_a_command_the_engine_accepts(self):
+        for s in self.STAGED.streams[:5] + self.STAGED.streams[-5:]:
+            spec = P.to_load_spec(s, "http://10.0.0.1/")
+            self.assertEqual(spec.duration, 6.0)
+            LT.validate(spec)
+
+
 if __name__ == "__main__":
     unittest.main()

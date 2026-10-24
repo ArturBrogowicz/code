@@ -84,7 +84,7 @@ class SimProc:
 class SimHost(X.Host):
     """`faults` maps a name to how many times it fires (None: always); `fault_schedule` maps the number of a topology (the 1st, the
     2nd... one is built per run) to faults that are armed when it is built, which is how a campaign's later runs are made to fail.
-    The names the tests use:
+    `dies` is a predicate on a stream id: those streams die at their start. The names the tests use:
     missing_address, duplicate_mac, no_netem, ping_fails, nginx_fails, origin_dies, not_ready, wrong_class, wrong_tag,
     stubborn_origin, stubborn_nginx, leftover_nginx_after_teardown, server_address_missing, stream_dies, stream_silent,
     stream_nonzero, stream_hangs, table_unreadable."""
@@ -92,7 +92,7 @@ class SimHost(X.Host):
     def __init__(self, root=True, dirty=False, nofile=(524288, 524288), uptime_s=7200.0, load1=0.05, timer_p99_ms=1.0,
                  preexisting=(), startup_s=None, exit_delay_s=0.04, exit_delay_per_request_s=0.0, faults=None,
                  log_lines=20, tag="placeholder", python_exists=True, steal_share=0.0, on_sleep=None, server=None,
-                 fault_schedule=None):
+                 fault_schedule=None, dies=None):
         self.t = 0.0
         self.pids = itertools.count(1000)
         self.events, self.seq = [], itertools.count()
@@ -104,7 +104,7 @@ class SimHost(X.Host):
         self.exit_delay_s, self.exit_delay_per_request_s = exit_delay_s, exit_delay_per_request_s
         self.startup_s = startup_s or (lambda sid, index, kind: (1.8 if kind == "legit" else 0.3) + 0.002 * index)
         self.faults = dict(faults or {})
-        self.fault_schedule, self.topologies = dict(fault_schedule or {}), 0
+        self.fault_schedule, self.topologies, self.dies = dict(fault_schedule or {}), 0, dies
         self.log_lines, self.tag, self.python_exists, self.steal_share = log_lines, tag, python_exists, steal_share
         self.on_sleep, self.server = on_sleep, server
         self.table_extra = []                 # (pid, ppid, args) of processes that are not the model's: an editor, a shell
@@ -209,7 +209,7 @@ class SimHost(X.Host):
         duration, rate = float(opts["--duration"]), float(opts["--rate"])
         n = max(1, round(rate * duration))
         wall = X.ENGINE_T0_OFFSET_S + duration + ENGINE_DRAIN_S
-        if self.fault("stream_dies"):
+        if self.fault("stream_dies") or (self.dies is not None and self.dies(sid)):
             if stderr is not None:
                 stderr.write(b"Traceback: the simulated engine died\n")
             self.schedule(loop_start + 3.0, lambda: self.end(proc, 2))
@@ -571,8 +571,10 @@ def origin_tag(cal):
 
 def parse_stream_id(sid):
     """(kind, route class, link profile) of a stream from its id: `L-<process>-<class>-<profile>-<n>` for a legit stream and
-    `A-<family>-<profile>-<n>` for an attack stream (bench/population.py)."""
+    `A-<family>-<profile>-<n>` for an attack stream (bench/population.py), with `S<k>-` before it in a step of a staged load."""
     parts = sid.split("-")
+    if re.fullmatch(r"S\d+", parts[0]):                 # a step of a staged load
+        parts = parts[1:]
     if parts[0] == "L":
         return "legit", parts[2], parts[3]
     return "attack", P.ATTACK_FAMILIES[parts[1]].route_class, parts[2]

@@ -296,6 +296,15 @@ def plan_run(scn, cal, kind, seed, out, calibration_path, scenario_sha256="", ma
         pop, level = SC.population_of(scn, cal, seed, attack=kind == "U", rho=rho)
     except SC.ScenarioError as exc:
         raise PlanError(str(exc)) from exc
+    return plan_population(pop, scn.id, kind, seed, out, cal, calibration_path, scn.timeline, level, scenario_sha256, manifest,
+                           root, settings, python, overrides)
+
+
+def plan_population(pop, scenario, kind, seed, out, cal, calibration_path, timeline, level=None, scenario_sha256="",
+                    manifest=None, root=None, settings=None, python=None, overrides=None):
+    """The plan of a run of a population that is drawn already: plan_run's for a scenario's, and bench/calibrate.py's for the
+    staged load of the capacity probe and the legit probes. `timeline` is the population's population.Timeline; a stream is
+    launched so that its loop starts at its `start_s` on the run's axis (launch_due)."""
     out = os.path.abspath(out) if not os.path.isabs(out) else out
     python = python or os.path.join(REPO, "venv", "bin", "python")
     pins = P.PIN_PLAN
@@ -317,15 +326,15 @@ def plan_run(scn, cal, kind, seed, out, calibration_path, scenario_sha256="", ma
             nofile, workdir, f"{workdir}/loadgen.summary.json", f"{workdir}/loadgen.records.csv.gz",
             ("prlimit", f"--nofile={nofile}", "--", *launch.steps[0].argv)))
     return RunPlan(
-        scenario=scn.id, kind=kind, seed=seed, out=out, scenario_sha256=scenario_sha256,
+        scenario=scenario, kind=kind, seed=seed, out=out, scenario_sha256=scenario_sha256,
         calibration_sha256=cal.get("sha256") or C.digest(cal), calibration_status=cal["status"],
         calibration_path=os.path.abspath(calibration_path),
-        timeline=dataclasses.asdict(scn.timeline) | {"total_s": scn.timeline.total_s}, level=level,
+        timeline=dataclasses.asdict(timeline) | {"total_s": timeline.total_s}, level=level,
         namespaces=namespaces, topology=topology_steps(namespaces),
         stack=stack_steps(out, os.path.abspath(calibration_path), python, pins, conf_sha256), checks=check_paths(),
         streams=tuple(streams), teardown=teardown_steps(namespaces), nginx_conf=conf, nginx_conf_sha256=conf_sha256,
         plan_sha256=_legit_hash(pop.of_kind("legit")), settings={**SETTINGS, **(settings or {})},
-        overrides=overrides)
+        overrides=overrides or {})
 
 
 # --- the plan as data and as text --------------------------------------------------------------
@@ -368,6 +377,16 @@ def _step_line(i, x, python):
     return f"{i:>3}. {keep}cmd   {where}{when}{env + ' ' if env else ''}{body}{stdin}    # {x.purpose}"
 
 
+def launch_due(plan, stream):
+    """Seconds after the launch of the first streams at which `stream` is launched, so that its loop starts at its `start_s`
+    on the run's axis: its start, plus the legit start-up delay (the axis begins when the legit streams' loops do), less its
+    own. The legit streams of a run start at 0 and are launched at once; the attack streams start at the end of the baseline
+    and are launched earlier by the difference of the start-up delays; the steps of a staged load follow in the same way."""
+    s = plan.settings
+    own = s["startup_delay_attack_s"] if stream.kind == "attack" else s["startup_delay_legit_s"]
+    return stream.start_s + s["startup_delay_legit_s"] - own
+
+
 def launch_attack_after(plan):
     """Seconds after the launch of the legit streams at which the attack streams are launched, so that their loops start
     at the end of the baseline: the baseline plus the legit start-up delay less the attack's."""
@@ -375,10 +394,26 @@ def launch_attack_after(plan):
     return plan.timeline["baseline_s"] + s["startup_delay_legit_s"] - s["startup_delay_attack_s"]
 
 
+def timeline_line(plan, legit, attack):
+    """The `timeline` line of the plan's text: the legit streams together, or the steps of a staged load; the attack, if any."""
+    t, delay = plan.timeline, plan.settings["startup_delay_legit_s"]
+    starts = sorted({x.start_s for x in legit})
+    if len(starts) > 1:
+        line = (f"timeline      the legit load comes in {len(starts)} steps of {len(legit) // len(starts)} streams, the first "
+                f"launched at L, the others so that their loops start at T = {', '.join(f'{x:g}' for x in starts[1:])} s; "
+                f"T = 0 is {delay:g} s after L, and the run lasts {t['total_s']:g} s")
+    else:
+        line = (f"timeline      the {len(legit)} legit streams are launched at L; their loops start about {delay:g} s later, "
+                f"which is T = 0, and run {t['total_s']:g} s")
+    if attack:
+        line += (f"; the {len(attack)} attack streams are launched at L + {launch_attack_after(plan):g} s to start at "
+                 f"T = {t['baseline_s']:g} s and run {t['attack_s']:g} s")
+    return line
+
+
 def describe(plan, python=None):
     """The plan as text for `--plan`."""
     python = python or sys.executable
-    t = plan.timeline
     attack = [s for s in plan.streams if s.kind == "attack"]
     legit = [s for s in plan.streams if s.kind == "legit"]
     banner = ("PLACEHOLDER: illustrative numbers, not measurements; nothing below is a result"
@@ -388,10 +423,7 @@ def describe(plan, python=None):
            f"scenario      sha256:{plan.scenario_sha256[:8] or '-'}"
            + (f", attack level {plan.level:g} x S" if plan.level is not None else ", no attack in this run"),
            f"run directory {plan.out}",
-           f"timeline      the {len(legit)} legit streams are launched at L; their loops start about "
-           f"{plan.settings['startup_delay_legit_s']:g} s later, which is T = 0, and run {t['total_s']:g} s"
-           + (f"; the {len(attack)} attack streams are launched at L + {launch_attack_after(plan):g} s to start at "
-              f"T = {t['baseline_s']:g} s and run {t['attack_s']:g} s" if attack else ""),
+           timeline_line(plan, legit, attack),
            f"plan hash     {plan.plan_sha256[:12]} (the legit streams: equal in C, Cp and U of a block)",
            *([f"OVERRIDES     {plan.overrides}: a smoke test, not a result"] if plan.overrides else []),
            f"nginx.conf    sha256:{plan.nginx_conf_sha256[:12]} (nginx_unprotected.conf with its two log paths changed)",
@@ -1057,32 +1089,44 @@ def estimate_t0(t_exit, wall_s, intended=0, per_request_s=0.0):
 
 
 def alignment(plan, found):
-    """The run's clocks from what the streams reported. `found` maps a stream id to (t_exit, wall_s, intended). Returns the
-    offsets of the streams from the median legit start, the spread of the legit starts, the error of the attack's start
-    against the end of the baseline, and the reasons for which the run is unsound (executor.ok is false when there are any)."""
+    """The run's clocks from what the streams reported. `found` maps a stream id to (t_exit, wall_s, intended). The axis begins
+    when the first legit streams' loops do: its zero is their median start. Streams that start together (a kind and a `start_s`)
+    are a group, and a group is sound when its streams began within the limit of one another and, unless it is the first, its
+    median start is within the limit of where the plan puts it: the attack at the end of the baseline, the steps of a staged load
+    at their times. Returns the offsets of the streams from the zero, the spread of the legit starts, the error of the attack's
+    start, and the reasons for which the run is unsound (executor.ok is false when there are any)."""
     per = plan.settings["exit_delay_per_request_s"]
     t0 = {sid: estimate_t0(t_exit, wall, n, per) for sid, (t_exit, wall, n) in found.items()}
-    legit = [t0[s.id] for s in plan.streams if s.kind == "legit" and s.id in t0]
-    attack = [t0[s.id] for s in plan.streams if s.kind == "attack" and s.id in t0]
+    legit = [x for x in plan.streams if x.kind == "legit" and x.id in t0]
     if not legit:
         return {"offsets": {}, "t0_spread_legit_s": None, "attack_start_error_s": None,
                 "reasons": ["no legit stream reported"], "zero": None}
-    reasons = []
-    zero = statistics.median(legit)
-    spread = max(legit) - min(legit)
-    if spread > plan.settings["t0_spread_limit_s"]:
-        reasons.append(f"the legit streams began {spread:.2f} s apart (limit {plan.settings['t0_spread_limit_s']:g} s)")
-    error = None
-    if any(s.kind == "attack" for s in plan.streams):
-        if attack:
-            error = statistics.median(attack) - (zero + plan.timeline["baseline_s"])
-            if abs(error) > plan.settings["attack_start_limit_s"]:
-                reasons.append(f"the attack began {error:+.2f} s from the end of the baseline "
-                               f"(limit {plan.settings['attack_start_limit_s']:g} s)")
+    first = min(x.start_s for x in legit)
+    zero = statistics.median(t0[x.id] - x.start_s for x in legit if x.start_s == first)
+    spread_limit, start_limit = plan.settings["t0_spread_limit_s"], plan.settings["attack_start_limit_s"]
+    groups = collections.defaultdict(list)
+    for x in plan.streams:
+        if x.id in t0:
+            groups[(x.kind, x.start_s)].append(t0[x.id])
+    reasons, spreads, errors = [], [], []
+    for (kind, start), times in sorted(groups.items()):
+        spread, error = max(times) - min(times), statistics.median(times) - (zero + start)
+        if kind == "legit":
+            spreads.append(spread)
+            where = "" if start == first else f" that start at {start:g} s"
+            if spread > spread_limit:
+                reasons.append(f"the legit streams{where} began {spread:.2f} s apart (limit {spread_limit:g} s)")
+            if start != first and abs(error) > start_limit:
+                reasons.append(f"the legit streams that start at {start:g} s began {error:+.2f} s from their start "
+                               f"(limit {start_limit:g} s)")
         else:
-            reasons.append("no attack stream reported")
-    return {"offsets": {sid: v - zero for sid, v in t0.items()}, "t0_spread_legit_s": spread,
-            "attack_start_error_s": error, "reasons": reasons, "zero": zero}
+            errors.append(error)
+            if abs(error) > start_limit:
+                reasons.append(f"the attack began {error:+.2f} s from the end of the baseline (limit {start_limit:g} s)")
+    if any(x.kind == "attack" for x in plan.streams) and not errors:
+        reasons.append("no attack stream reported")
+    return {"offsets": {sid: v - zero for sid, v in t0.items()}, "t0_spread_legit_s": max(spreads),
+            "attack_start_error_s": max(errors, key=abs) if errors else None, "reasons": reasons, "zero": zero}
 
 
 # --- building the testbed -------------------------------------------------------------------------
@@ -1213,25 +1257,27 @@ def launch_streams(host, streams, log, procs):
 
 
 def run_timeline(host, plan, log, procs, sampler):
-    """Launch the legit streams, the attack streams at their moment, sample once a second, and wait for all of them to
-    exit. Returns the launch times and the reasons the timeline went wrong (a stream that died, one that never ended)."""
+    """Launch every stream at its time (launch_due), sample once a second, and wait for all of them to exit. Returns the
+    times of the first launch of each kind and the reasons the timeline went wrong (a stream that died, one that never ended)."""
     s = plan.settings
-    legit = [x for x in plan.streams if x.kind == "legit"]
-    attack = [x for x in plan.streams if x.kind == "attack"]
     t_launch = host.time()
-    launched = {"legit": t_launch}
-    launch_streams(host, legit, log, procs)
-    sampler.attach()
-    attack_due = t_launch + launch_attack_after(plan)
+    waiting = sorted(plan.streams, key=lambda x: (launch_due(plan, x), x.id))
+    launched, ends, reasons = {}, {}, []
     deadline = t_launch + s["startup_delay_legit_s"] + plan.timeline["total_s"] + DRAIN_S + s["term_grace_s"] + 10.0
-    ends = {x.id: t_launch + s["startup_delay_legit_s"] + x.duration_s for x in legit}
-    reasons = []
     while True:
         now = host.time()
-        if attack and "attack" not in launched and now >= attack_due:
-            launched["attack"] = now
-            launch_streams(host, attack, log, procs)
-            ends.update({x.id: now + s["startup_delay_attack_s"] + x.duration_s for x in attack})
+        due = []
+        while waiting and t_launch + launch_due(plan, waiting[0]) <= now + 1e-9:
+            due.append(waiting.pop(0))
+        for kind in ("legit", "attack"):
+            group = [x for x in due if x.kind == kind]
+            if group:
+                launched.setdefault(kind, now)
+                launch_streams(host, group, log, procs)
+                own = s["startup_delay_attack_s"] if kind == "attack" else s["startup_delay_legit_s"]
+                ends.update({x.id: now + own + x.duration_s for x in group})
+                if not sampler.pids:
+                    sampler.attach()
         sampler.sample(now - t_launch)
         early = [x for x in plan.streams if x.id in procs and procs[x.id].poll() is not None
                  and now < ends[x.id] - EARLY_SLACK_S]
@@ -1240,13 +1286,13 @@ def run_timeline(host, plan, log, procs, sampler):
                         f"{ends[x.id] - now:.0f} s before its end" for x in early]
             break
         running = [x for x in plan.streams if x.id in procs and procs[x.id].poll() is None]
-        if not running and ("attack" in launched or not attack):
+        if not running and not waiting:
             break
         if now > deadline:
             reasons.append(f"{len(running)} streams were still running {now - t_launch:.0f} s after the launch")
             break
-        due = [attack_due - now] if attack and "attack" not in launched else []
-        host.sleep(max(0.01, min([TICK_S, *due])))
+        soonest = [t_launch + launch_due(plan, waiting[0]) - now] if waiting else []
+        host.sleep(max(0.01, min([TICK_S, *soonest])))
     log(f"timeline over after {host.time() - t_launch:.1f} s" + (f"; {len(reasons)} problems" if reasons else ""))
     return launched, reasons
 

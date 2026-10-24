@@ -597,6 +597,126 @@ class TeardownTest(RunCase):
                 self.assertTestbedEmpty(host)
 
 
+class StagedRunTest(RunCase):
+    """A load that steps up in one run, as the capacity probe's does (docs/HG1C_DESIGN.md 8)."""
+    LEVELS = (20.0, 40.0, 80.0)
+    STEP = 6.0
+
+    def staged_plan(self, name="s", settings=None):
+        pop = P.staged("calib", 1, self.LEVELS, self.STEP)
+        return X.plan_population(pop, "capacity", "C", 1, os.path.join(self.tmp.name, name, "C"), self.cal, C.PLACEHOLDER,
+                                 pop.timeline, settings=bare_settings(**(settings or {})))
+
+    def step_of(self, sid):
+        return int(sid[1:3])
+
+    def go_staged(self, host=None, **kw):
+        host = host or F.SimHost()
+        plan = self.staged_plan(**kw)
+        return plan, host, X.execute(plan, host)
+
+    def test_every_step_is_launched_when_it_is_due_and_the_run_is_sound(self):
+        plan, host, result = self.go_staged()
+        self.assertTrue(result.ok, result.reasons)
+        first = min(host.launch_times.values())
+        for sid, t in host.launch_times.items():
+            self.assertAlmostEqual(t - first, self.step_of(sid) * self.STEP, delta=0.011, msg=sid)
+        self.assertEqual(len(host.launch_times), 3 * 29)
+        self.assertEqual(self.read(plan, "executor.log").count("launched 29 legit streams"), 3)
+        self.assertEqual(self.run_json(plan)["started_utc"], X._utc(F.BASE_EPOCH + first), "the run began with its first step")
+        self.assertTestbedEmpty(host)
+
+    def test_the_streams_are_placed_at_their_step_on_the_runs_axis(self):
+        plan, _, _ = self.go_staged()
+        run = H.read_run(plan.out)
+        for s in run["streams"]:                         # the model's start-up grows 2 ms with each stream it has started
+            self.assertAlmostEqual(s["offset_s"], self.step_of(s["id"]) * self.STEP, delta=0.2, msg=s["id"])
+        self.assertEqual(self.run_json(plan)["executor"]["launch_attack_after_s"], None)
+
+    def test_a_window_reads_one_step_and_the_gate_sees_the_load_of_each(self):
+        server = F.SyntheticServer(self.cal, (self.STEP, 0.0, 0.0))
+        plan, _, result = self.go_staged(host=F.SimHost(server=server))
+        self.assertTrue(result.ok, result.reasons)
+        run = H.read_run(plan.out)
+        timeline = {"baseline_s": 18.0, "attack_s": 0.1, "recovery_s": 0.1}
+        counts = [H.run_metrics(run, self.cal, timeline, window=(k * self.STEP + 1, k * self.STEP + 5))["requests"]
+                  for k in range(3)]
+        self.assertAlmostEqual(counts[1] / counts[0], 2.0, delta=0.5)
+        self.assertAlmostEqual(counts[2] / counts[0], 4.0, delta=1.0)
+
+    def test_a_step_that_starts_late_makes_the_run_unsound_and_is_placed_where_it_began(self):
+        host = F.SimHost(startup_s=lambda sid, index, kind: 1.8 + (0.8 if sid.startswith("S01-") else 0.0))
+        plan, _, result = self.go_staged(host=host)
+        self.assertFalse(result.ok)
+        self.assertEqual(len(result.reasons), 1, result.reasons)
+        self.assertIn("the legit streams that start at 6 s began +0.80 s from their start", result.reasons[0])
+        late = [s["offset_s"] for s in H.read_run(plan.out)["streams"] if s["id"].startswith("S01-")]
+        self.assertAlmostEqual(sum(late) / len(late), 6.8, delta=0.06)
+
+    def test_a_step_whose_streams_start_apart_is_unsound_in_its_own_words(self):
+        host = F.SimHost(startup_s=lambda sid, index, kind: 1.8 + (0.02 * (index % 30) if sid.startswith("S02-") else 0.0))
+        _, _, result = self.go_staged(host=host)
+        self.assertFalse(result.ok)
+        self.assertTrue(any("the legit streams that start at 12 s began" in r and "s apart" in r for r in result.reasons), result.reasons)
+
+    def test_the_first_step_defines_the_axis_not_the_whole_run(self):
+        host = F.SimHost(startup_s=lambda sid, index, kind: 1.8 + (0.3 if sid.startswith("S00-") else 0.0))
+        plan, _, result = self.go_staged(host=host)
+        self.assertTrue(result.ok, result.reasons)
+        offsets = {self.step_of(s["id"]): s["offset_s"] for s in H.read_run(plan.out)["streams"]}
+        self.assertAlmostEqual(offsets[1], 6.0 - 0.3, delta=0.06)
+
+    def test_a_stream_of_a_later_step_that_dies_ends_the_run_with_the_earlier_steps_kept(self):
+        host = F.SimHost(dies=lambda sid: sid.startswith("S01-"))
+        plan, _, result = self.go_staged(host=host)
+        self.assertFalse(result.ok)
+        self.assertTrue(any("exited with 2" in r for r in result.reasons), result.reasons)
+        kept = {self.step_of(s["id"]) for s in H.read_run(plan.out)["streams"]}
+        self.assertEqual(kept, {0}, "step 0 had finished; step 1 died and step 2 was never launched")
+        self.assertTestbedEmpty(host)
+        self.assertLess(host.t, 3 * self.STEP + 2.0 + 10.0)
+
+    def test_a_step_after_a_gap_is_launched_when_it_is_due_and_the_run_waits_for_it(self):
+        pop = P.staged("calib", 1, self.LEVELS[:2], self.STEP)
+        late = tuple(dataclasses.replace(s, start_s=30.0) if s.id.startswith("S01-") else s for s in pop.streams)
+        pop = dataclasses.replace(pop, streams=late, timeline=P.Timeline(36.0, 0.0, 0.0))
+        plan = X.plan_population(pop, "capacity", "C", 1, os.path.join(self.tmp.name, "gap", "C"), self.cal, C.PLACEHOLDER,
+                                 pop.timeline, settings=bare_settings())
+        host = F.SimHost()
+        result = X.execute(plan, host)
+        self.assertTrue(result.ok, result.reasons)
+        first = min(host.launch_times.values())
+        self.assertAlmostEqual(max(host.launch_times.values()) - first, 30.0, delta=0.011)
+        self.assertEqual(len(host.launch_times), 2 * 29, "the streams of the later step were launched, though none was running")
+
+    def test_the_axis_begins_where_the_first_legit_group_does_whatever_its_start(self):
+        plan = self.staged_plan()
+        shifted = dataclasses.replace(plan, streams=tuple(dataclasses.replace(s, start_s=s.start_s + 10.0) for s in plan.streams))
+        found = {s.id: (100.0 + s.start_s + 40.0 - X.ENGINE_T0_OFFSET_S, 40.0, 100) for s in shifted.streams}
+        al = X.alignment(shifted, found)
+        self.assertEqual(al["reasons"], [])
+        self.assertAlmostEqual(al["zero"], 100.0)
+        first = [off for sid, off in al["offsets"].items() if sid.startswith("S00-")]
+        self.assertAlmostEqual(first[0], 10.0, msg="its streams are placed 10 s into the run")
+
+    def test_alignment_groups_the_streams_by_their_start(self):
+        plan = self.staged_plan()
+        found = {}
+        for s in plan.streams:
+            t0 = 100.0 + s.start_s + (0.2 if s.start_s == 12.0 else 0.0)
+            found[s.id] = (t0 + 40.0 - X.ENGINE_T0_OFFSET_S, 40.0, 100)
+        al = X.alignment(plan, found)
+        self.assertEqual(al["reasons"], [])
+        self.assertAlmostEqual(al["zero"], 100.0)
+        self.assertAlmostEqual(al["t0_spread_legit_s"], 0.0, places=9)
+        by_step = {self.step_of(sid): off for sid, off in al["offsets"].items()}
+        self.assertAlmostEqual(by_step[2], 12.2)
+        found = {k: (t + (0.6 if k.startswith("S01-") else 0.0), w, n) for k, (t, w, n) in found.items()}
+        al = X.alignment(plan, found)
+        self.assertEqual(len(al["reasons"]), 1)
+        self.assertIn("began +0.60 s from their start", al["reasons"][0])
+
+
 class ProcessTableTest(RunCase):
     """What counts as a testbed's process: by what it runs, never by a word anywhere in its command line."""
 
@@ -779,6 +899,20 @@ class EstimatorTest(RunCase):
         control = self.plan("C", name="ctl/C")
         al = X.alignment(control, self.found(control, legit=100.0))
         self.assertIsNone(al["attack_start_error_s"])
+        self.assertEqual(al["reasons"], [])
+
+    def test_with_several_attack_starts_the_worst_error_is_reported(self):
+        plan = self.plan("U")
+        base = plan.timeline["baseline_s"]
+        attack = [x for x in plan.streams if x.kind == "attack"]
+        streams = tuple(dataclasses.replace(x, start_s=base + 10.0) if x in attack[2:] else x for x in plan.streams)
+        plan = dataclasses.replace(plan, streams=streams)
+        found = {}
+        for x in plan.streams:
+            t0 = 100.0 + (0.0 if x.kind == "legit" else x.start_s + (0.1 if x.start_s == base else -0.4))
+            found[x.id] = (t0 + 40.0 - X.ENGINE_T0_OFFSET_S, 40.0, 100)
+        al = X.alignment(plan, found)
+        self.assertAlmostEqual(al["attack_start_error_s"], -0.4)
         self.assertEqual(al["reasons"], [])
 
     def test_no_legit_report_is_no_alignment(self):

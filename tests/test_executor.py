@@ -5,6 +5,7 @@ Nothing here opens a socket or starts a process; the suite is imported with its 
 tests/test_suite_harness.py, to compare constants and read source.
 """
 import contextlib
+import dataclasses
 import hashlib
 import inspect
 import io
@@ -312,6 +313,76 @@ class PlanTest(unittest.TestCase):
         p = EX.plan_run(scenario(), CAL, "C", 1, "runs/C", C.PLACEHOLDER)
         self.assertTrue(os.path.isabs(p.out))
         self.assertTrue(all(s.workdir.startswith(p.out) for s in p.streams))
+
+
+class StagedPlanTest(unittest.TestCase):
+    """The plan of a population drawn elsewhere: the staged load of the capacity probe."""
+    LEVELS = (20.0, 40.0, 80.0)
+    STAGED = P.staged("calib", 1, LEVELS, 6.0)
+
+    def staged_plan(self, **kw):
+        return EX.plan_population(self.STAGED, "capacity", "C", 1, f"{OUT}/C", CAL, C.PLACEHOLDER, self.STAGED.timeline, **kw)
+
+    def test_each_stream_keeps_its_start_and_has_its_own_directory(self):
+        p = self.staged_plan()
+        self.assertEqual(len(p.streams), 3 * 29)
+        self.assertEqual(sorted({s.start_s for s in p.streams}), [0.0, 6.0, 12.0])
+        self.assertEqual(len({s.workdir for s in p.streams}), len(p.streams))
+        self.assertTrue(all(s.workdir == f"{OUT}/C/streams/{s.id}" for s in p.streams))
+        self.assertEqual((p.scenario, p.kind, p.timeline["total_s"], p.level), ("capacity", "C", 18.0, None))
+
+    def test_one_topology_serves_all_the_steps(self):
+        p = self.staged_plan()
+        plain = EX.plan_population(P.draw("calib", 1, 20.0, 200, None, P.Timeline(6.0, 0.0, 0.0), 1), "x", "C", 1, f"{OUT}/C",
+                                   CAL, C.PLACEHOLDER, P.Timeline(6.0, 0.0, 0.0))
+        self.assertEqual([(n.name, n.addresses) for n in p.namespaces], [(n.name, n.addresses) for n in plain.namespaces])
+        self.assertEqual(p.topology, plain.topology)
+
+    def test_a_stream_is_launched_so_that_its_loop_starts_at_its_time(self):
+        p = self.staged_plan()
+        due = {s.start_s: EX.launch_due(p, s) for s in p.streams}
+        self.assertEqual(due, {0.0: 0.0, 6.0: 6.0, 12.0: 12.0}, "a legit stream's start-up is the axis' own")
+
+    def test_the_attack_is_launched_earlier_by_the_difference_of_the_start_up_delays(self):
+        p = plan("U")
+        attack = next(s for s in p.streams if s.kind == "attack")
+        legit = next(s for s in p.streams if s.kind == "legit")
+        self.assertEqual(EX.launch_due(p, legit), 0.0)
+        self.assertEqual(EX.launch_due(p, attack), p.timeline["baseline_s"] + 1.8 - 0.3)
+        self.assertEqual(EX.launch_due(p, attack), EX.launch_attack_after(p))
+
+    def test_the_start_up_delays_are_the_plans_settings(self):
+        p = EX.plan_population(self.STAGED, "capacity", "C", 1, f"{OUT}/C", CAL, C.PLACEHOLDER, self.STAGED.timeline,
+                               settings={"startup_delay_legit_s": 2.5})
+        late = next(s for s in p.streams if s.start_s == 12.0)
+        self.assertEqual(EX.launch_due(p, late), 12.0)
+        attack = next(s for s in plan("U").streams if s.kind == "attack")
+        self.assertEqual(EX.launch_due(plan("U"), attack), 30.0 + 1.8 - 0.3)
+        self.assertEqual(EX.launch_due(p, dataclasses.replace(attack, start_s=12.0)), 12.0 + 2.5 - 0.3)
+
+    def test_the_text_says_the_load_comes_in_steps(self):
+        text = EX.describe(self.staged_plan())
+        self.assertIn("the legit load comes in 3 steps of 29 streams", text)
+        self.assertIn("T = 6, 12 s", text)
+        self.assertIn("the run lasts 18 s", text)
+        self.assertNotIn("attack streams are launched", text)
+
+    def test_the_text_of_an_ordinary_run_is_not_the_staged_one(self):
+        self.assertNotIn("steps", EX.describe(plan("C")).split("plan hash")[0])
+
+    def test_the_plan_hash_follows_the_legit_streams_including_their_steps(self):
+        a, b = self.staged_plan(), self.staged_plan()
+        self.assertEqual(a.plan_sha256, b.plan_sha256)
+        other = EX.plan_population(P.staged("calib", 1, (20.0, 40.0, 81.0), 6.0), "capacity", "C", 1, f"{OUT}/C", CAL,
+                                   C.PLACEHOLDER, self.STAGED.timeline)
+        self.assertNotEqual(a.plan_sha256, other.plan_sha256)
+
+    def test_plan_run_is_plan_population_of_the_scenarios_draw(self):
+        scn = scenario()
+        pop, level = SC.population_of(scn, CAL, 1, attack=True)
+        direct = EX.plan_population(pop, scn.id, "U", 1, f"{OUT}/U", CAL, C.PLACEHOLDER, scn.timeline, level,
+                                    sha_of(spec_path("costly_search_sub_threshold")))
+        self.assertEqual(EX.as_json(direct), EX.as_json(plan("U")))
 
 
 def read(path):

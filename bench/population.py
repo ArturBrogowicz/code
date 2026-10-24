@@ -355,6 +355,21 @@ def draw(namespace, seed, rho_rps, benign_identities=200, attack=None, timeline=
     return Population(namespace, seed, timeline, ns_specs, tuple(idents), tuple(streams))
 
 
+def staged(namespace, seed, levels, step_s, benign_identities=200, per_profile=1):
+    """A legit-only population whose load steps through `levels` (requests/s in all): step k runs for `step_s` seconds from
+    k x `step_s`, with the streams of a draw at level k, their ids prefixed `S<k>-`. The identities and namespaces do not depend on
+    the load, so every step has the same ones and a run of the population needs one alias plan. The capacity probe is such a
+    run, one per repeat (docs/HG1C_DESIGN.md 8)."""
+    levels = list(levels)
+    if not levels or not all(isinstance(v, (int, float)) and v > 0 for v in levels) or not step_s > 0:
+        raise ValueError("staged: at least one positive level and a positive step")
+    draws = [draw(namespace, seed, level, benign_identities, None, Timeline(step_s, 0.0, 0.0), per_profile) for level in levels]
+    streams = [dataclasses.replace(s, id=f"S{k:02d}-{s.id}", start_s=k * step_s)
+               for k, pop in enumerate(draws) for s in pop.streams]
+    return Population(namespace, seed, Timeline(step_s * len(levels), 0.0, 0.0), draws[0].namespaces, draws[0].identities,
+                      tuple(streams))
+
+
 NOFILE_MARGIN = 64
 
 
