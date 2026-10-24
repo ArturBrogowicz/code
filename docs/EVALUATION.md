@@ -380,11 +380,11 @@ processes of an earlier run remain. The L7 runners (`ml/capture_l7.py`, `ml/eval
 
 `docs/BENCHMARK_HARM_DESIGN.md` (branch `design/benchmark-harm`) asks that an attack cause measurable harm on an
 unprotected server before any mitigation is judged against it; `docs/HG1B_MINIMAL_DESIGN.md` is the part built
-so far. These tools send no traffic and need no root. What is missing is the executor that runs a scenario in
-the namespaces and the calibration runner (HG1c). Until they exist the calibration is
-`bench/calibration/placeholder.json`, the design's illustrative numbers, and the gate refuses a verdict on it
-(`--dry-run` allows one and labels everything it prints). **Nothing in this section is a statement about the
-testbed.**
+so far. These tools send no traffic and need no root. The executor that runs a scenario in the namespaces, the
+campaign runner and the calibration runner (HG1c) are built and described in the next section, but have not run on
+the testbed; until the calibration runner has measured one, the calibration is `bench/calibration/placeholder.json`,
+the design's illustrative numbers, and the gate refuses a verdict on it (`--dry-run` allows one and labels everything
+it prints). **Nothing in this section is a statement about the testbed.**
 
 | Tool | What it is |
 |---|---|
@@ -438,6 +438,68 @@ benign classes and the attack families are assumptions; every cost is a placehol
 population of class-pure streams is coarser than sessions. `docs/HG1B_MINIMAL_DESIGN.md` section 9 lists what the
 build found.
 
+## The harm benchmark's runners (HG1c)
+
+`docs/HG1C_DESIGN.md` (decisions D18 to D26 approved; section 14 records what was built and where it departs from the note)
+adds the three runners that turn a scenario into the run contract above, the run contract into a verdict, and measurements into a
+frozen calibration. **They were built offline and have not run on the testbed.** The first contact is a ladder of four small steps
+(S1 to S4, section 10 of the note), each approved on its own with its exact command; what follows says what the code asks of
+the machine and what the tests show a simulated machine doing, not what the testbed does.
+
+| Tool | What it does |
+|---|---|
+| `bench/executor.py` | one run (`C`, `Cp` or `U`) of a plan: preflight (root, venv, descriptors, a clean tree, no leftovers), the environment gate (uptime and load for the first run of a process, the timer on the legit CPU for every run), the topology built with the suite's primitives and read back, gunicorn and Nginx in `server_ns`, the streams on their timeline, telemetry at 1 Hz, collection into the run contract with `executor.ok`, and a teardown that is shielded from a second Ctrl-C |
+| `bench/gate_campaign.py` | the blocks of one scenario: `C`, `Cp` and `U` in an order drawn from the scenario, the block and the attempt; the re-run rule through `harm_gate.assess_block`; resume; an unscored warm-up; `gate.json` and `gate.md` beside the data |
+| `bench/calibrate.py` | the steps that fill the calibration: `origin`, `capacity`, `ladder` (a screening per family), `reference`, `freeze`, `drift` |
+| `bench/sim_host.py` | the machine as a model, with a virtual clock and a server that has a capacity: what the tests and `--simulate` run on |
+
+    python3 bench/executor.py plan SPEC --calibration FILE --kind U --seed 1 [--out DIR] [--json]    # what a run would do; no root
+    sudo ./venv/bin/python bench/executor.py run SPEC --kind C --seed 1 --out DIR/C [--rho R --timeline B,A,R]
+    ./venv/bin/python bench/executor.py clock-probe SPEC --duration 30 [--attack] --out DIR           # S1: no root, loopback
+    sudo ./venv/bin/python bench/executor.py smoke-topology SPEC --out DIR/C                          # S2
+    python3 bench/gate_campaign.py plan SPEC --calibration FILE [--blocks N]
+    sudo ./venv/bin/python bench/gate_campaign.py run SPEC --calibration FILE --out DIR [--dry-run] [--blocks N] [--no-warmup]
+    python3 bench/gate_campaign.py run SPEC --calibration FILE --out DIR --simulate pass|fail|small|latency     # no root, no namespace
+    python3 bench/gate_campaign.py status DIR
+    python3 bench/calibrate.py plan                                       # the steps, their runs and their time
+    sudo ./venv/bin/python bench/calibrate.py origin|capacity|reference --out SESSION                  # then `ladder --family F`
+    python3 bench/calibrate.py freeze --dir SESSION --out bench/calibration/<host>-<date>.json         # never touches the VM
+    sudo ./venv/bin/python bench/calibrate.py drift --calibration FILE --out DIR
+
+**A run directory** holds `run.json` and `streams/<id>/loadgen.{summary.json,records.csv.gz}` (the run contract), `plan.json` (every
+primitive, command and stream), `environment.json` (the commit and whether the tree was dirty, the machine, the timer, the hashes of the
+files the result depends on, and the limits and CPUs the stack was actually started with), `executor.log`, `server.csv` (a row a second:
+load, busy share of each CPU, steal, CPU of the origin and of Nginx, `ListenOverflows`, `ListenDrops`), `server_requests.csv`
+(Nginx's log by arrival second and client class) and the compressed log; `FAILED` names the reason when the run did not complete. A
+campaign directory has `campaign.json`, `bNN_aM/` per block attempt with `block.json` and the three runs (a `DONE` in each), `warmup/C`,
+`gate.json` and `gate.md`; a calibration session has `origin/`, `capacity/`, `ladder_<family>/`, `reference/` and `drift/`.
+
+**What the executor will not do.** It never kills by pattern: the namespaces' processes are found with `ip netns pids` and the leftover
+check reads the process table by what each process runs (a results directory called `gunicorn` cannot match); a listing it cannot read
+is not a clean machine. The suite's import-time `atexit` cleanup, a system-wide `pkill -9 -f gunicorn`, is unregistered after the import.
+It refuses a directory that holds anything, a tree with uncommitted changes (unless `--allow-dirty`, which is recorded) and leftovers
+(`--clean` takes down the namespaces and links of an earlier testbed, and nothing else). A failure before the first stream is retried in
+place twice; any error raised after it ends the run, tears down, and writes `FAILED`.
+
+**The clocks of the streams.** The engine writes no absolute time, so the executor estimates when each stream's schedule began from its
+exit time less its wall time, and `executor.ok` is false when the legit streams began more than 0.5 s apart, the attack began more than
+0.5 s from the end of the baseline, a stream died, left nothing or exited non-zero. The estimate is [UNVERIFIED] until S1 measures it
+against an origin's own arrival log; `exit_delay_per_request_s` corrects an exit delay that grows with the request count, if S1 shows one.
+
+**The campaign** runs a block's three runs in a drawn order; a run that fails or is found unsound ends its attempt (finishing an invalid
+block spends VM time on nothing), and the block is re-run once with its seed if the gate has re-runs left (`max_reruns`, 2). A campaign
+that can no longer reach the gate's `min_blocks` valid blocks stops (`--keep-going` goes on). A refusal, a setup that cannot be built,
+Ctrl-C and a leftover stop the campaign without counting as a failed block; the same command resumes, skipping the runs that are `DONE`.
+**The calibrator** stops, and says what that means, when the host cannot be calibrated: a first capacity level that is already unhealthy, a
+capacity above the range of the probe, no saturation, origin sessions that disagree by more than 10 % twice, a screening whose controls
+are unhealthy or more than 2 pp apart. Nothing is tuned to get past a stop.
+
+**Simulation.** `--simulate` runs a whole campaign, or any calibration step, on `bench/sim_host.py`: commands answered from a model of
+the testbed, processes on a virtual clock, faults on request (`--simulate-fault NAME[:N]`), and a server that makes a harm of a known
+size or has a capacity (requests fail in the share that does not fit it). The directories are marked `SIMULATED`, and on it the capacity,
+the knees and the harms that the steps find agree with what the model says they are. That shows the protocol working and says nothing
+about any server.
+
 ## Tests
 
     venv/bin/python -m unittest discover -s tests -v
@@ -446,6 +508,11 @@ No root and no network. They cover the event log, the daemon's event contract (s
 since importing the daemon attaches XDP), the suite's settings and bookkeeping (the
 suite is imported with its atexit cleanup disabled), the analysis, and the published
 EXP-2a numbers.
+
+The harm benchmark's runners are tested on a simulated host (`bench/sim_host.py`, `tests/test_executor_run.py`, `tests/test_gate_campaign.py`,
+`tests/test_calibrate.py`): a failure injected at each step still tears down and leaves `FAILED`, no command of the executor is a kill
+or a lookup by pattern, the re-run rule and resume are exercised on synthetic outcomes, and the calibrator finds a capacity and a knee that
+the model has. Mutating each module with textual changes (about 200 in all) makes a test fail for every one that is not equivalent.
 
 The daemon's live rules are tested by running their real code against fakes
 (`tests/daemon_harness.py`, `tests/test_daemon_rules.py`; audit G-29). The harness executes

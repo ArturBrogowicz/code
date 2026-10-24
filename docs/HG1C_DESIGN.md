@@ -1,7 +1,8 @@
 # HG1c: the executor, the gate campaign and the calibration runner (design note, written before the code)
 
-**Status (2026-10-23): proposed, for your approval. Nothing is built, nothing has run, no VM work.** This note is on
-`design/hg1c`, off `feat/hg1b-minimal` (7528089), and changes no code. It is the follow-up that `docs/HG1B_MINIMAL_DESIGN.md`
+**Status (2026-10-24): approved (D18 to D26 as recommended, including option (b) and A1) and built offline on `feat/hg1c`; nothing
+has run on the VM. Section 14 records what was built and where it departs from this note, which is otherwise left as it was
+written (2026-10-23).** This note is on `design/hg1c`, off `feat/hg1b-minimal` (7528089); it changed no code. It is the follow-up that `docs/HG1B_MINIMAL_DESIGN.md`
 promised in its section 7 (decision D16): the part that runs a scenario in the namespaces and writes the run contract that
 `eval/harm_gate.py` reads; the loop that makes blocks of three runs under the re-run rule; and the runner that measures and freezes
 the calibration. "design N" is a section of `docs/BENCHMARK_HARM_DESIGN.md` (branch `design/benchmark-harm`), "HG1b N" a section of
@@ -392,6 +393,65 @@ Offline build: five code commits and a docs commit; the executor (commits 2 and 
 Decisions D18 to D26 of section 1; above all D19, without which no gate can pass or fail. If you approve, I would build commits 1 to 6
 of section 9 offline on a new branch `feat/hg1c` off `design/hg1c` (so that it carries this note and everything of `feat/hg1b-minimal`),
 merge nothing, push nothing, and bring S1 for approval when the executor's plan prints.
+
+## 14. As built (2026-10-24)
+
+Built offline on `feat/hg1c`, off this note, in the order of section 9; nothing was run on the VM, no merge, no push. One commit was
+added to section 9's six (the capacity probe needed the executor to launch streams at their own start), and two small ones followed.
+
+| Commit | What | New tests | Textual mutations killed |
+|---|---|---|---|
+| 7681825 | contracts F1 to F6 (`judged_profiles`, `drift_reference`, the `host` shape, the control's per-class clause, `executor` and `netem` in the records, the harm gate's judged links and window, `--block`) | | |
+| dbc73c5 | the executor's plan: `Host`, topology, stack and streams as data, the rendered Nginx configuration, `--plan` | 41 | |
+| 59a09a9 | the executor's run on a `Host`, and `bench/sim_host.py` to test it on | 157 | 70 |
+| 46e7934 | `bench/gate_campaign.py`: blocks, orders, the re-run rule, resume, `--simulate` | 68 | 41 |
+| 77462f5 | streams launched at their own start (`launch_due`), grouped alignment, `population.staged` and `plan_population` | 28 | 19 |
+| e28de6a | `bench/calibrate.py` and the third scenario `costly_export_sub_threshold` (spec, golden plan), a server with a capacity in the simulated host | 117 | 66 |
+| cf6f963, e0d4473 | the executor prints a run's figures by link; a failed drift check is made once more | 3 | 8 |
+| the docs commit | `docs/EVALUATION.md`, this section | | |
+
+1,410 tests pass; ruff is clean. The mutations were made on private copies of the tree (a textual change to one line, the executor's or
+campaign's or calibrator's tests run against it); each one that was not equivalent made a test fail, and the survivors of the first rounds
+were closed with tests (an equivalent branch of `program_of` was removed instead).
+
+**Where it departs from this note.** Each was a choice made while building and is open to your objection.
+
+| # | Note | Built | Why |
+|---|---|---|---|
+| 1 | 6.8: the executor registers its teardown with `atexit` after the suite's, so that it runs first (LIFO) | the suite's `atexit` cleanup is unregistered after the import, and its signal handlers put back; the teardown is a `finally` and SIGTERM and SIGHUP raise `KeyboardInterrupt` | 5.3 said it never kills by pattern, and the suite's cleanup is a system-wide `pkill -9 -f gunicorn` and `-f "nginx: ..."`; letting it run after the executor's own teardown would have been the one place that does |
+| 2 | 6.8: no `pgrep -f` on a word the command line can contain | no `pgrep` at all: the leftover check reads `ps -eo pid=,ppid=,args=` and decides by what each process runs (the first word, or the script or `-m` module of a Python), and leaves out the executor and its parents; a listing that cannot be read raises `TableUnreadable`, so that an unreadable machine is never "clean" | a pattern over whole command lines finds the executor's own (`--out /var/tmp/gunicorn/...`) |
+| 3 | 6.2 step 2: uptime, load and a TIME_WAIT settle before every run | the full gate (waiting for uptime and load) for the first run of a process, the timer on CPU 6 for every run; no TIME_WAIT settle | a run's own load keeps the 1-minute average above 0.3 for minutes, so every next run would wait for it; the sockets of a run die with its namespaces (D21), and the host's count is not theirs |
+| 4 | 6.8 | the teardown runs inside a shield that ignores SIGINT, SIGTERM and SIGHUP | a second Ctrl-C would leave the namespaces standing |
+| 5 | 6.6: `t0 = t_exit - wall_s + 0.05`, `delta` the same for all | `exit_delay_per_request_s` in the settings, 0 until S1 says otherwise, subtracted per request | the engine writes its summary and records after the loop, so `delta` grows with the request count; the legit streams have at most 1,239 requests and the flood's attack streams up to 19,882 |
+| 6 | 6.1 and 6.5: legit streams together, attack streams once | every stream is launched so that its loop starts at its `start_s` (`launch_due`), and `alignment` judges groups of one kind and start; for a plain run the schedule and the rule are the old ones | the staged capacity probe needs it; a test pins that plain runs are unchanged |
+| 7 | 7: the re-run decision | a run that fails or is found unsound ends its attempt at once; a campaign that can no longer reach `min_blocks` stops (`--keep-going` goes on) | finishing an invalid block spends VM time on nothing; both are independent of any outcome |
+| 8 | 8, step 1: "a session spread over 10 %" | read as: any route's three session medians differ by more than 10 % of their median, then the three sessions are made once more and only the second round counts; twice over stops | the sentence does not say which spread |
+| 9 | 8: the stack's CPU per request, a diagnostic of step 1 | computed from the telemetry and the request counts of the capacity runs (`stack_cost`), per level, and written next to the capacity; no separate run | no extra VM time; it is not part of the record |
+| 10 | 8 | calibration populations draw from calib seeds 11 (capacity), 21 (ladders, one seed per family), 31 (reference) and 41 (drift), outside the gate's 1 to 10 | the knee should not be tuned on the clients the gate judges |
+| 11 | 8: "a failure is rerun once after the environment gate" | `calibrate.py drift` makes the second attempt itself, with a new runner that waits for the full gate again, in `<out>.second` | |
+| 12 | 9: a shared `tests/synth_runs.py` made from the HG1b synthetic server; `--simulate` on a fake host | `bench/sim_host.py` in `bench/`, so that the command line can use it: commands answered from a model, a virtual clock, faults, and a synthetic server that makes a harm of a known size or has a capacity | one model for the tests of the executor, the campaign and the calibrator; the HG1b tests keep theirs |
+| 13 | 10, S3: `harm_gate --block` on the run | `executor.py run` prints the figures (Q, p95, slip, Q per link profile) | a `block.json` exists only for a campaign |
+
+**Not built.** The calibration of the legit mix, the SLOs and the gate's constants: they stay the template's (the placeholder's) and are
+frozen with the record; changing them is a decision, not a measurement. The mitigated runs `M_<mode>` (HG4). Anything on the L3 and L4 paths (D20).
+
+**What the tests cannot show, and which step does.** That the real commands do what the model says: `ip -batch -` with 100 addresses,
+`prlimit` and `taskset` inside `ip netns exec`, `ping -I`, `ip -j` and `tc qdisc show` as parsed, `/proc/<pid>/net/netstat` of a process in
+another namespace, `curl` in `server_ns` (S2, S3). That Nginx and gunicorn behave as 4.3 lists, and the worker counts and limits under
+`taskset` (S3, from `environment.json`'s `stack` record). That the estimator of the streams' clocks is accurate, the start-up spread of
+29 processes on one vCPU, and the real per-run time (S1, S4). That the control reaches 99 % on the judged links (S3, S4). The limits of
+6.6 stay [PROPOSAL] until S1 and S4.
+
+**The first contact (section 10), with the commands as built.** Each is approved on its own, with its command, before it runs.
+
+| Step | Command | Root | Time | Side effects |
+|---|---|---|---|---|
+| S1 | `./venv/bin/python bench/executor.py clock-probe bench/scenarios/costly_search_sub_threshold.json --duration 30 --out /var/tmp/ddos_campaigns/s1_clock_probe`, and the same with `bench/scenarios/cheap_static_flood.json --attack` (the attack streams with the most requests, to fit the exit delay's dependence on them) | no | about 1 min each | 29 (and with `--attack` 32) engine processes on CPU 6 (the attack's on 3-5 and 7) and as many listeners on loopback, one process pinned to CPU 2, files under the output directory; nothing left over |
+| S2 | `sudo ./venv/bin/python bench/executor.py smoke-topology bench/scenarios/costly_search_sub_threshold.json --seed 1 --out /var/tmp/ddos_campaigns/s2_topology/C` | yes | 3 min | namespaces, veths and the bridge created and deleted; ARP and ICMP inside the testbed |
+| S3 | `sudo ./venv/bin/python bench/executor.py run bench/scenarios/benign_control.json --kind C --seed 1 --rho 20 --timeline 10,10,10 --out /var/tmp/ddos_campaigns/s3_stack/C` | yes | 3 min | as a suite run without the daemon: gunicorn and Nginx in `server_ns`, traffic inside the testbed, the run's directory |
+| S4 | `sudo ./venv/bin/python bench/gate_campaign.py run bench/scenarios/costly_search_sub_threshold.json --blocks 1 --dry-run --out /var/tmp/ddos_campaigns/s4_block`, then `./venv/bin/python eval/harm_gate.py --block /var/tmp/ddos_campaigns/s4_block/b01_a1 --calibration bench/calibration/placeholder.json` | yes | 12 min | as S3, with the scenario's attack of 37 req/s in `U`; four runs (the warm-up and the block's three) |
+
+A run from a worktree needs a temporary `ln -s /home/artur/DDoS-mitigation/code/venv ./venv` there (the executor looks for `<checkout>/venv/bin/python`).
 
 ## Appendix A: the control against the links (offline, from the repository root)
 
