@@ -303,6 +303,12 @@ class CommandTest(unittest.TestCase):
             self.assertFalse(cpus(P.PIN_PLAN["legit"]) & cpus(P.PIN_PLAN[other]), other)
         self.assertEqual(cpus(P.PIN_PLAN["attack"]), {3, 4, 5, 7})
 
+    def test_the_open_file_limit_covers_the_idle_pools_the_in_flight_cap_and_a_margin(self):
+        for s in POP.streams:
+            spec = P.to_load_spec(s, "http://10.0.0.1/")
+            self.assertEqual(P.nofile_for(s, spec), len(s.addresses) * P.POOL[s.kind] + spec.max_workers + P.NOFILE_MARGIN)
+        self.assertEqual(P.NOFILE_MARGIN, 64)
+
     def test_a_stream_outside_the_testbed_is_refused_by_the_wrapper(self):
         with self.assertRaises(LT.ScopeError):
             LT.validate(P.to_load_spec(POP.streams[0], "http://8.8.8.8/"))

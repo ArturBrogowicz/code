@@ -379,8 +379,7 @@ def _generator(pop, cal):
                        "cap": specs[0].max_workers,
                        "pin": P.PIN_PLAN[kind], "cpus": cpus, "cores": cores, "share": cores / cpus,
                        "keepalive": sum(len(s.addresses) * sp.connections for s, sp in zip(streams, specs, strict=True)),
-                       "nofile": max(len(s.addresses) * sp.connections + sp.max_workers + 64
-                                     for s, sp in zip(streams, specs, strict=True)),
+                       "nofile": max(P.nofile_for(s, sp) for s, sp in zip(streams, specs, strict=True)),
                        "split": len(streams) - len({(s.process, s.route_class, s.netem, s.ns_index) for s in streams})}
     return {"ceiling_rps": P.ENGINE_CEILING_RPS, "ms_per_request": P.CPU_MS_PER_REQUEST,
             "cpu_share_limit": cal["validity"]["cpu_share"], "kinds": kinds, "processes": len(pop.streams),
@@ -430,23 +429,32 @@ def _warnings(scn, cal, out):
     return w
 
 
-def plan(scn, cal, seed=None):
-    """What one block of `scn` would be, as plain data. Pure: no clock, no network, no process."""
-    seed = scn.first_seed if seed is None else seed
+def population_of(scn, cal, seed, attack=True):
+    """The population of one block of `scn` and the level of its attack (None without one): the draw that the plan and
+    the executor both make. `attack=False` draws the attack-free runs, C and Cp, whose legit streams are the attack
+    run's."""
     try:
         P.check_seed(scn.seed_namespace, seed)
     except ValueError as exc:
         raise ScenarioError(str(exc)) from exc
-    costs, rho, spare = cal["route_costs_ms"], C.rho_rps(cal), C.spare_capacity(cal)
-    level = None if scn.is_control else resolve_level(scn, cal)
-    attack = None
+    level = None if scn.is_control or not attack else resolve_level(scn, cal)
+    drawn = None
     if level is not None:
         route = P.ATTACK_FAMILIES[scn.family].route_class
-        attack = (scn.family, scn.sources, P.attack_rate(level, spare, costs[route]))
+        drawn = (scn.family, scn.sources, P.attack_rate(level, C.spare_capacity(cal), cal["route_costs_ms"][route]))
     try:
-        pop = P.draw(scn.seed_namespace, seed, rho, scn.benign_identities, attack, scn.timeline, scn.per_profile)
+        pop = P.draw(scn.seed_namespace, seed, C.rho_rps(cal), scn.benign_identities, drawn, scn.timeline,
+                     scn.per_profile)
     except ValueError as exc:
         raise ScenarioError(str(exc)) from exc
+    return pop, level
+
+
+def plan(scn, cal, seed=None):
+    """What one block of `scn` would be, as plain data. Pure: no clock, no network, no process."""
+    seed = scn.first_seed if seed is None else seed
+    rho, spare = C.rho_rps(cal), C.spare_capacity(cal)
+    pop, level = population_of(scn, cal, seed)
     capacity = cal["capacity"]["c_slo_rps"] * C.mean_cost_ms(cal) / 1000          # CPU-s/s at the SLO capacity
     first = scn.first_seed
     blocks = scn.gate["blocks"] if scn.gate else 1

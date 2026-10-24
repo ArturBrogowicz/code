@@ -371,6 +371,28 @@ class PlanNumbersTest(unittest.TestCase):
             self.assertEqual(json.loads(json.dumps(p)), p)
 
 
+class PopulationOfTest(unittest.TestCase):
+    def test_the_attack_free_runs_have_the_attack_runs_legit_streams_and_no_attack(self):
+        scn = scenario("costly_search_sub_threshold")
+        with_attack, level = S.population_of(scn, CAL, 1)
+        without, none = S.population_of(scn, CAL, 1, attack=False)
+        self.assertEqual((level, none), (2.0, None))
+        self.assertEqual(without.of_kind("attack"), ())
+        self.assertEqual(len(with_attack.of_kind("attack")), 4)
+        self.assertEqual(without.of_kind("legit"), with_attack.of_kind("legit"))
+        self.assertEqual(without.alias_plan().keys() <= with_attack.alias_plan().keys(), True)
+
+    def test_a_control_scenario_never_has_an_attack_and_a_bad_seed_is_a_scenario_error(self):
+        pop, level = S.population_of(scenario("benign_control"), CAL, 1)
+        self.assertEqual((pop.of_kind("attack"), level), ((), None))
+        with self.assertRaisesRegex(S.ScenarioError, "outside the namespace"):
+            S.population_of(scenario("benign_control"), CAL, 100)
+
+    def test_plan_uses_it(self):
+        pop, _ = S.population_of(scenario("costly_search_sub_threshold"), CAL, 3)
+        self.assertEqual(len(plan_of("costly_search_sub_threshold", seed=3)["streams"]), len(pop.streams))
+
+
 class ExpectedGateTest(unittest.TestCase):
     def test_the_cost_rate_model_reads_the_level_only(self):
         classes = {4: "likely PASS", 2: "likely PASS", 1: "cannot say", 0.75: "cannot say", 0.5: "likely FAIL",

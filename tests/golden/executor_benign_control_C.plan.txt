@@ -1,0 +1,92 @@
+== run C (control) of benign_control, seed 1 ==
+calibration   sha256:67c0b2ad PLACEHOLDER: illustrative numbers, not measurements; nothing below is a result
+scenario      sha256:025628ed, no attack in this run
+run directory /var/tmp/ddos_campaigns/example/b01_a1/C
+timeline      the 29 legit streams are launched at L; their loops start about 1.8 s later, which is T = 0, and run 105 s
+plan hash     1054ec8289c0 (the legit streams: equal in C, Cp and U of a block)
+nginx.conf    sha256:d84fd57c34ce (nginx_unprotected.conf with its two log paths changed)
+settings      startup_delay_legit_s 1.8, startup_delay_attack_s 0.3, readiness_timeout_s 30.0, warmup_requests 2, t0_spread_limit_s 0.5, attack_start_limit_s 0.5, term_grace_s 2.0, min_nofile 16384
+
+topology: 4 client namespaces carrying 200 addresses
+      hg_0_perfect       perfect       78 addresses, first 10.0.1.2, veth vo_hg_0_perfect
+      hg_1_broadband     broadband     64 addresses, first 10.0.1.3, veth vo_hg_1_broadba
+      hg_2_mobile_3g     mobile_3g     40 addresses, first 10.0.1.4, veth vo_hg_2_mobile_
+      hg_3_mobile_bad    mobile_bad    18 addresses, first 10.0.1.1, veth vo_hg_3_mobile_
+  1. prim  bridge    # the central bridge in the host namespace
+  2. prim  server_ns    # server_ns at 10.0.0.1, XDP-ready veth, checksum offload off
+  3. prim  client_ns hg_0_perfect 10.0.1.2    # hg_0_perfect: a veth pair, a unique MAC from 10.0.1.2, that address
+  4. cmd   [hg_0_perfect] ip -batch -  < 77 lines    # 77 more addresses of hg_0_perfect
+  5. prim  netem hg_0_perfect perfect    # perfect link on hg_0_perfect
+  6. prim  client_ns hg_1_broadband 10.0.1.3    # hg_1_broadband: a veth pair, a unique MAC from 10.0.1.3, that address
+  7. cmd   [hg_1_broadband] ip -batch -  < 63 lines    # 63 more addresses of hg_1_broadband
+  8. prim  netem hg_1_broadband broadband    # broadband link on hg_1_broadband
+  9. prim  client_ns hg_2_mobile_3g 10.0.1.4    # hg_2_mobile_3g: a veth pair, a unique MAC from 10.0.1.4, that address
+ 10. cmd   [hg_2_mobile_3g] ip -batch -  < 39 lines    # 39 more addresses of hg_2_mobile_3g
+ 11. prim  netem hg_2_mobile_3g mobile_3g    # mobile_3g link on hg_2_mobile_3g
+ 12. prim  client_ns hg_3_mobile_bad 10.0.1.1    # hg_3_mobile_bad: a veth pair, a unique MAC from 10.0.1.1, that address
+ 13. cmd   [hg_3_mobile_bad] ip -batch -  < 17 lines    # 17 more addresses of hg_3_mobile_bad
+ 14. prim  netem hg_3_mobile_bad mobile_bad    # mobile_bad link on hg_3_mobile_bad
+
+stack in server_ns, then the readiness probe (30 s at most):
+  1. mkdir /var/tmp/ddos_campaigns/example/b01_a1/C /var/tmp/ddos_campaigns/example/b01_a1/C/streams    # the run directory
+  2. write /var/tmp/ddos_campaigns/example/b01_a1/C/nginx.conf  (sha256 d84fd57c34ce)    # nginx_unprotected.conf with its two log paths changed
+  3. cmd   mkdir -p /var/log/nginx    # Nginx opens its compiled-in log path at start-up
+  4. cmd   [if absent:/etc/ssl/certs/nginx-selfsigned.crt] openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/ssl/private/nginx-selfsigned.key -out /etc/ssl/certs/nginx-selfsigned.crt -subj /C=PL/ST=Masovian/L=Warsaw/O=PoC/CN=twojadomena.pl    # the configuration listens on 443 with the suite's self-signed certificate
+  5. cmd   touch /var/tmp/ddos_campaigns/example/b01_a1/C/nginx_access.log /var/tmp/ddos_campaigns/example/b01_a1/C/nginx_error.log    # the run's own logs
+  6. cmd   chmod 0666 /var/tmp/ddos_campaigns/example/b01_a1/C/nginx_access.log /var/tmp/ddos_campaigns/example/b01_a1/C/nginx_error.log    # the Nginx workers run as nobody
+  7. keep cmd   [server_ns] ORIGIN_CALIBRATION=<repo>/bench/calibration/placeholder.json ORIGIN_SEED=1 taskset -c 0-1 <python> -m gunicorn --chdir <repo>/bench --workers 2 --threads 8 --bind 127.0.0.1:8080 origin:app    # the cost-calibrated origin, on loopback so that nothing reaches it except through Nginx
+  8. cmd   [server_ns] taskset -c 0-1 nginx -c /var/tmp/ddos_campaigns/example/b01_a1/C/nginx.conf    # Nginx daemonises; it is found again by namespace
+  ready: HTTP 200 from http://10.0.0.1/static/1, and each route answers with its own X-Route-Class: C0 /static/1, C1 /page/7, C2 /api/item/11, C3 /search?q=alpha, C5 /export
+  warm-up: 2 requests per route from server_ns
+
+streams: 29 engine processes (29 legit, 0 attack)
+    id                         ns               vCPU   rate  start  duration  nofile
+    L-poisson-C0-broadband-1   hg_1_broadband   6     11.80      0       105    2214
+    L-poisson-C0-mobile_3g-2   hg_2_mobile_3g   6      5.42      0       105    2172
+    L-poisson-C0-mobile_bad-3  hg_3_mobile_bad  6      2.49      0       105    2118
+    L-poisson-C0-perfect-0     hg_0_perfect     6      9.63      0       105    2256
+    L-poisson-C1-broadband-1   hg_1_broadband   6      7.82      0       105    2304
+    L-poisson-C1-mobile_3g-2   hg_2_mobile_3g   6      3.69      0       105    2232
+    L-poisson-C1-mobile_bad-3  hg_3_mobile_bad  6      1.48      0       105    2154
+    L-poisson-C1-perfect-0     hg_0_perfect     6      7.89      0       105    2394
+    L-poisson-C2-broadband-1   hg_1_broadband   6      6.80      0       105    2310
+    L-poisson-C2-mobile_3g-2   hg_2_mobile_3g   6      2.18      0       105    2220
+    L-poisson-C2-mobile_bad-3  hg_3_mobile_bad  6      1.18      0       105    2136
+    L-poisson-C2-perfect-0     hg_0_perfect     6      8.12      0       105    2334
+    L-poisson-C3-broadband-1   hg_1_broadband   6      2.72      0       105    2154
+    L-poisson-C3-mobile_3g-2   hg_2_mobile_3g   6      2.10      0       105    2124
+    L-poisson-C3-mobile_bad-3  hg_3_mobile_bad  6      0.61      0       105    2082
+    L-poisson-C3-perfect-0     hg_0_perfect     6      2.58      0       105    2124
+    L-poisson-C5-broadband-1   hg_1_broadband   6      0.30      0       105    2154
+    L-poisson-C5-mobile_3g-2   hg_2_mobile_3g   6      0.07      0       105    2124
+    L-poisson-C5-mobile_bad-3  hg_3_mobile_bad  6      0.11      0       105    2100
+    L-poisson-C5-perfect-0     hg_0_perfect     6      0.41      0       105    2202
+    L-pulse-C1-broadband-1     hg_1_broadband   6      0.07      0       105    2076
+    L-pulse-C1-mobile_3g-2     hg_2_mobile_3g   6      0.07      0       105    2070
+    L-pulse-C1-perfect-0       hg_0_perfect     6      0.40      0       105    2106
+    L-pulse-C2-broadband-1     hg_1_broadband   6      3.07      0       105    2112
+    L-pulse-C2-mobile_3g-2     hg_2_mobile_3g   6      1.53      0       105    2088
+    L-pulse-C2-perfect-0       hg_0_perfect     6      5.73      0       105    2124
+    L-pulse-C3-broadband-1     hg_1_broadband   6      0.73      0       105    2100
+    L-pulse-C3-mobile_3g-2     hg_2_mobile_3g   6      0.40      0       105    2082
+    L-pulse-C3-perfect-0       hg_0_perfect     6      0.67      0       105    2082
+  the command of the first, inside its namespace:
+    ip netns exec hg_1_broadband prlimit --nofile=2214 -- taskset -c 6 <python> <repo>/bench/loadgen.py --url http://10.0.0.1/ --rate 11.8036 --duration 105 --timeout 10 --max-inflight 2000 --pool 6 --method GET --summary /var/tmp/ddos_campaigns/example/b01_a1/C/streams/L-poisson-C0-broadband-1/loadgen.summary.json --records /var/tmp/ddos_campaigns/example/b01_a1/C/streams/L-poisson-C0-broadband-1/loadgen.records.csv.gz --local-addr 10.0.1.12 --local-addr 10.0.1.16 --local-addr 10.0.1.56 --local-addr 10.0.1.64 --local-addr 10.0.1.71 --local-addr 10.0.1.73 --local-addr 10.0.1.86 --local-addr 10.0.1.88 --local-addr 10.0.1.112 --local-addr 10.0.1.131 --local-addr 10.0.1.132 --local-addr 10.0.1.136 --local-addr 10.0.1.141 --local-addr 10.0.1.146 --local-addr 10.0.1.174 --local-addr 10.0.1.176 --local-addr 10.0.1.191 --local-addr 10.0.1.197 --local-addr 10.0.1.202 --local-addr 10.0.1.210 --local-addr 10.0.1.213 --local-addr 10.0.1.223 --local-addr 10.0.1.233 --local-addr 10.0.1.236 --local-addr 10.0.1.246 --process poisson --seed 489528663 --path /static/91474 --path /static/85705 --path /static/20664 --path /static/46775 --path /static/71352 --path /static/1047 --path /static/37879 --path /static/25448 --path /static/11198 --path /static/45533 --path /static/93523 --path /static/55624 --path /static/40966 --path /static/68836 --path /static/38378 --path /static/95434 --path /static/43196 --path /static/63569 --path /static/76525 --path /static/72007
+
+teardown (also on any failure), with the namespaces found by `ip netns pids`, never by pattern:
+  1. cmd   ip netns pids hg_0_perfect    # every pid in it: TERM, then KILL after the grace
+  2. cmd   ip netns pids hg_1_broadband    # every pid in it: TERM, then KILL after the grace
+  3. cmd   ip netns pids hg_2_mobile_3g    # every pid in it: TERM, then KILL after the grace
+  4. cmd   ip netns pids hg_3_mobile_bad    # every pid in it: TERM, then KILL after the grace
+  5. cmd   ip netns pids server_ns    # every pid in it: TERM, then KILL after the grace
+  6. cmd   ip netns del hg_0_perfect    # the namespace and, with it, its veth ends
+  7. cmd   ip netns del hg_1_broadband    # the namespace and, with it, its veth ends
+  8. cmd   ip netns del hg_2_mobile_3g    # the namespace and, with it, its veth ends
+  9. cmd   ip netns del hg_3_mobile_bad    # the namespace and, with it, its veth ends
+ 10. cmd   ip netns del server_ns    # the namespace and, with it, its veth ends
+ 11. cmd   ip link del vo_hg_0_perfect    # the host ends, if the namespace's deletion left them
+ 12. cmd   ip link del vo_hg_1_broadba    # the host ends, if the namespace's deletion left them
+ 13. cmd   ip link del vo_hg_2_mobile_    # the host ends, if the namespace's deletion left them
+ 14. cmd   ip link del vo_hg_3_mobile_    # the host ends, if the namespace's deletion left them
+ 15. cmd   ip link del veth_srv_br    # the host ends, if the namespace's deletion left them
+ 16. cmd   ip link del ddos_br0    # the host ends, if the namespace's deletion left them

@@ -355,6 +355,15 @@ def draw(namespace, seed, rho_rps, benign_identities=200, attack=None, timeline=
     return Population(namespace, seed, timeline, ns_specs, tuple(idents), tuple(streams))
 
 
+NOFILE_MARGIN = 64
+
+
+def nofile_for(stream, spec):
+    """The open-file limit one engine process needs: the idle pools of its addresses, its largest in-flight set and a
+    margin. The plan prints it and the executor sets it, from this one definition."""
+    return len(stream.addresses) * spec.connections + spec.max_workers + NOFILE_MARGIN
+
+
 def to_load_spec(stream, url, pins=None):
     """The wrapper's LoadSpec for one stream (bench/loadtools.py): the engine's command comes from build_plan."""
     pins = PIN_PLAN if pins is None else pins
