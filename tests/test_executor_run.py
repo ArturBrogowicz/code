@@ -1191,8 +1191,10 @@ class SmokeTopologyTest(RunCase):
 
 class ClockSummaryTest(unittest.TestCase):
     @staticmethod
-    def row(error, intended=100, kind="legit", start=1.8, rss=30.0):
-        return {"id": f"{kind}-{error}", "kind": kind, "rate": 10.0, "intended": intended, "start_after_launch_s": start,
+    def row(error, intended=100, kind="legit", start=1.8, rss=30.0, launch=0.0):
+        began = launch + start
+        return {"id": f"{kind}-{error}", "kind": kind, "rate": 10.0, "intended": intended, "launch_s": launch, "start_s": began,
+                "exit_s": began + error + 31.0 - X.ENGINE_T0_OFFSET_S, "start_after_launch_s": start,
                 "estimator_minus_truth_s": error, "wall_s": 31.0, "cpu_s": 0.5, "rss_mib": rss}
 
     def test_the_bias_is_the_median_and_the_scatter_is_around_it(self):
@@ -1232,6 +1234,45 @@ class ClockSummaryTest(unittest.TestCase):
         s = X.clock_summary([self.row(0.1, rss=30.0), self.row(0.1, rss=50.0)], 2, 30.0)
         self.assertEqual(s["rss_mib"], {"max": 50.0, "total": 80.0})
         self.assertAlmostEqual(s["cpu_s_total"], 1.0)
+
+    def three(self):
+        """Launched at 0.0, 0.1 and 0.2 s, began at 3.0, 3.1 and 3.5 s after the first launch; the estimator puts them at 3.0, 3.12, 3.4."""
+        return [self.row(0.00, launch=0.0, start=3.0), self.row(0.02, launch=0.1, start=3.0), self.row(-0.10, launch=0.2, start=3.3)]
+
+    def test_the_launches_are_spread_over_the_legit_streams(self):
+        s = X.clock_summary(self.three(), 3, 30.0)
+        self.assertEqual({k: round(v, 9) for k, v in s["legit_launch_s"].items()},
+                         {"min": 0.0, "median": 0.1, "max": 0.2, "spread": 0.2})
+
+    def test_the_true_starts_are_spread_over_the_legit_streams(self):
+        s = X.clock_summary(self.three(), 3, 30.0)
+        self.assertEqual({k: round(v, 9) for k, v in s["legit_true_start_s"].items()},
+                         {"min": 3.0, "median": 3.1, "max": 3.5, "spread": 0.5})
+
+    def test_the_estimated_starts_are_the_true_ones_plus_the_error(self):
+        s = X.clock_summary(self.three(), 3, 30.0)
+        self.assertEqual({k: round(v, 9) for k, v in s["legit_estimated_start_s"].items()},
+                         {"min": 3.0, "median": 3.12, "max": 3.4, "spread": 0.4})
+
+    def test_the_attack_streams_are_not_among_the_spread_legit_ones(self):
+        rows = [*self.three(), self.row(0.5, kind="attack", intended=5000, launch=9.0, start=0.1)]
+        s = X.clock_summary(rows, 4, 30.0)
+        self.assertAlmostEqual(s["legit_launch_s"]["spread"], 0.2)
+        self.assertAlmostEqual(s["legit_true_start_s"]["max"], 3.5)
+        self.assertAlmostEqual(s["legit_estimated_start_s"]["max"], 3.4)
+
+    def test_without_legit_streams_there_is_no_spread(self):
+        s = X.clock_summary([self.row(0.1, kind="attack")], 1, 30.0)
+        for key in ("legit_launch_s", "legit_true_start_s", "legit_estimated_start_s"):
+            self.assertEqual(s[key], {"min": None, "median": None, "max": None, "spread": None})
+
+    def test_the_text_gives_the_spreads_and_the_limit_a_run_holds_them_to(self):
+        text = X.clock_text(X.clock_summary(self.three(), 3, 30.0), "/x")
+        self.assertIn("launched over 0.200 s", text)
+        self.assertIn("loops began over 0.500 s (min 3.000, median 3.100, max 3.500 after the first launch)", text)
+        self.assertIn("estimator puts them over 0.400 s, which a run holds to 0.5 s", text)
+        with mock.patch.dict(X.SETTINGS, {"t0_spread_limit_s": 1.25}):
+            self.assertIn("which a run holds to 1.25 s", X.clock_text(X.clock_summary(self.three(), 3, 30.0), "/x"))
 
     def test_nothing_reported_is_a_summary_of_nothing(self):
         s = X.clock_summary([], 29, 30.0)
@@ -1279,6 +1320,35 @@ class ClockProbeTest(RunCase):
         self.assertEqual({row["kind"] for row in result["rows"]}, {"legit"})
         self.assertTrue(os.path.exists(os.path.join(out, "clock_probe.json")))
         self.assertTrue(os.path.exists(os.path.join(out, "streams", result["rows"][0]["id"], "loadgen.records.csv.gz")))
+
+    def test_every_stream_says_when_it_was_launched_began_and_exited_from_the_first_launch(self):
+        result, out = self.probe(False)
+        rows = result["rows"]
+        self.assertEqual(min(row["launch_s"] for row in rows), 0.0)
+        for row in rows:
+            self.assertAlmostEqual(row["start_s"], row["launch_s"] + row["start_after_launch_s"], places=9)
+            self.assertGreater(row["exit_s"], row["start_s"])
+            # the estimator's row, rebuilt from the exit: exit less the wall time, plus the engine's offset, is start + error
+            self.assertAlmostEqual(row["exit_s"] - row["wall_s"] + X.ENGINE_T0_OFFSET_S,
+                                   row["start_s"] + row["estimator_minus_truth_s"], places=6)
+        self.assertEqual(result["legit_launch_s"]["spread"], max(r["launch_s"] for r in rows) - min(r["launch_s"] for r in rows))
+        self.assertEqual(result["legit_true_start_s"]["max"], max(r["start_s"] for r in rows))
+        with open(os.path.join(out, "clock_probe.json"), encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh)["rows"], rows)
+
+    def test_the_commands_are_built_before_the_first_stream_is_launched(self):
+        calls, build, popen = [], X.LT.build_plan, X.RealHost.popen
+
+        def traced_build(*args, **kwargs):
+            calls.append("build")
+            return build(*args, **kwargs)
+
+        def traced_popen(host, *args, **kwargs):
+            calls.append("launch")
+            return popen(host, *args, **kwargs)
+        with few_streams(), mock.patch.object(X.LT, "build_plan", traced_build), mock.patch.object(X.RealHost, "popen", traced_popen):
+            X.clock_probe(self.scn, self.cal, 1, 1.0, os.path.join(self.tmp.name, "probe"), attack=False)
+        self.assertEqual(calls, ["build", "build", "launch", "launch"])
 
     def test_with_attack_the_scenarios_attack_streams_are_run_too(self):
         result, _ = self.probe(True)
@@ -1388,6 +1458,9 @@ class CommandLineTest(RunCase):
         pin.assert_called_once_with(pins["daemon"])
         self.assertIn("clock probe: 2 of 2 streams gave a reference (3 s each)", shown)
         self.assertIn("estimator bias", shown)
+        self.assertRegex(shown, r"legit streams: launched over \d\.\d{3} s; loops began over \d\.\d{3} s \(min \d+\.\d{3}, "
+                                r"median \d+\.\d{3}, max \d+\.\d{3} after the first launch\); the estimator puts them over "
+                                r"\d\.\d{3} s, which a run holds to 0\.5 s")
         self.assertTrue(os.path.exists(os.path.join(out, "clock_probe.json")))
 
     def test_clock_probe_with_attack_says_so_and_runs_the_attack_streams(self):

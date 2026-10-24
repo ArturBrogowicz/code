@@ -1532,8 +1532,9 @@ def clock_probe(scn, cal, seed, duration, out, host=None, attack=False, say=prin
     scripted origin on loopback, and the estimator against what each origin saw first. Needs no root and no namespace.
     With `attack`, the attack streams of the scenario too, which have the large request counts the exit delay may depend
     on. Writes clock_probe.json to `out` and returns it: the start-up delay and spread of the streams after their launch,
-    the error of estimate_t0 against the first arrival at the origin, memory and CPU per process, and a fit of the error
-    against the number of requests."""
+    when each stream was launched, truly began and exited (seconds after the first launch; the commands are built before it,
+    as a run's plan has them), the error of estimate_t0 against the first arrival at the origin, memory and CPU per process,
+    and a fit of the error against the number of requests."""
     import asyncio
 
     import loadtool_validate as V
@@ -1566,17 +1567,19 @@ def clock_probe(scn, cal, seed, duration, out, host=None, attack=False, say=prin
     thread = threading.Thread(target=serve, daemon=True)
     thread.start()
     ready.wait(30)
+    jobs = []                         # the commands are built before the first launch, as a run's plan has them
+    for s, o in zip(streams, origins, strict=True):
+        workdir = os.path.join(out, "streams", s.id)
+        spec = dataclasses.replace(P.to_load_spec(s, f"http://127.0.0.1:{o.port}/"), duration=duration,
+                                   local_addrs=(), allow_loopback=True)
+        jobs.append((s, workdir, list(LT.build_plan("loadgen", spec, workdir).steps[0].argv)))
     procs, launch_t, rss = {}, {}, {}
     try:
-        for s, o in zip(streams, origins, strict=True):
-            workdir = os.path.join(out, "streams", s.id)
+        for s, workdir, argv in jobs:
             os.makedirs(workdir, exist_ok=True)
-            spec = dataclasses.replace(P.to_load_spec(s, f"http://127.0.0.1:{o.port}/"), duration=duration,
-                                       local_addrs=(), allow_loopback=True)
-            argv = LT.build_plan("loadgen", spec, workdir).steps[0].argv
             with open(f"{workdir}/loadgen.stderr", "wb") as err:
                 launch_t[s.id] = host.time()
-                procs[s.id] = host.popen(list(argv), stderr=err)
+                procs[s.id] = host.popen(argv, stderr=err)
         end = host.time() + duration + DRAIN_S + 30
         while any(p.poll() is None for p in procs.values()) and host.time() < end:
             for sid, p in procs.items():
@@ -1590,6 +1593,7 @@ def clock_probe(scn, cal, seed, duration, out, host=None, attack=False, say=prin
         loop.call_soon_threadsafe(loop.stop)
         thread.join(10)
     rows = []
+    first = min(launch_t.values(), default=0.0)          # the probe's own zero: the first launch
     for s, o in zip(streams, origins, strict=True):
         workdir = os.path.join(out, "streams", s.id)
         sent = _first_sent(os.path.join(workdir, "loadgen.records.csv.gz"))
@@ -1602,6 +1606,7 @@ def clock_probe(scn, cal, seed, duration, out, host=None, attack=False, say=prin
             continue
         truth = o.t0 - sent               # the first arrival less the first send: the schedule's zero, to about a millisecond
         rows.append({"id": s.id, "kind": s.kind, "rate": s.rate, "intended": summary["intended"],
+                     "launch_s": launch_t[s.id] - first, "start_s": truth - first, "exit_s": procs[s.id].exit_time - first,
                      "start_after_launch_s": truth - launch_t[s.id],
                      "estimator_minus_truth_s": estimate_t0(procs[s.id].exit_time, summary["wall_s"]) - truth,
                      "wall_s": summary["wall_s"], "cpu_s": (summary.get("cpu") or {}).get("process_s"),
@@ -1618,11 +1623,14 @@ def _spread(values):
 
 def clock_summary(rows, n_streams, duration):
     """The figures of S1 from its per-stream rows: the start-up after launch, the estimator's bias and its scatter around
-    the bias (what matters, since a common bias cancels in the offsets), and its dependence on the request count."""
+    the bias (what matters, since a common bias cancels in the offsets), and its dependence on the request count. Of the
+    legit streams, which the run's validity rule compares with one another: when they were launched, when their loops
+    truly began, and when the estimator says they did (its spread is what `alignment` measures; times from the first launch)."""
     errors = [r["estimator_minus_truth_s"] for r in rows]
     bias = statistics.median(errors) if errors else None
     scatter = sorted(abs(e - bias) for e in errors) if errors else []
-    legit = [r["estimator_minus_truth_s"] for r in rows if r["kind"] == "legit"]
+    legit_rows = [r for r in rows if r["kind"] == "legit"]
+    legit = [r["estimator_minus_truth_s"] for r in legit_rows]
     fit = None
     if len(rows) >= 3 and len({r["intended"] for r in rows}) >= 2:
         slope, intercept = statistics.linear_regression([r["intended"] for r in rows], errors)
@@ -1633,6 +1641,9 @@ def clock_summary(rows, n_streams, duration):
             "estimator_error_s": {"p50": LT.quantile(scatter, .5), "p95": LT.quantile(scatter, .95),
                                   "max": scatter[-1] if scatter else None},
             "legit_error_spread_s": (max(legit) - min(legit)) if legit else None,
+            "legit_launch_s": _spread([r["launch_s"] for r in legit_rows]),
+            "legit_true_start_s": _spread([r["start_s"] for r in legit_rows]),
+            "legit_estimated_start_s": _spread([r["start_s"] + r["estimator_minus_truth_s"] for r in legit_rows]),
             "exit_delay_fit": fit,
             "rss_mib": {"max": max((r["rss_mib"] for r in rows if r["rss_mib"]), default=None),
                         "total": sum(r["rss_mib"] or 0 for r in rows) or None},
@@ -1770,6 +1781,10 @@ def clock_text(result, out):
              (f"  estimator bias {f(result['estimator_bias_s'])} s (common to all streams: cancels); scatter around it p50 "
               f"{f(err['p50'])}  p95 {f(err['p95'])}  max {f(err['max'])} s; legit streams' spread "
               f"{f(result['legit_error_spread_s'])} s")]
+    launch, true, seen = result["legit_launch_s"], result["legit_true_start_s"], result["legit_estimated_start_s"]
+    lines.append(f"  legit streams: launched over {f(launch['spread'])} s; loops began over {f(true['spread'])} s (min {f(true['min'])}, "
+                 f"median {f(true['median'])}, max {f(true['max'])} after the first launch); the estimator puts them over "
+                 f"{f(seen['spread'])} s, which a run holds to {SETTINGS['t0_spread_limit_s']:g} s")
     fit = result["exit_delay_fit"]
     if fit:
         lines.append(f"  error against requests: {fit['per_request_s'] * 1e6:.1f} us per request, {f(fit['base_s'])} s base")
