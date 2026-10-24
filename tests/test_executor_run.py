@@ -1325,6 +1325,16 @@ class CommandLineTest(RunCase):
         self.assertIn("nothing left", shown)
         self.assertTestbedEmpty(host)
 
+    def test_a_run_prints_its_figures_by_link_for_the_first_real_records(self):
+        host = F.SimHost(server=F.SyntheticServer(self.cal, (10.0, 10.0, 10.0)))
+        code, _, shown, _ = self.run_main(*self.base(), host=host)
+        self.assertEqual(code, X.EXIT_OK)
+        self.assertIn("figures over 10-20 s, the judged links (perfect, broadband): Q 100.00 %", shown)
+        for profile, judged, q in (("perfect", "judged", r"100\.0"), ("broadband", "judged", r"100\.0"),
+                                   ("mobile_3g", "not judged", r"\d\d?\.\d"), ("mobile_bad", "not judged", r"\d\d?\.\d")):
+            self.assertRegex(shown, rf"{profile}\s+{judged}\s+\d+ requests, Q {q} %")
+        self.assertRegex(shown, r"p95 [1-9]\d* ms, slip p99 [1-9]\d* ms")
+
     def test_the_plan_prints_the_overrides_it_was_given(self):
         code, _, shown, _ = self.run_main("plan", SPEC, "--kind", "U", "--out", os.path.join(self.tmp.name, "U"), "--rho", "20",
                                           "--timeline", "10,10,10")

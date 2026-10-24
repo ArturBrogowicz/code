@@ -1721,6 +1721,8 @@ def main(argv=None, host=None):
         result = execute(plan, real, args.gate, args.allow_dirty, args.clean, args.wait_gate, print)
         print(f"run {plan.kind} of {plan.scenario}: " + ("sound" if result.ok else "UNSOUND: " + "; ".join(result.reasons))
               + f" ({result.seconds:.0f} s, {result.setup_retries} setup retries) in {result.out}")
+        with contextlib.suppress(OSError, ValueError, KeyError):         # the figures are a courtesy: the run is on disk
+            print(figures_text(plan, C.load(plan.calibration_path)), end="")
         return EXIT_OK if result.ok else EXIT_UNSOUND
     except RunFailed as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
@@ -1728,6 +1730,27 @@ def main(argv=None, host=None):
     except (PlanError, SC.ScenarioError, C.RecordError, LT.ToolError, LT.ScopeError, OSError) as exc:
         print(exc, file=sys.stderr)
         return EXIT_USAGE
+
+
+def figures_text(plan, cal):
+    """The figures of a finished run as the harm gate reads them, for the first real records (S3, S4): Q and p95 over the judged links
+    in the attack's window, the slip of the legit streams, and Q for each link profile, the judged ones marked. A control that
+    counted the mobile links would sit near 89 % (docs/HG1C_DESIGN.md 4.1); this is where that is seen on real data."""
+    sys.path.insert(0, os.path.join(REPO, "eval"))
+    import harm_gate as H
+    t = plan.timeline
+    m = H.run_metrics(H.read_run(plan.out), cal, {k: t[k] for k in ("baseline_s", "attack_s", "recovery_s")})
+
+    def num(x, spec):
+        return "n/a" if x is None else format(x, spec)
+    lo, hi = t["baseline_s"], t["baseline_s"] + t["attack_s"]
+    p95, slip = m["p95_s"] and m["p95_s"] * 1000, m["slip_p99_s"] and m["slip_p99_s"] * 1000
+    head = (f"figures over {lo:g}-{hi:g} s, the judged links ({', '.join(cal['judged_profiles'])}): Q {num(m['Q'], '.2f')} % of "
+            f"{m['requests']} requests, p95 {num(p95, '.0f')} ms, slip p99 {num(slip, '.0f')} ms")
+    lines = [head]
+    for profile, v in m["by_profile"].items():
+        lines.append(f"  {profile:<11} {'judged' if v['judged'] else 'not judged':<10} {v['n']:>6} requests, Q {num(v['Q'], '.1f')} %")
+    return "\n".join(lines) + "\n"
 
 
 def clock_text(result, out):
