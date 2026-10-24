@@ -1239,34 +1239,89 @@ class ClockSummaryTest(unittest.TestCase):
         self.assertIn("0 of 29", X.clock_text(s, "/x"))
 
 
+@contextlib.contextmanager
+def few_streams(how_many=2):
+    """Populations trimmed to a few streams of some rate, and every CPU pin set to a CPU this process may use: the probe on a small
+    scale, with the real engine. The trimmed population hands out tuples, as the real one does."""
+    mine = str(min(os.sched_getaffinity(0)))
+    pins = dict.fromkeys(("server", "daemon", "legit", "attack"), mine)
+    real = SC.population_of
+
+    class Few:
+        def __init__(self, pop):
+            self.pop = pop
+
+        def of_kind(self, kind):
+            return tuple(s for s in self.pop.of_kind(kind) if s.rate >= 2.0)[:how_many]
+
+    def small(*a, **k):
+        pop, level = real(*a, **k)
+        return Few(pop), level
+    with mock.patch.object(SC, "population_of", small), mock.patch.object(P, "PIN_PLAN", pins):
+        yield pins
+
+
 class ClockProbeTest(RunCase):
-    """The probe on loopback with the real engine and two small streams: the pipeline, not the accuracy."""
+    """The probe on loopback with the real engine and a few small streams: the pipeline, not the accuracy."""
+
+    def probe(self, attack):
+        out = os.path.join(self.tmp.name, "probe")
+        with few_streams():
+            return X.clock_probe(self.scn, self.cal, 1, 3.0, out, attack=attack), out
 
     def test_two_streams_on_loopback_give_a_reference_each(self):
-        mine = min(os.sched_getaffinity(0))
-        pins = {"server": str(mine), "daemon": str(mine), "legit": str(mine), "attack": str(mine)}
-        real = SC.population_of
-
-        class Few:
-            def __init__(self, pop):
-                self.pop = pop
-
-            def of_kind(self, kind):
-                return [s for s in self.pop.of_kind(kind) if s.rate >= 2.0][:2]
-
-        def small(*a, **k):
-            pop, level = real(*a, **k)
-            return Few(pop), level
-        out = os.path.join(self.tmp.name, "probe")
-        with mock.patch.object(SC, "population_of", small), mock.patch.object(P, "PIN_PLAN", pins):
-            result = X.clock_probe(self.scn, self.cal, 1, 3.0, out)
+        result, out = self.probe(False)
         self.assertEqual((result["streams"], result["reported"]), (2, 2), result)
         for row in result["rows"]:
             self.assertTrue(0.0 < row["start_after_launch_s"] < 10.0, row)
             self.assertLess(abs(row["estimator_minus_truth_s"]), 1.0, row)
             self.assertGreater(row["rss_mib"], 5.0)
+        self.assertEqual({row["kind"] for row in result["rows"]}, {"legit"})
         self.assertTrue(os.path.exists(os.path.join(out, "clock_probe.json")))
         self.assertTrue(os.path.exists(os.path.join(out, "streams", result["rows"][0]["id"], "loadgen.records.csv.gz")))
+
+    def test_with_attack_the_scenarios_attack_streams_are_run_too(self):
+        result, _ = self.probe(True)
+        self.assertEqual((result["streams"], result["reported"]), (4, 4), result)
+        self.assertEqual(sorted(row["kind"] for row in result["rows"]), ["attack", "attack", "legit", "legit"])
+        self.assertIsNotNone(result["exit_delay_fit"], "streams with different request counts give a fit")
+
+
+class ProbeStreamsTest(RunCase):
+    """The streams S1 runs, from the real populations of the shipped scenarios (a stand-in population once hid a type error here)."""
+
+    def population(self, name, attack):
+        scn = SC.load(os.path.join(REPO, "bench", "scenarios", name + ".json"))
+        return SC.population_of(scn, self.cal, scn.first_seed, attack=attack)[0]
+
+    def test_the_legit_streams_alone_are_the_29_of_the_population(self):
+        streams = X.probe_streams(self.population("costly_search_sub_threshold", False), False)
+        self.assertIsInstance(streams, list)
+        self.assertEqual((len(streams), {s.kind for s in streams}), (29, {"legit"}))
+
+    def test_with_the_attack_the_scenarios_attack_streams_follow_the_legit_ones(self):
+        for name, attackers in (("costly_search_sub_threshold", 4), ("cheap_static_flood", 3), ("costly_export_sub_threshold", 4)):
+            with self.subTest(scenario=name):
+                streams = X.probe_streams(self.population(name, True), True)
+                self.assertIsInstance(streams, list)
+                self.assertEqual([s.kind for s in streams], ["legit"] * 29 + ["attack"] * attackers)
+
+    def test_the_attack_streams_of_a_population_are_left_out_unless_asked_for(self):
+        pop = self.population("costly_search_sub_threshold", True)
+        self.assertEqual(len(pop.of_kind("attack")), 4)
+        streams = X.probe_streams(pop, False)
+        self.assertEqual((len(streams), {s.kind for s in streams}), (29, {"legit"}))
+
+    def test_an_attack_is_not_asked_for_of_a_population_that_has_none(self):
+        streams = X.probe_streams(self.population("benign_control", True), True)
+        self.assertEqual({s.kind for s in streams}, {"legit"})
+
+    def test_the_real_population_works_with_the_probe_end_to_end_up_to_the_engine_command(self):
+        for s in X.probe_streams(self.population("cheap_static_flood", True), True):
+            spec = X.dataclasses.replace(X.P.to_load_spec(s, "http://127.0.0.1:1/"), duration=1.0, local_addrs=(), allow_loopback=True)
+            argv = X.LT.build_plan("loadgen", spec, os.path.join(self.tmp.name, s.id)).steps[0].argv
+            self.assertIn("--allow-loopback", argv)
+            self.assertEqual(argv[argv.index("-c") + 1], X.P.PIN_PLAN["legit" if s.kind == "legit" else "attack"])
 
 
 class CommandLineTest(RunCase):
@@ -1324,6 +1379,24 @@ class CommandLineTest(RunCase):
         self.assertEqual(code, X.EXIT_OK)
         self.assertIn("nothing left", shown)
         self.assertTestbedEmpty(host)
+
+    def test_clock_probe_pins_itself_runs_the_streams_and_prints_what_it_found(self):
+        out = os.path.join(self.tmp.name, "probe")
+        with few_streams() as pins, mock.patch.object(X.RealHost, "pin") as pin:
+            code, _, shown, err = self.run_main("clock-probe", SPEC, "--duration", "3", "--out", out)
+        self.assertEqual((code, err), (X.EXIT_OK, ""))
+        pin.assert_called_once_with(pins["daemon"])
+        self.assertIn("clock probe: 2 of 2 streams gave a reference (3 s each)", shown)
+        self.assertIn("estimator bias", shown)
+        self.assertTrue(os.path.exists(os.path.join(out, "clock_probe.json")))
+
+    def test_clock_probe_with_attack_says_so_and_runs_the_attack_streams(self):
+        out = os.path.join(self.tmp.name, "probe")
+        with few_streams(), mock.patch.object(X.RealHost, "pin"):
+            code, _, shown, _ = self.run_main("clock-probe", SPEC, "--duration", "3", "--attack", "--out", out)
+        self.assertEqual(code, X.EXIT_OK)
+        self.assertIn("4 of 4 streams gave a reference", shown)
+        self.assertIn("error against requests:", shown)
 
     def test_a_run_prints_its_figures_by_link_for_the_first_real_records(self):
         host = F.SimHost(server=F.SyntheticServer(self.cal, (10.0, 10.0, 10.0)))

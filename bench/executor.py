@@ -1521,6 +1521,12 @@ def _first_sent(path):
     return None
 
 
+def probe_streams(pop, attack):
+    """The streams S1 runs: the legit streams of the population and, with `attack`, its attack streams. A population hands out
+    tuples; this is a list."""
+    return [*pop.of_kind("legit"), *(pop.of_kind("attack") if attack else ())]
+
+
 def clock_probe(scn, cal, seed, duration, out, host=None, attack=False, say=print):
     """S1 (docs/HG1C_DESIGN.md 10): the legit streams of a scenario at their rates, pinned as in a run, each against its own
     scripted origin on loopback, and the estimator against what each origin saw first. Needs no root and no namespace.
@@ -1533,7 +1539,7 @@ def clock_probe(scn, cal, seed, duration, out, host=None, attack=False, say=prin
     import loadtool_validate as V
     host = host or RealHost()
     pop, _ = SC.population_of(scn, cal, seed, attack=attack)
-    streams = pop.of_kind("legit") + (pop.of_kind("attack") if attack else [])
+    streams = probe_streams(pop, attack)
     os.makedirs(out, exist_ok=True)
     origins, servers, ready = [], [], threading.Event()
     loop = asyncio.new_event_loop()
