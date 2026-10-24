@@ -8,8 +8,13 @@ the SLO of each route class, the gate's constants and the generator-validity rul
 `placeholder` (the design's illustrative numbers, never a result) or `frozen` (measured on a host,
 committed, hashed). The gate refuses a verdict on anything but a frozen one.
 
+Two things in it come from the first look at the real links (docs/HG1C_DESIGN.md 4.1, 4.2): `judged_profiles`,
+the link profiles whose clients vote on the gate's Q and p95 (the others are reported: their own links exceed
+the SLOs), and `drift_reference`, the Q and p95 that the drift check before every later campaign must
+reproduce. A frozen record must carry the second and a complete `host`; a placeholder may leave them out.
+
 The hash is the sha256 of the canonical JSON (sorted keys, no whitespace) without the `sha256` field.
-This module measures nothing and runs nothing: the runner that fills a record is HG1c.
+This module measures nothing and runs nothing: the runner that fills a record is bench/calibrate.py.
 
     python3 bench/calibration.py check FILE     # schema and hash
     python3 bench/calibration.py show FILE      # the derived numbers: rho, the mean cost, the spare capacity
@@ -22,6 +27,7 @@ import itertools
 import json
 import math
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -31,6 +37,14 @@ import origin as O
 SCHEMA = 1
 STATUSES = ("placeholder", "frozen")
 PROFILES = ("relative", "strict")
+LINK_PROFILES = ("perfect", "broadband", "mobile_3g", "mobile_bad")      # the suite's netem profiles (population.NETEM_MIX)
+PINS = ("server", "daemon", "legit", "attack")
+HEX64 = re.compile(r"[0-9a-f]{64}")
+# what a frozen record's `host` must carry (docs/HG1C_DESIGN.md 4.2, F2); "sha" is a 64-digit hex string
+HOST_SHAPE = {"uname": str, "cpus": int, "mem_mib": int, "origin_seed": int, "origin_sha256": "sha",
+              "loadgen_sha256": "sha", "pins": {k: str for k in PINS},
+              "gunicorn": {"version": str, "workers": int, "threads": int, "nofile": int},
+              "nginx": {"version": str, "conf_sha256": "sha"}}
 SLO_CLASSES = ("C0", "C1", "C2", "C3", "C4", "C5", "C6")      # C4 and C6 (POST) are not served yet
 PLACEHOLDER = os.path.join(HERE, "calibration", "placeholder.json")
 GATE_KEYS = ("floor_pp", "floor_log2_p95", "min_blocks", "same_sign_share", "ci_level", "control_q_min",
@@ -59,6 +73,52 @@ def digest(cal):
 def _positive(problems, where, value):
     if not isinstance(value, (int, float)) or isinstance(value, bool) or not value > 0 or not math.isfinite(value):
         problems.append(f"{where}: a positive number, got {value!r}")
+
+
+def _percent(problems, where, value):
+    if (not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value)
+            or not 0 < value <= 100):
+        problems.append(f"{where}: a percentage above 0 and at most 100, got {value!r}")
+
+
+def _shape_problems(value, shape, where):
+    """What is wrong with `value` against `shape`: a type, "sha", or a dict of shapes (every key required)."""
+    if isinstance(shape, dict):
+        if not isinstance(value, dict):
+            return [f"{where}: an object"]
+        out = [f"{where}: missing {', '.join(k for k in shape if k not in value)}"] if set(shape) - set(value) else []
+        for key, sub in shape.items():
+            if key in value:
+                out += _shape_problems(value[key], sub, f"{where}.{key}")
+        return out
+    if shape == "sha":
+        ok, what = isinstance(value, str) and bool(HEX64.fullmatch(value)), "a 64-digit hex sha256"
+    elif shape is int:
+        ok, what = isinstance(value, int) and not isinstance(value, bool) and value >= 0, "a non-negative integer"
+    else:
+        ok, what = isinstance(value, str) and bool(value.strip()), "a non-empty string"
+    return [] if ok else [f"{where}: {what}, got {value!r}"]
+
+
+def _drift_problems(ref):
+    """The drift reference: the legit probe at rho, and one attack run at each family's knee."""
+    if not isinstance(ref, dict) or set(ref) != {"rho_rps", "q_pct", "p95_s", "attack"}:
+        return ["drift_reference: rho_rps, q_pct, p95_s and attack"]
+    p = []
+    _positive(p, "drift_reference.rho_rps", ref["rho_rps"])
+    _percent(p, "drift_reference.q_pct", ref["q_pct"])
+    _positive(p, "drift_reference.p95_s", ref["p95_s"])
+    if not isinstance(ref["attack"], dict):
+        return p + ["drift_reference.attack: an object of family -> {level, q_pct, p95_s}"]
+    for family, item in ref["attack"].items():
+        where = f"drift_reference.attack.{family}"
+        if not isinstance(item, dict) or set(item) != {"level", "q_pct", "p95_s"}:
+            p.append(f"{where}: level, q_pct and p95_s")
+            continue
+        _positive(p, where + ".level", item["level"])
+        _percent(p, where + ".q_pct", item["q_pct"])
+        _positive(p, where + ".p95_s", item["p95_s"])
+    return p
 
 
 def problems_of(cal):
@@ -133,6 +193,19 @@ def problems_of(cal):
     knees = cal.get("knees")
     if not isinstance(knees, dict) or any(v is not None and not isinstance(v, (int, float)) for v in knees.values()):
         p.append("knees: an object of family -> level or null")
+    judged = cal.get("judged_profiles")
+    if not (isinstance(judged, list) and judged and len(set(judged)) == len(judged)
+            and set(judged) <= set(LINK_PROFILES)):
+        p.append(f"judged_profiles: a non-empty list of distinct link profiles from {', '.join(LINK_PROFILES)}")
+    frozen = cal.get("status") == "frozen"
+    ref = cal.get("drift_reference")
+    if ref is None:
+        if frozen:
+            p.append("drift_reference: a frozen record carries the Q and p95 its drift check must reproduce")
+    else:
+        p += _drift_problems(ref)
+    if frozen and isinstance(cal.get("host"), dict):
+        p += _shape_problems(cal["host"], HOST_SHAPE, "host")
     return p
 
 
@@ -169,12 +242,17 @@ def with_hash(cal):
     return out
 
 
-def freeze(cal, created_utc=None):
-    """The record as a frozen one with its hash. Does not write anything."""
+def freeze(cal, created_utc=None, host=None, drift_reference=None):
+    """The record as a frozen one with its hash. Does not write anything. `host` and `drift_reference`, when
+    given, replace the record's: a frozen record must carry both (the calibrator measures them)."""
     out = copy.deepcopy(cal)
     out["status"] = "frozen"
     if created_utc:
         out["created_utc"] = created_utc
+    if host is not None:
+        out["host"] = copy.deepcopy(host)
+    if drift_reference is not None:
+        out["drift_reference"] = copy.deepcopy(drift_reference)
     return validate(with_hash(out))
 
 
@@ -235,7 +313,8 @@ def drift_ok(frozen_q, frozen_p95, q, p95):
 def summary(cal):
     return {"status": cal["status"], "sha256": cal.get("sha256"), "rho_rps": rho_rps(cal),
             "mean_cost_ms": mean_cost_ms(cal), "spare_capacity_cpu_s_per_s": spare_capacity(cal),
-            "c_slo_rps": cal["capacity"]["c_slo_rps"], "knees": cal["knees"]}
+            "c_slo_rps": cal["capacity"]["c_slo_rps"], "knees": cal["knees"],
+            "judged_profiles": cal["judged_profiles"]}
 
 
 def main(argv=None):

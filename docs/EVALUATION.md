@@ -398,6 +398,7 @@ testbed.**
     python3 bench/scenario.py --plan bench/scenarios/costly_search_sub_threshold.json
     python3 bench/scenario.py --plan --calibration FILE --seed 7 --json SPEC
     ./venv/bin/python eval/harm_gate.py CAMPAIGN --calibration FILE [--dry-run] [--metrics Q,p95] [--md R.md] [--json R.json]
+    ./venv/bin/python eval/harm_gate.py --block BLOCK_DIR --calibration FILE      # one block: validity and figures, no verdict
 
 **The plan** prints, for one block of a scenario: the entity seeds; the legit load per behaviour class and its
 route mix against the calibration's; the attack's total, per-source and cost rate in units of S; each source's
@@ -412,19 +413,23 @@ how to regenerate them. A plan with the placeholder calibration carries a banner
 **The run contract** an executor must write (`docs/HG1B_MINIMAL_DESIGN.md` 5.5): per block `block.json`
 (scenario, block number, attempt, seed namespace and seed, calibration sha256, timeline, the order the runs were
 made in); per run `C`, `Cp` (the placebo, a second attack-free run), `U` and later `M_<mode>` a `run.json`
-(role, mode, and per stream its id, kind, route class, summary, records and offset) and per stream the engine's
-`--summary` and `--records`.
+(role, mode, the executor's verdict on the run, and per stream its id, kind, route class, link profile, summary,
+records and offset) and per stream the engine's `--summary` and `--records`.
 
-**The rule** (design section 10, constants in the calibration): `Q` is the share of the legit requests intended
-in the attack window that completed 2xx within their class's SLO, the service time from the actual send; a
-request never sent, dropped, timed out or answered non-2xx fails. Per block `dQ = Q(C) - Q(U)` (pp),
+**The rule** (design section 10, constants in the calibration): `Q` is the share of the legit requests **on the judged
+links** intended in the attack window that completed 2xx within their class's SLO, the service time from the actual
+send; a request never sent, dropped, timed out or answered non-2xx fails. The judged links are the calibration's
+`judged_profiles` (`perfect` and `broadband` by default): the suite's mobile links are 150 to 300 ms with up to 5 %
+loss and already exceed the SLOs, so a control that counted them reaches about 89 % and no block could be valid
+(`docs/HG1C_DESIGN.md` 4.1). Their `Q` and p95 are reported per link profile and do not vote. Per block `dQ = Q(C) - Q(U)` (pp),
 `dL = log2(p95(U) / p95(C))` and, for the placebo, `dQ'` and `dL'`. PASS iff the mean `dQ` reaches the floor
 (10 pp), its 95 % t-interval excludes 0 and at least 80 % of the blocks have its sign, or the same holds for
 `dL` with a floor of 1; the interval and the sign share are `eval/run_level_stats.py`'s. FAIL otherwise. INVALID
 when fewer than ten blocks are valid or the campaign broke the re-run rule: a failed block is re-run once with
 its seed, at most twice in a gate, a valid block never. A block is valid when its runs meet the validity profile
 of the calibration (`relative`, the default: a gross slip ceiling and a difference to the control; `strict`:
-every engine flag clear and slip p99 under 50 ms, computed always) and its control is healthy. The placebo must
+every engine flag clear and slip p99 under 50 ms, computed always), the executor called its runs sound, and its
+control is healthy: `Q` at least `control_q_min` and at least 95 % of the requests of every route class within its SLO. The placebo must
 not pass and is reported when it does; HRR, with a block-bootstrap interval, exists only after a PASS.
 
 **Limits.** The p95 is over the successes, so a server that fails its slowest requests looks faster (Q counts the

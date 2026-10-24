@@ -125,8 +125,9 @@ changes them and checks that the intensity does not move.
 ```
 <block>/block.json          scenario id, block number, attempt, seed namespace and seed, calibration sha256,
                             timeline {baseline_s, attack_s, recovery_s}, the order the three runs were made in
-<block>/<run>/run.json      role (control | placebo | attack | mitigated), mode, started_utc, the streams:
-                            {id, kind, route_class, summary, records, offset_s}
+<block>/<run>/run.json      role (control | placebo | attack | mitigated), mode, started_utc, executor
+                            {ok, reasons, ...} (amended: HG1c 4.2 F5), the streams:
+                            {id, kind, route_class, netem (amended: F1), summary, records, offset_s}
 <block>/<run>/streams/<id>.summary.json     the engine's --summary
 <block>/<run>/streams/<id>.records.csv.gz   the engine's --records (i,t_intended,t_sent,t_done,status,bytes,err,ident,reused)
 ```
@@ -136,9 +137,11 @@ run, so the windows are [baseline, baseline + attack) on their axis, the same se
 
 ### 5.6 The harm gate (`eval/harm_gate.py`)
 
-Per run: `Q` is the share of the legit requests whose intended time falls in the window that completed 2xx within their class's SLO (service time from the actual send; a request that
-was never sent, dropped, timed out or answered non-2xx fails); p95 is that of the successful ones. Per block: `dQ = Q(C) - Q(U)` in pp, `dL = log2(p95(U) / p95(C))`, `dQ' = Q(C) - Q(C')`.
-A block is valid iff its runs pass the validity profile (section 4) and the control is healthy (`Q(C) >= 99 %` and every class's p95 within its SLO). A failed block is re-run once with the same
+Per run: `Q` is the share of the legit requests **on the judged links** (the calibration's `judged_profiles`, default `perfect` and `broadband`; amended by HG1c 4.1, F1) whose intended time falls
+in the window that completed 2xx within their class's SLO (service time from the actual send; a request that
+was never sent, dropped, timed out or answered non-2xx fails); p95 is that of the successful ones. The other links' `Q` and p95 are reported per profile and do not vote. Per block: `dQ = Q(C) - Q(U)` in pp, `dL = log2(p95(U) / p95(C))`, `dQ' = Q(C) - Q(C')`.
+A block is valid iff its runs pass the validity profile (section 4), the executor says they were sound (`run.json` `executor.ok`) and the control is healthy (`Q(C) >= 99 %` and, in every class, at
+least 95 % of the requests within the SLO: "p95 within the SLO" over all the class's requests; amended by HG1c 4.2, F6, because over the successful ones it could not fail). A failed block is re-run once with the same
 seed, at most twice per gate; fewer than ten valid blocks is INVALID. PASS iff the mean `dQ` reaches the floor with its 95 % t-interval excluding 0 and at least 80 % of the blocks of that sign, or the
 same for `dL >= 1`; otherwise FAIL. The same rule on `dQ'` is the placebo and must not pass. HRR `= (Q(m) - Q(U)) / (Q(C) - Q(U))` from block means, defined only after a PASS. Also per run: 1-s bins,
 degraded seconds (`Q` below 95 %), the time to the first degraded second, and the recovery time (five bins at 99 % or more). The t-interval and the sign share are `eval/run_level_stats.py`'s.
@@ -256,3 +259,11 @@ The executor: four client namespaces with the aliases the plan counts (106, 102,
 under gunicorn and the Nginx profile, `prlimit`, `taskset` and start times as printed, the run contract of 5.5, tear-down and the suite's leftover
 checks. The calibration runner: the capacity probe, the ladders, the knee, and the freeze (`calibration.freeze` and `dump`) with the drift
 check before every later campaign. The choice between the options (a) and (b) of section 7 is still open and needs its own note.
+
+### 9.6 Amended by HG1c commit 1 (2026-10-24)
+
+Reading the real links showed that the gate as built could not return a verdict (docs/HG1C_DESIGN.md 4.1): the suite's mobile profiles exceed the SLOs, so the control reaches
+88 to 90 % against the 99 % it must reach. Before any Gate A datum existed: (F1) Q, p95, the per-class figures and the bins are taken over the judged links only, the other links
+reported per profile; (F2) the calibration carries `judged_profiles` and, once frozen, `drift_reference` and a complete `host`; (F4) `run_metrics` takes a window; (F5) `run.json` carries
+`netem` per stream and an `executor` block that invalidates a run; (F6) the control's per-class clause is a success share of 95 %; `harm_gate.py --block DIR` assesses one block;
+the scenario plan prints the share of the legit requests that is judged. Sections 5.5 and 5.6 above say so where they changed.

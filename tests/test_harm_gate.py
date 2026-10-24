@@ -23,18 +23,22 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 for sub in ("bench", "eval", "tests"):
     sys.path.insert(0, os.path.join(REPO, sub))
 import calibration as C
+import calibration_fixtures as F
 import harm_gate as H
 import loadgen as LG
 import population as P
 from test_loadtool_validate import RunningOrigin
 
 PLACEHOLDER = C.load(C.PLACEHOLDER)
-FROZEN = C.freeze(PLACEHOLDER, "2026-10-24T08:00:00Z")
+FROZEN = F.frozen(PLACEHOLDER, "2026-10-24T08:00:00Z")
 TIMELINE = {"baseline_s": 10.0, "attack_s": 10.0, "recovery_s": 10.0}
 RHO = 40.0
 IDENTITIES = 16
 OK_FLAGS = {"slip": False, "sent_short": False, "cpu": False, "descriptors": False, "ports": False, "dropped": False}
 PASS_EFFECTS = {"U": {"fail_p": 0.3}, "M_x": {"fail_p": 0.1}}
+# the suite's links on the request path (mean delay, jitter, loss; seconds): docs/HG1C_DESIGN.md 4.1 and Appendix A
+LINKS = {"perfect": (0.0, 0.0, 0.0), "broadband": (0.020, 0.002, 0.0), "mobile_3g": (0.150, 0.040, 0.02),
+         "mobile_bad": (0.300, 0.080, 0.06)}
 
 
 # --- a synthetic server and the files an executor would write -------------------------------------
@@ -54,11 +58,13 @@ def write_stream(run_dir, stream, rng, cal, effect, summary_edit=None):
     slip = effect.get("slip", 0.002) * (0.5 + rng.random(n))
     sent = sched + slip
     service = cal["route_costs_ms"][stream.route_class] / 1000.0 * rng.lognormal(0.0, 0.2, n)
+    mean, jitter, loss = LINKS[stream.netem]
+    link = np.maximum(0.0, rng.normal(mean, jitter, n)) + np.where(rng.random(n) < loss, 0.3, 0.0)
     status = np.full(n, 200)
     err = np.full(n, "", dtype=object)
     hit = (sched + stream.start_s >= lo) & (sched + stream.start_s < hi) & (stream.kind == "legit")
     bad = hit & (rng.random(n) < effect.get("fail_p", 0.0))
-    service = np.where(hit & ~bad, service * effect.get("slow", 1.0), service)
+    service = np.where(hit & ~bad, service * effect.get("slow", 1.0), service) + link
     done = sent + service
     err[bad], status[bad], done[bad] = "timeout", 0, sent[bad] + 10.0
     pd.DataFrame({"i": np.arange(n), "t_intended": sched, "t_sent": sent, "t_done": done, "status": status,
@@ -72,7 +78,7 @@ def write_stream(run_dir, stream, rng, cal, effect, summary_edit=None):
         summary_edit(stream, summary)
     with open(os.path.join(run_dir, "streams", f"{stream.id}.summary.json"), "w", encoding="utf-8") as fh:
         json.dump(summary, fh)
-    return {"id": stream.id, "kind": stream.kind, "route_class": stream.route_class,
+    return {"id": stream.id, "kind": stream.kind, "route_class": stream.route_class, "netem": stream.netem,
             "summary": f"streams/{stream.id}.summary.json", "records": f"streams/{stream.id}.records.csv.gz",
             "offset_s": stream.start_s if stream.kind == "attack" else 0.0}
 
@@ -87,7 +93,10 @@ def write_run(block_dir, name, pop, seed, cal, effect, summary_edit=None):
     role = H.ROLE_OF.get(name, "mitigated")
     with open(os.path.join(run_dir, "run.json"), "w", encoding="utf-8") as fh:
         json.dump({"role": role, "mode": name[len(H.MITIGATED):] if role == "mitigated" else None,
-                   "started_utc": "2026-10-24T08:00:00Z", "streams": streams}, fh)
+                   "started_utc": "2026-10-24T08:00:00Z",
+                   "executor": {"ok": True, "reasons": [], "t0_spread_legit_s": 0.0, "attack_start_error_s": 0.0,
+                                "estimator": "synthetic", "setup_retries": 0},
+                   "streams": streams}, fh)
 
 
 def write_block(root, number, cal, effects=None, attempt=1, seed=None, scenario="synthetic", summary_edit=None):
@@ -232,15 +241,16 @@ class CriterionTest(unittest.TestCase):
 # --- the figures of one run ----------------------------------------------------------------------
 
 def hand_run(tmp, rows_by_stream):
-    """A run with the given legit records: {stream id: (route class, offset_s, [(t_int, t_sent, t_done, status, err)])}."""
+    """A run with the given legit records: {stream id: (route class, offset_s, [(t_int, t_sent, t_done, status, err)])},
+    on the `perfect` link unless a fourth element names another."""
     streams = []
-    for sid, (route, offset, rows) in rows_by_stream.items():
+    for sid, (route, offset, rows, *link) in rows_by_stream.items():
         df = pd.DataFrame(rows, columns=["t_intended", "t_sent", "t_done", "status", "err"])
         df.insert(0, "i", range(len(df)))
         path = os.path.join(tmp, sid + ".csv.gz")
         df.to_csv(path, index=False, compression="gzip", na_rep="nan")
-        streams.append({"id": sid, "kind": "legit", "route_class": route, "records": path, "offset_s": offset,
-                        "summary": {}})
+        streams.append({"id": sid, "kind": "legit", "route_class": route, "netem": link[0] if link else "perfect",
+                        "records": path, "offset_s": offset, "summary": {}})
     return {"dir": tmp, "streams": streams}
 
 
@@ -409,20 +419,191 @@ class ValidityTest(unittest.TestCase):
 
 
 class ControlHealthTest(unittest.TestCase):
-    def healthy(self, q=100.0, p95=0.01):
-        return {"Q": q, "by_class": {"C1": {"p95_s": p95}, "C3": {"p95_s": 0.5}}}
+    def healthy(self, q=100.0, klass_q=100.0):
+        return {"Q": q, "by_class": {"C1": {"n": 200, "ok": round(2 * klass_q), "Q": klass_q, "p95_s": 0.01},
+                                     "C3": {"n": 40, "ok": 40, "Q": 100.0, "p95_s": 0.5}}}
 
     def test_a_healthy_control(self):
         self.assertEqual(H.control_health(self.healthy(), FROZEN), [])
         self.assertEqual(H.control_health(self.healthy(q=99.0), FROZEN), [])           # inclusive
+        self.assertEqual(H.control_health(self.healthy(klass_q=95.0), FROZEN), [])     # inclusive
 
     def test_each_failure_is_named(self):
         self.assertIn("below 99 %", H.control_health(self.healthy(q=98.9), FROZEN)[0])
-        self.assertIn("class C1 p95 301 ms is above its SLO of 300 ms", H.control_health(self.healthy(p95=0.301), FROZEN)[0])
-        self.assertEqual(H.control_health(self.healthy(p95=0.300), FROZEN), [])
         self.assertIn("n/a", H.control_health({"Q": None, "by_class": {}}, FROZEN)[0])
-        self.assertIn("no successful request",
-                      H.control_health({"Q": 100.0, "by_class": {"C1": {"p95_s": None}}}, FROZEN)[0])
+        got = H.control_health(self.healthy(klass_q=94.9), FROZEN)
+        self.assertEqual(len(got), 1)
+        self.assertIn("class C1", got[0])
+        self.assertIn("below 95 %", got[0])
+
+    def test_one_starved_class_is_unhealthy_though_the_overall_q_is_fine(self):
+        # the old clause looked at the p95 of the successes, which is within the SLO by definition: it could not fail
+        m = {"Q": 99.4, "by_class": {"C1": {"n": 500, "ok": 500, "Q": 100.0, "p95_s": 0.01},
+                                     "C5": {"n": 40, "ok": 10, "Q": 25.0, "p95_s": 2.0}}}
+        got = H.control_health(m, FROZEN)
+        self.assertEqual(len(got), 1)
+        self.assertIn("class C5: 10 of 40 requests within its SLO of 3000 ms", got[0])
+
+    def test_a_class_without_a_success_is_starved(self):
+        m = {"Q": 99.5, "by_class": {"C5": {"n": 4, "ok": 0, "Q": 0.0, "p95_s": None}}}
+        self.assertEqual(len(H.control_health(m, FROZEN)), 1)
+
+    def test_it_works_on_what_run_metrics_returns(self):
+        rows = [(2.0 + i * 0.01, 2.0 + i * 0.01, 2.0 + i * 0.01 + 0.01, 200, "") for i in range(50)]
+        starved = [(2.0 + i * 0.1, 2.0 + i * 0.1, 15.0, 0, "timeout") for i in range(10)]
+        with tempfile.TemporaryDirectory() as tmp:
+            m = H.run_metrics(hand_run(tmp, {"a": ("C1", 0.0, rows), "b": ("C5", 0.0, starved)}), FROZEN, SHORT)
+        self.assertGreaterEqual(m["Q"], 80.0)                                  # 50 of 60 requests are fine
+        reasons = H.control_health(m, FROZEN)
+        self.assertTrue(any(line.startswith("class C5: 0 of 10") for line in reasons), reasons)
+
+
+class WindowTest(unittest.TestCase):
+    def test_the_default_window_is_the_attacks_and_a_given_one_moves_it(self):
+        rows = [(s + 0.5, s + 0.5, s + 0.6, 200, "") for s in range(10)]             # one request a second
+        with tempfile.TemporaryDirectory() as tmp:
+            run = hand_run(tmp, {"a": ("C1", 0.0, rows)})
+            default = H.run_metrics(run, FROZEN, SHORT)
+            explicit = H.run_metrics(run, FROZEN, SHORT, window=(2.0, 5.0))
+            other = H.run_metrics(run, FROZEN, SHORT, window=(5.0, 9.0))
+            outside = H.run_metrics(run, FROZEN, SHORT, window=(50.0, 60.0))
+        self.assertEqual(default, explicit)
+        self.assertEqual((default["requests"], other["requests"]), (3, 4))
+        self.assertEqual((outside["requests"], outside["Q"], outside["judged_share"]), (0, None, None))
+
+    def test_the_bins_do_not_follow_the_window(self):
+        rows = [(s + 0.5, s + 0.5, s + 0.6, 200 if s != 7 else 503, "") for s in range(10)]
+        with tempfile.TemporaryDirectory() as tmp:
+            run = hand_run(tmp, {"a": ("C1", 0.0, rows)})
+            a = H.run_metrics(run, FROZEN, SHORT)
+            b = H.run_metrics(run, FROZEN, SHORT, window=(6.0, 9.0))
+        self.assertEqual(a["q_per_s"], b["q_per_s"])
+        self.assertEqual((a["Q"], b["Q"]), (100.0, 100.0 * 2 / 3))
+
+
+class JudgedLinksTest(WithCopies):
+    def block_dir(self, number=1):
+        return os.path.join(BASE["pass"], f"b{number:02d}_a1")
+
+    def present(self, number=1):
+        return {s.netem for s in population(number).of_kind("legit")}
+
+    def test_the_population_has_both_kinds_of_link_or_these_tests_would_test_nothing(self):
+        present = self.present()
+        self.assertTrue(present & {"mobile_3g", "mobile_bad"})
+        self.assertTrue(present & {"perfect", "broadband"})
+
+    def test_the_control_is_healthy_on_the_judged_links_and_the_others_are_reported(self):
+        a = H.assess_block(self.block_dir(), FROZEN)
+        self.assertTrue(a["valid"], a["reasons"])
+        m = a["runs"]["C"]["metrics"]
+        self.assertEqual(set(m["by_profile"]), self.present())
+        for profile, row in m["by_profile"].items():
+            self.assertEqual(row["judged"], profile in FROZEN["judged_profiles"])
+            if row["judged"]:
+                self.assertEqual(row["Q"], 100.0)
+            else:
+                self.assertLess(row["Q"], 99.0)                  # their own links exceed the SLOs
+        self.assertEqual(m["Q"], 100.0)
+
+    def test_what_votes_is_what_the_judged_links_carry(self):
+        m = H.assess_block(self.block_dir(), FROZEN)["runs"]["C"]["metrics"]
+        judged_n = sum(r["n"] for r in m["by_profile"].values() if r["judged"])
+        total_n = sum(r["n"] for r in m["by_profile"].values())
+        self.assertEqual(m["requests"], judged_n)
+        self.assertAlmostEqual(m["judged_share"], judged_n / total_n)
+        self.assertLess(m["judged_share"], 1.0)
+
+    def test_the_slip_is_the_generators_and_counts_every_stream(self):
+        # a late generator is late on every link: the slip is taken over all the legit streams, judged or not
+        quick = [(2.0 + i * 0.01, 2.0 + i * 0.01 + 0.001, 2.0 + i * 0.01 + 0.002, 200, "") for i in range(20)]
+        late = [(2.0 + i * 0.01, 2.0 + i * 0.01 + 0.3, 2.0 + i * 0.01 + 0.31, 200, "") for i in range(200)]
+        with tempfile.TemporaryDirectory() as tmp:
+            m = H.run_metrics(hand_run(tmp, {"a": ("C1", 0.0, quick), "b": ("C1", 0.0, late, "mobile_bad")}),
+                              FROZEN, SHORT)
+        self.assertEqual(m["requests"], 20)                      # only the perfect link votes
+        self.assertAlmostEqual(m["slip_p99_s"], 0.3, places=3)   # and the late one is heard
+
+    def test_if_the_mobile_links_voted_the_control_could_not_be_healthy(self):
+        cal = copy.deepcopy(PLACEHOLDER)
+        cal["judged_profiles"] = list(C.LINK_PROFILES)
+        a = H.assess_block(self.block_dir(), F.frozen(cal))
+        self.assertFalse(a["valid"])
+        self.assertTrue(any(x.startswith("control: Q(C) is") for x in a["reasons"]), a["reasons"])
+        self.assertLess(a["runs"]["C"]["metrics"]["Q"], 99.0)
+
+    def test_a_run_whose_streams_are_all_on_links_that_do_not_vote_has_no_q(self):
+        rows = [(2.5, 2.5, 2.6, 200, ""), (3.5, 3.5, 3.6, 200, "")]
+        with tempfile.TemporaryDirectory() as tmp:
+            m = H.run_metrics(hand_run(tmp, {"a": ("C1", 0.0, rows, "mobile_bad")}), FROZEN, SHORT)
+        self.assertEqual((m["requests"], m["Q"], m["p95_s"], m["judged_share"]), (0, None, None, 0.0))
+        self.assertEqual(m["by_profile"]["mobile_bad"]["n"], 2)
+        self.assertEqual(H.control_health(m, FROZEN)[0][:15], "Q(C) is n/a %, ")
+
+    def test_the_result_has_a_table_by_link_profile(self):
+        r = self.analyse(BASE["pass"])
+        self.assertEqual(r["judged_profiles"], ["perfect", "broadband"])
+        table = r["by_profile"]
+        self.assertEqual(list(table), list(C.LINK_PROFILES))
+        for profile, row in table.items():
+            self.assertEqual(row["judged"], profile in r["judged_profiles"])
+            if row["share"] is None:
+                continue
+            self.assertTrue(0.0 < row["share"] < 1.0)
+            if row["judged"]:
+                self.assertEqual(row["Q"]["C"], 100.0)
+                self.assertAlmostEqual(row["dQ"], 30.0, delta=6.0)
+            else:
+                self.assertLess(row["Q"]["C"], 99.0)
+                self.assertGreater(row["dQ"], 0.0)               # the attack hurts them too, and that is reported
+        self.assertTrue(any(row["share"] for row in table.values() if not row["judged"]))
+
+    def test_the_report_shows_every_link_profile(self):
+        md = H.to_markdown(self.analyse(BASE["pass"]))
+        self.assertIn("## Per link profile", md)
+        self.assertIn("judged links perfect, broadband", md)
+        for profile in C.LINK_PROFILES:
+            self.assertIn(f"| {profile} | {'yes' if profile in FROZEN['judged_profiles'] else 'no'} |", md)
+
+
+class ExecutorVerdictTest(WithCopies):
+    def edit_run(self, root, run, change, number=2):
+        edit_json(os.path.join(root, f"b{number:02d}_a1", run, "run.json"), change)
+
+    def test_an_unsound_run_invalidates_its_block_under_both_profiles(self):
+        for profile in ("relative", "strict"):
+            with self.subTest(profile=profile):
+                root = self.copy_of("pass")
+                self.edit_run(root, "U", lambda j: j.update(executor={"ok": False, "reasons": [
+                    "the legit streams started 0.9 s apart"]}))
+                cal = with_profile(profile)
+                a = H.assess_block(os.path.join(root, "b02_a1"), cal)
+                self.assertFalse(a["valid"])
+                self.assertTrue(any("executor: the legit streams started 0.9 s apart" in x for x in a["reasons"]), a["reasons"])
+                self.assertFalse(a["runs"]["U"]["strict_ok"])
+                self.assertFalse(a["runs"]["U"]["validity"]["relative"]["ok"])
+
+    def test_an_unsound_run_without_a_reason_still_says_so(self):
+        root = self.copy_of("pass")
+        self.edit_run(root, "C", lambda j: j.update(executor={"ok": False, "reasons": []}))
+        a = H.assess_block(os.path.join(root, "b02_a1"), FROZEN)
+        self.assertFalse(a["valid"])
+        self.assertTrue(any("executor: the run was not sound" in x for x in a["reasons"]), a["reasons"])
+
+    def test_a_run_file_that_breaks_the_contract_is_refused(self):
+        cases = {
+            "no executor": lambda j: j.pop("executor"),
+            "executor.ok not a boolean": lambda j: j.update(executor={"ok": "yes", "reasons": []}),
+            "no reasons": lambda j: j.update(executor={"ok": True}),
+            "unknown link": lambda j: j["streams"][0].update(netem="gprs"),
+            "no link": lambda j: j["streams"][0].pop("netem"),
+        }
+        for label, change in cases.items():
+            with self.subTest(case=label):
+                root = self.copy_of("pass")
+                self.edit_run(root, "C", change, number=1)
+                with self.assertRaises(H.GateError):
+                    H.assess_block(os.path.join(root, "b01_a1"), FROZEN)
 
 
 # --- the gate on whole campaigns -----------------------------------------------------------------
@@ -476,7 +657,8 @@ class VerdictTest(WithCopies):
         self.assertAlmostEqual(r["criteria"]["Q"]["mean"], 0.0, delta=0.01)
         p = r["criteria"]["p95"]
         self.assertTrue(p["passed"])
-        self.assertAlmostEqual(p["mean"], math.log2(3.0), delta=0.25)
+        self.assertGreater(p["mean"], 1.0)                           # the criterion's floor
+        self.assertLess(p["mean"], math.log2(3.0))                   # the broadband link's 20 ms is not slowed
 
     def test_a_run_with_no_success_has_no_p95_and_q_carries_the_verdict(self):
         small = copy.deepcopy(FROZEN)
@@ -882,6 +1064,47 @@ class CommandLineTest(WithCopies):
                                          "--metrics", "Q")
             self.assertEqual((code, out), (0, "FAIL: 10 valid blocks of 10\n"))
 
+    def test_block_prints_one_blocks_assessment_and_no_verdict(self):
+        block = os.path.join(BASE["pass"], "b01_a1")
+        with tempfile.TemporaryDirectory() as tmp:
+            js = os.path.join(tmp, "b.json")
+            code, out, err = self.run_main("--block", block, "--calibration", self.calibration_file(tmp, FROZEN),
+                                           "--json", js)
+            self.assertEqual((code, err), (0, ""))
+            self.assertEqual(sorted(json_of(js)["runs"]), ["C", "Cp", "M_x", "U"])
+        self.assertIn("block 1 attempt 1 seed 1 (synthetic): valid", out)
+        self.assertIn("Q of the control by link profile: ", out)
+        self.assertIn("(not judged)", out)
+        self.assertIn("dQ ", out)
+        for word in ("PASS", "FAIL", "INVALID", "placeholder"):
+            self.assertNotIn(word, out)
+
+    def test_block_with_a_placeholder_says_it_shows_figures_and_not_a_result(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, _ = self.run_main("--block", os.path.join(BASE["pass"], "b01_a1"), "--calibration",
+                                         self.calibration_file(tmp, PLACEHOLDER))
+        self.assertEqual(code, 0)
+        self.assertTrue(out.endswith("(placeholder calibration: figures, not a result)\n"), out)
+
+    def test_block_names_what_is_wrong_with_a_broken_block(self):
+        root = self.copy_of("pass")
+        edit_json(os.path.join(root, "b01_a1", "U", "run.json"), lambda j: j.update(executor={"ok": False, "reasons": ["x"]}))
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, _ = self.run_main("--block", os.path.join(root, "b01_a1"), "--calibration",
+                                         self.calibration_file(tmp, FROZEN))
+            self.assertEqual(code, 0)
+            self.assertIn("NOT valid", out)
+            self.assertIn("  - U: executor: x", out)
+            self.assertEqual(self.run_main("--block", os.path.join(tmp, "none"), "--calibration",
+                                           self.calibration_file(tmp, FROZEN))[0], 1)
+
+    def test_a_campaign_or_a_block_but_not_both_or_neither(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cal = self.calibration_file(tmp, FROZEN)
+            for argv in ([BASE["pass"], "--block", "x"], []):
+                with self.subTest(argv=argv), self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+                    H.main([*argv, "--calibration", cal])
+
 
 class RealEngineRecordsTest(unittest.TestCase):
     def test_the_records_the_engine_writes_are_the_records_the_gate_reads(self):
@@ -893,8 +1116,8 @@ class RealEngineRecordsTest(unittest.TestCase):
             self.assertEqual(code, 0)
             rec = H.read_records(records)
             self.assertEqual(len(rec["t_intended"]), json_of(summary)["intended"])
-            run = {"dir": tmp, "streams": [{"id": "s", "kind": "legit", "route_class": "C1", "records": records,
-                                            "offset_s": 0.0, "summary": json_of(summary)}]}
+            run = {"dir": tmp, "streams": [{"id": "s", "kind": "legit", "route_class": "C1", "netem": "perfect",
+                                            "records": records, "offset_s": 0.0, "summary": json_of(summary)}]}
             m = H.run_metrics(run, FROZEN, {"baseline_s": 0.3, "attack_s": 0.5, "recovery_s": 0.2})
             self.assertGreater(m["requests"], 10)                        # about 30 in the window; no punctuality asserted
             self.assertEqual(m["failures"].get("dropped", 0), 0)
@@ -915,7 +1138,7 @@ class EndToEndTest(unittest.TestCase):
         r = H.analyse(BASE["pass"], FROZEN)
         self.assertEqual(r["verdict"], "PASS")
         # the same schedules in the three runs of a block: the pairing is by common random numbers
-        expected = sum(1 for s in legit
+        expected = sum(1 for s in legit if s.netem in FROZEN["judged_profiles"]
                        for t in LG.schedule(s.process, s.rate, s.duration_s, s.seed, period=s.period, duty=s.duty)
                        if 10.0 <= t < 20.0)
         runs = self.block_runs(r, 3)

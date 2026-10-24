@@ -1,6 +1,6 @@
 == cheap_static_flood: attack, cheap_static_flood, class F ==
 The control where the rules win: a plain flood of the cheap dynamic route from 5 sources, each far above the per-source rules.
-calibration   PLACEHOLDER sha256:5e7b5e70: illustrative numbers, not measurements; nothing below is a result
+calibration   PLACEHOLDER sha256:67c0b2ad: illustrative numbers, not measurements; nothing below is a result
 grounding     assumed
 resource      app_cpu
 seeds         calib 1 (this plan); 10 blocks use calib 1-10
@@ -38,6 +38,8 @@ legit load    rho 90 req/s = 0.5 x c_slo 180; mean cost 6.14 ms; the SLO capacit
     C2     0.318        0.330  -1.2 pp
     C3     0.109        0.110  -0.1 pp
     C5     0.010        0.010  +0.0 pp
+  links, share of the legit requests: perfect 39.3%, broadband 37.0%, mobile_3g 17.2%, mobile_bad 6.5%
+  judged links: perfect, broadband carry 76.3% of them; the others are reported, not judged (their own links exceed the SLOs)
 
 attack        cheap_static_flood on C1 (3 ms unloaded) from 5 sources
   level 4 x S, S = 0.5523 CPU-s/s; ladder 0.125 0.25 0.5 1 2 4 8; knee not measured

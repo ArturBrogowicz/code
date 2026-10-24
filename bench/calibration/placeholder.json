@@ -4,6 +4,7 @@
   "c_slo_rps": 180.0
  },
  "created_utc": "2026-10-23T00:00:00Z",
+ "drift_reference": null,
  "gate": {
   "ci_level": 0.95,
   "control_q_min": 99.0,
@@ -16,6 +17,10 @@
  "host": {
   "note": "the illustrative numbers of docs/BENCHMARK_HARM_DESIGN.md Appendix A; measured on no host"
  },
+ "judged_profiles": [
+  "perfect",
+  "broadband"
+ ],
  "knees": {},
  "knobs": {
   "api_burn": 4000,
@@ -45,7 +50,7 @@
   "C5": 150.0
  },
  "schema": 1,
- "sha256": "5e7b5e70edd6766261213d010bc596adda0143b9af0ce0e75d976664b158a3d9",
+ "sha256": "67c0b2adc81a733a03f83c55e254922ab511076c831c13fdf42eff6887f79cfe",
  "slo_ms": {
   "C0": 100,
   "C1": 300,

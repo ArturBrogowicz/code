@@ -10,6 +10,9 @@ under the run contract (5.5), the output is a verdict, a Markdown report and a J
     2xx within their route class's SLO. The service time is taken from the actual send: a generator that wakes
     late must not turn a healthy control into a failed block (the slip is checked on its own, below). A request
     that was never sent, dropped, timed out or answered non-2xx fails. p95 is that of the successful ones.
+    Only the streams on the calibration's `judged_profiles` vote: the suite's mobile links (150-300 ms, up to 5 %
+    loss) already exceed the SLOs, so a control that counted them could not reach 99 % (docs/HG1C_DESIGN.md 4.1).
+    Their Q and p95 are reported per link profile next to the verdict.
   * per block: dQ = Q(C) - Q(U) in pp, dL = log2(p95(U) / p95(C)), dQ' = Q(C) - Q(C').
   * PASS iff, over the valid blocks, either the mean dQ reaches the floor, its t-interval excludes 0 and enough
     blocks have its sign, or the same holds for dL. Otherwise FAIL; fewer than `min_blocks` valid blocks, or a
@@ -17,8 +20,11 @@ under the run contract (5.5), the output is a verdict, a Markdown report and a J
     pass. HRR is defined only after a PASS. The constants are the calibration's, frozen with it.
   * a block is valid iff its runs meet the generator-validity profile (`relative`: a gross ceiling on slip and a
     difference to the control; `strict`: every engine flag clear and slip p99 under 50 ms, computed always and
-    judging only if chosen) and the control is healthy. A failed block is re-run once with the same seed, at most
-    `max_reruns` times in all; a valid block is never re-run. Validity does not read the attack's effect.
+    judging only if chosen), the executor says its runs were sound (`run.json` `executor.ok`), and the control is
+    healthy: Q at least `control_q_min` and, in every route class, at least 95 % within the SLO (that is "the
+    class's p95 within its SLO", taken over all its requests and not only the successful ones). A failed block is
+    re-run once with the same seed, at most `max_reruns` times in all; a valid block is never re-run. Validity
+    does not read the attack's effect.
   * no verdict on a calibration that is not frozen, except with --dry-run, which labels everything it prints.
 
 Limits, stated where they bite: p95 is over successes, so a server that fails its slowest requests looks faster
@@ -26,6 +32,7 @@ Limits, stated where they bite: p95 is over successes, so a server that fails it
 mix, the per-class figures are reported next to it; an SLO is a choice, the calibration holds it.
 
     ./venv/bin/python eval/harm_gate.py CAMPAIGN --calibration FILE [--dry-run] [--md FILE] [--json FILE]
+    ./venv/bin/python eval/harm_gate.py --block BLOCK_DIR --calibration FILE      # one block's assessment, no verdict
 """
 import argparse
 import csv
@@ -48,10 +55,11 @@ MITIGATED = "M_"                                   # M_<mode>
 ROLE_OF = {CONTROL: "control", PLACEBO: "placebo", ATTACK: "attack"}
 STREAM_KINDS = ("legit", "attack")
 BLOCK_KEYS = ("scenario", "block", "attempt", "seed_namespace", "seed", "calibration_sha256", "timeline", "order")
-STREAM_KEYS = ("id", "kind", "route_class", "summary", "records", "offset_s")
+STREAM_KEYS = ("id", "kind", "route_class", "netem", "summary", "records", "offset_s")
 RECORD_COLUMNS = ("t_intended", "t_sent", "t_done", "status", "err")
 METRICS = ("Q", "p95")
 DEGRADED_Q, RECOVERED_Q, RECOVERY_BINS = 95.0, 99.0, 5     # a second below / at or above these; five seconds
+CONTROL_CLASS_Q_MIN = 95.0        # "the class's p95 within its SLO" over all its requests: 95 % of them within it
 HRR_DRAWS, HRR_SEED = 10_000, 20261023
 
 
@@ -103,12 +111,19 @@ def read_run(run_dir):
             raise GateError(f"{run_dir}/run.json: a stream needs {', '.join(STREAM_KEYS)}")
         if s["kind"] not in STREAM_KINDS:
             raise GateError(f"{run_dir}/run.json: stream {s['id']} has kind {s['kind']!r}")
+        if s["netem"] not in CAL.LINK_PROFILES:
+            raise GateError(f"{run_dir}/run.json: stream {s['id']} has link profile {s['netem']!r} "
+                            f"(one of {', '.join(CAL.LINK_PROFILES)})")
         streams.append({**s, "summary": _json(os.path.join(run_dir, s["summary"])),
                         "records": os.path.join(run_dir, s["records"])})
     if not any(s["kind"] == "legit" for s in streams):
         raise GateError(f"{run_dir}: no legit stream, nothing to judge")
+    executor = meta.get("executor")
+    if not isinstance(executor, dict) or not isinstance(executor.get("ok"), bool) \
+            or not isinstance(executor.get("reasons"), list):
+        raise GateError(f"{run_dir}/run.json: executor needs ok (a boolean) and reasons (a list)")
     return {"dir": run_dir, "name": name, "role": want, "mode": meta.get("mode"),
-            "started_utc": meta.get("started_utc"), "streams": streams}
+            "started_utc": meta.get("started_utc"), "executor": executor, "streams": streams}
 
 
 def read_records(path):
@@ -160,59 +175,73 @@ def time_resolved(n_bins_arr, ok_bins_arr, attack_start, attack_end):
             "q_per_s": q}
 
 
-def run_metrics(run, cal, timeline, slo_scale=1.0):
-    """Q, p95, the failures by cause, the per-class figures, the slip and the 1-s bins of a run's legit streams."""
+def run_metrics(run, cal, timeline, slo_scale=1.0, window=None):
+    """Q, p95, the failures by cause, the per-class figures and the 1-s bins over the judged links of a run's legit
+    streams; the figures of every link profile next to them; the slip of all of them. `window` is the span of the
+    run's axis, (lo, hi), that Q and the rest are taken over; the default is the attack's."""
     slo = {k: v * slo_scale / 1000.0 for k, v in cal["slo_ms"].items()}
-    lo = float(timeline["baseline_s"])
-    hi = lo + float(timeline["attack_s"])
-    total = hi + float(timeline["recovery_s"])
-    parts = {k: [] for k in ("t_run", "t_int", "t_sent", "t_done", "status", "err", "route")}
+    judged_profiles = list(cal["judged_profiles"])
+    base = float(timeline["baseline_s"])
+    lo, hi = (base, base + float(timeline["attack_s"])) if window is None else (float(window[0]), float(window[1]))
+    total = base + float(timeline["attack_s"]) + float(timeline["recovery_s"])
+    parts = {k: [] for k in ("t_run", "t_int", "t_sent", "t_done", "status", "err", "route", "netem")}
     for s in run["streams"]:
         if s["kind"] != "legit":
             continue
         if s["route_class"] not in slo:
             raise GateError(f"{s['id']}: route class {s['route_class']!r} has no SLO")
         rec = read_records(s["records"])
+        n = len(rec["t_intended"])
         parts["t_run"].append(rec["t_intended"] + float(s["offset_s"]))
         parts["t_int"].append(rec["t_intended"])
-        for key, column in (("t_sent", "t_sent"), ("t_done", "t_done"), ("status", "status"), ("err", "err")):
-            parts[key].append(rec[column])
-        parts["route"].append(np.full(len(rec["t_intended"]), s["route_class"], dtype=object))
+        for key in ("t_sent", "t_done", "status", "err"):
+            parts[key].append(rec[key])
+        parts["route"].append(np.full(n, s["route_class"], dtype=object))
+        parts["netem"].append(np.full(n, s["netem"], dtype=object))
     a = {k: np.concatenate(v) for k, v in parts.items()}
     limit = np.zeros(len(a["route"]))
     for klass in set(a["route"]):
         limit[a["route"] == klass] = slo[klass]
+    judged = np.isin(a["netem"], judged_profiles)
     with np.errstate(invalid="ignore"):
         service = a["t_done"] - a["t_sent"]
         answered = (a["err"] == "") & ~np.isnan(a["t_sent"]) & ~np.isnan(a["t_done"])
         twoxx = (a["status"] >= 200) & (a["status"] < 300)
         ok = answered & twoxx & (service <= limit)
-        window = (a["t_run"] >= lo) & (a["t_run"] < hi)
+        in_window = (a["t_run"] >= lo) & (a["t_run"] < hi)
         slow = answered & twoxx & (service > limit)
-    n_w, ok_w = int(window.sum()), int((ok & window).sum())
+    window_j = in_window & judged                             # the requests that vote
+    n_w, ok_w = int(window_j.sum()), int((ok & window_j).sum())
     sent = ~np.isnan(a["t_sent"])
-    failed = window & ~ok
+    failed = window_j & ~ok
     causes = {"dropped": int((failed & (a["err"] == "dropped")).sum()),
               "never_sent": int((failed & ~sent & (a["err"] != "dropped")).sum()),
               "non_2xx": int((failed & answered & ~twoxx).sum()), "slow": int((failed & slow).sum())}
     for name in sorted({str(e) for e in a["err"][failed & sent]} - {""}):
         causes[name] = int((failed & sent & (a["err"] == name)).sum())
     by_class = {}
-    for klass in sorted(set(a["route"][window])):
-        m = window & (a["route"] == klass)
-        good = service[m & ok]
+    for klass in sorted(set(a["route"][window_j])):
+        m = window_j & (a["route"] == klass)
         by_class[klass] = {"n": int(m.sum()), "ok": int((m & ok).sum()), "Q": 100.0 * int((m & ok).sum()) / int(m.sum()),
-                           "p95_s": _q(good, 0.95)}
-    good = service[window & ok]
+                           "p95_s": _q(service[m & ok], 0.95)}
+    by_profile = {}
+    for profile in CAL.LINK_PROFILES:
+        m = in_window & (a["netem"] == profile)
+        if m.any():
+            by_profile[profile] = {"n": int(m.sum()), "ok": int((m & ok).sum()), "Q": 100.0 * int((m & ok).sum()) / int(m.sum()),
+                                   "p95_s": _q(service[m & ok], 0.95), "judged": profile in judged_profiles}
+    good = service[window_j & ok]
     with np.errstate(invalid="ignore"):
-        slip = (a["t_sent"] - a["t_int"])[sent]
+        slip = (a["t_sent"] - a["t_int"])[sent]               # the generator's lateness: all legit streams
     n_bins = math.ceil(total)
-    nb, okb = _bins(a["t_run"], ok, n_bins)
+    nb, okb = _bins(a["t_run"][judged], ok[judged], n_bins)
     return {"requests": n_w, "ok": ok_w, "Q": 100.0 * ok_w / n_w if n_w else None, "lost": n_w - ok_w,
             "p50_s": _q(good, 0.5), "p95_s": _q(good, 0.95), "p99_s": _q(good, 0.99),
-            "p95_from_intended_s": _q((a["t_done"] - a["t_int"])[window & ok], 0.95),
+            "p95_from_intended_s": _q((a["t_done"] - a["t_int"])[window_j & ok], 0.95),
             "slip_p99_s": _q(slip, 0.99), "failures": {k: v for k, v in causes.items() if v},
-            "by_class": by_class, **time_resolved(nb, okb, lo, hi)}
+            "by_class": by_class, "by_profile": by_profile,
+            "judged_share": n_w / int(in_window.sum()) if in_window.any() else None,
+            **time_resolved(nb, okb, base, base + float(timeline["attack_s"]))}
 
 
 # --- validity ----------------------------------------------------------------------------------
@@ -245,6 +274,9 @@ def validity(run, cal, slip_p99, control_slip_p99):
             relative.append(f"{sid}: slip p99 {slip * 1000:.0f} ms above the gross ceiling {v['slip_gross_s'] * 1000:.0f} ms")
         if slip is not None and slip > v["strict_slip_p99_s"]:
             strict.append(f"{sid}: slip p99 {slip * 1000:.0f} ms above {v['strict_slip_p99_s'] * 1000:.0f} ms")
+    executor = run.get("executor")
+    if executor is not None and not executor["ok"]:
+        shared += [f"executor: {r}" for r in executor["reasons"]] or ["executor: the run was not sound"]
     if control_slip_p99 is not None and slip_p99 is not None and slip_p99 > control_slip_p99 + v["slip_delta_s"]:
         relative.append(f"legit slip p99 {slip_p99 * 1000:.0f} ms exceeds the control's {control_slip_p99 * 1000:.0f} ms "
                         f"by more than {v['slip_delta_s'] * 1000:.0f} ms")
@@ -253,16 +285,17 @@ def validity(run, cal, slip_p99, control_slip_p99):
 
 
 def control_health(m, cal):
-    """Reasons for which a control is not healthy: Q(C) at least `control_q_min`, every class's p95 within its SLO."""
+    """Reasons for which a control is not healthy: Q(C) at least `control_q_min`, and in every route class at least
+    95 % of the requests within the SLO, which is the class's p95 within its SLO taken over all its requests (over
+    the successful ones it could never fail, a success being within the SLO by definition)."""
     reasons = []
     floor = cal["gate"]["control_q_min"]
     if m["Q"] is None or m["Q"] < floor:
         reasons.append(f"Q(C) is {'n/a' if m['Q'] is None else format(m['Q'], '.2f')} %, below {floor:g} %")
-    for klass, c in m["by_class"].items():
-        if c["p95_s"] is None:
-            reasons.append(f"class {klass} has no successful request in the control")
-        elif c["p95_s"] * 1000 > cal["slo_ms"][klass]:
-            reasons.append(f"class {klass} p95 {c['p95_s'] * 1000:.0f} ms is above its SLO of {cal['slo_ms'][klass]} ms")
+    for klass, c in sorted(m["by_class"].items()):
+        if c["Q"] < CONTROL_CLASS_Q_MIN:
+            reasons.append(f"class {klass}: {c['ok']} of {c['n']} requests within its SLO of {cal['slo_ms'][klass]} ms "
+                           f"({c['Q']:.1f} %, below {CONTROL_CLASS_Q_MIN:g} %)")
     return reasons
 
 
@@ -400,6 +433,32 @@ def hrr(valid_blocks, mode, draws=HRR_DRAWS, seed=HRR_SEED):
     return out
 
 
+def _mean(values):
+    return sum(values) / len(values) if values else None
+
+
+def profile_table(valid_blocks, cal):
+    """Per link profile, over the valid blocks: whether it votes, its share of the control's requests, its Q in C, Cp
+    and U, and dQ. The profiles that do not vote are shown because the harm to them is real."""
+    out = {}
+    for profile in CAL.LINK_PROFILES:
+        q = {name: [] for name in (CONTROL, PLACEBO, ATTACK)}
+        share = []
+        for b in valid_blocks:
+            for name, values in q.items():
+                got = b["runs"].get(name, {}).get("metrics", {}).get("by_profile", {}).get(profile)
+                if got is not None:
+                    values.append(got["Q"])
+            by_profile = b["runs"][CONTROL]["metrics"]["by_profile"]
+            if profile in by_profile:
+                share.append(by_profile[profile]["n"] / sum(v["n"] for v in by_profile.values()))
+        qc, qu = _mean(q[CONTROL]), _mean(q[ATTACK])
+        out[profile] = {"judged": profile in cal["judged_profiles"], "share": _mean(share),
+                        "Q": {name: _mean(values) for name, values in q.items()},
+                        "dQ": None if qc is None or qu is None else qc - qu}
+    return out
+
+
 def analyse(root, cal, dry_run=False, metrics=METRICS, slo_scale=1.0):
     """The verdict of a campaign directory (one gate) under calibration `cal`."""
     if cal["status"] != "frozen" and not dry_run:
@@ -430,10 +489,10 @@ def analyse(root, cal, dry_run=False, metrics=METRICS, slo_scale=1.0):
     return {"scenario": blocks[0]["scenario"], "seed_namespace": blocks[0]["seed_namespace"],
             "calibration": {"status": cal["status"], "sha256": cal.get("sha256") or CAL.digest(cal)},
             "dry_run": cal["status"] != "frozen", "metrics": list(metrics), "slo_scale": slo_scale,
-            "profile": cal["validity"]["profile"],
+            "profile": cal["validity"]["profile"], "judged_profiles": list(cal["judged_profiles"]),
             "gate": {k: gate[k] for k in CAL.GATE_KEYS}, "verdict": verdict, "reasons": reasons,
             "blocks_valid": len(valid), "blocks_total": len(blocks), "reruns": reruns,
-            "criteria": criteria,
+            "criteria": criteria, "by_profile": profile_table(valid, cal),
             "placebo": {"criteria": placebo, "passed": any(c["passed"] for c in placebo.values())},
             "hrr": [hrr(valid, m) for m in modes] if verdict == "PASS" else None,
             "hrr_withheld": bool(modes) and verdict != "PASS",
@@ -466,7 +525,7 @@ def to_markdown(r):
     out.append(f"**Verdict: {r['verdict']}**" + (" (dry run)" if r["dry_run"] else "") + "\n")
     out.append(f"{r['blocks_valid']} valid blocks of {r['blocks_total']}, {r['reruns']} re-run(s); calibration "
                f"{r['calibration']['status']} `{r['calibration']['sha256'][:8]}`; validity profile `{r['profile']}`; "
-               f"metrics {', '.join(r['metrics'])}.\n")
+               f"metrics {', '.join(r['metrics'])}; judged links {', '.join(r['judged_profiles'])}.\n")
     if r["reasons"]:
         out += ["Why INVALID:\n"] + [f"* {x}" for x in r["reasons"]] + [""]
     names = {"Q": ("dQ (pp)", "dQ' (pp), placebo", "pp"), "p95": ("dL (log2 p95 ratio)", "dL' (log2 p95 ratio), placebo", "")}
@@ -476,7 +535,15 @@ def to_markdown(r):
     out.append("")
     out.append("The placebo (a second attack-free run) " + ("**PASSED: the gate is not specific on these data, "
                "treat the verdict as unreliable.**" if r["placebo"]["passed"] else "did not pass, as it must not.") + "\n")
-    out += ["## Blocks", "",
+    out += ["## Per link profile", "",
+            ("Only the judged profiles vote on the verdict. The others are shown because the harm to them is real, and "
+             "their own links already exceed the SLOs (docs/HG1C_DESIGN.md 4.1). Q in %, means over the valid blocks."), "",
+            "| profile | judged | share of requests | Q C | Q C' | Q U | dQ |", "|---|---|---|---|---|---|---|"]
+    for profile, row in r["by_profile"].items():
+        share = "n/a" if row["share"] is None else f"{row['share']:.1%}"
+        out.append(f"| {profile} | {'yes' if row['judged'] else 'no'} | {share} | {_f(row['Q'][CONTROL])} | "
+                   f"{_f(row['Q'][PLACEBO])} | {_f(row['Q'][ATTACK])} | {_f(row['dQ'])} |")
+    out += ["", "## Blocks", "",
             ("| block | seed | attempt | valid | Q C | Q C' | Q U | dQ | dL | dQ' | p95 C ms | p95 U ms | degraded s | "
              "first degraded s | recovery s |"), "|" + "---|" * 15]
     for b in r["blocks"]:
@@ -504,34 +571,65 @@ def to_markdown(r):
     elif r["hrr_withheld"]:
         out += ["HRR is not computed: its denominator is the gate-passed harm and the gate did not pass.\n"]
     out.append("Limits: p95 is over successes (Q counts the failures and is the primary number); the pooled p95 weighs "
-               "route classes by their share of the mix; the SLOs and floors are the calibration's.")
+               "route classes by their share of the mix; the SLOs, floors and judged links are the calibration's.")
     return "\n".join(out) + "\n"
+
+
+def describe_block(a):
+    """One block's assessment as text lines: validity and its reasons, Q and p95 of each run over the judged links,
+    Q of the control by link profile, and the block's differences. No verdict: a block is not a gate."""
+    lines = [f"block {a['block']} attempt {a['attempt']} seed {a['seed']} ({a['scenario']}): "
+             + ("valid" if a["valid"] else "NOT valid")]
+    lines += [f"  - {r}" for r in a["reasons"]]
+    for name, run in a["runs"].items():
+        m = run["metrics"]
+        lines.append(f"  {name:<4} Q {_f(m['Q'])} % of {m['requests']} judged requests, p95 {_ms(m['p95_s'])} ms, "
+                     f"slip p99 {_ms(m['slip_p99_s'])} ms, degraded {m['degraded_s']} s, "
+                     f"valid {'yes' if run['valid'] else 'no'}, strict {'yes' if run['strict_ok'] else 'no'}")
+    control = a["runs"].get(CONTROL)
+    if control:
+        lines.append("  Q of the control by link profile: " + ", ".join(
+            f"{p} {_f(v['Q'])} %{'' if v['judged'] else ' (not judged)'}" for p, v in control["metrics"]["by_profile"].items()))
+    lines.append(f"  dQ {_f(a['dQ'])} pp, dL {_f(a['dL'], '.2f')}, placebo dQ' {_f(a['dQ_placebo'])} pp")
+    return lines
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("campaign", help="directory of blocks written under the run contract")
+    ap.add_argument("campaign", nargs="?", help="directory of blocks written under the run contract")
+    ap.add_argument("--block", metavar="DIR", help="assess one block directory: validity and figures, no verdict")
     ap.add_argument("--calibration", required=True, help="the calibration record the blocks were run under")
     ap.add_argument("--dry-run", action="store_true", help="allow a placeholder calibration; everything is labelled")
     ap.add_argument("--metrics", default=",".join(METRICS), help="criteria to apply (default: Q,p95)")
     ap.add_argument("--md", help="write the Markdown report here")
     ap.add_argument("--json", help="write the JSON record here")
     args = ap.parse_args(argv)
+    if bool(args.campaign) == bool(args.block):
+        ap.error("give a campaign directory, or --block DIR")
     metrics = tuple(m for m in args.metrics.split(",") if m)
     if not metrics or not set(metrics) <= set(METRICS):
         ap.error(f"--metrics: a non-empty subset of {', '.join(METRICS)}")
     try:
-        result = analyse(args.campaign, CAL.load(args.calibration), args.dry_run, metrics)
+        cal = CAL.load(args.calibration)
+        if args.block:
+            result = assess_block(args.block, cal)
+        else:
+            result = analyse(args.campaign, cal, args.dry_run, metrics)
     except (GateError, CAL.RecordError, OSError) as exc:
         print(exc, file=sys.stderr)
         return 1
-    if args.md:
+    if args.md and not args.block:
         with open(args.md, "w", encoding="utf-8") as fh:
             fh.write(to_markdown(result))
     if args.json:
         with open(args.json, "w", encoding="utf-8") as fh:
             json.dump(result, fh, indent=1, sort_keys=True)
             fh.write("\n")
+    if args.block:
+        print("\n".join(describe_block(result)))
+        if cal["status"] != "frozen":
+            print("(placeholder calibration: figures, not a result)")
+        return 0
     print(f"{result['verdict']}{' (dry run)' if result['dry_run'] else ''}: {result['blocks_valid']} valid blocks of "
           f"{result['blocks_total']}" + ("; " + "; ".join(result["reasons"]) if result["reasons"] else ""))
     return 0

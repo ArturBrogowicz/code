@@ -15,8 +15,11 @@ import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "bench"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import calibration as C
+import calibration_fixtures as F
 import origin as O
+import population as P
 
 
 def placeholder():
@@ -50,16 +53,26 @@ class RecordTest(unittest.TestCase):
                                          "C5": 3000, "C6": 1000})
         self.assertEqual(cal["validity"]["profile"], "relative")
         self.assertEqual((cal["validity"]["slip_gross_s"], cal["validity"]["slip_delta_s"]), (0.25, 0.05))
+        self.assertEqual(cal["judged_profiles"], ["perfect", "broadband"])
+        self.assertIsNone(cal["drift_reference"])
+
+    def test_the_link_profiles_are_the_populations_and_the_suites(self):
+        self.assertEqual(list(C.LINK_PROFILES), [name for name, _ in P.NETEM_MIX])
+        with open(os.path.join(REPO, "test_distributed_suite.py"), encoding="utf-8") as fh:
+            source = fh.read()
+        for name in C.LINK_PROFILES:
+            self.assertIn(f'"{name}"', source)
 
     def test_every_departure_from_the_schema_is_named(self):
         broken = {
             "schema": 2, "status": "draft", "created_utc": "", "host": [], "route_costs_ms": {"C0": 1},
             "knobs": {"nonsense": 1}, "capacity": {"c_slo_rps": 100, "c_sat_rps": 90},
             "mix": {"C0": 0.5, "C1": 0.4}, "slo_ms": {"C0": 100}, "gate": {"floor_pp": 10},
-            "validity": {"profile": "lax"}, "knees": []}
+            "validity": {"profile": "lax"}, "knees": [], "judged_profiles": [],
+            "drift_reference": {"rho_rps": 1}}
         problems = C.problems_of({**placeholder(), **broken})
         for fragment in ("schema", "status", "created_utc", "host", "route_costs_ms", "knobs", "capacity",
-                         "mix", "slo_ms", "gate", "validity", "knees"):
+                         "mix", "slo_ms", "gate", "validity", "knees", "judged_profiles", "drift_reference"):
             with self.subTest(field=fragment):
                 self.assertTrue(any(line.startswith(fragment) for line in problems), (fragment, problems))
         self.assertEqual(C.problems_of([]), ["the record is not an object"])
@@ -96,7 +109,8 @@ class HashTest(unittest.TestCase):
         base = C.digest(cal)
         for path, value in (("created_utc", "2026-10-24T00:00:00Z"), ("route_costs_ms.C3", 31.0),
                             ("capacity.c_slo_rps", 181.0), ("gate.floor_pp", 11.0), ("mix.C0", 0.34),
-                            ("slo_ms.C0", 101), ("validity.profile", "strict"), ("knobs.api_burn", 4001)):
+                            ("slo_ms.C0", 101), ("validity.profile", "strict"), ("knobs.api_burn", 4001),
+                            ("judged_profiles", ["perfect"])):
             changed = copy.deepcopy(cal)
             section, _, key = path.partition(".")
             if key:
@@ -112,7 +126,7 @@ class HashTest(unittest.TestCase):
         with self.assertRaisesRegex(C.RecordError, "is not the hash"):
             C.validate({**cal, "sha256": "0" * 64})
         C.validate({k: v for k, v in cal.items() if k != "sha256"})            # a placeholder may omit it
-        frozen = C.freeze(cal, "2026-10-24T08:00:00Z")
+        frozen = F.frozen(cal, "2026-10-24T08:00:00Z")
         self.assertEqual((frozen["status"], frozen["created_utc"]), ("frozen", "2026-10-24T08:00:00Z"))
         self.assertEqual(frozen["sha256"], C.digest(frozen))
         self.assertIs(C.require_frozen(frozen), frozen)
@@ -123,7 +137,7 @@ class HashTest(unittest.TestCase):
 
     def test_dump_and_load_round_trip_byte_for_byte(self):
         with tempfile.TemporaryDirectory() as tmp:
-            frozen = C.freeze(placeholder())
+            frozen = F.frozen()
             first, second = os.path.join(tmp, "a.json"), os.path.join(tmp, "b.json")
             C.dump(frozen, first)
             C.dump(C.load(first), second)
@@ -131,6 +145,98 @@ class HashTest(unittest.TestCase):
                 self.assertEqual(a.read(), b.read())
             with self.assertRaises(C.RecordError):
                 C.dump({**frozen, "status": "draft"}, os.path.join(tmp, "c.json"))
+
+
+class JudgedProfilesTest(unittest.TestCase):
+    def test_a_non_empty_list_of_distinct_link_profiles(self):
+        for good in (["perfect"], ["perfect", "broadband"], list(C.LINK_PROFILES), ["mobile_bad"]):
+            with self.subTest(good=good):
+                self.assertEqual(C.problems_of({**placeholder(), "judged_profiles": good}), [])
+        for bad in ([], ["perfect", "perfect"], ["gprs"], "perfect", ["perfect", 1], None, {"perfect": 1}):
+            with self.subTest(bad=bad):
+                problems = C.problems_of({**placeholder(), "judged_profiles": bad})
+                self.assertTrue(any(line.startswith("judged_profiles") for line in problems), problems)
+
+    def test_a_record_without_the_key_is_refused(self):
+        cal = placeholder()
+        del cal["judged_profiles"]
+        self.assertTrue(any(line.startswith("judged_profiles") for line in C.problems_of(cal)))
+
+
+class DriftReferenceTest(unittest.TestCase):
+    GOOD = F.SAMPLE_DRIFT
+
+    def test_a_placeholder_may_leave_it_out_and_a_frozen_record_may_not(self):
+        self.assertEqual(C.problems_of(placeholder()), [])
+        with self.assertRaisesRegex(C.RecordError, "drift_reference: a frozen record carries"):
+            C.freeze(placeholder(), "2026-10-24T08:00:00Z", host=F.SAMPLE_HOST)
+        self.assertEqual(C.problems_of({**placeholder(), "drift_reference": self.GOOD}), [])
+
+    def test_every_departure_is_named(self):
+        cases = (({"rho_rps": 90.0}, "drift_reference: rho_rps, q_pct, p95_s and attack"),
+                 ({**self.GOOD, "rho_rps": 0}, "drift_reference.rho_rps"),
+                 ({**self.GOOD, "q_pct": 0}, "drift_reference.q_pct"),
+                 ({**self.GOOD, "q_pct": 100.5}, "drift_reference.q_pct"),
+                 ({**self.GOOD, "p95_s": -1}, "drift_reference.p95_s"),
+                 ({**self.GOOD, "p95_s": "0.05"}, "drift_reference.p95_s"),
+                 ({**self.GOOD, "attack": []}, "drift_reference.attack: an object"),
+                 ({**self.GOOD, "attack": {"f": {"level": 2}}}, "drift_reference.attack.f: level, q_pct and p95_s"),
+                 ({**self.GOOD, "attack": {"f": {"level": 0, "q_pct": 50, "p95_s": 0.1}}},
+                  "drift_reference.attack.f.level"),
+                 ({**self.GOOD, "attack": {"f": {"level": 2, "q_pct": 101, "p95_s": 0.1}}},
+                  "drift_reference.attack.f.q_pct"))
+        for ref, fragment in cases:
+            with self.subTest(fragment=fragment):
+                problems = C.problems_of({**placeholder(), "drift_reference": ref})
+                self.assertTrue(any(fragment in line for line in problems), problems)
+
+    def test_a_hundred_percent_is_a_valid_reference_and_zero_is_not(self):
+        ref = {**self.GOOD, "q_pct": 100.0}
+        self.assertEqual(C.problems_of({**placeholder(), "drift_reference": ref}), [])
+        self.assertTrue(C.problems_of({**placeholder(), "drift_reference": {**self.GOOD, "q_pct": 0.0}}))
+
+    def test_no_attack_reference_is_a_valid_reference(self):
+        self.assertEqual(C.problems_of({**placeholder(), "drift_reference": {**self.GOOD, "attack": {}}}), [])
+
+
+class HostTest(unittest.TestCase):
+    def freeze_with(self, host):
+        return F.frozen(placeholder(), host=host)
+
+    def test_the_sample_host_is_complete(self):
+        self.assertEqual(C.problems_of(F.frozen()), [])
+
+    def test_a_placeholder_keeps_a_free_form_host(self):
+        self.assertEqual(C.problems_of({**placeholder(), "host": {"note": "anything"}}), [])
+
+    def test_a_frozen_host_is_checked_key_by_key(self):
+        cases = (("uname", "", "host.uname"), ("uname", 3, "host.uname"), ("cpus", "8", "host.cpus"),
+                 ("cpus", True, "host.cpus"), ("mem_mib", -1, "host.mem_mib"), ("origin_seed", 1.5, "host.origin_seed"),
+                 ("origin_sha256", "abc", "host.origin_sha256"), ("loadgen_sha256", "Z" * 64, "host.loadgen_sha256"),
+                 ("pins", {"server": "0-1"}, "host.pins: missing"), ("pins", [], "host.pins: an object"),
+                 ("gunicorn", {"version": "26"}, "host.gunicorn: missing"),
+                 ("nginx", {"version": "1.28.3", "conf_sha256": "x"}, "host.nginx.conf_sha256"))
+        for key, value, fragment in cases:
+            with self.subTest(key=key, value=value):
+                host = copy.deepcopy(F.SAMPLE_HOST)
+                host[key] = value
+                with self.assertRaisesRegex(C.RecordError, fragment):
+                    self.freeze_with(host)
+
+    def test_a_missing_key_is_named(self):
+        host = copy.deepcopy(F.SAMPLE_HOST)
+        del host["nginx"]
+        with self.assertRaisesRegex(C.RecordError, "host: missing nginx"):
+            self.freeze_with(host)
+
+    def test_freeze_replaces_the_host_and_the_reference_it_is_given(self):
+        cal = F.frozen()
+        other = copy.deepcopy(F.SAMPLE_HOST)
+        other["cpus"] = 4
+        again = C.freeze(cal, host=other, drift_reference={**F.SAMPLE_DRIFT, "rho_rps": 120.0})
+        self.assertEqual((again["host"]["cpus"], again["drift_reference"]["rho_rps"]), (4, 120.0))
+        self.assertEqual(cal["host"]["cpus"], 8)                     # the argument is not changed
+        self.assertNotEqual(again["sha256"], cal["sha256"])
 
 
 class DerivedTest(unittest.TestCase):
@@ -215,7 +321,7 @@ class CommandLineTest(unittest.TestCase):
             self.assertEqual(self.run_main("rehash", path)[0], 0)
             self.assertEqual(self.run_main("check", path)[0], 0)
             frozen = os.path.join(tmp, "f.json")
-            C.dump(C.freeze(placeholder()), frozen)
+            C.dump(F.frozen(), frozen)
             code, _, err = self.run_main("rehash", frozen)
             self.assertEqual(code, 2)
             self.assertIn("never rewritten", err)

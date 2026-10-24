@@ -17,7 +17,9 @@ from unittest import mock
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "bench"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import calibration as C
+import calibration_fixtures as F
 import origin as O
 import population as P
 import scenario as S
@@ -343,6 +345,18 @@ class PlanNumbersTest(unittest.TestCase):
         biggest = max((s for s in p["streams"] if s["kind"] == "legit"), key=lambda s: s["addresses"])
         self.assertEqual(g["kinds"]["legit"]["nofile"], biggest["addresses"] * P.POOL["legit"] + 2000 + 64)
 
+    def test_the_links_the_legit_requests_ride_and_the_share_that_votes(self):
+        b = plan_of("costly_search_sub_threshold")["benign"]
+        self.assertEqual(list(b["link_shares"]), list(C.LINK_PROFILES))
+        self.assertAlmostEqual(sum(b["link_shares"].values()), 1.0)
+        self.assertEqual(b["judged_profiles"], ["perfect", "broadband"])
+        self.assertAlmostEqual(b["judged_share"], b["link_shares"]["perfect"] + b["link_shares"]["broadband"])
+        self.assertAlmostEqual(b["judged_share"], 0.763, places=3)          # HG1c design note, Appendix A
+        pop = P.draw("calib", 1, RHO, 200)
+        by_rate = {p: sum(s.rate for s in pop.of_kind("legit") if s.netem == p) for p in C.LINK_PROFILES}
+        for profile, share in b["link_shares"].items():
+            self.assertAlmostEqual(share, by_rate[profile] / sum(by_rate.values()))
+
     def test_a_control_has_no_attack_sections(self):
         p = plan_of("benign_control")
         self.assertIsNone(p["attack"])
@@ -431,7 +445,7 @@ class WarningsTest(unittest.TestCase):
         p = plan_of("costly_search_sub_threshold")
         self.assertEqual(p["calibration"]["status"], "placeholder")
         self.assertIn("placeholder", self.words(p))
-        frozen = C.freeze(CAL, "2026-10-24T08:00:00Z")
+        frozen = F.frozen(CAL, "2026-10-24T08:00:00Z")
         q = plan_of("costly_search_sub_threshold", cal=frozen)
         self.assertEqual((q["calibration"]["status"], q["calibration"]["sha8"]), ("frozen", frozen["sha256"][:8]))
         self.assertNotIn("placeholder", self.words(q))
@@ -474,6 +488,22 @@ class WarningsTest(unittest.TestCase):
         q = S.plan(scenario("costly_search_sub_threshold"), cal)
         self.assertIn("cannot harm this server", self.words(q))
         self.assertIn("none within the generator limit", S.render(q))
+
+    def test_a_minority_of_judged_clients_is_flagged(self):
+        cal = copy.deepcopy(CAL)
+        cal["judged_profiles"] = ["mobile_bad"]                    # about 6 % of the legit requests at seed 1
+        p = S.plan(scenario("costly_search_sub_threshold"), cal)
+        self.assertLess(p["benign"]["judged_share"], 0.5)
+        self.assertIn("of the legit requests are on the judged links (mobile_bad)", self.words(p))
+        self.assertNotIn("judged links", self.words(plan_of("costly_search_sub_threshold")))
+
+    def test_the_warning_uses_the_right_article(self):
+        words = self.words(plan_of("cheap_static_flood", intensity__level=8))
+        self.assertIn("an attack stream could have", words)
+        self.assertNotIn("a attack", words)
+        slow = copy.deepcopy(CAL)
+        slow["validity"]["cpu_share"] = 1e-6                         # a legit stream that cannot be carried
+        self.assertIn("the legit generator needs", self.words(S.plan(scenario("benign_control"), slow)))
 
     def test_an_assumed_grounding_is_flagged(self):
         self.assertIn("grounding is 'assumed'", self.words(plan_of("cheap_static_flood")))
@@ -577,7 +607,7 @@ class CommandLineTest(unittest.TestCase):
     def test_a_frozen_calibration_removes_the_banner(self):
         with tempfile.TemporaryDirectory() as tmp:
             frozen = os.path.join(tmp, "frozen.json")
-            C.dump(C.freeze(CAL, "2026-10-24T08:00:00Z"), frozen)
+            C.dump(F.frozen(CAL, "2026-10-24T08:00:00Z"), frozen)
             code, out, _ = run_main("--plan", "--calibration", frozen, path_of("cheap_static_flood"))
             self.assertEqual(code, 0)
             self.assertIn("frozen sha256:", out)

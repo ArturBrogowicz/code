@@ -47,6 +47,7 @@ ID_RE = re.compile(r"[a-z0-9][a-z0-9_]{0,63}")
 MIN_PHASE_S = 5.0                                  # the recovery rule needs five 1-s bins
 LIKELY_PASS_A, LIKELY_FAIL_A = 2.0, 0.5            # Appendix B: the cost-rate model's first-order reading
 MIX_TOLERANCE_PP = 3.0                             # the legit route mix against the calibration's
+JUDGED_SHARE_MIN = 0.5                             # the share of the legit requests that the judged links must carry
 URL = "http://10.0.0.1/"                           # only to build the engine commands whose sizes are printed
 
 
@@ -323,9 +324,13 @@ def _benign(pop, cal, rho, capacity):
     cost = sum(rate * costs[k] for k, rate in drawn.items()) / 1000
     mix = [{"route": k, "drawn": drawn.get(k, 0.0) / total, "calibration": cal["mix"].get(k, 0.0)}
            for k in O.CLASSES if k in drawn or k in cal["mix"]]
+    legit = pop.of_kind("legit")
+    links = {p: sum(s.rate for s in legit if s.netem == p) / total for p in C.LINK_PROFILES}
+    judged = list(cal["judged_profiles"])
     return {"rho": rho, "classes": classes, "drawn_rate": total, "drawn_cost_cpu_s": cost,
             "drawn_utilisation": cost / capacity, "mix": mix,
-            "mix_gap_pp": 100 * max(abs(m["drawn"] - m["calibration"]) for m in mix)}
+            "mix_gap_pp": 100 * max(abs(m["drawn"] - m["calibration"]) for m in mix),
+            "link_shares": links, "judged_profiles": judged, "judged_share": sum(links[p] for p in judged)}
 
 
 def _attack(scn, pop, cal, level, spare, capacity):
@@ -382,6 +387,10 @@ def _generator(pop, cal):
             "memory_mb": len(pop.streams) * P.PROCESS_MB}
 
 
+def _a(word):
+    return "an" if word[:1] in "aeiou" else "a"
+
+
 def _warnings(scn, cal, out):
     w = []
     if cal["status"] != "frozen":
@@ -390,6 +399,9 @@ def _warnings(scn, cal, out):
     if out["benign"]["mix_gap_pp"] > MIX_TOLERANCE_PP:
         w.append(f"the legit route mix is {out['benign']['mix_gap_pp']:.1f} pp from the calibration's "
                  f"(more than {MIX_TOLERANCE_PP:g} pp)")
+    if out["benign"]["judged_share"] < JUDGED_SHARE_MIN:
+        w.append(f"only {out['benign']['judged_share']:.1%} of the legit requests are on the judged links "
+                 f"({', '.join(out['benign']['judged_profiles'])}): the gate would rest on a minority of the clients")
     a = out["attack"]
     if a:
         if scn.grounding.strip().lower() == "assumed":
@@ -406,10 +418,10 @@ def _warnings(scn, cal, out):
             w.append(f"the {kind} generator needs {k['share']:.0%} of its CPUs (the validity limit is "
                      f"{g['cpu_share_limit']:.0%}): the run would be invalid")
         if k["max_stream_rate"] > g["ceiling_rps"]:
-            w.append(f"a {kind} stream plans {k['max_stream_rate']:.0f} req/s, above the engine's ceiling of "
+            w.append(f"{_a(kind)} {kind} stream plans {k['max_stream_rate']:.0f} req/s, above the engine's ceiling of "
                      f"{g['ceiling_rps']} req/s")
         if k["inflight"] >= k["cap"]:
-            w.append(f"a {kind} stream could have {k['inflight']:.0f} requests in flight, at or above the engine's cap "
+            w.append(f"{_a(kind)} {kind} stream could have {k['inflight']:.0f} requests in flight, at or above the engine's cap "
                      f"of {k['cap']}: a stalled server would make it drop requests, and whether the run is valid "
                      "would depend on the attack's effect")
     if scn.gate and scn.gate["blocks"] < cal["gate"]["min_blocks"]:
@@ -526,6 +538,9 @@ def render(p):
     out += _table(("route", "drawn", "calibration", "gap"),
                   [(m["route"], f"{m['drawn']:.3f}", f"{m['calibration']:.3f}", _pp(m["drawn"] - m["calibration"]))
                    for m in b["mix"]], "<>>>", indent=4)
+    out.append("  links, share of the legit requests: " + ", ".join(f"{p} {v:.1%}" for p, v in b["link_shares"].items()))
+    out.append(f"  judged links: {', '.join(b['judged_profiles'])} carry {b['judged_share']:.1%} of them; the others are "
+               "reported, not judged (their own links exceed the SLOs)")
     out.append("")
     if a:
         out += _render_attack(a, b, c)
