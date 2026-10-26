@@ -398,7 +398,7 @@ merge nothing, push nothing, and bring S1 for approval when the executor's plan 
 
 Built offline on `feat/hg1c`, off this note, in the order of section 9; no merge, no push. One commit was added to section 9's six
 (the capacity probe needed the executor to launch streams at their own start), and two small ones followed. The VM ran S1 and S1b and
-nothing else; four commits came out of them (the last rows of the table).
+nothing else; five commits came out of them (the last rows of the table).
 
 | Commit | What | New tests | Textual mutations killed |
 |---|---|---|---|
@@ -413,9 +413,10 @@ nothing else; four commits came out of them (the last rows of the table).
 | 681e013, 83ab963 | the clock probe: a tuple and a list were concatenated (found by S1's first attempt); its rows say when each stream was launched, began and exited | 16 | 20 |
 | a6e6b95 | the wall time of an engine is held to its records; the simulated host follows the engine in two points (S1b) | 33 | 34 |
 | 938a1df | a stream is dead on a non-zero exit or on missing output, not on an early exit; the simulated host's engines end with their last request | 12 | 27 |
-| 9680336 and the docs commit after 938a1df | this section, `docs/EVALUATION.md` | | |
+| e80e6fc | the legit starts are judged by a pack, and up to 10 % of a group may be stragglers whose loops ended with their last request; the settings are what S1 and S1b measured; the simulated host starts its engines as measured | 33 | 40 (of 41; one is equivalent) |
+| 9680336, 2eb4d7d and the docs commit after e80e6fc | this section, `docs/EVALUATION.md` | | |
 
-1,471 tests pass; ruff is clean. The mutations were made on private copies of the tree (a textual change to one line, the executor's or
+1,504 tests pass; ruff is clean. The mutations were made on private copies of the tree (a textual change to one line, the executor's or
 campaign's or calibrator's tests run against it); each one that was not equivalent made a test fail, and the survivors of the first rounds
 were closed with tests (an equivalent branch of `program_of` was removed instead).
 
@@ -438,6 +439,8 @@ were closed with tests (an equivalent branch of `program_of` was removed instead
 | 13 | 10, S3: `harm_gate --block` on the run | `executor.py run` prints the figures (Q, p95, slip, Q per link profile) | a `block.json` exists only for a campaign |
 | 14 | 6.6: `t0 = t_exit - wall_s + 0.05` | the wall time is first raised to the last request's `t_done` plus 0.05 s when it is shorter (`consistent_wall`, `last_done`); the estimator is named `exit-minus-consistent-wall` and `executor.wall_gap_s` lists the raise of each stream | S1b: the engine reads the schedule's zero and, one statement later, its wall clock, and a process descheduled in between (29 starting together on one CPU) reports too short a wall time, by 54 ms at the median, 258 ms at the 90th percentile and 2.03 s at most; the exit delay itself is 0.015 to 0.03 s |
 | 15 | 6.6: executor validity is false "when a process died" | `run_timeline` calls a stream dead if it exits more than `EARLY_SLACK_S` (2 s) before its end with a non-zero code or without its summary and records (`left_output`, shared with `collect`); an early exit with its output is the end of its schedule | S1b: the engine exits when its last request is done, so 11 or 12 of the 29 legit streams exited more than 2 s early; the first version called each of them dead and would have ended the first real run (see below) |
+| 16 | 6.6: the legit `t0` spread exceeds 0.5 s | `alignment` takes the pack of each group of legit streams, the most that began within 0.5 s of one another, and the rest are stragglers; a group is sound when at most `straggler_share` (0.1: 2 of 29) of it are stragglers and each has a tail (how long its loop outlived its last request) of at most `straggler_tail_s` (0.1 s); the zero, the spread and the error of a later group are the pack's; `executor.stragglers`, `t0_range_legit_s` (all) and `t0_spread_legit_s` (the pack) in `run.json` | S1b: in 2 of 3 runs one or two streams began 0.6 to 2.3 s before the others, and their offsets are right to 0.06 s once the wall time is held to the records; the harm gate places a stream's records at `t_intended + offset_s`; you approved 10 % |
+| 17 | 6.6 and 10: the start-up delays and the exit delay per request are proposals | `startup_delay_legit_s` 2.5 (was 1.8), `startup_delay_attack_s` 0.15 (0.3), `exit_delay_per_request_s` 8e-6 (0); the simulated host starts its engines as measured (2.4 s, 0.14 s, 8e-6) | S1 and S1b: legit loops begin 2.0 to 2.55 s after the launch (median 2.04 to 2.40), attack loops 0.13 to 0.15 s, and an attack stream exits 8.0 us later for each request; with 1.8 s every U run would have put the attack 0.8 s early; S4 measures them again with the real launch chain and they are frozen after it |
 
 **Not built.** The calibration of the legit mix, the SLOs and the gate's constants: they stay the template's (the placeholder's) and are
 frozen with the record; changing them is a decision, not a measurement. The mitigated runs `M_<mode>` (HG4). Anything on the L3 and L4 paths (D20).
@@ -457,6 +460,8 @@ taken around them (p99 11.7 to 40.8 ms), so the executor's environment gate woul
 | the estimator's error as it was | 0.01 to 1.19 s | 0.02 to 0.08 s (attack 0.05 to 0.13) | 0.01 to 2.05 s | 0.01 to 0.32 s | 0.01 to 1.83 s |
 | estimated legit starts apart as it was (limit 0.5 s) | | | 0.622 s | 0.141 s | 0.295 s |
 | the same with the wall time held to the records | | | 2.381 s | 0.313 s | 2.088 s |
+| the largest pack within 0.5 s, and how wide it is | | | 27 of 29, 0.35 s | 29 of 29, 0.31 s | 28 of 29, 0.36 s |
+| the streams outside it (before the pack's median) | | | 2 (2.26 s, 0.64 s) | none | 1 (1.99 s) |
 
 [FACT] One legit stream in S1 command 1 and in S1b runs 1 and 3 began about 2 s before the others (0.2 s after its launch). In S1b its
 `wall_s` was 2.03 s shorter than its own records allow (the last request finished 29.28 s after its schedule's zero, `wall_s` was 27.29 s),
@@ -471,11 +476,15 @@ per request from three points (4.3k, 4.4k and 13.3k requests).
 **What the correction does to the rule.** [FACT] a6e6b95 raises a wall time that is shorter than `last t_done + 0.05` to that. Replayed
 through `alignment()` on S1b's files, the offsets are within 0.05 s of the true ones for all 87 streams (the error is -0.03 to 0.06 s). As it
 was, the three runs came out 0.622 s (unsound), 0.141 s and 0.295 s apart, and the stream that began at 0.21 s was put at 2.26 s, inside the
-pack; corrected, they come out 2.38 s (unsound), 0.31 s and 2.09 s (unsound), because one stream really began 2 s before the rest. The pack
-alone is within 0.18 to 0.31 s, so the limit of 0.5 s holds for it. What to do about a single early stream is open: the harm gate places a
-stream's records at `t_intended + offset_s`, so a right offset repairs its placement, while the rule as built calls the run unsound and a
-campaign has two re-runs. [PROPOSAL, nothing changed] `startup_delay_legit_s` about 2.5 s (S1b) instead of S1's 3.0 s,
-`startup_delay_attack_s` 0.15 s and `exit_delay_per_request_s` 8e-6 s (S1, three points); S4 measures them again with the real launch chain.
+pack; corrected, they come out 2.38 s (unsound), 0.31 s and 2.09 s (unsound), because streams really began before the rest: in run 1 one 2.26 s
+and another 0.64 s before the median of the others, in run 3 one 1.99 s. (An earlier version of this paragraph said that the rest lay within
+0.18 to 0.31 s; that was true of the streams whose wall time needed no correction, not of all the others.) The harm gate places a stream's
+records at `t_intended + offset_s`, so a right offset repairs its placement, and e80e6fc lets up to `straggler_share` of a group (10 %:
+2 of 29) begin outside the 0.5 s of the others when their loops ended with their last request. Replayed on S1b's files that makes all three
+runs sound, with 2, 0 and 1 stragglers: run 1 uses both places, so a run with a third would be unsound. The settings that go with it, from
+the same data, are applied in e80e6fc: `startup_delay_legit_s` 2.5 s (S1's 3.0 s was for a cold start), `startup_delay_attack_s` 0.15 s and
+`exit_delay_per_request_s` 8e-6 s (S1, three points). They are S1's and S1b's, on loopback without namespaces: S4 measures them again with
+the real launch chain and they are frozen after it.
 
 **Found by S1b, fixed in 938a1df.** `run_timeline` treated a stream that exits more than `EARLY_SLACK_S` (2 s) before its nominal end as dead,
 whatever its exit code. [FACT] The engine exits when its last request is done, not at the end of its duration: in S1b's 30 s probes 12, 11 and

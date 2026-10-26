@@ -482,8 +482,10 @@ It refuses a directory that holds anything, a tree with uncommitted changes (unl
 place twice; any error raised after it ends the run, tears down, and writes `FAILED`.
 
 **The clocks of the streams.** The engine writes no absolute time, so the executor estimates when each stream's schedule began from its
-exit time less its wall time, and `executor.ok` is false when the legit streams began more than 0.5 s apart, the attack began more than
-0.5 s from the end of the baseline, a stream died, left nothing or exited non-zero. The wall time is first raised to the last request's
+exit time less its wall time, and `executor.ok` is false when more than 10 % of the legit streams of a group (2 of 29) began outside the
+0.5 s of the others, or one of those stragglers is a stream whose loop ended more than 0.1 s after its last request (`executor.stragglers`
+in `run.json` lists them; their offsets place their records), the attack began more than 0.5 s from the end of the baseline, a stream died,
+left nothing or exited non-zero. The wall time is first raised to the last request's
 `t_done` plus 0.05 s when it is shorter, because an engine that is descheduled between reading its schedule's zero and its wall clock
 (29 streams starting together on one CPU) reports too short a wall time; `executor.wall_gap_s` records the raise of each stream. Against an
 origin's own arrival log on loopback (S1, S1b) the corrected estimate of a legit stream is within -0.03 to 0.06 s; `exit_delay_per_request_s`
