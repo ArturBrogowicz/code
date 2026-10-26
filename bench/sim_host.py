@@ -34,7 +34,6 @@ import origin as O
 import population as P
 
 BASE_EPOCH = 1_798_000_000.0              # the virtual clock's wall time at its zero
-ENGINE_DRAIN_S = 0.15                     # the engine's wait for requests in flight after its last send
 OK_FLAGS = {"slip": False, "sent_short": False, "cpu": False, "descriptors": False, "ports": False, "dropped": False}
 RECORD_HEADER = "i,t_intended,t_sent,t_done,status,bytes,err,ident,reused\n"
 CLASS_OF_PATH = {path: klass for klass, path in O.SAMPLE_URLS.items()}
@@ -84,20 +83,23 @@ class SimProc:
 class SimHost(X.Host):
     """`faults` maps a name to how many times it fires (None: always); `fault_schedule` maps the number of a topology (the 1st, the
     2nd... one is built per run) to faults that are armed when it is built, which is how a campaign's later runs are made to fail.
-    `dies` is a predicate on a stream id: those streams die at their start. `wall_late_s(stream id, index, kind)` is how long an
-    engine was descheduled between reading its schedule's zero and the clock its wall time counts from (S1b): the summary of that
-    stream reports that much less wall time; what it does to the first requests is not modeled. A stream whose requests are
-    still in flight at its nominal end exits when the last one is done, as the engine waits for them. The names the tests use:
+    `dies`, `silent` and `nonzero` are predicates on a stream id: those streams die at their start, exit 0 leaving no output, exit 3
+    leaving their output. An engine exits when its last request is answered, `exit_delay_s` later, as bench/loadgen.py does (S1b): a
+    stream of a few tenths of a request per second is gone long before its duration is over, and one whose last requests time out
+    outlives it. `wall_late_s(stream id, index, kind)` is how long an engine was descheduled between reading its schedule's zero and
+    the clock its wall time counts from: the summary of that stream reports that much less wall time; what it does to the first
+    requests is not modeled. The names the tests use:
     missing_address, duplicate_mac, no_netem, ping_fails, nginx_fails, origin_dies, not_ready, wrong_class, wrong_tag,
-    stubborn_origin, stubborn_nginx, origin_session_fails, leftover_nginx_after_teardown, server_address_missing, stream_dies, stream_silent,
-    stream_nonzero, stream_hangs, table_unreadable."""
+    stubborn_origin, stubborn_nginx, origin_session_fails, leftover_nginx_after_teardown, server_address_missing, stream_dies (one
+    engine dies), engines_die (every engine of one run dies: none of them can start), stream_silent, stream_nonzero, stream_hangs,
+    table_unreadable."""
 
     def __init__(self, root=True, dirty=False, nofile=(524288, 524288), uptime_s=7200.0, load1=0.05, timer_p99_ms=1.0,
                  preexisting=(), startup_s=None, exit_delay_s=0.04, exit_delay_per_request_s=0.0, faults=None,
                  log_lines=20, tag="placeholder", python_exists=True, steal_share=0.0, on_sleep=None, server=None,
-                 fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,), wall_late_s=None):
+                 fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,), wall_late_s=None, silent=None, nonzero=None):
         self.t = 0.0
-        self.wall_late_s = wall_late_s
+        self.wall_late_s, self.silent, self.nonzero = wall_late_s, silent, nonzero
         self.pids = itertools.count(1000)
         self.events, self.seq = [], itertools.count()
         self.procs = {}
@@ -117,6 +119,7 @@ class SimHost(X.Host):
         self.shield, self.unshielded = False, []
         self.pinned = None
         self.stream_index, self.batch_at = 0, None
+        self.dying_runs = set()               # run directories whose engines all die
         self.launch_times = {}
         self.access_log = None
         self.origin_ready_at = None
@@ -216,46 +219,59 @@ class SimHost(X.Host):
         loop_start = self.t + self.startup_s(sid, index, kind)
         duration, rate = float(opts["--duration"]), float(opts["--rate"])
         n = max(1, round(rate * duration))
-        wall = X.ENGINE_T0_OFFSET_S + duration + ENGINE_DRAIN_S
-        if self.fault("stream_dies") or (self.dies is not None and self.dies(sid)):
+        run_dir = _run_dir(opts)
+        if run_dir not in self.dying_runs and self.fault("engines_die"):
+            self.dying_runs.add(run_dir)
+        if run_dir in self.dying_runs or self.fault("stream_dies") or (self.dies is not None and self.dies(sid)):
             if stderr is not None:
                 stderr.write(b"Traceback: the simulated engine died\n")
             self.schedule(loop_start + 3.0, lambda: self.end(proc, 2))
             return proc
-        self.registry.setdefault(_run_dir(opts), []).append(
+        self.registry.setdefault(run_dir, []).append(
             {"kind": kind, "begin": loop_start, "end": loop_start + X.ENGINE_T0_OFFSET_S + duration, "rate": rate,
              "route": parse_stream_id(sid)[1]})
-        exit_at = loop_start + wall + self.exit_delay_s + self.exit_delay_per_request_s * n
-        silent, code = self.fault("stream_silent"), 3 if self.fault("stream_nonzero") else 0
+        silent = self.fault("stream_silent") or (self.silent is not None and self.silent(sid))
+        code = 3 if self.fault("stream_nonzero") or (self.nonzero is not None and self.nonzero(sid)) else 0
         late = self.wall_late_s(sid, index, kind) if self.wall_late_s else 0.0
-        self.schedule(exit_at, lambda: self._finish_stream(proc, sid, opts, local, loop_start, wall, n, silent, code, late))
+        # the engine has sent its last request when the schedule's last event is due; how long it takes to answer it is in the records,
+        # which are made then (every stream that can touch them has been started), and the engine exits after that
+        self.schedule(loop_start + X.ENGINE_T0_OFFSET_S + self._last_due(opts, n),
+                      lambda: self._finish_stream(proc, sid, opts, local, loop_start, n, silent, code, late))
         return proc
 
-    def _finish_stream(self, proc, sid, opts, local, loop_start, wall, n, silent, code, late=0.0):
+    def _last_due(self, opts, n):
+        """When the last request of a stream is due, in seconds after its schedule's zero."""
+        duration = float(opts["--duration"])
+        if self.server is None:
+            return (n - 0.5) * duration / n
+        sched = LG.schedule(opts.get("--process", "constant"), float(opts["--rate"]), duration, int(opts.get("--seed", 1)),
+                            period=float(opts.get("--period", 1.0)), duty=float(opts.get("--duty", 0.5)))
+        return float(sched[-1]) if len(sched) else 0.0
+
+    def _finish_stream(self, proc, sid, opts, local, loop_start, n, silent, code, late):
+        """The engine has sent its last request: it writes its files when the last is answered and exits `exit_delay_s` later (and a
+        little more for each request). The files are made now, as the end of the loop is known only from them."""
         if proc.returncode is not None:
             return
-        outlived = 0.0
+        took = self.t - loop_start                     # a stream that leaves nothing ends with its last send
         if not silent:
-            outlived = max(0.0, self._write_stream(sid, opts, local, loop_start, wall, n, late) - wall)
-        if outlived:                                   # requests were in flight at the nominal end: the engine waits for them
-            self.schedule(self.t + outlived, lambda: self.end(proc, code))
-        else:
-            self.end(proc, code)
+            took, n = self._write_stream(sid, opts, local, loop_start, n, late)
+        self.schedule(loop_start + took + self.exit_delay_s + self.exit_delay_per_request_s * n, lambda: self.end(proc, code))
 
-    def _write_stream(self, sid, opts, local, loop_start, wall, n, late=0.0):
-        """Writes the stream's files. Returns the wall time its loop took: `wall`, or longer if a request was still in flight
-        at the end; the summary says `late` less than that."""
+    def _write_stream(self, sid, opts, local, loop_start, n, late):
+        """Writes the stream's files. Returns the wall time its loop took, which is until its last request was answered (a timeout
+        included), and the number of requests; the summary says `late` less than that."""
         duration = float(opts["--duration"])
         os.makedirs(os.path.dirname(opts["--summary"]), exist_ok=True)
         if self.server is not None:
-            n = self.server.write(sid, opts, wall, max(1, len(local)), self.registry.get(_run_dir(opts), ()), loop_start)
+            n = self.server.write(sid, opts, X.ENGINE_T0_OFFSET_S, max(1, len(local)), self.registry.get(_run_dir(opts), ()), loop_start)
         else:
             with gzip.open(opts["--records"], "wt") as fh:
                 fh.write(RECORD_HEADER)
                 for i in range(n):
                     due = (i + 0.5) * duration / n
                     fh.write(f"{i},{due:.6f},{due + 0.001:.6f},{due + 0.011:.6f},200,100,,0,1\n")
-            write_summary(opts["--summary"], n, n, 0.002, wall)
+            write_summary(opts["--summary"], n, n, 0.002, (n - 0.5) * duration / n + 0.011 + X.ENGINE_T0_OFFSET_S)
         with open(opts["--summary"], encoding="utf-8") as fh:
             summary = json.load(fh)
         took = summary["wall_s"]
@@ -265,7 +281,7 @@ class SimHost(X.Host):
                 json.dump(summary, fh)
         if self.access_log and local:
             self._log_requests(local[0], loop_start + X.ENGINE_T0_OFFSET_S, duration, min(n, self.log_lines))
-        return took
+        return took, n
 
     def _log_requests(self, ip, zero, duration, count):
         with open(self.access_log, "a", encoding="utf-8") as fh:
@@ -656,7 +672,8 @@ class SyntheticServer:
         return load / self.capacity_cpu
 
     def write(self, sid, opts, wall, identities, others=(), begin=0.0):
-        """The records and the summary of one stream at the paths in `opts`; returns the number of requests it intended."""
+        """The records and the summary of one stream at the paths in `opts`; returns the number of requests it intended. The wall
+        time in the summary is `wall` or, if more, until the last request was answered (a timeout included) plus the engine's offset."""
         run_dir = _run_dir(opts)
         run = os.path.basename(run_dir)
         label = f"{os.path.basename(os.path.dirname(run_dir))}/{run}"          # b03_a1/U, 07_L2_r1/U: what makes a run this run

@@ -7,6 +7,7 @@ import gzip
 import io
 import itertools
 import json
+import math
 import os
 import signal
 import subprocess
@@ -33,6 +34,11 @@ import sim_host as F
 
 SPEC = os.path.join(REPO, "bench", "scenarios", "costly_search_sub_threshold.json")
 SHORT = (10.0, 10.0, 10.0)                # baseline, attack, recovery: virtual time is free, events are not
+
+
+def stream_of(proc):
+    """The id of the stream that a simulated engine process runs."""
+    return os.path.basename(os.path.dirname(proc.argv[proc.argv.index("--summary") + 1]))
 
 
 def bare_settings(**changes):
@@ -264,6 +270,66 @@ class TimelineTest(RunCase):
         self.assertFalse(os.path.exists(os.path.join(plan.out, "run.json")))
         self.assertTestbedEmpty(host)
         self.assertLess(host.t, 15.0, "the run was cut short, not left to run its length")
+
+    def test_a_stream_that_has_sent_its_last_request_exits_and_is_not_dead(self):
+        host = F.SimHost()
+        plan, _, result = self.go("C", host)
+        self.assertTrue(result.ok, result.reasons)
+        streams = [p for p in host.procs.values() if p.role == "stream"]
+        early = [p for p in streams if host.launch_times[stream_of(p)] + 1.8 + 30.0 - (p.exit_time - F.BASE_EPOCH) > X.EARLY_SLACK_S]
+        self.assertEqual(len(streams), 29)
+        self.assertGreaterEqual(len(early), 3, "streams of a few tenths of a request per second are gone long before the run is over")
+        self.assertFalse(any("before its end" in r for r in result.reasons))
+        self.assertEqual(len(H.read_run(plan.out)["streams"]), 29)
+        self.assertGreater(host.t, 31.0, "the run went on to its last stream")
+
+    def lowest(self, plan):
+        """The legit stream of the fewest requests: it exits long before the end of the run (a single request is due half way)."""
+        stream = min((s for s in plan.streams if s.kind == "legit"), key=lambda s: s.rate)
+        self.assertLessEqual(round(stream.rate * stream.duration_s), 5, "its last request is due well before the end")
+        return stream.id
+
+    def test_a_stream_that_exits_with_an_error_before_its_end_ends_the_run_even_with_its_output(self):
+        plan = self.plan("C")
+        stream = self.lowest(plan)
+        host = F.SimHost(nonzero=lambda sid: sid == stream)
+        plan, _, result = self.go("C", host)
+        self.assertFalse(result.ok)
+        said = [r for r in result.reasons if r.startswith(f"stream {stream} exited with 3 at T+")]
+        self.assertEqual(len(said), 1, result.reasons)
+        self.assertIn("s before its end", said[0])
+        self.assertNotIn("leaving no output", said[0], "it left its output")
+        self.assertLess(host.t, 29.0, "the run was cut short")
+        self.assertTestbedEmpty(host)
+
+    def test_a_stream_that_exits_zero_before_its_end_leaving_no_output_ends_the_run(self):
+        plan = self.plan("C")
+        stream = self.lowest(plan)
+        host = F.SimHost(silent=lambda sid: sid == stream)
+        plan, _, result = self.go("C", host)
+        self.assertFalse(result.ok)
+        said = [r for r in result.reasons if r.startswith(f"stream {stream} exited with 0 at T+")]
+        self.assertEqual(len(said), 1, result.reasons)
+        self.assertTrue(said[0].endswith("s before its end, leaving no output"), said[0])
+        self.assertLess(host.t, 29.0, "the run was cut short")
+        self.assertTestbedEmpty(host)
+
+    def test_a_stream_that_exits_with_an_error_within_the_slack_of_its_end_does_not_end_the_run(self):
+        base = F.SimHost()
+        self.go("C", base, plan_args={"name": "base/C"})
+        # the executor looks once a second from the launch: it sees an exit at the first look at or after it
+        seen = {stream_of(p): math.ceil(p.exit_time - F.BASE_EPOCH - base.launch_times[stream_of(p)]) for p in base.procs.values()
+                if p.role == "stream"}
+        end = 1.8 + 30.0
+        near = sorted(sid for sid, look in seen.items() if end - X.EARLY_SLACK_S <= look < end)
+        self.assertTrue(near, f"some stream is first seen to have exited within {X.EARLY_SLACK_S:g} s of its end: {sorted(seen.values())}")
+        host = F.SimHost(nonzero=lambda sid: sid == near[0])
+        plan, _, result = self.go("C", host)
+        self.assertFalse(result.ok)
+        self.assertEqual([r for r in result.reasons if "before its end" in r], [], "it is within the slack of its end")
+        self.assertTrue(any(f"stream {near[0]} exited with 3" in r for r in result.reasons), result.reasons)
+        self.assertEqual(len(H.read_run(plan.out)["streams"]), 29)
+        self.assertGreater(host.t, 31.0)
 
     def test_a_stream_that_leaves_no_output_is_left_out_and_the_run_is_unsound(self):
         host = F.SimHost(faults={"stream_silent": 1})
@@ -1030,6 +1096,21 @@ class LastDoneTest(unittest.TestCase):
         return path
 
 
+class LeftOutputTest(RunCase):
+    def test_an_engine_has_left_its_output_when_it_left_its_summary_and_its_records(self):
+        stream = self.plan("C").streams[0]
+        os.makedirs(stream.workdir)
+        self.assertFalse(X.left_output(stream))
+        with open(stream.summary, "w", encoding="utf-8") as fh:
+            fh.write("{}")
+        self.assertFalse(X.left_output(stream), "the records are missing")
+        with open(stream.records, "wb") as fh:
+            fh.write(b"")
+        self.assertTrue(X.left_output(stream))
+        os.remove(stream.summary)
+        self.assertFalse(X.left_output(stream), "the summary is missing")
+
+
 class CollectTest(RunCase):
     """collect() on files like the engines leave, with their exit times given: what the executor makes of them."""
 
@@ -1132,6 +1213,9 @@ class CollectTest(RunCase):
 class DescheduledEngineTest(RunCase):
     """A whole run on the simulated host in which one engine was descheduled between its two clock readings (S1b)."""
 
+    def offset(self, plan, sid):
+        return {s["id"]: s["offset_s"] for s in self.run_json(plan)["streams"]}[sid]
+
     def run_with(self, late=2.0, correct=True, name="C"):
         busiest = max((st for st in self.plan("C", name="look/C").streams if st.kind == "legit"), key=lambda st: st.rate).id
         host = F.SimHost(wall_late_s=lambda sid, index, kind: late if sid == busiest else 0.0)
@@ -1146,14 +1230,15 @@ class DescheduledEngineTest(RunCase):
         plan, result, busiest = self.run_with()
         self.assertTrue(result.ok, result.reasons)
         run = self.run_json(plan)
-        self.assertLess(abs({s["id"]: s["offset_s"] for s in run["streams"]}[busiest]), 0.5)
+        base, _, _ = self.run_with(late=0.0, name="base/C")
+        self.assertAlmostEqual(self.offset(plan, busiest), self.offset(base, busiest), places=6, msg="where it is without the stall")
         gap = run["executor"]["wall_gap_s"]
-        self.assertGreater(gap[busiest], 1.5)
+        self.assertAlmostEqual(gap[busiest], 2.0, places=3, msg="the engine's wall time was 2 s short, and the records say so")
         self.assertEqual(sum(v > 0.05 for v in gap.values()), 1)
 
     def test_the_run_log_says_which_wall_times_were_raised_and_by_how_much(self):
         plan, _, _ = self.run_with()
-        self.assertRegex(self.read(plan, "executor.log"), r"wall time of 1 stream\(s\) raised to what their records need, by up to 1\.\d\d s")
+        self.assertIn("wall time of 1 stream(s) raised to what their records need, by up to 2.00 s", self.read(plan, "executor.log"))
 
     def test_the_log_counts_the_streams_and_names_the_largest_gap(self):
         plan0 = self.plan("C", name="look/C")
@@ -1168,11 +1253,9 @@ class DescheduledEngineTest(RunCase):
         self.assertIn(f"wall time of 2 stream(s) raised to what their records need, by up to {raised[1]:.2f} s", self.read(plan, "executor.log"))
 
     def test_the_log_mentions_a_gap_from_fifty_milliseconds_and_not_below(self):
-        plan, _, busiest = self.run_with(late=2.0, name="first/C")
-        slack = 2.0 - self.run_json(plan)["executor"]["wall_gap_s"][busiest]          # what the simulated engine's wall time has to spare
         said = []
-        for late in (slack + 0.03, slack + 0.07):
-            plan, _, _ = self.run_with(late=late, name=f"late{late:.3f}/C")
+        for late in (0.03, 0.07):
+            plan, _, _ = self.run_with(late=late, name=f"late{late}/C")
             said.append("raised to what their records need" in self.read(plan, "executor.log"))
         self.assertEqual(said, [False, True])
 
@@ -1184,7 +1267,8 @@ class DescheduledEngineTest(RunCase):
         plan, result, busiest = self.run_with(correct=False)
         self.assertFalse(result.ok)
         self.assertTrue(any("apart" in r for r in result.reasons), result.reasons)
-        self.assertGreater({s["id"]: s["offset_s"] for s in self.run_json(plan)["streams"]}[busiest], 1.5)
+        base, _, _ = self.run_with(late=0.0, name="base/C")
+        self.assertAlmostEqual(self.offset(plan, busiest) - self.offset(base, busiest), 2.0, delta=0.01)    # the median start may move a rank
 
 
 class AccessLogTest(unittest.TestCase):

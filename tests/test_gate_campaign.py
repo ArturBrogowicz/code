@@ -280,7 +280,7 @@ class WholeCampaignTest(CampaignCase):
 
 class RerunRuleTest(CampaignCase):
     def test_a_failed_block_is_re_run_once_with_its_seed(self):
-        host = self.host(fault_schedule={1: {"stream_dies": 1}})
+        host = self.host(fault_schedule={1: {"engines_die": 1}})
         state = self.run_campaign(host=host)
         self.assertEqual(self.dirs(), ["b01_a1", "b01_a2", "b02_a1", "b03_a1"])
         first, second = self.json("b01_a1", "block.json"), self.json("b01_a2", "block.json")
@@ -290,6 +290,18 @@ class RerunRuleTest(CampaignCase):
         self.assertEqual(second["planned_order"], GC.run_order(self.scn, 1, 2))
         self.assertEqual(state["reruns"], 1)
         self.assertEqual((state["gate"]["verdict"], state["gate"]["blocks_valid"], state["gate"]["reruns"]), ("PASS", 3, 1))
+        self.assertEqual([(a["block"], a["attempt"], a["valid"]) for a in state["attempts"]],
+                         [(1, 1, False), (1, 2, True), (2, 1, True), (3, 1, True)])
+
+    def test_a_run_in_which_one_engine_dies_is_found_unsound_and_ends_the_attempt(self):
+        """Other engines had finished by then (streams of a few tenths of a request per second do), so the run leaves a record."""
+        host = self.host(fault_schedule={1: {"stream_dies": 1}})
+        state = self.run_campaign(host=host)
+        first = self.json("b01_a1", "block.json")
+        self.assertEqual((first["order"], first["aborted"]), (first["planned_order"][:1], first["planned_order"][0]))
+        run = self.json("b01_a1", first["planned_order"][0], "run.json")
+        self.assertFalse(run["executor"]["ok"])
+        self.assertTrue(any("leaving no output" in r for r in run["executor"]["reasons"]), run["executor"]["reasons"])
         self.assertEqual([(a["block"], a["attempt"], a["valid"]) for a in state["attempts"]],
                          [(1, 1, False), (1, 2, True), (2, 1, True), (3, 1, True)])
 
@@ -393,7 +405,7 @@ class WarmupTest(CampaignCase):
         self.assertEqual([c.args[2] for c in spy.call_args_list], ["full"] + ["timer"] * 8)
 
     def test_a_warm_up_that_fails_stops_the_campaign(self):
-        host = self.host(fault_schedule={1: {"stream_dies": 1}})
+        host = self.host(fault_schedule={1: {"engines_die": 1}})
         with self.assertRaises(GC.CampaignError) as ctx:
             self.run_campaign(host=host, warmup=True)
         self.assertIn("warm-up run failed", str(ctx.exception))

@@ -193,19 +193,23 @@ class StreamExitTest(unittest.TestCase):
         with open(path, encoding="utf-8") as fh:
             return json.load(fh)["wall_s"]
 
-    def test_an_engine_reports_the_wall_time_of_its_loop(self):
+    LAST = (600 - 0.5) * 30.0 / 600                  # the last of 600 requests in 30 s is due then, after the schedule's zero
+
+    def test_an_engine_reports_the_wall_time_of_its_loop_which_ends_with_its_last_request(self):
         host = S.SimHost()
         proc, summary = self.start(host)
         host.sleep(40.0)
         self.assertEqual(proc.returncode, 0)
-        self.assertAlmostEqual(self.wall(summary), X.ENGINE_T0_OFFSET_S + 30.0 + S.ENGINE_DRAIN_S)
+        self.assertAlmostEqual(self.wall(summary), self.LAST + 0.011 + X.ENGINE_T0_OFFSET_S)
+        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, 1.8 + self.wall(summary) + 0.04, places=5)
 
     def test_an_engine_descheduled_between_its_two_clock_readings_reports_that_much_less(self):
         host = S.SimHost(wall_late_s=lambda sid, index, kind: 2.0)
         proc, summary = self.start(host)
         host.sleep(40.0)
-        self.assertAlmostEqual(self.wall(summary), X.ENGINE_T0_OFFSET_S + 30.0 + S.ENGINE_DRAIN_S - 2.0)
-        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, 1.8 + 30.2 + 0.04, places=5, msg="it still exits when its loop did")
+        self.assertAlmostEqual(self.wall(summary), self.LAST + 0.011 + X.ENGINE_T0_OFFSET_S - 2.0)
+        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, 1.8 + self.LAST + 0.011 + X.ENGINE_T0_OFFSET_S + 0.04, places=5,
+                               msg="it still exits when its loop did")
 
     def test_the_hook_is_asked_for_the_stream_its_place_among_those_launched_together_and_its_kind(self):
         asked = []
@@ -214,12 +218,63 @@ class StreamExitTest(unittest.TestCase):
         self.start(host, sid="L-constant-C2-perfect-0")
         self.assertEqual(asked, [("L-constant-C1-perfect-0", 0, "legit"), ("L-constant-C2-perfect-0", 1, "legit")])
 
-    def test_an_engine_whose_requests_are_in_flight_at_its_nominal_end_exits_when_the_last_is_done(self):
+    def test_a_stream_of_few_requests_is_gone_long_before_its_duration_is_over(self):
+        host = S.SimHost()
+        proc, summary = self.start(host, rate=0.07)                  # two requests in 30 s: the last is due at 22.5 s
+        host.sleep(23.0)
+        self.assertIsNone(proc.returncode)
+        host.sleep(2.0)
+        self.assertEqual(proc.returncode, 0)
+        self.assertAlmostEqual(self.wall(summary), 22.5 + 0.011 + X.ENGINE_T0_OFFSET_S)
+        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, 1.8 + 22.5 + 0.011 + 0.05 + 0.04, places=5)
+
+    def test_with_a_server_the_engine_exits_when_the_last_request_of_its_records_is_answered(self):
+        host = S.SimHost(server=S.SyntheticServer(CAL, TIMELINE, {}))
+        proc, summary = self.start(host, rate=3.0)
+        host.sleep(40.0)
+        with gzip.open(os.path.join(os.path.dirname(summary), "loadgen.records.csv.gz"), "rt", newline="") as fh:
+            last = max(float(r["t_done"]) for r in csv.DictReader(fh))
+        self.assertAlmostEqual(self.wall(summary), last + X.ENGINE_T0_OFFSET_S, places=5)
+        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, 1.8 + last + 0.05 + 0.04, places=5)
+
+    def test_a_silent_engine_ends_with_its_last_send_and_leaves_nothing(self):
+        host = S.SimHost(silent=lambda sid: True)
+        proc, summary = self.start(host)
+        host.sleep(40.0)
+        self.assertEqual(proc.returncode, 0)
+        self.assertFalse(os.path.exists(summary))
+        self.assertFalse(os.path.exists(os.path.join(os.path.dirname(summary), "loadgen.records.csv.gz")))
+        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, 1.8 + 0.05 + self.LAST + 0.04, places=5)
+
+    def test_an_engine_can_exit_non_zero_and_keep_its_files(self):
+        host = S.SimHost(nonzero=lambda sid: True)
+        proc, summary = self.start(host)
+        host.sleep(40.0)
+        self.assertEqual(proc.returncode, 3)
+        self.assertTrue(os.path.exists(summary))
+
+    def test_the_part_of_the_exit_delay_that_grows_with_the_requests_is_added_per_request(self):
+        plain, slow = S.SimHost(), S.SimHost(exit_delay_per_request_s=0.001)
+        a, _ = self.start(plain, run="A")
+        b, _ = self.start(slow, run="B")
+        plain.sleep(40.0)
+        slow.sleep(40.0)
+        self.assertAlmostEqual(b.exit_time - a.exit_time, 0.001 * 600, places=5)
+
+    def test_when_every_engine_of_a_run_dies_the_streams_of_another_run_live(self):
+        host = S.SimHost(faults={"engines_die": 1})
+        first, _ = self.start(host, run="C", sid="L-constant-C1-perfect-0")
+        second, _ = self.start(host, run="C", sid="L-constant-C2-perfect-0")
+        other, _ = self.start(host, run="Cp", sid="L-constant-C1-perfect-0")
+        host.sleep(10.0)
+        self.assertEqual((first.returncode, second.returncode, other.returncode), (2, 2, None))
+
+    def test_an_engine_whose_last_requests_time_out_outlives_its_duration_and_exits_when_the_last_is_done(self):
         late = (20.0, 10.0, 10.0)                       # the window of the effect ends with the run: its timeouts end ten seconds later
         host = S.SimHost(server=S.SyntheticServer(CAL, late, {"U": {"fail_p": 1.0}}))
         proc, summary = self.start(host, run="U")
         host.sleep(35.0)
-        self.assertIsNone(proc.returncode, "its nominal exit is at 32 s; requests were still in flight")
+        self.assertIsNone(proc.returncode, "its requests time out until 40 s")
         host.sleep(15.0)
         self.assertEqual(proc.returncode, 0)
         wall = self.wall(summary)

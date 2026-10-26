@@ -461,7 +461,7 @@ def describe(plan, python=None):
 Result = collections.namedtuple("Result", "code out err")
 RunResult = collections.namedtuple("RunResult", "ok reasons out setup_retries seconds")
 ENGINE_T0_OFFSET_S = 0.05            # bench/loadgen.py: the schedule's zero is 50 ms after its loop starts
-EARLY_SLACK_S = 2.0                  # a stream that exits this much before its end has died
+EARLY_SLACK_S = 2.0                  # a stream that exits with an error, or leaving no output, this much before its end has died
 DRAIN_S = 12.0                       # the engine waits for requests in flight for its timeout (10 s) plus 2 s
 MAX_SETUP_RETRIES = 2
 TICK_S = 1.0
@@ -1282,9 +1282,16 @@ def launch_streams(host, streams, log, procs):
     log(f"launched {len(streams)} {streams[0].kind} streams" if streams else "no streams to launch")
 
 
+def left_output(stream):
+    """Whether an engine left its summary and its records."""
+    return os.path.exists(stream.summary) and os.path.exists(stream.records)
+
+
 def run_timeline(host, plan, log, procs, sampler):
     """Launch every stream at its time (launch_due), sample once a second, and wait for all of them to exit. Returns the
-    times of the first launch of each kind and the reasons the timeline went wrong (a stream that died, one that never ended)."""
+    times of the first launch of each kind and the reasons the timeline went wrong (a stream that died, one that never ended).
+    An engine exits when its last request is done (S1b), so a stream of a few tenths of a request per second ends long before
+    its duration does; it has died only if it exits with an error, or leaving no output, more than EARLY_SLACK_S before its end."""
     s = plan.settings
     t_launch = host.time()
     waiting = sorted(plan.streams, key=lambda x: (launch_due(plan, x), x.id))
@@ -1305,11 +1312,11 @@ def run_timeline(host, plan, log, procs, sampler):
                 if not sampler.pids:
                     sampler.attach()
         sampler.sample(now - t_launch)
-        early = [x for x in plan.streams if x.id in procs and procs[x.id].poll() is not None
-                 and now < ends[x.id] - EARLY_SLACK_S]
-        if early:
+        dead = [x for x in plan.streams if x.id in procs and procs[x.id].poll() is not None
+                and now < ends[x.id] - EARLY_SLACK_S and (procs[x.id].poll() != 0 or not left_output(x))]
+        if dead:
             reasons += [f"stream {x.id} exited with {procs[x.id].poll()} at T+{now - t_launch:.1f} s, "
-                        f"{ends[x.id] - now:.0f} s before its end" for x in early]
+                        f"{ends[x.id] - now:.0f} s before its end" + ("" if left_output(x) else ", leaving no output") for x in dead]
             break
         running = [x for x in plan.streams if x.id in procs and procs[x.id].poll() is None]
         if not running and not waiting:
@@ -1361,7 +1368,7 @@ def collect(plan, procs, launched, problems):
         if p is None:
             reasons.append(f"stream {s.id} was never launched")
             continue
-        if p.poll() is None or not (os.path.exists(s.summary) and os.path.exists(s.records)):
+        if p.poll() is None or not left_output(s):
             said = _tail(f"{s.workdir}/loadgen.stderr")
             reasons.append(f"stream {s.id} left no output (exit {p.poll()})" + (f": {said}" if said else ""))
             continue
