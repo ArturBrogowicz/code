@@ -52,11 +52,13 @@ def interrupt_after(seconds):
 
 
 def without_times(meta):
-    """block.json without the clock times, which differ between a campaign and the same one resumed."""
+    """block.json without the clock times, which differ between a campaign and the same one resumed: a run that an earlier process
+    finished keeps the time its DONE marker has, one made by this process has none."""
     meta = copy.deepcopy(meta)
     meta.pop("finished_utc", None)
     for run in meta.get("runs", {}).values():
         run.pop("seconds", None)
+        run.pop("finished_utc", None)
     return meta
 
 

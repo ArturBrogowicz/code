@@ -51,13 +51,13 @@ class SyntheticServerTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
 
-    def write(self, run="C", sid="L-constant-C1-perfect-0", rate=20.0, duration=30.0, effects=None, seed=5, identities=3):
+    def write(self, run="C", sid="L-constant-C1-perfect-0", rate=20.0, duration=30.0, effects=None, seed=5, identities=3, wall=30.5):
         workdir = os.path.join(self.tmp.name, "block", run, "streams", sid)          # the parent's name is part of the draw
         os.makedirs(workdir, exist_ok=True)
         opts = {"--rate": str(rate), "--duration": str(duration), "--process": "constant", "--seed": str(seed),
                 "--summary": os.path.join(workdir, "loadgen.summary.json"),
                 "--records": os.path.join(workdir, "loadgen.records.csv.gz")}
-        n = S.SyntheticServer(CAL, TIMELINE, effects).write(sid, opts, 30.5, identities)
+        n = S.SyntheticServer(CAL, TIMELINE, effects).write(sid, opts, wall, identities)
         with gzip.open(opts["--records"], "rt", newline="") as fh:
             rows = list(csv.DictReader(fh))
         with open(opts["--summary"], encoding="utf-8") as fh:
@@ -95,6 +95,17 @@ class SyntheticServerTest(unittest.TestCase):
         done, sent = self.column(rows, "t_done"), self.column(rows, "t_sent")
         self.assertTrue(np.allclose((done - sent)[failed], S.TIMEOUT_S))
         self.assertEqual({r["status"] for r, f in zip(rows, failed, strict=True) if f}, {"0"})
+
+    def test_the_loop_lasts_until_the_last_request_is_done_a_timeout_included(self):
+        _, rows, summary = self.write(run="U", effects={"U": {"fail_p": 1.0}}, wall=25.0)
+        last = float(np.max(self.column(rows, "t_done")))
+        self.assertGreater(last, 29.9, "the requests sent at the end of the window time out ten seconds later")
+        self.assertAlmostEqual(summary["wall_s"], last + X.ENGINE_T0_OFFSET_S, places=5, msg="the records hold six decimals")
+
+    def test_a_wall_time_that_holds_the_last_request_is_left_as_given(self):
+        _, rows, summary = self.write(wall=31.7)
+        self.assertEqual(summary["wall_s"], 31.7)
+        self.assertLess(float(np.max(self.column(rows, "t_done"))) + X.ENGINE_T0_OFFSET_S, 31.7)
 
     def test_an_effect_of_a_given_share_fails_about_that_share(self):
         _, rows, _ = self.write(run="U", rate=200.0, effects={"U": {"fail_p": 0.3}})
@@ -160,6 +171,70 @@ class SyntheticServerTest(unittest.TestCase):
         n, rows, summary = self.write(run="U", sid="A-costly_search_flood-perfect-0", rate=100.0, duration=30.0)
         self.assertEqual(len(rows), S.ATTACK_RECORDS)
         self.assertEqual((n, summary["intended"], summary["sent"]), (3000, 3000, 3000))
+
+
+class StreamExitTest(unittest.TestCase):
+    """When a simulated engine exits and what its summary says about its wall time."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def start(self, host, run="C", sid="L-constant-C1-perfect-0", rate=20.0, duration=30.0):
+        workdir = os.path.join(self.tmp.name, "block", run, "streams", sid)
+        os.makedirs(workdir)
+        argv = ["python", "bench/loadgen.py", "--rate", str(rate), "--duration", str(duration), "--process", "constant", "--seed", "1",
+                "--summary", os.path.join(workdir, "loadgen.summary.json"),
+                "--records", os.path.join(workdir, "loadgen.records.csv.gz")]
+        return host.popen(argv), os.path.join(workdir, "loadgen.summary.json")
+
+    @staticmethod
+    def wall(path):
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)["wall_s"]
+
+    def test_an_engine_reports_the_wall_time_of_its_loop(self):
+        host = S.SimHost()
+        proc, summary = self.start(host)
+        host.sleep(40.0)
+        self.assertEqual(proc.returncode, 0)
+        self.assertAlmostEqual(self.wall(summary), X.ENGINE_T0_OFFSET_S + 30.0 + S.ENGINE_DRAIN_S)
+
+    def test_an_engine_descheduled_between_its_two_clock_readings_reports_that_much_less(self):
+        host = S.SimHost(wall_late_s=lambda sid, index, kind: 2.0)
+        proc, summary = self.start(host)
+        host.sleep(40.0)
+        self.assertAlmostEqual(self.wall(summary), X.ENGINE_T0_OFFSET_S + 30.0 + S.ENGINE_DRAIN_S - 2.0)
+        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, 1.8 + 30.2 + 0.04, places=5, msg="it still exits when its loop did")
+
+    def test_the_hook_is_asked_for_the_stream_its_place_among_those_launched_together_and_its_kind(self):
+        asked = []
+        host = S.SimHost(wall_late_s=lambda sid, index, kind: asked.append((sid, index, kind)) or 0.0)
+        self.start(host, sid="L-constant-C1-perfect-0")
+        self.start(host, sid="L-constant-C2-perfect-0")
+        self.assertEqual(asked, [("L-constant-C1-perfect-0", 0, "legit"), ("L-constant-C2-perfect-0", 1, "legit")])
+
+    def test_an_engine_whose_requests_are_in_flight_at_its_nominal_end_exits_when_the_last_is_done(self):
+        late = (20.0, 10.0, 10.0)                       # the window of the effect ends with the run: its timeouts end ten seconds later
+        host = S.SimHost(server=S.SyntheticServer(CAL, late, {"U": {"fail_p": 1.0}}))
+        proc, summary = self.start(host, run="U")
+        host.sleep(35.0)
+        self.assertIsNone(proc.returncode, "its nominal exit is at 32 s; requests were still in flight")
+        host.sleep(15.0)
+        self.assertEqual(proc.returncode, 0)
+        wall = self.wall(summary)
+        self.assertGreater(wall, 39.9)
+        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, 1.8 + wall + 0.04, places=5)
+
+    def test_a_signal_ends_an_engine_that_is_waiting_for_its_requests(self):
+        late = (20.0, 10.0, 10.0)
+        host = S.SimHost(server=S.SyntheticServer(CAL, late, {"U": {"fail_p": 1.0}}))
+        proc, _ = self.start(host, run="U")
+        host.sleep(35.0)
+        proc.terminate()
+        self.assertEqual(proc.returncode, -15)
+        host.sleep(15.0)
+        self.assertEqual(proc.returncode, -15, "its late exit does not overwrite how it ended")
 
 
 class LoadModelTest(unittest.TestCase):

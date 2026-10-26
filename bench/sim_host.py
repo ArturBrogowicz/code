@@ -84,7 +84,10 @@ class SimProc:
 class SimHost(X.Host):
     """`faults` maps a name to how many times it fires (None: always); `fault_schedule` maps the number of a topology (the 1st, the
     2nd... one is built per run) to faults that are armed when it is built, which is how a campaign's later runs are made to fail.
-    `dies` is a predicate on a stream id: those streams die at their start. The names the tests use:
+    `dies` is a predicate on a stream id: those streams die at their start. `wall_late_s(stream id, index, kind)` is how long an
+    engine was descheduled between reading its schedule's zero and the clock its wall time counts from (S1b): the summary of that
+    stream reports that much less wall time; what it does to the first requests is not modeled. A stream whose requests are
+    still in flight at its nominal end exits when the last one is done, as the engine waits for them. The names the tests use:
     missing_address, duplicate_mac, no_netem, ping_fails, nginx_fails, origin_dies, not_ready, wrong_class, wrong_tag,
     stubborn_origin, stubborn_nginx, origin_session_fails, leftover_nginx_after_teardown, server_address_missing, stream_dies, stream_silent,
     stream_nonzero, stream_hangs, table_unreadable."""
@@ -92,8 +95,9 @@ class SimHost(X.Host):
     def __init__(self, root=True, dirty=False, nofile=(524288, 524288), uptime_s=7200.0, load1=0.05, timer_p99_ms=1.0,
                  preexisting=(), startup_s=None, exit_delay_s=0.04, exit_delay_per_request_s=0.0, faults=None,
                  log_lines=20, tag="placeholder", python_exists=True, steal_share=0.0, on_sleep=None, server=None,
-                 fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,)):
+                 fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,), wall_late_s=None):
         self.t = 0.0
+        self.wall_late_s = wall_late_s
         self.pids = itertools.count(1000)
         self.events, self.seq = [], itertools.count()
         self.procs = {}
@@ -223,17 +227,24 @@ class SimHost(X.Host):
              "route": parse_stream_id(sid)[1]})
         exit_at = loop_start + wall + self.exit_delay_s + self.exit_delay_per_request_s * n
         silent, code = self.fault("stream_silent"), 3 if self.fault("stream_nonzero") else 0
-        self.schedule(exit_at, lambda: self._finish_stream(proc, sid, opts, local, loop_start, wall, n, silent, code))
+        late = self.wall_late_s(sid, index, kind) if self.wall_late_s else 0.0
+        self.schedule(exit_at, lambda: self._finish_stream(proc, sid, opts, local, loop_start, wall, n, silent, code, late))
         return proc
 
-    def _finish_stream(self, proc, sid, opts, local, loop_start, wall, n, silent, code):
+    def _finish_stream(self, proc, sid, opts, local, loop_start, wall, n, silent, code, late=0.0):
         if proc.returncode is not None:
             return
+        outlived = 0.0
         if not silent:
-            self._write_stream(sid, opts, local, loop_start, wall, n)
-        self.end(proc, code)
+            outlived = max(0.0, self._write_stream(sid, opts, local, loop_start, wall, n, late) - wall)
+        if outlived:                                   # requests were in flight at the nominal end: the engine waits for them
+            self.schedule(self.t + outlived, lambda: self.end(proc, code))
+        else:
+            self.end(proc, code)
 
-    def _write_stream(self, sid, opts, local, loop_start, wall, n):
+    def _write_stream(self, sid, opts, local, loop_start, wall, n, late=0.0):
+        """Writes the stream's files. Returns the wall time its loop took: `wall`, or longer if a request was still in flight
+        at the end; the summary says `late` less than that."""
         duration = float(opts["--duration"])
         os.makedirs(os.path.dirname(opts["--summary"]), exist_ok=True)
         if self.server is not None:
@@ -245,8 +256,16 @@ class SimHost(X.Host):
                     due = (i + 0.5) * duration / n
                     fh.write(f"{i},{due:.6f},{due + 0.001:.6f},{due + 0.011:.6f},200,100,,0,1\n")
             write_summary(opts["--summary"], n, n, 0.002, wall)
+        with open(opts["--summary"], encoding="utf-8") as fh:
+            summary = json.load(fh)
+        took = summary["wall_s"]
+        if late:
+            summary["wall_s"] = took - late
+            with open(opts["--summary"], "w", encoding="utf-8") as fh:
+                json.dump(summary, fh)
         if self.access_log and local:
             self._log_requests(local[0], loop_start + X.ENGINE_T0_OFFSET_S, duration, min(n, self.log_lines))
+        return took
 
     def _log_requests(self, ip, zero, duration, count):
         with open(self.access_log, "a", encoding="utf-8") as fh:
@@ -671,6 +690,8 @@ class SyntheticServer:
                 failed = bool(bad[i])
                 fh.write(f"{i},{sched[i]:.6f},{sent[i]:.6f},{done[i]:.6f},{0 if failed else 200},100,"
                          f"{'timeout' if failed else ''},{i % identities},1\n")
+        if n:                                          # the loop ends when its last request has, a timeout included
+            wall = max(wall, float(done.max()) + X.ENGINE_T0_OFFSET_S)
         write_summary(opts["--summary"], n, int(n - bad.sum()), float(np.quantile(slip, 0.99)) if n else None, wall,
                       {"timeout": int(bad.sum())} if bad.any() else None)
         return n

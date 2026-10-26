@@ -43,6 +43,7 @@ import subprocess
 import sys
 import threading
 import time
+import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -1081,15 +1082,40 @@ def aggregate_access_log(lines, t_zero):
 
 # --- the clocks of the streams --------------------------------------------------------------------
 
+RECORDS_UNREADABLE = (OSError, EOFError, ValueError, IndexError, StopIteration, csv.Error, zlib.error)
+WALL_GAP_NOTE_S = 0.05               # a wall time raised by more than this is said in the run's log
+
+
 def estimate_t0(t_exit, wall_s, intended=0, per_request_s=0.0):
     """When a stream's schedule began, on the executor's clock, up to the time between the end of its loop and its exit
     (summary, records, interpreter shutdown). That time is nearly the same for every stream and cancels in the offsets; the
-    part of it that grows with the number of requests can be taken off with `per_request_s` (S1 measures it; 0 until then)."""
+    part of it that grows with the number of requests can be taken off with `per_request_s` (S1 measures it; 0 until then).
+    `wall_s` is the engine's wall time as consistent_wall holds it to the records."""
     return t_exit - wall_s + ENGINE_T0_OFFSET_S - per_request_s * intended
 
 
+def last_done(path):
+    """When the last request of a stream finished, in seconds after its schedule's zero: the largest finite t_done of an engine
+    records file, None if no request finished. Raises one of RECORDS_UNREADABLE when the file cannot be read."""
+    with gzip.open(path, "rt", encoding="utf-8", newline="") as fh:
+        rows = csv.reader(fh)
+        col = next(rows).index("t_done")
+        return max((v for v in (float(row[col]) for row in rows) if math.isfinite(v)), default=None)
+
+
+def consistent_wall(wall_s, last):
+    """The wall time an engine reports, held to what its own records allow. The engine reads the schedule's zero (the clock plus
+    50 ms) and, one statement later, the clock its wall time counts from; a process that is descheduled in between reports a wall
+    time too short by that long, and its start comes out that much too late. S1b, 29 streams started together on one CPU: 0.05 to
+    0.3 s in most of them, 2.0 s in one. The loop cannot end before its last request has, and its clock starts at least 50 ms
+    before the zero, so the wall time is at least the last t_done plus those 50 ms. `last` is None when no request finished: the
+    wall time stands."""
+    return wall_s if last is None else max(wall_s, last + ENGINE_T0_OFFSET_S)
+
+
 def alignment(plan, found):
-    """The run's clocks from what the streams reported. `found` maps a stream id to (t_exit, wall_s, intended). The axis begins
+    """The run's clocks from what the streams reported. `found` maps a stream id to (t_exit, wall_s, intended), the wall time as
+    consistent_wall holds it to the records (collect does that). The axis begins
     when the first legit streams' loops do: its zero is their median start. Streams that start together (a kind and a `start_s`)
     are a group, and a group is sound when its streams began within the limit of one another and, unless it is the first, its
     median start is within the limit of where the plan puts it: the attack at the end of the baseline, the steps of a staged load
@@ -1327,8 +1353,9 @@ def _tail(path, n=1):
 def collect(plan, procs, launched, problems):
     """The run contract from what the streams left, with the executor's verdict on the run. Returns (the executor block, the
     stream rows of run.json, the zero of the axis). A run in which no legit stream left an output raises RunFailed:
-    there is nothing to judge."""
-    found, streams, reasons = {}, [], list(problems)
+    there is nothing to judge. Each stream's wall time is held to its records (consistent_wall) before its start is estimated;
+    the block says by how much each was raised (`wall_gap_s`)."""
+    found, streams, reasons, gaps = {}, [], list(problems), {}
     for s in plan.streams:
         p = procs.get(s.id)
         if p is None:
@@ -1343,17 +1370,24 @@ def collect(plan, procs, launched, problems):
         try:
             with open(s.summary, encoding="utf-8") as fh:
                 summary = json.load(fh)
-            found[s.id] = (p.exit_time, float(summary["wall_s"]), int(summary["intended"]))
+            wall, intended = float(summary["wall_s"]), int(summary["intended"])
         except (OSError, ValueError, KeyError, TypeError):
             reasons.append(f"stream {s.id}: unreadable summary")
             continue
+        try:
+            checked = consistent_wall(wall, last_done(s.records))
+        except RECORDS_UNREADABLE:
+            reasons.append(f"stream {s.id}: unreadable records")
+            continue
+        found[s.id], gaps[s.id] = (p.exit_time, checked, intended), round(checked - wall, 4)
         streams.append(s)
     if not any(s.kind == "legit" for s in streams):
         raise RunFailed("no legit stream left an output: " + "; ".join(reasons))
     al = alignment(plan, found)
     reasons += al["reasons"]
     block = {"ok": not reasons, "reasons": reasons, "t0_spread_legit_s": al["t0_spread_legit_s"],
-             "attack_start_error_s": al["attack_start_error_s"], "estimator": "exit-minus-wall",
+             "attack_start_error_s": al["attack_start_error_s"], "estimator": "exit-minus-consistent-wall",
+             "wall_gap_s": {sid: gaps[sid] for sid in sorted(gaps)},
              "launch_attack_after_s": launch_attack_after(plan) if "attack" in launched else None}
     rows = [{"id": s.id, "kind": s.kind, "route_class": s.route_class, "netem": s.netem,
              "summary": os.path.relpath(s.summary, plan.out), "records": os.path.relpath(s.records, plan.out),
@@ -1453,6 +1487,10 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
         launched, problems = run_timeline(host, plan, log, procs, sampler)
         stop_all(host, procs, plan, log)
         block, rows, zero = collect(plan, procs, launched, problems)
+        raised = {sid: gap for sid, gap in block["wall_gap_s"].items() if gap > WALL_GAP_NOTE_S}
+        if raised:
+            log(f"wall time of {len(raised)} stream(s) raised to what their records need, by up to {max(raised.values()):.2f} s: "
+                f"the engine was descheduled between reading the schedule's zero and its wall clock")
         sampler.write(f"{out}/server.csv")
         finish_logs(plan, zero, log)
         write_json(f"{out}/run.json", {
@@ -1516,7 +1554,7 @@ def _first_sent(path):
                 value = float(row[col])
                 if math.isfinite(value):
                     return value
-    except (OSError, StopIteration, ValueError):
+    except RECORDS_UNREADABLE:
         pass
     return None
 
@@ -1533,8 +1571,9 @@ def clock_probe(scn, cal, seed, duration, out, host=None, attack=False, say=prin
     With `attack`, the attack streams of the scenario too, which have the large request counts the exit delay may depend
     on. Writes clock_probe.json to `out` and returns it: the start-up delay and spread of the streams after their launch,
     when each stream was launched, truly began and exited (seconds after the first launch; the commands are built before it,
-    as a run's plan has them), the error of estimate_t0 against the first arrival at the origin, memory and CPU per process,
-    and a fit of the error against the number of requests."""
+    as a run's plan has them), the error of estimate_t0 against the first arrival at the origin as a run makes it (the wall time
+    held to the records) and as S1 and S1b had it (the engine's wall time as it is), by how much the wall time was raised,
+    memory and CPU per process, and a fit of the error against the number of requests."""
     import asyncio
 
     import loadtool_validate as V
@@ -1596,21 +1635,26 @@ def clock_probe(scn, cal, seed, duration, out, host=None, attack=False, say=prin
     first = min(launch_t.values(), default=0.0)          # the probe's own zero: the first launch
     for s, o in zip(streams, origins, strict=True):
         workdir = os.path.join(out, "streams", s.id)
-        sent = _first_sent(os.path.join(workdir, "loadgen.records.csv.gz"))
+        records = os.path.join(workdir, "loadgen.records.csv.gz")
+        sent = _first_sent(records)
         try:
             with open(os.path.join(workdir, "loadgen.summary.json"), encoding="utf-8") as fh:
                 summary = json.load(fh)
-        except (OSError, ValueError):
+            last = last_done(records)
+        except RECORDS_UNREADABLE:
             continue
         if o.t0 is None or sent is None or procs[s.id].exit_time is None:
             continue
         truth = o.t0 - sent               # the first arrival less the first send: the schedule's zero, to about a millisecond
+        wall = consistent_wall(summary["wall_s"], last)
+        exit_time = procs[s.id].exit_time
         rows.append({"id": s.id, "kind": s.kind, "rate": s.rate, "intended": summary["intended"],
-                     "launch_s": launch_t[s.id] - first, "start_s": truth - first, "exit_s": procs[s.id].exit_time - first,
+                     "launch_s": launch_t[s.id] - first, "start_s": truth - first, "exit_s": exit_time - first,
                      "start_after_launch_s": truth - launch_t[s.id],
-                     "estimator_minus_truth_s": estimate_t0(procs[s.id].exit_time, summary["wall_s"]) - truth,
-                     "wall_s": summary["wall_s"], "cpu_s": (summary.get("cpu") or {}).get("process_s"),
-                     "rss_mib": rss.get(s.id)})
+                     "estimator_minus_truth_s": estimate_t0(exit_time, wall) - truth,
+                     "raw_estimator_minus_truth_s": estimate_t0(exit_time, summary["wall_s"]) - truth,
+                     "wall_s": summary["wall_s"], "last_done_s": last, "wall_gap_s": wall - summary["wall_s"],
+                     "cpu_s": (summary.get("cpu") or {}).get("process_s"), "rss_mib": rss.get(s.id)})
     result = clock_summary(rows, len(streams), duration)
     write_json(os.path.join(out, "clock_probe.json"), result)
     return result
@@ -1625,7 +1669,8 @@ def clock_summary(rows, n_streams, duration):
     """The figures of S1 from its per-stream rows: the start-up after launch, the estimator's bias and its scatter around
     the bias (what matters, since a common bias cancels in the offsets), and its dependence on the request count. Of the
     legit streams, which the run's validity rule compares with one another: when they were launched, when their loops
-    truly began, and when the estimator says they did (its spread is what `alignment` measures; times from the first launch)."""
+    truly began, and when the estimator says they did (its spread is what `alignment` measures; times from the first launch),
+    and the same without the correction of the wall time. Errors and scatter are the corrected estimator's."""
     errors = [r["estimator_minus_truth_s"] for r in rows]
     bias = statistics.median(errors) if errors else None
     scatter = sorted(abs(e - bias) for e in errors) if errors else []
@@ -1644,6 +1689,8 @@ def clock_summary(rows, n_streams, duration):
             "legit_launch_s": _spread([r["launch_s"] for r in legit_rows]),
             "legit_true_start_s": _spread([r["start_s"] for r in legit_rows]),
             "legit_estimated_start_s": _spread([r["start_s"] + r["estimator_minus_truth_s"] for r in legit_rows]),
+            "legit_raw_estimated_start_s": _spread([r["start_s"] + r["raw_estimator_minus_truth_s"] for r in legit_rows]),
+            "wall_gap_s": _spread([r["wall_gap_s"] for r in rows]),
             "exit_delay_fit": fit,
             "rss_mib": {"max": max((r["rss_mib"] for r in rows if r["rss_mib"]), default=None),
                         "total": sum(r["rss_mib"] or 0 for r in rows) or None},
@@ -1784,7 +1831,11 @@ def clock_text(result, out):
     launch, true, seen = result["legit_launch_s"], result["legit_true_start_s"], result["legit_estimated_start_s"]
     lines.append(f"  legit streams: launched over {f(launch['spread'])} s; loops began over {f(true['spread'])} s (min {f(true['min'])}, "
                  f"median {f(true['median'])}, max {f(true['max'])} after the first launch); the estimator puts them over "
-                 f"{f(seen['spread'])} s, which a run holds to {SETTINGS['t0_spread_limit_s']:g} s")
+                 f"{f(seen['spread'])} s ({f(result['legit_raw_estimated_start_s']['spread'])} s without the wall-time correction), "
+                 f"which a run holds to {SETTINGS['t0_spread_limit_s']:g} s")
+    gap = result["wall_gap_s"]
+    lines.append(f"  wall time raised to what the records need: median {f(gap['median'])} s, max {f(gap['max'])} s "
+                 f"(a process descheduled between the engine's two clock readings)")
     fit = result["exit_delay_fit"]
     if fit:
         lines.append(f"  error against requests: {fit['per_request_s'] * 1e6:.1f} us per request, {f(fit['base_s'])} s base")

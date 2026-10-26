@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 import unittest
 from unittest import mock
 
@@ -115,7 +116,7 @@ class ContractTest(RunCase):
         self.assertEqual(meta["overrides"], {"rho_rps": 20.0, "timeline_s": [10.0, 10.0, 10.0]})
         self.assertEqual(meta["calibration_sha256"], plan.calibration_sha256)
         self.assertEqual(meta["plan_sha256"], plan.plan_sha256)
-        self.assertEqual(meta["executor"]["estimator"], "exit-minus-wall")
+        self.assertEqual(meta["executor"]["estimator"], "exit-minus-consistent-wall")
 
     def test_the_legit_streams_are_the_same_in_the_control_and_the_attack_run(self):
         a = self.plan("C", name="blk/C")
@@ -937,6 +938,255 @@ class EstimatorTest(RunCase):
         self.assertEqual(len(al["reasons"]), 1)
 
 
+class ConsistentWallTest(unittest.TestCase):
+    """The wall time an engine reports, held to what its records allow (S1b: bench/loadgen.py reads the schedule's zero and, one
+    statement later, its wall clock; a process descheduled in between reports too short a wall time)."""
+
+    def test_a_wall_time_that_holds_the_records_stands(self):
+        self.assertEqual(X.consistent_wall(40.0, 39.0), 40.0)
+        self.assertEqual(X.consistent_wall(40.0, 39.9), 40.0)
+
+    def test_the_wall_time_is_at_least_the_last_done_plus_the_engines_offset(self):
+        self.assertAlmostEqual(X.consistent_wall(40.0, 39.96), 40.01)
+        self.assertEqual(X.consistent_wall(40.0, 39.95), 40.0, "at the limit nothing changes")
+        self.assertAlmostEqual(X.consistent_wall(27.29, 29.28), 29.33)
+
+    def test_without_a_finished_request_the_wall_time_stands(self):
+        self.assertEqual(X.consistent_wall(12.0, None), 12.0)
+
+    def test_the_stream_of_s1b_run_1_that_began_two_seconds_before_the_rest_is_put_where_it_began(self):
+        # the numbers of L-poisson-C3-broadband-1 in s1b_1: exit 29.500 s after the first launch, wall time 27.2925 s, last request
+        # done 29.2767 s after its zero; the origin saw its first request at a zero of 0.206 s
+        exit_s, wall, last = 29.500, 27.2925, 29.2767
+        self.assertAlmostEqual(X.estimate_t0(exit_s, wall), 2.2575, places=4)
+        self.assertAlmostEqual(X.estimate_t0(exit_s, X.consistent_wall(wall, last)), 0.2233, places=4)
+
+
+class LastDoneTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def records(self, done, header=F.RECORD_HEADER, name="records"):
+        path = os.path.join(self.tmp.name, f"{name}.csv.gz")
+        with gzip.open(path, "wt", newline="") as fh:
+            fh.write(header)
+            for i, t in enumerate(done):
+                fh.write(f"{i},{i}.0,{i}.0,{t},200,100,,0,1\n")
+        return path
+
+    def test_it_is_the_largest_t_done_whatever_the_order(self):
+        self.assertEqual(X.last_done(self.records(["3.5", "29.25", "7.0"])), 29.25)
+
+    def test_requests_that_never_finished_are_not_counted(self):
+        self.assertEqual(X.last_done(self.records(["3.5", "nan", "inf", "-inf", "9.5", "nan"])), 9.5)
+
+    def test_no_finished_request_is_none(self):
+        self.assertIsNone(X.last_done(self.records([])))
+        self.assertIsNone(X.last_done(self.records(["nan", "nan"])))
+
+    def test_what_cannot_be_read_raises_one_of_the_unreadable_errors(self):
+        path = self.records(["1.0"])
+        with open(path, "rb") as fh:
+            whole = fh.read()
+        broken = {"missing": os.path.join(self.tmp.name, "nothing.csv.gz"),
+                  "not gzip": self.write_bytes(b"this is not a gzip file"),
+                  "cut off": self.write_bytes(whole[: len(whole) // 2]),
+                  "empty": self.empty(),
+                  "no t_done column": self.records(["1.0"], header="i,t_intended,t_sent\n", name="no_column"),
+                  "a short row": self.short_row(),
+                  "not a number": self.records(["fast"], name="not_a_number")}
+        for name, bad in broken.items():
+            with self.subTest(name), self.assertRaises(X.RECORDS_UNREADABLE):
+                X.last_done(bad)
+
+    def test_the_first_send_is_the_first_finite_t_sent_and_a_file_that_cannot_be_read_has_none(self):
+        path = os.path.join(self.tmp.name, "sent.csv.gz")
+        with gzip.open(path, "wt", newline="") as fh:
+            fh.write(F.RECORD_HEADER + "0,1.0,nan,nan,0,0,dropped,0,0\n1,2.0,2.5,2.6,200,1,,0,1\n2,3.0,3.5,3.6,200,1,,0,1\n")
+        self.assertEqual(X._first_sent(path), 2.5)
+        with open(path, "rb") as fh:
+            whole = fh.read()
+        self.assertIsNone(X._first_sent(self.write_bytes(whole[: len(whole) // 2])), "a file cut short: EOFError, not an exception")
+        self.assertIsNone(X._first_sent(self.write_bytes(b"this is not a gzip file")))
+        self.assertIsNone(X._first_sent(os.path.join(self.tmp.name, "nothing.csv.gz")))
+        self.assertIsNone(X._first_sent(self.empty()))
+
+    def empty(self):
+        path = os.path.join(self.tmp.name, "empty.csv.gz")
+        gzip.open(path, "wt").close()
+        return path
+
+    def write_bytes(self, data):
+        path = os.path.join(self.tmp.name, f"{len(data)}.csv.gz")
+        with open(path, "wb") as fh:
+            fh.write(data)
+        return path
+
+    def short_row(self):
+        path = os.path.join(self.tmp.name, "short.csv.gz")
+        with gzip.open(path, "wt", newline="") as fh:
+            fh.write(F.RECORD_HEADER + "0,1.0\n")
+        return path
+
+
+class CollectTest(RunCase):
+    """collect() on files like the engines leave, with their exit times given: what the executor makes of them."""
+
+    def leave(self, plan, stall=None, zero=None, last=None, exit_delay=0.02, nan_done=(), skip_records=()):
+        """Every stream of `plan` as an engine leaves it. Stream i began at `zero(i)` on the executor's clock, its last request was
+        done `last(i)` s later, its loop ended then and it exited `exit_delay` s after; `stall(i)` is how long it was descheduled
+        between reading the schedule's zero and its wall clock, which makes its wall time that much short. Returns the processes."""
+        stall, zero = stall or (lambda i: 0.0), zero or (lambda i: 100.0)
+        last = last or (lambda i: 25.0 + 0.5 * (i % 5))
+        procs = {}
+        for i, st in enumerate(plan.streams):
+            os.makedirs(st.workdir, exist_ok=True)
+            done = last(i)
+            with open(st.summary, "w", encoding="utf-8") as fh:
+                json.dump({"wall_s": done + X.ENGINE_T0_OFFSET_S - stall(i), "intended": 3}, fh)
+            if i not in skip_records:
+                with gzip.open(st.records, "wt", newline="") as fh:
+                    fh.write(F.RECORD_HEADER)
+                    for k, t in enumerate((0.5, 1.5, done)):
+                        shown = "nan" if i in nan_done else format(t if t == done else t + 0.01, ".6f")
+                        fh.write(f"{k},{t:.6f},{t:.6f},{shown},200,100,,0,1\n")
+            procs[st.id] = types.SimpleNamespace(poll=lambda: 0, exit_time=zero(i) + done + exit_delay)
+        return procs
+
+    def collect(self, plan, procs):
+        return X.collect(plan, procs, {"legit": 100.0}, [])
+
+    def test_streams_whose_wall_times_hold_their_records_are_placed_together_and_left_alone(self):
+        plan = self.plan("C")
+        block, _, zero = self.collect(plan, self.leave(plan))
+        self.assertTrue(block["ok"], block["reasons"])
+        self.assertEqual(set(block["wall_gap_s"].values()), {0.0})
+        self.assertEqual(set(block["wall_gap_s"]), {s.id for s in plan.streams})
+        self.assertAlmostEqual(zero, 100.02, places=6)
+        self.assertLess(block["t0_spread_legit_s"], 1e-9)
+        self.assertEqual(block["estimator"], "exit-minus-consistent-wall")
+
+    def test_an_engine_that_was_descheduled_is_put_where_its_loop_began_and_the_gap_is_recorded(self):
+        plan = self.plan("C")
+        block, rows, _ = self.collect(plan, self.leave(plan, stall=lambda i: 2.0 if i == 3 else 0.0))
+        stalled = plan.streams[3].id
+        self.assertTrue(block["ok"], block["reasons"])
+        self.assertAlmostEqual(block["wall_gap_s"][stalled], 2.0, places=4)
+        self.assertEqual({v for k, v in block["wall_gap_s"].items() if k != stalled}, {0.0})
+        self.assertEqual({r["id"]: r["offset_s"] for r in rows}[stalled], 0.0)
+        self.assertLess(block["t0_spread_legit_s"], 1e-9)
+
+    def test_an_engine_that_really_began_early_is_still_seen_as_early(self):
+        plan = self.plan("C")
+        block, rows, _ = self.collect(plan, self.leave(plan, stall=lambda i: 2.0 if i == 3 else 0.0,
+                                                        zero=lambda i: 98.0 if i == 3 else 100.0))
+        self.assertFalse(block["ok"])
+        self.assertTrue(any("apart" in r for r in block["reasons"]), block["reasons"])
+        self.assertAlmostEqual({r["id"]: r["offset_s"] for r in rows}[plan.streams[3].id], -2.0, places=4)
+        self.assertAlmostEqual(block["t0_spread_legit_s"], 2.0, places=4)
+
+    def test_without_the_correction_the_same_stream_would_be_two_seconds_late_and_the_run_unsound(self):
+        plan = self.plan("C")
+        procs = self.leave(plan, stall=lambda i: 2.0 if i == 3 else 0.0)
+        with mock.patch.object(X, "consistent_wall", lambda wall, last: wall):
+            block, rows, _ = self.collect(plan, procs)
+        self.assertFalse(block["ok"])
+        self.assertTrue(any("apart" in r for r in block["reasons"]), block["reasons"])
+        self.assertAlmostEqual({r["id"]: r["offset_s"] for r in rows}[plan.streams[3].id], 2.0, places=4)
+
+    def test_the_correction_does_not_depend_on_when_the_last_request_was_done(self):
+        plan = self.plan("C")
+        block, rows, _ = self.collect(plan, self.leave(plan, last=lambda i: 3.0 + 4.0 * i, stall=lambda i: 1.0 if i % 2 else 0.0))
+        self.assertTrue(block["ok"], block["reasons"])
+        self.assertLess(block["t0_spread_legit_s"], 1e-9)
+        self.assertEqual({r["offset_s"] for r in rows}, {0.0})
+
+    def test_records_that_cannot_be_read_leave_the_stream_out_and_the_run_unsound(self):
+        plan = self.plan("C")
+        procs = self.leave(plan)
+        with open(plan.streams[5].records, "wb") as fh:
+            fh.write(b"not a gzip file")
+        block, rows, _ = self.collect(plan, procs)
+        self.assertFalse(block["ok"])
+        self.assertIn(f"stream {plan.streams[5].id}: unreadable records", block["reasons"])
+        self.assertNotIn(plan.streams[5].id, {r["id"] for r in rows})
+        self.assertNotIn(plan.streams[5].id, block["wall_gap_s"])
+        self.assertEqual(len(rows), 28)
+
+    def test_records_in_which_no_request_finished_leave_the_wall_time_as_it_is(self):
+        plan = self.plan("C")
+        block, rows, _ = self.collect(plan, self.leave(plan, nan_done=(4,)))
+        self.assertTrue(block["ok"], block["reasons"])
+        self.assertEqual(block["wall_gap_s"][plan.streams[4].id], 0.0)
+        self.assertEqual(len(rows), 29)
+
+    def test_a_stream_without_records_is_left_out_as_one_without_output(self):
+        plan = self.plan("C")
+        procs = self.leave(plan, skip_records=(2,))
+        block, _, _ = self.collect(plan, procs)
+        self.assertFalse(block["ok"])
+        self.assertTrue(any(f"stream {plan.streams[2].id} left no output" in r for r in block["reasons"]), block["reasons"])
+
+
+class DescheduledEngineTest(RunCase):
+    """A whole run on the simulated host in which one engine was descheduled between its two clock readings (S1b)."""
+
+    def run_with(self, late=2.0, correct=True, name="C"):
+        busiest = max((st for st in self.plan("C", name="look/C").streams if st.kind == "legit"), key=lambda st: st.rate).id
+        host = F.SimHost(wall_late_s=lambda sid, index, kind: late if sid == busiest else 0.0)
+        if correct:
+            plan, _, result = self.go("C", host, plan_args={"name": name})
+        else:
+            with mock.patch.object(X, "consistent_wall", lambda wall, last: wall):
+                plan, _, result = self.go("C", host, plan_args={"name": name})
+        return plan, result, busiest
+
+    def test_the_correction_keeps_the_run_sound_and_puts_the_stream_with_the_others(self):
+        plan, result, busiest = self.run_with()
+        self.assertTrue(result.ok, result.reasons)
+        run = self.run_json(plan)
+        self.assertLess(abs({s["id"]: s["offset_s"] for s in run["streams"]}[busiest]), 0.5)
+        gap = run["executor"]["wall_gap_s"]
+        self.assertGreater(gap[busiest], 1.5)
+        self.assertEqual(sum(v > 0.05 for v in gap.values()), 1)
+
+    def test_the_run_log_says_which_wall_times_were_raised_and_by_how_much(self):
+        plan, _, _ = self.run_with()
+        self.assertRegex(self.read(plan, "executor.log"), r"wall time of 1 stream\(s\) raised to what their records need, by up to 1\.\d\d s")
+
+    def test_the_log_counts_the_streams_and_names_the_largest_gap(self):
+        plan0 = self.plan("C", name="look/C")
+        busy = sorted((st for st in plan0.streams if st.kind == "legit"), key=lambda st: -st.rate)[:2]
+        late = {busy[0].id: 3.0, busy[1].id: 2.0}
+        host = F.SimHost(wall_late_s=lambda sid, index, kind: late.get(sid, 0.0))
+        plan, _, _ = self.go("C", host)
+        gaps = self.run_json(plan)["executor"]["wall_gap_s"]
+        raised = sorted(v for v in gaps.values() if v > X.WALL_GAP_NOTE_S)
+        self.assertEqual(len(raised), 2, gaps)
+        self.assertLess(raised[0], raised[1] - 0.2, "the two gaps differ")
+        self.assertIn(f"wall time of 2 stream(s) raised to what their records need, by up to {raised[1]:.2f} s", self.read(plan, "executor.log"))
+
+    def test_the_log_mentions_a_gap_from_fifty_milliseconds_and_not_below(self):
+        plan, _, busiest = self.run_with(late=2.0, name="first/C")
+        slack = 2.0 - self.run_json(plan)["executor"]["wall_gap_s"][busiest]          # what the simulated engine's wall time has to spare
+        said = []
+        for late in (slack + 0.03, slack + 0.07):
+            plan, _, _ = self.run_with(late=late, name=f"late{late:.3f}/C")
+            said.append("raised to what their records need" in self.read(plan, "executor.log"))
+        self.assertEqual(said, [False, True])
+
+    def test_a_run_without_such_an_engine_does_not_mention_it(self):
+        plan, _, _ = self.go("C")
+        self.assertNotIn("raised to what their records need", self.read(plan, "executor.log"))
+
+    def test_without_the_correction_the_run_would_be_unsound(self):
+        plan, result, busiest = self.run_with(correct=False)
+        self.assertFalse(result.ok)
+        self.assertTrue(any("apart" in r for r in result.reasons), result.reasons)
+        self.assertGreater({s["id"]: s["offset_s"] for s in self.run_json(plan)["streams"]}[busiest], 1.5)
+
+
 class AccessLogTest(unittest.TestCase):
     @staticmethod
     def line(stamp="2026-10-24T08:00:10+00:00", ip="10.0.1.5", took=0.01, status=200):
@@ -1191,11 +1441,14 @@ class SmokeTopologyTest(RunCase):
 
 class ClockSummaryTest(unittest.TestCase):
     @staticmethod
-    def row(error, intended=100, kind="legit", start=1.8, rss=30.0, launch=0.0):
+    def row(error, intended=100, kind="legit", start=1.8, rss=30.0, launch=0.0, gap=0.0):
+        """`error` is the corrected estimator's; the engine's wall time was `gap` shorter than its records allow, so the
+        estimator without the correction was `gap` later."""
         began = launch + start
         return {"id": f"{kind}-{error}", "kind": kind, "rate": 10.0, "intended": intended, "launch_s": launch, "start_s": began,
                 "exit_s": began + error + 31.0 - X.ENGINE_T0_OFFSET_S, "start_after_launch_s": start,
-                "estimator_minus_truth_s": error, "wall_s": 31.0, "cpu_s": 0.5, "rss_mib": rss}
+                "estimator_minus_truth_s": error, "raw_estimator_minus_truth_s": error + gap, "wall_s": 31.0 - gap,
+                "last_done_s": 30.9, "wall_gap_s": gap, "cpu_s": 0.5, "rss_mib": rss}
 
     def test_the_bias_is_the_median_and_the_scatter_is_around_it(self):
         rows = [self.row(e) for e in (0.30, 0.31, 0.32, 0.33, 0.40)]
@@ -1266,11 +1519,33 @@ class ClockSummaryTest(unittest.TestCase):
         for key in ("legit_launch_s", "legit_true_start_s", "legit_estimated_start_s"):
             self.assertEqual(s[key], {"min": None, "median": None, "max": None, "spread": None})
 
+    def early_starter(self):
+        """Two streams that began at 2.0 and 2.1 s, and one that began at 0.2 s whose engine was descheduled for 2.0 s: its wall time
+        was 2.0 s short, so without the correction it would be put at 2.22 s, in the pack."""
+        return [self.row(0.02, start=2.0), self.row(0.03, start=2.1, gap=0.05), self.row(0.02, start=0.2, gap=2.0)]
+
+    def test_the_correction_shows_the_early_stream_the_estimator_without_it_hides(self):
+        s = X.clock_summary(self.early_starter(), 3, 30.0)
+        self.assertAlmostEqual(s["legit_estimated_start_s"]["spread"], 2.13 - 0.22)
+        self.assertAlmostEqual(s["legit_raw_estimated_start_s"]["spread"], 2.22 - 2.02)
+        self.assertAlmostEqual(s["legit_estimated_start_s"]["min"], 0.22)
+        self.assertAlmostEqual(s["legit_raw_estimated_start_s"]["min"], 2.02)
+
+    def test_the_wall_gaps_are_summarised_over_all_streams(self):
+        rows = [*self.early_starter(), self.row(0.1, kind="attack", gap=0.4)]
+        s = X.clock_summary(rows, 4, 30.0)
+        self.assertEqual({k: round(v, 9) for k, v in s["wall_gap_s"].items()}, {"min": 0.0, "median": 0.225, "max": 2.0, "spread": 2.0})
+
+    def test_the_text_says_what_the_correction_did(self):
+        text = X.clock_text(X.clock_summary(self.early_starter(), 3, 30.0), "/x")
+        self.assertIn("the estimator puts them over 1.910 s (0.200 s without the wall-time correction)", text)
+        self.assertIn("wall time raised to what the records need: median 0.050 s, max 2.000 s", text)
+
     def test_the_text_gives_the_spreads_and_the_limit_a_run_holds_them_to(self):
         text = X.clock_text(X.clock_summary(self.three(), 3, 30.0), "/x")
         self.assertIn("launched over 0.200 s", text)
         self.assertIn("loops began over 0.500 s (min 3.000, median 3.100, max 3.500 after the first launch)", text)
-        self.assertIn("estimator puts them over 0.400 s, which a run holds to 0.5 s", text)
+        self.assertIn("estimator puts them over 0.400 s (0.400 s without the wall-time correction), which a run holds to 0.5 s", text)
         with mock.patch.dict(X.SETTINGS, {"t0_spread_limit_s": 1.25}):
             self.assertIn("which a run holds to 1.25 s", X.clock_text(X.clock_summary(self.three(), 3, 30.0), "/x"))
 
@@ -1328,9 +1603,15 @@ class ClockProbeTest(RunCase):
         for row in rows:
             self.assertAlmostEqual(row["start_s"], row["launch_s"] + row["start_after_launch_s"], places=9)
             self.assertGreater(row["exit_s"], row["start_s"])
-            # the estimator's row, rebuilt from the exit: exit less the wall time, plus the engine's offset, is start + error
-            self.assertAlmostEqual(row["exit_s"] - row["wall_s"] + X.ENGINE_T0_OFFSET_S,
+            # the estimator's row, rebuilt from the exit: exit less the wall time held to the records, plus the engine's offset,
+            # is start + error; without the correction it is later by the gap
+            self.assertAlmostEqual(row["exit_s"] - (row["wall_s"] + row["wall_gap_s"]) + X.ENGINE_T0_OFFSET_S,
                                    row["start_s"] + row["estimator_minus_truth_s"], places=6)
+            self.assertAlmostEqual(row["exit_s"] - row["wall_s"] + X.ENGINE_T0_OFFSET_S,
+                                   row["start_s"] + row["raw_estimator_minus_truth_s"], places=6)
+            self.assertAlmostEqual(row["raw_estimator_minus_truth_s"] - row["estimator_minus_truth_s"], row["wall_gap_s"], places=6)
+            self.assertGreaterEqual(row["wall_gap_s"], 0.0)
+            self.assertAlmostEqual(row["wall_s"] + row["wall_gap_s"], max(row["wall_s"], row["last_done_s"] + X.ENGINE_T0_OFFSET_S), places=9)
         self.assertEqual(result["legit_launch_s"]["spread"], max(r["launch_s"] for r in rows) - min(r["launch_s"] for r in rows))
         self.assertEqual(result["legit_true_start_s"]["max"], max(r["start_s"] for r in rows))
         with open(os.path.join(out, "clock_probe.json"), encoding="utf-8") as fh:
@@ -1460,7 +1741,8 @@ class CommandLineTest(RunCase):
         self.assertIn("estimator bias", shown)
         self.assertRegex(shown, r"legit streams: launched over \d\.\d{3} s; loops began over \d\.\d{3} s \(min \d+\.\d{3}, "
                                 r"median \d+\.\d{3}, max \d+\.\d{3} after the first launch\); the estimator puts them over "
-                                r"\d\.\d{3} s, which a run holds to 0\.5 s")
+                                r"\d\.\d{3} s \(\d\.\d{3} s without the wall-time correction\), which a run holds to 0\.5 s")
+        self.assertRegex(shown, r"wall time raised to what the records need: median \d\.\d{3} s, max \d\.\d{3} s")
         self.assertTrue(os.path.exists(os.path.join(out, "clock_probe.json")))
 
     def test_clock_probe_with_attack_says_so_and_runs_the_attack_streams(self):
