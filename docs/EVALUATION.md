@@ -483,8 +483,13 @@ place twice; any error raised after it ends the run, tears down, and writes `FAI
 
 **The clocks of the streams.** The engine writes no absolute time, so the executor estimates when each stream's schedule began from its
 exit time less its wall time, and `executor.ok` is false when the legit streams began more than 0.5 s apart, the attack began more than
-0.5 s from the end of the baseline, a stream died, left nothing or exited non-zero. The estimate is [UNVERIFIED] until S1 measures it
-against an origin's own arrival log; `exit_delay_per_request_s` corrects an exit delay that grows with the request count, if S1 shows one.
+0.5 s from the end of the baseline, a stream died, left nothing or exited non-zero. The wall time is first raised to the last request's
+`t_done` plus 0.05 s when it is shorter, because an engine that is descheduled between reading its schedule's zero and its wall clock
+(29 streams starting together on one CPU) reports too short a wall time; `executor.wall_gap_s` records the raise of each stream. Against an
+origin's own arrival log on loopback (S1, S1b) the corrected estimate of a legit stream is within -0.03 to 0.06 s; `exit_delay_per_request_s`
+corrects the exit delay of the attack streams, which grows with the request count (about 8 us per request, from three points) and is 0 until
+S4 has measured it. A stream that really begins 2 s before the others now makes a run unsound, and what to do about one is open
+(docs/HG1C_DESIGN.md, section 14).
 
 **The campaign** runs a block's three runs in a drawn order; a run that fails or is found unsound ends its attempt (finishing an invalid
 block spends VM time on nothing), and the block is re-run once with its seed if the gate has re-runs left (`max_reruns`, 2). A campaign

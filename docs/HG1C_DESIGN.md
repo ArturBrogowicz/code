@@ -1,8 +1,8 @@
 # HG1c: the executor, the gate campaign and the calibration runner (design note, written before the code)
 
-**Status (2026-10-24): approved (D18 to D26 as recommended, including option (b) and A1) and built offline on `feat/hg1c`; nothing
-has run on the VM. Section 14 records what was built and where it departs from this note, which is otherwise left as it was
-written (2026-10-23).** This note is on `design/hg1c`, off `feat/hg1b-minimal` (7528089); it changed no code. It is the follow-up that `docs/HG1B_MINIMAL_DESIGN.md`
+**Status (2026-10-26): approved (D18 to D26 as recommended, including option (b) and A1) and built offline on `feat/hg1c`; the VM
+has run S1 and S1b only (no root, loopback). Section 14 records what was built, what S1 and S1b found, and where it departs from
+this note, which is otherwise left as it was written (2026-10-23).** This note is on `design/hg1c`, off `feat/hg1b-minimal` (7528089); it changed no code. It is the follow-up that `docs/HG1B_MINIMAL_DESIGN.md`
 promised in its section 7 (decision D16): the part that runs a scenario in the namespaces and writes the run contract that
 `eval/harm_gate.py` reads; the loop that makes blocks of three runs under the re-run rule; and the runner that measures and freezes
 the calibration. "design N" is a section of `docs/BENCHMARK_HARM_DESIGN.md` (branch `design/benchmark-harm`), "HG1b N" a section of
@@ -396,8 +396,9 @@ merge nothing, push nothing, and bring S1 for approval when the executor's plan 
 
 ## 14. As built (2026-10-24)
 
-Built offline on `feat/hg1c`, off this note, in the order of section 9; nothing was run on the VM, no merge, no push. One commit was
-added to section 9's six (the capacity probe needed the executor to launch streams at their own start), and two small ones followed.
+Built offline on `feat/hg1c`, off this note, in the order of section 9; no merge, no push. One commit was added to section 9's six
+(the capacity probe needed the executor to launch streams at their own start), and two small ones followed. The VM ran S1 and S1b and
+nothing else; three commits came out of them (the last rows of the table).
 
 | Commit | What | New tests | Textual mutations killed |
 |---|---|---|---|
@@ -409,8 +410,11 @@ added to section 9's six (the capacity probe needed the executor to launch strea
 | e28de6a | `bench/calibrate.py` and the third scenario `costly_export_sub_threshold` (spec, golden plan), a server with a capacity in the simulated host | 117 | 66 |
 | cf6f963, e0d4473 | the executor prints a run's figures by link; a failed drift check is made once more | 3 | 8 |
 | the docs commit | `docs/EVALUATION.md`, this section | | |
+| 681e013, 83ab963 | the clock probe: a tuple and a list were concatenated (found by S1's first attempt); its rows say when each stream was launched, began and exited | 16 | 20 |
+| a6e6b95 | the wall time of an engine is held to its records; the simulated host follows the engine in two points (S1b) | 33 | 34 |
+| the second docs commit | this section, `docs/EVALUATION.md` | | |
 
-1,410 tests pass; ruff is clean. The mutations were made on private copies of the tree (a textual change to one line, the executor's or
+1,459 tests pass; ruff is clean. The mutations were made on private copies of the tree (a textual change to one line, the executor's or
 campaign's or calibrator's tests run against it); each one that was not equivalent made a test fail, and the survivors of the first rounds
 were closed with tests (an equivalent branch of `program_of` was removed instead).
 
@@ -431,25 +435,72 @@ were closed with tests (an equivalent branch of `program_of` was removed instead
 | 11 | 8: "a failure is rerun once after the environment gate" | `calibrate.py drift` makes the second attempt itself, with a new runner that waits for the full gate again, in `<out>.second` | |
 | 12 | 9: a shared `tests/synth_runs.py` made from the HG1b synthetic server; `--simulate` on a fake host | `bench/sim_host.py` in `bench/`, so that the command line can use it: commands answered from a model, a virtual clock, faults, and a synthetic server that makes a harm of a known size or has a capacity | one model for the tests of the executor, the campaign and the calibrator; the HG1b tests keep theirs |
 | 13 | 10, S3: `harm_gate --block` on the run | `executor.py run` prints the figures (Q, p95, slip, Q per link profile) | a `block.json` exists only for a campaign |
+| 14 | 6.6: `t0 = t_exit - wall_s + 0.05` | the wall time is first raised to the last request's `t_done` plus 0.05 s when it is shorter (`consistent_wall`, `last_done`); the estimator is named `exit-minus-consistent-wall` and `executor.wall_gap_s` lists the raise of each stream | S1b: the engine reads the schedule's zero and, one statement later, its wall clock, and a process descheduled in between (29 starting together on one CPU) reports too short a wall time, by 54 ms at the median, 258 ms at the 90th percentile and 2.03 s at most; the exit delay itself is 0.015 to 0.03 s |
 
 **Not built.** The calibration of the legit mix, the SLOs and the gate's constants: they stay the template's (the placeholder's) and are
 frozen with the record; changing them is a decision, not a measurement. The mitigated runs `M_<mode>` (HG4). Anything on the L3 and L4 paths (D20).
 
+**What S1 and S1b found (2026-10-26; no root, loopback; commits 681e013 and 83ab963).** S1 ran the 29 legit streams of
+`costly_search_sub_threshold` (cold, the first run after a reboot) and the 29 legit and 3 attack streams of `cheap_static_flood` (warm), 30 s
+each, each against its own scripted origin; S1b ran the first again three times in a row, with all 29 streams launched within 0.07 s, as a
+run's plan has them. Every stream reported and nothing was left over. [FACT] The timer on CPU 6 was above the 10 ms gate in all ten probes
+taken around them (p99 11.7 to 40.8 ms), so the executor's environment gate would have refused to start a run in that state.
+
+| | S1 cold | S1 warm | S1b run 1 | S1b run 2 | S1b run 3 |
+|---|---|---|---|---|---|
+| a legit loop begins after its own launch, median (range) | 4.53 s (3.41 to 4.66) | 2.95 s (2.57 to 3.06) | 2.40 s (0.18 to 2.55) | 2.04 s (1.86 to 2.17) | 2.15 s (0.19 to 2.21) |
+| an attack loop begins after its own launch | | 0.13 to 0.15 s | | | |
+| the engine's wall time was too short by, median (max) | 0.06 s (1.17) | 0.00 s (0.06) | 0.09 s (2.03) | 0.11 s (0.29) | 0.03 s (1.81) |
+| exit less the end of the last request, legit streams | -0.02 to 0.16 s | 0.02 to 0.06 s | -0.03 to 0.04 s | 0.01 to 0.05 s | 0.01 to 0.06 s |
+| the estimator's error as it was | 0.01 to 1.19 s | 0.02 to 0.08 s (attack 0.05 to 0.13) | 0.01 to 2.05 s | 0.01 to 0.32 s | 0.01 to 1.83 s |
+| estimated legit starts apart as it was (limit 0.5 s) | | | 0.622 s | 0.141 s | 0.295 s |
+| the same with the wall time held to the records | | | 2.381 s | 0.313 s | 2.088 s |
+
+[FACT] One legit stream in S1 command 1 and in S1b runs 1 and 3 began about 2 s before the others (0.2 s after its launch). In S1b its
+`wall_s` was 2.03 s shorter than its own records allow (the last request finished 29.28 s after its schedule's zero, `wall_s` was 27.29 s),
+and its first four requests, due between 0.3 and 1.9 s, were all sent 1.98 s after its zero. [INFERENCE] bench/loadgen.py `run()` reads the
+schedule's zero, `loop.time() + 0.05`, and one statement later the clock its wall time counts from; the process was descheduled between the
+two, while the others were starting on the same CPU. The same happens at a smaller size in most streams: over S1b's 87 streams `wall_s` was
+shorter than `last t_done + 0.05` by 54 ms at the median and 258 ms at the 90th percentile. [FACT] That gap, not the exit delay, was the
+estimator's error; the first reading of S1 (an exit delay that queues on the legit CPU) was wrong. The exit delay proper, exit less the end
+of the last request, is -0.03 to 0.16 s for legit streams (median 0.015 to 0.03 s); for attack streams it grows with the request count, 8.0 us
+per request from three points (4.3k, 4.4k and 13.3k requests).
+
+**What the correction does to the rule.** [FACT] a6e6b95 raises a wall time that is shorter than `last t_done + 0.05` to that. Replayed
+through `alignment()` on S1b's files, the offsets are within 0.05 s of the true ones for all 87 streams (the error is -0.03 to 0.06 s). As it
+was, the three runs came out 0.622 s (unsound), 0.141 s and 0.295 s apart, and the stream that began at 0.21 s was put at 2.26 s, inside the
+pack; corrected, they come out 2.38 s (unsound), 0.31 s and 2.09 s (unsound), because one stream really began 2 s before the rest. The pack
+alone is within 0.18 to 0.31 s, so the limit of 0.5 s holds for it. What to do about a single early stream is open: the harm gate places a
+stream's records at `t_intended + offset_s`, so a right offset repairs its placement, while the rule as built calls the run unsound and a
+campaign has two re-runs. [PROPOSAL, nothing changed] `startup_delay_legit_s` about 2.5 s (S1b) instead of S1's 3.0 s,
+`startup_delay_attack_s` 0.15 s and `exit_delay_per_request_s` 8e-6 s (S1, three points); S4 measures them again with the real launch chain.
+
+**Found by S1b, not yet fixed.** `run_timeline` treats a stream that exits more than `EARLY_SLACK_S` (2 s) before its nominal end as dead,
+whatever its exit code. [FACT] The engine exits when its last request is done, not at the end of its duration: in S1b's 30 s probes 12, 11 and
+11 of the 29 legit streams exited more than 2 s early (pulse streams of 0.07 to 0.4 req/s with 2 to 12 requests, a Poisson stream of 0.11 req/s
+with two; the earliest at 13.5 s of 31.8). [INFERENCE] A real run would be ended at the first of them and called unsound; with a longer timeline
+fewer streams end early, but every stream of a few tenths of a request per second may. The simulated host runs every stream to its nominal end
+and could not show it. Proposed: judge a death by a non-zero exit or by missing output (`collect` already does the second), and let the
+simulated host's engines end with their last request.
+
 **What the tests cannot show, and which step does.** That the real commands do what the model says: `ip -batch -` with 100 addresses,
 `prlimit` and `taskset` inside `ip netns exec`, `ping -I`, `ip -j` and `tc qdisc show` as parsed, `/proc/<pid>/net/netstat` of a process in
 another namespace, `curl` in `server_ns` (S2, S3). That Nginx and gunicorn behave as 4.3 lists, and the worker counts and limits under
-`taskset` (S3, from `environment.json`'s `stack` record). That the estimator of the streams' clocks is accurate, the start-up spread of
-29 processes on one vCPU, and the real per-run time (S1, S4). That the control reaches 99 % on the judged links (S3, S4). The limits of
-6.6 stay [PROPOSAL] until S1 and S4.
+`taskset` (S3, from `environment.json`'s `stack` record). That the estimator of the streams' clocks is accurate and the start-up spread of
+29 processes on one vCPU (S1 and S1b measured them on loopback, without namespaces; S4 measures them with the real launch chain), and the
+real per-run time (S4). That the control reaches 99 % on the judged links (S3, S4). The limits of 6.6 stay [PROPOSAL] until S4.
 
 **The first contact (section 10), with the commands as built.** Each is approved on its own, with its command, before it runs.
 
 | Step | Command | Root | Time | Side effects |
 |---|---|---|---|---|
-| S1 | `./venv/bin/python bench/executor.py clock-probe bench/scenarios/costly_search_sub_threshold.json --duration 30 --out /var/tmp/ddos_campaigns/s1_clock_probe`, and the same with `bench/scenarios/cheap_static_flood.json --attack` (the attack streams with the most requests, to fit the exit delay's dependence on them) | no | about 1 min each | 29 (and with `--attack` 32) engine processes on CPU 6 (the attack's on 3-5 and 7) and as many listeners on loopback, one process pinned to CPU 2, files under the output directory; nothing left over |
+| S1 | `./venv/bin/python bench/executor.py clock-probe bench/scenarios/costly_search_sub_threshold.json --duration 30 --out /var/tmp/hg1c_s1/s1_clock_probe`, and the same with `bench/scenarios/cheap_static_flood.json --attack` (the attack streams with the most requests, to fit the exit delay's dependence on them) | no | about 1 min each | 29 (and with `--attack` 32) engine processes on CPU 6 (the attack's on 3-5 and 7) and as many listeners on loopback, one process pinned to CPU 2, files under the output directory; nothing left over |
 | S2 | `sudo ./venv/bin/python bench/executor.py smoke-topology bench/scenarios/costly_search_sub_threshold.json --seed 1 --out /var/tmp/ddos_campaigns/s2_topology/C` | yes | 3 min | namespaces, veths and the bridge created and deleted; ARP and ICMP inside the testbed |
 | S3 | `sudo ./venv/bin/python bench/executor.py run bench/scenarios/benign_control.json --kind C --seed 1 --rho 20 --timeline 10,10,10 --out /var/tmp/ddos_campaigns/s3_stack/C` | yes | 3 min | as a suite run without the daemon: gunicorn and Nginx in `server_ns`, traffic inside the testbed, the run's directory |
 | S4 | `sudo ./venv/bin/python bench/gate_campaign.py run bench/scenarios/costly_search_sub_threshold.json --blocks 1 --dry-run --out /var/tmp/ddos_campaigns/s4_block`, then `./venv/bin/python eval/harm_gate.py --block /var/tmp/ddos_campaigns/s4_block/b01_a1 --calibration bench/calibration/placeholder.json` | yes | 12 min | as S3, with the scenario's attack of 37 req/s in `U`; four runs (the warm-up and the block's three) |
+
+S1 and S1b wrote under `/var/tmp/hg1c_s1/` because `/var/tmp/ddos_campaigns` is owned by root and a step without root cannot create a directory
+there; S1b is the first command three times in a row (`s1b_1` to `s1b_3`).
 
 A run from a worktree needs a temporary `ln -s /home/artur/DDoS-mitigation/code/venv ./venv` there (the executor looks for `<checkout>/venv/bin/python`).
 
@@ -537,7 +588,8 @@ success test is `t - allowance <= slo[route]`. Output: Q(control) **99.1 %, 99.0
 {
   "role": "attack", "mode": null, "started_utc": "2026-10-24T08:00:00Z",
   "executor": {"ok": true, "reasons": [], "t0_spread_legit_s": 0.12, "attack_start_error_s": 0.05,
-               "estimator": "exit-minus-wall", "setup_retries": 0},
+               "estimator": "exit-minus-consistent-wall", "setup_retries": 0,
+               "wall_gap_s": {"L-poisson-C0-broadband-1": 0.0, "L-poisson-C1-perfect-0": 0.07}},
   "streams": [{"id": "L-poisson-C0-broadband-1", "kind": "legit", "route_class": "C0", "netem": "broadband",
                "summary": "streams/L-poisson-C0-broadband-1/loadgen.summary.json",
                "records": "streams/L-poisson-C0-broadband-1/loadgen.records.csv.gz", "offset_s": 0.03}]
