@@ -38,6 +38,7 @@ BASE_EPOCH = 1_798_000_000.0              # the virtual clock's wall time at its
 LEGIT_STARTUP_S = 2.4                     # a legit engine's loop begins this long after its launch when 29 are launched at once on one CPU
 ATTACK_STARTUP_S = 0.14                   # an attack engine's, on CPUs of its own
 EXIT_DELAY_PER_REQUEST_S = 8e-6           # an engine exits this much later for each request it sent
+NGINX_FORK_S = 0.05                       # the launcher of the Nginx daemon returns this long after the daemon has forked
 OK_FLAGS = {"slip": False, "sent_short": False, "cpu": False, "descriptors": False, "ports": False, "dropped": False}
 RECORD_HEADER = "i,t_intended,t_sent,t_done,status,bytes,err,ident,reused\n"
 CLASS_OF_PATH = {path: klass for klass, path in O.SAMPLE_URLS.items()}
@@ -92,8 +93,13 @@ class SimHost(X.Host):
     stream of a few tenths of a request per second is gone long before its duration is over, and one whose last requests time out
     outlives it. `wall_late_s(stream id, index, kind)` is how long an engine was descheduled between reading its schedule's zero and
     the clock its wall time counts from: the summary of that stream reports that much less wall time; what it does to the first
-    requests is not modeled. `ping_drops(namespace, source, k)` says whether the k-th packet of a ping is lost. The names the tests use:
-    missing_address, duplicate_mac, no_netem, ping_fails, nginx_fails, origin_dies, not_ready, wrong_class, wrong_tag,
+    requests is not modeled. `ping_drops(namespace, source, k)` says whether the k-th packet of a ping is lost. With
+    `daemon_holds_pipes` (the default) the Nginx daemon keeps the pipes of a command that was run to completion with its output
+    captured, so that call returns only at its timeout, as the one in S3 did three times (why a real Nginx does that is an inference:
+    docs/HG1C_DESIGN.md 14); started like the suite starts it, with no pipe, the launcher returns a moment after the daemon forks.
+    The names the tests use:
+    missing_address, duplicate_mac, no_netem, ping_fails, nginx_fails, nginx_foreground (Nginx that does not daemonise: its launcher
+    never returns), origin_dies, not_ready, wrong_class, wrong_tag,
     stubborn_origin, stubborn_nginx, origin_session_fails, leftover_nginx_after_teardown, server_address_missing, stream_dies (one
     engine dies), engines_die (every engine of one run dies: none of them can start), stream_silent, stream_nonzero, stream_hangs,
     table_unreadable."""
@@ -104,8 +110,9 @@ class SimHost(X.Host):
                  preexisting=(), startup_s=None, exit_delay_s=0.04, exit_delay_per_request_s=EXIT_DELAY_PER_REQUEST_S, faults=None,
                  log_lines=20, tag="placeholder", python_exists=True, steal_share=0.0, on_sleep=None, server=None,
                  fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,), wall_late_s=None, silent=None, nonzero=None,
-                 ping_drops=None):
+                 ping_drops=None, daemon_holds_pipes=True):
         self.t = 0.0
+        self.daemon_holds_pipes, self.call_timeout = daemon_holds_pipes, X.RealHost.COMMAND_TIMEOUT_S
         self.wall_late_s, self.silent, self.nonzero, self.ping_drops = wall_late_s, silent, nonzero, ping_drops
         self.pids = itertools.count(1000)
         self.events, self.seq = [], itertools.count()
@@ -196,9 +203,25 @@ class SimHost(X.Host):
         text = " ".join(argv)
         if "bench/loadgen.py" in text:
             return self._start_stream(argv, ns, stderr)
+        if "nginx" in (os.path.basename(a) for a in argv):
+            return self._start_nginx(argv, ns, stderr)
         if "gunicorn" in text:
             return self._start_origin(argv, ns, stderr)
         raise AssertionError(f"the simulation has no process for {text[:100]}")
+
+    def _start_nginx(self, argv, ns, stderr):
+        """Nginx started with no pipe for the daemon to hold: the launcher returns 0 `NGINX_FORK_S` after the daemon has forked, or
+        1 at once with Nginx's message on its stderr if it cannot start; with the fault `nginx_foreground` it never returns."""
+        launcher = self.spawn(argv, ns, "nginx", "launcher")
+        args = argv[[os.path.basename(a) for a in argv].index("nginx") + 1:]
+        code, message = self._daemon_start(args, ns, allowed_cpus(argv))
+        if code != 0:
+            if stderr is not None:
+                stderr.write(message.encode() + b"\n")
+            self.end(launcher, code)
+        elif not self.fault("nginx_foreground"):
+            self.schedule(self.t + NGINX_FORK_S, lambda: self.end(launcher, 0))
+        return launcher
 
     def _start_origin(self, argv, ns, stderr):
         proc = self.spawn(argv, ns, "gunicorn", "origin")
@@ -331,6 +354,7 @@ class SimHost(X.Host):
     def run(self, argv, ns="", stdin="", env=None, timeout=None):
         argv = [str(a) for a in argv]
         self.commands.append(("run", ns, tuple(argv)))
+        self.call_timeout = timeout or X.RealHost.COMMAND_TIMEOUT_S
         if argv[:3] == ["ip", "netns", "del"] and not self.shield:
             self.unshielded.append(tuple(argv))
         handler = getattr(self, "_cmd_" + os.path.basename(argv[0]).replace("-", "_"), None)
@@ -450,8 +474,20 @@ class SimHost(X.Host):
         return X.Result(0, json.dumps({k: v * factor for k, v in costs.items()}), "")
 
     def _cmd_nginx(self, a, ns, stdin, cpus=None):
+        """Nginx run to completion with its output captured: the daemon forks and the call, whose pipes it holds, returns at its timeout."""
+        code, message = self._daemon_start(a, ns, cpus)
+        if code != 0:
+            return X.Result(code, "", message)
+        if self.daemon_holds_pipes:
+            self.sleep(self.call_timeout)
+            return X.Result(-1, "", "timeout")
+        return X.Result(0, "", "")
+
+    def _daemon_start(self, a, ns, cpus=None):
+        """What starting the Nginx daemon on the configuration `a` names does: (0, "") with its master and a worker in `ns`, or the
+        exit code and message of a start that fails."""
         if self.fault("nginx_fails"):
-            return X.Result(1, "", "nginx: [emerg] bind() to 0.0.0.0:80 failed")
+            return 1, "nginx: [emerg] bind() to 0.0.0.0:80 failed"
         with open(a[a.index("-c") + 1], encoding="utf-8") as fh:
             m = re.search(r"access_log\s+(\S+)\s+json_ml_format;", fh.read())
         self.access_log = m.group(1) if m else None
@@ -460,7 +496,7 @@ class SimHost(X.Host):
             proc.cpus = cpus or proc.cpus
             proc.immortal = self.fault_peek("leftover_nginx_after_teardown")
             proc.ignores_term = self.fault_peek("stubborn_nginx")
-        return X.Result(0, "", "")
+        return 0, ""
 
     def _cmd_mkdir(self, a, ns, stdin):
         return X.Result(0, "", "")                 # /var/log/nginx: the model does not touch the machine

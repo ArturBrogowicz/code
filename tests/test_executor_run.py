@@ -726,7 +726,49 @@ class SetupTest(RunCase):
 
     def test_nginx_that_does_not_start_is_reported_with_what_it_said(self):
         _, _, why = self.build({"nginx_fails": None})
-        self.assertIn("emerg", why)
+        self.assertIn("exited 1: nginx: [emerg] bind() to 0.0.0.0:80 failed", why)
+
+    def test_a_start_that_fails_says_the_last_three_lines_of_what_it_printed(self):
+        class Chatty(F.SimHost):
+            def _daemon_start(self, a, ns, cpus=None):
+                return 1, "\n".join(f"nginx: [emerg] line {k}" for k in range(5))
+        _, _, why = self.build_with(Chatty())
+        self.assertIn("exited 1: nginx: [emerg] line 2 | nginx: [emerg] line 3 | nginx: [emerg] line 4", why)
+        self.assertNotIn("line 1", why)
+
+    def test_nginx_is_started_with_no_pipe_for_its_daemon_to_hold(self):
+        """S3: run to completion with its output captured, the call came back only at its timeout, three times."""
+        plan, host, result = self.go("C")
+        self.assertTrue(result.ok, result.reasons)
+        started = [c for c in host.commands if c[2][:1] == ("taskset",) and "nginx" in c[2]]
+        self.assertEqual([(c[0], c[1]) for c in started], [("popen", "server_ns")], "like the origin, not run to completion")
+        self.assertLess(host.t, X.RealHost.COMMAND_TIMEOUT_S, "no call waited out its timeout")
+        self.assertRegex(self.read(plan, "executor.log"), r"started Nginx \(its launcher returned after 0\.\d+ s\)")
+        self.assertEqual(self.read(plan, "nginx_start.log"), "")
+
+    def test_nginx_that_does_not_return_is_given_up_after_the_wait_and_taken_down(self):
+        _, host, why = self.build({"nginx_foreground": None})
+        self.assertIn("did not return within 10 s: Nginx is not daemonising, or it hangs", why)
+        self.assertIn("nginx -c", why)
+        self.assertEqual(sum(p[0] == "bridge" for p in host.prims), 3, "a failed start is retried like any other")
+        self.assertGreaterEqual(host.t, 3 * X.DAEMON_FORK_WAIT_S)
+        self.assertTestbedEmpty(host)
+
+    def test_a_start_that_fails_keeps_the_last_attempts_files_and_only_those(self):
+        plan, host, _ = self.build({"nginx_fails": None})
+        for name in ("nginx.conf", "nginx_start.log", "gunicorn.log", "nginx_access.log", "nginx_error.log",
+                     "plan.json", "environment.json", "executor.log", "FAILED"):
+            self.assertTrue(os.path.exists(os.path.join(plan.out, name)), name)
+        self.assertEqual(self.read(plan, "nginx_start.log").count("emerg"), 1, "the last attempt's message, not three")
+        self.assertEqual(self.read(plan, "gunicorn.log").count("Booting worker"), 1, "the last attempt's origin, not three")
+        self.assertFalse(os.path.exists(os.path.join(plan.out, "run.json")))
+        self.assertEqual(self.read(plan, "executor.log").count("retrying the setup"), 2)
+        self.assertTestbedEmpty(host)
+
+    def test_a_start_that_a_retry_cures_leaves_only_the_second_attempts_files(self):
+        plan, _, result = self.go("C", F.SimHost(faults={"nginx_fails": 1}))
+        self.assertTrue(result.ok, result.reasons)
+        self.assertEqual(self.read(plan, "nginx_start.log"), "", "the first attempt's message went with its files")
 
     def test_an_origin_that_exits_before_it_answers_is_reported(self):
         _, _, why = self.build({"origin_dies": None})
@@ -763,7 +805,7 @@ class SetupTest(RunCase):
             return next(i for i, (kind, _, argv) in enumerate(host.commands) if match(kind, argv))
         last_prim = max(i for i, c in enumerate(host.commands) if c[0] == "prim")
         origin = first(lambda kind, argv: kind == "popen" and "gunicorn" in argv)
-        nginx = first(lambda kind, argv: kind == "run" and argv[:1] == ("taskset",) and "nginx" in argv)
+        nginx = first(lambda kind, argv: kind == "popen" and argv[:1] == ("taskset",) and "nginx" in argv)
         ready = first(lambda kind, argv: kind == "run" and argv[:1] == ("curl",))
         stream = first(lambda kind, argv: kind == "popen" and "bench/loadgen.py" in " ".join(argv))
         self.assertLess(last_prim, origin)

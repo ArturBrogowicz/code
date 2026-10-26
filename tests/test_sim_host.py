@@ -401,6 +401,79 @@ class LoadModelTest(unittest.TestCase):
         self.assertIsNone(server.capacity_cpu)
 
 
+class DaemonTest(unittest.TestCase):
+    """Nginx daemonises. Run to completion with its output captured, its daemon keeps the pipes and the call returns at its timeout,
+    as the one in S3 did three times; started like the suite starts it, with no pipe, the launcher returns once the daemon has forked."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.conf = os.path.join(self.tmp.name, "nginx.conf")
+        with open(self.conf, "w", encoding="utf-8") as fh:
+            fh.write("http { access_log /x/nginx_access.log json_ml_format; }\n")
+        self.argv = ["taskset", "-c", "0-1", "nginx", "-c", self.conf]
+
+    @staticmethod
+    def daemons(host):
+        return [p for p in host.alive("server_ns") if p.role == "nginx"]
+
+    def test_a_captured_call_returns_at_its_timeout_with_the_daemon_up(self):
+        host = S.SimHost()
+        r = host.run(self.argv, ns="server_ns")
+        self.assertEqual((r.code, r.out, r.err), (-1, "", "timeout"))
+        self.assertEqual(host.t, X.RealHost.COMMAND_TIMEOUT_S)
+        self.assertEqual([p.cpus for p in self.daemons(host)], ["0-1", "0-1"])
+
+    def test_the_timeout_is_the_callers(self):
+        host = S.SimHost()
+        host.run(self.argv, ns="server_ns", timeout=7.0)
+        self.assertEqual(host.t, 7.0)
+        host.run(["ip", "link"], ns="")
+        host.run(self.argv, ns="server_ns")
+        self.assertEqual(host.t, 7.0 + X.RealHost.COMMAND_TIMEOUT_S, "a call without a timeout is not given the last call's")
+
+    def test_without_the_model_the_call_returns_at_once(self):
+        host = S.SimHost(daemon_holds_pipes=False)
+        r = host.run(self.argv, ns="server_ns")
+        self.assertEqual((r.code, host.t, len(self.daemons(host))), (0, 0.0, 2))
+
+    def test_started_with_no_pipe_the_launcher_returns_after_the_fork_and_the_daemon_stays(self):
+        host = S.SimHost()
+        launcher = host.popen(self.argv, ns="server_ns")
+        self.assertEqual((host.t, launcher.poll(), len(self.daemons(host))), (0.0, None, 2))
+        host.sleep(S.NGINX_FORK_S / 2)
+        self.assertIsNone(launcher.poll())
+        host.sleep(S.NGINX_FORK_S / 2)
+        self.assertEqual((launcher.poll(), len(self.daemons(host))), (0, 2))
+
+    def test_a_start_that_fails_returns_1_at_once_with_the_message_on_stderr_and_no_daemon(self):
+        host = S.SimHost(faults={"nginx_fails": None})
+        path = os.path.join(self.tmp.name, "nginx_start.log")
+        with open(path, "ab") as err:
+            launcher = host.popen(self.argv, ns="server_ns", stderr=err)
+        self.assertEqual((launcher.poll(), self.daemons(host)), (1, []))
+        with open(path, encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), "nginx: [emerg] bind() to 0.0.0.0:80 failed\n")
+        r = host.run(self.argv, ns="server_ns")
+        self.assertEqual((r.code, r.err, host.t), (1, "nginx: [emerg] bind() to 0.0.0.0:80 failed", 0.0))
+
+    def test_nginx_that_does_not_daemonise_never_returns(self):
+        host = S.SimHost(faults={"nginx_foreground": None})
+        launcher = host.popen(self.argv, ns="server_ns")
+        host.sleep(600.0)
+        self.assertIsNone(launcher.poll())
+
+    def test_the_launcher_is_taken_for_nginx_by_what_it_runs_not_by_a_word_in_a_path(self):
+        host = S.SimHost()
+        conf = os.path.join(self.tmp.name, "gunicorn", "nginx.conf")
+        os.makedirs(os.path.dirname(conf))
+        with open(conf, "w", encoding="utf-8") as fh:
+            fh.write("http { access_log /x/a.log json_ml_format; }\n")
+        launcher = host.popen(["taskset", "-c", "0-1", "nginx", "-c", conf], ns="server_ns")
+        self.assertEqual(launcher.role, "launcher")
+        self.assertEqual(len(self.daemons(host)), 2)
+
+
 class SimulatedRunTest(unittest.TestCase):
     """A run through the executor on the simulated host, read by the harm gate."""
 

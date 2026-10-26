@@ -36,7 +36,7 @@ stack in server_ns, then the readiness probe (30 s at most):
   5. cmd   touch /var/tmp/ddos_campaigns/example/b01_a1/C/nginx_access.log /var/tmp/ddos_campaigns/example/b01_a1/C/nginx_error.log    # the run's own logs
   6. cmd   chmod 0666 /var/tmp/ddos_campaigns/example/b01_a1/C/nginx_access.log /var/tmp/ddos_campaigns/example/b01_a1/C/nginx_error.log    # the Nginx workers run as nobody
   7. keep cmd   [server_ns] ORIGIN_CALIBRATION=<repo>/bench/calibration/placeholder.json ORIGIN_SEED=1 taskset -c 0-1 <python> -m gunicorn --chdir <repo>/bench --workers 2 --threads 8 --bind 127.0.0.1:8080 origin:app    # the cost-calibrated origin, on loopback so that nothing reaches it except through Nginx
-  8. cmd   [server_ns] taskset -c 0-1 nginx -c /var/tmp/ddos_campaigns/example/b01_a1/C/nginx.conf    # Nginx daemonises; it is found again by namespace
+  8. detach cmd   [server_ns] taskset -c 0-1 nginx -c /var/tmp/ddos_campaigns/example/b01_a1/C/nginx.conf    # Nginx daemonises: started like the origin, with no pipe for it to hold, and found again by namespace
   ready: HTTP 200 from http://10.0.0.1/static/1, and each route answers with its own X-Route-Class: C0 /static/1, C1 /page/7, C2 /api/item/11, C3 /search?q=alpha, C5 /export
   warm-up: 2 requests per route from server_ns
 

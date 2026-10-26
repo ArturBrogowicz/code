@@ -99,6 +99,7 @@ class Cmd:
     env: tuple = ()                  # (("NAME", "value"), ...)
     when: str = ""                   # "" or "absent:<path>": only if that path does not exist
     keep: bool = False               # keep the process (gunicorn); every other command runs to completion
+    detach: bool = False             # a daemon (Nginx): started with no pipe for it to hold, waited for until it has forked
     purpose: str = ""
 
 
@@ -244,7 +245,8 @@ def stack_steps(out, calibration_path, python, pins, conf_sha256, bench=None):
              "--threads", str(GUNICORN["threads"]), "--bind", GUNICORN["bind"], GUNICORN["app"]), SERVER_NS,
             env=env, keep=True,
             purpose="the cost-calibrated origin, on loopback so that nothing reaches it except through Nginx"),
-        Cmd((*pin, "nginx", "-c", f"{out}/nginx.conf"), SERVER_NS, purpose="Nginx daemonises; it is found again by namespace"),
+        Cmd((*pin, "nginx", "-c", f"{out}/nginx.conf"), SERVER_NS, detach=True,
+            purpose="Nginx daemonises: started like the origin, with no pipe for it to hold, and found again by namespace"),
     )
 
 
@@ -383,7 +385,7 @@ def _step_line(i, x, python):
     where = f"[{x.ns}] " if x.ns else ""
     when = f"[if {x.when}] " if x.when else ""
     env = " ".join(f"{k}={_shown(v, python)}" for k, v in x.env)
-    keep = "keep " if x.keep else ""
+    keep = "keep " if x.keep else "detach " if x.detach else ""
     body = " ".join(_shown(a, python) for a in x.argv)
     stdin = f"  < {len(x.stdin.splitlines())} lines" if x.stdin else ""
     return f"{i:>3}. {keep}cmd   {where}{when}{env + ' ' if env else ''}{body}{stdin}    # {x.purpose}"
@@ -477,6 +479,7 @@ ENGINE_T0_OFFSET_S = 0.05            # bench/loadgen.py: the schedule's zero is 
 EARLY_SLACK_S = 2.0                  # a stream that exits with an error, or leaving no output, this much before its end has died
 DRAIN_S = 12.0                       # the engine waits for requests in flight for its timeout (10 s) plus 2 s
 MAX_SETUP_RETRIES = 2
+DAEMON_FORK_WAIT_S = 10.0            # Nginx's launcher has returned by then: it forks once the configuration is read
 TICK_S = 1.0
 REATTACH_EVERY = 10                  # ticks between two looks at which processes the server namespace holds
 # what the suite reads from the environment when it is imported; tests/test_executor_run.py checks that this is
@@ -1240,10 +1243,32 @@ def _do(host, step, plan, log, procs):
         with open(f"{plan.out}/gunicorn.log", "ab") as err:
             procs["origin"] = host.popen(list(step.argv), ns=step.ns, env=dict(step.env) or None, stderr=err)
         log(f"started the origin as pid {procs['origin'].pid}")
+    elif step.detach:
+        start_daemon(host, step, plan, log)
     else:
         r = host.run(list(step.argv), ns=step.ns, stdin=step.stdin, env=dict(step.env) or None)
         if r.code != 0:
             raise SetupFailed(f"{' '.join(map(str, step.argv))[:120]} exited {r.code}: {(r.err or r.out).strip()[:200]}")
+
+
+def start_daemon(host, step, plan, log):
+    """Nginx, started the way the suite starts it: a process of its own with no pipe for its daemon to hold. Run to completion with
+    its output captured, the call came back only at its timeout, three times in S3 (a daemon that keeps the pipes of such a call
+    keeps it from returning: an inference, docs/HG1C_DESIGN.md 14). Its stderr goes to a file of the run, as the origin's does, so
+    that a start that fails keeps its message. The launcher returns once the daemon has forked; the daemon is found again by
+    namespace (the sampler, the teardown)."""
+    path = f"{plan.out}/nginx_start.log"
+    with open(path, "ab") as err:
+        launcher = host.popen(list(step.argv), ns=step.ns, env=dict(step.env) or None, stderr=err)
+    began = host.monotonic()
+    while launcher.poll() is None and host.monotonic() - began < DAEMON_FORK_WAIT_S:
+        host.sleep(0.05)
+    shown = " ".join(map(str, step.argv))[:120]
+    if launcher.poll() is None:                      # the teardown ends it with the rest of the namespace's processes
+        raise SetupFailed(f"{shown} did not return within {DAEMON_FORK_WAIT_S:g} s: Nginx is not daemonising, or it hangs")
+    if launcher.poll() != 0:
+        raise SetupFailed(f"{shown} exited {launcher.poll()}: {_tail(path, 3)[:200]}")
+    log(f"started Nginx (its launcher returned after {host.monotonic() - began:.2f} s)")
 
 
 def verify_topology(host, plan):
@@ -1564,10 +1589,10 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
                 log(f"setup failed: {exc}")
                 stop_all(host, procs, plan, log)
                 teardown(host, plan, log)
-                _reset(out)
                 retries += 1
                 if retries > MAX_SETUP_RETRIES:
-                    raise
+                    raise                            # the last attempt's files stay: they say why it failed
+                _reset(out)
                 log(f"retrying the setup ({retries} of {MAX_SETUP_RETRIES})")
         launched, problems = run_timeline(host, plan, log, procs, sampler)
         stop_all(host, procs, plan, log)
