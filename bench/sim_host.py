@@ -98,6 +98,8 @@ class SimHost(X.Host):
     engine dies), engines_die (every engine of one run dies: none of them can start), stream_silent, stream_nonzero, stream_hangs,
     table_unreadable."""
 
+    simulated = True
+
     def __init__(self, root=True, dirty=False, nofile=(524288, 524288), uptime_s=7200.0, load1=0.05, timer_p99_ms=1.0,
                  preexisting=(), startup_s=None, exit_delay_s=0.04, exit_delay_per_request_s=EXIT_DELAY_PER_REQUEST_S, faults=None,
                  log_lines=20, tag="placeholder", python_exists=True, steal_share=0.0, on_sleep=None, server=None,

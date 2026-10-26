@@ -34,6 +34,7 @@ FROZEN = F.frozen(PLACEHOLDER, "2026-10-24T08:00:00Z")
 TIMELINE = {"baseline_s": 10.0, "attack_s": 10.0, "recovery_s": 10.0}
 RHO = 40.0
 IDENTITIES = 16
+SMOKE = {"rho_rps": 20.0, "timeline_s": [10.0, 10.0, 10.0]}          # what a smoke test's runs say they overrode
 OK_FLAGS = {"slip": False, "sent_short": False, "cpu": False, "descriptors": False, "ports": False, "dropped": False}
 PASS_EFFECTS = {"U": {"fail_p": 0.3}, "M_x": {"fail_p": 0.1}}
 # the suite's links on the request path (mean delay, jitter, loss; seconds): docs/HG1C_DESIGN.md 4.1 and Appendix A
@@ -128,6 +129,10 @@ def edit_json(path, change):
         json.dump(data, fh)
 
 
+def set_overrides(path, value):
+    edit_json(path, lambda j: j.update(overrides=value))
+
+
 def legit_summary(block_dir, run):
     """The path of the summary of the first legit stream of a run."""
     meta = json_of(os.path.join(block_dir, run, "run.json"))
@@ -176,6 +181,14 @@ class WithCopies(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         root = os.path.join(tmp.name, name)
         shutil.copytree(BASE[name], root)
+        return root
+
+    def carrying(self, overrides=None, blocks=range(1, 11), runs=(H.CONTROL, H.PLACEBO, H.ATTACK, "M_x"), block_level=False):
+        """A copy of the passing campaign in which `runs` of `blocks` say they carry `overrides` (a smoke test's, by default)."""
+        root = self.copy_of("pass")
+        for number in blocks:
+            for target in ["block.json"] if block_level else [os.path.join(run, "run.json") for run in runs]:
+                set_overrides(os.path.join(root, f"b{number:02d}_a1", target), SMOKE if overrides is None else overrides)
         return root
 
     def analyse(self, root, cal=FROZEN, **kw):
@@ -927,6 +940,102 @@ class CalibrationGateTest(WithCopies):
         self.assertEqual(self.analyse(root, cal=FROZEN)["verdict"], "INVALID")        # and the hash is another one
 
 
+class OverridesTest(WithCopies):
+    """A smoke test's overrides (a lighter load, a short timeline, a timer limit) are recorded in run.json and block.json. A
+    campaign that carries any gets no verdict, whatever its figures: INVALID, with the reason. Its blocks are assessed as before,
+    so that the reason cannot start a re-run."""
+
+    def test_a_campaign_without_overrides_carries_none_and_the_flag_claims_nothing(self):
+        for allow in (False, True):
+            with self.subTest(allow_overrides=allow):
+                r = self.analyse(BASE["pass"], allow_overrides=allow)
+                self.assertEqual((r["verdict"], r["overrides"], r["overrides_allowed"], r["reasons"]), ("PASS", {}, False, []))
+                self.assertEqual({b["dir"]: b["overrides"] for b in r["blocks"] if b["overrides"]}, {})
+        self.assertNotIn("SMOKE TEST", H.to_markdown(self.analyse(BASE["pass"], allow_overrides=True)))
+        self.assertEqual(H.read_run(os.path.join(BASE["pass"], "b01_a1", "C"))["overrides"], {})
+
+    def test_a_campaign_that_carries_overrides_gets_no_verdict_and_says_why(self):
+        r = self.analyse(self.carrying())
+        self.assertEqual(r["verdict"], "INVALID")
+        self.assertEqual(r["reasons"], [f"the runs carry overrides {SMOKE}: a smoke test, not a result, so there is no verdict"])
+        self.assertEqual((r["overrides"], r["overrides_allowed"]), (SMOKE, False))
+
+    def test_the_blocks_are_assessed_all_the_same_so_nothing_is_re_run(self):
+        base, r = self.analyse(BASE["pass"]), self.analyse(self.carrying())
+        self.assertEqual((r["blocks_valid"], r["blocks_total"], r["reruns"]), (10, 10, 0))
+        self.assertTrue(all(b["valid"] and b["reasons"] == [] for b in r["blocks"]))
+        self.assertEqual(r["criteria"]["Q"]["mean"], base["criteria"]["Q"]["mean"], "the figures are made, and are not a result")
+        self.assertEqual({b["dir"]: b["overrides"] for b in r["blocks"]}, {f"b{n:02d}_a1": SMOKE for n in range(1, 11)})
+
+    def test_one_run_of_one_block_is_enough_to_refuse_the_verdict(self):
+        r = self.analyse(self.carrying({"timer_limit_ms": 50.0}, blocks=[7], runs=[H.PLACEBO]))
+        self.assertEqual((r["verdict"], r["overrides"], r["blocks_valid"]), ("INVALID", {"timer_limit_ms": 50.0}, 10))
+        self.assertEqual(self.block(r, 7)["overrides"], {"timer_limit_ms": 50.0})
+        self.assertEqual(self.block(r, 6)["overrides"], {})
+
+    def test_overrides_of_a_mitigated_run_count_too(self):
+        r = self.analyse(self.carrying({"rho_rps": 20.0}, blocks=[2], runs=["M_x"]))
+        self.assertEqual((r["verdict"], r["overrides"]), ("INVALID", {"rho_rps": 20.0}))
+
+    def test_overrides_in_block_json_count_and_the_blocks_record_joins_them_with_the_runs(self):
+        root = self.carrying({"timer_limit_ms": 50.0}, blocks=[3], block_level=True)
+        r = self.analyse(root)
+        self.assertEqual((r["verdict"], r["overrides"]), ("INVALID", {"timer_limit_ms": 50.0}))
+        edit_json(os.path.join(root, "b03_a1", "U", "run.json"), lambda j: j.update(overrides={"rho_rps": 20.0, "timer_limit_ms": 99.0}))
+        b = self.block(self.analyse(root), 3)
+        self.assertEqual(b["overrides"], {"timer_limit_ms": 50.0, "rho_rps": 20.0}, "the block's own record comes first")
+
+    def test_the_campaigns_overrides_are_those_of_all_its_blocks(self):
+        root = self.carrying({"rho_rps": 20.0}, blocks=[1], runs=[H.ATTACK])
+        edit_json(os.path.join(root, "b05_a1", "block.json"), lambda j: j.update(overrides={"timer_limit_ms": 50.0}))
+        self.assertEqual(self.analyse(root)["overrides"], {"rho_rps": 20.0, "timer_limit_ms": 50.0})
+
+    def test_an_empty_or_null_overrides_is_none(self):
+        for value in ({}, None):
+            with self.subTest(overrides=value):
+                root = self.copy_of("pass")
+                set_overrides(os.path.join(root, "b01_a1", "C", "run.json"), value)
+                set_overrides(os.path.join(root, "b01_a1", "block.json"), value)
+                r = self.analyse(root)
+                self.assertEqual((r["verdict"], r["overrides"]), ("PASS", {}))
+
+    def test_overrides_that_are_not_an_object_are_an_error_naming_the_file(self):
+        for bad in ([1], "rho", 3, True):
+            with self.subTest(overrides=bad):
+                root = self.carrying(bad, blocks=[1], runs=[H.CONTROL])
+                with self.assertRaisesRegex(H.GateError, r"b01_a1/C/run\.json: overrides is an object"):
+                    self.analyse(root)
+                root = self.carrying(bad, blocks=[1], block_level=True)
+                with self.assertRaisesRegex(H.GateError, r"b01_a1/block\.json: overrides is an object"):
+                    self.analyse(root)
+
+    def test_a_simulation_or_a_test_can_allow_them_and_the_report_says_that_it_did(self):
+        root = self.carrying()
+        r = self.analyse(root, allow_overrides=True)
+        self.assertEqual((r["verdict"], r["reasons"], r["overrides"], r["overrides_allowed"]), ("PASS", [], SMOKE, True))
+        md = H.to_markdown(r)
+        self.assertIn("**Verdict: PASS**", md)
+        self.assertIn(f"> **SMOKE TEST.** The runs carry overrides {SMOKE}: the verdict was allowed (a simulation or a test) "
+                      "and is no result.", md)
+
+    def test_the_report_of_a_campaign_that_got_no_verdict_says_nothing_below_is_a_result(self):
+        md = H.to_markdown(self.analyse(self.carrying()))
+        self.assertIn("**Verdict: INVALID**", md)
+        self.assertIn(f"> **SMOKE TEST.** The runs carry overrides {SMOKE}: no verdict is given, and nothing below is a result.", md)
+        self.assertNotIn("the verdict was allowed", md)
+
+    def test_the_json_record_round_trips_with_them(self):
+        r = self.analyse(self.carrying())
+        self.assertEqual(json.loads(json.dumps(r)), r)
+
+    def test_a_blocks_description_says_it_carries_them(self):
+        a = H.assess_block(os.path.join(self.carrying(blocks=[1]), "b01_a1"), FROZEN)
+        self.assertTrue(a["valid"])
+        self.assertIn(f"  OVERRIDES {SMOKE}: a smoke test, not a result", H.describe_block(a))
+        plain = H.describe_block(H.assess_block(os.path.join(BASE["pass"], "b01_a1"), FROZEN))
+        self.assertFalse(any("OVERRIDES" in line for line in plain))
+
+
 class ContractTest(WithCopies):
     def test_a_directory_without_blocks(self):
         with tempfile.TemporaryDirectory() as tmp, self.assertRaisesRegex(H.GateError, "no block.json"):
@@ -1038,6 +1147,36 @@ class CommandLineTest(WithCopies):
             code, out, _ = self.run_main(root, "--calibration", self.calibration_file(tmp, FROZEN))
         self.assertEqual(code, 0)
         self.assertTrue(out.startswith("INVALID: 9 valid blocks of 9; 9 valid blocks, fewer than"), out)
+
+    def test_a_campaign_with_overrides_prints_invalid_and_why_unless_they_are_allowed(self):
+        root = self.carrying()
+        with tempfile.TemporaryDirectory() as tmp:
+            cal = self.calibration_file(tmp, FROZEN)
+            code, out, err = self.run_main(root, "--calibration", cal)
+            self.assertEqual((code, err), (0, ""))
+            self.assertEqual(out, f"INVALID: 10 valid blocks of 10; the runs carry overrides {SMOKE}: a smoke test, not a "
+                                  "result, so there is no verdict\n")
+            md = os.path.join(tmp, "r.md")
+            code, out, err = self.run_main(root, "--calibration", cal, "--allow-overrides", "--md", md)
+            self.assertEqual((code, err), (0, ""))
+            self.assertEqual(out, "PASS (overrides allowed: no result): 10 valid blocks of 10\n")
+            with open(md, encoding="utf-8") as fh:
+                self.assertIn("the verdict was allowed (a simulation or a test) and is no result", fh.read())
+
+    def test_allowing_overrides_changes_nothing_for_a_campaign_that_has_none(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, _ = self.run_main(BASE["pass"], "--calibration", self.calibration_file(tmp, FROZEN), "--allow-overrides")
+        self.assertEqual((code, out), (0, "PASS: 10 valid blocks of 10\n"))
+
+    def test_block_says_a_block_carries_overrides_and_still_gives_no_verdict(self):
+        root = self.carrying(blocks=[1])
+        with tempfile.TemporaryDirectory() as tmp:
+            code, out, _ = self.run_main("--block", os.path.join(root, "b01_a1"), "--calibration", self.calibration_file(tmp, FROZEN))
+        self.assertEqual(code, 0)
+        self.assertIn(f"  OVERRIDES {SMOKE}: a smoke test, not a result", out.splitlines())
+        self.assertIn("block 1 attempt 1 seed 1 (synthetic): valid", out)
+        for word in ("PASS", "FAIL", "INVALID"):
+            self.assertNotIn(word, out)
 
     def test_a_placeholder_needs_dry_run(self):
         with tempfile.TemporaryDirectory() as tmp:

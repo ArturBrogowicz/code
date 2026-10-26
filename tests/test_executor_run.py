@@ -1,6 +1,7 @@
 """The executor's run half (docs/HG1C_DESIGN.md 6), on the simulated host of bench/sim_host.py: nothing here needs root, creates
 a namespace or starts a server. What cannot be tested this way is listed in docs/HG1C_DESIGN.md 9 and is what S1-S4 are for."""
 import contextlib
+import copy
 import csv
 import dataclasses
 import gzip
@@ -518,6 +519,84 @@ class RefusalTest(RunCase):
 
     def test_the_timer_still_gates_between_the_runs_of_a_campaign(self):
         self.refused(F.SimHost(timer_p99_ms=40.0), error=X.EnvironmentRefused, gate="timer")
+
+
+class TimerLimitTest(RunCase):
+    """The limit for the timer on the legit CPU is the calibration's validity.timer_p99_ms, or a smoke test's; the run records
+    which, and the limit it used."""
+
+    def limited(self, ms):
+        cal = copy.deepcopy(self.cal)
+        cal["validity"]["timer_p99_ms"] = ms
+        return cal
+
+    def refused(self, host, name, **kw):
+        plan = self.plan("C", name=name, **kw)
+        with self.assertRaises(X.EnvironmentRefused) as ctx:
+            X.execute(plan, host)
+        self.assertEqual(host.prims, [], "nothing was built")
+        return plan, str(ctx.exception)
+
+    def environment(self, plan):
+        return json.loads(self.read(plan, "environment.json"))
+
+    def test_the_limit_is_the_calibrations_not_a_constant_of_the_code(self):
+        plan, _, result = self.go("C", F.SimHost(timer_p99_ms=15.0), plan_args={"cal": self.limited(20.0), "name": "high/C"})
+        self.assertTrue(result.ok, result.reasons)
+        self.assertEqual(self.environment(plan)["timer_limit_ms"], 20.0)
+        _, why = self.refused(F.SimHost(timer_p99_ms=7.0), "low/C", cal=self.limited(5.0))
+        self.assertIn("p99 7.0 ms", why)
+        self.assertIn("needs below 5 ms", why)
+
+    def test_the_refusal_names_the_limit_and_does_not_blame_a_smoke_test_that_did_not_set_it(self):
+        _, why = self.refused(F.SimHost(timer_p99_ms=15.0), "default/C")
+        self.assertIn(f"needs below {self.cal['validity']['timer_p99_ms']:g} ms", why)
+        self.assertNotIn("--timer-limit-ms", why)
+
+    def test_the_limit_the_calibration_gives_is_recorded_and_is_not_an_override(self):
+        plan, _, _ = self.go("C", plan_args={"name": "own/C"})
+        env = self.environment(plan)
+        self.assertEqual((env["timer_limit_ms"], env["timer_limit_is_override"]), (self.cal["validity"]["timer_p99_ms"], False))
+        self.assertEqual(sorted(self.run_json(plan)["overrides"]), ["rho_rps", "timeline_s"],
+                         "the run was a smoke test in other ways, which says nothing of its limit")
+
+    def test_a_smoke_test_can_raise_it_and_the_run_says_so_everywhere(self):
+        host = F.SimHost(timer_p99_ms=15.0)
+        self.refused(host, "refused/C")
+        plan, _, result = self.go("C", F.SimHost(timer_p99_ms=15.0), plan_args={"name": "raised/C", "timer_limit_ms": 50.0})
+        self.assertTrue(result.ok, result.reasons)
+        env = self.environment(plan)
+        self.assertEqual((env["timer_limit_ms"], env["timer_limit_is_override"]), (50.0, True))
+        self.assertEqual(env["timer_legit"]["p99_ms"], 15.0, "the timer is measured and recorded as it was")
+        self.assertEqual(self.run_json(plan)["overrides"]["timer_limit_ms"], 50.0)
+        self.assertEqual(json.loads(self.read(plan, "plan.json"))["overrides"]["timer_limit_ms"], 50.0)
+        self.assertEqual(H.read_run(plan.out)["overrides"]["timer_limit_ms"], 50.0)
+
+    def test_a_limit_a_smoke_test_set_still_refuses_what_is_above_it_and_says_who_set_it(self):
+        _, why = self.refused(F.SimHost(timer_p99_ms=60.0), "above/C", timer_limit_ms=50.0)
+        self.assertIn("p99 60.0 ms", why)
+        self.assertIn("needs below 50 ms", why)
+        self.assertIn("set by --timer-limit-ms for a smoke test", why)
+
+    def test_a_smoke_test_can_also_make_it_stricter(self):
+        self.refused(F.SimHost(timer_p99_ms=3.0), "strict/C", timer_limit_ms=2.0)
+
+    def test_just_under_the_limit_is_accepted_and_one_at_it_is_not_whoever_set_it(self):
+        _, _, result = self.go("C", F.SimHost(timer_p99_ms=49.99), plan_args={"name": "under/C", "timer_limit_ms": 50.0})
+        self.assertTrue(result.ok)
+        self.refused(F.SimHost(timer_p99_ms=50.0), "edge/C", timer_limit_ms=50.0)
+
+    def test_between_the_runs_of_a_campaign_the_same_limit_gates_the_timer(self):
+        _, _, result = self.go("C", F.SimHost(timer_p99_ms=40.0), gate="timer", plan_args={"name": "in/C", "timer_limit_ms": 50.0})
+        self.assertTrue(result.ok)
+        plan = self.plan("C", name="out/C", timer_limit_ms=50.0)
+        with self.assertRaises(X.EnvironmentRefused):
+            X.execute(plan, F.SimHost(timer_p99_ms=60.0), gate="timer")
+
+    def test_a_refusal_for_the_timer_leaves_a_failed_file_and_no_run(self):
+        plan, _ = self.refused(F.SimHost(timer_p99_ms=60.0), "failed/C", timer_limit_ms=50.0)
+        self.assertIn("EnvironmentRefused", self.failed(plan))
+        self.assertFalse(os.path.exists(os.path.join(plan.out, "run.json")))
 
 
 class SetupTest(RunCase):
@@ -2133,6 +2212,23 @@ class CommandLineTest(RunCase):
         self.assertEqual(host.pinned, P.PIN_PLAN["daemon"])
         self.assertEqual({c.args[0] for c in handlers.call_args_list}, {signal.SIGTERM, signal.SIGHUP})
         self.assertIn("sound", shown)
+
+    def test_a_run_with_a_timer_limit_says_it_is_a_smoke_test_and_the_harm_gate_will_not_judge_it(self):
+        host = F.SimHost(timer_p99_ms=15.0)
+        code, _, shown, _ = self.run_main(*self.base("C", "raised/C"), "--timer-limit-ms", "50", host=host)
+        self.assertEqual(code, X.EXIT_OK)
+        self.assertRegex(shown, r"OVERRIDES \{[^}]*'timer_limit_ms': 50\.0[^}]*\}: a smoke test, not a result; "
+                                r"the harm gate gives no verdict on it")
+        code, _, shown, err = self.run_main(*self.base("C", "refused/C"), host=F.SimHost(timer_p99_ms=15.0))
+        self.assertEqual(code, X.EXIT_FAILED)
+        self.assertIn("EnvironmentRefused", err)
+        self.assertIn("needs below 10 ms", err)
+
+    def test_a_run_without_overrides_does_not_say_so(self):
+        code, _, shown, _ = self.run_main("run", SPEC, "--kind", "C", "--out", os.path.join(self.tmp.name, "C"), "--allow-dirty",
+                                          host=F.SimHost(server=F.SyntheticServer(self.cal, (105.0, 45.0, 45.0))))
+        self.assertEqual(code, X.EXIT_OK)
+        self.assertNotIn("OVERRIDES", shown)
 
     def test_the_signal_handler_ends_the_run_like_ctrl_c(self):
         _, handlers, _, _ = self.run_main(*self.base(), host=F.SimHost())

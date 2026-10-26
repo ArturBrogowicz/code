@@ -146,6 +146,10 @@ class PlanTextTest(CampaignCase):
         self.assertIn("SIMULATED    the simulated host, preset pass", text)
         self.assertIn("timeline     baseline_s 6, attack_s 6, recovery_s 6", text)
 
+    def test_a_timer_limit_is_one_of_the_overrides_it_names(self):
+        self.assertRegex(self.text(timer_limit_ms=50.0), r"OVERRIDES    .*timer limit ms 50\.0.*: a smoke test, not a result")
+        self.assertNotIn("timer limit", self.text())
+
     def test_a_placeholder_is_a_dry_run(self):
         self.assertIn("PLACEHOLDER: a dry run", self.text(cal=CF.placeholder()))
 
@@ -196,7 +200,7 @@ class WholeCampaignTest(CampaignCase):
                 self.assertEqual((gate["verdict"], gate["blocks_valid"], gate["reruns"]), ("FAIL", 3, 0))
 
     def test_the_directory_is_what_the_gate_reads(self):
-        result = H.analyse(self.dir("pass"), self.CAL)
+        result = H.analyse(self.dir("pass"), self.CAL, allow_overrides=True)
         self.assertEqual(result["verdict"], "PASS")
         self.assertEqual([b["block"] for b in result["blocks"]], [1, 2, 3])
         self.assertEqual(result["reasons"], [])
@@ -314,7 +318,7 @@ class RerunRuleTest(CampaignCase):
     def test_the_gate_agrees_with_the_campaign_about_the_rerun(self):
         host = self.host(fault_schedule={1: {"stream_dies": 1}})
         self.run_campaign(host=host)
-        result = H.analyse(self.path(), self.CAL)
+        result = H.analyse(self.path(), self.CAL, allow_overrides=True)
         self.assertEqual((result["reruns"], result["reasons"]), (1, []))
         self.assertEqual([(a["block"], a["attempt"]) for a in result["attempts"]], [(1, 1)])
         self.assertFalse(result["attempts"][0]["valid"])
@@ -347,7 +351,7 @@ class RerunRuleTest(CampaignCase):
         self.assertEqual(state["state"], "complete")
         gate = state["gate"]
         self.assertEqual((gate["verdict"], gate["blocks_valid"], gate["blocks_total"], gate["reruns"]), ("INVALID", 2, 3, 2))
-        self.assertEqual(H.analyse(self.path(), self.CAL)["reasons"], gate["reasons"])
+        self.assertEqual(H.analyse(self.path(), self.CAL, allow_overrides=True)["reasons"], gate["reasons"])
 
     def test_an_unsound_run_ends_its_attempt_and_the_block_is_re_run(self):
         started = []
@@ -436,7 +440,7 @@ class ResumeTest(CampaignCase):
         resumed = self.run_campaign(out="split")
         self.assertEqual(resumed["state"], "complete")
         self.assertEqual(self.dirs("split"), self.dirs("whole"))
-        a, b = H.analyse(os.path.join(self.tmp.name, "whole"), self.CAL), H.analyse(os.path.join(self.tmp.name, "split"), self.CAL)
+        a, b = (H.analyse(os.path.join(self.tmp.name, name), self.CAL, allow_overrides=True) for name in ("whole", "split"))
         self.assertEqual(a["verdict"], b["verdict"])
         for x, y in zip(a["blocks"], b["blocks"], strict=True):
             for key in ("block", "seed", "attempt", "valid", "dQ", "dL", "dQ_placebo", "order"):
@@ -477,7 +481,8 @@ class ResumeTest(CampaignCase):
     def test_a_campaign_resumes_only_as_it_began(self):
         self.run_campaign()
         for change, key in (({"blocks": 2}, "blocks"), ({"rho": 30.0}, "rho_rps"), ({"warmup": True}, "warmup"),
-                            ({"timeline": (7.0, 6.0, 6.0)}, "timeline"), ({"settings": (("t0_spread_limit_s", 0.4),)}, "settings")):
+                            ({"timeline": (7.0, 6.0, 6.0)}, "timeline"), ({"settings": (("t0_spread_limit_s", 0.4),)}, "settings"),
+                            ({"timer_limit_ms": 50.0, "dry_run": True}, "timer_limit_ms")):
             with self.subTest(change=change), self.assertRaises(GC.CampaignError) as ctx:
                 self.run_campaign(**change)
             self.assertIn("other settings", str(ctx.exception))
@@ -511,6 +516,87 @@ class ResumeTest(CampaignCase):
             self.run_campaign(host=host)
         self.assertIn("the legit streams of C, Cp and U differ", str(ctx.exception))
         self.assertEqual(host.prims, [])
+
+
+class TimerLimitTest(CampaignCase):
+    """--timer-limit-ms: a smoke test's limit for the timer on the legit CPU, in place of the calibration's. It is an override in
+    every plan, run and block, a campaign resumes only with the one it began with, it needs --dry-run, and the gate gives no verdict
+    on a campaign that carries it unless the host was simulated."""
+
+    SLOW = 15.0                  # the simulated timer's p99 in ms: above the calibration's limit of 10, below a smoke test's 50
+
+    def smoke(self, **kw):
+        return self.run_campaign(timer_limit_ms=50.0, dry_run=True, **kw)
+
+    def gate_md(self):
+        with open(self.path("gate.md"), encoding="utf-8") as fh:
+            return fh.read()
+
+    def test_only_the_simulated_host_is_simulated(self):
+        self.assertTrue(S.SimHost.simulated)
+        self.assertFalse(X.Host.simulated)
+        self.assertFalse(X.RealHost.simulated)
+
+    def test_a_timer_above_the_calibrations_limit_stops_the_campaign_and_a_smoke_test_can_raise_the_limit(self):
+        with self.assertRaises(X.EnvironmentRefused) as ctx:
+            self.run_campaign(out="strict", host=self.host(timer_p99_ms=self.SLOW))
+        self.assertIn("needs below 10 ms", str(ctx.exception))
+        self.assertNotIn("--timer-limit-ms", str(ctx.exception))
+        self.assertEqual(self.smoke(host=self.host(timer_p99_ms=self.SLOW))["state"], "complete")
+
+    def test_every_plan_run_and_block_carries_it(self):
+        self.smoke(host=self.host(timer_p99_ms=self.SLOW))
+        for block in ("b01_a1", "b02_a1", "b03_a1"):
+            self.assertEqual(self.json(block, "block.json")["overrides"]["timer_limit_ms"], 50.0)
+            for kind in X.KINDS:
+                self.assertEqual(self.json(block, kind, "run.json")["overrides"]["timer_limit_ms"], 50.0)
+                self.assertEqual(self.json(block, kind, "plan.json")["timer_limit_ms"], 50.0)
+                env = self.json(block, kind, "environment.json")
+                self.assertEqual((env["timer_limit_ms"], env["timer_limit_is_override"], env["timer_legit"]["p99_ms"]),
+                                 (50.0, True, self.SLOW))
+
+    def test_the_warm_up_is_held_to_the_same_limit(self):
+        self.assertEqual(self.smoke(host=self.host(timer_p99_ms=self.SLOW), warmup=True)["state"], "complete")
+        self.assertEqual(self.json("warmup", "C", "run.json")["overrides"]["timer_limit_ms"], 50.0)
+
+    def test_it_is_part_of_what_a_campaign_began_with(self):
+        self.smoke(host=self.host(timer_p99_ms=self.SLOW))
+        for change in ({"timer_limit_ms": 60.0}, {"timer_limit_ms": None}):
+            with self.subTest(change=change), self.assertRaises(GC.CampaignError) as ctx:
+                self.run_campaign(dry_run=True, **change)
+            self.assertIn("other settings", str(ctx.exception))
+            self.assertIn("timer_limit_ms", str(ctx.exception))
+
+    def test_it_needs_dry_run_and_nothing_is_made_without(self):
+        with self.assertRaises(GC.CampaignError) as ctx:
+            self.run_campaign(timer_limit_ms=50.0)
+        self.assertIn("--timer-limit-ms", str(ctx.exception))
+        self.assertIn("--dry-run", str(ctx.exception))
+        self.assertFalse(os.path.exists(self.path()))
+
+    def test_a_real_hosts_campaign_with_it_gets_no_verdict(self):
+        host = self.host(timer_p99_ms=self.SLOW)
+        host.simulated = False                       # as RealHost is: a campaign on it is meant to measure something
+        state = self.smoke(host=host)
+        self.assertEqual(state["state"], "complete")
+        gate = state["gate"]
+        self.assertEqual((gate["verdict"], gate["blocks_valid"], gate["reruns"]), ("INVALID", 3, 0))
+        self.assertEqual(sorted(gate["overrides"]), ["rho_rps", "timeline_s", "timer_limit_ms"])
+        self.assertTrue(any("the runs carry overrides" in r for r in gate["reasons"]), gate["reasons"])
+        result = self.json("gate.json")
+        self.assertEqual((result["verdict"], result["overrides_allowed"]), ("INVALID", False))
+        self.assertIn("no verdict is given, and nothing below is a result", self.gate_md())
+        self.assertTrue(any(m.startswith("OVERRIDES ") and m.endswith("; the gate gives no verdict on it") for m in self.say), self.say)
+
+    def test_a_simulated_campaign_with_it_gets_a_verdict_that_says_it_is_no_result(self):
+        state = self.smoke(host=self.host(timer_p99_ms=self.SLOW))
+        self.assertEqual((state["gate"]["verdict"], state["gate"]["reasons"]), ("PASS", []))
+        result = self.json("gate.json")
+        self.assertEqual((result["overrides_allowed"], result["overrides"]["timer_limit_ms"]), (True, 50.0))
+        md = self.gate_md()
+        self.assertIn("> **SIMULATED.**", md)
+        self.assertIn("the verdict was allowed (a simulation or a test) and is no result", md)
+        self.assertTrue(any(m.startswith("OVERRIDES ") and m.endswith(": a smoke test, not a result") for m in self.say), self.say)
 
 
 class StopTest(CampaignCase):
@@ -653,6 +739,22 @@ class CommandLineTest(CampaignCase):
                                 "--simulate", "pass")
         self.assertEqual(code, GC.EXIT_STOPPED)
         self.assertIn("attack-free", err)
+
+    def test_a_timer_limit_needs_dry_run_and_then_makes_a_smoke_test(self):
+        code, out, err = self.cli(*self.base("--simulate", "pass", "--timer-limit-ms", "50"))
+        self.assertEqual((code, out), (GC.EXIT_STOPPED, ""))
+        self.assertIn("--timer-limit-ms", err)
+        self.assertIn("--dry-run", err)
+        code, out, err = self.cli(*self.base("--simulate", "pass", "--timer-limit-ms", "50", "--dry-run"))
+        self.assertEqual((code, err), (GC.EXIT_OK, ""))
+        self.assertIn("gate: PASS (simulated), 3 valid blocks of 3, 0 re-run(s)", out)
+        self.assertRegex(out, r"OVERRIDES \{[^}]*'timer_limit_ms': 50\.0[^}]*\}: a smoke test, not a result")
+        self.assertEqual(self.json("b01_a1", "C", "run.json")["overrides"]["timer_limit_ms"], 50.0)
+
+    def test_plan_names_a_timer_limit_without_needing_dry_run(self):
+        code, out, _ = self.cli("plan", SPEC, "--calibration", self.cal_path, "--blocks", "3", "--timer-limit-ms", "50")
+        self.assertEqual(code, GC.EXIT_OK)
+        self.assertRegex(out, r"OVERRIDES    .*timer limit ms 50\.0")
 
     def test_a_placeholder_needs_dry_run(self):
         code, _, err = self.cli("run", SPEC, "--out", os.path.join(self.tmp.name, "x"), "--simulate", "pass", "--blocks", "3",

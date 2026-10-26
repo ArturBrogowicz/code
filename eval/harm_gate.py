@@ -26,12 +26,15 @@ under the run contract (5.5), the output is a verdict, a Markdown report and a J
     re-run once with the same seed, at most `max_reruns` times in all; a valid block is never re-run. Validity
     does not read the attack's effect.
   * no verdict on a calibration that is not frozen, except with --dry-run, which labels everything it prints.
+  * no verdict on runs that carry overrides (`run.json` and `block.json` `overrides`: a smoke test's load, timeline or
+    timer limit): the campaign is INVALID and says why, whatever the figures. `--allow-overrides` lifts that for a simulated
+    campaign and the tests, and the report says that it was lifted. A block's own assessment is made all the same.
 
 Limits, stated where they bite: p95 is over successes, so a server that fails its slowest requests looks faster
 (Q, which counts the failures, is the primary number); the pooled p95 weighs route classes by their share of the
 mix, the per-class figures are reported next to it; an SLO is a choice, the calibration holds it.
 
-    ./venv/bin/python eval/harm_gate.py CAMPAIGN --calibration FILE [--dry-run] [--md FILE] [--json FILE]
+    ./venv/bin/python eval/harm_gate.py CAMPAIGN --calibration FILE [--dry-run] [--allow-overrides] [--md FILE] [--json FILE]
     ./venv/bin/python eval/harm_gate.py --block BLOCK_DIR --calibration FILE      # one block's assessment, no verdict
 """
 import argparse
@@ -98,6 +101,15 @@ def read_block_meta(block_dir):
     return meta
 
 
+def _overrides(x, where):
+    """The overrides a run or block record carries: an object, empty when it has none."""
+    if x is None:
+        return {}
+    if not isinstance(x, dict):
+        raise GateError(f"{where}: overrides is an object")
+    return x
+
+
 def read_run(run_dir):
     """run.json and the summary of each stream; the records are read when the figures are made."""
     meta = _json(os.path.join(run_dir, "run.json"))
@@ -123,7 +135,8 @@ def read_run(run_dir):
             or not isinstance(executor.get("reasons"), list):
         raise GateError(f"{run_dir}/run.json: executor needs ok (a boolean) and reasons (a list)")
     return {"dir": run_dir, "name": name, "role": want, "mode": meta.get("mode"),
-            "started_utc": meta.get("started_utc"), "executor": executor, "streams": streams}
+            "started_utc": meta.get("started_utc"), "executor": executor, "streams": streams,
+            "overrides": _overrides(meta.get("overrides"), f"{run_dir}/run.json")}
 
 
 def read_records(path):
@@ -321,6 +334,10 @@ def assess_block(block_dir, cal, slo_scale=1.0):
     made = sorted(n for n in runs if not n.startswith(MITIGATED))
     if sorted(meta["order"]) != made:
         problems.append(f"order {meta['order']} is not the runs made ({', '.join(made)})")
+    overrides = dict(_overrides(meta.get("overrides"), os.path.join(block_dir, "block.json")))
+    for name in sorted(runs):
+        for key, value in runs[name]["overrides"].items():
+            overrides.setdefault(key, value)
     metrics = {n: run_metrics(r, cal, meta["timeline"], slo_scale) for n, r in runs.items()}
     control = metrics.get(CONTROL)
     out_runs = {}
@@ -339,7 +356,7 @@ def assess_block(block_dir, cal, slo_scale=1.0):
     return {"dir": os.path.basename(block_dir), "block": meta["block"], "attempt": meta["attempt"],
             "seed": meta["seed"], "seed_namespace": meta["seed_namespace"], "scenario": meta["scenario"],
             "calibration_sha256": meta["calibration_sha256"], "order": meta["order"], "runs": out_runs,
-            "valid": not reasons, "reasons": reasons,
+            "valid": not reasons, "reasons": reasons, "overrides": overrides,
             "dQ": _diff(control and control["Q"], u and u["Q"]),
             "dL": _log2_ratio(u and u["p95_s"], control and control["p95_s"]),
             "dQ_placebo": _diff(control and control["Q"], cp and cp["Q"]),
@@ -459,8 +476,9 @@ def profile_table(valid_blocks, cal):
     return out
 
 
-def analyse(root, cal, dry_run=False, metrics=METRICS, slo_scale=1.0):
-    """The verdict of a campaign directory (one gate) under calibration `cal`."""
+def analyse(root, cal, dry_run=False, metrics=METRICS, slo_scale=1.0, allow_overrides=False):
+    """The verdict of a campaign directory (one gate) under calibration `cal`. Runs that carry overrides (a smoke test) get
+    none: the campaign is INVALID and says so, unless `allow_overrides` (a simulated campaign, the tests)."""
     if cal["status"] != "frozen" and not dry_run:
         CAL.require_frozen(cal)
     dirs = [d for d in sorted(os.listdir(root)) if os.path.isfile(os.path.join(root, d, "block.json"))]
@@ -475,6 +493,12 @@ def analyse(root, cal, dry_run=False, metrics=METRICS, slo_scale=1.0):
     valid = [b for b in blocks if b["valid"]]
     gate = cal["gate"]
     reasons = list(problems)
+    smoke = {}
+    for a in attempts:
+        for key, value in a["overrides"].items():
+            smoke.setdefault(key, value)
+    if smoke and not allow_overrides:
+        reasons.append(f"the runs carry overrides {smoke}: a smoke test, not a result, so there is no verdict")
     if len(valid) < gate["min_blocks"]:
         reasons.append(f"{len(valid)} valid blocks, fewer than the {gate['min_blocks']} the gate needs")
     criteria = _criteria(valid, gate, metrics, "dQ", "dL")
@@ -488,7 +512,8 @@ def analyse(root, cal, dry_run=False, metrics=METRICS, slo_scale=1.0):
     modes = sorted({n[len(MITIGATED):] for b in valid for n in b["runs"] if n.startswith(MITIGATED)})
     return {"scenario": blocks[0]["scenario"], "seed_namespace": blocks[0]["seed_namespace"],
             "calibration": {"status": cal["status"], "sha256": cal.get("sha256") or CAL.digest(cal)},
-            "dry_run": cal["status"] != "frozen", "metrics": list(metrics), "slo_scale": slo_scale,
+            "dry_run": cal["status"] != "frozen", "overrides": smoke, "overrides_allowed": bool(smoke) and allow_overrides,
+            "metrics": list(metrics), "slo_scale": slo_scale,
             "profile": cal["validity"]["profile"], "judged_profiles": list(cal["judged_profiles"]),
             "gate": {k: gate[k] for k in CAL.GATE_KEYS}, "verdict": verdict, "reasons": reasons,
             "blocks_valid": len(valid), "blocks_total": len(blocks), "reruns": reruns,
@@ -522,6 +547,10 @@ def to_markdown(r):
     if r["dry_run"]:
         out += [("> **DRY RUN on a placeholder calibration.** The costs, SLOs and capacity are illustrations; "
                  "nothing below is a result.\n")]
+    if r.get("overrides"):
+        out.append(f"> **SMOKE TEST.** The runs carry overrides {r['overrides']}: "
+                   + ("the verdict was allowed (a simulation or a test) and is no result.\n" if r.get("overrides_allowed")
+                      else "no verdict is given, and nothing below is a result.\n"))
     out.append(f"**Verdict: {r['verdict']}**" + (" (dry run)" if r["dry_run"] else "") + "\n")
     out.append(f"{r['blocks_valid']} valid blocks of {r['blocks_total']}, {r['reruns']} re-run(s); calibration "
                f"{r['calibration']['status']} `{r['calibration']['sha256'][:8]}`; validity profile `{r['profile']}`; "
@@ -581,6 +610,8 @@ def describe_block(a):
     lines = [f"block {a['block']} attempt {a['attempt']} seed {a['seed']} ({a['scenario']}): "
              + ("valid" if a["valid"] else "NOT valid")]
     lines += [f"  - {r}" for r in a["reasons"]]
+    if a.get("overrides"):
+        lines.append(f"  OVERRIDES {a['overrides']}: a smoke test, not a result")
     for name, run in a["runs"].items():
         m = run["metrics"]
         lines.append(f"  {name:<4} Q {_f(m['Q'])} % of {m['requests']} judged requests, p95 {_ms(m['p95_s'])} ms, "
@@ -600,6 +631,8 @@ def main(argv=None):
     ap.add_argument("--block", metavar="DIR", help="assess one block directory: validity and figures, no verdict")
     ap.add_argument("--calibration", required=True, help="the calibration record the blocks were run under")
     ap.add_argument("--dry-run", action="store_true", help="allow a placeholder calibration; everything is labelled")
+    ap.add_argument("--allow-overrides", action="store_true",
+                    help="for a simulated campaign or a test: give a verdict although the runs carry overrides; it is no result")
     ap.add_argument("--metrics", default=",".join(METRICS), help="criteria to apply (default: Q,p95)")
     ap.add_argument("--md", help="write the Markdown report here")
     ap.add_argument("--json", help="write the JSON record here")
@@ -614,7 +647,7 @@ def main(argv=None):
         if args.block:
             result = assess_block(args.block, cal)
         else:
-            result = analyse(args.campaign, cal, args.dry_run, metrics)
+            result = analyse(args.campaign, cal, args.dry_run, metrics, allow_overrides=args.allow_overrides)
     except (GateError, CAL.RecordError, OSError) as exc:
         print(exc, file=sys.stderr)
         return 1
@@ -630,8 +663,9 @@ def main(argv=None):
         if cal["status"] != "frozen":
             print("(placeholder calibration: figures, not a result)")
         return 0
-    print(f"{result['verdict']}{' (dry run)' if result['dry_run'] else ''}: {result['blocks_valid']} valid blocks of "
-          f"{result['blocks_total']}" + ("; " + "; ".join(result["reasons"]) if result["reasons"] else ""))
+    labels = (" (dry run)" if result["dry_run"] else "") + (" (overrides allowed: no result)" if result["overrides_allowed"] else "")
+    print(f"{result['verdict']}{labels}: {result['blocks_valid']} valid blocks of {result['blocks_total']}"
+          + ("; " + "; ".join(result["reasons"]) if result["reasons"] else ""))
     return 0
 
 

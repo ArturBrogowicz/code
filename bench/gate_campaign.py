@@ -4,6 +4,7 @@ in a drawn order, run by the executor and judged by eval/harm_gate.py (docs/HG1C
 
     python3 bench/gate_campaign.py plan SPEC --calibration FILE [--blocks N]
     sudo ./venv/bin/python bench/gate_campaign.py run SPEC --calibration FILE --out DIR [--dry-run] [--blocks N]
+    sudo ./venv/bin/python bench/gate_campaign.py run SPEC --calibration FILE --out DIR --dry-run --timer-limit-ms 50   # a smoke test
     python3 bench/gate_campaign.py run SPEC --calibration FILE --out DIR --simulate pass       # no root, no namespace
     python3 bench/gate_campaign.py status DIR
 
@@ -13,6 +14,11 @@ command resumes an interrupted campaign and refuses to resume with other setting
 made by harm_gate.assess_block, so the rule cannot be applied differently here and in the analysis; harm_gate.analyse re-checks the
 whole directory and has the last word. `--simulate` runs the whole campaign on the simulated host (bench/sim_host.py), with a harm of
 a known size, and lets harm_gate give a verdict: the protocol seen working offline, and nothing about any server.
+
+`--rho`, `--timeline` and `--timer-limit-ms` are for smoke tests (a lighter load, a short run, a timer limit other than the
+calibration's). They are recorded as overrides in every plan, run and block, and harm_gate gives no verdict on a campaign that
+carries any: it says INVALID and why. Only the simulated host's campaigns get one, and gate.md says that it is no result.
+`--timer-limit-ms` needs `--dry-run`, so that a campaign meant to count is not run with it.
 """
 import argparse
 import dataclasses
@@ -58,6 +64,7 @@ class Options:
     keep_going: bool = False                # go on although the gate can no longer reach its minimum of valid blocks
     rho: float | None = None                # smoke test: the benign load
     timeline: tuple | None = None           # smoke test: baseline, attack, recovery
+    timer_limit_ms: float | None = None     # smoke test: the limit for the timer on the legit CPU, instead of the calibration's
     settings: tuple = ()                    # executor settings changed, as (name, value) pairs
     simulate: str | None = None             # the name of an effect preset of bench/sim_host.py
 
@@ -100,8 +107,8 @@ def fingerprint(scn, cal, scenario_sha, opts):
     return {"scenario": scn.id, "scenario_sha256": scenario_sha, "calibration_sha256": cal.get("sha256") or C.digest(cal),
             "calibration_status": cal["status"], "seed_namespace": scn.seed_namespace, "first_seed": scn.first_seed,
             "blocks": block_count(scn, opts), "timeline": timeline_of(scn, opts), "rho_rps": opts.rho,
-            "settings": {**X.SETTINGS, **dict(opts.settings)}, "gate": cal["gate"], "warmup": opts.warmup,
-            "simulate": opts.simulate}
+            "timer_limit_ms": opts.timer_limit_ms, "settings": {**X.SETTINGS, **dict(opts.settings)}, "gate": cal["gate"],
+            "warmup": opts.warmup, "simulate": opts.simulate}
 
 
 # --- the plan ---------------------------------------------------------------------------------
@@ -117,7 +124,7 @@ def describe(scn, cal, scenario_sha, opts):
     level = "none" if scn.is_control else SC.resolve_level(scn, cal)
     out.append(f"scenario     sha256:{scenario_sha[:8]}, {scn.family} ({scn.threat_class}), attack level {level}")
     out.append("timeline     " + ", ".join(f"{k} {v:g}" for k, v in timeline_of(scn, opts).items()))
-    smoke = {k: v for k, v in (("rho", opts.rho), ("timeline", opts.timeline)) if v}
+    smoke = {k: v for k, v in (("rho", opts.rho), ("timeline", opts.timeline), ("timer limit ms", opts.timer_limit_ms)) if v}
     if smoke:
         out.append("OVERRIDES    " + ", ".join(f"{k} {v}" for k, v in smoke.items()) + ": a smoke test, not a result")
     if opts.simulate:
@@ -185,7 +192,8 @@ def read_done(run_path):
 def plans_of(scn, cal, cal_path, scenario_sha, out_dir, seed, opts):
     """The plans of C, Cp and U of a block; their legit streams must be the same."""
     plans = {kind: X.plan_run(scn, cal, kind, seed, os.path.join(out_dir, kind), cal_path, scenario_sha,
-                              settings=dict(opts.settings), rho=opts.rho, timeline=opts.timeline)
+                              settings=dict(opts.settings), rho=opts.rho, timeline=opts.timeline,
+                              timer_limit_ms=opts.timer_limit_ms)
              for kind in X.KINDS}
     hashes = {p.plan_sha256 for p in plans.values()}
     if len(hashes) != 1:
@@ -260,7 +268,7 @@ def warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate, say):
     if os.path.exists(path):
         shutil.rmtree(path)
     plan = X.plan_run(scn, cal, "C", scn.first_seed, path, cal_path, scenario_sha, settings=dict(opts.settings),
-                      rho=opts.rho, timeline=opts.timeline)
+                      rho=opts.rho, timeline=opts.timeline, timer_limit_ms=opts.timer_limit_ms)
     say(f"warm-up run C at seed {scn.first_seed}")
     try:
         record = run_record(X.execute(plan, host, gate, opts.allow_dirty, opts.clean, opts.wait_gate_min, say))
@@ -278,12 +286,21 @@ def check_calibration(cal, opts):
                             "or pass --dry-run to run the protocol and label everything a dry run.")
 
 
+def check_options(opts):
+    """A timer limit other than the calibration's is a smoke test's, and the harm gate gives no verdict on runs that carry it:
+    a campaign meant to count would spend its VM hours for nothing, so it is refused before any starts."""
+    if opts.timer_limit_ms is not None and not opts.dry_run:
+        raise CampaignError("--timer-limit-ms: a smoke test's override, so the campaign is a dry run: pass --dry-run, or run it "
+                            "with the calibration's limit")
+
+
 def run_campaign(scn, cal, cal_path, scenario_sha, out, host, opts=None, say=print):
     """Carry out the campaign in `out`, or resume it. Returns the campaign record (also campaign.json) with the gate's analysis
     in `gate`. Raises CampaignError for a campaign that cannot be run, and lets the executor's refusals and KeyboardInterrupt
     through after recording that the campaign stopped; the same command resumes it."""
     opts = opts or Options()
     check_calibration(cal, opts)
+    check_options(opts)
     fp = fingerprint(scn, cal, scenario_sha, opts)
     state = load_state(out, fp)
     os.makedirs(out, exist_ok=True)
@@ -332,15 +349,16 @@ def run_campaign(scn, cal, cal_path, scenario_sha, out, host, opts=None, say=pri
         save_state(out, state)
         raise
     state["reruns"] = reruns
-    state["gate"] = analyse_into(out, cal, state, say)
+    state["gate"] = analyse_into(out, cal, state, say, allow_overrides=bool(getattr(host, "simulated", False)))
     save_state(out, state)
     return state
 
 
-def analyse_into(out, cal, state, say):
-    """harm_gate's verdict on the directory, written next to it as gate.json and gate.md; a short summary for the record."""
+def analyse_into(out, cal, state, say, allow_overrides=False):
+    """harm_gate's verdict on the directory, written next to it as gate.json and gate.md; a short summary for the record.
+    A campaign that carries overrides gets none unless it was made by the simulated host (`allow_overrides`)."""
     try:
-        result = H.analyse(out, cal, dry_run=cal["status"] != "frozen")
+        result = H.analyse(out, cal, dry_run=cal["status"] != "frozen", allow_overrides=allow_overrides)
     except H.GateError as exc:
         say(f"the gate could not read the campaign: {exc}")
         return {"verdict": None, "error": str(exc)}
@@ -354,8 +372,12 @@ def analyse_into(out, cal, state, say):
         fh.write(banner + H.to_markdown(result))
     say(f"gate: {result['verdict']}" + (" (dry run)" if result["dry_run"] else "") + (" (simulated)" if banner else "")
         + f", {result['blocks_valid']} valid blocks of {result['blocks_total']}, {result['reruns']} re-run(s)")
+    if result["overrides"]:
+        say(f"OVERRIDES {result['overrides']}: a smoke test, not a result"
+            + ("" if allow_overrides else "; the gate gives no verdict on it"))
     return {"verdict": result["verdict"], "reasons": result["reasons"], "blocks_valid": result["blocks_valid"],
-            "blocks_total": result["blocks_total"], "reruns": result["reruns"], "dry_run": result["dry_run"]}
+            "blocks_total": result["blocks_total"], "reruns": result["reruns"], "dry_run": result["dry_run"],
+            "overrides": result["overrides"]}
 
 
 def status_text(out):
@@ -394,6 +416,9 @@ def _add_common(p):
     p.add_argument("--blocks", type=int, default=None, help="fewer blocks than the scenario's: a smoke test")
     p.add_argument("--rho", type=float, default=None, help="smoke test: the benign load in requests/s")
     p.add_argument("--timeline", type=X._timeline_arg, default=None, metavar="B,A,R", help="smoke test: baseline, attack, recovery seconds")
+    p.add_argument("--timer-limit-ms", type=float, default=None, metavar="MS",
+                   help="smoke test: refuse a run if the timer on the legit CPU has p99 of this many ms or more, instead of the "
+                        "calibration's validity.timer_p99_ms; needs --dry-run")
     p.add_argument("--no-warmup", action="store_true", help="skip the unscored warm-up run")
 
 
@@ -401,7 +426,8 @@ def options_of(args):
     return Options(blocks=args.blocks, dry_run=getattr(args, "dry_run", False), warmup=not args.no_warmup,
                    allow_dirty=getattr(args, "allow_dirty", False), clean=getattr(args, "clean", False),
                    wait_gate_min=getattr(args, "wait_gate", 30.0), keep_going=getattr(args, "keep_going", False),
-                   rho=args.rho, timeline=args.timeline, simulate=getattr(args, "simulate", None))
+                   rho=args.rho, timeline=args.timeline, timer_limit_ms=args.timer_limit_ms,
+                   simulate=getattr(args, "simulate", None))
 
 
 def main(argv=None, host=None):

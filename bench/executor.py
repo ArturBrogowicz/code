@@ -165,7 +165,9 @@ class RunPlan:
     nginx_conf_sha256: str
     plan_sha256: str
     settings: dict
-    overrides: dict                  # what a smoke test changed (rho, timeline); empty in a real run
+    overrides: dict                  # what a smoke test changed (rho, timeline, timer limit); empty in a real run
+    timer_limit_ms: float            # the run is refused if the timer on the legit CPU has p99 of this or more: the calibration's
+                                     # validity.timer_p99_ms, unless a smoke test set it (overrides["timer_limit_ms"])
 
 
 # --- names -------------------------------------------------------------------------------------
@@ -276,11 +278,12 @@ def _legit_hash(streams):
 
 
 def plan_run(scn, cal, kind, seed, out, calibration_path, scenario_sha256="", manifest=None, root=None, settings=None,
-             python=None, rho=None, timeline=None):
+             python=None, rho=None, timeline=None, timer_limit_ms=None):
     """Everything a run will do, as data. `scn` is a bench/scenario.Scenario, `cal` a calibration record read from
     `calibration_path`, `kind` one of C, Cp and U, `out` the run's directory, which must be called after its kind (the
-    gate reads the role from the name). `rho` replaces the nominal load and `timeline` (baseline, attack, recovery seconds)
-    the scenario's, for a smoke test; both are recorded as overrides."""
+    gate reads the role from the name). `rho` replaces the nominal load, `timeline` (baseline, attack, recovery seconds)
+    the scenario's, and `timer_limit_ms` the calibration's limit for the timer of the legit CPU, for a smoke test; all
+    three are recorded as overrides, and the harm gate gives no verdict on runs that carry any."""
     if kind not in KINDS:
         raise PlanError(f"kind: one of {', '.join(KINDS)}, got {kind!r}")
     if os.path.basename(os.path.normpath(out)) != kind:
@@ -297,6 +300,10 @@ def plan_run(scn, cal, kind, seed, out, calibration_path, scenario_sha256="", ma
             raise PlanError(f"timeline: baseline, attack and recovery seconds, all positive, got {timeline!r}")
         scn = dataclasses.replace(scn, timeline=P.Timeline(*timeline))
         overrides["timeline_s"] = list(timeline)
+    if timer_limit_ms is not None:
+        if not _positive(timer_limit_ms):
+            raise PlanError(f"timer_limit_ms: a positive number of milliseconds, got {timer_limit_ms!r}")
+        overrides["timer_limit_ms"] = timer_limit_ms
     try:
         pop, level = SC.population_of(scn, cal, seed, attack=kind == "U", rho=rho)
     except SC.ScenarioError as exc:
@@ -339,7 +346,7 @@ def plan_population(pop, scenario, kind, seed, out, cal, calibration_path, timel
         stack=stack_steps(out, os.path.abspath(calibration_path), python, pins, conf_sha256), checks=check_paths(),
         streams=tuple(streams), teardown=teardown_steps(namespaces), nginx_conf=conf, nginx_conf_sha256=conf_sha256,
         plan_sha256=_legit_hash(pop.of_kind("legit")), settings={**SETTINGS, **(settings or {})},
-        overrides=overrides or {})
+        overrides=overrides or {}, timer_limit_ms=(overrides or {}).get("timer_limit_ms", cal["validity"]["timer_p99_ms"]))
 
 
 # --- the plan as data and as text --------------------------------------------------------------
@@ -431,6 +438,8 @@ def describe(plan, python=None):
            timeline_line(plan, legit, attack),
            f"plan hash     {plan.plan_sha256[:12]} (the legit streams: equal in C, Cp and U of a block)",
            *([f"OVERRIDES     {plan.overrides}: a smoke test, not a result"] if plan.overrides else []),
+           f"timer gate    refused if the timer on CPU {P.PIN_PLAN['legit']} has p99 of {plan.timer_limit_ms:g} ms or more "
+           + ("(set by --timer-limit-ms)" if "timer_limit_ms" in plan.overrides else "(the calibration's validity.timer_p99_ms)"),
            f"nginx.conf    sha256:{plan.nginx_conf_sha256[:12]} (nginx_unprotected.conf with its two log paths changed)",
            "settings      " + ", ".join(f"{k} {v}" for k, v in plan.settings.items()), ""]
     n_aliases = sum(len(n.addresses) for n in plan.namespaces)
@@ -522,6 +531,9 @@ def cpu_list(text):
 class Host:
     """What the executor needs of the machine: commands, processes, the suite's primitives, the clocks and a few
     files of /proc and /sys. RealHost does them; tests/fake_host.py scripts them on a clock of its own."""
+
+    simulated = False                # True for a host that measures nothing (bench/sim_host.py): its campaigns get a verdict
+                                     # although they carry a smoke test's overrides, because they say nothing about any server
 
     def run(self, argv, ns="", stdin="", env=None, timeout=None):
         """Run a command to completion, in a network namespace if `ns`: a Result (code, stdout, stderr). A command that
@@ -900,10 +912,12 @@ def timer_probe(host, cpus, samples=200, interval=0.01):
 
 
 def environment(host, plan, gate="full", wait_gate_min=30.0, say=None):
-    """The environment gate (docs/HG1B_MINIMAL_DESIGN.md 7.2 step 0). The timer on the legit CPU must wake on time, always.
-    Uptime and load are the gate of a campaign's start (`gate="full"`: waits up to `wait_gate_min` for them); between the
-    runs of a campaign (`gate="timer"`) they are only recorded, since the load a run leaves is its own and would make
-    every next run wait for it to decay. Refuses with EnvironmentRefused; the caller may wait and ask again."""
+    """The environment gate (docs/HG1B_MINIMAL_DESIGN.md 7.2 step 0). The timer on the legit CPU must wake on time, always:
+    p99 below the plan's `timer_limit_ms`, which is the calibration's validity.timer_p99_ms unless a smoke test set it (the
+    limit used, and whether it was set, are recorded). Uptime and load are the gate of a campaign's start (`gate="full"`:
+    waits up to `wait_gate_min` for them); between the runs of a campaign (`gate="timer"`) they are only recorded, since
+    the load a run leaves is its own and would make every next run wait for it to decay. Refuses with EnvironmentRefused;
+    the caller may wait and ask again."""
     import loadtool_validate as V
     say = say or (lambda m: None)
     up, load = float(host.read_text("/proc/uptime").split()[0]), float(host.read_text("/proc/loadavg").split()[0])
@@ -917,16 +931,18 @@ def environment(host, plan, gate="full", wait_gate_min=30.0, say=None):
     else:
         seen = {"met": None, "uptime_s": up, "load1": load, "waited_s": 0.0}
     probe = timer_probe(host, P.PIN_PLAN["legit"])
-    if probe is None or probe["p99_ms"] >= V.TIMER_WARN_MS:
+    raised = "timer_limit_ms" in plan.overrides
+    if probe is None or probe["p99_ms"] >= plan.timer_limit_ms:
         raise EnvironmentRefused(f"timer wake-up on CPU {P.PIN_PLAN['legit']} (the legit streams'): p99 "
                                  f"{'unknown' if probe is None else format(probe['p99_ms'], '.1f') + ' ms'}, needs below "
-                                 f"{V.TIMER_WARN_MS:g} ms")
+                                 f"{plan.timer_limit_ms:g} ms" + (" (set by --timer-limit-ms for a smoke test)" if raised else ""))
     stat = host.read_text("/proc/stat").splitlines()[0].split()
     try:
         governor = host.read_text("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor").strip()
     except OSError:
         governor = None
-    return {"gate_mode": gate, "gate": seen, "timer_legit": probe, "governor": governor,
+    return {"gate_mode": gate, "gate": seen, "timer_legit": probe, "timer_limit_ms": plan.timer_limit_ms,
+            "timer_limit_is_override": raised, "governor": governor,
             "steal_jiffies": int(stat[8]) if len(stat) > 8 else None, "jiffies": sum(map(int, stat[1:9]))}
 
 
@@ -1789,7 +1805,8 @@ def _plan_from_args(args):
         scenario_sha = hashlib.sha256(fh.read()).hexdigest()
     seed = scn.first_seed if args.seed is None else args.seed
     out = args.out or f"/var/tmp/ddos_campaigns/example/{args.kind}"
-    return plan_run(scn, cal, args.kind, seed, out, args.calibration, scenario_sha, rho=args.rho, timeline=args.timeline)
+    return plan_run(scn, cal, args.kind, seed, out, args.calibration, scenario_sha, rho=args.rho, timeline=args.timeline,
+                    timer_limit_ms=getattr(args, "timer_limit_ms", None))
 
 
 def _add_plan_args(p, kind_required=True):
@@ -1801,6 +1818,12 @@ def _add_plan_args(p, kind_required=True):
     p.add_argument("--rho", type=float, default=None, help="smoke test: the benign load in requests/s, instead of the calibration's")
     p.add_argument("--timeline", type=_timeline_arg, default=None, metavar="B,A,R",
                    help="smoke test: baseline, attack and recovery seconds, instead of the scenario's")
+
+
+def _add_timer_limit(p):
+    p.add_argument("--timer-limit-ms", type=float, default=None, metavar="MS",
+                   help="smoke test: refuse the run if the timer on the legit CPU has p99 of this many ms or more, instead of the "
+                        "calibration's validity.timer_p99_ms; recorded as an override, and the harm gate gives no verdict on it")
 
 
 def _install_signal_handlers():
@@ -1816,9 +1839,11 @@ def main(argv=None, host=None):
     sub = ap.add_subparsers(dest="command", required=True)
     p = sub.add_parser("plan", help="print what a run would do (offline, no root, no suite)")
     _add_plan_args(p)
+    _add_timer_limit(p)
     p.add_argument("--json", action="store_true", help="print the plan as JSON (the plan.json of a run)")
     p = sub.add_parser("run", help="carry out one run (root; builds and takes down the testbed)")
     _add_plan_args(p)
+    _add_timer_limit(p)
     p.add_argument("--allow-dirty", action="store_true", help="run with uncommitted changes; they are recorded")
     p.add_argument("--clean", action="store_true", help="take down the namespaces and links of an earlier testbed first")
     p.add_argument("--gate", choices=("full", "timer"), default="full",
@@ -1858,6 +1883,8 @@ def main(argv=None, host=None):
         result = execute(plan, real, args.gate, args.allow_dirty, args.clean, args.wait_gate, print)
         print(f"run {plan.kind} of {plan.scenario}: " + ("sound" if result.ok else "UNSOUND: " + "; ".join(result.reasons))
               + f" ({result.seconds:.0f} s, {result.setup_retries} setup retries) in {result.out}")
+        if plan.overrides:
+            print(f"OVERRIDES {plan.overrides}: a smoke test, not a result; the harm gate gives no verdict on it")
         with contextlib.suppress(OSError, ValueError, KeyError):         # the figures are a courtesy: the run is on disk
             print(figures_text(plan, C.load(plan.calibration_path)), end="")
         return EXIT_OK if result.ok else EXIT_UNSOUND

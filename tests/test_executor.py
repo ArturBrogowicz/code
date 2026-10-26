@@ -5,6 +5,7 @@ Nothing here opens a socket or starts a process; the suite is imported with its 
 tests/test_suite_harness.py, to compare constants and read source.
 """
 import contextlib
+import copy
 import dataclasses
 import hashlib
 import inspect
@@ -315,6 +316,35 @@ class PlanTest(unittest.TestCase):
             with self.subTest(rho=bad), self.assertRaises(EX.PlanError):
                 EX.plan_run(scenario(), CAL, "C", 1, f"{OUT}/C", C.PLACEHOLDER, rho=bad)
 
+    def test_a_smoke_test_can_set_the_timer_limit_and_says_so(self):
+        p = EX.plan_run(scenario(), CAL, "C", 1, f"{OUT}/C", C.PLACEHOLDER, timer_limit_ms=50)
+        self.assertEqual((p.timer_limit_ms, p.overrides), (50, {"timer_limit_ms": 50}))
+        self.assertEqual(p.plan_sha256, plan("C").plan_sha256, "the legit streams are the same: the limit is not theirs")
+        text = EX.describe(p)
+        self.assertIn("OVERRIDES", text)
+        self.assertIn("timer_limit_ms", text)
+        self.assertIn("p99 of 50 ms or more (set by --timer-limit-ms)", text)
+        data = EX.as_json(p)
+        self.assertEqual((data["timer_limit_ms"], data["overrides"]), (50, {"timer_limit_ms": 50}))
+
+    def test_the_timer_limit_is_the_calibrations_unless_a_smoke_test_sets_it(self):
+        limit = CAL["validity"]["timer_p99_ms"]
+        p = plan("C")
+        self.assertEqual((p.timer_limit_ms, p.overrides), (limit, {}))
+        self.assertIn(f"p99 of {limit:g} ms or more (the calibration's validity.timer_p99_ms)", EX.describe(p))
+        cal = copy.deepcopy(CAL)
+        cal["validity"]["timer_p99_ms"] = 4.0
+        own = EX.plan_run(scenario(), cal, "C", 1, f"{OUT}/C", C.PLACEHOLDER)
+        self.assertEqual((own.timer_limit_ms, own.overrides), (4.0, {}))
+        self.assertIn("p99 of 4 ms or more (the calibration's", EX.describe(own))
+        set_ = EX.plan_run(scenario(), cal, "C", 1, f"{OUT}/C", C.PLACEHOLDER, timer_limit_ms=30.0)
+        self.assertEqual((set_.timer_limit_ms, set_.overrides), (30.0, {"timer_limit_ms": 30.0}))
+
+    def test_a_timer_limit_that_is_not_a_positive_number_is_refused(self):
+        for bad in (0, -5.0, float("nan"), float("inf"), "50", True):
+            with self.subTest(limit=bad), self.assertRaisesRegex(EX.PlanError, "timer_limit_ms"):
+                EX.plan_run(scenario(), CAL, "C", 1, f"{OUT}/C", C.PLACEHOLDER, timer_limit_ms=bad)
+
     def test_a_relative_run_directory_becomes_absolute(self):
         p = EX.plan_run(scenario(), CAL, "C", 1, "runs/C", C.PLACEHOLDER)
         self.assertTrue(os.path.isabs(p.out))
@@ -328,6 +358,11 @@ class StagedPlanTest(unittest.TestCase):
 
     def staged_plan(self, **kw):
         return EX.plan_population(self.STAGED, "capacity", "C", 1, f"{OUT}/C", CAL, C.PLACEHOLDER, self.STAGED.timeline, **kw)
+
+    def test_the_timer_limit_is_the_calibrations_unless_the_caller_sets_it(self):
+        self.assertEqual(self.staged_plan().timer_limit_ms, CAL["validity"]["timer_p99_ms"])
+        p = self.staged_plan(overrides={"timer_limit_ms": 30.0})
+        self.assertEqual((p.timer_limit_ms, p.overrides), (30.0, {"timer_limit_ms": 30.0}))
 
     def test_each_stream_keeps_its_start_and_has_its_own_directory(self):
         p = self.staged_plan()
@@ -546,6 +581,32 @@ class CommandLineTest(unittest.TestCase):
                 code, out, err = self.run_main(*argv)
                 self.assertEqual((code, out), (1, ""))
                 self.assertEqual(len(err.strip().splitlines()), 1, err)
+
+    def test_plan_takes_a_timer_limit_and_says_it_is_a_smoke_test(self):
+        argv = ["plan", spec_path("benign_control"), "--kind", "C", "--out", f"{OUT}/C", "--timer-limit-ms", "50"]
+        code, out, err = self.run_main(*argv)
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn("OVERRIDES", out)
+        self.assertIn("p99 of 50 ms or more (set by --timer-limit-ms)", out)
+        code, out, _ = self.run_main(*argv, "--json")
+        data = json.loads(out)
+        self.assertEqual((code, data["overrides"], data["timer_limit_ms"]), (0, {"timer_limit_ms": 50.0}, 50.0))
+        _, without, _ = self.run_main(*argv[:-2])
+        self.assertNotIn("OVERRIDES", without)
+
+    def test_a_timer_limit_that_is_not_positive_is_one_line_and_exit_1(self):
+        for bad in ("0", "-3", "nan", "inf"):
+            with self.subTest(limit=bad):
+                code, out, err = self.run_main("plan", spec_path("benign_control"), "--kind", "C", "--timer-limit-ms", bad)
+                self.assertEqual((code, out), (1, ""))
+                self.assertEqual(len(err.strip().splitlines()), 1, err)
+                self.assertIn("timer_limit_ms", err)
+
+    def test_only_plan_and_run_take_a_timer_limit(self):
+        for argv in (["smoke-topology", spec_path("benign_control"), "--timer-limit-ms", "50"],
+                     ["clock-probe", spec_path("benign_control"), "--timer-limit-ms", "50"]):
+            with self.subTest(command=argv[0]), self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+                EX.main(argv)
 
     def test_a_kind_is_required_and_must_be_known(self):
         for argv in (["plan", spec_path("benign_control")], ["plan", spec_path("benign_control"), "--kind", "M"]):
