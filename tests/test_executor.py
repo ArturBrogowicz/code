@@ -245,16 +245,22 @@ class PlanTest(unittest.TestCase):
         p = plan()
         s = p.settings
         self.assertAlmostEqual(EX.launch_attack_after(p), 30.0 + s["startup_delay_legit_s"] - s["startup_delay_attack_s"])
-        self.assertAlmostEqual(EX.launch_attack_after(p), 31.5)
+        self.assertAlmostEqual(EX.launch_attack_after(p), 32.35)
         self.assertEqual({x.start_s for x in p.streams if x.kind == "attack"}, {30.0})
         self.assertEqual({(x.start_s, x.duration_s) for x in p.streams if x.kind == "legit"}, {(0.0, 105.0)})
 
     def test_settings_are_recorded_and_can_be_overridden(self):
         p = plan()
         self.assertEqual(p.settings, EX.SETTINGS)
-        q = EX.plan_run(scenario(), CAL, "U", 1, f"{OUT}/U", C.PLACEHOLDER, settings={"startup_delay_legit_s": 2.5})
-        self.assertEqual(q.settings["startup_delay_legit_s"], 2.5)
-        self.assertAlmostEqual(EX.launch_attack_after(q), 32.2)
+        q = EX.plan_run(scenario(), CAL, "U", 1, f"{OUT}/U", C.PLACEHOLDER, settings={"startup_delay_legit_s": 3.0})
+        self.assertEqual(q.settings["startup_delay_legit_s"], 3.0)
+        self.assertAlmostEqual(EX.launch_attack_after(q), 32.85)
+
+    def test_the_settings_are_what_s1_and_s1b_measured_and_the_straggler_rule_the_user_approved(self):
+        self.assertEqual({k: EX.SETTINGS[k] for k in ("startup_delay_legit_s", "startup_delay_attack_s", "exit_delay_per_request_s",
+                                                      "t0_spread_limit_s", "attack_start_limit_s", "straggler_share", "straggler_tail_s")},
+                         {"startup_delay_legit_s": 2.5, "startup_delay_attack_s": 0.15, "exit_delay_per_request_s": 8e-6,
+                          "t0_spread_limit_s": 0.5, "attack_start_limit_s": 0.5, "straggler_share": 0.1, "straggler_tail_s": 0.1})
 
     def test_the_plan_is_pure_and_is_json(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -294,7 +300,7 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(p.timeline, {"baseline_s": 10.0, "attack_s": 12.0, "recovery_s": 8.0, "total_s": 30.0})
         self.assertEqual({s.duration_s for s in p.streams if s.kind == "legit"}, {30.0})
         self.assertEqual({(s.start_s, s.duration_s) for s in p.streams if s.kind == "attack"}, {(10.0, 12.0)})
-        self.assertEqual(EX.launch_attack_after(p), 10.0 + 1.8 - 0.3)
+        self.assertEqual(EX.launch_attack_after(p), 10.0 + 2.5 - 0.15)
         self.assertIn("timeline_s", EX.describe(p))
         both = EX.plan_run(scenario(), CAL, "U", 1, f"{OUT}/U", C.PLACEHOLDER, rho=20.0, timeline=(10.0, 12.0, 8.0))
         self.assertEqual(both.overrides, {"rho_rps": 20.0, "timeline_s": [10.0, 12.0, 8.0]})
@@ -348,17 +354,17 @@ class StagedPlanTest(unittest.TestCase):
         attack = next(s for s in p.streams if s.kind == "attack")
         legit = next(s for s in p.streams if s.kind == "legit")
         self.assertEqual(EX.launch_due(p, legit), 0.0)
-        self.assertEqual(EX.launch_due(p, attack), p.timeline["baseline_s"] + 1.8 - 0.3)
+        self.assertEqual(EX.launch_due(p, attack), p.timeline["baseline_s"] + 2.5 - 0.15)
         self.assertEqual(EX.launch_due(p, attack), EX.launch_attack_after(p))
 
     def test_the_start_up_delays_are_the_plans_settings(self):
         p = EX.plan_population(self.STAGED, "capacity", "C", 1, f"{OUT}/C", CAL, C.PLACEHOLDER, self.STAGED.timeline,
-                               settings={"startup_delay_legit_s": 2.5})
+                               settings={"startup_delay_legit_s": 3.0})
         late = next(s for s in p.streams if s.start_s == 12.0)
         self.assertEqual(EX.launch_due(p, late), 12.0)
         attack = next(s for s in plan("U").streams if s.kind == "attack")
-        self.assertEqual(EX.launch_due(plan("U"), attack), 30.0 + 1.8 - 0.3)
-        self.assertEqual(EX.launch_due(p, dataclasses.replace(attack, start_s=12.0)), 12.0 + 2.5 - 0.3)
+        self.assertEqual(EX.launch_due(plan("U"), attack), 30.0 + 2.5 - 0.15)
+        self.assertEqual(EX.launch_due(p, dataclasses.replace(attack, start_s=12.0)), 12.0 + 3.0 - 0.15)
 
     def test_the_text_says_the_load_comes_in_steps(self):
         text = EX.describe(self.staged_plan())

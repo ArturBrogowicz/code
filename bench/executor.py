@@ -68,10 +68,14 @@ GUNICORN = {"workers": 2, "threads": 8, "bind": "127.0.0.1:8080", "app": "origin
 ORIGIN_SEED = 1
 KINDS_OF_RUN = {"C": "control", "Cp": "placebo", "U": "attack"}
 READY_PATH = O.SAMPLE_URLS["C0"]          # the origin has no route at "/": it answers 404 there
-# proposals, frozen after S1 and S4 (docs/HG1C_DESIGN.md 6.6, 10) and recorded in every plan
-SETTINGS = {"startup_delay_legit_s": 1.8, "startup_delay_attack_s": 0.3, "readiness_timeout_s": 30.0,
+# recorded in every plan. The start-up delays and the exit delay per request are what S1 and S1b measured on loopback, without namespaces
+# (docs/HG1C_DESIGN.md 14): S4 measures them again with the real launch chain, and they are frozen after it. A run in which at most
+# `straggler_share` of the legit streams of a group began outside `t0_spread_limit_s` of the others is sound if the engines of those
+# streams ended their loops with their last request (to within `straggler_tail_s`): then the estimate of where they began is as good as
+# the others' and the harm gate places their records by it.
+SETTINGS = {"startup_delay_legit_s": 2.5, "startup_delay_attack_s": 0.15, "readiness_timeout_s": 30.0,
             "warmup_requests": 2, "t0_spread_limit_s": 0.5, "attack_start_limit_s": 0.5, "term_grace_s": 2.0,
-            "min_nofile": 16384, "exit_delay_per_request_s": 0.0}
+            "min_nofile": 16384, "exit_delay_per_request_s": 8e-6, "straggler_share": 0.1, "straggler_tail_s": 0.1}
 
 
 class PlanError(ValueError):
@@ -1113,46 +1117,91 @@ def consistent_wall(wall_s, last):
     return wall_s if last is None else max(wall_s, last + ENGINE_T0_OFFSET_S)
 
 
-def alignment(plan, found):
+def pack_of(times, limit):
+    """The most streams that began within `limit` of one another, and the rest. `times` maps a stream id to when it began. Of two
+    packs of the same size the one nearer the median start is taken. Returns (the ids of the pack, the ids outside it), each
+    in the order of their starts."""
+    ids = sorted(times, key=lambda sid: (times[sid], sid))
+    ts = [times[sid] for sid in ids]
+    middle = statistics.median(ts)
+    best, j = None, 0
+    for i in range(len(ids)):
+        j = max(j, i)
+        while j + 1 < len(ids) and ts[j + 1] - ts[i] <= limit:
+            j += 1
+        key = (-(j - i + 1), abs((ts[i] + ts[j]) / 2 - middle), i)
+        if best is None or key < best[0]:
+            best = (key, i, j)
+    _, i, j = best
+    return ids[i:j + 1], ids[:i] + ids[j + 1:]
+
+
+def stragglers_allowed(n, share):
+    """How many of the `n` legit streams of a group may be stragglers: the whole number in `share` of them. (A product such as
+    0.29 x 100 is a hair under 29 in floating point, hence the tolerance.)"""
+    return int(n * share + 1e-9)
+
+
+def alignment(plan, found, tails=None):
     """The run's clocks from what the streams reported. `found` maps a stream id to (t_exit, wall_s, intended), the wall time as
-    consistent_wall holds it to the records (collect does that). The axis begins
-    when the first legit streams' loops do: its zero is their median start. Streams that start together (a kind and a `start_s`)
-    are a group, and a group is sound when its streams began within the limit of one another and, unless it is the first, its
-    median start is within the limit of where the plan puts it: the attack at the end of the baseline, the steps of a staged load
-    at their times. Returns the offsets of the streams from the zero, the spread of the legit starts, the error of the attack's
-    start, and the reasons for which the run is unsound (executor.ok is false when there are any)."""
+    consistent_wall holds it to the records (collect does that); `tails` maps a stream id to how long its loop outlived its last
+    request. Streams that start together (a kind and a `start_s`) are a group. Of the legit streams of a group the pack is the most
+    that began within the limit of one another; the others are stragglers. The axis begins where the first group's pack does (its
+    zero is the pack's median start). A group is sound when at most `straggler_share` of its streams are stragglers and each of them
+    has a tail of at most `straggler_tail_s` (its engine ended its loop with its last request, so the estimate of its start is as
+    good as the pack's, and the harm gate places its records by its own offset), and, unless it is the first group, when the pack's
+    median start is within the limit of where the plan puts it: the steps of a staged load at their times. The attack is sound when
+    its median start is within the limit of the end of the baseline. Returns the offsets of the streams from the zero, the spread of
+    the packs and the range of all the legit starts, the stragglers, the error of the attack's start, and the reasons for which the
+    run is unsound (executor.ok is false when there are any)."""
     per = plan.settings["exit_delay_per_request_s"]
     t0 = {sid: estimate_t0(t_exit, wall, n, per) for sid, (t_exit, wall, n) in found.items()}
     legit = [x for x in plan.streams if x.kind == "legit" and x.id in t0]
     if not legit:
-        return {"offsets": {}, "t0_spread_legit_s": None, "attack_start_error_s": None,
+        return {"offsets": {}, "t0_spread_legit_s": None, "t0_range_legit_s": None, "stragglers": [], "attack_start_error_s": None,
                 "reasons": ["no legit stream reported"], "zero": None}
-    first = min(x.start_s for x in legit)
-    zero = statistics.median(t0[x.id] - x.start_s for x in legit if x.start_s == first)
+    tails = tails or {}
     spread_limit, start_limit = plan.settings["t0_spread_limit_s"], plan.settings["attack_start_limit_s"]
-    groups = collections.defaultdict(list)
+    share, tail_limit = plan.settings["straggler_share"], plan.settings["straggler_tail_s"]
+    groups = collections.defaultdict(dict)
     for x in plan.streams:
         if x.id in t0:
-            groups[(x.kind, x.start_s)].append(t0[x.id])
-    reasons, spreads, errors = [], [], []
+            groups[(x.kind, x.start_s)][x.id] = t0[x.id]
+    first = min(x.start_s for x in legit)
+    packs = {key: pack_of(times, spread_limit) for key, times in groups.items() if key[0] == "legit"}
+    zero = statistics.median(t0[sid] - first for sid in packs[("legit", first)][0])
+    reasons, spreads, ranges, errors, stragglers = [], [], [], [], []
     for (kind, start), times in sorted(groups.items()):
-        spread, error = max(times) - min(times), statistics.median(times) - (zero + start)
         if kind == "legit":
+            pack, out = packs[(kind, start)]
+            kept = [times[sid] for sid in pack]
+            median, spread, error = statistics.median(kept), max(kept) - min(kept), statistics.median(kept) - (zero + start)
             spreads.append(spread)
+            ranges.append(max(times.values()) - min(times.values()))
             where = "" if start == first else f" that start at {start:g} s"
-            if spread > spread_limit:
-                reasons.append(f"the legit streams{where} began {spread:.2f} s apart (limit {spread_limit:g} s)")
+            allowed = stragglers_allowed(len(times), share)
+            if len(out) > allowed:
+                reasons.append(f"the legit streams{where} began {ranges[-1]:.2f} s apart (limit {spread_limit:g} s"
+                               + (f"; {len(out)} of {len(times)} are outside the pack, at most {allowed} may be)" if allowed else ")"))
+            for sid in sorted(out):
+                tail = tails.get(sid, 0.0)
+                stragglers.append({"id": sid, "offset_s": round(times[sid] - zero, 4), "from_pack_s": round(times[sid] - median, 4),
+                                   "tail_s": tail})
+                if len(out) <= allowed and tail > tail_limit:
+                    reasons.append(f"legit stream {sid} began {times[sid] - median:+.2f} s from the others and its loop ended {tail:.2f} s "
+                                   f"after its last request, so where it began cannot be told (limit {tail_limit:g} s)")
             if start != first and abs(error) > start_limit:
                 reasons.append(f"the legit streams that start at {start:g} s began {error:+.2f} s from their start "
                                f"(limit {start_limit:g} s)")
         else:
+            error = statistics.median(times.values()) - (zero + start)
             errors.append(error)
             if abs(error) > start_limit:
                 reasons.append(f"the attack began {error:+.2f} s from the end of the baseline (limit {start_limit:g} s)")
     if any(x.kind == "attack" for x in plan.streams) and not errors:
         reasons.append("no attack stream reported")
-    return {"offsets": {sid: v - zero for sid, v in t0.items()}, "t0_spread_legit_s": max(spreads),
-            "attack_start_error_s": max(errors, key=abs) if errors else None, "reasons": reasons, "zero": zero}
+    return {"offsets": {sid: v - zero for sid, v in t0.items()}, "t0_spread_legit_s": max(spreads), "t0_range_legit_s": max(ranges),
+            "stragglers": stragglers, "attack_start_error_s": max(errors, key=abs) if errors else None, "reasons": reasons, "zero": zero}
 
 
 # --- building the testbed -------------------------------------------------------------------------
@@ -1361,8 +1410,9 @@ def collect(plan, procs, launched, problems):
     """The run contract from what the streams left, with the executor's verdict on the run. Returns (the executor block, the
     stream rows of run.json, the zero of the axis). A run in which no legit stream left an output raises RunFailed:
     there is nothing to judge. Each stream's wall time is held to its records (consistent_wall) before its start is estimated;
-    the block says by how much each was raised (`wall_gap_s`)."""
-    found, streams, reasons, gaps = {}, [], list(problems), {}
+    the block says by how much each was raised (`wall_gap_s`), how far the legit starts range (`t0_range_legit_s`) against how
+    far the pack's do (`t0_spread_legit_s`), and which streams began outside the pack (`stragglers`)."""
+    found, streams, reasons, gaps, tails = {}, [], list(problems), {}, {}
     for s in plan.streams:
         p = procs.get(s.id)
         if p is None:
@@ -1382,17 +1432,20 @@ def collect(plan, procs, launched, problems):
             reasons.append(f"stream {s.id}: unreadable summary")
             continue
         try:
-            checked = consistent_wall(wall, last_done(s.records))
+            last = last_done(s.records)
         except RECORDS_UNREADABLE:
             reasons.append(f"stream {s.id}: unreadable records")
             continue
+        checked = consistent_wall(wall, last)
         found[s.id], gaps[s.id] = (p.exit_time, checked, intended), round(checked - wall, 4)
+        tails[s.id] = 0.0 if last is None else round(checked - (last + ENGINE_T0_OFFSET_S), 4)      # how long the loop outlived its last request
         streams.append(s)
     if not any(s.kind == "legit" for s in streams):
         raise RunFailed("no legit stream left an output: " + "; ".join(reasons))
-    al = alignment(plan, found)
+    al = alignment(plan, found, tails)
     reasons += al["reasons"]
     block = {"ok": not reasons, "reasons": reasons, "t0_spread_legit_s": al["t0_spread_legit_s"],
+             "t0_range_legit_s": al["t0_range_legit_s"], "stragglers": al["stragglers"],
              "attack_start_error_s": al["attack_start_error_s"], "estimator": "exit-minus-consistent-wall",
              "wall_gap_s": {sid: gaps[sid] for sid in sorted(gaps)},
              "launch_attack_after_s": launch_attack_after(plan) if "attack" in launched else None}
@@ -1498,6 +1551,10 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
         if raised:
             log(f"wall time of {len(raised)} stream(s) raised to what their records need, by up to {max(raised.values()):.2f} s: "
                 f"the engine was descheduled between reading the schedule's zero and its wall clock")
+        if block["stragglers"]:
+            log(f"{len(block['stragglers'])} legit stream(s) began outside the pack of the others, by up to "
+                f"{max(abs(x['from_pack_s']) for x in block['stragglers']):.2f} s, and are placed by their own offsets: "
+                + ", ".join(x["id"] for x in block["stragglers"]))
         sampler.write(f"{out}/server.csv")
         finish_logs(plan, zero, log)
         write_json(f"{out}/run.json", {

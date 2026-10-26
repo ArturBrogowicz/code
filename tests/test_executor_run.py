@@ -191,16 +191,17 @@ class TimelineTest(RunCase):
         legit = host.launch_times["L-poisson-C0-perfect-0"]
         attack = host.launch_times["A-costly_search_flood-perfect-0"]
         self.assertAlmostEqual(attack - legit, X.launch_attack_after(plan), delta=0.011)
-        self.assertAlmostEqual(X.launch_attack_after(plan), 10.0 + 1.8 - 0.3)
+        self.assertAlmostEqual(X.launch_attack_after(plan), 10.0 + 2.5 - 0.15)
 
     def test_the_attack_streams_sit_at_the_baseline_on_the_runs_axis(self):
         plan, _, _ = self.go("U")
         run = self.run_json(plan)
         offsets = {s["kind"]: s["offset_s"] for s in run["streams"]}
-        self.assertAlmostEqual(offsets["attack"], 10.0, delta=0.06)
-        self.assertAlmostEqual(offsets["legit"], 0.0, delta=0.06)
-        self.assertLess(abs(run["executor"]["attack_start_error_s"]), 0.06)
-        self.assertEqual(run["executor"]["launch_attack_after_s"], 11.5)
+        # the simulated engines start as S1 and S1b measured them (2.4 s and 0.14 s), the settings are 2.5 s and 0.15 s: 0.07 s apart
+        self.assertAlmostEqual(offsets["attack"], 10.0, delta=0.1)
+        self.assertAlmostEqual(offsets["legit"], 0.0, delta=0.1)
+        self.assertLess(abs(run["executor"]["attack_start_error_s"]), 0.1)
+        self.assertAlmostEqual(run["executor"]["launch_attack_after_s"], 12.35)
 
     def test_a_control_run_launches_no_attack_stream(self):
         plan, host, _ = self.go("C")
@@ -208,25 +209,65 @@ class TimelineTest(RunCase):
         self.assertIsNone(self.run_json(plan)["executor"]["launch_attack_after_s"])
 
     def test_the_offsets_are_from_the_median_legit_start_whatever_the_streams_took_to_start(self):
-        host = F.SimHost(startup_s=lambda sid, index, kind: 1.8 + 0.01 * index if kind == "legit" else 0.3)
+        host = F.SimHost(startup_s=lambda sid, index, kind: F.LEGIT_STARTUP_S + 0.01 * index if kind == "legit" else F.ATTACK_STARTUP_S)
         plan, _, result = self.go("U", host)
         self.assertTrue(result.ok, result.reasons)
         legit = [s["offset_s"] for s in self.run_json(plan)["streams"] if s["kind"] == "legit"]
         self.assertAlmostEqual(sorted(legit)[len(legit) // 2], 0.0, delta=0.01)
         self.assertAlmostEqual(max(legit) - min(legit), 0.28, delta=0.01)
 
-    def test_a_stream_that_starts_late_makes_the_run_unsound_and_is_still_placed(self):
-        host = F.SimHost(startup_s=lambda sid, index, kind: 1.8 + (0.8 if index == 7 else 0.0))
-        plan, _, result = self.go("C", host)
+    def late_host(self, late):
+        """A host in which the legit streams at the places `late` among those launched together begin 0.8 s after the others (or, if
+        `late` is a dict, by the seconds it gives)."""
+        delays = late if isinstance(late, dict) else dict.fromkeys(late, 0.8)
+        return F.SimHost(startup_s=lambda sid, index, kind: F.LEGIT_STARTUP_S + delays.get(index, 0.0))
+
+    def test_a_stream_that_starts_late_is_a_straggler_the_run_tolerates_and_places_by_its_own_offset(self):
+        plan, _, result = self.go("C", self.late_host({7}))
+        self.assertTrue(result.ok, result.reasons)
+        run = self.run_json(plan)
+        (straggler,) = run["executor"]["stragglers"]
+        self.assertAlmostEqual(straggler["from_pack_s"], 0.8, delta=0.02)
+        self.assertAlmostEqual(straggler["offset_s"], 0.8, delta=0.02)
+        self.assertEqual(straggler["tail_s"], 0.0)
+        self.assertLess(run["executor"]["t0_spread_legit_s"], 0.1, "the pack")
+        self.assertAlmostEqual(run["executor"]["t0_range_legit_s"], 0.8, delta=0.07, msg="all the legit starts")
+        self.assertAlmostEqual(max(s["offset_s"] for s in run["streams"]), 0.8, delta=0.02, msg="it is placed where it began")
+        self.assertIn("1 legit stream(s) began outside the pack of the others, by up to 0.8", self.read(plan, "executor.log"))
+        self.assertIn(straggler["id"], self.read(plan, "executor.log"))
+
+    def test_the_log_counts_the_stragglers_and_names_the_largest_distance(self):
+        plan, _, result = self.go("C", self.late_host({7: 0.8, 8: 1.2}))
+        self.assertTrue(result.ok, result.reasons)
+        ids = [s["id"] for s in self.run_json(plan)["executor"]["stragglers"]]
+        self.assertEqual(len(ids), 2)
+        self.assertIn("2 legit stream(s) began outside the pack of the others, by up to 1.2", self.read(plan, "executor.log"))
+        self.assertIn(", ".join(ids), self.read(plan, "executor.log"))
+
+    def test_a_run_without_a_straggler_says_none_and_does_not_mention_it(self):
+        plan, _, result = self.go("C")
+        self.assertTrue(result.ok, result.reasons)
+        self.assertEqual(self.run_json(plan)["executor"]["stragglers"], [])
+        self.assertNotIn("outside the pack", self.read(plan, "executor.log"))
+
+    def test_as_many_stragglers_as_the_share_allows_are_tolerated(self):
+        plan, _, result = self.go("C", self.late_host({7, 8}))
+        self.assertTrue(result.ok, result.reasons)
+        self.assertEqual(len(self.run_json(plan)["executor"]["stragglers"]), 2)
+
+    def test_more_stragglers_than_the_share_allows_make_the_run_unsound_and_they_are_still_placed(self):
+        plan, _, result = self.go("C", self.late_host({7, 8, 9}))
         self.assertFalse(result.ok)
-        self.assertTrue(any("apart" in r for r in result.reasons), result.reasons)
+        self.assertEqual([r for r in result.reasons if "apart" in r],
+                         ["the legit streams began 0.80 s apart (limit 0.5 s; 3 of 29 are outside the pack, at most 2 may be)"])
         run = H.read_run(plan.out)
         self.assertEqual(run["executor"]["ok"], False)
-        late = max(s["offset_s"] for s in run["streams"])
-        self.assertAlmostEqual(late, 0.8, delta=0.02)
+        self.assertEqual(len(run["executor"]["stragglers"]), 3)
+        self.assertEqual(sorted(round(s["offset_s"], 1) for s in run["streams"])[-3:], [0.8, 0.8, 0.8])
 
     def test_an_attack_that_starts_off_the_end_of_the_baseline_makes_the_run_unsound(self):
-        host = F.SimHost(startup_s=lambda sid, index, kind: 1.8 if kind == "legit" else 1.3)
+        host = F.SimHost(startup_s=lambda sid, index, kind: X.SETTINGS["startup_delay_legit_s"] if kind == "legit"
+                         else X.SETTINGS["startup_delay_attack_s"] + 1.0)
         plan, _, result = self.go("U", host)
         self.assertFalse(result.ok)
         self.assertTrue(any("the attack began +1.00 s" in r for r in result.reasons), result.reasons)
@@ -236,10 +277,10 @@ class TimelineTest(RunCase):
         slow = F.SimHost(exit_delay_s=0.9)
         plan, _, result = self.go("U", slow)
         self.assertTrue(result.ok, result.reasons)
-        self.assertLess(abs(self.run_json(plan)["executor"]["attack_start_error_s"]), 0.06)
+        self.assertLess(abs(self.run_json(plan)["executor"]["attack_start_error_s"]), 0.1)
 
     def test_an_exit_delay_that_grows_with_the_requests_is_taken_off_when_it_is_known(self):
-        per = 5e-3                             # the attack streams have tens of requests more than the legit ones: 5 ms each
+        per = 3e-3                             # the attack streams have tens of requests more than the legit ones: 3 ms each
         host = F.SimHost(exit_delay_per_request_s=per)
         plan, _, uncorrected = self.go("U", host, plan_args={"rho": 20.0, "name": "raw/U"})
         err_raw = self.run_json(plan)["executor"]["attack_start_error_s"]
@@ -247,8 +288,8 @@ class TimelineTest(RunCase):
         plan, _, corrected = self.go("U", host, plan_args={"name": "fixed/U", "settings": {"exit_delay_per_request_s": per}})
         err_fixed = self.run_json(plan)["executor"]["attack_start_error_s"]
         self.assertTrue(uncorrected.ok and corrected.ok)
-        self.assertGreater(abs(err_raw), 0.1)
-        self.assertLess(abs(err_fixed), 0.06)
+        self.assertGreater(abs(err_raw), 0.2)
+        self.assertLess(abs(err_fixed), 0.1)
 
     def test_telemetry_is_sampled_over_the_whole_timeline_and_the_attack_launch_does_not_skip_a_tick(self):
         plan, _, _ = self.go("U")
@@ -759,7 +800,7 @@ class StagedRunTest(RunCase):
     def test_the_axis_begins_where_the_first_legit_group_does_whatever_its_start(self):
         plan = self.staged_plan()
         shifted = dataclasses.replace(plan, streams=tuple(dataclasses.replace(s, start_s=s.start_s + 10.0) for s in plan.streams))
-        found = {s.id: (100.0 + s.start_s + 40.0 - X.ENGINE_T0_OFFSET_S, 40.0, 100) for s in shifted.streams}
+        found = {s.id: (100.0 + s.start_s + 40.0 - X.ENGINE_T0_OFFSET_S, 40.0, 0) for s in shifted.streams}
         al = X.alignment(shifted, found)
         self.assertEqual(al["reasons"], [])
         self.assertAlmostEqual(al["zero"], 100.0)
@@ -771,7 +812,7 @@ class StagedRunTest(RunCase):
         found = {}
         for s in plan.streams:
             t0 = 100.0 + s.start_s + (0.2 if s.start_s == 12.0 else 0.0)
-            found[s.id] = (t0 + 40.0 - X.ENGINE_T0_OFFSET_S, 40.0, 100)
+            found[s.id] = (t0 + 40.0 - X.ENGINE_T0_OFFSET_S, 40.0, 0)
         al = X.alignment(plan, found)
         self.assertEqual(al["reasons"], [])
         self.assertAlmostEqual(al["zero"], 100.0)
@@ -910,6 +951,36 @@ class ProvenanceTest(RunCase):
         self.assertIsNone(X._limit(text, "Max stack size"))
 
 
+class PackTest(unittest.TestCase):
+    """The most streams that began within the limit of one another: the rest are the stragglers."""
+
+    def test_the_pack_is_the_most_streams_within_the_limit_of_one_another(self):
+        pack, out = X.pack_of({"a": 0.0, "b": 0.1, "c": 0.2, "d": 5.0, "e": 9.0}, 0.5)
+        self.assertEqual((pack, out), (["a", "b", "c"], ["d", "e"]))
+
+    def test_the_limit_is_inclusive(self):
+        self.assertEqual(X.pack_of({"a": 1.0, "b": 1.5}, 0.5), (["a", "b"], []))
+        pack, out = X.pack_of({"a": 1.0, "b": 1.51}, 0.5)
+        self.assertEqual(len(pack), 1)
+        self.assertEqual(len(out), 1)
+
+    def test_streams_on_both_sides_of_the_pack_are_outside_it(self):
+        times = {"early": -3.0, **{f"p{i}": 0.01 * i for i in range(5)}, "late": 4.0}
+        self.assertEqual(X.pack_of(times, 0.5), ([f"p{i}" for i in range(5)], ["early", "late"]))
+
+    def test_of_two_packs_of_one_size_the_one_nearer_the_median_is_taken(self):
+        pack, out = X.pack_of({"a": 0.0, "b": 0.1, "c": 2.0, "d": 2.1, "e": 4.0}, 0.5)
+        self.assertEqual((pack, out), (["c", "d"], ["a", "b", "e"]))
+
+    def test_streams_that_began_together_are_a_pack_and_ties_go_by_id(self):
+        self.assertEqual(X.pack_of({"b": 1.0, "a": 1.0, "c": 1.0}, 0.0), (["a", "b", "c"], []))
+        self.assertEqual(X.pack_of({"only": 7.0}, 0.5), (["only"], []))
+
+    def test_the_pack_and_the_rest_are_in_the_order_of_their_starts(self):
+        pack, out = X.pack_of({"z": 0.0, "y": 0.2, "x": -9.0, "w": 9.0, "v": 0.1}, 0.5)
+        self.assertEqual((pack, out), (["z", "v", "y"], ["x", "w"]))
+
+
 class EstimatorTest(RunCase):
     """The clocks of the streams, from what they report (docs/HG1C_DESIGN.md 6.6)."""
 
@@ -920,7 +991,7 @@ class EstimatorTest(RunCase):
         for i, s in enumerate(plan.streams):
             t0 = (legit(i) if callable(legit) else legit) if s.kind == "legit" else \
                 (attack(i) if callable(attack) else attack)
-            out[s.id] = (t0 + wall - X.ENGINE_T0_OFFSET_S, wall, intended)
+            out[s.id] = (t0 + wall - X.ENGINE_T0_OFFSET_S + plan.settings["exit_delay_per_request_s"] * intended, wall, intended)
         return out
 
     def test_the_estimate_is_the_exit_less_the_wall_time_plus_the_engines_zero(self):
@@ -939,8 +1010,8 @@ class EstimatorTest(RunCase):
         self.assertAlmostEqual(al["t0_spread_legit_s"], 0.004, places=6)
         self.assertEqual(al["reasons"], [])
 
-    def test_the_run_is_unsound_when_the_legit_starts_are_further_apart_than_the_limit(self):
-        plan = self.plan("C")
+    def test_the_run_is_unsound_when_the_legit_starts_are_further_apart_than_the_limit_and_no_straggler_is_allowed(self):
+        plan = self.plan("C", settings={"straggler_share": 0.0})
         near = X.alignment(plan, self.found(plan, legit=lambda i: 100.0 + (0.5 if i == 3 else 0.0)))
         far = X.alignment(plan, self.found(plan, legit=lambda i: 100.0 + (0.51 if i == 3 else 0.0)))
         self.assertEqual(near["reasons"], [])
@@ -999,7 +1070,7 @@ class EstimatorTest(RunCase):
         self.assertAlmostEqual(a["attack_start_error_s"], b["attack_start_error_s"], places=9)
 
     def test_the_limits_are_the_plans_settings(self):
-        plan = self.plan("C", settings={"t0_spread_limit_s": 0.05})
+        plan = self.plan("C", settings={"t0_spread_limit_s": 0.05, "straggler_share": 0.0})
         al = X.alignment(plan, self.found(plan, legit=lambda i: 100.0 + (0.06 if i == 0 else 0.0)))
         self.assertEqual(len(al["reasons"]), 1)
 
@@ -1114,25 +1185,26 @@ class LeftOutputTest(RunCase):
 class CollectTest(RunCase):
     """collect() on files like the engines leave, with their exit times given: what the executor makes of them."""
 
-    def leave(self, plan, stall=None, zero=None, last=None, exit_delay=0.02, nan_done=(), skip_records=()):
+    def leave(self, plan, stall=None, zero=None, last=None, exit_delay=0.02, nan_done=(), skip_records=(), tail=None):
         """Every stream of `plan` as an engine leaves it. Stream i began at `zero(i)` on the executor's clock, its last request was
-        done `last(i)` s later, its loop ended then and it exited `exit_delay` s after; `stall(i)` is how long it was descheduled
-        between reading the schedule's zero and its wall clock, which makes its wall time that much short. Returns the processes."""
-        stall, zero = stall or (lambda i: 0.0), zero or (lambda i: 100.0)
+        done `last(i)` s later, its loop ended `tail(i)` s after that and it exited `exit_delay` s after; `stall(i)` is how long it was
+        descheduled between reading the schedule's zero and its wall clock, which makes its wall time that much short. Returns the
+        processes."""
+        stall, zero, tail = stall or (lambda i: 0.0), zero or (lambda i: 100.0), tail or (lambda i: 0.0)
         last = last or (lambda i: 25.0 + 0.5 * (i % 5))
         procs = {}
         for i, st in enumerate(plan.streams):
             os.makedirs(st.workdir, exist_ok=True)
             done = last(i)
             with open(st.summary, "w", encoding="utf-8") as fh:
-                json.dump({"wall_s": done + X.ENGINE_T0_OFFSET_S - stall(i), "intended": 3}, fh)
+                json.dump({"wall_s": done + X.ENGINE_T0_OFFSET_S + tail(i) - stall(i), "intended": 3}, fh)
             if i not in skip_records:
                 with gzip.open(st.records, "wt", newline="") as fh:
                     fh.write(F.RECORD_HEADER)
                     for k, t in enumerate((0.5, 1.5, done)):
                         shown = "nan" if i in nan_done else format(t if t == done else t + 0.01, ".6f")
                         fh.write(f"{k},{t:.6f},{t:.6f},{shown},200,100,,0,1\n")
-            procs[st.id] = types.SimpleNamespace(poll=lambda: 0, exit_time=zero(i) + done + exit_delay)
+            procs[st.id] = types.SimpleNamespace(poll=lambda: 0, exit_time=zero(i) + done + tail(i) + exit_delay)
         return procs
 
     def collect(self, plan, procs):
@@ -1144,7 +1216,7 @@ class CollectTest(RunCase):
         self.assertTrue(block["ok"], block["reasons"])
         self.assertEqual(set(block["wall_gap_s"].values()), {0.0})
         self.assertEqual(set(block["wall_gap_s"]), {s.id for s in plan.streams})
-        self.assertAlmostEqual(zero, 100.02, places=6)
+        self.assertAlmostEqual(zero, 100.02 - 3 * X.SETTINGS["exit_delay_per_request_s"], places=6)
         self.assertLess(block["t0_spread_legit_s"], 1e-9)
         self.assertEqual(block["estimator"], "exit-minus-consistent-wall")
 
@@ -1158,23 +1230,66 @@ class CollectTest(RunCase):
         self.assertEqual({r["id"]: r["offset_s"] for r in rows}[stalled], 0.0)
         self.assertLess(block["t0_spread_legit_s"], 1e-9)
 
-    def test_an_engine_that_really_began_early_is_still_seen_as_early(self):
+    def test_an_engine_that_really_began_early_is_a_straggler_placed_where_it_began(self):
         plan = self.plan("C")
         block, rows, _ = self.collect(plan, self.leave(plan, stall=lambda i: 2.0 if i == 3 else 0.0,
                                                         zero=lambda i: 98.0 if i == 3 else 100.0))
-        self.assertFalse(block["ok"])
-        self.assertTrue(any("apart" in r for r in block["reasons"]), block["reasons"])
+        self.assertTrue(block["ok"], block["reasons"])
+        self.assertEqual(block["stragglers"], [{"id": plan.streams[3].id, "offset_s": -2.0, "from_pack_s": -2.0, "tail_s": 0.0}])
         self.assertAlmostEqual({r["id"]: r["offset_s"] for r in rows}[plan.streams[3].id], -2.0, places=4)
-        self.assertAlmostEqual(block["t0_spread_legit_s"], 2.0, places=4)
+        self.assertLess(block["t0_spread_legit_s"], 1e-9, "the pack")
+        self.assertAlmostEqual(block["t0_range_legit_s"], 2.0, places=4, msg="all the legit starts")
 
-    def test_without_the_correction_the_same_stream_would_be_two_seconds_late_and_the_run_unsound(self):
+    def test_more_early_engines_than_the_share_allows_make_the_run_unsound(self):
+        plan = self.plan("C")
+        early = {3, 4, 5}
+        block, rows, _ = self.collect(plan, self.leave(plan, zero=lambda i: 98.0 if i in early else 100.0))
+        self.assertFalse(block["ok"])
+        self.assertEqual(block["reasons"], ["the legit streams began 2.00 s apart (limit 0.5 s; 3 of 29 are outside the pack, at most 2 may be)"])
+        self.assertEqual([s["id"] for s in block["stragglers"]], sorted(plan.streams[i].id for i in early))
+        self.assertEqual({r["offset_s"] for r in rows if r["id"] in {s["id"] for s in block["stragglers"]}}, {-2.0})
+
+    def test_an_early_engine_whose_loop_ended_long_after_its_last_request_cannot_be_placed(self):
+        plan = self.plan("C")
+        procs = self.leave(plan, zero=lambda i: 98.0 if i == 3 else 100.0, tail=lambda i: 0.8 if i == 3 else 0.0)
+        block, _, _ = self.collect(plan, procs)
+        self.assertFalse(block["ok"])
+        self.assertEqual(block["reasons"], [(f"legit stream {plan.streams[3].id} began -2.00 s from the others and its loop ended 0.80 s "
+                                             "after its last request, so where it began cannot be told (limit 0.1 s)")])
+        self.assertEqual(block["stragglers"][0]["tail_s"], 0.8)
+
+    def test_the_tail_a_straggler_may_have_is_the_settings(self):
+        plan = self.plan("C")
+        for tail, sound in ((0.09, True), (0.1, True), (0.11, False)):
+            with self.subTest(tail=tail):
+                block, _, _ = self.collect(plan, self.leave(plan, zero=lambda i: 98.0 if i == 3 else 100.0,
+                                                            tail=lambda i, tail=tail: tail if i == 3 else 0.0))
+                self.assertEqual(block["ok"], sound, block["reasons"])
+        loose = self.plan("C", name="loose/C", settings={"straggler_tail_s": 1.0})
+        block, _, _ = self.collect(loose, self.leave(loose, zero=lambda i: 98.0 if i == 3 else 100.0, tail=lambda i: 0.8 if i == 3 else 0.0))
+        self.assertTrue(block["ok"], block["reasons"])
+
+    def test_a_straggler_that_finished_no_request_has_nothing_to_place_and_is_tolerated(self):
+        plan = self.plan("C")
+        block, _, _ = self.collect(plan, self.leave(plan, zero=lambda i: 98.0 if i == 4 else 100.0, nan_done=(4,)))
+        self.assertTrue(block["ok"], block["reasons"])
+        self.assertEqual([(x["id"], x["tail_s"]) for x in block["stragglers"]], [(plan.streams[4].id, 0.0)])
+
+    def test_a_long_tail_in_the_pack_is_no_matter(self):
+        plan = self.plan("C")
+        block, _, _ = self.collect(plan, self.leave(plan, tail=lambda i: 0.8 if i == 3 else 0.0))
+        self.assertTrue(block["ok"], block["reasons"])
+        self.assertEqual(block["stragglers"], [])
+
+    def test_without_the_correction_the_stalled_stream_is_a_straggler_placed_two_seconds_late(self):
         plan = self.plan("C")
         procs = self.leave(plan, stall=lambda i: 2.0 if i == 3 else 0.0)
         with mock.patch.object(X, "consistent_wall", lambda wall, last: wall):
             block, rows, _ = self.collect(plan, procs)
-        self.assertFalse(block["ok"])
-        self.assertTrue(any("apart" in r for r in block["reasons"]), block["reasons"])
-        self.assertAlmostEqual({r["id"]: r["offset_s"] for r in rows}[plan.streams[3].id], 2.0, places=4)
+        # the rule tolerates one straggler and cannot tell a stream that began late from one that only reported a short wall time
+        self.assertTrue(block["ok"], block["reasons"])
+        self.assertAlmostEqual(block["stragglers"][0]["from_pack_s"], 2.0, places=4)
+        self.assertAlmostEqual({r["id"]: r["offset_s"] for r in rows}[plan.streams[3].id], 2.0, places=4, msg="where it was not")
 
     def test_the_correction_does_not_depend_on_when_the_last_request_was_done(self):
         plan = self.plan("C")
@@ -1263,12 +1378,195 @@ class DescheduledEngineTest(RunCase):
         plan, _, _ = self.go("C")
         self.assertNotIn("raised to what their records need", self.read(plan, "executor.log"))
 
-    def test_without_the_correction_the_run_would_be_unsound(self):
+    def test_without_the_correction_the_stream_would_be_a_straggler_placed_two_seconds_late(self):
         plan, result, busiest = self.run_with(correct=False)
-        self.assertFalse(result.ok)
-        self.assertTrue(any("apart" in r for r in result.reasons), result.reasons)
+        self.assertTrue(result.ok, result.reasons)
+        self.assertEqual([s["id"] for s in self.run_json(plan)["executor"]["stragglers"]], [busiest])
         base, _, _ = self.run_with(late=0.0, name="base/C")
         self.assertAlmostEqual(self.offset(plan, busiest) - self.offset(base, busiest), 2.0, delta=0.01)    # the median start may move a rank
+
+
+class StragglersAllowedTest(unittest.TestCase):
+    def test_it_is_the_whole_number_in_the_share_of_the_group(self):
+        for n, share, allowed in ((9, 0.1, 0), (10, 0.1, 1), (19, 0.1, 1), (20, 0.1, 2), (29, 0.1, 2), (30, 0.1, 3), (31, 0.1, 3),
+                                  (29, 0.0, 0), (29, 1.0, 29), (5, 0.5, 2)):
+            with self.subTest(streams=n, share=share):
+                self.assertEqual(X.stragglers_allowed(n, share), allowed)
+
+    def test_a_product_a_hair_under_a_whole_number_counts_as_that_number(self):
+        self.assertLess(0.29 * 100, 29)
+        self.assertEqual(X.stragglers_allowed(100, 0.29), 29)
+        self.assertEqual(X.stragglers_allowed(50, 0.58), 29)
+
+
+class StragglerRuleTest(RunCase):
+    """At most `straggler_share` of the legit streams of a group may begin outside the limit of the others (docs/HG1C_DESIGN.md 14)."""
+
+    @staticmethod
+    def trimmed(plan, n):
+        """The plan with its first n legit streams only."""
+        return dataclasses.replace(plan, streams=tuple(plan.streams[:n]))
+
+    def found(self, plan, early=(), late=(), base=100.0):
+        out = {}
+        for i, st in enumerate(plan.streams):
+            t0 = base + (-2.0 if i in early else 1.5 if i in late else 0.01 * (i % 3))
+            out[st.id] = (t0 + 40.0 - X.ENGINE_T0_OFFSET_S + plan.settings["exit_delay_per_request_s"] * 100, 40.0, 100)
+        return out
+
+    def test_one_early_stream_of_29_is_a_straggler_and_the_run_is_sound(self):
+        plan = self.plan("C")
+        al = X.alignment(plan, self.found(plan, early={3}))
+        self.assertEqual(al["reasons"], [])
+        self.assertEqual([x["id"] for x in al["stragglers"]], [plan.streams[3].id])
+        self.assertLess(al["t0_spread_legit_s"], 0.05, "the pack")
+        self.assertAlmostEqual(al["t0_range_legit_s"], 2.02, places=6, msg="all the legit starts")
+        self.assertAlmostEqual(al["offsets"][plan.streams[3].id], -2.0, delta=0.02)
+
+    def test_the_number_allowed_is_the_floor_of_the_share_of_the_group(self):
+        base = self.plan("C")
+        for n, allowed in ((9, 0), (10, 1), (19, 1), (20, 2), (29, 2)):
+            plan = self.trimmed(base, n)
+            for count in (allowed, allowed + 1):
+                with self.subTest(streams=n, stragglers=count):
+                    al = X.alignment(plan, self.found(plan, early=set(range(count))))
+                    self.assertEqual(al["reasons"] == [], count <= allowed, al["reasons"])
+                    self.assertEqual(len(al["stragglers"]), count)
+
+    def test_the_share_is_the_plans_setting(self):
+        for share, sound in ((0.0, False), (0.05, True), (0.1, True), (0.2, True)):
+            plan = self.plan("C", name=f"s{share}/C", settings={"straggler_share": share})
+            al = X.alignment(plan, self.found(plan, early={1, 2}))
+            self.assertEqual(al["reasons"] == [], sound if share != 0.05 else False, (share, al["reasons"]))
+        five = self.plan("C", name="five/C", settings={"straggler_share": 0.2})
+        self.assertEqual(X.alignment(five, self.found(five, early={0, 1, 2, 3, 4}))["reasons"], [])
+        self.assertEqual(len(X.alignment(five, self.found(five, early={0, 1, 2, 3, 4, 5}))["reasons"]), 1)
+
+    def test_stragglers_on_both_sides_are_counted_together(self):
+        plan = self.plan("C")
+        self.assertEqual(X.alignment(plan, self.found(plan, early={1}, late={2}))["reasons"], [])
+        al = X.alignment(plan, self.found(plan, early={1}, late={2, 3}))
+        self.assertEqual(len(al["reasons"]), 1)
+        self.assertIn("3 of 29 are outside the pack, at most 2 may be", al["reasons"][0])
+        self.assertEqual(sorted(round(x["from_pack_s"], 1) for x in al["stragglers"]), [-2.0, 1.5, 1.5])
+
+    def test_the_reason_without_a_share_is_the_old_one(self):
+        plan = self.plan("C", settings={"straggler_share": 0.0})
+        al = X.alignment(plan, self.found(plan, late={4}))
+        self.assertEqual(al["reasons"], ["the legit streams began 1.50 s apart (limit 0.5 s)"])
+
+    def test_a_straggler_is_recorded_with_its_offset_its_distance_from_the_pack_and_its_tail(self):
+        plan = self.plan("C")
+        sid = plan.streams[3].id
+        al = X.alignment(plan, self.found(plan, early={3}), {sid: 0.04, plan.streams[0].id: 0.9})
+        (straggler,) = al["stragglers"]
+        self.assertEqual(set(straggler), {"id", "offset_s", "from_pack_s", "tail_s"})
+        self.assertEqual((straggler["id"], straggler["tail_s"]), (sid, 0.04))
+        self.assertAlmostEqual(straggler["from_pack_s"], -2.01, delta=0.01)
+        self.assertAlmostEqual(straggler["offset_s"], al["offsets"][sid], places=3)
+        self.assertEqual(al["reasons"], [], "a long tail in the pack is no matter")
+
+    def test_a_straggler_whose_loop_outlived_its_last_request_by_more_than_the_setting_cannot_be_placed(self):
+        plan = self.plan("C")
+        sid = plan.streams[3].id
+        for tail, sound in ((0.0, True), (0.1, True), (0.1001, False), (5.0, False)):
+            with self.subTest(tail=tail):
+                al = X.alignment(plan, self.found(plan, early={3}), {sid: tail})
+                self.assertEqual(al["reasons"] == [], sound, al["reasons"])
+        al = X.alignment(plan, self.found(plan, early={3}), {sid: 0.5})
+        self.assertEqual(len(al["reasons"]), 1)
+        self.assertIn(f"legit stream {sid} began -2.01 s from the others and its loop ended 0.50 s after its last request", al["reasons"][0])
+
+    def test_when_there_are_too_many_stragglers_the_tails_are_not_asked_about(self):
+        plan = self.plan("C")
+        al = X.alignment(plan, self.found(plan, early={1, 2, 3}), {plan.streams[1].id: 5.0})
+        self.assertEqual(len(al["reasons"]), 1)
+        self.assertIn("apart", al["reasons"][0])
+
+    def test_the_zero_is_the_median_of_the_pack_not_of_all_the_streams(self):
+        plan = self.plan("C")
+        found = {}
+        for i, st in enumerate(plan.streams):
+            t0 = 90.0 if i < 2 else 100.0 + 0.01 * (i - 2)
+            found[st.id] = (t0 + 40.0 - X.ENGINE_T0_OFFSET_S + plan.settings["exit_delay_per_request_s"] * 100, 40.0, 100)
+        al = X.alignment(plan, found)
+        self.assertEqual(al["reasons"], [])
+        self.assertAlmostEqual(al["zero"], 100.13)                # the median of 27 pack streams; that of all 29 would be 100.12
+        self.assertAlmostEqual(al["offsets"][plan.streams[0].id], -10.13)
+
+    def test_a_group_that_starts_later_is_judged_by_its_pack(self):
+        plan = self.staged_plan()
+        step = {}
+        for st in plan.streams:
+            step.setdefault(st.start_s, []).append(st)
+        found = {}
+        for start, streams in step.items():
+            for i, st in enumerate(streams):
+                t0 = 100.0 + start + (0.2 if start == 12.0 else 0.0) + (3.0 if (start == 12.0 and i == 0) else 0.0)
+                found[st.id] = (t0 + 40.0 - X.ENGINE_T0_OFFSET_S, 40.0, 0)
+        al = X.alignment(plan, found)
+        self.assertEqual(al["reasons"], [])
+        self.assertEqual([x["id"] for x in al["stragglers"]], [step[12.0][0].id])
+        self.assertAlmostEqual(al["offsets"][step[12.0][1].id], 12.2)
+        self.assertAlmostEqual(al["offsets"][step[12.0][0].id], 15.2)
+        late = {k: (t + 0.6, w, n) for k, (t, w, n) in found.items() if k.startswith("S02-")}
+        al = X.alignment(plan, {**found, **late})
+        self.assertEqual(len(al["reasons"]), 1)
+        self.assertIn("began +0.80 s from their start", al["reasons"][0])
+
+    def test_a_later_group_is_judged_by_the_median_of_its_pack_not_of_all_its_streams(self):
+        plan = self.staged_plan()
+        step = {}
+        for st in plan.streams:
+            step.setdefault(st.start_s, []).append(st)
+
+        def found(shift):
+            out = {}
+            for start, streams in step.items():
+                for i, st in enumerate(streams):
+                    if start != 12.0:
+                        off = 0.0
+                    elif i < 27:
+                        off = 0.3975 + 0.0075 * i + shift        # the pack: its median (the 14th of 27) is 0.495, the next one 0.5025
+                    else:
+                        off = 3.0                                # two late stragglers: the median of all 29 would be the 15th, 0.5025
+                    out[st.id] = (100.0 + start + off + 40.0 - X.ENGINE_T0_OFFSET_S, 40.0, 0)
+            return out
+        al = X.alignment(plan, found(0.0))
+        self.assertEqual(al["reasons"], [])
+        self.assertEqual(len(al["stragglers"]), 2)
+        al = X.alignment(plan, found(0.0075))
+        self.assertEqual(len(al["reasons"]), 1)
+        self.assertIn("began +0.50 s from their start (limit 0.5 s)", al["reasons"][0])
+
+    def test_the_stragglers_are_listed_by_id_and_not_by_start(self):
+        plan = self.plan("C")
+        found = self.found(plan)
+        a, b = sorted(st.id for st in plan.streams[5:7])
+        found[a] = (found[a][0] - 2.0, *found[a][1:])             # the smaller id began later than the larger one
+        found[b] = (found[b][0] - 3.0, *found[b][1:])
+        al = X.alignment(plan, found)
+        self.assertEqual(al["reasons"], [])
+        self.assertEqual([x["id"] for x in al["stragglers"]], [a, b])
+        self.assertLess(al["stragglers"][1]["from_pack_s"], al["stragglers"][0]["from_pack_s"])
+
+    def staged_plan(self):
+        pop = P.staged("calib", 1, (20.0, 40.0, 80.0), 6.0)
+        return X.plan_population(pop, "capacity", "C", 1, os.path.join(self.tmp.name, "s", "C"), self.cal, C.PLACEHOLDER, pop.timeline,
+                                 settings=bare_settings())
+
+    def test_the_attack_is_not_judged_by_a_pack(self):
+        plan = self.plan("U")
+        base = plan.timeline["baseline_s"]
+        found = self.found(plan)
+        attack = [st for st in plan.streams if st.kind == "attack"]
+        for i, st in enumerate(attack):
+            t0 = 100.0 + base + (7.0 if i == 0 else 0.0)
+            found[st.id] = (t0 + 40.0 - X.ENGINE_T0_OFFSET_S + plan.settings["exit_delay_per_request_s"] * 100, 40.0, 100)
+        al = X.alignment(plan, found)
+        self.assertEqual(al["reasons"], [], "the median of the attack's starts is what is judged")
+        self.assertEqual(al["stragglers"], [])
+        self.assertAlmostEqual(al["attack_start_error_s"], 0.0, delta=0.02)
 
 
 class AccessLogTest(unittest.TestCase):
@@ -1786,7 +2084,7 @@ class CommandLineTest(RunCase):
             handler(signal.SIGTERM, None)
 
     def test_an_unsound_run_exits_three(self):
-        host = F.SimHost(startup_s=lambda sid, index, kind: 1.8 + (0.8 if index == 3 else 0.0))
+        host = F.SimHost(startup_s=lambda sid, index, kind: F.LEGIT_STARTUP_S + (0.8 if index in (3, 4, 5) else 0.0))
         code, _, shown, _ = self.run_main(*self.base(), host=host)
         self.assertEqual(code, X.EXIT_UNSOUND)
         self.assertIn("UNSOUND", shown)

@@ -582,7 +582,7 @@ class RunnerTest(unittest.TestCase):
 
         def startup(sid, index, kind):
             started.append(sid)
-            return 1.8 + (0.9 if len(started) == 3 else 0.0)            # only the first run's third stream is late
+            return S.LEGIT_STARTUP_S + (0.9 if len(started) in (3, 4, 5, 6) else 0.0)       # only the first run's third to sixth streams are late (31 streams: three may be)
         runner = K.Runner(S.SimHost(startup_s=startup))
         plan = self.plan()
         record = runner.run(plan, lambda m: None)
@@ -595,14 +595,14 @@ class RunnerTest(unittest.TestCase):
 
         def startup(sid, index, kind):
             started.append(sid)
-            return 1.8 + (0.9 if len(started) == 3 else 0.0)
+            return S.LEGIT_STARTUP_S + (0.9 if len(started) in (3, 4, 5, 6) else 0.0)
         runner = K.Runner(S.SimHost(startup_s=startup))
         with mock.patch.object(K.X, "execute", wraps=X.execute) as spy:
             runner.run(self.plan(), lambda m: None)
         self.assertEqual([c.args[2] for c in spy.call_args_list], ["full", "timer"])
 
     def test_a_run_unsound_in_every_attempt_stops_the_calibration(self):
-        runner = K.Runner(S.SimHost(startup_s=lambda sid, index, kind: 1.8 + (0.9 if index == 3 else 0.0)))
+        runner = K.Runner(S.SimHost(startup_s=lambda sid, index, kind: S.LEGIT_STARTUP_S + (0.9 if index in (3, 4, 5, 6) else 0.0)))
         with self.assertRaisesRegex(K.CalibrationStop, "not sound in 2 attempts"):
             runner.run(self.plan(), lambda m: None)
 

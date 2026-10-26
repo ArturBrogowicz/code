@@ -173,6 +173,18 @@ class SyntheticServerTest(unittest.TestCase):
         self.assertEqual((n, summary["intended"], summary["sent"]), (3000, 3000, 3000))
 
 
+class MeasuredTest(unittest.TestCase):
+    """The simulated machine is the one that S1 and S1b measured, and the executor's settings are chosen to match it."""
+
+    def test_the_exit_delay_per_request_is_the_settings(self):
+        self.assertEqual(S.EXIT_DELAY_PER_REQUEST_S, X.SETTINGS["exit_delay_per_request_s"])
+
+    def test_the_start_ups_are_within_what_the_settings_cover(self):
+        self.assertAlmostEqual(S.LEGIT_STARTUP_S, X.SETTINGS["startup_delay_legit_s"], delta=0.15)
+        self.assertAlmostEqual(S.ATTACK_STARTUP_S, X.SETTINGS["startup_delay_attack_s"], delta=0.05)
+        self.assertLess(S.LEGIT_STARTUP_S, X.SETTINGS["startup_delay_legit_s"], "the settings cover the slowest of S1b's, 2.55 s")
+
+
 class StreamExitTest(unittest.TestCase):
     """When a simulated engine exits and what its summary says about its wall time."""
 
@@ -194,6 +206,11 @@ class StreamExitTest(unittest.TestCase):
             return json.load(fh)["wall_s"]
 
     LAST = (600 - 0.5) * 30.0 / 600                  # the last of 600 requests in 30 s is due then, after the schedule's zero
+    START = S.LEGIT_STARTUP_S                        # an engine's loop begins this long after its launch (the first of its batch)
+
+    def exit_at(self, wall, requests):
+        """When an engine exits, after the launch: its loop begins, lasts `wall`, and it takes its exit delay, a little more for each request."""
+        return self.START + wall + 0.04 + S.EXIT_DELAY_PER_REQUEST_S * requests
 
     def test_an_engine_reports_the_wall_time_of_its_loop_which_ends_with_its_last_request(self):
         host = S.SimHost()
@@ -201,14 +218,14 @@ class StreamExitTest(unittest.TestCase):
         host.sleep(40.0)
         self.assertEqual(proc.returncode, 0)
         self.assertAlmostEqual(self.wall(summary), self.LAST + 0.011 + X.ENGINE_T0_OFFSET_S)
-        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, 1.8 + self.wall(summary) + 0.04, places=5)
+        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, self.exit_at(self.wall(summary), 600), places=5)
 
     def test_an_engine_descheduled_between_its_two_clock_readings_reports_that_much_less(self):
         host = S.SimHost(wall_late_s=lambda sid, index, kind: 2.0)
         proc, summary = self.start(host)
         host.sleep(40.0)
         self.assertAlmostEqual(self.wall(summary), self.LAST + 0.011 + X.ENGINE_T0_OFFSET_S - 2.0)
-        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, 1.8 + self.LAST + 0.011 + X.ENGINE_T0_OFFSET_S + 0.04, places=5,
+        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, self.exit_at(self.LAST + 0.011 + X.ENGINE_T0_OFFSET_S, 600), places=5,
                                msg="it still exits when its loop did")
 
     def test_the_hook_is_asked_for_the_stream_its_place_among_those_launched_together_and_its_kind(self):
@@ -223,19 +240,20 @@ class StreamExitTest(unittest.TestCase):
         proc, summary = self.start(host, rate=0.07)                  # two requests in 30 s: the last is due at 22.5 s
         host.sleep(23.0)
         self.assertIsNone(proc.returncode)
-        host.sleep(2.0)
+        host.sleep(3.0)
         self.assertEqual(proc.returncode, 0)
         self.assertAlmostEqual(self.wall(summary), 22.5 + 0.011 + X.ENGINE_T0_OFFSET_S)
-        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, 1.8 + 22.5 + 0.011 + 0.05 + 0.04, places=5)
+        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, self.exit_at(22.5 + 0.011 + 0.05, 2), places=5)
 
     def test_with_a_server_the_engine_exits_when_the_last_request_of_its_records_is_answered(self):
         host = S.SimHost(server=S.SyntheticServer(CAL, TIMELINE, {}))
         proc, summary = self.start(host, rate=3.0)
         host.sleep(40.0)
         with gzip.open(os.path.join(os.path.dirname(summary), "loadgen.records.csv.gz"), "rt", newline="") as fh:
-            last = max(float(r["t_done"]) for r in csv.DictReader(fh))
+            rows = list(csv.DictReader(fh))
+        last = max(float(r["t_done"]) for r in rows)
         self.assertAlmostEqual(self.wall(summary), last + X.ENGINE_T0_OFFSET_S, places=5)
-        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, 1.8 + last + 0.05 + 0.04, places=5)
+        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, self.exit_at(last + 0.05, len(rows)), places=5)
 
     def test_a_silent_engine_ends_with_its_last_send_and_leaves_nothing(self):
         host = S.SimHost(silent=lambda sid: True)
@@ -244,7 +262,7 @@ class StreamExitTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0)
         self.assertFalse(os.path.exists(summary))
         self.assertFalse(os.path.exists(os.path.join(os.path.dirname(summary), "loadgen.records.csv.gz")))
-        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, 1.8 + 0.05 + self.LAST + 0.04, places=5)
+        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, self.exit_at(0.05 + self.LAST, 600), places=5)
 
     def test_an_engine_can_exit_non_zero_and_keep_its_files(self):
         host = S.SimHost(nonzero=lambda sid: True)
@@ -254,7 +272,7 @@ class StreamExitTest(unittest.TestCase):
         self.assertTrue(os.path.exists(summary))
 
     def test_the_part_of_the_exit_delay_that_grows_with_the_requests_is_added_per_request(self):
-        plain, slow = S.SimHost(), S.SimHost(exit_delay_per_request_s=0.001)
+        plain, slow = S.SimHost(exit_delay_per_request_s=0.0), S.SimHost(exit_delay_per_request_s=0.001)
         a, _ = self.start(plain, run="A")
         b, _ = self.start(slow, run="B")
         plain.sleep(40.0)
@@ -279,7 +297,9 @@ class StreamExitTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0)
         wall = self.wall(summary)
         self.assertGreater(wall, 39.9)
-        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, 1.8 + wall + 0.04, places=5)
+        with gzip.open(os.path.join(os.path.dirname(summary), "loadgen.records.csv.gz"), "rt", newline="") as fh:
+            requests = len(list(csv.DictReader(fh)))
+        self.assertAlmostEqual(proc.exit_time - S.BASE_EPOCH, self.exit_at(wall, requests), places=5)
 
     def test_a_signal_ends_an_engine_that_is_waiting_for_its_requests(self):
         late = (20.0, 10.0, 10.0)

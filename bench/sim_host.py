@@ -34,6 +34,10 @@ import origin as O
 import population as P
 
 BASE_EPOCH = 1_798_000_000.0              # the virtual clock's wall time at its zero
+# what S1 and S1b measured on loopback (docs/HG1C_DESIGN.md 14), which the executor's settings are chosen to match
+LEGIT_STARTUP_S = 2.4                     # a legit engine's loop begins this long after its launch when 29 are launched at once on one CPU
+ATTACK_STARTUP_S = 0.14                   # an attack engine's, on CPUs of its own
+EXIT_DELAY_PER_REQUEST_S = 8e-6           # an engine exits this much later for each request it sent
 OK_FLAGS = {"slip": False, "sent_short": False, "cpu": False, "descriptors": False, "ports": False, "dropped": False}
 RECORD_HEADER = "i,t_intended,t_sent,t_done,status,bytes,err,ident,reused\n"
 CLASS_OF_PATH = {path: klass for klass, path in O.SAMPLE_URLS.items()}
@@ -95,7 +99,7 @@ class SimHost(X.Host):
     table_unreadable."""
 
     def __init__(self, root=True, dirty=False, nofile=(524288, 524288), uptime_s=7200.0, load1=0.05, timer_p99_ms=1.0,
-                 preexisting=(), startup_s=None, exit_delay_s=0.04, exit_delay_per_request_s=0.0, faults=None,
+                 preexisting=(), startup_s=None, exit_delay_s=0.04, exit_delay_per_request_s=EXIT_DELAY_PER_REQUEST_S, faults=None,
                  log_lines=20, tag="placeholder", python_exists=True, steal_share=0.0, on_sleep=None, server=None,
                  fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,), wall_late_s=None, silent=None, nonzero=None):
         self.t = 0.0
@@ -108,7 +112,7 @@ class SimHost(X.Host):
         self.root, self.dirty, self.nofile = root, dirty, nofile
         self.uptime_s, self.load1, self.timer_p99_ms = uptime_s, load1, timer_p99_ms
         self.exit_delay_s, self.exit_delay_per_request_s = exit_delay_s, exit_delay_per_request_s
-        self.startup_s = startup_s or (lambda sid, index, kind: (1.8 if kind == "legit" else 0.3) + 0.002 * index)
+        self.startup_s = startup_s or (lambda sid, index, kind: (LEGIT_STARTUP_S if kind == "legit" else ATTACK_STARTUP_S) + 0.002 * index)
         self.faults = dict(faults or {})
         self.fault_schedule, self.topologies, self.dies = dict(fault_schedule or {}), 0, dies
         self.registry = {}                    # run directory -> the streams started in it, for a server that has a load
