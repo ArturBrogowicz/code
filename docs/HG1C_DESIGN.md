@@ -1,8 +1,8 @@
 # HG1c: the executor, the gate campaign and the calibration runner (design note, written before the code)
 
 **Status (2026-10-26): approved (D18 to D26 as recommended, including option (b) and A1) and built offline on `feat/hg1c`; the VM
-has run S1 and S1b only (no root, loopback). Section 14 records what was built, what S1 and S1b found, and where it departs from
-this note, which is otherwise left as it was written (2026-10-23).** This note is on `design/hg1c`, off `feat/hg1b-minimal` (7528089); it changed no code. It is the follow-up that `docs/HG1B_MINIMAL_DESIGN.md`
+has run S1 and S1b only (no root, loopback). Section 14 records what was built, what S1 and S1b found and what came of it, and where
+it departs from this note, which is otherwise left as it was written (2026-10-23).** This note is on `design/hg1c`, off `feat/hg1b-minimal` (7528089); it changed no code. It is the follow-up that `docs/HG1B_MINIMAL_DESIGN.md`
 promised in its section 7 (decision D16): the part that runs a scenario in the namespaces and writes the run contract that
 `eval/harm_gate.py` reads; the loop that makes blocks of three runs under the re-run rule; and the runner that measures and freezes
 the calibration. "design N" is a section of `docs/BENCHMARK_HARM_DESIGN.md` (branch `design/benchmark-harm`), "HG1b N" a section of
@@ -398,7 +398,7 @@ merge nothing, push nothing, and bring S1 for approval when the executor's plan 
 
 Built offline on `feat/hg1c`, off this note, in the order of section 9; no merge, no push. One commit was added to section 9's six
 (the capacity probe needed the executor to launch streams at their own start), and two small ones followed. The VM ran S1 and S1b and
-nothing else; three commits came out of them (the last rows of the table).
+nothing else; four commits came out of them (the last rows of the table).
 
 | Commit | What | New tests | Textual mutations killed |
 |---|---|---|---|
@@ -412,9 +412,10 @@ nothing else; three commits came out of them (the last rows of the table).
 | the docs commit | `docs/EVALUATION.md`, this section | | |
 | 681e013, 83ab963 | the clock probe: a tuple and a list were concatenated (found by S1's first attempt); its rows say when each stream was launched, began and exited | 16 | 20 |
 | a6e6b95 | the wall time of an engine is held to its records; the simulated host follows the engine in two points (S1b) | 33 | 34 |
-| the second docs commit | this section, `docs/EVALUATION.md` | | |
+| 938a1df | a stream is dead on a non-zero exit or on missing output, not on an early exit; the simulated host's engines end with their last request | 12 | 27 |
+| 9680336 and the docs commit after 938a1df | this section, `docs/EVALUATION.md` | | |
 
-1,459 tests pass; ruff is clean. The mutations were made on private copies of the tree (a textual change to one line, the executor's or
+1,471 tests pass; ruff is clean. The mutations were made on private copies of the tree (a textual change to one line, the executor's or
 campaign's or calibrator's tests run against it); each one that was not equivalent made a test fail, and the survivors of the first rounds
 were closed with tests (an equivalent branch of `program_of` was removed instead).
 
@@ -436,6 +437,7 @@ were closed with tests (an equivalent branch of `program_of` was removed instead
 | 12 | 9: a shared `tests/synth_runs.py` made from the HG1b synthetic server; `--simulate` on a fake host | `bench/sim_host.py` in `bench/`, so that the command line can use it: commands answered from a model, a virtual clock, faults, and a synthetic server that makes a harm of a known size or has a capacity | one model for the tests of the executor, the campaign and the calibrator; the HG1b tests keep theirs |
 | 13 | 10, S3: `harm_gate --block` on the run | `executor.py run` prints the figures (Q, p95, slip, Q per link profile) | a `block.json` exists only for a campaign |
 | 14 | 6.6: `t0 = t_exit - wall_s + 0.05` | the wall time is first raised to the last request's `t_done` plus 0.05 s when it is shorter (`consistent_wall`, `last_done`); the estimator is named `exit-minus-consistent-wall` and `executor.wall_gap_s` lists the raise of each stream | S1b: the engine reads the schedule's zero and, one statement later, its wall clock, and a process descheduled in between (29 starting together on one CPU) reports too short a wall time, by 54 ms at the median, 258 ms at the 90th percentile and 2.03 s at most; the exit delay itself is 0.015 to 0.03 s |
+| 15 | 6.6: executor validity is false "when a process died" | `run_timeline` calls a stream dead if it exits more than `EARLY_SLACK_S` (2 s) before its end with a non-zero code or without its summary and records (`left_output`, shared with `collect`); an early exit with its output is the end of its schedule | S1b: the engine exits when its last request is done, so 11 or 12 of the 29 legit streams exited more than 2 s early; the first version called each of them dead and would have ended the first real run (see below) |
 
 **Not built.** The calibration of the legit mix, the SLOs and the gate's constants: they stay the template's (the placeholder's) and are
 frozen with the record; changing them is a decision, not a measurement. The mitigated runs `M_<mode>` (HG4). Anything on the L3 and L4 paths (D20).
@@ -475,13 +477,16 @@ stream's records at `t_intended + offset_s`, so a right offset repairs its place
 campaign has two re-runs. [PROPOSAL, nothing changed] `startup_delay_legit_s` about 2.5 s (S1b) instead of S1's 3.0 s,
 `startup_delay_attack_s` 0.15 s and `exit_delay_per_request_s` 8e-6 s (S1, three points); S4 measures them again with the real launch chain.
 
-**Found by S1b, not yet fixed.** `run_timeline` treats a stream that exits more than `EARLY_SLACK_S` (2 s) before its nominal end as dead,
+**Found by S1b, fixed in 938a1df.** `run_timeline` treated a stream that exits more than `EARLY_SLACK_S` (2 s) before its nominal end as dead,
 whatever its exit code. [FACT] The engine exits when its last request is done, not at the end of its duration: in S1b's 30 s probes 12, 11 and
 11 of the 29 legit streams exited more than 2 s early (pulse streams of 0.07 to 0.4 req/s with 2 to 12 requests, a Poisson stream of 0.11 req/s
-with two; the earliest at 13.5 s of 31.8). [INFERENCE] A real run would be ended at the first of them and called unsound; with a longer timeline
-fewer streams end early, but every stream of a few tenths of a request per second may. The simulated host runs every stream to its nominal end
-and could not show it. Proposed: judge a death by a non-zero exit or by missing output (`collect` already does the second), and let the
-simulated host's engines end with their last request.
+with two; the earliest at 13.5 s of 31.8). [INFERENCE] A real run would have been ended at the first of them and called unsound; with a longer timeline
+fewer streams end early, but every stream of a few tenths of a request per second may. The simulated host ran every stream to its nominal end
+and could not show it. Now a stream is dead if it exits early with a non-zero code or without its summary and records, and the simulated host's
+engines end with their last request (the records are made when it is due, the wall time is until it is answered, a timeout included, and the process
+exits `exit_delay_s` later). One consequence: a single dead engine no longer always ends a run in `RunFailed`. Other streams have left output by
+the time it is seen (a stream with no request in its window exits at once), so the run is carried out and found unsound, and the attempt ends as
+before; a run in which every engine dies (`engines_die`) is still `RunFailed`.
 
 **What the tests cannot show, and which step does.** That the real commands do what the model says: `ip -batch -` with 100 addresses,
 `prlimit` and `taskset` inside `ip netns exec`, `ping -I`, `ip -j` and `tc qdisc show` as parsed, `/proc/<pid>/net/netstat` of a process in

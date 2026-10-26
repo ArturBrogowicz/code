@@ -489,7 +489,9 @@ exit time less its wall time, and `executor.ok` is false when the legit streams 
 origin's own arrival log on loopback (S1, S1b) the corrected estimate of a legit stream is within -0.03 to 0.06 s; `exit_delay_per_request_s`
 corrects the exit delay of the attack streams, which grows with the request count (about 8 us per request, from three points) and is 0 until
 S4 has measured it. A stream that really begins 2 s before the others now makes a run unsound, and what to do about one is open
-(docs/HG1C_DESIGN.md, section 14).
+(docs/HG1C_DESIGN.md, section 14). An engine exits when its last request is done, so a stream of a few tenths of a request per
+second ends long before the timeline does; the executor calls a stream dead only if it exits early with a non-zero code or without its summary and
+records.
 
 **The campaign** runs a block's three runs in a drawn order; a run that fails or is found unsound ends its attempt (finishing an invalid
 block spends VM time on nothing), and the block is re-run once with its seed if the gate has re-runs left (`max_reruns`, 2). A campaign
