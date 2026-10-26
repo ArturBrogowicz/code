@@ -588,6 +588,63 @@ class SetupTest(RunCase):
             self.assertEqual(len(from_ns), 2, ns.name)
             self.assertIn(ns.addresses[-1], from_ns[1][2])
 
+    def test_each_ping_asks_for_three_packets_a_fifth_of_a_second_apart_and_waits_three_seconds(self):
+        plan, host, _ = self.go("C")
+        ns = plan.namespaces[0]
+        own, alias = [c[2] for c in host.ran("ping") if c[1] == ns.name]
+        self.assertEqual(own, ("ping", "-c", "3", "-i", "0.2", "-W", "3", X.SERVER_IP))
+        self.assertEqual(alias, ("ping", "-c", "3", "-i", "0.2", "-W", "3", "-I", ns.addresses[-1], X.SERVER_IP))
+
+    def test_a_ping_command_is_given_longer_than_its_packets_and_its_wait_take(self):
+        self.assertEqual((X.PING_COUNT, X.PING_INTERVAL_S, X.PING_WAIT_S), (3, 0.2, 3.0))
+        self.assertGreater(X.PING_RUN_S, (X.PING_COUNT - 1) * X.PING_INTERVAL_S + X.PING_WAIT_S + 5.0)
+        seen = []
+        real = F.SimHost.run
+
+        def spy(host, argv, ns="", stdin="", env=None, timeout=None):
+            if argv[0] == "ping":
+                seen.append(timeout)
+            return real(host, argv, ns, stdin, env, timeout)
+        with mock.patch.object(F.SimHost, "run", spy):
+            self.go("C")
+        self.assertEqual(set(seen), {X.PING_RUN_S})
+        self.assertEqual(len(seen), 8)
+
+    def test_a_namespace_whose_first_packets_are_lost_still_answers(self):
+        _, host, _ = self.go("C", F.SimHost(ping_drops=lambda ns, source, k: k < 2))
+        self.assertEqual(len(host.ran("ping")), 8)
+        self.assertTestbedEmpty(host)
+
+    def test_a_namespace_every_packet_of_which_is_lost_is_found_with_the_source_that_failed(self):
+        host = F.SimHost(ping_drops=lambda ns, source, k: ns == "hg_3_mobile_bad")
+        _, _, why = self.build_with(host)
+        self.assertIn("hg_3_mobile_bad: no answer from 10.0.0.1", why)
+        self.assertEqual(why.count("no answer"), 2, "from its own address and from its alias")
+        self.assertNotIn("hg_0_perfect: no answer", why)
+
+    def test_an_alias_that_cannot_reach_the_server_is_told_apart_from_the_namespace(self):
+        plan = self.plan("C")
+        alias = plan.namespaces[1].addresses[-1]
+        host = F.SimHost(ping_drops=lambda ns, source, k: source == alias)
+        _, _, why = self.build_with(host, plan)
+        self.assertIn(f"{plan.namespaces[1].name}: no answer from 10.0.0.1 to {alias}", why)
+        self.assertEqual(why.count("no answer"), 1)
+
+    def test_one_packet_of_three_lost_in_every_ping_is_no_failure_but_a_ping_of_one_would_have_failed(self):
+        drops = lambda ns, source, k: k == 0
+        _, host, _ = self.go("C", F.SimHost(ping_drops=drops))
+        self.assertTestbedEmpty(host)
+        one = F.SimHost(ping_drops=drops)
+        self.assertEqual(one.run(["ping", "-c", "1"], ns="hg_0_perfect").code, 1, "the sim: a single lost packet is a failed ping")
+        self.assertEqual(one.run(["ping", "-c", "3"], ns="hg_0_perfect").code, 0)
+        self.assertEqual(one.run(["ping"], ns="hg_0_perfect").code, 1, "without -c the simulated ping sends one packet")
+
+    def build_with(self, host, plan=None):
+        plan = plan or self.plan("C")
+        with self.assertRaises(X.SetupFailed) as ctx:
+            X.execute(plan, host)
+        return plan, host, str(ctx.exception)
+
     def test_nginx_that_does_not_start_is_reported_with_what_it_said(self):
         _, _, why = self.build({"nginx_fails": None})
         self.assertIn("emerg", why)

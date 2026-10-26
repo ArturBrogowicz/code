@@ -1264,13 +1264,22 @@ def verify_topology(host, plan):
     return problems
 
 
+# The links drop packets on their way out (netem: 2 % on mobile_3g, 5 % and 1 % corrupted on mobile_bad), so a ping that needs its one
+# packet to arrive fails once in 17 on mobile_bad, and the eight pings of a testbed fail in one build of seven. Three packets, 0.2 s
+# apart, and any reply (ping exits 0 if it has had one) leave about one in a thousand.
+PING_COUNT, PING_INTERVAL_S, PING_WAIT_S = 3, 0.2, 3.0
+PING_RUN_S = 10.0                    # the most a ping command may take: (PING_COUNT - 1) x PING_INTERVAL_S + PING_WAIT_S when no reply comes
+
+
 def connectivity(host, plan):
-    """One ping to the server from each namespace and from its last alias (the alias is then the source address)."""
+    """Pings to the server from each namespace and from its last alias (the alias is then the source address): PING_COUNT packets
+    each, and the namespace answers if any one is answered."""
     problems = []
     for ns in plan.namespaces:
         for source in dict.fromkeys([None, ns.addresses[-1]]):
-            argv = ["ping", "-c", "1", "-W", "3", *(["-I", source] if source else []), SERVER_IP]
-            if host.run(argv, ns=ns.name, timeout=10).code != 0:
+            argv = ["ping", "-c", str(PING_COUNT), "-i", str(PING_INTERVAL_S), "-W", f"{PING_WAIT_S:g}",
+                    *(["-I", source] if source else []), SERVER_IP]
+            if host.run(argv, ns=ns.name, timeout=PING_RUN_S).code != 0:
                 problems.append(f"{ns.name}: no answer from {SERVER_IP}" + (f" to {source}" if source else ""))
     return problems
 

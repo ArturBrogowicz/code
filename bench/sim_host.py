@@ -92,7 +92,7 @@ class SimHost(X.Host):
     stream of a few tenths of a request per second is gone long before its duration is over, and one whose last requests time out
     outlives it. `wall_late_s(stream id, index, kind)` is how long an engine was descheduled between reading its schedule's zero and
     the clock its wall time counts from: the summary of that stream reports that much less wall time; what it does to the first
-    requests is not modeled. The names the tests use:
+    requests is not modeled. `ping_drops(namespace, source, k)` says whether the k-th packet of a ping is lost. The names the tests use:
     missing_address, duplicate_mac, no_netem, ping_fails, nginx_fails, origin_dies, not_ready, wrong_class, wrong_tag,
     stubborn_origin, stubborn_nginx, origin_session_fails, leftover_nginx_after_teardown, server_address_missing, stream_dies (one
     engine dies), engines_die (every engine of one run dies: none of them can start), stream_silent, stream_nonzero, stream_hangs,
@@ -101,9 +101,10 @@ class SimHost(X.Host):
     def __init__(self, root=True, dirty=False, nofile=(524288, 524288), uptime_s=7200.0, load1=0.05, timer_p99_ms=1.0,
                  preexisting=(), startup_s=None, exit_delay_s=0.04, exit_delay_per_request_s=EXIT_DELAY_PER_REQUEST_S, faults=None,
                  log_lines=20, tag="placeholder", python_exists=True, steal_share=0.0, on_sleep=None, server=None,
-                 fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,), wall_late_s=None, silent=None, nonzero=None):
+                 fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,), wall_late_s=None, silent=None, nonzero=None,
+                 ping_drops=None):
         self.t = 0.0
-        self.wall_late_s, self.silent, self.nonzero = wall_late_s, silent, nonzero
+        self.wall_late_s, self.silent, self.nonzero, self.ping_drops = wall_late_s, silent, nonzero, ping_drops
         self.pids = itertools.count(1000)
         self.events, self.seq = [], itertools.count()
         self.procs = {}
@@ -389,7 +390,14 @@ class SimHost(X.Host):
                         "qdisc noqueue 0: root refcnt 2\n", "")
 
     def _cmd_ping(self, a, ns, stdin):
-        return X.Result(1, "", "100% packet loss") if self.fault("ping_fails") else X.Result(0, "1 received", "")
+        """ping answers (exit 0) if at least one of its `-c` packets is answered. `ping_drops(ns, source, k)` says whether the k-th
+        packet (from 0) sent from `source` (None: the namespace's own address) in `ns` is lost on its way."""
+        count = int(a[a.index("-c") + 1]) if "-c" in a else 1
+        source = a[a.index("-I") + 1] if "-I" in a else None
+        if self.fault("ping_fails"):
+            return X.Result(1, "", "100% packet loss")
+        received = sum(not (self.ping_drops and self.ping_drops(ns, source, k)) for k in range(count))
+        return X.Result(0, f"{received} received", "") if received else X.Result(1, "", "100% packet loss")
 
     def _cmd_ps(self, a, ns, stdin):
         if a != ["-eo", "pid=,ppid=,args="] or self.fault("table_unreadable"):
