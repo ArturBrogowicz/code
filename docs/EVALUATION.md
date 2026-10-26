@@ -479,7 +479,9 @@ check reads the process table by what each process runs (a results directory cal
 is not a clean machine. The suite's import-time `atexit` cleanup, a system-wide `pkill -9 -f gunicorn`, is unregistered after the import.
 It refuses a directory that holds anything, a tree with uncommitted changes (unless `--allow-dirty`, which is recorded) and leftovers
 (`--clean` takes down the namespaces and links of an earlier testbed, and nothing else). A failure before the first stream is retried in
-place twice; any error raised after it ends the run, tears down, and writes `FAILED`.
+place twice, after the files of the failed attempt are removed (those of the last attempt stay); any error raised after it ends the run,
+tears down, and writes `FAILED`. Nginx is started like the origin, a process of its own with its stderr in `nginx_start.log`, and not run
+to completion with its output captured (S3: that call returned only at its timeout).
 
 **Smoke tests.** `--rho`, `--timeline` and `--timer-limit-ms` (`executor.py plan|run`, `gate_campaign.py`) shorten or lighten a run, or
 loosen the timer gate for it. They are recorded as `overrides` in `plan.json`, `run.json` and `block.json`, and `environment.json` says
