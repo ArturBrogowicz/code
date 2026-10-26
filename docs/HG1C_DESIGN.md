@@ -184,7 +184,7 @@ question, and (b) leaves it open.
 | Step | What | Time |
 |---|---|---|
 | 1 | Preflight: root, venv, clean tree (`--allow-dirty` is recorded), no leftovers (it refuses and reports; `--clean` runs the cleanup), the manifest says the engine is `verified` with the pinned hash, the scope lock accepts `http://10.0.0.1/` | 1 s |
-| 2 | Environment: uptime and load (`wait_for_gate`), timer lateness p99 on CPU 6 (200 samples, below 10 ms, judged; the other CPU sets once per campaign, recorded), steal, TIME_WAIT settle, `git` state | 4 s plus waiting |
+| 2 | Environment: uptime and load (`wait_for_gate`), timer lateness p99 on CPU 6 (200 samples, below the calibration's `validity.timer_p99_ms`, 10 ms, or a smoke test's `--timer-limit-ms`: departure 19; judged; the other CPU sets once per campaign, recorded), steal, TIME_WAIT settle, `git` state | 4 s plus waiting |
 | 3 | Topology: bridge, `server_ns`, the namespaces `hg_<i>_<profile>` with their aliases and netem; verification | 6 s |
 | 4 | Stack: render `nginx.conf`, start gunicorn then Nginx in `server_ns`, wait for HTTP 200 and check `X-Route-Class` of each sample route | 12 s |
 | 5 | Warm-up: two requests per route from `server_ns`; telemetry starts | 3 s |
@@ -398,7 +398,7 @@ merge nothing, push nothing, and bring S1 for approval when the executor's plan 
 
 Built offline on `feat/hg1c`, off this note, in the order of section 9; no merge, no push. One commit was added to section 9's six
 (the capacity probe needed the executor to launch streams at their own start), and two small ones followed. The VM ran S1, S1b and S2 and
-nothing else; six commits came out of them (the last rows of the table).
+nothing else; six commits came out of them (the last rows of the table), and one more followed your decision on the timer gate (departure 19).
 
 | Commit | What | New tests | Textual mutations killed |
 |---|---|---|---|
@@ -415,9 +415,10 @@ nothing else; six commits came out of them (the last rows of the table).
 | 938a1df | a stream is dead on a non-zero exit or on missing output, not on an early exit; the simulated host's engines end with their last request | 12 | 27 |
 | e80e6fc | the legit starts are judged by a pack, and up to 10 % of a group may be stragglers whose loops ended with their last request; the settings are what S1 and S1b measured; the simulated host starts its engines as measured | 33 | 40 (of 41; one is equivalent) |
 | d2593d4 | the topology's ping check sends three packets per source and passes on any reply (S2) | 6 | 17 |
-| 9680336, 2eb4d7d, c61cb1e and the docs commit after d2593d4 | this section, `docs/EVALUATION.md` | | |
+| abed669 | the environment gate's timer limit is the calibration's `validity.timer_p99_ms`; `--timer-limit-ms` sets another for a smoke test; the harm gate gives no verdict on runs that carry overrides | 45 | 56 (all) |
+| 9680336, 2eb4d7d, c61cb1e and the docs commits after d2593d4 and after abed669 | this section, `docs/EVALUATION.md` | | |
 
-1,504 tests pass; ruff is clean. The mutations were made on private copies of the tree (a textual change to one line, the executor's or
+1,555 tests pass; ruff is clean. The mutations were made on private copies of the tree (a textual change to one line, the executor's or
 campaign's or calibrator's tests run against it); each one that was not equivalent made a test fail, and the survivors of the first rounds
 were closed with tests (an equivalent branch of `program_of` was removed instead).
 
@@ -443,6 +444,7 @@ were closed with tests (an equivalent branch of `program_of` was removed instead
 | 16 | 6.6: the legit `t0` spread exceeds 0.5 s | `alignment` takes the pack of each group of legit streams, the most that began within 0.5 s of one another, and the rest are stragglers; a group is sound when at most `straggler_share` (0.1: 2 of 29) of it are stragglers and each has a tail (how long its loop outlived its last request) of at most `straggler_tail_s` (0.1 s); the zero, the spread and the error of a later group are the pack's; `executor.stragglers`, `t0_range_legit_s` (all) and `t0_spread_legit_s` (the pack) in `run.json` | S1b: in 2 of 3 runs one or two streams began 0.6 to 2.3 s before the others, and their offsets are right to 0.06 s once the wall time is held to the records; the harm gate places a stream's records at `t_intended + offset_s`; you approved 10 % |
 | 17 | 6.6 and 10: the start-up delays and the exit delay per request are proposals | `startup_delay_legit_s` 2.5 (was 1.8), `startup_delay_attack_s` 0.15 (0.3), `exit_delay_per_request_s` 8e-6 (0); the simulated host starts its engines as measured (2.4 s, 0.14 s, 8e-6) | S1 and S1b: legit loops begin 2.0 to 2.55 s after the launch (median 2.04 to 2.40), attack loops 0.13 to 0.15 s, and an attack stream exits 8.0 us later for each request; with 1.8 s every U run would have put the attack 0.8 s early; S4 measures them again with the real launch chain and they are frozen after it |
 | 18 | 6.3 and 10, S2: "one ping to `server_ns` from each namespace and from one alias each" | each of those pings sends three packets 0.2 s apart (`ping -c 3 -i 0.2 -W 3`) and the namespace answers if any one is answered | the client links drop packets on their way out (netem: 2 % on `mobile_3g`, 5 % and 1 % corrupted on `mobile_bad`): with one packet the eight pings failed in one build of seven (15 % [ARITHMETIC]), and `smoke_topology` does not retry; with three, about one in a thousand |
+| 19 | 6.2 step 2 and 10: the timer on CPU 6 must have p99 below 10 ms (a constant of the load-tool harness, `TIMER_WARN_MS`) | the limit is `plan.timer_limit_ms`, the calibration's `validity.timer_p99_ms` (a required key that nothing read; 10 ms in the placeholder); `--timer-limit-ms MS` on `executor.py plan|run` and `gate_campaign.py` sets another for a smoke test, recorded as an override in `plan.json`, `run.json` and `block.json` and, with the limit used, in `environment.json`; the probe is the same and recorded as it was; a campaign needs `--dry-run` with it. The harm gate gives no verdict on a campaign whose runs or blocks carry any override (`rho_rps`, `timeline_s` or `timer_limit_ms`): INVALID, with the reason, whatever the figures, and the report has a SMOKE TEST banner; the blocks are assessed all the same, so the reason starts no re-run. `--allow-overrides` lifts it, and `gate_campaign.py` passes it itself only for a host that says it is simulated | [FACT] the timer on CPU 6 had p99 of 11.7 to 40.8 ms in all ten probes of S1 and S1b, so the gate as it was would refuse S3 [INFERENCE: ten readings]; you approved a smoke-test override (the option of a higher limit for S3 only), so that a run on a noisy VM is a recorded smoke test and neither refused nor loosened without a trace. [FACT] `rho_rps` and `timeline_s` overrides were written to every record and read by nothing, so a smoke test's campaign was given a verdict like any other; the same refusal now covers them |
 
 **Not built.** The calibration of the legit mix, the SLOs and the gate's constants: they stay the template's (the placeholder's) and are
 frozen with the record; changing them is a decision, not a measurement. The mitigated runs `M_<mode>` (HG4). Anything on the L3 and L4 paths (D20).

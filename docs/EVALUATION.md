@@ -448,7 +448,7 @@ the machine and what the tests show a simulated machine doing, not what the test
 
 | Tool | What it does |
 |---|---|
-| `bench/executor.py` | one run (`C`, `Cp` or `U`) of a plan: preflight (root, venv, descriptors, a clean tree, no leftovers), the environment gate (uptime and load for the first run of a process, the timer on the legit CPU for every run), the topology built with the suite's primitives and read back, gunicorn and Nginx in `server_ns`, the streams on their timeline, telemetry at 1 Hz, collection into the run contract with `executor.ok`, and a teardown that is shielded from a second Ctrl-C |
+| `bench/executor.py` | one run (`C`, `Cp` or `U`) of a plan: preflight (root, venv, descriptors, a clean tree, no leftovers), the environment gate (uptime and load for the first run of a process, the timer on the legit CPU for every run, against the calibration's `validity.timer_p99_ms`), the topology built with the suite's primitives and read back, gunicorn and Nginx in `server_ns`, the streams on their timeline, telemetry at 1 Hz, collection into the run contract with `executor.ok`, and a teardown that is shielded from a second Ctrl-C |
 | `bench/gate_campaign.py` | the blocks of one scenario: `C`, `Cp` and `U` in an order drawn from the scenario, the block and the attempt; the re-run rule through `harm_gate.assess_block`; resume; an unscored warm-up; `gate.json` and `gate.md` beside the data |
 | `bench/calibrate.py` | the steps that fill the calibration: `origin`, `capacity`, `ladder` (a screening per family), `reference`, `freeze`, `drift` |
 | `bench/sim_host.py` | the machine as a model, with a virtual clock and a server that has a capacity: what the tests and `--simulate` run on |
@@ -480,6 +480,15 @@ is not a clean machine. The suite's import-time `atexit` cleanup, a system-wide 
 It refuses a directory that holds anything, a tree with uncommitted changes (unless `--allow-dirty`, which is recorded) and leftovers
 (`--clean` takes down the namespaces and links of an earlier testbed, and nothing else). A failure before the first stream is retried in
 place twice; any error raised after it ends the run, tears down, and writes `FAILED`.
+
+**Smoke tests.** `--rho`, `--timeline` and `--timer-limit-ms` (`executor.py plan|run`, `gate_campaign.py`) shorten or lighten a run, or
+loosen the timer gate for it. They are recorded as `overrides` in `plan.json`, `run.json` and `block.json`, and `environment.json` says
+the timer limit used (`timer_limit_ms`) and whether a smoke test set it (`timer_limit_is_override`); the timer itself is measured and
+recorded as it was. The limit is otherwise the calibration's `validity.timer_p99_ms`, and `gate_campaign.py` needs `--dry-run` with
+`--timer-limit-ms`. `eval/harm_gate.py` gives no verdict on a campaign whose runs or blocks carry any override: INVALID, with the reason,
+whatever the figures, and the report has a SMOKE TEST banner. Its blocks are assessed all the same, so the reason starts no re-run.
+`--allow-overrides` lifts it for a simulated campaign (`gate_campaign.py` passes it itself for a host that says it is simulated) and for
+tests, and the report then says that the verdict was allowed and is no result.
 
 **The clocks of the streams.** The engine writes no absolute time, so the executor estimates when each stream's schedule began from its
 exit time less its wall time, and `executor.ok` is false when more than 10 % of the legit streams of a group (2 of 29) began outside the
