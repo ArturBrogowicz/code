@@ -405,6 +405,23 @@ class ValidityTest(unittest.TestCase):
         self.assertTrue(self.check(stream(slip=0.25))["relative"]["ok"])
         self.assertFalse(self.check(stream(slip=0.251))["relative"]["ok"])
 
+    def test_a_stream_with_no_request_has_no_cpu_share_to_judge(self):
+        """S3: a schedule of no request ends in microseconds, and the CPU time of those microseconds over their wall time came out as
+        a share of 2.82; the stream was found to need more CPU than the generator may have."""
+        empty = stream(intended=0, sent=0, cpu=2.82, slip=None)
+        self.assertEqual(self.check(empty), {"relative": {"ok": True, "reasons": []}, "strict": {"ok": True, "reasons": []}})
+        v = self.check(stream(intended=1, sent=1, cpu=2.82))
+        self.assertFalse(v["relative"]["ok"] or v["strict"]["ok"], "a single request is judged")
+        self.assertEqual(v["relative"]["reasons"], ["s1: CPU share 2.82 above 0.7"])
+
+    def test_a_stream_with_no_request_is_still_held_to_the_other_rules(self):
+        for rule in ("descriptors", "ports"):
+            with self.subTest(rule=rule):
+                v = self.check(stream(intended=0, sent=0, cpu=2.82, slip=None, **{rule: True}))
+                self.assertEqual(v["relative"]["reasons"], [f"s1: out of {rule}"])
+        v = self.check(stream("a", "attack", intended=0, sent=0, cpu=2.82, slip=None, dropped=2))
+        self.assertEqual(v["strict"]["reasons"], ["a: dropped 2 requests"])
+
     def test_only_a_legit_stream_may_not_drop_under_the_relative_profile(self):
         self.assertFalse(self.check(stream(dropped=1))["relative"]["ok"])
         v = self.check(stream("a", "attack", dropped=3))
@@ -1261,6 +1278,24 @@ class RealEngineRecordsTest(unittest.TestCase):
             self.assertGreater(m["requests"], 10)                        # about 30 in the window; no punctuality asserted
             self.assertEqual(m["failures"].get("dropped", 0), 0)
             self.assertIn("ok", H.validity(run, FROZEN, m["slip_p99_s"], None)["relative"])
+
+    def test_a_stream_the_engine_gives_no_request_is_read_and_not_found_too_busy(self):
+        """A smoke run at a small load gives a stream a schedule with nothing in it (S3: 1 of 29 at 20 req/s over 30 s)."""
+        with RunningOrigin(service_ms=1, jitter_ms=0) as o, tempfile.TemporaryDirectory() as tmp:
+            summary, records = os.path.join(tmp, "s.json"), os.path.join(tmp, "r.csv.gz")
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = LG.main(["--url", f"http://127.0.0.1:{o.port}/", "--allow-loopback", "--rate", "0.001",
+                                "--duration", "1.0", "--summary", summary, "--records", records, "--seed", "5"])
+            self.assertEqual(code, 0)
+            sm = json_of(summary)
+            self.assertEqual((sm["intended"], sm["sent"], sm["completed"]), (0, 0, 0))
+            self.assertEqual(len(H.read_records(records)["t_intended"]), 0)
+            run = {"dir": tmp, "streams": [{"id": "s", "kind": "legit", "route_class": "C1", "netem": "perfect",
+                                            "records": records, "offset_s": 0.0, "summary": sm}]}
+            m = H.run_metrics(run, FROZEN, {"baseline_s": 0.3, "attack_s": 0.5, "recovery_s": 0.2})
+            self.assertEqual(m["requests"], 0)
+            reasons = H.validity(run, FROZEN, m["slip_p99_s"], None)["relative"]["reasons"]
+            self.assertEqual([r for r in reasons if "CPU share" in r], [], f"its CPU share was {sm['cpu']['share']:.2f}")
 
 
 class EndToEndTest(unittest.TestCase):

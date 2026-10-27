@@ -271,7 +271,7 @@ def validity(run, cal, slip_p99, control_slip_p99):
             slip = sm["slip_s"]["p99"]
         except (KeyError, TypeError) as exc:
             raise GateError(f"{run['dir']}: the summary of stream {sid} lacks {exc}") from exc
-        if cpu > v["cpu_share"]:
+        if intended > 0 and cpu > v["cpu_share"]:               # no request: its microseconds of CPU over its microseconds of wall time
             shared.append(f"{sid}: CPU share {cpu:.2f} above {v['cpu_share']:g}")
         if intended > 0 and sent < v["sent_share"] * intended:
             shared.append(f"{sid}: sent {sent} of {intended} intended")

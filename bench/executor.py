@@ -795,26 +795,43 @@ def namespace_pids(host, ns):
     return [int(p) for p in host.run(["ip", "netns", "pids", ns]).out.split() if p.isdigit()]
 
 
+def _timed(host, argv):
+    """Run `argv` on the host; the seconds it took."""
+    began = host.monotonic()
+    host.run(argv)
+    return host.monotonic() - began
+
+
 def destroy(host, namespaces, links, grace, log=None):
     """Take down `namespaces` and `links`: every process in a namespace (found with `ip netns pids`) gets TERM, then KILL
-    after `grace` seconds if it is still there; then the namespaces go, then the links their deletion left."""
+    after `grace` seconds if it is still there; then the namespaces go, then the links their deletion left. A `log` is told how
+    long each step took (S3's teardown took 12.6 s, and nothing said where)."""
+    say = log or (lambda message: None)
+    began = host.monotonic()
     pids = [p for ns in namespaces for p in namespace_pids(host, ns)]
+    listed, ended = host.monotonic() - began, 0.0
     if pids:
         host.run(["kill", "-TERM", *map(str, pids)])
+        sent = host.monotonic()
         waited, alive = 0.0, pids
         while alive and waited < grace:
             host.sleep(0.1)
             waited += 0.1
             alive = [p for p in alive if host.exists(f"/proc/{p}")]
         if alive:
-            if log:
-                log(f"KILL {len(alive)} processes of the namespaces that ignored TERM for {grace:g} s")
+            say(f"KILL {len(alive)} processes of the namespaces that ignored TERM for {grace:g} s")
             host.run(["kill", "-KILL", *map(str, alive)])
             host.sleep(0.2)
+        ended = host.monotonic() - sent
+    say(f"teardown: {len(pids)} process(es) in {len(namespaces)} namespace(s): listed in {listed:.2f} s, ended in {ended:.2f} s")
+    deleted = []
     for ns in namespaces:
-        host.run(["ip", "netns", "del", ns])
+        deleted.append(f"{ns} {_timed(host, ['ip', 'netns', 'del', ns]):.2f} s")
+    say("teardown: namespaces deleted: " + ", ".join(deleted))
+    deleted = []
     for link in links:
-        host.run(["ip", "link", "del", link])
+        deleted.append(f"{link} {_timed(host, ['ip', 'link', 'del', link]):.2f} s")
+    say("teardown: links deleted: " + ", ".join(deleted))
 
 
 def discover(host):
@@ -1435,6 +1452,7 @@ def stop_all(host, procs, plan, log):
     live = [p for p in procs.values() if p.poll() is None]
     if not live:
         return
+    began = host.monotonic()
     for p in live:
         p.terminate()
     waited = 0.0
@@ -1445,6 +1463,7 @@ def stop_all(host, procs, plan, log):
         if p.poll() is None:
             log(f"KILL pid {p.pid}")
             p.kill()
+    log(f"stopped {len(live)} process(es) of this run in {host.monotonic() - began:.2f} s")
 
 
 def _tail(path, n=1):
@@ -1525,13 +1544,16 @@ def finish_logs(plan, zero, log):
 
 def teardown(host, plan, log):
     """Everything of this run, by namespace; then a look at what is left. LeftoverError if anything is."""
+    began = host.monotonic()
     names = [ns.name for ns in plan.namespaces] + [SERVER_NS]
     links = [outer_veth(ns.name) for ns in plan.namespaces] + [SERVER_VETH_HOST_END, BRIDGE]
     destroy(host, names, links, plan.settings["term_grace_s"], log)
+    looked = host.monotonic()
     left = leftovers(host)
     if left:
         raise LeftoverError("still there after the teardown:\n  " + "\n  ".join(left))
-    log("teardown complete: no namespace, link or process of the testbed is left")
+    log("teardown complete: no namespace, link or process of the testbed is left "
+        f"(leftover check {host.monotonic() - looked:.2f} s; {host.monotonic() - began:.1f} s in all)")
 
 
 KEEP_ON_RETRY = ("plan.json", "executor.log", "environment.json")

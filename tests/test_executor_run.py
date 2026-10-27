@@ -46,6 +46,17 @@ def bare_settings(**changes):
     return {"readiness_timeout_s": 5.0, **changes}
 
 
+def teardown_cost(argv):
+    """Seconds the commands of a teardown take in the model, each kind its own, so that a time in the log is told from another."""
+    if argv[:3] == ["ip", "netns", "pids"]:
+        return 0.2
+    if argv[:3] == ["ip", "netns", "del"]:
+        return 0.5
+    if argv[:3] == ["ip", "link", "del"]:
+        return 0.1
+    return 0.3 if argv[:1] == ["ps"] else 0.0
+
+
 class RunCase(unittest.TestCase):
     """A scratch directory, and plans made the way the tests of the plan half make them."""
 
@@ -866,6 +877,44 @@ class TeardownTest(RunCase):
                 self.assertNotEqual(argv[0], "pgrep", "processes are read from the process table, not found by pattern")
                 if argv[0] == "ps":
                     self.assertEqual(argv[1:], ("-eo", "pid=,ppid=,args="))
+
+    def test_the_teardown_logs_the_time_of_each_step(self):
+        """S3's teardown took 12.6 s and the log did not say where."""
+        plan, _, result = self.go("C", F.SimHost(run_cost_s=teardown_cost))
+        self.assertTrue(result.ok, result.reasons)
+        text = self.read(plan, "executor.log")
+        namespaces = [ns.name for ns in plan.namespaces] + [X.SERVER_NS]
+        links = [X.outer_veth(ns.name) for ns in plan.namespaces] + [X.SERVER_VETH_HOST_END, X.BRIDGE]
+        self.assertIn("teardown: 2 process(es) in 5 namespace(s): listed in 1.00 s, ended in 0.10 s", text)
+        self.assertIn("teardown: namespaces deleted: " + ", ".join(f"{n} 0.50 s" for n in namespaces), text)
+        self.assertIn("teardown: links deleted: " + ", ".join(f"{n} 0.10 s" for n in links), text)
+        self.assertIn("teardown complete: no namespace, link or process of the testbed is left (leftover check 0.30 s; 4.5 s in all)", text)
+        order = [text.index(k) for k in ("teardown: 2 process", "teardown: namespaces deleted", "teardown: links deleted", "teardown complete")]
+        self.assertEqual(order, sorted(order))
+
+    def test_what_stopping_the_run_s_own_processes_took_is_logged_once(self):
+        plan, _, _ = self.go("C")
+        self.assertEqual(self.read(plan, "executor.log").count("stopped 1 process(es) of this run in 0.00 s"), 1,
+                         "the origin, after the timeline; the stop in the `finally` finds nothing to stop and says nothing")
+        plan, _, _ = self.go("C", F.SimHost(faults={"stubborn_origin": 1}), plan_args={"name": "stubborn/C"})
+        text = self.read(plan, "executor.log")
+        self.assertIn("stopped 1 process(es) of this run in 2.00 s", text)
+        self.assertLess(text.index("KILL pid"), text.index("stopped 1 process(es)"))
+
+    def test_destroy_says_nothing_without_a_log_and_the_time_of_each_step_with_one(self):
+        quiet = F.SimHost(preexisting=["legit_3"])
+        X.destroy(quiet, ["legit_3"], ["vo_legit_3"], 2.0)
+        self.assertEqual(quiet.namespaces, {})
+        said = []
+        loud = F.SimHost(preexisting=["legit_3"], run_cost_s=teardown_cost)
+        X.destroy(loud, ["legit_3"], ["vo_legit_3"], 2.0, said.append)
+        self.assertEqual(said, ["teardown: 0 process(es) in 1 namespace(s): listed in 0.20 s, ended in 0.00 s",
+                                "teardown: namespaces deleted: legit_3 0.50 s", "teardown: links deleted: vo_legit_3 0.10 s"])
+
+    def test_a_process_that_ignores_term_is_told_in_the_time_it_cost(self):
+        plan, _, _ = self.go("C", F.SimHost(faults={"stubborn_nginx": None}), plan_args={"name": "stubborn_nginx/C"})
+        text = self.read(plan, "executor.log")
+        self.assertRegex(text, r"teardown: 2 process\(es\) in 5 namespace\(s\): listed in 0\.00 s, ended in 2\.\d\d s")
 
     def test_the_namespaces_processes_are_found_by_namespace(self):
         plan, host, _ = self.go("C")

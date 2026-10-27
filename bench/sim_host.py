@@ -97,6 +97,8 @@ class SimHost(X.Host):
     `daemon_holds_pipes` (the default) the Nginx daemon keeps the pipes of a command that was run to completion with its output
     captured, so that call returns only at its timeout, as the one in S3 did three times (why a real Nginx does that is an inference:
     docs/HG1C_DESIGN.md 14); started like the suite starts it, with no pipe, the launcher returns a moment after the daemon forks.
+    `run_cost_s(argv)` is how long a command takes on the virtual clock (none, by default), so that a time the executor logs for a
+    step can be told from another's.
     The names the tests use:
     missing_address, duplicate_mac, no_netem, ping_fails, nginx_fails, nginx_foreground (Nginx that does not daemonise: its launcher
     never returns), origin_dies, not_ready, wrong_class, wrong_tag,
@@ -110,9 +112,10 @@ class SimHost(X.Host):
                  preexisting=(), startup_s=None, exit_delay_s=0.04, exit_delay_per_request_s=EXIT_DELAY_PER_REQUEST_S, faults=None,
                  log_lines=20, tag="placeholder", python_exists=True, steal_share=0.0, on_sleep=None, server=None,
                  fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,), wall_late_s=None, silent=None, nonzero=None,
-                 ping_drops=None, daemon_holds_pipes=True):
+                 ping_drops=None, daemon_holds_pipes=True, run_cost_s=None):
         self.t = 0.0
         self.daemon_holds_pipes, self.call_timeout = daemon_holds_pipes, X.RealHost.COMMAND_TIMEOUT_S
+        self.run_cost_s = run_cost_s
         self.wall_late_s, self.silent, self.nonzero, self.ping_drops = wall_late_s, silent, nonzero, ping_drops
         self.pids = itertools.count(1000)
         self.events, self.seq = [], itertools.count()
@@ -355,6 +358,8 @@ class SimHost(X.Host):
         argv = [str(a) for a in argv]
         self.commands.append(("run", ns, tuple(argv)))
         self.call_timeout = timeout or X.RealHost.COMMAND_TIMEOUT_S
+        if self.run_cost_s and (cost := self.run_cost_s(argv)):
+            self.sleep(cost)
         if argv[:3] == ["ip", "netns", "del"] and not self.shield:
             self.unshielded.append(tuple(argv))
         handler = getattr(self, "_cmd_" + os.path.basename(argv[0]).replace("-", "_"), None)
