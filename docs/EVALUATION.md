@@ -481,7 +481,8 @@ It refuses a directory that holds anything, a tree with uncommitted changes (unl
 (`--clean` takes down the namespaces and links of an earlier testbed, and nothing else). A failure before the first stream is retried in
 place twice, after the files of the failed attempt are removed (those of the last attempt stay); any error raised after it ends the run,
 tears down, and writes `FAILED`. Nginx is started like the origin, a process of its own with its stderr in `nginx_start.log`, and not run
-to completion with its output captured (S3: that call returned only at its timeout).
+to completion with its output captured (S3: that call returned only at its timeout). The teardown logs how long each step took: the processes of
+the namespaces, each namespace and each link, and the check for leftovers.
 
 **Smoke tests.** `--rho`, `--timeline` and `--timer-limit-ms` (`executor.py plan|run`, `gate_campaign.py`) shorten or lighten a run, or
 loosen the timer gate for it. They are recorded as `overrides` in `plan.json`, `run.json` and `block.json`, and `environment.json` says
@@ -490,7 +491,9 @@ recorded as it was. The limit is otherwise the calibration's `validity.timer_p99
 `--timer-limit-ms`. `eval/harm_gate.py` gives no verdict on a campaign whose runs or blocks carry any override: INVALID, with the reason,
 whatever the figures, and the report has a SMOKE TEST banner. Its blocks are assessed all the same, so the reason starts no re-run.
 `--allow-overrides` lifts it for a simulated campaign (`gate_campaign.py` passes it itself for a host that says it is simulated) and for
-tests, and the report then says that the verdict was allowed and is no result.
+tests, and the report then says that the verdict was allowed and is no result. A stream whose schedule has no request (a small load
+over a short run leaves some) is not judged for its CPU share: its microseconds of CPU over its microseconds of wall time came out above
+the limit (S3).
 
 **The clocks of the streams.** The engine writes no absolute time, so the executor estimates when each stream's schedule began from its
 exit time less its wall time, and `executor.ok` is false when more than 10 % of the legit streams of a group (2 of 29) began outside the
