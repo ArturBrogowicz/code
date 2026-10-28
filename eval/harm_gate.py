@@ -18,11 +18,11 @@ under the run contract (5.5), the output is a verdict, a Markdown report and a J
     blocks have its sign, or the same holds for dL. Otherwise FAIL; fewer than `min_blocks` valid blocks, or a
     campaign that broke the re-run rule, is INVALID. The same rule on dQ' and dL' is the placebo: it must not
     pass. HRR is defined only after a PASS. The constants are the calibration's, frozen with it.
-  * a block is valid iff its runs meet the generator-validity profile (`relative`: a gross ceiling on slip and a
-    difference to the control; `strict`: every engine flag clear and slip p99 under 50 ms, computed always and
-    judging only if chosen), the executor says its runs were sound (`run.json` `executor.ok`), and the control is
-    healthy: Q at least `control_q_min` and, in every route class, at least 95 % within the SLO (that is "the
-    class's p95 within its SLO", taken over all its requests and not only the successful ones). A failed block is
+  * a block is valid iff its runs meet the generator-validity profile (`relative`: a ceiling on the slip p99 pooled over the
+    legit requests of the run and a difference to the control's; `strict`: every engine flag clear and each stream's slip p99
+    under 50 ms, computed always and judging only if chosen), the executor says its runs were sound (`run.json` `executor.ok`),
+    and the control is healthy: Q at least `control_q_min` and, in every route class, at least 95 % within the SLO (that is
+    "the class's p95 within its SLO", taken over all its requests and not only the successful ones). A failed block is
     re-run once with the same seed, at most `max_reruns` times in all; a valid block is never re-run. Validity
     does not read the attack's effect.
   * no verdict on a calibration that is not frozen, except with --dry-run, which labels everything it prints.
@@ -283,13 +283,13 @@ def validity(run, cal, slip_p99, control_slip_p99):
             relative.append(f"{sid}: a legit stream dropped {dropped} requests")
         if dropped > 0:
             strict.append(f"{sid}: dropped {dropped} requests")
-        if slip is not None and slip > v["slip_gross_s"]:
-            relative.append(f"{sid}: slip p99 {slip * 1000:.0f} ms above the gross ceiling {v['slip_gross_s'] * 1000:.0f} ms")
         if slip is not None and slip > v["strict_slip_p99_s"]:
             strict.append(f"{sid}: slip p99 {slip * 1000:.0f} ms above {v['strict_slip_p99_s'] * 1000:.0f} ms")
     executor = run.get("executor")
     if executor is not None and not executor["ok"]:
         shared += [f"executor: {r}" for r in executor["reasons"]] or ["executor: the run was not sound"]
+    if slip_p99 is not None and slip_p99 > v["slip_pooled_s"]:     # a stream's own p99 is its largest slip (S3: 11 requests at the median)
+        relative.append(f"legit slip p99 {slip_p99 * 1000:.0f} ms above the pooled ceiling {v['slip_pooled_s'] * 1000:.0f} ms")
     if control_slip_p99 is not None and slip_p99 is not None and slip_p99 > control_slip_p99 + v["slip_delta_s"]:
         relative.append(f"legit slip p99 {slip_p99 * 1000:.0f} ms exceeds the control's {control_slip_p99 * 1000:.0f} ms "
                         f"by more than {v['slip_delta_s'] * 1000:.0f} ms")

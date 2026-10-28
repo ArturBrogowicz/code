@@ -50,7 +50,7 @@
   "C5": 150.0
  },
  "schema": 1,
- "sha256": "67c0b2adc81a733a03f83c55e254922ab511076c831c13fdf42eff6887f79cfe",
+ "sha256": "ac4e3156db5eacb62fad6c39ebd24c9b5943c07662d231ac7070d9ed9d7e0716",
  "slo_ms": {
   "C0": 100,
   "C1": 300,
@@ -66,7 +66,7 @@
   "profile": "relative",
   "sent_share": 0.99,
   "slip_delta_s": 0.05,
-  "slip_gross_s": 0.25,
+  "slip_pooled_s": 0.1,
   "strict_slip_p99_s": 0.05,
   "timer_p99_ms": 10.0
  }

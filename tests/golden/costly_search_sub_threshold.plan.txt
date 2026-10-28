@@ -1,6 +1,6 @@
 == costly_search_sub_threshold: attack, costly_search_flood, class B ==
 Requests to the search route spread over 100 sources: the total cost rate is the level, each source's rate is far below every per-source rule.
-calibration   PLACEHOLDER sha256:67c0b2ad: illustrative numbers, not measurements; nothing below is a result
+calibration   PLACEHOLDER sha256:ac4e3156: illustrative numbers, not measurements; nothing below is a result
 grounding     OWASP API4:2023 unrestricted resource consumption
 resource      app_cpu
 seeds         calib 1 (this plan); 10 blocks use calib 1-10

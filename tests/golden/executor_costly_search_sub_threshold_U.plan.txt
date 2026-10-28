@@ -1,5 +1,5 @@
 == run U (attack) of costly_search_sub_threshold, seed 1 ==
-calibration   sha256:67c0b2ad PLACEHOLDER: illustrative numbers, not measurements; nothing below is a result
+calibration   sha256:ac4e3156 PLACEHOLDER: illustrative numbers, not measurements; nothing below is a result
 scenario      sha256:d0c17815, attack level 2 x S
 run directory /var/tmp/ddos_campaigns/example/b01_a1/U
 timeline      the 29 legit streams are launched at L; their loops start about 2.5 s later, which is T = 0, and run 105 s; the 4 attack streams are launched at L + 32.35 s to start at T = 30 s and run 45 s

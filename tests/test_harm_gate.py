@@ -155,6 +155,12 @@ def with_profile(profile):
     return C.freeze(cal)
 
 
+def with_validity(**changes):
+    cal = copy.deepcopy(FROZEN)
+    cal["validity"].update(changes)
+    return C.freeze(cal)
+
+
 _TMP = tempfile.TemporaryDirectory()
 BASE = {}
 _ANALYSES = {}
@@ -402,8 +408,8 @@ class ValidityTest(unittest.TestCase):
         self.assertTrue(self.check(stream(cpu=0.70))["relative"]["ok"])
         self.assertTrue(self.check(stream(sent=990))["relative"]["ok"])
         self.assertTrue(self.check(stream(intended=0, sent=0))["relative"]["ok"])
-        self.assertTrue(self.check(stream(slip=0.25))["relative"]["ok"])
-        self.assertFalse(self.check(stream(slip=0.251))["relative"]["ok"])
+        self.assertTrue(self.check(stream(), slip=0.10, control=None)["relative"]["ok"])
+        self.assertFalse(self.check(stream(), slip=0.1001, control=None)["relative"]["ok"])
 
     def test_a_stream_with_no_request_has_no_cpu_share_to_judge(self):
         """S3: a schedule of no request ends in microseconds, and the CPU time of those microseconds over their wall time came out as
@@ -439,7 +445,35 @@ class ValidityTest(unittest.TestCase):
         v = self.check(stream(slip=0.1), slip=0.1, control=0.0499)
         self.assertFalse(v["relative"]["ok"])
         self.assertIn("exceeds the control's", v["relative"]["reasons"][0])
-        self.assertTrue(self.check(stream(), slip=0.5, control=None)["relative"]["ok"])                   # the control itself
+
+    def test_a_streams_own_slip_is_not_judged_by_the_relative_profile(self):
+        """S3: a stream has a median of 11 requests, so its p99 is its largest slip, and one late request voided a run."""
+        v = self.check(stream(slip=0.9), slip=0.01, control=0.01)
+        self.assertEqual(v["relative"], {"ok": True, "reasons": []})
+        self.assertFalse(v["strict"]["ok"], "the strict profile still judges each stream")
+
+    def test_the_pooled_slip_is_held_to_a_ceiling_the_control_included(self):
+        v = self.check(stream(), slip=0.5, control=None)
+        self.assertEqual(v["relative"]["reasons"], ["legit slip p99 500 ms above the pooled ceiling 100 ms"])
+        self.assertEqual(v["strict"], {"ok": True, "reasons": []}, "the strict profile judges each stream, not the pool")
+        v = self.check(stream(), slip=0.12, control=0.11)             # within 50 ms of the control's, above the ceiling
+        self.assertEqual(v["relative"]["reasons"], ["legit slip p99 120 ms above the pooled ceiling 100 ms"])
+
+    def test_a_run_over_the_ceiling_and_over_the_control_says_both(self):
+        v = self.check(stream(), slip=0.5, control=0.002)
+        self.assertEqual(len(v["relative"]["reasons"]), 2, v["relative"]["reasons"])
+        self.assertIn("above the pooled ceiling 100 ms", v["relative"]["reasons"][0])
+        self.assertIn("exceeds the control's", v["relative"]["reasons"][1])
+
+    def test_the_ceiling_is_the_calibrations(self):
+        tight = with_validity(slip_pooled_s=0.05)
+        self.assertTrue(self.check(stream(), slip=0.05, control=None, cal=tight)["relative"]["ok"])
+        v = self.check(stream(), slip=0.06, control=None, cal=tight)
+        self.assertEqual(v["relative"]["reasons"], ["legit slip p99 60 ms above the pooled ceiling 50 ms"])
+
+    def test_a_run_that_sent_nothing_has_no_pooled_slip_to_judge(self):
+        empty = stream(intended=0, sent=0, slip=None)
+        self.assertEqual(self.check(empty, slip=None, control=None)["relative"], {"ok": True, "reasons": []})
 
     def test_a_summary_that_lacks_a_field_is_an_error_naming_it(self):
         s = stream()
@@ -821,7 +855,6 @@ class ValidBlocksAndRerunsTest(WithCopies):
             "short": ("Cp", {"sent": 0}, "sent 0 of"),
             "descriptors": ("C", {"flags": {**OK_FLAGS, "descriptors": True}}, "out of descriptors"),
             "ports": ("U", {"flags": {**OK_FLAGS, "ports": True}}, "out of ports"),
-            "gross slip": ("C", {"slip_s": {"p99": 0.3}}, "above the gross ceiling"),
         }
         for label, (run, change, fragment) in cases.items():
             with self.subTest(case=label):
@@ -833,11 +866,27 @@ class ValidBlocksAndRerunsTest(WithCopies):
 
     def test_a_late_generator_in_the_attack_run_alone_is_caught_by_the_difference_to_the_control(self):
         root = self.copy_of("pass")
-        self.replace(root, 7, {**PASS_EFFECTS, "U": {"fail_p": 0.3, "slip": 0.12}})      # the control's slip is about 3 ms
+        self.replace(root, 7, {**PASS_EFFECTS, "U": {"fail_p": 0.3, "slip": 0.05}})      # the control's slip is about 3 ms, U's p99 about 75
         b = self.block(self.analyse(root), 7)
         self.assertFalse(b["valid"])
         self.assertTrue(any("exceeds the control's" in x for x in b["reasons"]), b["reasons"])
-        self.assertFalse(any("gross ceiling" in x for x in b["reasons"]), b["reasons"])
+        self.assertFalse(any("pooled ceiling" in x for x in b["reasons"]), b["reasons"])
+
+    def test_a_generator_late_in_every_run_is_caught_by_the_pooled_ceiling_though_the_difference_is_nil(self):
+        root = self.copy_of("pass")
+        late = {"slip": 0.1}                                          # a p99 of about 150 ms
+        self.replace(root, 2, {**PASS_EFFECTS, "C": late, "Cp": late, "U": {**PASS_EFFECTS["U"], **late}})
+        b = self.block(self.analyse(root), 2)
+        self.assertFalse(b["valid"])
+        self.assertEqual(sum("above the pooled ceiling 100 ms" in x for x in b["reasons"]), 3, b["reasons"])
+        self.assertFalse(any("exceeds the control's" in x for x in b["reasons"]), b["reasons"])
+
+    def test_a_streams_own_late_p99_does_not_void_a_run_whose_pooled_slip_is_fine(self):
+        root = self.copy_of("pass")
+        self.spoil(root, 2, run="C", slip_s={"p99": 0.3})             # the stream's summary says 300 ms; its records say otherwise
+        b = self.block(self.analyse(root), 2)
+        self.assertTrue(b["valid"], b["reasons"])
+        self.assertEqual(b["runs"]["C"]["validity"]["relative"], {"ok": True, "reasons": []})
 
     def test_an_unhealthy_control_invalidates_its_block(self):
         root = self.copy_of("pass")
@@ -857,7 +906,7 @@ class ValidBlocksAndRerunsTest(WithCopies):
 
     def test_the_profile_in_the_calibration_judges_the_run(self):
         root = self.copy_of("pass")
-        self.spoil(root, 2, slip_s={"p99": 0.08})                  # above the strict 50 ms, below the gross ceiling
+        self.spoil(root, 2, slip_s={"p99": 0.08})                  # above the strict 50 ms; the relative profile does not judge it
         r = self.analyse(root)
         self.assertEqual((r["profile"], r["blocks_valid"]), ("relative", 10))
         self.assertFalse(self.block(r, 2)["runs"]["U"]["strict_ok"])         # computed, not judging

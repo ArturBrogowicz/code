@@ -49,7 +49,7 @@ SLO_CLASSES = ("C0", "C1", "C2", "C3", "C4", "C5", "C6")      # C4 and C6 (POST)
 PLACEHOLDER = os.path.join(HERE, "calibration", "placeholder.json")
 GATE_KEYS = ("floor_pp", "floor_log2_p95", "min_blocks", "same_sign_share", "ci_level", "control_q_min",
              "max_reruns")
-VALIDITY_KEYS = ("profile", "slip_gross_s", "slip_delta_s", "strict_slip_p99_s", "cpu_share", "sent_share",
+VALIDITY_KEYS = ("profile", "slip_pooled_s", "slip_delta_s", "strict_slip_p99_s", "cpu_share", "sent_share",
                  "timer_p99_ms")
 CANNOT_HARM = "cannot harm this server within the generator limit"
 RHO_SHARE = 0.5                          # the legit load is this share of the SLO capacity (design 6.1)

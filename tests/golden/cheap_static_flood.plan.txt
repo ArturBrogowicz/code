@@ -1,6 +1,6 @@
 == cheap_static_flood: attack, cheap_static_flood, class F ==
 The control where the rules win: a plain flood of the cheap dynamic route from 5 sources, each far above the per-source rules.
-calibration   PLACEHOLDER sha256:67c0b2ad: illustrative numbers, not measurements; nothing below is a result
+calibration   PLACEHOLDER sha256:ac4e3156: illustrative numbers, not measurements; nothing below is a result
 grounding     assumed
 resource      app_cpu
 seeds         calib 1 (this plan); 10 blocks use calib 1-10

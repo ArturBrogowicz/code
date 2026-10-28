@@ -52,7 +52,7 @@ class RecordTest(unittest.TestCase):
         self.assertEqual(cal["slo_ms"], {"C0": 100, "C1": 300, "C2": 300, "C3": 1000, "C4": 1000,
                                          "C5": 3000, "C6": 1000})
         self.assertEqual(cal["validity"]["profile"], "relative")
-        self.assertEqual((cal["validity"]["slip_gross_s"], cal["validity"]["slip_delta_s"]), (0.25, 0.05))
+        self.assertEqual((cal["validity"]["slip_pooled_s"], cal["validity"]["slip_delta_s"]), (0.10, 0.05))
         self.assertEqual(cal["judged_profiles"], ["perfect", "broadband"])
         self.assertIsNone(cal["drift_reference"])
 
@@ -82,12 +82,22 @@ class RecordTest(unittest.TestCase):
         for path, value in (("route_costs_ms.C3", 0), ("route_costs_ms.C3", float("nan")),
                             ("capacity.c_slo_rps", -1), ("slo_ms.C0", "100"), ("gate.min_blocks", 2),
                             ("gate.ci_level", 1.0), ("gate.same_sign_share", 0), ("gate.max_reruns", -1),
-                            ("validity.cpu_share", 0), ("mix.C0", 0.9)):
+                            ("validity.cpu_share", 0), ("validity.slip_pooled_s", 0), ("validity.slip_pooled_s", float("nan")),
+                            ("mix.C0", 0.9)):
             cal = copy.deepcopy(base)
             section, key = path.split(".")
             cal[section][key] = value
             with self.subTest(path=path, value=value):
                 self.assertTrue(C.problems_of(cal), path)
+
+    def test_the_validity_block_has_the_pooled_slip_ceiling_and_not_the_per_stream_one(self):
+        cal = placeholder()
+        self.assertEqual(C.problems_of(cal), [])
+        old = copy.deepcopy(cal)
+        old["validity"]["slip_gross_s"] = old["validity"].pop("slip_pooled_s")
+        problems = C.problems_of(old)
+        self.assertEqual(len(problems), 1, problems)
+        self.assertTrue(problems[0].startswith("validity: exactly profile, slip_pooled_s, slip_delta_s,"), problems)
 
     def test_the_knobs_must_be_the_origins(self):
         cal = placeholder()
