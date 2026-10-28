@@ -1,0 +1,261 @@
+[10:34:54] search: 50 queries x 4 sources, 24 seeds, years 2021-2026, max 25 per query; log /home/user/code/docs/sota/corpus/logs/search_20261028T103454Z.log
+[10:34:54] [P1] 'reflection amplification DDoS' | arxiv: 6 records
+[10:34:55] [P1] 'reflection amplification DDoS' | crossref: 25 records
+[10:34:55] [P1] 'reflection amplification DDoS' | openalex: FAILED api.openalex.org: HTTP 429, rate budget exhausted for 48305 s
+[10:34:55]     api.semanticscholar.org: HTTP 429; retry 1/3 in 2 s
+[10:34:57]     api.semanticscholar.org: HTTP 429; retry 2/3 in 4 s
+[10:35:01]     api.semanticscholar.org: HTTP 429; retry 3/3 in 8 s
+[10:35:10] [P1] 'reflection amplification DDoS' | semanticscholar: FAILED api.semanticscholar.org: HTTP 429 after retries
+[10:35:10] [P1] 'DNS amplification DDoS' | arxiv: 1 records
+[10:35:10]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:35:12] [P1] 'DNS amplification DDoS' | crossref: 25 records
+[10:35:12] [P1] 'DNS amplification DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:35:12]     api.semanticscholar.org: HTTP 429; retry 1/3 in 2 s
+[10:35:15]     api.semanticscholar.org: HTTP 429; retry 2/3 in 4 s
+[10:35:19]     api.semanticscholar.org: HTTP 429; retry 3/3 in 8 s
+[10:35:27] [P1] 'DNS amplification DDoS' | semanticscholar: FAILED api.semanticscholar.org: HTTP 429 after retries
+[10:35:27] [P1] 'carpet bombing DDoS' | arxiv: 3 records
+[10:35:27]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:35:30]     api.crossref.org: HTTP 429; retry 2/3 in 4 s
+[10:35:34] [P1] 'carpet bombing DDoS' | crossref: 25 records
+[10:35:34] [P1] 'carpet bombing DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:35:34]     api.semanticscholar.org: HTTP 429; retry 1/3 in 2 s
+[10:35:36]     api.semanticscholar.org: HTTP 429; retry 2/3 in 4 s
+[10:35:40]     api.semanticscholar.org: HTTP 429; retry 3/3 in 8 s
+[10:35:49] [P1] 'carpet bombing DDoS' | semanticscholar: FAILED api.semanticscholar.org: HTTP 429 after retries, 3 requests in a row
+[10:35:49] [P1] 'SYN flood TCP' | arxiv: 6 records
+[10:35:49] [P1] 'SYN flood TCP' | crossref: 25 records
+[10:35:49] [P1] 'SYN flood TCP' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:35:49] [P1] 'SYN flood TCP' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:35:52] [P1] 'state exhaustion denial of service' | arxiv: 0 records
+[10:35:53] [P1] 'state exhaustion denial of service' | crossref: 25 records
+[10:35:53] [P1] 'state exhaustion denial of service' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:35:53] [P1] 'state exhaustion denial of service' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:35:55] [P1] 'application layer DDoS HTTP flood' | arxiv: 1 records
+[10:35:55]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:35:58] [P1] 'application layer DDoS HTTP flood' | crossref: 25 records
+[10:35:58] [P1] 'application layer DDoS HTTP flood' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:35:58] [P1] 'application layer DDoS HTTP flood' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:35:58] [P1] 'slow HTTP denial of service' | arxiv: 0 records
+[10:35:59] [P1] 'slow HTTP denial of service' | crossref: 25 records
+[10:35:59] [P1] 'slow HTTP denial of service' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:35:59] [P1] 'slow HTTP denial of service' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:01] [P1] 'Slowloris' | arxiv: 6 records
+[10:36:03] [P1] 'Slowloris' | crossref: 19 records
+[10:36:03] [P1] 'Slowloris' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:03] [P1] 'Slowloris' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:05] [P1] 'HTTP/2 denial of service' | arxiv: 1 records
+[10:36:05]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:36:07] [P1] 'HTTP/2 denial of service' | crossref: 25 records
+[10:36:07] [P1] 'HTTP/2 denial of service' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:07] [P1] 'HTTP/2 denial of service' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:08] [P2] 'XDP DDoS' | arxiv: 3 records
+[10:36:08] [P2] 'XDP DDoS' | crossref: 25 records
+[10:36:08] [P2] 'XDP DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:08] [P2] 'XDP DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:11] [P2] 'eBPF DDoS mitigation' | arxiv: 3 records
+[10:36:11] [P2] 'eBPF DDoS mitigation' | crossref: 25 records
+[10:36:11] [P2] 'eBPF DDoS mitigation' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:11] [P2] 'eBPF DDoS mitigation' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:14] [P2] 'P4 programmable switch DDoS' | arxiv: 3 records
+[10:36:14] [P2] 'P4 programmable switch DDoS' | crossref: 25 records
+[10:36:14] [P2] 'P4 programmable switch DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:14] [P2] 'P4 programmable switch DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:17] [P2] 'programmable data plane DDoS mitigation' | arxiv: 4 records
+[10:36:17] [P2] 'programmable data plane DDoS mitigation' | crossref: 25 records
+[10:36:17] [P2] 'programmable data plane DDoS mitigation' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:17] [P2] 'programmable data plane DDoS mitigation' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:20] [P2] 'software-defined networking DDoS mitigation' | arxiv: 8 records
+[10:36:21] [P2] 'software-defined networking DDoS mitigation' | crossref: 25 records
+[10:36:21] [P2] 'software-defined networking DDoS mitigation' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:21] [P2] 'software-defined networking DDoS mitigation' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:23] [P2] 'OpenFlow DDoS controller' | arxiv: 2 records
+[10:36:24] [P2] 'OpenFlow DDoS controller' | crossref: 25 records
+[10:36:24] [P2] 'OpenFlow DDoS controller' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:24] [P2] 'OpenFlow DDoS controller' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:26] [P2] 'BGP FlowSpec DDoS' | arxiv: 0 records
+[10:36:27] [P2] 'BGP FlowSpec DDoS' | crossref: 25 records
+[10:36:27] [P2] 'BGP FlowSpec DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:27] [P2] 'BGP FlowSpec DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:29] [P2] 'blackholing DDoS' | arxiv: 1 records
+[10:36:30]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:36:32] [P2] 'blackholing DDoS' | crossref: 25 records
+[10:36:32] [P2] 'blackholing DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:32] [P2] 'blackholing DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:32] [P2] 'anycast DDoS' | arxiv: 1 records
+[10:36:33] [P2] 'anycast DDoS' | crossref: 25 records
+[10:36:33] [P2] 'anycast DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:33] [P2] 'anycast DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:36] [P2] 'scrubbing DDoS' | arxiv: 0 records
+[10:36:36] [P2] 'scrubbing DDoS' | crossref: 25 records
+[10:36:36] [P2] 'scrubbing DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:36] [P2] 'scrubbing DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:39] [P3] 'entropy DDoS detection' | arxiv: 7 records
+[10:36:39] [P3] 'entropy DDoS detection' | crossref: 25 records
+[10:36:39] [P3] 'entropy DDoS detection' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:39] [P3] 'entropy DDoS detection' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:42] [P3] 'machine learning DDoS detection CIC-DDoS2019' | arxiv: 3 records
+[10:36:44] [P3] 'machine learning DDoS detection CIC-DDoS2019' | crossref: 25 records
+[10:36:44] [P3] 'machine learning DDoS detection CIC-DDoS2019' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:44] [P3] 'machine learning DDoS detection CIC-DDoS2019' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:45] [P3] 'deep learning DDoS detection LSTM' | arxiv: 1 records
+[10:36:46] [P3] 'deep learning DDoS detection LSTM' | crossref: 25 records
+[10:36:46] [P3] 'deep learning DDoS detection LSTM' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:46] [P3] 'deep learning DDoS detection LSTM' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:48] [P3] 'autoencoder DDoS detection' | arxiv: 0 records
+[10:36:49] [P3] 'autoencoder DDoS detection' | crossref: 25 records
+[10:36:49] [P3] 'autoencoder DDoS detection' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:49] [P3] 'autoencoder DDoS detection' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:51] [P3] 'transformer DDoS detection' | arxiv: 1 records
+[10:36:52] [P3] 'transformer DDoS detection' | crossref: 25 records
+[10:36:52] [P3] 'transformer DDoS detection' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:52] [P3] 'transformer DDoS detection' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:54] [P3] 'in-network machine learning DDoS' | arxiv: 23 records
+[10:36:55] [P3] 'in-network machine learning DDoS' | crossref: 25 records
+[10:36:55] [P3] 'in-network machine learning DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:55] [P3] 'in-network machine learning DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:36:57] [P3] 'lightweight DDoS detection real-time' | arxiv: 3 records
+[10:36:58] [P3] 'lightweight DDoS detection real-time' | crossref: 25 records
+[10:36:58] [P3] 'lightweight DDoS detection real-time' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:36:58] [P3] 'lightweight DDoS detection real-time' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:37:00] [P4] 'DDoS testbed evaluation' | arxiv: 7 records
+[10:37:02] [P4] 'DDoS testbed evaluation' | crossref: 25 records
+[10:37:02] [P4] 'DDoS testbed evaluation' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:37:02] [P4] 'DDoS testbed evaluation' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:37:03] [P4] 'Mininet DDoS' | arxiv: 3 records
+[10:37:04]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:37:07] [P4] 'Mininet DDoS' | crossref: 25 records
+[10:37:07] [P4] 'Mininet DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:37:07] [P4] 'Mininet DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:37:07] [P4] 'CICIDS2017 dataset errors' | arxiv: 0 records
+[10:37:08] [P4] 'CICIDS2017 dataset errors' | crossref: 25 records
+[10:37:08] [P4] 'CICIDS2017 dataset errors' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:37:08] [P4] 'CICIDS2017 dataset errors' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:37:10] [P4] 'intrusion detection dataset flaws' | arxiv: 1 records
+[10:37:11] [P4] 'intrusion detection dataset flaws' | crossref: 25 records
+[10:37:11] [P4] 'intrusion detection dataset flaws' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:37:11] [P4] 'intrusion detection dataset flaws' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:37:13] [P4] 'TON_IoT dataset' | arxiv: 8 records
+[10:37:14] [P4] 'TON_IoT dataset' | crossref: 25 records
+[10:37:14] [P4] 'TON_IoT dataset' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:37:14] [P4] 'TON_IoT dataset' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:37:16] [P4] 'DPDK traffic generator' | arxiv: 0 records
+[10:37:17]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:37:19] [P4] 'DPDK traffic generator' | crossref: 25 records
+[10:37:19] [P4] 'DPDK traffic generator' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:37:19] [P4] 'DPDK traffic generator' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:37:20] [P4] 'DDoS dataset benchmark' | arxiv: 17 records
+[10:37:20] [P4] 'DDoS dataset benchmark' | crossref: 25 records
+[10:37:20] [P4] 'DDoS dataset benchmark' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:37:20] [P4] 'DDoS dataset benchmark' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:37:23] [P1] 'low-rate DDoS' | arxiv: 4 records
+[10:37:23] [P1] 'low-rate DDoS' | crossref: 25 records
+[10:37:23] [P1] 'low-rate DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:37:23] [P1] 'low-rate DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:37:26]     export.arxiv.org: HTTP 429; retry 1/3 in 2 s
+[10:37:29]     export.arxiv.org: HTTP 429; retry 2/3 in 4 s
+[10:37:33] [P1] 'slow rate denial of service' | arxiv: 0 records
+[10:37:34] [P1] 'slow rate denial of service' | crossref: 25 records
+[10:37:34] [P1] 'slow rate denial of service' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:37:34] [P1] 'slow rate denial of service' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:37:36] [P1] 'HTTP/2 rapid reset' | arxiv: 0 records
+[10:37:36]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:37:39] [P1] 'HTTP/2 rapid reset' | crossref: 25 records
+[10:37:39] [P1] 'HTTP/2 rapid reset' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:37:39] [P1] 'HTTP/2 rapid reset' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:37:39] [P1] 'SYN flood mitigation' | arxiv: 3 records
+[10:37:40] [P1] 'SYN flood mitigation' | crossref: 25 records
+[10:37:40] [P1] 'SYN flood mitigation' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:37:40] [P1] 'SYN flood mitigation' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:37:43] [P1] 'DDoS measurement Internet' | arxiv: 12 records
+[10:37:44] [P1] 'DDoS measurement Internet' | crossref: 25 records
+[10:37:44] [P1] 'DDoS measurement Internet' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:37:44] [P1] 'DDoS measurement Internet' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:37:46] [P2] 'XDP packet filtering' | arxiv: 3 records
+[10:37:46] [P2] 'XDP packet filtering' | crossref: 25 records
+[10:37:46] [P2] 'XDP packet filtering' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:37:46] [P2] 'XDP packet filtering' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:37:49] [P2] 'eBPF firewall' | arxiv: 4 records
+[10:37:49] [P2] 'eBPF firewall' | crossref: 25 records
+[10:37:49] [P2] 'eBPF firewall' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:37:49] [P2] 'eBPF firewall' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:37:52] [P2] 'SYN cookies' | arxiv: 1 records
+[10:37:52] [P2] 'SYN cookies' | crossref: 25 records
+[10:37:52] [P2] 'SYN cookies' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:37:52] [P2] 'SYN cookies' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:37:55] [P2] 'iptables DDoS' | arxiv: 1 records
+[10:37:55] [P2] 'iptables DDoS' | crossref: 25 records
+[10:37:55] [P2] 'iptables DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:37:55] [P2] 'iptables DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:37:58] [P3] 'recurrent neural network DDoS' | arxiv: 8 records
+[10:37:59] [P3] 'recurrent neural network DDoS' | crossref: 25 records
+[10:37:59] [P3] 'recurrent neural network DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:37:59] [P3] 'recurrent neural network DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:38:01] [P3] 'GRU DDoS' | arxiv: 5 records
+[10:38:03] [P3] 'GRU DDoS' | crossref: 25 records
+[10:38:03] [P3] 'GRU DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:38:03] [P3] 'GRU DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:38:04] [P3] 'concept drift intrusion detection' | arxiv: 13 records
+[10:38:05] [P3] 'concept drift intrusion detection' | crossref: 25 records
+[10:38:05] [P3] 'concept drift intrusion detection' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:38:05] [P3] 'concept drift intrusion detection' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:38:07]     export.arxiv.org: HTTP 429; retry 1/3 in 2 s
+[10:38:10] [P4] 'NIDS dataset' | arxiv: 22 records
+[10:38:11] [P4] 'NIDS dataset' | crossref: 25 records
+[10:38:11] [P4] 'NIDS dataset' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:38:11] [P4] 'NIDS dataset' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:38:13] [P4] 'CIC-IDS-2017 CSE-CIC-IDS-2018' | arxiv: 0 records
+[10:38:14] [P4] 'CIC-IDS-2017 CSE-CIC-IDS-2018' | crossref: 25 records
+[10:38:14] [P4] 'CIC-IDS-2017 CSE-CIC-IDS-2018' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:38:14] [P4] 'CIC-IDS-2017 CSE-CIC-IDS-2018' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:38:17] [P4] 'intrusion detection machine learning generalization' | arxiv: 19 records
+[10:38:17] [P4] 'intrusion detection machine learning generalization' | crossref: 25 records
+[10:38:17] [P4] 'intrusion detection machine learning generalization' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:38:17] [P4] 'intrusion detection machine learning generalization' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:38:20]     export.arxiv.org: HTTP 429; retry 1/3 in 2 s
+[10:38:23] [P4] 'DDoS emulation' | arxiv: 6 records
+[10:38:24] [P4] 'DDoS emulation' | crossref: 25 records
+[10:38:24] [P4] 'DDoS emulation' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:38:24] [P4] 'DDoS emulation' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:38:26] [P4] 'packet generator high-speed' | arxiv: 1 records
+[10:38:27] [P4] 'packet generator high-speed' | crossref: 25 records
+[10:38:27] [P4] 'packet generator high-speed' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 48305 s)
+[10:38:27] [P4] 'packet generator high-speed' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:38:29] [seed P1] resolved 'Amplification Hell: Revisiting Network Protocols for DDoS Abuse' -> crossref: Proceedings 2014 Network and Distributed System Security Symposium (2014)
+[10:38:32] [seed P1] resolved 'Understanding the Mirai Botnet' -> landing: 26th USENIX Security Symposium (USENIX Security 17) (2017)
+[10:38:35] [seed P1] resolved 'Weaponizing Middleboxes for TCP Reflected Amplification' -> landing: 30th USENIX Security Symposium (USENIX Security 21) (2021)
+[10:38:38] [seed P1] resolved 'The Far Side of DNS Amplification: Tracing the DDoS Attack Ecosystem from the Internet Core' -> crossref: Proceedings of the 21st ACM Internet Measurement Conference (2021); arxiv: arXiv 2109.01104 (2021)
+[10:38:41] [seed P1] resolved 'Application Layer Denial-of-Service Attacks and Defense Mechanisms: A Survey' -> crossref: ACM Computing Surveys (2021)
+[10:38:44] [seed P1] resolved 'The Age of DDoScovery: An Empirical Comparison of Industry and Academic DDoS Assessments' -> crossref: Proceedings of the 2024 ACM on Internet Measurement Conference (2024); arxiv: Proceedings of ACM Internet Measurement Conference (IMC), 2024 (2024)
+[10:38:47] [seed P2] resolved 'The eXpress Data Path: Fast Programmable Packet Processing in the Operating System Kernel' -> crossref: Proceedings of the 14th International Conference on emerging Networking EXperiments and Technologies (2018)
+[10:38:51] [seed P2] resolved 'Performance Implications of Packet Filtering with Linux eBPF' -> crossref: 2018 30th International Teletraffic Congress (ITC 30) (2018)
+[10:38:54] [seed P2] resolved 'United We Stand: Collaborative Detection and Mitigation of Amplification DDoS Attacks at Scale' -> crossref: Proceedings of the 2021 ACM SIGSAC Conference on Computer and Communications Security (2021)
+[10:38:57] [seed P2] resolved 'Jaqen: A High-Performance Switch-Native Approach for Detecting and Mitigating Volumetric DDoS Attacks with Programmable Switches' -> landing: 30th USENIX Security Symposium (USENIX Security 21) (2021)
+[10:39:00] [seed P2] resolved 'Ripple: A Programmable, Decentralized Link-Flooding Defense Against Adaptive Adversaries' -> landing: 30th USENIX Security Symposium (USENIX Security 21) (2021)
+[10:39:03] [seed P2] resolved 'Anycast Agility: Network Playbooks to Fight DDoS' -> landing: 31st USENIX Security Symposium (USENIX Security 22) (2022); arxiv: arXiv 2006.14058 (2020)
+[10:39:03]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:39:06] [seed P2] resolved 'Aggregate-Based Congestion Control for Pulse-Wave DDoS Defense' -> crossref: Proceedings of the ACM SIGCOMM 2022 Conference (2022)
+[10:39:09] [seed P3] resolved 'LUCID: A Practical, Lightweight Deep Learning Solution for DDoS Attack Detection' -> crossref: IEEE Transactions on Network and Service Management (2020); arxiv: arXiv 2002.04902 (2020)
+[10:39:12] [seed P3] resolved 'Euclid: A Fully In-Network, P4-Based Approach for Real-Time DDoS Attack Detection and Mitigation' -> crossref: IEEE Transactions on Network and Service Management (2021)
+[10:39:15] [seed P3] resolved 'IXP Scrubber: Learning from Blackholing Traffic for ML-Driven DDoS Detection at Scale' -> crossref: Proceedings of the ACM SIGCOMM 2022 Conference (2022)
+[10:39:18] [seed P3] resolved "Dos and Don'ts of Machine Learning in Computer Security" -> landing: 31st USENIX Security Symposium (USENIX Security 22) (2022); arxiv: arXiv 2010.09470 (2020)
+[10:39:22] [seed P3] resolved 'A flow-based IDS using Machine Learning in eBPF' -> arxiv: arXiv 2102.09980 (2021)
+[10:39:25] [seed P4] resolved 'Developing Realistic Distributed Denial of Service (DDoS) Attack Dataset and Taxonomy' -> crossref: 2019 International Carnahan Conference on Security Technology (ICCST) (2019)
+[10:39:28] [seed P4] resolved 'Toward Generating a New Intrusion Detection Dataset and Intrusion Traffic Characterization' -> crossref: Proceedings of the 4th International Conference on Information Systems Security and Privacy (2018)
+[10:39:31] [seed P4] resolved 'Troubleshooting an Intrusion Detection Dataset: the CICIDS2017 Case Study' -> crossref: 2021 IEEE Security and Privacy Workshops (SPW) (2021)
+[10:39:34] [seed P4] resolved 'Error Prevalence in NIDS datasets: A Case Study on CIC-IDS-2017 and CSE-CIC-IDS-2018' -> crossref: 2022 IEEE Conference on Communications and Network Security (CNS) (2022)
+[10:39:37] [seed P4] resolved 'A new distributed architecture for evaluating AI-based security systems at the edge: Network TON_IoT datasets' -> crossref: Sustainable Cities and Society (2021)
+[10:39:40] [seed P4] resolved 'MoonGen: A Scriptable High-Speed Packet Generator' -> crossref: Proceedings of the 2015 Internet Measurement Conference (2015); arxiv: arXiv 1410.3322 (2014)
+[10:39:40] ---- summary
+[10:39:40] host api.crossref.org: 74 ok, 0 failed, reachable
+[10:39:40] host api.openalex.org: 0 ok, 1 failed, BLOCKED (HTTP 429, rate budget exhausted for 48305 s)
+[10:39:40] host api.semanticscholar.org: 0 ok, 3 failed, BLOCKED (HTTP 429 after retries, 3 requests in a row)
+[10:39:40] host export.arxiv.org: 74 ok, 0 failed, reachable
+[10:39:40] host www.usenix.org: 6 ok, 0 failed, reachable
+[10:39:40] records per source (before merging): {'arxiv': 225, 'crossref': 1244, 'seed': 24}
+[10:39:40] seeds resolved: 24/24
+[10:39:40] 1214 unique records -> /home/user/code/docs/sota/corpus/candidates.json
+[10:39:40] == P1 Modern attack vectors and dynamics: 315 records, top 0 by score
+[10:39:40] == P2 Mitigation paradigms and architectures: 308 records, top 0 by score
+[10:39:40] == P3 Detection algorithms and ML/DL models: 298 records, top 0 by score
+[10:39:40] == P4 Empirical evaluation, testbeds and benchmarks: 370 records, top 0 by score

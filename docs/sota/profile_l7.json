@@ -1,0 +1,33 @@
+{
+  "_comment": "Phase 2 targeted search (2026-10-28): fills the Phase 1 gap on application-layer low-and-slow attacks, sequential models for L7 DoS detection, and kernel (eBPF/XDP) + L7 hybrids. Run with --corpus docs/sota/corpus_l7.",
+  "pillars": {
+    "L7": "Application-layer low-and-slow attacks and their detection",
+    "SEQ": "Sequential (RNN/GRU/LSTM) models for application-layer DoS detection",
+    "HYB": "Kernel (eBPF/XDP) filtering coupled with application-layer intelligence"
+  },
+  "years": [2019, 2026],
+  "sources": ["arxiv", "crossref", "europepmc", "openalex", "semanticscholar"],
+  "queries": [
+    ["L7", ["Slowloris"]],
+    ["L7", ["slow", "denial of service"]],
+    ["L7", ["slow", "DoS", "HTTP"]],
+    ["L7", ["slow HTTP"]],
+    ["L7", ["slow POST"]],
+    ["L7", ["slow read"]],
+    ["L7", ["low-rate", "application layer"]],
+    ["L7", ["application layer", "DDoS", "detection"]],
+    ["SEQ", ["LSTM", "application layer", "DDoS"]],
+    ["SEQ", ["recurrent neural network", "DDoS"]],
+    ["SEQ", ["GRU", "DDoS", "detection"]],
+    ["SEQ", ["LSTM", "slow", "DoS"]],
+    ["SEQ", ["deep learning", "HTTP", "DDoS"]],
+    ["HYB", ["eBPF", "DDoS"]],
+    ["HYB", ["XDP", "DDoS"]],
+    ["HYB", ["eBPF", "HTTP"]],
+    ["HYB", ["eBPF", "machine learning", "intrusion detection"]],
+    ["HYB", ["kernel", "application layer", "DDoS"]]
+  ],
+  "seeds": [
+    ["L7", "Generator of Slow Denial-of-Service Cyber Attacks"]
+  ]
+}
