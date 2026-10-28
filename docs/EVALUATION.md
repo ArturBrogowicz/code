@@ -507,7 +507,8 @@ origin's own arrival log on loopback (S1, S1b) the corrected estimate of a legit
 corrects the exit delay of the attack streams, which grows with the request count (about 8 us per request, from three points) and is 0 until
 S4 has measured it. A stream that really begins up to 2.5 s from the others is placed where it began: against the Nginx
 access log its offset is right to 0.07 s at the median (0.21 s at most, 30 streams of 8 S3 runs), and the price is that two runs differ in 2.7 % of
-the legit requests of the attack window at the median, 4.2 % at most (docs/HG1C_DESIGN.md, departure 22). An engine exits when its last request is done, so a stream of a few tenths of a request per
+the legit requests of the attack window at the median, 4.2 % at most (docs/HG1C_DESIGN.md, departure 22). The capacity probe reads the middle of each
+20 s step (5 to 17 s), 3 s from its edges, so a staged run is judged at 3 s for the spread of a pack, the range of a group and where a later group begins, and not at 0.5 s (departure 24); the legit start-up delay of the settings is 2.9 s (departure 25). An engine exits when its last request is done, so a stream of a few tenths of a request per
 second ends long before the timeline does; the executor calls a stream dead only if it exits early with a non-zero code or without its summary and
 records.
 
