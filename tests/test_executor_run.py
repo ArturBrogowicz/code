@@ -1908,6 +1908,49 @@ class StragglerRuleTest(RunCase):
         return X.plan_population(pop, "capacity", "C", 1, os.path.join(self.tmp.name, "s", "C"), self.cal, C.PLACEHOLDER, pop.timeline,
                                  settings=bare_settings(**settings))
 
+    def test_a_later_group_is_judged_by_the_group_limit_and_not_by_the_attacks(self):
+        step = {}
+        plan = self.staged_plan()
+        for st in plan.streams:
+            step.setdefault(st.start_s, []).append(st)
+        found = {st.id: (100.0 + start + (0.8 if start == 12.0 else 0.0) + 40.0 - X.ENGINE_T0_OFFSET_S, 40.0, 0)
+                 for start, streams in step.items() for st in streams}
+        self.assertEqual(len(X.alignment(plan, found)["reasons"]), 1)
+        self.assertIn("began +0.80 s from their start (limit 0.5 s)", X.alignment(plan, found)["reasons"][0])
+        loose = self.staged_plan(group_start_limit_s=1.0)
+        self.assertEqual(X.alignment(loose, found)["reasons"], [])
+        attack_loose = self.staged_plan(attack_start_limit_s=5.0)
+        self.assertEqual(len(X.alignment(attack_loose, found)["reasons"]), 1, "the attack's limit is not a group's")
+        al = X.alignment(self.staged_plan(group_start_limit_s=0.7), found)
+        self.assertIn("(limit 0.7 s)", al["reasons"][0])
+
+    def test_a_later_group_exactly_at_the_group_limit_is_sound(self):
+        step = {}
+        base = self.staged_plan()
+        for st in base.streams:
+            step.setdefault(st.start_s, []).append(st)
+        found = {st.id: (100.0 + start + (0.8 if start == 12.0 else 0.0) + 40.0 - X.ENGINE_T0_OFFSET_S, 40.0, 0)
+                 for start, streams in step.items() for st in streams}
+        per = base.settings["exit_delay_per_request_s"]
+        t0 = {sid: X.estimate_t0(*found[sid], per) for sid in found}          # the streams of a group share one
+        error = t0[step[12.0][0].id] - (t0[step[0.0][0].id] + 12.0)           # as alignment() takes it
+        self.assertEqual(X.alignment(self.staged_plan(group_start_limit_s=error), found)["reasons"], [])
+        self.assertEqual(len(X.alignment(self.staged_plan(group_start_limit_s=error - 1e-9), found)["reasons"]), 1)
+
+    def test_the_attack_is_judged_by_the_attack_limit_and_not_by_the_groups(self):
+        base = self.plan("U")
+        late = self.found(base)
+        for st in base.streams:
+            if st.kind == "attack":                                  # 0.8 s after the end of the baseline
+                late[st.id] = (100.0 + base.timeline["baseline_s"] + 0.8 + 40.0 - X.ENGINE_T0_OFFSET_S
+                               + base.settings["exit_delay_per_request_s"] * 100, 40.0, 100)
+        al = X.alignment(base, late)
+        self.assertEqual(len(al["reasons"]), 1, al["reasons"])
+        self.assertIn("the attack began +0.79 s from the end of the baseline (limit 0.5 s)", al["reasons"][0])      # the pack's median is 0.01 s in
+        self.assertEqual(X.alignment(self.plan("U", name="a/U", settings={"attack_start_limit_s": 1.0}), late)["reasons"], [])
+        self.assertEqual(len(X.alignment(self.plan("U", name="g/U", settings={"group_start_limit_s": 5.0}), late)["reasons"]), 1,
+                         "the group limit is not the attack's")
+
     def test_the_attack_is_not_judged_by_a_pack(self):
         plan = self.plan("U")
         base = plan.timeline["baseline_s"]

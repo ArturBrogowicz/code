@@ -263,9 +263,10 @@ class PlanTest(unittest.TestCase):
     def test_the_settings_are_what_s1_and_s1b_measured_and_the_straggler_rule_the_user_approved(self):
         self.assertEqual({k: EX.SETTINGS[k] for k in ("startup_delay_legit_s", "startup_delay_attack_s", "exit_delay_per_request_s",
                                                       "t0_spread_limit_s", "t0_range_limit_s", "attack_start_limit_s",
-                                                      "straggler_share", "straggler_tail_s")},
+                                                      "group_start_limit_s", "straggler_share", "straggler_tail_s")},
                          {"startup_delay_legit_s": 2.5, "startup_delay_attack_s": 0.15, "exit_delay_per_request_s": 8e-6,
-                          "t0_spread_limit_s": 0.5, "t0_range_limit_s": 2.5, "attack_start_limit_s": 0.5, "straggler_share": 0.5,
+                          "t0_spread_limit_s": 0.5, "t0_range_limit_s": 2.5, "attack_start_limit_s": 0.5, "group_start_limit_s": 0.5,
+                          "straggler_share": 0.5,
                           "straggler_tail_s": 0.1})
 
     def test_the_plan_is_pure_and_is_json(self):

@@ -168,6 +168,67 @@ class StackCostTest(unittest.TestCase):
         self.assertEqual(first["requests"], K.read_json(os.path.join(tmp.name, "capacity", "capacity.json"))["stack_cost"][0]["requests"])
 
 
+class StagedLimitsTest(unittest.TestCase):
+    """The probe reads each step over 5 to 17 s of its 20 s, so a group that begins up to 3 s from its plan, or spread over 3 s, is read
+    all the same: a staged plan is judged at that tolerance and not at a block's 0.5 s (docs/HG1C_DESIGN.md 8 and departure 24)."""
+
+    OUT = "/var/tmp/ddos_campaigns/example/capacity/r1/C"
+
+    def test_the_limits_are_the_skew_the_window_leaves_on_either_side(self):
+        self.assertEqual(K.staged_limits(20.0), {"t0_spread_limit_s": 3.0, "t0_range_limit_s": 3.0, "group_start_limit_s": 3.0})
+        self.assertEqual(K.staged_limits(30.0), {"t0_spread_limit_s": 5.0, "t0_range_limit_s": 5.0, "group_start_limit_s": 5.0})
+        self.assertEqual(K.staged_limits(18.0)["group_start_limit_s"], 1.0)
+
+    def test_a_step_the_window_does_not_fit_in_is_judged_as_a_block(self):
+        for step in (17.0, 17.4, 17.5, 10.0):
+            with self.subTest(step_s=step):
+                self.assertEqual(K.staged_limits(step), {})
+
+    def test_the_plan_of_a_repeat_carries_them_and_the_caller_can_override_them(self):
+        plan = K.capacity_plan(TEMPLATE, C.PLACEHOLDER, 0, self.OUT, [50.0, 65.0], 20.0)
+        for key in ("t0_spread_limit_s", "t0_range_limit_s", "group_start_limit_s"):
+            self.assertEqual(plan.settings[key], 3.0, key)
+        for key in ("attack_start_limit_s", "straggler_tail_s", "straggler_share"):
+            self.assertEqual(plan.settings[key], X.SETTINGS[key], f"{key} is not touched")
+        over = K.capacity_plan(TEMPLATE, C.PLACEHOLDER, 0, self.OUT, [50.0, 65.0], 20.0, settings={"group_start_limit_s": 0.7})
+        self.assertEqual((over.settings["group_start_limit_s"], over.settings["t0_spread_limit_s"]), (0.7, 3.0))
+        short = K.capacity_plan(TEMPLATE, C.PLACEHOLDER, 0, self.OUT, [50.0, 65.0], 10.0)
+        self.assertEqual(short.settings["t0_spread_limit_s"], X.SETTINGS["t0_spread_limit_s"])
+
+    @staticmethod
+    def skewed_host(**kw):
+        """Groups that begin late and spread, as the first staged runs on the VM did (2026-10-28): from the second step on 0.5 s late,
+        and the streams of a step spread over 1.6 s, so that no 0.5 s pack of them is a majority."""
+        return S.SimHost(startup_s=lambda sid, index, kind: S.LEGIT_STARTUP_S + (0.0 if sid.startswith("S00-") else 0.5)
+                         + 1.6 * ((index % 10) / 9), **kw)
+
+    def test_such_a_run_is_sound_at_the_probes_limits_and_not_at_a_blocks(self):
+        levels = [50.0, 100.0, 150.0]
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = K.capacity_plan(TEMPLATE, C.PLACEHOLDER, 0, os.path.join(tmp, "probe", "C"), levels, 20.0,
+                                    settings={"readiness_timeout_s": 5.0})
+            result = X.execute(probe, self.skewed_host())
+            self.assertTrue(result.ok, result.reasons)
+            ctl = SC.load(K.spec_path(K.CONTROL_SPEC))
+            pop = P.staged(ctl.seed_namespace, K.SEEDS["capacity"], levels, 20.0, ctl.benign_identities, ctl.per_profile)
+            block = X.plan_population(pop, "capacity", "C", K.SEEDS["capacity"], os.path.join(tmp, "block", "C"), TEMPLATE,
+                                      C.PLACEHOLDER, pop.timeline, settings={"readiness_timeout_s": 5.0})
+            result = X.execute(block, self.skewed_host())
+            self.assertFalse(result.ok)
+            text = "; ".join(result.reasons)
+            self.assertIn("outside the pack", text)
+            self.assertIn("from their start (limit 0.5 s)", text)
+
+    def test_the_capacity_step_completes_on_a_host_that_starts_its_groups_like_that(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            host = self.skewed_host(server=S.SyntheticServer(TEMPLATE, (30, 45, 30), capacity_cpu=1.1))
+            result = K.capacity_step(K.Runner(host), TEMPLATE, C.PLACEHOLDER, tmp, [80.0, 160.0, 240.0, 320.0, 400.0, 480.0], 20.0, 2,
+                                     lambda m: None)
+            self.assertIn("c_slo_rps", result)
+            self.assertFalse(any(name.endswith(".failed1") for name in os.listdir(os.path.join(tmp, "capacity", "r1"))),
+                             "no run had to be made again")
+
+
 class OriginTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

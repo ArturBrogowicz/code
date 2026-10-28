@@ -171,12 +171,26 @@ def step_windows(count, step_s=STEP_S, window=Q_WINDOW):
     return [(k * step_s + window[0], k * step_s + window[1]) for k in range(count)]
 
 
+def staged_limits(step_s, window=Q_WINDOW):
+    """The clock limits of a staged run: the skew that the window leaves clear on either side of a step, that is, the nearer of the
+    window's start and the step's end less the window's end (3 s for 20 s steps read over 5 to 17 s). A group that begins that far from
+    its plan, or spread over that much, is read all the same, because each stream's records are placed by its own offset; the
+    block's 0.5 s would reject the probe's runs on the VM (2026-10-28: later steps began 0.3 to 1.0 s late, spread over up to 2.6 s).
+    A step the window does not fit in leaves nothing to relax: the executor's limits stand (docs/HG1C_DESIGN.md departure 24)."""
+    skew = min(window[0], step_s - window[1])
+    if skew <= X.SETTINGS["t0_spread_limit_s"]:
+        return {}
+    return {"t0_spread_limit_s": skew, "t0_range_limit_s": skew, "group_start_limit_s": skew}
+
+
 def capacity_plan(cal, cal_path, repeat, out, levels, step_s, settings=None):
-    """The plan of one repeat of the probe: the legit load stepping through `levels` in one run, as a control."""
+    """The plan of one repeat of the probe: the legit load stepping through `levels` in one run, as a control, judged at the
+    probe's own clock limits (`staged_limits`); `settings` override them."""
     ctl = SC.load(spec_path(CONTROL_SPEC))
     seed = SEEDS["capacity"] + repeat
     pop = P.staged(ctl.seed_namespace, seed, levels, step_s, ctl.benign_identities, ctl.per_profile)
-    return X.plan_population(pop, "capacity", "C", seed, out, cal, cal_path, pop.timeline, settings=settings)
+    return X.plan_population(pop, "capacity", "C", seed, out, cal, cal_path, pop.timeline,
+                             settings={**staged_limits(step_s), **(settings or {})})
 
 
 def metrics_by_step(run, cal, count, step_s):
