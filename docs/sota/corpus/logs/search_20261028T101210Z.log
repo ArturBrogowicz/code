@@ -1,0 +1,360 @@
+[10:12:10] search: 33 queries x 4 sources, 24 seeds, years 2021-2026, max 25 per query; log /home/user/code/docs/sota/corpus/logs/search_20261028T101210Z.log
+[10:12:11] [P1] 'reflection amplification DDoS' | arxiv: 6 records
+[10:12:12] [P1] 'reflection amplification DDoS' | crossref: 25 records
+[10:12:12] [P1] 'reflection amplification DDoS' | openalex: FAILED api.openalex.org: HTTP 429, rate budget exhausted for 49668 s
+[10:12:13]     api.semanticscholar.org: HTTP 429; retry 1/3 in 2 s
+[10:12:15]     api.semanticscholar.org: HTTP 429; retry 2/3 in 4 s
+[10:12:19]     api.semanticscholar.org: HTTP 429; retry 3/3 in 8 s
+[10:12:27] [P1] 'reflection amplification DDoS' | semanticscholar: FAILED api.semanticscholar.org: HTTP 429 after retries
+[10:12:28] [P1] 'DNS amplification DDoS' | arxiv: 1 records
+[10:12:28] [P1] 'DNS amplification DDoS' | crossref: 25 records
+[10:12:28] [P1] 'DNS amplification DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:12:28]     api.semanticscholar.org: HTTP 429; retry 1/3 in 2 s
+[10:12:31]     api.semanticscholar.org: HTTP 429; retry 2/3 in 4 s
+[10:12:35]     api.semanticscholar.org: HTTP 429; retry 3/3 in 8 s
+[10:12:43] [P1] 'DNS amplification DDoS' | semanticscholar: FAILED api.semanticscholar.org: HTTP 429 after retries
+[10:12:43] [P1] 'carpet bombing DDoS' | arxiv: 3 records
+[10:12:44]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:12:46] [P1] 'carpet bombing DDoS' | crossref: 25 records
+[10:12:46] [P1] 'carpet bombing DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:12:46]     api.semanticscholar.org: HTTP 429; retry 1/3 in 2 s
+[10:12:48]     api.semanticscholar.org: HTTP 429; retry 2/3 in 4 s
+[10:12:53] [P1] 'carpet bombing DDoS' | semanticscholar: 25 records
+[10:12:53] [P1] 'SYN flood TCP' | arxiv: 6 records
+[10:12:54] [P1] 'SYN flood TCP' | crossref: 25 records
+[10:12:54] [P1] 'SYN flood TCP' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:12:54]     api.semanticscholar.org: HTTP 429; retry 1/3 in 2 s
+[10:12:56]     api.semanticscholar.org: HTTP 429; retry 2/3 in 4 s
+[10:13:00]     api.semanticscholar.org: HTTP 429; retry 3/3 in 8 s
+[10:13:09] [P1] 'SYN flood TCP' | semanticscholar: FAILED api.semanticscholar.org: HTTP 429 after retries
+[10:13:09] [P1] 'state exhaustion denial of service' | arxiv: 0 records
+[10:13:09]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:13:12] [P1] 'state exhaustion denial of service' | crossref: 25 records
+[10:13:12] [P1] 'state exhaustion denial of service' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:13:12]     api.semanticscholar.org: HTTP 429; retry 1/3 in 2 s
+[10:13:14]     api.semanticscholar.org: HTTP 429; retry 2/3 in 4 s
+[10:13:19]     api.semanticscholar.org: HTTP 429; retry 3/3 in 8 s
+[10:13:27] [P1] 'state exhaustion denial of service' | semanticscholar: FAILED api.semanticscholar.org: HTTP 429 after retries
+[10:13:27] [P1] 'application layer DDoS HTTP flood' | arxiv: 1 records
+[10:13:28] [P1] 'application layer DDoS HTTP flood' | crossref: 25 records
+[10:13:28] [P1] 'application layer DDoS HTTP flood' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:13:28]     api.semanticscholar.org: HTTP 429; retry 1/3 in 2 s
+[10:13:30]     api.semanticscholar.org: HTTP 429; retry 2/3 in 4 s
+[10:13:35]     api.semanticscholar.org: HTTP 429; retry 3/3 in 8 s
+[10:13:43] [P1] 'application layer DDoS HTTP flood' | semanticscholar: FAILED api.semanticscholar.org: HTTP 429 after retries, 3 requests in a row
+[10:13:43] [P1] 'slow HTTP denial of service' | arxiv: 0 records
+[10:13:43] [P1] 'slow HTTP denial of service' | crossref: 25 records
+[10:13:43] [P1] 'slow HTTP denial of service' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:13:43] [P1] 'slow HTTP denial of service' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:13:46] [P1] 'Slowloris' | arxiv: 6 records
+[10:13:47] [P1] 'Slowloris' | crossref: 19 records
+[10:13:47] [P1] 'Slowloris' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:13:47] [P1] 'Slowloris' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:13:49] [P1] 'HTTP/2 denial of service' | arxiv: 1 records
+[10:13:50] [P1] 'HTTP/2 denial of service' | crossref: 25 records
+[10:13:50] [P1] 'HTTP/2 denial of service' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:13:50] [P1] 'HTTP/2 denial of service' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:13:52] [P2] 'XDP DDoS' | arxiv: 3 records
+[10:13:53] [P2] 'XDP DDoS' | crossref: 25 records
+[10:13:53] [P2] 'XDP DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:13:53] [P2] 'XDP DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:13:56] [P2] 'eBPF DDoS mitigation' | arxiv: 3 records
+[10:13:56]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:13:58] [P2] 'eBPF DDoS mitigation' | crossref: 25 records
+[10:13:58] [P2] 'eBPF DDoS mitigation' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:13:58] [P2] 'eBPF DDoS mitigation' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:13:59] [P2] 'P4 programmable switch DDoS' | arxiv: 3 records
+[10:13:59] [P2] 'P4 programmable switch DDoS' | crossref: 25 records
+[10:13:59] [P2] 'P4 programmable switch DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:13:59] [P2] 'P4 programmable switch DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:14:02] [P2] 'programmable data plane DDoS mitigation' | arxiv: 4 records
+[10:14:03] [P2] 'programmable data plane DDoS mitigation' | crossref: 25 records
+[10:14:03] [P2] 'programmable data plane DDoS mitigation' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:14:03] [P2] 'programmable data plane DDoS mitigation' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:14:05] [P2] 'software-defined networking DDoS mitigation' | arxiv: 8 records
+[10:14:05] [P2] 'software-defined networking DDoS mitigation' | crossref: 25 records
+[10:14:05] [P2] 'software-defined networking DDoS mitigation' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:14:05] [P2] 'software-defined networking DDoS mitigation' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:14:08] [P2] 'OpenFlow DDoS controller' | arxiv: 2 records
+[10:14:09] [P2] 'OpenFlow DDoS controller' | crossref: 25 records
+[10:14:09] [P2] 'OpenFlow DDoS controller' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:14:09] [P2] 'OpenFlow DDoS controller' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:14:27] [P2] 'BGP FlowSpec DDoS' | arxiv: 0 records
+[10:14:27] [P2] 'BGP FlowSpec DDoS' | crossref: 25 records
+[10:14:27] [P2] 'BGP FlowSpec DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:14:27] [P2] 'BGP FlowSpec DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:14:28] [P2] 'blackholing DDoS' | arxiv: 1 records
+[10:14:28] [P2] 'blackholing DDoS' | crossref: 25 records
+[10:14:28] [P2] 'blackholing DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:14:28] [P2] 'blackholing DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:14:31] [P2] 'anycast DDoS' | arxiv: 1 records
+[10:14:31] [P2] 'anycast DDoS' | crossref: 25 records
+[10:14:31] [P2] 'anycast DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:14:31] [P2] 'anycast DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:14:34] [P2] 'scrubbing DDoS' | arxiv: 0 records
+[10:14:34] [P2] 'scrubbing DDoS' | crossref: 25 records
+[10:14:34] [P2] 'scrubbing DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:14:34] [P2] 'scrubbing DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:14:37] [P3] 'entropy DDoS detection' | arxiv: 7 records
+[10:14:37] [P3] 'entropy DDoS detection' | crossref: 25 records
+[10:14:37] [P3] 'entropy DDoS detection' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:14:37] [P3] 'entropy DDoS detection' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:14:40] [P3] 'machine learning DDoS detection CIC-DDoS2019' | arxiv: 3 records
+[10:14:41] [P3] 'machine learning DDoS detection CIC-DDoS2019' | crossref: 25 records
+[10:14:41] [P3] 'machine learning DDoS detection CIC-DDoS2019' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:14:41] [P3] 'machine learning DDoS detection CIC-DDoS2019' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:14:43] [P3] 'deep learning DDoS detection LSTM' | arxiv: 1 records
+[10:14:44] [P3] 'deep learning DDoS detection LSTM' | crossref: 25 records
+[10:14:44] [P3] 'deep learning DDoS detection LSTM' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:14:44] [P3] 'deep learning DDoS detection LSTM' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:14:46] [P3] 'autoencoder DDoS detection' | arxiv: 0 records
+[10:14:48] [P3] 'autoencoder DDoS detection' | crossref: 25 records
+[10:14:48] [P3] 'autoencoder DDoS detection' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:14:48] [P3] 'autoencoder DDoS detection' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:14:49] [P3] 'transformer DDoS detection' | arxiv: 1 records
+[10:14:50] [P3] 'transformer DDoS detection' | crossref: 25 records
+[10:14:50] [P3] 'transformer DDoS detection' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:14:50] [P3] 'transformer DDoS detection' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:14:53] [P3] 'in-network machine learning DDoS' | arxiv: 23 records
+[10:14:53]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:14:55] [P3] 'in-network machine learning DDoS' | crossref: 25 records
+[10:14:55] [P3] 'in-network machine learning DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:14:55] [P3] 'in-network machine learning DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:14:56] [P3] 'lightweight DDoS detection real-time' | arxiv: 3 records
+[10:14:56] [P3] 'lightweight DDoS detection real-time' | crossref: 25 records
+[10:14:56] [P3] 'lightweight DDoS detection real-time' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:14:56] [P3] 'lightweight DDoS detection real-time' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:14:59] [P4] 'DDoS testbed evaluation' | arxiv: 7 records
+[10:14:59] [P4] 'DDoS testbed evaluation' | crossref: 25 records
+[10:14:59] [P4] 'DDoS testbed evaluation' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:14:59] [P4] 'DDoS testbed evaluation' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:15:03] [P4] 'Mininet DDoS' | arxiv: 3 records
+[10:15:06] [P4] 'Mininet DDoS' | crossref: 25 records
+[10:15:06] [P4] 'Mininet DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:15:06] [P4] 'Mininet DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:15:06] [P4] 'CICIDS2017 dataset errors' | arxiv: 0 records
+[10:15:06]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:15:09] [P4] 'CICIDS2017 dataset errors' | crossref: 25 records
+[10:15:09] [P4] 'CICIDS2017 dataset errors' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:15:09] [P4] 'CICIDS2017 dataset errors' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:15:10] [P4] 'intrusion detection dataset flaws' | arxiv: 1 records
+[10:15:10]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:15:12]     api.crossref.org: HTTP 429; retry 2/3 in 4 s
+[10:15:16] [P4] 'intrusion detection dataset flaws' | crossref: 25 records
+[10:15:16] [P4] 'intrusion detection dataset flaws' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:15:16] [P4] 'intrusion detection dataset flaws' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:15:17] [P4] 'TON_IoT dataset' | arxiv: 8 records
+[10:15:17]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:15:20] [P4] 'TON_IoT dataset' | crossref: 25 records
+[10:15:20] [P4] 'TON_IoT dataset' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:15:20] [P4] 'TON_IoT dataset' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:15:20] [P4] 'DPDK traffic generator' | arxiv: 0 records
+[10:15:21] [P4] 'DPDK traffic generator' | crossref: 25 records
+[10:15:21] [P4] 'DPDK traffic generator' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:15:21] [P4] 'DPDK traffic generator' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:15:24] [P4] 'DDoS dataset benchmark' | arxiv: 17 records
+[10:15:25] [P4] 'DDoS dataset benchmark' | crossref: 25 records
+[10:15:25] [P4] 'DDoS dataset benchmark' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 49668 s)
+[10:15:25] [P4] 'DDoS dataset benchmark' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[10:15:25]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:15:28] [seed P1] resolved 'Amplification Hell: Revisiting Network Protocols for DDoS Abuse' -> crossref: Proceedings 2014 Network and Distributed System Security Symposium (2014)
+[10:15:31] [seed P1] UNRESOLVED 'Understanding the Mirai Botnet'
+[10:15:34] [seed P1] UNRESOLVED 'Weaponizing Middleboxes for TCP Reflected Amplification'
+[10:15:37] [seed P1] resolved 'The Far Side of DNS Amplification: Tracing the DDoS Attack Ecosystem from the Internet Core' -> arxiv: arXiv 2109.01104 (2021)
+[10:15:41] [seed P1] resolved 'Application Layer Denial-of-Service Attacks and Defense Mechanisms: A Survey' -> crossref: ACM Computing Surveys (2021)
+[10:15:43] [seed P1] resolved 'The Age of DDoScovery: An Empirical Comparison of Industry and Academic DDoS Assessments' -> crossref: Proceedings of the 2024 ACM on Internet Measurement Conference (2024); arxiv: Proceedings of ACM Internet Measurement Conference (IMC), 2024 (2024)
+[10:15:47] [seed P2] UNRESOLVED 'The eXpress Data Path: Fast Programmable Packet Processing in the Operating System Kernel'
+[10:15:50] [seed P2] resolved 'Performance Implications of Packet Filtering with Linux eBPF' -> crossref: 2018 30th International Teletraffic Congress (ITC 30) (2018)
+[10:15:53] [seed P2] resolved 'United We Stand: Collaborative Detection and Mitigation of Amplification DDoS Attacks at Scale' -> crossref: Proceedings of the 2021 ACM SIGSAC Conference on Computer and Communications Security (2021)
+[10:15:56] [seed P2] UNRESOLVED 'Jaqen: A High-Performance Switch-Native Approach for Detecting and Mitigating Volumetric DDoS Attacks with Programmable Switches'
+[10:15:56]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:15:59] [seed P2] UNRESOLVED 'Ripple: A Programmable, Decentralized Link-Flooding Defense Against Adaptive Adversaries'
+[10:15:59]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:16:03] [seed P2] resolved 'Anycast Agility: Network Playbooks to Fight DDoS' -> arxiv: arXiv 2006.14058 (2020)
+[10:16:06] [seed P2] resolved 'Aggregate-Based Congestion Control for Pulse-Wave DDoS Defense' -> crossref: Proceedings of the ACM SIGCOMM 2022 Conference (2022)
+[10:16:06]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:16:10] [seed P3] resolved 'LUCID: A Practical, Lightweight Deep Learning Solution for DDoS Attack Detection' -> crossref: IEEE Transactions on Network and Service Management (2020); arxiv: arXiv 2002.04902 (2020)
+[10:16:13] [seed P3] resolved 'Euclid: A Fully In-Network, P4-Based Approach for Real-Time DDoS Attack Detection and Mitigation' -> crossref: IEEE Transactions on Network and Service Management (2021)
+[10:16:13]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[10:16:15]     api.crossref.org: HTTP 429; retry 2/3 in 4 s
+[10:16:21] [seed P3] UNRESOLVED 'IXP Scrubber: Learning from Blackholing Traffic for ML-Driven DDoS Detection at Scale'
+[10:16:24] [seed P3] UNRESOLVED "Dos and Don'ts of Machine Learning in Computer Security"
+[10:16:27] [seed P3] resolved 'A flow-based IDS using Machine Learning in eBPF' -> arxiv: arXiv 2102.09980 (2021)
+[10:16:30] [seed P4] resolved 'Developing Realistic Distributed Denial of Service (DDoS) Attack Dataset and Taxonomy' -> crossref: 2019 International Carnahan Conference on Security Technology (ICCST) (2019)
+[10:16:33] [seed P4] resolved 'Toward Generating a New Intrusion Detection Dataset and Intrusion Traffic Characterization' -> crossref: Proceedings of the 4th International Conference on Information Systems Security and Privacy (2018)
+[10:16:36] [seed P4] resolved 'Troubleshooting an Intrusion Detection Dataset: the CICIDS2017 Case Study' -> crossref: 2021 IEEE Security and Privacy Workshops (SPW) (2021)
+[10:16:39] [seed P4] resolved 'Error Prevalence in NIDS datasets: A Case Study on CIC-IDS-2017 and CSE-CIC-IDS-2018' -> crossref: 2022 IEEE Conference on Communications and Network Security (CNS) (2022)
+[10:16:42] [seed P4] resolved 'A new distributed architecture for evaluating AI-based security systems at the edge: Network TON_IoT datasets' -> crossref: Sustainable Cities and Society (2021)
+[10:16:45] [seed P4] resolved 'MoonGen: A Scriptable High-Speed Packet Generator' -> arxiv: arXiv 1410.3322 (2014)
+[10:16:45] ---- summary
+[10:16:45] host api.crossref.org: 57 ok, 0 failed, reachable
+[10:16:45] host api.openalex.org: 0 ok, 1 failed, BLOCKED (HTTP 429, rate budget exhausted for 49668 s)
+[10:16:45] host api.semanticscholar.org: 1 ok, 5 failed, BLOCKED (HTTP 429 after retries, 3 requests in a row)
+[10:16:45] host export.arxiv.org: 57 ok, 0 failed, reachable
+[10:16:45] records per source (before merging): {'arxiv': 123, 'crossref': 819, 'semanticscholar': 25, 'seed': 17}
+[10:16:45] seeds resolved: 17/24
+[10:16:45] 810 unique records -> /home/user/code/docs/sota/corpus/candidates.json
+[10:16:45] == P1 Modern attack vectors and dynamics: 221 records, top 40 by score
+[10:16:45]    rossow2014amplification          2014 top           cites=264   Proceedings 2014 Network and Distribut Amplification Hell: Revisiting Network Protocols for DDoS Abuse
+[10:16:45]    tripathi2021application          2021 top           cites=71    ACM Computing Surveys                  Application Layer Denial-of-Service Attacks and Defense Mechanisms
+[10:16:45]    wagner2021united                 2021 top           cites=58    Proceedings of the 2021 ACM SIGSAC Con United We Stand: Collaborative Detection and Mitigation of Amplification DDoS Attacks at S
+[10:16:45]    hiesgen2024age                   2024 top           cites=21    Proceedings of the 2024 ACM on Interne The Age of DDoScovery: An Empirical Comparison of Industry and Academic DDoS Assessments
+[10:16:45]    beitollahi2022application        2022 top           cites=38    IEEE Access                            Application Layer DDoS Attack Detection Using Cuckoo Search Algorithm-Trained Radial Basis
+[10:16:45]    nawrocki2021far                  2021 top           cites=32    Proceedings of the 21st ACM Internet M The far side of DNS amplification
+[10:16:45]    adiwal2023dns                    2023 top           cites=27    Franklin Open                          DNS Intrusion Detection (DID) — A SNORT-based solution to detect DNS Amplification and DNS
+[10:16:45]    ramirezmartinez2025p4            2025 top           cites=13    Computer Networks                      P4-Assisted Slowloris DDoS attack detection in IoT environments by using ML and DL
+[10:16:45]    moura2021tsuname                 2021 top           cites=35    Proceedings of the 21st ACM Internet M TsuNAME
+[10:16:45]    sharif2023detection              2023 top           cites=23    Computers & Security                   Detection of application-layer DDoS attacks using machine learning and genetic algorithms
+[10:16:45]    ravi2021aegis                    2021 top           cites=32    IEEE Transactions on Network and Servi AEGIS: Detection and Mitigation of TCP SYN Flood on SDN Controller
+[10:16:45]    sommese2022investigating         2022 top           cites=26    Proceedings of the 22nd ACM Internet M Investigating the impact of DDoS attacks on DNS infrastructure
+[10:16:45]    griffioen2021scan                2021 top           cites=31    Proceedings of the 2021 ACM SIGSAC Con Scan, Test, Execute: Adversarial Tactics in Amplification DDoS Attacks
+[10:16:45]    shi2022quantized                 2022 top           cites=20    Automatica                             Quantized state feedback stabilization of nonlinear systems under Denial-of-Service
+[10:16:45]    cunningham2022material           2022 top           cites=22    Journal of Cleaner Production          A material flow analysis of carpet in the United States: Where should the carpet go?
+[10:16:45]    kopp2025ddos                     2025 top           cites=3     2025 36th International Teletraffic Co DDoS on Repeat: Measuring Pulse-Wave DDoS in the Wild
+[10:16:45]    rios2024detection                2024 top           cites=12    Proceedings of the 39th ACM/SIGAPP Sym Detection of Slowloris Attacks using Machine Learning Algorithms
+[10:16:45]    ming2024distributed              2024 top           cites=10    IEEE Access                            Distributed Denial of Service Attack in HTTP/2: Review on Security Issues and Future Chall
+[10:16:45]    black2022overview                2022 top           cites=18    2022 IEEE 12th Annual Computing and Co An Overview on Detection and Prevention of Application Layer DDoS Attacks
+[10:16:45]    pan2026netradar                  2026 top           cites=3     Proceedings 2026 Network and Distribut NetRadar: Enabling Robust Carpet Bombing DDoS Detection
+[10:16:45]    kumar2025sdn                     2025 top           cites=6     Data in Brief                          SDN TCP-SYN Dataset: A dataset for TCP-SYN flood DDoS attack detection in software-defined
+[10:16:45]    li2024dollm                      2024 peer-reviewed cites=26    arXiv.org                              DoLLM: How Large Language Models Understanding Network Flow Data to Detect Carpet Bombing 
+[10:16:45]    nawrocki2023sok                  2023 top           cites=11    2023 IEEE 8th European Symposium on Se SoK: A Data-driven View on Methods to Detect Reflective Amplification DDoS Attacks Using H
+[10:16:45]    sinha2025syn                     2025 top           cites=6     Proceedings of the 26th International  SYN-Monitor: An Energy Efficient Defense System against TCP-SYN Flooding Attacks in SDN
+[10:16:45]    bensaid2024real                  2024 peer-reviewed cites=17    Security and Communication Networks    Toward a Real-Time TCP SYN Flood DDoS Mitigation Using Adaptive Neuro-Fuzzy Classifier and
+[10:16:45]    wang2022multi                    2022 top           cites=14    GLOBECOM 2022 - 2022 IEEE Global Commu Multi-Functional RIS: An Integration of Reflection, Amplification, and Energy Harvesting
+[10:16:45]    das2022flood                     2022 top           cites=14    2022 IEEE International Conference on  Flood Control: TCP-SYN Flood Detection for Software-Defined Networks using OpenFlow Port S
+[10:16:45]    meng2024secure                   2024 top           cites=8     European Journal of Control            Secure state estimation of networked switched systems under denial-of-service attacks
+[10:16:45]    sumathi2021comparative           2021 peer-reviewed cites=37    WSEAS TRANSACTIONS ON SYSTEMS AND CONT Comparative Study on TCP SYN Flood DDoS Attack Detection: A Machine Learning Algorithm Bas
+[10:16:45]    praseed2022http                  2022 top           cites=11    Journal of Information Security and Ap HTTP request pattern based signatures for early application layer DDoS detection: A firewa
+[10:16:45]    sood2023slowtrack                2023 top           cites=7     The Journal of Supercomputing          SlowTrack: detecting slow rate Denial of Service attacks against HTTP with behavioral para
+[10:16:45]    r2025netdefender                 2025 peer-reviewed cites=0     Proceedings of the 1st International C NetDefender-DDOS: A CNN-Based Deep Learning Framework for Robust DDoS Attack Detection
+[10:16:45]    toorn2021anyway                  2021 top           cites=12    2021 17th International Conference on  ANYway: Measuring the Amplification DDoS Potential of Domains
+[10:16:45]    iehira2024feasibility            2024 top           cites=6     2024 IEEE 48th Annual Computers, Softw Feasibility Assessment of Denial-of-Service Attacks by Analyzing SOME/IP-SD State Transiti
+[10:16:45]    batool2022lightweight            2022 peer-reviewed cites=26    Security and Communication Networks    Lightweight Statistical Approach towards TCP SYN Flood DDoS Attack Detection and Mitigatio
+[10:16:45]    ramprasath2022mitigation         2022 peer-reviewed cites=16    IETE Journal of Research               Mitigation Services on SDN for Distributed Denial of Service and Denial of Service Attacks
+[10:16:45]    heinrich2021new                  2021 peer-reviewed cites=29    Passive and Active Network Measurement New Kids on the DRDoS Block: Characterizing Multiprotocol and Carpet Bombing Attacks
+[10:16:45]    oktivasari2022analysis           2022 top           cites=9     2022 5th International Conference of C Analysis of Effectiveness of Iptables on Web Server from Slowloris Attack
+[10:16:45]    datta2022dns                     2022 top           cites=8     IEEE Networking Letters                DNS guard : A Raspberry Pi-Based DDoS Mitigation on DNS Server in IoT Networks
+[10:16:45]    aljarf2024gaza                   2024 peer-reviewed cites=11    International Journal of Middle Easter The Gaza-Israel War Terminology: Implications for Translation Pedagogy
+[10:16:45] == P2 Mitigation paradigms and architectures: 220 records, top 40 by score
+[10:16:45]    wagner2021united                 2021 top           cites=58    Proceedings of the 2021 ACM SIGSAC Con United We Stand: Collaborative Detection and Mitigation of Amplification DDoS Attacks at S
+[10:16:45]    kopp2025ddos                     2025 top           cites=3     2025 36th International Teletraffic Co DDoS on Repeat: Measuring Pulse-Wave DDoS in the Wild
+[10:16:45]    bensaid2024real                  2024 peer-reviewed cites=17    Security and Communication Networks    Toward a Real-Time TCP SYN Flood DDoS Mitigation Using Adaptive Neuro-Fuzzy Classifier and
+[10:16:45]    r2025netdefender                 2025 peer-reviewed cites=0     Proceedings of the 1st International C NetDefender-DDOS: A CNN-Based Deep Learning Framework for Robust DDoS Attack Detection
+[10:16:45]    sahin2025help4dns                2025 top           cites=2     Journal of Network and Computer Applic HELP4DNS: Leveraging the programmable data plane for effective and robust defense against 
+[10:16:45]    krupp2021bgpeek                  2021 top           cites=3     2021 IEEE European Symposium on Securi BGPeek-a-Boo: Active BGP-based Traceback for Amplification DDoS Attacks
+[10:16:45]    li2026ddos                       2026 peer-reviewed cites=0     International Conference on Optics and DDoS-AIDE: towards explainable and automated DDoS defense using large language models
+[10:16:45]    swileh2026intelligent            2026 peer-reviewed cites=0     arXiv.org                              Intelligent Detection and Mitigation of Carpet-Bombing DDoS Attacks in SDN Using Retrieval
+[10:16:45]    hay2026react                     2026 preprint      cites=0                                            ReAct: Reflection Attack Mitigation For Asymmetric Routing
+[10:16:45]    degen2026spoofer                 2026 preprint      cites=0                                            Spoofer or Spoofers? Estimating a Lower Bound on the Number of DRDoS Sources Using Anycast
+[10:16:45]    sampognaro2026adaptive           2026 top           cites=0     2026 IEEE 12th International Conferenc Adaptive Mitigation of Amplification-Based DDoS Attacks in Programmable Data Planes
+[10:16:45]    dzaky2024improving               2024 top           cites=0     2024 6th International Conference on C Improving DNS Server Resilience Against DDoS Attacks Through Anycast Routing
+[10:16:45]    mishra2021defense                2021 top           cites=180   Telecommunication Systems              Defense mechanisms against DDoS attack based on entropy in SDN-cloud using POX controller
+[10:16:45]    hayat2024ml                      2024 top           cites=65    IEEE Transactions on Engineering Manag ML-DDoS: A Blockchain-Based Multilevel DDoS Mitigation Mechanism for IoT Environments
+[10:16:45]    musumeci2021machine              2021 top           cites=125   Journal of Network and Systems Managem Machine-Learning-Enabled DDoS Attacks Detection in P4 Programmable Networks
+[10:16:45]    snehi2021vulnerability           2021 top           cites=102   Computer Science Review                Vulnerability retrospection of security solutions for software-defined Cyber–Physical Syst
+[10:16:45]    alcoz2022aggregate               2022 top           cites=65    Proceedings of the ACM SIGCOMM 2022 Co Aggregate-based congestion control for pulse-wave DDoS defense
+[10:16:45]    aslam2024ddos                    2024 top           cites=23    Computers and Electrical Engineering   DDoS SourceTracer: An Intelligent Application for DDoS Attack Mitigation in SDN
+[10:16:45]    scholz2018performance            2018 top           cites=86    2018 30th International Teletraffic Co Performance Implications of Packet Filtering with Linux eBPF
+[10:16:45]    dimolianis2021signature          2021 top           cites=49    IEEE Access                            Signature-Based Traffic Classification and Mitigation for DDoS Attacks Using Programmable 
+[10:16:45]    patil2022ssk                     2022 top           cites=37    Cluster Computing                      SSK-DDoS: distributed stream processing framework based classification system for DDoS att
+[10:16:45]    ma2024synchronizing              2024 top           cites=22    Future Generation Computer Systems     Synchronizing DDoS detection and mitigation based graph learning with programmable data pl
+[10:16:45]    wichtlhuber2022ixp               2022 top           cites=35    Proceedings of the ACM SIGCOMM 2022 Co IXP scrubber
+[10:16:45]    coelho2022backorders             2022 top           cites=29    Proceedings of the 5th International W BACKORDERS
+[10:16:45]    wang2021effecta                  2021 top           cites=38    Minerals Engineering                   Effect of scrubbing medium’s particle size on scrubbing flotation performance and mineralo
+[10:16:45]    feraudo2024mitigating            2024 top           cites=16    Proceedings of the 25th International  Mitigating IoT Botnet DDoS Attacks through MUD and eBPF based Traffic Filtering
+[10:16:45]    shukla2023eiot                   2023 top           cites=19    Cluster Computing                      EIoT-DDoS: embedded classification approach for IoT traffic-based DDoS attacks
+[10:16:45]    ramprasath2021improved           2021 top           cites=28    Wireless Personal Communications       Improved Network Monitoring Using Software-Defined Networking for DDoS Detection and Mitig
+[10:16:45]    reza2024ddos                     2024 top           cites=12    2024 6th International Conference on E DDoS-Net: Classifying DDoS Attacks in Wireless Sensor Networks with Hybrid Deep Learning
+[10:16:45]    yoshinaka2022implementing        2022 top           cites=20    Proceedings of the 5th International W On implementing ChaCha on a programmable switch
+[10:16:45]    yan2025intelligent               2025 top           cites=8     Information Systems Frontiers          Intelligent Network Element: A Programmable Switch Based on Machine Learning to Defend Aga
+[10:16:45]    dimolianis2021syn                2021 top           cites=24    2021 24th Conference on Innovation in  SYN Flood Attack Detection and Mitigation using Machine Learning Traffic Classification an
+[10:16:45]    zhou2024online                   2024 top           cites=12    IEEE Transactions on Mobile Computing  Online and Predictive Coordinated Cloud-Edge Scrubbing for DDoS Mitigation
+[10:16:45]    patil2022ks                      2022 top           cites=19    The Journal of Supercomputing          KS-DDoS: Kafka streams-based classification approach for DDoS attacks
+[10:16:45]    mansoor2023deep                  2023 peer-reviewed cites=49    Systems                                Deep Learning-Based Approach for Detecting DDoS Attack on Software-Defined Networking Cont
+[10:16:45]    kapourchali2024p4httpguard       2024 top           cites=11    Cluster Computing                      P4httpGuard: detection and prevention of slow-rate DDoS attacks using machine learning tec
+[10:16:45]    maity2022effective               2022 top           cites=18    IEEE Systems Journal                   An Effective Probabilistic Technique for DDoS Detection in OpenFlow Controller
+[10:16:45]    remya2025ebpf                    2025 top           cites=7     IEEE Access                            eBPF-Based Runtime Detection of Semantic DDoS Attacks in Linux Containers
+[10:16:45]    chen2023empowering               2023 top           cites=14    IEEE Network                           Empowering DDoS Attack Mitigation with Programmable Switches
+[10:16:45]    dayal2023analyzing               2023 top           cites=14    Computers & Security                   Analyzing effective mitigation of DDoS attack with software defined networking
+[10:16:45] == P3 Detection algorithms and ML/DL models: 200 records, top 40 by score
+[10:16:45]    r2025netdefender                 2025 peer-reviewed cites=0     Proceedings of the 1st International C NetDefender-DDOS: A CNN-Based Deep Learning Framework for Robust DDoS Attack Detection
+[10:16:45]    tymoshchuk2024slowloris          2024 peer-reviewed cites=2     THEORETICAL AND EMPIRICAL SCIENTIFIC R SLOWLORIS DDOS DETECTION AND PREVENTION IN REAL-TIME
+[10:16:45]    jadhav2026detection              2026 peer-reviewed cites=0     International Journal of Research Publ Detection and Classification of Volumetric, Protocol, and Application Layer DDoS Attacks i
+[10:16:45]    amaad2023experimenting           2023 top           cites=3     2023 4th International Conference on A Experimenting Ensemble Machine Learning for DDoS Classification: Timely Detection of DDoS 
+[10:16:45]    anon2021machine                  2021 peer-reviewed cites=7     The International Arab Journal of Info Machine Learning in OpenFlow Network: Comparative Analysis of DDoS Detection Techniques
+[10:16:45]    anon2023detection                2023 peer-reviewed cites=0     Journal of Electrical Electronics Engi Detection and Mitigation of Malicious DDoS Floods in Software Defined Networks
+[10:16:45]    li2024intelligent                2024 peer-reviewed cites=0     Artificial Intelligence and Big Data   An Intelligent DDoS Detection System to recognize and Prevent DDoS Attacks using Artificia
+[10:16:45]    ding2021tracking                 2021 preprint      cites=0                                            Tracking Normalized Network Traffic Entropy to Detect DDoS Attacks in P4
+[10:16:45]    zhang2026cross                   2026 preprint      cites=0                                            Cross-Domain Joint DDoS Detection in Multi-Controller SDN via Confidence-Based Entropy Fus
+[10:16:45]    luo2026lardm                     2026 top           cites=0     Journal of Systems Architecture        LARDM: Lightweight and aggregation-driven real-time detection and mitigation of volumetric
+[10:16:45]    muchtar2026flow                  2026 peer-reviewed cites=0     Equivalent: Jurnal Ilmiah Sosial Tekni Flow-Based DDoS Detection and Mitigation in Software-Defined Networking Using a Hybrid CNN
+[10:16:45]    doriguzzicorin2020lucid          2020 top           cites=378   IEEE Transactions on Network and Servi Lucid: A Practical, Lightweight Deep Learning Solution for DDoS Attack Detection
+[10:16:45]    amareshwari2025intelligent       2025 top           cites=48    2025 4th International Conference on I An Intelligent and Lightweight ML Model for Real-Time DDoS Attack Detection in IoT Network
+[10:16:45]    ali2025ddosvit                   2025 top           cites=39    Internet of Things                     DDoSViT: IoT DDoS attack detection for fortifying firmware Over-The-Air (OTA) updates usin
+[10:16:45]    salahuddin2022chronos            2022 top           cites=61    IEEE Transactions on Network and Servi Chronos: DDoS Attack Detection Using Time-Based Autoencoder
+[10:16:45]    ilha2021euclid                   2021 top           cites=69    IEEE Transactions on Network and Servi Euclid: A Fully In-Network, P4-Based Approach for Real-Time DDoS Attack Detection and Miti
+[10:16:45]    ma2025collaborative              2025 top           cites=21    Information Fusion                     Collaborative DDoS defense for SDN-based AIoT with autoencoder-enhanced federated learning
+[10:16:45]    kaur2025enhancing                2025 top           cites=12    Journal of Network and Computer Applic Enhancing DDoS defense in SDN using hierarchical machine learning models
+[10:16:45]    khashab2021ddos                  2021 top           cites=36    2021 IEEE 7th International Conference DDoS Attack Detection and Mitigation in SDN using Machine Learning
+[10:16:45]    bocu2024enhanced                 2024 top           cites=16    Journal of Network and Computer Applic Enhanced detection of low-rate DDoS attack patterns using machine learning models
+[10:16:45]    pandey2025conditional            2025 top           cites=10    Computers & Security                   Conditional entropy-based hybrid DDoS detection model for IoT networks
+[10:16:45]    liu2021riemannian                2021 top           cites=30    Computers & Security                   Riemannian manifold on stream data: Fourier transform and entropy-based DDoS attacks detec
+[10:16:45]    ajayan2026xnft                   2026 top           cites=5     Computer Networks                      XNFT: Explainable network flow transformer for transparent detection of DDoS attacks in re
+[10:16:45]    pandey2023performance            2023 top           cites=18    Internet of Things                     Performance analysis of entropy variation-based detection of DDoS attacks in IoT
+[10:16:45]    fioravanti2023entropy            2023 top           cites=16    2023 IEEE 20th Consumer Communications Entropy based DDoS Detection in Software Defined Networks
+[10:16:45]    sinha2024synflowatch             2024 top           cites=11    Proceedings of the 25th International  SynFloWatch: A Detection System against TCP-SYN based DDoS Attacks using Entropy in Hybrid
+[10:16:45]    kapil2024evaluating              2024 top           cites=11    2024 Second International Conference o Evaluating Machine Learning Approaches for DDoS Attack Detection Using CIC-DDoS2019
+[10:16:45]    pebrianto2025adaptive            2025 top           cites=7     IEEE Access                            Adaptive DDoS Attack Detection: Entropy-Based Model With Dynamic Threshold and Suspicious 
+[10:16:45]    hasan2025efficient               2025 top           cites=7     Procedia Computer Science              Efficient DDoS Detection with Minimal Features: High Accuracy Using CIC-DDoS2019
+[10:16:45]    bhutto2022reinforced             2022 top           cites=17    IEEE Access                            Reinforced Transformer Learning for VSI-DDoS Detection in Edge Clouds
+[10:16:45]    saiyed2023entropy                2023 top           cites=13    2023 19th International Conference on  Entropy and Divergence-based DDoS Attack Detection System in IoT Networks
+[10:16:45]    naqvi2024ddos                    2024 peer-reviewed cites=28    PeerJ Computer Science                 DDoS attack detection in smart grid network using reconstructive machine learning models
+[10:16:45]    naeen2025enhancing               2025 top           cites=6     Scientific Reports                     Enhancing SDN security with deep learning and F-balanced cross-entropy for DDoS detection
+[10:16:45]    peng2025lightweight              2025 top           cites=6     Journal of Real-Time Image Processing  Lightweight real-time detection transformer with Single-Head Self-Attention and Feature Se
+[10:16:45]    yaser2022improved                2022 peer-reviewed cites=40    Future Internet                        Improved DDoS Detection Utilizing Deep Neural Networks and Feedforward Neural Networks as 
+[10:16:45]    mousa2023improved                2023 peer-reviewed cites=29    Future Internet                        An Improved Deep Learning Model for DDoS Detection Based on Hybrid Stacked Autoencoder and
+[10:16:45]    varalakshmi2025entropy           2025 top           cites=5     Measurement: Sensors                   Entropy based earlier detection and mitigation of DDOS attack using stochastic method in S
+[10:16:45]    fan2025ddos                      2025 top           cites=5     The Journal of Supercomputing          A DDoS attack detection method based on improved transformer and temporal feature enhancem
+[10:16:45]    reddya2025transformer            2025 top           cites=5     2025 International Conference on Susta A Transformer-based Multiclass DDoS Detection Framework using FlowLevel Network Traffic
+[10:16:45]    zhang2023renyi                   2023 top           cites=9     2023 IEEE 3rd International Conference Renyi Entropy-based DDoS Attack Detection in SDN-based Networks
+[10:16:45] == P4 Empirical evaluation, testbeds and benchmarks: 208 records, top 40 by score
+[10:16:45]    kopp2025ddos                     2025 top           cites=3     2025 36th International Teletraffic Co DDoS on Repeat: Measuring Pulse-Wave DDoS in the Wild
+[10:16:45]    kumar2025sdn                     2025 top           cites=6     Data in Brief                          SDN TCP-SYN Dataset: A dataset for TCP-SYN flood DDoS attack detection in software-defined
+[10:16:45]    r2025netdefender                 2025 peer-reviewed cites=0     Proceedings of the 1st International C NetDefender-DDOS: A CNN-Based Deep Learning Framework for Robust DDoS Attack Detection
+[10:16:45]    almashadani2022distributed       2022 peer-reviewed cites=7     Webology                               Distributed Denial of Service Attack Alleviated and Detected by Using Mininet and Software
+[10:16:45]    li2026ddos                       2026 peer-reviewed cites=0     International Conference on Optics and DDoS-AIDE: towards explainable and automated DDoS defense using large language models
+[10:16:45]    armanto2026penerapan             2026 peer-reviewed cites=0     Jurnal Teknologi Informasi Mura        PENERAPAN CONVOLUTIONAL NEURAL NETWORK DALAM KLASIFIKASI SERANGAN DDOS (DISTRIBUTED DENIAL
+[10:16:45]    kaushik2024ddos                  2024 top           cites=5     2024 15th International Conference on  DDoS Attack Detection and Mitigation Using Mininet and RYU Controller in SDN Environment
+[10:16:45]    amaad2023experimenting           2023 top           cites=3     2023 4th International Conference on A Experimenting Ensemble Machine Learning for DDoS Classification: Timely Detection of DDoS 
+[10:16:45]    zhang2026cross                   2026 preprint      cites=0                                            Cross-Domain Joint DDoS Detection in Multi-Controller SDN via Confidence-Based Entropy Fus
+[10:16:45]    seo2026design                    2026 peer-reviewed cites=0     JOURNAL OF THE KOREA CONTENTS ASSOCIAT Design and Resource Efficiency Evaluation of a Netfilter-XDP-Based Hybrid DDoS Mitigation 
+[10:16:45]    kumar2026enhanced                2026 preprint      cites=0                                            Enhanced Multi-Class DDoS Attack Identification using a Meta-Learning Ensemble
+[10:16:45]    mishra2026uav                    2026 preprint      cites=0                                            UAV-CAS: A Calibrated Digital-Twin Dataset for Intrusion Detection in UAV Swarm Networks
+[10:16:45]    farhat2023evaluation             2023 peer-reviewed cites=9     Proceedings of the 9th International C Evaluation of DoS/DDoS Attack Detection with ML Techniques on CIC-IDS2017 Dataset
+[10:16:45]    ramanathan2023lightweight        2023 preprint      cites=0                                            Lightweight CNN-Based DDoS Detection for Resource-Constrained Edge Networks
+[10:16:45]    jafari2026unveiling              2026 peer-reviewed cites=0     Proceedings of the 23rd International  Unveiling Hierarchical Machine Learning UDP–QUIC Intrusion Detection: Protocol-Aware Flow 
+[10:16:45]    zhang2026when                    2026 preprint      cites=0                                            When Time Meets Space: Entropy Integration and Dynamic Threshold for Adaptive DDoS Detecti
+[10:16:45]    sharafaldin2019developing        2019 top           cites=1015  2019 International Carnahan Conference Developing Realistic Distributed Denial of Service (DDoS) Attack Dataset and Taxonomy
+[10:16:45]    moustafa2021new                  2021 top           cites=733   Sustainable Cities and Society         A new distributed architecture for evaluating AI-based security systems at the edge: Netwo
+[10:16:45]    maseer2021benchmarking           2021 top           cites=448   IEEE Access                            Benchmarking of Machine Learning for Anomaly Based Intrusion Detection Systems in the CICI
+[10:16:45]    gad2021intrusion                 2021 top           cites=306   IEEE Access                            Intrusion Detection System Using Machine Learning for Vehicular Ad Hoc Networks Based on T
+[10:16:45]    engelen2021troubleshooting       2021 top           cites=207   2021 IEEE Security and Privacy Worksho Troubleshooting an Intrusion Detection Dataset: the CICIDS2017 Case Study
+[10:16:45]    sharafaldin2018generating        2018 peer-reviewed cites=4037  Proceedings of the 4th International C Toward Generating a New Intrusion Detection Dataset and Intrusion Traffic Characterization
+[10:16:45]    sharmila2023quantized            2023 top           cites=125   Cybersecurity                          Quantized autoencoder (QAE) intrusion detection system for anomaly detection in resource-c
+[10:16:45]    liu2022error                     2022 top           cites=127   2022 IEEE Conference on Communications Error Prevalence in NIDS datasets: A Case Study on CIC-IDS-2017 and CSE-CIC-IDS-2018
+[10:16:45]    dharini2026efficient             2026 top           cites=14    Scientific Reports                     Efficient detection of intrusions in TON-IoT dataset using hybrid feature selection approa
+[10:16:45]    cao2024using                     2024 top           cites=40    Multimedia Tools and Applications      Using the ToN-IoT dataset to develop a new intrusion detection system for industrial IoT d
+[10:16:45]    sharma2022ton                    2022 top           cites=52    2022 6th International Conference on E TON-IoT: Detection of Attacks on Internet of Things in Vehicular Networks
+[10:16:45]    yungaicelanaula2023physical      2023 top           cites=35    IEEE Access                            Physical Assessment of an SDN-Based Security Framework for DDoS Attack Mitigation: Introdu
+[10:16:45]    guo2023iot                       2023 top           cites=33    2023 IEEE 13th Annual Computing and Co An IoT Intrusion Detection System Based on TON IoT Network Dataset
+[10:16:45]    choobdar2021detection            2021 top           cites=47    Wireless Personal Communications       Detection and Multi-Class Classification of Intrusion in Software Defined Networks Using S
+[10:16:45]    tareq2022analysis                2022 peer-reviewed cites=179   Applied Sciences                       Analysis of ToN-IoT, UNW-NB15, and Edge-IIoT Datasets Using DL in Cybersecurity for IoT
+[10:16:45]    farsi2024practical               2024 top           cites=16    2024 2nd International Conference on C A Practical Evaluation of Intrusion Detection in IoT Networks Using Random Forest and Netw
+[10:16:45]    tyagi2022mininet                 2022 top           cites=24    Evolving Systems                       MiniNet: a concise CNN for image forgery detection
+[10:16:45]    nemalikanti2025enhancing         2025 top           cites=9     Cluster Computing                      Enhancing intrusion detection: protocol-based security using a hybrid RIDGE classifier on 
+[10:16:45]    vivo2024ddoshield                2024 top           cites=13    2024 54th Annual IEEE/IFIP Internation DDoShield-IoT: A Testbed for Simulating and Lightweight Detection of IoT Botnet DDoS Attac
+[10:16:45]    arthi2021design                  2021 top           cites=25    2021 3rd International Conference on S Design and Development of IOT Testbed with DDoS Attack for Cyber Security Research
+[10:16:45]    wietfeld2024evaluation           2024 top           cites=11    GLOBECOM 2024 - 2024 IEEE Global Commu Evaluation of a Multi-Molecule Molecular Communication Testbed Based on Spectral Sensing
+[10:16:45]    lampe2023can                     2023 top           cites=13    2023 IEEE 98th Vehicular Technology Co can-train-and-test: A New CAN Intrusion Detection Dataset
+[10:16:45]    mittal2023ddos                   2023 top           cites=13    Proceedings of the Indian National Sci DDoS-AT-2022: a distributed denial of service attack dataset for evaluating DDoS defense s
+[10:16:45]    barach2024enhancing              2024 top           cites=9     2024 Artificial Intelligence for Busin Enhancing Intrusion Detection with CNN Attention Using NSL-KDD Dataset

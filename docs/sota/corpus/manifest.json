@@ -1,0 +1,1635 @@
+{
+ "bock2021weaponizing": {
+  "paper_id": "P1-01",
+  "title": "Weaponizing Middleboxes for TCP Reflected Amplification",
+  "doi": null,
+  "ieee_citation": "K. Bock, A. Alaraj, Y. Fax, K. Hurley, E. Wustrow, and D. Levin, \"Weaponizing Middleboxes for TCP Reflected Amplification,\" in *30th USENIX Security Symposium (USENIX Security 21)*, 2021, pp. 3345–3361. [Online]. Available: https://www.usenix.org/conference/usenixsecurity21/presentation/bock",
+  "fulltext": {
+   "url": "https://www.usenix.org/system/files/sec21-bock.pdf",
+   "retrieved": "2026-10-28T10:59:50Z",
+   "pdf_sha256": "eb627ed25147d0bce7c42e7e5d27e130ee1461ea9640d8e8b45b365c6839c420",
+   "text_sha256": "e9406457191d4ba785db8bd24d73b0979da62baed012c52fddc74d34feed2a90",
+   "pages": 18
+  }
+ },
+ "nawrocki2021far": {
+  "paper_id": "P1-02",
+  "title": "The far side of DNS amplification: tracing the DDoS attack ecosystem from the internet core",
+  "doi": "10.1145/3487552.3487835",
+  "crossref": {
+   "DOI": "10.1145/3487552.3487835",
+   "type": "proceedings-article",
+   "title": [
+    "The far side of DNS amplification"
+   ],
+   "subtitle": [
+    "tracing the DDoS attack ecosystem from the internet core"
+   ],
+   "container-title": [
+    "Proceedings of the 21st ACM Internet Measurement Conference"
+   ],
+   "volume": null,
+   "issue": null,
+   "page": "419-434",
+   "publisher": "ACM",
+   "issued": {
+    "date-parts": [
+     [
+      2021,
+      11,
+      2
+     ]
+    ]
+   },
+   "author": [
+    {
+     "given": "Marcin",
+     "family": "Nawrocki",
+     "sequence": "first",
+     "affiliation": [
+      {
+       "name": "Freie Universität Berlin, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Mattijs",
+     "family": "Jonker",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "University of Twente, Netherlands"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Thomas C.",
+     "family": "Schmidt",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "HAW Hamburg, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Matthias",
+     "family": "Wählisch",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Freie Universität Berlin, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    }
+   ]
+  },
+  "ieee_citation": "M. Nawrocki, M. Jonker, T. C. Schmidt, and M. Wählisch, \"The far side of DNS amplification: tracing the DDoS attack ecosystem from the internet core,\" in *Proceedings of the 21st ACM Internet Measurement Conference*, Nov. 2021, pp. 419–434, doi: 10.1145/3487552.3487835.",
+  "abstract": {
+   "source": "arxiv",
+   "sha256": "b2036a7108edde614e139b24e254087071ef97f24cbfe946c5dc47d1bca391db"
+  },
+  "fulltext": {
+   "url": "https://arxiv.org/pdf/2109.01104",
+   "retrieved": "2026-10-28T10:59:50Z",
+   "pdf_sha256": "ff038dbc0f75f48bcb6d4a7f922368dbd0dd864d22408132cff5d6cac29cf47a",
+   "text_sha256": "70d55d6e8097c6ce64a6102a84e660264daa13c3ef1e2e287bad2bee199f7583",
+   "pages": 16
+  }
+ },
+ "nawrocki2021quicsand": {
+  "paper_id": "P1-03",
+  "title": "QUICsand: Quantifying QUIC Reconnaissance Scans and DoS Flooding Events",
+  "doi": "10.1145/3487552.3487840",
+  "crossref": {
+   "DOI": "10.1145/3487552.3487840",
+   "type": "proceedings-article",
+   "title": [
+    "QUICsand"
+   ],
+   "subtitle": [
+    "quantifying QUIC reconnaissance scans and DoS flooding events"
+   ],
+   "container-title": [
+    "Proceedings of the 21st ACM Internet Measurement Conference"
+   ],
+   "volume": null,
+   "issue": null,
+   "page": "283-291",
+   "publisher": "ACM",
+   "issued": {
+    "date-parts": [
+     [
+      2021,
+      11,
+      2
+     ]
+    ]
+   },
+   "author": [
+    {
+     "given": "Marcin",
+     "family": "Nawrocki",
+     "sequence": "first",
+     "affiliation": [
+      {
+       "name": "Freie Universität Berlin, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Raphael",
+     "family": "Hiesgen",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "HAW Hamburg, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Thomas C.",
+     "family": "Schmidt",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "HAW Hamburg, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Matthias",
+     "family": "Wählisch",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Freie Universität Berlin, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    }
+   ]
+  },
+  "ieee_citation": "M. Nawrocki, R. Hiesgen, T. C. Schmidt, and M. Wählisch, \"QUICsand: quantifying QUIC reconnaissance scans and DoS flooding events,\" in *Proceedings of the 21st ACM Internet Measurement Conference*, Nov. 2021, pp. 283–291, doi: 10.1145/3487552.3487840.",
+  "abstract": {
+   "source": "arxiv",
+   "sha256": "2bfc946ae3f02ee58589c33fa81309d80cde145ac39a3418721ef377afe4368d"
+  },
+  "fulltext": {
+   "url": "https://arxiv.org/pdf/2109.01106",
+   "retrieved": "2026-10-28T10:59:54Z",
+   "pdf_sha256": "9dc72fbdefec49c679b1b598a8aa49685a73b9f53b5c697037280b68d06136e7",
+   "text_sha256": "d4f7eef5a0559235249fe10b2b4b519af4a3545136593e5082bca28f27df4d7f",
+   "pages": 9
+  }
+ },
+ "hiesgen2024age": {
+  "paper_id": "P1-04",
+  "title": "The Age of DDoScovery: An Empirical Comparison of Industry and Academic DDoS Assessments",
+  "doi": "10.1145/3646547.3688451",
+  "crossref": {
+   "DOI": "10.1145/3646547.3688451",
+   "type": "proceedings-article",
+   "title": [
+    "The Age of DDoScovery: An Empirical Comparison of Industry and Academic DDoS Assessments"
+   ],
+   "subtitle": [],
+   "container-title": [
+    "Proceedings of the 2024 ACM on Internet Measurement Conference"
+   ],
+   "volume": null,
+   "issue": null,
+   "page": "259-279",
+   "publisher": "ACM",
+   "issued": {
+    "date-parts": [
+     [
+      2024,
+      11,
+      4
+     ]
+    ]
+   },
+   "author": [
+    {
+     "ORCID": "https://orcid.org/0000-0002-1676-8108",
+     "authenticated-orcid": false,
+     "given": "Raphael",
+     "family": "Hiesgen",
+     "sequence": "first",
+     "affiliation": [
+      {
+       "name": "HAW Hamburg, Hamburg, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-6308-5502",
+     "authenticated-orcid": false,
+     "given": "Marcin",
+     "family": "Nawrocki",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "NETSCOUT, Westford, USA"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-1505-6408",
+     "authenticated-orcid": false,
+     "given": "Marinho",
+     "family": "Barcellos",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "U of Waikato, Hamilton, New Zealand"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-7012-5007",
+     "authenticated-orcid": false,
+     "given": "Daniel",
+     "family": "Kopp",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "DE-CIX, Frankfurt, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-7557-1081",
+     "authenticated-orcid": false,
+     "given": "Oliver",
+     "family": "Hohlfeld",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "University of Kassel, Kassel, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-8304-8928",
+     "authenticated-orcid": false,
+     "given": "Echo",
+     "family": "Chan",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Akamai/Hong Kong PolyU, Hong Kong, China"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0009-0009-6998-4486",
+     "authenticated-orcid": false,
+     "given": "Roland",
+     "family": "Dobbins",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "NETSCOUT, Westford, USA"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-7913-2692",
+     "authenticated-orcid": false,
+     "given": "Christian",
+     "family": "Doerr",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Hasso Plattner Institute, Potsdam, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0003-2470-8444",
+     "authenticated-orcid": false,
+     "given": "Christian",
+     "family": "Rossow",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "CISPA, Dortmund, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0001-8936-0683",
+     "authenticated-orcid": false,
+     "given": "Daniel R.",
+     "family": "Thomas",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "University of Strathclyde, Glasgow, United Kingdom"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0001-5174-9140",
+     "authenticated-orcid": false,
+     "given": "Mattijs",
+     "family": "Jonker",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "University of Twente, Enschede, Netherlands"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0003-3300-9514",
+     "authenticated-orcid": false,
+     "given": "Ricky",
+     "family": "Mok",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "CAIDA/UC San Diego, San Diego, USA"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-8211-257X",
+     "authenticated-orcid": false,
+     "given": "Xiapu",
+     "family": "Luo",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Hong Kong PolyU, Hong Kong, China"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-8994-124X",
+     "authenticated-orcid": false,
+     "given": "John",
+     "family": "Kristoff",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "NETSCOUT/UIC, Illinois, USA"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-0956-7885",
+     "authenticated-orcid": false,
+     "given": "Thomas C.",
+     "family": "Schmidt",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "HAW Hamburg, Hamburg, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-3825-2807",
+     "authenticated-orcid": false,
+     "given": "Matthias",
+     "family": "Wählisch",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "TU Dresden, Dresden, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0003-4824-3493",
+     "authenticated-orcid": false,
+     "given": "kc",
+     "family": "claffy",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "CAIDA/UC San Diego, San Diego, USA"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    }
+   ]
+  },
+  "ieee_citation": "R. Hiesgen et al., \"The Age of DDoScovery: An Empirical Comparison of Industry and Academic DDoS Assessments,\" in *Proceedings of the 2024 ACM on Internet Measurement Conference*, Nov. 2024, pp. 259–279, doi: 10.1145/3646547.3688451.",
+  "abstract": {
+   "source": "arxiv",
+   "sha256": "ae4f6f261ae13b169ceeae5cccc79081772da83fe0cdd8f3bafa037857b199ac"
+  },
+  "fulltext": {
+   "url": "https://arxiv.org/pdf/2410.11708",
+   "retrieved": "2026-10-28T10:59:57Z",
+   "pdf_sha256": "a3cedc1ae9cd8237bce42d323d1e2406a92e637cc3806c4d35e4d81bf86b932e",
+   "text_sha256": "28f90deadffe82c5fba6488dcf710fe5afd4212db6e1a8b9d5daeb28aa26392d",
+   "pages": 21
+  }
+ },
+ "scholz2018performance": {
+  "paper_id": "P2-01",
+  "title": "Performance Implications of Packet Filtering with Linux eBPF",
+  "doi": "10.1109/itc30.2018.00039",
+  "crossref": {
+   "DOI": "10.1109/itc30.2018.00039",
+   "type": "proceedings-article",
+   "title": [
+    "Performance Implications of Packet Filtering with Linux eBPF"
+   ],
+   "subtitle": [],
+   "container-title": [
+    "2018 30th International Teletraffic Congress (ITC 30)"
+   ],
+   "volume": null,
+   "issue": null,
+   "page": "209-217",
+   "publisher": "IEEE",
+   "issued": {
+    "date-parts": [
+     [
+      2018,
+      9
+     ]
+    ]
+   },
+   "author": [
+    {
+     "given": "Dominik",
+     "family": "Scholz",
+     "sequence": "first",
+     "affiliation": [],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Daniel",
+     "family": "Raumer",
+     "sequence": "additional",
+     "affiliation": [],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Paul",
+     "family": "Emmerich",
+     "sequence": "additional",
+     "affiliation": [],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Alexander",
+     "family": "Kurtz",
+     "sequence": "additional",
+     "affiliation": [],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Krzysztof",
+     "family": "Lesiak",
+     "sequence": "additional",
+     "affiliation": [],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Georg",
+     "family": "Carle",
+     "sequence": "additional",
+     "affiliation": [],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    }
+   ]
+  },
+  "ieee_citation": "D. Scholz, D. Raumer, P. Emmerich, A. Kurtz, K. Lesiak, and G. Carle, \"Performance Implications of Packet Filtering with Linux eBPF,\" in *2018 30th International Teletraffic Congress (ITC 30)*, Sep. 2018, pp. 209–217, doi: 10.1109/itc30.2018.00039.",
+  "fulltext": {
+   "url": "https://www.net.in.tum.de/fileadmin/bibtex/publications/papers/ITC30-Packet-Filtering-eBPF-XDP.pdf",
+   "retrieved": "2026-10-28T10:59:58Z",
+   "pdf_sha256": "ea04966ce8e42896a764beec48c762a1a255a25a6b1af2e12e8cb451e4e518a7",
+   "text_sha256": "61ca47b2a2803c4bb04875b1c93ad908f6f07a787574107bf9a4716ea0664787",
+   "pages": 9
+  }
+ },
+ "feraudo2024mitigating": {
+  "paper_id": "P2-02",
+  "title": "Mitigating IoT Botnet DDoS Attacks through MUD and eBPF based Traffic Filtering",
+  "doi": "10.1145/3631461.3631549",
+  "crossref": {
+   "DOI": "10.1145/3631461.3631549",
+   "type": "proceedings-article",
+   "title": [
+    "Mitigating IoT Botnet DDoS Attacks through MUD and eBPF based Traffic Filtering"
+   ],
+   "subtitle": [],
+   "container-title": [
+    "Proceedings of the 25th International Conference on Distributed Computing and Networking"
+   ],
+   "volume": null,
+   "issue": null,
+   "page": "164-173",
+   "publisher": "ACM",
+   "issued": {
+    "date-parts": [
+     [
+      2024,
+      1,
+      4
+     ]
+    ]
+   },
+   "author": [
+    {
+     "ORCID": "https://orcid.org/0000-0002-9727-0861",
+     "authenticated-orcid": false,
+     "given": "Angelo",
+     "family": "Feraudo",
+     "sequence": "first",
+     "affiliation": [
+      {
+       "name": "University of Bologna, Italy"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-2435-9603",
+     "authenticated-orcid": false,
+     "given": "Diana Andreea",
+     "family": "Popescu",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "University of Cambridge, United Kingdom"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0003-0169-0704",
+     "authenticated-orcid": false,
+     "given": "Poonam",
+     "family": "Yadav",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "University of York, United Kingdom"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0001-5205-5992",
+     "authenticated-orcid": false,
+     "given": "Richard",
+     "family": "Mortier",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "University of Cambridge, United Kingdom"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0003-0992-7948",
+     "authenticated-orcid": false,
+     "given": "Paolo",
+     "family": "Bellavista",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "University of Bologna, Italy"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    }
+   ]
+  },
+  "ieee_citation": "A. Feraudo, D. A. Popescu, P. Yadav, R. Mortier, and P. Bellavista, \"Mitigating IoT Botnet DDoS Attacks through MUD and eBPF based Traffic Filtering,\" in *Proceedings of the 25th International Conference on Distributed Computing and Networking*, Jan. 2024, pp. 164–173, doi: 10.1145/3631461.3631549.",
+  "abstract": {
+   "source": "arxiv",
+   "sha256": "d188e30ab9864b5bba461ce5d5ae7c2bae068b8ffc2de12c1930b085b13099e5"
+  },
+  "fulltext": {
+   "url": "https://arxiv.org/pdf/2305.02186",
+   "retrieved": "2026-10-28T11:00:00Z",
+   "pdf_sha256": "843e3961730bbfa6bfe484874de37f8929ee41fa519626619d8d3d80df81c876",
+   "text_sha256": "095d130d0ba35991003ac3d22dc1b77cc1412a25e95c993b6df9c0b175086e9f",
+   "pages": 12
+  }
+ },
+ "liu2021jaqen": {
+  "paper_id": "P2-03",
+  "title": "Jaqen: A High-Performance Switch-Native Approach for Detecting and Mitigating Volumetric DDoS Attacks with Programmable Switches",
+  "doi": null,
+  "ieee_citation": "Z. Liu et al., \"Jaqen: A High-Performance Switch-Native Approach for Detecting and Mitigating Volumetric DDoS Attacks with Programmable Switches,\" in *30th USENIX Security Symposium (USENIX Security 21)*, 2021, pp. 3829–3846. [Online]. Available: https://www.usenix.org/conference/usenixsecurity21/presentation/liu-zaoxing",
+  "fulltext": {
+   "url": "https://www.usenix.org/system/files/sec21-liu-zaoxing.pdf",
+   "retrieved": "2026-10-28T11:00:02Z",
+   "pdf_sha256": "e1e06cc439697b4cc5cb48517944c660501810694f25fbd09e62d5893b105b24",
+   "text_sha256": "9ee7ef0d58d484ac0ecc534b815a0b77653042787cf2450a648ea7a2bfeb097a",
+   "pages": 19
+  }
+ },
+ "karrakchou2025collaborative": {
+  "paper_id": "P2-04",
+  "title": "Collaborative P4-SDN DDoS Detection and Mitigation with Early-Exit Neural Networks",
+  "doi": "10.1109/globecom59602.2025.11431920",
+  "crossref": {
+   "DOI": "10.1109/globecom59602.2025.11431920",
+   "type": "proceedings-article",
+   "title": [
+    "Collaborative P4-SDN DDoS Detection and Mitigation with Early-Exit Neural Networks"
+   ],
+   "subtitle": [],
+   "container-title": [
+    "GLOBECOM 2025 - 2025 IEEE Global Communications Conference"
+   ],
+   "volume": null,
+   "issue": null,
+   "page": "6081-6086",
+   "publisher": "IEEE",
+   "issued": {
+    "date-parts": [
+     [
+      2025,
+      12,
+      8
+     ]
+    ]
+   },
+   "author": [
+    {
+     "given": "Ouassim",
+     "family": "Karrakchou",
+     "sequence": "first",
+     "affiliation": [
+      {
+       "name": "International University of Rabat,TICLab,Morocco"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Alaa",
+     "family": "Zniber",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "International University of Rabat,TICLab,Morocco"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Anass",
+     "family": "Sebbar",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "International University of Rabat,TICLab,Morocco"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Mounir",
+     "family": "Ghogho",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "University Mohammed VI Polytechnic,College of Computing,Morocco"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    }
+   ]
+  },
+  "ieee_citation": "O. Karrakchou, A. Zniber, A. Sebbar, and M. Ghogho, \"Collaborative P4-SDN DDoS Detection and Mitigation with Early-Exit Neural Networks,\" in *GLOBECOM 2025 - 2025 IEEE Global Communications Conference*, Dec. 2025, pp. 6081–6086, doi: 10.1109/globecom59602.2025.11431920.",
+  "abstract": {
+   "source": "arxiv",
+   "sha256": "9f78f6683ceececdaa56a4a48f6122cddebe1251cdf2a01d088d020ee04f5d0c"
+  },
+  "fulltext": {
+   "url": "https://arxiv.org/pdf/2509.12291",
+   "retrieved": "2026-10-28T11:00:03Z",
+   "pdf_sha256": "b549a48e32b71b273a6bf216922311b946ff938b6c96bda39112d2063e12395e",
+   "text_sha256": "5494bc8fe8c344d59fd42d90a191a15c1b2934ff7bd4cf7be8a2ecec9635f673",
+   "pages": 6
+  }
+ },
+ "rizvi2022anycast": {
+  "paper_id": "P2-05",
+  "title": "Anycast Agility: Network Playbooks to Fight DDoS",
+  "doi": null,
+  "ieee_citation": "A. S. M. Rizvi, L. Bertholdo, J. Ceron, and J. Heidemann, \"Anycast Agility: Network Playbooks to Fight DDoS,\" in *31st USENIX Security Symposium (USENIX Security 22)*, 2022, pp. 4201–4218. [Online]. Available: https://www.usenix.org/conference/usenixsecurity22/presentation/rizvi",
+  "abstract": {
+   "source": "arxiv",
+   "sha256": "7860b92efef249d9933e6be2062a779083b1f5fec18bee03df931809c191b894"
+  },
+  "fulltext": {
+   "url": "https://www.usenix.org/system/files/sec22-rizvi.pdf",
+   "retrieved": "2026-10-28T11:00:07Z",
+   "pdf_sha256": "2f4aaa83e2f0499e7044d1b38c1a8962c33be0f9f8e6a306eb12431f7e3aefb3",
+   "text_sha256": "8c83df1bddd890c89df9cd8050a33f4c7ed1f8c52c969d8b61bb86fda607c44f",
+   "pages": 19
+  }
+ },
+ "doriguzzicorin2020lucid": {
+  "paper_id": "P3-01",
+  "title": "Lucid: A Practical, Lightweight Deep Learning Solution for DDoS Attack Detection",
+  "doi": "10.1109/tnsm.2020.2971776",
+  "crossref": {
+   "DOI": "10.1109/tnsm.2020.2971776",
+   "type": "journal-article",
+   "title": [
+    "Lucid: A Practical, Lightweight Deep Learning Solution for DDoS Attack Detection"
+   ],
+   "subtitle": [],
+   "container-title": [
+    "IEEE Transactions on Network and Service Management"
+   ],
+   "volume": "17",
+   "issue": "2",
+   "page": "876-889",
+   "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+   "issued": {
+    "date-parts": [
+     [
+      2020,
+      6
+     ]
+    ]
+   },
+   "author": [
+    {
+     "ORCID": "https://orcid.org/0000-0002-8001-7835",
+     "authenticated-orcid": false,
+     "given": "R.",
+     "family": "Doriguzzi-Corin",
+     "sequence": "first",
+     "affiliation": [
+      {
+       "name": "ICT, Fondazione Bruno Kessler, Trento, Italy"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "S.",
+     "family": "Millar",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "CSIT, Queen&#x2019;s University Belfast, Belfast, U.K."
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-0330-1963",
+     "authenticated-orcid": false,
+     "given": "S.",
+     "family": "Scott-Hayward",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "CSIT, Queen&#x2019;s University Belfast, Belfast, U.K."
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-9574-4138",
+     "authenticated-orcid": false,
+     "given": "J.",
+     "family": "Martínez-del-Rincón",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "CSIT, Queen&#x2019;s University Belfast, Belfast, U.K."
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-5640-6507",
+     "authenticated-orcid": false,
+     "given": "D.",
+     "family": "Siracusa",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "ICT, Fondazione Bruno Kessler, Trento, Italy"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    }
+   ]
+  },
+  "ieee_citation": "R. Doriguzzi-Corin, S. Millar, S. Scott-Hayward, J. Martínez-del-Rincón, and D. Siracusa, \"Lucid: A Practical, Lightweight Deep Learning Solution for DDoS Attack Detection,\" *IEEE Transactions on Network and Service Management*, vol. 17, no. 2, pp. 876–889, Jun. 2020, doi: 10.1109/tnsm.2020.2971776.",
+  "abstract": {
+   "source": "arxiv",
+   "sha256": "31f7c2f3c53bc8bc6cccd2fd2e7b5c293eca955f8310416cce29b7ae918894f0"
+  },
+  "fulltext": {
+   "url": "https://arxiv.org/pdf/2002.04902",
+   "retrieved": "2026-10-28T11:00:08Z",
+   "pdf_sha256": "03faa6a140e3dfc7da0c40604dfa6dc22a644be0e02135ada092455b6a57bb83",
+   "text_sha256": "108b2e4abb41fcb173303f7f405cc473275d84a59b9e0751ca2c2e13cc1e8c5e",
+   "pages": 14
+  }
+ },
+ "ding2021tracking": {
+  "paper_id": "P3-02",
+  "title": "Tracking Normalized Network Traffic Entropy to Detect DDoS Attacks in P4",
+  "doi": "10.1109/tdsc.2021.3116345",
+  "crossref": {
+   "DOI": "10.1109/tdsc.2021.3116345",
+   "type": "journal-article",
+   "title": [
+    "Tracking Normalized Network Traffic Entropy to Detect DDoS Attacks in P4"
+   ],
+   "subtitle": [],
+   "container-title": [
+    "IEEE Transactions on Dependable and Secure Computing"
+   ],
+   "volume": "19",
+   "issue": "6",
+   "page": "4019-4031",
+   "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+   "issued": {
+    "date-parts": [
+     [
+      2022,
+      11,
+      1
+     ]
+    ]
+   },
+   "author": [
+    {
+     "ORCID": "https://orcid.org/0000-0001-9692-7756",
+     "authenticated-orcid": false,
+     "given": "Damu",
+     "family": "Ding",
+     "sequence": "first",
+     "affiliation": [
+      {
+       "name": "University of Oxford, Oxford, U.K."
+      }
+     ],
+     "role": [
+      {
+       "role": "author",
+       "vocabulary": "crossref"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-8193-0597",
+     "authenticated-orcid": false,
+     "given": "Marco",
+     "family": "Savi",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "University of Milano-Bicocca, Milano, Italy"
+      }
+     ],
+     "role": [
+      {
+       "role": "author",
+       "vocabulary": "crossref"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-5640-6507",
+     "authenticated-orcid": false,
+     "given": "Domenico",
+     "family": "Siracusa",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Fondazione Bruno Kessler, Trento, Italy"
+      }
+     ],
+     "role": [
+      {
+       "role": "author",
+       "vocabulary": "crossref"
+      }
+     ]
+    }
+   ]
+  },
+  "ieee_citation": "D. Ding, M. Savi, and D. Siracusa, \"Tracking Normalized Network Traffic Entropy to Detect DDoS Attacks in P4,\" *IEEE Transactions on Dependable and Secure Computing*, vol. 19, no. 6, pp. 4019–4031, Nov. 2022, doi: 10.1109/tdsc.2021.3116345.",
+  "abstract": {
+   "source": "arxiv",
+   "sha256": "eac4080e1c3b2f86f930e7ebd96a3b847c18ef693f93fc2b890806d8750b22a6"
+  },
+  "fulltext": {
+   "url": "https://arxiv.org/pdf/2104.05117",
+   "retrieved": "2026-10-28T11:00:11Z",
+   "pdf_sha256": "0ebf757267cb998936b9447ad586d579b73bdcd5ad5dad607cbc3e669e5aeb68",
+   "text_sha256": "ace9544c3d7c16ba3bb5090d264efea67f7cd89d565fb8aea8bfe99ad5a24032",
+   "pages": 15
+  }
+ },
+ "panggabean2024intelligent": {
+  "paper_id": "P3-03",
+  "title": "Intelligent DoS and DDoS Detection: A Hybrid GRU-NTM Approach to Network Security",
+  "doi": "10.1109/icosec61587.2024.10722438",
+  "crossref": {
+   "DOI": "10.1109/icosec61587.2024.10722438",
+   "type": "proceedings-article",
+   "title": [
+    "Intelligent DoS and DDoS Detection: A Hybrid GRU-NTM Approach to Network Security"
+   ],
+   "subtitle": [],
+   "container-title": [
+    "2024 5th International Conference on Smart Electronics and Communication (ICOSEC)"
+   ],
+   "volume": null,
+   "issue": null,
+   "page": "658-665",
+   "publisher": "IEEE",
+   "issued": {
+    "date-parts": [
+     [
+      2024,
+      9,
+      18
+     ]
+    ]
+   },
+   "author": [
+    {
+     "given": "Caroline",
+     "family": "Panggabean",
+     "sequence": "first",
+     "affiliation": [
+      {
+       "name": "JAIN (Deemed &#x2013; to &#x2013; be University),Departement of CSE (AI),Bangalore,Karnataka"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Chandrasekar",
+     "family": "Venkatachalam",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "JAIN (Deemed &#x2013; to &#x2013; be University),Departement of CSE (AIML),Bangalore,Karnataka"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Priyanka",
+     "family": "Shah",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "JAIN (Deemed &#x2013; to &#x2013; be University),Departement of CSE (AIML),Bangalore,Karnataka"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Sincy",
+     "family": "John",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "JAIN (Deemed &#x2013; to &#x2013; be University),Departement of CSE (AIML),Bangalore,Karnataka"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "P",
+     "family": "Renuka Devi",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "JAIN (Deemed &#x2013; to &#x2013; be University),Departement of CSE (AIML),Bangalore,Karnataka"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Shanmugavalli",
+     "family": "Venkatachalam",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "KSR College of Engineering,Department of CSE,Namakkal,Tamil Nadu"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    }
+   ]
+  },
+  "ieee_citation": "C. Panggabean, C. Venkatachalam, P. Shah, S. John, P. Renuka Devi, and S. Venkatachalam, \"Intelligent DoS and DDoS Detection: A Hybrid GRU-NTM Approach to Network Security,\" in *2024 5th International Conference on Smart Electronics and Communication (ICOSEC)*, Sep. 2024, pp. 658–665, doi: 10.1109/icosec61587.2024.10722438.",
+  "abstract": {
+   "source": "arxiv",
+   "sha256": "07277c4124e9d5faf27f1c31a0f10063478a6d78993dbb3d9f77d8bacc9a0d58"
+  },
+  "fulltext": {
+   "url": "https://arxiv.org/pdf/2504.07478",
+   "retrieved": "2026-10-28T11:00:14Z",
+   "pdf_sha256": "f4d60d70fe882d04242300f43e390a04041f56c2c2a2a4da182e0b993e2dec1c",
+   "text_sha256": "fe9ced5ce34fa98c292f2a1a90b76dae3a26fab3340f81c4f5b0d2bcaad40d02",
+   "pages": 8
+  }
+ },
+ "arp2022dos": {
+  "paper_id": "P3-04",
+  "title": "Dos and Don'ts of Machine Learning in Computer Security",
+  "doi": null,
+  "ieee_citation": "D. Arp et al., \"Dos and Don'ts of Machine Learning in Computer Security,\" in *31st USENIX Security Symposium (USENIX Security 22)*, 2022, pp. 3971–3988. [Online]. Available: https://www.usenix.org/conference/usenixsecurity22/presentation/arp",
+  "abstract": {
+   "source": "arxiv",
+   "sha256": "a69730c4c3fe43838647edc86c06a16a53b20101f6c69301f222d9d3566af394"
+  },
+  "fulltext": {
+   "url": "https://www.usenix.org/system/files/sec22-arp.pdf",
+   "retrieved": "2026-10-28T11:03:21Z",
+   "pdf_sha256": "fd71f39c2cd0f9532859c6bb5f2e3b94be97eec50b43f97aaa916e43f3f4acdb",
+   "text_sha256": "4f4671daae5f963af411bd30d3f505e2fe6aea74b975ac7dc66a5fada3e7addb",
+   "pages": 19
+  }
+ },
+ "cantone2024machine": {
+  "paper_id": "P4-01",
+  "title": "Machine Learning in Network Intrusion Detection: A Cross-Dataset Generalization Study",
+  "doi": "10.1109/access.2024.3472907",
+  "crossref": {
+   "DOI": "10.1109/access.2024.3472907",
+   "type": "journal-article",
+   "title": [
+    "Machine Learning in Network Intrusion Detection: A Cross-Dataset Generalization Study"
+   ],
+   "subtitle": [],
+   "container-title": [
+    "IEEE Access"
+   ],
+   "volume": "12",
+   "issue": null,
+   "page": "144489-144508",
+   "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+   "issued": {
+    "date-parts": [
+     [
+      2024
+     ]
+    ]
+   },
+   "author": [
+    {
+     "ORCID": "https://orcid.org/0000-0002-6225-6680",
+     "authenticated-orcid": false,
+     "given": "Marco",
+     "family": "Cantone",
+     "sequence": "first",
+     "affiliation": [
+      {
+       "name": "Department of Electrical and Information Engineering, University of Cassino and Southern Latium, Cassino, Italy"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0003-0840-7350",
+     "authenticated-orcid": false,
+     "given": "Claudio",
+     "family": "Marrocco",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Department of Electrical and Information Engineering, University of Cassino and Southern Latium, Cassino, Italy"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-2895-6544",
+     "authenticated-orcid": false,
+     "given": "Alessandro",
+     "family": "Bria",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Department of Electrical and Information Engineering, University of Cassino and Southern Latium, Cassino, Italy"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    }
+   ]
+  },
+  "ieee_citation": "M. Cantone, C. Marrocco, and A. Bria, \"Machine Learning in Network Intrusion Detection: A Cross-Dataset Generalization Study,\" *IEEE Access*, vol. 12, pp. 144489–144508, 2024, doi: 10.1109/access.2024.3472907.",
+  "abstract": {
+   "source": "arxiv",
+   "sha256": "0d7c77f7c7fe9617e5f769a90153baa5dffa0270c861f9ac2425e7e2f1409c23"
+  },
+  "fulltext": {
+   "url": "https://arxiv.org/pdf/2402.10974",
+   "retrieved": "2026-10-28T11:02:38Z",
+   "pdf_sha256": "0c367d36e40744c15aa63c5bbb3b56f46afae34342a8d8ebbf129d735cfcce37",
+   "text_sha256": "e868db4890bea9419f1d4a15fba3f672e1853e0320e117a59ba2cd5719b70eef",
+   "pages": 23
+  }
+ },
+ "goldschmidt2025network": {
+  "paper_id": "P4-02",
+  "title": "Network Intrusion Datasets: A Survey, Limitations, and Recommendations",
+  "doi": "10.1016/j.cose.2025.104510",
+  "crossref": {
+   "DOI": "10.1016/j.cose.2025.104510",
+   "type": "journal-article",
+   "title": [
+    "Network intrusion datasets: A survey, limitations, and recommendations"
+   ],
+   "subtitle": [],
+   "container-title": [
+    "Computers &amp; Security"
+   ],
+   "volume": "156",
+   "issue": null,
+   "page": "104510",
+   "publisher": "Elsevier BV",
+   "issued": {
+    "date-parts": [
+     [
+      2025,
+      9
+     ]
+    ]
+   },
+   "author": [
+    {
+     "ORCID": "https://orcid.org/0000-0003-4872-1299",
+     "authenticated-orcid": false,
+     "given": "Patrik",
+     "family": "Goldschmidt",
+     "sequence": "first",
+     "affiliation": [],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-3873-9308",
+     "authenticated-orcid": false,
+     "given": "Daniela",
+     "family": "Chudá",
+     "sequence": "additional",
+     "affiliation": [],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    }
+   ]
+  },
+  "ieee_citation": "P. Goldschmidt and D. Chudá, \"Network intrusion datasets: A survey, limitations, and recommendations,\" *Computers & Security*, vol. 156, p. 104510, Sep. 2025, doi: 10.1016/j.cose.2025.104510.",
+  "abstract": {
+   "source": "arxiv",
+   "sha256": "d1135b8324e5716dbb6d9e0486b6fbafd56e5b318e6470b42a545358441b916b"
+  },
+  "fulltext": {
+   "url": "https://arxiv.org/pdf/2502.06688",
+   "retrieved": "2026-10-28T11:02:40Z",
+   "pdf_sha256": "4d3ed2e332129767cbb2fae2a75f7d93a204cf7563c462ba19b7f40c834b85ee",
+   "text_sha256": "b7d4421200de41d3276b1bf8865deac50d14bb4731a3a3e9c6492d591ed7fdd7",
+   "pages": 42
+  }
+ },
+ "emmerich2015moongen": {
+  "paper_id": "P4-03",
+  "title": "MoonGen: A Scriptable High-Speed Packet Generator",
+  "doi": "10.1145/2815675.2815692",
+  "crossref": {
+   "DOI": "10.1145/2815675.2815692",
+   "type": "proceedings-article",
+   "title": [
+    "MoonGen"
+   ],
+   "subtitle": [
+    "A Scriptable High-Speed Packet Generator"
+   ],
+   "container-title": [
+    "Proceedings of the 2015 Internet Measurement Conference"
+   ],
+   "volume": null,
+   "issue": null,
+   "page": "275-287",
+   "publisher": "ACM",
+   "issued": {
+    "date-parts": [
+     [
+      2015,
+      10,
+      28
+     ]
+    ]
+   },
+   "author": [
+    {
+     "given": "Paul",
+     "family": "Emmerich",
+     "sequence": "first",
+     "affiliation": [
+      {
+       "name": "Technische Universität München, Munich, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Sebastian",
+     "family": "Gallenmüller",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Technische Universität München, Munich, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Daniel",
+     "family": "Raumer",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Technische Universität München, Munich, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Florian",
+     "family": "Wohlfart",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Technische Universität München, Munich, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Georg",
+     "family": "Carle",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Technische Universität München, Munich, Germany"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    }
+   ]
+  },
+  "ieee_citation": "P. Emmerich, S. Gallenmüller, D. Raumer, F. Wohlfart, and G. Carle, \"MoonGen: A Scriptable High-Speed Packet Generator,\" in *Proceedings of the 2015 Internet Measurement Conference*, Oct. 2015, pp. 275–287, doi: 10.1145/2815675.2815692.",
+  "abstract": {
+   "source": "arxiv",
+   "sha256": "732a7f27ec3cfa01286175548af4af5e92f0a18fffcbc7ae0b10af61241b603a"
+  },
+  "fulltext": {
+   "url": "https://arxiv.org/pdf/1410.3322",
+   "retrieved": "2026-10-28T11:02:43Z",
+   "pdf_sha256": "4cb550e5b4104a5544ea01413ed13ba30302887917e68c2c9e271a9edd8d6477",
+   "text_sha256": "9d1c951b0258fa7538f4f72d0db7d0cb1b51463197fbf838b22fcae55c61d475",
+   "pages": 13
+  }
+ }
+}

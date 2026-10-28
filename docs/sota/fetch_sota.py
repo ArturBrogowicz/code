@@ -4,19 +4,22 @@
 Four subcommands, run in this order:
 
   plan    Print the search protocol (queries per pillar, seed titles, filters) as Markdown.
-  search  Query arXiv, OpenAlex and Semantic Scholar with the per-pillar queries; keep
+  search  Query arXiv, Crossref, OpenAlex and Semantic Scholar with the per-pillar queries; keep
           2021-2026 records plus resolved foundational seeds; merge duplicates by DOI,
           arXiv id and title; tag each record with a venue tier; write
           corpus/candidates.json for screening.
   fetch   For the papers screened into corpus/selected.json, store the abstract and,
           where an open-access PDF exists, its full text (pdftotext), with URL, time
-          and SHA-256 in corpus/manifest.json. Crossref fills the IEEE citation.
+          and SHA-256 in corpus/manifest.json. Crossref fills the IEEE citation. A
+          selection may list pdf_urls (publisher open-access copies) to try first.
   verify  Check every quote in docs/sota_broad_review.md against the stored text of
           its paper. A quote passes only if it occurs contiguously, either exactly (up
           to whitespace) or after typographic normalisation (ligatures, curly quotes,
           dashes, line-end hyphenation). Anything else fails.
 
 HTTP uses the standard library only (urllib); PDFs are converted with pdftotext.
+OPENALEX_API_KEY and S2_API_KEY (environment) are used when set; without them both
+services may refuse requests (rate limits), and the search continues with the others.
 Seed titles are lookup queries, not citations: a seed enters the corpus only when an
 API returns a record whose title matches it; unresolved seeds are logged and dropped.
 """
@@ -28,6 +31,8 @@ import collections
 import datetime as dt
 import difflib
 import hashlib
+import html
+import html.parser
 import json
 import math
 import os
@@ -41,6 +46,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from http.client import HTTPException
+from http.cookiejar import CookieJar
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -57,7 +64,7 @@ PILLARS = {
     "P4": "Empirical evaluation, testbeds and benchmarks",
 }
 
-# Keyword queries restricted to 2021-2026. arXiv ANDs the terms as phrases; OpenAlex
+# Keyword queries restricted to 2021-2026. arXiv ANDs the terms as phrases; Crossref, OpenAlex
 # and Semantic Scholar receive them as one free-text query.
 QUERIES = [
     ("P1", ["reflection", "amplification", "DDoS"]),
@@ -93,27 +100,54 @@ QUERIES = [
     ("P4", ["TON_IoT", "dataset"]),
     ("P4", ["DPDK", "traffic generator"]),
     ("P4", ["DDoS", "dataset", "benchmark"]),
+    # Added 2026-10-28 after the first screening: gaps in application-layer, SYN-flood,
+    # host-filtering and dataset-quality papers with retrievable full text.
+    ("P1", ["low-rate", "DDoS"]),
+    ("P1", ["slow rate", "denial of service"]),
+    ("P1", ["HTTP/2", "rapid reset"]),
+    ("P1", ["SYN flood", "mitigation"]),
+    ("P1", ["DDoS", "measurement", "Internet"]),
+    ("P2", ["XDP", "packet filtering"]),
+    ("P2", ["eBPF", "firewall"]),
+    ("P2", ["SYN cookies"]),
+    ("P2", ["iptables", "DDoS"]),
+    ("P3", ["recurrent neural network", "DDoS"]),
+    ("P3", ["GRU", "DDoS"]),
+    ("P3", ["concept drift", "intrusion detection"]),
+    ("P4", ["NIDS", "dataset"]),
+    ("P4", ["CIC-IDS-2017", "CSE-CIC-IDS-2018"]),
+    ("P4", ["intrusion detection", "machine learning", "generalization"]),
+    ("P4", ["DDoS", "emulation"]),
+    ("P4", ["packet generator", "high-speed"]),
 ]
 
-# Foundational and landmark titles, looked up by title with no year filter.
+# Foundational and landmark titles, looked up by title with no year filter. A third
+# element is the publisher's landing page, read for venues Crossref does not index
+# (USENIX registers no DOIs); its citation_title must still match the seed title.
 SEEDS = [
     ("P1", "Amplification Hell: Revisiting Network Protocols for DDoS Abuse"),
-    ("P1", "Understanding the Mirai Botnet"),
-    ("P1", "Weaponizing Middleboxes for TCP Reflected Amplification"),
+    ("P1", "Understanding the Mirai Botnet",
+     "https://www.usenix.org/conference/usenixsecurity17/technical-sessions/presentation/antonakakis"),
+    ("P1", "Weaponizing Middleboxes for TCP Reflected Amplification",
+     "https://www.usenix.org/conference/usenixsecurity21/presentation/bock"),
     ("P1", "The Far Side of DNS Amplification: Tracing the DDoS Attack Ecosystem from the Internet Core"),
     ("P1", "Application Layer Denial-of-Service Attacks and Defense Mechanisms: A Survey"),
     ("P1", "The Age of DDoScovery: An Empirical Comparison of Industry and Academic DDoS Assessments"),
     ("P2", "The eXpress Data Path: Fast Programmable Packet Processing in the Operating System Kernel"),
     ("P2", "Performance Implications of Packet Filtering with Linux eBPF"),
     ("P2", "United We Stand: Collaborative Detection and Mitigation of Amplification DDoS Attacks at Scale"),
-    ("P2", "Jaqen: A High-Performance Switch-Native Approach for Detecting and Mitigating Volumetric DDoS Attacks with Programmable Switches"),
-    ("P2", "Ripple: A Programmable, Decentralized Link-Flooding Defense Against Adaptive Adversaries"),
-    ("P2", "Anycast Agility: Network Playbooks to Fight DDoS"),
+    ("P2", "Jaqen: A High-Performance Switch-Native Approach for Detecting and Mitigating Volumetric DDoS Attacks with Programmable Switches",
+     "https://www.usenix.org/conference/usenixsecurity21/presentation/liu-zaoxing"),
+    ("P2", "Ripple: A Programmable, Decentralized Link-Flooding Defense Against Adaptive Adversaries",
+     "https://www.usenix.org/conference/usenixsecurity21/presentation/xing"),
+    ("P2", "Anycast Agility: Network Playbooks to Fight DDoS",
+     "https://www.usenix.org/conference/usenixsecurity22/presentation/rizvi"),
     ("P2", "Aggregate-Based Congestion Control for Pulse-Wave DDoS Defense"),
     ("P3", "LUCID: A Practical, Lightweight Deep Learning Solution for DDoS Attack Detection"),
     ("P3", "Euclid: A Fully In-Network, P4-Based Approach for Real-Time DDoS Attack Detection and Mitigation"),
     ("P3", "IXP Scrubber: Learning from Blackholing Traffic for ML-Driven DDoS Detection at Scale"),
-    ("P3", "Dos and Don'ts of Machine Learning in Computer Security"),
+    ("P3", "Dos and Don'ts of Machine Learning in Computer Security",
+     "https://www.usenix.org/conference/usenixsecurity22/presentation/arp"),
     ("P3", "A flow-based IDS using Machine Learning in eBPF"),
     ("P4", "Developing Realistic Distributed Denial of Service (DDoS) Attack Dataset and Taxonomy"),
     ("P4", "Toward Generating a New Intrusion Detection Dataset and Intrusion Traffic Characterization"),
@@ -131,7 +165,7 @@ TOP_VENUE = re.compile(
     re.I,
 )
 TIER_WEIGHT = {"top": 1.0, "peer-reviewed": 0.6, "preprint": 0.4}
-ABSTRACT_RANK = {"arxiv": 0, "semanticscholar": 1, "openalex": 2}  # openalex is rebuilt from an index
+ABSTRACT_RANK = {"crossref": 0, "arxiv": 1, "semanticscholar": 2, "openalex": 3}  # openalex is rebuilt from an index
 ARXIV_ID = re.compile(r"(\d{4}\.\d{4,5}|[a-z\-]+(?:\.[A-Z]{2})?/\d{7})")
 ATOM = {"a": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}
 MONTHS = ["Jan.", "Feb.", "Mar.", "Apr.", "May", "Jun.", "Jul.", "Aug.", "Sep.", "Oct.", "Nov.", "Dec."]
@@ -177,17 +211,30 @@ class FetchError(Exception):
 
 
 class Http:
-    """urllib GET with per-host pacing and retries. A host the egress proxy refuses, or
-    that does not resolve, is marked blocked and receives no further requests."""
+    """urllib GET with per-host pacing and retries. A host receives no further requests
+    once it is blocked: refused by the egress proxy, no DNS answer, a rate budget whose
+    reset is further away than MAX_RETRY_AFTER, or MAX_STREAK requests in a row that
+    failed after all retries."""
 
-    SPACING = {"export.arxiv.org": 3.1, "arxiv.org": 3.1, "api.semanticscholar.org": 1.1}
+    SPACING = {"export.arxiv.org": 3.1, "arxiv.org": 3.1, "api.semanticscholar.org": 1.1,
+               "api.crossref.org": 0.3}
+    MAX_RETRY_AFTER = 120  # seconds
+    MAX_STREAK = 3
 
     def __init__(self, log: Logger):
         self.log = log
         self.blocked: dict[str, str] = {}
         self.ok: collections.Counter = collections.Counter()
         self.failed: collections.Counter = collections.Counter()
+        self._streak: collections.Counter = collections.Counter()
         self._last: dict[str, float] = {}
+        # Some publishers (Springer) set a cookie on a redirect before serving the PDF.
+        self._opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(CookieJar()))
+
+    def _block(self, host: str, reason: str) -> FetchError:
+        self.blocked[host] = reason
+        self.failed[host] += 1
+        return FetchError(f"{host}: {reason}")
 
     def get(self, url: str, accept: str = "application/json", headers: dict | None = None) -> bytes:
         host = urllib.parse.urlsplit(url).hostname or ""
@@ -201,25 +248,33 @@ class Http:
                 time.sleep(wait)
             self._last[host] = time.monotonic()
             try:
-                with urllib.request.urlopen(req, timeout=60) as resp:
+                with self._opener.open(req, timeout=60) as resp:
                     body = resp.read()
                 self.ok[host] += 1
+                self._streak[host] = 0
                 return body
             except urllib.error.HTTPError as e:
                 err, retry = f"HTTP {e.code}", e.code in (429, 500, 502, 503, 504)
+                retry_after = e.headers.get("Retry-After", "")
+                if e.code == 429 and retry_after.isdigit() and int(retry_after) > self.MAX_RETRY_AFTER:
+                    raise self._block(host, f"HTTP 429, rate budget exhausted for {int(retry_after)} s") from None
             except urllib.error.URLError as e:
                 err = str(e.reason)
                 if "Tunnel connection failed" in err or isinstance(e.reason, socket.gaierror):
                     # Refused by the egress proxy or no DNS answer: a retry cannot help.
-                    self.blocked[host] = err
-                    self.failed[host] += 1
-                    raise FetchError(f"{host}: {err}") from None
+                    raise self._block(host, err) from None
                 retry = True
-            except (TimeoutError, ConnectionError) as e:
-                err, retry = repr(e), True
-            if not retry or attempt == 4:
+            except (TimeoutError, ConnectionError, HTTPException) as e:  # HTTPException: truncated body
+                err, retry = repr(e)[:120], True
+            if not retry:
                 self.failed[host] += 1
                 raise FetchError(f"{host}: {err}")
+            if attempt == 4:
+                self._streak[host] += 1
+                if self._streak[host] >= self.MAX_STREAK:
+                    raise self._block(host, f"{err} after retries, {self.MAX_STREAK} requests in a row")
+                self.failed[host] += 1
+                raise FetchError(f"{host}: {err} after retries")
             self.log(f"    {host}: {err}; retry {attempt}/3 in {delay:.0f} s")
             time.sleep(delay)
             delay *= 2
@@ -286,6 +341,8 @@ def search_openalex(http: Http, text: str, n: int, mailto: str | None, years: bo
     params = {"search": text, "per-page": n, "select": OPENALEX_FIELDS}
     if years:
         params["filter"] = f"from_publication_date:{YEAR_MIN}-01-01,to_publication_date:{YEAR_MAX}-12-31"
+    if os.environ.get("OPENALEX_API_KEY"):
+        params["api_key"] = os.environ["OPENALEX_API_KEY"]
     if mailto:
         params["mailto"] = mailto
     return parse_openalex(http.json("https://api.openalex.org/works?" + urllib.parse.urlencode(params)))
@@ -380,26 +437,126 @@ def parse_s2(papers: list[dict]) -> list[dict]:
     return out
 
 
+CROSSREF_FIELDS = "DOI,title,subtitle,container-title,publisher,type,is-referenced-by-count,issued,author,abstract,volume,issue,page"
+CROSSREF_TYPES = "type:journal-article,type:proceedings-article"  # repeated keys are ORed
+
+
+def search_crossref(http: Http, text: str, n: int, mailto: str | None, years: bool = True) -> list[dict]:
+    filters = CROSSREF_TYPES + (f",from-pub-date:{YEAR_MIN}-01-01,until-pub-date:{YEAR_MAX}-12-31" if years else "")
+    params = {"query.bibliographic": text, "rows": n, "filter": filters, "select": CROSSREF_FIELDS}
+    if mailto:
+        params["mailto"] = mailto
+    return parse_crossref(http.json("https://api.crossref.org/works?" + urllib.parse.urlencode(params))
+                          ["message"]["items"])
+
+
+def strip_markup(s: str | None) -> str:
+    """Plain text of a Crossref JATS abstract or title: no tags, no leading 'Abstract' heading."""
+    s = re.sub(r"<jats:title>.*?</jats:title>", " ", s or "", flags=re.S)
+    return squash(html.unescape(re.sub(r"<[^>]+>", " ", s)))
+
+
+def parse_crossref(items: list[dict]) -> list[dict]:
+    out = []
+    for it in items:
+        parts = ((it.get("issued") or {}).get("date-parts") or [[None]])[0]
+        doi = it["DOI"].lower()
+        page = it.get("page") or ""
+        first, _, last = page.partition("-")
+        abstract = strip_markup(it.get("abstract")) or None
+        # ACM deposits "The eXpress data path" as title and the rest as subtitle.
+        title = strip_markup((it.get("title") or [""])[0])
+        if it.get("subtitle"):
+            title = f"{title}: {strip_markup(it['subtitle'][0])}"
+        out.append(record(
+            title=title,
+            year=parts[0],
+            date="-".join(f"{p:02d}" for p in parts if p) if parts[0] else None,
+            authors=[squash(f"{a.get('given', '')} {a.get('family', a.get('name', ''))}") for a in it.get("author") or []],
+            venue=strip_markup((it.get("container-title") or [""])[0]),
+            venue_type={"journal-article": "journal", "proceedings-article": "conference"}.get(it.get("type"), "unknown"),
+            publisher=it.get("publisher") or "",
+            doi=doi,
+            url=f"https://doi.org/{doi}",
+            citations=it.get("is-referenced-by-count"),
+            abstract=abstract,
+            abstract_source="crossref" if abstract else None,
+            biblio={k: v for k, v in (("volume", it.get("volume")), ("issue", it.get("issue")),
+                                      ("first_page", first), ("last_page", last)) if v},
+        ))
+    return out
+
+
+def lookup_arxiv_title(http: Http, title: str) -> list[dict]:
+    words = [w for w in norm_title(title).split() if len(w) > 3][:8]  # skips fragments such as "don ts"
+    url = "https://export.arxiv.org/api/query?" + urllib.parse.urlencode(
+        {"search_query": " AND ".join(f"ti:{w}" for w in words), "start": 0, "max_results": 5})
+    return parse_arxiv(http.get(url, accept="application/atom+xml"))
+
+
+class _CitationMeta(html.parser.HTMLParser):
+    """Collects <meta name="citation_*" content="..."> (Highwire Press tags)."""
+
+    def __init__(self):
+        super().__init__()
+        self.tags: dict[str, list[str]] = collections.defaultdict(list)
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == "meta" and (a.get("name") or "").startswith("citation_") and a.get("content"):
+            self.tags[a["name"]].append(html.unescape(a["content"]))
+
+
+def lookup_landing(http: Http, url: str) -> list[dict]:
+    meta = _CitationMeta()
+    meta.feed(http.get(url, accept="text/html").decode("utf-8", "replace"))
+    t = meta.tags
+    if not t.get("citation_title"):
+        return []
+    date = (t.get("citation_publication_date") or t.get("citation_date") or [""])[0].replace("/", "-")
+    conference = (t.get("citation_conference_title") or [""])[0]
+    venue = conference or (t.get("citation_journal_title") or [""])[0]
+    return [record(
+        title=squash(re.sub(r"[{}]", "", t["citation_title"][0])),  # USENIX keeps BibTeX braces
+        year=int(date[:4]) if date[:4].isdigit() else None,
+        date=date or None,
+        authors=t.get("citation_author", []),
+        venue=venue,
+        venue_type="conference" if conference else ("journal" if venue else "unknown"),
+        publisher=(t.get("citation_publisher") or [""])[0],
+        doi=((t.get("citation_doi") or [""])[0].lower() or None),
+        url=url,
+        oa_pdf=t.get("citation_pdf_url", []),
+        biblio={ours: t[f"citation_{tag}"][0] for ours, tag in (("volume", "volume"), ("issue", "issue"),
+                ("first_page", "firstpage"), ("last_page", "lastpage")) if t.get(f"citation_{tag}")},
+    )]
+
+
 def title_similarity(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, norm_title(a), norm_title(b)).ratio()
 
 
-def resolve_seed(http: Http, title: str, mailto: str | None, log: Logger) -> dict | None:
-    found: list[dict] = []
-    try:
-        found += search_openalex(http, title, 10, mailto, years=False)
-    except FetchError as e:
-        log(f"    openalex: {e}")
-    if not any(title_similarity(title, r["title"]) >= SEED_MATCH for r in found):
-        url = "https://api.semanticscholar.org/graph/v1/paper/search/match?" + urllib.parse.urlencode(
-            {"query": title, "fields": S2_FIELDS})
+def resolve_seed(http: Http, title: str, landing: list[str], mailto: str | None,
+                 log: Logger) -> list[tuple[str, dict]]:
+    """Every (source, record) whose title matches the seed: the published version from
+    Crossref or the publisher's page and the preprint from arXiv merge into one corpus
+    record with both ids."""
+    lookups = [("landing", lambda url=url: lookup_landing(http, url)) for url in landing] + [
+        ("crossref", lambda: search_crossref(http, title, 5, mailto, years=False)),
+        ("arxiv", lambda: lookup_arxiv_title(http, title)),
+        ("openalex", lambda: search_openalex(http, title, 5, mailto, years=False)),
+        ("semanticscholar", lambda: parse_s2(http.json(
+            "https://api.semanticscholar.org/graph/v1/paper/search/match?"
+            + urllib.parse.urlencode({"query": title, "fields": S2_FIELDS}), headers=s2_headers()).get("data") or [])),
+    ]
+    matched = []
+    for source, run in lookups:
         try:
-            found += parse_s2(http.json(url, headers=s2_headers()).get("data") or [])
+            matched += [(source, r) for r in run() if title_similarity(title, r["title"]) >= SEED_MATCH]
         except FetchError as e:
-            log(f"    semanticscholar: {e}")
-    scored = [(title_similarity(title, r["title"]), r) for r in found]
-    best = max(scored, key=lambda x: x[0], default=(0.0, None))
-    return best[1] if best[0] >= SEED_MATCH else None
+            if "skipped" not in str(e):
+                log(f"    {source}: {e}")
+    return matched
 
 
 # ---------------------------------------------------------------- corpus
@@ -490,15 +647,15 @@ def query_text(terms: list[str]) -> str:
 
 def cmd_plan(_args) -> int:
     print(f"Years: {YEAR_MIN}-{YEAR_MAX} for keyword queries; seeds are looked up by title with no year filter.\n")
-    print("| Pillar | arXiv query (cs.CR, cs.NI, cs.LG) | OpenAlex / Semantic Scholar query |")
+    print("| Pillar | arXiv query (cs.CR, cs.NI, cs.LG) | Crossref / OpenAlex / Semantic Scholar query |")
     print("|---|---|---|")
     for pillar, terms in QUERIES:
         arxiv = " AND ".join(f'all:"{t}"' for t in terms)
         print(f"| {pillar} | `{arxiv}` | `{query_text(terms)}` |")
     print("\n| Pillar | Seed title (lookup only; kept if an API returns it, similarity >= "
           f"{SEED_MATCH}) |\n|---|---|")
-    for pillar, title in SEEDS:
-        print(f"| {pillar} | {title} |")
+    for pillar, title, *landing in SEEDS:
+        print(f"| {pillar} | {title}" + (f" (publisher page: {landing[0]})" if landing else "") + " |")
     return 0
 
 
@@ -507,10 +664,11 @@ def cmd_search(args) -> int:
     http = Http(log)
     corpus = Corpus()
     per_source = collections.Counter()
-    log(f"search: {len(QUERIES)} queries x 3 sources, {len(SEEDS)} seeds, years {YEAR_MIN}-{YEAR_MAX}, "
+    log(f"search: {len(QUERIES)} queries x 4 sources, {len(SEEDS)} seeds, years {YEAR_MIN}-{YEAR_MAX}, "
         f"max {args.max_per_query} per query; log {log.path}")
     sources = [
         ("arxiv", lambda terms: search_arxiv(http, terms, args.max_per_query)),
+        ("crossref", lambda terms: search_crossref(http, query_text(terms), args.max_per_query, args.mailto)),
         ("openalex", lambda terms: search_openalex(http, query_text(terms), args.max_per_query, args.mailto)),
         ("semanticscholar", lambda terms: search_s2(http, query_text(terms), args.max_per_query)),
     ]
@@ -530,15 +688,17 @@ def cmd_search(args) -> int:
             per_source[name] += len(hits)
             log(f"[{pillar}] {label!r} | {name}: {len(hits)} records")
     unresolved = []
-    for pillar, title in SEEDS:
-        r = resolve_seed(http, title, args.mailto, log)
-        if r is None:
+    for pillar, title, *landing in SEEDS:
+        matches = resolve_seed(http, title, landing, args.mailto, log)
+        if not matches:
             unresolved.append(title)
             log(f"[seed {pillar}] UNRESOLVED {title!r}")
             continue
-        corpus.add(r, pillar, f"seed: {title}", "seed", seed=True)
+        for source, r in matches:
+            corpus.add(r, pillar, f"seed: {title}", source, seed=True)
         per_source["seed"] += 1
-        log(f"[seed {pillar}] resolved {title!r} -> {r['venue'] or 'arXiv'} ({r['year']})")
+        found = "; ".join(f"{src}: {r['venue'] or 'arXiv ' + str(r['arxiv_id'])} ({r['year']})" for src, r in matches)
+        log(f"[seed {pillar}] resolved {title!r} -> {found}")
 
     log("---- summary")
     for host in sorted(set(http.ok) | set(http.failed) | set(http.blocked)):
@@ -588,8 +748,10 @@ def ieee_names(names: list[tuple[str, str]]) -> str:
 def ieee_citation(r: dict, cr: dict | None) -> str:
     if cr:
         names = [(a.get("given", ""), a.get("family", a.get("name", ""))) for a in cr.get("author", [])]
-        title = squash((cr.get("title") or [r["title"]])[0])
-        container = squash((cr.get("container-title") or [r["venue"]])[0])
+        title = strip_markup((cr.get("title") or [r["title"]])[0])
+        if cr.get("subtitle"):
+            title = f"{title}: {strip_markup(cr['subtitle'][0])}"
+        container = strip_markup((cr.get("container-title") or [r["venue"]])[0])
         parts = (cr.get("issued") or {}).get("date-parts") or [[r["year"]]]
         year, month = parts[0][0], (parts[0][1] if len(parts[0]) > 1 else None)
         volume, issue, pages = cr.get("volume"), cr.get("issue"), cr.get("page")
@@ -602,7 +764,8 @@ def ieee_citation(r: dict, cr: dict | None) -> str:
         volume, issue = b.get("volume"), b.get("issue")
         pages = "-".join(p for p in (b.get("first_page"), b.get("last_page")) if p)
     when = f"{MONTHS[month - 1]} {year}" if month else f"{year}"
-    pages = f"pp. {pages.replace('-', '–')}" if pages and "-" in pages else (f"p. {pages}" if pages else "")
+    en_dash = "\u2013"
+    pages = f"pp. {pages.replace('-', en_dash)}" if pages and "-" in pages else (f"p. {pages}" if pages else "")
     doi = (cr or {}).get("DOI") or r.get("doi")
     tail = f", doi: {doi}." if doi and not doi.lower().startswith("10.48550/") else (
         f". [Online]. Available: {r['url']}" if r.get("url") else ".")
@@ -628,7 +791,8 @@ def cmd_fetch(args) -> int:
         log(f"fetch needs {cand_path} (from `search`) and {sel_path} (the screening decisions).")
         return 2
     by_key = {r["key"]: r for r in json.loads(cand_path.read_text(encoding="utf-8"))["records"]}
-    selected = json.loads(sel_path.read_text(encoding="utf-8"))
+    selected = [s for s in json.loads(sel_path.read_text(encoding="utf-8"))
+                if not args.only or s["paper_id"] in args.only]
     man_path = args.corpus / "manifest.json"
     manifest = json.loads(man_path.read_text(encoding="utf-8")) if man_path.exists() else {}
     for d in ("abstracts", "fulltext", "pdf"):
@@ -642,11 +806,23 @@ def cmd_fetch(args) -> int:
             continue
         entry = manifest.setdefault(key, {})
         entry.update(paper_id=s["paper_id"], title=r["title"])
+        if not r.get("doi") or r["doi"].startswith("10.48550/"):
+            # A preprint found by search may have a published version under the same title.
+            try:
+                pub = [x for x in search_crossref(http, r["title"], 5, None, years=False)
+                       if title_similarity(x["title"], r["title"]) >= SEED_MATCH]
+            except FetchError as e:
+                pub = []
+                log(f"{s['paper_id']} {key}: crossref title lookup {e}")
+            if pub:
+                merge(r, pub[0])
+                log(f"{s['paper_id']} {key}: published version {pub[0]['doi']} in {pub[0]['venue']}")
+        entry["doi"] = r.get("doi")
         cr = None
         if r.get("doi") and not r["doi"].startswith("10.48550/"):
             try:
                 cr = http.json("https://api.crossref.org/works/" + urllib.parse.quote(r["doi"]))["message"]
-                entry["crossref"] = {k: cr.get(k) for k in ("DOI", "type", "title", "container-title", "volume",
+                entry["crossref"] = {k: cr.get(k) for k in ("DOI", "type", "title", "subtitle", "container-title", "volume",
                                                              "issue", "page", "publisher", "issued", "author")}
             except FetchError as e:
                 log(f"{s['paper_id']} {key}: crossref {e}")
@@ -655,7 +831,11 @@ def cmd_fetch(args) -> int:
             data = r["abstract"].encode("utf-8")
             (args.corpus / "abstracts" / f"{key}.txt").write_bytes(data)
             entry["abstract"] = {"source": r["abstract_source"], "sha256": sha256(data)}
-        urls = ([f"https://arxiv.org/pdf/{r['arxiv_id']}"] if r.get("arxiv_id") else []) + r["oa_pdf"]
+        # Explicit pdf_urls in selected.json (the publisher's open-access copy) come first,
+        # then arXiv, the open-access links found by search, and the PDF links in Crossref.
+        crossref_pdfs = [l["URL"] for l in (cr or {}).get("link", []) if l.get("content-type") == "application/pdf"]
+        urls = (s.get("pdf_urls", []) + ([f"https://arxiv.org/pdf/{r['arxiv_id']}"] if r.get("arxiv_id") else [])
+                + r["oa_pdf"] + crossref_pdfs)
         for url in dict.fromkeys(urls):
             try:
                 data = http.get(url, accept="application/pdf")
@@ -681,14 +861,17 @@ def cmd_fetch(args) -> int:
     return 1 if missing else 0
 
 
-_TYPO = str.maketrans({"‘": "'", "’": "'", "“": '"', "”": '"', "–": "-",
-                       "—": "-", "−": "-", "­": None, " ": " "})
+_TYPO = str.maketrans({"\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"', "\u2013": "-",
+                       "\u2014": "-", "\u2212": "-", "\u00ad": None, "\u00a0": " "})
 
 
-def typo_norm(s: str, join_hyphens: bool) -> str:
+def typo_norm(s: str, line_end_hyphen: str = "") -> str:
+    """NFKC, ASCII quotes and dashes, squashed whitespace. A hyphen that ends a line is
+    either dropped ("drop": a word split by the typesetter) or kept ("keep": a word that
+    is hyphenated anyway); the caller tries both."""
     s = unicodedata.normalize("NFKC", s).translate(_TYPO)
-    if join_hyphens:
-        s = re.sub(r"(\w)-[ \t]*\n\s*(\w)", r"\1\2", s)
+    if line_end_hyphen:
+        s = re.sub(r"(\w)-[ \t]*\n\s*(\w)", r"\1\2" if line_end_hyphen == "drop" else r"\1-\2", s)
     return squash(s)
 
 
@@ -701,12 +884,12 @@ def find_quote(quote: str, text: str) -> tuple[str, str] | None:
     windows += [(f"pp. {i + 1}-{i + 2}", pages[i] + "\n" + pages[i + 1]) for i in range(len(pages) - 1)]
     if "\f" not in text:
         windows = [("abstract", text)]
-    q_exact, q_norm = squash(quote), typo_norm(quote, False)
+    q_exact, q_norm = squash(quote), typo_norm(quote)
     for where, chunk in windows:
         if q_exact and q_exact in squash(chunk):
             return "exact", where
     for where, chunk in windows:
-        if q_norm and (q_norm in typo_norm(chunk, False) or q_norm in typo_norm(chunk, True)):
+        if q_norm and any(q_norm in typo_norm(chunk, mode) for mode in ("", "drop", "keep")):
             return "normalized", where
     return None
 
@@ -773,7 +956,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--max-per-query", type=int, default=25)
     p.add_argument("--show", type=int, default=25, help="records listed per pillar in the log")
     p.add_argument("--mailto", help="contact address for the OpenAlex polite pool (optional)")
-    sub.add_parser("fetch", help="store abstracts, full texts and citations for corpus/selected.json")
+    p = sub.add_parser("fetch", help="store abstracts, full texts and citations for corpus/selected.json")
+    p.add_argument("--only", nargs="+", metavar="PAPER_ID", help="fetch these papers again (e.g. P3-04)")
     p = sub.add_parser("verify", help="check every review quote against the stored texts")
     p.add_argument("--review", type=Path, default=DEFAULT_REVIEW)
     args = ap.parse_args(argv)
