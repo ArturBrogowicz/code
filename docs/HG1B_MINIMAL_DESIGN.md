@@ -24,7 +24,7 @@ the data it will judge; **[RISK]** a hazard with its mitigation.
 
 | # | Decision | State |
 |---|---|---|
-| D14 | O4: the legit streams run on vCPU 6 (the healthy one), generator validity is relative to the control (a gross ceiling and a difference), no `--spin-ms` for populations (allowed on at most four attack streams), the environment gate judges the timers on the vCPU of the legit streams | approved 2026-10-23 |
+| D14 | O4: the legit streams run on vCPU 6 (the healthy one), generator validity is relative to the control (a ceiling and a difference; the ceiling is pooled since 9.7), no `--spin-ms` for populations (allowed on at most four attack streams), the environment gate judges the timers on the vCPU of the legit streams | approved 2026-10-23 |
 | D15 | Deltas 1-10 of section 3 | approved 2026-10-23 |
 | D16 | The executor and the calibration runner are HG1c, with their own design note and approval | acknowledged |
 | D17 | The full cut: commits 0-7 | approved 2026-10-23 |
@@ -58,8 +58,8 @@ below 50 ms; neither can be met on most vCPUs.
    recorded, not judged. The probe is repeated before every run, as the harness already does.
 3. **Generator validity, profile `relative` (the default).** A stream is invalid when its CPU share exceeds 0.70, when it sent fewer
    than 99 % of its intended requests, when it ran out of descriptors or ports, or, for a legit stream, when it dropped a request. Slip is a
-   difference, not an absolute: the p99 slip of the legit streams in a run may exceed the control's by at most 50 ms, and no stream's
-   p99 slip may exceed 250 ms. The profile `strict` is design 8.3 as written (every engine flag clear, slip p99 below 50 ms); it is computed and
+   difference, not an absolute: the p99 slip of the legit streams in a run may exceed the control's by at most 50 ms and may not
+   exceed 100 ms (amended in 9.7: the first version held each stream's own p99 to 250 ms). The profile `strict` is design 8.3 as written (every engine flag clear, slip p99 below 50 ms); it is computed and
    reported for every run and judges nothing unless chosen.
 4. **No `--spin-ms` for populations** (a core per stream). An attack stream may use it; the plan counts those cores.
 5. **V7.** Closed as a ceiling: 5,000 requests/s per stream, the highest rate at which no CPU flag fired (the corrected run, F.7). The 10 s steps
@@ -232,8 +232,8 @@ suite was 958 tests OK at 91491cc, and ruff was clean on every new file at every
 
 ### 9.3 Decided in the gate's code, beyond 5.6
 
-* A run's slip is judged twice: the gross ceiling on each stream's summary, and the difference to the control on the p99 pooled from
-  the legit records.
+* A run's slip is judged twice: the ceiling and the difference to the control, both on the p99 pooled from the legit records (9.7: the
+  ceiling was first on each stream's summary).
 * The p95 criterion is *not evaluable* when a valid block has no p95 (an attack run without a single success); Q then carries the
   verdict, and `--metrics p95` alone is INVALID with that reason.
 * The placebo is reported with the verdict and does not change it; a placebo that passes is stated in the report as making the
@@ -267,3 +267,7 @@ Reading the real links showed that the gate as built could not return a verdict 
 reported per profile; (F2) the calibration carries `judged_profiles` and, once frozen, `drift_reference` and a complete `host`; (F4) `run_metrics` takes a window; (F5) `run.json` carries
 `netem` per stream and an `executor` block that invalidates a run; (F6) the control's per-class clause is a success share of 95 %; `harm_gate.py --block DIR` assesses one block;
 the scenario plan prints the share of the legit requests that is judged. Sections 5.5 and 5.6 above say so where they changed.
+
+### 9.7 Amended by HG1c (2026-10-28)
+
+Replaying the eight S3 runs (docs/HG1C_DESIGN.md, departure 23) showed that a stream of the legit load has a median of 11 requests, so its own slip p99 is its largest slip, and that the pooled p99 of a run is either small (16 to 24 ms) or large (221 to 542 ms) with nothing seen between. The `relative` profile now holds the p99 pooled over the legit requests of the run to `validity.slip_pooled_s` (100 ms; the control's included) in place of each stream's own p99 to `slip_gross_s` (250 ms); the difference to the control (50 ms) and the `strict` profile are as they were. The same replay changed the executor's judgement of the legit starts (departure 22); that is the executor's, not the gate's.

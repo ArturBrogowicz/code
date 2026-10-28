@@ -427,8 +427,8 @@ loss and already exceed the SLOs, so a control that counted them reaches about 8
 `dL` with a floor of 1; the interval and the sign share are `eval/run_level_stats.py`'s. FAIL otherwise. INVALID
 when fewer than ten blocks are valid or the campaign broke the re-run rule: a failed block is re-run once with
 its seed, at most twice in a gate, a valid block never. A block is valid when its runs meet the validity profile
-of the calibration (`relative`, the default: a gross slip ceiling and a difference to the control; `strict`:
-every engine flag clear and slip p99 under 50 ms, computed always), the executor called its runs sound, and its
+of the calibration (`relative`, the default: a ceiling of 100 ms on the slip p99 pooled over the legit requests and a difference to the
+control's of at most 50 ms; `strict`: every engine flag clear and each stream's slip p99 under 50 ms, computed always), the executor called its runs sound, and its
 control is healthy: `Q` at least `control_q_min` and at least 95 % of the requests of every route class within its SLO. The placebo must
 not pass and is reported when it does; HRR, with a block-bootstrap interval, exists only after a PASS.
 
@@ -496,16 +496,18 @@ over a short run leaves some) is not judged for its CPU share: its microseconds 
 the limit (S3).
 
 **The clocks of the streams.** The engine writes no absolute time, so the executor estimates when each stream's schedule began from its
-exit time less its wall time, and `executor.ok` is false when more than 10 % of the legit streams of a group (2 of 29) began outside the
-0.5 s of the others, or one of those stragglers is a stream whose loop ended more than 0.1 s after its last request (`executor.stragglers`
-in `run.json` lists them; their offsets place their records), the attack began more than 0.5 s from the end of the baseline, a stream died,
+exit time less its wall time, and `executor.ok` is false when the pack of a group (the most legit streams that began within 0.5 s of one another)
+is not a majority of it (14 of 29 may be outside it), or one of the streams outside it is one whose loop ended more than 0.1 s after its last request,
+or two streams of a group began more than 2.5 s apart (`executor.stragglers` in `run.json` lists the streams outside the pack; their offsets place
+their records), the attack began more than 0.5 s from the end of the baseline, a stream died,
 left nothing or exited non-zero. The wall time is first raised to the last request's
 `t_done` plus 0.05 s when it is shorter, because an engine that is descheduled between reading its schedule's zero and its wall clock
 (29 streams starting together on one CPU) reports too short a wall time; `executor.wall_gap_s` records the raise of each stream. Against an
 origin's own arrival log on loopback (S1, S1b) the corrected estimate of a legit stream is within -0.03 to 0.06 s; `exit_delay_per_request_s`
 corrects the exit delay of the attack streams, which grows with the request count (about 8 us per request, from three points) and is 0 until
-S4 has measured it. A stream that really begins 2 s before the others now makes a run unsound, and what to do about one is open
-(docs/HG1C_DESIGN.md, section 14). An engine exits when its last request is done, so a stream of a few tenths of a request per
+S4 has measured it. A stream that really begins up to 2.5 s from the others is placed where it began: against the Nginx
+access log its offset is right to 0.07 s at the median (0.21 s at most, 30 streams of 8 S3 runs), and the price is that two runs differ in 2.7 % of
+the legit requests of the attack window at the median, 4.2 % at most (docs/HG1C_DESIGN.md, departure 22). An engine exits when its last request is done, so a stream of a few tenths of a request per
 second ends long before the timeline does; the executor calls a stream dead only if it exits early with a non-zero code or without its summary and
 records.
 
