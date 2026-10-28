@@ -17,6 +17,12 @@ Four subcommands, run in this order:
           to whitespace) or after typographic normalisation (ligatures, curly quotes,
           dashes, line-end hyphenation). Anything else fails.
 
+A profile (--profile FILE, JSON) replaces the pillars, queries, seeds, years and sources
+below for a separate, targeted search; give it its own --corpus so the default corpus is
+left as it was. Europe PMC is a source a profile can name: its open-access articles come
+as publisher XML (JATS), which fetch prefers to a PDF whenever a selected paper has one.
+verify --with-corpus checks a review whose papers come from several corpora.
+
 HTTP uses the standard library only (urllib); PDFs are converted with pdftotext.
 OPENALEX_API_KEY and S2_API_KEY (environment) are used when set; without them both
 services may refuse requests (rate limits), and the search continues with the others.
@@ -165,7 +171,7 @@ TOP_VENUE = re.compile(
     re.I,
 )
 TIER_WEIGHT = {"top": 1.0, "peer-reviewed": 0.6, "preprint": 0.4}
-ABSTRACT_RANK = {"crossref": 0, "arxiv": 1, "semanticscholar": 2, "openalex": 3}  # openalex is rebuilt from an index
+ABSTRACT_RANK = {"crossref": 0, "europepmc": 0, "arxiv": 1, "semanticscholar": 2, "openalex": 3}  # openalex is rebuilt from an index
 ARXIV_ID = re.compile(r"(\d{4}\.\d{4,5}|[a-z\-]+(?:\.[A-Z]{2})?/\d{7})")
 ATOM = {"a": "http://www.w3.org/2005/Atom", "arxiv": "http://arxiv.org/schemas/atom"}
 MONTHS = ["Jan.", "Feb.", "Mar.", "Apr.", "May", "Jun.", "Jul.", "Aug.", "Sep.", "Oct.", "Nov.", "Dec."]
@@ -289,7 +295,7 @@ class Http:
 def record(**fields) -> dict:
     base = dict(title="", year=None, date=None, authors=[], venue="", venue_type="unknown", publisher="",
                 doi=None, arxiv_id=None, url=None, oa_pdf=[], citations=None, abstract=None,
-                abstract_source=None, biblio={}, openalex_id=None, s2_id=None)
+                abstract_source=None, biblio={}, openalex_id=None, s2_id=None, pmcid=None)
     base.update(fields)
     return base
 
@@ -487,6 +493,82 @@ def parse_crossref(items: list[dict]) -> list[dict]:
     return out
 
 
+EUROPEPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest"
+
+
+def search_europepmc(http: Http, terms: list[str], n: int, years: bool = True) -> list[dict]:
+    """Open-access articles with full text in Europe PMC whose title or abstract holds every term."""
+    q = " AND ".join(f'TITLE_ABS:"{t}"' for t in terms) + " AND OPEN_ACCESS:y AND IN_EPMC:y"
+    if years:
+        q += f" AND PUB_YEAR:[{YEAR_MIN} TO {YEAR_MAX}]"
+    url = f"{EUROPEPMC}/search?" + urllib.parse.urlencode(
+        {"query": q, "format": "json", "pageSize": n, "resultType": "core"})
+    return parse_europepmc(http.json(url).get("resultList", {}).get("result", []))
+
+
+def parse_europepmc(results: list[dict]) -> list[dict]:
+    out = []
+    for it in results:
+        info = it.get("journalInfo") or {}
+        pages = (it.get("pageInfo") or "").replace(" ", "")
+        first, _, last = pages.partition("-")
+        doi = (it.get("doi") or "").lower() or None
+        abstract = strip_markup(it.get("abstractText")) or None
+        year = it.get("pubYear")
+        out.append(record(
+            title=strip_markup(it.get("title") or "").rstrip("."),
+            year=int(year) if str(year).isdigit() else None,
+            date=it.get("firstPublicationDate"),
+            authors=[squash(f"{a.get('firstName', '')} {a.get('lastName', '')}") or a.get("fullName", "")
+                     for a in (it.get("authorList") or {}).get("author", [])],
+            venue=((info.get("journal") or {}).get("title") or ""),
+            venue_type="journal" if info else "unknown",
+            doi=doi,
+            url=f"https://doi.org/{doi}" if doi else f"https://europepmc.org/article/PMC/{it.get('pmcid')}",
+            citations=it.get("citedByCount"),
+            abstract=abstract,
+            abstract_source="europepmc" if abstract else None,
+            biblio={k: v for k, v in (("volume", info.get("volume")), ("issue", info.get("issue")),
+                                      ("first_page", first), ("last_page", last)) if v},
+            pmcid=it.get("pmcid") if it.get("isOpenAccess") == "Y" else None,
+        ))
+    return out
+
+
+def europepmc_pmcid(http: Http, doi: str) -> str | None:
+    """PMCID of the open-access full text Europe PMC holds for a DOI, or None."""
+    url = f"{EUROPEPMC}/search?" + urllib.parse.urlencode(
+        {"query": f'DOI:"{doi}" AND OPEN_ACCESS:y AND IN_EPMC:y', "format": "json", "resultType": "lite"})
+    hits = http.json(url).get("resultList", {}).get("result", [])
+    return next((h["pmcid"] for h in hits if h.get("pmcid") and (h.get("doi") or "").lower() == doi.lower()), None)
+
+
+_JATS_LEAF = {"p", "title", "label", "td", "th", "kwd", "article-title"}
+_JATS_SKIP = {"ref-list", "fn-group", "permissions", "funding-group", "contrib-group", "aff",
+              "author-notes", "journal-meta", "history", "pub-date", "counts", "custom-meta-group"}
+
+
+def jats_text(xml_bytes: bytes) -> str:
+    """Plain text of a JATS article: one line per paragraph, cell or title, section titles
+    prefixed with '## ' so a quote's section can be located; references are left out."""
+    lines: list[str] = []
+
+    def walk(el, depth=0):
+        tag = el.tag.split("}")[-1]
+        if tag in _JATS_SKIP:
+            return
+        if tag in _JATS_LEAF:
+            text = squash("".join(el.itertext()))
+            if text:
+                lines.append(("## " if tag in ("title", "article-title") else "") + text)
+            return
+        for child in el:
+            walk(child, depth + 1)
+
+    walk(ET.fromstring(xml_bytes))
+    return "\n".join(lines) + "\n"
+
+
 def lookup_arxiv_title(http: Http, title: str) -> list[dict]:
     words = [w for w in norm_title(title).split() if len(w) > 3][:8]  # skips fragments such as "don ts"
     url = "https://export.arxiv.org/api/query?" + urllib.parse.urlencode(
@@ -605,7 +687,7 @@ def merge(cur: dict, new: dict) -> None:
         for f in ("title", "year", "date", "venue", "venue_type", "publisher", "url", "biblio"):
             if new.get(f):
                 cur[f] = new[f]
-    for f in ("date", "venue", "publisher", "biblio", "arxiv_id", "openalex_id", "s2_id", "url"):
+    for f in ("date", "venue", "publisher", "biblio", "arxiv_id", "openalex_id", "s2_id", "url", "pmcid"):
         if not cur.get(f) and new.get(f):
             cur[f] = new[f]
     if new.get("doi") and (not cur.get("doi") or cur["doi"].startswith("10.48550/")):
@@ -645,9 +727,28 @@ def query_text(terms: list[str]) -> str:
     return " ".join(terms)
 
 
+DEFAULT_SOURCES = ("arxiv", "crossref", "openalex", "semanticscholar")
+SOURCES = DEFAULT_SOURCES
+
+
+def load_profile(path: Path | None) -> None:
+    """Replace the module's protocol (pillars, queries, seeds, years, sources) with a
+    profile's, for a targeted search that is kept apart from the default one."""
+    global PILLARS, QUERIES, SEEDS, YEAR_MIN, YEAR_MAX, SOURCES
+    if path is None:
+        return
+    prof = json.loads(path.read_text(encoding="utf-8"))
+    PILLARS = dict(prof["pillars"])
+    QUERIES = [(pillar, list(terms)) for pillar, terms in prof["queries"]]
+    SEEDS = [tuple(seed) for seed in prof.get("seeds", [])]
+    YEAR_MIN, YEAR_MAX = prof.get("years", [YEAR_MIN, YEAR_MAX])
+    SOURCES = tuple(prof.get("sources", DEFAULT_SOURCES))
+
+
 def cmd_plan(_args) -> int:
     print(f"Years: {YEAR_MIN}-{YEAR_MAX} for keyword queries; seeds are looked up by title with no year filter.\n")
-    print("| Pillar | arXiv query (cs.CR, cs.NI, cs.LG) | Crossref / OpenAlex / Semantic Scholar query |")
+    print(f"Sources: {', '.join(SOURCES)}.\n")
+    print("| Pillar | arXiv query (cs.CR, cs.NI, cs.LG) | Crossref / Europe PMC / OpenAlex / Semantic Scholar query |")
     print("|---|---|---|")
     for pillar, terms in QUERIES:
         arxiv = " AND ".join(f'all:"{t}"' for t in terms)
@@ -664,14 +765,16 @@ def cmd_search(args) -> int:
     http = Http(log)
     corpus = Corpus()
     per_source = collections.Counter()
-    log(f"search: {len(QUERIES)} queries x 4 sources, {len(SEEDS)} seeds, years {YEAR_MIN}-{YEAR_MAX}, "
+    log(f"search: {len(QUERIES)} queries x {len(SOURCES)} sources ({', '.join(SOURCES)}), {len(SEEDS)} seeds, years {YEAR_MIN}-{YEAR_MAX}, "
         f"max {args.max_per_query} per query; log {log.path}")
     sources = [
         ("arxiv", lambda terms: search_arxiv(http, terms, args.max_per_query)),
         ("crossref", lambda terms: search_crossref(http, query_text(terms), args.max_per_query, args.mailto)),
         ("openalex", lambda terms: search_openalex(http, query_text(terms), args.max_per_query, args.mailto)),
         ("semanticscholar", lambda terms: search_s2(http, query_text(terms), args.max_per_query)),
+        ("europepmc", lambda terms: search_europepmc(http, terms, args.max_per_query)),
     ]
+    sources = [(name, run) for name, run in sources if name in SOURCES]
     for pillar, terms in QUERIES:
         label = query_text(terms)
         for name, run in sources:
@@ -795,6 +898,10 @@ def cmd_fetch(args) -> int:
                 if not args.only or s["paper_id"] in args.only]
     man_path = args.corpus / "manifest.json"
     manifest = json.loads(man_path.read_text(encoding="utf-8")) if man_path.exists() else {}
+    if not args.only:
+        # A full fetch rebuilds the manifest for the current screening decisions only.
+        keep = {s["key"] for s in selected}
+        manifest = {k: v for k, v in manifest.items() if k in keep}
     for d in ("abstracts", "fulltext", "pdf"):
         (args.corpus / d).mkdir(parents=True, exist_ok=True)
     missing = 0
@@ -827,6 +934,24 @@ def cmd_fetch(args) -> int:
             except FetchError as e:
                 log(f"{s['paper_id']} {key}: crossref {e}")
         entry["ieee_citation"] = ieee_citation(r, cr)
+        pmcid = r.get("pmcid")
+        if not pmcid and r.get("doi") and not r["doi"].startswith("10.48550/"):
+            try:
+                pmcid = europepmc_pmcid(http, r["doi"])
+            except (FetchError, json.JSONDecodeError) as e:
+                log(f"{s['paper_id']} {key}: europepmc lookup {e}")
+        if pmcid:
+            try:
+                data = http.get(f"{EUROPEPMC}/{pmcid}/fullTextXML", accept="application/xml")
+                text = jats_text(data).encode("utf-8")
+                (args.corpus / "xml").mkdir(parents=True, exist_ok=True)
+                (args.corpus / "xml" / f"{key}.xml").write_bytes(data)
+                (args.corpus / "fulltext" / f"{key}.txt").write_bytes(text)
+                entry["fulltext"] = {"url": f"{EUROPEPMC}/{pmcid}/fullTextXML", "format": "jats-xml",
+                                     "retrieved": now_utc(), "xml_sha256": sha256(data),
+                                     "text_sha256": sha256(text), "pmcid": pmcid}
+            except (FetchError, ET.ParseError) as e:
+                log(f"{s['paper_id']} {key}: europepmc full text {e}")
         if r.get("abstract"):
             data = r["abstract"].encode("utf-8")
             (args.corpus / "abstracts" / f"{key}.txt").write_bytes(data)
@@ -836,7 +961,8 @@ def cmd_fetch(args) -> int:
         crossref_pdfs = [l["URL"] for l in (cr or {}).get("link", []) if l.get("content-type") == "application/pdf"]
         urls = (s.get("pdf_urls", []) + ([f"https://arxiv.org/pdf/{r['arxiv_id']}"] if r.get("arxiv_id") else [])
                 + r["oa_pdf"] + crossref_pdfs)
-        for url in dict.fromkeys(urls):
+        for url in ([] if "fulltext" in entry and entry["fulltext"].get("pmcid") == pmcid and pmcid
+                    else dict.fromkeys(urls)):
             try:
                 data = http.get(url, accept="application/pdf")
             except FetchError as e:
@@ -883,7 +1009,7 @@ def find_quote(quote: str, text: str) -> tuple[str, str] | None:
     windows = [(f"p. {i + 1}", p) for i, p in enumerate(pages)]
     windows += [(f"pp. {i + 1}-{i + 2}", pages[i] + "\n" + pages[i + 1]) for i in range(len(pages) - 1)]
     if "\f" not in text:
-        windows = [("abstract", text)]
+        windows = [("no page breaks", text)]
     q_exact, q_norm = squash(quote), typo_norm(quote)
     for where, chunk in windows:
         if q_exact and q_exact in squash(chunk):
@@ -898,7 +1024,7 @@ def parse_review(path: Path) -> dict[str, list[str]]:
     quotes: dict[str, list[str]] = collections.OrderedDict()
     current = None
     for line in path.read_text(encoding="utf-8").splitlines():
-        m = re.match(r"^###\s+(P\d-\d{2})\b", line)
+        m = re.match(r"^###\s+([A-Z][A-Z0-9]{0,3}-\d{2})\b", line)
         if m:
             current = m.group(1)
             quotes[current] = []
@@ -917,16 +1043,21 @@ def cmd_verify(args) -> int:
         log(f"no review at {args.review}")
         return 2
     quotes = parse_review(args.review)
-    sel_path = args.corpus / "selected.json"
-    selected = json.loads(sel_path.read_text(encoding="utf-8")) if sel_path.exists() else []
-    key_of = {s["paper_id"]: s["key"] for s in selected}
+    key_of: dict[str, tuple[Path, str]] = {}
+    for corpus in [args.corpus, *args.with_corpus]:
+        sel_path = corpus / "selected.json"
+        for sel in json.loads(sel_path.read_text(encoding="utf-8")) if sel_path.exists() else []:
+            if key_of.get(sel["paper_id"], (corpus, sel["key"]))[1] != sel["key"]:
+                log(f"{sel['paper_id']}: FAIL the id names different papers in two corpora")
+                return 1
+            key_of.setdefault(sel["paper_id"], (corpus, sel["key"]))
     failures = 0
     for pid, qs in quotes.items():
-        key = key_of.get(pid)
+        corpus, key = key_of.get(pid, (None, None))
         texts = []
         if key:
             for kind in ("fulltext", "abstracts"):
-                p = args.corpus / kind / f"{key}.txt"
+                p = corpus / kind / f"{key}.txt"
                 if p.exists():
                     texts.append((kind, p.read_text(encoding="utf-8", errors="replace")))
         if not texts:
@@ -960,7 +1091,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--only", nargs="+", metavar="PAPER_ID", help="fetch these papers again (e.g. P3-04)")
     p = sub.add_parser("verify", help="check every review quote against the stored texts")
     p.add_argument("--review", type=Path, default=DEFAULT_REVIEW)
+    p.add_argument("--with-corpus", type=Path, action="append", default=[], metavar="DIR",
+                   help="another corpus whose selected papers the review also quotes (repeatable)")
+    for name in ("plan", "search"):
+        sub.choices[name].add_argument("--profile", type=Path, help="JSON profile replacing the default protocol")
     args = ap.parse_args(argv)
+    load_profile(getattr(args, "profile", None))
     return {"plan": cmd_plan, "search": cmd_search, "fetch": cmd_fetch, "verify": cmd_verify}[args.command](args)
 
 

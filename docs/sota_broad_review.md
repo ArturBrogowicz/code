@@ -9,6 +9,11 @@ Thesis: *Badanie skuteczności i implementacja rozwiązań w obronie przed róż
 > the publisher's page. Every number in the *Empirical Results* fields comes from the stored text.
 > Where the downloadable copy is a preprint rather than the publisher's version, the entry says so.
 > Retrieval limits and the coverage gaps they cause are in §3.
+>
+> **Revision (Phase 2, 2026-10-28).** `merge_datasets.py` and static cross-dataset merging are legacy and no
+> longer part of the system. The applicability notes of P2-04, P3-03, P4-01 and P4-02 were rewritten so that
+> no critique rests on them; quotes and metrics are unchanged. The Phase 2 selection is in
+> `docs/targeted_literature_selection.md`.
 
 ---
 
@@ -226,7 +231,7 @@ access):
   > "All network links are configured with a bandwidth of 1.5 Mbps and a propagation delay of 10 ms."
   > *Location: §IV.B Network-Level Evaluation in NS-3 Simulation — PDF p. 5 of the verified copy*
 - **Applicability to My Implementation**: This is the published design closest to the thesis system: per-flow features computed in the data plane (XDP `flow_map` here, P4 registers there) feeding a GRU in the control plane, trained on CIC data, with an out-of-distribution SYN-flood test. Two transferable ideas:
-  - Compute at runtime only features the data plane can produce, and train on exactly those. This addresses the train/serve skew in `todo.txt` item 4.
+  - Compute at runtime only features the data plane can produce, and train on exactly those. The active pipeline does this: the Tier-1 GRU is trained on `flow_map` features captured in the testbed (`capture_testbed_dataset.py`, `train_testbed_gru.py`).
   - Use a cheap in-kernel first stage with confidence thresholds that escalates only uncertain flows to the GRU, which bounds controller load.
 
   The caveat is in the second quote: the evidence is an NS-3 simulation at 1.5 Mbps, not line rate. It therefore does not contradict the testbed's negative GRU result (L1).
@@ -294,7 +299,7 @@ access):
   >
   > "While our study does not explicitly test real-time performance, the high accuracy and the nature of RNNs suggest potential for real-time application"
   > *Location: §IV.F Discussion — PDF p. 7 of the verified copy*
-- **Applicability to My Implementation**: Included as the representative recurrent-model result, and as a caution. The benign class comes from one dataset and the attack classes from another. P4-02 calls that kind of mixing "incorrect by design", and P3-04 classifies it as sampling bias and spurious correlation. Shuffling windows cut from chunked data also lets temporally adjacent samples leak between training and validation. The repo's `merge_datasets.py` builds its training set the same way (benign flows from `CICFlowMeter.csv`, attack flows from `Syn.csv`). The testbed-captured data (`capture_testbed_dataset.py`, `train_testbed_gru.py`) is the corrective. The paper's GRU (64/32 units, 10-step windows) is no larger than the thesis's 2×64 GRU on 15 steps. Model capacity is therefore not a plausible explanation for the thesis GRU's lack of value; the data are.
+- **Applicability to My Implementation**: Included as the representative recurrent-model result, and as a caution. The benign class comes from one dataset and the attack classes from another. P4-02 calls that kind of mixing "incorrect by design", and P3-04 classifies it as sampling bias and spurious correlation. Shuffling windows cut from chunked data also lets temporally adjacent samples leak between training and validation. The thesis's active pipeline avoids both by construction: benign and attack traffic come from the same testbed runs, and splits are by source IP (`capture_testbed_dataset.py` → `train_testbed_gru.py`; `ml/l7_traffic.py` → `ml/train_l7.py`). The paper's GRU (64/32 units, 10-step windows) is no larger than the thesis's 2×64 GRU on 15 steps. Model capacity is therefore not a plausible explanation for the thesis GRU's lack of value; the data are.
 
 ### P3-04: Dos and Don'ts of Machine Learning in Computer Security
 - **Citation (IEEE Style)**: D. Arp et al., "Dos and Don'ts of Machine Learning in Computer Security," in *Proc. 31st USENIX Security Symposium (USENIX Security 22)*, Aug. 2022, pp. 3971–3988. [Online]. Available: https://www.usenix.org/conference/usenixsecurity22/presentation/arp
@@ -333,7 +338,7 @@ access):
   >
   > "We found that training a ML model on a single publicly available dataset is not sufficient to create a robust NIDS capable of working in different datasets and real-world applications."
   > *Location: §5 Conclusions — PDF p. 15 of the verified copy*
-- **Applicability to My Implementation**: This quantifies the data-drift problem in `todo.txt` item 4 and behind claim L1. A model trained on CIC-IDS2017 flows should be expected to fall towards chance on testbed traffic, which is effectively a new dataset. The few-features result explains how such a model can look near-perfect offline: in this data the labels are separable by dataset-specific constants (e.g. LOIC's packet-length mean is fixed at 140.571429 in LycoS18). The repo's own audit found the same pattern: a single feature (maximum request size) reproduces the GRU's F1, 0.994 against 0.996 (`docs/REPORT.md` §1, item 4). For the thesis: report MCC alongside the current metrics, add a train-on-CIC/test-on-testbed cell, and use the corrected LycoS releases if CIC data stay in the pipeline. Quotes are from the arXiv v1 preprint (see §3), which may differ from the IEEE Access text.
+- **Applicability to My Implementation**: This is the published argument for training on the testbed's own runtime traffic instead of a public dataset. Within-dataset scores do not transfer, so a model trained on CIC-IDS2017 flows should be expected to fall towards chance on testbed traffic, which is effectively a new dataset. The few-features result explains how such a model can look near-perfect offline: in this data the labels are separable by dataset-specific constants (e.g. LOIC's packet-length mean is fixed at 140.571429 in LycoS18). The repo's own audit found the same pattern: a single feature (maximum request size) reproduces the GRU's F1, 0.994 against 0.996 (`docs/REPORT.md` §1, item 4). Owning the data does not remove such artefacts; it lets the author find and remove them, as the L7 track did with the size features. For the thesis: report MCC alongside the current metrics. Quotes are from the arXiv v1 preprint (see §3), which may differ from the IEEE Access text.
 
 ### P4-02: Network Intrusion Datasets: A Survey, Limitations, and Recommendations
 - **Citation (IEEE Style)**: P. Goldschmidt and D. Chudá, "Network intrusion datasets: A survey, limitations, and recommendations," *Computers & Security*, vol. 156, p. 104510, Sep. 2025, doi: 10.1016/j.cose.2025.104510. *(Survey; the one survey allowed in this pillar.)*
@@ -350,7 +355,7 @@ access):
   >
   > "Since their data come from different networks and time periods, their traffic patterns will likely differ. Therefore, combining datasets is incorrect by design since bias would likely be introduced."
   > *Location: §6.3 Using a Dataset — PDF p. 30 of the verified copy*
-- **Applicability to My Implementation**: By this paper's criteria `merge_datasets.py`, which combines benign flows from one source with SYN-flood flows from another, is biased by design. `build_cicids2017_dataset.py` takes the better route (benign and attack traffic from one testbed) but reads the original CIC-IDS2017 CSVs, which carry known labelling errors. A corrected release would remove that objection. The repo's run-level statistics (multiple runs, exact permutation tests, block bootstrap in `eval/run_level_stats.py`) already follow the survey's "once? not enough" advice, which is citable support. Its dataset-creation checklist (objective, scenario design, labelling, validation, publication) can structure the thesis's description of the testbed capture.
+- **Applicability to My Implementation**: The active pipeline follows the survey's central rule: benign and attack traffic are generated in one environment (the namespace testbed) and in the same runs, so there is no cross-source bias to introduce. The survey's other warning still applies: only one dataset in five contains real traffic, and the testbed's traffic is scripted. The repo's run-level statistics (multiple runs, exact permutation tests, block bootstrap in `eval/run_level_stats.py`) already follow the survey's "once? not enough" advice, which is citable support. Its dataset-creation checklist (objective, scenario design, labelling, validation, publication) can structure the thesis's description of the testbed capture.
 
 ### P4-03: MoonGen: A Scriptable High-Speed Packet Generator
 - **Citation (IEEE Style)**: P. Emmerich, S. Gallenmüller, D. Raumer, F. Wohlfart, and G. Carle, "MoonGen: A Scriptable High-Speed Packet Generator," in *Proc. 2015 Internet Measurement Conference (IMC '15)*, Oct. 2015, pp. 275–287, doi: 10.1145/2815675.2815692.

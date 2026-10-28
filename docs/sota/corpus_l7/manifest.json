@@ -1,0 +1,446 @@
+{
+ "tripathi2024delays": {
+  "paper_id": "L7-01",
+  "title": "Delays Have Dangerous Ends: Slow HTTP/2 DoS Attacks Into the Wild and Their Real-Time Detection Using Event Sequence Analysis",
+  "doi": "10.1109/tdsc.2023.3276062",
+  "crossref": {
+   "DOI": "10.1109/tdsc.2023.3276062",
+   "type": "journal-article",
+   "title": [
+    "<i>Delays Have Dangerous Ends:</i>\n                    Slow HTTP/2 DoS Attacks Into the Wild and Their Real-Time Detection Using Event Sequence Analysis"
+   ],
+   "subtitle": [],
+   "container-title": [
+    "IEEE Transactions on Dependable and Secure Computing"
+   ],
+   "volume": "21",
+   "issue": "3",
+   "page": "1244-1256",
+   "publisher": "Institute of Electrical and Electronics Engineers (IEEE)",
+   "issued": {
+    "date-parts": [
+     [
+      2024,
+      5
+     ]
+    ]
+   },
+   "author": [
+    {
+     "ORCID": "https://orcid.org/0000-0001-8944-8044",
+     "authenticated-orcid": false,
+     "given": "Nikhil",
+     "family": "Tripathi",
+     "sequence": "first",
+     "affiliation": [
+      {
+       "name": "Computer Science and Engineering Group, Indian Institute of Information Technology, Sri City, Andhra Pradesh, India"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    }
+   ]
+  },
+  "ieee_citation": "N. Tripathi, \"Delays Have Dangerous Ends: Slow HTTP/2 DoS Attacks Into the Wild and Their Real-Time Detection Using Event Sequence Analysis,\" *IEEE Transactions on Dependable and Secure Computing*, vol. 21, no. 3, pp. 1244–1256, May 2024, doi: 10.1109/tdsc.2023.3276062.",
+  "abstract": {
+   "source": "arxiv",
+   "sha256": "5398a377e821ae8edb896908586dca16219e01b4818f6ee8c653191d46c46d31"
+  },
+  "fulltext": {
+   "url": "https://arxiv.org/pdf/2203.16796",
+   "retrieved": "2026-10-28T12:45:54Z",
+   "pdf_sha256": "a08d3ad46b9e297d8c23084207780251f466c31ef43b731ffd1c1a9119a64ec6",
+   "text_sha256": "1c4f8d528da7c0d677f7053c7e1a64abf1209d81c8a8a1ec606668a99a1e731a",
+   "pages": 11
+  }
+ },
+ "sood2023slowtrack": {
+  "paper_id": "L7-02",
+  "title": "SlowTrack: detecting slow rate Denial of Service attacks against HTTP with behavioral parameters",
+  "doi": "10.1007/s11227-023-05453-3",
+  "crossref": {
+   "DOI": "10.1007/s11227-023-05453-3",
+   "type": "journal-article",
+   "title": [
+    "SlowTrack: detecting slow rate Denial of Service attacks against HTTP with behavioral parameters"
+   ],
+   "subtitle": [],
+   "container-title": [
+    "The Journal of Supercomputing"
+   ],
+   "volume": "80",
+   "issue": "2",
+   "page": "1788-1817",
+   "publisher": "Springer Science and Business Media LLC",
+   "issued": {
+    "date-parts": [
+     [
+      2023,
+      7,
+      24
+     ]
+    ]
+   },
+   "author": [
+    {
+     "given": "Shaurya",
+     "family": "Sood",
+     "sequence": "first",
+     "affiliation": [],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "given": "Neminath",
+     "family": "Hubballi",
+     "sequence": "additional",
+     "affiliation": [],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    }
+   ]
+  },
+  "ieee_citation": "S. Sood and N. Hubballi, \"SlowTrack: detecting slow rate Denial of Service attacks against HTTP with behavioral parameters,\" *The Journal of Supercomputing*, vol. 80, no. 2, pp. 1788–1817, Jul. 2023, doi: 10.1007/s11227-023-05453-3.",
+  "abstract": {
+   "source": "semanticscholar",
+   "sha256": "34ec4ca1c02de6f3ed9c0f51e736064d254b89512e65999fcd636bcb0e26e43e"
+  },
+  "fulltext": {
+   "url": "https://www.researchsquare.com/article/rs-2413168/latest.pdf",
+   "retrieved": "2026-10-28T12:45:56Z",
+   "pdf_sha256": "fa17d0c03b0a290776bfd4bea3430de987824a7ea35cb8c9af7fff8e655ba7b0",
+   "text_sha256": "81e3f32438473f1600f3d861f113e4e215fe244bc48ce10aca21640fbd42a741",
+   "pages": 16
+  }
+ },
+ "sikora2021generator": {
+  "paper_id": "L7-03",
+  "title": "Generator of Slow Denial-of-Service Cyber Attacks",
+  "doi": "10.3390/s21165473",
+  "crossref": {
+   "DOI": "10.3390/s21165473",
+   "type": "journal-article",
+   "title": [
+    "Generator of Slow Denial-of-Service Cyber Attacks"
+   ],
+   "subtitle": [],
+   "container-title": [
+    "Sensors"
+   ],
+   "volume": "21",
+   "issue": "16",
+   "page": "5473",
+   "publisher": "MDPI AG",
+   "issued": {
+    "date-parts": [
+     [
+      2021,
+      8,
+      13
+     ]
+    ]
+   },
+   "author": [
+    {
+     "ORCID": "https://orcid.org/0000-0002-2896-2303",
+     "authenticated-orcid": false,
+     "given": "Marek",
+     "family": "Sikora",
+     "sequence": "first",
+     "affiliation": [
+      {
+       "name": "Department of Telecommunications, Faculty of Electrical Engineering and Communications, Brno University of Technology, Technicka 12, 616 00 Brno, Czech Republic"
+      }
+     ],
+     "role": [
+      {
+       "role": "author",
+       "vocabulary": "crossref"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-8319-0633",
+     "authenticated-orcid": false,
+     "given": "Radek",
+     "family": "Fujdiak",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Department of Telecommunications, Faculty of Electrical Engineering and Communications, Brno University of Technology, Technicka 12, 616 00 Brno, Czech Republic"
+      }
+     ],
+     "role": [
+      {
+       "role": "author",
+       "vocabulary": "crossref"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-5972-9037",
+     "authenticated-orcid": false,
+     "given": "Karel",
+     "family": "Kuchar",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Department of Telecommunications, Faculty of Electrical Engineering and Communications, Brno University of Technology, Technicka 12, 616 00 Brno, Czech Republic"
+      }
+     ],
+     "role": [
+      {
+       "role": "author",
+       "vocabulary": "crossref"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-5584-2948",
+     "authenticated-orcid": false,
+     "given": "Eva",
+     "family": "Holasova",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Department of Telecommunications, Faculty of Electrical Engineering and Communications, Brno University of Technology, Technicka 12, 616 00 Brno, Czech Republic"
+      }
+     ],
+     "role": [
+      {
+       "role": "author",
+       "vocabulary": "crossref"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-5023-7757",
+     "authenticated-orcid": false,
+     "given": "Jiri",
+     "family": "Misurec",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Department of Telecommunications, Faculty of Electrical Engineering and Communications, Brno University of Technology, Technicka 12, 616 00 Brno, Czech Republic"
+      }
+     ],
+     "role": [
+      {
+       "role": "author",
+       "vocabulary": "crossref"
+      }
+     ]
+    }
+   ]
+  },
+  "ieee_citation": "M. Sikora, R. Fujdiak, K. Kuchar, E. Holasova, and J. Misurec, \"Generator of Slow Denial-of-Service Cyber Attacks,\" *Sensors*, vol. 21, no. 16, p. 5473, Aug. 2021, doi: 10.3390/s21165473.",
+  "fulltext": {
+   "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC8401215/fullTextXML",
+   "format": "jats-xml",
+   "retrieved": "2026-10-28T12:46:01Z",
+   "xml_sha256": "6bb4b854c3b6759433631d56cafc468c0755b98dda59c01335a4b8034ed9036f",
+   "text_sha256": "05f2122d6cb67d2f3479c4bca8fb2f63f15a2db8e0ba83bb3d0485f18d7bb5ef",
+   "pmcid": "PMC8401215"
+  },
+  "abstract": {
+   "source": "crossref",
+   "sha256": "0bec6792ac8e5b4bebae105302ab29dcef850fb02601dd333cb2ab639ba4a2ed"
+  }
+ },
+ "almarazrivera2022transport": {
+  "paper_id": "L7-04",
+  "title": "Transport and Application Layer DDoS Attacks Detection to IoT Devices by Using Machine Learning and Deep Learning Models",
+  "doi": "10.3390/s22093367",
+  "crossref": {
+   "DOI": "10.3390/s22093367",
+   "type": "journal-article",
+   "title": [
+    "Transport and Application Layer DDoS Attacks Detection to IoT Devices by Using Machine Learning and Deep Learning Models"
+   ],
+   "subtitle": [],
+   "container-title": [
+    "Sensors"
+   ],
+   "volume": "22",
+   "issue": "9",
+   "page": "3367",
+   "publisher": "MDPI AG",
+   "issued": {
+    "date-parts": [
+     [
+      2022,
+      4,
+      28
+     ]
+    ]
+   },
+   "author": [
+    {
+     "ORCID": "https://orcid.org/0000-0001-8343-4530",
+     "authenticated-orcid": false,
+     "given": "Josue Genaro",
+     "family": "Almaraz-Rivera",
+     "sequence": "first",
+     "affiliation": [
+      {
+       "name": "Tecnologico de Monterrey, School of Engineering and Sciences, Monterrey 64849, Nuevo Leon, Mexico"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0002-7678-5487",
+     "authenticated-orcid": false,
+     "given": "Jesus Arturo",
+     "family": "Perez-Diaz",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Tecnologico de Monterrey, School of Engineering and Sciences, Monterrey 64849, Nuevo Leon, Mexico"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0001-5597-939X",
+     "authenticated-orcid": false,
+     "given": "Jose Antonio",
+     "family": "Cantoral-Ceballos",
+     "sequence": "additional",
+     "affiliation": [
+      {
+       "name": "Tecnologico de Monterrey, School of Engineering and Sciences, Monterrey 64849, Nuevo Leon, Mexico"
+      }
+     ],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    }
+   ]
+  },
+  "ieee_citation": "J. G. Almaraz-Rivera, J. A. Perez-Diaz, and J. A. Cantoral-Ceballos, \"Transport and Application Layer DDoS Attacks Detection to IoT Devices by Using Machine Learning and Deep Learning Models,\" *Sensors*, vol. 22, no. 9, p. 3367, Apr. 2022, doi: 10.3390/s22093367.",
+  "fulltext": {
+   "url": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC9103313/fullTextXML",
+   "format": "jats-xml",
+   "retrieved": "2026-10-28T12:46:02Z",
+   "xml_sha256": "68dad70b607b8a75a22823c4fd104a88780fb42f27e954bcfbc7658e6467c876",
+   "text_sha256": "3b42aa41a4fcd7acaff54e5b587e43b38e3789fd9b3bdb666ecbd08c4e044564",
+   "pmcid": "PMC9103313"
+  },
+  "abstract": {
+   "source": "crossref",
+   "sha256": "930285e59c363a691a9c4e9915af9158619c9e67998eab161ea472959135724f"
+  }
+ },
+ "kostopoulos2026ebpf": {
+  "paper_id": "L7-05",
+  "title": "eBPF-Based Cybersecurity Mechanisms: A Systematic Literature Review",
+  "doi": "10.1007/s10207-026-01326-x",
+  "crossref": {
+   "DOI": "10.1007/s10207-026-01326-x",
+   "type": "journal-article",
+   "title": [
+    "eBPF-based cybersecurity mechanisms: a systematic literature review"
+   ],
+   "subtitle": [],
+   "container-title": [
+    "International Journal of Information Security"
+   ],
+   "volume": "25",
+   "issue": "5",
+   "page": null,
+   "publisher": "Springer Science and Business Media LLC",
+   "issued": {
+    "date-parts": [
+     [
+      2026,
+      8,
+      29
+     ]
+    ]
+   },
+   "author": [
+    {
+     "ORCID": "https://orcid.org/0009-0004-8388-0134",
+     "authenticated-orcid": false,
+     "given": "Stamatios",
+     "family": "Kostopoulos",
+     "sequence": "first",
+     "affiliation": [],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0009-0003-3336-6885",
+     "authenticated-orcid": false,
+     "given": "Panagiotis",
+     "family": "Tsakonas",
+     "sequence": "additional",
+     "affiliation": [],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    },
+    {
+     "ORCID": "https://orcid.org/0000-0003-0959-598X",
+     "authenticated-orcid": false,
+     "given": "Evangelos K.",
+     "family": "Markakis",
+     "sequence": "additional",
+     "affiliation": [],
+     "role": [
+      {
+       "vocabulary": "crossref",
+       "role": "author"
+      }
+     ]
+    }
+   ]
+  },
+  "ieee_citation": "S. Kostopoulos, P. Tsakonas, and E. K. Markakis, \"eBPF-based cybersecurity mechanisms: a systematic literature review,\" *International Journal of Information Security*, vol. 25, no. 5, Aug. 2026, doi: 10.1007/s10207-026-01326-x.",
+  "abstract": {
+   "source": "arxiv",
+   "sha256": "4c4a8cfa2659c805fbd94be586006553363c75aef9416393a3603d54af1814ca"
+  },
+  "fulltext": {
+   "url": "https://arxiv.org/pdf/2608.27511",
+   "retrieved": "2026-10-28T12:46:03Z",
+   "pdf_sha256": "f1ff0f9212cd6156e7ac0ed0847c8ea306c14d49d724fd33be767aee593ae4c5",
+   "text_sha256": "3c6ee9ea8ee9b5ef51b2f0a88256cf6b30e401d7e96ff9d4fd204db1f531f2b3",
+   "pages": 24
+  }
+ }
+}
