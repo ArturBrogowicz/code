@@ -267,8 +267,33 @@ class TimelineTest(RunCase):
         self.assertTrue(result.ok, result.reasons)
         self.assertEqual(len(self.run_json(plan)["executor"]["stragglers"]), 2)
 
+    def test_a_third_of_the_streams_beginning_late_is_a_run_the_pack_still_holds(self):
+        plan, _, result = self.go("C", self.late_host(set(range(7, 17))))             # 10 of 29, 0.8 s late
+        self.assertTrue(result.ok, result.reasons)
+        run = self.run_json(plan)
+        self.assertEqual(len(run["executor"]["stragglers"]), 10)
+        self.assertIn("10 legit stream(s) began outside the pack of the others, by up to 0.8", self.read(plan, "executor.log"))
+        self.assertEqual(sorted(round(s["offset_s"], 1) for s in run["streams"])[-10:], [0.8] * 10)
+
+    def test_without_a_majority_in_one_place_the_run_is_unsound(self):
+        host = F.SimHost(startup_s=lambda sid, index, kind: F.LEGIT_STARTUP_S + (0.0, 0.8, 1.6)[index % 3])      # 10, 10 and 9 streams
+        plan, _, result = self.go("C", host)
+        self.assertFalse(result.ok)
+        self.assertEqual([r for r in result.reasons if "apart" in r],
+                         ["the legit streams began 1.60 s apart (limit 0.5 s; 19 of 29 are outside the pack, at most 14 may be)"])
+        self.assertEqual(len(self.run_json(plan)["executor"]["stragglers"]), 19)
+
+    def test_a_stream_beginning_further_than_the_range_limit_from_the_others_is_placed_and_the_run_is_unsound(self):
+        plan, _, result = self.go("C", self.late_host({7: 2.8}))
+        self.assertFalse(result.ok)
+        self.assertEqual([r for r in result.reasons if "apart" in r],
+                         ["the legit streams began 2.80 s apart, further than the 2.5 s within which a straggler may begin"])
+        run = H.read_run(plan.out)
+        self.assertEqual(len(run["executor"]["stragglers"]), 1)
+        self.assertAlmostEqual(max(s["offset_s"] for s in run["streams"]), 2.8, delta=0.02)
+
     def test_more_stragglers_than_the_share_allows_make_the_run_unsound_and_they_are_still_placed(self):
-        plan, _, result = self.go("C", self.late_host({7, 8, 9}))
+        plan, _, result = self.go("C", self.late_host({7, 8, 9}), plan_args={"settings": {"straggler_share": 0.1}})
         self.assertFalse(result.ok)
         self.assertEqual([r for r in result.reasons if "apart" in r],
                          ["the legit streams began 0.80 s apart (limit 0.5 s; 3 of 29 are outside the pack, at most 2 may be)"])
@@ -989,7 +1014,7 @@ class StagedRunTest(RunCase):
         self.assertAlmostEqual(sum(late) / len(late), 6.8, delta=0.06)
 
     def test_a_step_whose_streams_start_apart_is_unsound_in_its_own_words(self):
-        host = F.SimHost(startup_s=lambda sid, index, kind: 1.8 + (0.02 * (index % 30) if sid.startswith("S02-") else 0.0))
+        host = F.SimHost(startup_s=lambda sid, index, kind: 1.8 + (0.08 * (index % 30) if sid.startswith("S02-") else 0.0))
         _, _, result = self.go_staged(host=host)
         self.assertFalse(result.ok)
         self.assertTrue(any("the legit streams that start at 12 s began" in r and "s apart" in r for r in result.reasons), result.reasons)
@@ -1468,7 +1493,7 @@ class CollectTest(RunCase):
         self.assertAlmostEqual(block["t0_range_legit_s"], 2.0, places=4, msg="all the legit starts")
 
     def test_more_early_engines_than_the_share_allows_make_the_run_unsound(self):
-        plan = self.plan("C")
+        plan = self.plan("C", settings={"straggler_share": 0.1})
         early = {3, 4, 5}
         block, rows, _ = self.collect(plan, self.leave(plan, zero=lambda i: 98.0 if i in early else 100.0))
         self.assertFalse(block["ok"])
@@ -1616,14 +1641,23 @@ class DescheduledEngineTest(RunCase):
 class StragglersAllowedTest(unittest.TestCase):
     def test_it_is_the_whole_number_in_the_share_of_the_group(self):
         for n, share, allowed in ((9, 0.1, 0), (10, 0.1, 1), (19, 0.1, 1), (20, 0.1, 2), (29, 0.1, 2), (30, 0.1, 3), (31, 0.1, 3),
-                                  (29, 0.0, 0), (29, 1.0, 29), (5, 0.5, 2)):
+                                  (29, 0.0, 0), (5, 0.5, 2), (29, 0.4, 11), (29, 0.48, 13)):
+            with self.subTest(streams=n, share=share):
+                self.assertEqual(X.stragglers_allowed(n, share), allowed)
+
+    def test_it_is_never_half_of_the_group_or_more_whatever_the_share(self):
+        """The pack is a majority: the group's zero is then the median of more than half of its streams and not of a tie."""
+        for n, share, allowed in ((29, 0.5, 14), (29, 1.0, 14), (30, 0.5, 14), (30, 1.0, 14), (4, 0.5, 1), (4, 1.0, 1), (3, 0.5, 1),
+                                  (3, 1.0, 1), (2, 0.5, 0), (2, 1.0, 0), (1, 1.0, 0), (0, 1.0, 0), (5, 1.0, 2), (6, 1.0, 2),
+                                  (7, 1.0, 3)):
             with self.subTest(streams=n, share=share):
                 self.assertEqual(X.stragglers_allowed(n, share), allowed)
 
     def test_a_product_a_hair_under_a_whole_number_counts_as_that_number(self):
         self.assertLess(0.29 * 100, 29)
         self.assertEqual(X.stragglers_allowed(100, 0.29), 29)
-        self.assertEqual(X.stragglers_allowed(50, 0.58), 29)
+        self.assertLess(0.35 * 180, 63)
+        self.assertEqual(X.stragglers_allowed(180, 0.35), 63)
 
 
 class StragglerRuleTest(RunCase):
@@ -1651,7 +1685,7 @@ class StragglerRuleTest(RunCase):
         self.assertAlmostEqual(al["offsets"][plan.streams[3].id], -2.0, delta=0.02)
 
     def test_the_number_allowed_is_the_floor_of_the_share_of_the_group(self):
-        base = self.plan("C")
+        base = self.plan("C", settings={"straggler_share": 0.1})
         for n, allowed in ((9, 0), (10, 1), (19, 1), (20, 2), (29, 2)):
             plan = self.trimmed(base, n)
             for count in (allowed, allowed + 1):
@@ -1670,7 +1704,7 @@ class StragglerRuleTest(RunCase):
         self.assertEqual(len(X.alignment(five, self.found(five, early={0, 1, 2, 3, 4, 5}))["reasons"]), 1)
 
     def test_stragglers_on_both_sides_are_counted_together(self):
-        plan = self.plan("C")
+        plan = self.plan("C", settings={"straggler_share": 0.1, "t0_range_limit_s": 10.0})
         self.assertEqual(X.alignment(plan, self.found(plan, early={1}, late={2}))["reasons"], [])
         al = X.alignment(plan, self.found(plan, early={1}, late={2, 3}))
         self.assertEqual(len(al["reasons"]), 1)
@@ -1705,13 +1739,22 @@ class StragglerRuleTest(RunCase):
         self.assertIn(f"legit stream {sid} began -2.01 s from the others and its loop ended 0.50 s after its last request", al["reasons"][0])
 
     def test_when_there_are_too_many_stragglers_the_tails_are_not_asked_about(self):
-        plan = self.plan("C")
+        plan = self.plan("C", settings={"straggler_share": 0.1})
         al = X.alignment(plan, self.found(plan, early={1, 2, 3}), {plan.streams[1].id: 5.0})
         self.assertEqual(len(al["reasons"]), 1)
         self.assertIn("apart", al["reasons"][0])
 
-    def test_the_zero_is_the_median_of_the_pack_not_of_all_the_streams(self):
+    def test_every_straggler_is_asked_about_its_tail_however_many_there_are(self):
         plan = self.plan("C")
+        early = set(range(1, 11))
+        al = X.alignment(plan, self.found(plan, early=early), {plan.streams[4].id: 0.5, plan.streams[5].id: 0.1})
+        self.assertEqual(len(al["stragglers"]), 10)
+        self.assertEqual(len(al["reasons"]), 1, al["reasons"])
+        self.assertIn(f"legit stream {plan.streams[4].id} began", al["reasons"][0])
+        self.assertIn("its loop ended 0.50 s after its last request", al["reasons"][0])
+
+    def test_the_zero_is_the_median_of_the_pack_not_of_all_the_streams(self):
+        plan = self.plan("C", settings={"t0_range_limit_s": 100.0})
         found = {}
         for i, st in enumerate(plan.streams):
             t0 = 90.0 if i < 2 else 100.0 + 0.01 * (i - 2)
@@ -1722,7 +1765,7 @@ class StragglerRuleTest(RunCase):
         self.assertAlmostEqual(al["offsets"][plan.streams[0].id], -10.13)
 
     def test_a_group_that_starts_later_is_judged_by_its_pack(self):
-        plan = self.staged_plan()
+        plan = self.staged_plan(t0_range_limit_s=100.0)
         step = {}
         for st in plan.streams:
             step.setdefault(st.start_s, []).append(st)
@@ -1742,7 +1785,7 @@ class StragglerRuleTest(RunCase):
         self.assertIn("began +0.80 s from their start", al["reasons"][0])
 
     def test_a_later_group_is_judged_by_the_median_of_its_pack_not_of_all_its_streams(self):
-        plan = self.staged_plan()
+        plan = self.staged_plan(t0_range_limit_s=100.0)
         step = {}
         for st in plan.streams:
             step.setdefault(st.start_s, []).append(st)
@@ -1767,7 +1810,7 @@ class StragglerRuleTest(RunCase):
         self.assertIn("began +0.50 s from their start (limit 0.5 s)", al["reasons"][0])
 
     def test_the_stragglers_are_listed_by_id_and_not_by_start(self):
-        plan = self.plan("C")
+        plan = self.plan("C", settings={"t0_range_limit_s": 10.0})
         found = self.found(plan)
         a, b = sorted(st.id for st in plan.streams[5:7])
         found[a] = (found[a][0] - 2.0, *found[a][1:])             # the smaller id began later than the larger one
@@ -1777,10 +1820,93 @@ class StragglerRuleTest(RunCase):
         self.assertEqual([x["id"] for x in al["stragglers"]], [a, b])
         self.assertLess(al["stragglers"][1]["from_pack_s"], al["stragglers"][0]["from_pack_s"])
 
-    def staged_plan(self):
+    def spread(self, plan, offsets, base=100.0):
+        """`found` in which the stream at index i began offsets[i] s after the others (none: with them), whatever that is."""
+        return {st.id: (base + offsets.get(i, 0.0) + 40.0 - X.ENGINE_T0_OFFSET_S + plan.settings["exit_delay_per_request_s"] * 100, 40.0, 100)
+                for i, st in enumerate(plan.streams)}
+
+    def test_up_to_a_minority_of_the_group_may_be_stragglers_by_default(self):
+        plan = self.plan("C")
+        al = X.alignment(plan, self.found(plan, early=set(range(14))))
+        self.assertEqual(al["reasons"], [])
+        self.assertEqual(len(al["stragglers"]), 14)
+
+    def test_the_pack_has_to_be_a_majority_of_the_group(self):
+        plan = self.plan("C", settings={"t0_range_limit_s": 100.0})
+        apart = {i: 0.6 * (i - 13) for i in range(14, 29)}        # 15 streams, each further than the limit from every other one
+        al = X.alignment(plan, self.spread(plan, apart))
+        self.assertEqual(len(al["stragglers"]), 15)
+        self.assertEqual(len(al["reasons"]), 1, al["reasons"])
+        self.assertIn("15 of 29 are outside the pack, at most 14 may be", al["reasons"][0])
+        fewer = {i: 0.6 * (i - 14) for i in range(15, 29)}
+        al = X.alignment(plan, self.spread(plan, fewer))
+        self.assertEqual((len(al["stragglers"]), al["reasons"]), (14, []))
+
+    def test_half_of_a_group_is_not_a_majority(self):
+        plan = self.plan("C", settings={"t0_range_limit_s": 100.0})
+        four = self.trimmed(plan, 4)
+        al = X.alignment(four, self.spread(four, {2: 0.6, 3: 1.2}))
+        self.assertEqual(len(al["reasons"]), 1, al["reasons"])
+        self.assertIn("2 of 4 are outside the pack, at most 1 may be", al["reasons"][0])
+        three = self.trimmed(plan, 3)
+        self.assertEqual(X.alignment(three, self.spread(three, {2: 0.6}))["reasons"], [])
+        two = self.trimmed(plan, 2)
+        self.assertEqual(X.alignment(two, self.spread(two, {1: 0.6}))["reasons"], ["the legit streams began 0.60 s apart (limit 0.5 s)"])
+
+    def test_the_range_of_a_group_is_held_to_the_range_limit_and_its_stragglers_are_still_placed(self):
+        plan = self.plan("C")
+        for early, sound in ((2.4, True), (2.6, False)):
+            with self.subTest(early=early):
+                al = X.alignment(plan, self.spread(plan, {3: -early}))
+                self.assertEqual(al["reasons"] == [], sound, al["reasons"])
+                self.assertEqual([x["id"] for x in al["stragglers"]], [plan.streams[3].id])
+                self.assertAlmostEqual(al["offsets"][plan.streams[3].id], -early, places=6)
+        late = X.alignment(plan, self.spread(plan, {3: 2.6}))
+        self.assertEqual(late["reasons"], ["the legit streams began 2.60 s apart, further than the 2.5 s within which a straggler may begin"])
+
+    def test_a_range_exactly_at_the_limit_is_sound(self):
+        plan = self.plan("C")
+        found = self.spread(plan, {3: -2.0})
+        wide = X.alignment(plan, found)["t0_range_legit_s"]
+        at = self.plan("C", name="at/C", settings={"t0_range_limit_s": wide})
+        self.assertEqual(X.alignment(at, found)["reasons"], [])
+        below = self.plan("C", name="below/C", settings={"t0_range_limit_s": wide - 1e-9})
+        self.assertEqual(len(X.alignment(below, found)["reasons"]), 1)
+
+    def test_the_range_limit_is_the_plans_setting(self):
+        loose = self.plan("C", name="loose/C", settings={"t0_range_limit_s": 3.0})
+        self.assertEqual(X.alignment(loose, self.spread(loose, {3: -2.6}))["reasons"], [])
+        tight = self.plan("C", name="tight/C", settings={"t0_range_limit_s": 1.0})
+        al = X.alignment(tight, self.spread(tight, {3: -1.2}))
+        self.assertEqual(len(al["reasons"]), 1, al["reasons"])
+        self.assertIn("further than the 1 s within which a straggler may begin", al["reasons"][0])
+
+    def test_a_group_can_break_both_limits_and_says_so_twice(self):
+        plan = self.plan("C", settings={"straggler_share": 0.1})
+        al = X.alignment(plan, self.spread(plan, {1: -2.6, 2: -2.6, 3: -2.6}))
+        self.assertEqual(len(al["reasons"]), 2, al["reasons"])
+        self.assertIn("3 of 29 are outside the pack, at most 2 may be", al["reasons"][0])
+        self.assertIn("further than the 2.5 s", al["reasons"][1])
+
+    def test_the_range_limit_is_judged_for_each_group_on_its_own(self):
+        plan = self.staged_plan()
+        step = {}
+        for st in plan.streams:
+            step.setdefault(st.start_s, []).append(st)
+        found = {}
+        for start, streams in step.items():
+            for i, st in enumerate(streams):
+                found[st.id] = (100.0 + start + (-2.6 if (start == 6.0 and i == 0) else 0.0) + 40.0 - X.ENGINE_T0_OFFSET_S, 40.0, 0)
+        self.assertEqual(sorted(step), [0.0, 6.0, 12.0], "the group with the wide range is not the last one")
+        al = X.alignment(plan, found)
+        self.assertEqual(len(al["reasons"]), 1, al["reasons"])
+        self.assertIn("the legit streams that start at 6 s began 2.60 s apart, further than the 2.5 s", al["reasons"][0])
+        self.assertAlmostEqual(al["t0_range_legit_s"], 2.6)
+
+    def staged_plan(self, **settings):
         pop = P.staged("calib", 1, (20.0, 40.0, 80.0), 6.0)
         return X.plan_population(pop, "capacity", "C", 1, os.path.join(self.tmp.name, "s", "C"), self.cal, C.PLACEHOLDER, pop.timeline,
-                                 settings=bare_settings())
+                                 settings=bare_settings(**settings))
 
     def test_the_attack_is_not_judged_by_a_pack(self):
         plan = self.plan("U")
@@ -2328,7 +2454,7 @@ class CommandLineTest(RunCase):
             handler(signal.SIGTERM, None)
 
     def test_an_unsound_run_exits_three(self):
-        host = F.SimHost(startup_s=lambda sid, index, kind: F.LEGIT_STARTUP_S + (0.8 if index in (3, 4, 5) else 0.0))
+        host = F.SimHost(startup_s=lambda sid, index, kind: F.LEGIT_STARTUP_S + (2.8 if index == 3 else 0.0))       # beyond the range limit
         code, _, shown, _ = self.run_main(*self.base(), host=host)
         self.assertEqual(code, X.EXIT_UNSOUND)
         self.assertIn("UNSOUND", shown)

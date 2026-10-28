@@ -69,13 +69,15 @@ ORIGIN_SEED = 1
 KINDS_OF_RUN = {"C": "control", "Cp": "placebo", "U": "attack"}
 READY_PATH = O.SAMPLE_URLS["C0"]          # the origin has no route at "/": it answers 404 there
 # recorded in every plan. The start-up delays and the exit delay per request are what S1 and S1b measured on loopback, without namespaces
-# (docs/HG1C_DESIGN.md 14): S4 measures them again with the real launch chain, and they are frozen after it. A run in which at most
-# `straggler_share` of the legit streams of a group began outside `t0_spread_limit_s` of the others is sound if the engines of those
-# streams ended their loops with their last request (to within `straggler_tail_s`): then the estimate of where they began is as good as
-# the others' and the harm gate places their records by it.
+# (docs/HG1C_DESIGN.md 14): S4 measures them again with the real launch chain, and they are frozen after it. The legit streams of a
+# group are sound when the most of them that began within `t0_spread_limit_s` of one another, the pack, is a majority of the group and
+# at most `straggler_share` of the group began outside it, provided the engines of those stragglers ended their loops with their last
+# request (to within `straggler_tail_s`): then the estimate of where they began is as good as the others' and the harm gate places
+# their records by it. No two streams of a group may begin further apart than `t0_range_limit_s`: a stream placed right still has
+# its attack-window requests from another part of its schedule than a stream that began with the others (docs/HG1C_DESIGN.md 22).
 SETTINGS = {"startup_delay_legit_s": 2.5, "startup_delay_attack_s": 0.15, "readiness_timeout_s": 30.0,
-            "warmup_requests": 2, "t0_spread_limit_s": 0.5, "attack_start_limit_s": 0.5, "term_grace_s": 2.0,
-            "min_nofile": 16384, "exit_delay_per_request_s": 8e-6, "straggler_share": 0.1, "straggler_tail_s": 0.1}
+            "warmup_requests": 2, "t0_spread_limit_s": 0.5, "t0_range_limit_s": 2.5, "attack_start_limit_s": 0.5, "term_grace_s": 2.0,
+            "min_nofile": 16384, "exit_delay_per_request_s": 8e-6, "straggler_share": 0.5, "straggler_tail_s": 0.1}
 
 
 class PlanError(ValueError):
@@ -1173,9 +1175,10 @@ def pack_of(times, limit):
 
 
 def stragglers_allowed(n, share):
-    """How many of the `n` legit streams of a group may be stragglers: the whole number in `share` of them. (A product such as
-    0.29 x 100 is a hair under 29 in floating point, hence the tolerance.)"""
-    return int(n * share + 1e-9)
+    """How many of the `n` legit streams of a group may be stragglers: the whole number in `share` of them, and fewer than half of
+    the group whatever the share, so that the pack is a majority and the group's zero is the median of more than half of its
+    streams and not of a tie. (A product such as 0.29 x 100 is a hair under 29 in floating point, hence the tolerance.)"""
+    return max(0, min(int(n * share + 1e-9), (n - 1) // 2))
 
 
 def alignment(plan, found, tails=None):
@@ -1183,9 +1186,10 @@ def alignment(plan, found, tails=None):
     consistent_wall holds it to the records (collect does that); `tails` maps a stream id to how long its loop outlived its last
     request. Streams that start together (a kind and a `start_s`) are a group. Of the legit streams of a group the pack is the most
     that began within the limit of one another; the others are stragglers. The axis begins where the first group's pack does (its
-    zero is the pack's median start). A group is sound when at most `straggler_share` of its streams are stragglers and each of them
-    has a tail of at most `straggler_tail_s` (its engine ended its loop with its last request, so the estimate of its start is as
-    good as the pack's, and the harm gate places its records by its own offset), and, unless it is the first group, when the pack's
+    zero is the pack's median start). A group is sound when the pack is a majority of its streams (stragglers_allowed) and at most
+    `straggler_share` of them are stragglers, each with a tail of at most `straggler_tail_s` (its engine ended its loop with its last
+    request, so the estimate of its start is as good as the pack's, and the harm gate places its records by its own offset), when no
+    two of its streams began further apart than `t0_range_limit_s`, and, unless it is the first group, when the pack's
     median start is within the limit of where the plan puts it: the steps of a staged load at their times. The attack is sound when
     its median start is within the limit of the end of the baseline. Returns the offsets of the streams from the zero, the spread of
     the packs and the range of all the legit starts, the stragglers, the error of the attack's start, and the reasons for which the
@@ -1197,7 +1201,8 @@ def alignment(plan, found, tails=None):
         return {"offsets": {}, "t0_spread_legit_s": None, "t0_range_legit_s": None, "stragglers": [], "attack_start_error_s": None,
                 "reasons": ["no legit stream reported"], "zero": None}
     tails = tails or {}
-    spread_limit, start_limit = plan.settings["t0_spread_limit_s"], plan.settings["attack_start_limit_s"]
+    spread_limit, range_limit = plan.settings["t0_spread_limit_s"], plan.settings["t0_range_limit_s"]
+    start_limit = plan.settings["attack_start_limit_s"]
     share, tail_limit = plan.settings["straggler_share"], plan.settings["straggler_tail_s"]
     groups = collections.defaultdict(dict)
     for x in plan.streams:
@@ -1219,6 +1224,9 @@ def alignment(plan, found, tails=None):
             if len(out) > allowed:
                 reasons.append(f"the legit streams{where} began {ranges[-1]:.2f} s apart (limit {spread_limit:g} s"
                                + (f"; {len(out)} of {len(times)} are outside the pack, at most {allowed} may be)" if allowed else ")"))
+            if ranges[-1] > range_limit:
+                reasons.append(f"the legit streams{where} began {ranges[-1]:.2f} s apart, further than the {range_limit:g} s within which "
+                               f"a straggler may begin")
             for sid in sorted(out):
                 tail = tails.get(sid, 0.0)
                 stragglers.append({"id": sid, "offset_s": round(times[sid] - zero, 4), "from_pack_s": round(times[sid] - median, 4),

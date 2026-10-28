@@ -356,9 +356,9 @@ class RerunRuleTest(CampaignCase):
     def test_an_unsound_run_ends_its_attempt_and_the_block_is_re_run(self):
         started = []
 
-        def startup(sid, index, kind):                   # the 8th to 10th streams the campaign starts are 0.9 s late, in its first run only
+        def startup(sid, index, kind):                   # the 8th stream the campaign starts is 2.8 s late (beyond the range limit), in its first run only
             started.append(sid)
-            return (S.LEGIT_STARTUP_S if kind == "legit" else S.ATTACK_STARTUP_S) + (0.9 if len(started) in (8, 9, 10) else 0.0)
+            return (S.LEGIT_STARTUP_S if kind == "legit" else S.ATTACK_STARTUP_S) + (2.8 if len(started) == 8 else 0.0)
         state = self.run_campaign(host=self.host(startup_s=startup))
         first = self.json("b01_a1", "block.json")
         self.assertEqual(len(first["order"]), 1, "the first run was made and found unsound; the others were not made")
