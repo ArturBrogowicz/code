@@ -167,6 +167,24 @@ class StackCostTest(unittest.TestCase):
         self.assertGreater(first["origin_ms_per_request"], 0.0)
         self.assertEqual(first["requests"], K.read_json(os.path.join(tmp.name, "capacity", "capacity.json"))["stack_cost"][0]["requests"])
 
+    def test_the_capacity_step_reads_each_repeat_from_the_start_up_delay_of_its_plan(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        host = S.SimHost(server=S.SyntheticServer(TEMPLATE, (30, 45, 30), capacity_cpu=1.1))
+        real, delays = K.stack_cost, []
+
+        def spy(rows, steps, step_s, delay):
+            delays.append(delay)
+            return real(rows, steps, step_s, delay)
+        with mock.patch.object(K, "stack_cost", spy):
+            K.capacity_step(K.Runner(host), TEMPLATE, C.PLACEHOLDER, tmp.name, [80.0, 160.0, 240.0, 320.0, 400.0, 480.0], 10.0, 2,
+                            lambda m: None)
+        self.assertEqual(delays, [X.SETTINGS["startup_delay_legit_s"]] * 2)
+        with mock.patch.object(K, "stack_cost", spy):
+            K.capacity_step(K.Runner(host, settings={"startup_delay_legit_s": 3.3}), TEMPLATE, C.PLACEHOLDER, os.path.join(tmp.name, "again"),
+                            [80.0, 160.0, 240.0, 320.0, 400.0, 480.0], 10.0, 2, lambda m: None)
+        self.assertEqual(delays[2:], [3.3, 3.3], "the plan's own setting, which a smoke test can override")
+
 
 class StagedLimitsTest(unittest.TestCase):
     """The probe reads each step over 5 to 17 s of its 20 s, so a group that begins up to 3 s from its plan, or spread over 3 s, is read

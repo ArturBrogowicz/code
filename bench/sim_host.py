@@ -34,8 +34,8 @@ import origin as O
 import population as P
 
 BASE_EPOCH = 1_798_000_000.0              # the virtual clock's wall time at its zero
-# what S1 and S1b measured on loopback (docs/HG1C_DESIGN.md 14), which the executor's settings are chosen to match
-LEGIT_STARTUP_S = 2.4                     # a legit engine's loop begins this long after its launch when 29 are launched at once on one CPU
+# what S1 and S1b measured on loopback and S4 with the real launch chain (docs/HG1C_DESIGN.md 14, 25), which the executor's settings cover
+LEGIT_STARTUP_S = 2.8                     # a legit engine's loop begins this long after its launch when 29 are launched at once on one CPU
 ATTACK_STARTUP_S = 0.14                   # an attack engine's, on CPUs of its own
 EXIT_DELAY_PER_REQUEST_S = 8e-6           # an engine exits this much later for each request it sent
 NGINX_FORK_S = 0.05                       # the launcher of the Nginx daemon returns this long after the daemon has forked

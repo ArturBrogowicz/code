@@ -182,7 +182,7 @@ class MeasuredTest(unittest.TestCase):
     def test_the_start_ups_are_within_what_the_settings_cover(self):
         self.assertAlmostEqual(S.LEGIT_STARTUP_S, X.SETTINGS["startup_delay_legit_s"], delta=0.15)
         self.assertAlmostEqual(S.ATTACK_STARTUP_S, X.SETTINGS["startup_delay_attack_s"], delta=0.05)
-        self.assertLess(S.LEGIT_STARTUP_S, X.SETTINGS["startup_delay_legit_s"], "the settings cover the slowest of S1b's, 2.55 s")
+        self.assertLess(S.LEGIT_STARTUP_S, X.SETTINGS["startup_delay_legit_s"], "the settings cover the slowest of S1b's, 2.55 s, and S4's 2.8 s")
 
 
 class StreamExitTest(unittest.TestCase):

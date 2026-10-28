@@ -68,8 +68,11 @@ GUNICORN = {"workers": 2, "threads": 8, "bind": "127.0.0.1:8080", "app": "origin
 ORIGIN_SEED = 1
 KINDS_OF_RUN = {"C": "control", "Cp": "placebo", "U": "attack"}
 READY_PATH = O.SAMPLE_URLS["C0"]          # the origin has no route at "/": it answers 404 there
-# recorded in every plan. The start-up delays and the exit delay per request are what S1 and S1b measured on loopback, without namespaces
-# (docs/HG1C_DESIGN.md 14): S4 measures them again with the real launch chain, and they are frozen after it. The legit streams of a
+# recorded in every plan. The attack's start-up delay and the exit delay per request are what S1 and S1b measured on loopback, without
+# namespaces (docs/HG1C_DESIGN.md 14). The legit start-up delay is S4's, with the real launch chain: the attack began 0.32 s early on 2.5 s,
+# so the legit loops began about 2.8 s after their launch (taking the attack's 0.15 s as known), and the setting is 2.9 s
+# (docs/HG1C_DESIGN.md 25). A legit stream's own launch does not depend on it (`launch_due`); the attack's launch, the stack-cost
+# telemetry offset and the deadline do. The legit streams of a
 # group are sound when the most of them that began within `t0_spread_limit_s` of one another, the pack, is a majority of the group and
 # at most `straggler_share` of the group began outside it, provided the engines of those stragglers ended their loops with their last
 # request (to within `straggler_tail_s`): then the estimate of where they began is as good as the others' and the harm gate places
@@ -78,7 +81,7 @@ READY_PATH = O.SAMPLE_URLS["C0"]          # the origin has no route at "/": it a
 # The pack of a group after the first begins within `group_start_limit_s` of where the plan puts it, the attack within
 # `attack_start_limit_s` of the end of the baseline. A staged load that is read over the middle of each step is judged at its own
 # limits (bench/calibrate.py `staged_limits`, docs/HG1C_DESIGN.md 24).
-SETTINGS = {"startup_delay_legit_s": 2.5, "startup_delay_attack_s": 0.15, "readiness_timeout_s": 30.0,
+SETTINGS = {"startup_delay_legit_s": 2.9, "startup_delay_attack_s": 0.15, "readiness_timeout_s": 30.0,
             "warmup_requests": 2, "t0_spread_limit_s": 0.5, "t0_range_limit_s": 2.5, "attack_start_limit_s": 0.5,
             "group_start_limit_s": 0.5, "term_grace_s": 2.0,
             "min_nofile": 16384, "exit_delay_per_request_s": 8e-6, "straggler_share": 0.5, "straggler_tail_s": 0.1}

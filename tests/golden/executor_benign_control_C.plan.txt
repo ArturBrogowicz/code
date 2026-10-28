@@ -2,11 +2,11 @@
 calibration   sha256:ac4e3156 PLACEHOLDER: illustrative numbers, not measurements; nothing below is a result
 scenario      sha256:025628ed, no attack in this run
 run directory /var/tmp/ddos_campaigns/example/b01_a1/C
-timeline      the 29 legit streams are launched at L; their loops start about 2.5 s later, which is T = 0, and run 105 s
+timeline      the 29 legit streams are launched at L; their loops start about 2.9 s later, which is T = 0, and run 105 s
 plan hash     1054ec8289c0 (the legit streams: equal in C, Cp and U of a block)
 timer gate    refused if the timer on CPU 6 has p99 of 10 ms or more (the calibration's validity.timer_p99_ms)
 nginx.conf    sha256:d84fd57c34ce (nginx_unprotected.conf with its two log paths changed)
-settings      startup_delay_legit_s 2.5, startup_delay_attack_s 0.15, readiness_timeout_s 30.0, warmup_requests 2, t0_spread_limit_s 0.5, t0_range_limit_s 2.5, attack_start_limit_s 0.5, group_start_limit_s 0.5, term_grace_s 2.0, min_nofile 16384, exit_delay_per_request_s 8e-06, straggler_share 0.5, straggler_tail_s 0.1
+settings      startup_delay_legit_s 2.9, startup_delay_attack_s 0.15, readiness_timeout_s 30.0, warmup_requests 2, t0_spread_limit_s 0.5, t0_range_limit_s 2.5, attack_start_limit_s 0.5, group_start_limit_s 0.5, term_grace_s 2.0, min_nofile 16384, exit_delay_per_request_s 8e-06, straggler_share 0.5, straggler_tail_s 0.1
 
 topology: 4 client namespaces carrying 200 addresses
       hg_0_perfect       perfect       78 addresses, first 10.0.1.2, veth vo_hg_0_perfect

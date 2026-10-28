@@ -203,17 +203,17 @@ class TimelineTest(RunCase):
         legit = host.launch_times["L-poisson-C0-perfect-0"]
         attack = host.launch_times["A-costly_search_flood-perfect-0"]
         self.assertAlmostEqual(attack - legit, X.launch_attack_after(plan), delta=0.011)
-        self.assertAlmostEqual(X.launch_attack_after(plan), 10.0 + 2.5 - 0.15)
+        self.assertAlmostEqual(X.launch_attack_after(plan), 10.0 + 2.9 - 0.15)
 
     def test_the_attack_streams_sit_at_the_baseline_on_the_runs_axis(self):
         plan, _, _ = self.go("U")
         run = self.run_json(plan)
         offsets = {s["kind"]: s["offset_s"] for s in run["streams"]}
-        # the simulated engines start as S1 and S1b measured them (2.4 s and 0.14 s), the settings are 2.5 s and 0.15 s: 0.07 s apart
+        # the simulated engines start as S4 and S1b measured them (2.8 s and 0.14 s), the settings are 2.9 s and 0.15 s: 0.07 s apart
         self.assertAlmostEqual(offsets["attack"], 10.0, delta=0.1)
         self.assertAlmostEqual(offsets["legit"], 0.0, delta=0.1)
         self.assertLess(abs(run["executor"]["attack_start_error_s"]), 0.1)
-        self.assertAlmostEqual(run["executor"]["launch_attack_after_s"], 12.35)
+        self.assertAlmostEqual(run["executor"]["launch_attack_after_s"], 12.75)
 
     def test_a_control_run_launches_no_attack_stream(self):
         plan, host, _ = self.go("C")
@@ -398,7 +398,7 @@ class TimelineTest(RunCase):
         # the executor looks once a second from the launch: it sees an exit at the first look at or after it
         seen = {stream_of(p): math.ceil(p.exit_time - F.BASE_EPOCH - base.launch_times[stream_of(p)]) for p in base.procs.values()
                 if p.role == "stream"}
-        end = 1.8 + 30.0
+        end = X.SETTINGS["startup_delay_legit_s"] + 30.0                 # where the executor puts a legit stream's end: its start-up and its duration
         near = sorted(sid for sid, look in seen.items() if end - X.EARLY_SLACK_S <= look < end)
         self.assertTrue(near, f"some stream is first seen to have exited within {X.EARLY_SLACK_S:g} s of its end: {sorted(seen.values())}")
         host = F.SimHost(nonzero=lambda sid: sid == near[0])
@@ -429,6 +429,18 @@ class TimelineTest(RunCase):
         self.assertFalse(result.ok)
         self.assertTrue(any("still running" in r for r in result.reasons), result.reasons)
         self.assertTestbedEmpty(host)
+
+    def test_the_deadline_is_the_start_up_the_timeline_the_drain_and_the_waits_after_the_launch(self):
+        host = F.SimHost(faults={"stream_hangs": 1})
+        plan, _, result = self.go("C", host)
+        s = plan.settings
+        deadline = s["startup_delay_legit_s"] + plan.timeline["total_s"] + X.DRAIN_S + s["term_grace_s"] + 10.0
+        said = [r for r in result.reasons if "still running" in r]
+        self.assertEqual(len(said), 1, result.reasons)
+        gave_up = int(said[0].split("still running ")[1].split(" s after the launch")[0])
+        # the executor looks once a tick and gives up at the first look after the deadline; the reason rounds that to a second
+        self.assertGreaterEqual(gave_up, round(deadline), said)
+        self.assertLessEqual(gave_up, deadline + X.TICK_S + 0.5, said)
 
     def test_ctrl_c_during_the_timeline_takes_the_testbed_down_and_says_so(self):
         def interrupt(host):
