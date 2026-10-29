@@ -1495,7 +1495,9 @@ def collect(plan, procs, launched, problems):
     stream rows of run.json, the zero of the axis). A run in which no legit stream left an output raises RunFailed:
     there is nothing to judge. Each stream's wall time is held to its records (consistent_wall) before its start is estimated;
     the block says by how much each was raised (`wall_gap_s`), how far the legit starts range (`t0_range_legit_s`) against how
-    far the pack's do (`t0_spread_legit_s`), and which streams began outside the pack (`stragglers`)."""
+    far the pack's do (`t0_spread_legit_s`), and which streams began outside the pack (`stragglers`). It keeps the exit stamp each
+    start was estimated from (`exit_epoch_s`, seconds on the executor's clock, to the millisecond): with the time an engine last
+    wrote its summary it says how long the exit took, which the offsets cannot (docs/HG1C_DESIGN.md 26)."""
     found, streams, reasons, gaps, tails = {}, [], list(problems), {}, {}
     for s in plan.streams:
         p = procs.get(s.id)
@@ -1532,6 +1534,7 @@ def collect(plan, procs, launched, problems):
              "t0_range_legit_s": al["t0_range_legit_s"], "stragglers": al["stragglers"],
              "attack_start_error_s": al["attack_start_error_s"], "estimator": "exit-minus-consistent-wall",
              "wall_gap_s": {sid: gaps[sid] for sid in sorted(gaps)},
+             "exit_epoch_s": {sid: round(found[sid][0], 3) for sid in sorted(found)},
              "launch_attack_after_s": launch_attack_after(plan) if "attack" in launched else None}
     rows = [{"id": s.id, "kind": s.kind, "route_class": s.route_class, "netem": s.netem,
              "summary": os.path.relpath(s.summary, plan.out), "records": os.path.relpath(s.records, plan.out),

@@ -196,6 +196,56 @@ class ContractTest(RunCase):
             self.go("C")
 
 
+class ExitStampTest(RunCase):
+    """The executor block keeps the exit stamp of each stream, the moment its process was reaped, which its start was estimated from
+    (docs/HG1C_DESIGN.md 26). With the time the engine's summary was last written it says how long an exit took, which S4 and HG2a
+    could not tell."""
+
+    def stamps(self, plan):
+        return self.run_json(plan)["executor"]["exit_epoch_s"]
+
+    def test_every_stream_that_reported_has_a_stamp_and_no_other_has(self):
+        plan, _, _ = self.go("U")
+        run = self.run_json(plan)
+        self.assertTrue(any(s["kind"] == "attack" for s in run["streams"]), "the attack's streams have one too")
+        self.assertEqual(sorted(self.stamps(plan)), sorted(s["id"] for s in run["streams"]))
+        plan, _, result = self.go("C", F.SimHost(faults={"stream_silent": 1}), plan_args={"name": "silent/C"})
+        self.assertFalse(result.ok)
+        run = self.run_json(plan)
+        self.assertEqual(len(run["streams"]), 28)
+        self.assertEqual(sorted(self.stamps(plan)), sorted(s["id"] for s in run["streams"]), "a stream that left nothing has none")
+
+    def test_a_stamp_is_the_moment_the_process_exited_to_the_millisecond(self):
+        plan, host, _ = self.go("U")
+        stamps = self.stamps(plan)
+        exits = {stream_of(p): p.exit_time for p in host.procs.values() if p.role == "stream"}
+        self.assertEqual(sorted(stamps), sorted(exits))
+        for sid, t in stamps.items():
+            self.assertAlmostEqual(t, exits[sid], delta=0.0006, msg=sid)
+            self.assertEqual(t, round(t, 3), sid)
+
+    def test_the_stamps_are_what_the_offsets_were_made_from(self):
+        plan, _, _ = self.go("U")
+        run = self.run_json(plan)
+        stamps, per = self.stamps(plan), plan.settings["exit_delay_per_request_s"]
+        t0 = {}
+        for s in run["streams"]:
+            with open(os.path.join(plan.out, s["summary"]), encoding="utf-8") as fh:
+                summary = json.load(fh)
+            wall = X.consistent_wall(summary["wall_s"], X.last_done(os.path.join(plan.out, s["records"])))
+            t0[s["id"]] = X.estimate_t0(stamps[s["id"]], wall, summary["intended"], per)
+        offset = {s["id"]: s["offset_s"] for s in run["streams"]}
+        first = min(t0)
+        self.assertGreater(max(abs(offset[sid] - offset[first]) for sid in t0), 5.0, "the attack's offset is the baseline apart")
+        for sid, start in t0.items():
+            self.assertAlmostEqual(start - t0[first], offset[sid] - offset[first], delta=0.002, msg=sid)
+
+    def test_the_harm_gate_reads_a_run_that_has_them(self):
+        plan, _, _ = self.go("C")
+        self.assertIn("exit_epoch_s", self.run_json(plan)["executor"])
+        self.assertIn("exit_epoch_s", H.read_run(plan.out)["executor"])
+
+
 class TimelineTest(RunCase):
     def test_the_attack_streams_are_launched_so_that_their_loops_start_at_the_end_of_the_baseline(self):
         plan, host, result = self.go("U")
@@ -997,6 +1047,15 @@ class StagedRunTest(RunCase):
         self.assertEqual(self.read(plan, "executor.log").count("launched 29 legit streams"), 3)
         self.assertEqual(self.run_json(plan)["started_utc"], X._utc(F.BASE_EPOCH + first), "the run began with its first step")
         self.assertTestbedEmpty(host)
+
+    def test_every_step_keeps_the_exit_stamps_of_its_streams_in_the_order_of_the_steps(self):
+        plan, _, result = self.go_staged()
+        self.assertTrue(result.ok, result.reasons)
+        stamps = self.run_json(plan)["executor"]["exit_epoch_s"]
+        self.assertEqual(len(stamps), 3 * 29)
+        earliest = [min(t for sid, t in stamps.items() if self.step_of(sid) == k) for k in range(3)]
+        self.assertLess(earliest[0], earliest[1])
+        self.assertLess(earliest[1], earliest[2])
 
     def test_the_streams_are_placed_at_their_step_on_the_runs_axis(self):
         plan, _, _ = self.go_staged()
