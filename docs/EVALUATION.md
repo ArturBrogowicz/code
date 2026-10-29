@@ -502,7 +502,8 @@ or two streams of a group began more than 2.5 s apart (`executor.stragglers` in 
 their records), the attack began more than 0.5 s from the end of the baseline, a stream died,
 left nothing or exited non-zero. The wall time is first raised to the last request's
 `t_done` plus 0.05 s when it is shorter, because an engine that is descheduled between reading its schedule's zero and its wall clock
-(29 streams starting together on one CPU) reports too short a wall time; `executor.wall_gap_s` records the raise of each stream. Against an
+(29 streams starting together on one CPU) reports too short a wall time; `executor.wall_gap_s` records the raise of each stream. `executor.exit_epoch_s` keeps the exit stamp each start was made from, to the millisecond, so that the time
+an engine took to exit can be read against the time its summary was written (docs/HG1C_DESIGN.md, departure 26). Against an
 origin's own arrival log on loopback (S1, S1b) the corrected estimate of a legit stream is within -0.03 to 0.06 s; `exit_delay_per_request_s`
 corrects the exit delay of the attack streams, which grows with the request count (about 8 us per request, from three points) and is 0 until
 S4 has measured it. A stream that really begins up to 2.5 s from the others is placed where it began: against the Nginx
