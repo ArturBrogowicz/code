@@ -96,9 +96,45 @@ def origin_spread(sessions):
     return out
 
 
+def origin_widest(sessions, spread):
+    """Where the sessions of a round disagree most: the route with the widest spread, the number (from 1) of the session furthest
+    from that route's median, its cost and the median, in ms."""
+    klass = max(spread, key=spread.get)
+    values = [s[klass] for s in sessions]
+    med = statistics.median(values)
+    which = max(range(len(values)), key=lambda i: abs(values[i] - med))
+    return klass, which + 1, values[which], med
+
+
+def origin_round(sessions):
+    """A round as the record keeps it: the sessions' medians, the spread of each route and where the sessions disagree most."""
+    spread = origin_spread(sessions)
+    klass, number, cost, med = origin_widest(sessions, spread)
+    return {"sessions": sessions, "spread": spread, "widest": {"route": klass, "session": number, "cost_ms": cost, "median_ms": med}}
+
+
+def origin_said(rnd):
+    w = rnd["widest"]
+    return f"{w['route']}, session {w['session']} measured {w['cost_ms']:.4g} ms against a median of {w['median_ms']:.4g} ms"
+
+
 def combine_origin(sessions):
     """The median of the sessions' medians, per route."""
     return {klass: statistics.median([s[klass] for s in sessions]) for klass in sessions[0]}
+
+
+def save_stopped_origin(out, cal, rounds, partial, reason):
+    """What a stopped origin step measured, which would otherwise be lost with the exception: the rounds made and the sessions of
+    the round it was in. It goes beside where origin.json would be, under the first free number so that a second stop does not
+    replace the first, and origin.json itself is never written for a stop (docs/HG1C_DESIGN.md 27)."""
+    n = 1
+    while os.path.exists(os.path.join(out, "origin", f"stopped_{n}.json")):
+        n += 1
+    path = os.path.join(out, "origin", f"stopped_{n}.json")
+    write_json(path, {"step": "origin", "stopped": reason, "created_utc": now(), "rounds": rounds, "partial_sessions": partial,
+                      "sessions": ORIGIN_SESSIONS, "repeats": ORIGIN_REPEATS, "cpu": ORIGIN_CPU,
+                      "template_sha256": cal.get("sha256") or C.digest(cal)})
+    return path
 
 
 def origin_session(cal, repeats=ORIGIN_REPEATS):
@@ -114,7 +150,8 @@ def origin_session(cal, repeats=ORIGIN_REPEATS):
 def origin_step(host, cal, cal_path, out, say=print):
     """Three sessions, each its own process pinned to CPU 0, and their median. If any route's medians are further apart than
     10 % the three sessions are made once more and only the second round counts; if they are still, the host's timing is not
-    stable enough to calibrate on."""
+    stable enough to calibrate on. A round says which route and which session disagreed most, and a step that stops keeps the
+    sessions it measured in `origin/stopped_N.json` (never in origin.json)."""
     rounds = []
     for number in (1, 2):
         sessions = []
@@ -124,15 +161,20 @@ def origin_step(host, cal, cal_path, out, say=print):
             try:
                 sessions.append({k: float(v) for k, v in json.loads(r.out).items()})
             except (ValueError, AttributeError) as exc:
-                raise CalibrationStop(f"an origin session gave nothing readable (exit {r.code}): {(r.err or r.out)[:200]}") from exc
-        spread = origin_spread(sessions)
-        rounds.append({"sessions": sessions, "spread": spread})
-        say(f"origin round {number}: widest spread {max(spread.values()):.1%} (limit {ORIGIN_SPREAD:.0%})")
-        if max(spread.values()) <= ORIGIN_SPREAD:
+                reason = f"an origin session gave nothing readable (exit {r.code}): {(r.err or r.out)[:200]}"
+                path = save_stopped_origin(out, cal, rounds, sessions, reason)
+                raise CalibrationStop(f"{reason} (the sessions read so far are in {path})") from exc
+        rnd = origin_round(sessions)
+        rounds.append(rnd)
+        say(f"origin round {number}: widest spread {max(rnd['spread'].values()):.1%} (limit {ORIGIN_SPREAD:.0%}), {origin_said(rnd)}")
+        if max(rnd["spread"].values()) <= ORIGIN_SPREAD:
             break
     else:
-        raise CalibrationStop(f"the unloaded cost of the routes differs by more than {ORIGIN_SPREAD:.0%} between sessions, twice: "
-                              "the host's timing is not stable enough to calibrate on")
+        reason = (f"the unloaded cost of the routes differs by more than {ORIGIN_SPREAD:.0%} between sessions, twice: "
+                  "the host's timing is not stable enough to calibrate on")
+        path = save_stopped_origin(out, cal, rounds, [], reason)
+        where = "; ".join(f"round {i}: {origin_said(rnd)}" for i, rnd in enumerate(rounds, 1))
+        raise CalibrationStop(f"{reason} ({where}; the sessions of both rounds are in {path})")
     result = {"step": "origin", "created_utc": now(), "route_costs_ms": combine_origin(rounds[-1]["sessions"]),
               "rounds": rounds, "sessions": ORIGIN_SESSIONS, "repeats": ORIGIN_REPEATS, "cpu": ORIGIN_CPU,
               "template_sha256": cal.get("sha256") or C.digest(cal)}

@@ -312,6 +312,103 @@ class OriginTest(unittest.TestCase):
         self.assertTrue(all(v > 0 for v in costs.values()))
         self.assertGreater(costs["C5"], costs["C0"])
 
+    # --- a stopped step keeps what it measured (docs/HG1C_DESIGN.md 27) ---
+
+    @staticmethod
+    def scripted(*answers):
+        """A host whose origin sessions answer one after another: a dict is a session's medians, a string is a session that failed."""
+        left = list(answers)
+
+        class Host:
+            def run(self, argv, **kw):
+                answer = left.pop(0)
+                return X.Result(1, "", answer) if isinstance(answer, str) else X.Result(0, json.dumps(answer), "")
+        return Host()
+
+    @staticmethod
+    def round_of(c1):
+        """Three sessions that agree on every route but C1, whose medians (ms) are the given ones."""
+        return [{"C0": 0.0058, "C1": v, "C2": 2.15, "C3": 35.5, "C5": 191.8} for v in c1]
+
+    def stopped(self, n=1):
+        return os.path.join(self.tmp.name, "origin", f"stopped_{n}.json")
+
+    def run_step(self, host):
+        say = []
+        try:
+            return K.origin_step(host, TEMPLATE, C.PLACEHOLDER, self.tmp.name, say.append), say
+        except K.CalibrationStop as exc:
+            return exc, say
+
+    def test_the_widest_route_and_the_session_furthest_from_its_median_are_named(self):
+        sessions = self.round_of([3.9, 4.0, 9.4])
+        self.assertEqual(K.origin_widest(sessions, K.origin_spread(sessions)), ("C1", 3, 9.4, 4.0))
+        sessions = self.round_of([3.0, 4.0, 4.1])
+        self.assertEqual(K.origin_widest(sessions, K.origin_spread(sessions)), ("C1", 1, 3.0, 4.0), "the lowest is the furthest")
+        sessions = [{"C0": 1.0, "C3": 30.0}, {"C0": 1.3, "C3": 31.0}, {"C0": 1.0, "C3": 30.5}]
+        self.assertEqual(K.origin_widest(sessions, K.origin_spread(sessions))[:2], ("C0", 2), "the widest spread is relative")
+
+    def test_a_round_that_is_made_again_says_which_route_spoiled_it_and_no_stop_is_saved(self):
+        host = self.scripted(*self.round_of([3.9, 4.0, 9.4]), *self.round_of([3.9, 4.0, 4.1]))
+        result, say = self.run_step(host)
+        self.assertEqual(len(result["rounds"]), 2)
+        self.assertEqual(result["rounds"][0]["widest"], {"route": "C1", "session": 3, "cost_ms": 9.4, "median_ms": 4.0})
+        first = next(m for m in say if "round 1" in m)
+        self.assertIn("C1", first)
+        self.assertIn("session 3", first)
+        self.assertIn("9.4", first)
+        self.assertFalse(os.path.exists(self.stopped()), "a step that passes leaves no stop")
+        self.assertTrue(os.path.exists(os.path.join(self.tmp.name, "origin", "origin.json")))
+
+    def test_a_stopped_step_saves_the_sessions_of_both_rounds_and_names_the_route_and_session_of_each(self):
+        host = self.scripted(*self.round_of([3.9, 4.0, 9.4]), *self.round_of([3.0, 4.0, 4.6]))
+        stop, say = self.run_step(host)
+        self.assertIsInstance(stop, K.CalibrationStop)
+        saved = K.read_json(self.stopped())
+        self.assertEqual(saved["step"], "origin")
+        self.assertEqual([r["widest"]["session"] for r in saved["rounds"]], [3, 1])
+        self.assertEqual([r["sessions"][2]["C1"] for r in saved["rounds"]], [9.4, 4.6])
+        self.assertEqual([r["sessions"][0]["C1"] for r in saved["rounds"]], [3.9, 3.0])
+        self.assertAlmostEqual(saved["rounds"][1]["spread"]["C1"], 0.4)
+        self.assertEqual(saved["partial_sessions"], [])
+        self.assertEqual((saved["sessions"], saved["repeats"], saved["cpu"]), (3, 21, "0"))
+        self.assertEqual(saved["template_sha256"], TEMPLATE.get("sha256") or C.digest(TEMPLATE))
+        self.assertTrue(saved["created_utc"])
+        text = str(stop)
+        self.assertEqual(saved["stopped"], text.split(" (round 1")[0], "the record says what the exception says")
+        self.assertIn("not stable enough", text)
+        self.assertIn("round 1: C1, session 3", text)
+        self.assertIn("round 2: C1, session 1", text)
+        self.assertIn(self.stopped(), text)
+        self.assertTrue(any("round 2" in m and "C1" in m for m in say))
+        self.assertFalse(os.path.exists(os.path.join(self.tmp.name, "origin", "origin.json")), "a stop gives no origin")
+
+    def test_a_second_stop_in_the_same_directory_keeps_the_first_record(self):
+        for third in (9.4, 3.5):
+            self.run_step(self.scripted(*self.round_of([3.9, 4.0, third]), *self.round_of([3.0, 4.0, 4.6])))
+        self.assertEqual(K.read_json(self.stopped(1))["rounds"][0]["sessions"][2]["C1"], 9.4)
+        self.assertEqual(K.read_json(self.stopped(2))["rounds"][0]["sessions"][2]["C1"], 3.5)
+        self.assertFalse(os.path.exists(self.stopped(3)))
+
+    def test_a_session_that_gives_nothing_readable_saves_the_sessions_read_before_it(self):
+        stop, _ = self.run_step(self.scripted(*self.round_of([3.9, 4.0])[:2], "Traceback: boom"))
+        self.assertIsInstance(stop, K.CalibrationStop)
+        self.assertIn("gave nothing readable", str(stop))
+        self.assertIn(self.stopped(), str(stop))
+        saved = K.read_json(self.stopped())
+        self.assertEqual(saved["rounds"], [])
+        self.assertEqual([s["C1"] for s in saved["partial_sessions"]], [3.9, 4.0])
+        self.assertIn("gave nothing readable", saved["stopped"])
+        self.assertIn("Traceback: boom", saved["stopped"])
+
+    def test_the_sessions_of_a_failed_second_round_are_kept_with_the_first_round(self):
+        stop, _ = self.run_step(self.scripted(*self.round_of([3.9, 4.0, 9.4]), self.round_of([3.9])[0], "Traceback: boom"))
+        saved = K.read_json(self.stopped())
+        self.assertEqual(len(saved["rounds"]), 1)
+        self.assertEqual(saved["rounds"][0]["sessions"][2]["C1"], 9.4)
+        self.assertEqual([s["C1"] for s in saved["partial_sessions"]], [3.9])
+        self.assertIn("gave nothing readable", str(stop))
+
 
 class HarmTest(unittest.TestCase):
     CONTROLS = (metrics(100.0, 0.05), metrics(99.0, 0.07))
@@ -1024,6 +1121,17 @@ class CommandLineTest(unittest.TestCase):
         self.assertEqual((code, err), (K.EXIT_OK, ""), text)
         self.assertIn("capacity: C_slo", text)
         self.assertTrue(K.read_json(os.path.join(out, "capacity", "capacity.json"))["smoke"])
+
+    def test_an_origin_that_cannot_agree_with_itself_says_where_it_kept_the_sessions(self):
+        out = os.path.join(self.tmp.name, "stopped")
+        host = S.SimHost(origin_costs=dict(TEMPLATE["route_costs_ms"]), origin_noise=(-0.1, 0.0, 0.2))
+        code, stdout, stderr = self.cli("origin", "--out", out, host=host)
+        self.assertEqual(code, K.EXIT_STOPPED)
+        self.assertIn("not stable enough", stderr)
+        self.assertIn(os.path.join(out, "origin", "stopped_1.json"), stderr)
+        self.assertIn("origin round 2", stdout)
+        self.assertEqual(len(K.read_json(os.path.join(out, "origin", "stopped_1.json"))["rounds"]), 2)
+        self.assertFalse(os.path.exists(os.path.join(out, "origin", "origin.json")))
 
     def test_a_ladder_before_the_capacity_is_refused_and_says_which_step_is_missing(self):
         code, _, err = self.cli("ladder", "--out", os.path.join(self.tmp.name, "empty"), "--family", "costly_search_flood", "--simulate")
