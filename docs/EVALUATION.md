@@ -518,7 +518,7 @@ block spends VM time on nothing), and the block is re-run once with its seed if 
 that can no longer reach the gate's `min_blocks` valid blocks stops (`--keep-going` goes on). A refusal, a setup that cannot be built,
 Ctrl-C and a leftover stop the campaign without counting as a failed block; the same command resumes, skipping the runs that are `DONE`.
 **The calibrator** stops, and says what that means, when the host cannot be calibrated: a first capacity level that is already unhealthy, a
-capacity above the range of the probe, no saturation, origin sessions that disagree by more than 10 % twice, a screening whose controls
+capacity above the range of the probe, no saturation, origin sessions that disagree by more than 10 % twice (it keeps the sessions it measured in `origin/stopped_N.json` and names the route and session that disagreed), a screening whose controls
 are unhealthy or more than 2 pp apart. Nothing is tuned to get past a stop.
 
 **Simulation.** `--simulate` runs a whole campaign, or any calibration step, on `bench/sim_host.py`: commands answered from a model of
