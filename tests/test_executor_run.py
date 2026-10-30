@@ -10,6 +10,7 @@ import itertools
 import json
 import math
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -917,6 +918,150 @@ class SetupTest(RunCase):
         plan, host, _ = self.go("U")
         by_ns = {c[1] for c in host.commands if c[0] == "popen" and "bench/loadgen.py" in " ".join(c[2])}
         self.assertEqual(by_ns, {ns.name for ns in plan.namespaces})
+
+
+class DaemonRunTest(RunCase):
+    """A protected run's daemon (HG4 G3, G4): started after the stack, held by its handle, ready on its line, its start event and its
+    XDP program; stopped by the handle with SIGINT, KILL if it must, XDP detached in any case; a program left loaded is a leftover.
+    Each run has a daemon and a namespace of its own, so no ban outlives its run."""
+
+    @staticmethod
+    def daemons(host):
+        return [p for p in host.procs.values() if p.role == "daemon"]
+
+    def events(self, plan):
+        return [json.loads(line) for line in self.read(plan, "ban_events.jsonl").splitlines()]
+
+    def test_the_daemon_is_started_after_the_stack_and_stopped_by_its_handle_before_the_rest(self):
+        plan, host, result = self.go("M_xdp")
+        self.assertTrue(result.ok, result.reasons)
+        lines = self.read(plan, "executor.log").splitlines()
+        order = [next(i for i, line in enumerate(lines) if key in line)
+                 for key in ("stack ready", "started the daemon", "launched 29 legit streams", "timeline over", "stopped the daemon",
+                             "stopped 1 process(es) of this run", "teardown complete")]
+        self.assertEqual(order, sorted(order))
+        (daemon,) = self.daemons(host)
+        self.assertEqual((daemon.ns, daemon.argv, daemon.returncode), (X.SERVER_NS, plan.daemon.argv, 0), "SIGINT ran its finally")
+        self.assertEqual(host.ran("ip", "link", "set", "dev", "veth_server", "xdp", "off"),
+                         [("run", X.SERVER_NS, ("ip", "link", "set", "dev", "veth_server", "xdp", "off"))])
+        self.assertTestbedEmpty(host)
+        self.assertEqual(host.loaded_programs(), [])
+
+    def test_its_ban_file_its_log_and_its_record_are_the_runs(self):
+        plan, _, _ = self.go("M_xdp")
+        (start,) = self.events(plan)
+        self.assertEqual((start["kind"], start["backend"], start["xdp_gru"]), ("start", "xdp", False))
+        self.assertIn(X.DAEMON_READY_LINE, self.read(plan, "daemon.log"))
+        meta = self.run_json(plan)
+        self.assertEqual((meta["role"], meta["mode"]), ("mitigated", "xdp"))
+        self.assertEqual((H.read_run(plan.out)["role"], H.read_run(plan.out)["mode"]), ("mitigated", "xdp"))
+        d = meta["daemon"]
+        self.assertEqual((d["pid"], d["xdp_prog_at_ready"]), (start["pid"], 41))
+        self.assertAlmostEqual(d["ready_after_s"], F.DAEMON_STARTUP_S, delta=0.5)
+        self.assertEqual((d["stop"]["signal"], d["stop"]["exit"], d["stop"]["killed"], d["stop"]["xdp_off"]), ("INT", 0, False, True))
+
+    def test_each_run_has_a_daemon_of_its_own_so_that_no_ban_outlives_its_run(self):
+        host = F.SimHost()
+        first, second = self.plan("M_xdp", name="b1/M_xdp"), self.plan("M_xdp", name="b2/M_xdp")
+        self.assertTrue(X.execute(first, host).ok)
+        self.assertTrue(X.execute(second, host).ok)
+        pids = [p.pid for p in self.daemons(host)]
+        self.assertEqual(len(set(pids)), 2)
+        for plan, pid in zip((first, second), pids, strict=True):
+            self.assertEqual([(e["kind"], e["pid"]) for e in self.events(plan)], [("start", pid)])
+        self.assertEqual(len(host.ran("truncate", "-s", "0", X.FEED_ACCESS_LOG, X.FEED_ERROR_LOG)), 2, "the feed is emptied for each")
+
+    def test_a_daemon_that_ignores_sigint_is_killed_after_the_grace_and_xdp_is_detached_all_the_same(self):
+        host = F.SimHost(faults={"daemon_ignores_int": 1})
+        plan, _, result = self.go("M_xdp", host)
+        self.assertTrue(result.ok, result.reasons)
+        self.assertIn("KILL the daemon", self.read(plan, "executor.log"))
+        stop = self.run_json(plan)["daemon"]["stop"]
+        self.assertEqual((stop["signal"], stop["killed"], stop["exit"], stop["xdp_off"]), ("INT", True, -9, True))
+        self.assertGreaterEqual(stop["seconds"], X.DAEMON_STOP_GRACE_S)
+        self.assertEqual(host.loaded_programs(), [])
+        self.assertTestbedEmpty(host)
+
+    def test_a_daemon_that_is_not_ready_in_time_fails_the_setup_which_is_retried(self):
+        host = F.SimHost(faults={"daemon_not_ready": 1})
+        plan, _, result = self.go("M_xdp", host)
+        self.assertTrue(result.ok, result.reasons)
+        self.assertEqual(result.setup_retries, 1)
+        self.assertIn(f"the daemon was not ready within {X.DAEMON_READY_TIMEOUT_S:g} s: no line '{X.DAEMON_READY_LINE}', no start "
+                      "event, no XDP program on veth_server", self.read(plan, "executor.log"))
+        self.assertEqual(len(self.daemons(host)), 2)
+        self.assertTestbedEmpty(host)
+
+    def test_a_daemon_that_cannot_start_fails_the_setup_three_times_and_leaves_nothing(self):
+        host = F.SimHost(faults={"daemon_fails": None})
+        plan = self.plan("M_xdp")
+        with self.assertRaises(X.SetupFailed) as ctx:
+            X.execute(plan, host)
+        self.assertIn("the daemon exited with 1 before it was ready", str(ctx.exception))
+        self.assertIn("No such device", str(ctx.exception))
+        self.assertEqual(len(self.daemons(host)), 3)
+        self.assertIn("SetupFailed", self.failed(plan))
+        self.assertTestbedEmpty(host)
+
+    def test_a_daemon_that_attaches_nothing_is_not_ready(self):
+        with self.assertRaisesRegex(X.SetupFailed, "no XDP program on veth_server"):
+            X.execute(self.plan("M_xdp"), F.SimHost(faults={"xdp_not_attached": None}))
+
+    def test_m_limits_has_no_daemon_and_looks_for_no_program(self):
+        plan, host, result = self.go("M_limits")
+        self.assertTrue(result.ok, result.reasons)
+        self.assertEqual(self.daemons(host), [])
+        meta = self.run_json(plan)
+        self.assertEqual((meta["role"], meta["mode"], meta["daemon"]), ("mitigated", "limits", None))
+        self.assertEqual(host.ran("bpftool"), [])
+        self.assertFalse(os.path.exists(os.path.join(plan.out, "ban_events.jsonl")))
+        self.assertRegex(self.read(plan, "nginx.conf"), r"\n[ \t]*limit_req zone=mylimit burst=100 nodelay;")
+
+    def test_the_daemons_cpu_is_sampled_apart_from_the_origins(self):
+        plan, _, _ = self.go("M_xdp")
+        with open(os.path.join(plan.out, "server.csv"), encoding="utf-8", newline="") as fh:
+            later = list(csv.DictReader(fh))[5]
+        self.assertEqual((float(later["daemon_cpu_pct"]), float(later["origin_cpu_pct"])), (5.0, 50.0),
+                         "the daemon runs Python in server_ns, and is not counted as the origin")
+        stack = json.loads(self.read(plan, "environment.json"))["stack"]
+        self.assertEqual(stack["daemon"]["cpus_allowed"], [P.PIN_PLAN["daemon"]])
+        self.assertEqual(stack["daemon"]["processes"], 1)
+        control, _, _ = self.go("C", plan_args={"name": "ctl/C"})
+        with open(os.path.join(control.out, "server.csv"), encoding="utf-8", newline="") as fh:
+            self.assertNotIn("daemon_cpu_pct", next(csv.reader(fh)))
+        self.assertNotIn("daemon", json.loads(self.read(control, "environment.json"))["stack"])
+
+    def test_an_xdp_program_left_loaded_is_a_leftover_and_the_next_protected_run_is_refused(self):
+        host = F.SimHost(faults={"xdp_leftover": None})
+        plan = self.plan("M_xdp")
+        with self.assertRaises(X.LeftoverError) as ctx:
+            X.execute(plan, host)
+        self.assertIn("xdp program 41 xdp_ddos_mitiga", str(ctx.exception))
+        self.assertIn("bpf map blacklist_map", str(ctx.exception))
+        with self.assertRaisesRegex(X.PreflightRefused, "xdp program 41"):
+            X.execute(self.plan("M_xdp", name="next/M_xdp"), host)
+
+    def test_the_maps_looked_for_are_the_xdp_programs_and_the_model_has_the_same(self):
+        with open(os.path.join(REPO, "xdp_ddos_filter.c"), encoding="utf-8") as fh:
+            declared = re.findall(r"^BPF_(HASH|TABLE)\(([^;]*)\);", fh.read(), re.MULTILINE)
+        names = [args.split(",")[0 if kind == "HASH" else 3].strip() for kind, args in declared]
+        self.assertEqual(sorted(X.DAEMON_MAPS), sorted(names))
+        self.assertEqual((X.DAEMON_MAPS, X.XDP_DEVICE), (F.DAEMON_MAPS, F.XDP_DEVICE))
+
+    def test_a_bpf_listing_that_cannot_be_read_does_not_call_the_machine_clean(self):
+        with self.assertRaisesRegex(X.TableUnreadable, "bpftool"):
+            X.execute(self.plan("M_xdp"), F.SimHost(faults={"bpftool_fails": None}))
+
+    def test_the_daemon_is_stopped_when_the_run_fails_after_it_started(self):
+        host = F.SimHost(faults={"engines_die": 1})
+        plan = self.plan("M_xdp")
+        with self.assertRaises(X.RunFailed):
+            X.execute(plan, host)
+        (daemon,) = self.daemons(host)
+        self.assertEqual(daemon.returncode, 0, "stopped with SIGINT in the teardown")
+        self.assertIn("stopped the daemon", self.read(plan, "executor.log"))
+        self.assertEqual(host.loaded_programs(), [])
+        self.assertTestbedEmpty(host)
 
 
 class TeardownTest(RunCase):
@@ -2212,6 +2357,26 @@ class RealHostTest(unittest.TestCase):
             time.sleep(0.01)
         self.assertEqual(proc.poll(), -signal.SIGTERM)
         proc.kill()                          # already gone: not an error
+
+    def test_a_process_can_be_interrupted_as_ctrl_c_would(self):
+        proc = X.RealHost().popen(["sleep", "30"])
+        proc.interrupt()
+        deadline = time.time() + 10
+        while proc.poll() is None and time.time() < deadline:
+            time.sleep(0.01)
+        self.assertEqual(proc.poll(), -signal.SIGINT)
+        proc.interrupt()                     # already gone: not an error
+
+    def test_a_process_starts_in_the_directory_it_is_given(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "where")
+            with open(path, "wb") as out:
+                proc = X.RealHost().popen(["pwd"], stdout=out, cwd=tmp)
+            deadline = time.time() + 10
+            while proc.poll() is None and time.time() < deadline:
+                time.sleep(0.01)
+            with open(path, encoding="utf-8") as fh:
+                self.assertEqual(fh.read().strip(), os.path.realpath(tmp))
 
     def test_the_shield_ignores_the_signals_that_end_a_run_and_puts_the_handlers_back(self):
         sigs = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)

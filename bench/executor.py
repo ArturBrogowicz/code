@@ -87,6 +87,7 @@ DAEMON_READY_LINE = "Listening for Nginx logs"      # what the daemon prints las
 DAEMON_READY_TIMEOUT_S = 60.0             # the suite's wait for the daemon's first start (test_distributed_suite.start_server_services)
 DAEMON_STOP_GRACE_S = 10.0                # SIGINT runs the daemon's finally, which detaches XDP; KILL after this
 XDP_DEVICE = "veth_server"                # where the daemon attaches its program: the server's end of its veth pair
+DAEMON_MAPS = ("blacklist_map", "telemetry_map", "flow_map")      # the maps of xdp_ddos_filter.c: a teardown looks for them
 READY_PATH = O.SAMPLE_URLS["C0"]          # the origin has no route at "/": it answers 404 there
 # recorded in every plan. The attack's start-up delay and the exit delay per request are what S1 and S1b measured on loopback, without
 # namespaces (docs/HG1C_DESIGN.md 14). The legit start-up delay is S4's, with the real launch chain: the attack began 0.32 s early on 2.5 s,
@@ -642,9 +643,10 @@ class Host:
         fails comes back with its code; only a host that cannot run it at all raises."""
         raise NotImplementedError
 
-    def popen(self, argv, ns="", env=None, stdout=None, stderr=None):
-        """Start a process and keep it: an object with pid, poll(), terminate(), kill() and exit_time (the wall-clock
-        time at which it was seen to exit, stamped by a watcher of its own)."""
+    def popen(self, argv, ns="", env=None, stdout=None, stderr=None, cwd=None):
+        """Start a process and keep it, in the directory `cwd` if one is given: an object with pid, poll(), terminate(), interrupt()
+        (SIGINT, as Ctrl-C would), kill() and exit_time (the wall-clock time at which it was seen to exit, stamped by a watcher of its
+        own)."""
         raise NotImplementedError
 
     def prim(self, name, *args):
@@ -718,6 +720,10 @@ class RealProc:
         with contextlib.suppress(ProcessLookupError):
             self._p.terminate()
 
+    def interrupt(self):
+        with contextlib.suppress(ProcessLookupError):
+            self._p.send_signal(signal.SIGINT)
+
     def kill(self):
         with contextlib.suppress(ProcessLookupError):
             self._p.kill()
@@ -761,11 +767,11 @@ class RealHost(Host):
             return Result(127, "", str(exc))
         return Result(cp.returncode, cp.stdout, cp.stderr)
 
-    def popen(self, argv, ns="", env=None, stdout=None, stderr=None):
+    def popen(self, argv, ns="", env=None, stdout=None, stderr=None, cwd=None):
         full = (["ip", "netns", "exec", ns] if ns else []) + list(argv)
         return RealProc(subprocess.Popen(full, stdin=subprocess.DEVNULL, env=self._env(env), start_new_session=True,
                                          stdout=subprocess.DEVNULL if stdout is None else stdout,
-                                         stderr=subprocess.DEVNULL if stderr is None else stderr))
+                                         stderr=subprocess.DEVNULL if stderr is None else stderr, cwd=cwd))
 
     def prim(self, name, *args):
         s = self.suite()
@@ -880,14 +886,34 @@ def process_leftovers(host):
             if pid not in mine and program_of(argv) in LEFTOVER_PROGRAMS]
 
 
-def leftovers(host):
-    """What of any testbed is still there: namespaces and links of the suite's and of this runner's, and processes.
-    Looking only; nothing here kills."""
+def bpf_leftovers(host):
+    """XDP programs the kernel still holds and the daemon's maps (DAEMON_MAPS), read with bpftool: what a daemon leaves when its
+    program stays attached, is pinned, or is held by a process that outlived its run. Nothing else on this machine runs XDP. A
+    listing that cannot be read raises TableUnreadable."""
+    found = []
+    for what, argv in (("prog", ["bpftool", "-j", "prog", "show"]), ("map", ["bpftool", "-j", "map", "show"])):
+        r = host.run(argv)
+        try:
+            if r.code != 0:
+                raise ValueError(f"exited {r.code}: {(r.err or r.out).strip()[:120]}")
+            items = json.loads(r.out or "[]")
+        except ValueError as exc:
+            raise TableUnreadable(f"`{' '.join(argv)}` {exc}") from exc
+        if what == "prog":
+            found += [f"xdp program {p.get('id')} {p.get('name', '')}".rstrip() for p in items if p.get("type") == "xdp"]
+        else:
+            found += [f"bpf map {m.get('name')} (id {m.get('id')})" for m in items if m.get("name") in DAEMON_MAPS]
+    return found
+
+
+def leftovers(host, bpf=False):
+    """What of any testbed is still there: namespaces and links of the suite's and of this runner's, and processes; with `bpf` (a
+    run with a daemon), XDP programs and the daemon's maps too. Looking only; nothing here kills."""
     found = [f"netns {n}" for n in (line.split()[0] for line in _table(host, ["ip", "netns", "list"]))
              if LEFTOVER_NS.match(n)]
     found += [f"link {n}" for n in (line.split()[0].split("@")[0] for line in _table(host, ["ip", "-br", "link", "show"]))
               if LEFTOVER_LINKS.match(n)]
-    return found + process_leftovers(host)
+    return found + process_leftovers(host) + (bpf_leftovers(host) if bpf else [])
 
 
 def namespace_pids(host, ns):
@@ -995,11 +1021,12 @@ def preflight(host, plan, allow_dirty=False, clean=False):
     if git["dirty"] and not allow_dirty:
         raise PreflightRefused("uncommitted changes to tracked files (a result must map to a commit; --allow-dirty "
                                "records them): " + ", ".join(git["dirty_files"][:5]))
-    left = leftovers(host)
+    bpf = plan.daemon is not None
+    left = leftovers(host, bpf)
     if left and clean:
         namespaces, links = discover(host)
         destroy(host, namespaces, links, plan.settings["term_grace_s"])
-        left = leftovers(host)
+        left = leftovers(host, bpf)
     if left:
         raise PreflightRefused("a testbed is still present (--clean takes down its namespaces and links):\n  " + "\n  ".join(left))
     return {"git": git, "nofile_soft": soft, "allow_dirty": allow_dirty}
@@ -1083,11 +1110,18 @@ class Sampler:
     def __init__(self, host):
         self.host, self.rows, self.pids, self._last, self._ticks = host, [], {}, None, 0
         self.tck = host.clk_tck()
+        self.daemon_pid = None           # a protected run's daemon: a Python process in server_ns, which is not the origin
+
+    def groups(self):
+        return ("origin", "nginx", "daemon") if self.daemon_pid else ("origin", "nginx")
 
     def attach(self):
-        """Find the server namespace's processes, grouped by what they are (Nginx and the origin)."""
+        """Find the server namespace's processes, grouped by what they are (Nginx, the origin and a protected run's daemon)."""
         self.pids = {}
         for pid in namespace_pids(self.host, SERVER_NS):
+            if pid == self.daemon_pid:
+                self.pids[pid] = "daemon"
+                continue
             try:
                 comm = self.host.read_text(f"/proc/{pid}/comm").strip()
             except OSError:
@@ -1104,11 +1138,11 @@ class Sampler:
         return out
 
     def _proc_jiffies(self):
-        out = {"origin": 0, "nginx": 0}
+        out = {"origin": 0, "nginx": 0}       # a daemon whose CPU could not be read has no entry, and no share in the row
         for pid, group in self.pids.items():
             try:
                 f = self.host.read_text(f"/proc/{pid}/stat").rsplit(")", 1)[1].split()
-                out[group] += int(f[11]) + int(f[12])                                  # utime + stime
+                out[group] = out.get(group, 0) + int(f[11]) + int(f[12])                # utime + stime
             except (OSError, IndexError, ValueError):
                 pass
         return out
@@ -1154,15 +1188,16 @@ class Sampler:
                     row[f"{name}_busy_pct"] = round(100.0 * (1 - (idle - b[1]) / (total - b[0])), 1)
                     if name == "cpu":
                         row["steal_pct"] = round(100.0 * (steal - b[2]) / (total - b[0]), 2)
-            for group in ("origin", "nginx"):
-                row[f"{group}_cpu_pct"] = round(100.0 * (now["proc"][group] - before["proc"][group]) / (self.tck * dt), 1)
+            for group in self.groups():
+                if group in before["proc"] and group in now["proc"]:
+                    row[f"{group}_cpu_pct"] = round(100.0 * (now["proc"][group] - before["proc"][group]) / (self.tck * dt), 1)
         row.update(self._tcp())
         self._last = {**now, "t": row["t_epoch"]}
         self.rows.append(row)
 
     def write(self, path):
-        names = ["t_epoch", "t_rel", "load1", "steal_pct", "origin_cpu_pct", "nginx_cpu_pct", "listen_overflows",
-                 "listen_drops", "tcp_inuse", "tcp_tw"]
+        names = ["t_epoch", "t_rel", "load1", "steal_pct", "origin_cpu_pct", "nginx_cpu_pct",
+                 *(["daemon_cpu_pct"] if self.daemon_pid else []), "listen_overflows", "listen_drops", "tcp_inuse", "tcp_tw"]
         names += sorted({k for r in self.rows for k in r if k.endswith("_busy_pct")}, key=lambda k: (len(k), k))
         with open(path, "w", newline="", encoding="utf-8") as fh:
             w = csv.writer(fh)
@@ -1186,7 +1221,7 @@ def stack_facts(host, sampler):
     so this is where they are recorded)."""
     sampler.attach()
     out = {}
-    for group in ("origin", "nginx"):
+    for group in sampler.groups():
         pids = sorted(p for p, g in sampler.pids.items() if g == group)
         cpus, limits = set(), set()
         for pid in pids:
@@ -1502,6 +1537,95 @@ def start_stack(host, plan, log, procs):
     log(f"stack ready: {len(plan.checks)} routes answer with their own class under calibration {tag}; warmed up")
 
 
+# --- the daemon of a protected run ---------------------------------------------------------------
+
+def _text(path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            return fh.read()
+    except OSError:
+        return ""
+
+
+def daemon_events(path):
+    """The events a daemon wrote to its ban file (JSON lines: ban_events.py, docs/EVALUATION.md), oldest first; [] while there is
+    none. A line that is not whole yet is skipped, as ban_events.read_events does."""
+    events = []
+    for line in _text(path).splitlines():
+        with contextlib.suppress(ValueError):
+            event = json.loads(line)
+            if isinstance(event, dict) and "kind" in event:
+                events.append(event)
+    return events
+
+
+def xdp_program(host):
+    """The id of the program attached to veth_server in server_ns; None when there is none or the link cannot be read."""
+    r = host.run(["ip", "-j", "link", "show", XDP_DEVICE], ns=SERVER_NS)
+    try:
+        return json.loads(r.out)[0]["xdp"]["prog"]["id"]
+    except (ValueError, KeyError, IndexError, TypeError):
+        return None
+
+
+def start_mitigation(host, plan, log, procs, sampler):
+    """A protected run's daemon (plan.daemon), once the stack is ready: started and held by its handle, its output in daemon.log;
+    ready when it has said DAEMON_READY_LINE, its start event (with its own pid) is in the run's ban file and, with XDP, a program is
+    attached to veth_server. SetupFailed when it exits first or is not ready within DAEMON_READY_TIMEOUT_S, saying what was missing.
+    Returns what was seen at readiness (None without a daemon); from then on the sampler counts the daemon apart from the origin."""
+    d = plan.daemon
+    if d is None:
+        return None
+    with open(d.log, "ab") as out:
+        proc = procs["daemon"] = host.popen(list(d.argv), ns=d.ns, env=dict(d.env), stdout=out, stderr=out, cwd=d.cwd)
+    began, started = host.monotonic(), host.time()
+    while True:
+        said = DAEMON_READY_LINE in _text(d.log)
+        start = next((e for e in daemon_events(d.events) if e["kind"] == "start" and e.get("pid") == proc.pid), None)
+        prog = xdp_program(host) if d.backend == "xdp" else None
+        if said and start is not None and (d.backend != "xdp" or prog is not None):
+            break
+        if proc.poll() is not None:
+            raise SetupFailed(f"the daemon exited with {proc.poll()} before it was ready: {_tail(d.log, 2)[:240]}")
+        if host.monotonic() - began > DAEMON_READY_TIMEOUT_S:
+            missing = [what for what, ok in ((f"line '{DAEMON_READY_LINE}'", said), ("start event", start is not None),
+                                             (f"XDP program on {XDP_DEVICE}", d.backend != "xdp" or prog is not None)) if not ok]
+            raise SetupFailed(f"the daemon was not ready within {DAEMON_READY_TIMEOUT_S:g} s: no " + ", no ".join(missing))
+        host.sleep(0.5)
+    sampler.daemon_pid = proc.pid
+    after = host.monotonic() - began
+    log(f"started the daemon as pid {proc.pid}: ready after {after:.1f} s" + (f", XDP program {prog} on {XDP_DEVICE}" if prog else ""))
+    return {"pid": proc.pid, "started_epoch_s": round(started, 3), "ready_epoch_s": round(host.time(), 3),
+            "ready_after_s": round(after, 2), "xdp_prog_at_ready": prog, "start_event": start}
+
+
+def stop_daemon(host, procs, log):
+    """The daemon this run holds (procs["daemon"]), stopped by its handle: SIGINT, which runs its finally (XDP detached, exit 0),
+    KILL if it is still there after DAEMON_STOP_GRACE_S; then XDP is taken off veth_server whatever it did, as the suite does. The
+    handle is let go, so that a second call does nothing. Returns the record of the stop; None if there was no daemon."""
+    proc = procs.pop("daemon", None)
+    if proc is None:
+        return None
+    began = host.monotonic()
+    record = {"signal": None, "killed": False}
+    if proc.poll() is None:
+        record["signal"] = "INT"
+        proc.interrupt()
+        while proc.poll() is None and host.monotonic() - began < DAEMON_STOP_GRACE_S:
+            host.sleep(0.1)
+        if proc.poll() is None:
+            log(f"KILL the daemon (pid {proc.pid}): SIGINT did not end it within {DAEMON_STOP_GRACE_S:g} s")
+            proc.kill()
+            record["killed"] = True
+            host.sleep(0.2)
+    off = host.run(["ip", "link", "set", "dev", XDP_DEVICE, "xdp", "off"], ns=SERVER_NS)
+    record.update(exit=proc.poll(), exit_epoch_s=None if proc.exit_time is None else round(proc.exit_time, 3),
+                  seconds=round(host.monotonic() - began, 2), xdp_off=off.code == 0)
+    log(f"stopped the daemon (pid {proc.pid}) in {record['seconds']:.2f} s: exit {record['exit']}"
+        + (", killed" if record["killed"] else "") + f"; XDP off {XDP_DEVICE}: " + ("done" if record["xdp_off"] else f"exit {off.code}"))
+    return record
+
+
 # --- the timeline and what it leaves --------------------------------------------------------------
 
 def launch_streams(host, streams, log, procs):
@@ -1666,7 +1790,7 @@ def teardown(host, plan, log):
     links = [outer_veth(ns.name) for ns in plan.namespaces] + [SERVER_VETH_HOST_END, BRIDGE]
     destroy(host, names, links, plan.settings["term_grace_s"], log)
     looked = host.monotonic()
-    left = leftovers(host)
+    left = leftovers(host, plan.daemon is not None)
     if left:
         raise LeftoverError("still there after the teardown:\n  " + "\n  ".join(left))
     log("teardown complete: no namespace, link or process of the testbed is left "
@@ -1714,18 +1838,21 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
     write_json(f"{out}/environment.json", record)
     write_json(f"{out}/plan.json", as_json(plan))
     log(f"run {plan.kind} of {plan.scenario}, seed {plan.seed}: preflight and environment passed")
-    procs, sampler = {}, sampler or Sampler(host)
+    procs, sampler, daemon = {}, sampler or Sampler(host), None
     try:
         retries = 0
         while True:
             try:
                 procs.clear()
+                sampler.daemon_pid = None
                 build_topology(host, plan, log, procs)
                 start_stack(host, plan, log, procs)
+                daemon = start_mitigation(host, plan, log, procs, sampler)
                 write_json(f"{out}/environment.json", {**record, "stack": stack_facts(host, sampler)})
                 break
             except SetupFailed as exc:
                 log(f"setup failed: {exc}")
+                stop_daemon(host, procs, log)
                 stop_all(host, procs, plan, log)
                 teardown(host, plan, log)
                 retries += 1
@@ -1734,6 +1861,7 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
                 _reset(out)
                 log(f"retrying the setup ({retries} of {MAX_SETUP_RETRIES})")
         launched, problems = run_timeline(host, plan, log, procs, sampler)
+        stopped = stop_daemon(host, procs, log)
         stop_all(host, procs, plan, log)
         block, rows, zero = collect(plan, procs, launched, problems)
         raised = {sid: gap for sid, gap in block["wall_gap_s"].items() if gap > WALL_GAP_NOTE_S}
@@ -1747,7 +1875,8 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
         sampler.write(f"{out}/server.csv")
         finish_logs(plan, zero, log)
         write_json(f"{out}/run.json", {
-            "role": KINDS_OF_RUN[plan.kind], "mode": None, "started_utc": _utc(launched["legit"]),
+            "role": KINDS_OF_RUN[plan.kind], "mode": plan.mode, "started_utc": _utc(launched["legit"]),
+            "daemon": None if daemon is None else {**daemon, "stop": stopped},
             "scenario": plan.scenario, "seed": plan.seed, "plan_sha256": plan.plan_sha256,
             "calibration_sha256": plan.calibration_sha256, "overrides": plan.overrides,
             "executor": {**block, "setup_retries": retries}, "streams": rows})
@@ -1759,6 +1888,7 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
         raise
     finally:
         with host.shielded():
+            stop_daemon(host, procs, log)
             stop_all(host, procs, plan, log)
             try:
                 teardown(host, plan, log)
