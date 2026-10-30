@@ -18,6 +18,13 @@ The User-Agent and URI are hashed *here*, on ingest, never used as raw strings
 (the anti-fingerprint rule, §5.4). P1 logs them raw over the socket because this
 Nginx build has no njs to hash them in the log; moving the hash into Nginx is a
 P2 decision. Raw values are dropped immediately after hashing.
+
+L7 v2 (docs/L7V2_DESIGN.md 8.2-8.4, ml/l7v2_model_prereg.json): normalise() also
+hashes the Referer's path (ref_h, comparable with uri_h) and the session cookie
+(sid_h: the cookie the answer set, `sid_set`, else the request's `sid`), and keeps
+the route class of the raw URI (rc, the site map of l7_webapp.route_class) before
+the raw strings are dropped. key_v2() is the L7 v2 key (IP, ua_hash, sid_hash); the
+sid is a key component only, never a feature. key_of() stays the P5 key (IP, ua_hash).
 """
 
 import hashlib
@@ -111,20 +118,76 @@ def _num(val):
     return total
 
 
+NO_SID = -1                     # sid_h without a session: the v2 key is then (IP, ua_h, NO_SID)
+ABSENT = ("", "-")              # how nginx logs an absent header, cookie or upstream cookie
+SID_FIELDS = ("sid_set", "sid")  # the cookie the answer set wins: it names the session of a first request
+
+
+def _present(val):
+    return val is not None and str(val).strip() not in ABSENT
+
+
+def route_class(method, uri):
+    """The route class of a request (C0 assets, C1 pages, C2 API, C3 search, C5 export; None = uncosted): the site
+    map of l7_webapp.route_class, restated here so this module stays standard library only and never imports the app
+    (which builds its backend at import under L7_BACKEND=costed); tests/test_l7v2_ingest.py keeps the two equal."""
+    path = (uri or "").split("?", 1)[0]
+    if method not in ("GET", "HEAD"):
+        return None
+    if path.startswith("/static/"):
+        return "C0"
+    if path == "/" or path.startswith("/page/"):
+        return "C1"
+    if path.startswith("/api/"):
+        return "C2"
+    if path.startswith("/search"):
+        return "C3"
+    if path == "/export":
+        return "C5"
+    return None
+
+
+def ref_path(ref):
+    """The path and query a Referer names, its scheme and authority dropped, so that its hash equals the uri_h of the
+    page it names (`http://10.0.0.1/page/3` -> `/page/3`; a bare authority -> `/`)."""
+    ref = str(ref).strip()
+    if "://" in ref:
+        rest = ref.split("://", 1)[1]
+        cut = rest.find("/")
+        return rest[cut:] if cut >= 0 else "/"
+    return ref
+
+
+def sid_hash(obj):
+    """stable_hash32 of the session id of a log object: `sid_set` (the cookie the answer set, so a session's first,
+    cookie-less request joins its session), else the request's `sid` cookie, else NO_SID."""
+    for name in SID_FIELDS:
+        if _present(obj.get(name)):
+            return stable_hash32(str(obj[name]).strip())
+    return NO_SID
+
+
 def normalise(obj):
     """Turn a parsed log object into the slim record the window store keeps:
     numeric fields coerced, URI and UA replaced by 32-bit hashes, raw strings
-    dropped. Returns None if there is no client IP to key on."""
+    dropped. L7 v2: the Referer's path (ref_h, None when absent) and the session id
+    (sid_h, NO_SID when absent) are hashed too, and the raw URI's route class is kept
+    (rc). Returns None if there is no client IP to key on."""
     ip = obj.get("ip") or obj.get("client_ip")
     if not ip:
         return None
+    uri = obj.get("uri") or obj.get("request_uri") or ""
+    method = obj.get("method") or obj.get("request_method") or ""
+    ref = obj.get("ref")
     rec = {"ip": ip, "ua_h": stable_hash32(obj.get("ua") or obj.get("user_agent") or ""),
-           "uri_h": stable_hash32(obj.get("uri") or obj.get("request_uri") or ""),
-           "method": obj.get("method") or obj.get("request_method") or "",
+           "uri_h": stable_hash32(uri),
+           "method": method,
            "proto": obj.get("proto") or obj.get("server_protocol") or "",
            "compl": obj.get("compl") or obj.get("request_completion") or "",
            "lreq": obj.get("lreq") or obj.get("limit_req_status") or "",
-           "tls": obj.get("tls") or "", "reused": obj.get("reused") or ""}
+           "tls": obj.get("tls") or "", "reused": obj.get("reused") or "",
+           "ref_h": stable_hash32(ref_path(ref)) if _present(ref) else None,
+           "sid_h": sid_hash(obj), "rc": route_class(method, uri)}
     for key, names in _NUMERIC.items():
         rec[key] = _num(next((obj[n] for n in names if n in obj), None))
     return rec
@@ -133,6 +196,12 @@ def normalise(obj):
 def key_of(rec):
     """The window key: (IP, ua_hash). Bans map back to rec['ip'] for XDP."""
     return (rec["ip"], rec["ua_h"])
+
+
+def key_v2(rec):
+    """The L7 v2 key (docs/L7V2_DESIGN.md 8.3): (IP, ua_hash, sid_hash), which is (IP, ua_hash, NO_SID) for a request
+    without a session. A ban decided on it still maps back to rec['ip']."""
+    return (rec["ip"], rec["ua_h"], rec.get("sid_h", NO_SID))
 
 
 class L7Counters:
