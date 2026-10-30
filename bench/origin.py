@@ -264,6 +264,11 @@ class Origin:
 
 BATCH_MIN_S = 0.001                      # a timed batch of one route lasts at least this long on the clock
 BATCH_MAX = 4096                         # and holds at most this many calls (C0, the cheapest route, needs about 256)
+# How `time_routes` times the routes; a change to that is a new version. Version 1, until feat/hg2-measurement-fix: each route
+# timed `repeats` times in a row, one call a timing, on the process's CPU time. Version 2: batches of at least BATCH_MIN_S sized
+# from the lesser of two timings a try, the routes in turn, the calling thread's CPU time. Costs of two versions differ by up to
+# about 9 % a route (docs/HG1C_DESIGN.md departure 29), which the 25 % self-check would not see: the calibrator keeps them apart.
+ESTIMATOR_VERSION = 2
 
 
 def route_calls():

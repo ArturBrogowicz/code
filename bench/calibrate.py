@@ -117,9 +117,23 @@ def origin_round(sessions, timing):
 
 
 def origin_estimator():
-    """How a session times the routes (origin.time_routes), for the records of the step."""
-    return {"batch_min_s": O.BATCH_MIN_S, "batch_max": O.BATCH_MAX, "order": "the routes in turn, one batch each, per repeat",
-            "cost": "the median over the repeats of a batch's time per call"}
+    """How a session times the routes (origin.time_routes), for the records of the step; `version` is origin.ESTIMATOR_VERSION,
+    which the later steps and the freeze require of an origin (origin_estimator_problem)."""
+    return {"version": O.ESTIMATOR_VERSION, "batch_min_s": O.BATCH_MIN_S, "batch_max": O.BATCH_MAX,
+            "order": "the routes in turn, one batch each, per repeat", "cost": "the median over the repeats of a batch's time per call"}
+
+
+def origin_estimator_problem(origin):
+    """Why the costs of an origin record cannot be used with this code, or None: they were measured with another estimator than
+    this code's (origin.ESTIMATOR_VERSION), or the record does not say with which, as one made before the version was recorded
+    does (HG2a's, /var/tmp/ddos_campaigns/hg2_1). The costs of two estimators differ by up to about 9 % a route, within the 25 %
+    of the origin's start-up self-check, which would let a frozen record of one pass under the other without a word."""
+    got = (origin.get("estimator") or {}).get("version")
+    if got == O.ESTIMATOR_VERSION:
+        return None
+    said = "does not say which estimator measured it" if got is None else f"was measured with estimator version {got}"
+    return (f"the origin step {said}, and this code's is version {O.ESTIMATOR_VERSION}: its costs are not comparable with what this "
+            "code measures; make the origin step again in a new session directory")
 
 
 def origin_said(rnd):
@@ -546,7 +560,7 @@ def under_of(template, origin, capacity):
 
 def session_draft(directory, template):
     """The template with the origin and the capacity that the session in `directory` has measured, and what that is made of.
-    Steps 1 and 2 must have been made."""
+    Steps 1 and 2 must have been made, the origin with this code's estimator."""
     parts = []
     for step in ("origin", "capacity"):
         path = os.path.join(directory, step, step + ".json")
@@ -554,6 +568,9 @@ def session_draft(directory, template):
             raise CalibrationStop(f"{directory}: no {step} step ({path}): the steps are made in order")
         parts.append(read_json(path))
     origin, capacity = parts
+    why = origin_estimator_problem(origin)
+    if why:
+        raise CalibrationStop(why)
     if capacity.get("stopped"):
         raise CalibrationStop(f"the capacity step stopped: {capacity['stopped']}")
     if capacity.get("smoke"):
@@ -591,9 +608,10 @@ def read_session(directory):
 
 
 def freeze_problems(session, template):
-    """Reasons for which `session` cannot be frozen: a smoke step, a screening that is not valid, steps made under another template
-    or other measured costs and capacity, or a reference that was taken for another set of knees."""
-    reasons = []
+    """Reasons for which `session` cannot be frozen: an origin measured with another estimator, a smoke step, a screening that is
+    not valid, steps made under another template or other measured costs and capacity, or a reference that was taken for another
+    set of knees."""
+    reasons = [why] if (why := origin_estimator_problem(session["origin"])) else []
     under = under_of(template, session["origin"], session["capacity"])
     named = (("origin", session["origin"]), ("capacity", session["capacity"]), ("reference", session["reference"]),
              *[(f"ladder {f}", ladder) for f, ladder in session["ladders"].items()])

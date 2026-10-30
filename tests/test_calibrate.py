@@ -330,6 +330,8 @@ class OriginTest(unittest.TestCase):
         # the placeholder's C0 costs 0.05 ms: 32 calls are 1.6 ms and 16 only 0.8; C5's 150 ms is one call
         self.assertEqual((timing[0]["batch"]["C0"], timing[0]["batch"]["C5"]), (32, 1))
         self.assertEqual(result["estimator"]["batch_min_s"], 0.001)
+        self.assertEqual(result["estimator"]["version"], O.ESTIMATOR_VERSION)
+        self.assertEqual(O.ESTIMATOR_VERSION, 2, "1 was each route in a row on the process's clock")
         saved = K.read_json(os.path.join(self.tmp.name, "origin", "origin.json"))
         self.assertEqual(saved["rounds"][0]["timing"], timing)
         self.assertEqual(saved["estimator"], K.origin_estimator())
@@ -1201,6 +1203,21 @@ class SimulatedCalibrationTest(unittest.TestCase):
         with self.assertRaisesRegex(K.CalibrationStop, "reference was taken at rho 50"):
             self.freeze(dest)
 
+    def test_an_origin_of_another_estimator_or_of_none_is_neither_resumed_nor_frozen(self):
+        """An origin.json that does not say its estimator (HG2a's, made before the version was recorded) or names another
+        version: its costs differ from this code's by up to about 9 % a route, which the origin's 25 % self-check would not
+        see once frozen (docs/HG1C_DESIGN.md departure 29)."""
+        for label, change, said in (("none", lambda d: d.pop("estimator"), "does not say which estimator"),
+                                    ("version 1", lambda d: d["estimator"].update(version=1), "estimator version 1")):
+            with self.subTest(origin=label):
+                dest = self.copy_session()
+                self.edit(dest, "origin", "origin.json", change=change)
+                with self.assertRaisesRegex(K.CalibrationStop, said):
+                    self.freeze(dest)
+                with self.assertRaisesRegex(K.CalibrationStop, said):
+                    K.session_draft(dest, self.template)
+        self.assertTrue(self.freeze(self.copy_session())["sha256"], "this code's own origin still freezes")
+
 
 class CommandLineTest(unittest.TestCase):
     def setUp(self):
@@ -1296,6 +1313,23 @@ class CommandLineTest(unittest.TestCase):
         got = json.loads(out)
         self.assertEqual(sorted(got), ["batch", "clock", "costs_ms"])
         self.assertEqual(sorted(got["costs_ms"]), ["C0", "C1", "C2", "C3", "C5"])
+
+    def test_a_session_whose_origin_says_no_estimator_is_not_resumed_and_nothing_runs(self):
+        """The directory of HG2a (hg2_1) as it is: an origin.json from the old estimator, with no `estimator`, and a capacity
+        step's record. A later step on it refuses before any run (the host here would refuse a run anyway: not root)."""
+        out = os.path.join(self.tmp.name, "hg2_1")
+        K.write_json(os.path.join(out, "origin", "origin.json"),
+                     {"step": "origin", "route_costs_ms": {"C0": 0.0058, "C1": 3.96, "C2": 2.15, "C3": 35.5, "C5": 191.8},
+                      "rounds": [], "sessions": 3, "repeats": 21, "cpu": "0", "template_sha256": TEMPLATE["sha256"]})
+        K.write_json(os.path.join(out, "capacity", "capacity.json"),
+                     {"step": "capacity", "c_slo_rps": 84.5, "c_sat_rps": 241.3, "smoke": False, "template_sha256": TEMPLATE["sha256"]})
+        for args in (("ladder", "--family", "cheap_static_flood"), ("reference",)):
+            with self.subTest(step=args[0]):
+                code, _, err = self.cli(*args[:1], "--out", out, *args[1:], host=S.SimHost(root=False))
+                self.assertEqual(code, K.EXIT_STOPPED)
+                self.assertIn("does not say which estimator measured it", err)
+                self.assertIn("make the origin step again", err)
+        self.assertEqual(sorted(os.listdir(out)), ["capacity", "origin"], "no run was made")
 
 
 class RulesPinnedTest(unittest.TestCase):
