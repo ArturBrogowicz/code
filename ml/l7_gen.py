@@ -16,6 +16,11 @@ test_distributed_suite.py, parameterised to stay below the daemon's ban threshol
         --port 443 --duration 60 --seed 7 --params '{"per_session":[4,12]}'
     ... --role attack --family slowloris --params '{"conns":6,"header_every_s":3}'
     ... --plan   # print what it would do and exit (offline, no sending)
+    ... --source 10.0.16.7   # P3: bind every connection to this address alias of the namespace
+
+--source (docs/P3_DATASET_DESIGN.md §4.2): a P3 capture groups its entities onto one namespace per
+netem profile as address aliases, so a generator must send from its entity's own address. Without
+it the generator behaves exactly as before (the kernel picks the namespace's only address).
 """
 import argparse
 import ipaddress
@@ -38,6 +43,42 @@ UAS = [
     "curl/8.18.0", "python-requests/2.32", "TestbedMonitor/1.0",
 ]
 EXTS = ["js", "css", "png", "woff2", "json"]
+SOURCE = None          # the entity's own address when --source is given (P3); None: the kernel's choice
+
+
+def _new_session():
+    """A requests.Session; with SOURCE set, every connection it opens is bound to SOURCE."""
+    import requests
+    sess = requests.Session()
+    if SOURCE is not None:
+        adapter = _source_adapter()
+        sess.mount("http://", adapter)
+        sess.mount("https://", adapter)
+    return sess
+
+
+def _source_adapter(**kw):
+    from requests.adapters import HTTPAdapter
+
+    class SourceAdapter(HTTPAdapter):
+        def init_poolmanager(self, connections, maxsize, block=False, **pool_kw):
+            pool_kw["source_address"] = (SOURCE, 0)
+            super().init_poolmanager(connections, maxsize, block=block, **pool_kw)
+    return SourceAdapter(**kw)
+
+
+def _one_shot(method, url, **kw):
+    """requests.request, from SOURCE when it is set."""
+    import requests
+    if SOURCE is None:
+        return requests.request(method, url, **kw)
+    with _new_session() as sess:
+        return sess.request(method, url, **kw)
+
+
+def _curl(*args):
+    """A curl argv; with SOURCE set it sends from SOURCE (--interface takes an address)."""
+    return ["curl", *(("--interface", SOURCE) if SOURCE is not None else ()), *args]
 
 
 def _paths(kind, rng):
@@ -74,8 +115,8 @@ def benign_curl_oneshot(host, port, params, dur, rng):
     end = _deadline(dur)
     while time.time() < end:
         url = _base(host, port) + _paths(params.get("paths", "mixed"), rng)
-        subprocess.run(["curl", "-s", "-k", "-o", "/dev/null", "--max-time", "10",
-                        "-A", rng.choice(UAS), url], capture_output=True, check=False)
+        subprocess.run(_curl("-s", "-k", "-o", "/dev/null", "--max-time", "10",
+                             "-A", rng.choice(UAS), url), capture_output=True, check=False)
         time.sleep(rng.uniform(lo, hi))
 
 
@@ -85,8 +126,8 @@ def benign_http2(host, port, params, dur, rng):
     end = _deadline(dur)
     while time.time() < end:
         urls = [_base(host, port) + _paths("assets", rng) for _ in range(n)]
-        subprocess.run(["curl", "-s", "-k", "--http2", "--parallel", "-o", "/dev/null",
-                        "--max-time", "10", "-A", rng.choice(UAS), *urls],
+        subprocess.run(_curl("-s", "-k", "--http2", "--parallel", "-o", "/dev/null",
+                             "--max-time", "10", "-A", rng.choice(UAS), *urls),
                        capture_output=True, check=False)
         time.sleep(rng.uniform(lo, hi))
 
@@ -108,10 +149,9 @@ def _session_browse(sess, host, port, params, rng, end):
 
 
 def benign_keepalive(host, port, params, dur, rng):
-    import requests
     end = _deadline(dur)
     while time.time() < end:
-        with requests.Session() as sess:
+        with _new_session() as sess:
             _session_browse(sess, host, port, params, rng, end)
         time.sleep(rng.uniform(0.5, 2.0))
 
@@ -121,7 +161,7 @@ def benign_api_poll(host, port, params, dur, rng):
     lo, hi = params.get("interval_s", [0.5, 1.5])
     path = params.get("path", "/api/status")
     end = _deadline(dur)
-    with requests.Session() as sess:
+    with _new_session() as sess:
         while time.time() < end:
             try:
                 sess.get(_base(host, port) + path, verify=False, timeout=10,
@@ -138,7 +178,7 @@ def benign_downloader(host, port, params, dur, rng):
     end = _deadline(dur)
     while time.time() < end:
         try:
-            requests.get(_base(host, port) + path, verify=False, timeout=30)
+            _one_shot("get", _base(host, port) + path, verify=False, timeout=30)
         except requests.RequestException:
             pass
         time.sleep(rng.uniform(lo, hi))
@@ -153,7 +193,7 @@ def benign_uploader(host, port, params, dur, rng):
     while time.time() < end:
         body = b"x" * rng.randint(blo, bhi)
         try:
-            requests.post(_base(host, port) + path, data=body, verify=False, timeout=15)
+            _one_shot("post", _base(host, port) + path, data=body, verify=False, timeout=15)
         except requests.RequestException:
             pass
         time.sleep(rng.uniform(lo, hi))
@@ -189,7 +229,8 @@ def _session(ua, conns):
     import requests
     from requests.adapters import HTTPAdapter
     sess = requests.Session()
-    adapter = HTTPAdapter(pool_connections=1, pool_maxsize=conns)
+    adapter = (_source_adapter(pool_connections=1, pool_maxsize=conns) if SOURCE is not None
+               else HTTPAdapter(pool_connections=1, pool_maxsize=conns))
     sess.mount("http://", adapter)
     sess.mount("https://", adapter)
     sess.headers["User-Agent"] = ua
@@ -265,7 +306,7 @@ def attack_rate_get(host, port, params, dur, rng, path_fn=None, extra_headers=No
     headers = {"User-Agent": rng.choice(UAS)}
     if extra_headers:
         headers.update(extra_headers)
-    with requests.Session() as sess:
+    with _new_session() as sess:
         while time.time() < end:
             url = _base(host, port) + (path_fn(rng) if path_fn
                                        else _paths(params.get("paths", "mixed"), rng))
@@ -294,7 +335,7 @@ def attack_credstuff(host, port, params, dur, rng):
     rps = params["rps"]
     path = params.get("path", "/login")
     end = _deadline(dur)
-    with requests.Session() as sess:
+    with _new_session() as sess:
         while time.time() < end:
             body = json.dumps({"u": f"user{rng.randrange(10**6)}", "p": "x" * 12}).encode()
             try:
@@ -311,6 +352,8 @@ def _open_sockets(host, port, n, send_head):
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(4)
+            if SOURCE is not None:
+                s.bind((SOURCE, 0))
             s.connect((host, port))
             if port == 443:
                 ctx = ssl._create_unverified_context()   # testbed self-signed cert
@@ -395,7 +438,8 @@ def attack_slowread(host, port, params, dur, rng):
 def attack_volumetric_flood(host, port, params, dur, rng):
     """A short SYN flood (hping3), so benign L7 traffic is seen distorted (§5.6).
     The attacker's own L4 packets are not L7 requests; its effect is on others."""
-    proc = subprocess.Popen(["hping3", "-S", "-p", "80", "-i", "u500", host],
+    src = ["-a", SOURCE] if SOURCE is not None else []
+    proc = subprocess.Popen(["hping3", "-S", "-p", "80", "-i", "u500", *src, host],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         time.sleep(params.get("dur_s", dur))
@@ -433,6 +477,7 @@ def main(argv=None):
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--params", default="{}", help="JSON params")
     ap.add_argument("--plan", action="store_true", help="print the plan and exit (no sending)")
+    ap.add_argument("--source", help="send from this address (an alias of the namespace; P3)")
     args = ap.parse_args(argv)
 
     name = args.kind if args.role == "benign" else args.family
@@ -440,14 +485,21 @@ def main(argv=None):
     fn = resolve(args.role, name)
     plan = {"role": args.role, "name": name, "host": args.host, "port": args.port,
             "duration": args.duration, "seed": args.seed, "params": params}
+    if args.source is not None:
+        plan["source"] = args.source
     if args.plan:
         print(json.dumps(plan))
         return 0
-    try:
-        if ipaddress.ip_address(args.host) not in TESTBED_NET:
-            raise SystemExit(f"[-] refusing: {args.host} is outside the testbed net {TESTBED_NET}")
-    except ValueError:
-        raise SystemExit(f"[-] refusing: {args.host} is not a testbed IP") from None
+    for what, addr in (("target", args.host), ("source", args.source)):
+        if addr is None:
+            continue
+        try:
+            if ipaddress.ip_address(addr) not in TESTBED_NET:
+                raise SystemExit(f"[-] refusing: {what} {addr} is outside the testbed net {TESTBED_NET}")
+        except ValueError:
+            raise SystemExit(f"[-] refusing: {what} {addr} is not a testbed IP") from None
+    global SOURCE
+    SOURCE = args.source
     if args.port == 443:
         os.environ.setdefault("PYTHONWARNINGS", "ignore")      # self-signed cert
     fn(args.host, args.port, params, args.duration, random.Random(args.seed))
