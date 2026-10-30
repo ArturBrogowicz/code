@@ -407,5 +407,26 @@ class EnforceTest(SlowPcCase):
         self.assertEqual(len(d.events("slow_pc_capped")[1]["ips"]), 50)
 
 
+
+class DocumentationTest(unittest.TestCase):
+    def test_evaluation_md_documents_the_rule_profile_r_the_events_and_the_tests(self):
+        with open(os.path.join(REPO, "docs", "EVALUATION.md"), encoding="utf-8") as fh:
+            doc = fh.read()
+        start = doc.index("## P4: the per-connection slow rule and profile R")
+        section = doc[start:doc.index("\n## ", start + 1)]
+        for name in ("`SLOW_PC`", "`SLOW_PC_ENFORCE`", "`SLOW_PC_KILL_FILE`", "`SLOW_PC_T`",
+                     "`SLOW_PC_RECORD`", "`l4_slowconn_pc`", "`l7_rudy`", "`nginx_profile_r.conf`",
+                     "`nginx_profile_r_limits.conf`", "`gunicorn_profile_r.py`",
+                     "`slow_pc.select_thresholds()`", "`tests/test_slow_pc_rule.py`",
+                     "`tests/test_slow_pc.py`", "`tests/test_daemon_slow_pc.py`",
+                     "`tests/test_profile_r.py`", "`tests/test_l7_admissibility_pc.py`",
+                     "[NOT RUN]"):
+            self.assertIn(name, section, name)
+        events = doc[doc.index("## Ban events"):doc.index("## Metrics")]
+        for kind in ("slow_pc_close", "slow_pc_would_ban", "slow_pc_capped", "slow_pc_poll",
+                     "l4_slowconn_pc", "slow_pc_enforce"):
+            self.assertIn(f"`{kind}`", events, kind)
+
+
 if __name__ == "__main__":
     unittest.main()
