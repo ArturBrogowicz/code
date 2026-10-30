@@ -354,9 +354,15 @@ class Detector:
     def poll(self, now, text, l7_items=(), banned=()):
         """Judge every socket of one `ss -tinpH` output at time `now`. `banned` are the
         addresses other engines banned: their sockets are not judged."""
+        return self.poll_parsed(now, parse_ss(text), l7_items, banned)
+
+    def poll_parsed(self, now, parsed, l7_items=(), banned=()):
+        """poll() on an output that parse_ss() already read, which it does not modify: the
+        offline scorer (eval/p4_validation.py) reads each recorded poll once for every grid
+        point."""
         self.take_l7(l7_items)
         self._expire(now)
-        socks, present, skipped, bad = parse_ss(text)
+        socks, present, skipped, bad = parsed
         st = self.stats
         st["polls"] += 1
         st["skipped_lines"] += skipped

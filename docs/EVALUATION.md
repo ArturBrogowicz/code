@@ -347,6 +347,14 @@ run (T-023, seed 1): median closes 55 s (Slowloris) / 39 s (slow POST); the inde
 the constraints and the tie-breaks are unchanged, and the pin was renewed in the same commit. (The sources
 were corrected the same day: the first version of this record, 74020b6, attributed all figures to one run.)
 
+**Scoring the validation runs** (P4-03; `eval/p4_validation.py`, committed before any validation run). Each
+validation run's manifest names its `SLOW_PC_RECORD` file and the role of every client address (`attack`,
+`slow_uploader`, or any other benign kind). The scorer replays each record once, through one detector per grid
+point (`Detector.poll_parsed`), counts every point's `slow_pc.Outcome` as the frozen definitions say, sums them
+over the six runs (it refuses any other set of runs, and any address without a role) and applies
+`slow_pc.select_thresholds()`. Next to each point it reports the share banned within 30 s, the secondary figure
+of the re-registration. `tests/test_p4_validation.py` scores a synthetic validation set worked out by hand.
+
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
 user's decision.
