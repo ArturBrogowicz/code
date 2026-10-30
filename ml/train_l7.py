@@ -29,7 +29,25 @@ Honest evaluation (the ML_INVESTIGATION lessons):
   * the chosen variant's tabular baseline is saved beside the package
     (baseline_hgb.pkl + .json) so the online evaluation can replay it (P5b baseline B4).
 
+Selection (docs/P3_DATASET_DESIGN.md §4.8). The default rule, `--selection val`, uses the
+VALIDATION set only: each probe-gated variant gets its operating point (threshold,
+consecutive) from the pre-registered grids at the benign budget (at most 1 % of the
+validation's benign entities flagged, ml/p3_prereg.json), and the variant with the highest
+validation attack-entity recall at its point wins (tie-break: fewer benign entities
+flagged, then lower validation loss). The probes read validation records only. The test
+sets (benign_test, held-out families, trained-attack tail, held-out benign) are scored at
+the frozen point and reported, never used. `--selection p5c` is the published P4/P5c rule
+(held-out family groups and benign_test FP at 0.95 x 3; probes on every record), kept to
+reproduce results/2026-10-16_l7-p5c3-train and earlier.
+
+With --val (P3), the positional datasets are the training captures and --val the
+validation captures, all schema 2; the disjointness checker (ml/l7_disjoint.py) must pass
+before anything is fitted, windows are keyed by entity id, and the run writes split.json
+and selection.json (variant, operating point, split sha256) beside the package.
+
     ./venv/bin/python ml/train_l7.py DATASET_DIR --out ml/l7_models/<name> [--epochs 25]
+    ./venv/bin/python ml/train_l7.py TRAIN_DIR... --val VAL_DIR... --out <dir>
+    ./venv/bin/python ml/train_l7.py results/2026-10-16_l7-p5c3-capture --selection p5c ...
 """
 import argparse
 import json
@@ -76,6 +94,7 @@ def load_records(dataset_dir):
             if cls == l7_dataset.OTHER:
                 continue
             rec["_cls"], rec["_family"], rec["_held"] = cls, family, held
+            rec["_entity"] = ip_map[rec["ip"]].get("entity_id", rec["ip"])
             recs.append(rec)
     return manifest, recs
 
@@ -310,6 +329,92 @@ def baseline_scores(clf, windows, cols):
     return clf.predict_proba(X)[:, 1]
 
 
+# ───────────────────────────── selection on validation (P3 §4.8) ─────────────────────────────
+
+SELECTIONS = ("val", "p5c")
+
+
+def _prereg_curve():
+    import p3_prereg
+    return p3_prereg.load()["learning_curve"]
+
+
+def entity_flags(windows, scores, threshold, consecutive):
+    """{entity: flagged?} where an entity (window "ip") is flagged when any of its keys has
+    `consecutive` successive windows over `threshold` (the deployed policy)."""
+    out = {}
+    for (ent, _ua), g in per_group(windows, scores).items():
+        hit = policy_detected(g, [p for _, p, _ in g], threshold, consecutive)
+        out[ent] = out.get(ent, False) or hit
+    return out
+
+
+def operating_point(windows, scores, theta_grid=None, k_grid=None, budget=None):
+    """The (threshold, consecutive) chosen on VALIDATION windows: among the grid points that flag
+    at most floor(budget x benign entities) benign entities, the one with the highest attack-entity
+    recall; ties go to fewer benign flags, a smaller k (faster), then a higher threshold. None when
+    the set has no attack or no benign entity, or no point fits the budget."""
+    lc = _prereg_curve()
+    theta_grid = lc["theta_grid"] if theta_grid is None else theta_grid
+    k_grid = lc["k_grid"] if k_grid is None else k_grid
+    budget = lc["benign_budget"] if budget is None else budget
+    cls = {w["ip"]: w["cls"] for w in windows}
+    ben = sorted(e for e, c in cls.items() if c == l7_dataset.BENIGN)
+    atk = sorted(e for e, c in cls.items() if c == l7_dataset.ATTACK)
+    if not ben or not atk:
+        return None
+    allowed = math.floor(budget * len(ben) + 1e-9)
+    best = None
+    for k in k_grid:
+        for thr in theta_grid:
+            flags = entity_flags(windows, scores, thr, k)
+            fb = sum(flags.get(e, False) for e in ben)
+            if fb > allowed:
+                continue
+            caught = sum(flags.get(e, False) for e in atk)
+            key = (caught, -fb, -k, thr)
+            if best is None or key > best[0]:
+                best = (key, {"threshold": float(thr), "consecutive": int(k), "val_attack_caught": caught,
+                              "val_attack_entities": len(atk), "val_recall": round(caught / len(atk), 4),
+                              "val_benign_flagged": fb, "val_benign_entities": len(ben),
+                              "benign_allowed": allowed, "budget": budget})
+    return best[1] if best else None
+
+
+def select_variant(candidates, rule):
+    """The chosen variant name (or None) from {name: summary}. Rule "val" reads only each summary's
+    "operating_point" and "val_loss"; rule "p5c" reads "heldout_detected", "benign_fp" and
+    "val_loss" (the published rule). Only probe-gated candidates are eligible."""
+    eligible = [n for n, c in candidates.items() if c["probe_gate_pass"]
+                and (rule == "p5c" or c.get("operating_point") is not None)]
+    if not eligible:
+        return None, eligible
+    if rule == "val":
+        def key(n):
+            op = candidates[n]["operating_point"]
+            return (op["val_recall"], -op["val_benign_flagged"], -candidates[n]["val_loss"])
+    elif rule == "p5c":
+        def key(n):
+            c = candidates[n]
+            fp = c["benign_fp"] or 0.0
+            return (fp <= 1.0, c["heldout_detected"], -fp, -c["val_loss"])
+    else:
+        raise ValueError(f"unknown selection rule {rule!r}")
+    return max(eligible, key=key), eligible
+
+
+def multi_capture_windows(dirs, seq, cols, stride, records=None):
+    """Windows of several schema-2 captures, each windowed on its own; a window's "ip" becomes its
+    entity id (one address can serve different entities in different captures)."""
+    out = []
+    for d in dirs:
+        recs = records[d] if records is not None else load_records(d)[1]
+        for w in group_windows(recs, seq, cols, stride, DEFAULT_MIN_EVENTS):
+            w["ip"] = w["recs"][0]["_entity"]
+            out.append(w)
+    return out
+
+
 # ───────────────────────────── orchestration ─────────────────────────────
 
 def evaluate_model(score_fn, sets, threshold, consecutive):
@@ -354,24 +459,55 @@ def memory_scorer(model, cols, seq, mean, std, threshold, consecutive):
 
 def run(dataset_dir, out_dir, *, seed=0, epochs=25, hidden=64, layers=2,
         seq=DEFAULT_SEQ, stride=DEFAULT_STRIDE, threshold=THRESHOLD, consecutive=CONSECUTIVE,
-        variants=VARIANTS, do_baseline=True):
+        variants=VARIANTS, do_baseline=True, selection="val", val_dirs=None):
+    """Train every variant, probe-gate it, select one, save its package. `dataset_dir` is one
+    dataset, or with `val_dirs` (P3) a list of training captures. selection="val" (default)
+    decides on validation only; "p5c" is the published rule (see the module docstring)."""
     import l7_scorer
-    manifest, recs = load_records(dataset_dir)
+    if selection not in SELECTIONS:
+        raise ValueError(f"selection must be one of {SELECTIONS}")
+    train_dirs = [dataset_dir] if isinstance(dataset_dir, str) else list(dataset_dir)
+    if val_dirs:
+        import l7_disjoint
+        if selection != "val":
+            raise ValueError("P3 captures (--val) select on validation only")
+        l7_disjoint.require({"train": train_dirs, "val": list(val_dirs), "eval": []})
+        loaded = {d: load_records(d) for d in list(train_dirs) + list(val_dirs)}
+        manifest = loaded[train_dirs[0]][0]
+        recs = [r for d in train_dirs for r in loaded[d][1]]
+    elif len(train_dirs) != 1:
+        raise ValueError("several training captures need their validation captures (--val)")
+    else:
+        manifest, recs = load_records(train_dirs[0])
 
     GROUPS = variant_groups()
-    report = {"dataset": os.path.abspath(dataset_dir),
+    report = {"dataset": os.path.abspath(train_dirs[0]) if len(train_dirs) == 1
+              else [os.path.abspath(d) for d in train_dirs],
               "dataset_manifest_sha_families": l7_dataset.families(manifest),
               "held_out_families": l7_dataset.families(manifest, held_out=True),
               "seed": seed, "epochs": epochs, "seq": seq, "stride": stride,
               "threshold": threshold, "consecutive": consecutive, "variants": {}}
+    if selection == "val":
+        report["selection_rule"] = "val"
+    if val_dirs:
+        report["val_datasets"] = [os.path.abspath(d) for d in val_dirs]
 
-    FP_BUDGET = 1.0        # benign false detections per client-hour a variant may have
+    FP_BUDGET = 1.0        # benign false detections per client-hour a variant may have (p5c rule)
     trained = {}
     baselines = {}
+    val_recs = {}
     for variant in variants:
         cols = F.columns(GROUPS[variant])
-        windows = group_windows(recs, seq, cols, stride, DEFAULT_MIN_EVENTS)
-        sets, ip_split = split(windows, seed)
+        if val_dirs:
+            recmap = {d: loaded[d][1] for d in loaded}
+            empty = {k: [] for k in ("benign_test", "heldout", "trained_attack_test", "benign_heldout")}
+            sets = {"train": multi_capture_windows(train_dirs, seq, cols, stride, recmap),
+                    "val": multi_capture_windows(val_dirs, seq, cols, stride, recmap), **empty}
+            ip_split = {"train_captures": [os.path.basename(os.path.normpath(d)) for d in train_dirs],
+                        "val_captures": [os.path.basename(os.path.normpath(d)) for d in val_dirs]}
+        else:
+            windows = group_windows(recs, seq, cols, stride, DEFAULT_MIN_EVENTS)
+            sets, ip_split = split(windows, seed)
         mean, std = fit_scaling(sets["train"], len(cols))
         model, vloss = train_gru(sets["train"], sets["val"], cols, mean, std,
                                  seed=seed, epochs=epochs, hidden=hidden, layers=layers)
@@ -379,57 +515,90 @@ def run(dataset_dir, out_dir, *, seed=0, epochs=25, hidden=64, layers=2,
         def gfn(ws, _m=model, _me=mean, _sd=std):
             return gru_scores(_m, ws, _me, _sd)
 
-        gru_eval = evaluate_model(gfn, sets, threshold, consecutive)
+        op = None
+        if selection == "val":
+            op = operating_point(sets["val"], gfn(sets["val"]))
+        thr_v, k_v = (op["threshold"], op["consecutive"]) if op else (threshold, consecutive)
+        gru_eval = evaluate_model(gfn, sets, thr_v, k_v)
         v = {"columns": cols, "val_loss": round(vloss, 5), "ip_split": ip_split,
              "counts": {k: len(s) for k, s in sets.items()}, "gru": gru_eval}
+        if selection == "val":
+            v["operating_point"] = op
         if do_baseline:
             clf = train_baseline(sets["train"], cols, seed)
 
             def bfn(ws, _c=clf, _cols=cols):
                 return baseline_scores(_c, ws, _cols)
-            v["baseline_hgb"] = evaluate_model(bfn, sets, threshold, consecutive)
+            v["baseline_hgb"] = evaluate_model(bfn, sets, thr_v, k_v)
             baselines[variant] = (clf, cols)
         report["variants"][variant] = v
         trained[variant] = (model, cols, mean, std)
+        if selection == "val" and not val_recs:
+            seen = {}
+            for w in sets["val"]:
+                for r in w["recs"]:
+                    seen[id(r)] = r
+            val_recs = sorted(seen.values(), key=F.start_time)
 
     # Hard probe gate on EVERY variant (§7.3.2.1): the exact transforms + server_load (R17).
-    # Only passing variants are eligible for the (unchanged) selection rule below.
+    # Only passing variants are eligible. Rule "val" probes validation records at each
+    # variant's own operating point; rule "p5c" probes every record at the fixed policy.
+    probe_recs = val_recs if selection == "val" else recs
     probe_windows = l7_probes.windows_from_items(
-        [("record", _obj_for(r)) for r in recs], seq, stride=stride)[:2000]
+        [("record", _obj_for(r)) for r in probe_recs], seq, stride=stride)[:2000]
     for name, (model, cols, mean, std) in trained.items():
-        sc = memory_scorer(model, cols, seq, mean, std, threshold, consecutive)
+        op = report["variants"][name].get("operating_point")
+        sc = memory_scorer(model, cols, seq, mean, std, op["threshold"] if op else threshold,
+                           op["consecutive"] if op else consecutive)
         probes = l7_probes.run_probes(sc, probe_windows, seed=seed)
         report["variants"][name]["probes"] = probes
         report["variants"][name]["probe_gate_pass"] = l7_probes.gate_pass(probes)
-    eligible = [n for n in report["variants"] if report["variants"][n]["probe_gate_pass"]]
 
-    # Pre-registered selection: maximise held-out family groups detected, subject to a
-    # benign false-positive budget; tie-break on lower benign FP then lower val loss.
-    def score_variant(name):
-        g = report["variants"][name]["gru"]
-        ho = g["heldout"].get("by_family", {})
-        detected = sum(f["detected"] for f in ho.values())
-        fp = (g["benign_fp"] or {}).get("fp_per_client_hour") or 0.0
-        within = fp <= FP_BUDGET
-        return (within, detected, -fp, -report["variants"][name]["val_loss"])
-    rule = (f"probe gate first (exact + server_load); then max held-out groups detected s.t. "
-            f"benign FP/client-hour <= {FP_BUDGET}; tie-break lower FP then lower val loss")
+    def summary(name):
+        v = report["variants"][name]
+        ho = v["gru"]["heldout"].get("by_family", {})
+        return {"probe_gate_pass": v["probe_gate_pass"], "val_loss": v["val_loss"],
+                "operating_point": v.get("operating_point"),
+                "heldout_detected": sum(f["detected"] for f in ho.values()),
+                "benign_fp": (v["gru"]["benign_fp"] or {}).get("fp_per_client_hour")}
+    candidates = {n: summary(n) for n in report["variants"]}
+    if selection == "val":
+        for c in candidates.values():                  # what rule "val" may read, and nothing else
+            c.pop("heldout_detected")
+            c.pop("benign_fp")
+        rule = ("probe gate first (exact + server_load, validation records); then each variant's "
+                "operating point on validation (max attack-entity recall with <= 1 % of benign "
+                "entities flagged); then max validation recall, tie-break fewer benign flags, lower "
+                "val loss. Test sets are reported at the frozen point, never used")
+    else:
+        rule = (f"probe gate first (exact + server_load); then max held-out groups detected s.t. "
+                f"benign FP/client-hour <= {FP_BUDGET}; tie-break lower FP then lower val loss")
+    chosen, eligible = select_variant(candidates, selection)
     os.makedirs(out_dir, exist_ok=True)
-    if not eligible:
-        report["selection"] = {"rule": rule, "chosen": None, "eligible": [],
+    if chosen is None:
+        report["selection"] = {"rule": rule, "chosen": None, "eligible": eligible,
                                "caveat": "no variant passed the probe gate: no candidate"}
+        if selection == "val":
+            report["selection"]["uses"] = ["val"]
+            report["selection"]["caveat"] = ("no variant passed the probe gate with an operating point "
+                                             "within the benign budget on validation: no candidate")
         report["probe_gate_pass"] = False
         return report, None
-    chosen = max(eligible, key=score_variant)
     report["selection"] = {"rule": rule, "chosen": chosen, "eligible": eligible,
                            "caveat": "one capture, one seed; confirm on another seed/capture "
                                      "before promotion (P6)"}
+    if selection == "val":
+        op = report["variants"][chosen]["operating_point"]
+        threshold, consecutive = op["threshold"], op["consecutive"]
+        report["threshold"], report["consecutive"] = threshold, consecutive
+        report["selection"]["uses"] = ["val"]
+        report["selection"]["operating_point"] = op
 
     model, cols, mean, std = trained[chosen]
     l7_scorer.save_package(
         out_dir, model, cols, seq, mean, std, threshold, consecutive,
         hidden_size=hidden, num_layers=layers,
-        meta={"dataset": os.path.abspath(dataset_dir), "seed": seed, "epochs": epochs,
+        meta={"dataset": report["dataset"], "seed": seed, "epochs": epochs,
               "variant": chosen, "feature_groups": [g for g in GROUPS[chosen]],
               "trained_families": l7_dataset.families(manifest, False),
               "held_out_families": l7_dataset.families(manifest, True),
@@ -444,7 +613,24 @@ def run(dataset_dir, out_dir, *, seed=0, epochs=25, hidden=64, layers=2,
     scorer = l7_scorer.L7Scorer.load(out_dir)
     report["probes"] = l7_probes.run_probes(scorer, probe_windows, seed=seed)
     report["probe_gate_pass"] = l7_probes.gate_pass(report["probes"])
+    if val_dirs:
+        import l7_disjoint
+        split_sha = l7_disjoint.write_split(os.path.join(out_dir, "split.json"),
+                                            {"train": train_dirs, "val": list(val_dirs), "eval": []})
+        sel = {"format": "p3-selection/1", "variant": chosen, "threshold": threshold,
+               "consecutive": consecutive, "split_sha256": split_sha,
+               "package_config_sha256": l7_scorer_sha(out_dir)}
+        with open(os.path.join(out_dir, "selection.json"), "w", encoding="utf-8") as fh:
+            json.dump(sel, fh, indent=1, sort_keys=True)
+            fh.write("\n")
+        report["selection"]["file"] = sel
     return report, best
+
+
+def l7_scorer_sha(pkg_dir):
+    import hashlib
+    with open(os.path.join(pkg_dir, "config.json"), "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
 
 
 BASELINE_PKL = "baseline_hgb.pkl"
@@ -556,7 +742,12 @@ def write_card(out_dir, report):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("dataset_dir")
+    ap.add_argument("dataset_dir", nargs="+", help="one dataset, or (with --val) the training captures")
+    ap.add_argument("--val", nargs="+", default=None, metavar="VAL_DIR",
+                    help="P3: the validation captures (schema 2); the disjointness check runs first")
+    ap.add_argument("--selection", choices=SELECTIONS, default="val",
+                    help="val (default): variant and operating point on validation only; p5c: the "
+                         "published held-out/benign_test rule, to reproduce P4/P5c")
     ap.add_argument("--out", required=True, help="model package output dir")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--epochs", type=int, default=25)
@@ -569,9 +760,12 @@ def main():
                     help=f"feature variants to train and select among (default: all of {VARIANTS})")
     args = ap.parse_args()
 
-    report, _best = run(args.dataset_dir, args.out, seed=args.seed, epochs=args.epochs,
-                       hidden=args.hidden, layers=args.layers, do_baseline=not args.no_baseline,
-                       variants=tuple(args.variants))
+    if len(args.dataset_dir) > 1 and not args.val:
+        ap.error("several training captures need --val")
+    report, _best = run(args.dataset_dir[0] if len(args.dataset_dir) == 1 else args.dataset_dir,
+                        args.out, seed=args.seed, epochs=args.epochs,
+                        hidden=args.hidden, layers=args.layers, do_baseline=not args.no_baseline,
+                        variants=tuple(args.variants), selection=args.selection, val_dirs=args.val)
     card = write_card(args.out, report)
     report_path = args.report or os.path.join(args.out, "metrics.json")
     with open(report_path, "w", encoding="utf-8") as fh:
