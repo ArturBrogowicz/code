@@ -11,9 +11,10 @@ recomputed offline. `freeze` reads those directories and never touches the VM.
     python3 bench/calibrate.py freeze --dir DIR --out bench/calibration/<host>-<date>.json         # 4+5  the knees, the record
     sudo ./venv/bin/python bench/calibrate.py drift --calibration FILE --out DIR                   # 7  before a later campaign
 
-Every step that runs the VM is a separate approval, takes the same preflight and environment gate as a campaign, and can be given
-`--simulate` to run on the simulated host (bench/sim_host.py) with a server of a known capacity: the steps, the stop rules and the
-arithmetic seen working offline. A step stops, and says what that means, when the host cannot be calibrated: nothing is tuned.
+Every step that runs the VM is a separate approval and takes the environment gate of a campaign's start: the steps that make runs
+take it with the executor's preflight, as a campaign does; the origin step, which builds nothing, takes the gate's uptime and load
+alone (Runner.quiet, docs/HG1C_DESIGN.md departure 28). Each can be given `--simulate` to run on the simulated host
+(bench/sim_host.py) with a server of a known capacity: the steps, the stop rules and the arithmetic seen working offline. A step stops, and says what that means, when the host cannot be calibrated: nothing is tuned.
 """
 import argparse
 import copy
