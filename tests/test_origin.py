@@ -376,8 +376,8 @@ class EstimatorTest(unittest.TestCase):
             app = O.make_app(FAST, frozen_costs_ms={k: v * 1000 for k, v in STUB_COSTS.items()}, clock=clock)
         self.addCleanup(app.close)
         rest = ["C1", "C2", "C3", "C5"]
-        calibration = ["C0"] * (1 + 2 + 4 + 8 + 16 + 32 + 64 + 128 + 256) + rest
-        self.assertEqual(calls, calibration + (["C0"] * 256 + rest) * 5, "a calibration call, then 5 rounds in turn")
+        calibration = ["C0"] * 2 * (1 + 2 + 4 + 8 + 16 + 32 + 64 + 128 + 256) + ["C1", "C1", "C2", "C2", "C3", "C3", "C5", "C5"]
+        self.assertEqual(calls, calibration + (["C0"] * 256 + rest) * 5, "calibration calls, then 5 rounds in turn")
         reference = Stub(VirtualClock())
         O.measure_unloaded(reference, clock=reference.clock)
         self.assertEqual(calls, reference.calls, "the calls the calibrator's estimator makes at 5 repeats")
@@ -385,11 +385,26 @@ class EstimatorTest(unittest.TestCase):
     def test_the_batch_is_the_least_power_of_two_that_lasts_1_ms(self):
         tried = []
         self.assertEqual(O.batch_size(lambda n: tried.append(n) or n * 6e-6), 256)
-        self.assertEqual(tried, [1, 2, 4, 8, 16, 32, 64, 128, 256])
+        self.assertEqual(tried, [n for n in (1, 2, 4, 8, 16, 32, 64, 128, 256) for _ in (1, 2)], "each try timed twice")
         self.assertEqual(O.batch_size(lambda n: n * 1e-3), 1, "1 ms is enough")
         self.assertEqual(O.batch_size(lambda n: n * 0.03), 1)
         self.assertEqual(O.batch_size(lambda n: 0.0), O.BATCH_MAX, "a clock that does not move stops at the cap")
         self.assertEqual((O.BATCH_MIN_S, O.BATCH_MAX), (0.001, 4096))
+
+    def test_one_preempted_timing_does_not_shorten_the_batch(self):
+        """A timing of a small try that a preemption stretched past 1 ms used to stop the doubling there: C0 would have
+        been timed in batches of 8 calls (48 us) for the whole session, where another session timed it in 256. Each try
+        is timed twice and the lesser time counts."""
+        spikes = []
+
+        def time_batch(n):
+            if n == 8 and not spikes:
+                spikes.append(n)
+                return 0.0015                                  # 48 us of calls and a preemption of about 1.45 ms
+            return n * 6e-6
+
+        self.assertEqual(O.batch_size(time_batch), 256)
+        self.assertEqual(spikes, [8])
 
 
 def spin(seconds):

@@ -280,17 +280,19 @@ def route_calls():
 def batch_size(time_batch, batch_min_s=BATCH_MIN_S, cap=BATCH_MAX):
     """How many calls of a route a timed batch needs to last `batch_min_s`: 1, 2, 4... until `time_batch(n)`,
     the clock's time for n calls in a row in seconds, is at least that, or `cap` (timeit's autorange, in
-    powers of two). The first try holds the route's first call, a cold one; a route that costs 1 ms or more
+    powers of two). Each try is timed twice and the lesser time counts: a disturbance only adds time, so one
+    preempted timing cannot stop the doubling early and leave a 6 us route a batch of a few calls for the
+    whole session. The first try holds the route's first call, a cold one; a route that costs 1 ms or more
     is timed one call at a time."""
     n = 1
-    while n < cap and time_batch(n) < batch_min_s:
+    while n < cap and min(time_batch(n), time_batch(n)) < batch_min_s:
         n *= 2
     return n
 
 
 def time_routes(origin, repeats=5, clock=time.thread_time, batch_min_s=BATCH_MIN_S):
     """The unloaded cost of every route in ms at the nominal work (the spread factor held at 1), the batch
-    each route was timed in, and the clock's name. A short calibration call first gives each route a batch
+    each route was timed in, and the clock's name. Short calibration calls first give each route a batch
     of calls that lasts at least `batch_min_s` on `clock` (`batch_size`), so that the clock's own cost and
     resolution are small against what is timed (a C0 call is about 6 us, a read of the CPU clock about
     0.3 us). Then the routes take turns, one batch each in the order of CLASSES, `repeats` times (round
