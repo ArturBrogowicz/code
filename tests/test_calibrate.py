@@ -1302,8 +1302,11 @@ class RulesPinnedTest(unittest.TestCase):
     """The rules and thresholds of the calibration and of the runs, as they stood when the origin step's measurement was changed
     after HG2b's stops (docs/HG1C_DESIGN.md departures 28 and 29). That change is to how a route is timed and when the step may
     start, not to what the step accepts: the 10 % rule, its three sessions of 21 repeats, its one retry, the 25 % of the origin's
-    start-up self-check, the environment gate and every other threshold stay as they were. A failure here means one of them moved,
-    which is a decision to be labelled (post hoc, if it follows data), not a measurement fix."""
+    start-up self-check and the environment gate stay as they were, and so do the thresholds pinned below: the capacity probe's
+    levels, limits and window, rho's share, the screening's ladders, repeats, controls and the knee's floor of 1, the drift
+    tolerances, the executor's settings, the generator's model and the template with the harm gate's floors. These are the
+    constants the steps rest on, not every constant of the code. A failure here means one of them moved, which is a decision to be
+    labelled (post hoc, if it follows data), not a measurement fix."""
 
     def origin(self, noise):
         """The origin step from the command line on the simulated host, whose sessions disagree by `noise` (cycled): its exit code
@@ -1355,6 +1358,32 @@ class RulesPinnedTest(unittest.TestCase):
             "t0_spread_limit_s": 0.5, "t0_range_limit_s": 2.5, "attack_start_limit_s": 0.5, "group_start_limit_s": 0.5,
             "term_grace_s": 2.0, "min_nofile": 16384, "exit_delay_per_request_s": 8e-6, "straggler_share": 0.5,
             "straggler_tail_s": 0.1})
+
+    def test_the_capacity_levels_and_rho_s_share_of_c_slo(self):
+        self.assertEqual(K.capacity_levels(), [50.0, 65.0, 84.5, 109.9, 142.8, 185.6, 241.3, 313.7, 407.9, 530.2])
+        self.assertEqual(C.RHO_SHARE, 0.5)
+
+    def test_the_knee_is_a_harm_of_1_in_each_of_two_repeats(self):
+        def entries(harm_by_level):
+            rows = [{"kind": "C", "level": None, "repeat": i, "metrics": metrics(100.0, 0.05, {"C0": {"Q": 100.0, "ok": 1, "n": 1}})}
+                    for i in (1, 2)]
+            return rows + [{"kind": "U", "level": level, "repeat": rep, "metrics": metrics(100.0 - 10.0 * h, 0.05)}
+                           for level, h in harm_by_level.items() for rep in (1, 2)]
+        cal = CF.frozen()
+        self.assertEqual(cal["gate"]["floor_pp"], 10.0, "a harm of 1 is a loss of 10 pp of Q here")
+        self.assertEqual(K.analyse_ladder(entries({1: 0.999, 2: 1.0}), cal)["knee"]["level"], 2.0)
+        self.assertIsNone(K.analyse_ladder(entries({1: 0.999}), cal)["knee"]["level"])
+
+    def test_the_drift_tolerances_are_2_points_of_q_and_25_percent_of_p95(self):
+        self.assertEqual((C.DRIFT_Q_PP, C.DRIFT_P95), (2.0, 0.25))
+        self.assertTrue(C.drift_ok(99.0, 0.10, 97.0, 0.125)[0])
+        self.assertFalse(C.drift_ok(99.0, 0.10, 96.9, 0.10)[0])
+        self.assertFalse(C.drift_ok(99.0, 0.10, 99.0, 0.126)[0])
+
+    def test_the_ladders_of_the_three_families_and_the_generator_s_model(self):
+        for family, spec in sorted(K.FAMILY_SPECS.items()):
+            self.assertEqual(SC.load(K.spec_path(spec)).intensity["ladder"], [0.125, 0.25, 0.5, 1, 2, 4, 8], family)
+        self.assertEqual((P.ENGINE_CEILING_RPS, P.CPU_MS_PER_REQUEST), (5000, 0.1))
 
     def test_the_template_with_the_gate_s_floors_is_the_one_hashed_ac4e3156(self):
         self.assertEqual(TEMPLATE["sha256"], "ac4e3156db5eacb62fad6c39ebd24c9b5943c07662d231ac7070d9ed9d7e0716")
