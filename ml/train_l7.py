@@ -64,7 +64,7 @@ def load_records(dataset_dir):
     manifest, log_path = l7_dataset.read_dataset(dataset_dir)
     ip_map = manifest["ip_map"]
     recs = []
-    with open(log_path, encoding="utf-8", errors="replace") as fh:
+    with l7_dataset.open_log(log_path) as fh:      # plain or gzipped (schema 2, published)
         for line in fh:
             obj = l7_ingest.parse_l7_line(line)
             if obj is None:
