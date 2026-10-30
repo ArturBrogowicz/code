@@ -14,6 +14,8 @@ and the rule that picks one grid point from the validation runs. They come first
 commit, and a test pins them: the values are chosen on the validation seeds, never tuned on
 the evaluation seeds, and the grid is not widened after seeing data.
 """
+import ipaddress
+import re
 from fractions import Fraction
 from typing import NamedTuple
 
@@ -108,3 +110,116 @@ def select_thresholds(outcomes):
     share, t, neg_f, k = max(ok)
     return Selection((t, -neg_f, k), share, len(ok))
 # ── End of the frozen block (tests/test_slow_pc_rule.py pins its text) ──
+
+
+# ── Reading `ss -tinpH` (§6.1, §6.3; F-S3): one record per established socket ──
+# The daemon runs this in server_ns as root once per poll; -p needs root to see nginx's sockets.
+SS_ARGV = ["ss", "-tinpH", "state", "established", "( sport = :80 or sport = :443 )"]
+PORTS = (80, 443)
+OWNER = "nginx"            # the process name of nginx's workers in the `users:` field
+INFO_FIELDS = ("bytes_acked", "bytes_received", "bytes_sent", "data_segs_in", "segs_in",
+               "segs_out", "lastsnd", "lastrcv", "lastack", "notsent", "rcv_space")
+_USERS = re.compile(r'users:\(((?:\("[^"]*",pid=\d+,fd=\d+\),?)+)\)')
+_USER_NAME = re.compile(r'\("([^"]*)",pid=\d+,fd=\d+\)')
+
+
+class Sock(NamedTuple):
+    """One established socket of a public listener, as `ss -tinpH` printed it."""
+    ip: str          # the client's IPv4 address
+    port: int        # the client's port
+    local: str       # the server's address
+    sport: int       # the server's port, 80 or 443
+    owned: bool      # an nginx process holds it; False: still in the listen backlog (F-S5)
+    info: dict       # INFO_FIELDS -> int; a token that ss did not print counts as 0 (F-S3)
+
+    @property
+    def key(self):
+        return (self.ip, self.port, self.local, self.sport)
+
+
+def _addr(token):
+    """(host, port) of ss's "host:port", or None. The brackets of an IPv6 address and the
+    IPv4-mapped prefix ::ffff: are removed."""
+    host, sep, port = token.rpartition(":")
+    if not sep or not (port.isascii() and port.isdigit()) or len(port) > 5:
+        return None
+    host = host.removeprefix("[").removesuffix("]")
+    if host.lower().startswith("::ffff:"):
+        host = host[7:]
+    return host, int(port)
+
+
+def _ipv4(host):
+    """True for a dotted-quad IPv4 address in its canonical form, the only family the XDP
+    ban path takes."""
+    try:
+        return str(ipaddress.IPv4Address(host)) == host
+    except ValueError:
+        return False
+
+
+def parse_block(lines):
+    """One socket: its line and the indented lines after it. Returns None when its
+    addresses cannot be read (or the server port is not public, or the client is not IPv4),
+    else (key, Sock), where Sock is None when a tcp_info token is malformed: that socket is
+    then present but not judged this poll (§6.3)."""
+    main = lines[0]
+    users = _USERS.search(main)
+    if users:
+        head, tail = main[:users.start()], main[users.end():]
+        names = _USER_NAME.findall(users.group(1))
+    elif "users:" in main:
+        return None
+    else:
+        head, tail, names = main, "", []
+    cols = head.split()           # [State] Recv-Q Send-Q Local Peer: the last two are ours
+    if len(cols) < 2:
+        return None
+    local, peer = _addr(cols[-2]), _addr(cols[-1])
+    if local is None or peer is None:
+        return None
+    (lhost, lport), (ip, port) = local, peer
+    if lport not in PORTS or not _ipv4(ip) or not 0 < port < 65536:
+        return None
+    key = (ip, port, lhost, lport)
+    info, seen = dict.fromkeys(INFO_FIELDS, 0), set()
+    for tok in " ".join([tail, *lines[1:]]).split():
+        name, sep, value = tok.partition(":")
+        if not sep or name not in info or name in seen:
+            continue
+        if not (value.isascii() and value.isdigit()) or len(value) > 20:
+            return key, None
+        info[name] = int(value)
+        seen.add(name)
+    return key, Sock(ip, port, lhost, lport, OWNER in names, info)
+
+
+def parse_ss(text):
+    """(socks, present, skipped, bad) of one `ss -tinpH` output: the sockets it listed; the
+    keys of every socket whose addresses were readable; how many socket lines were skipped
+    (unreadable, repeated, or with a malformed token); and the first skipped line, cut to 160
+    characters, for the log."""
+    blocks, skipped, bad = [], 0, None
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        if line[0] in " \t":
+            if blocks:
+                blocks[-1].append(line)
+            else:
+                skipped, bad = skipped + 1, bad or line
+            continue
+        blocks.append([line])
+    socks, present = [], set()
+    for block in blocks:
+        parsed = parse_block(block)
+        if parsed is None or parsed[0] in present:
+            skipped, bad = skipped + 1, bad or block[0]
+            continue
+        key, sock = parsed
+        present.add(key)
+        if sock is None:
+            skipped, bad = skipped + 1, bad or block[0]
+        else:
+            socks.append(sock)
+    return socks, present, skipped, (bad[:160] if bad else None)
