@@ -17,11 +17,20 @@ This IS a VM workload (namespaces, veths, XDP-free, nginx + gunicorn in server_n
 traffic). Run with sudo. `--plan` prints the calibrated plan and exits WITHOUT touching
 the system (offline review).
 
-    sudo ./venv/bin/python ml/capture_l7.py --duration 300 --benign 12 --seed 1
-    ./venv/bin/python ml/capture_l7.py --plan --duration 300 --benign 12 --seed 1
+    sudo ./venv/bin/python ml/capture_l7.py --pipeline legacy --duration 300 --benign 12 --seed 1
+    ./venv/bin/python ml/capture_l7.py --pipeline legacy --plan --duration 300 --benign 12 --seed 1
 
 A run refuses to start on uncommitted changes to tracked files (--allow-dirty overrides);
 the manifest records the commit, branch and dirty state.
+
+Two pipelines. `--pipeline p3` (the default, docs/P3_DATASET_DESIGN.md §4) draws a per-seed
+address pool from 10.0.16.0/20 with a seeded role map, netem for every entity and per-entity
+parameters (ml/l7_pools.py); the seed must be pre-registered for its role (ml/p3_prereg.json):
+
+    ./venv/bin/python ml/capture_l7.py --plan --version 2026-11-v1 --seed 9201 --seed-role pilot
+
+`--pipeline legacy` is the capture of 2026-10 (P3, P5, P5c: benign at 10.0.1.{i+1}, attackers
+at 10.0.2.{j+1}, the same map for every seed), kept so that those runs can be reproduced.
 """
 import argparse
 import hashlib
@@ -245,6 +254,28 @@ def gate_lines(gate):
     return out
 
 
+def p3_plan(args):
+    """The P3 plan for these arguments (ml/l7_pools.build_plan), or exit with the reason."""
+    import l7_pools
+    try:
+        return l7_pools.build_plan(args.version, args.seed, args.seed_role, args.population,
+                                   heuristics=args.heuristics, scale=args.scale,
+                                   gate_seeds=tuple(range(args.p3_gate_seeds)))
+    except l7_pools.PlanError as exc:
+        sys.exit(f"[-] P3 plan refused: {exc}")
+
+
+def main_p3(args):
+    import l7_pools
+    if args.version is None or args.seed_role is None:
+        sys.exit("[-] --pipeline p3 needs --version and --seed-role (see ml/p3_prereg.json)")
+    plan = p3_plan(args)
+    if args.plan:
+        print("\n".join(l7_pools.summary_lines(plan)))
+        return 0
+    sys.exit("[-] the P3 capture runner is not built yet (it arrives with the dataset store)")
+
+
 def print_plan(args):
     benign, attackers, schedule, calib = build_plan(args)
     print(l7_traffic.summary())
@@ -361,15 +392,30 @@ def main():
     ap.add_argument("--out", default=DEFAULT_OUT)
     ap.add_argument("--no-held-out", action="store_true", help="omit held-out families")
     ap.add_argument("--no-flood", action="store_true", help="omit the mid-capture SYN flood")
-    ap.add_argument("--heuristics", choices=tuple(l7_traffic.PROFILES), default="default",
-                    help="threshold profile for nginx limits and the benign gate (P5c.2)")
+    ap.add_argument("--heuristics", choices=tuple(l7_traffic.PROFILES), default=None,
+                    help="threshold profile for nginx limits and the benign gate (P5c.2); "
+                         "default: 'default' (legacy), 'tolerant' (p3, as P5c.3)")
     ap.add_argument("--mix", choices=("p5", "overlap"), default="p5",
                     help="benign mix: P5's 12 kinds, or + the P5b overlap kinds (§7.2)")
     ap.add_argument("--plan", action="store_true", help="print the plan and exit (offline)")
     ap.add_argument("--allow-dirty", action="store_true",
                     help="run although tracked files have uncommitted changes (the manifest "
-                         "then records them)")
+                         "then records them; legacy only)")
+    ap.add_argument("--pipeline", choices=("p3", "legacy"), default="p3",
+                    help="p3 (default): per-seed pools, netem for every entity, manifest schema 2; "
+                         "legacy: the 2026-10 capture with its fixed map, to reproduce P3/P5/P5c")
+    ap.add_argument("--version", help="p3: dataset version, <yyyy-mm>-<tag>")
+    ap.add_argument("--seed-role", choices=("train", "val", "eval", "pilot"),
+                    help="p3: the role the seed is pre-registered for (ml/p3_prereg.json)")
+    ap.add_argument("--population", default="smoke", help="p3: population (ml/l7_pools.POPULATIONS)")
+    ap.add_argument("--scale", type=int, default=1, help="p3: every entity count times this")
+    ap.add_argument("--gate-seeds", type=int, default=len(l7_traffic.GATE_SEEDS), dest="p3_gate_seeds",
+                    help="p3: simulated seeds of the benign admissibility gate")
     args = ap.parse_args()
+    if args.heuristics is None:
+        args.heuristics = "tolerant" if args.pipeline == "p3" else "default"
+    if args.pipeline == "p3":
+        return main_p3(args)
 
     if args.plan:
         return print_plan(args)
