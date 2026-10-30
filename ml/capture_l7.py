@@ -58,6 +58,7 @@ NETEM_PROFILES = ["perfect", "broadband", "mobile_3g", "mobile_bad"]
 PROVENANCE_INPUTS = ["l7_webapp.py", "nginx_l7capture.conf", "ml/l7_gen.py",
                      "ml/l7_traffic.py", "l7_dataset.py", "control_plane.py", "nginx.conf",
                      "ml/l7_benign.py", "ml/l7_admissibility.py"]
+P3_INPUTS = ["ml/l7_pools.py", "ml/l7_store.py", "ml/p3_prereg.json", "ml/capture_l7.py"]
 
 
 def sha256(path):
@@ -102,17 +103,23 @@ def render_limits(conf, heuristics="default"):
     return conf
 
 
-def render_conf(access_log_path, heuristics="default"):
+def render_conf(access_log_path, heuristics="default", error_log_path=None):
     """A copy of the capture nginx conf with the l7json access_log pointed at this
     dataset's access.log (absolute path), and nginx's limits from the `heuristics`
-    profile. Returns the conf text."""
+    profile. With error_log_path (P3) the error log moves there too. Returns the conf text."""
     with open(CAPTURE_CONF, encoding="utf-8") as fh:
         conf = fh.read()
     old = "access_log /var/log/nginx/l7_capture.log l7json;"
     new = f"access_log {access_log_path} l7json;"
     if old not in conf:
         raise RuntimeError(f"{CAPTURE_CONF} missing expected access_log line")
-    return render_limits(conf.replace(old, new), heuristics)
+    conf = conf.replace(old, new)
+    if error_log_path is not None:
+        old_err = "error_log /var/log/nginx/error.log info;"
+        if conf.count(old_err) != 1:
+            raise RuntimeError(f"{CAPTURE_CONF}: expected exactly one {old_err!r}")
+        conf = conf.replace(old_err, f"error_log {error_log_path} info;")
+    return render_limits(conf, heuristics)
 
 
 def render_l7_sink(conf, socket_path):
@@ -145,14 +152,15 @@ def write_deployed_conf(path, heuristics, socket_path):
     return path
 
 
-L7_NS_RE = re.compile(r"^[ab]_10_0_\d{1,3}_\d{1,3}$")
-L7_VETH_RE = re.compile(r"^vo_[ab]_10_0_\d{1,3}_\d{1,3}$")
+L7_NS_RE = re.compile(r"^([ab]_10_0_\d{1,3}_\d{1,3}|l7n\d+_(perfect|broadband|mobile_3g|mobile_bad))$")
+L7_VETH_RE = re.compile(r"^vo_([ab]_10_0_\d{1,3}_\d{1,3}|l7n\d+_[a-z0-9_]{0,10})$")
 
 
 def l7_leftovers(netns_listing, link_names):
     """Pure: the namespaces and root-side veths that belong to an L7 capture/eval run
-    (`b_<ip>` benign, `a_<ip>` attacker; veth `vo_<ns>`). The suite's cleanup_all() only
-    knows `server_ns`/`legit_*`/`bot_*`, so without this every run leaked its clients."""
+    (`b_<ip>` benign, `a_<ip>` attacker, `l7n<k>_<profile>` P3; veth `vo_<ns[:12]>`). The
+    suite's cleanup_all() only knows `server_ns`/`legit_*`/`bot_*`, so without this every
+    run leaked its clients."""
     ns = [line.split()[0] for line in netns_listing.splitlines()
           if line.strip() and L7_NS_RE.match(line.split()[0])]
     links = [n for n in link_names if L7_VETH_RE.match(n)]
@@ -265,17 +273,6 @@ def p3_plan(args):
         sys.exit(f"[-] P3 plan refused: {exc}")
 
 
-def main_p3(args):
-    import l7_pools
-    if args.version is None or args.seed_role is None:
-        sys.exit("[-] --pipeline p3 needs --version and --seed-role (see ml/p3_prereg.json)")
-    plan = p3_plan(args)
-    if args.plan:
-        print("\n".join(l7_pools.summary_lines(plan)))
-        return 0
-    sys.exit("[-] the P3 capture runner is not built yet (it arrives with the dataset store)")
-
-
 def print_plan(args):
     benign, attackers, schedule, calib = build_plan(args)
     print(l7_traffic.summary())
@@ -384,6 +381,195 @@ class Capture:
                 p.kill()
 
 
+def alias_batch(addresses, mask="/16", dev="veth_in"):
+    """`ip -batch` input adding each address as an alias of a P3 client namespace's veth."""
+    return "".join(f"addr add {a}{mask} dev {dev}\n" for a in addresses)
+
+
+def host_record(workers, threads, conf_sha256):
+    """The host block of a P3 manifest, in the shape of bench/calibration.py HOST_SHAPE as far as it
+    applies to l7_webapp (origin and loadgen fields are None here)."""
+    def out(cmd):
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
+            return (r.stdout + r.stderr).strip().splitlines()[0] if (r.stdout + r.stderr).strip() else None
+        except (OSError, subprocess.SubprocessError):
+            return None
+    mem = None
+    try:
+        with open("/proc/meminfo", encoding="ascii") as fh:
+            mem = int(fh.readline().split()[1]) // 1024
+    except (OSError, ValueError, IndexError):
+        pass
+    return {"uname": " ".join(os.uname()), "cpus": os.cpu_count(), "mem_mib": mem,
+            "origin_seed": None, "origin_sha256": None, "loadgen_sha256": None, "pins": None,
+            "gunicorn": {"version": out([sys.executable, "-m", "gunicorn", "--version"]),
+                         "workers": workers, "threads": threads, "nofile": None},
+            "nginx": {"version": out(["nginx", "-v"]), "conf_sha256": conf_sha256}}
+
+
+class P3Capture(Capture):
+    """The P3 capture (docs/P3_DATASET_DESIGN.md §4): one namespace per netem profile carrying its
+    entities' addresses as aliases, every generator bound to its entity's address (l7_gen --source),
+    the logs staged in the capture's own staging directory (no chmod: nginx's master opens them as
+    root), gunicorn from the seed's server configuration."""
+
+    def __init__(self, args, out_dir, staging, plan):
+        super().__init__(args, out_dir)
+        self.plan, self.staging = plan, staging
+        self.access_log = os.path.join(staging, "access.log")
+        self.error_log = os.path.join(staging, "error.log")
+
+    def topology(self, S):
+        for ns in self.plan["namespaces"]:
+            S.create_client_ns(ns["name"], ns["addresses"][0])
+            if ns["addresses"][1:]:
+                subprocess.run(["ip", "netns", "exec", ns["name"], "ip", "-batch", "-"],
+                               input=alias_batch(ns["addresses"][1:], S.SUBNET_MASK), text=True,
+                               capture_output=True, check=False)
+            S.apply_tc(ns["name"], ns["profile"])
+
+    def start_stack(self, S):
+        server = self.plan["server"]
+        subprocess.run(["mkdir", "-p", "/var/log/nginx"], capture_output=True, check=False)
+        if not os.path.isfile("/etc/ssl/certs/nginx-selfsigned.crt"):
+            subprocess.run(["openssl", "req", "-x509", "-nodes", "-days", "365",
+                            "-newkey", "rsa:2048", "-keyout",
+                            "/etc/ssl/private/nginx-selfsigned.key",
+                            "-out", "/etc/ssl/certs/nginx-selfsigned.crt",
+                            "-subj", "/C=PL/ST=Masovian/L=Warsaw/O=PoC/CN=twojadomena.pl"],
+                           capture_output=True, check=False)
+        with open(self.conf_path, "w", encoding="utf-8") as fh:
+            fh.write(render_conf(self.access_log, self.plan["heuristics"], self.error_log))
+        self.procs.append(("gunicorn", S.run(
+            S._srv([S.PYTHON_VENV, "-m", "gunicorn", "--chdir", REPO,
+                    "--workers", str(server["gunicorn_workers"]),
+                    "--threads", str(server["gunicorn_threads"]), "-b", "0.0.0.0:8080", WEBAPP]),
+            ns=S.SERVER_NS, bg=True)))
+        time.sleep(1.5)
+        self.procs.append(("nginx", S.run(S._srv(["nginx", "-c", self.conf_path]),
+                                          ns=S.SERVER_NS, bg=True)))
+        time.sleep(1.0)
+        for _ in range(40):
+            r = S.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}",
+                       "--max-time", "2", S.HTTP_URL], ns=S.SERVER_NS, timeout=4)
+            if r is not None and r.stdout.strip() in ("200", "301", "302"):
+                return True
+            time.sleep(0.5)
+        return False
+
+    def entity_cmd(self, S, e, duration):
+        """The l7_gen command of one entity: its drawn params and client seed, bound to its address."""
+        role = "benign" if e["role"] == "benign" else "attack"
+        cmd = [S.PYTHON_VENV, GEN, "--role", role, "--host", S.SERVER_IP, "--port", str(e["port"]),
+               "--duration", f"{duration:.1f}", "--seed", str(e["client_seed"]),
+               "--params", json.dumps(e["params"], sort_keys=True), "--source", e["address"]]
+        return cmd + (["--kind", e["kind_or_family"]] if role == "benign"
+                      else ["--family", e["kind_or_family"]])
+
+    def run_capture(self, S):
+        t0 = time.time()
+        pending = sorted(self.plan["entities"], key=lambda e: (e["schedule"]["start_s"], e["index"]))
+        launched = 0
+        while time.time() - t0 < self.plan["duration_s"]:
+            now = time.time() - t0
+            while pending and pending[0]["schedule"]["start_s"] <= now:
+                e = pending.pop(0)
+                dur = max(1.0, e["schedule"]["stop_s"] - e["schedule"]["start_s"])
+                self.procs.append((e["entity_id"], S.run(self.entity_cmd(S, e, dur), ns=e["namespace"], bg=True)))
+                launched += 1
+            time.sleep(0.2)
+        return t0, launched
+
+
+def utc_iso(st):
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", st)
+
+
+def run_p3(args, plan):
+    """The P3 capture: store checks, topology, stack, traffic, then the logs gzipped into the store,
+    the schema-2 manifest, SHA256SUMS, and the files handed back to the store's owner."""
+    import l7_store
+
+    import l7_dataset as D
+    try:
+        vdir = l7_store.version_dir(args.store, args.version, l7_store.refused_roots(REPO))
+    except l7_store.StoreError as exc:
+        sys.exit(f"[-] {exc}")
+    if os.geteuid() != 0:
+        sys.exit("[-] Must run as root (namespaces). Use sudo. (Use --plan for offline review.)")
+    if not os.access(os.path.join(REPO, "venv/bin/python"), os.X_OK):
+        sys.exit("[-] No venv at venv/bin/python in this checkout.")
+    git0 = require_clean_tree(False)
+    if git0["dirty"] is not False:
+        sys.exit("[-] a P3 capture needs a clean git checkout (code.dirty must be false)")
+    try:
+        uid, gid = l7_store.store_owner(args.store)
+    except l7_store.StoreError as exc:
+        sys.exit(f"[-] {exc}")
+    global S
+    import test_distributed_suite as S
+    started = time.gmtime()
+    cid = l7_store.capture_id(plan["seed"], started)
+    out_dir, staging = l7_store.make_capture_dir(vdir, cid)
+    print(f"[*] P3 capture -> {out_dir}  (seed={plan['seed']} {plan['seed_role']}, "
+          f"{len(plan['entities'])} entities, {plan['duration_s']:.0f}s)")
+    cap = P3Capture(args, out_dir, staging, plan)
+    ok = ready = False
+    t0, launched = None, 0
+    try:
+        S.cleanup_all()
+        cleanup_l7_topology()
+        S.create_host_bridge()
+        S.create_server_ns()
+        cap.topology(S)
+        ready = cap.start_stack(S)
+        print(f"[{'+' if ready else '-'}] origin {'ready' if ready else 'NOT ready (continuing)'}.")
+        t0, launched = cap.run_capture(S)
+        ok = True
+    finally:
+        cap.kill_all()
+        S.cleanup_all()
+        cleanup_l7_topology()
+    ended = time.gmtime()
+    files = l7_store.finalize_logs(staging, out_dir)
+    files.append(D.file_record(cap.conf_path, os.path.basename(cap.conf_path)))
+    conf_sha = files[-1]["sha256"]
+    server = dict(plan["server"], heuristics=plan["heuristics"], nginx_conf_sha256=conf_sha,
+                  calibration={"path": None, "sha256": None, "status": "absent"})
+    manifest = D.make_manifest_v2(
+        dataset_version=plan["dataset_version"], capture_id=cid, seed=plan["seed"],
+        seed_role=plan["seed_role"], started_utc=utc_iso(started), ended_utc=utc_iso(ended),
+        duration_s=plan["duration_s"],
+        code={**git0, "inputs_sha256": {f: sha256(os.path.join(REPO, f))
+                                        for f in PROVENANCE_INPUTS + P3_INPUTS}},
+        server=server, host=host_record(plan["server"]["gunicorn_workers"],
+                                        plan["server"]["gunicorn_threads"], conf_sha),
+        pool=plan["pool"],
+        timeline=dict(plan["timeline"], t0_wall=t0, ready=ready, completed=ok, launched=launched,
+                      population=plan["population"], scale=plan["scale"], dropped=plan["dropped"]),
+        entities=plan["entities"], files=files, notes="P3 capture (docs/P3_DATASET_DESIGN.md)")
+    D.write_dataset_manifest(os.path.join(out_dir, D.MANIFEST_FILE), manifest)
+    l7_store.write_sha256sums(vdir)
+    n = l7_store.hand_back(out_dir, uid, gid) + l7_store.hand_back(os.path.join(vdir, l7_store.SUMS), uid, gid)
+    acc = next(f for f in files if f["path"] == D.ACCESS_LOG_GZ)
+    good = ok and ready and acc["lines"] > 0
+    print(f"[{'+' if good else '!'}] capture {'OK' if good else 'REVIEW'}: {acc['lines']} access-log lines, "
+          f"{launched} entities launched, {n} paths handed back; manifest {manifest['manifest_sha256'][:12]}")
+    return 0 if good else 1
+
+
+def main_p3(args):
+    import l7_pools
+    if args.version is None or args.seed_role is None:
+        sys.exit("[-] --pipeline p3 needs --version and --seed-role (see ml/p3_prereg.json)")
+    plan = p3_plan(args)
+    if args.plan:
+        print("\n".join(l7_pools.summary_lines(plan)))
+        return 0
+    return run_p3(args, plan)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--duration", type=float, default=300.0)
@@ -411,6 +597,9 @@ def main():
     ap.add_argument("--scale", type=int, default=1, help="p3: every entity count times this")
     ap.add_argument("--gate-seeds", type=int, default=len(l7_traffic.GATE_SEEDS), dest="p3_gate_seeds",
                     help="p3: simulated seeds of the benign admissibility gate")
+    ap.add_argument("--store", default="/home/artur/datasets/l7",
+                    help="p3: the dataset store; the capture goes to <store>/<version>/<capture_id>/ "
+                         "(refused under /var/tmp, /tmp or the repository)")
     args = ap.parse_args()
     if args.heuristics is None:
         args.heuristics = "tolerant" if args.pipeline == "p3" else "default"
