@@ -1064,6 +1064,74 @@ class DaemonRunTest(RunCase):
         self.assertTestbedEmpty(host)
 
 
+class DaemonValidityTest(RunCase):
+    """An M run with a daemon is sound only if the daemon lived from before the attack to the end of the run, its XDP program was
+    still the one it attached, its ban file holds a start event that says what the mode asks for, and its CPU was sampled (G11). These
+    are looked at when the timeline is over, before the daemon is stopped; none of them reads what the attack did."""
+
+    def daemon_record(self, plan):
+        return self.run_json(plan)["daemon"]
+
+    def test_a_sound_run_records_what_was_looked_at(self):
+        plan, _, result = self.go("M_xdp")
+        self.assertTrue(result.ok, result.reasons)
+        d = self.daemon_record(plan)
+        self.assertEqual((d["alive_at_end"], d["xdp_prog_at_end"], d["xdp_prog_at_ready"]), (True, 41, 41))
+        self.assertLess(d["ready_epoch_s"], self.run_json(plan)["executor"]["exit_epoch_s"]["A-costly_search_flood-perfect-0"])
+        self.assertGreater(d["cpu"]["samples"], 20)
+        self.assertAlmostEqual(d["cpu"]["mean_pct"], 5.0, delta=0.5)
+        self.assertGreater(d["cpu"]["seconds"], 1.0)
+
+    def test_a_daemon_that_dies_during_the_run_makes_it_unsound(self):
+        host = F.SimHost(faults={"daemon_dies": 1})
+        plan, _, result = self.go("M_xdp", host)
+        self.assertFalse(result.ok)
+        self.assertTrue(any(r.startswith("the daemon exited with 1 at T+") and "before the end of the run" in r for r in result.reasons),
+                        result.reasons)
+        self.assertIn("XDP: the program on veth_server at the end of the run is none, not 41, the one attached at readiness",
+                      result.reasons)
+        d = self.daemon_record(plan)
+        self.assertEqual((d["alive_at_end"], d["xdp_prog_at_end"], d["stop"]["signal"]), (False, None, None))
+        self.assertFalse(self.run_json(plan)["executor"]["ok"])
+
+    def test_a_start_event_that_does_not_say_what_the_mode_asks_for_makes_it_unsound(self):
+        plan = self.plan("M_xdp")
+        env = tuple((k, "1" if k == "XDP_GRU" else v) for k, v in plan.daemon.env)
+        plan = dataclasses.replace(plan, daemon=dataclasses.replace(plan.daemon, env=env))
+        result = X.execute(plan, F.SimHost())
+        self.assertFalse(result.ok)
+        self.assertIn("the daemon's start event says xdp_gru True, the mode asks for False", result.reasons)
+
+    def test_a_ban_file_that_is_gone_at_the_end_makes_it_unsound(self):
+        def remove(host):
+            if host.t > 20.0 and os.path.exists(plan.daemon.events):
+                os.remove(plan.daemon.events)
+        plan = self.plan("M_xdp")
+        result = X.execute(plan, F.SimHost(on_sleep=remove))
+        self.assertIn(f"the ban file {os.path.basename(plan.daemon.events)} is not there", result.reasons)
+
+    def test_a_daemon_whose_cpu_was_never_sampled_makes_it_unsound(self):
+        real = F.SimHost._proc_file
+
+        def no_daemon_stat(host, pid, what, path):
+            if what == "stat" and host.procs[pid].role == "daemon":
+                raise FileNotFoundError(path)
+            return real(host, pid, what, path)
+        with mock.patch.object(F.SimHost, "_proc_file", no_daemon_stat):
+            plan, _, result = self.go("M_xdp")
+        self.assertIn("the daemon's CPU was never sampled", result.reasons)
+        self.assertEqual(self.daemon_record(plan)["cpu"]["samples"], 0)
+
+    def test_a_program_replaced_or_taken_off_during_the_run_makes_it_unsound(self):
+        def detach(host):
+            if 20.0 < host.t < 21.5 and host.xdp.get(X.SERVER_NS):
+                host.run(["ip", "link", "set", "dev", "veth_server", "xdp", "off"], ns=X.SERVER_NS)
+        plan, _, result = self.go("M_xdp", F.SimHost(on_sleep=detach))
+        self.assertIn("XDP: the program on veth_server at the end of the run is none, not 41, the one attached at readiness",
+                      result.reasons)
+        self.assertEqual(self.daemon_record(plan)["alive_at_end"], True)
+
+
 class TeardownTest(RunCase):
     def test_a_origin_that_ignores_term_is_killed_after_the_grace(self):
         host = F.SimHost(faults={"stubborn_origin": 1})

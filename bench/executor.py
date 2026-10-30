@@ -84,6 +84,9 @@ FEED_ACCESS_LOG, FEED_ERROR_LOG = "/var/log/nginx/ddos_ml_access.log", "/var/log
 DAEMON_ENV = (("XDP_GRU", "0"), ("GRU_ONLY", "0"), ("L7_SHADOW", "0"), ("HEURISTIC_PROFILE", "default"), ("L7_MODEL", ""),
               ("L7_RECORD", ""))
 DAEMON_READY_LINE = "Listening for Nginx logs"      # what the daemon prints last before its loop; the suite waits for it too
+# what a protected run's daemon must say it runs with in its start event, besides the mode's backend (G11): the rules as deployed,
+# the XDP-fed GRU off (78cfc9c), no L7 shadow engine
+MODE_DAEMON = {"xdp_gru": False, "gru_only": False, "l7_shadow": False, "heuristic_profile": "default"}
 DAEMON_READY_TIMEOUT_S = 60.0             # the suite's wait for the daemon's first start (test_distributed_suite.start_server_services)
 DAEMON_STOP_GRACE_S = 10.0                # SIGINT runs the daemon's finally, which detaches XDP; KILL after this
 XDP_DEVICE = "veth_server"                # where the daemon attaches its program: the server's end of its veth pair
@@ -1626,6 +1629,42 @@ def stop_daemon(host, procs, log):
     return record
 
 
+def daemon_validity(host, plan, procs, daemon, sampler, t_launch):
+    """Why a protected run with a daemon is not sound (G11), looked at when the timeline is over and before the daemon is stopped,
+    and what was seen. The daemon was ready before the first stream was launched, so before the attack; it must still be alive. With
+    XDP, the program on veth_server must still be the one it attached at readiness. Its start event must say what the mode asks for
+    (its backend and MODE_DAEMON), whatever its environment was; the run's ban file must be there; its CPU must have been sampled.
+    None of these reads what the attack did to the server. `t_launch` is when the legit streams were launched."""
+    d, proc = plan.daemon, procs.get("daemon")
+    reasons = []
+    alive = proc is not None and proc.poll() is None
+    if not alive:
+        when = "" if proc is None or proc.exit_time is None else f" at T+{proc.exit_time - t_launch:.1f} s after the launch"
+        reasons.append(f"the daemon exited with {None if proc is None else proc.poll()}{when}, before the end of the run")
+    prog = xdp_program(host) if d.backend == "xdp" else None
+    if d.backend == "xdp" and prog != daemon["xdp_prog_at_ready"]:
+        reasons.append(f"XDP: the program on {XDP_DEVICE} at the end of the run is {prog or 'none'}, not "
+                       f"{daemon['xdp_prog_at_ready']}, the one attached at readiness")
+    start = daemon["start_event"] or {}
+    for key, value in {"backend": d.backend, **MODE_DAEMON}.items():
+        if start.get(key) != value:
+            reasons.append(f"the daemon's start event says {key} {start.get(key)}, the mode asks for {value}")
+    if not os.path.exists(d.events):
+        reasons.append(f"the ban file {os.path.basename(d.events)} is not there")
+    shares, seconds, previous = [], 0.0, None
+    for row in sampler.rows:
+        if row.get("daemon_cpu_pct") is not None:
+            shares.append(row["daemon_cpu_pct"])
+            if previous is not None:
+                seconds += row["daemon_cpu_pct"] / 100.0 * (row["t_epoch"] - previous)
+        previous = row["t_epoch"]
+    if not shares:
+        reasons.append("the daemon's CPU was never sampled")
+    cpu = {"samples": len(shares), "mean_pct": round(statistics.fmean(shares), 2) if shares else None,
+           "max_pct": max(shares, default=None), "seconds": round(seconds, 2)}
+    return reasons, {"alive_at_end": alive, "xdp_prog_at_end": prog, "cpu": cpu}
+
+
 # --- the timeline and what it leaves --------------------------------------------------------------
 
 def launch_streams(host, streams, log, procs):
@@ -1861,6 +1900,10 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
                 _reset(out)
                 log(f"retrying the setup ({retries} of {MAX_SETUP_RETRIES})")
         launched, problems = run_timeline(host, plan, log, procs, sampler)
+        if daemon is not None:
+            unsound, seen = daemon_validity(host, plan, procs, daemon, sampler, launched.get("legit", host.time()))
+            problems += unsound
+            daemon.update(seen)
         stopped = stop_daemon(host, procs, log)
         stop_all(host, procs, plan, log)
         block, rows, zero = collect(plan, procs, launched, problems)
