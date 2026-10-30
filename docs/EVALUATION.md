@@ -219,6 +219,49 @@ R.U.D.Y. scripts `PORT = 80`. Not changed: `setup.sh` (the legacy two-namespace 
 `127.0.0.1:8080`. The change is checked offline only (the suite's argv and the confs, in
 `tests/test_daemon_robustness.py`); it has not been run on the testbed.
 
+## Daemon robustness (2026-10-30)
+
+Three defects from the review of 2026-10-29 (`/home/artur/agent_workspace/final/REPORT.md`) are fixed on
+`fix/daemon-robustness`. Detection and enforcement are unchanged, and `tests/test_daemon_rules.py` passes
+unchanged.
+
+* **H-01: one request stopped the defence.** nginx's `escape=json` writes bytes ≥ 0x80 as they are, and both
+  log tailers decoded strict UTF-8. One request with a non-UTF-8 User-Agent or URI therefore raised
+  `UnicodeDecodeError`. In the R.U.D.Y. thread it ended the thread. In the main loop it reached the
+  `finally`, which detached XDP and so lifted every ban. A valid multi-byte character cut by a partly
+  written line did the same. Now undecodable bytes read as U+FFFD. Any other error from the access-log
+  tailer is reported, and the tailer is recreated after 1 s with XDP still attached. Only Ctrl-C or SIGTERM
+  reaches the `finally`. SIGTERM goes there through a new handler: before, it killed the daemon and left
+  XDP attached. The suite itself uses SIGKILL.
+* **H-02: threads died silently.** The telemetry loop had no guard, and no thread had a supervisor. One
+  exception ended L4 detection, the TTL sweep and the idle eviction, or ended R.U.D.Y. detection, with no
+  event. One such exception is bcc's bare `Exception` when a ban does not fit into the full 100 000-entry
+  `blacklist_map`. Now each telemetry poll is guarded, and every worker thread runs under `supervise()`,
+  which reports the exception and restarts the target after 1 s.
+* **H-03: the nginx bypass.** See "Defaults changed on 2026-10-30".
+
+Every error the daemon survives is written as a `daemon_error` event and a console line.
+
+`tests/test_daemon_robustness.py` checks this offline, against fakes:
+
+* `UndecodableBytesTest`: 0xFF, 0x80, truncated sequences, and a character cut at the end of the file, in
+  both tailers. Such lines still count for the rate rule.
+* `MainLoopTest`: a tailer error keeps XDP attached. Ctrl-C after an error, or SIGTERM, detaches it once.
+* `TelemetryGuardTest`: the poll after a failed ban still bans and unbans.
+* `SupervisorTest`: the R.U.D.Y. thread bans again after its restart, every worker is supervised, and a
+  worker that ends early is reported.
+* `BackendBindTest`: the suite's gunicorn bind.
+
+[NOT RUN] The live path needs the testbed: nginx writing raw bytes, a real full map, a real SIGTERM.
+
+Known limits:
+
+* A recreated tailer opens its log at the end, so lines written during the 1-s backoff are not read.
+* A poll that fails partway leaves the remaining sources' snapshots one poll old. Their next deltas then
+  cover two polls, as for a late poll (F-17).
+* The R.U.D.Y. pattern takes the last `client: <IPv4>` of a line (a separate finding, not changed here). A
+  capture that is not an IP address fails its ban, so the thread restarts on each such line.
+
 ## Outputs of a run (`RESULTS_DIR`)
 
 | File | Content |

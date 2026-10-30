@@ -412,5 +412,22 @@ class BackendBindTest(unittest.TestCase):
                 self.assertEqual(re.findall(r"proxy_pass http://(\S+);", fh.read()), [bind], conf)
 
 
+class DocumentationTest(unittest.TestCase):
+    def test_the_robustness_section_names_the_defects_and_every_test_class_here(self):
+        with open(os.path.join(REPO, "docs", "EVALUATION.md"), encoding="utf-8") as fh:
+            doc = fh.read()
+        start = doc.index("## Daemon robustness (2026-10-30)")
+        section = doc[start:doc.index("\n## ", start)]
+        for defect in ("H-01", "H-02", "H-03"):
+            self.assertIn(defect, section)
+        here = sys.modules[__name__]
+        classes = [name for name, obj in vars(here).items() if isinstance(obj, type)
+                   and issubclass(obj, unittest.TestCase) and obj.__module__ == here.__name__
+                   and name.endswith("Test") and name != "DocumentationTest"]
+        self.assertEqual(len(classes), 5)
+        for name in classes:
+            self.assertIn(f"`{name}`", section)
+
+
 if __name__ == "__main__":
     unittest.main()
