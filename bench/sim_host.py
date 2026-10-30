@@ -145,8 +145,9 @@ class SimHost(X.Host):
                  fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,), wall_late_s=None, silent=None, nonzero=None,
                  ping_drops=None, daemon_holds_pipes=True, run_cost_s=None, daemon_startup_s=DAEMON_STARTUP_S,
                  daemon_ban_rps=DAEMON_BAN_RPS, daemon_ban_delay_s=DAEMON_BAN_DELAY_S, h01_fix_in_history=False,
-                 max_inflight=None):
+                 max_inflight=None, host_feed=None):
         self.t = 0.0
+        self.inodes = itertools.count(7000)
         self.max_inflight = max_inflight      # a lower in-flight cap for the engines than their --max-inflight (a test of F-02)
         self.h01_fix_in_history = h01_fix_in_history           # what `git merge-base --is-ancestor <the H-01 fix> HEAD` says
         self.daemon_startup_s, self.daemon_ban_rps, self.daemon_ban_delay_s = daemon_startup_s, daemon_ban_rps, daemon_ban_delay_s
@@ -154,6 +155,10 @@ class SimHost(X.Host):
         self.xdp = {}                         # namespace -> the id of the program attached to its veth_server
         self.progs, self.prog_ids = {}, itertools.count(41)        # program id -> {"holder": pid, "pinned": bool}
         self.bans = {}                        # run directory -> {address: [banned at, lifted at or None]}, on the virtual clock
+        # the host's Nginx logs the daemon reads (its feed), as the model keeps them: path -> [inode, size]; and the inode each is
+        # written to by the running Nginx, which keeps writing to the file it opened when the path is replaced
+        self.feed = {path: [next(self.inodes), size] for path, size in (host_feed or {}).items()}
+        self.feed_open = {}
         self.daemon_holds_pipes, self.call_timeout = daemon_holds_pipes, X.RealHost.COMMAND_TIMEOUT_S
         self.run_cost_s = run_cost_s
         self.wall_late_s, self.silent, self.nonzero, self.ping_drops = wall_late_s, silent, nonzero, ping_drops
@@ -367,12 +372,16 @@ class SimHost(X.Host):
         return took, n
 
     def _log_requests(self, ip, zero, duration, count):
+        lines = [json.dumps({"timestamp": _iso(int(BASE_EPOCH + zero + (i + 0.5) * duration / count)), "client_ip": ip,
+                             "request_method": "GET", "request_uri": "/static/1", "status": 200, "request_time": 0.01,
+                             "request_length": 100, "bytes_sent": 200, "user_agent": "fake"}) + "\n" for i in range(count)]
         with open(self.access_log, "a", encoding="utf-8") as fh:
-            for i in range(count):
-                ended = int(BASE_EPOCH + zero + (i + 0.5) * duration / count)
-                fh.write(json.dumps({"timestamp": _iso(ended), "client_ip": ip, "request_method": "GET",
-                                     "request_uri": "/static/1", "status": 200, "request_time": 0.01,
-                                     "request_length": 100, "bytes_sent": 200, "user_agent": "fake"}) + "\n")
+            fh.writelines(lines)
+        path = X.FEED_ACCESS_LOG                   # Nginx writes the same lines to the daemon's feed, to the file it opened
+        if path in self.feed_open and self.feed.get(path, [None])[0] == self.feed_open[path]:
+            self.feed[path][1] += sum(len(line.encode()) for line in lines)
+            if self.fault("feed_truncated"):       # copytruncate, or anything that empties the file under Nginx
+                self.feed[path][1] = 0
 
     # --- the mitigation daemon --------------------------------------------------------------------
 
@@ -427,6 +436,8 @@ class SimHost(X.Host):
             self._daemon_event(d, "start", pid=d["proc"].pid, **d["start"])
         self._daemon_say(d, DAEMON_LINES["listening"])
         d["ready"] = True
+        if self.fault("feed_rotated"):                 # logrotate: the path renamed and created anew, Nginx not told
+            self.schedule(self.t + 2.0, lambda: self.feed.__setitem__(X.FEED_ACCESS_LOG, [next(self.inodes), 0]))
         if self.fault("daemon_dies"):
             self.schedule(self.t + DAEMON_DIES_AFTER_S, lambda: (
                 self._daemon_say(d, "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 133: invalid start byte"),
@@ -605,8 +616,15 @@ class SimHost(X.Host):
                                            for i in loaded for k, name in enumerate(DAEMON_MAPS)]), "")
         return X.Result(1, "", f"fake: unknown bpftool command {a}")
 
-    def _cmd_truncate(self, a, ns, stdin):
-        return X.Result(0, "", "")                 # the daemon's feed under /var/log/nginx: the model does not touch the machine
+    def _cmd_mv(self, a, ns, stdin):
+        """`mv -f SRC DST` of the daemon's feed into a run: the model's file goes, and DST (in the run's directory, on the machine)
+        gets as many bytes as the model's file had."""
+        src, dst = a[-2], a[-1]
+        if src not in self.feed:
+            return X.Result(1, "", f"mv: cannot stat '{src}': No such file or directory")
+        with open(dst, "w", encoding="utf-8") as fh:
+            fh.write("x" * self.feed.pop(src)[1])
+        return X.Result(0, "", "")
 
     def _batch(self, ns, stdin):
         info = self.namespaces.get(ns)
@@ -706,8 +724,13 @@ class SimHost(X.Host):
         if self.fault("nginx_fails"):
             return 1, "nginx: [emerg] bind() to 0.0.0.0:80 failed"
         with open(a[a.index("-c") + 1], encoding="utf-8") as fh:
-            m = re.search(r"access_log\s+(\S+)\s+json_ml_format;", fh.read())
+            conf = fh.read()
+        m = re.search(r"access_log\s+(\S+)\s+json_ml_format;", conf)
         self.access_log = m.group(1) if m else None
+        for path in (X.FEED_ACCESS_LOG, X.FEED_ERROR_LOG):     # Nginx opens (creates) the daemon's feed if its configuration names it
+            if re.search(rf"_log\s+{re.escape(path)}\s", conf):
+                self.feed.setdefault(path, [next(self.inodes), 0])
+                self.feed_open[path] = self.feed[path][0]
         for role in ("master", "worker"):
             proc = self.spawn(["nginx:", f"{role} process"], ns, "nginx", "nginx")
             proc.cpus = cpus or proc.cpus
@@ -800,7 +823,18 @@ class SimHost(X.Host):
             return "sockets: used 20\nTCP: inuse 17 orphan 0 tw 5 alloc 20 mem 3\n"
         raise FileNotFoundError(path)
 
+    def stat(self, path):
+        if path in (X.FEED_ACCESS_LOG, X.FEED_ERROR_LOG):
+            return tuple(self.feed[path]) if path in self.feed else None
+        try:
+            st = os.stat(path)
+        except OSError:
+            return None
+        return st.st_ino, st.st_size
+
     def exists(self, path):
+        if path in (X.FEED_ACCESS_LOG, X.FEED_ERROR_LOG):      # the model's, never the machine's
+            return path in self.feed
         m = re.fullmatch(r"/proc/(\d+)", path)
         if m:
             proc = self.procs.get(int(m.group(1)))

@@ -556,15 +556,19 @@ class MitigatedPlanTest(unittest.TestCase):
         for kind in ("C", "Cp", "U", "M_limits"):
             self.assertIsNone(plan(kind).daemon, kind)
 
-    def test_the_feed_is_emptied_before_nginx_starts_in_a_daemon_mode_only(self):
-        def cmds(p):
-            return [s.argv for s in p.stack if isinstance(s, EX.Cmd)]
-        steps = cmds(plan("M_xdp"))
-        feed = ("truncate", "-s", "0", EX.FEED_ACCESS_LOG, EX.FEED_ERROR_LOG)
-        nginx = next(i for i, argv in enumerate(steps) if "nginx" in argv)
-        self.assertLess(steps.index(feed), nginx)
+    def test_the_hosts_logs_are_moved_into_the_run_not_erased_before_nginx_starts_in_a_daemon_mode_only(self):
+        p = plan("M_xdp")
+        cmds = [s for s in p.stack if isinstance(s, EX.Cmd)]
+        moves = [s for s in cmds if s.argv[:2] == ("mv", "-f")]
+        self.assertEqual([(s.argv[2:], s.when) for s in moves],
+                         [((path, f"{p.out}/feed_before/{os.path.basename(path)}"), f"present:{path}")
+                          for path in (EX.FEED_ACCESS_LOG, EX.FEED_ERROR_LOG)])
+        self.assertIn(EX.Mkdir((f"{p.out}/feed_before",), "the host's Nginx logs as they were before this run"), p.stack)
+        nginx = next(i for i, s in enumerate(cmds) if "nginx" in s.argv)
+        self.assertLess(max(cmds.index(s) for s in moves), nginx)
+        self.assertFalse([s for s in cmds if s.argv[0] == "truncate"], "nothing of the host's logs is erased (T-028 F-06)")
         for kind in ("U", "M_limits"):
-            self.assertNotIn(feed, cmds(plan(kind)), kind)
+            self.assertFalse([s for s in plan(kind).stack if isinstance(s, EX.Cmd) and s.argv[0] in ("mv", "truncate")], kind)
 
     def test_the_plan_as_text_and_as_data_says_the_mode_and_the_daemon(self):
         p = plan("M_xdp")

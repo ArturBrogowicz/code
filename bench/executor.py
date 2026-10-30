@@ -79,6 +79,7 @@ DAEMON = os.path.join(REPO, "control_plane.py")
 # the daemon reads the host's default Nginx logs (control_plane.py NGINX_LOG_FILE and NGINX_ERROR_LOG), and every run has its own: with
 # a daemon, Nginx writes both, the run's first and this feed beside it (several access_log and error_log lines may stand at one level)
 FEED_ACCESS_LOG, FEED_ERROR_LOG = "/var/log/nginx/ddos_ml_access.log", "/var/log/nginx/error.log"
+FEED_BEFORE = "feed_before"               # where a run with a daemon keeps what the host's Nginx logs held before it (T-028 F-06)
 # every other variable the daemon reads, set, so that nothing of the operator's environment reaches it (GRU_ONLY=1 there would turn
 # its rules off); MITIGATION_BACKEND and BAN_EVENTS are the mode's and the run's. L7_SOCKET_PATH is read only with L7_SHADOW=1
 DAEMON_ENV = (("XDP_GRU", "0"), ("GRU_ONLY", "0"), ("L7_SHADOW", "0"), ("HEURISTIC_PROFILE", "default"), ("L7_MODEL", ""),
@@ -130,7 +131,7 @@ class Cmd:
     ns: str = ""
     stdin: str = ""
     env: tuple = ()                  # (("NAME", "value"), ...)
-    when: str = ""                   # "" or "absent:<path>": only if that path does not exist
+    when: str = ""                   # "" or "absent:<path>" (only if that path does not exist) or "present:<path>" (only if it does)
     keep: bool = False               # keep the process (gunicorn); every other command runs to completion
     detach: bool = False             # a daemon (Nginx): started with no pipe for it to hold, waited for until it has forked
     purpose: str = ""
@@ -286,13 +287,15 @@ def topology_steps(namespaces):
 
 def stack_steps(out, calibration_path, python, pins, conf_sha256, bench=None, conf_name="nginx_unprotected.conf", feed=False):
     """The server stack in `server_ns`: the origin under gunicorn, then Nginx on the rendered configuration (`conf_name` of the
-    repository; with `feed`, the daemon's feed beside the run's logs, emptied first)."""
+    repository; with `feed`, the daemon's feed beside the run's logs: what the host's logs held is moved into the run first, so that
+    Nginx starts them afresh and nothing of them is erased, T-028 F-06)."""
     bench = bench or HERE
     pin = ("taskset", "-c", pins["server"])
     env = (("ORIGIN_CALIBRATION", calibration_path), ("ORIGIN_SEED", str(ORIGIN_SEED)))
-    feed_steps = (Cmd(("truncate", "-s", "0", FEED_ACCESS_LOG, FEED_ERROR_LOG),
-                      purpose="the daemon's feed (the host's default Nginx logs): emptied, so that this run's daemon reads this run"),
-                  ) if feed else ()
+    feed_steps = (Mkdir((f"{out}/{FEED_BEFORE}",), "the host's Nginx logs as they were before this run"),
+                  *(Cmd(("mv", "-f", path, f"{out}/{FEED_BEFORE}/{os.path.basename(path)}"), when=f"present:{path}",
+                        purpose="the daemon's feed: moved into the run, not erased; Nginx creates it afresh for this run")
+                    for path in (FEED_ACCESS_LOG, FEED_ERROR_LOG))) if feed else ()
     return (
         Mkdir((out, f"{out}/streams"), "the run directory"),
         Write(f"{out}/nginx.conf", conf_sha256, f"{conf_name} with its two log paths changed"
@@ -683,6 +686,10 @@ class Host:
     def exists(self, path):
         raise NotImplementedError
 
+    def stat(self, path):
+        """(inode, size in bytes) of a file; None when it is not there."""
+        raise NotImplementedError
+
     def is_root(self):
         raise NotImplementedError
 
@@ -807,6 +814,13 @@ class RealHost(Host):
 
     def exists(self, path):
         return os.path.exists(path)
+
+    def stat(self, path):
+        try:
+            st = os.stat(path)
+        except OSError:
+            return None
+        return st.st_ino, st.st_size
 
     def is_root(self):
         return os.geteuid() == 0
@@ -1444,6 +1458,12 @@ def alignment(plan, found, tails=None):
 
 # --- building the testbed -------------------------------------------------------------------------
 
+def _skipped(host, when):
+    """A command's condition: `absent:<path>` runs it only if the path is not there, `present:<path>` only if it is."""
+    kind, _, path = when.partition(":")
+    return (kind == "absent" and host.exists(path)) or (kind == "present" and not host.exists(path))
+
+
 def _do(host, step, plan, log, procs):
     """One step of the plan. A command that fails raises SetupFailed with what it said."""
     if isinstance(step, Prim):
@@ -1456,7 +1476,7 @@ def _do(host, step, plan, log, procs):
             raise SetupFailed(f"{step.path}: the plan holds no text with that hash")
         with open(step.path, "w", encoding="utf-8") as fh:
             fh.write(plan.nginx_conf)
-    elif step.when.startswith("absent:") and host.exists(step.when[len("absent:"):]):
+    elif step.when and _skipped(host, step.when):
         return
     elif step.keep:
         with open(f"{plan.out}/gunicorn.log", "ab") as err:
@@ -1649,7 +1669,18 @@ def start_mitigation(host, plan, log, procs, sampler):
     after = host.monotonic() - began
     log(f"started the daemon as pid {proc.pid}: ready after {after:.1f} s" + (f", XDP program {prog} on {XDP_DEVICE}" if prog else ""))
     return {"pid": proc.pid, "started_epoch_s": round(started, 3), "ready_epoch_s": round(host.time(), 3),
-            "ready_after_s": round(after, 2), "xdp_prog_at_ready": prog, "start_event": start}
+            "ready_after_s": round(after, 2), "xdp_prog_at_ready": prog, "start_event": start,
+            "feed_at_ready": {path: host.stat(path) for path in (FEED_ACCESS_LOG, FEED_ERROR_LOG)}}
+
+
+def feed_before(plan, host):
+    """What the host's Nginx logs held before a run with a daemon, now in the run (FEED_BEFORE): bytes per file, None for one there
+    was not. Recorded in the run's provenance (T-028 F-06)."""
+    out = {}
+    for path in (FEED_ACCESS_LOG, FEED_ERROR_LOG):
+        seen = host.stat(f"{plan.out}/{FEED_BEFORE}/{os.path.basename(path)}")
+        out[path] = None if seen is None else {"moved_to": f"{FEED_BEFORE}/{os.path.basename(path)}", "bytes": seen[1]}
+    return out
 
 
 def stop_daemon(host, procs, log):
@@ -1712,7 +1743,19 @@ def daemon_validity(host, plan, procs, daemon, sampler, t_launch):
         reasons.append("the daemon's CPU was never sampled")
     cpu = {"samples": len(shares), "mean_pct": round(statistics.fmean(shares), 2) if shares else None,
            "max_pct": max(shares, default=None), "seconds": round(seconds, 2)}
-    return reasons, {"alive_at_end": alive, "xdp_prog_at_end": prog, "cpu": cpu}
+    feed = {path: host.stat(path) for path in (FEED_ACCESS_LOG, FEED_ERROR_LOG)}
+    for path, now in feed.items():                  # T-028 F-04: logrotate, or anything else, during the run
+        then = (daemon.get("feed_at_ready") or {}).get(path)
+        if then is None or now is None or now[0] != then[0]:
+            reasons.append(f"the daemon's feed {path} was replaced or removed during the run (inode {then and then[0]} at readiness, "
+                           f"{now and now[0]} at the end): the daemon lost what Nginx wrote meanwhile")
+    own = host.stat(f"{plan.out}/nginx_access.log")
+    access = feed[FEED_ACCESS_LOG]
+    if own is not None and access is not None and access[1] < own[1]:
+        reasons.append(f"the daemon's feed {FEED_ACCESS_LOG} holds {access[1]} bytes, less than the run's own access log ({own[1]}), "
+                       "which Nginx writes line for line with it: it was truncated during the run")
+    return reasons, {"alive_at_end": alive, "xdp_prog_at_end": prog, "cpu": cpu,
+                     "feed_at_end": feed, "run_access_log_bytes": None if own is None else own[1]}
 
 
 # --- the timeline and what it leaves --------------------------------------------------------------
@@ -1941,6 +1984,8 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
                 build_topology(host, plan, log, procs)
                 start_stack(host, plan, log, procs)
                 daemon = start_mitigation(host, plan, log, procs, sampler)
+                if plan.daemon is not None:
+                    record["provenance"]["daemon"]["feed_before"] = feed_before(plan, host)
                 write_json(f"{out}/environment.json", {**record, "stack": stack_facts(host, sampler)})
                 break
             except SetupFailed as exc:

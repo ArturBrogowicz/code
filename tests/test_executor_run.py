@@ -1045,7 +1045,9 @@ class DaemonRunTest(RunCase):
         self.assertEqual(len(set(pids)), 2)
         for plan, pid in zip((first, second), pids, strict=True):
             self.assertEqual([(e["kind"], e["pid"]) for e in self.events(plan)], [("start", pid)])
-        self.assertEqual(len(host.ran("truncate", "-s", "0", X.FEED_ACCESS_LOG, X.FEED_ERROR_LOG)), 2, "the feed is emptied for each")
+        moved = host.ran("mv", "-f", X.FEED_ACCESS_LOG)
+        self.assertEqual([argv[-1] for _, _, argv in moved], [f"{second.out}/feed_before/ddos_ml_access.log"],
+                         "each run starts its feed afresh: the second moves the first's into itself")
 
     def test_a_daemon_that_ignores_sigint_is_killed_after_the_grace_and_xdp_is_detached_all_the_same(self):
         host = F.SimHost(faults={"daemon_ignores_int": 1})
@@ -1206,6 +1208,51 @@ class DaemonValidityTest(RunCase):
         self.assertIn("XDP: the program on veth_server at the end of the run is none, not 41, the one attached at readiness",
                       result.reasons)
         self.assertEqual(self.daemon_record(plan)["alive_at_end"], True)
+
+
+class FeedTest(RunCase):
+    """The daemon's feed, the host's Nginx logs (T-028 F-04, F-06): a run with a daemon moves what they held into itself instead of
+    erasing it, says so in its provenance, and is unsound if the feed was replaced (logrotate) or truncated during the run."""
+
+    HOST_FEED = ((X.FEED_ACCESS_LOG, 1234), (X.FEED_ERROR_LOG, 56))
+
+    def test_what_the_hosts_logs_held_is_moved_into_the_run_and_recorded(self):
+        plan, _, result = self.go("M_xdp", F.SimHost(host_feed=dict(self.HOST_FEED)))
+        self.assertTrue(result.ok, result.reasons)
+        for path, size in self.HOST_FEED:
+            self.assertEqual(os.path.getsize(os.path.join(plan.out, "feed_before", os.path.basename(path))), size)
+        prov = json.loads(self.read(plan, "environment.json"))["provenance"]["daemon"]["feed_before"]
+        self.assertEqual(prov, {path: {"moved_to": f"feed_before/{os.path.basename(path)}", "bytes": size}
+                                for path, size in self.HOST_FEED})
+        d = self.run_json(plan)["daemon"]
+        for path, _ in self.HOST_FEED:
+            self.assertEqual(d["feed_at_ready"][path][0], d["feed_at_end"][path][0], "the same file all along")
+        self.assertEqual(d["feed_at_end"][X.FEED_ACCESS_LOG][1], d["run_access_log_bytes"])
+        self.assertGreater(d["run_access_log_bytes"], 0)
+
+    def test_with_nothing_to_move_the_record_says_so(self):
+        plan, _, result = self.go("M_xdp")
+        self.assertTrue(result.ok, result.reasons)
+        self.assertEqual(json.loads(self.read(plan, "environment.json"))["provenance"]["daemon"]["feed_before"],
+                         {X.FEED_ACCESS_LOG: None, X.FEED_ERROR_LOG: None})
+
+    def test_a_feed_replaced_during_the_run_makes_it_unsound(self):
+        _, _, result = self.go("M_xdp", F.SimHost(faults={"feed_rotated": 1}))
+        self.assertFalse(result.ok)
+        self.assertTrue([r for r in result.reasons if r.startswith(f"the daemon's feed {X.FEED_ACCESS_LOG} was replaced or removed")],
+                        result.reasons)
+
+    def test_a_feed_truncated_during_the_run_makes_it_unsound(self):
+        _, _, result = self.go("M_xdp", F.SimHost(faults={"feed_truncated": 1}))
+        self.assertFalse(result.ok)
+        self.assertTrue([r for r in result.reasons if r.endswith("it was truncated during the run")], result.reasons)
+
+    def test_m_limits_leaves_the_hosts_logs_alone(self):
+        plan, host, result = self.go("M_limits", F.SimHost(host_feed=dict(self.HOST_FEED)))
+        self.assertTrue(result.ok, result.reasons)
+        self.assertEqual(host.ran("mv"), [])
+        self.assertFalse(os.path.exists(os.path.join(plan.out, "feed_before")))
+        self.assertEqual({p: host.feed[p][1] for p, _ in self.HOST_FEED}, dict(self.HOST_FEED))
 
 
 class TeardownTest(RunCase):
@@ -2567,6 +2614,14 @@ class RealHostTest(unittest.TestCase):
             time.sleep(0.01)
         self.assertEqual(proc.poll(), -signal.SIGINT)
         proc.interrupt()                     # already gone: not an error
+
+    def test_a_file_is_stat_by_its_inode_and_size(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "f")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("12345")
+            self.assertEqual(X.RealHost().stat(path), (os.stat(path).st_ino, 5))
+            self.assertIsNone(X.RealHost().stat(os.path.join(tmp, "none")))
 
     def test_a_process_starts_in_the_directory_it_is_given(self):
         with tempfile.TemporaryDirectory() as tmp:
