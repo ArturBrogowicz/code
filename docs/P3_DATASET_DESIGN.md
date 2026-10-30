@@ -319,3 +319,15 @@ signal is rate-separable" (`S1:T-005/learning_curve_protocol.md`).
   This matters because under schema 2 a flagged 24-user pool would cost one unit of the 1 % benign budget.
 - **The smoke population still contains such entities.** That is allowed, because pilot captures are never fitted on
   (rule 11).
+
+## 11. As built: the curves at the view level (T-025b, 2026-10-30)
+
+- **The models of 6.1 run at the view level.** `ml/learning_curve.py --level view` fits them on identical view
+  windows keyed by (IP, UA, sid), built by `ml/train_l7v2.py`: the view GRU, the HGB and LR on token summaries, and the
+  shuffled-GRU. `--level view` is the default for L7 v2 (schema 3) captures; `request` stays the default otherwise, so
+  every earlier command reproduces.
+- **Operating points (6.1)** use the grids and the budget of `ml/p3_prereg.json`, with L7 v2's unit cost and tie rules
+  (`ml/l7v2_model_prereg.json`, pinned equal to this protocol's grids and budget). Recall counts every evaluation attack
+  entity with a request; an entity without a window counts as missed.
+- **The shuffled-GRU keeps its own validation point here**, as at the request level. `docs/L7V2_DESIGN.md` section 10
+  gives the P1 arm the GRU's (θ, k) instead; see its section 16.

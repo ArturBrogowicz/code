@@ -635,6 +635,69 @@ Every departure from the text above is labelled here, as section 13 requires. Th
   - two entities share an address in time (M3 on the C2 phase's addresses);
   - a CGNAT pool lists its users as entities, which the benign budget counts (`l7_dataset.user_units`).
 
+## 16. As built: the model side (T-025b, 2026-10-30, branch `feat/l7v2-model`)
+
+Built offline; nothing ran on the VM. Departures and readings are labelled; everything else is as sections 8 and 10 say.
+
+**Frozen first.** `ml/l7v2_model_prereg.json` (commit d18b0ad, before any capture and before the code that reads it): the
+key and its sid rule, the ingest hashing, the site map, the request-level `nav` group, the view tokens and their
+summaries, the hyperparameters of every arm, the v2 probe gate, the 1 % budget in user units with the tie rules, and the
+engine's constants. Each module's constants are tested against it.
+
+**Readings of the design (not departures):**
+- **Key (8.3).** sid_h is the hash of `sid_set` when the answer set a session, else of the `sid` cookie; with neither,
+  the key is (IP, ua_h, −1), which is today's (IP, ua_h). `sid_set` wins because it names the session of a cookie-less
+  first request (T-025a F7).
+- **Referer (8.4).** Ingest hashes the Referer's path and query, so `ref_known` compares it with the uri hashes of the
+  pages in the window. A foreign host's Referer maps to its path too; every testbed client refers to the one origin.
+- **Route class at ingest (8.2).** `l7_ingest.route_class` restates `l7_webapp.route_class`, so ingest never imports the
+  app; a test keeps the two equal.
+- **History within the window (8.1, 8.2).** Refetch, revisit and `ref_known` look back over the window only, as
+  `uri_repeat` does. The engine then needs only the last 33 tokens of a key, and training and serving compute the same
+  numbers.
+- **Order by start time.** Tokens are built in request start order (ties in arrival order), so a 10× slower server
+  (`server_load`) leaves every token unchanged and the exact gate holds.
+- **Complete tokens only.** A token's dwell is the gap to the next token's start. A window is scored once per completed
+  token; the open token never enters.
+- **Two-level model (D-V5).** The view encoder is one linear layer and a ReLU (32 units) on the design's token
+  features. Its output is masked with `valid`; a GRU (64 units, 2 layers) runs over the encoded tokens. The token list
+  gains `page_view` (see the next bullet).
+
+**Additions the design does not cover (labelled post hoc, before any data):**
+- **Pageless tokens.** A request while the key has no open page view is a token of its own. Without this, keys that
+  never load a page (C2 by its definition in 7.1, API clients) would never be scored, so the view GRU's C2 recall would
+  be 0 by construction. `page_view` tells such tokens from page views.
+- **Sessions.** v2 keys idle for 300 s are evicted, and the trainer splits keys at the same start-time gap. The P5
+  engine's 60 s would cut a benign key at the 70 s think-time cap.
+- **The budget's unit cost.** A flagged key costs one unit of its entity, at most the entity's `user_units`. Key-level
+  flags (level 1 of 9.2) act on one user of a CGNAT pool, not on all of them. The P3 note's section 10 counts a
+  flagged pool by all its users; that is the XDP-ban (level 2) reading.
+- **Recall's denominator** is every attack entity with a labelled request, the same for every arm. An arm cannot gain
+  by scoring fewer entities.
+
+**Arms (10), as built in `ml/train_l7v2.py`:**
+- The view GRU, the HGB and LR on the same windows' token summaries, the per-request GRU (seq 64, `V2_REQUEST_GROUPS`),
+  and the shuffled-GRU at the view GRU's (θ, k).
+- The P3 curves (`ml/learning_curve.py --level view`) keep the P3 tool's rule instead: the shuffled-GRU gets its own
+  validation point. The P3 note does not say which rule applies, so the two notes differ here. This is flagged for the
+  user.
+- **Not built here:**
+  - the rule arms (per-endpoint cost budget, multi-scale rate, population-level detector);
+  - the enforcing arm (9, T-025c);
+  - the verdict code (11).
+  The selection code takes any arm's per-window scores, rules included (p ∈ {0, 1}).
+
+**Engine.** `l7_engine.L7ViewEngine` is observe-only.
+- It scores at most 4 new windows per key per poll; older ones are skipped and counted.
+- Records that started before a key's pruned history are dropped on arrival.
+- `build_engine` picks it for a view package.
+- A test checks that it scores exactly the trainer's windows.
+
+**Published results.** The P5c paths are unchanged:
+- `key_of`, the default feature groups, `TRANSFORMS`, `GATE_PROBES`, package format 1 and `train_l7`.
+- On the P5c.3 capture, the base 30cb4d8 and this branch give byte-identical window matrices for all five variants,
+  probe transforms and 2-epoch GRU weights (`S3:T-025b/test_logs/p5c_regen_*.json`).
+
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.
 - G1-02 Kadel et al., BOTracle, ESORICS Workshops 2024.
