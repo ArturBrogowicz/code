@@ -187,6 +187,8 @@ A test asserts that two rebuilds are byte-identical, and that a single flipped b
   - C3b at M1 joins the C3b phase with 10 entities.
   - **Evaluation captures only:** C3b at M3 (held out) runs in a fourth slot, with the 120 s tail extended to 240 s (1,020 s in
     all), together with the held-out benign kinds.
+    - **Pinned reading** (`ml/p3_prereg.json`, `eval_tail_note`): the M3 slot and the held-out benign kinds share the final
+      240 s window, so 60 + 3 × 240 + 240 = 1,020 s. Confirmed by the user on 2026-10-30, before any data.
 - **Benign:** ≥ 200 users, the mix of `docs/L7V2_DESIGN.md` §7.2-§7.3. The two CGNAT pools hold 36 users on two addresses.
 - **Attack:** ≥ 50 entities per core family.
   - Each entity is active only in its family's phase. A C3b entity sees about 240 / 7 ≈ 34 views, which covers the 32-view
