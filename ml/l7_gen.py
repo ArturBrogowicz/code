@@ -21,8 +21,15 @@ test_distributed_suite.py, parameterised to stay below the daemon's ban threshol
 --source (docs/P3_DATASET_DESIGN.md §4.2): a P3 capture groups its entities onto one namespace per
 netem profile as address aliases, so a generator must send from its entity's own address. Without
 it the generator behaves exactly as before (the kernel picks the namespace's only address).
+
+--records PATH (L7 v2, docs/L7V2_DESIGN.md §5.1; benign plan kinds): one CSV row per request as it
+completes (eval/l7v2_harm.RECORD_COLUMNS): t_intended = t_sent (a closed-loop client has no schedule
+within a view), t_done, status, err, the route class (l7_webapp's site map), the plan's user, view and
+wave, the view's nominal start and the plan's origin, all in wall-clock seconds. eval/l7v2_harm.py
+recomputes the plan to count the views that were due and never started. Without it nothing is written.
 """
 import argparse
+import csv
 import ipaddress
 import json
 import os
@@ -31,6 +38,7 @@ import socket
 import ssl
 import subprocess
 import sys
+import threading
 import time
 
 import l7_benign  # ml/ is the script's directory, so it is on sys.path
@@ -45,6 +53,32 @@ UAS = [
 ]
 EXTS = ["js", "css", "png", "woff2", "json"]
 SOURCE = None          # the entity's own address when --source is given (P3); None: the kernel's choice
+RECORDER = None        # the client-side harm records when --records is given (L7 v2); None: nothing is written
+RECORD_COLUMNS = ("t_intended", "t_sent", "t_done", "status", "err", "route_class", "user", "view", "wave",
+                  "t_nominal", "t_origin")
+
+
+class Recorder:
+    """One CSV row per request, flushed line by line, so a generator stopped at the end of a run keeps its rows."""
+
+    def __init__(self, path):
+        import l7_webapp
+        self.route_class = l7_webapp.route_class
+        self.fh = open(path, "w", buffering=1, encoding="utf-8", newline="")   # noqa: SIM115 (closed in close())
+        self.writer = csv.writer(self.fh)
+        self.writer.writerow(RECORD_COLUMNS)
+        self.lock = threading.Lock()
+        self.origin = None
+
+    def row(self, t_sent, t_done, status, err, tag):
+        path, user, view, wave, t_nominal = tag
+        out = (f"{t_sent:.6f}", f"{t_sent:.6f}", f"{t_done:.6f}", status, err,
+               self.route_class("GET", path) or "", user, view, wave, f"{t_nominal:.6f}", f"{self.origin:.6f}")
+        with self.lock:
+            self.writer.writerow(out)
+
+    def close(self):
+        self.fh.close()
 
 
 def _new_session():
@@ -217,12 +251,21 @@ def benign_nat_gateway(host, port, params, dur, rng):
 #    l7_benign.plan_client() builds from this process's seed — the same plan the
 #    admissibility gate (ml/l7_admissibility.py) simulated. ──
 
-def _quiet_get(sess, url, headers=None):
+def _quiet_get(sess, url, headers=None, tag=None):
+    """GET, never raising; with --records and a `tag` (path, user, view, wave, nominal start) it writes the row."""
     import requests
+    t_sent, status, err = time.time(), "nan", ""
     try:
-        sess.get(url, verify=False, timeout=10, headers=headers)
+        resp = sess.get(url, verify=False, timeout=10, headers=headers)
+        status = getattr(resp, "status_code", "nan")
+    except requests.Timeout:
+        err = "timeout"
+    except requests.ConnectionError:
+        err = "conn"
     except requests.RequestException:
-        pass
+        err = "error"
+    if RECORDER is not None and tag is not None:
+        RECORDER.row(t_sent, time.time(), status, err, tag)
 
 
 def _referer(base, path):
@@ -243,7 +286,7 @@ def _session(ua, conns):
     return sess
 
 
-def _browser_device(base, user, start, end):
+def _browser_device(base, user, start, end, uid=0):
     """Load each view's waves in order (a wave fans out over the device's connections),
     then wait the view's pause. Network time stretches the nominal timeline; it never
     compresses it. An L7 v2 view (with "doc") sends its first wave with Referer = its "ref"
@@ -255,24 +298,28 @@ def _browser_device(base, user, start, end):
     time.sleep(max(0.0, min(start + views[0]["t"], end) - time.time()))
     with _session(user["ua"], l7_benign.BROWSER_CONNS) as sess, \
             ThreadPoolExecutor(l7_benign.BROWSER_CONNS) as pool:
-        for v in views:
+        for vi, v in enumerate(views):
             if time.time() >= end:
                 break
             for i, wave in enumerate(v["waves"]):
                 if wave:
                     hdrs = _referer(base, v.get("ref") if i == 0 else v.get("doc")) if "doc" in v else None
-                    list(pool.map(lambda p, _s=sess, _h=hdrs: _quiet_get(_s, base + p, _h), wave))
+                    list(pool.map(lambda p, _s=sess, _h=hdrs, _t=(uid, vi, i, start + v["t"]):
+                                  _quiet_get(_s, base + p, _h, (p, *_t)), wave))
             time.sleep(max(0.0, min(v["pause_s"], end - time.time())))
 
 
-def _paced_user(base, user, end):
-    """Issue each request, then wait its gap; an L7 v2 item (path, gap, referer) also sends its Referer."""
+def _paced_user(base, user, end, uid=0, start=None):
+    """Issue each request, then wait its gap; an L7 v2 item (path, gap, referer) also sends its Referer. Each request is
+    a one-request view of the records, its nominal start the sum of the gaps before it."""
+    t_nom = time.time() if start is None else start
     with _session(user["ua"], 1) as sess:
-        for item in user["requests"]:
+        for vi, item in enumerate(user["requests"]):
             path, gap = item[0], item[1]
             if time.time() >= end:
                 break
-            _quiet_get(sess, base + path, _referer(base, item[2]) if len(item) > 2 else None)
+            _quiet_get(sess, base + path, _referer(base, item[2]) if len(item) > 2 else None, (path, uid, vi, 0, t_nom))
+            t_nom += gap
             time.sleep(max(0.0, min(gap, end - time.time())))
 
 
@@ -285,8 +332,10 @@ def _run_users(plan, host, port, dur):
     import threading
     base, start = _base(host, port), time.time()
     end = start + dur
-    targets = [(_browser_device, (base, u, start, end)) if "views" in u
-               else (_paced_user, (base, u, end)) for u in plan["users"]]
+    if RECORDER is not None:
+        RECORDER.origin = start
+    targets = [(_browser_device, (base, u, start, end, uid)) if "views" in u
+               else (_paced_user, (base, u, end, uid, start)) for uid, u in enumerate(plan["users"])]
     threads = [threading.Thread(target=f, args=a, daemon=True) for f, a in targets]
     for t in threads:
         t.start()
@@ -524,6 +573,7 @@ def main(argv=None):
     ap.add_argument("--params", default="{}", help="JSON params")
     ap.add_argument("--plan", action="store_true", help="print the plan and exit (no sending)")
     ap.add_argument("--source", help="send from this address (an alias of the namespace; P3)")
+    ap.add_argument("--records", help="write the client-side harm records here (L7 v2; benign plan kinds)")
     args = ap.parse_args(argv)
 
     name = args.kind if args.role == "benign" else args.family
@@ -533,6 +583,10 @@ def main(argv=None):
             "duration": args.duration, "seed": args.seed, "params": params}
     if args.source is not None:
         plan["source"] = args.source
+    if args.records is not None:
+        if args.role != "benign" or name not in l7_benign.KINDS + l7_benign.L7V2_KINDS:
+            raise SystemExit(f"[-] --records is for the benign plan kinds, not {args.role} {name}")
+        plan["records"] = args.records
     if args.plan:
         print(json.dumps(plan))
         return 0
@@ -544,11 +598,17 @@ def main(argv=None):
                 raise SystemExit(f"[-] refusing: {what} {addr} is outside the testbed net {TESTBED_NET}")
         except ValueError:
             raise SystemExit(f"[-] refusing: {what} {addr} is not a testbed IP") from None
-    global SOURCE
+    global SOURCE, RECORDER
     SOURCE = args.source
     if args.port == 443:
         os.environ.setdefault("PYTHONWARNINGS", "ignore")      # self-signed cert
-    fn(args.host, args.port, params, args.duration, random.Random(args.seed))
+    if args.records is not None:
+        RECORDER = Recorder(args.records)
+    try:
+        fn(args.host, args.port, params, args.duration, random.Random(args.seed))
+    finally:
+        if RECORDER is not None:
+            RECORDER.close()
     return 0
 
 
