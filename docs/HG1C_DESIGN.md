@@ -608,20 +608,30 @@ model (`bench/sim_host.py`) until AP-5 says otherwise.
 | e7c7d30 | HRR on log2 p95 beside HRR on Q | G10 |
 | b69fa14 | the protected-arm verdict per mode in the analysis and the report | G10 |
 | ce5d8c6 | campaigns with `--modes`: blocks of C, Cp, U and M_<mode>, the re-run rule on the whole block, the budget | G6 |
+| 9fc4229 | review T-028 F-01: every legit identity banned in any M run of the campaign counts (invalid runs, superseded attempts, kept files of unfinished runs) | G10 |
+| 75298c6 | review F-02: an M run's attack streams are judged for their sending only up to their sources' first bans | G11 |
+| 19dc7e7 | review F-07: the H-01 record tells the fix by both tailers decoding with replacement | H-01 |
+| a939657 | review F-04, F-06: the host's logs moved into the run, not erased; a feed rotated or truncated during the run makes it unsound | H1 |
 
 **The modes.** `M_limits` is U's attack against `nginx.conf` (`limit_req` 30 r/s burst 100 nodelay, `limit_conn` 50; 503 for a refused
 request) and no daemon. `M_xdp` adds `control_plane.py` in `server_ns` with `MITIGATION_BACKEND=xdp`, `XDP_GRU=0` (the XDP-fed GRU is off
 since 78cfc9c), `GRU_ONLY=0`, `L7_SHADOW=0`, `HEURISTIC_PROFILE=default`, `L7_MODEL` and `L7_RECORD` empty, and
-`BAN_EVENTS=<run>/ban_events.jsonl`: every variable the daemon reads is set, so that nothing of the operator's shell reaches it (a test
-compares the list with the daemon's source). It runs from the checkout (its model, scaler and XDP source are relative paths), pinned
+`BAN_EVENTS=<run>/ban_events.jsonl`: every variable the daemon reads is set explicitly (a test compares the list with the daemon's
+source), so that none of them comes from the operator's shell; the rest of the caller's environment, less its proxy variables, is passed
+through as to every process the executor starts (`sudo`'s env_reset trims it in the AP commands; review F-11). It runs from the checkout (its model, scaler and XDP source are relative paths), pinned
 to the daemon's CPU. `M_l7shadow` and `M_l7` are reserved: the plan, the executor and the campaign refuse them with "not built yet" until
 L7 v2 lands.
 
 **H1 (a departure from G2/G3: the daemon's feed).** The daemon tails the host's default Nginx logs (`control_plane.py` `NGINX_LOG_FILE`,
 `NGINX_ERROR_LOG`), and the executor gives every run its own logs. The daemon is not changed: with a daemon, the rendered configuration
 keeps both lines, the run's first and the daemon's feed beside it (Nginx takes several `access_log` and `error_log` lines at one level),
-and the feed is emptied before Nginx starts. [INFERENCE] The cost is one more buffered write per request in the M_xdp arm only, against
-0.4-0.5 ms of Nginx CPU per request measured in HG2a; AP-5 can compare `nginx_cpu_pct` of U and M_xdp.
+and what the host's logs held is moved into the run (`feed_before/`, recorded in `provenance.daemon.feed_before`) so that Nginx starts
+the feed afresh and nothing of the host's logs is erased (review F-06). [INFERENCE] The cost: `access_log` has no `buffer=`, so each
+request is formatted and written twice, one more unbuffered `write()` per request, and every error line twice; in the M_xdp arm only,
+not in C, Cp and U (review F-05; the direction is against M). AP-5 can compare `nginx_cpu_pct` of U and M_xdp. The feed is guarded
+(review F-04): the daemon's record keeps its (inode, size) at readiness and at the end, and the run is unsound if a feed file was
+replaced (logrotate runs daily with `create`) or removed, or if the access feed holds fewer bytes than the run's own access log, which
+Nginx writes line for line with it.
 
 **The daemon's lifecycle.** Started after the stack is ready and warmed up, and held by its handle (`ip netns exec server_ns ...`, stdout
 and stderr in `daemon.log`); ready when it has printed "Listening for Nginx logs" (the suite's own readiness line), its start event with
@@ -632,26 +642,42 @@ stops on either), KILL after 10 s, then `ip link set dev veth_server xdp off` wh
 asks `bpftool -j prog show` for any XDP program and `bpftool -j map show` for the daemon's maps (`blacklist_map`, `telemetry_map`,
 `flow_map`, pinned by a test to `xdp_ddos_filter.c`); a listing that cannot be read does not call the machine clean. **The ban state is
 reset per run by construction**: a new daemon, a new `server_ns` (deleted with `veth_server` and the program in the teardown), the run's
-own ban file and an emptied feed; BAN_TTL (300 s) can outlive a run but not its namespace.
+own ban file and a feed started afresh; BAN_TTL (300 s) can outlive a run but not its namespace.
 
 **Validity of a protected run (G11).** Looked at when the timeline is over and before the daemon is stopped: the daemon still alive (it was
 ready before the first stream, so before the attack), the program on `veth_server` still the one it attached, its start event saying what
 the mode asks for (`MODE_DAEMON` and the backend), the ban file there, and its CPU sampled (`daemon_cpu_pct` in `server.csv`; mean, largest
-and seconds in run.json's `daemon` record). None of these reads what the attack did. The harm gate already treats `executor.ok` false as
-an invalid run.
+and seconds in run.json's `daemon` record), and the feed neither replaced nor truncated (H1). None of these reads what the attack did. The
+harm gate already treats `executor.ok` false as an invalid run.
 
-**What the gate reports and judges (G7 to G10).** A block's order covers its M runs (they are drawn with C, Cp and U); `valid` stays Gate A's
-(C, Cp, U only), `valid_all` adds every planned arm there and valid, and a campaign re-runs a block that is not `valid_all`. Per run:
+**F-02 of review T-028: a mitigation must not void its own run. A design fix made before any protected data, pending the user's
+confirmation.** Behind XDP each request of a banned source waits out the engine's 10 s timeout, so an attack stream above about 500
+req/s fills its in-flight cap of 5,000 and the engine drops requests; the gate's 99 % sent share then voided the M run for what the
+protection did. Now (`harm_gate.post_ban_split`), in a protected run an attack stream's sending is judged only up to the first ban of its
+source: a request due at or after its own source's first ban is "mitigated", sent or not, and so is one the in-flight cap dropped at or
+after the first ban of any source of the stream; the other requests are judged as before, so a generator that fails before the first ban
+(drops, descriptors, ports) still voids the run. Unprotected runs, runs without the axis zero and streams without a banned source are
+judged as before. The simulated engine drops at its cap, so the tests show the old rule voiding a correct mitigation and the new one not.
+
+**What the gate reports and judges (G7 to G10).** A block's order covers its M runs (they are drawn with C, Cp and U); `valid` is Gate A's
+(C, Cp, U only) and `valid_all` adds every planned arm there and valid. **This changes HG1c's re-run rule for campaigns with `--modes`, and
+so Gate A (review F-08), pending the user's approval:** a block whose C, Cp and U are valid is made again when its M run is not, so Gate
+A's figures for that block come from the new attempt (same seed, a new order), a failed M run uses Gate A's re-run budget (`max_reruns`),
+and the campaign's early stop counts complete blocks only. Campaigns without `--modes` are unchanged. Per run:
 the legit identities its daemon blocked (a ban of an address of the benign networks), the legit requests refused with 503 or 429 (in the
 window, judged links, and over the run), and the time to mitigate of each attack identity banned: its first ban less the attack's start
 on the run's axis (`executor.zero_epoch_s`, which the executor now keeps, plus the attack streams' offset; the daemon stamps its events
 with the same host clock). HRR is given on Q and on log2 p95, after a PASS only. The protected-arm verdict is the P2 outcome fixed in
-14e587a: MET, NOT MET or INVALID per mode.
+14e587a: MET, NOT MET or INVALID per mode. Its "no legit identity blocked" counts every M run of the mode that the campaign made (review
+F-01): a run that is not valid, an attempt a re-run superseded, and the ban file the campaign keeps of an unfinished run it removes
+(`<run>.unfinished.<k>.ban_events.jsonl`); the report lists each ban and where it was found.
 
-**H2 (a reading the plan leaves open).** PRIORITY_PLAN 3 gives a block count (9 of 10) for "unprotected fails" only. The protected half takes
-the same: Q(M) >= 0.99 x Q(C) in at least 9 of 10 paired blocks, and 0 legit identities blocked over all of the mode's runs. A rule on the
-mean would let one broken block hide behind nine good ones. The constants are pinned by `P2OutcomeTest`; changing one before the first
-protected campaign is a new pre-registration, after it a departure.
+**H2 (a reading the plan leaves open; pending the user's approval, to be decided before AP-6).** PRIORITY_PLAN 3 gives a block count (9
+of 10) for "unprotected fails" only. The protected half takes the same: Q(M) >= 0.99 x Q(C) in at least 9 of 10 paired blocks, and 0 legit
+identities blocked over all of the mode's runs. A rule on the mean would let one broken block hide behind nine good ones; 10 of 10 would
+let one noisy block fail the arm. The time to mitigate is reported, not judged, so MET is possible with no ban at all (limits alone holding
+Q); the user confirms that too. The constants are pinned by `P2OutcomeTest`; changing one before the first protected campaign is a new
+pre-registration, after it a departure.
 
 **The pin plan (G5), a proposal.** A campaign with a daemon pins every run, the warm-up included, with `population.PIN_PLAN_DAEMON`: server
 0-1, daemon 2, executor 7, legit 6, attack 3-5. Only the executor (from 2) and the attack (from 3-5,7) move; the attack needs at most about
@@ -662,16 +688,18 @@ exit stamps to sit there, not for moving the legit streams (their timer gate on 
 **H-01: the daemon must come from a checkout that has `fix/daemon-robustness`.** One request with a byte that is not UTF-8 ended the daemon's
 main loop on this branch's `control_plane.py`; its `finally` detached XDP and lifted every ban (T-017 H-01, fixed in 8db9827 and the
 commits after it on `fix/daemon-robustness`). A protected run records in `environment.json` (`provenance.daemon.h01`) whether the fix's
-commit is an ancestor of HEAD and how many of the daemon's two log tailers read undecodable bytes as U+FFFD, and warns in `executor.log`
-when neither says the fix is in. It does not refuse. **Proposed, not built:** refuse an M run with a daemon when `has_fix` is false, once
+commit is an ancestor of HEAD and how many of the daemon's two log tailers (`tail_nginx_logs`, `tail_nginx_error_logs`) open their log
+with `errors='replace'`, whatever else the call says (fix/rudy-client-ip adds `newline='\n'` to one; review F-07), and warns in
+`executor.log` when neither says the fix is in. It does not refuse. **Proposed, not built:** refuse an M run with a daemon when `has_fix` is false, once
 `fix/daemon-robustness` and this branch are both merged.
 
 **What the offline build cannot show.** That the real daemon starts, attaches and prints as the model does (the model takes 4 s to be
 ready, bans a source above 50 r/s one second after its first request, and makes an XDP drop a timeout); that `ip -j link show veth_server`
 reports the program as `xdp.prog.id` on this kernel; that `bpftool` is there and lists nothing else of type XDP; the cost of the second
-log; whether a banned attack source's open-loop engine keeps within its in-flight cap (at the knee, [INFERENCE] 63-147 r/s per source
-times the 10 s timeout is 630-1,470 requests in flight per source, under the cap of 5,000 per stream for streams of up to three sources,
-but a stream that drops requests would be invalid for a reason the mitigation caused); and the daemon's CPU share. AP-5 is for these.
+log; how far a banned attack source's open-loop engine fills its in-flight cap ([INFERENCE] at the knee 63-147 r/s per source times the
+10 s timeout is 630-1,470 requests in flight per source; F-02's rule keeps such drops from voiding the run, and the summaries record them);
+and the daemon's CPU share. AP-5 is for these. `XDP off: done` in the stop record says that the command succeeded, not that a program was
+attached (review F-09); the namespace's deletion and the bpftool check are what take it down and prove it.
 
 **AP-5 (T3, one smoke run per protected mode, after the user merges this branch and `fix/daemon-robustness`).** From a clean checkout at the
 merge commit with the `venv` link of section 14:
