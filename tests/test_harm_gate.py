@@ -1056,6 +1056,41 @@ class ProtectedArmsBlockTest(WithCopies):
         self.assertEqual(r["verdict"], "PASS")
 
 
+class HrrP95Test(WithCopies):
+    """G10: HRR on p95, on the log2 scale the gate judges p95 on, beside HRR on Q."""
+
+    def latency_campaign(self, m_slow):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        for number in range(1, 11):
+            write_block(tmp.name, number, FROZEN, {"U": {"slow": 3.0}, "M_x": {"slow": m_slow}})
+        return tmp.name
+
+    def test_hrr_on_p95_is_the_share_of_the_log2_p95_harm_taken_back(self):
+        r = self.analyse(self.latency_campaign(1.5))
+        self.assertEqual(r["verdict"], "PASS")
+        (h,) = r["hrr_p95"]
+        self.assertEqual((h["mode"], h["metric"], h["n"]), ("x", "log2 p95", 10))
+        self.assertAlmostEqual(h["hrr"], (math.log2(3.0) - math.log2(1.5)) / math.log2(3.0), delta=0.12)
+        self.assertLess(h["lo"], h["hrr"])
+        self.assertGreater(h["hi"], h["hrr"])
+
+    def test_hrr_on_p95_is_the_ratio_of_block_means_of_log2_p95(self):
+        r = self.analyse(self.latency_campaign(1.0))
+        rows = [[math.log2(b["runs"][n]["metrics"]["p95_s"]) for n in ("C", "U", "M_x")] for b in r["blocks"]]
+        c, u, m = (sum(col) / len(col) for col in zip(*rows, strict=True))
+        self.assertAlmostEqual(r["hrr_p95"][0]["hrr"], (u - m) / (u - c))
+        self.assertIn("| x | 10 |", H.to_markdown(r))
+        self.assertIn("HRR on p95", H.to_markdown(r))
+
+    def test_no_hrr_on_p95_without_a_pass(self):
+        root = self.copy_of("fail")
+        for d in block_dirs(root):
+            shutil.copytree(os.path.join(BASE["pass"], os.path.basename(d), "M_x"), os.path.join(d, "M_x"))
+            edit_json(os.path.join(d, "block.json"), lambda j: j.update(order=j["order"] + ["M_x"]))
+        self.assertIsNone(self.analyse(root)["hrr_p95"])
+
+
 class P2OutcomeTest(unittest.TestCase):
     """The pre-registered P2 outcome (PRIORITY_PLAN 3): its constants are fixed before any protected run and pinned here, and its two
     halves are tested at their boundaries. A change to a value below is a new pre-registration, not a fix."""

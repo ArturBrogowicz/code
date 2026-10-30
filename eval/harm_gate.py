@@ -484,16 +484,35 @@ def _criteria(blocks, gate, metrics, dq_key, dl_key):
     return out
 
 
+def _hrr_rows(valid_blocks, mode, value):
+    """(C, U, M) of `value(metrics)` for the valid blocks whose M_<mode> run is valid too; a block lacking one is left out."""
+    name = MITIGATED + mode
+    rows = [tuple(value(b["runs"][run]["metrics"]) for run in (CONTROL, ATTACK, name))
+            for b in valid_blocks if name in b["runs"] and b["runs"][name]["valid"]]
+    return [r for r in rows if None not in r]
+
+
 def hrr(valid_blocks, mode, draws=HRR_DRAWS, seed=HRR_SEED):
     """HRR = (Q(M) - Q(U)) / (Q(C) - Q(U)) from block means, with a percentile block-bootstrap interval."""
-    rows = [(b["runs"][CONTROL]["metrics"]["Q"], b["runs"][ATTACK]["metrics"]["Q"], b["runs"][MITIGATED + mode]["metrics"]["Q"])
-            for b in valid_blocks if MITIGATED + mode in b["runs"] and b["runs"][MITIGATED + mode]["valid"]]
-    rows = [r for r in rows if None not in r]
+    return {"mode": mode, **_hrr(_hrr_rows(valid_blocks, mode, lambda m: m["Q"]), draws, seed)}
+
+
+def hrr_p95(valid_blocks, mode, draws=HRR_DRAWS, seed=HRR_SEED):
+    """HRR on the latency (G10): the share of the attack's harm to p95 that the protection takes back, on the scale the gate
+    judges p95 on (log2): (L(U) - L(M)) / (L(U) - L(C)) with L = log2 p95, from block means with the same block bootstrap. 1 is p95
+    back at the control's, 0 is p95 as bad as unprotected; defined only where U's p95 is above C's on average."""
+    def minus_log2(m):
+        return -math.log2(m["p95_s"]) if m["p95_s"] else None
+    return {"mode": mode, "metric": "log2 p95", **_hrr(_hrr_rows(valid_blocks, mode, minus_log2), draws, seed)}
+
+
+def _hrr(rows, draws, seed):
+    """(M - U) / (C - U) of the means of the rows (C, U, M), larger being better, and its percentile block-bootstrap interval."""
     if not rows:
-        return {"mode": mode, "n": 0, "hrr": None}
+        return {"n": 0, "hrr": None}
     c, u, m = (np.array(col, dtype=float) for col in zip(*rows, strict=True))
     den = c.mean() - u.mean()
-    out = {"mode": mode, "n": len(rows), "hrr": float((m.mean() - u.mean()) / den) if den > 0 else None,
+    out = {"n": len(rows), "hrr": float((m.mean() - u.mean()) / den) if den > 0 else None,
            "lo": None, "hi": None, "dropped_draws": 0}
     if out["hrr"] is None or len(rows) < 2:
         return out
@@ -635,6 +654,7 @@ def analyse(root, cal, dry_run=False, metrics=METRICS, slo_scale=1.0, allow_over
             "criteria": criteria, "by_profile": profile_table(valid, cal),
             "placebo": {"criteria": placebo, "passed": any(c["passed"] for c in placebo.values())},
             "hrr": [hrr(valid, m) for m in modes] if verdict == "PASS" else None,
+            "hrr_p95": [hrr_p95(valid, m) for m in modes] if verdict == "PASS" else None,
             "hrr_withheld": bool(modes) and verdict != "PASS",
             "blocks": blocks, "attempts": [a for a in attempts if a is not final[a["block"]]]}   # the superseded ones
 
@@ -708,9 +728,13 @@ def to_markdown(r):
     out.append(f"Strict profile (design 8.3 as written), computed and not judged unless chosen: {strict_bad} run(s) "
                "of the final blocks would fail it.\n")
     if r["hrr"]:
-        out += ["## HRR", "", "| mode | blocks | HRR | 95 % block-bootstrap interval |", "|---|---|---|---|"]
-        out += [f"| {h['mode']} | {h['n']} | {_f(h['hrr'], '.2f')} | [{_f(h.get('lo'), '.2f')}, {_f(h.get('hi'), '.2f')}] |"
-                for h in r["hrr"]]
+        out += ["## HRR", "", ("The share of the harm the protected arm takes back, from block means: on Q, (Q(M) - Q(U)) / (Q(C) - Q(U)); "
+                               "on p95, the same on log2 p95, (L(U) - L(M)) / (L(U) - L(C))."), "",
+                "| mode | blocks | HRR on Q | 95 % block-bootstrap interval | HRR on p95 | 95 % block-bootstrap interval |",
+                "|---|---|---|---|---|---|"]
+        for h, p in zip(r["hrr"], r.get("hrr_p95") or [{}] * len(r["hrr"]), strict=True):
+            out.append(f"| {h['mode']} | {h['n']} | {_f(h['hrr'], '.2f')} | [{_f(h.get('lo'), '.2f')}, {_f(h.get('hi'), '.2f')}] | "
+                       f"{_f(p.get('hrr'), '.2f')} | [{_f(p.get('lo'), '.2f')}, {_f(p.get('hi'), '.2f')}] |")
         out.append("")
     elif r["hrr_withheld"]:
         out += ["HRR is not computed: its denominator is the gate-passed harm and the gate did not pass.\n"]
