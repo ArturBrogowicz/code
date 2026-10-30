@@ -3,11 +3,13 @@
 
 One checker, two uses: the unit tests run it on fixture manifests, and `--check` (this script, the trainer and
 the learning-curve tool) runs it before every fit; they refuse to fit unless it passes. Unknown means fail: a
-manifest that is not a valid schema-2 manifest, or a file that cannot be read, is a failure, never a skip.
+manifest that is not a valid schema-2 or schema-3 manifest, or a file that cannot be read, is a failure, never a skip.
+Schema 3 (L7 v2) lets an address serve two entities of one role at disjoint times within a capture; rule 1 checks that
+(l7_dataset.reuse_problems), and every other rule works on entities, so a reused address changes none of them.
 
 Each failure starts with its rule number:
-   1  a manifest is missing, unreadable, or not a valid schema-2 manifest (a required field is missing, a hash
-      does not match, the tree was dirty, ...)
+   1  a manifest is missing, unreadable, or not a valid schema-2 or schema-3 manifest (a required field is missing,
+      a hash does not match, the tree was dirty, an address serves two roles or two entities at once, ...)
    2  entity ids intersect across train, validation and evaluation
    3  a seed is used by two splits (an evaluation seed in a training or validation manifest included)
    4  an evaluation capture's plan_set_sha256 equals a training or validation capture's (a replayed plan)

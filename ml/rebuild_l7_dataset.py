@@ -74,11 +74,20 @@ def verify(vdir):
 
 
 def labels(caps):
-    return {m["capture_id"]: {e["address"]: {"entity_id": e["entity_id"], "role": e["role"],
-                                             "kind_or_family": e["kind_or_family"], "held_out": e["held_out"],
-                                             "netem": e["netem"]}
-                              for e in m["entities"]}
-            for _, m in caps}
+    """capture -> address -> its entity; a schema-3 address reused in time -> its entities in time order, each with
+    its schedule."""
+    out = {}
+    for _, m in caps:
+        rows = {}
+        for e in m["entities"]:
+            rows.setdefault(e["address"], []).append(
+                {"entity_id": e["entity_id"], "role": e["role"], "kind_or_family": e["kind_or_family"],
+                 "held_out": e["held_out"], "netem": e["netem"],
+                 "start_s": e["schedule"]["start_s"], "stop_s": e["schedule"]["stop_s"]})
+        out[m["capture_id"]] = {a: ({k: v for k, v in r[0].items() if k not in ("start_s", "stop_s")}
+                                    if len(r) == 1 else sorted(r, key=lambda x: (x["start_s"], x["entity_id"])))
+                                for a, r in rows.items()}
+    return out
 
 
 def windows(caps, seq, stride, min_events):

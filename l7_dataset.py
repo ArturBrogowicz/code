@@ -22,9 +22,19 @@ plan_sha256), the pool and its role map, the code, server and host blocks, the f
 their hashes, plan_set_sha256 and manifest_sha256 (over the canonical JSON without that
 field). Its ip_map and schedule are derived from the entities, and validation recomputes
 every hash, so nothing can drift. Schema 1 manifests read exactly as before.
+
+Schema 3 (docs/L7V2_DESIGN.md §6; the P3 note §5, "the M3 phase reuses the C2 phase's addresses")
+is schema 2 plus address reuse in time: two entities may share an address when they have the same
+role and their schedules [start_s, stop_s) do not overlap. `address_map` (derived and checked) gives
+each address its entities in time order; labeler() labels a request by (address, time since t0,
+the capture's timeline.t0_wall), and a request outside every interval of a reused address is
+`other`. For an address with one entity the ip_map entry is schema 2's; a reused address's entry
+says so ("time_indexed") and carries no entity, so no reader can take one entity's label for
+another's. A schema-2 manifest reads as before (schema 3 readers accept it).
 """
 import gzip
 import hashlib
+import itertools
 import json
 import os
 import re
@@ -32,6 +42,8 @@ import time
 
 DATASET_FORMAT = "l7-dataset/1"
 DATASET_FORMAT_V2 = "l7-dataset/2"
+DATASET_FORMAT_V3 = "l7-dataset/3"
+FORMATS_P3 = {DATASET_FORMAT_V2: 2, DATASET_FORMAT_V3: 3}
 MANIFEST_FILE = "manifest.json"
 ACCESS_LOG = "access.log"
 ACCESS_LOG_GZ = "access.log.gz"
@@ -47,6 +59,7 @@ TOP_KEYS_V2 = ("format", "schema", "dataset_version", "capture_id", "seed", "see
                "started_utc", "ended_utc", "duration_s", "code", "server", "host", "pool",
                "timeline", "entities", "files", "ip_map", "schedule", "access_log", "notes",
                "plan_set_sha256", "manifest_sha256")
+TOP_KEYS_V3 = TOP_KEYS_V2 + ("address_map",)
 VERSION_RE = re.compile(r"^\d{4}-\d{2}-[a-z0-9][a-z0-9.-]{0,40}$")
 HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -111,7 +124,7 @@ def make_manifest(*, seed, duration_s, ip_map, schedule, provenance, notes=""):
 def validate_manifest(m):
     """Raise ValueError if the manifest is malformed. Returns m on success. A schema-2
     manifest goes through validate_manifest_v2()."""
-    if m.get("format") == DATASET_FORMAT_V2:
+    if m.get("format") in FORMATS_P3:
         return validate_manifest_v2(m)
     if m.get("format") != DATASET_FORMAT:
         raise ValueError(f"unsupported dataset format: {m.get('format')}")
@@ -186,9 +199,17 @@ def plan_set_sha256(entities):
 
 
 def ip_map_from_entities(entities):
-    """The schema-1 ip_map (address -> label) derived from the entity rows."""
+    """The schema-1 ip_map (address -> label) derived from the entity rows. An address that serves several
+    entities in time (schema 3) gets {"class", "time_indexed": True, "entity_ids"} and no entity of its own."""
     out = {}
+    by_addr = {}
     for e in entities:
+        by_addr.setdefault(e["address"], []).append(e)
+    for e in entities:
+        if len(by_addr[e["address"]]) > 1:
+            out[e["address"]] = {"class": ATTACK if e["role"] == "attack" else BENIGN, "time_indexed": True,
+                                 "entity_ids": sorted(x["entity_id"] for x in by_addr[e["address"]])}
+            continue
         attack = e["role"] == "attack"
         out[e["address"]] = {"class": ATTACK if attack else BENIGN,
                              "family": e["kind_or_family"] if attack else None,
@@ -207,15 +228,82 @@ def schedule_from_entities(entities):
     return sorted(rows, key=lambda r: (r["start_s"], r["ip"]))
 
 
+def address_map_from_entities(entities):
+    """Schema 3: address -> its entities in time order, [{entity_id, role, kind_or_family, held_out, start_s,
+    stop_s}]."""
+    out = {}
+    for e in entities:
+        out.setdefault(e["address"], []).append(
+            {"entity_id": e["entity_id"], "role": e["role"], "kind_or_family": e["kind_or_family"],
+             "held_out": bool(e["held_out"]), "start_s": e["schedule"]["start_s"], "stop_s": e["schedule"]["stop_s"]})
+    for rows in out.values():
+        rows.sort(key=lambda r: (r["start_s"], r["entity_id"]))
+    return dict(sorted(out.items()))
+
+
+def reuse_problems(entities):
+    """Schema 3: an address shared by entities of two roles, or by two entities whose schedules overlap."""
+    probs = []
+    for addr, rows in address_map_from_entities(entities).items():
+        if len({r["role"] for r in rows}) > 1:
+            probs.append(f"address {addr} serves two roles: {[r['entity_id'] for r in rows]}")
+        for a, b in itertools.pairwise(rows):
+            if b["start_s"] < a["stop_s"]:
+                probs.append(f"address {addr}: {a['entity_id']} [{a['start_s']}, {a['stop_s']}) overlaps "
+                             f"{b['entity_id']} [{b['start_s']}, {b['stop_s']})")
+    return probs
+
+
+def time_origin(m):
+    """The wall-clock time (s) the schedule's seconds count from, or None (schema 1, or no t0 recorded)."""
+    t0 = (m.get("timeline") or {}).get("t0_wall") if isinstance(m.get("timeline"), dict) else None
+    return float(t0) if isinstance(t0, (int, float)) and not isinstance(t0, bool) else None
+
+
+def labeler(m):
+    """label(ip, t_rel) -> (class, family, held_out, entity_id) for a request from `ip` at `t_rel` seconds after the
+    capture's time origin. Schema 1 and 2 ignore the time (one entity per address: the ip_map label, the entity id
+    when the manifest has one); schema 3 picks the entity whose schedule holds t_rel on a reused address, and a
+    request outside every interval of a reused address, or with no time, is `other`."""
+    ip_map = m["ip_map"]
+    amap = m.get("address_map") if m.get("format") == DATASET_FORMAT_V3 else None
+
+    def label(ip, t_rel=None):
+        entry = ip_map.get(ip)
+        if entry is None:
+            return (OTHER, None, False, None)
+        if not entry.get("time_indexed"):
+            cls, family, held = label_for(ip, ip_map)
+            return (cls, family, held, entry.get("entity_id", ip))
+        if t_rel is None or amap is None:
+            return (OTHER, None, False, None)
+        for r in amap[ip]:
+            if r["start_s"] <= t_rel < r["stop_s"]:
+                attack = r["role"] == "attack"
+                return (ATTACK if attack else BENIGN, r["kind_or_family"] if attack else None, r["held_out"],
+                        r["entity_id"])
+        return (OTHER, None, False, None)
+    return label
+
+
+def kind_or_family(m):
+    """entity_id (or address, schema 1) -> kind or family, for tagging windows."""
+    if m.get("format") in FORMATS_P3:
+        return {e["entity_id"]: e["kind_or_family"] for e in m["entities"]}
+    return {ip: e.get("family") or e.get("kind") for ip, e in m["ip_map"].items()}
+
+
 def manifest_sha256(m):
     """The hash of the canonical JSON of the manifest without its manifest_sha256 field."""
     return sha256_hex(canonical_json({k: v for k, v in m.items() if k != "manifest_sha256"}))
 
 
 def make_manifest_v2(*, dataset_version, capture_id, seed, seed_role, started_utc, ended_utc,
-                     duration_s, code, server, host, pool, timeline, entities, files, notes=""):
-    """Assemble a schema-2 manifest; the derived fields and both hashes are filled in."""
-    m = {"format": DATASET_FORMAT_V2, "schema": 2, "dataset_version": dataset_version,
+                     duration_s, code, server, host, pool, timeline, entities, files, notes="", schema=2):
+    """Assemble a schema-2 manifest (schema=3: with the time-indexed address_map); the derived fields and both hashes
+    are filled in."""
+    m = {"format": DATASET_FORMAT_V3 if schema == 3 else DATASET_FORMAT_V2, "schema": schema,
+         "dataset_version": dataset_version,
          "capture_id": capture_id, "seed": int(seed), "seed_role": seed_role,
          "started_utc": started_utc, "ended_utc": ended_utc, "duration_s": float(duration_s),
          "code": code, "server": server, "host": host, "pool": pool, "timeline": timeline,
@@ -223,19 +311,22 @@ def make_manifest_v2(*, dataset_version, capture_id, seed, seed_role, started_ut
          "ip_map": ip_map_from_entities(entities), "schedule": schedule_from_entities(entities),
          "access_log": ACCESS_LOG_GZ, "notes": notes,
          "plan_set_sha256": plan_set_sha256(entities)}
+    if schema == 3:
+        m["address_map"] = address_map_from_entities(entities)
     m["manifest_sha256"] = manifest_sha256(m)
     return m
 
 
 def manifest_problems(m):
-    """Every reason a schema-2 manifest is not acceptable (empty when it is). Unknown or
+    """Every reason a schema-2 or schema-3 manifest is not acceptable (empty when it is). Unknown or
     missing means a problem: the checks fail closed."""
     if not isinstance(m, dict):
         return ["manifest is not an object"]
-    probs = [f"missing field {k!r}" for k in TOP_KEYS_V2 if k not in m]
+    v3 = m.get("format") == DATASET_FORMAT_V3
+    probs = [f"missing field {k!r}" for k in (TOP_KEYS_V3 if v3 else TOP_KEYS_V2) if k not in m]
     if probs:
         return probs
-    if m["format"] != DATASET_FORMAT_V2 or m["schema"] != 2:
+    if FORMATS_P3.get(m["format"]) != m["schema"]:
         probs.append(f"format {m['format']!r} schema {m['schema']!r}")
     if not isinstance(m["dataset_version"], str) or not VERSION_RE.match(m["dataset_version"]):
         probs.append(f"dataset_version {m['dataset_version']!r} is not <yyyy-mm>-<tag>")
@@ -275,7 +366,7 @@ def manifest_problems(m):
             probs.append(f"entity {i}: id {e['entity_id']!r} is not <version>:<seed>:<index>")
         if e["entity_id"] in ids:
             probs.append(f"entity {i}: duplicate id {e['entity_id']}")
-        if e["address"] in addrs:
+        if e["address"] in addrs and not v3:
             probs.append(f"entity {i}: address {e['address']} belongs to another entity too: {NEEDS_SCHEMA_3}")
         ids.add(e["entity_id"])
         addrs.add(e["address"])
@@ -292,6 +383,12 @@ def manifest_problems(m):
             probs.append(f"entity {e['entity_id']}: schedule out of range: {sch}")
     if probs:
         return probs
+    if v3:
+        probs += reuse_problems(ents)
+        if m["address_map"] != address_map_from_entities(ents):
+            probs.append("address_map does not match the entities")
+        if time_origin(m) is None and any(len(r) > 1 for r in address_map_from_entities(ents).values()):
+            probs.append("timeline.t0_wall missing: a reused address cannot be labelled in time")
     pool = m["pool"] if isinstance(m["pool"], dict) else {}
     if pool.get("role_map") != {e["address"]: e["role"] for e in ents}:
         probs.append("pool.role_map does not match the entities")

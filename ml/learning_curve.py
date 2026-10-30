@@ -63,9 +63,11 @@ def _entity_meta(manifest):
 
 
 def _tag(windows, capture, meta):
+    """Each window's capture and kind or family: the one its records carry (train_l7.load_records, by entity, so a
+    schema-3 address reused in time is tagged per entity), else the address's."""
     for w in windows:
         w["capture"] = capture
-        w["kof"] = meta.get(w["recs"][0]["ip"], (None,))[0]
+        w["kof"] = w["recs"][0].get("_kof") or meta.get(w["recs"][0]["ip"], (None,))[0]
     return windows
 
 

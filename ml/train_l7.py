@@ -81,9 +81,13 @@ CONSECUTIVE = 3
 # ───────────────────────────── data ─────────────────────────────
 
 def load_records(dataset_dir):
-    """Return (manifest, [records]) with class/family/held_out attached per record."""
+    """Return (manifest, [records]) with class/family/held_out, the entity and its kind or family attached per record.
+    A schema-3 capture labels a reused address by time (l7_dataset.labeler); schema 1 and 2 by address, as before."""
     manifest, log_path = l7_dataset.read_dataset(dataset_dir)
-    ip_map = manifest["ip_map"]
+    label = l7_dataset.labeler(manifest)
+    t0 = l7_dataset.time_origin(manifest)
+    kof = l7_dataset.kind_or_family(manifest)
+    by_entity = manifest.get("format") in l7_dataset.FORMATS_P3
     recs = []
     with l7_dataset.open_log(log_path) as fh:      # plain or gzipped (schema 2, published)
         for line in fh:
@@ -93,11 +97,12 @@ def load_records(dataset_dir):
             rec = l7_ingest.normalise(obj)
             if rec is None:
                 continue
-            cls, family, held = l7_dataset.label_for(rec["ip"], ip_map)
+            cls, family, held, entity = label(rec["ip"], None if t0 is None else F.start_time(rec) - t0)
             if cls == l7_dataset.OTHER:
                 continue
             rec["_cls"], rec["_family"], rec["_held"] = cls, family, held
-            rec["_entity"] = ip_map[rec["ip"]].get("entity_id", rec["ip"])
+            rec["_entity"] = entity
+            rec["_kof"] = kof.get(entity if by_entity else rec["ip"])
             recs.append(rec)
     return manifest, recs
 
