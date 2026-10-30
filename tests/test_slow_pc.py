@@ -201,7 +201,8 @@ class DetectorLegsTest(unittest.TestCase):
                 sim = Sim(P.Detector(5, 1024, 6))
                 for i in range(24):
                     sim.add("10.0.4.2", 43000 + i, busy, sport=443)
-                items = [("10.0.4.2", 43000 + i, 7, 0.9) for i in range(24)] if logged else []
+                other = [("10.0.9.9", 50000, 7, 0.9)]             # the log carries ports
+                items = [("10.0.4.2", 43000 + i, 7, 0.9) for i in range(24)] if logged else other
                 results = [sim.step(items=items)] + sim.run(30)
                 self.assertEqual(sum(len(r.closes) for r in results), expected)
 
@@ -249,7 +250,21 @@ class DetectorLegsTest(unittest.TestCase):
     def test_443_answered_only_by_the_handshake_is_suspect_when_the_other_legs_hold(self):
         sim = Sim(P.Detector(5, 1024, 2))
         sim.add("10.0.9.1", 48000, lambda t: {**loris(t), "bytes_acked": 3100}, sport=443)
-        self.assertEqual(closes_at(sim.run(10)), {9: 1})
+        first = sim.step(items=[("10.0.9.9", 50000, 7, 0.9)])    # another client's request
+        self.assertEqual(closes_at([first, *sim.run(9)]), {9: 1})
+
+    def test_443_is_judged_only_once_the_access_log_has_shown_a_client_port(self):
+        # A log format without the client port (the deployed json_ml_format) cannot answer any
+        # :443 connection, so none is judged unanswered until a record with a port arrives.
+        for items, closed in (((), {}), ((("10.0.9.9", None, 7, 0.9),), {}),
+                              ((("10.0.9.9", 50000, 7, 0.9),), {9: 1})):
+            with self.subTest(items=items):
+                sim = Sim(P.Detector(5, 1024, 2))
+                sim.add("10.0.9.3", 48002, lambda t: {**loris(t), "bytes_acked": 3100},
+                        sport=443)
+                first = sim.step(items=items)
+                self.assertEqual(closes_at([first, *sim.run(9)]), closed)
+                self.assertEqual(sim.det.ports_seen, bool(closed))
 
     def test_the_access_log_answers_a_443_connection_only_during_its_lifetime(self):
         # A request of the same client port logged up to 2 s before the first poll that saw

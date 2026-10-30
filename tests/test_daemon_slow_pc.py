@@ -215,13 +215,23 @@ class AccessLogTest(SlowPcCase):
                                 segs=3 + int(t - 1000)) for i in range(24))
         lines = [{"client_ip": CGNAT, "port": 43000 + i, "status": 200, "user_agent": f"u{i % 12}"}
                  for i in range(24)]
+        other = [{"client_ip": "10.0.9.9", "port": 50000, "status": 200}]
         for logged, closes in ((True, 0), (False, 24)):
             with self.subTest(logged=logged):
                 d = self.daemon(**FAST)
-                if logged:
-                    access(d, lines)
+                access(d, lines if logged else other)
                 self.run_world(d, 12, world)
                 self.assertEqual(len(d.events("slow_pc_close")), closes)
+
+    def test_without_the_client_port_in_the_log_443_is_not_judged(self):
+        # The deployed json_ml_format has no port: with it, every :443 connection would look
+        # unanswered, so the rule leaves :443 alone until a record with a port arrives.
+        d = self.daemon(**FAST)
+        access(d, [{"client_ip": "10.0.9.9", "status": 200, "user_agent": "a"}])
+        self.run_world(d, 12, lambda t: "".join(
+            sock(CGNAT, 43000 + i, 443, acked=4100, received=900 + 40 * int(t - 1000),
+                 segs=3 + int(t - 1000)) for i in range(24)))
+        self.assertEqual(d.events("slow_pc_close"), [])
 
     def test_a_full_inbox_drops_and_counts_and_bad_records_are_ignored(self):
         d = self.daemon(**FAST)

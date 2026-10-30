@@ -311,6 +311,7 @@ class Detector:
         self.ban_times = collections.deque()   # the t of each ban, for MAX_BANS_PER_MIN
         self.pending = set()     # addresses whose ban was capped
         self.issued = set()      # keys the caller closed after the last poll
+        self.ports_seen = False  # has the access log shown a client port yet? (_suspect, :443)
         self.stats = collections.Counter()
         self.gauges = {"sockets": 0, "owned": 0}
         self.bad_sample = None
@@ -321,6 +322,7 @@ class Detector:
             seen = self.ua.setdefault(ip, {})
             seen[ua_key] = max(t, seen.get(ua_key, t))
             if port is not None:
+                self.ports_seen = True
                 self.answered[(ip, port)] = max(t, self.answered.get((ip, port), t))
 
     def ua_keys(self, ip, now):
@@ -390,13 +392,16 @@ class Detector:
         return PollResult(closes, capped, bans, capped_bans, spared)
 
     def _suspect(self, s, c, now):
-        """The five legs of §6.2: owned, old, unanswered, slow, dribbling."""
-        if s.sport == 443 and not c.answered:      # §6.3: the access log answers on :443
+        """The five legs of §6.2: owned, old, unanswered, slow, dribbling. On :443 only the
+        access log can answer a connection (§6.3), and only a log that carries the client port:
+        until one record with a port has arrived, no :443 connection is judged unanswered (with
+        the deployed json_ml_format, which has no port, every one would be)."""
+        if s.sport == 443 and not c.answered:
             t = self.answered.get((s.ip, s.port))
             c.answered = t is not None and t >= c.first_seen - ANSWERED_SLACK_S
         age = now - c.first_seen
         unanswered = (s.info["bytes_acked"] <= ANSWERED_MAX_BYTES_80 if s.sport == 80
-                      else not c.answered)
+                      else self.ports_seen and not c.answered)
         return (s.owned and age > self.t_s and unanswered
                 and s.info["bytes_received"] < self.f_bps * age
                 and s.info["data_segs_in"] - c.segs0 >= DRIBBLE_MIN_SEGS)
