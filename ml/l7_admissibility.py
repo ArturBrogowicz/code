@@ -18,6 +18,10 @@ replicas of the deployed mechanisms:
               15 s keep-alive timeout; an interval is idle iff no request starts in it (one
               request is already > 250 B on the wire, so this is conservative). Checked
               at four poll phases; any phase that bans is a trip.
+  slowconn_pc the P4 per-connection rule (slow_pc.py), judged separately (check_spec_pc): each
+              simulated connection carries the requests it served, so it is answered once
+              its first request completed and dribbles when requests start on it after the
+              poll that first saw it. Not part of check_client's violations.
 
 Timing model (the worst case is the fastest client): each request takes SERVICE_S on its
 connection — the median $request_time of benign requests in the P3 capture — and a
@@ -30,12 +34,14 @@ over 10 / 30 / 60 s. Stdlib only; pure.
 """
 import bisect
 import collections
+import math
 import random
 
 import l7_benign
 import l7_traffic
 
 import l7_webapp
+import slow_pc
 
 SERVICE_S = 0.002          # median benign $request_time, results/2026-10-15_l7-p3-capture
 KEEPALIVE_S = float(l7_traffic.THRESHOLDS["nginx_keepalive_timeout_s"])
@@ -52,10 +58,18 @@ CONN_MARGIN = 5
 def _device_requests(views, conns):
     """Simulate one browser device: [(start, end, slot, path)] and its connections
     [(open_t, close_t)]."""
+    reqs, records = _device_sim(views, conns)
+    return reqs, [(o, c) for o, c, _served in records]
+
+
+def _device_sim(views, conns):
+    """_device_requests with each connection's requests: [(start, end, slot, path)] and
+    [(open_t, close_t, [(start, end), ...])], in the order the connections closed."""
     reqs, conn_spans = [], []
     free_at = [0.0] * conns
     last_used = [None] * conns        # end time of the slot's last request
     opened = [None] * conns
+    served = [[] for _ in range(conns)]
     t = views[0]["t"] if views else 0.0
     for v in views:
         for wave in v["waves"]:
@@ -72,17 +86,19 @@ def _device_requests(views, conns):
                     start = free_at[i]
                 if last_used[i] is None or start - last_used[i] > KEEPALIVE_S:
                     if opened[i] is not None:
-                        conn_spans.append((opened[i], last_used[i] + KEEPALIVE_S))
+                        conn_spans.append((opened[i], last_used[i] + KEEPALIVE_S, served[i]))
                     opened[i] = start
+                    served[i] = []
                 end = start + SERVICE_S
                 free_at[i], last_used[i] = end, end
+                served[i].append((start, end))
                 reqs.append((start, end, i, path))
                 wave_end = max(wave_end, end)
             t = wave_end
         t += v["pause_s"]
     for i in range(conns):
         if opened[i] is not None:
-            conn_spans.append((opened[i], last_used[i] + KEEPALIVE_S))
+            conn_spans.append((opened[i], last_used[i] + KEEPALIVE_S, served[i]))
     return reqs, conn_spans
 
 
@@ -245,6 +261,80 @@ def check_spec(kind, params, duration_s, seeds, lim=LIMITS):
                       "established_max": max(r["established_max"] for r in runs),
                       "sustained_10s": max(r["sustained_10s"] for r in runs),
                       "limit_req_rejected": max(r["limit_req_rejected"] for r in runs)}}
+
+
+# ───────────────────────── the P4 per-connection rule (slow_pc.py) ─────────────────────────
+
+REQUEST_BYTES = 250       # bytes a request brings at least (see slowconn above)
+PC_MOST_SUSPICIOUS = (min(slow_pc.T_GRID_S), max(slow_pc.F_GRID_BPS), min(slow_pc.K_GRID))
+
+
+def client_connections(plan, duration_s):
+    """Every connection of one client IP, [(open_t, close_t, [(start, end), ...])], cut at
+    duration_s: the same simulation as client_wire, with each connection's requests."""
+    out = []
+    for user in plan["users"]:
+        if "views" in user:
+            _reqs, records = _device_sim(user["views"], l7_benign.BROWSER_CONNS)
+        else:
+            reqs, spans = _paced_requests(user["requests"])
+            records = [(o, c, [(s, e) for s, e, _i, _p in reqs]) for o, c in spans]
+        out.extend((o, min(c, duration_s), [(s, e) for s, e in served if s < duration_s])
+                   for o, c, served in records if o < duration_s)
+    return out
+
+
+def pc_scan(conns, duration_s, point=PC_MOST_SUSPICIOUS, lim=LIMITS):
+    """The per-connection rule (slow_pc.Detector's five legs, persistence and address
+    aggregate) at `point` = (T, F, K) over one client's connections: (closes, banned), the worst
+    of the POLL_PHASES. A connection is owned (no backlog here), answered once one of its
+    requests ended, has received REQUEST_BYTES per request started and one data segment per
+    request (a GET fits one segment). The legs are monotone in T and F (an older threshold or a
+    lower floor only removes suspect polls), so no close at the most suspicious point means
+    none anywhere on the grid."""
+    t_s, f_bps, k = point
+    step = lim["l4_poll_interval_s"]
+    worst, banned = 0, False
+    for phase in POLL_PHASES:
+        times = []
+        for open_t, close_t, served in conns:
+            starts = sorted(s for s, _e in served)
+            ends = sorted(e for _s, e in served)
+            t = phase + max(1, math.ceil((open_t - phase) / step)) * step   # first poll >= open
+            first, segs0, streak = t, bisect.bisect_right(starts, t), 0
+            while t < close_t and t <= duration_s:
+                age, answered = t - first, bisect.bisect_right(ends, t) > 0
+                if answered and age > t_s:
+                    break                        # answered for good: never suspect again
+                n = bisect.bisect_right(starts, t)
+                suspect = (not answered and age > t_s and REQUEST_BYTES * n < f_bps * age
+                           and n - segs0 >= slow_pc.DRIBBLE_MIN_SEGS)
+                streak = streak + 1 if suspect else 0
+                if streak >= slow_pc.PERSISTENCE_POLLS:
+                    times.append(t)
+                    break
+                t += step
+        times.sort()
+        worst = max(worst, len(times))
+        banned = banned or any(times[i + k - 1] - times[i] <= slow_pc.BAN_WINDOW_S
+                               for i in range(len(times) - k + 1))
+    return worst, banned
+
+
+def check_spec_pc(kind, params, duration_s, seeds, point=PC_MOST_SUSPICIOUS):
+    """The per-connection rule's admissibility of one benign kind (P4, docs/P4_SLOW_DESIGN.md
+    §9): admissible iff no simulated seed has a connection closed or the address banned at
+    `point`, by default the grid's most suspicious point (then at every grid point)."""
+    runs = []
+    for s in seeds:
+        plan = l7_benign.plan_client(kind, params, duration_s, random.Random(s))
+        conns = client_connections(plan, duration_s)
+        closes, banned = pc_scan(conns, duration_s, point)
+        runs.append((len(conns), closes, banned))
+    return {"kind": kind, "params": dict(params), "seeds": len(runs), "point": point,
+            "admissible": not any(c or b for _n, c, b in runs),
+            "closes": max(c for _n, c, _b in runs), "banned": any(b for _n, _c, b in runs),
+            "connections_min": min(n for n, _c, _b in runs)}
 
 
 def bucket_excess(starts, rate):
