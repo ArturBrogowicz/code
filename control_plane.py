@@ -423,11 +423,15 @@ def get_established_conns_by_ip():
 
 
 def tail_nginx_logs(file_path):
-    """Tail a log file, automatically reopening on log rotation (inode change)."""
+    """Tail a log file, automatically reopening on log rotation (inode change).
+
+    Undecodable bytes are read as U+FFFD (H-01): nginx's escape=json writes bytes >= 0x80
+    as they are, so one request with a non-UTF-8 header used to raise UnicodeDecodeError
+    here and end the daemon. A line with U+FFFD is parsed or skipped like any other."""
     while not stop_event.is_set():
         try:
             current_inode = os.stat(file_path).st_ino
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
                 f.seek(0, os.SEEK_END)
                 stale_count = 0
                 while not stop_event.is_set():
@@ -458,6 +462,8 @@ def tail_nginx_error_logs(file_path):
     R.U.D.Y. attacks cause Nginx to eventually time out waiting for the
     POST body. These timeouts are logged in the error log, not the access
     log. This function detects the pattern and bans repeat offenders.
+    Undecodable bytes (a raw request line, for one) are read as U+FFFD, as in
+    tail_nginx_logs (H-01).
     """
     import re
     # Pattern matches: "client timed out ... while reading client request body, client: <IP>"
@@ -468,7 +474,7 @@ def tail_nginx_error_logs(file_path):
     while not stop_event.is_set():
         try:
             current_inode = os.stat(file_path).st_ino
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
                 f.seek(0, os.SEEK_END)
                 stale_count = 0
                 while not stop_event.is_set():
