@@ -29,7 +29,10 @@ Honest evaluation (the ML_INVESTIGATION lessons):
   * the chosen variant's tabular baseline is saved beside the package
     (baseline_hgb.pkl + .json) so the online evaluation can replay it (P5b baseline B4).
 
-Selection (docs/P3_DATASET_DESIGN.md §4.8). The default rule, `--selection val`, uses the
+Selection (docs/P3_DATASET_DESIGN.md §4.8). The default depends on the input (default_selection):
+a legacy (schema-1) dataset gets the published P5c rule, so the commands documented in
+results/*/README.md still reproduce their reports; P3 (schema-2) captures, and any run with
+--val, get the validation-only rule. Pass --selection explicitly to override. Rule `val` uses the
 VALIDATION set only: each probe-gated variant gets its operating point (threshold,
 consecutive) from the pre-registered grids at the benign budget (at most 1 % of the
 validation's benign entities flagged, ml/p3_prereg.json), and the variant with the highest
@@ -46,8 +49,8 @@ before anything is fitted, windows are keyed by entity id, and the run writes sp
 and selection.json (variant, operating point, split sha256) beside the package.
 
     ./venv/bin/python ml/train_l7.py DATASET_DIR --out ml/l7_models/<name> [--epochs 25]
-    ./venv/bin/python ml/train_l7.py TRAIN_DIR... --val VAL_DIR... --out <dir>
-    ./venv/bin/python ml/train_l7.py results/2026-10-16_l7-p5c3-capture --selection p5c ...
+    ./venv/bin/python ml/train_l7.py TRAIN_DIR... --val VAL_DIR... --selection val --out <dir>
+    ./venv/bin/python ml/train_l7.py results/2026-10-16_l7-p5c3-capture ...   # p5c, as published
 """
 import argparse
 import json
@@ -335,6 +338,22 @@ def baseline_scores(clf, windows, cols):
 SELECTIONS = ("val", "p5c")
 
 
+def default_selection(dataset_dirs, val_dirs=None):
+    """The rule when none is given (review T-029 P3-01): "val" with validation captures or for any
+    schema-2 (P3) capture, "p5c" for legacy schema-1 datasets, so that the published commands, which
+    pass no --selection, reproduce the published reports."""
+    if val_dirs:
+        return "val"
+    for d in dataset_dirs:
+        try:
+            with open(os.path.join(d, l7_dataset.MANIFEST_FILE), encoding="utf-8") as fh:
+                if json.load(fh).get("format") == l7_dataset.DATASET_FORMAT_V2:
+                    return "val"
+        except (OSError, ValueError):
+            continue
+    return "p5c"
+
+
 def _prereg_curve():
     import p3_prereg
     return p3_prereg.load()["learning_curve"]
@@ -460,14 +479,16 @@ def memory_scorer(model, cols, seq, mean, std, threshold, consecutive):
 
 def run(dataset_dir, out_dir, *, seed=0, epochs=25, hidden=64, layers=2,
         seq=DEFAULT_SEQ, stride=DEFAULT_STRIDE, threshold=THRESHOLD, consecutive=CONSECUTIVE,
-        variants=VARIANTS, do_baseline=True, selection="val", val_dirs=None):
+        variants=VARIANTS, do_baseline=True, selection=None, val_dirs=None):
     """Train every variant, probe-gate it, select one, save its package. `dataset_dir` is one
-    dataset, or with `val_dirs` (P3) a list of training captures. selection="val" (default)
-    decides on validation only; "p5c" is the published rule (see the module docstring)."""
+    dataset, or with `val_dirs` (P3) a list of training captures. selection="val" decides on
+    validation only; "p5c" is the published rule; None takes default_selection() of the input."""
     import l7_scorer
+    train_dirs = [dataset_dir] if isinstance(dataset_dir, str) else list(dataset_dir)
+    if selection is None:
+        selection = default_selection(train_dirs, val_dirs)
     if selection not in SELECTIONS:
         raise ValueError(f"selection must be one of {SELECTIONS}")
-    train_dirs = [dataset_dir] if isinstance(dataset_dir, str) else list(dataset_dir)
     if val_dirs:
         import l7_disjoint
         if selection != "val":
@@ -746,9 +767,10 @@ def main():
     ap.add_argument("dataset_dir", nargs="+", help="one dataset, or (with --val) the training captures")
     ap.add_argument("--val", nargs="+", default=None, metavar="VAL_DIR",
                     help="P3: the validation captures (schema 2); the disjointness check runs first")
-    ap.add_argument("--selection", choices=SELECTIONS, default="val",
-                    help="val (default): variant and operating point on validation only; p5c: the "
-                         "published held-out/benign_test rule, to reproduce P4/P5c")
+    ap.add_argument("--selection", choices=SELECTIONS, default=None,
+                    help="val: variant and operating point on validation only; p5c: the published "
+                         "held-out/benign_test rule. Default: p5c for a legacy dataset (so the "
+                         "documented P4/P5c commands reproduce), val for P3 captures or with --val")
     ap.add_argument("--out", required=True, help="model package output dir")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--epochs", type=int, default=25)

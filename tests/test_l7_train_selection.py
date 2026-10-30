@@ -96,7 +96,7 @@ class RunSelectionTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, d, True)
         synth_dataset(d, n_benign=12)                         # 8 / 1 / 3 benign IPs: one to validate on
         report, best = T.run(d, self.out, seed=1, epochs=1, hidden=8, layers=1,
-                             variants=("no_size_no_server_timing",), do_baseline=True)
+                             variants=("no_size_no_server_timing",), do_baseline=True, selection="val")
         self.assertEqual(report["selection_rule"], "val")
         self.assertIsNotNone(best, report["selection"])
         op = report["selection"]["operating_point"]
@@ -110,7 +110,7 @@ class RunSelectionTest(unittest.TestCase):
 
     def test_no_benign_validation_entity_means_no_candidate(self):
         report, best = T.run(self.d, self.out, seed=1, epochs=1, hidden=8, layers=1,
-                             variants=("no_size_no_server_timing",), do_baseline=False)
+                             variants=("no_size_no_server_timing",), do_baseline=False, selection="val")
         self.assertIsNone(best)                               # 6 benign IPs split 4 / 0 / 2
         self.assertIsNone(report["variants"]["no_size_no_server_timing"]["operating_point"])
         self.assertIn("benign budget", report["selection"]["caveat"])
@@ -138,7 +138,7 @@ class P3CapturesTest(unittest.TestCase):
 
     def test_multi_capture_fit_checks_disjointness_and_writes_its_selection(self):
         out = os.path.join(self.root, "pkg")
-        report, best = T.run(self.train, out, seed=1, epochs=1, hidden=8, layers=1,
+        report, best = T.run(self.train, out, seed=1, epochs=1, hidden=8, layers=1, selection="val",
                              variants=("no_size_no_server_timing",), do_baseline=False, val_dirs=self.val)
         self.assertEqual(report["val_datasets"], [os.path.abspath(v) for v in self.val])
         v = report["variants"]["no_size_no_server_timing"]
