@@ -108,32 +108,52 @@ def zipf_page(rng):
     return min(bisect.bisect_left(_ZIPF_CDF, rng.random()), PAGE_UNIVERSE - 1) + 1
 
 
-def think_time(rng):
-    return min(rng.expovariate(1.0 / THINK_MEAN_S), THINK_CAP_S)
+def think_time(rng, mean_s=THINK_MEAN_S):
+    return min(rng.expovariate(1.0 / mean_s), THINK_CAP_S)
 
 
-def browser_views(level, duration_s, rng, first_visit_s=(0.0, 30.0)):
+# Per-entity model values (docs/P3_DATASET_DESIGN.md §4.3): a P3 plan may draw these per device and
+# pass them in the client's params; a client without them gets the frozen module values above, so
+# every earlier plan (P5b, P5c) is unchanged draw for draw.
+MODEL_KEYS = ("think_mean_s", "views_per_visit", "visit_gap_s")
+
+
+def model_values(params):
+    """The browser model values a client's params override, as browser_views() keywords."""
+    out = {}
+    if "think_mean_s" in params:
+        out["think_mean_s"] = float(params["think_mean_s"])
+    if "views_per_visit" in params:
+        out["views_per_visit"] = tuple(int(x) for x in params["views_per_visit"])
+    if "visit_gap_s" in params:
+        out["visit_gap_s"] = tuple(float(x) for x in params["visit_gap_s"])
+    return out
+
+
+def browser_views(level, duration_s, rng, first_visit_s=(0.0, 30.0), *, think_mean_s=THINK_MEAN_S,
+                  views_per_visit=VIEWS_PER_VISIT, visit_gap_s=VISIT_GAP_S):
     """One device's page views, in order: [{"t", "page", "waves", "pause_s"}].
 
     `t` is the nominal start (zero load time); `waves` are the request paths in dependency
     order — [HTML], then CSS/JS, then fonts + page images — minus what the device has
     already loaded; `pause_s` is what the device waits after the view has loaded (think
-    time, plus the gap to the next visit after a visit's last view)."""
+    time, plus the gap to the next visit after a visit's last view). The keyword model
+    values default to the frozen module values."""
     wave1_all, fonts = l7_webapp.site_assets(level)
     cached = set()
     views = []
     t = rng.uniform(*first_visit_s)
     while t < duration_s:
-        n = rng.randint(*VIEWS_PER_VISIT)
+        n = rng.randint(*views_per_visit)
         for i in range(n):
             page = zipf_page(rng)
             wave1 = [p for p in wave1_all if p not in cached]
             wave2 = [p for p in fonts + l7_webapp.page_assets(level, page) if p not in cached]
             cached.update(wave1)
             cached.update(wave2)
-            pause = think_time(rng)
+            pause = think_time(rng, think_mean_s)
             if i == n - 1:
-                pause += rng.uniform(*VISIT_GAP_S)
+                pause += rng.uniform(*visit_gap_s)
             views.append({"t": round(t, 4), "page": page,
                           "waves": [[f"/page/{page}"], wave1, wave2], "pause_s": round(pause, 4)})
             t += pause
@@ -159,7 +179,7 @@ def plan_client(kind, params, duration_s, rng):
     if kind == "browser_page":
         ua = draw_ua(rng)
         views = browser_views(params["level"], duration_s, rng,
-                              tuple(params.get("first_visit_s", (0.0, 30.0))))
+                              tuple(params.get("first_visit_s", (0.0, 30.0))), **model_values(params))
         return {"kind": kind, "users": [{"ua": ua, "views": views}]}
     if kind == "cgnat_browsers":
         users = []
@@ -167,7 +187,8 @@ def plan_client(kind, params, duration_s, rng):
             urng = type(rng)(rng.randrange(2**31))
             ua = draw_ua(urng)
             users.append({"ua": ua, "views": browser_views(
-                params["level"], duration_s, urng, tuple(params.get("first_visit_s", (0.0, 60.0))))})
+                params["level"], duration_s, urng, tuple(params.get("first_visit_s", (0.0, 60.0))),
+                **model_values(params))})
         return {"kind": kind, "users": users}
     if kind == "api_bulk":
         rps = rng.uniform(*params["rps"])
