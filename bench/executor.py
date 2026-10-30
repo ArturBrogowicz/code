@@ -1055,7 +1055,19 @@ DAEMON_FILES = ("control_plane.py", "ban_events.py", "xdp_ddos_filter.c", "l7_en
 # 15). The run records whether it has: the fix's first commit is an ancestor of HEAD, or both of the daemon's log tailers read
 # undecodable bytes as U+FFFD (the fix's change, which a rebase keeps). A run without it is recorded and warned of, not refused.
 DAEMON_FIX_H01 = "8db9827a2a0f78e29c689f8520ccc9f5482fcc92"
-H01_TAILER = "open(file_path, 'r', encoding='utf-8', errors='replace')"
+H01_TAILERS = ("tail_nginx_logs", "tail_nginx_error_logs")        # the daemon's two log tailers
+H01_DECODE = re.compile(r"""\bopen\([^)]*\berrors\s*=\s*['"]replace['"]""")      # an open() that reads undecodable bytes as U+FFFD
+
+
+def h01_tailers(source):
+    """How many of the daemon's two log tailers (H01_TAILERS) open their log with errors='replace', whatever else the call says: 2 with
+    the H-01 fix, on fix/daemon-robustness and with fix/rudy-client-ip's newline='\\n' alike (T-028 F-07), 0 without it. A signature
+    of the fix's effect, not a count of one exact line."""
+    found = 0
+    for name in H01_TAILERS:
+        body = re.search(rf"^def {name}\(.*?(?=^\S|\Z)", source, re.MULTILINE | re.DOTALL)
+        found += bool(body and H01_DECODE.search(body.group(0)))
+    return found
 
 
 def daemon_provenance(host=None):
@@ -1063,7 +1075,7 @@ def daemon_provenance(host=None):
     the checkout's HEAD (None when git cannot say: no host, or a commit it does not have), how many of the daemon's tailers read
     undecodable bytes as U+FFFD (2 with the fix), and whether either says the fix is in."""
     files = {name: sha256_file(os.path.join(REPO, name)) if os.path.exists(os.path.join(REPO, name)) else None for name in DAEMON_FILES}
-    tailers = _text(DAEMON).count(H01_TAILER) if os.path.exists(DAEMON) else None
+    tailers = h01_tailers(_text(DAEMON)) if os.path.exists(DAEMON) else None
     ancestor = None
     if host is not None:
         r = host.run(["git", "-c", f"safe.directory={REPO}", "-C", REPO, "merge-base", "--is-ancestor", DAEMON_FIX_H01, "HEAD"])

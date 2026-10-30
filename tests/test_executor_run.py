@@ -1517,6 +1517,17 @@ class ProcessTableTest(RunCase):
         self.assertTrue(os.path.exists(os.path.join(plan.out, "run.json")))
 
 
+# the two tailers as fix/daemon-robustness has them, the error tailer with fix/rudy-client-ip's newline='\n' (T-028 F-07)
+TAILERS = ("def tail_nginx_logs(file_path):\n"
+           "    while True:\n"
+           "        with open(file_path, 'r', encoding='utf-8', errors='replace') as f:\n"
+           "            f.seek(0, os.SEEK_END)\n\n\n"
+           "def tail_nginx_error_logs(file_path):\n"
+           "    while True:\n"
+           "        with open(file_path, 'r', encoding='utf-8', errors='replace', newline='\\n') as f:\n"
+           "            f.seek(0, os.SEEK_END)\n")
+
+
 class ProvenanceTest(RunCase):
     def test_the_files_the_result_depends_on_are_hashed(self):
         plan, _, _ = self.go("U")
@@ -1546,7 +1557,7 @@ class ProvenanceTest(RunCase):
     def test_a_daemon_without_the_h01_fix_is_recorded_and_warned_of_and_not_refused(self):
         plan, host, result = self.go("M_xdp")
         h01 = json.loads(self.read(plan, "environment.json"))["provenance"]["daemon"]["h01"]
-        tailers = X._text(X.DAEMON).count(X.H01_TAILER)
+        tailers = X.h01_tailers(X._text(X.DAEMON))
         self.assertEqual((h01["fix_commit"], h01["fix_is_ancestor"], h01["tailers_replace_undecodable"]),
                          (X.DAEMON_FIX_H01, False, tailers))
         self.assertEqual(h01["has_fix"], tailers == 2)
@@ -1562,10 +1573,19 @@ class ProvenanceTest(RunCase):
         self.assertNotIn("WARNING", self.read(plan, "executor.log"))
         fixed = os.path.join(self.tmp.name, "control_plane.py")
         with open(fixed, "w", encoding="utf-8") as fh:
-            fh.write(f"            with {X.H01_TAILER} as f:\n" * 2)
+            fh.write(TAILERS)
         with mock.patch.object(X, "DAEMON", fixed):
             h01 = X.daemon_provenance()["h01"]
         self.assertEqual((h01["fix_is_ancestor"], h01["tailers_replace_undecodable"], h01["has_fix"]), (None, 2, True))
+
+    def test_the_fix_is_told_by_both_tailers_decoding_with_replacement_whatever_else_their_open_says(self):
+        self.assertEqual(X.h01_tailers(TAILERS), 2, "fix/rudy-client-ip's error tailer adds newline='\\n'")
+        self.assertEqual(X.h01_tailers(TAILERS.replace("errors='replace'", 'errors="replace"')), 2)
+        self.assertEqual(X.h01_tailers(TAILERS.replace(", encoding='utf-8', errors='replace')", ")")), 1)
+        self.assertEqual(X.h01_tailers(TAILERS.replace("errors='replace'", "errors='strict'")), 0)
+        self.assertEqual(X.h01_tailers("def tail_nginx_logs(p):\n    pass\n\nx = open(p, errors='replace')\n"), 0,
+                         "an open() outside the tailers is not the fix")
+        self.assertEqual(X.h01_tailers(X._text(X.DAEMON)), 0, "this branch's daemon has no fix")
 
     def test_the_stack_as_started_is_read_back(self):
         plan, _, _ = self.go("C", F.SimHost(nofile=(524288, 524288)))
