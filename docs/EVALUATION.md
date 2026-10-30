@@ -334,9 +334,17 @@ minute are carried out (the rest is logged as capped).
 K in {2, 3, 4, 6}, the fixed constants, and `slow_pc.select_thresholds()`: on the validation seeds 4001-4002
 (C, U_loris and U_post, the rule in shadow, replayed offline), among the points that ban no benign address,
 close no slow uploader and close at most 0.1 % of the benign connections, the largest share of attacking
-addresses banned within 30 s of their first connection wins; ties go to the larger T, the smaller F, the
-larger K; if no point qualifies, the rule fails its budget and the grid is not widened. Its first commit holds
+addresses banned within T_mit = 90 s (`slow_pc.DEADLINE_S`) of their first connection wins; ties go to the
+larger T, the smaller F, the larger K; if no point qualifies, the rule fails its budget and the grid is not
+widened. Its first commit holds
 nothing else, and `tests/test_slow_pc_rule.py` pins its text by sha256.
+
+**Re-registration record.** 2026-10-30: T_mit 30 → 90 s, decided by the user BEFORE any data, because the
+frozen detector's dribble leg needs 2 data segments after the first poll. At the frozen pacing that gives
+median closes of 52 s (Slowloris) and 36 s (slow POST) and a ban at 66 s (orchestrator T-023 dry run, verified
+by T-029). The share within 30 s stays reported as a secondary figure. `slow_pc.DEADLINE_S` is T_mit for both
+the selection rule and the outcome of §10 (criterion (a)); the grid, the constraints and the tie-breaks are
+unchanged, and the pin was renewed in the same commit.
 
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the

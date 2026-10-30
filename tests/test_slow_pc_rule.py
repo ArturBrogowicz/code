@@ -13,7 +13,7 @@ sys.path.insert(0, REPO)
 import slow_pc as P
 
 # sha256 of the frozen block of slow_pc.py, from its first marker line to its end marker.
-FROZEN_SHA256 = "bb81004e34d8913b106affe9a5b16c17938fb5dc5d489b169900c204c580ed7e"
+FROZEN_SHA256 = "f61293355524100a8adba6748beb8b3948fa744d5a2aeb8c2e3dbcd684dbdebb"   # renewed for P4-01
 
 
 def frozen_block():
@@ -51,8 +51,18 @@ class FrozenConstantsTest(unittest.TestCase):
              P.SHARED_UA_KEYS, P.UA_WINDOW_S, P.BAN_TTL_S, P.MAX_CLOSES_PER_POLL,
              P.MAX_BANS_PER_MIN, P.DEADLINE_S, P.BENIGN_CLOSE_BUDGET, P.VALIDATION_SEEDS,
              P.VALIDATION_RUNS),
-            (64, 2, 3, 60.0, 3, 600.0, 300, 500, 20, 30.0, (1, 1000), (4001, 4002),
+            (64, 2, 3, 60.0, 3, 600.0, 300, 500, 20, 90.0, (1, 1000), (4001, 4002),
              ("C", "U_loris", "U_post")))
+
+    def test_t_mit_was_re_registered_to_90_s_before_any_data(self):
+        # P4-01, the user's decision of 2026-10-30: the record is in the pinned block and in
+        # docs/EVALUATION.md; nothing else of the grid or the rule changed (the test above).
+        record = ("2026-10-30: T_mit 30 → 90 s, decided by the user BEFORE any data, because the "
+                  "frozen detector's dribble leg needs 2 data segments after the first poll.")
+        self.assertEqual(P.DEADLINE_S, 90.0)
+        self.assertIn(record, " ".join(frozen_block().replace("#", " ").split()))
+        with open(os.path.join(REPO, "docs", "EVALUATION.md"), encoding="utf-8") as fh:
+            self.assertIn(record, " ".join(fh.read().split()))
 
     def test_the_frozen_block_is_unchanged(self):
         self.assertEqual(hashlib.sha256(frozen_block().encode("utf-8")).hexdigest(),

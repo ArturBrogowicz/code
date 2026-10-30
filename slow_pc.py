@@ -13,6 +13,12 @@ Frozen before any data (§6.4, §13 rows 1 and 3): the grid of thresholds, the f
 and the rule that picks one grid point from the validation runs. They come first, in their own
 commit, and a test pins them: the values are chosen on the validation seeds, never tuned on
 the evaluation seeds, and the grid is not widened after seeing data.
+
+Re-registration record. 2026-10-30: T_mit 30 → 90 s, decided by the user BEFORE any data,
+because the frozen detector's dribble leg needs 2 data segments after the first poll. At the
+frozen pacing that gives median closes of 52 s (Slowloris) and 36 s (slow POST) and a ban at
+66 s (orchestrator T-023 dry run, verified by T-029). The share within 30 s stays reported as a
+secondary figure. The same record is in the frozen block, under the pin.
 """
 import collections
 import gzip
@@ -25,7 +31,7 @@ from typing import NamedTuple
 import l7_ingest
 
 # ── Frozen 2026-10-30, before any data (docs/P4_SLOW_DESIGN.md §6.4, D-S4 to D-S6) ──
-T_GRID_S = (5, 10, 15, 20)         # T: a connection older than T s can be suspect (T_mit 30 s)
+T_GRID_S = (5, 10, 15, 20)         # T: a connection older than T s can be suspect (set for T_mit 30 s)
 F_GRID_BPS = (16, 64, 256, 1024)   # F: ... if it brought fewer than F bytes/s on average
 K_GRID = (2, 3, 4, 6)              # K: closes of one address within BAN_WINDOW_S that ban it
 GRID = tuple((t, f, k) for t in T_GRID_S for f in F_GRID_BPS for k in K_GRID)
@@ -39,7 +45,12 @@ UA_WINDOW_S = 600.0            # ... counted in the access log over the last 10 
 BAN_TTL_S = 300                # = control_plane.BAN_TTL_SECONDS
 MAX_CLOSES_PER_POLL = 500      # caps: above them the decision is logged as "capped"
 MAX_BANS_PER_MIN = 20
-DEADLINE_S = 30.0              # the objective: banned within T_mit = 30 s (D-S6)
+DEADLINE_S = 90.0              # T_mit: the objective, banned within 90 s, and §10's recovery
+# Re-registration record. 2026-10-30: T_mit 30 → 90 s, decided by the user BEFORE any data,
+# because the frozen detector's dribble leg needs 2 data segments after the first poll. At the
+# frozen pacing that gives median closes of 52 s (Slowloris) and 36 s (slow POST) and a ban at
+# 66 s (orchestrator T-023 dry run, verified by T-029). The share within 30 s stays reported as a
+# secondary figure.
 BENIGN_CLOSE_BUDGET = (1, 1000)   # benign connections closed <= 1/1000 (0.1 %) of them
 VALIDATION_SEEDS = (4001, 4002)
 VALIDATION_RUNS = ("C", "U_loris", "U_post")   # per seed, on profile R, the rule in shadow
