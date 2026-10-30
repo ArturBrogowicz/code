@@ -111,7 +111,7 @@ class StoreFilesTest(unittest.TestCase):
     def test_sha256sums_cover_every_file_and_catch_changes(self):
         cap, staging = self.staged("s9201-e")
         ST.finalize_logs(staging, cap)
-        ST.write_sha256sums(self.vdir)
+        ST.write_sha256sums(self.vdir, "s9201-e")
         listed = ST.read_sha256sums(self.vdir)
         self.assertEqual(sorted(listed), ["s9201-e/access.log.gz", "s9201-e/error.log.gz"])
         self.assertEqual(ST.sha256sums_problems(self.vdir), [])
@@ -137,6 +137,54 @@ class StoreFilesTest(unittest.TestCase):
         with self.assertRaises(ST.StoreError):
             ST.store_owner(os.path.join(self.root, "absent"))
         self.assertEqual(ST.store_owner(self.root), (os.stat(self.root).st_uid, os.stat(self.root).st_gid))
+
+
+class ResealTest(unittest.TestCase):
+    """Review T-029 P3-06: a new capture is added to SHA256SUMS only if the existing sums still hold."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="p3reseal_")
+        self.addCleanup(shutil.rmtree, self.root, True)
+        self.vdir = os.path.join(self.root, "2026-11-v1")
+
+    staged = StoreFilesTest.staged
+
+    def sealed(self):
+        for cid in ("s9201-g", "s9202-h"):
+            cap, staging = self.staged(cid)
+            ST.finalize_logs(staging, cap)
+            ST.write_sha256sums(self.vdir, cid)
+        return read_bytes(os.path.join(self.vdir, ST.SUMS))
+
+    def test_a_new_capture_is_added_to_verified_sums(self):
+        self.sealed()
+        self.assertEqual(sorted(ST.read_sha256sums(self.vdir)), ["s9201-g/access.log.gz", "s9201-g/error.log.gz",
+                                                                 "s9202-h/access.log.gz", "s9202-h/error.log.gz"])
+        self.assertEqual(ST.sha256sums_problems(self.vdir), [])
+
+    def test_a_changed_or_stray_file_refuses_the_reseal(self):
+        before = self.sealed()
+        path = os.path.join(self.vdir, "s9201-g", "error.log.gz")
+        with open(path, "ab") as fh:
+            fh.write(b"x")
+        cap, staging = self.staged("s9203-i")
+        ST.finalize_logs(staging, cap)
+        with self.assertRaises(ST.StoreError):
+            ST.write_sha256sums(self.vdir, "s9203-i")
+        self.assertEqual(read_bytes(os.path.join(self.vdir, ST.SUMS)), before)     # left as it was
+        with open(os.path.join(self.vdir, "stray.txt"), "w", encoding="utf-8") as fh:
+            fh.write("x")
+        with self.assertRaises(ST.StoreError):
+            ST.write_sha256sums(self.vdir, "s9203-i")
+
+    def test_without_sums_only_the_new_capture_may_be_present(self):
+        cap, staging = self.staged("s9201-j")
+        ST.finalize_logs(staging, cap)
+        cap2, staging2 = self.staged("s9202-k")
+        ST.finalize_logs(staging2, cap2)
+        with self.assertRaises(ST.StoreError):
+            ST.write_sha256sums(self.vdir, "s9202-k")
+        self.assertFalse(os.path.exists(os.path.join(self.vdir, ST.SUMS)))
 
 
 class RunnerPartsTest(unittest.TestCase):

@@ -550,7 +550,7 @@ def run_p3(args, plan):
                       population=plan["population"], scale=plan["scale"], dropped=plan["dropped"]),
         entities=plan["entities"], files=files, notes="P3 capture (docs/P3_DATASET_DESIGN.md)")
     D.write_dataset_manifest(os.path.join(out_dir, D.MANIFEST_FILE), manifest)
-    l7_store.write_sha256sums(vdir)
+    l7_store.write_sha256sums(vdir, cid)
     n = l7_store.hand_back(out_dir, uid, gid) + l7_store.hand_back(os.path.join(vdir, l7_store.SUMS), uid, gid)
     acc = next(f for f in files if f["path"] == D.ACCESS_LOG_GZ)
     good = ok and ready and acc["lines"] > 0

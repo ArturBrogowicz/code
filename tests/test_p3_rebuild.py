@@ -37,8 +37,9 @@ class RebuildTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.root, True)
         self.vdir = os.path.join(self.root, V)
         FX.capture(self.vdir, V, 1001, "train", FX.entities(V, 1001))
+        l7_store.write_sha256sums(self.vdir, "s1001")
         FX.capture(self.vdir, V, 2001, "val", FX.entities(V, 2001))
-        l7_store.write_sha256sums(self.vdir)
+        l7_store.write_sha256sums(self.vdir, "s2001")
 
     def test_two_rebuilds_are_byte_identical(self):
         a, b = os.path.join(self.root, "out_a"), os.path.join(self.root, "out_b")
@@ -80,7 +81,7 @@ class RebuildTest(unittest.TestCase):
         m["entities"][0]["role"] = "attack"                       # relabel one entity
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(m, fh)
-        l7_store.write_sha256sums(self.vdir)                       # the sums agree with the forgery
+        l7_store._seal(self.vdir)                                  # a forger rewrites the sums to agree
         with self.assertRaises(R.RebuildError):
             R.rebuild(self.vdir, os.path.join(self.root, "out"))
 

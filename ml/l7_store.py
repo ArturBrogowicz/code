@@ -112,9 +112,24 @@ def _walk(vdir):
             yield os.path.relpath(os.path.join(dirpath, f), vdir)
 
 
-def write_sha256sums(vdir):
-    """(Re)write <vdir>/SHA256SUMS over every file below it (hidden entries and itself excluded), sorted
-    by path; written beside it first and then renamed over it. Returns its path."""
+def write_sha256sums(vdir, adding):
+    """Add the capture directory `adding` to <vdir>/SHA256SUMS. The existing sums are verified first (review T-029
+    P3-06): a listed file that is missing or changed, or an unlisted file outside `adding`, refuses the reseal and
+    leaves SHA256SUMS as it was. Without an existing SHA256SUMS, every file must be under `adding`. Returns its path."""
+    prefix = adding.rstrip("/") + "/"
+    if os.path.isfile(os.path.join(vdir, SUMS)):
+        probs = [p for p in sha256sums_problems(vdir)
+                 if not (p.startswith(prefix) and p.endswith(f": not listed in {SUMS}"))]
+    else:
+        probs = [f"{rel}: present without a {SUMS}" for rel in _walk(vdir) if not rel.startswith(prefix)]
+    if probs:
+        raise StoreError(f"refusing to reseal {vdir}: " + "; ".join(probs))
+    return _seal(vdir)
+
+
+def _seal(vdir):
+    """Write <vdir>/SHA256SUMS over every file below it (hidden entries and itself excluded), sorted by path;
+    written beside it first and then renamed over it. Only write_sha256sums() calls it, after verifying."""
     rows = sorted((rel, sha256_file(os.path.join(vdir, rel))) for rel in _walk(vdir))
     tmp = os.path.join(vdir, "." + SUMS + ".tmp")
     with open(tmp, "w", encoding="utf-8") as fh:
