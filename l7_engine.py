@@ -390,8 +390,14 @@ def build_engine(model_path=None, window=None, idle_timeout=None, level=None, **
     level="view" without one) gets the L7 v2 view engine and its (IP, UA, sid) store."""
     scorer = None
     if model_path:
-        from l7_scorer import L7Scorer  # torch is imported only when a model is used
+        import l7_scorer  # torch is imported only when a model is used
+        L7Scorer, PACKAGE_FORMAT_V2 = l7_scorer.L7Scorer, l7_scorer.PACKAGE_FORMAT_V2
         scorer = L7Scorer.load(model_path)
+        if scorer.level == "request" and scorer.cfg.get("format") == PACKAGE_FORMAT_V2:
+            # The L7 v2 per-request GRU is the offline ablation, trained on (IP, UA, sid) keys; the request engine
+            # keys by (IP, UA), so it would score windows the model never saw. Score it with ml/train_l7v2.py.
+            raise ValueError("a format-2 request package is the offline seq-64 ablation (keyed by (IP, UA, sid)); "
+                             "score it with ml/train_l7v2.py, not the engine")
     if (scorer is not None and getattr(scorer, "level", "request") == "view") or (scorer is None and level == "view"):
         store = l7_ingest.L7KeyStore(idle_timeout=idle_timeout or l7_ingest.V2_IDLE_TIMEOUT,
                                      max_views=scorer.max_views if scorer else (window or F.MAX_VIEWS))

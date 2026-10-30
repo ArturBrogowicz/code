@@ -202,3 +202,23 @@ class ParityTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AblationPackageTest(unittest.TestCase):
+    def test_the_engine_refuses_the_offline_request_ablation(self):
+        import tempfile
+
+        import torch
+
+        import l7_scorer as S
+        from GRU_ML_model import GRUDDoSClassifier
+        cols = F.columns(F.V2_REQUEST_GROUPS)
+        torch.manual_seed(0)
+        model = GRUDDoSClassifier(input_size=len(cols), hidden_size=8, num_layers=1).eval()
+        mean, std = np.zeros(len(cols), np.float32), np.ones(len(cols), np.float32)
+        with tempfile.TemporaryDirectory() as tmp:
+            S.save_package(os.path.join(tmp, "v2"), model, cols, 64, mean, std, 0.9, 3, 8, 1, level="request")
+            with self.assertRaises(ValueError):
+                E.build_engine(os.path.join(tmp, "v2"))
+            U.tiny_package(os.path.join(tmp, "p5c"))
+            self.assertIsInstance(E.build_engine(os.path.join(tmp, "p5c")), E.L7ShadowEngine)
