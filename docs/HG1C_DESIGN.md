@@ -481,7 +481,7 @@ the next fresh runs. Departure 29 was also made after the data, but it changes t
 | 29 | 8, step 1: `measure_unloaded` in three sessions on CPU 0, 21 repeats each, median of medians (as built: each route timed 21 times in a row, one call per timing, on the process's CPU time) | each route is timed in batches that last at least 1 ms on the clock. The batch comes from short calibration calls: 1, 2, 4... calls until a batch lasts 1 ms, at most 4,096. Each try is timed twice and the lesser time counts, so that one preemption cannot leave a route a short batch for the whole session. C0 gets about 256 and every other route 1. The routes take turns, one batch each, across the 21 repeats (round robin), and a route's cost is the median of its batches' time per call, as before. The clock is the calling thread's CPU time (`time.thread_time`), not the process's. `make_app`'s 25 % start-up self-check uses the same estimator (`measure_unloaded`, now `time_routes`). Each session's clock and batches are kept in its round (`timing`), and the method in `estimator`, with its version (`origin.ESTIMATOR_VERSION`: 2; version 1 is the estimator as built). `ladder`, `reference` and `freeze` refuse an origin of another version, or of none, as HG2a's has none (1bf992f, c246e3d, 067a020, b7442be) | **Made after the data (HG2b's stops); a measurement change, the rule unchanged.** The 10 % rule, the three sessions, the 21 repeats, the one retry and the 25 % tolerance are as they were. So are the thresholds that `RulesPinnedTest` pins (committed before the change in 1ec413f, extended in 273d387): the environment gate; the capacity probe's levels, limits and window; rho's share; the ladders, with their repeats and controls; the knee's floor of 1; the drift tolerances; the executor's settings; the generator's model; and the template with the harm gate's floors. [FACT] HG2a round 1 (2026-10-28): one session measured C1, C2 and C3 at 2.3 times the others, while C0, timed first, and C5, timed last, were normal. Each route's 21 timings were consecutive, so a slowdown of about 2 s owned whichever routes were timed during it. origin3 (2026-10-29 10:45 UTC, `hg2_2/origin/stopped_1.json`): C0 measured 9.64 us in one session against 5.70 and 5.83 (67.5 %; C2 13.0 % in the same round), then 13.5 % in round 2, where every other route was within 4.7 % (recomputed from the record). A C0 call is about 6 us; a read of the CPU clock costs about 0.3 us. [FACT, offline, on a virtual clock] a 2.3-fold slowdown over 2 s of a 5 s session moves no median when the routes take turns, and puts C1 to C3 at 2.3x in the old order. A clock read of 0.3 us moves C0 by 0.02 % in a batch and by 5 % one call at a time. A competing thread that burns 20 ms adds about 20 ms to a 2 ms route on the process's clock, and nothing on the thread's. [FACT; an offline comparison in the agents' sandbox on this VM, not a calibration step. Setup: `sbx`, no network, 3 sessions pinned to CPU 0, 2026-10-30 09:31 to 09:32 UTC, load1 0.44 to 0.89 while other agents' jobs ran, 54.6 CPU-s. It ran at c246e3d, before the sizing of 067a020; that sizing gives the same batches when no try is disturbed (C0 256 and every other route 1, as found here). Artifact, outside the repository: `/home/artur/agent_workspace/tasks/T-014/artifacts/out/estimator_summary.md`.] Both estimators pass the rule, with two replicates each: the widest spread is 2.6 and 8.0 % for the old estimator and 3.7 and 9.4 % for the new. In this comparison the new one is not tighter. Its level against the old is 0.91 for C0; 1.02, 1.05 and 1.01 for C1 to C3; and 1.00 for C5. [INFERENCE] C0 is lower because the clock's cost and the call overhead are no longer inside the timing (0.56 us, against a clock read of about 0.3 us plus the call). C1 to C3 are plausibly higher because each call follows another route instead of itself; this was not isolated. [INFERENCE] The change removes two measurement causes: a part-session slowdown that owns a route, and the clock inside C0's timing. It also makes a session's speed common to all its routes. It does not make the host steadier, and the rule's power at a between-session CV of 3 to 7 % is unchanged, so the next origin step may still stop. Whether to change the rule is your decision, and it would be labelled post hoc. The judging data are the next fresh origin step, run at this commit |
 
 **Not built.** The calibration of the legit mix, the SLOs and the gate's constants: they stay the template's (the placeholder's) and are
-frozen with the record; changing them is a decision, not a measurement. The mitigated runs `M_<mode>` (HG4). Anything on the L3 and L4 paths (D20).
+frozen with the record; changing them is a decision, not a measurement. The mitigated runs `M_<mode>` (HG4; built offline since: section 15). Anything on the L3 and L4 paths (D20).
 
 **What S1 and S1b found (2026-10-24, S1 16:23 to 16:25 and S1b 16:40 to 16:43 UTC by the times of their files under
 `/var/tmp/hg1c_s1/`; this heading said 2026-10-26, the day they were analysed, until the audit of 2026-10-29; no root, loopback;
@@ -586,6 +586,102 @@ S1 and S1b wrote under `/var/tmp/hg1c_s1/` because `/var/tmp/ddos_campaigns` is 
 there; S1b is the first command three times in a row (`s1b_1` to `s1b_3`).
 
 A run from a worktree needs a temporary `ln -s /home/artur/DDoS-mitigation/code/venv ./venv` there (the executor looks for `<checkout>/venv/bin/python`).
+
+## 15. HG4: the protected arms (as built, 2026-10-30; offline, nothing ran on the VM)
+
+Built on `feat/hg4-protected-arms` off `feat/hg2-measurement-fix` (18f56a8), task T-026, from T-004's gap list (G1 to G13) and
+PRIORITY_PLAN section 3; no merge, no push. Every commit is one concern, gated on the whole unit suite in the sandbox and on ruff; each
+new test fails on its parent. Nothing below was run on the VM: every statement about the daemon's behaviour is the simulated host's
+model (`bench/sim_host.py`) until AP-5 says otherwise.
+
+| commit | what | G |
+|---|---|---|
+| 14e587a | the P2 outcome pre-registered as constants and pure rules (`harm_gate.P2_OUTCOME`, `unprotected_fails`, `protected_works`, `p2_verdict`), pinned by tests before any protected run | G10 |
+| 91fdaee | the simulated host gets a daemon model: start-up, XDP attach, start event, bans after a delay, XDP drop, signals, bpftool, faults | G13 |
+| cfce08e | the executor plans `M_limits` and `M_xdp` (U's attack, U's clients, `nginx.conf`), the daemon's command, environment and directory; `M_l7shadow` and `M_l7` are named and refused | G1, G2, G12 |
+| 981f3c8 | the daemon run by its handle: readiness, SIGINT then KILL, XDP off, the bpftool leftover check, the daemon's CPU apart from the origin's | G3, G4 |
+| 529db35 | a protected run is unsound unless the daemon lived through it with its program, its start event and its ban file, and its CPU was sampled | G11 |
+| 9e629e0 | run.json keeps the axis zero and each stream's addresses; the gate counts legit identities blocked, legit requests refused, and the time to mitigate | G8, G9 |
+| dacfa3c | provenance: the configuration rendered, the daemon's files, the H-01 record | G2, H-01 |
+| 21821c3 | the executor on CPU 7 when the daemon has CPU 2, for every run of the campaign | G5 |
+| c005887 | the order check covers the protected runs; `valid_all` for a campaign | G7 |
+| e7c7d30 | HRR on log2 p95 beside HRR on Q | G10 |
+| b69fa14 | the protected-arm verdict per mode in the analysis and the report | G10 |
+| ce5d8c6 | campaigns with `--modes`: blocks of C, Cp, U and M_<mode>, the re-run rule on the whole block, the budget | G6 |
+
+**The modes.** `M_limits` is U's attack against `nginx.conf` (`limit_req` 30 r/s burst 100 nodelay, `limit_conn` 50; 503 for a refused
+request) and no daemon. `M_xdp` adds `control_plane.py` in `server_ns` with `MITIGATION_BACKEND=xdp`, `XDP_GRU=0` (the XDP-fed GRU is off
+since 78cfc9c), `GRU_ONLY=0`, `L7_SHADOW=0`, `HEURISTIC_PROFILE=default`, `L7_MODEL` and `L7_RECORD` empty, and
+`BAN_EVENTS=<run>/ban_events.jsonl`: every variable the daemon reads is set, so that nothing of the operator's shell reaches it (a test
+compares the list with the daemon's source). It runs from the checkout (its model, scaler and XDP source are relative paths), pinned
+to the daemon's CPU. `M_l7shadow` and `M_l7` are reserved: the plan, the executor and the campaign refuse them with "not built yet" until
+L7 v2 lands.
+
+**H1 (a departure from G2/G3: the daemon's feed).** The daemon tails the host's default Nginx logs (`control_plane.py` `NGINX_LOG_FILE`,
+`NGINX_ERROR_LOG`), and the executor gives every run its own logs. The daemon is not changed: with a daemon, the rendered configuration
+keeps both lines, the run's first and the daemon's feed beside it (Nginx takes several `access_log` and `error_log` lines at one level),
+and the feed is emptied before Nginx starts. [INFERENCE] The cost is one more buffered write per request in the M_xdp arm only, against
+0.4-0.5 ms of Nginx CPU per request measured in HG2a; AP-5 can compare `nginx_cpu_pct` of U and M_xdp.
+
+**The daemon's lifecycle.** Started after the stack is ready and warmed up, and held by its handle (`ip netns exec server_ns ...`, stdout
+and stderr in `daemon.log`); ready when it has printed "Listening for Nginx logs" (the suite's own readiness line), its start event with
+its own pid is in the run's ban file and a program is attached to `veth_server`, within 60 s (the suite's wait); a daemon that exits
+first or is not ready in time is a setup failure, retried like the others. After the timeline, and before the rest, it is stopped by its
+handle: SIGINT, which runs its `finally` (XDP detached; this branch's daemon has no SIGTERM handler, the one of `fix/daemon-robustness`
+stops on either), KILL after 10 s, then `ip link set dev veth_server xdp off` whatever it did. The leftover check of a run with a daemon
+asks `bpftool -j prog show` for any XDP program and `bpftool -j map show` for the daemon's maps (`blacklist_map`, `telemetry_map`,
+`flow_map`, pinned by a test to `xdp_ddos_filter.c`); a listing that cannot be read does not call the machine clean. **The ban state is
+reset per run by construction**: a new daemon, a new `server_ns` (deleted with `veth_server` and the program in the teardown), the run's
+own ban file and an emptied feed; BAN_TTL (300 s) can outlive a run but not its namespace.
+
+**Validity of a protected run (G11).** Looked at when the timeline is over and before the daemon is stopped: the daemon still alive (it was
+ready before the first stream, so before the attack), the program on `veth_server` still the one it attached, its start event saying what
+the mode asks for (`MODE_DAEMON` and the backend), the ban file there, and its CPU sampled (`daemon_cpu_pct` in `server.csv`; mean, largest
+and seconds in run.json's `daemon` record). None of these reads what the attack did. The harm gate already treats `executor.ok` false as
+an invalid run.
+
+**What the gate reports and judges (G7 to G10).** A block's order covers its M runs (they are drawn with C, Cp and U); `valid` stays Gate A's
+(C, Cp, U only), `valid_all` adds every planned arm there and valid, and a campaign re-runs a block that is not `valid_all`. Per run:
+the legit identities its daemon blocked (a ban of an address of the benign networks), the legit requests refused with 503 or 429 (in the
+window, judged links, and over the run), and the time to mitigate of each attack identity banned: its first ban less the attack's start
+on the run's axis (`executor.zero_epoch_s`, which the executor now keeps, plus the attack streams' offset; the daemon stamps its events
+with the same host clock). HRR is given on Q and on log2 p95, after a PASS only. The protected-arm verdict is the P2 outcome fixed in
+14e587a: MET, NOT MET or INVALID per mode.
+
+**H2 (a reading the plan leaves open).** PRIORITY_PLAN 3 gives a block count (9 of 10) for "unprotected fails" only. The protected half takes
+the same: Q(M) >= 0.99 x Q(C) in at least 9 of 10 paired blocks, and 0 legit identities blocked over all of the mode's runs. A rule on the
+mean would let one broken block hide behind nine good ones. The constants are pinned by `P2OutcomeTest`; changing one before the first
+protected campaign is a new pre-registration, after it a departure.
+
+**The pin plan (G5), a proposal.** A campaign with a daemon pins every run, the warm-up included, with `population.PIN_PLAN_DAEMON`: server
+0-1, daemon 2, executor 7, legit 6, attack 3-5. Only the executor (from 2) and the attack (from 3-5,7) move; the attack needs at most about
+2 % of a CPU per set of streams (T-004 p2_capacity 2). Runs and campaigns without a daemon, and the calibrator, keep `PIN_PLAN` with the
+executor on 2. [CLAIMED, memory and T-000] CPU 7 was the quietest vCPU in the latest timer surveys, which is a reason for the executor's
+exit stamps to sit there, not for moving the legit streams (their timer gate on 6 is the calibration's).
+
+**H-01: the daemon must come from a checkout that has `fix/daemon-robustness`.** One request with a byte that is not UTF-8 ended the daemon's
+main loop on this branch's `control_plane.py`; its `finally` detached XDP and lifted every ban (T-017 H-01, fixed in 8db9827 and the
+commits after it on `fix/daemon-robustness`). A protected run records in `environment.json` (`provenance.daemon.h01`) whether the fix's
+commit is an ancestor of HEAD and how many of the daemon's two log tailers read undecodable bytes as U+FFFD, and warns in `executor.log`
+when neither says the fix is in. It does not refuse. **Proposed, not built:** refuse an M run with a daemon when `has_fix` is false, once
+`fix/daemon-robustness` and this branch are both merged.
+
+**What the offline build cannot show.** That the real daemon starts, attaches and prints as the model does (the model takes 4 s to be
+ready, bans a source above 50 r/s one second after its first request, and makes an XDP drop a timeout); that `ip -j link show veth_server`
+reports the program as `xdp.prog.id` on this kernel; that `bpftool` is there and lists nothing else of type XDP; the cost of the second
+log; whether a banned attack source's open-loop engine keeps within its in-flight cap (at the knee, [INFERENCE] 63-147 r/s per source
+times the 10 s timeout is 630-1,470 requests in flight per source, under the cap of 5,000 per stream for streams of up to three sources,
+but a stream that drops requests would be invalid for a reason the mitigation caused); and the daemon's CPU share. AP-5 is for these.
+
+**AP-5 (T3, one smoke run per protected mode, after the user merges this branch and `fix/daemon-robustness`).** From a clean checkout at the
+merge commit with the `venv` link of section 14:
+`bash /var/tmp/hg1c_scratch/vm_step.sh hg4_smoke_xdp -- sudo -n env PYTHONDONTWRITEBYTECODE=1 ./venv/bin/python -B bench/executor.py run bench/scenarios/cheap_static_flood.json --kind M_xdp --seed 1 --calibration bench/calibration/<frozen or placeholder>.json --out /var/tmp/ddos_campaigns/hg4_smoke/M_xdp`
+and the same with `--kind M_limits --out .../M_limits`. About 2.5 min each. Post-check as AP-0's, plus `sudo -n bpftool prog show` with no
+XDP program. With the placeholder the run is a lifecycle smoke and no result.
+
+**AP-6 (T3, the P2 MVP).** `bash /var/tmp/hg1c_scratch/vm_step.sh hg4_mvp -- sudo -n env PYTHONDONTWRITEBYTECODE=1 ./venv/bin/python -B bench/gate_campaign.py run bench/scenarios/cheap_static_flood.json --calibration bench/calibration/<frozen>.json --modes xdp --out /var/tmp/ddos_campaigns/hg4_1`:
+10 blocks of four runs and the warm-up, 41 runs (about 1.4 h at S4's 124 s a run, plus the daemon's start-up in 10 of them), and at most
+2 re-runs of four runs. `gate_campaign.py plan ... --modes xdp` prints the orders, the pins, the outcome and the budget offline.
 
 ## Appendix A: the control against the links (offline, from the repository root)
 
