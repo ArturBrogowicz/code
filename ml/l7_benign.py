@@ -344,6 +344,11 @@ def plan_client(kind, params, duration_s, rng):
         views = tpcw_views(params["level"], duration_s, rng, kind[5:], tuple(params.get("first_visit_s", (0.0, 30.0))),
                            think_mean_s=model_values(params).get("think_mean_s", THINK_MEAN_S))
         return {"kind": kind, "users": [{"ua": ua, "views": views}]}
+    if kind == "zipf_browser":                # the held-out i.i.d. Zipf model with Referer, under its own name
+        ua = draw_ua(rng)
+        views = browser_views(params["level"], duration_s, rng, tuple(params.get("first_visit_s", (0.0, 30.0))),
+                              referer=True, **model_values(params))
+        return {"kind": kind, "users": [{"ua": ua, "views": views}]}
     if kind == "flash_crowd":
         ua = draw_ua(rng)
         spec = l7v2_prereg.load()["benign_kinds"]["flash_crowd"]
@@ -382,4 +387,4 @@ def plan_client(kind, params, duration_s, rng):
 
 
 KINDS = ("browser_page", "cgnat_browsers", "api_bulk", "crawler_polite")
-L7V2_KINDS = ("tpcw_browsing", "tpcw_shopping", "search_user", "exporter", "flash_crowd")
+L7V2_KINDS = ("tpcw_browsing", "tpcw_shopping", "zipf_browser", "search_user", "exporter", "flash_crowd")

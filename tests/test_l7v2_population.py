@@ -111,7 +111,7 @@ class EvaluationPlanTest(unittest.TestCase):
         self.assertEqual(len(ents), len(p["entities"]))
         held_benign = [e for e in p["entities"] if e["role"] == "benign" and e["held_out"]]
         self.assertEqual(sorted({e["kind_or_family"] for e in held_benign}),
-                         ["api_bulk", "browser_page", "flash_crowd", "tpcw_shopping"])
+                         ["api_bulk", "flash_crowd", "tpcw_shopping", "zipf_browser"])
         self.assertTrue(all(e["schedule"]["start_s"] == 780.0 for e in held_benign))
         addresses = {e["address"] for e in p["entities"]}
         self.assertLessEqual(len(addresses), p3_prereg.load()["pool"]["address_limit"])
@@ -141,6 +141,21 @@ class EvaluationPlanTest(unittest.TestCase):
         p = plan(9201, "pilot", knees=None)
         self.assertEqual(p["intensity"]["knees"], {"status": "placeholder", "C2": 1.0})
         self.assertEqual(p["duration_s"], 1020.0)
+
+
+class HeldOutNamesTest(unittest.TestCase):
+    def test_no_kind_is_held_out_in_one_population_and_trained_in_another(self):
+        flags = {}
+        for pop in LP.POPULATIONS.values():
+            for s in pop["benign"] + pop["attack"]:
+                flags.setdefault(s.get("kind") or s.get("family"), set()).add(bool(s.get("held_out")))
+        self.assertEqual({k: v for k, v in flags.items() if len(v) > 1}, {}, "rule 9 checks flags by name")
+
+    def test_zipf_browser_is_the_iid_model_with_referer(self):
+        import random
+        a = l7_benign.plan_client("zipf_browser", {"level": 30}, 600.0, random.Random(4))
+        b = l7_benign.plan_client("browser_page", {"level": 30, "referer": True}, 600.0, random.Random(4))
+        self.assertEqual(a["users"], b["users"])
 
 
 class SmokeUnchangedTest(unittest.TestCase):

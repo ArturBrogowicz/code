@@ -175,7 +175,7 @@ def _l7v2_benign():
                                                                       "downloader", "uploader", "nat_gateway")],
         {"kind": "tpcw_shopping", "count": 10, "ports": [80, 443], "gate": True, "params": dict(tp),
          "draws": dict(draws), **tail},
-        {"kind": "browser_page", "count": 10, "ports": [80, 443], "gate": True, "params": dict(tp, referer=True),
+        {"kind": "zipf_browser", "count": 10, "ports": [80, 443], "gate": True, "params": dict(tp),
          "draws": {"level": ["choice", [30, 60]]}, **tail},
         {"kind": "flash_crowd", "count": 30, "ports": [80, 443], "gate": True, "params": {"level": 30},
          "draws": {"level": ["choice", [30, 60]], "think_mean_s": ["uniform", 7.0, 8.0]}, **tail},

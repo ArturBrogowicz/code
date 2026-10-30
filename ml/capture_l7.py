@@ -401,7 +401,7 @@ class Capture:
 
 
 RECORDED_KINDS = ("browser_page", "cgnat_browsers", "api_bulk", "crawler_polite", "tpcw_browsing", "tpcw_shopping",
-                  "search_user", "exporter", "flash_crowd")      # l7_benign's plan kinds
+                  "zipf_browser", "search_user", "exporter", "flash_crowd")      # l7_benign's plan kinds
 
 
 def records_name(entity_id):

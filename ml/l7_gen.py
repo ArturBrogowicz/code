@@ -367,6 +367,10 @@ def benign_tpcw_shopping(host, port, params, dur, rng):
     _run_plan("tpcw_shopping", host, port, params, dur, rng)
 
 
+def benign_zipf_browser(host, port, params, dur, rng):
+    _run_plan("zipf_browser", host, port, params, dur, rng)
+
+
 def benign_search_user(host, port, params, dur, rng):
     _run_plan("search_user", host, port, params, dur, rng)
 
@@ -545,7 +549,8 @@ BENIGN = {"curl_oneshot": benign_curl_oneshot, "http2": benign_http2,
           "nat_gateway": benign_nat_gateway, "browser_page": benign_browser_page,
           "cgnat_browsers": benign_cgnat_browsers, "api_bulk": benign_api_bulk,
           "crawler_polite": benign_crawler_polite, "tpcw_browsing": benign_tpcw_browsing,
-          "tpcw_shopping": benign_tpcw_shopping, "search_user": benign_search_user,
+          "tpcw_shopping": benign_tpcw_shopping, "zipf_browser": benign_zipf_browser,
+          "search_user": benign_search_user,
           "exporter": benign_exporter, "flash_crowd": benign_flash_crowd}
 ATTACK = {"subthreshold_flood": attack_subthreshold_flood, "scraper": attack_scraper,
           "padded_flood": attack_padded_flood, "credstuff": attack_credstuff,
