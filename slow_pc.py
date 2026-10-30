@@ -16,9 +16,10 @@ the evaluation seeds, and the grid is not widened after seeing data.
 
 Re-registration record. 2026-10-30: T_mit 30 → 90 s, decided by the user BEFORE any data,
 because the frozen detector's dribble leg needs 2 data segments after the first poll. At the
-frozen pacing that gives median closes of 52 s (Slowloris) and 36 s (slow POST) and a ban at
-66 s (orchestrator T-023 dry run, verified by T-029). The share within 30 s stays reported as a
-secondary figure. The same record is in the frozen block, under the pin.
+frozen pacing: W-SLOW's dry run (T-023, seed 1): median closes 55 s (Slowloris) / 39 s
+(slow POST); the independent re-simulation (T-029): 52 s / 36 s, with a median ban at 66 s
+at K = 2. The share within 30 s stays reported as a secondary figure.
+The same record is in the frozen block, under the pin.
 """
 import collections
 import gzip
@@ -48,9 +49,9 @@ MAX_BANS_PER_MIN = 20
 DEADLINE_S = 90.0              # T_mit: the objective, banned within 90 s, and §10's recovery
 # Re-registration record. 2026-10-30: T_mit 30 → 90 s, decided by the user BEFORE any data,
 # because the frozen detector's dribble leg needs 2 data segments after the first poll. At the
-# frozen pacing that gives median closes of 52 s (Slowloris) and 36 s (slow POST) and a ban at
-# 66 s (orchestrator T-023 dry run, verified by T-029). The share within 30 s stays reported as a
-# secondary figure.
+# frozen pacing: W-SLOW's dry run (T-023, seed 1): median closes 55 s (Slowloris) / 39 s
+# (slow POST); the independent re-simulation (T-029): 52 s / 36 s, with a median ban at 66 s
+# at K = 2. The share within 30 s stays reported as a secondary figure.
 BENIGN_CLOSE_BUDGET = (1, 1000)   # benign connections closed <= 1/1000 (0.1 %) of them
 VALIDATION_SEEDS = (4001, 4002)
 VALIDATION_RUNS = ("C", "U_loris", "U_post")   # per seed, on profile R, the rule in shadow

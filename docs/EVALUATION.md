@@ -340,11 +340,12 @@ widened. Its first commit holds
 nothing else, and `tests/test_slow_pc_rule.py` pins its text by sha256.
 
 **Re-registration record.** 2026-10-30: T_mit 30 → 90 s, decided by the user BEFORE any data, because the
-frozen detector's dribble leg needs 2 data segments after the first poll. At the frozen pacing that gives
-median closes of 52 s (Slowloris) and 36 s (slow POST) and a ban at 66 s (orchestrator T-023 dry run, verified
-by T-029). The share within 30 s stays reported as a secondary figure. `slow_pc.DEADLINE_S` is T_mit for both
-the selection rule and the outcome of §10 (criterion (a)); the grid, the constraints and the tie-breaks are
-unchanged, and the pin was renewed in the same commit.
+frozen detector's dribble leg needs 2 data segments after the first poll. At the frozen pacing: W-SLOW's dry
+run (T-023, seed 1): median closes 55 s (Slowloris) / 39 s (slow POST); the independent re-simulation (T-029):
+52 s / 36 s, with a median ban at 66 s at K = 2. The share within 30 s stays reported as a secondary figure.
+`slow_pc.DEADLINE_S` is T_mit for both the selection rule and the outcome of §10 (criterion (a)); the grid,
+the constraints and the tie-breaks are unchanged, and the pin was renewed in the same commit. (The sources
+were corrected the same day: the first version of this record, 74020b6, attributed all figures to one run.)
 
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the

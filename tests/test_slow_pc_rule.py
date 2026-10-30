@@ -13,7 +13,7 @@ sys.path.insert(0, REPO)
 import slow_pc as P
 
 # sha256 of the frozen block of slow_pc.py, from its first marker line to its end marker.
-FROZEN_SHA256 = "f61293355524100a8adba6748beb8b3948fa744d5a2aeb8c2e3dbcd684dbdebb"   # renewed for P4-01
+FROZEN_SHA256 = "51d1b834fb42498ca92eb3217924eeadec8b1854e03e44191f642b09efa44eaf"   # renewed for P4-01
 
 
 def frozen_block():
@@ -59,10 +59,17 @@ class FrozenConstantsTest(unittest.TestCase):
         # docs/EVALUATION.md; nothing else of the grid or the rule changed (the test above).
         record = ("2026-10-30: T_mit 30 → 90 s, decided by the user BEFORE any data, because the "
                   "frozen detector's dribble leg needs 2 data segments after the first poll.")
+        sources = ("At the frozen pacing: W-SLOW's dry run (T-023, seed 1): median closes 55 s "
+                   "(Slowloris) / 39 s (slow POST); the independent re-simulation (T-029): 52 s / "
+                   "36 s, with a median ban at 66 s at K = 2.")
         self.assertEqual(P.DEADLINE_S, 90.0)
-        self.assertIn(record, " ".join(frozen_block().replace("#", " ").split()))
+        block = " ".join(frozen_block().replace("#", " ").split())
         with open(os.path.join(REPO, "docs", "EVALUATION.md"), encoding="utf-8") as fh:
-            self.assertIn(record, " ".join(fh.read().split()))
+            doc = " ".join(fh.read().split())
+        for text in (block, doc):
+            self.assertIn(record, text)
+            self.assertIn(sources, text)                    # both runs, each with its source
+            self.assertNotIn("verified by T-029", text)      # 74020b6 had mixed the sources
 
     def test_the_frozen_block_is_unchanged(self):
         self.assertEqual(hashlib.sha256(frozen_block().encode("utf-8")).hexdigest(),
