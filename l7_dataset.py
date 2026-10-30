@@ -50,6 +50,9 @@ TOP_KEYS_V2 = ("format", "schema", "dataset_version", "capture_id", "seed", "see
 VERSION_RE = re.compile(r"^\d{4}-\d{2}-[a-z0-9][a-z0-9.-]{0,40}$")
 HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
+# Schema 2 maps one address to one entity for the whole capture. Two entities on one address (a CGNAT pool's users,
+# the M3 phase reusing C2's addresses) need schema 3's time-indexed entity-address map (feat/l7v2-traffic).
+NEEDS_SCHEMA_3 = "address reuse needs schema 3 (a time-indexed entity-address map; feat/l7v2-traffic)"
 
 
 class ManifestError(ValueError):
@@ -265,7 +268,7 @@ def manifest_problems(m):
         if e["entity_id"] in ids:
             probs.append(f"entity {i}: duplicate id {e['entity_id']}")
         if e["address"] in addrs:
-            probs.append(f"entity {i}: duplicate address {e['address']}")
+            probs.append(f"entity {i}: address {e['address']} belongs to another entity too: {NEEDS_SCHEMA_3}")
         ids.add(e["entity_id"])
         addrs.add(e["address"])
         if e["role"] not in ROLES:

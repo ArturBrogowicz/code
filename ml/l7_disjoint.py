@@ -19,6 +19,9 @@ Each failure starts with its rule number:
   10  the split file's sha256 differs from the one the selection file records
   11  a capture's seed_role is not the split it is used as, or its seed is not pre-registered for that role
   12  the training or the validation split is empty
+  13  an entity puts several users on one address (a CGNAT pool, a NAT gateway): address reuse needs schema 3, where
+      each user is an entity and the pool their cluster; schema 2 would count the pool as one entity in the benign
+      budget (review T-029 P3-09). Two entities on one address already fail rule 1 with the same reason.
 
     ./venv/bin/python ml/l7_disjoint.py --check --train D1 D2 --val D3 [--eval D4 ...] [--split F --selection F]
 
@@ -135,6 +138,13 @@ def check(splits, *, prereg=None, split_file=None, selection_file=None, verify_f
             held = sorted({e["kind_or_family"] for e in m["entities"] if e["held_out"]})
             if held:
                 fails.append(f"9 {d} ({s}) holds held-out kinds or families: {held}")
+    for s in SPLITS:
+        for d, m in loaded[s]:
+            for e in m["entities"]:
+                users = e["params"].get("users", 1) if isinstance(e["params"], dict) else 1
+                if not isinstance(users, int) or users > 1:
+                    fails.append(f"13 {d}: entity {e['entity_id']} ({e['kind_or_family']}) puts {users} users on "
+                                 f"{e['address']}: {D.NEEDS_SCHEMA_3}")
     for s in SPLITS:
         for d, m in loaded[s]:
             if m["seed_role"] != s:

@@ -300,3 +300,20 @@ signal is rate-separable" (`S1:T-005/learning_curve_protocol.md`).
 | A trivial artefact separates the classes (netem, address range, start times) | Netem drawn for every entity; shared address space; staggered phases with drawn intensities; the probe gates (`docs/L7V2_DESIGN.md` §8.5) |
 | The intervals are too wide to rank | The precision rule (6.4); the "still learning" and "no ranking" outcomes are reported as results |
 | Root-owned or world-writable files | Pre-created directory, ownership handed back, no `0o666` (4.5) |
+
+## 10. As built: address reuse waits for schema 3 (T-024, review T-029 P3-09)
+
+- **Schema 2, as built on `feat/p3-dataset-pipeline`, maps one address to one entity for the whole capture.** The labels,
+  `ip_map` and the trainer's entity key are keyed by address.
+- **Two cases in this note need more:** a CGNAT pool, whose 12-24 users are each an entity with the pool as their
+  cluster (4.4), and the M3 phase of evaluation captures, which reuses the C2 phase's addresses (5).
+- **Schema 3 provides it.** It is a time-indexed entity ↔ address map in which a CGNAT pool's users are separate
+  entities. It is being built on `feat/l7v2-traffic`. Schema 2 is not changed here.
+- **Until then the checker refuses both, with the reason "address reuse needs schema 3":**
+  - two entities on one address fail rule 1 (`l7_dataset.manifest_problems`);
+  - an entity carrying several users on one address (`params.users` > 1: `cgnat_browsers`, `nat_gateway`) fails
+    rule 13 (`ml/l7_disjoint.py`).
+
+  This matters because under schema 2 a flagged 24-user pool would cost one unit of the 1 % benign budget.
+- **The smoke population still contains such entities.** That is allowed, because pilot captures are never fitted on
+  (rule 11).
