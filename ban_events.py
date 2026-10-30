@@ -15,7 +15,7 @@ Every record has:
     kind       str    "start" | "ban" | "unban" | "suppress_on" | "suppress_off"
                       | "gru_suppressed" | "l7_shadow" | "l7_gru_poll" | "l7_would_ban"
                       | "daemon_error" | "slow_pc_close" | "slow_pc_would_ban"
-                      | "slow_pc_capped" | "slow_pc_poll"
+                      | "slow_pc_capped" | "slow_pc_poll" | "slow_pc_close_retry"
                       (the l7_* kinds are the L7 shadow engine's telemetry; a
                       would-ban is a decision that was logged, not enforced; a
                       daemon_error is an error the daemon survived and retried;

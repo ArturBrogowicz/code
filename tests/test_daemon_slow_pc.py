@@ -311,7 +311,7 @@ class EnforceTest(SlowPcCase):
 
     def test_each_connection_is_closed_by_its_own_filter_then_the_address_is_banned(self):
         d = self.daemon(**ENFORCE)
-        self.run_world(d, 10, loris_world())
+        self.run_world(d, 10, lambda t: "" if d.proc.matching("ss", "-K") else loris_world()(t))
         expr = " or ".join(f"( dst {IP} and dport = :{41000 + i} and sport = :80 )"
                            for i in range(6))
         self.assertEqual(d.proc.matching("ss", "-K"),
@@ -342,20 +342,41 @@ class EnforceTest(SlowPcCase):
         self.assertEqual(d.call("slow_pc_close", []), 0)
         self.assertEqual(d.proc.calls, [])
 
-    def test_a_failed_close_call_is_reported_and_a_surviving_socket_counted(self):
-        for gone in (True, False):
-            with self.subTest(gone=gone):
-                d = self.daemon(**ENFORCE)
-                if not gone:
-                    d.proc.failures[("ss", "-K", "-t")] = 1         # the close call fails
+    def test_a_close_that_does_not_take_is_retried_twice_then_given_up(self):
+        # P4-06. The six connections are closed at t = 1009 but stay (ss -K exits 1 and the kernel
+        # keeps them): each is closed again at 1010 and 1011, logged as a retry, and given up at
+        # 1012. A non-zero exit is not an error in itself.
+        d = self.daemon(**ENFORCE)
+        d.proc.failures[("ss", "-K", "-t")] = 1
+        self.run_world(d, 16, loris_world())
+        batches = [k for k in d.proc.matching("ss", "-K", "-t")]
+        self.assertEqual([k[5].count("( dst ") for k in batches], [6, 6, 6])
+        retries = d.events("slow_pc_close_retry")
+        self.assertEqual([(e["attempt"], e["gave_up"]) for e in retries],
+                         [(2, False)] * 6 + [(3, False)] * 6 + [(3, True)] * 6)
+        self.assertEqual({(e["ip"], e["sport"]) for e in retries}, {(IP, 80)})
+        reports = d.events("slow_pc_poll")
+        self.assertEqual((sum(r["close_retries"] for r in reports),
+                          sum(r["close_failed"] for r in reports)), (12, 6))
+        self.assertEqual(d.events("daemon_error"), [])
 
-                def world(t, d=d, gone=gone):
-                    return "" if gone and d.proc.matching("ss", "-K") else loris_world()(t)
-                self.run_world(d, 11, world)
-                failed = sum(r["close_failed"] for r in d.events("slow_pc_poll"))
-                errors = [e["error"] for e in d.events("daemon_error")]
-                self.assertEqual((failed, errors),
-                                 (0, []) if gone else (6, ["1 ss -K call(s) failed"]))
+    def test_a_connection_gone_between_the_read_and_the_kill_is_not_an_error(self):
+        # The client ends the connections right after the read of t = 1009; the kill finds
+        # nothing and ss -K exits 1: no retry, no error, nothing counted as failed.
+        d = self.daemon(**ENFORCE)
+        d.proc.failures[("ss", "-K", "-t")] = 1
+        self.run_world(d, 16, lambda t: loris_world()(t) if t <= 1009 else "")
+        self.assertEqual(len(d.events("slow_pc_close")), 6)
+        self.assertEqual((d.events("slow_pc_close_retry"), d.events("daemon_error")), ([], []))
+        self.assertEqual(sum(r["close_failed"] for r in d.events("slow_pc_poll")), 0)
+
+    def test_a_kill_that_cannot_run_is_reported_and_retried(self):
+        d = self.daemon(**ENFORCE)
+        d.proc.failures[("ss", "-K", "-t")] = FileNotFoundError("ss")
+        self.run_world(d, 12, loris_world())
+        self.assertEqual([e["error"] for e in d.events("daemon_error")],
+                         ["1 ss -K call(s) could not run"] * 3)
+        self.assertEqual(len(d.events("slow_pc_close_retry")), 18)
 
     def test_the_kill_file_and_gru_only_send_it_back_to_shadow(self):
         def world(t):

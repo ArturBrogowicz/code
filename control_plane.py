@@ -503,20 +503,21 @@ def slow_pc_record(now, text, items, banned, enforce):
 def slow_pc_close(conns):
     """Close these connections, (client address, client port, server port) each, every one by
     its own filter, at most slow_pc.CLOSE_BATCH per `ss -K` call (§7.1). An empty list makes no
-    call: `ss -K` without a filter would close every socket. Returns the number of failed
-    calls; whether each socket went is checked at the next poll (ss -K skips silently what the
-    kernel cannot close)."""
-    failed = 0
+    call: `ss -K` without a filter would close every socket. Whether each socket went is checked
+    at the next poll, which retries the ones still there (P4-06): ss -K skips silently what the
+    kernel cannot close, and a connection that ended between the read and the kill is simply
+    gone, so the exit status of the call decides nothing. Returns the number of calls that could
+    not run at all (ss missing, a timeout)."""
+    errors = 0
     for i in range(0, len(conns), slow_pc.CLOSE_BATCH):
         expr = " or ".join(f"( dst {ip} and dport = :{port} and sport = :{sport} )"
                            for ip, port, sport in conns[i:i + slow_pc.CLOSE_BATCH])
         try:
-            res = subprocess.run(["ss", "-K", "-t", "state", "established", expr],
-                                 capture_output=True, timeout=2, check=False)
-            failed += res.returncode != 0
+            subprocess.run(["ss", "-K", "-t", "state", "established", expr],
+                           capture_output=True, timeout=2, check=False)
         except (subprocess.SubprocessError, OSError):
-            failed += 1
-    return failed
+            errors += 1
+    return errors
 
 
 def slow_pc_act(result, enforce):
@@ -525,12 +526,21 @@ def slow_pc_act(result, enforce):
     engine does after a ban, close the rest of its sockets."""
     for c in result.closes:
         EVENTS.emit("slow_pc_close", enforced=enforce, **c._asdict())
-    if enforce and result.closes:
-        failed = slow_pc_close([(c.ip, c.port, c.sport) for c in result.closes])
+    if enforce and (result.closes or result.retries):
+        errors = slow_pc_close([(c.ip, c.port, c.sport) for c in result.closes]
+                               + [(ip, port, sport) for (ip, port, _l, sport), _a in result.retries])
         slow_pc_engine.closed([(c.ip, c.port, c.local, c.sport) for c in result.closes])
-        if failed:
-            report_daemon_error("slow_pc", f"{failed} ss -K call(s) failed",
-                                "checked at the next poll")
+        for key, attempt in result.retries:
+            slow_pc_engine.closed([key], attempt)
+        if errors:
+            report_daemon_error("slow_pc", f"{errors} ss -K call(s) could not run",
+                                "retried at the next poll")
+    for (ip, port, local, sport), attempt in result.retries if enforce else ():
+        EVENTS.emit("slow_pc_close_retry", ip=ip, port=port, local=local, sport=sport,
+                    attempt=attempt, gave_up=False)
+    for ip, port, local, sport in result.gave_up:
+        EVENTS.emit("slow_pc_close_retry", ip=ip, port=port, local=local, sport=sport,
+                    attempt=slow_pc.CLOSE_RETRIES + 1, gave_up=True)
     if result.capped_closes:
         EVENTS.emit("slow_pc_capped", what="close", n=result.capped_closes,
                     cap=slow_pc.MAX_CLOSES_PER_POLL)

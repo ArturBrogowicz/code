@@ -347,18 +347,37 @@ class DetectorGuardsTest(unittest.TestCase):
         self.assertTrue(stats["bad_sample"].startswith("0      0      10.0.0.1:80   [2001:db8::66]"))
         self.assertEqual((stats["skipped_lines"], det.take_stats()["bad_sample"]), (2, None))
 
-    def test_a_close_that_left_the_socket_is_counted_as_failed(self):
+    def test_a_close_that_left_the_socket_is_retried_twice_then_given_up(self):
+        # P4-06: the caller closed two connections; one went, one stayed. The stayer comes back
+        # as a retry (attempt 2, then 3) while the caller reports closing it again, and after the
+        # last retry it is given up and counted once.
         det = P.Detector(5, 256, 2)
         sim = Sim(det)
         for i in range(2):
             sim.add("10.0.11.4", 50020 + i, loris)
         [r] = [r for r in sim.run(9) if r.closes]
         det.closed([(c.ip, c.port, c.local, c.sport) for c in r.closes])
-        sim.socks.pop(("10.0.11.4", 50020, 80))                   # one went, one stayed
-        sim.step()
-        self.assertEqual(det.stats["close_failed"], 1)
-        sim.step()
-        self.assertEqual(det.stats["close_failed"], 1)            # counted once
+        sim.socks.pop(("10.0.11.4", 50020, 80))
+        stayer = ("10.0.11.4", 50021, "10.0.0.1", 80)
+        seen = []
+        for _ in range(4):
+            r = sim.step()
+            seen.append((r.retries, r.gave_up))
+            for key, attempt in r.retries:
+                det.closed([key], attempt)
+        self.assertEqual(seen, [(((stayer, 2),), ()), (((stayer, 3),), ()), ((), (stayer,)),
+                                ((), ())])
+        self.assertEqual((det.stats["close_retries"], det.stats["close_failed"]), (2, 1))
+
+    def test_a_connection_gone_before_its_kill_is_not_retried(self):
+        det = P.Detector(5, 256, 2)
+        sim = Sim(det)
+        sim.add("10.0.11.5", 50030, loris)
+        [r] = [r for r in sim.run(9) if r.closes]
+        det.closed([(c.ip, c.port, c.local, c.sport) for c in r.closes])
+        sim.socks.clear()                                        # it ended on its own
+        r = sim.step()
+        self.assertEqual((r.retries, r.gave_up, det.stats["close_failed"]), ((), (), 0))
 
     def test_off_grid_thresholds_are_refused(self):
         for point in ((7, 64, 2), (5, 100, 2), (5, 64, 5)):

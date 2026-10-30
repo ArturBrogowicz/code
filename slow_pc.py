@@ -248,6 +248,8 @@ ANSWERED_SLACK_S = 2.0     # :443: a request logged up to this long before the f
                            # its connection still answers it (the poll's resolution, with margin)
 ANSWERED_KEEP_S = 120.0    # how long a logged (client, port) waits for its socket to be seen
 CLOSE_BATCH = 32           # connections per `ss -K` call in the daemon
+CLOSE_RETRIES = 2          # a closed connection still there at the next poll is closed again, at
+                           # most twice (P4-06); then it is given up and counted as close_failed
 
 
 class Close(NamedTuple):
@@ -276,6 +278,8 @@ class PollResult(NamedTuple):
     bans: list             # Ban
     capped_bans: list      # addresses over MAX_BANS_PER_MIN: judged again next poll
     spared: list           # Ban: the K closes were reached, but the address is shared
+    retries: tuple = ()    # (key, attempt): closed earlier and still there: close again (P4-06)
+    gave_up: tuple = ()    # keys still there after the last retry
 
 
 class _Conn:
@@ -322,7 +326,7 @@ class Detector:
         self.banned_until = {}   # ip -> t: the rule's own bans, whose sockets it skips meanwhile
         self.ban_times = collections.deque()   # the t of each ban, for MAX_BANS_PER_MIN
         self.pending = set()     # addresses whose ban was capped
-        self.issued = set()      # keys the caller closed after the last poll
+        self.issued = {}         # key -> attempts so far, for the closes issued since the last poll
         self.ports_seen = False  # has the access log shown a client port yet? (_suspect, :443)
         self.stats = collections.Counter()
         self.gauges = {"sockets": 0, "owned": 0}
@@ -340,9 +344,12 @@ class Detector:
     def ua_keys(self, ip, now):
         return sum(1 for t in self.ua.get(ip, {}).values() if t >= now - UA_WINDOW_S)
 
-    def closed(self, keys):
-        """The caller closed these connections: the next poll checks that they are gone."""
-        self.issued = set(keys)
+    def closed(self, keys, attempt=1):
+        """The caller issued `ss -K` for these connections (attempt 1 is the first close). The next
+        poll checks that they are gone and returns those still there as retries, at most
+        CLOSE_RETRIES times; a connection that went by itself before the kill counts as gone."""
+        for key in keys:
+            self.issued[key] = attempt
 
     def skip(self, now, l7_items=()):
         """A poll whose `ss` call failed: the access-log items are kept, and nothing else
@@ -367,8 +374,17 @@ class Detector:
         st["polls"] += 1
         st["skipped_lines"] += skipped
         self.bad_sample = self.bad_sample or bad
-        st["close_failed"] += len(self.issued & present)
-        self.issued = set()
+        retries, gave_up = [], []
+        for key, attempt in sorted(self.issued.items()):
+            if key not in present:
+                continue                   # gone, whether by the kill or on its own: not an error
+            if attempt <= CLOSE_RETRIES:
+                retries.append((key, attempt + 1))
+            else:
+                gave_up.append(key)
+        st["close_retries"] += len(retries)
+        st["close_failed"] += len(gave_up)
+        self.issued = {}
         out = set(banned) | set(self.banned_until)
         candidates, owned = [], 0
         for s in socks:
@@ -407,7 +423,7 @@ class Detector:
         st["bans"] += len(bans)
         st["capped_bans"] += len(capped_bans)
         st["spared"] += len(spared)
-        return PollResult(closes, capped, bans, capped_bans, spared)
+        return PollResult(closes, capped, bans, capped_bans, spared, tuple(retries), tuple(gave_up))
 
     def _suspect(self, s, c, now):
         """The five legs of §6.2: owned, old, unanswered, slow, dribbling. On :443 only the
@@ -473,7 +489,7 @@ class Detector:
     def take_stats(self):
         """The counters since the last call (then reset), the gauges and the first skipped line."""
         names = ("polls", "ss_failed", "suspect", "closes", "capped_closes", "bans",
-                 "capped_bans", "spared", "skipped_lines", "close_failed")
+                 "capped_bans", "spared", "skipped_lines", "close_retries", "close_failed")
         out = {n: self.stats.get(n, 0) for n in names}
         out.update(self.gauges, tracked=len(self.conns), bad_sample=self.bad_sample)
         self.stats.clear()
