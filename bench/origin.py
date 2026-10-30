@@ -26,10 +26,11 @@ work is returned in `X-Work`. Each URL's work is scaled by a log-normal factor w
 hash of the URL, so the same URL always costs the same and a replayed schedule replays its costs.
 
 The costs the knobs produce are measured, not assumed: `measure_unloaded` times every route with an
-injectable clock, in batches of calls that last at least 1 ms, the routes taking turns (`time_routes`),
-and a frozen calibration makes the app refuse to start when a route is more than 25 % off its frozen
-cost (host drift, another CPU); that start-up check uses the same estimator as the calibrator. Without a
-frozen calibration the answers carry `X-Origin-Calibration: placeholder`.
+injectable clock (by default the calling thread's CPU time, `time.thread_time`, so that another thread
+of the process is not counted), in batches of calls that last at least 1 ms, the routes taking turns
+(`time_routes`), and a frozen calibration makes the app refuse to start when a route is more than
+25 % off its frozen cost (host drift, another CPU); that start-up check uses the same estimator as the
+calibrator. Without a frozen calibration the answers carry `X-Origin-Calibration: placeholder`.
 """
 import argparse
 import csv
@@ -287,7 +288,7 @@ def batch_size(time_batch, batch_min_s=BATCH_MIN_S, cap=BATCH_MAX):
     return n
 
 
-def time_routes(origin, repeats=5, clock=time.process_time, batch_min_s=BATCH_MIN_S):
+def time_routes(origin, repeats=5, clock=time.thread_time, batch_min_s=BATCH_MIN_S):
     """The unloaded cost of every route in ms at the nominal work (the spread factor held at 1), the batch
     each route was timed in, and the clock's name. A short calibration call first gives each route a batch
     of calls that lasts at least `batch_min_s` on `clock` (`batch_size`), so that the clock's own cost and
@@ -296,7 +297,10 @@ def time_routes(origin, repeats=5, clock=time.process_time, batch_min_s=BATCH_MI
     robin), so that a disturbance that lasts part of a session falls on every route alike and on a few of
     each route's repeats, not on all the timings of the routes that happened to be measured during it. A
     route's cost is the median of its batches' time per call, the middle of the sorted list as before.
-    `clock` is injectable, so that a test can say how long things took."""
+    The clock is the calling thread's CPU time: the route's work is done by the thread that calls it, and
+    the process's CPU time would add whatever another thread of the process did meanwhile (an allocator's
+    or a library's, or a server's other worker threads at start-up). `clock` is injectable, so that a test
+    can say how long things took."""
     calls = route_calls()
 
     def timed(call, n):
@@ -316,7 +320,7 @@ def time_routes(origin, repeats=5, clock=time.process_time, batch_min_s=BATCH_MI
             "clock": getattr(clock, "__name__", "injected")}
 
 
-def measure_unloaded(origin, repeats=5, clock=time.process_time):
+def measure_unloaded(origin, repeats=5, clock=time.thread_time):
     """The unloaded cost of every route in ms (`time_routes`, which says how): what the calibrator's
     sessions and the start-up self-check of `make_app` both measure."""
     return time_routes(origin, repeats, clock)["costs_ms"]
@@ -333,7 +337,7 @@ def self_check(measured_ms, frozen_ms, tol=TOLERANCE):
     return bad
 
 
-def make_app(knobs=None, data_seed=1, frozen_costs_ms=None, tag="placeholder", clock=time.process_time,
+def make_app(knobs=None, data_seed=1, frozen_costs_ms=None, tag="placeholder", clock=time.thread_time,
              sleep=None):
     """The origin as a WSGI app. With frozen costs it measures itself first and refuses to start when
     a route is more than 25 % off (host drift, another CPU); without them it does not check."""
@@ -348,7 +352,7 @@ def make_app(knobs=None, data_seed=1, frozen_costs_ms=None, tag="placeholder", c
     return origin
 
 
-def app_from_env(environ=None, clock=time.process_time):
+def app_from_env(environ=None, clock=time.thread_time):
     """The app gunicorn serves: ORIGIN_CALIBRATION (a calibration record), ORIGIN_SEED, ORIGIN_KNOBS
     (a JSON object of knob overrides, for tests). No calibration means the placeholder."""
     environ = os.environ if environ is None else environ
@@ -372,7 +376,7 @@ def __getattr__(name):
     raise AttributeError(name)
 
 
-def main(argv=None, clock=time.process_time):
+def main(argv=None, clock=time.thread_time):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     group = ap.add_mutually_exclusive_group(required=True)
     group.add_argument("--calibrate", action="store_true", help="print the unloaded cost of every route")

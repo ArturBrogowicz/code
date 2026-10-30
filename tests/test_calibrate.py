@@ -318,6 +318,7 @@ class OriginTest(unittest.TestCase):
         self.assertEqual(sorted(session["batch"]), sorted(costs))
         self.assertGreater(session["batch"]["C0"], 1, "a call of some microseconds is timed in a batch")
         self.assertEqual(session["batch"]["C5"], 1, "one of a tenth of a second alone")
+        self.assertEqual(session["clock"], "thread_time", "the calling thread's CPU time, not the process's")
 
     def test_the_record_keeps_how_each_session_timed_the_routes(self):
         _, result, _ = self.step((0.0, 0.01, -0.01))

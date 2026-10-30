@@ -7,6 +7,7 @@ in a couple of seconds.
 """
 import contextlib
 import dataclasses
+import inspect
 import io
 import json
 import math
@@ -15,6 +16,7 @@ import statistics
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from typing import ClassVar
 from unittest import mock
@@ -388,6 +390,62 @@ class EstimatorTest(unittest.TestCase):
         self.assertEqual(O.batch_size(lambda n: n * 0.03), 1)
         self.assertEqual(O.batch_size(lambda n: 0.0), O.BATCH_MAX, "a clock that does not move stops at the cap")
         self.assertEqual((O.BATCH_MIN_S, O.BATCH_MAX), (0.001, 4096))
+
+
+def spin(seconds):
+    """Burn `seconds` of the calling thread's own CPU time."""
+    start = time.thread_time()
+    while time.thread_time() - start < seconds:
+        pass
+
+
+class Busy:
+    """Routes that do `own_s` of CPU work in the calling thread and then wait while another thread of the same
+    process burns `other_s` of CPU: what a call costs its caller is `own_s`, the rest is the other thread's."""
+
+    def __init__(self, own_s, other_s):
+        self.own_s, self.other_s, self.stop = own_s, other_s, False
+        self.go, self.done = threading.Event(), threading.Event()
+        self.thread = threading.Thread(target=self._other, daemon=True)
+        self.thread.start()
+
+    def _other(self):
+        while True:
+            self.go.wait()
+            self.go.clear()
+            if self.stop:
+                return
+            spin(self.other_s)
+            self.done.set()
+
+    def handle(self, _klass, _ident, _query, _factor):
+        spin(self.own_s)
+        self.done.clear()
+        self.go.set()
+        self.done.wait()
+        return "text/plain", b"", 1
+
+    def close(self):
+        self.stop = True
+        self.go.set()
+        self.thread.join(5)
+
+
+class ClockTest(unittest.TestCase):
+    """The clock is the measuring thread's own CPU time, not the process's (docs/HG1C_DESIGN.md departure 29)."""
+
+    def test_a_busy_thread_of_the_same_process_does_not_inflate_the_cost(self):
+        busy = Busy(own_s=0.002, other_s=0.02)
+        self.addCleanup(busy.close)
+        own = O.measure_unloaded(busy, repeats=3)
+        with_other = O.measure_unloaded(busy, repeats=3, clock=time.process_time)
+        for klass in O.CLASSES:
+            self.assertLess(own[klass], 3.5, f"{klass}: 2 ms of its own, and the clock's and the events' cost")
+            self.assertGreater(with_other[klass], 20.0, f"{klass}: the process's time holds the other thread's 20 ms")
+
+    def test_every_measurement_of_the_origin_defaults_to_the_thread_s_clock(self):
+        for fn in (O.time_routes, O.measure_unloaded, O.make_app, O.app_from_env, O.main):
+            self.assertIs(inspect.signature(fn).parameters["clock"].default, time.thread_time, fn.__name__)
 
 
 if __name__ == "__main__":

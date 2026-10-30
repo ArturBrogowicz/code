@@ -150,7 +150,7 @@ def save_stopped_origin(out, cal, rounds, partial, reason, gate=None, partial_ti
 def origin_session(cal, repeats=ORIGIN_REPEATS):
     """One session in this process: every route of the origin, unloaded, timed `repeats` times in batches of at least 1 ms with
     the routes in turn (origin.time_routes): the median cost of each route in ms, the batch each route was timed in, and the
-    clock, the process's CPU time. The origin is built with the record's knobs."""
+    clock, the calling thread's CPU time (time.thread_time). The origin is built with the record's knobs."""
     origin = O.Origin(C.knobs_of(cal), X.ORIGIN_SEED, "placeholder")
     try:
         return O.time_routes(origin, repeats=repeats)
