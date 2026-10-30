@@ -1,0 +1,247 @@
+"""The L7 v2 arms (docs/L7V2_DESIGN.md 8, 10; docs/P3_DATASET_DESIGN.md 4.8): view windows and request windows keyed
+by (IP, UA, sid), the operating point on validation at the common benign budget with the pre-registered tie rules, the
+probe-gated select step and the score step that refuses without the frozen selection. Offline; synthetic fixtures and
+two-epoch fits on two threads (mechanics only)."""
+import json
+import os
+import random
+import shutil
+import sys
+import tempfile
+import unittest
+
+import numpy as np
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(REPO, "ml"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import l7_testutil as U
+import l7v2_model_prereg as PRE
+import train_l7
+import train_l7v2 as V
+
+import l7_dataset as D
+import l7_features as F
+import l7_ingest as I
+
+BASE = "http://10.0.0.1"
+
+
+def _rec(cap, ent, cls, family, seq, ip, ua, sid, uri, start, ref=None, rt=0.02, sid_set=False):
+    o = U.obj(ip=ip, ua=ua, uri=uri, msec=start + rt, rt=rt, creq=2)
+    if ref is not None:
+        o["ref"] = BASE + ref
+    if sid is not None:
+        o["sid_set" if sid_set else "sid"] = sid
+    r = I.normalise(o)
+    r.update({"_cls": cls, "_family": family, "_held": False, "_entity": ent, "_kof": family or "browser",
+              "_seq": seq, "_cap": cap, "_ent": f"{cap}|{ent}"})
+    return r
+
+
+def population(cap="c1", seed=0, n_benign=6, n_bots=4, views=10, pool_users=3):
+    """Benign browsers (Referer chains, revisits, short asset waves), a CGNAT pool (one IP and UA, one sid per user)
+    and deep-linking bots (constant dwell, a Referer to a page they never loaded, one costly request per view)."""
+    rng = random.Random(seed)
+    recs = []
+
+    def add(**kw):
+        recs.append(_rec(seq=len(recs), **kw))
+
+    def browse(ent, ip, ua, sid, t0):
+        prev = None
+        for v in range(views):
+            t = t0 + 6.0 * v + rng.uniform(0, 4)
+            page = "/" if v == 0 else f"/page/{rng.choice([1, 2, 3, 4])}"
+            add(cap=cap, ent=ent, cls=D.BENIGN, family=None, ip=ip, ua=ua, sid=sid, uri=page, start=t, ref=prev,
+                sid_set=v == 0)
+            add(cap=cap, ent=ent, cls=D.BENIGN, family=None, ip=ip, ua=ua, sid=sid,
+                uri=f"/static/site6/p{v % 3}/img0.png", start=t + 0.2, ref=page)
+            prev = page
+
+    for b in range(n_benign):
+        browse(f"b{b}", f"10.0.16.{b + 1}", f"Mozilla/5.0 B{b % 2}", f"{b:032x}", 1.0 * b)
+    for u in range(pool_users):
+        browse("pool", "10.0.16.200", "Mozilla/5.0 B0", f"{100 + u:032x}", 2.0 * u)
+    for a in range(n_bots):
+        ip, sid = f"10.0.17.{a + 1}", f"{500 + a:032x}"
+        for v in range(views):
+            t = 0.5 * a + 3.0 * v
+            add(cap=cap, ent=f"a{a}", cls=D.ATTACK, family="C3b@M1", ip=ip, ua="Mozilla/5.0 B1", sid=sid,
+                uri=f"/page/{100 + v}", start=t, ref="/page/search", sid_set=v == 0)
+            add(cap=cap, ent=f"a{a}", cls=D.ATTACK, family="C3b@M1", ip=ip, ua="Mozilla/5.0 B1", sid=sid,
+                uri="/search?q=alpha", start=t + 0.3, ref=f"/page/{100 + v}")
+    recs.sort(key=lambda r: r["msec"])
+    for i, r in enumerate(recs):
+        r["_seq"] = i
+    entities = ([{"entity_id": f"b{b}", "role": "benign", "users": []} for b in range(n_benign)]
+                + [{"entity_id": "pool", "role": "benign", "users": [f"pool/u{u}" for u in range(pool_users)]}]
+                + [{"entity_id": f"a{a}", "role": "attack", "users": []} for a in range(n_bots)])
+    return {"format": D.DATASET_FORMAT_V3, "entities": entities}, recs, cap
+
+
+class WindowTest(unittest.TestCase):
+    def test_view_windows_per_key_and_complete_token(self):
+        _m, recs, _c = population()
+        ws = V.view_windows(recs, max_views=8, min_views=4)
+        per_key = {}
+        for w in ws:
+            per_key.setdefault(w["key"], []).append(w)
+            np.testing.assert_array_equal(w["X"], F.token_matrix(w["recs"], 8))
+            self.assertEqual(len({I.key_v2(r) for r in w["recs"]}), 1)
+        self.assertEqual(len(per_key), 6 + 3 + 4)                 # the pool's users are three keys
+        for seq in per_key.values():
+            self.assertEqual(len(seq), 10 - 4)                     # tokens 4..9 complete one window each
+            self.assertEqual([w["n"] for w in seq], [4, 5, 6, 7, 8, 8])
+            self.assertEqual([w["t"] for w in seq], sorted(w["t"] for w in seq))
+
+    def test_the_session_splits_at_the_idle_gap(self):
+        _m, recs, _c = population(n_benign=1, n_bots=0, pool_users=0)
+        late = [{**r, "msec": r["msec"] + (400.0 if i >= 10 else 0.0)} for i, r in enumerate(recs)]
+        self.assertEqual(len(V.sessions(F.ordered(late), 300.0)), 2)
+        self.assertEqual(len(V.view_windows(late, 8, 4, idle_s=300.0)), 1 + 1)   # two sessions of 5 views each
+
+    def test_request_windows_by_v2_key(self):
+        _m, recs, _c = population()
+        cols = F.columns(F.V2_REQUEST_GROUPS)
+        ws = V.request_windows(recs, cols, 64, 3, 5)
+        self.assertTrue(ws)
+        for w in ws:
+            self.assertEqual(w["X"].shape, (64, len(cols)))
+            self.assertEqual(len({I.key_v2(r) for r in w["recs"]}), 1)
+            self.assertEqual(w["t"], w["recs"][-1]["msec"])
+
+    def test_thinning_is_per_key(self):
+        _m, recs, _c = population()
+        ws = V.view_windows(recs, 8, 4)
+        self.assertEqual(len(V.thin(ws, cap=2)), 2 * 13)
+        self.assertEqual(V.MAX_TRAIN_WIN_PER_KEY, train_l7.MAX_WIN_PER_GROUP)
+
+
+class OperatingPointTest(unittest.TestCase):
+    def setUp(self):
+        self.split = V.Split([population()], request=False)
+        self.ws = self.split.view
+
+    def scores(self, bot=0.99, benign=0.1, pool=None):
+        out = []
+        for w in self.ws:
+            if w["y"]:
+                out.append(bot)
+            elif pool is not None and w["ip"].endswith("|pool"):
+                out.append(pool)
+            else:
+                out.append(benign)
+        return np.array(out)
+
+    def test_denominators(self):
+        self.assertEqual(len(self.split.attack), 4)
+        self.assertEqual(sum(self.split.units.values()), 6 + 3)
+        self.assertEqual(self.split.units["c1|pool"], 3)
+
+    def test_a_perfect_separator_takes_the_first_grid_point(self):
+        op = V.operating_point(self.ws, self.scores(), self.split)
+        self.assertEqual((op["recall"], op["benign_units_flagged"], op["consecutive"], op["threshold"]),
+                         (1.0, 0, 1, 0.5))
+        self.assertEqual(op["grid_index"], 0)
+
+    def test_the_budget_counts_a_pools_flagged_users(self):
+        sel = {**PRE.selection(), "budget": 0.25}               # 9 units: 2 may be flagged
+        op = V.operating_point(self.ws, self.scores(pool=0.97), self.split, sel)
+        self.assertGreater(op["threshold"], 0.97)                # three flagged pool keys cost 3 units > 2
+        self.assertEqual(op["benign_units_flagged"], 0)
+
+    def test_an_entity_costs_at_most_its_units(self):
+        dec = {("c1", ("10.0.16.1", 1, 1)): ("c1|b0", 50.0), ("c1", ("10.0.16.1", 1, 2)): ("c1|b0", 60.0),
+               ("c1", ("10.0.16.200", 1, 3)): ("c1|pool", 70.0)}
+        a = V.assess(dec, self.split)
+        self.assertEqual((a["benign_units_flagged"], a["benign_entities_flagged"]), (2, 2))
+
+    def test_ties_go_to_fewer_benign_flags_then_faster_then_grid_order(self):
+        s = self.scores(bot=0.99, benign=0.55)
+        op = V.operating_point(self.ws, s, self.split, {**PRE.selection(), "budget": 0.5})
+        self.assertEqual(op["benign_units_flagged"], 0)          # theta 0.6 beats 0.5 (same recall, no flags)
+        self.assertEqual((op["consecutive"], op["threshold"]), (1, 0.6))
+
+    def test_recall_counts_entities_without_windows(self):
+        self.split.attack.add("c1|a_silent")
+        op = V.operating_point(self.ws, self.scores(), self.split)
+        self.assertEqual((op["caught"], op["attack_entities"], op["recall"]), (4, 5, 0.8))
+
+    def test_a_point_that_catches_nothing_is_still_a_point(self):
+        op = V.operating_point(self.ws, self.scores(benign=1.0), self.split)
+        self.assertEqual((op["recall"], op["benign_units_flagged"], op["consecutive"]), (0.0, 0, 8))
+
+    def test_none_without_attack_entities(self):
+        self.split.attack.clear()
+        self.assertIsNone(V.operating_point(self.ws, self.scores(), self.split))
+
+    def test_the_selection_rules_are_the_pre_registered_ones(self):
+        sel = PRE.selection()
+        self.assertEqual((sel["budget"], sel["k_grid"][0], sel["theta_grid"][0]), (0.01, 1, 0.5))
+
+
+class SelectScoreTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.dir = tempfile.mkdtemp()
+        cls.out = os.path.join(cls.dir, "sel")
+        train = V.Split([population("t1", seed=1), population("t2", seed=2)])
+        val = V.Split([population("v1", seed=3)])
+        cls.sel, cls.sha = V.select(train, val, cls.out, epochs=2, threads=2, valid_for_claims=False,
+                                    source="synthetic fixture", split_sha256="0" * 64)
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.dir)
+
+    def test_every_arm_is_gated_and_has_a_point(self):
+        self.assertEqual(set(self.sel["arms"]), set(PRE.ARMS))
+        for name in ("view_gru", "hgb", "lr", "request_gru"):
+            arm = self.sel["arms"][name]
+            self.assertTrue(arm["probe_gate_pass"], name)
+            self.assertEqual(arm["probes"]["gate"], list(PRE.load()["probes"]["gate_v2"]))
+            self.assertIn("operating_point", arm)
+        self.assertEqual(self.sel["arms"]["gru_shuffled"]["operating_point"],
+                         self.sel["arms"]["view_gru"]["operating_point"])
+
+    def test_the_packages_carry_their_level(self):
+        import l7_scorer as S
+        self.assertEqual(S.L7Scorer.load(os.path.join(self.out, "view_gru"), level="view").max_views,
+                         PRE.load()["views"]["max_views"])
+        self.assertEqual(S.L7Scorer.load(os.path.join(self.out, "request_gru"), level="request").seq_len,
+                         PRE.load()["request_level"]["seq_len"])
+
+    def test_the_selection_file_is_frozen(self):
+        with open(os.path.join(self.out, "selection.sha256"), encoding="utf-8") as fh:
+            self.assertEqual(fh.read().split()[0], self.sha)
+        sel = V.load_selection(os.path.join(self.out, "selection.json"), self.sha)
+        self.assertEqual((sel["format"], sel["valid_for_claims"]), ("l7v2-selection/1", False))
+        self.assertEqual(sel["prereg_sha256"], V._sha_file(PRE.PREREG_PATH))
+        with self.assertRaises(V.SelectionError):
+            V.load_selection(os.path.join(self.out, "selection.json"), "f" * 64)
+        with self.assertRaises(V.SelectionError):
+            V.load_selection(os.path.join(self.out, "selection.json"), None)
+
+    def test_an_altered_artifact_is_refused(self):
+        tmp = os.path.join(self.dir, "copy")
+        shutil.copytree(self.out, tmp)
+        with open(os.path.join(tmp, "hgb.pkl"), "ab") as fh:
+            fh.write(b"x")
+        with self.assertRaises(V.SelectionError):
+            V.load_selection(os.path.join(tmp, "selection.json"), self.sha)
+
+    def test_score_applies_the_frozen_points(self):
+        ev = V.Split([population("e1", seed=9)])
+        sel = V.load_selection(os.path.join(self.out, "selection.json"), self.sha)
+        res = V.score(ev, sel, os.path.join(self.out, "selection.json"), os.path.join(self.dir, "eval"))
+        self.assertEqual(set(res["arms"]), set(PRE.ARMS))
+        for arm in res["arms"].values():
+            self.assertEqual(arm["attack_entities"], 4)
+            self.assertEqual(set(arm["by_family"]), {"C3b@M1"})
+        with open(os.path.join(self.dir, "eval", "eval.json"), encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh)["selection_sha256"], self.sha)
+
+
+if __name__ == "__main__":
+    unittest.main()
