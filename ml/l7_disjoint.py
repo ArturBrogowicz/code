@@ -15,7 +15,8 @@ Each failure starts with its rule number:
    6  an evaluation capture started before the last training capture ended
    7  the generator commit differs within a dataset version
    8  a file's size or sha256 does not match its manifest
-   9  a held-out kind or family occurs in a training or validation capture
+   9  a held-out kind or family occurs in a training or validation capture, by its flag or by the frozen held-out
+      lists (frozen_held_out()); or an entity's held_out flag disagrees with those lists, in any split
   10  the split file's sha256 differs from the one the selection file records
   11  a capture's seed_role is not the split it is used as, or its seed is not pre-registered for that role
   12  the training or the validation split is empty
@@ -56,6 +57,18 @@ def _sha_file(path):
         for chunk in iter(lambda: fh.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def frozen_held_out():
+    """The held-out kinds and families as frozen in the generators: the legacy lists (ml/l7_traffic) and every P3
+    population (ml/l7_pools). Rule 9 checks the manifests' held_out flags against them."""
+    import l7_pools
+    import l7_traffic
+    names = {s.kind for s in l7_traffic.OVERLAP_KINDS if s.held_out}
+    names |= {a.family for a in l7_traffic.HELDOUT_ATTACKS}
+    for pop in l7_pools.POPULATIONS.values():
+        names |= {s.get("kind") or s.get("family") for s in pop["benign"] + pop["attack"] if s.get("held_out")}
+    return frozenset(names)
 
 
 def load_manifest(dataset_dir):
@@ -135,11 +148,18 @@ def check(splits, *, prereg=None, split_file=None, selection_file=None, verify_f
                         ok = False
                     if not ok:
                         fails.append(f"8 {d}: {f['path']} does not match its manifest")
-    for s in ("train", "val"):
+    frozen = frozen_held_out()
+    for s in SPLITS:
         for d, m in loaded[s]:
-            held = sorted({e["kind_or_family"] for e in m["entities"] if e["held_out"]})
-            if held:
-                fails.append(f"9 {d} ({s}) holds held-out kinds or families: {held}")
+            if s in ("train", "val"):
+                held = sorted({e["kind_or_family"] for e in m["entities"]
+                               if e["held_out"] or e["kind_or_family"] in frozen})
+                if held:
+                    fails.append(f"9 {d} ({s}) holds held-out kinds or families: {held}")
+            wrong = sorted({e["kind_or_family"] for e in m["entities"]
+                            if e["kind_or_family"] in frozen and e["held_out"] is not True})
+            if wrong:
+                fails.append(f"9 {d} ({s}): held_out flag false for frozen held-out {wrong}")
     for s in SPLITS:
         for d, m in loaded[s]:
             for e in m["entities"]:

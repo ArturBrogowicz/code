@@ -50,6 +50,7 @@ TOP_KEYS_V2 = ("format", "schema", "dataset_version", "capture_id", "seed", "see
 VERSION_RE = re.compile(r"^\d{4}-\d{2}-[a-z0-9][a-z0-9.-]{0,40}$")
 HEX64_RE = re.compile(r"^[0-9a-f]{64}$")
 HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
+UTC_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 # Schema 2 maps one address to one entity for the whole capture. Two entities on one address (a CGNAT pool's users,
 # the M3 phase reusing C2's addresses) need schema 3's time-indexed entity-address map (feat/l7v2-traffic).
 NEEDS_SCHEMA_3 = "address reuse needs schema 3 (a time-indexed entity-address map; feat/l7v2-traffic)"
@@ -242,9 +243,16 @@ def manifest_problems(m):
         probs.append("seed is not an int")
     if m["seed_role"] not in SEED_ROLES:
         probs.append(f"seed_role {m['seed_role']!r} not in {SEED_ROLES}")
+    stamps = {}
     for k in ("started_utc", "ended_utc"):
-        if not isinstance(m[k], str) or not m[k]:
-            probs.append(f"{k} missing")
+        try:
+            stamps[k] = time.strptime(m[k], "%Y-%m-%dT%H:%M:%SZ") if UTC_RE.match(str(m[k])) else None
+        except ValueError:
+            stamps[k] = None
+        if stamps[k] is None:
+            probs.append(f"{k} {m[k]!r} is not %Y-%m-%dT%H:%M:%SZ")
+    if None not in stamps.values() and stamps["ended_utc"] < stamps["started_utc"]:
+        probs.append("ended_utc is before started_utc")
     code = m["code"] if isinstance(m["code"], dict) else {}
     if not HEX40_RE.match(str(code.get("commit"))):
         probs.append("code.commit is not a git commit")
@@ -300,6 +308,9 @@ def manifest_problems(m):
         if not (isinstance(f, dict) and HEX64_RE.match(str(f.get("sha256")))
                 and isinstance(f.get("size"), int)):
             probs.append(f"file record incomplete: {f}")
+        elif not (isinstance(f.get("path"), str) and f["path"] == os.path.basename(f["path"])
+                  and f["path"] not in ("", ".", "..")):
+            probs.append(f"file path {f.get('path')!r} is not a plain name inside the capture directory")
     if m["plan_set_sha256"] != plan_set_sha256(ents):
         probs.append("plan_set_sha256 does not match the entities")
     if m["manifest_sha256"] != manifest_sha256(m):

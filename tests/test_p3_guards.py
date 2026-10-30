@@ -50,6 +50,37 @@ class InvalidCaptureTest(GuardFixture):
         self.assertEqual(self.rules(self.splits()), set())
 
 
+class FailClosedGapsTest(GuardFixture):
+    """Review T-029 P3-08: timestamps, file paths and held-out flags are checked, not trusted."""
+
+    def manifest(self, seed=1001, **kw):
+        return FX.capture(self.vdir, V, seed, "train", FX.entities(V, seed), **kw)[1]
+
+    def test_timestamps_must_be_utc_iso_and_ordered(self):
+        for start, end in (("2026-11-02 10:00", "2026-11-02T10:15:00Z"), ("2026-11-02T10:00:00Z", "tomorrow"),
+                           ("2026-11-02T10:00:00Z", "2026-11-02T09:59:59Z"), ("2026-13-02T10:00:00Z", LATE[1])):
+            m = self.manifest()
+            m.update(started_utc=start, ended_utc=end)
+            probs = D.manifest_problems(FX.resign(m))
+            self.assertTrue(any("utc" in p for p in probs), (start, end, probs))
+
+    def test_file_paths_stay_inside_the_capture(self):
+        for path in ("../s1002/access.log.gz", "/etc/passwd", "sub/access.log.gz", ".."):
+            m = self.manifest()
+            m["files"][1] = dict(m["files"][1], path=path)
+            probs = D.manifest_problems(FX.resign(m))
+            self.assertTrue(any("plain name" in p for p in probs), (path, probs))
+
+    def test_held_out_flags_are_checked_against_the_frozen_lists(self):
+        self.assertTrue({"api_bulk", "padded_flood", "credstuff", "slowread"} <= X.frozen_held_out())
+        ents = FX.entities(V, 1002, kinds=("browse", "api_bulk"))       # flag false, kind frozen as held out
+        s = self.splits(train=[self.cap(1002, "train", ents)])
+        self.assertEqual(self.rules(s), {"9"})
+        ev = FX.entities(V, 3202, families=("f_a", "credstuff"))
+        s = self.splits(eval=[self.cap(3202, "eval", ev, started=LATE[0], ended=LATE[1])])
+        self.assertEqual(self.rules(s), {"9"})
+
+
 class AddressReuseTest(GuardFixture):
     def test_two_entities_on_one_address_need_schema_3(self):
         ents = FX.entities(V, 1001)
