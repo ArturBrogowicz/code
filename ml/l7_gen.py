@@ -34,6 +34,7 @@ import sys
 import time
 
 import l7_benign  # ml/ is the script's directory, so it is on sys.path
+import l7_bots
 
 TESTBED_NET = ipaddress.ip_network("10.0.0.0/16")
 UAS = [
@@ -265,17 +266,23 @@ def _browser_device(base, user, start, end):
 
 
 def _paced_user(base, user, end):
+    """Issue each request, then wait its gap; an L7 v2 item (path, gap, referer) also sends its Referer."""
     with _session(user["ua"], 1) as sess:
-        for path, gap in user["requests"]:
+        for item in user["requests"]:
+            path, gap = item[0], item[1]
             if time.time() >= end:
                 break
-            _quiet_get(sess, base + path)
+            _quiet_get(sess, base + path, _referer(base, item[2]) if len(item) > 2 else None)
             time.sleep(max(0.0, min(gap, end - time.time())))
 
 
 def _run_plan(kind, host, port, params, dur, rng):
+    _run_users(l7_benign.plan_client(kind, params, dur, rng), host, port, dur)
+
+
+def _run_users(plan, host, port, dur):
+    """Run every user of a plan in its own thread: browser devices or paced users."""
     import threading
-    plan = l7_benign.plan_client(kind, params, dur, rng)
     base, start = _base(host, port), time.time()
     end = start + dur
     targets = [(_browser_device, (base, u, start, end)) if "views" in u
@@ -324,6 +331,15 @@ def benign_flash_crowd(host, port, params, dur, rng):
 
 
 # ───────────────────────────── attack families ─────────────────────────────
+
+def _bot(family):
+    """The generator of an L7 v2 class (ml/l7_bots.py, docs/L7V2_DESIGN.md §7.1): its seeded plan, executed by the
+    same paced-user and browser-device machinery as the benign plans."""
+    def run(host, port, params, dur, rng):
+        _run_users(l7_bots.plan_bot(family, params, dur, rng), host, port, dur)
+    run.__name__ = run.__qualname__ = "attack_" + family.replace("@", "_").lower()
+    return run
+
 
 def attack_rate_get(host, port, params, dur, rng, path_fn=None, extra_headers=None):
     """Rate-bounded GETs at params['rps'] (< the daemon's ban threshold)."""
@@ -485,7 +501,8 @@ BENIGN = {"curl_oneshot": benign_curl_oneshot, "http2": benign_http2,
 ATTACK = {"subthreshold_flood": attack_subthreshold_flood, "scraper": attack_scraper,
           "padded_flood": attack_padded_flood, "credstuff": attack_credstuff,
           "slowloris": attack_slowloris, "slowpost": attack_slowpost,
-          "slowread": attack_slowread, "volumetric_flood": attack_volumetric_flood}
+          "slowread": attack_slowread, "volumetric_flood": attack_volumetric_flood,
+          **{family: _bot(family) for family in l7_bots.FAMILIES}}
 
 
 def resolve(role, name):
