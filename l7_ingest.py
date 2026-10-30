@@ -262,6 +262,77 @@ class L7WindowStore:
                 "full_windows": full}
 
 
+V2_IDLE_TIMEOUT = 300.0      # s; L7 v2 sessions (ml/l7v2_model_prereg.json ingest.idle_timeout_s)
+V2_MAX_RECORDS = 2048        # records kept per v2 key at most (engine.max_records_per_key)
+V2_MAX_VIEWS = 32            # view tokens a v2 window holds (views.max_views)
+V2_PAGE_CLASSES = ("C1",)    # the route classes that open a view (site_map.page)
+
+
+class L7KeyStore:
+    """L7 v2: per (IP, ua_hash, sid_hash) key, the key's records in arrival order, for the view engine.
+
+    The engine prunes a key to the history its next windows need (prune_before); a record that started before a
+    key's pruning point is dropped on arrival (`late`), so a pruned key never grows a spurious token at its front.
+    At most `max_records` records are kept per key (the oldest go first, counted as `truncated`). Idle keys are
+    evicted as in L7WindowStore. Tokens are counted on arrival (a page request, or any request before the key's
+    first page, opens one) for the `full_windows` statistic only.
+    """
+
+    def __init__(self, idle_timeout=V2_IDLE_TIMEOUT, max_records=V2_MAX_RECORDS, max_views=V2_MAX_VIEWS):
+        self.idle_timeout = idle_timeout
+        self.max_records = max_records
+        self.max_views = max_views
+        self._recs = {}
+        self._last_seen = {}
+        self._cut = {}
+        self._opened = {}
+        self.late = self.truncated = 0
+
+    def add(self, rec, now=None):
+        """Append a record; return its key. `now` defaults to the record's msec."""
+        key = key_v2(rec)
+        if rec["msec"] - rec["rt"] < self._cut.get(key, float("-inf")):
+            self.late += 1
+            return key
+        seq = self._recs.setdefault(key, [])
+        seq.append(rec)
+        if len(seq) > self.max_records:
+            del seq[:len(seq) - self.max_records]
+            self.truncated += 1
+        tokens, page_seen = self._opened.get(key, (0, False))
+        is_page = rec.get("rc") in V2_PAGE_CLASSES
+        if is_page or not page_seen:
+            self._opened[key] = (tokens + 1, page_seen or is_page)
+        self._last_seen[key] = now if now is not None else rec.get("msec") or time.time()
+        return key
+
+    def records(self, key):
+        return self._recs.get(key, [])
+
+    def prune_before(self, key, start):
+        """Drop the key's records that started before `start`, and drop later arrivals that did."""
+        seq = self._recs.get(key)
+        if seq is not None:
+            seq[:] = [r for r in seq if r["msec"] - r["rt"] >= start]
+            self._cut[key] = start
+
+    def evict_keys(self, now):
+        """Drop keys idle for longer than idle_timeout. Return the dropped keys."""
+        stale = [k for k, ts in self._last_seen.items() if now - ts > self.idle_timeout]
+        for key in stale:
+            for d in (self._recs, self._last_seen, self._cut, self._opened):
+                d.pop(key, None)
+        return stale
+
+    def evict(self, now):
+        return len(self.evict_keys(now))
+
+    def stats(self):
+        full = sum(1 for n, _ in self._opened.values() if n - 1 >= self.max_views)
+        return {"active_keys": len(self._recs), "distinct_ips": len({k[0] for k in self._recs}),
+                "full_windows": full, "late_dropped": self.late, "truncated": self.truncated}
+
+
 class SyslogDatagramReader:
     """Bind a Unix-domain datagram socket and yield raw access-log datagrams.
 
