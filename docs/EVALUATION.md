@@ -267,6 +267,9 @@ Known limits:
   failed or re-baseline poll neither extends nor resets the SlowConn and low-SYN streaks.
 * The R.U.D.Y. pattern takes the last `client: <IPv4>` of a line (a separate finding, not changed here). A
   capture that is not an IP address fails its ban, so the thread restarts on each such line.
+* Because `ml/eval_l7.py` stops the daemon with SIGTERM, which is now graceful, its `l7_gru_poll` totals
+  (summed over every record, `ml/eval_l7.py:162-164`) may include one extra, final poll, so compare them
+  with P5/P5c with that caveat (D-04).
 
 ## Outputs of a run (`RESULTS_DIR`)
 
