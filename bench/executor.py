@@ -62,11 +62,31 @@ CLIENT_IF = "veth_in"                     # the client end of every client names
 SERVER_VETH_HOST_END = "veth_srv_br"
 NS_PREFIX = "hg_"                         # this runner's namespaces; the suite's cleanup does not know them
 KINDS = ("C", "Cp", "U")
+MITIGATED = "M_"                          # a protected run is M_<mode> (eval/harm_gate.py reads its role from the name)
+# the protected arms (HG4, docs/HG1C_DESIGN.md 15): U's attack against a protected stack. Each mode's Nginx configuration, and the
+# backend its daemon (control_plane.py) bans with, or None for no daemon
+MODES = {"limits": {"conf": "nginx.conf", "daemon": None}, "xdp": {"conf": "nginx.conf", "daemon": "xdp"}}
+MODE_TEXT = {"limits": "nginx.conf's limits (limit_req and limit_conn per address), no daemon",
+             "xdp": "nginx.conf's limits, and control_plane.py banning into XDP (MITIGATION_BACKEND=xdp, XDP_GRU=0)"}
+RESERVED_MODES = ("l7shadow", "l7")       # the L7 GRU's arms (G12): named now, refused until L7 v2 is built
+MITIGATED_KINDS = tuple(MITIGATED + m for m in MODES)
 NGINX_CONF = os.path.join(REPO, "nginx_unprotected.conf")
 CERT, KEY = "/etc/ssl/certs/nginx-selfsigned.crt", "/etc/ssl/private/nginx-selfsigned.key"
 GUNICORN = {"workers": 2, "threads": 8, "bind": "127.0.0.1:8080", "app": "origin:app"}
 ORIGIN_SEED = 1
-KINDS_OF_RUN = {"C": "control", "Cp": "placebo", "U": "attack"}
+KINDS_OF_RUN = {"C": "control", "Cp": "placebo", "U": "attack", **{k: "mitigated" for k in MITIGATED_KINDS}}
+DAEMON = os.path.join(REPO, "control_plane.py")
+# the daemon reads the host's default Nginx logs (control_plane.py NGINX_LOG_FILE and NGINX_ERROR_LOG), and every run has its own: with
+# a daemon, Nginx writes both, the run's first and this feed beside it (several access_log and error_log lines may stand at one level)
+FEED_ACCESS_LOG, FEED_ERROR_LOG = "/var/log/nginx/ddos_ml_access.log", "/var/log/nginx/error.log"
+# every other variable the daemon reads, set, so that nothing of the operator's environment reaches it (GRU_ONLY=1 there would turn
+# its rules off); MITIGATION_BACKEND and BAN_EVENTS are the mode's and the run's. L7_SOCKET_PATH is read only with L7_SHADOW=1
+DAEMON_ENV = (("XDP_GRU", "0"), ("GRU_ONLY", "0"), ("L7_SHADOW", "0"), ("HEURISTIC_PROFILE", "default"), ("L7_MODEL", ""),
+              ("L7_RECORD", ""))
+DAEMON_READY_LINE = "Listening for Nginx logs"      # what the daemon prints last before its loop; the suite waits for it too
+DAEMON_READY_TIMEOUT_S = 60.0             # the suite's wait for the daemon's first start (test_distributed_suite.start_server_services)
+DAEMON_STOP_GRACE_S = 10.0                # SIGINT runs the daemon's finally, which detaches XDP; KILL after this
+XDP_DEVICE = "veth_server"                # where the daemon attaches its program: the server's end of its veth pair
 READY_PATH = O.SAMPLE_URLS["C0"]          # the origin has no route at "/": it answers 404 there
 # recorded in every plan. The attack's start-up delay and the exit delay per request are what S1 and S1b measured on loopback, without
 # namespaces (docs/HG1C_DESIGN.md 14). The legit start-up delay is S4's, with the real launch chain: the attack began 0.32 s early on 2.5 s,
@@ -128,6 +148,21 @@ class Write:
 
 
 @dataclasses.dataclass(frozen=True)
+class Daemon:
+    """The mitigation daemon of a protected run: started in `ns` from the checkout (`cwd`) once the stack is ready, held by its
+    handle, ready when it says it listens, has written its start event to `events` and (with XDP) has attached its program; stopped
+    with SIGINT, which runs its finally."""
+    argv: tuple
+    ns: str
+    env: tuple
+    cwd: str
+    backend: str
+    events: str                      # the run's ban_events.jsonl
+    log: str                         # its stdout and stderr: daemon.log
+    purpose: str = ""
+
+
+@dataclasses.dataclass(frozen=True)
 class Namespace:
     name: str
     index: int
@@ -178,6 +213,9 @@ class RunPlan:
     overrides: dict                  # what a smoke test changed (rho, timeline, timer limit); empty in a real run
     timer_limit_ms: float            # the run is refused if the timer on the legit CPU has p99 of this or more: the calibration's
                                      # validity.timer_p99_ms, unless a smoke test set it (overrides["timer_limit_ms"])
+    mode: object = None              # None for C, Cp and U; `limits` or `xdp` for a protected run
+    nginx_source: str = "nginx_unprotected.conf"      # the configuration of the repository that was rendered
+    daemon: object = None            # a Daemon, for a mode that has one
 
 
 # --- names -------------------------------------------------------------------------------------
@@ -208,14 +246,19 @@ ACCESS_LOG = re.compile(r"^([ \t]*)access_log[ \t]+/var/log/nginx/ddos_ml_access
 ERROR_LOG = re.compile(r"^([ \t]*)error_log[ \t]+/var/log/nginx/error\.log[ \t]+info;[ \t]*$", re.MULTILINE)
 
 
-def render_nginx_conf(text, access_log, error_log):
-    """`nginx_unprotected.conf` with only its two log paths changed: the stack of every earlier campaign, and a log
-    that belongs to this run. A file that does not have exactly these two lines is refused, not guessed at."""
+def render_nginx_conf(text, access_log, error_log, feed=False):
+    """`nginx_unprotected.conf` (or a protected run's `nginx.conf`) with only its two log paths changed: the stack of every earlier
+    campaign, and a log that belongs to this run. With `feed` (a mode with a daemon) each line is kept as well, after the run's: the
+    daemon reads the host's default logs, so Nginx writes both. A file that does not have exactly these two lines is refused, not
+    guessed at."""
     for pattern, what in ((ACCESS_LOG, "access_log"), (ERROR_LOG, "error_log")):
         if len(pattern.findall(text)) != 1:
             raise PlanError(f"nginx configuration: expected exactly one {what} line of the host's default path")
-    text = ACCESS_LOG.sub(lambda m: f"{m.group(1)}access_log {access_log} json_ml_format;", text)
-    return ERROR_LOG.sub(lambda m: f"{m.group(1)}error_log {error_log} info;", text)
+
+    def keep(m):
+        return f"\n{m.group(0).strip(chr(10))}" if feed else ""
+    text = ACCESS_LOG.sub(lambda m: f"{m.group(1)}access_log {access_log} json_ml_format;{keep(m)}", text)
+    return ERROR_LOG.sub(lambda m: f"{m.group(1)}error_log {error_log} info;{keep(m)}", text)
 
 
 # --- steps -------------------------------------------------------------------------------------
@@ -235,15 +278,21 @@ def topology_steps(namespaces):
     return tuple(steps)
 
 
-def stack_steps(out, calibration_path, python, pins, conf_sha256, bench=None):
-    """The server stack in `server_ns`: the origin under gunicorn, then Nginx on the rendered configuration."""
+def stack_steps(out, calibration_path, python, pins, conf_sha256, bench=None, conf_name="nginx_unprotected.conf", feed=False):
+    """The server stack in `server_ns`: the origin under gunicorn, then Nginx on the rendered configuration (`conf_name` of the
+    repository; with `feed`, the daemon's feed beside the run's logs, emptied first)."""
     bench = bench or HERE
     pin = ("taskset", "-c", pins["server"])
     env = (("ORIGIN_CALIBRATION", calibration_path), ("ORIGIN_SEED", str(ORIGIN_SEED)))
+    feed_steps = (Cmd(("truncate", "-s", "0", FEED_ACCESS_LOG, FEED_ERROR_LOG),
+                      purpose="the daemon's feed (the host's default Nginx logs): emptied, so that this run's daemon reads this run"),
+                  ) if feed else ()
     return (
         Mkdir((out, f"{out}/streams"), "the run directory"),
-        Write(f"{out}/nginx.conf", conf_sha256, "nginx_unprotected.conf with its two log paths changed"),
+        Write(f"{out}/nginx.conf", conf_sha256, f"{conf_name} with its two log paths changed"
+              + (", and the daemon's feed beside them" if feed else "")),
         Cmd(("mkdir", "-p", "/var/log/nginx"), purpose="Nginx opens its compiled-in log path at start-up"),
+        *feed_steps,
         Cmd(("openssl", "req", "-x509", "-nodes", "-days", "365", "-newkey", "rsa:2048", "-keyout", KEY, "-out", CERT,
              "-subj", "/C=PL/ST=Masovian/L=Warsaw/O=PoC/CN=twojadomena.pl"), when=f"absent:{CERT}",
             purpose="the configuration listens on 443 with the suite's self-signed certificate"),
@@ -257,6 +306,15 @@ def stack_steps(out, calibration_path, python, pins, conf_sha256, bench=None):
         Cmd((*pin, "nginx", "-c", f"{out}/nginx.conf"), SERVER_NS, detach=True,
             purpose="Nginx daemonises: started like the origin, with no pipe for it to hold, and found again by namespace"),
     )
+
+
+def daemon_plan(out, python, pins, backend):
+    """control_plane.py of a protected run: in `server_ns` on the daemon's CPU, from the checkout (its model, its scaler and its XDP
+    source are relative paths), banning with `backend`, its events in the run's ban file, every other variable it reads set."""
+    events = f"{out}/ban_events.jsonl"
+    return Daemon(("taskset", "-c", pins["daemon"], python, "-u", DAEMON), SERVER_NS,
+                  (("MITIGATION_BACKEND", backend), ("BAN_EVENTS", events), *DAEMON_ENV), REPO, backend, events, f"{out}/daemon.log",
+                  "the mitigation daemon, held by its handle; its ban state is this run's alone (a new process in a new namespace)")
 
 
 def check_paths():
@@ -288,18 +346,33 @@ def _legit_hash(streams):
     return _sha(json.dumps(rows, sort_keys=True, separators=(",", ":")))
 
 
+def mode_of(kind):
+    """The mode of a run's kind: None for C, Cp and U, `limits` or `xdp` for M_limits and M_xdp. The L7 GRU's modes are named and
+    refused until they are built; anything else is not a kind."""
+    if kind in KINDS:
+        return None
+    mode = kind[len(MITIGATED):] if kind.startswith(MITIGATED) else None
+    if mode in MODES:
+        return mode
+    if mode in RESERVED_MODES:
+        raise PlanError(f"{kind}: not built yet. The L7 GRU's arms ({', '.join(MITIGATED + m for m in RESERVED_MODES)}) wait for "
+                        f"L7 v2; the protected arms built are {', '.join(MITIGATED_KINDS)}")
+    raise PlanError(f"kind: one of {', '.join(KINDS + MITIGATED_KINDS)}, got {kind!r}")
+
+
 def plan_run(scn, cal, kind, seed, out, calibration_path, scenario_sha256="", manifest=None, root=None, settings=None,
              python=None, rho=None, timeline=None, timer_limit_ms=None):
     """Everything a run will do, as data. `scn` is a bench/scenario.Scenario, `cal` a calibration record read from
-    `calibration_path`, `kind` one of C, Cp and U, `out` the run's directory, which must be called after its kind (the
-    gate reads the role from the name). `rho` replaces the nominal load, `timeline` (baseline, attack, recovery seconds)
-    the scenario's, and `timer_limit_ms` the calibration's limit for the timer of the legit CPU, for a smoke test; all
-    three are recorded as overrides, and the harm gate gives no verdict on runs that carry any."""
-    if kind not in KINDS:
-        raise PlanError(f"kind: one of {', '.join(KINDS)}, got {kind!r}")
+    `calibration_path`, `kind` one of C, Cp, U and the protected M_<mode>, `out` the run's directory, which must be called after
+    its kind (the gate reads the role from the name). A protected run is U's attack against its mode's stack. `rho` replaces the
+    nominal load, `timeline` (baseline, attack, recovery seconds) the scenario's, and `timer_limit_ms` the calibration's limit for
+    the timer of the legit CPU, for a smoke test; all three are recorded as overrides, and the harm gate gives no verdict on runs
+    that carry any."""
+    mode = mode_of(kind)
     if os.path.basename(os.path.normpath(out)) != kind:
         raise PlanError(f"the run directory of a {kind} run is called {kind}, not {os.path.basename(os.path.normpath(out))!r}")
-    if kind == "U" and scn.is_control:
+    attack = kind == "U" or mode is not None
+    if attack and scn.is_control:
         raise PlanError(f"{scn.id} is attack-free: it has no attack run")
     overrides = {}
     if rho is not None:
@@ -316,18 +389,18 @@ def plan_run(scn, cal, kind, seed, out, calibration_path, scenario_sha256="", ma
             raise PlanError(f"timer_limit_ms: a positive number of milliseconds, got {timer_limit_ms!r}")
         overrides["timer_limit_ms"] = timer_limit_ms
     try:
-        pop, level = SC.population_of(scn, cal, seed, attack=kind == "U", rho=rho)
+        pop, level = SC.population_of(scn, cal, seed, attack=attack, rho=rho)
     except SC.ScenarioError as exc:
         raise PlanError(str(exc)) from exc
     return plan_population(pop, scn.id, kind, seed, out, cal, calibration_path, scn.timeline, level, scenario_sha256, manifest,
-                           root, settings, python, overrides)
+                           root, settings, python, overrides, mode=mode)
 
 
 def plan_population(pop, scenario, kind, seed, out, cal, calibration_path, timeline, level=None, scenario_sha256="",
-                    manifest=None, root=None, settings=None, python=None, overrides=None):
+                    manifest=None, root=None, settings=None, python=None, overrides=None, mode=None):
     """The plan of a run of a population that is drawn already: plan_run's for a scenario's, and bench/calibrate.py's for the
     staged load of the capacity probe and the legit probes. `timeline` is the population's population.Timeline; a stream is
-    launched so that its loop starts at its `start_s` on the run's axis (launch_due)."""
+    launched so that its loop starts at its `start_s` on the run's axis (launch_due). `mode` is a protected run's (MODES)."""
     out = os.path.abspath(out) if not os.path.isabs(out) else out
     python = python or os.path.join(REPO, "venv", "bin", "python")
     pins = P.PIN_PLAN
@@ -335,8 +408,10 @@ def plan_population(pop, scenario, kind, seed, out, cal, calibration_path, timel
     namespaces = tuple(Namespace(ns_name(spec), spec.index, spec.netem, tuple(aliases[spec.index]))
                        for spec in pop.namespaces if spec.index in aliases)
     by_index = {ns.index: ns for ns in namespaces}
-    with open(NGINX_CONF, encoding="utf-8") as fh:
-        conf = render_nginx_conf(fh.read(), f"{out}/nginx_access.log", f"{out}/nginx_error.log")
+    source = NGINX_CONF if mode is None else os.path.join(REPO, MODES[mode]["conf"])
+    backend = None if mode is None else MODES[mode]["daemon"]
+    with open(source, encoding="utf-8") as fh:
+        conf = render_nginx_conf(fh.read(), f"{out}/nginx_access.log", f"{out}/nginx_error.log", feed=backend is not None)
     conf_sha256 = _sha(conf)
     streams = []
     for s in pop.streams:
@@ -354,10 +429,14 @@ def plan_population(pop, scenario, kind, seed, out, cal, calibration_path, timel
         calibration_path=os.path.abspath(calibration_path),
         timeline=dataclasses.asdict(timeline) | {"total_s": timeline.total_s}, level=level,
         namespaces=namespaces, topology=topology_steps(namespaces),
-        stack=stack_steps(out, os.path.abspath(calibration_path), python, pins, conf_sha256), checks=check_paths(),
+        stack=stack_steps(out, os.path.abspath(calibration_path), python, pins, conf_sha256, conf_name=os.path.basename(source),
+                          feed=backend is not None),
+        checks=check_paths(),
         streams=tuple(streams), teardown=teardown_steps(namespaces), nginx_conf=conf, nginx_conf_sha256=conf_sha256,
         plan_sha256=_legit_hash(pop.of_kind("legit")), settings={**SETTINGS, **(settings or {})},
-        overrides=overrides or {}, timer_limit_ms=(overrides or {}).get("timer_limit_ms", cal["validity"]["timer_p99_ms"]))
+        overrides=overrides or {}, timer_limit_ms=(overrides or {}).get("timer_limit_ms", cal["validity"]["timer_p99_ms"]),
+        mode=mode, nginx_source=os.path.basename(source),
+        daemon=daemon_plan(out, python, pins, backend) if backend else None)
 
 
 # --- the plan as data and as text --------------------------------------------------------------
@@ -451,7 +530,9 @@ def describe(plan, python=None):
            *([f"OVERRIDES     {plan.overrides}: a smoke test, not a result"] if plan.overrides else []),
            f"timer gate    refused if the timer on CPU {P.PIN_PLAN['legit']} has p99 of {plan.timer_limit_ms:g} ms or more "
            + ("(set by --timer-limit-ms)" if "timer_limit_ms" in plan.overrides else "(the calibration's validity.timer_p99_ms)"),
-           f"nginx.conf    sha256:{plan.nginx_conf_sha256[:12]} (nginx_unprotected.conf with its two log paths changed)",
+           f"nginx.conf    sha256:{plan.nginx_conf_sha256[:12]} ({plan.nginx_source} with its two log paths changed"
+           + (", and the daemon's feed beside them)" if plan.daemon else ")"),
+           *([f"mode          {plan.mode}: {MODE_TEXT[plan.mode]}"] if plan.mode else []),
            "settings      " + ", ".join(f"{k} {v}" for k, v in plan.settings.items()), ""]
     n_aliases = sum(len(n.addresses) for n in plan.namespaces)
     out.append(f"topology: {len(plan.namespaces)} client namespaces carrying {n_aliases} addresses")
@@ -464,6 +545,15 @@ def describe(plan, python=None):
     out.append(f"  ready: HTTP 200 from {HTTP_URL[:-1]}{READY_PATH}, and each route answers with its own X-Route-Class: "
                + ", ".join(f"{k} {p}" for k, p in plan.checks))
     out.append(f"  warm-up: {plan.settings['warmup_requests']} requests per route from {SERVER_NS}")
+    if plan.daemon:
+        d = plan.daemon
+        out += ["", (f"daemon in {SERVER_NS}, started after the warm-up and held by its handle ({DAEMON_READY_TIMEOUT_S:g} s at most to "
+                     f"be ready), in {_shown(d.cwd, python)}, its output in {_shown(d.log, python)}:"),
+                "    " + " ".join(f"{k}={_shown(v, python)}" for k, v in d.env) + " " + " ".join(_shown(a, python) for a in d.argv),
+                f"  ready: it says '{DAEMON_READY_LINE}', its start event is in {os.path.basename(d.events)}"
+                + (f", and an XDP program is attached to {XDP_DEVICE}" if d.backend == "xdp" else ""),
+                (f"  stopped after the timeline with SIGINT (its finally detaches XDP), KILL after {DAEMON_STOP_GRACE_S:g} s, then "
+                 f"`ip link set dev {XDP_DEVICE} xdp off`; the teardown also looks for XDP programs and the daemon's maps left loaded")]
     out += ["", f"streams: {len(plan.streams)} engine processes ({len(legit)} legit, {len(attack)} attack)"]
     rows = [("id", "ns", "vCPU", "rate", "start", "duration", "nofile")]
     for s in plan.streams:
@@ -1886,7 +1976,8 @@ def _plan_from_args(args):
 def _add_plan_args(p, kind_required=True):
     p.add_argument("spec", help="a scenario record (bench/scenarios/*.json)")
     p.add_argument("--calibration", default=C.PLACEHOLDER, help="calibration record (default: the placeholder)")
-    p.add_argument("--kind", choices=KINDS, required=kind_required, default="C")
+    p.add_argument("--kind", choices=KINDS + MITIGATED_KINDS + tuple(MITIGATED + m for m in RESERVED_MODES), required=kind_required,
+                   default="C", help="C, Cp, U, or a protected run M_<mode> (M_l7shadow and M_l7 are not built yet)")
     p.add_argument("--seed", type=int, default=None, help="the block's seed (default: the scenario's first)")
     p.add_argument("--out", help="the run directory (named after its kind)")
     p.add_argument("--rho", type=float, default=None, help="smoke test: the benign load in requests/s, instead of the calibration's")
