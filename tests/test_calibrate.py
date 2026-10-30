@@ -4,6 +4,7 @@ find can be compared with what the model says they are. Nothing here needs root 
 for the steps of docs/HG1C_DESIGN.md 10."""
 import contextlib
 import copy
+import inspect
 import io
 import json
 import math
@@ -25,6 +26,8 @@ import calibration_fixtures as CF
 import executor as X
 import gate_campaign as GC
 import harm_gate as H
+import loadtool_validate as V
+import origin as O
 import population as P
 import scenario as SC
 import sim_host as S
@@ -1186,6 +1189,71 @@ class CommandLineTest(unittest.TestCase):
         code, out, _ = self.cli("origin-session", "--repeats", "3")
         self.assertEqual(code, K.EXIT_OK)
         self.assertEqual(sorted(json.loads(out)), ["C0", "C1", "C2", "C3", "C5"])
+
+
+class RulesPinnedTest(unittest.TestCase):
+    """The rules and thresholds of the calibration and of the runs, as they stood when the origin step's measurement was changed
+    after HG2b's stops (docs/HG1C_DESIGN.md departures 28 and 29). That change is to how a route is timed and when the step may
+    start, not to what the step accepts: the 10 % rule, its three sessions of 21 repeats, its one retry, the 25 % of the origin's
+    start-up self-check, the environment gate and every other threshold stay as they were. A failure here means one of them moved,
+    which is a decision to be labelled (post hoc, if it follows data), not a measurement fix."""
+
+    def origin(self, noise):
+        """The origin step from the command line on the simulated host, whose sessions disagree by `noise` (cycled): its exit code
+        and how many sessions it made."""
+        host = S.SimHost(origin_costs=dict(TEMPLATE["route_costs_ms"]), origin_noise=noise)
+        out = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, out)
+        with mock.patch.object(X.signal, "signal"), contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()):
+            code = K.main(["origin", "--out", out], host=host)
+        return code, host.origin_calls
+
+    def test_the_origin_rule_is_three_sessions_of_21_repeats_on_cpu_0_within_10_percent(self):
+        self.assertEqual((K.ORIGIN_SESSIONS, K.ORIGIN_REPEATS, K.ORIGIN_SPREAD, K.ORIGIN_CPU), (3, 21, 0.10, "0"))
+
+    def test_a_round_over_the_limit_is_made_once_more_and_a_second_one_stops_the_step(self):
+        self.assertEqual(self.origin((-0.04, 0.0, 0.04)), (K.EXIT_OK, 3), "8 % passes in the first round")
+        self.assertEqual(self.origin((-0.1, 0.0, 0.2, 0.0, 0.01, -0.01)), (K.EXIT_OK, 6), "30 %, then 2 %: one retry")
+        self.assertEqual(self.origin((-0.1, 0.0, 0.2)), (K.EXIT_STOPPED, 6), "30 % twice: it stops after two rounds")
+
+    def test_the_start_up_self_check_of_the_origin_allows_25_percent_over_5_repeats(self):
+        frozen = {k: 1.0 for k in O.CLASSES}
+        self.assertEqual(O.TOLERANCE, 0.25)
+        self.assertEqual(O.self_check({k: 1.24 for k in frozen}, frozen), [])
+        self.assertEqual(O.self_check({k: 0.76 for k in frozen}, frozen), [])
+        self.assertEqual(len(O.self_check({k: 1.26 for k in frozen}, frozen)), 5)
+        self.assertEqual(inspect.signature(O.measure_unloaded).parameters["repeats"].default, 5)
+        small = O.CostKnobs(rows_total=200, page_rows=5, page_burn=5, api_burn=5, search_rows=50, export_rows=20, export_burn=5)
+        with mock.patch.object(O, "measure_unloaded", return_value=dict(frozen)) as measured:
+            O.make_app(small, frozen_costs_ms=frozen).close()
+        self.assertEqual(measured.call_count, 1)
+        self.assertNotIn("repeats", measured.call_args.kwargs, "the self-check takes the default of 5 repeats")
+        self.assertEqual(len(measured.call_args.args), 1)
+
+    def test_the_environment_gate_is_up_30_minutes_and_load_below_0_3(self):
+        self.assertEqual(V.GATE, {"uptime_s": 1800, "load1": 0.3})
+
+    def test_the_thresholds_of_the_other_steps(self):
+        self.assertEqual((K.CAPACITY_REPEATS, K.STEP_S, K.Q_WINDOW), (3, 20.0, (5.0, 17.0)))
+        self.assertEqual((K.HEALTHY_Q, K.SATURATED_Q, K.SATURATED_REPEATS), (99.0, 50.0, 2))
+        self.assertEqual((K.LADDER_REPEATS, K.CONTROL_EVERY, K.CONTROL_SPREAD_PP), (2, 4, 2.0))
+        self.assertEqual((K.PROBE_S, K.PROBE_WINDOW, K.REFERENCE_PROBES), (120.0, (10.0, 120.0), 3))
+        self.assertEqual(K.SEEDS, {"capacity": 11, "ladder": 21, "reference": 31, "drift": 41})
+        self.assertEqual(K.staged_limits(K.STEP_S), {"t0_spread_limit_s": 3.0, "t0_range_limit_s": 3.0, "group_start_limit_s": 3.0})
+
+    def test_the_clock_rules_and_settings_of_a_run(self):
+        self.assertEqual(X.SETTINGS, {
+            "startup_delay_legit_s": 2.9, "startup_delay_attack_s": 0.15, "readiness_timeout_s": 30.0, "warmup_requests": 2,
+            "t0_spread_limit_s": 0.5, "t0_range_limit_s": 2.5, "attack_start_limit_s": 0.5, "group_start_limit_s": 0.5,
+            "term_grace_s": 2.0, "min_nofile": 16384, "exit_delay_per_request_s": 8e-6, "straggler_share": 0.5,
+            "straggler_tail_s": 0.1})
+
+    def test_the_template_with_the_gate_s_floors_is_the_one_hashed_ac4e3156(self):
+        self.assertEqual(TEMPLATE["sha256"], "ac4e3156db5eacb62fad6c39ebd24c9b5943c07662d231ac7070d9ed9d7e0716")
+        self.assertEqual(C.digest(TEMPLATE), TEMPLATE["sha256"])
+        self.assertEqual(TEMPLATE["gate"], {"ci_level": 0.95, "control_q_min": 99.0, "floor_log2_p95": 1.0, "floor_pp": 10.0,
+                                            "max_reruns": 2, "min_blocks": 10, "same_sign_share": 0.8})
 
 
 if __name__ == "__main__":
