@@ -468,15 +468,18 @@ class SimHost(X.Host):
         return X.Result(127, "", f"fake: no such command under taskset: {rest[:1]}")
 
     def _origin_session(self):
-        """One session of the calibrator's step 1: the cost of each route in ms, each session scaled by its own factor of
-        `origin_noise` (cycled), so that sessions can disagree by a known amount."""
+        """One session of the calibrator's step 1, as origin.time_routes reports it: the cost of each route in ms, each session
+        scaled by its own factor of `origin_noise` (cycled), so that sessions can disagree by a known amount, and the batch each
+        route would be timed in at that cost (origin.batch_size)."""
         costs = self.origin_costs or ({k: v * 1000.0 for k, v in self.server.cost.items()} if self.server else
                                       {klass: 1.0 for klass in O.CLASSES})
         factor = 1.0 + self.origin_noise[self.origin_calls % len(self.origin_noise)]
         self.origin_calls += 1
         if self.fault("origin_session_fails"):
             return X.Result(1, "", "Traceback: the simulated session failed")
-        return X.Result(0, json.dumps({k: v * factor for k, v in costs.items()}), "")
+        session = {k: v * factor for k, v in costs.items()}
+        batch = {k: O.batch_size(lambda n, ms=ms: n * ms / 1000.0) for k, ms in session.items()}
+        return X.Result(0, json.dumps({"costs_ms": session, "batch": batch, "clock": "simulated"}), "")
 
     def _cmd_nginx(self, a, ns, stdin, cpus=None):
         """Nginx run to completion with its output captured: the daemon forks and the call, whose pipes it holds, returns at its timeout."""

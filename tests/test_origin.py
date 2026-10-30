@@ -17,6 +17,7 @@ import tempfile
 import threading
 import unittest
 from typing import ClassVar
+from unittest import mock
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "bench"))
@@ -48,6 +49,40 @@ class StepClock:
     def __call__(self):
         self.t += self.step
         return self.t
+
+
+class VirtualClock:
+    """A clock that stands still unless something moves it: a stub's calls move it by their cost, and each read
+    by `read_s` after it has been taken, which is what reading a real clock costs."""
+
+    def __init__(self, read_s=0.0):
+        self.t, self.read_s = 0.0, read_s
+
+    def __call__(self):
+        t = self.t
+        self.t += self.read_s
+        return t
+
+
+# what the routes cost on the VM, roughly (HG2a, docs/HG1C_DESIGN.md 14), in seconds a call
+STUB_COSTS = {"C0": 6e-6, "C1": 4e-3, "C2": 2e-3, "C3": 30e-3, "C5": 190e-3}
+
+
+class Stub:
+    """Routes that cost what `costs` says on a virtual clock; `factor` times as much while the clock is inside
+    `slow` (start, end), a disturbance of the host. It keeps the order of its calls."""
+
+    def __init__(self, clock, costs=None, slow=None, factor=2.3):
+        self.clock, self.costs, self.slow, self.factor = clock, dict(costs or STUB_COSTS), slow, factor
+        self.calls = []
+
+    def handle(self, klass, _ident, _query, _factor):
+        self.calls.append(klass)
+        cost = self.costs[klass]
+        if self.slow and self.slow[0] <= self.clock.t < self.slow[1]:
+            cost *= self.factor
+        self.clock.t += cost
+        return "text/plain", b"", 1
 
 
 class RoutesTest(unittest.TestCase):
@@ -293,6 +328,66 @@ class CalibrationTest(unittest.TestCase):
                 out = io.StringIO()
                 with self.subTest(step=step), contextlib.redirect_stdout(out):
                     self.assertEqual(O.main(["--check", path, "--knobs", knobs], clock=StepClock(step)), expected)
+
+
+class EstimatorTest(unittest.TestCase):
+    """How a route is timed (time_routes; docs/HG1C_DESIGN.md departure 29): in batches that last at least 1 ms on
+    the clock, the routes in turn, the median of a route's repeats; the same for the calibrator's sessions and for
+    the start-up self-check. Each route here costs a known time on a virtual clock."""
+
+    def test_a_6_us_route_is_timed_in_batches_of_at_least_1_ms_and_a_30_ms_route_one_call_at_a_time(self):
+        clock = VirtualClock()
+        got = O.time_routes(Stub(clock), repeats=21, clock=clock)
+        self.assertEqual(got["batch"], {"C0": 256, "C1": 1, "C2": 1, "C3": 1, "C5": 1})
+        self.assertGreaterEqual(got["batch"]["C0"] * STUB_COSTS["C0"], O.BATCH_MIN_S)
+        self.assertLess(got["batch"]["C0"] // 2 * STUB_COSTS["C0"], O.BATCH_MIN_S, "the least power of two that is enough")
+        for klass, cost in STUB_COSTS.items():
+            self.assertAlmostEqual(got["costs_ms"][klass], cost * 1000, delta=cost * 1000 * 1e-9, msg=klass)
+        self.assertEqual(got["clock"], "injected")
+
+    def test_the_cost_of_reading_the_clock_is_spread_over_the_batch(self):
+        clock = VirtualClock(read_s=0.3e-6)             # a read of the CPU clock costs about 0.3 us (T-004, offline)
+        got = O.measure_unloaded(Stub(clock), repeats=21, clock=clock)
+        self.assertLess(abs(got["C0"] / (STUB_COSTS["C0"] * 1000) - 1), 0.001, "a call at a time it was 5 % high")
+        self.assertLess(abs(got["C3"] / (STUB_COSTS["C3"] * 1000) - 1), 1e-4)
+
+    def test_a_disturbance_over_part_of_a_session_moves_no_route_s_median(self):
+        """HG2a's round 1: one session measured C1, C2 and C3 at 2.3 times the others, and C0 (timed first) and C5
+        (timed last) as they were, because each route's 21 timings were made one after another. Here the routes
+        cost 2.3 times as much over 2 s of a session of about 5 s: in that order that is all of C1 to C3, in turns
+        a few repeats of every route."""
+        clock = VirtualClock()
+        got = O.measure_unloaded(Stub(clock, slow=(0.0001, 2.0)), repeats=21, clock=clock)
+        for klass, cost in STUB_COSTS.items():
+            self.assertAlmostEqual(got[klass], cost * 1000, delta=cost * 1000 * 1e-9, msg=klass)
+
+    def test_the_start_up_self_check_takes_the_same_estimator(self):
+        clock = VirtualClock()
+        calls = []
+
+        def handle(_self, klass, _ident, _query, _factor):        # the routes cost STUB_COSTS on the virtual clock
+            calls.append(klass)
+            clock.t += STUB_COSTS[klass]
+            return "text/plain", b"", 1
+
+        with mock.patch.object(O.Origin, "handle", handle):
+            app = O.make_app(FAST, frozen_costs_ms={k: v * 1000 for k, v in STUB_COSTS.items()}, clock=clock)
+        self.addCleanup(app.close)
+        rest = ["C1", "C2", "C3", "C5"]
+        calibration = ["C0"] * (1 + 2 + 4 + 8 + 16 + 32 + 64 + 128 + 256) + rest
+        self.assertEqual(calls, calibration + (["C0"] * 256 + rest) * 5, "a calibration call, then 5 rounds in turn")
+        reference = Stub(VirtualClock())
+        O.measure_unloaded(reference, clock=reference.clock)
+        self.assertEqual(calls, reference.calls, "the calls the calibrator's estimator makes at 5 repeats")
+
+    def test_the_batch_is_the_least_power_of_two_that_lasts_1_ms(self):
+        tried = []
+        self.assertEqual(O.batch_size(lambda n: tried.append(n) or n * 6e-6), 256)
+        self.assertEqual(tried, [1, 2, 4, 8, 16, 32, 64, 128, 256])
+        self.assertEqual(O.batch_size(lambda n: n * 1e-3), 1, "1 ms is enough")
+        self.assertEqual(O.batch_size(lambda n: n * 0.03), 1)
+        self.assertEqual(O.batch_size(lambda n: 0.0), O.BATCH_MAX, "a clock that does not move stops at the cap")
+        self.assertEqual((O.BATCH_MIN_S, O.BATCH_MAX), (0.001, 4096))
 
 
 if __name__ == "__main__":

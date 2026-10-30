@@ -26,9 +26,10 @@ work is returned in `X-Work`. Each URL's work is scaled by a log-normal factor w
 hash of the URL, so the same URL always costs the same and a replayed schedule replays its costs.
 
 The costs the knobs produce are measured, not assumed: `measure_unloaded` times every route with an
-injectable clock, and a frozen calibration makes the app refuse to start when a route is more than
-25 % off its frozen cost (host drift, another CPU). Without a frozen calibration the answers carry
-`X-Origin-Calibration: placeholder`.
+injectable clock, in batches of calls that last at least 1 ms, the routes taking turns (`time_routes`),
+and a frozen calibration makes the app refuse to start when a route is more than 25 % off its frozen
+cost (host drift, another CPU); that start-up check uses the same estimator as the calibrator. Without a
+frozen calibration the answers carry `X-Origin-Calibration: placeholder`.
 """
 import argparse
 import csv
@@ -260,23 +261,65 @@ class Origin:
 
 # --- measuring and checking ------------------------------------------------------------------
 
-def measure_unloaded(origin, repeats=5, clock=time.process_time):
-    """The unloaded cost of every route in ms (the median of `repeats`), at the nominal work: the spread
-    factor is held at 1. `clock` is injectable, so that a test can say how long things took."""
-    out = {}
+BATCH_MIN_S = 0.001                      # a timed batch of one route lasts at least this long on the clock
+BATCH_MAX = 4096                         # and holds at most this many calls (C0, the cheapest route, needs about 256)
+
+
+def route_calls():
+    """(class, id, query) of each route's sample URL, in the order of CLASSES."""
     patterns = dict(ROUTES)
+    out = []
     for klass, url in SAMPLE_URLS.items():
         parsed = urllib.parse.urlsplit(url)
         m = patterns[klass].fullmatch(parsed.path)
-        ident = m.group(1) if m.groups() else ""
-        query = urllib.parse.parse_qs(parsed.query).get("q", [""])[0]
-        times = []
-        for _ in range(repeats):
-            t0 = clock()
-            origin.handle(klass, ident, query, 1.0)
-            times.append((clock() - t0) * 1000)
-        out[klass] = sorted(times)[len(times) // 2]
+        out.append((klass, m.group(1) if m.groups() else "", urllib.parse.parse_qs(parsed.query).get("q", [""])[0]))
     return out
+
+
+def batch_size(time_batch, batch_min_s=BATCH_MIN_S, cap=BATCH_MAX):
+    """How many calls of a route a timed batch needs to last `batch_min_s`: 1, 2, 4... until `time_batch(n)`,
+    the clock's time for n calls in a row in seconds, is at least that, or `cap` (timeit's autorange, in
+    powers of two). The first try holds the route's first call, a cold one; a route that costs 1 ms or more
+    is timed one call at a time."""
+    n = 1
+    while n < cap and time_batch(n) < batch_min_s:
+        n *= 2
+    return n
+
+
+def time_routes(origin, repeats=5, clock=time.process_time, batch_min_s=BATCH_MIN_S):
+    """The unloaded cost of every route in ms at the nominal work (the spread factor held at 1), the batch
+    each route was timed in, and the clock's name. A short calibration call first gives each route a batch
+    of calls that lasts at least `batch_min_s` on `clock` (`batch_size`), so that the clock's own cost and
+    resolution are small against what is timed (a C0 call is about 6 us, a read of the CPU clock about
+    0.3 us). Then the routes take turns, one batch each in the order of CLASSES, `repeats` times (round
+    robin), so that a disturbance that lasts part of a session falls on every route alike and on a few of
+    each route's repeats, not on all the timings of the routes that happened to be measured during it. A
+    route's cost is the median of its batches' time per call, the middle of the sorted list as before.
+    `clock` is injectable, so that a test can say how long things took."""
+    calls = route_calls()
+
+    def timed(call, n):
+        klass, ident, query = call
+        t0 = clock()
+        for _ in range(n):
+            origin.handle(klass, ident, query, 1.0)
+        return clock() - t0
+
+    batch = {call[0]: batch_size(lambda n, call=call: timed(call, n), batch_min_s) for call in calls}
+    times = {call[0]: [] for call in calls}
+    for _ in range(repeats):
+        for call in calls:
+            n = batch[call[0]]
+            times[call[0]].append(timed(call, n) * 1000 / n)
+    return {"costs_ms": {k: sorted(v)[len(v) // 2] for k, v in times.items()}, "batch": batch,
+            "clock": getattr(clock, "__name__", "injected")}
+
+
+def measure_unloaded(origin, repeats=5, clock=time.process_time):
+    """The unloaded cost of every route in ms (`time_routes`, which says how): what the calibrator's
+    sessions and the start-up self-check of `make_app` both measure."""
+    return time_routes(origin, repeats, clock)["costs_ms"]
 
 
 def self_check(measured_ms, frozen_ms, tol=TOLERANCE):

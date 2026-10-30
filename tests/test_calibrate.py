@@ -310,10 +310,36 @@ class OriginTest(unittest.TestCase):
             self.step((0.0,), origin_session_fails=None)
 
     def test_one_real_session_times_every_route(self):
-        costs = K.origin_session(TEMPLATE, repeats=3)
+        session = K.origin_session(TEMPLATE, repeats=3)
+        costs = session["costs_ms"]
         self.assertEqual(sorted(costs), ["C0", "C1", "C2", "C3", "C5"])
         self.assertTrue(all(v > 0 for v in costs.values()))
         self.assertGreater(costs["C5"], costs["C0"])
+        self.assertEqual(sorted(session["batch"]), sorted(costs))
+        self.assertGreater(session["batch"]["C0"], 1, "a call of some microseconds is timed in a batch")
+        self.assertEqual(session["batch"]["C5"], 1, "one of a tenth of a second alone")
+
+    def test_the_record_keeps_how_each_session_timed_the_routes(self):
+        _, result, _ = self.step((0.0, 0.01, -0.01))
+        timing = result["rounds"][0]["timing"]
+        self.assertEqual(len(timing), 3)
+        for t in timing:
+            self.assertEqual(t["clock"], "simulated")
+            self.assertEqual(sorted(t["batch"]), sorted(TEMPLATE["route_costs_ms"]))
+        # the placeholder's C0 costs 0.05 ms: 32 calls are 1.6 ms and 16 only 0.8; C5's 150 ms is one call
+        self.assertEqual((timing[0]["batch"]["C0"], timing[0]["batch"]["C5"]), (32, 1))
+        self.assertEqual(result["estimator"]["batch_min_s"], 0.001)
+        saved = K.read_json(os.path.join(self.tmp.name, "origin", "origin.json"))
+        self.assertEqual(saved["rounds"][0]["timing"], timing)
+        self.assertEqual(saved["estimator"], K.origin_estimator())
+
+    def test_a_session_that_does_not_say_how_it_timed_the_routes_is_not_readable(self):
+        class Bare(S.SimHost):
+            def run(self, argv, **kw):                        # the medians alone, as a session printed them before
+                return X.Result(0, json.dumps({"C0": 0.0058, "C1": 4.0}), "")
+        stop, _ = self.run_step(Bare())
+        self.assertIsInstance(stop, K.CalibrationStop)
+        self.assertIn("gave nothing readable", str(stop))
 
     # --- a stopped step keeps what it measured (docs/HG1C_DESIGN.md 27) ---
 
@@ -326,7 +352,9 @@ class OriginTest(unittest.TestCase):
         class Host(S.SimHost):
             def run(self, argv, **kw):
                 answer = left.pop(0)
-                return X.Result(1, "", answer) if isinstance(answer, str) else X.Result(0, json.dumps(answer), "")
+                if isinstance(answer, str):
+                    return X.Result(1, "", answer)
+                return X.Result(0, json.dumps({"costs_ms": answer, "batch": {k: 1 for k in answer}, "clock": "scripted"}), "")
         return Host()
 
     @staticmethod
@@ -1264,7 +1292,9 @@ class CommandLineTest(unittest.TestCase):
     def test_origin_session_prints_one_json_object(self):
         code, out, _ = self.cli("origin-session", "--repeats", "3")
         self.assertEqual(code, K.EXIT_OK)
-        self.assertEqual(sorted(json.loads(out)), ["C0", "C1", "C2", "C3", "C5"])
+        got = json.loads(out)
+        self.assertEqual(sorted(got), ["batch", "clock", "costs_ms"])
+        self.assertEqual(sorted(got["costs_ms"]), ["C0", "C1", "C2", "C3", "C5"])
 
 
 class RulesPinnedTest(unittest.TestCase):
