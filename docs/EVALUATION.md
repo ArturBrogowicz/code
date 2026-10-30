@@ -315,8 +315,9 @@ each run's provenance belong to the runner and the smoke run.
 
 **The per-connection rule** (`slow_pc.py`, engine `l4_slowconn_pc`; D-S4, D-S5, D-S7, D-S8). The deployed
 slow rules key on the address, and SlowConn bans every subscriber behind a shared address (the CGNAT pools of
-P5c.1). This rule judges each established socket of nginx on :80 and :443 from `ss -tinpH` once per telemetry
-poll, after the per-address rules. A socket is suspect when nginx owns it (not one still in the listen
+P5c.1). This rule judges each established socket of nginx on :80 and :443 from `ss -tinpH` once a second, in its
+own supervised thread (P4-07: a slow or stuck `ss` delays this rule only, never the L4 rules of the telemetry
+thread). A socket is suspect when nginx owns it (not one still in the listen
 backlog), it is older than T since the first poll that saw it, it is unanswered (:80: `bytes_acked` <= 64;
 :443: no request of that client port in the access log during its lifetime, judged only once the log has
 shown a client port), it brought fewer than F bytes/s on average, and at least 2 data segments arrived after
@@ -432,7 +433,7 @@ at the run directory; standalone default `/var/log/ddos/ban_events.jsonl`; `""` 
 | `unban` | `ip`, `backend`, `age_s` |
 | `suppress_on`, `suppress_off` | `syn_delta`, `pkt_delta`: the GRU pause during volumetric floods (observed once per 1-s poll) |
 | `gru_suppressed` | `ip`, `value` (probability), `hits`: a GRU detection dropped because the pause was active |
-| `daemon_error` | `where`, `error` (type and message, at most 300 characters), `action`: an error the daemon survived and retried (since 2026-10-30; `where` is `access_log` for the main loop's tailer, `telemetry` for one L4 poll, `thread:<name>` for a worker thread's target: `telemetry`, `inference`, `rudy`, `l7_shadow`; `error_log` for a R.U.D.Y. body-timeout line whose client field is not an IPv4 address, skipped with `action` `line skipped`, H-26; `slow_pc` for a failed `ss` read or `ss -K` call of the per-connection rule, `slow_pc_record` for its record file). A run without one had no such error |
+| `daemon_error` | `where`, `error` (type and message, at most 300 characters), `action`: an error the daemon survived and retried (since 2026-10-30; `where` is `access_log` for the main loop's tailer, `telemetry` for one L4 poll, `thread:<name>` for a worker thread's target: `telemetry`, `inference`, `rudy`, `l7_shadow`, `slow_pc`; `error_log` for a R.U.D.Y. body-timeout line whose client field is not an IPv4 address, skipped with `action` `line skipped`, H-26; `slow_pc` for a failed `ss` read or `ss -K` call of the per-connection rule, `slow_pc_record` for its record file). A run without one had no such error |
 | `slow_pc_close` | `ip`, `port`, `local`, `sport`, `age_s`, `bytes_received`, `bytes_acked`, `segs_after`, `streak`, `ua_keys`, `enforced`: a connection the per-connection rule closed (`enforced` true) or would have closed (shadow) |
 | `slow_pc_would_ban` | `ip`, `value` (closes within 60 s), `threshold` (K), `ua_keys`: a ban the rule decided in shadow |
 | `slow_pc_capped` | `what` (`close` or `ban`), `n`, `cap`, and for bans `ips` (at most 50): decisions held back by the caps of 500 closes per poll and 20 bans per minute |

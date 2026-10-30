@@ -62,13 +62,13 @@ class SlowPcCase(unittest.TestCase):
 
     @staticmethod
     def run_world(d, polls, world, setup=None):
-        """`polls` polls of the real telemetry loop; before each, `ss -tinpH` is set to
-        world(t), and then setup(k) runs."""
+        """`polls` polls of the rule's own loop (slow_pc_monitor, P4-07); before each, `ss -tinpH`
+        is set to world(t), and then setup(k) runs."""
         def on(k):
             d.proc.ss_info = world(d.clock.now)
             if setup:
                 setup(k)
-        d.poll(polls, on)
+        d.run_loop("slow_pc_monitor", polls, on)
 
     @staticmethod
     def brief(ev, *keys):
@@ -79,7 +79,8 @@ class SwitchTest(SlowPcCase):
     def test_off_by_default_the_daemon_runs_as_before(self):
         d = self.daemon()
         self.assertFalse(d.SLOW_PC)
-        self.run_world(d, 12, loris_world())
+        d.proc.ss_info = loris_world()(1001.0)
+        d.poll(12)
         self.assertEqual(d.proc.matching("ss", "-tinpH"), [])
         self.assertEqual(d.events("slow_pc_close", "slow_pc_would_ban", "slow_pc_capped",
                                   "slow_pc_poll"), [])
@@ -107,13 +108,32 @@ class SwitchTest(SlowPcCase):
         keys = {k.value for k in kw["thresholds"].keys}
         self.assertLessEqual({"slow_pc_t_s", "slow_pc_f_bps", "slow_pc_k"}, keys)
 
-    def test_the_rule_runs_after_the_per_address_rules_and_before_the_gru_feed(self):
-        with open(H.SOURCE, encoding="utf-8") as fh:
-            src = fh.read()
-        body = src[src.index("def l3_l4_telemetry_monitor"):]
-        self.assertLess(body.index("for key, per_cpu_values in telemetry_map.items()"),
-                        body.index("slow_pc_poll()"))
-        self.assertLess(body.index("slow_pc_poll()"), body.index("flow_map.items()"))
+    def test_the_rule_runs_in_its_own_supervised_thread_not_in_the_telemetry_loop(self):
+        # P4-07: a slow `ss` must not delay the L4 rules. The telemetry loop never reads
+        # `ss -tinpH`; the main statement starts a supervised "slow_pc" thread when SLOW_PC=1 only.
+        from test_daemon_robustness import MainRun
+
+        def started(d):
+            main = MainRun(d)
+
+            def tailer(_path):
+                d.stop_event.set()
+                return
+                yield                                           # a generator, like the real one
+            main.run(tailer)
+            d.stop_event.clear()
+            return [t.args for t in main.threads if t.target is d.supervise]
+        on, off = self.daemon(SLOW_PC="1"), self.daemon()
+        self.assertIn(("slow_pc", on.slow_pc_monitor), started(on))
+        self.assertNotIn("slow_pc", [a[0] for a in started(off)])
+        self.assertNotIn("slow_pc", [a[0] for a in started(self.daemon(SLOW_PC_ENFORCE="1"))])
+        d = self.daemon(**FAST)
+        d.proc.ss_info = loris_world()(1001.0)
+        d.proc.failures[("ss", "-tinpH")] = d.proc.TimeoutExpired(["ss"], 2)   # a stuck `ss`
+        d.poll(3, lambda k: d.telemetry.add(IP, pkts=300, syn=300))
+        self.assertEqual(d.proc.matching("ss", "-tinpH"), [])
+        self.assertEqual([(b["ip"], b["engine"]) for b in d.bans()], [(IP, "l4_syn")])
+        self.assertEqual(d.events("daemon_error"), [])
 
 
 class ShadowTest(SlowPcCase):
@@ -149,18 +169,16 @@ class ShadowTest(SlowPcCase):
                 self.assertEqual((err["where"], err["action"]),
                                  ("slow_pc", "poll skipped, streaks kept"))
 
-    def test_an_error_in_the_rule_cannot_stop_the_other_rules(self):
+    def test_an_error_in_the_rule_skips_one_poll_and_the_loop_goes_on(self):
         class Broken:
             def poll(self, *_args):
                 raise RuntimeError("boom")
 
         d = self.daemon(SLOW_PC="1")
         d.ns["slow_pc_engine"] = Broken()
-        d.poll(1, lambda k: d.telemetry.add(IP, pkts=300, syn=300))
-        self.assertEqual([(b["ip"], b["engine"]) for b in d.bans()], [(IP, "l4_syn")])
-        [err] = d.events("daemon_error")
-        self.assertEqual((err["where"], err["error"], err["action"]),
-                         ("slow_pc", "RuntimeError: boom", "poll skipped"))
+        self.run_world(d, 3, lambda t: "")
+        self.assertEqual([(e["where"], e["error"], e["action"]) for e in d.events("daemon_error")],
+                         [("slow_pc", "RuntimeError: boom", "poll skipped")] * 3)
 
     def test_the_poll_report_every_five_seconds(self):
         d = self.daemon(**FAST)
@@ -310,7 +328,8 @@ class EnforceTest(SlowPcCase):
         self.assertEqual(d.events("slow_pc_would_ban"), [])
         self.assertIn(f"[BAN] {IP} banned for 300s. Reason: Per-connection slow rule", d.console())
         d = self.daemon(SLOW_PC_ENFORCE="1")                    # without SLOW_PC=1: off
-        self.run_world(d, 12, loris_world())
+        d.proc.ss_info = loris_world()(1001.0)
+        d.poll(12)
         self.assertEqual((d.proc.matching("ss", "-tinpH"), d.proc.matching("ss", "-K")), ([], []))
 
     def test_at_most_32_connections_per_call_and_never_an_unfiltered_kill(self):
@@ -386,7 +405,9 @@ class EnforceTest(SlowPcCase):
                     d.telemetry.add(CGNAT, pkts=4, nbytes=200)
                     d.telemetry.add(IP, pkts=2, nbytes=60)
                     d.set_established({CGNAT: 72, IP: 6})
-                self.run_world(d, 30, world, setup)
+                d.poll(30, setup)                               # the telemetry thread's rules
+                if d.SLOW_PC:
+                    self.run_world(d, 30, world)                # then the rule's own thread
                 self.assertEqual([self.brief(b, "ip", "engine") for b in d.bans()], bans)
                 self.assertEqual({c["ip"] for c in d.events("slow_pc_close")},
                                  {IP} if arm == "M_pc" else set())

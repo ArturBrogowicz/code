@@ -150,8 +150,9 @@ elif HEURISTIC_PROFILE != "default":
     raise SystemExit(f"[-] unknown HEURISTIC_PROFILE {HEURISTIC_PROFILE!r} (default|tolerant)")
 
 # P4 per-connection slow rule (docs/P4_SLOW_DESIGN.md §6-§7; the rule itself is slow_pc.py). OFF
-# unless SLOW_PC=1, so by default the daemon runs exactly as before. SLOW_PC=1 runs it in shadow:
-# once per telemetry poll it reads `ss -tinpH` and logs the connections it would close and the
+# unless SLOW_PC=1, so by default the daemon runs exactly as before. SLOW_PC=1 runs it in shadow, in
+# its own supervised thread (P4-07): once a second it reads `ss -tinpH` and logs the connections it
+# would close and the
 # addresses it would ban (slow_pc_close / slow_pc_would_ban events). It enforces (§7: `ss -K` on
 # each connection, an XDP ban of the address, engine l4_slowconn_pc) only with SLOW_PC_ENFORCE=1
 # as well; the kill file, checked every poll, and GRU_ONLY=1 send it back to shadow.
@@ -169,6 +170,7 @@ if SLOW_PC and (SLOW_PC_T, SLOW_PC_F, SLOW_PC_K) not in slow_pc.GRID:
     raise SystemExit(f"[-] SLOW_PC_T/F/K = ({SLOW_PC_T}, {SLOW_PC_F}, {SLOW_PC_K}) is not a point "
                      "of the frozen grid (slow_pc.GRID)")
 SLOW_PC_REPORT_INTERVAL = 5.0
+SLOW_PC_POLL_INTERVAL = 1.0
 
 # Eviction timeout for idle client tracking data (seconds)
 CLIENT_IDLE_TIMEOUT = 60.0
@@ -268,9 +270,10 @@ volumetric_active_until = 0.0
 # Track last-seen timestamp per client for idle eviction
 client_last_seen = {}
 
-# P4 per-connection slow rule (SLOW_PC=1). The detector and the record file belong to the
-# telemetry thread, which creates them at its first poll. The access-log loop hands it (ip, port,
-# UA key, t) of every logged request through the inbox; a full inbox drops the item and counts it.
+# P4 per-connection slow rule (SLOW_PC=1). The detector and the record file belong to the rule's own
+# thread (slow_pc_monitor), which creates them at its first poll. The access-log loop hands it (ip,
+# port, UA key, t) of every logged request through the inbox; a full inbox drops the item and counts
+# it.
 slow_pc_engine = None
 slow_pc_inbox = queue.Queue(maxsize=100000)
 slow_pc_counts = defaultdict(int)   # inbox_dropped, note_errors: written by the access-log loop
@@ -550,12 +553,21 @@ def slow_pc_act(result, enforce):
                     cap=slow_pc.MAX_BANS_PER_MIN, ips=result.capped_bans[:50])
 
 
+def slow_pc_monitor():
+    """The P4 per-connection rule's own thread (P4-07), under supervise() like every worker
+    thread (H-02): once per SLOW_PC_POLL_INTERVAL it reads `ss -tinpH` and carries out the
+    decisions. A slow or stuck `ss` (2 s per call at most, and one call per batch of closes)
+    therefore delays this rule only, never the L4 rules, the TTL sweep or the GRU feed of the
+    telemetry thread."""
+    while not stop_event.is_set():
+        time.sleep(SLOW_PC_POLL_INTERVAL)
+        slow_pc_poll()
+
+
 def slow_pc_poll():
-    """One poll of the P4 per-connection rule (SLOW_PC=1; docs/P4_SLOW_DESIGN.md §6-§7), in the
-    telemetry thread after the per-address rules. A failed `ss` call skips the poll and resets no
-    streak (§6.3). It enforces only with SLOW_PC_ENFORCE=1, without GRU_ONLY and while the kill
-    file does not exist. It cannot raise: the GRU feed and the SYN-cookie check after it run as
-    before."""
+    """One poll of the P4 per-connection rule (SLOW_PC=1; docs/P4_SLOW_DESIGN.md §6-§7), in its own
+    thread (slow_pc_monitor). A failed `ss` call skips the poll and resets no streak (§6.3). It enforces only with SLOW_PC_ENFORCE=1, without GRU_ONLY and while the kill
+    file does not exist. It cannot raise: an error skips this poll only."""
     global slow_pc_engine, slow_pc_last_report
     try:
         now = time.time()
@@ -1095,12 +1107,6 @@ def l3_l4_telemetry_monitor():
             # cumulative and are reclaimed only when an IP goes idle (see
             # evict_idle_clients) -- that is what preserves flow duration + counts.
 
-            # --- P4 per-connection slow rule (SLOW_PC=1): its own `ss -tinpH` reader, after the
-            # per-address rules and before the GRU feed (docs/P4_SLOW_DESIGN.md §6.5). It reads no
-            # XDP delta, so it runs on a re-baselining poll too, and it cannot raise.
-            if SLOW_PC:
-                slow_pc_poll()
-
             if rebaseline:
                 # D-01: this poll only re-took the snapshots that the failed poll(s) left
                 # behind. Read now, their deltas would span the whole outage and ban sources at
@@ -1262,6 +1268,13 @@ try:
             daemon=True)
         l7_shadow_thread.start()
         print(f"[+] L7 shadow ingestion thread started (socket {L7_SOCKET_PATH}).")
+
+    # P4 per-connection slow rule (SLOW_PC=1): its own supervised thread (P4-07). OFF by default.
+    if SLOW_PC:
+        slow_pc_thread = threading.Thread(
+            target=supervise, args=("slow_pc", slow_pc_monitor), daemon=True)
+        slow_pc_thread.start()
+        print("[+] Per-connection slow rule thread started.")
     
     print(f"[*] Listening for Nginx logs (heuristic engine): {NGINX_LOG_FILE}")
 

@@ -346,6 +346,26 @@ class Daemon:
             self.clock.on_sleep = None
             self.ns["stop_event"].clear()
 
+    def run_loop(self, name, n=1, setup=None):
+        """Run n intervals of another of the daemon's real sleep-then-work loops, `name` (the P4
+        rule's slow_pc_monitor, say), as poll() does for the telemetry loop: setup(k) runs at the
+        start of interval k, after the fake sleep."""
+        self.ns["stop_event"].clear()
+
+        def on_sleep(k):
+            if setup:
+                setup(k)
+            if k >= n:
+                self.ns["stop_event"].set()
+
+        self.clock.sleeps = 0
+        self.clock.on_sleep = on_sleep
+        try:
+            self.call(name)
+        finally:
+            self.clock.on_sleep = None
+            self.ns["stop_event"].clear()
+
     def set_established(self, counts):
         """What `ss -tan state established` shows next: {peer ip: connections to :80}."""
         lines = []
