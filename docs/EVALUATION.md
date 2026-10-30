@@ -359,6 +359,18 @@ over the six runs (it refuses any other set of runs, and any address without a r
 `slow_pc.select_thresholds()`. Next to each point it reports the share banned within 30 s, the secondary figure
 of the re-registration. `tests/test_p4_validation.py` scores a synthetic validation set worked out by hand.
 
+**The pre-registered outcome** (§10; `eval/p4_outcome.py`, written and tested before any evaluation data).
+Over run records, one per run of the ten blocks (seeds 3101-3110, arms C, C', U, M_def and M_pc per family;
+`summarize()` builds a record from `eval/harm_gate.run_metrics` and the ban events), it decides per family
+whether the attack is harmful (the harm gate on U against C, at least 10 valid blocks, the placebo not
+passing, and at least 9 of 10 blocks harmed on their own) and whether M_pc mitigates it: (a) 5 consecutive
+1-s bins back at 0.99 x Q(C) within T_mit = 90 s, (b) the level over [attack start + T_mit, attack end], (c)
+no benign address banned. M7 is "supported with scope" for the families that pass, else "not supported";
+Q(M_pc) - Q(M_def) and the bans per arm and role are reported. Two readings are the code's and are pinned
+by tests: (a) starts counting at the first second below the threshold, and (b)'s window starts at T_mit,
+which was the note's "+ 30 s" when T_mit was 30 s. `tests/test_p4_outcome.py` covers each outcome the
+note names on synthetic records.
+
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
 user's decision.
