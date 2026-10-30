@@ -7,6 +7,7 @@ before the fix it covers.
 """
 import ast
 import contextlib
+import io
 import os
 import re
 import sys
@@ -448,6 +449,26 @@ class SupervisorTest(DaemonCase):
         [err] = d.events("daemon_error")
         self.assertEqual((err["where"], err["error"]), ("thread:rudy", MAP_FULL))
         self.assertEqual(d.clock.sleeps, 2)                     # the backoff, then end of file
+
+    def test_reporting_an_error_cannot_raise(self):
+        # D-06 (review T-017): report_daemon_error formatted the error outside its own try and
+        # caught only OSError and ValueError around its writes. An exception whose str() fails,
+        # or a write that fails otherwise (a re-entrant write raises RuntimeError), escaped from
+        # the very handler that was meant to survive it.
+        class Unprintable(Exception):
+            def __str__(self):
+                raise RuntimeError("no str()")
+
+        class ReentrantStdout(io.StringIO):
+            def write(self, _text):
+                raise RuntimeError("reentrant call inside <_io.BufferedWriter name='<stdout>'>")
+
+        d = self.daemon()
+        d.call("report_daemon_error", "telemetry", Unprintable(), "retry")
+        d.out = ReentrantStdout()
+        d.call("report_daemon_error", "telemetry", ValueError("x"), "retry")
+        self.assertEqual([e["error"] for e in d.events("daemon_error")],
+                         ["Unprintable: <str() failed>", "ValueError: x"])
 
     def test_every_worker_thread_is_supervised(self):
         d = self.daemon(L7_SHADOW="1")

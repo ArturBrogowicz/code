@@ -430,13 +430,17 @@ ERROR_BACKOFF_S = 1.0
 
 def report_daemon_error(where, err, action):
     """One console line and one `daemon_error` event (where, error, action) for an error the
-    daemon survives. Never raises: it runs in the handlers that keep the daemon alive, so a
-    failed write (stdout closed, disk full) is dropped."""
-    error = err if isinstance(err, str) else f"{type(err).__name__}: {err}"
+    daemon survives. It cannot raise (D-06): it runs in the handlers that keep the daemon
+    alive. An exception whose str() fails is named by its type, and a failed write (stdout
+    closed or full, a re-entrant write) is dropped."""
+    try:
+        error = err if isinstance(err, str) else f"{type(err).__name__}: {err}"
+    except Exception:  # noqa: BLE001 - str(err) itself raised
+        error = f"{type(err).__name__}: <str() failed>"
     try:
         EVENTS.emit("daemon_error", where=where, error=error[:300], action=action)
         print(f"[-] {where}: {error} ({action})")
-    except (OSError, ValueError):
+    except Exception:  # noqa: BLE001, S110 - a failed report must not end the daemon
         pass
 
 
