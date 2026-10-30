@@ -165,6 +165,7 @@ class FakeBPF:
 
 class FakeSignal:
     SIGTERM = 15
+    SIG_IGN = "SIG_IGN"                                         # not callable, like signal.SIG_IGN
 
     def __init__(self):
         self.handlers = {}
@@ -210,6 +211,29 @@ class MainRun:
                 exec(code, ns)  # noqa: S102 - the daemon's own statement, against fakes
         finally:
             ns.update(saved)
+
+
+class SigtermInsideSet(threading.Event):
+    """stop_event whose set() runs the SIGTERM handler installed at that moment, as a signal that
+    arrives while set() holds the Event's lock would (the window of D-02). A real Event would then
+    deadlock if the handler called set() again; this one counts the re-entry instead."""
+
+    def __init__(self, sig):
+        super().__init__()
+        self.sig, self.inside, self.reentries = sig, False, 0
+
+    def set(self):
+        if self.inside:
+            self.reentries += 1
+            return
+        self.inside = True
+        try:
+            handler = self.sig.handlers.get(self.sig.SIGTERM)
+            if callable(handler):
+                handler(self.sig.SIGTERM, None)
+            super().set()
+        finally:
+            self.inside = False
 
 
 class MainLoopTest(DaemonCase):
@@ -279,6 +303,33 @@ class MainLoopTest(DaemonCase):
         self.assertEqual(main.bpf.removed, [("veth_server", 0)])
         self.assertEqual(d.events("daemon_error"), [])
         self.assertEqual(d.clock.sleeps, 1)
+
+    def test_a_sigterm_inside_stop_event_set_cannot_deadlock_the_stop(self):
+        # D-02 (review T-017): stop_event.set() holds the Event's non-reentrant lock. A SIGTERM
+        # handled inside it (a second one during the handler's own set(), or one during the
+        # finally's) called set() again and deadlocked, and remove_xdp never ran. The double
+        # delivers a SIGTERM inside every set(); the handler and the finally now ignore SIGTERM
+        # before they call it.
+        for first in ("SIGTERM", "Ctrl-C"):
+            with self.subTest(first):
+                d = self.daemon()
+                main = MainRun(d)
+                d.ns["stop_event"] = event = SigtermInsideSet(main.sig)
+                log = os.path.join(d._tmp.name, "access.log")
+                with open(log, "wb"):
+                    pass
+                d.ns["NGINX_LOG_FILE"] = log
+
+                def on_sleep(_k, first=first, sig=main.sig):
+                    if first == "Ctrl-C":
+                        raise KeyboardInterrupt
+                    sig.handlers[sig.SIGTERM](sig.SIGTERM, None)
+                d.clock.on_sleep = on_sleep
+                main.run()
+                self.assertEqual(event.reentries, 0)
+                self.assertTrue(event.is_set())
+                self.assertEqual(main.sig.handlers[main.sig.SIGTERM], main.sig.SIG_IGN)
+                self.assertEqual(main.bpf.removed, [("veth_server", 0)])
 
 
 

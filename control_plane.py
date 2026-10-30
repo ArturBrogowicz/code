@@ -442,7 +442,12 @@ def report_daemon_error(where, err, action):
 
 def request_stop(_signum, _frame):
     """SIGTERM handler: an intentional stop, like Ctrl-C. The loops see stop_event and end,
-    and the main statement's finally detaches XDP, which lifts every ban."""
+    and the main statement's finally detaches XDP, which lifts every ban.
+
+    SIGTERM is ignored from here on (D-02): stop_event.set() holds the Event's non-reentrant
+    lock, and a second SIGTERM handled inside it would call set() again and deadlock, so the
+    finally would never detach XDP."""
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)
     stop_event.set()
 
 
@@ -1140,6 +1145,7 @@ try:
 except KeyboardInterrupt:
     print("\n[*] Execution interrupted by user. Cleaning up environment...")
 finally:
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)   # D-02: no handler may re-enter set() below
     stop_event.set()
     bpf.remove_xdp(INTERFACE, 0)
     print(f"[+] XDP program detached from {INTERFACE}. Finished.")

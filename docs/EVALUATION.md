@@ -232,7 +232,8 @@ unchanged.
   written line did the same. Now undecodable bytes read as U+FFFD. Any other error from the access-log
   tailer is reported, and the tailer is recreated after 1 s with XDP still attached. Only Ctrl-C or SIGTERM
   reaches the `finally`. SIGTERM goes there through a new handler: before, it killed the daemon and left
-  XDP attached. The suite itself uses SIGKILL.
+  XDP attached. The suite itself uses SIGKILL. The handler and the `finally` ignore any further SIGTERM, so
+  a second one cannot deadlock the stop (D-02).
 * **H-02: threads died silently.** The telemetry loop had no guard, and no thread had a supervisor. One
   exception ended L4 detection, the TTL sweep and the idle eviction, or ended R.U.D.Y. detection, with no
   event. One such exception is bcc's bare `Exception` when a ban does not fit into the full 100 000-entry
@@ -248,7 +249,8 @@ Every error the daemon survives is written as a `daemon_error` event and a conso
 
 * `UndecodableBytesTest`: 0xFF, 0x80, truncated sequences, and a character cut at the end of the file, in
   both tailers. Such lines still count for the rate rule.
-* `MainLoopTest`: a tailer error keeps XDP attached. Ctrl-C after an error, or SIGTERM, detaches it once.
+* `MainLoopTest`: a tailer error keeps XDP attached. Ctrl-C after an error, or SIGTERM, detaches it once,
+  even when a SIGTERM arrives inside `stop_event.set()`.
 * `TelemetryGuardTest`: after a failed ban the TTL sweep still runs and the rules resume after one
   re-baseline poll. After a 30-poll outage no client is banned at its normal rate, and a flood that began
   during the outage is banned at its one-poll rate.
