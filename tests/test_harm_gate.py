@@ -169,7 +169,7 @@ _ANALYSES = {}
 
 def setUpModule():
     for name, effects in (("pass", PASS_EFFECTS), ("fail", {}), ("small", {"U": {"fail_p": 0.04}}),
-                          ("latency", {"U": {"slow": 3.0}})):
+                          ("latency", {"U": {"slow": 3.0}}), ("protected", {"U": {"fail_p": 0.3}, "M_x": {}})):
         BASE[name] = os.path.join(_TMP.name, name)
         os.makedirs(BASE[name])
         for number in range(1, 11):
@@ -1089,6 +1089,54 @@ class HrrP95Test(WithCopies):
             shutil.copytree(os.path.join(BASE["pass"], os.path.basename(d), "M_x"), os.path.join(d, "M_x"))
             edit_json(os.path.join(d, "block.json"), lambda j: j.update(order=j["order"] + ["M_x"]))
         self.assertIsNone(self.analyse(root)["hrr_p95"])
+
+
+class ProtectedVerdictTest(WithCopies):
+    """G10: the pre-registered P2 outcome of each protected mode, in the analysis and the report."""
+
+    def test_an_arm_that_takes_the_harm_back_meets_the_outcome(self):
+        (p,) = self.analyse(BASE["protected"])["protected"]
+        self.assertEqual((p["mode"], p["verdict"], p["reasons"], p["outcome"]), ("x", "MET", [], H.P2_OUTCOME))
+        self.assertEqual((p["unprotected"]["harmed"], p["protected"]["held"], p["protected"]["benign_blocked"]), (10, 10, []))
+        self.assertEqual((p["attack_banned"], p["attack_identities"], p["ttm_s"]["n"]), (0, 50, 0))
+
+    def test_an_arm_that_leaves_a_tenth_of_the_harm_does_not(self):
+        (p,) = self.analyse(BASE["pass"])["protected"]
+        self.assertEqual((p["verdict"], p["unprotected"]["passed"], p["protected"]["held"]), ("NOT MET", True, 0))
+
+    def test_one_legit_identity_blocked_in_one_run_is_enough_to_miss_it(self):
+        root = self.copy_of("protected")
+        with open(os.path.join(root, "b03_a1", "M_x", H.BAN_FILE), "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"t_wall": 1.0, "kind": "ban", "ip": "10.0.1.7", "engine": "l4_slowconn"}) + "\n")
+        (p,) = self.analyse(root)["protected"]
+        self.assertEqual((p["verdict"], p["protected"]["benign_blocked"], p["protected"]["held"]), ("NOT MET", ["10.0.1.7"], 10))
+        self.assertIn("* M_x blocked legit identities: 10.0.1.7", H.to_markdown(self.analyse(root)))
+
+    def test_a_smoke_test_gives_the_arms_no_verdict_unless_it_is_allowed(self):
+        root = self.copy_of("protected")
+        set_overrides(os.path.join(root, "b02_a1", "M_x", "run.json"), SMOKE)
+        (p,) = self.analyse(root)["protected"]
+        self.assertEqual(p["verdict"], "INVALID")
+        self.assertTrue(any("overrides" in x for x in p["reasons"]), p["reasons"])
+        self.assertEqual(self.analyse(root, allow_overrides=True)["protected"][0]["verdict"], "MET")
+
+    def test_fewer_than_ten_blocks_with_a_valid_arm_give_no_verdict(self):
+        root = self.copy_of("protected")
+        edit_json(legit_summary(os.path.join(root, "b02_a1"), "M_x"), lambda j: j.update(cpu={"share": 0.99}))
+        (p,) = self.analyse(root)["protected"]
+        self.assertEqual(p["verdict"], "INVALID")
+        self.assertIn("9 blocks with a valid M_x run, fewer than the 10 the outcome needs", p["reasons"])
+
+    def test_the_report_has_the_arms_and_the_record_round_trips(self):
+        r = self.analyse(BASE["protected"])
+        md = H.to_markdown(r)
+        self.assertIn("## Protected arms: the pre-registered P2 outcome", md)
+        self.assertIn("| M_x | MET | 10 of 10 (needs 9) | 10 of 10 (needs 9) | 0 | 0 | 0 of 50 | n/a | n/a |", md)
+        self.assertEqual(json.loads(json.dumps(r)), r)
+
+    def test_a_campaign_without_protected_runs_has_no_arm(self):
+        self.assertEqual(self.analyse(BASE["fail"])["protected"], [])
+        self.assertNotIn("## Protected arms", H.to_markdown(self.analyse(BASE["fail"])))
 
 
 class P2OutcomeTest(unittest.TestCase):

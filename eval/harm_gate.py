@@ -584,6 +584,34 @@ def p2_verdict(unprotected, protected):
     return "MET" if unprotected["passed"] and protected["passed"] else "NOT MET"
 
 
+def protected_arm(blocks, mode, gating=()):
+    """The pre-registered P2 outcome (P2_OUTCOME) for one protected mode over a campaign's final blocks: the unprotected half over the
+    blocks valid for Gate A, the protected half over those whose M_<mode> run is valid too. Reported with it, not judged: the time to
+    mitigate of the attack identities banned, how many were banned of how many, and the legit requests refused (503/429) in the
+    window. INVALID with `gating` (a campaign whose protocol was broken, or whose runs carry overrides), whatever the figures."""
+    name = MITIGATED + mode
+    pairs = [b for b in blocks if b["valid"]]
+    unprotected = unprotected_fails([{"block": b["block"], "dQ": b["dQ"], "dL": b["dL"]} for b in pairs])
+    held = [b for b in pairs if name in b["runs"] and b["runs"][name]["valid"]]
+    rows = [{"block": b["block"], "q_control": b["runs"][CONTROL]["metrics"]["Q"], "q_mitigated": b["runs"][name]["metrics"]["Q"],
+             "benign_blocked": b["runs"][name]["mitigation"]["benign_blocked"]} for b in held]
+    protected = protected_works(rows)
+    reasons = list(gating)
+    need = P2_OUTCOME["min_blocks"]
+    if not unprotected["evaluable"]:
+        reasons.append(f"{unprotected['n']} blocks valid for the gate, fewer than the {need} the outcome needs")
+    if not protected["evaluable"]:
+        reasons.append(f"{protected['n']} blocks with a valid {name} run, fewer than the {need} the outcome needs")
+    ttm = [v for b in held for v in ((b["runs"][name]["mitigation"]["ttm_s"] or {}).get("by_identity") or {}).values()]
+    identities = [b["runs"][name]["mitigation"]["attack_identities"] for b in held]
+    return {"mode": mode, "verdict": "INVALID" if gating else p2_verdict(unprotected, protected), "reasons": reasons,
+            "outcome": dict(P2_OUTCOME), "unprotected": unprotected, "protected": protected,
+            "ttm_s": {"n": len(ttm), "median": float(np.median(ttm)) if ttm else None, "max": max(ttm, default=None)},
+            "attack_banned": sum(b["runs"][name]["mitigation"]["attack_banned"] for b in held),
+            "attack_identities": sum(identities) if identities and None not in identities else None,
+            "refused_window": sum(b["runs"][name]["metrics"]["refused"]["window"] for b in held), "blocks": rows}
+
+
 def _mean(values):
     return sum(values) / len(values) if values else None
 
@@ -633,6 +661,7 @@ def analyse(root, cal, dry_run=False, metrics=METRICS, slo_scale=1.0, allow_over
             smoke.setdefault(key, value)
     if smoke and not allow_overrides:
         reasons.append(f"the runs carry overrides {smoke}: a smoke test, not a result, so there is no verdict")
+    gating = list(reasons)                  # a broken protocol or a smoke test gives the protected arms no verdict either
     if len(valid) < gate["min_blocks"]:
         reasons.append(f"{len(valid)} valid blocks, fewer than the {gate['min_blocks']} the gate needs")
     criteria = _criteria(valid, gate, metrics, "dQ", "dL")
@@ -644,6 +673,7 @@ def analyse(root, cal, dry_run=False, metrics=METRICS, slo_scale=1.0, allow_over
     else:
         verdict = "PASS" if any(c["passed"] for c in criteria.values()) else "FAIL"
     modes = sorted({n[len(MITIGATED):] for b in valid for n in b["runs"] if n.startswith(MITIGATED)})
+    arm_modes = sorted({n[len(MITIGATED):] for b in blocks for n in b["arms"]})
     return {"scenario": blocks[0]["scenario"], "seed_namespace": blocks[0]["seed_namespace"],
             "calibration": {"status": cal["status"], "sha256": cal.get("sha256") or CAL.digest(cal)},
             "dry_run": cal["status"] != "frozen", "overrides": smoke, "overrides_allowed": bool(smoke) and allow_overrides,
@@ -656,6 +686,7 @@ def analyse(root, cal, dry_run=False, metrics=METRICS, slo_scale=1.0, allow_over
             "hrr": [hrr(valid, m) for m in modes] if verdict == "PASS" else None,
             "hrr_p95": [hrr_p95(valid, m) for m in modes] if verdict == "PASS" else None,
             "hrr_withheld": bool(modes) and verdict != "PASS",
+            "protected": [protected_arm(blocks, m, gating) for m in arm_modes],
             "blocks": blocks, "attempts": [a for a in attempts if a is not final[a["block"]]]}   # the superseded ones
 
 
@@ -738,6 +769,27 @@ def to_markdown(r):
         out.append("")
     elif r["hrr_withheld"]:
         out += ["HRR is not computed: its denominator is the gate-passed harm and the gate did not pass.\n"]
+    if r.get("protected"):
+        o = P2_OUTCOME
+        out += ["## Protected arms: the pre-registered P2 outcome", "",
+                (f"Fixed before any protected run (PRIORITY_PLAN 3, `harm_gate.P2_OUTCOME`): the unprotected server fails when, in at "
+                 f"least {o['block_share']:.0%} of the blocks, dQ >= {o['unprotected_floor_pp']:g} pp or p95 >= "
+                 f"{o['unprotected_p95_ratio']:g} x the control's; the protected one works when Q(M) >= {o['protected_q_ratio']:g} x Q(C) "
+                 f"in as many blocks and no legit identity is blocked; at least {o['min_blocks']} blocks. The time to mitigate (TTM: an "
+                 f"attack identity's first ban after the attack began) and the refused requests are reported, not judged."), "",
+                ("| arm | P2 outcome | unprotected fails | protected works | legit identities blocked | refused in the window | "
+                 "attack identities banned | TTM median s | TTM max s |"), "|---|---|---|---|---|---|---|---|---|"]
+        for p in r["protected"]:
+            u, w, t = p["unprotected"], p["protected"], p["ttm_s"]
+            out.append(f"| {MITIGATED}{p['mode']} | {p['verdict']} | {u['harmed']} of {u['n']} (needs {u['needed']}) | "
+                       f"{w['held']} of {w['n']} (needs {w['needed']}) | {len(w['benign_blocked'])} | {p['refused_window']} | "
+                       f"{p['attack_banned']} of {_f(p['attack_identities'], 'd')} | {_f(t['median'], '.2f')} | {_f(t['max'], '.2f')} |")
+        for p in r["protected"]:
+            if p["reasons"]:
+                out.append(f"* {MITIGATED}{p['mode']}, no verdict: " + "; ".join(p["reasons"]))
+            if p["protected"]["benign_blocked"]:
+                out.append(f"* {MITIGATED}{p['mode']} blocked legit identities: " + ", ".join(p["protected"]["benign_blocked"]))
+        out.append("")
     out.append("Limits: p95 is over successes (Q counts the failures and is the primary number); the pooled p95 weighs "
                "route classes by their share of the mix; the SLOs, floors and judged links are the calibration's.")
     return "\n".join(out) + "\n"
