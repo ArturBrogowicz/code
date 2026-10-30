@@ -24,6 +24,20 @@ are in §7.2 and §7.2.2; an [ASSUMPTION] there is declared, not measured:
   * transport: HTTP/1.1 keep-alive with BROWSER_CONNS connections per device (§7.2.1);
   * UAs: UA_TABLE, reduced (frozen) browser UA strings with approximate global shares, so
     devices on the same browser and OS collide as they do in the wild.
+
+L7 v2 (docs/L7V2_DESIGN.md §7.2, §8.4, §12; frozen in ml/l7v2_prereg.json) adds, all opt-in through
+params, so a client without them gets exactly its P5b plan:
+  * "nav": "tpcw:browsing" | "tpcw:shopping" on browser_page and cgnat_browsers: page views follow the
+    TPC-W v1.8 chain of that mix (ml/l7_tpcw.py), in-session from Home, watched on the mapped states,
+    think time negative-exponential (mean think_mean_s, the spec's 7-8 s), product pages Zipf as above;
+  * "referer": true with the i.i.d. Zipf model ("nav" absent or "zipf"): views carry their Referer;
+  * kinds tpcw_browsing and tpcw_shopping (one TPC-W device of that mix, Referer on: distinct names, so a
+    held-out mix is labelled apart), search_user, exporter and flash_crowd (TPC-W browsing devices
+    arriving within 60 s).
+Every L7 v2 view carries "ref" (the Referer of its first wave: the device's previous document, None at
+entry) and "doc" (its document, the Referer of its later waves); an "inpage" view is one request
+(/search or /export) issued from the current document. The device's requests.Session keeps the cookies
+the server sets.
 """
 import bisect
 import os
@@ -31,6 +45,12 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import l7_webapp
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+import l7_tpcw
+import l7v2_prereg
 
 PAGE_UNIVERSE = 200
 ZIPF_ALPHA = 0.75
@@ -131,20 +151,23 @@ def model_values(params):
 
 
 def browser_views(level, duration_s, rng, first_visit_s=(0.0, 30.0), *, think_mean_s=THINK_MEAN_S,
-                  views_per_visit=VIEWS_PER_VISIT, visit_gap_s=VISIT_GAP_S):
+                  views_per_visit=VIEWS_PER_VISIT, visit_gap_s=VISIT_GAP_S, referer=False):
     """One device's page views, in order: [{"t", "page", "waves", "pause_s"}].
 
     `t` is the nominal start (zero load time); `waves` are the request paths in dependency
     order — [HTML], then CSS/JS, then fonts + page images — minus what the device has
     already loaded; `pause_s` is what the device waits after the view has loaded (think
     time, plus the gap to the next visit after a visit's last view). The keyword model
-    values default to the frozen module values."""
+    values default to the frozen module values. With `referer` (L7 v2) each view also
+    carries "ref" (the previous page of its visit, None for a visit's first view) and "doc";
+    the draws are the same either way."""
     wave1_all, fonts = l7_webapp.site_assets(level)
     cached = set()
     views = []
     t = rng.uniform(*first_visit_s)
     while t < duration_s:
         n = rng.randint(*views_per_visit)
+        prev = None
         for i in range(n):
             page = zipf_page(rng)
             wave1 = [p for p in wave1_all if p not in cached]
@@ -156,10 +179,138 @@ def browser_views(level, duration_s, rng, first_visit_s=(0.0, 30.0), *, think_me
                 pause += rng.uniform(*visit_gap_s)
             views.append({"t": round(t, 4), "page": page,
                           "waves": [[f"/page/{page}"], wave1, wave2], "pause_s": round(pause, 4)})
+            if referer:
+                views[-1]["ref"], views[-1]["doc"] = prev, f"/page/{page}"
+                prev = f"/page/{page}"
             t += pause
             if t >= duration_s:
                 break
     return views
+
+
+def page_key(path):
+    """The key of a document path for its page images: "/" is "home", "/page/<n>" is n (an int when n is digits)."""
+    if path == "/":
+        return "home"
+    key = path[len("/page/"):]
+    return int(key) if key.isdigit() else key
+
+
+class _Device:
+    """One L7 v2 browser device being planned: its asset cache, its current document and its views."""
+
+    def __init__(self, level):
+        self.level = level
+        self.wave1_all, self.fonts = l7_webapp.site_assets(level)
+        self.cached, self.views, self.doc = set(), [], None
+
+    def page(self, t, path, pause, state=None, ref="current"):
+        """A page view of `path`: HTML, then the CSS/JS and the fonts and images not yet cached. Its Referer is the
+        device's current document unless `ref` is given (None: a direct navigation)."""
+        key = page_key(path)
+        wave1 = [p for p in self.wave1_all if p not in self.cached]
+        wave2 = [p for p in self.fonts + l7_webapp.page_assets(self.level, key) if p not in self.cached]
+        self.cached.update(wave1)
+        self.cached.update(wave2)
+        self._add(t, key, [[path], wave1, wave2], pause, self.doc if ref == "current" else ref, path, state)
+        self.doc = path
+
+    def inpage(self, t, path, pause, state=None):
+        """One request issued from the current document (a search or an export)."""
+        self._add(t, page_key(self.doc), [[path]], pause, self.doc, self.doc, state)
+
+    def _add(self, t, key, waves, pause, ref, doc, state):
+        v = {"t": round(t, 4), "page": key, "waves": waves, "pause_s": round(pause, 4), "ref": ref, "doc": doc}
+        if state is not None:
+            v["state"] = state
+        self.views.append(v)
+
+
+def inpage_path(target, rng):
+    """The request of an in-page interaction: a search (one word) or an export."""
+    return l7_webapp.search_path(rng) if target == "search" else l7_webapp.export_path(rng)
+
+
+def tpcw_views(level, duration_s, rng, mix, first_visit_s=(0.0, 30.0), *, think_mean_s=THINK_MEAN_S):
+    """One device on the TPC-W v1.8 `mix` chain (docs/L7V2_DESIGN.md §12.1): in-session from Home, the chain watched
+    on the mapped states (ml/l7v2_prereg.json), a think time after every interaction, product pages Zipf."""
+    routes = l7v2_prereg.routes()
+    dev = _Device(level)
+    t = rng.uniform(*first_visit_s)
+    steps = l7_tpcw.walk(mix, rng, set(routes))
+    while t < duration_s:
+        state = next(steps)
+        kind, target = routes[state]
+        if kind == "inpage":
+            path = inpage_path(target, rng)
+            pause = think_time(rng, think_mean_s)
+            dev.inpage(t, path, pause, state)
+        else:
+            path = f"/page/{zipf_page(rng)}" if kind == "product" else target
+            pause = think_time(rng, think_mean_s)
+            dev.page(t, path, pause, state)
+        t += pause
+    return dev.views
+
+
+def search_views(level, duration_s, rng, first_visit_s=(0.0, 30.0), *, think_mean_s=THINK_MEAN_S):
+    """A search user (L7 v2 §7.2, ml/l7v2_prereg.json benign_kinds.search_user): Home, the search page, then searches
+    issued from it; after a search, a product page with probability p_detail and back to the search page."""
+    p_detail = l7v2_prereg.load()["benign_kinds"]["search_user"]["p_detail"]
+    form = l7v2_prereg.routes()["Search Request"][1]
+    dev = _Device(level)
+    t = rng.uniform(*first_visit_s)
+    step = "home"
+    while t < duration_s:
+        pause = think_time(rng, think_mean_s)
+        if step == "home":
+            dev.page(t, "/", pause, "Home")
+            step = "form"
+        elif step == "form":
+            dev.page(t, form, pause, "Search Request")
+            step = "search"
+        elif step == "search":
+            dev.inpage(t, l7_webapp.search_path(rng), pause, "Search Results")
+            step = "detail" if rng.random() < p_detail else "search"
+        else:
+            dev.page(t, f"/page/{zipf_page(rng)}", pause, "Product Detail")
+            step = "form"
+        t += pause
+    return dev.views
+
+
+def export_views(level, duration_s, rng, first_visit_s=None, *, think_mean_s=THINK_MEAN_S, visit_gap_s=None):
+    """An exporter (L7 v2 §7.2, ml/l7v2_prereg.json benign_kinds.exporter): visits a uniform gap apart; a visit is a
+    direct navigation to the account page, a think time, then one export issued from it."""
+    spec = l7v2_prereg.load()["benign_kinds"]["exporter"]
+    first_visit_s = tuple(spec["first_visit_s"] if first_visit_s is None else first_visit_s)
+    visit_gap_s = tuple(spec["visit_gap_s"] if visit_gap_s is None else visit_gap_s)
+    account = l7v2_prereg.routes()["Order Inquiry"][1]
+    dev = _Device(level)
+    t = rng.uniform(*first_visit_s)
+    while t < duration_s:
+        pause = think_time(rng, think_mean_s)
+        dev.page(t, account, pause, "Order Inquiry", ref=None)
+        t += pause
+        if t >= duration_s:
+            break
+        pause = think_time(rng, think_mean_s) + rng.uniform(*visit_gap_s)
+        dev.inpage(t, l7_webapp.export_path(rng), pause, "Order Display")
+        t += pause
+    return dev.views
+
+
+def _nav_views(params, duration_s, rng, first_visit_s):
+    """The views of one browser device by its "nav" param: the P5b i.i.d. Zipf model (absent or "zipf"), or a TPC-W
+    mix ("tpcw:<mix>")."""
+    nav = params.get("nav", "zipf")
+    mv = model_values(params)
+    if nav == "zipf":
+        return browser_views(params["level"], duration_s, rng, first_visit_s, referer=bool(params.get("referer")), **mv)
+    if nav.startswith("tpcw:") and nav[5:] in l7_tpcw.mixes():
+        return tpcw_views(params["level"], duration_s, rng, nav[5:], first_visit_s,
+                          think_mean_s=mv.get("think_mean_s", THINK_MEAN_S))
+    raise ValueError(f"unknown nav {nav!r}")
 
 
 def _paced(paths, rps, duration_s, rng, jitter=None):
@@ -178,18 +329,39 @@ def plan_client(kind, params, duration_s, rng):
     {"ua", "views"} (browser-like) or {"ua", "requests": [(path, gap_s)]} (paced)."""
     if kind == "browser_page":
         ua = draw_ua(rng)
-        views = browser_views(params["level"], duration_s, rng,
-                              tuple(params.get("first_visit_s", (0.0, 30.0))), **model_values(params))
+        views = _nav_views(params, duration_s, rng, tuple(params.get("first_visit_s", (0.0, 30.0))))
         return {"kind": kind, "users": [{"ua": ua, "views": views}]}
     if kind == "cgnat_browsers":
         users = []
         for _ in range(params["users"]):
             urng = type(rng)(rng.randrange(2**31))
             ua = draw_ua(urng)
-            users.append({"ua": ua, "views": browser_views(
-                params["level"], duration_s, urng, tuple(params.get("first_visit_s", (0.0, 60.0))),
-                **model_values(params))})
+            users.append({"ua": ua, "views": _nav_views(params, duration_s, urng,
+                                                        tuple(params.get("first_visit_s", (0.0, 60.0))))})
         return {"kind": kind, "users": users}
+    if kind in ("tpcw_browsing", "tpcw_shopping"):
+        ua = draw_ua(rng)
+        views = tpcw_views(params["level"], duration_s, rng, kind[5:], tuple(params.get("first_visit_s", (0.0, 30.0))),
+                           think_mean_s=model_values(params).get("think_mean_s", THINK_MEAN_S))
+        return {"kind": kind, "users": [{"ua": ua, "views": views}]}
+    if kind == "flash_crowd":
+        ua = draw_ua(rng)
+        spec = l7v2_prereg.load()["benign_kinds"]["flash_crowd"]
+        mix = params.get("nav", "tpcw:" + l7v2_prereg.load()["navigation"]["train_mix"])[5:]
+        views = tpcw_views(params["level"], duration_s, rng, mix, (0.0, spec["arrive_within_s"]),
+                           think_mean_s=model_values(params).get("think_mean_s", THINK_MEAN_S))
+        return {"kind": kind, "users": [{"ua": ua, "views": views}]}
+    if kind == "search_user":
+        ua = draw_ua(rng)
+        views = search_views(params["level"], duration_s, rng, tuple(params.get("first_visit_s", (0.0, 30.0))),
+                             think_mean_s=model_values(params).get("think_mean_s", THINK_MEAN_S))
+        return {"kind": kind, "users": [{"ua": ua, "views": views}]}
+    if kind == "exporter":
+        ua = draw_ua(rng)
+        views = export_views(params["level"], duration_s, rng, params.get("first_visit_s"),
+                             think_mean_s=model_values(params).get("think_mean_s", THINK_MEAN_S),
+                             visit_gap_s=params.get("visit_gap_s"))
+        return {"kind": kind, "users": [{"ua": ua, "views": views}]}
     if kind == "api_bulk":
         rps = rng.uniform(*params["rps"])
         k = rng.randint(*params.get("endpoints", (2, 3)))
@@ -210,3 +382,4 @@ def plan_client(kind, params, duration_s, rng):
 
 
 KINDS = ("browser_page", "cgnat_browsers", "api_bulk", "crawler_polite")
+L7V2_KINDS = ("tpcw_browsing", "tpcw_shopping", "search_user", "exporter", "flash_crowd")

@@ -103,6 +103,27 @@ def route_class(method, path):
     return None
 
 
+# The words the origin's search ranks (bench/origin.py WORDS; a test checks they are the same).
+SEARCH_WORDS = ("alpha", "bravo", "cedar", "delta", "ember", "fjord", "gamma", "harbor", "indigo", "jasper",
+                "kestrel", "lumen", "meadow", "nectar", "onyx", "prairie", "quartz", "raven", "saffron", "tundra",
+                "umber", "velvet", "willow", "xenon", "yarrow", "zephyr", "amber", "basalt", "coral", "dune",
+                "elm", "flint", "glacier", "heron", "iris", "juniper", "kelp", "lichen", "moss", "nettle",
+                "opal", "pebble", "quill", "reed", "sage", "thistle", "urchin", "violet", "wren", "yucca",
+                "ash", "birch", "clover", "dusk", "echo", "fern", "grove", "hazel", "isle", "jade", "knoll", "loam")
+EXPORT_R = (1, 1000)
+
+
+def search_path(rng):
+    """A search of the site's search form (L7 v2, ml/l7v2_prereg.json search_terms): one word, uniform over
+    SEARCH_WORDS. Benign search users and the bots draw their terms here alike."""
+    return f"/search?q={rng.choice(SEARCH_WORDS)}"
+
+
+def export_path(rng):
+    """An export (L7 v2, ml/l7v2_prereg.json export_r): r uniform on 1..1000 changes only the URL's work factor."""
+    return f"/export?r={rng.randint(*EXPORT_R)}"
+
+
 def route_status(method, path):
     """The HTTP status legacy_app() returns for (method, path), without running the handler (a query string is
     ignored). The costed backend answers the same, except a 400 for a search term or export query the origin refuses,

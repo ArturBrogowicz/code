@@ -216,12 +216,17 @@ def benign_nat_gateway(host, port, params, dur, rng):
 #    l7_benign.plan_client() builds from this process's seed — the same plan the
 #    admissibility gate (ml/l7_admissibility.py) simulated. ──
 
-def _quiet_get(sess, url):
+def _quiet_get(sess, url, headers=None):
     import requests
     try:
-        sess.get(url, verify=False, timeout=10)
+        sess.get(url, verify=False, timeout=10, headers=headers)
     except requests.RequestException:
         pass
+
+
+def _referer(base, path):
+    """The Referer header of an L7 v2 request (docs/L7V2_DESIGN.md §8.4), or None."""
+    return {"Referer": base + path} if path else None
 
 
 def _session(ua, conns):
@@ -240,7 +245,8 @@ def _session(ua, conns):
 def _browser_device(base, user, start, end):
     """Load each view's waves in order (a wave fans out over the device's connections),
     then wait the view's pause. Network time stretches the nominal timeline; it never
-    compresses it."""
+    compresses it. An L7 v2 view (with "doc") sends its first wave with Referer = its "ref"
+    and its later waves with Referer = its "doc"; the session keeps the server's cookies."""
     from concurrent.futures import ThreadPoolExecutor
     views = user["views"]
     if not views:
@@ -251,9 +257,10 @@ def _browser_device(base, user, start, end):
         for v in views:
             if time.time() >= end:
                 break
-            for wave in v["waves"]:
+            for i, wave in enumerate(v["waves"]):
                 if wave:
-                    list(pool.map(lambda p, _s=sess: _quiet_get(_s, base + p), wave))
+                    hdrs = _referer(base, v.get("ref") if i == 0 else v.get("doc")) if "doc" in v else None
+                    list(pool.map(lambda p, _s=sess, _h=hdrs: _quiet_get(_s, base + p, _h), wave))
             time.sleep(max(0.0, min(v["pause_s"], end - time.time())))
 
 
@@ -294,6 +301,26 @@ def benign_api_bulk(host, port, params, dur, rng):
 
 def benign_crawler_polite(host, port, params, dur, rng):
     _run_plan("crawler_polite", host, port, params, dur, rng)
+
+
+def benign_tpcw_browsing(host, port, params, dur, rng):
+    _run_plan("tpcw_browsing", host, port, params, dur, rng)
+
+
+def benign_tpcw_shopping(host, port, params, dur, rng):
+    _run_plan("tpcw_shopping", host, port, params, dur, rng)
+
+
+def benign_search_user(host, port, params, dur, rng):
+    _run_plan("search_user", host, port, params, dur, rng)
+
+
+def benign_exporter(host, port, params, dur, rng):
+    _run_plan("exporter", host, port, params, dur, rng)
+
+
+def benign_flash_crowd(host, port, params, dur, rng):
+    _run_plan("flash_crowd", host, port, params, dur, rng)
 
 
 # ───────────────────────────── attack families ─────────────────────────────
@@ -452,7 +479,9 @@ BENIGN = {"curl_oneshot": benign_curl_oneshot, "http2": benign_http2,
           "downloader": benign_downloader, "uploader": benign_uploader,
           "nat_gateway": benign_nat_gateway, "browser_page": benign_browser_page,
           "cgnat_browsers": benign_cgnat_browsers, "api_bulk": benign_api_bulk,
-          "crawler_polite": benign_crawler_polite}
+          "crawler_polite": benign_crawler_polite, "tpcw_browsing": benign_tpcw_browsing,
+          "tpcw_shopping": benign_tpcw_shopping, "search_user": benign_search_user,
+          "exporter": benign_exporter, "flash_crowd": benign_flash_crowd}
 ATTACK = {"subthreshold_flood": attack_subthreshold_flood, "scraper": attack_scraper,
           "padded_flood": attack_padded_flood, "credstuff": attack_credstuff,
           "slowloris": attack_slowloris, "slowpost": attack_slowpost,
