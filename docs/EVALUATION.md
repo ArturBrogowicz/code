@@ -270,11 +270,25 @@ Known limits:
 * Only SIGTERM is ignored while the stop is under way. A second Ctrl-C during the shutdown can still
   interrupt the `finally` before the XDP detach (pre-existing, review R1-02), and subprocesses started
   during the shutdown inherit the ignored SIGTERM, so a hung shutdown needs SIGKILL (review R1-03).
-* The R.U.D.Y. pattern takes the last `client: <IPv4>` of a line (a separate finding, not changed here). A
-  capture that is not an IP address fails its ban, so the thread restarts on each such line.
 * Because `ml/eval_l7.py` stops the daemon with SIGTERM, which is now graceful, its `l7_gru_poll` totals
   (summed over every record, `ml/eval_l7.py:162-164`) may include one extra, final poll, so compare them
   with P5/P5c with that caveat (D-04).
+
+**H-26, the R.U.D.Y. client field (fixed on `fix/rudy-client-ip`, 2026-10-30).** The error-log rule took the
+last `client: <IPv4>` of a line, so an address in the URI, the Host or the Referer was counted and banned
+instead of the client. Non-ASCII digits made `ban_ip` raise, which restarted the thread, and a body-timeout
+text that the client wrote into another line (a header timeout, an ignored header line) counted as well.
+nginx writes the client field right after its message and action, and the request line and the headers only
+after it (`ngx_http_log_error`, `src/http/ngx_http_request.c:3918-4007` of nginx 1.28.3). The pattern is now
+anchored at the start of the line and takes the field up to the `, server: ` that follows it, and the tailer
+ends lines at LF only, as nginx does, so a CR inside a field cannot start a forged line. A field that is not
+an IPv4 address is skipped and reported (`daemon_error`, `where` `error_log`). Thresholds, window, keying,
+the ban path and the ban event are unchanged. `RudyClientFieldTest` in `tests/test_daemon_rudy_client.py`
+checks this offline, and each of its tests fails on the daemon before the fix. [NOT RUN] on the testbed,
+where the rule does not fire at all: nginx 1.28.3 never writes "while reading client request body". The
+string is in neither its sources nor the installed `/usr/sbin/nginx`, an HTTP/1.1 body timeout ends in a 408
+without an error-log line (`src/http/ngx_http_request_body.c:276-282`), and none of the VM's error logs of
+2026-10-07 to 2026-10-23 has such a line.
 
 ## Outputs of a run (`RESULTS_DIR`)
 
@@ -323,7 +337,7 @@ at the run directory; standalone default `/var/log/ddos/ban_events.jsonl`; `""` 
 | `unban` | `ip`, `backend`, `age_s` |
 | `suppress_on`, `suppress_off` | `syn_delta`, `pkt_delta`: the GRU pause during volumetric floods (observed once per 1-s poll) |
 | `gru_suppressed` | `ip`, `value` (probability), `hits`: a GRU detection dropped because the pause was active |
-| `daemon_error` | `where`, `error` (type and message, at most 300 characters), `action`: an error the daemon survived and retried (since 2026-10-30; `where` is `access_log` for the main loop's tailer, `telemetry` for one L4 poll, `thread:<name>` for a worker thread's target: `telemetry`, `inference`, `rudy`, `l7_shadow`). A run without one had no such error |
+| `daemon_error` | `where`, `error` (type and message, at most 300 characters), `action`: an error the daemon survived and retried (since 2026-10-30; `where` is `access_log` for the main loop's tailer, `telemetry` for one L4 poll, `thread:<name>` for a worker thread's target: `telemetry`, `inference`, `rudy`, `l7_shadow`; `error_log` for a R.U.D.Y. body-timeout line whose client field is not an IPv4 address, skipped with `action` `line skipped`, H-26). A run without one had no such error |
 
 Engines: `l4_syn`, `l4_volumetric`, `l4_slowconn`, `l4_lowsyn`, `l7_rate`, `l7_rudy`,
 `gru`. The `value` of the L4 engines is a count per poll interval (1 s plus the loop's
