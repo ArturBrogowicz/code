@@ -31,6 +31,13 @@ parameters (ml/l7_pools.py); the seed must be pre-registered for its role (ml/p3
 
 `--pipeline legacy` is the capture of 2026-10 (P3, P5, P5c: benign at 10.0.1.{i+1}, attackers
 at 10.0.2.{j+1}, the same map for every seed), kept so that those runs can be reproduced.
+
+`--population l7v2` (docs/L7V2_DESIGN.md §4, §5.1) runs the costed backend: gunicorn gets
+L7_BACKEND=costed and the calibration record (--calibration; the placeholder by default, recorded
+with its status in the manifest) and binds 127.0.0.1 only; every benign plan-kind entity writes its
+client-side records (l7_gen --records), gzipped into the capture directory as records_<entity>.csv.gz (a
+plain file name, as the manifest checks require) and listed in the manifest.
+A training, validation or evaluation plan of it needs the frozen knees of the P1 ladder (--knees).
 """
 import argparse
 import hashlib
@@ -265,12 +272,24 @@ def gate_lines(gate):
 def p3_plan(args):
     """The P3 plan for these arguments (ml/l7_pools.build_plan), or exit with the reason."""
     import l7_pools
+    knees = None
+    if getattr(args, "knees", None):
+        with open(args.knees, encoding="utf-8") as fh:
+            knees = json.load(fh)
     try:
-        return l7_pools.build_plan(args.version, args.seed, args.seed_role, args.population,
+        plan = l7_pools.build_plan(args.version, args.seed, args.seed_role, args.population,
                                    heuristics=args.heuristics, scale=args.scale,
-                                   gate_seeds=tuple(range(args.p3_gate_seeds)))
+                                   gate_seeds=tuple(range(args.p3_gate_seeds)), knees=knees,
+                                   record_path=getattr(args, "calibration", None))
     except l7_pools.PlanError as exc:
         sys.exit(f"[-] P3 plan refused: {exc}")
+    if plan["server"].get("backend") == "costed":
+        import l7_backend
+        path = os.path.abspath(getattr(args, "calibration", None) or l7_backend.CAL.PLACEHOLDER)
+        _rec, status, tag = l7_backend.load_record(path)
+        plan["server"]["calibration"] = {"path": path, "sha256": l7_backend.record_sha256(path), "status": status,
+                                         "tag": tag}
+    return plan
 
 
 def print_plan(args):
@@ -381,6 +400,42 @@ class Capture:
                 p.kill()
 
 
+RECORDED_KINDS = ("browser_page", "cgnat_browsers", "api_bulk", "crawler_polite", "tpcw_browsing", "tpcw_shopping",
+                  "search_user", "exporter", "flash_crowd")      # l7_benign's plan kinds
+
+
+def records_name(entity_id):
+    """The client records file of an entity, a plain name in the capture directory (eval/l7v2_harm.py reads it)."""
+    return "records_" + entity_id.replace(":", "_") + ".csv"
+
+
+def gunicorn_argv(S, server):
+    """The gunicorn command of a P3 capture: the seed's workers x threads; with the costed backend (L7 v2) the record
+    in the environment and the bind on loopback only (nginx proxies to 127.0.0.1:8080; docs/L7V2_DESIGN.md 4.3)."""
+    costed = server.get("backend") == "costed"
+    env = ["env", "L7_BACKEND=costed", f"L7_CALIBRATION={server['calibration']['path']}"] if costed else []
+    return S._srv(env + [S.PYTHON_VENV, "-m", "gunicorn", "--chdir", REPO, "--workers", str(server["gunicorn_workers"]),
+                         "--threads", str(server["gunicorn_threads"]), "-b",
+                         "127.0.0.1:8080" if costed else "0.0.0.0:8080", WEBAPP])
+
+
+def collect_records(staging, capture_dir):
+    """The client records (L7 v2) gzipped into the capture directory, each checked to decompress to its staged bytes,
+    as manifest file records; run before l7_store.finalize_logs removes the staging directory."""
+    import l7_store
+    if not os.path.isdir(staging):
+        return []
+    out = []
+    for name in sorted(n for n in os.listdir(staging) if n.startswith("records_") and n.endswith(".csv")):
+        gz = os.path.join(capture_dir, name + ".gz")
+        l7_store.gzip_file(os.path.join(staging, name), gz)
+        rec = l7_dataset.file_record(gz, name + ".gz")
+        if rec["content_sha256"] != l7_store.sha256_file(os.path.join(staging, name)):
+            raise RuntimeError(f"{gz} does not decompress to the staged {name}")
+        out.append(rec)
+    return out
+
+
 def alias_batch(addresses, mask="/16", dev="veth_in"):
     """`ip -batch` input adding each address as an alias of a P3 client namespace's veth."""
     return "".join(f"addr add {a}{mask} dev {dev}\n" for a in addresses)
@@ -441,11 +496,7 @@ class P3Capture(Capture):
                            capture_output=True, check=False)
         with open(self.conf_path, "w", encoding="utf-8") as fh:
             fh.write(render_conf(self.access_log, self.plan["heuristics"], self.error_log))
-        self.procs.append(("gunicorn", S.run(
-            S._srv([S.PYTHON_VENV, "-m", "gunicorn", "--chdir", REPO,
-                    "--workers", str(server["gunicorn_workers"]),
-                    "--threads", str(server["gunicorn_threads"]), "-b", "0.0.0.0:8080", WEBAPP]),
-            ns=S.SERVER_NS, bg=True)))
+        self.procs.append(("gunicorn", S.run(gunicorn_argv(S, server), ns=S.SERVER_NS, bg=True)))
         time.sleep(1.5)
         self.procs.append(("nginx", S.run(S._srv(["nginx", "-c", self.conf_path]),
                                           ns=S.SERVER_NS, bg=True)))
@@ -464,6 +515,9 @@ class P3Capture(Capture):
         cmd = [S.PYTHON_VENV, GEN, "--role", role, "--host", S.SERVER_IP, "--port", str(e["port"]),
                "--duration", f"{duration:.1f}", "--seed", str(e["client_seed"]),
                "--params", json.dumps(e["params"], sort_keys=True), "--source", e["address"]]
+        if role == "benign" and self.plan["server"].get("backend") == "costed" \
+                and e["kind_or_family"] in RECORDED_KINDS:
+            cmd += ["--records", os.path.join(self.staging, records_name(e["entity_id"]))]
         return cmd + (["--kind", e["kind_or_family"]] if role == "benign"
                       else ["--family", e["kind_or_family"]])
 
@@ -532,11 +586,12 @@ def run_p3(args, plan):
         S.cleanup_all()
         cleanup_l7_topology()
     ended = time.gmtime()
-    files = l7_store.finalize_logs(staging, out_dir)
+    records = collect_records(staging, out_dir)
+    files = l7_store.finalize_logs(staging, out_dir) + records
     files.append(D.file_record(cap.conf_path, os.path.basename(cap.conf_path)))
     conf_sha = files[-1]["sha256"]
     server = dict(plan["server"], heuristics=plan["heuristics"], nginx_conf_sha256=conf_sha,
-                  calibration={"path": None, "sha256": None, "status": "absent"})
+                  calibration=plan["server"].get("calibration", {"path": None, "sha256": None, "status": "absent"}))
     manifest = D.make_manifest_v2(
         dataset_version=plan["dataset_version"], capture_id=cid, seed=plan["seed"],
         seed_role=plan["seed_role"], started_utc=utc_iso(started), ended_utc=utc_iso(ended),
@@ -598,6 +653,10 @@ def main():
     ap.add_argument("--scale", type=int, default=1, help="p3: every entity count times this")
     ap.add_argument("--gate-seeds", type=int, default=len(l7_traffic.GATE_SEEDS), dest="p3_gate_seeds",
                     help="p3: simulated seeds of the benign admissibility gate")
+    ap.add_argument("--calibration", help="p3 l7v2: the calibration record the costed backend serves under "
+                                          "(default: the placeholder; recorded with its status)")
+    ap.add_argument("--knees", help="p3 l7v2: a JSON file of the frozen knees of the P1 ladder (training, validation "
+                                    "and evaluation plans need it)")
     ap.add_argument("--store", default="/home/artur/datasets/l7",
                     help="p3: the dataset store; the capture goes to <store>/<version>/<capture_id>/ "
                          "(refused under /var/tmp, /tmp or the repository)")

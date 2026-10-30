@@ -23,7 +23,8 @@ applied to closed-loop benign clients:
     criterion against C (dQ or dL), the placebo C' does not, and the record is frozen. A FAIL is V-D "no harm".
 
 A run directory holds manifest.json (schema 2 or 3, with timeline.t0_wall and the entities' netem), records/
-<entity_id>.csv[.gz] for the benign entities, access.log[.gz], and run.json {"role", "class", "checks": {"ok",
+<entity_id>.csv[.gz] for the benign entities (a P3 capture
+stores them flat, records_<entity_id>.csv.gz), access.log[.gz], and run.json {"role", "class", "checks": {"ok",
 "reasons"}}. A block holds block.json {"block", "attempt", "seed", "calibration_sha256", "timeline": {"baseline_s",
 "attack_s", "recovery_s"}, "order"} and the runs C, Cp, U_<class> (and M_<arm>_<class>).
 
@@ -141,8 +142,9 @@ def run_rows(run_dir, manifest, window_rel, duration_s=None):
         if e["role"] != "benign":
             continue
         rows = []
-        for name in (f"{e['entity_id']}.csv.gz", f"{e['entity_id']}.csv"):
-            path = os.path.join(run_dir, "records", name.replace(":", "_"))
+        stem = e["entity_id"].replace(":", "_")
+        for path in (os.path.join(run_dir, "records", stem + ".csv.gz"), os.path.join(run_dir, "records", stem + ".csv"),
+                     os.path.join(run_dir, f"records_{stem}.csv.gz"), os.path.join(run_dir, f"records_{stem}.csv")):
             if os.path.isfile(path):
                 rows = read_client_records(path)
                 break
