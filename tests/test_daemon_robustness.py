@@ -5,9 +5,12 @@ tests/test_daemon_rules.py: nothing is imported from control_plane.py (it attach
 import), and nothing is attached, started or slept for real. Each test fails on the daemon
 before the fix it covers.
 """
+import ast
 import contextlib
 import os
 import sys
+import threading
+import types
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -130,6 +133,146 @@ class UndecodableBytesTest(DaemonCase):
                 self.tail(d, "tail_nginx_error_logs", [body_timeout_line(uri=b"/" + raw)] * 3)
                 self.assertEqual([(b["ip"], b["engine"], b["value"]) for b in d.bans()],
                                  [(IP, "l7_rudy", 3)])
+
+
+
+def main_statement():
+    """The daemon's module-level `try` statement: start-up, the main log loop and the
+    `finally` that detaches XDP."""
+    with open(H.SOURCE, encoding="utf-8") as fh:
+        tree = ast.parse(fh.read())
+    for node in tree.body:
+        if isinstance(node, ast.Try) and any(
+                isinstance(n, ast.For) and isinstance(n.iter, ast.Call)
+                and H._dotted(n.iter.func) == "tail_nginx_logs" for n in ast.walk(node)):
+            return node
+    raise AssertionError("control_plane.py: the main try statement was not found")
+
+
+class FakeBPF:
+    def __init__(self):
+        self.removed = []
+
+    def remove_xdp(self, dev, flags):
+        self.removed.append((dev, flags))
+
+
+class FakeSignal:
+    SIGTERM = 15
+
+    def __init__(self):
+        self.handlers = {}
+
+    def signal(self, signum, handler):
+        self.handlers[signum] = handler
+
+
+class MainRun:
+    """The daemon's main statement in the harness's namespace. What it would attach or start
+    is faked: `bpf` records remove_xdp, `threads` the threads it starts (none runs), `sig` the
+    signal handlers it installs; `tailer`, when given, replaces tail_nginx_logs."""
+
+    def __init__(self, d):
+        self.d = d
+        self.bpf = FakeBPF()
+        self.sig = FakeSignal()
+        self.threads = []
+        threads = self.threads
+
+        class Thread:
+            def __init__(self, target=None, args=(), kwargs=None, daemon=None, name=None):
+                self.target, self.args, self.name = target, tuple(args), name
+
+            def start(self):
+                threads.append(self)
+
+            def is_alive(self):
+                return True
+
+        self.threading = types.SimpleNamespace(Thread=Thread, Lock=threading.Lock,
+                                               Event=threading.Event)
+
+    def run(self, tailer=None):
+        ns = self.d.ns
+        saved = {k: ns[k] for k in ("threading", "tail_nginx_logs")}
+        ns.update(bpf=self.bpf, signal=self.sig, threading=self.threading)
+        if tailer is not None:
+            ns["tail_nginx_logs"] = tailer
+        code = compile(ast.Module(body=[main_statement()], type_ignores=[]), H.SOURCE, "exec")
+        try:
+            with contextlib.redirect_stdout(self.d.out):
+                exec(code, ns)  # noqa: S102 - the daemon's own statement, against fakes
+        finally:
+            ns.update(saved)
+
+
+class MainLoopTest(DaemonCase):
+    """H-01: an exception that escaped the log tailer left the main loop, reached the finally
+    and detached XDP: every ban was lifted and detection stopped. Now the tailer is recreated;
+    only Ctrl-C or SIGTERM (stop_event) ends the daemon."""
+
+    def test_an_error_in_the_tailer_recreates_it_and_keeps_xdp_attached(self):
+        d = self.daemon()
+        main = MainRun(d)
+        opened, attached_meanwhile = [], []
+
+        def tailer(path):
+            opened.append(path)
+            if len(opened) == 1:
+                raise OSError(5, "Input/output error")          # e.g. from readline()
+            for _ in range(51):                                 # the recreated tailer: a flood
+                d.clock.now += 0.01
+                yield access_line(agent=b"bot").decode()
+            attached_meanwhile.append(main.bpf.removed == [])
+            d.stop_event.set()                                  # then an intentional stop
+
+        main.run(tailer)
+        self.assertEqual(opened, [d.NGINX_LOG_FILE] * 2)
+        self.assertEqual(attached_meanwhile, [True])
+        self.assertEqual([(b["ip"], b["engine"]) for b in d.bans()], [(IP, "l7_rate")])
+        [err] = d.events("daemon_error")
+        self.assertEqual((err["where"], err["error"]),
+                         ("access_log", "OSError: [Errno 5] Input/output error"))
+        self.assertEqual(d.clock.sleeps, 1)                     # the backoff
+        self.assertEqual(main.bpf.removed, [("veth_server", 0)])   # the stop detaches, once
+
+    def test_ctrl_c_still_detaches_xdp_once_after_an_error(self):
+        d = self.daemon()
+        main = MainRun(d)
+        opened = []
+
+        def tailer(_path):
+            opened.append(1)
+            if len(opened) == 1:
+                raise ValueError("I/O operation on closed file.")
+            raise KeyboardInterrupt
+            yield                                               # a generator, like the real one
+
+        main.run(tailer)                                        # KeyboardInterrupt is handled
+        self.assertEqual(len(opened), 2)
+        self.assertEqual(len(d.events("daemon_error")), 1)
+        self.assertEqual(main.bpf.removed, [("veth_server", 0)])
+        self.assertIn("Execution interrupted by user", d.console())
+
+    def test_sigterm_is_an_intentional_stop_that_detaches_xdp_once(self):
+        # The real tailer on an empty log: the first time it sleeps at end of file, SIGTERM
+        # arrives. Before the fix the daemon installed no handler, so SIGTERM killed it on the
+        # spot and XDP stayed attached with its bans and no TTL sweep (security review S17).
+        d = self.daemon()
+        main = MainRun(d)
+        log = os.path.join(d._tmp.name, "access.log")
+        with open(log, "wb"):
+            pass
+        d.ns["NGINX_LOG_FILE"] = log
+
+        def on_sleep(_k):
+            main.sig.handlers[main.sig.SIGTERM](main.sig.SIGTERM, None)
+        d.clock.on_sleep = on_sleep
+        main.run()
+        self.assertTrue(d.stop_event.is_set())
+        self.assertEqual(main.bpf.removed, [("veth_server", 0)])
+        self.assertEqual(d.events("daemon_error"), [])
+        self.assertEqual(d.clock.sleeps, 1)
 
 
 if __name__ == "__main__":

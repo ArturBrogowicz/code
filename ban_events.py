@@ -14,8 +14,10 @@ Every record has:
     t_mono_ns  int    CLOCK_MONOTONIC in ns (time.monotonic_ns())
     kind       str    "start" | "ban" | "unban" | "suppress_on" | "suppress_off"
                       | "gru_suppressed" | "l7_shadow" | "l7_gru_poll" | "l7_would_ban"
+                      | "daemon_error"
                       (the l7_* kinds are the L7 shadow engine's telemetry; a
-                      would-ban is a decision that was logged, not enforced)
+                      would-ban is a decision that was logged, not enforced; a
+                      daemon_error is an error the daemon survived and retried)
 plus kind-specific fields (ip, engine, value, threshold, ...); the full schema is
 documented in docs/EVALUATION.md.
 """

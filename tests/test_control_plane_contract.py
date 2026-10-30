@@ -16,7 +16,7 @@ sys.path.insert(0, REPO)
 import ban_events
 
 EVENT_KINDS = {"start", "ban", "unban", "suppress_on", "suppress_off", "gru_suppressed",
-               "l7_shadow", "l7_gru_poll", "l7_would_ban"}
+               "l7_shadow", "l7_gru_poll", "l7_would_ban", "daemon_error"}
 # The L7 shadow modules must not be able to enforce anything (docs/L7_GRU_DESIGN.md §8).
 L7_MODULES = ("l7_ingest.py", "l7_features.py", "l7_scorer.py", "l7_engine.py")
 BAN_PATH_NAMES = ("ban_ip", "block_ip_in_xdp", "blacklist_map", "kill_zombie_connections",

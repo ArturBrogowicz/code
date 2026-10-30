@@ -7,6 +7,7 @@ import os
 import subprocess
 import threading
 import queue
+import signal
 from collections import defaultdict, deque
 import torch
 import joblib
@@ -420,6 +421,29 @@ def get_established_conns_by_ip():
         peer_ip = peer.rsplit(":", 1)[0].strip("[]")
         counts[peer_ip] += 1
     return counts
+
+
+# Robustness (review of 2026-10-29, H-01/H-02): an error the daemon survives is reported on
+# the console and as a `daemon_error` event, and the failed part is retried after this backoff.
+ERROR_BACKOFF_S = 1.0
+
+
+def report_daemon_error(where, err, action):
+    """One console line and one `daemon_error` event (where, error, action) for an error the
+    daemon survives. Never raises: it runs in the handlers that keep the daemon alive, so a
+    failed write (stdout closed, disk full) is dropped."""
+    error = err if isinstance(err, str) else f"{type(err).__name__}: {err}"
+    try:
+        EVENTS.emit("daemon_error", where=where, error=error[:300], action=action)
+        print(f"[-] {where}: {error} ({action})")
+    except (OSError, ValueError):
+        pass
+
+
+def request_stop(_signum, _frame):
+    """SIGTERM handler: an intentional stop, like Ctrl-C. The loops see stop_event and end,
+    and the main statement's finally detaches XDP, which lifts every ban."""
+    stop_event.set()
 
 
 def tail_nginx_logs(file_path):
@@ -937,6 +961,8 @@ def l3_l4_telemetry_monitor():
 
 
 try:
+    # SIGTERM stops the daemon like Ctrl-C: through the finally below, which detaches XDP.
+    signal.signal(signal.SIGTERM, request_stop)
     print("[*] Starting tri-engine Anti-DDoS integration "
           "(XDP Telemetry + GRU ML + L7 Heuristics)...")
     if GRU_ONLY:
@@ -993,68 +1019,78 @@ try:
     # The main loop now handles ONLY the L7 heuristic (rate + error ratio).
     # GRU inference has moved to the telemetry monitor thread where it reads
     # CICFlowMeter-aligned features directly from the XDP telemetry map.
-    for log_line in tail_nginx_logs(NGINX_LOG_FILE):
+    # H-01: an error that escapes the tailer (or this loop) is reported and the tailer
+    # recreated after ERROR_BACKOFF_S. Only an intentional stop, Ctrl-C or SIGTERM
+    # (stop_event), leaves the loop for the finally below, which detaches XDP and so
+    # lifts every ban.
+    while not stop_event.is_set():
         try:
-            log_data = json.loads(log_line)
-            client_ip = log_data.get("client_ip")
+            for log_line in tail_nginx_logs(NGINX_LOG_FILE):
+                try:
+                    log_data = json.loads(log_line)
+                    client_ip = log_data.get("client_ip")
 
-            with banned_ips_lock:
-                if client_ip in banned_ips:
+                    with banned_ips_lock:
+                        if client_ip in banned_ips:
+                            continue
+
+                    # --- L7 Heuristic: rate + error ratio detection ---
+                    now = time.time()
+                    status = int(log_data.get("status", 200))
+                    # 503 is the backend saying it's overloaded, so we don't count that as an attack from the client
+                    is_error = status >= 400 and status != 503
+
+                    # request_tracker is shared with the telemetry thread's eviction, so
+                    # every read/write happens under state_lock. We only DECIDE here; the
+                    # ban/kill (subprocess/BPF) runs after the lock is released.
+                    should_ban = False
+                    ban_rps = 0.0
+                    ban_err = 0.0
+                    with state_lock:
+                        request_tracker[client_ip].append((now, is_error))
+
+                        # Evict entries outside the sliding window
+                        while (request_tracker[client_ip] and
+                               now - request_tracker[client_ip][0][0] > HEURISTIC_WINDOW):
+                            request_tracker[client_ip].popleft()
+
+                        entries = request_tracker[client_ip]
+                        if len(entries) >= HEURISTIC_MIN_REQUESTS:
+                            window_duration = now - entries[0][0]
+                            if window_duration > 0:
+                                # Clamp the denominator to >=1s so a small burst in a
+                                # tiny elapsed window (e.g. 5 reqs in 50ms) can't explode
+                                # into a huge rps and false-ban a bursty legit client (§3).
+                                rps = len(entries) / max(window_duration, 1.0)
+                                error_count = sum(1 for _, err in entries if err)
+                                error_ratio = error_count / len(entries)
+                                if rps > HEURISTIC_MAX_RPS or (error_ratio > HEURISTIC_ERROR_RATIO and rps > 10):
+                                    should_ban = True
+                                    ban_rps = rps
+                                    ban_err = error_ratio
+
+                    if should_ban and not GRU_ONLY:
+                        print(f"\n[HEURISTIC] L7 anomaly detected - IP: {client_ip} | "
+                              f"RPS: {ban_rps:.1f} | Error ratio: {ban_err:.0%}")
+                        ban_ip(client_ip,
+                               reason=f"Heuristic (RPS={ban_rps:.1f}, errors={ban_err:.0%})",
+                               engine="l7_rate", value=round(ban_rps, 3),
+                               threshold=HEURISTIC_MAX_RPS, error_ratio=round(ban_err, 4))
+                        kill_zombie_connections(client_ip)
+                        with state_lock:
+                            client_sequences.pop(client_ip, None)
+                            request_tracker.pop(client_ip, None)
+                            client_last_seen.pop(client_ip, None)
+                        continue
+
+                except json.JSONDecodeError:
                     continue
-
-            # --- L7 Heuristic: rate + error ratio detection ---
-            now = time.time()
-            status = int(log_data.get("status", 200))
-            # 503 is the backend saying it's overloaded, so we don't count that as an attack from the client
-            is_error = status >= 400 and status != 503
-
-            # request_tracker is shared with the telemetry thread's eviction, so
-            # every read/write happens under state_lock. We only DECIDE here; the
-            # ban/kill (subprocess/BPF) runs after the lock is released.
-            should_ban = False
-            ban_rps = 0.0
-            ban_err = 0.0
-            with state_lock:
-                request_tracker[client_ip].append((now, is_error))
-
-                # Evict entries outside the sliding window
-                while (request_tracker[client_ip] and
-                       now - request_tracker[client_ip][0][0] > HEURISTIC_WINDOW):
-                    request_tracker[client_ip].popleft()
-
-                entries = request_tracker[client_ip]
-                if len(entries) >= HEURISTIC_MIN_REQUESTS:
-                    window_duration = now - entries[0][0]
-                    if window_duration > 0:
-                        # Clamp the denominator to >=1s so a small burst in a
-                        # tiny elapsed window (e.g. 5 reqs in 50ms) can't explode
-                        # into a huge rps and false-ban a bursty legit client (§3).
-                        rps = len(entries) / max(window_duration, 1.0)
-                        error_count = sum(1 for _, err in entries if err)
-                        error_ratio = error_count / len(entries)
-                        if rps > HEURISTIC_MAX_RPS or (error_ratio > HEURISTIC_ERROR_RATIO and rps > 10):
-                            should_ban = True
-                            ban_rps = rps
-                            ban_err = error_ratio
-
-            if should_ban and not GRU_ONLY:
-                print(f"\n[HEURISTIC] L7 anomaly detected - IP: {client_ip} | "
-                      f"RPS: {ban_rps:.1f} | Error ratio: {ban_err:.0%}")
-                ban_ip(client_ip,
-                       reason=f"Heuristic (RPS={ban_rps:.1f}, errors={ban_err:.0%})",
-                       engine="l7_rate", value=round(ban_rps, 3),
-                       threshold=HEURISTIC_MAX_RPS, error_ratio=round(ban_err, 4))
-                kill_zombie_connections(client_ip)
-                with state_lock:
-                    client_sequences.pop(client_ip, None)
-                    request_tracker.pop(client_ip, None)
-                    client_last_seen.pop(client_ip, None)
-                continue
-
-        except json.JSONDecodeError:
-            continue
-        except Exception as e:
-            print(f"[-] Loop error: {e}")
+                except Exception as e:
+                    print(f"[-] Loop error: {e}")
+        except Exception as e:  # noqa: BLE001 - nothing but a stop may detach XDP (H-01)
+            report_daemon_error("access_log", e,
+                                f"tailer recreated in {ERROR_BACKOFF_S:g} s")
+            time.sleep(ERROR_BACKOFF_S)
 
 except KeyboardInterrupt:
     print("\n[*] Execution interrupted by user. Cleaning up environment...")
