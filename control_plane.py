@@ -516,17 +516,31 @@ def tail_nginx_error_logs(file_path):
     log. This function detects the pattern and bans repeat offenders.
     Undecodable bytes (a raw request line, for one) are read as U+FFFD, as in
     tail_nginx_logs (H-01).
+
+    Only nginx's own client field is counted and banned (H-26). nginx writes
+    `<time> [info] <pid>#<tid>: *<conn> client timed out (110: Connection timed out)
+    while reading client request body, client: <addr>, server: <name>, request: "...",
+    host: "..."`: its prefix, message and action, then at once the client field, and only
+    after it the request line and the Host header, which the client writes
+    (ngx_http_log_error, src/http/ngx_http_request.c of nginx 1.28). So the pattern is
+    anchored at the start of the line, lines end at LF only, as nginx ends them (a CR in
+    a field cannot start a line), and the field ends at the `, server: ` that nginx
+    writes next. The old pattern took the last `client:` of the line, which a URI or a
+    Host header could name. A field that is not an IPv4 address (the only family the XDP
+    ban path takes) is skipped and reported.
     """
+    import ipaddress
     import re
-    # Pattern matches: "client timed out ... while reading client request body, client: <IP>"
     timeout_pattern = re.compile(
-        r'client timed out.*while reading client request body.*client:\s*(\d+\.\d+\.\d+\.\d+)'
+        r'[0-9]{4}/[0-9]{2}/[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} \[[a-z]+\] [0-9]+#[0-9]+: '
+        r'(?:\*[0-9]+ )?client timed out(?: \([0-9]+: [^)]*\))? '
+        r'while reading client request body, client: (.*?)(?:, server: |$)'
     )
 
     while not stop_event.is_set():
         try:
             current_inode = os.stat(file_path).st_ino
-            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+            with open(file_path, 'r', encoding='utf-8', errors='replace', newline='\n') as f:
                 f.seek(0, os.SEEK_END)
                 stale_count = 0
                 while not stop_event.is_set():
@@ -544,9 +558,17 @@ def tail_nginx_error_logs(file_path):
                         continue
                     stale_count = 0
 
-                    match = timeout_pattern.search(line)
+                    match = timeout_pattern.match(line)
                     if match:
                         client_ip = match.group(1)
+                        try:
+                            # ASCII digits only, four octets of at most 255, no leading zeros
+                            ipaddress.IPv4Address(client_ip)
+                        except ValueError:
+                            report_daemon_error(
+                                "error_log", f"R.U.D.Y. client field {client_ip[:64]!r} is "
+                                "not an IPv4 address", "line skipped")
+                            continue
 
                         with banned_ips_lock:
                             if client_ip in banned_ips:
