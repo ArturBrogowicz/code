@@ -123,7 +123,7 @@ class ContractTest(RunCase):
     def test_streams_are_listed_with_what_the_gate_requires(self):
         plan, _, _ = self.go("C")
         for s in self.run_json(plan)["streams"]:
-            self.assertEqual(sorted(s), sorted(H.STREAM_KEYS))
+            self.assertEqual(sorted(s), sorted([*H.STREAM_KEYS, "addresses"]), "the gate's keys, and the identities the stream carries")
             self.assertTrue(os.path.exists(os.path.join(plan.out, s["summary"])))
             self.assertTrue(os.path.exists(os.path.join(plan.out, s["records"])))
             self.assertIn(s["netem"], C.LINK_PROFILES)
@@ -195,6 +195,49 @@ class ContractTest(RunCase):
     def test_the_suite_is_never_imported_by_a_run_on_a_scripted_host(self):
         with mock.patch.object(X.RealHost, "suite", side_effect=AssertionError("the suite was imported")):
             self.go("C")
+
+
+class OutcomeRecordTest(RunCase):
+    """What the gate needs of a run to say what its daemon did (G8, G9): the zero of the run's axis on the executor's clock, which the
+    daemon's events share, and the identities each stream carries."""
+
+    def test_run_json_keeps_the_axis_zero_and_each_streams_addresses(self):
+        plan, _, _ = self.go("U")
+        run = self.run_json(plan)
+        zero, per = run["executor"]["zero_epoch_s"], plan.settings["exit_delay_per_request_s"]
+        addresses = {s.id: list(s.addresses) for s in plan.streams}
+        for s in run["streams"]:
+            with open(os.path.join(plan.out, s["summary"]), encoding="utf-8") as fh:
+                summary = json.load(fh)
+            wall = X.consistent_wall(summary["wall_s"], X.last_done(os.path.join(plan.out, s["records"])))
+            t0 = X.estimate_t0(run["executor"]["exit_epoch_s"][s["id"]], wall, summary["intended"], per)
+            self.assertAlmostEqual(t0 - s["offset_s"], zero, delta=0.002, msg=s["id"])
+            self.assertEqual(s["addresses"], addresses[s["id"]])
+        self.assertEqual(sorted({a for s in run["streams"] for a in s["addresses"]}),
+                         sorted(a for n in plan.namespaces for a in n.addresses))
+
+    def flood(self, host):
+        scn = SC.load(os.path.join(REPO, "bench", "scenarios", "cheap_static_flood.json"))
+        plan = X.plan_run(scn, self.cal, "M_xdp", 1, os.path.join(self.tmp.name, "flood", "M_xdp"), C.PLACEHOLDER, "sha",
+                          settings=bare_settings(), rho=20.0, timeline=SHORT)
+        result = X.execute(plan, host)
+        self.assertTrue(result.ok, result.reasons)
+        return plan, H.mitigation(H.read_run(plan.out))
+
+    def test_the_gate_reads_what_the_simulated_daemon_did_to_a_flood(self):
+        plan, m = self.flood(F.SimHost(server=F.SyntheticServer(self.cal, SHORT, F.EFFECT_PRESETS["pass"])))
+        sources = sorted({a for s in plan.streams if s.kind == "attack" for a in s.addresses})
+        self.assertGreater(min(s.rate / len(s.addresses) for s in plan.streams if s.kind == "attack"), F.DAEMON_BAN_RPS)
+        self.assertEqual((m["attack_identities"], m["attack_banned"], m["benign_blocked"]), (len(sources), len(sources), []))
+        self.assertAlmostEqual(m["ttm_s"]["median"], F.DAEMON_BAN_DELAY_S, delta=0.15)
+        self.assertAlmostEqual(m["ttm_s"]["max"], F.DAEMON_BAN_DELAY_S, delta=0.15)
+
+    def test_a_legit_identity_the_simulated_daemon_banned_is_counted_as_blocked(self):
+        plan, m = self.flood(F.SimHost(faults={"daemon_bans_benign": 1}))
+        first_legit = next(s for s in sorted(plan.streams, key=lambda s: s.id) if s.kind == "legit")
+        self.assertEqual(len(m["benign_blocked"]), 1)
+        self.assertIn(m["benign_blocked"][0], [a for s in plan.streams if s.kind == "legit" for a in s.addresses])
+        self.assertTrue(first_legit.addresses)
 
 
 class ExitStampTest(RunCase):

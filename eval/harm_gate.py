@@ -38,8 +38,10 @@ mix, the per-class figures are reported next to it; an SLO is a choice, the cali
     ./venv/bin/python eval/harm_gate.py --block BLOCK_DIR --calibration FILE      # one block's assessment, no verdict
 """
 import argparse
+import collections
 import csv
 import gzip
+import ipaddress
 import json
 import math
 import os
@@ -50,8 +52,12 @@ import numpy as np
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "bench"))
 sys.path.insert(0, os.path.join(REPO, "eval"))
+sys.path.append(REPO)                              # ban_events.py, at the top of the checkout, after bench/ and eval/
 import calibration as CAL
+import population as POP
 import run_level_stats as RLS
+
+import ban_events as BE
 
 CONTROL, PLACEBO, ATTACK = "C", "Cp", "U"
 MITIGATED = "M_"                                   # M_<mode>
@@ -64,6 +70,8 @@ METRICS = ("Q", "p95")
 DEGRADED_Q, RECOVERED_Q, RECOVERY_BINS = 95.0, 99.0, 5     # a second below / at or above these; five seconds
 CONTROL_CLASS_Q_MIN = 95.0        # "the class's p95 within its SLO" over all its requests: 95 % of them within it
 HRR_DRAWS, HRR_SEED = 10_000, 20261023
+BAN_FILE = "ban_events.jsonl"                      # a protected run's daemon writes its events there (bench/executor.py daemon_plan)
+REFUSED_STATUSES = (429, 503)                      # what Nginx's limit_req and limit_conn answer a request they refuse
 
 
 class GateError(ValueError):
@@ -136,6 +144,7 @@ def read_run(run_dir):
         raise GateError(f"{run_dir}/run.json: executor needs ok (a boolean) and reasons (a list)")
     return {"dir": run_dir, "name": name, "role": want, "mode": meta.get("mode"),
             "started_utc": meta.get("started_utc"), "executor": executor, "streams": streams,
+            "zero_epoch_s": executor.get("zero_epoch_s"),
             "overrides": _overrides(meta.get("overrides"), f"{run_dir}/run.json")}
 
 
@@ -223,6 +232,7 @@ def run_metrics(run, cal, timeline, slo_scale=1.0, window=None):
         ok = answered & twoxx & (service <= limit)
         in_window = (a["t_run"] >= lo) & (a["t_run"] < hi)
         slow = answered & twoxx & (service > limit)
+        refused = np.isin(a["status"], REFUSED_STATUSES)
     window_j = in_window & judged                             # the requests that vote
     n_w, ok_w = int(window_j.sum()), int((ok & window_j).sum())
     sent = ~np.isnan(a["t_sent"])
@@ -254,7 +264,42 @@ def run_metrics(run, cal, timeline, slo_scale=1.0, window=None):
             "slip_p99_s": _q(slip, 0.99), "failures": {k: v for k, v in causes.items() if v},
             "by_class": by_class, "by_profile": by_profile,
             "judged_share": n_w / int(in_window.sum()) if in_window.any() else None,
+            "refused": {"window": int((refused & in_window).sum()), "window_judged": int((refused & window_j).sum()),
+                        "run": int(refused.sum())},
             **time_resolved(nb, okb, base, base + float(timeline["attack_s"]))}
+
+
+def _within(ip, nets):
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return any(address in net for net in nets)
+
+
+def mitigation(run):
+    """What a run's daemon did, from its ban file (G8, G9): its bans; the legit identities it blocked (a ban of an address of the
+    population's benign networks: collateral damage); and, for each attack identity it banned, the time to mitigate: its first ban
+    less the attack's start on the run's axis, which is the run's zero on the executor's clock (`executor.zero_epoch_s`) plus the attack
+    streams' offset. The daemon stamps its events with the same host clock, so this is a subtraction. A run without a ban file (C, Cp,
+    U, M_limits) has no ban; a run without the zero has no time to mitigate."""
+    path = os.path.join(run["dir"], BAN_FILE)
+    present = os.path.exists(path)
+    events = BE.read_events(path) if present else []
+    first = BE.first_bans(events)
+    benign = sorted(ip for ip in first if _within(ip, POP.BENIGN_NETS))
+    attack = sorted(ip for ip in first if _within(ip, POP.ATTACK_NETS))
+    identities = {a for s in run["streams"] if s["kind"] == "attack" for a in s.get("addresses", [])}
+    offsets = [s["offset_s"] for s in run["streams"] if s["kind"] == "attack"]
+    ttm = None
+    if attack and offsets and run.get("zero_epoch_s") is not None:
+        start = run["zero_epoch_s"] + float(np.median(offsets))
+        values = {ip: round(float(first[ip]["t_wall"]) - start, 3) for ip in attack}
+        ordered = sorted(values.values())
+        ttm = {"n": len(ordered), "median": float(np.median(ordered)), "min": ordered[0], "max": ordered[-1], "by_identity": values}
+    return {"ban_file": present, "bans": sum(1 for e in events if e["kind"] == "ban"), "benign_blocked": benign,
+            "attack_identities": len(identities) or None, "attack_banned": len(attack), "ttm_s": ttm,
+            "engines": dict(sorted(collections.Counter(str(first[ip].get("engine", "unknown")) for ip in first).items()))}
 
 
 # --- validity ----------------------------------------------------------------------------------
@@ -345,7 +390,8 @@ def assess_block(block_dir, cal, slo_scale=1.0):
         m = metrics[name]
         val = validity(run, cal, m["slip_p99_s"], None if name == CONTROL or not control else control["slip_p99_s"])
         out_runs[name] = {"role": run["role"], "mode": run["mode"], "metrics": m, "validity": val,
-                          "valid": val[cal["validity"]["profile"]]["ok"], "strict_ok": val["strict"]["ok"]}
+                          "valid": val[cal["validity"]["profile"]]["ok"], "strict_ok": val["strict"]["ok"],
+                          "mitigation": mitigation(run)}
     reasons = list(problems)
     for name in (CONTROL, PLACEBO, ATTACK):
         if name in out_runs and not out_runs[name]["valid"]:
@@ -357,6 +403,8 @@ def assess_block(block_dir, cal, slo_scale=1.0):
             "seed": meta["seed"], "seed_namespace": meta["seed_namespace"], "scenario": meta["scenario"],
             "calibration_sha256": meta["calibration_sha256"], "order": meta["order"], "runs": out_runs,
             "valid": not reasons, "reasons": reasons, "overrides": overrides,
+            "benign_blocked": {n: out_runs[n]["mitigation"]["benign_blocked"] for n in sorted(out_runs) if n.startswith(MITIGATED)},
+            "refused": {n: out_runs[n]["metrics"]["refused"]["window"] for n in sorted(out_runs)},
             "dQ": _diff(control and control["Q"], u and u["Q"]),
             "dL": _log2_ratio(u and u["p95_s"], control and control["p95_s"]),
             "dQ_placebo": _diff(control and control["Q"], cp and cp["Q"]),

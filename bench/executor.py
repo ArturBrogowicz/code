@@ -190,6 +190,7 @@ class StreamLaunch:
     summary: str
     records: str
     argv: tuple
+    addresses: tuple = ()            # the identities it carries: the gate tells a blocked legit identity and an attack one by them
 
 
 @dataclasses.dataclass(frozen=True)
@@ -426,7 +427,7 @@ def plan_population(pop, scenario, kind, seed, out, cal, calibration_path, timel
         streams.append(StreamLaunch(
             s.id, s.kind, s.route_class, s.netem, by_index[s.ns_index].name, s.start_s, s.duration_s, s.rate, s.seed,
             nofile, workdir, f"{workdir}/loadgen.summary.json", f"{workdir}/loadgen.records.csv.gz",
-            ("prlimit", f"--nofile={nofile}", "--", *launch.steps[0].argv)))
+            ("prlimit", f"--nofile={nofile}", "--", *launch.steps[0].argv), tuple(s.addresses)))
     return RunPlan(
         scenario=scenario, kind=kind, seed=seed, out=out, scenario_sha256=scenario_sha256,
         calibration_sha256=cal.get("sha256") or C.digest(cal), calibration_status=cal["status"],
@@ -1797,10 +1798,11 @@ def collect(plan, procs, launched, problems):
              "attack_start_error_s": al["attack_start_error_s"], "estimator": "exit-minus-consistent-wall",
              "wall_gap_s": {sid: gaps[sid] for sid in sorted(gaps)},
              "exit_epoch_s": {sid: round(found[sid][0], 3) for sid in sorted(found)},
+             "zero_epoch_s": None if al["zero"] is None else round(al["zero"], 4),
              "launch_attack_after_s": launch_attack_after(plan) if "attack" in launched else None}
     rows = [{"id": s.id, "kind": s.kind, "route_class": s.route_class, "netem": s.netem,
              "summary": os.path.relpath(s.summary, plan.out), "records": os.path.relpath(s.records, plan.out),
-             "offset_s": round(al["offsets"][s.id], 4)} for s in streams]
+             "offset_s": round(al["offsets"][s.id], 4), "addresses": list(s.addresses)} for s in streams]
     return block, rows, al["zero"]
 
 

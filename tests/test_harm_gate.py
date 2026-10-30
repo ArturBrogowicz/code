@@ -81,7 +81,7 @@ def write_stream(run_dir, stream, rng, cal, effect, summary_edit=None):
         json.dump(summary, fh)
     return {"id": stream.id, "kind": stream.kind, "route_class": stream.route_class, "netem": stream.netem,
             "summary": f"streams/{stream.id}.summary.json", "records": f"streams/{stream.id}.records.csv.gz",
-            "offset_s": stream.start_s if stream.kind == "attack" else 0.0}
+            "offset_s": stream.start_s if stream.kind == "attack" else 0.0, "addresses": list(stream.addresses)}
 
 
 def write_run(block_dir, name, pop, seed, cal, effect, summary_edit=None):
@@ -962,6 +962,56 @@ class HrrTest(WithCopies):
                         "M_x": {"metrics": {"Q": 99.0}, "valid": True}}}
         self.assertIsNone(H.hrr([row, row, row], "x")["hrr"])
         self.assertEqual(H.hrr([], "x"), {"mode": "x", "n": 0, "hrr": None})
+
+
+class MitigationOutcomeTest(WithCopies):
+    """G8 and G9: from a protected run's ban file, the legit identities its daemon blocked and the time to mitigate of each attack
+    identity on the run's axis; from the records, the legit requests a limit refused (503, 429)."""
+
+    ZERO = 1_798_000_000.0
+
+    def with_bans(self, bans, recorded_zero=True):
+        root = self.copy_of("pass")
+        run = os.path.join(root, "b01_a1", "M_x")
+        if recorded_zero:
+            edit_json(os.path.join(run, "run.json"), lambda j: j["executor"].update(zero_epoch_s=self.ZERO))
+        with open(os.path.join(run, H.BAN_FILE), "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"t_wall": self.ZERO - 5.0, "kind": "start", "pid": 7}) + "\n")
+            fh.writelines(json.dumps({"t_wall": self.ZERO + t, "kind": "ban", "ip": ip, "engine": "l7_rate"}) + "\n" for ip, t in bans)
+        return H.assess_block(os.path.join(root, "b01_a1"), FROZEN)
+
+    def test_the_legit_identities_its_daemon_blocked_are_counted_per_run_and_block(self):
+        a = self.with_bans([("10.0.1.7", 3.0), ("10.0.2.9", 11.0), ("10.0.1.7", 12.0)])
+        m = a["runs"]["M_x"]["mitigation"]
+        self.assertEqual((m["ban_file"], m["bans"], m["benign_blocked"], m["engines"]), (True, 3, ["10.0.1.7"], {"l7_rate": 2}))
+        self.assertEqual(a["benign_blocked"], {"M_x": ["10.0.1.7"]})
+
+    def test_ttm_is_each_attack_identitys_first_ban_after_the_attack_began_on_the_runs_axis(self):
+        a = self.with_bans([("10.0.2.9", 11.5), ("10.0.2.4", 13.0), ("10.0.2.9", 20.0)])
+        m = a["runs"]["M_x"]["mitigation"]
+        # the synthetic attack streams sit at the end of the baseline, 10 s, on the run's axis
+        self.assertEqual(m["ttm_s"]["by_identity"], {"10.0.2.4": 3.0, "10.0.2.9": 1.5})
+        self.assertEqual((m["ttm_s"]["n"], m["ttm_s"]["median"], m["ttm_s"]["min"], m["ttm_s"]["max"]), (2, 2.25, 1.5, 3.0))
+        self.assertEqual((m["attack_identities"], m["attack_banned"]), (5, 2))
+
+    def test_without_the_runs_zero_there_is_no_time_to_mitigate(self):
+        m = self.with_bans([("10.0.2.9", 11.5)], recorded_zero=False)["runs"]["M_x"]["mitigation"]
+        self.assertEqual((m["attack_banned"], m["ttm_s"]), (1, None))
+
+    def test_a_run_without_a_ban_file_has_no_ban(self):
+        a = H.assess_block(os.path.join(BASE["pass"], "b01_a1"), FROZEN)
+        for name in ("C", "Cp", "U", "M_x"):
+            m = a["runs"][name]["mitigation"]
+            self.assertEqual((m["ban_file"], m["bans"], m["benign_blocked"], m["attack_banned"], m["ttm_s"]),
+                             (False, 0, [], 0, None), name)
+
+    def test_refused_requests_are_the_legit_503s_and_429s_in_the_window_and_in_the_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            m = H.run_metrics(hand_run(tmp, {
+                "a": ("C1", 0.0, [(1.0, 1.0, 1.01, 503, ""), (2.5, 2.5, 2.51, 503, ""), (3.0, 3.0, 3.01, 429, ""),
+                                  (3.5, 3.5, 3.6, 200, ""), (4.0, 4.0, 4.01, 502, "")]),
+                "b": ("C1", 0.0, [(4.5, 4.5, 4.51, 429, "")], "mobile_3g")}), FROZEN, SHORT)
+        self.assertEqual(m["refused"], {"window": 3, "window_judged": 2, "run": 4})
 
 
 class P2OutcomeTest(unittest.TestCase):
