@@ -303,11 +303,14 @@ the reverse.
 
 | File | Arms | What it is |
 |---|---|---|
-| `nginx_profile_r.conf` | C, C', U | `nginx_l7capture.conf` with the knobs of §4.1 at the distribution's and nginx's defaults: 2 workers x 768 connections (1,536 slots), 60 s header and body timeouts, 75 s keep-alive, 60 s send timeout, `client_max_body_size` 1m (10m on `/upload`), `large_client_header_buffers 4 8k`, `proxy_request_buffering off` on `/upload` only, no limits. The daemon's access log gains the client port (`json_ml_port`), and `stub_status` listens on 127.0.0.1:8081 |
+| `nginx_profile_r.conf` | C, C', U | `nginx_l7capture.conf` with the knobs of §4.1 at the distribution's and nginx's defaults: 2 workers x 768 connections (1,536 slots), 60 s header and body timeouts, 75 s keep-alive, 60 s send timeout, `client_max_body_size` 1m (10m on `/upload`), `large_client_header_buffers 4 8k`, `proxy_request_buffering off` on `/upload` only, nginx's default proxy timeouts (60 s, P4-05), no limits. The daemon's access log gains the client port (`json_ml_port`), and `stub_status` listens on 127.0.0.1:8081 |
 | `nginx_profile_r_limits.conf` | M_def, M_pc, M_tol | the same plus the deployed `limit_req` (30 r/s, burst 100) and `limit_conn` (50) |
 | `gunicorn_profile_r.py` | all | 5 sync workers (2 x 2 CPUs + 1) on 127.0.0.1:8080; gunicorn's defaults otherwise, written out |
 
-`tests/test_profile_r.py` pins every value statically. `nginx -t`, the slot exhaustion and the sha256 in
+`tests/test_profile_r.py` pins every value statically. The proxy timeouts (P4-05) are nginx's own defaults,
+60 s for connect, send and read (`ngx_http_proxy_module.c:3716-3723` of nginx 1.28.3), as D-S1 asks of every
+value the design note does not set; the harness's 5 s / 10 s / 10 s are hardening, under which a request queued
+behind R's five busy sync workers would end in a 504 after 10 s. `nginx -t`, the slot exhaustion and the sha256 in
 each run's provenance belong to the runner and the smoke run.
 
 **The per-connection rule** (`slow_pc.py`, engine `l4_slowconn_pc`; D-S4, D-S5, D-S7, D-S8). The deployed

@@ -9,6 +9,9 @@ import unittest
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 R_FILE, LIMITS_FILE = "nginx_profile_r.conf", "nginx_profile_r_limits.conf"
 LIMIT_NAMES = {"limit_req", "limit_conn", "limit_req_zone", "limit_conn_zone"}
+PROXY_TIMEOUTS = {"proxy_connect_timeout", "proxy_send_timeout", "proxy_read_timeout"}
+NGINX_DEFAULT_TIMEOUTS = [("proxy_connect_timeout", ["60s"]), ("proxy_send_timeout", ["60s"]),
+                          ("proxy_read_timeout", ["60s"])]       # ngx_http_proxy_module.c:3716-3723
 DEPLOYED_ZONES = [["$binary_remote_addr", "zone=mylimit:10m", "rate=30r/s"],
                   ["$binary_remote_addr", "zone=connlimit:10m"]]
 DEPLOYED_LIMITS = [("limit_req", ["zone=mylimit", "burst=100", "nodelay"]),
@@ -152,16 +155,29 @@ class ProfileRTest(unittest.TestCase):
         base = Conf("nginx_l7capture.conf")
         changed = {"worker_processes", "worker_connections", "client_body_timeout",
                    "client_header_timeout", "keepalive_timeout", "send_timeout",
-                   "client_max_body_size", "large_client_header_buffers", "access_log"}
+                   "client_max_body_size", "large_client_header_buffers", "access_log",
+                   *PROXY_TIMEOUTS}
         have = flat(self.r.items)
         for d in flat(base.items):
             if d[0] not in changed | LIMIT_NAMES:
                 self.assertIn(d, have, d)
-        loc = [(n, a) for n, a, _b in base.locations[("/",)] if n not in LIMIT_NAMES]
-        self.assertEqual([(n, a) for n, a, _b in self.r.locations[("/",)]], loc)
+        loc = [(n, a) for n, a, _b in base.locations[("/",)]
+               if n not in LIMIT_NAMES | PROXY_TIMEOUTS]
+        self.assertEqual([(n, a) for n, a, _b in self.r.locations[("/",)]],
+                         loc + NGINX_DEFAULT_TIMEOUTS)
         self.assertEqual([(n, a) for n, a, _b in self.r.locations[("/upload",)]],
                          [("client_max_body_size", ["10m"]), ("proxy_request_buffering", ["off"]),
-                          *loc])
+                          *loc, *NGINX_DEFAULT_TIMEOUTS])
+
+    def test_the_proxy_timeouts_are_nginx_defaults_not_the_harness_ones(self):
+        # P4-05: R takes nginx's own defaults (60 s) where the design sets no value; the L7 harness
+        # keeps its hardened 5 s / 10 s / 10 s.
+        for name in (R_FILE, LIMITS_FILE):
+            for path, loc in Conf(name).locations.items():
+                self.assertEqual([(n, a) for n, a, _b in loc if n in PROXY_TIMEOUTS],
+                                 NGINX_DEFAULT_TIMEOUTS, (name, path))
+        base = Conf("nginx_l7capture.conf").locations[("/",)]
+        self.assertEqual([a for n, a, _b in base if n in PROXY_TIMEOUTS], [["5s"], ["10s"], ["10s"]])
 
     def test_the_logs(self):
         r = self.r
