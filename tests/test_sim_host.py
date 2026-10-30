@@ -474,6 +474,266 @@ class DaemonTest(unittest.TestCase):
         self.assertEqual(len(self.daemons(host)), 2)
 
 
+class DaemonModelTest(unittest.TestCase):
+    """The mitigation daemon of the protected arms (control_plane.py, HG4 G13) as the model plays it: what it needs to start, when it
+    is ready, what it attaches, whom it bans and when, and how each signal ends it."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.run = os.path.join(self.tmp.name, "b01_a1", "M_xdp")
+        os.makedirs(self.run)
+        self.events = os.path.join(self.run, "ban_events.jsonl")
+        self.log = os.path.join(self.run, "daemon.log")
+
+    @staticmethod
+    def host(server_ns=True, **kw):
+        host = S.SimHost(**kw)
+        host.prim("bridge")
+        if server_ns:
+            host.prim("server_ns")
+        return host
+
+    def start(self, host, cwd=S.REPO, ns=X.SERVER_NS, env=None):
+        env = {"MITIGATION_BACKEND": "xdp", "BAN_EVENTS": self.events, "XDP_GRU": "0"} if env is None else env
+        with open(self.log, "ab") as fh:
+            return host.popen(["taskset", "-c", "2", "/repo/venv/bin/python", "-u", os.path.join(S.REPO, "control_plane.py")],
+                              ns=ns, env=env, stdout=fh, stderr=fh, cwd=cwd)
+
+    def stream(self, host, sid, rate, addresses, run=None):
+        """An engine process of `run` (default: this test's run) as the executor launches one, with its source addresses."""
+        work = os.path.join(run or self.run, "streams", sid)
+        os.makedirs(work, exist_ok=True)
+        argv = ["prlimit", "--nofile=100", "--", "taskset", "-c", "6", "/repo/venv/bin/python", "bench/loadgen.py", "--rate", str(rate),
+                "--duration", "20", "--process", "constant", "--seed", "1", "--summary", f"{work}/loadgen.summary.json",
+                "--records", f"{work}/loadgen.records.csv.gz"]
+        for ip in addresses:
+            argv += ["--local-addr", ip]
+        return host.popen(argv, ns="hg_0_perfect")
+
+    def events_of(self, kind=None):
+        if not os.path.exists(self.events):
+            return []
+        with open(self.events, encoding="utf-8") as fh:
+            return [e for e in map(json.loads, fh) if kind is None or e["kind"] == kind]
+
+    def said(self):
+        with open(self.log, encoding="utf-8") as fh:
+            return fh.read()
+
+    @staticmethod
+    def xdp(host, ns=X.SERVER_NS):
+        return json.loads(host.run(["ip", "-j", "link", "show", "veth_server"], ns=ns).out)[0].get("xdp")
+
+    @staticmethod
+    def loaded(host):
+        progs = json.loads(host.run(["bpftool", "-j", "prog", "show"]).out)
+        maps = json.loads(host.run(["bpftool", "-j", "map", "show"]).out)
+        return [p["id"] for p in progs], sorted({m["name"] for m in maps})
+
+    def ready(self, host, **kw):
+        daemon = self.start(host, **kw)
+        host.sleep(S.DAEMON_STARTUP_S + 0.01)
+        return daemon
+
+    def test_it_is_ready_after_its_start_up_with_xdp_attached_its_start_event_written_and_its_line_said(self):
+        host = self.host()
+        daemon = self.start(host)
+        host.sleep(S.DAEMON_STARTUP_S - 0.01)
+        self.assertEqual((self.xdp(host), self.events_of(), self.loaded(host)[0]), (None, [], []))
+        self.assertNotIn(S.DAEMON_LINES["listening"], self.said())
+        host.sleep(0.02)
+        self.assertIsNone(daemon.poll())
+        prog = self.xdp(host)["prog"]
+        self.assertEqual(prog["name"], S.XDP_PROG_NAME)
+        (start,) = self.events_of()
+        self.assertEqual((start["kind"], start["pid"], start["backend"], start["xdp_gru"], start["gru_only"], start["l7_shadow"]),
+                         ("start", daemon.pid, "xdp", False, False, False))
+        self.assertEqual(start["t_wall"], S.BASE_EPOCH + S.DAEMON_STARTUP_S, "written when it became ready")
+        self.assertTrue(self.said().rstrip().endswith(S.DAEMON_LINES["listening"]))
+        self.assertEqual(self.loaded(host), ([prog["id"]], sorted(S.DAEMON_MAPS)))
+
+    def test_it_needs_the_checkout_as_its_working_directory(self):
+        host = self.host()
+        daemon = self.start(host, cwd="/")
+        host.sleep(1.0)
+        self.assertEqual(daemon.poll(), 1)
+        self.assertIn("FileNotFoundError", self.said())
+        self.assertEqual((self.xdp(host), self.events_of(), self.loaded(host)[0]), (None, [], []))
+
+    def test_it_cannot_attach_outside_the_server_namespace(self):
+        host = self.host(server_ns=False)
+        daemon = self.start(host)
+        host.sleep(S.DAEMON_STARTUP_S + 1.0)
+        self.assertEqual(daemon.poll(), 1)
+        self.assertIn("No such device", self.said())
+
+    def test_sigint_runs_its_finally_which_detaches_xdp_and_ends_it_with_0(self):
+        host = self.host()
+        daemon = self.ready(host)
+        daemon.interrupt()
+        self.assertIsNone(daemon.poll(), "the finally takes a moment")
+        host.sleep(S.DAEMON_STOP_S + 0.01)
+        self.assertEqual(daemon.poll(), 0)
+        self.assertEqual((self.xdp(host), self.loaded(host)[0]), (None, []))
+        self.assertIn(S.DAEMON_LINES["detached"], self.said())
+
+    def test_term_and_kill_end_it_at_once_and_leave_the_program_attached_until_the_namespace_goes(self):
+        for stop, code in ((lambda p: p.terminate(), -15), (lambda p: p.kill(), -9)):
+            with self.subTest(code=code):
+                host = self.host()
+                daemon = self.ready(host)
+                stop(daemon)
+                self.assertEqual(daemon.poll(), code)
+                self.assertIsNotNone(self.xdp(host), "nothing ran its finally")
+                self.assertEqual(len(self.loaded(host)[0]), 1, "attached, the program stays loaded")
+                host.run(["ip", "netns", "del", X.SERVER_NS])
+                self.assertEqual(self.loaded(host), ([], []))
+
+    def test_xdp_off_detaches_the_program(self):
+        host = self.host()
+        daemon = self.ready(host)
+        daemon.kill()
+        self.assertEqual(host.run(["ip", "link", "set", "dev", "veth_server", "xdp", "off"], ns=X.SERVER_NS).code, 0)
+        self.assertEqual((self.xdp(host), self.loaded(host)[0]), (None, []))
+
+    def test_a_daemon_that_ignores_sigint_ends_only_on_kill(self):
+        host = self.host(faults={"daemon_ignores_int": 1})
+        daemon = self.ready(host)
+        daemon.interrupt()
+        host.sleep(5.0)
+        self.assertIsNone(daemon.poll())
+        daemon.kill()
+        self.assertEqual(daemon.poll(), -9)
+        self.assertIsNotNone(self.xdp(host))
+
+    def test_a_pinned_program_outlives_the_daemon_and_the_namespace(self):
+        host = self.host(faults={"xdp_leftover": None})
+        daemon = self.ready(host)
+        prog = self.xdp(host)["prog"]["id"]
+        daemon.kill()
+        host.run(["ip", "netns", "del", X.SERVER_NS])
+        self.assertEqual(self.loaded(host), ([prog], sorted(S.DAEMON_MAPS)))
+
+    def test_each_source_above_the_rule_is_banned_after_the_delay_and_a_source_below_it_never(self):
+        host = self.host()
+        self.ready(host)
+        began = host.t
+        self.stream(host, "A-cheap_static_flood-perfect-0", 300.0, ["10.0.2.1", "10.0.2.2", "10.0.2.3"])
+        self.stream(host, "A-costly_search_flood-perfect-1", 30.0, ["10.0.2.4", "10.0.2.5", "10.0.2.6"])
+        host.sleep(10.0)
+        bans = self.events_of("ban")
+        self.assertEqual(sorted(e["ip"] for e in bans), ["10.0.2.1", "10.0.2.2", "10.0.2.3"])
+        loop_start = began + S.ATTACK_STARTUP_S
+        for e in bans:
+            self.assertEqual((e["engine"], e["enforced"], e["value"]), ("l7_rate", True, 100.0))
+            self.assertAlmostEqual(e["t_wall"] - S.BASE_EPOCH, loop_start + X.ENGINE_T0_OFFSET_S + S.DAEMON_BAN_DELAY_S, delta=0.01)
+        self.assertEqual(sorted(host.bans[self.run]), ["10.0.2.1", "10.0.2.2", "10.0.2.3"])
+
+    def test_a_stream_of_another_run_or_one_before_the_daemon_is_ready_is_not_banned(self):
+        host = self.host()
+        other = os.path.join(self.tmp.name, "b01_a1", "U")
+        self.start(host)
+        self.stream(host, "A-cheap_static_flood-perfect-0", 300.0, ["10.0.2.1"])           # its ban is due before the daemon is ready
+        host.sleep(S.DAEMON_STARTUP_S + 0.5)
+        self.stream(host, "A-cheap_static_flood-perfect-0", 300.0, ["10.0.2.9"], run=other)
+        host.sleep(10.0)
+        self.assertEqual(self.events_of("ban"), [])
+
+    def test_the_fault_daemon_bans_benign_bans_the_first_source_of_one_legit_stream(self):
+        host = self.host(faults={"daemon_bans_benign": 1})
+        self.ready(host)
+        self.stream(host, "L-poisson-C1-perfect-0", 2.0, ["10.0.1.20", "10.0.1.21"])
+        self.stream(host, "L-poisson-C2-perfect-0", 2.0, ["10.0.1.30"])
+        host.sleep(10.0)
+        self.assertEqual([e["ip"] for e in self.events_of("ban")], ["10.0.1.20"])
+
+    def test_a_daemon_that_dies_runs_its_finally_and_its_bans_are_lifted(self):
+        host = self.host(faults={"daemon_dies": 1})
+        daemon = self.ready(host)
+        self.stream(host, "A-cheap_static_flood-perfect-0", 300.0, ["10.0.2.1"])
+        host.sleep(S.DAEMON_DIES_AFTER_S + 0.1)
+        self.assertEqual(daemon.poll(), 1)
+        self.assertIn("UnicodeDecodeError", self.said())
+        self.assertIsNone(self.xdp(host))
+        self.assertAlmostEqual(host.bans[self.run]["10.0.2.1"][1], S.DAEMON_STARTUP_S + S.DAEMON_DIES_AFTER_S, delta=0.001)
+
+    def test_without_ban_events_or_without_xdp_nothing_is_recorded_or_enforced(self):
+        host = self.host(faults={"daemon_no_events": 1})
+        self.ready(host)
+        self.assertEqual(self.events_of(), [])
+        host = self.host()
+        self.ready(host, env={"MITIGATION_BACKEND": "xdp"})
+        self.assertEqual(os.listdir(self.run), ["daemon.log"], "without BAN_EVENTS the model writes no file")
+        host = self.host(faults={"xdp_not_attached": 1})
+        self.ready(host)
+        self.assertIsNone(self.xdp(host))
+        self.assertIn(S.DAEMON_LINES["listening"], self.said())
+        self.stream(host, "A-cheap_static_flood-perfect-0", 300.0, ["10.0.2.1"])
+        host.sleep(5.0)
+        self.assertEqual([e["enforced"] for e in self.events_of("ban")], [False])
+        self.assertNotIn(self.run, host.bans)
+
+    def test_the_start_event_says_what_the_environment_asked_for(self):
+        host = self.host()
+        self.ready(host, env={"MITIGATION_BACKEND": "iptables", "BAN_EVENTS": self.events, "GRU_ONLY": "1"})
+        (start,) = self.events_of("start")
+        self.assertEqual((start["backend"], start["gru_only"], start["xdp_gru"]), ("iptables", True, True))
+
+    def test_bpftool_can_fail(self):
+        host = self.host(faults={"bpftool_fails": 1})
+        self.assertEqual(host.run(["bpftool", "-j", "prog", "show"]).code, 255)
+
+
+class MitigatedServerTest(unittest.TestCase):
+    """What the synthetic server does with the bans of a protected run: a banned source's requests time out while its ban holds, a
+    banned attack source costs nothing, and U's harm lasts until every attack source is banned."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def write(self, run, sid="L-constant-C1-perfect-0", rate=20.0, effects=None, others=(), bans=None, local=()):
+        workdir = os.path.join(self.tmp.name, "block", run, "streams", sid)
+        os.makedirs(workdir, exist_ok=True)
+        opts = {"--rate": str(rate), "--duration": "30", "--process": "constant", "--seed": "5",
+                "--summary": os.path.join(workdir, "loadgen.summary.json"),
+                "--records": os.path.join(workdir, "loadgen.records.csv.gz")}
+        S.SyntheticServer(CAL, TIMELINE, effects).write(sid, opts, 30.5, max(1, len(local)), others, 0.0, bans=bans, local=local)
+        with gzip.open(opts["--records"], "rt", newline="") as fh:
+            rows = list(csv.DictReader(fh))
+        return np.array([float(r["t_sent"]) for r in rows]), np.array([r["err"] == "timeout" for r in rows])
+
+    def test_a_banned_sources_requests_time_out_while_its_ban_holds(self):
+        zero = X.ENGINE_T0_OFFSET_S
+        sent, failed = self.write("M_xdp", local=("10.0.1.5", "10.0.1.6"), bans={"10.0.1.5": [zero + 5.0, zero + 8.0]})
+        first = np.arange(len(sent)) % 2 == 0
+        inside = (sent >= 5.0) & (sent < 8.0)
+        self.assertTrue(np.all(failed[first & inside]))
+        self.assertFalse(np.any(failed[~(first & inside)]))
+
+    def test_an_m_run_is_harmed_as_u_until_every_attack_source_is_banned(self):
+        attack = [{"kind": "attack", "begin": 10.0, "end": 20.0, "rate": 100.0, "route": "C1", "addresses": ("10.0.2.1", "10.0.2.2")}]
+        bans = {"10.0.2.1": [12.0, None], "10.0.2.2": [14.0, None]}
+        sent, failed = self.write("M_xdp", effects={"U": {"fail_p": 1.0}}, others=attack, bans=bans)
+        window = (sent >= 10.0) & (sent < 20.0)
+        self.assertTrue(np.all(failed[window & (sent < 13.9)]))
+        self.assertFalse(np.any(failed[window & (sent > 14.0)]))
+        _, unbanned = self.write("M_limits", effects={"U": {"fail_p": 1.0}}, others=attack)
+        self.assertTrue(np.all(unbanned[window]), "with no ban the run is harmed as U")
+        _, named = self.write("M_xdp", effects={"U": {"fail_p": 1.0}, "M_xdp": {}}, others=attack)
+        self.assertFalse(np.any(named), "an effect named for the run is taken as it is")
+
+    def test_a_banned_attack_source_costs_the_server_nothing(self):
+        server = S.SyntheticServer(CAL, TIMELINE, capacity_cpu=1.0)
+        others = [{"kind": "legit", "begin": 0.0, "end": 30.0, "rate": 10.0, "route": "C1", "addresses": ("10.0.1.5",)},
+                  {"kind": "attack", "begin": 10.0, "end": 20.0, "rate": 1000.0, "route": "C1", "addresses": ("10.0.2.1", "10.0.2.2")}]
+        times = np.array([5.0, 11.0, 13.0, 16.0])
+        u = server.utilisation(times, 0.0, others, {"10.0.2.1": [12.0, None], "10.0.2.2": [15.0, None]})
+        cost = CAL["route_costs_ms"]["C1"] / 1000.0
+        self.assertTrue(np.allclose(u, [10 * cost, 1010 * cost, 510 * cost, 10 * cost]))
+
+
 class SimulatedRunTest(unittest.TestCase):
     """A run through the executor on the simulated host, read by the harm gate."""
 
