@@ -650,8 +650,8 @@ the mode asks for (`MODE_DAEMON` and the backend), the ban file there, and its C
 and seconds in run.json's `daemon` record), and the feed neither replaced nor truncated (H1). None of these reads what the attack did. The
 harm gate already treats `executor.ok` false as an invalid run.
 
-**F-02 of review T-028: a mitigation must not void its own run. A design fix made before any protected data, pending the user's
-confirmation.** Behind XDP each request of a banned source waits out the engine's 10 s timeout, so an attack stream above about 500
+**F-02 of review T-028: a mitigation must not void its own run. A design fix approved by the user on 2026-10-30, before any data
+("Judge up to first ban").** Behind XDP each request of a banned source waits out the engine's 10 s timeout, so an attack stream above about 500
 req/s fills its in-flight cap of 5,000 and the engine drops requests; the gate's 99 % sent share then voided the M run for what the
 protection did. Now (`harm_gate.post_ban_split`), in a protected run an attack stream's sending is judged only up to the first ban of its
 source: a request due at or after its own source's first ban is "mitigated", sent or not, and so is one the in-flight cap dropped at or
@@ -672,11 +672,12 @@ with the same host clock). HRR is given on Q and on log2 p95, after a PASS only.
 F-01): a run that is not valid, an attempt a re-run superseded, and the ban file the campaign keeps of an unfinished run it removes
 (`<run>.unfinished.<k>.ban_events.jsonl`); the report lists each ban and where it was found.
 
-**H2 (a reading the plan leaves open; pending the user's approval, to be decided before AP-6).** PRIORITY_PLAN 3 gives a block count (9
+**H2 (a reading the plan left open; approved by the user on 2026-10-30, before any data: "Yes, 9 of 10").** PRIORITY_PLAN 3 gives a block count (9
 of 10) for "unprotected fails" only. The protected half takes the same: Q(M) >= 0.99 x Q(C) in at least 9 of 10 paired blocks, and 0 legit
 identities blocked over all of the mode's runs. A rule on the mean would let one broken block hide behind nine good ones; 10 of 10 would
-let one noisy block fail the arm. The time to mitigate is reported, not judged, so MET is possible with no ban at all (limits alone holding
-Q); the user confirms that too. The constants are pinned by `P2OutcomeTest`; changing one before the first protected campaign is a new
+let one noisy block fail the arm. The time to mitigate is reported, not judged (the plan's own "a time to mitigate reported"), so MET is
+possible with no ban at all (limits alone holding Q); review F-03 asked the user to confirm that it is report-only, which the decision of
+2026-10-30 did not address. The constants are pinned by `P2OutcomeTest`; changing one before the first protected campaign is a new
 pre-registration, after it a departure.
 
 **The pin plan (G5), a proposal.** A campaign with a daemon pins every run, the warm-up included, with `population.PIN_PLAN_DAEMON`: server
