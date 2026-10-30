@@ -450,6 +450,64 @@ def hrr(valid_blocks, mode, draws=HRR_DRAWS, seed=HRR_SEED):
     return out
 
 
+# --- the protected arms: the pre-registered P2 outcome --------------------------------------------
+
+# PRIORITY_PLAN 3, fixed on 2026-10-30 before any protected run was made and pinned by tests/test_harm_gate.py (P2OutcomeTest):
+# changing a value is a new pre-registration, not a correction. Both halves are taken block by block over the paired blocks.
+#   * the unprotected server fails: in at least `block_share` of the blocks (9 of 10), legit SLO success during the attack is at
+#     least `unprotected_floor_pp` below the control's, or its p95 at least `unprotected_p95_ratio` times the control's;
+#   * the protected server works (one mode, M_<mode>): in at least `block_share` of the blocks its success is at least
+#     `protected_q_ratio` of the control's (Q(M) >= 0.99 x Q(C)), and no legit identity is blocked in any of its runs
+#     (`protected_benign_blocked_max`); the time to mitigate is reported, not judged.
+# Fewer than `min_blocks` paired blocks give no verdict. The block share of the protected half is the unprotected half's: the plan
+# names none for it, and a rule on the mean would let one broken block hide behind nine good ones.
+P2_OUTCOME = {"unprotected_floor_pp": 10.0, "unprotected_p95_ratio": 2.0, "protected_q_ratio": 0.99,
+              "protected_benign_blocked_max": 0, "block_share": 0.9, "min_blocks": 10}
+
+
+def blocks_needed(n, share):
+    """How many of `n` blocks must meet a rule that asks for `share` of them: 9 of 10 at 0.9 (the product is taken with a
+    tolerance, so that a share that is a hair off in floating point does not ask for one block more)."""
+    return math.ceil(share * n - 1e-9)
+
+
+def unprotected_fails(blocks, outcome=None):
+    """The first half of the P2 outcome over paired blocks (dicts with block, dQ and dL, as assess_block makes them): how many
+    are harmed (dQ at least the floor, or dL at least log2 of the p95 ratio) and whether that is enough of them."""
+    o = outcome or P2_OUTCOME
+    floor_l = math.log2(o["unprotected_p95_ratio"])
+    harmed = [b["block"] for b in blocks if (b["dQ"] is not None and b["dQ"] >= o["unprotected_floor_pp"])
+              or (b["dL"] is not None and b["dL"] >= floor_l)]
+    n = len(blocks)
+    evaluable = n >= o["min_blocks"]
+    need = blocks_needed(n, o["block_share"])
+    return {"n": n, "harmed": len(harmed), "harmed_blocks": harmed, "needed": need, "evaluable": evaluable,
+            "passed": evaluable and len(harmed) >= need}
+
+
+def protected_works(rows, outcome=None):
+    """The second half for one mode: `rows` are paired blocks as dicts with block, q_control, q_mitigated and benign_blocked (the
+    legit identities its daemon banned). A block holds when Q(M) is at least `protected_q_ratio` of Q(C)."""
+    o = outcome or P2_OUTCOME
+    held = [r["block"] for r in rows if r["q_control"] is not None and r["q_mitigated"] is not None
+            and r["q_mitigated"] >= o["protected_q_ratio"] * r["q_control"]]
+    blocked = sorted({ip for r in rows for ip in r["benign_blocked"]})
+    n = len(rows)
+    evaluable = n >= o["min_blocks"]
+    need = blocks_needed(n, o["block_share"])
+    return {"n": n, "held": len(held), "held_blocks": held, "needed": need, "benign_blocked": blocked,
+            "evaluable": evaluable,
+            "passed": evaluable and len(held) >= need and len(blocked) <= o["protected_benign_blocked_max"]}
+
+
+def p2_verdict(unprotected, protected):
+    """MET when the unprotected server fails and the protected one works, NOT MET when either half says otherwise, INVALID when
+    either half has too few blocks to say anything."""
+    if not unprotected["evaluable"] or not protected["evaluable"]:
+        return "INVALID"
+    return "MET" if unprotected["passed"] and protected["passed"] else "NOT MET"
+
+
 def _mean(values):
     return sum(values) / len(values) if values else None
 

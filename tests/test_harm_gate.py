@@ -964,6 +964,74 @@ class HrrTest(WithCopies):
         self.assertEqual(H.hrr([], "x"), {"mode": "x", "n": 0, "hrr": None})
 
 
+class P2OutcomeTest(unittest.TestCase):
+    """The pre-registered P2 outcome (PRIORITY_PLAN 3): its constants are fixed before any protected run and pinned here, and its two
+    halves are tested at their boundaries. A change to a value below is a new pre-registration, not a fix."""
+
+    @staticmethod
+    def unprotected(dqs, dls=None):
+        dls = dls or [0.0] * len(dqs)
+        return [{"block": i + 1, "dQ": dq, "dL": dl} for i, (dq, dl) in enumerate(zip(dqs, dls, strict=True))]
+
+    @staticmethod
+    def protected(pairs, blocked=None):
+        blocked = blocked or {}
+        return [{"block": i + 1, "q_control": c, "q_mitigated": m, "benign_blocked": blocked.get(i + 1, [])}
+                for i, (c, m) in enumerate(pairs)]
+
+    def test_the_constants_are_the_pre_registered_ones(self):
+        self.assertEqual(H.P2_OUTCOME, {"unprotected_floor_pp": 10.0, "unprotected_p95_ratio": 2.0, "protected_q_ratio": 0.99,
+                                        "protected_benign_blocked_max": 0, "block_share": 0.9, "min_blocks": 10})
+
+    def test_the_unprotected_floors_are_the_gates_floors_of_the_template(self):
+        gate = PLACEHOLDER["gate"]
+        self.assertEqual(H.P2_OUTCOME["unprotected_floor_pp"], gate["floor_pp"])
+        self.assertEqual(math.log2(H.P2_OUTCOME["unprotected_p95_ratio"]), gate["floor_log2_p95"])
+        self.assertEqual(H.P2_OUTCOME["min_blocks"], gate["min_blocks"])
+
+    def test_nine_of_ten_blocks_are_needed_whatever_the_floating_point_says(self):
+        self.assertEqual([H.blocks_needed(n, 0.9) for n in (10, 11, 20, 1)], [9, 10, 18, 1])
+
+    def test_the_unprotected_server_fails_in_nine_blocks_of_ten_and_not_in_eight(self):
+        r = H.unprotected_fails(self.unprotected([10.0] * 9 + [9.99]))
+        self.assertEqual((r["harmed"], r["needed"], r["passed"]), (9, 9, True))
+        r = H.unprotected_fails(self.unprotected([10.0] * 8 + [9.99] * 2))
+        self.assertEqual((r["harmed"], r["passed"]), (8, False))
+
+    def test_a_block_is_harmed_by_its_p95_alone_at_twice_the_controls(self):
+        r = H.unprotected_fails(self.unprotected([0.0] * 10, [1.0] * 9 + [0.99]))
+        self.assertEqual((r["harmed"], r["passed"]), (9, True))
+        r = H.unprotected_fails(self.unprotected([None] * 10, [None] * 10))
+        self.assertEqual((r["harmed"], r["passed"]), (0, False))
+
+    def test_fewer_than_ten_blocks_give_no_verdict(self):
+        r = H.unprotected_fails(self.unprotected([50.0] * 9))
+        self.assertEqual((r["evaluable"], r["passed"]), (False, False))
+        p = H.protected_works(self.protected([(100.0, 100.0)] * 9))
+        self.assertEqual((p["evaluable"], p["passed"]), (False, False))
+        self.assertEqual(H.p2_verdict(r, p), "INVALID")
+
+    def test_the_protected_server_works_at_ninety_nine_percent_of_the_control(self):
+        p = H.protected_works(self.protected([(100.0, 99.0)] * 9 + [(100.0, 98.99)]))
+        self.assertEqual((p["held"], p["passed"]), (9, True))
+        p = H.protected_works(self.protected([(100.0, 99.0)] * 8 + [(100.0, 50.0)] * 2))
+        self.assertEqual((p["held"], p["passed"]), (8, False))
+        p = H.protected_works(self.protected([(90.0, 89.1)] * 10))
+        self.assertEqual(p["held"], 10, "the ratio is to the control of the same block, not to 100 %")
+
+    def test_one_blocked_legit_identity_is_enough_to_fail_the_protected_half(self):
+        p = H.protected_works(self.protected([(100.0, 100.0)] * 10, {3: ["10.0.1.7"], 5: ["10.0.1.7"]}))
+        self.assertEqual((p["held"], p["benign_blocked"], p["passed"]), (10, ["10.0.1.7"], False))
+
+    def test_the_outcome_is_met_only_when_both_halves_pass(self):
+        fails = H.unprotected_fails(self.unprotected([20.0] * 10))
+        holds = H.unprotected_fails(self.unprotected([0.0] * 10))
+        works = H.protected_works(self.protected([(100.0, 100.0)] * 10))
+        broken = H.protected_works(self.protected([(100.0, 70.0)] * 10))
+        self.assertEqual([H.p2_verdict(a, b) for a, b in ((fails, works), (holds, works), (fails, broken))],
+                         ["MET", "NOT MET", "NOT MET"])
+
+
 # --- the calibration, the files and the report ---------------------------------------------------
 
 class CalibrationGateTest(WithCopies):
