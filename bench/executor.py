@@ -219,6 +219,7 @@ class RunPlan:
     timer_limit_ms: float            # the run is refused if the timer on the legit CPU has p99 of this or more: the calibration's
                                      # validity.timer_p99_ms, unless a smoke test set it (overrides["timer_limit_ms"])
     mode: object = None              # None for C, Cp and U; `limits` or `xdp` for a protected run
+    pins: object = None              # the pin plan of the run (population.PIN_PLAN, or PIN_PLAN_DAEMON in a campaign with a daemon)
     nginx_source: str = "nginx_unprotected.conf"      # the configuration of the repository that was rendered
     daemon: object = None            # a Daemon, for a mode that has one
 
@@ -365,14 +366,21 @@ def mode_of(kind):
     raise PlanError(f"kind: one of {', '.join(KINDS + MITIGATED_KINDS)}, got {kind!r}")
 
 
+def pins_for(kinds):
+    """The pin plan of a run, or of a campaign, made of `kinds`: PIN_PLAN_DAEMON as soon as one of them has a daemon (the executor
+    then has a CPU of its own), PIN_PLAN otherwise."""
+    daemon = any(MODES[mode]["daemon"] for mode in map(mode_of, kinds) if mode is not None)
+    return dict(P.PIN_PLAN_DAEMON if daemon else P.PIN_PLAN)
+
+
 def plan_run(scn, cal, kind, seed, out, calibration_path, scenario_sha256="", manifest=None, root=None, settings=None,
-             python=None, rho=None, timeline=None, timer_limit_ms=None):
+             python=None, rho=None, timeline=None, timer_limit_ms=None, pins=None):
     """Everything a run will do, as data. `scn` is a bench/scenario.Scenario, `cal` a calibration record read from
     `calibration_path`, `kind` one of C, Cp, U and the protected M_<mode>, `out` the run's directory, which must be called after
     its kind (the gate reads the role from the name). A protected run is U's attack against its mode's stack. `rho` replaces the
     nominal load, `timeline` (baseline, attack, recovery seconds) the scenario's, and `timer_limit_ms` the calibration's limit for
     the timer of the legit CPU, for a smoke test; all three are recorded as overrides, and the harm gate gives no verdict on runs
-    that carry any."""
+    that carry any. `pins` is the pin plan (pins_for: of the campaign; of the kind alone by default)."""
     mode = mode_of(kind)
     if os.path.basename(os.path.normpath(out)) != kind:
         raise PlanError(f"the run directory of a {kind} run is called {kind}, not {os.path.basename(os.path.normpath(out))!r}")
@@ -398,17 +406,17 @@ def plan_run(scn, cal, kind, seed, out, calibration_path, scenario_sha256="", ma
     except SC.ScenarioError as exc:
         raise PlanError(str(exc)) from exc
     return plan_population(pop, scn.id, kind, seed, out, cal, calibration_path, scn.timeline, level, scenario_sha256, manifest,
-                           root, settings, python, overrides, mode=mode)
+                           root, settings, python, overrides, mode=mode, pins=pins or pins_for([kind]))
 
 
 def plan_population(pop, scenario, kind, seed, out, cal, calibration_path, timeline, level=None, scenario_sha256="",
-                    manifest=None, root=None, settings=None, python=None, overrides=None, mode=None):
+                    manifest=None, root=None, settings=None, python=None, overrides=None, mode=None, pins=None):
     """The plan of a run of a population that is drawn already: plan_run's for a scenario's, and bench/calibrate.py's for the
     staged load of the capacity probe and the legit probes. `timeline` is the population's population.Timeline; a stream is
     launched so that its loop starts at its `start_s` on the run's axis (launch_due). `mode` is a protected run's (MODES)."""
     out = os.path.abspath(out) if not os.path.isabs(out) else out
     python = python or os.path.join(REPO, "venv", "bin", "python")
-    pins = P.PIN_PLAN
+    pins = dict(pins or P.PIN_PLAN)
     aliases = pop.alias_plan()
     namespaces = tuple(Namespace(ns_name(spec), spec.index, spec.netem, tuple(aliases[spec.index]))
                        for spec in pop.namespaces if spec.index in aliases)
@@ -420,7 +428,7 @@ def plan_population(pop, scenario, kind, seed, out, cal, calibration_path, timel
     conf_sha256 = _sha(conf)
     streams = []
     for s in pop.streams:
-        spec = P.to_load_spec(s, HTTP_URL)
+        spec = P.to_load_spec(s, HTTP_URL, pins)
         workdir = f"{out}/streams/{s.id}"
         launch = LT.build_plan("loadgen", spec, workdir, manifest, root)
         nofile = P.nofile_for(s, spec)
@@ -440,7 +448,7 @@ def plan_population(pop, scenario, kind, seed, out, cal, calibration_path, timel
         streams=tuple(streams), teardown=teardown_steps(namespaces), nginx_conf=conf, nginx_conf_sha256=conf_sha256,
         plan_sha256=_legit_hash(pop.of_kind("legit")), settings={**SETTINGS, **(settings or {})},
         overrides=overrides or {}, timer_limit_ms=(overrides or {}).get("timer_limit_ms", cal["validity"]["timer_p99_ms"]),
-        mode=mode, nginx_source=os.path.basename(source),
+        mode=mode, pins=pins, nginx_source=os.path.basename(source),
         daemon=daemon_plan(out, python, pins, backend) if backend else None)
 
 
@@ -533,11 +541,13 @@ def describe(plan, python=None):
            timeline_line(plan, legit, attack),
            f"plan hash     {plan.plan_sha256[:12]} (the legit streams: equal in C, Cp and U of a block)",
            *([f"OVERRIDES     {plan.overrides}: a smoke test, not a result"] if plan.overrides else []),
-           f"timer gate    refused if the timer on CPU {P.PIN_PLAN['legit']} has p99 of {plan.timer_limit_ms:g} ms or more "
+           f"timer gate    refused if the timer on CPU {plan.pins['legit']} has p99 of {plan.timer_limit_ms:g} ms or more "
            + ("(set by --timer-limit-ms)" if "timer_limit_ms" in plan.overrides else "(the calibration's validity.timer_p99_ms)"),
            f"nginx.conf    sha256:{plan.nginx_conf_sha256[:12]} ({plan.nginx_source} with its two log paths changed"
            + (", and the daemon's feed beside them)" if plan.daemon else ")"),
            *([f"mode          {plan.mode}: {MODE_TEXT[plan.mode]}"] if plan.mode else []),
+           *(["pins          " + ", ".join(f"{k} {v}" for k, v in plan.pins.items())
+              + f": the executor on CPU {P.executor_cpus(plan.pins)}, apart from the daemon's"] if plan.pins != P.PIN_PLAN else []),
            "settings      " + ", ".join(f"{k} {v}" for k, v in plan.settings.items()), ""]
     n_aliases = sum(len(n.addresses) for n in plan.namespaces)
     out.append(f"topology: {len(plan.namespaces)} client namespaces carrying {n_aliases} addresses")
@@ -1116,10 +1126,10 @@ def environment(host, plan, gate="full", wait_gate_min=30.0, say=None):
         seen = quiet_gate(host, wait_gate_min, say)
     else:
         seen = {"met": None, "uptime_s": up, "load1": load, "waited_s": 0.0}
-    probe = timer_probe(host, P.PIN_PLAN["legit"])
+    probe = timer_probe(host, plan.pins["legit"])
     raised = "timer_limit_ms" in plan.overrides
     if probe is None or probe["p99_ms"] >= plan.timer_limit_ms:
-        raise EnvironmentRefused(f"timer wake-up on CPU {P.PIN_PLAN['legit']} (the legit streams'): p99 "
+        raise EnvironmentRefused(f"timer wake-up on CPU {plan.pins['legit']} (the legit streams'): p99 "
                                  f"{'unknown' if probe is None else format(probe['p99_ms'], '.1f') + ' ms'}, needs below "
                                  f"{plan.timer_limit_ms:g} ms" + (" (set by --timer-limit-ms for a smoke test)" if raised else ""))
     stat = host.read_text("/proc/stat").splitlines()[0].split()
@@ -2244,7 +2254,7 @@ def main(argv=None, host=None):
             return EXIT_OK if result["reported"] else EXIT_FAILED
         plan = _plan_from_args(args)
         real = host or RealHost()
-        real.pin(P.PIN_PLAN["daemon"])
+        real.pin(P.executor_cpus(plan.pins))
         _install_signal_handlers()
         if args.command == "smoke-topology":
             seconds = smoke_topology(plan, real, print, args.allow_dirty, args.clean)

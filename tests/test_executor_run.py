@@ -2857,6 +2857,21 @@ class CommandLineTest(RunCase):
         self.assertEqual({c.args[0] for c in handlers.call_args_list}, {signal.SIGTERM, signal.SIGHUP})
         self.assertIn("sound", shown)
 
+    def test_a_protected_run_pins_the_executor_apart_from_its_daemon(self):
+        host = F.SimHost()
+        code, _, _, _ = self.run_main(*self.base("M_xdp"), host=host)
+        self.assertEqual(code, X.EXIT_OK)
+        self.assertEqual(host.pinned, P.PIN_PLAN_DAEMON["executor"])
+
+    def test_the_timer_is_probed_on_the_legit_cpu_of_the_runs_pin_plan(self):
+        plan = self.plan("C")
+        plan = dataclasses.replace(plan, pins={**plan.pins, "legit": "5"})
+        host = F.SimHost()
+        X.execute(plan, host)
+        probes = [argv for _, _, argv in host.commands if "timer-probe" in argv]
+        self.assertTrue(probes)
+        self.assertEqual({argv[2] for argv in probes}, {"5"})
+
     def test_a_run_with_a_timer_limit_says_it_is_a_smoke_test_and_the_harm_gate_will_not_judge_it(self):
         host = F.SimHost(timer_p99_ms=15.0)
         code, _, shown, _ = self.run_main(*self.base("C", "raised/C"), "--timer-limit-ms", "50", host=host)

@@ -46,6 +46,17 @@ PATHS_PER_STREAM = 100
 # them the timer gate, move from CPU 6 to CPU 7, the quietest vCPU of the latest idle timer probes; the attack takes CPU 6 in exchange
 # and keeps four CPUs; the server (0-1) and the daemon's CPU (2, the executor's while there is no daemon) do not move
 PIN_PLAN = {"server": "0-1", "daemon": "2", "legit": "7", "attack": "3-6"}
+# HG4 (docs/HG1C_DESIGN.md 15, G5): with the mitigation daemon on CPU 2 the executor may not stay there (its reaper threads stamp every
+# stream's exit, which the run's clock is made of; its sampler reads /proc once a second). It moves to CPU 7, which the attack streams
+# give up: they need at most about 2 % of a CPU per set of streams (T-004 p2_capacity 2). The server, the legit streams and the timer
+# gate on CPU 6 do not move. A campaign that has a daemon takes this plan for all of its runs, so that its arms differ in nothing else.
+PIN_PLAN_DAEMON = {"server": "0-1", "daemon": "2", "executor": "7", "legit": "6", "attack": "3-5"}
+
+
+def executor_cpus(pins):
+    """The CPUs the executor runs on under a pin plan: its own, or the daemon's in a plan that has none for it (HG1b 4: the daemon's
+    CPU was free while there was no daemon)."""
+    return pins.get("executor", pins["daemon"])
 POOL = {"legit": 6, "attack": 4}                                                  # idle connections per identity
 
 

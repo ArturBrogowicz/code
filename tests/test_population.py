@@ -370,5 +370,35 @@ class StagedTest(unittest.TestCase):
             LT.validate(spec)
 
 
+class DaemonPinPlanTest(unittest.TestCase):
+    """G5: with the daemon on CPU 2 the executor gets a CPU of its own (7, which the attack gives up); nothing else moves."""
+
+    @staticmethod
+    def cpus(text):
+        out = set()
+        for part in text.split(","):
+            lo, _, hi = part.partition("-")
+            out |= set(range(int(lo), int(hi or lo) + 1))
+        return out
+
+    def test_every_role_has_cpus_of_its_own(self):
+        self.assertEqual(sorted(P.PIN_PLAN_DAEMON), ["attack", "daemon", "executor", "legit", "server"])
+        seen = set()
+        for role, text in P.PIN_PLAN_DAEMON.items():
+            self.assertFalse(self.cpus(text) & seen, role)
+            seen |= self.cpus(text)
+        self.assertLessEqual(seen, set(range(8)))
+
+    def test_only_the_executor_and_the_attack_move(self):
+        for role in ("server", "daemon", "legit"):
+            self.assertEqual(P.PIN_PLAN_DAEMON[role], P.PIN_PLAN[role], role)
+        self.assertEqual(self.cpus(P.PIN_PLAN_DAEMON["attack"]) | self.cpus(P.PIN_PLAN_DAEMON["executor"]),
+                         self.cpus(P.PIN_PLAN["attack"]))
+        self.assertGreaterEqual(len(self.cpus(P.PIN_PLAN_DAEMON["attack"])), 3)
+
+    def test_the_executor_sits_on_the_daemons_cpu_only_in_a_plan_without_a_daemon(self):
+        self.assertEqual((P.executor_cpus(P.PIN_PLAN), P.executor_cpus(P.PIN_PLAN_DAEMON)), ("2", "7"))
+
+
 if __name__ == "__main__":
     unittest.main()

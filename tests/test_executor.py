@@ -483,7 +483,9 @@ class MitigatedPlanTest(unittest.TestCase):
     DAEMON_SOURCE = read(os.path.join(REPO, "control_plane.py")) if os.path.exists(os.path.join(REPO, "control_plane.py")) else ""
 
     def test_a_protected_run_is_planned_like_the_attack_run_with_its_mode(self):
-        u, m = plan("U"), plan("M_xdp")
+        m = plan("M_xdp")
+        u = EX.plan_run(scenario(), CAL, "U", 1, f"{OUT}/U", C.PLACEHOLDER, sha_of(spec_path("costly_search_sub_threshold")),
+                        pins=m.pins)                                     # as the campaign of an M_xdp run plans its U
         self.assertEqual((m.kind, m.mode, u.mode), ("M_xdp", "xdp", None))
         self.assertEqual(plan("M_limits").mode, "limits")
         self.assertEqual(m.plan_sha256, u.plan_sha256)
@@ -586,6 +588,31 @@ class MitigatedPlanTest(unittest.TestCase):
                              EX.EXIT_USAGE)
         self.assertIn("== run M_xdp (mitigated) of cheap_static_flood", out.getvalue())
         self.assertIn("not built yet", err.getvalue())
+
+
+class PinsTest(unittest.TestCase):
+    """G5: a run with a daemon, and every run of a campaign that has one, takes the daemon's pin plan."""
+
+    def test_a_run_with_a_daemon_takes_the_daemons_pin_plan_and_one_without_keeps_the_old(self):
+        self.assertEqual(plan("M_xdp").pins, P.PIN_PLAN_DAEMON)
+        for kind in ("C", "Cp", "U", "M_limits"):
+            self.assertEqual(plan(kind).pins, P.PIN_PLAN, kind)
+
+    def test_a_campaign_with_a_daemon_pins_all_its_runs_alike(self):
+        self.assertEqual(EX.pins_for(["C", "Cp", "U", "M_xdp"]), P.PIN_PLAN_DAEMON)
+        self.assertEqual(EX.pins_for(["C", "Cp", "U", "M_limits"]), P.PIN_PLAN)
+        c = EX.plan_run(scenario(), CAL, "C", 1, f"{OUT}/C", C.PLACEHOLDER, pins=P.PIN_PLAN_DAEMON)
+        self.assertEqual(c.pins, P.PIN_PLAN_DAEMON)
+        self.assertEqual(c.plan_sha256, plan("C").plan_sha256, "the pins are not part of who the clients are")
+
+    def test_the_streams_and_the_daemon_run_where_the_pin_plan_says(self):
+        p = plan("M_xdp")
+        for s in p.streams:
+            argv = list(s.argv)
+            self.assertEqual(argv[argv.index("taskset") + 2], P.PIN_PLAN_DAEMON["legit" if s.kind == "legit" else "attack"], s.id)
+        self.assertEqual(p.daemon.argv[:3], ("taskset", "-c", "2"))
+        self.assertIn("pins          server 0-1, daemon 2, executor 7, legit 6, attack 3-5: the executor on CPU 7", EX.describe(p))
+        self.assertNotIn("pins          ", EX.describe(plan("U")))
 
 
 class SuiteContractTest(unittest.TestCase):
