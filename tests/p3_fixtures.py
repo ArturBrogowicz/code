@@ -64,9 +64,9 @@ def write_gz(path, text):
 
 
 def capture(version_dir, version, seed, seed_role, ents, *, started="2026-11-02T10:00:00Z",
-            ended="2026-11-02T10:15:00Z", per=40, commit=COMMIT, capture_id=None):
+            ended="2026-11-02T10:15:00Z", per=40, commit=COMMIT, capture_id=None, ready=True, completed=True):
     """Write one capture directory (manifest.json, access.log.gz, error.log.gz) under version_dir and
-    return (capture_dir, manifest)."""
+    return (capture_dir, manifest). `ready` and `completed` go into the timeline, as the runner records them."""
     capture_id = capture_id or f"s{seed}"
     d = os.path.join(version_dir, capture_id)
     os.makedirs(d, exist_ok=True)
@@ -80,7 +80,8 @@ def capture(version_dir, version, seed, seed_role, ents, *, started="2026-11-02T
               "inputs_sha256": {"ml/l7_gen.py": "0" * 64}},
         server={"config_id": "A" if seed % 2 else "B"}, host={"uname": "test"},
         pool={"range": "10.0.16.0/20", "permutation_seed": seed, "role_map": {e["address"]: e["role"] for e in ents}},
-        timeline={"lead_in_s": 0.0, "phases": [], "tail_s": 0.0}, entities=ents, files=files)
+        timeline={"lead_in_s": 0.0, "phases": [], "tail_s": 0.0, "ready": ready, "completed": completed},
+        entities=ents, files=files)
     D.write_dataset_manifest(os.path.join(d, D.MANIFEST_FILE), m)
     return d, m
 

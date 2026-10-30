@@ -38,6 +38,18 @@ class GuardFixture(unittest.TestCase):
         return {f.split()[0] for f in X.check(splits)}
 
 
+class InvalidCaptureTest(GuardFixture):
+    """Review T-029 P3-05: an attempt that failed is recorded, but no fit may use it."""
+
+    def test_not_ready_not_completed_or_empty_captures_fail(self):
+        for kw in ({"ready": False}, {"completed": False}, {"per": 0}):
+            s = self.splits(val=[self.cap(2002, "val", capture_id=f"s2002-{next(iter(kw))}", **kw)])
+            fails = X.check(s)
+            self.assertEqual({f.split()[0] for f in fails}, {"14"}, kw)
+            self.assertIn("invalid capture", fails[0])
+        self.assertEqual(self.rules(self.splits()), set())
+
+
 class AddressReuseTest(GuardFixture):
     def test_two_entities_on_one_address_need_schema_3(self):
         ents = FX.entities(V, 1001)

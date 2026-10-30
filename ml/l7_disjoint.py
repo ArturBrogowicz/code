@@ -22,6 +22,8 @@ Each failure starts with its rule number:
   13  an entity puts several users on one address (a CGNAT pool, a NAT gateway): address reuse needs schema 3, where
       each user is an entity and the pool their cluster; schema 2 would count the pool as one entity in the benign
       budget (review T-029 P3-09). Two entities on one address already fail rule 1 with the same reason.
+  14  a capture is not valid: its origin was never ready, it did not complete, or its access log has no line
+      (review T-029 P3-05; the capture still writes a manifest so that the attempt is recorded)
 
     ./venv/bin/python ml/l7_disjoint.py --check --train D1 D2 --val D3 [--eval D4 ...] [--split F --selection F]
 
@@ -145,6 +147,16 @@ def check(splits, *, prereg=None, split_file=None, selection_file=None, verify_f
                 if not isinstance(users, int) or users > 1:
                     fails.append(f"13 {d}: entity {e['entity_id']} ({e['kind_or_family']}) puts {users} users on "
                                  f"{e['address']}: {D.NEEDS_SCHEMA_3}")
+    for s in SPLITS:
+        for d, m in loaded[s]:
+            tl = m["timeline"] if isinstance(m["timeline"], dict) else {}
+            acc = next((f for f in m["files"] if f.get("path") == m["access_log"]), {})
+            why = [w for w, bad in (("the origin was never ready", tl.get("ready") is not True),
+                                    ("the capture did not complete", tl.get("completed") is not True),
+                                    ("the access log has no line", not (isinstance(acc.get("lines"), int)
+                                                                        and acc["lines"] > 0))) if bad]
+            if why:
+                fails.append(f"14 {d}: invalid capture: " + "; ".join(why))
     for s in SPLITS:
         for d, m in loaded[s]:
             if m["seed_role"] != s:
