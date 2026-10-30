@@ -764,14 +764,17 @@ def l3_l4_telemetry_monitor():
     # across the poll loop below and need no lock.
     gru_trust_flows_after_ns = 0   # monotonic-ns baseline; 0 = no flood seen yet, trust all flows
     was_suppressing = False
+    # D-01: set by a failed poll. The snapshots it did not advance (all of them when it failed
+    # before the map was read) would let the next poll read the whole outage as one interval.
+    rebaseline = False
     while not stop_event.is_set():
         time.sleep(L4_POLL_INTERVAL)
 
         # H-02: an error in one poll (bcc raises a bare Exception when a BPF map update
         # fails, e.g. a full blacklist_map in ban_ip) is reported, and the next poll runs:
         # it used to end this thread, and with it L4 detection, the TTL sweep and the idle
-        # eviction, silently. The sleep above is the backoff; a longer one would stretch
-        # the next poll's deltas, which the per-second thresholds read as rates.
+        # eviction, silently. The sleep above is the backoff, and the poll after a failure
+        # only re-takes the snapshots (D-01, `rebaseline`).
         try:
             # Periodic maintenance
             unblock_expired_bans()
@@ -811,6 +814,8 @@ def l3_l4_telemetry_monitor():
                     d_syn = cum_syn - prev[1]
                     d_bytes = cum_bytes - prev[2]
                 prev_telemetry[ip_str] = (cum_pkts, cum_syn, cum_bytes)
+                if rebaseline:
+                    continue    # D-01: a fresh snapshot only; no rule reads this delta
 
                 with banned_ips_lock:
                     if ip_str in banned_ips:
@@ -894,6 +899,14 @@ def l3_l4_telemetry_monitor():
             # NOTE: no blanket delete of the telemetry map here any more. Keys are
             # cumulative and are reclaimed only when an IP goes idle (see
             # evict_idle_clients) -- that is what preserves flow duration + counts.
+
+            if rebaseline:
+                # D-01: this poll only re-took the snapshots that the failed poll(s) left
+                # behind. Read now, their deltas would span the whole outage and ban sources at
+                # their normal rate. The rules, the GRU feed and the SYN-cookie check apply
+                # again from the next poll, to a one-poll delta.
+                rebaseline = False
+                continue
 
             # --- GRU inference on per-FLOW forward features (Tier-1 pipeline) ---
             # Read the per-flow 5-tuple table the XDP program fills. For every TCP
@@ -984,7 +997,8 @@ def l3_l4_telemetry_monitor():
                 print(f"[L4-GLOBAL] Aggregate SYN rate {total_global_syn_delta}/s back to normal. "
                       f"SYN cookies flag reset.")
         except Exception as e:  # noqa: BLE001 - one failing poll must not end the thread
-            report_daemon_error("telemetry", e, "next poll continues")
+            rebaseline = True
+            report_daemon_error("telemetry", e, "the next poll re-takes the snapshots")
 
 
 try:

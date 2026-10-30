@@ -237,7 +237,9 @@ unchanged.
   exception ended L4 detection, the TTL sweep and the idle eviction, or ended R.U.D.Y. detection, with no
   event. One such exception is bcc's bare `Exception` when a ban does not fit into the full 100 000-entry
   `blacklist_map`. Now each telemetry poll is guarded, and every worker thread runs under `supervise()`,
-  which reports the exception and restarts the target after 1 s.
+  which reports the exception and restarts the target after 1 s. The poll after a failed one only re-takes
+  the per-source snapshots and applies no threshold (D-01). Read at once, its deltas would span the whole
+  outage and ban sources at their normal rate.
 * **H-03: the nginx bypass.** See "Defaults changed on 2026-10-30".
 
 Every error the daemon survives is written as a `daemon_error` event and a console line.
@@ -247,7 +249,9 @@ Every error the daemon survives is written as a `daemon_error` event and a conso
 * `UndecodableBytesTest`: 0xFF, 0x80, truncated sequences, and a character cut at the end of the file, in
   both tailers. Such lines still count for the rate rule.
 * `MainLoopTest`: a tailer error keeps XDP attached. Ctrl-C after an error, or SIGTERM, detaches it once.
-* `TelemetryGuardTest`: the poll after a failed ban still bans and unbans.
+* `TelemetryGuardTest`: after a failed ban the TTL sweep still runs and the rules resume after one
+  re-baseline poll. After a 30-poll outage no client is banned at its normal rate, and a flood that began
+  during the outage is banned at its one-poll rate.
 * `SupervisorTest`: the R.U.D.Y. thread bans again after its restart, every worker is supervised, and a
   worker that ends early is reported.
 * `BackendBindTest`: the suite's gunicorn bind.
@@ -257,8 +261,8 @@ Every error the daemon survives is written as a `daemon_error` event and a conso
 Known limits:
 
 * A recreated tailer opens its log at the end, so lines written during the 1-s backoff are not read.
-* A poll that fails partway leaves the remaining sources' snapshots one poll old. Their next deltas then
-  cover two polls, as for a late poll (F-17).
+* After a failed poll, detection resumes one poll later: the next poll only re-takes the snapshots. A
+  failed or re-baseline poll neither extends nor resets the SlowConn and low-SYN streaks.
 * The R.U.D.Y. pattern takes the last `client: <IPv4>` of a line (a separate finding, not changed here). A
   capture that is not an IP address fails its ban, so the thread restarts on each such line.
 

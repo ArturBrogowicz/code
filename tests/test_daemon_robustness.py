@@ -311,7 +311,7 @@ class TelemetryGuardTest(DaemonCase):
     ban_ip, say) ended the thread for good: no more L4 detection, TTL unbans or idle eviction,
     while the process ran on and no event said so."""
 
-    def test_a_failing_poll_is_reported_and_the_next_poll_bans_and_unbans(self):
+    def test_a_failing_poll_is_reported_and_the_rules_resume_after_a_fresh_snapshot(self):
         d = self.daemon()
         d.call("ban_ip", OTHER, reason="r", engine="l4_syn")    # t=1000: expires after t=1300
         blacklist = FullBlacklist()
@@ -319,17 +319,43 @@ class TelemetryGuardTest(DaemonCase):
         d.clock.now = 1299.0
 
         def setup(k):
-            d.telemetry.add(IP, pkts=300, syn=300)               # a SYN flood in both polls
+            d.telemetry.add(IP, pkts=300, syn=300)               # a SYN flood in every poll
             if k == 1:
                 blacklist.failures = 1                           # the first poll's ban fails
-        d.poll(2, setup)
+        d.poll(3, setup)
         [err] = d.events("daemon_error")
         self.assertEqual((err["where"], err["error"]), ("telemetry", MAP_FULL))
-        self.assertEqual([(b["ip"], b["engine"]) for b in d.bans()],
-                         [(OTHER, "l4_syn"), (IP, "l4_syn")])
-        self.assertEqual(d.ban_timestamps, {IP: 1301.0})        # banned by the second poll
         self.assertEqual([e["ip"] for e in d.events("unban")], [OTHER])  # TTL sweep, t=1301
+        # t=1301 re-takes the snapshots (D-01); t=1302 bans on a one-poll delta.
+        self.assertEqual([(b["ip"], b["engine"], b.get("value")) for b in d.bans()],
+                         [(OTHER, "l4_syn", None), (IP, "l4_syn", 300)])
+        self.assertEqual(d.ban_timestamps, {IP: 1302.0})
         self.assertEqual(d.blacklist.ips(), {IP})
+
+    def test_an_outage_is_not_read_as_one_interval(self):
+        # D-01 (review T-017): 30 failed polls (`ss` failing with an OSError, which
+        # get_established_conns_by_ip does not catch) left every snapshot where it was. The first
+        # good poll then read 31 s of normal traffic as one interval and banned an 8-SYN/s client
+        # (l4_syn 248) and a 200-packet/s one (l4_volumetric 6107). Now that poll only re-takes
+        # the snapshots; on the next one, a flood that began during the outage is banned at its
+        # one-poll rate.
+        d = self.daemon()
+        flood, outage = "10.0.2.9", 30
+
+        def setup(k):
+            d.telemetry.add(IP, pkts=8, syn=8)                   # 8 SYN/s
+            d.telemetry.add(OTHER, pkts=200, syn=3)              # 200 packets/s
+            if k >= 20:
+                d.telemetry.add(flood, pkts=300, syn=300)        # starts during the outage
+            if k == 2:
+                d.proc.failures[("ss", "-tan")] = OSError(12, "Cannot allocate memory")
+            if k == 2 + outage:
+                del d.proc.failures[("ss", "-tan")]              # polls 2..31 failed
+        d.poll(2 + outage + 1, setup)
+        self.assertEqual(len(d.events("daemon_error")), outage)
+        self.assertEqual([(b["ip"], b["engine"], b["value"]) for b in d.bans()],
+                         [(flood, "l4_syn", 300)])
+        self.assertEqual(d.ban_timestamps, {flood: 1033.0})     # the second good poll
 
 
 class SupervisorTest(DaemonCase):
