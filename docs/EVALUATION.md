@@ -200,6 +200,25 @@ Still open: a live `hping3 --rand-source` flood with the daemon polling (the ker
 and the userspace read are covered above, the daemon under a real flood is not); and the remaining
 G-17 checks (`doff`, fragments, IPv6 / 802.1Q, `tot_len`), which the program still lacks.
 
+## Defaults changed on 2026-10-30
+
+The orchestrated review of 2026-10-29 (`/home/artur/agent_workspace/final/REPORT.md`, H-03; security
+review S11 of task T-007) led to one change in what a suite run executes:
+
+| Change | Before | Now | Why |
+|---|---|---|---|
+| gunicorn bind in the suite (`_start_web_stack`) | `0.0.0.0:8080` | `127.0.0.1:8080`, nginx's upstream (`proxy_pass http://127.0.0.1:8080` in `nginx.conf` and `nginx_unprotected.conf`) | gunicorn listened on every address of `server_ns`, so a client could reach the backend directly and bypass nginx's limits, its access log (the L7 rate rule and the L7 shadow) and SlowConn, which counts connections to :80 and :443 only |
+
+What this means for earlier results: nothing, as far as the bypass goes. No published campaign's
+client used it [FACT]: in every version of `test_distributed_suite.py` (`git log -G8080`), port 8080
+appears only in the gunicorn bind; the legit clients, the readiness probe, wrk and the open-loop
+generators target `HTTP_URL` (`http://10.0.0.1/`, port 80), hping3 `-p 80`, and the Slowloris and
+R.U.D.Y. scripts `PORT = 80`. Not changed: `setup.sh` (the legacy two-namespace topology, still
+`0.0.0.0:8080`) and the runners that start their own backend (`capture_testbed_dataset.py`,
+`ml/capture_l7.py`, `ml/eval_l7.py`, all `0.0.0.0:8080`); `bench/executor.py` already binds
+`127.0.0.1:8080`. The change is checked offline only (the suite's argv and the confs, in
+`tests/test_daemon_robustness.py`); it has not been run on the testbed.
+
 ## Outputs of a run (`RESULTS_DIR`)
 
 | File | Content |

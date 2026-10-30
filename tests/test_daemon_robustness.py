@@ -8,17 +8,22 @@ before the fix it covers.
 import ast
 import contextlib
 import os
+import re
 import sys
 import threading
 import types
 import unittest
 import warnings
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 sys.path.insert(0, REPO)
 import daemon_harness as H
+
+with mock.patch("atexit.register"), mock.patch("signal.signal"):
+    import test_distributed_suite as S  # as tests/test_suite_harness.py does
 
 IP = "10.0.2.1"
 OTHER = "10.0.2.2"
@@ -387,6 +392,24 @@ class SupervisorTest(DaemonCase):
         [err] = d.events("daemon_error")
         self.assertEqual((err["where"], err["error"], err["action"]),
                          ("thread:l7_shadow", "returned", "not restarted"))
+
+
+
+class BackendBindTest(unittest.TestCase):
+    """H-03 (security review S11): gunicorn listened on 0.0.0.0:8080 in server_ns, so a client
+    could reach the backend directly, past nginx's limits, its access log (the L7 rule and the
+    L7 shadow) and SlowConn, which counts connections to :80 and :443 only."""
+
+    def test_the_suite_binds_gunicorn_to_nginx_upstream_only(self):
+        with mock.patch.object(S, "run") as run, mock.patch.object(S, "_wait_http_ready"), \
+                mock.patch.object(S.time, "sleep"):
+            S._start_web_stack()
+        [argv] = [c.args[0] for c in run.call_args_list if "gunicorn" in c.args[0]]
+        bind = argv[argv.index("-b") + 1]
+        self.assertEqual(bind, "127.0.0.1:8080")
+        for conf in ("nginx.conf", "nginx_unprotected.conf"):     # the two the suite serves
+            with open(os.path.join(REPO, conf), encoding="utf-8") as fh:
+                self.assertEqual(re.findall(r"proxy_pass http://(\S+);", fh.read()), [bind], conf)
 
 
 if __name__ == "__main__":
