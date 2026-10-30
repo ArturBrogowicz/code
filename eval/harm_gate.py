@@ -376,7 +376,7 @@ def assess_block(block_dir, cal, slo_scale=1.0):
     for need in (CONTROL, PLACEBO, ATTACK):
         if need not in runs:
             problems.append(f"run {need} is missing")
-    made = sorted(n for n in runs if not n.startswith(MITIGATED))
+    made = sorted(runs)                            # the protected runs too: the block's drawn order covers them (G7)
     if sorted(meta["order"]) != made:
         problems.append(f"order {meta['order']} is not the runs made ({', '.join(made)})")
     overrides = dict(_overrides(meta.get("overrides"), os.path.join(block_dir, "block.json")))
@@ -398,11 +398,20 @@ def assess_block(block_dir, cal, slo_scale=1.0):
             reasons += [f"{name}: {r}" for r in out_runs[name]["validity"][cal["validity"]["profile"]]["reasons"]]
     if control:
         reasons += [f"control: {r}" for r in control_health(control, cal)]
+    # the protected arms the block planned (block.json `planned_order`, else its order) and those it has: a campaign needs each of
+    # them there and valid (`valid_all`); Gate A's own validity (`valid`) reads C, Cp and U only
+    planned = meta.get("planned_order") or meta["order"]
+    arms = sorted({n for n in planned if n.startswith(MITIGATED)} | {n for n in runs if n.startswith(MITIGATED)})
+    arm_reasons = [f"run {n} is missing" for n in arms if n not in out_runs]
+    for n in arms:
+        if n in out_runs and not out_runs[n]["valid"]:
+            arm_reasons += [f"{n}: {r}" for r in out_runs[n]["validity"][cal["validity"]["profile"]]["reasons"]] or [f"{n}: not valid"]
     u, cp = metrics.get(ATTACK), metrics.get(PLACEBO)
     return {"dir": os.path.basename(block_dir), "block": meta["block"], "attempt": meta["attempt"],
             "seed": meta["seed"], "seed_namespace": meta["seed_namespace"], "scenario": meta["scenario"],
             "calibration_sha256": meta["calibration_sha256"], "order": meta["order"], "runs": out_runs,
             "valid": not reasons, "reasons": reasons, "overrides": overrides,
+            "arms": arms, "arms_valid": not arm_reasons, "arm_reasons": arm_reasons, "valid_all": not reasons and not arm_reasons,
             "benign_blocked": {n: out_runs[n]["mitigation"]["benign_blocked"] for n in sorted(out_runs) if n.startswith(MITIGATED)},
             "refused": {n: out_runs[n]["metrics"]["refused"]["window"] for n in sorted(out_runs)},
             "dQ": _diff(control and control["Q"], u and u["Q"]),
@@ -435,7 +444,7 @@ def protocol_problems(attempts, cal):
             p.append(f"block {number}: the re-run used another seed")
         if len(group) > 1:
             reruns += 1
-            if group[0]["valid"]:
+            if group[0].get("valid_all", group[0]["valid"]):          # a block with an invalid protected run may be made again
                 p.append(f"block {number}: re-run although attempt 1 was valid")
     if reruns > cal["gate"]["max_reruns"]:
         p.append(f"{reruns} blocks were re-run; at most {cal['gate']['max_reruns']} in a gate")

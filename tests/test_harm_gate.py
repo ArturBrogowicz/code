@@ -114,7 +114,8 @@ def write_block(root, number, cal, effects=None, attempt=1, seed=None, scenario=
     k = number % 3
     with open(os.path.join(block_dir, "block.json"), "w", encoding="utf-8") as fh:
         json.dump({"scenario": scenario, "block": number, "attempt": attempt, "seed_namespace": "calib", "seed": seed,
-                   "calibration_sha256": cal["sha256"], "timeline": TIMELINE, "order": made[k:] + made[:k]}, fh)
+                   "calibration_sha256": cal["sha256"], "timeline": TIMELINE,
+                   "order": made[k:] + made[:k] + [n for n in effects if n.startswith(H.MITIGATED)]}, fh)
 
 
 def json_of(path):
@@ -943,6 +944,7 @@ class HrrTest(WithCopies):
         root = self.copy_of("fail")
         for d in block_dirs(root):
             shutil.copytree(os.path.join(BASE["pass"], os.path.basename(d), "M_x"), os.path.join(d, "M_x"))
+            edit_json(os.path.join(d, "block.json"), lambda j: j.update(order=j["order"] + ["M_x"]))
         r = self.analyse(root)
         self.assertEqual(r["verdict"], "FAIL")
         self.assertIsNone(r["hrr"])
@@ -1012,6 +1014,46 @@ class MitigationOutcomeTest(WithCopies):
                                   (3.5, 3.5, 3.6, 200, ""), (4.0, 4.0, 4.01, 502, "")]),
                 "b": ("C1", 0.0, [(4.5, 4.5, 4.51, 429, "")], "mobile_3g")}), FROZEN, SHORT)
         self.assertEqual(m["refused"], {"window": 3, "window_judged": 2, "run": 4})
+
+
+class ProtectedArmsBlockTest(WithCopies):
+    """G7: a block's order covers its protected runs, and for a campaign a block is complete only when every protected run it planned
+    is there and valid; Gate A's own validity still reads C, Cp and U only."""
+
+    def test_the_order_must_list_the_protected_runs_too(self):
+        root = self.copy_of("pass")
+        edit_json(os.path.join(root, "b02_a1", "block.json"), lambda j: j.update(order=[r for r in j["order"] if r != "M_x"]))
+        b = self.block(self.analyse(root), 2)
+        self.assertFalse(b["valid"])
+        self.assertTrue(any(r.startswith("order") and "M_x" in r for r in b["reasons"]), b["reasons"])
+
+    def test_an_invalid_protected_run_leaves_gate_a_valid_and_the_arms_not(self):
+        root = self.copy_of("pass")
+        edit_json(legit_summary(os.path.join(root, "b03_a1"), "M_x"), lambda j: j.update(cpu={"share": 0.99}))
+        b = self.block(self.analyse(root), 3)
+        self.assertEqual((b["valid"], b["arms"], b["arms_valid"], b["valid_all"]), (True, ["M_x"], False, False))
+        self.assertTrue(b["arm_reasons"] and all(r.startswith("M_x: ") for r in b["arm_reasons"]), b["arm_reasons"])
+        good = self.block(self.analyse(BASE["pass"]), 3)
+        self.assertEqual((good["arms_valid"], good["valid_all"], good["arm_reasons"]), (True, True, []))
+
+    def test_a_planned_protected_run_that_is_missing_leaves_the_arms_incomplete(self):
+        root = self.copy_of("pass")
+        d = os.path.join(root, "b04_a1")
+        shutil.rmtree(os.path.join(d, "M_x"))
+        edit_json(os.path.join(d, "block.json"),
+                  lambda j: j.update(planned_order=j["order"], order=[r for r in j["order"] if r != "M_x"]))
+        b = self.block(self.analyse(root), 4)
+        self.assertEqual((b["valid"], b["arms_valid"], b["arm_reasons"]), (True, False, ["run M_x is missing"]))
+
+    def test_a_block_whose_protected_run_failed_may_be_made_again(self):
+        root = self.copy_of("pass")
+        edit_json(legit_summary(os.path.join(root, "b05_a1"), "M_x"), lambda j: j.update(cpu={"share": 0.99}))
+        shutil.copytree(os.path.join(BASE["pass"], "b05_a1"), os.path.join(root, "b05_a2"))
+        edit_json(os.path.join(root, "b05_a2", "block.json"), lambda j: j.update(attempt=2))
+        r = self.analyse(root)
+        self.assertEqual(r["reruns"], 1)
+        self.assertFalse([x for x in r["reasons"] if "re-run although attempt 1 was valid" in x], r["reasons"])
+        self.assertEqual(r["verdict"], "PASS")
 
 
 class P2OutcomeTest(unittest.TestCase):
