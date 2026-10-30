@@ -548,7 +548,8 @@ def run_p3(args, plan):
         pool=plan["pool"],
         timeline=dict(plan["timeline"], t0_wall=t0, ready=ready, completed=ok, launched=launched,
                       population=plan["population"], scale=plan["scale"], dropped=plan["dropped"]),
-        entities=plan["entities"], files=files, notes="P3 capture (docs/P3_DATASET_DESIGN.md)")
+        entities=plan["entities"], files=files, notes="P3 capture (docs/P3_DATASET_DESIGN.md)",
+        schema=plan.get("schema", 2))
     D.write_dataset_manifest(os.path.join(out_dir, D.MANIFEST_FILE), manifest)
     l7_store.write_sha256sums(vdir, cid)
     n = l7_store.hand_back(out_dir, uid, gid) + l7_store.hand_back(os.path.join(vdir, l7_store.SUMS), uid, gid)
