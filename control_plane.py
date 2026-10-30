@@ -446,6 +446,25 @@ def request_stop(_signum, _frame):
     stop_event.set()
 
 
+def supervise(name, target, *args):
+    """Body of every worker thread: the liveness supervisor of one thread (H-02).
+
+    target(*args) runs until it returns. If it raises, the error is reported (console and a
+    `daemon_error` event) and the target runs again after ERROR_BACKOFF_S, so a detection
+    thread can no longer die silently while the daemon runs. A target that returns while the
+    daemon still runs (the L7 shadow without its socket) is reported once, not restarted."""
+    while not stop_event.is_set():
+        try:
+            target(*args)
+        except Exception as e:  # noqa: BLE001 - a worker must not die silently (H-02)
+            report_daemon_error(f"thread:{name}", e, f"restarted in {ERROR_BACKOFF_S:g} s")
+            time.sleep(ERROR_BACKOFF_S)
+            continue
+        if not stop_event.is_set():
+            report_daemon_error(f"thread:{name}", "returned", "not restarted")
+        return
+
+
 def tail_nginx_logs(file_path):
     """Tail a log file, automatically reopening on log rotation (inode change).
 
@@ -748,216 +767,224 @@ def l3_l4_telemetry_monitor():
     while not stop_event.is_set():
         time.sleep(L4_POLL_INTERVAL)
 
-        # Periodic maintenance
-        unblock_expired_bans()
-        evict_idle_clients()
-        if XDP_GRU:
-            drain_inference_results()
+        # H-02: an error in one poll (bcc raises a bare Exception when a BPF map update
+        # fails, e.g. a full blacklist_map in ban_ip) is reported, and the next poll runs:
+        # it used to end this thread, and with it L4 detection, the TTL sweep and the idle
+        # eviction, silently. The sleep above is the backoff; a longer one would stretch
+        # the next poll's deltas, which the per-second thresholds read as rates.
+        try:
+            # Periodic maintenance
+            unblock_expired_bans()
+            evict_idle_clients()
+            if XDP_GRU:
+                drain_inference_results()
 
-        total_global_syn_delta = 0
-        total_global_pkt_delta = 0
+            total_global_syn_delta = 0
+            total_global_pkt_delta = 0
 
-        # Kernel-authoritative per-IP concurrent connection counts for the
-        # drift-free slow-connection heuristic (fetched once per poll).
-        established_by_ip = get_established_conns_by_ip()
+            # Kernel-authoritative per-IP concurrent connection counts for the
+            # drift-free slow-connection heuristic (fetched once per poll).
+            established_by_ip = get_established_conns_by_ip()
 
-        # Read-and-swap: the XDP counters are cumulative and are NOT wiped here.
-        # We keep a userspace snapshot (prev_telemetry) and compute per-interval
-        # DELTAS by subtraction. Deltas drive the rate heuristics (unchanged
-        # semantics); cumulative values give true flow duration + live connection
-        # counts. Idle keys are reclaimed in evict_idle_clients(), not here, so a
-        # packet XDP counts between our read and a delete can no longer be lost.
-        for key, per_cpu_values in telemetry_map.items():
-            ip_str = network_bytes_to_ip(key.value)
+            # Read-and-swap: the XDP counters are cumulative and are NOT wiped here.
+            # We keep a userspace snapshot (prev_telemetry) and compute per-interval
+            # DELTAS by subtraction. Deltas drive the rate heuristics (unchanged
+            # semantics); cumulative values give true flow duration + live connection
+            # counts. Idle keys are reclaimed in evict_idle_clients(), not here, so a
+            # packet XDP counts between our read and a delete can no longer be lost.
+            for key, per_cpu_values in telemetry_map.items():
+                ip_str = network_bytes_to_ip(key.value)
 
-            # Cumulative per-CPU aggregation
-            cum_pkts = sum(cpu.packet_count for cpu in per_cpu_values)
-            cum_syn = sum(cpu.syn_count for cpu in per_cpu_values)
-            cum_bytes = sum(cpu.byte_count for cpu in per_cpu_values)
+                # Cumulative per-CPU aggregation
+                cum_pkts = sum(cpu.packet_count for cpu in per_cpu_values)
+                cum_syn = sum(cpu.syn_count for cpu in per_cpu_values)
+                cum_bytes = sum(cpu.byte_count for cpu in per_cpu_values)
 
-            # Per-interval deltas vs the previous snapshot. A value below the
-            # previous snapshot means the key was evicted and re-created (IP
-            # reuse / counter reset) -> treat the cumulative value as the delta.
-            prev = prev_telemetry.get(ip_str)
-            if prev is None or cum_pkts < prev[0]:
-                d_pkts, d_syn, d_bytes = cum_pkts, cum_syn, cum_bytes
-            else:
-                d_pkts = cum_pkts - prev[0]
-                d_syn = cum_syn - prev[1]
-                d_bytes = cum_bytes - prev[2]
-            prev_telemetry[ip_str] = (cum_pkts, cum_syn, cum_bytes)
+                # Per-interval deltas vs the previous snapshot. A value below the
+                # previous snapshot means the key was evicted and re-created (IP
+                # reuse / counter reset) -> treat the cumulative value as the delta.
+                prev = prev_telemetry.get(ip_str)
+                if prev is None or cum_pkts < prev[0]:
+                    d_pkts, d_syn, d_bytes = cum_pkts, cum_syn, cum_bytes
+                else:
+                    d_pkts = cum_pkts - prev[0]
+                    d_syn = cum_syn - prev[1]
+                    d_bytes = cum_bytes - prev[2]
+                prev_telemetry[ip_str] = (cum_pkts, cum_syn, cum_bytes)
 
-            with banned_ips_lock:
-                if ip_str in banned_ips:
-                    # snapshot already advanced -> deltas stay correct post-unban
+                with banned_ips_lock:
+                    if ip_str in banned_ips:
+                        # snapshot already advanced -> deltas stay correct post-unban
+                        continue
+
+                total_global_syn_delta += d_syn
+                total_global_pkt_delta += d_pkts
+
+                # --- L4 SYN flood heuristic (per-IP, per-interval rate) ---
+                if d_syn > SYN_FLOOD_THRESHOLD and not GRU_ONLY:
+                    print(f"\n[L4-DETECT] SYN FLOOD ATTACK - IP: {ip_str} | "
+                          f"Rate: {d_syn} SYN/s")
+                    ban_ip(ip_str, reason=f"Per-IP SYN flood ({d_syn} SYN/s)",
+                           engine="l4_syn", value=d_syn, threshold=SYN_FLOOD_THRESHOLD)
+                    volumetric_active_until = time.time() + VOLUMETRIC_COOLDOWN
                     continue
 
-            total_global_syn_delta += d_syn
-            total_global_pkt_delta += d_pkts
+                # --- L4 UDP / Volumetric flood heuristic (per-IP, per-interval rate) ---
+                non_syn_pkts = d_pkts - d_syn
+                if non_syn_pkts > UDP_FLOOD_THRESHOLD and not GRU_ONLY:
+                    print(f"\n[L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: {ip_str} | "
+                          f"Rate: {non_syn_pkts} pkts/s")
+                    ban_ip(ip_str, reason=f"Volumetric packet flood ({non_syn_pkts} pkts/s)",
+                           engine="l4_volumetric", value=non_syn_pkts, threshold=UDP_FLOOD_THRESHOLD)
+                    volumetric_active_until = time.time() + VOLUMETRIC_COOLDOWN
+                    continue
 
-            # --- L4 SYN flood heuristic (per-IP, per-interval rate) ---
-            if d_syn > SYN_FLOOD_THRESHOLD and not GRU_ONLY:
-                print(f"\n[L4-DETECT] SYN FLOOD ATTACK - IP: {ip_str} | "
-                      f"Rate: {d_syn} SYN/s")
-                ban_ip(ip_str, reason=f"Per-IP SYN flood ({d_syn} SYN/s)",
-                       engine="l4_syn", value=d_syn, threshold=SYN_FLOOD_THRESHOLD)
-                volumetric_active_until = time.time() + VOLUMETRIC_COOLDOWN
-                continue
-
-            # --- L4 UDP / Volumetric flood heuristic (per-IP, per-interval rate) ---
-            non_syn_pkts = d_pkts - d_syn
-            if non_syn_pkts > UDP_FLOOD_THRESHOLD and not GRU_ONLY:
-                print(f"\n[L4-DETECT] VOLUMETRIC PACKET FLOOD ATTACK - IP: {ip_str} | "
-                      f"Rate: {non_syn_pkts} pkts/s")
-                ban_ip(ip_str, reason=f"Volumetric packet flood ({non_syn_pkts} pkts/s)",
-                       engine="l4_volumetric", value=non_syn_pkts, threshold=UDP_FLOOD_THRESHOLD)
-                volumetric_active_until = time.time() + VOLUMETRIC_COOLDOWN
-                continue
-
-            # --- L4 slow-connection abuse (Slowloris/R.U.D.Y.), drift-free ---
-            # Concurrent ESTABLISHED connections come from the kernel socket
-            # table (authoritative), combined with a near-idle ingress byte rate
-            # this interval and sustained over several intervals. Legit clients
-            # fail at least one leg (they don't hoard idle connections), so this
-            # cannot false-ban them the way the old cumulative XDP gauge did.
-            # Runs regardless of d_pkts: a true Slowloris may send nothing here.
-            conns = established_by_ip.get(ip_str, 0)
-            if conns >= SLOWCONN_CONN_THRESHOLD and d_bytes < SLOWCONN_IDLE_BYTES and not GRU_ONLY:
-                slowconn_counts[ip_str] += 1
-                if slowconn_counts[ip_str] >= SLOWCONN_CONSECUTIVE:
-                    print(f"\n[L4-DETECT] SLOW CONNECTION ABUSE - IP: {ip_str} | "
-                          f"Est. conns: {conns} | Bytes/interval: {d_bytes}")
-                    ban_ip(ip_str, reason=f"Slow connection abuse ({conns} conns)",
-                           engine="l4_slowconn", value=conns,
-                           threshold=SLOWCONN_CONN_THRESHOLD, bytes=d_bytes)
-                    kill_zombie_connections(ip_str)
+                # --- L4 slow-connection abuse (Slowloris/R.U.D.Y.), drift-free ---
+                # Concurrent ESTABLISHED connections come from the kernel socket
+                # table (authoritative), combined with a near-idle ingress byte rate
+                # this interval and sustained over several intervals. Legit clients
+                # fail at least one leg (they don't hoard idle connections), so this
+                # cannot false-ban them the way the old cumulative XDP gauge did.
+                # Runs regardless of d_pkts: a true Slowloris may send nothing here.
+                conns = established_by_ip.get(ip_str, 0)
+                if conns >= SLOWCONN_CONN_THRESHOLD and d_bytes < SLOWCONN_IDLE_BYTES and not GRU_ONLY:
+                    slowconn_counts[ip_str] += 1
+                    if slowconn_counts[ip_str] >= SLOWCONN_CONSECUTIVE:
+                        print(f"\n[L4-DETECT] SLOW CONNECTION ABUSE - IP: {ip_str} | "
+                              f"Est. conns: {conns} | Bytes/interval: {d_bytes}")
+                        ban_ip(ip_str, reason=f"Slow connection abuse ({conns} conns)",
+                               engine="l4_slowconn", value=conns,
+                               threshold=SLOWCONN_CONN_THRESHOLD, bytes=d_bytes)
+                        kill_zombie_connections(ip_str)
+                        slowconn_counts.pop(ip_str, None)
+                        continue
+                else:
                     slowconn_counts.pop(ip_str, None)
-                    continue
-            else:
-                slowconn_counts.pop(ip_str, None)
 
-            # --- L4 low-and-slow SYN (sub-threshold SYN flood, no handshake) ---
-            # An IP that keeps SYN-ing but never completes a handshake (no ESTABLISHED
-            # connection) is exhausting the SYN backlog low-and-slow, beneath the per-IP
-            # and global SYN rate limits. A real client — even a lossy one — establishes
-            # connections, so a recent-handshake grace exempts it; only a source that
-            # establishes NOTHING for several consecutive intervals while SYN-ing is banned.
-            now_wall = time.time()
-            if conns > 0:
-                last_established_seen[ip_str] = now_wall
-            recently_established = (now_wall - last_established_seen.get(ip_str, 0.0)
-                                    <= LOWSYN_ESTABLISH_GRACE)
-            if (not recently_established and conns == 0
-                    and d_syn >= LOWSYN_SYN_MIN and not GRU_ONLY):
-                lowsyn_counts[ip_str] += 1
-                if lowsyn_counts[ip_str] >= LOWSYN_CONSECUTIVE:
-                    print(f"\n[L4-DETECT] LOW-AND-SLOW SYN - IP: {ip_str} | "
-                          f"{d_syn} SYN/s, 0 established, no handshake in "
-                          f"{LOWSYN_ESTABLISH_GRACE:.0f}s")
-                    ban_ip(ip_str, reason=f"Low-and-slow SYN ({d_syn} SYN/s, no handshake)",
-                           engine="l4_lowsyn", value=d_syn, threshold=LOWSYN_SYN_MIN)
+                # --- L4 low-and-slow SYN (sub-threshold SYN flood, no handshake) ---
+                # An IP that keeps SYN-ing but never completes a handshake (no ESTABLISHED
+                # connection) is exhausting the SYN backlog low-and-slow, beneath the per-IP
+                # and global SYN rate limits. A real client — even a lossy one — establishes
+                # connections, so a recent-handshake grace exempts it; only a source that
+                # establishes NOTHING for several consecutive intervals while SYN-ing is banned.
+                now_wall = time.time()
+                if conns > 0:
+                    last_established_seen[ip_str] = now_wall
+                recently_established = (now_wall - last_established_seen.get(ip_str, 0.0)
+                                        <= LOWSYN_ESTABLISH_GRACE)
+                if (not recently_established and conns == 0
+                        and d_syn >= LOWSYN_SYN_MIN and not GRU_ONLY):
+                    lowsyn_counts[ip_str] += 1
+                    if lowsyn_counts[ip_str] >= LOWSYN_CONSECUTIVE:
+                        print(f"\n[L4-DETECT] LOW-AND-SLOW SYN - IP: {ip_str} | "
+                              f"{d_syn} SYN/s, 0 established, no handshake in "
+                              f"{LOWSYN_ESTABLISH_GRACE:.0f}s")
+                        ban_ip(ip_str, reason=f"Low-and-slow SYN ({d_syn} SYN/s, no handshake)",
+                               engine="l4_lowsyn", value=d_syn, threshold=LOWSYN_SYN_MIN)
+                        lowsyn_counts.pop(ip_str, None)
+                        continue
+                else:
                     lowsyn_counts.pop(ip_str, None)
-                    continue
-            else:
-                lowsyn_counts.pop(ip_str, None)
 
-            # Mark liveness (drives idle eviction) -- shared dict, under state_lock.
-            if d_pkts > 0:
+                # Mark liveness (drives idle eviction) -- shared dict, under state_lock.
+                if d_pkts > 0:
+                    with state_lock:
+                        client_last_seen[ip_str] = time.time()
+
+            # NOTE: no blanket delete of the telemetry map here any more. Keys are
+            # cumulative and are reclaimed only when an IP goes idle (see
+            # evict_idle_clients) -- that is what preserves flow duration + counts.
+
+            # --- GRU inference on per-FLOW forward features (Tier-1 pipeline) ---
+            # Read the per-flow 5-tuple table the XDP program fills. For every TCP
+            # flow that advanced since last poll (an ACTIVE flow — the same unit the
+            # training capture emitted), compute the 8 forward features and append
+            # them to that Source IP's rolling sequence, then submit full sequences.
+            # (TCP only: the Tier-1 training domain is HTTP/L7; UDP/volumetric floods
+            # are the L4 threshold engine's job above, not the GRU's.) False-positive
+            # safety rests on the model itself — benign flows score ~0 even under heavy
+            # packet loss/corruption (validated) — plus the 0.95 threshold and the
+            # GRU_CONSECUTIVE_THRESH consecutive-detection requirement.
+            # Detect the flood→clear transition and stamp the clean baseline: from this
+            # instant the GRU only trusts flows that START afterwards (see loop header).
+            # F-45 fix: arm volumetric suppression from THIS poll's aggregate deltas BEFORE the feed,
+            # not only from the previous poll's — so a flood that begins mid-poll skips the feed now.
+            if (total_global_syn_delta > GLOBAL_SYN_THRESHOLD
+                    or total_global_pkt_delta > GLOBAL_PPS_THRESHOLD):
+                volumetric_active_until = time.time() + VOLUMETRIC_COOLDOWN
+            suppressing = time.time() < volumetric_active_until
+            if was_suppressing and not suppressing:
+                gru_trust_flows_after_ns = time.monotonic_ns()  # same clock as ff.first_seen_ns (bpf_ktime, §6e)
+            if suppressing != was_suppressing:   # observed once per poll
+                EVENTS.emit("suppress_on" if suppressing else "suppress_off",
+                            syn_delta=total_global_syn_delta, pkt_delta=total_global_pkt_delta)
+            was_suppressing = suppressing
+
+            if suppressing:
+                # Volumetric flood active: legit flows are stalled/distorted. Don't feed
+                # the GRU, and PURGE accumulated snapshots so that once the flood passes
+                # the per-IP sequences rebuild from clean (short-lived) legit flows.
+                # Otherwise flood-era distorted snapshots linger in the 15-deque and the
+                # GRU bans legit clients the moment the cooldown expires (observed).
                 with state_lock:
-                    client_last_seen[ip_str] = time.time()
+                    client_sequences.clear()
+            elif XDP_GRU:
+                with banned_ips_lock:
+                    banned_snapshot = set(banned_ips)
+                visited = 0
+                for fk, ff in flow_map.items():
+                    visited += 1
+                    if visited > MAX_GRU_FLOWS_PER_POLL:
+                        break   # F-45: bound per-poll work (flood fills flow_map)
+                    if fk.proto != socket.IPPROTO_TCP:
+                        continue
+                    ip_str = network_bytes_to_ip(fk.src_ip)
+                    if ip_str in banned_snapshot:
+                        continue
+                    # Flow-age gate: a flow that began on/before the last flood's clear
+                    # point carries flood-contaminated cumulative features — skip it for
+                    # GRU scoring (it would false-positive). Fresh post-flood flows are
+                    # clean; a real attacker reopens new flows that ARE scored, and the
+                    # L4/L7/SlowConn/RUDY engines still cover these flows regardless.
+                    if ff.first_seen_ns < gru_trust_flows_after_ns:
+                        continue
+                    pk = ff.fwd_packets
+                    flow_id = (fk.src_ip, fk.src_port, fk.dst_port, fk.proto)
+                    if prev_flow_pk.get(flow_id, 0) >= pk:
+                        continue                       # stale flow: no new fwd packets
+                    prev_flow_pk[flow_id] = pk
 
-        # NOTE: no blanket delete of the telemetry map here any more. Keys are
-        # cumulative and are reclaimed only when an IP goes idle (see
-        # evict_idle_clients) -- that is what preserves flow duration + counts.
+                    feats = flow_features(ff)
+                    # Append + readiness under state_lock; the heavy work (scaler
+                    # transform + queue put) is done OUTSIDE the lock.
+                    with state_lock:
+                        client_sequences[ip_str].append(feats)
+                        seq_ready = len(client_sequences[ip_str]) == SEQUENCE_LENGTH
+                        raw_sequence = (np.array(list(client_sequences[ip_str]))
+                                        if seq_ready else None)
+                    if seq_ready:
+                        inference_queue.put((ip_str, scaler.transform(raw_sequence)))
 
-        # --- GRU inference on per-FLOW forward features (Tier-1 pipeline) ---
-        # Read the per-flow 5-tuple table the XDP program fills. For every TCP
-        # flow that advanced since last poll (an ACTIVE flow — the same unit the
-        # training capture emitted), compute the 8 forward features and append
-        # them to that Source IP's rolling sequence, then submit full sequences.
-        # (TCP only: the Tier-1 training domain is HTTP/L7; UDP/volumetric floods
-        # are the L4 threshold engine's job above, not the GRU's.) False-positive
-        # safety rests on the model itself — benign flows score ~0 even under heavy
-        # packet loss/corruption (validated) — plus the 0.95 threshold and the
-        # GRU_CONSECUTIVE_THRESH consecutive-detection requirement.
-        # Detect the flood→clear transition and stamp the clean baseline: from this
-        # instant the GRU only trusts flows that START afterwards (see loop header).
-        # F-45 fix: arm volumetric suppression from THIS poll's aggregate deltas BEFORE the feed,
-        # not only from the previous poll's — so a flood that begins mid-poll skips the feed now.
-        if (total_global_syn_delta > GLOBAL_SYN_THRESHOLD
-                or total_global_pkt_delta > GLOBAL_PPS_THRESHOLD):
-            volumetric_active_until = time.time() + VOLUMETRIC_COOLDOWN
-        suppressing = time.time() < volumetric_active_until
-        if was_suppressing and not suppressing:
-            gru_trust_flows_after_ns = time.monotonic_ns()  # same clock as ff.first_seen_ns (bpf_ktime, §6e)
-        if suppressing != was_suppressing:   # observed once per poll
-            EVENTS.emit("suppress_on" if suppressing else "suppress_off",
-                        syn_delta=total_global_syn_delta, pkt_delta=total_global_pkt_delta)
-        was_suppressing = suppressing
+            # (volumetric suppression is now armed BEFORE the feed, above — F-45 fix)
 
-        if suppressing:
-            # Volumetric flood active: legit flows are stalled/distorted. Don't feed
-            # the GRU, and PURGE accumulated snapshots so that once the flood passes
-            # the per-IP sequences rebuild from clean (short-lived) legit flows.
-            # Otherwise flood-era distorted snapshots linger in the 15-deque and the
-            # GRU bans legit clients the moment the cooldown expires (observed).
-            with state_lock:
-                client_sequences.clear()
-        elif XDP_GRU:
-            with banned_ips_lock:
-                banned_snapshot = set(banned_ips)
-            visited = 0
-            for fk, ff in flow_map.items():
-                visited += 1
-                if visited > MAX_GRU_FLOWS_PER_POLL:
-                    break   # F-45: bound per-poll work (flood fills flow_map)
-                if fk.proto != socket.IPPROTO_TCP:
-                    continue
-                ip_str = network_bytes_to_ip(fk.src_ip)
-                if ip_str in banned_snapshot:
-                    continue
-                # Flow-age gate: a flow that began on/before the last flood's clear
-                # point carries flood-contaminated cumulative features — skip it for
-                # GRU scoring (it would false-positive). Fresh post-flood flows are
-                # clean; a real attacker reopens new flows that ARE scored, and the
-                # L4/L7/SlowConn/RUDY engines still cover these flows regardless.
-                if ff.first_seen_ns < gru_trust_flows_after_ns:
-                    continue
-                pk = ff.fwd_packets
-                flow_id = (fk.src_ip, fk.src_port, fk.dst_port, fk.proto)
-                if prev_flow_pk.get(flow_id, 0) >= pk:
-                    continue                       # stale flow: no new fwd packets
-                prev_flow_pk[flow_id] = pk
-
-                feats = flow_features(ff)
-                # Append + readiness under state_lock; the heavy work (scaler
-                # transform + queue put) is done OUTSIDE the lock.
-                with state_lock:
-                    client_sequences[ip_str].append(feats)
-                    seq_ready = len(client_sequences[ip_str]) == SEQUENCE_LENGTH
-                    raw_sequence = (np.array(list(client_sequences[ip_str]))
-                                    if seq_ready else None)
-                if seq_ready:
-                    inference_queue.put((ip_str, scaler.transform(raw_sequence)))
-
-        # (volumetric suppression is now armed BEFORE the feed, above — F-45 fix)
-
-        # Detect spoofed-IP SYN floods via aggregate rate
-        if total_global_syn_delta > GLOBAL_SYN_THRESHOLD and not syn_cookies_enabled and not GRU_ONLY:
-            try:
-                subprocess.run(
-                    ["sysctl", "-w", "net.ipv4.tcp_syncookies=1"],
-                    check=True, capture_output=True
-                )
-                print(f"[L4-GLOBAL] Aggregate SYN rate {total_global_syn_delta}/s exceeds "
-                      f"threshold. SYN cookies ENABLED.")
-                syn_cookies_enabled = True
-            except (subprocess.CalledProcessError, FileNotFoundError) as e:
-                print(f"[-] Failed to enable SYN cookies: {e}")
-        elif total_global_syn_delta <= GLOBAL_SYN_THRESHOLD // 2 and syn_cookies_enabled:
-            syn_cookies_enabled = False
-            print(f"[L4-GLOBAL] Aggregate SYN rate {total_global_syn_delta}/s back to normal. "
-                  f"SYN cookies flag reset.")
+            # Detect spoofed-IP SYN floods via aggregate rate
+            if total_global_syn_delta > GLOBAL_SYN_THRESHOLD and not syn_cookies_enabled and not GRU_ONLY:
+                try:
+                    subprocess.run(
+                        ["sysctl", "-w", "net.ipv4.tcp_syncookies=1"],
+                        check=True, capture_output=True
+                    )
+                    print(f"[L4-GLOBAL] Aggregate SYN rate {total_global_syn_delta}/s exceeds "
+                          f"threshold. SYN cookies ENABLED.")
+                    syn_cookies_enabled = True
+                except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                    print(f"[-] Failed to enable SYN cookies: {e}")
+            elif total_global_syn_delta <= GLOBAL_SYN_THRESHOLD // 2 and syn_cookies_enabled:
+                syn_cookies_enabled = False
+                print(f"[L4-GLOBAL] Aggregate SYN rate {total_global_syn_delta}/s back to normal. "
+                      f"SYN cookies flag reset.")
+        except Exception as e:  # noqa: BLE001 - one failing poll must not end the thread
+            report_daemon_error("telemetry", e, "next poll continues")
 
 
 try:
@@ -988,18 +1015,21 @@ try:
                     "volumetric_cooldown_s": VOLUMETRIC_COOLDOWN, "ban_ttl_s": BAN_TTL_SECONDS,
                     "poll_interval_s": L4_POLL_INTERVAL})
 
-    telemetry_thread = threading.Thread(target=l3_l4_telemetry_monitor, daemon=True)
+    # Every worker runs under supervise() (H-02): an exception is reported and retried.
+    telemetry_thread = threading.Thread(
+        target=supervise, args=("telemetry", l3_l4_telemetry_monitor), daemon=True)
     telemetry_thread.start()
 
     # Start dedicated inference worker thread
-    inference_thread = threading.Thread(target=inference_worker, daemon=True)
+    inference_thread = threading.Thread(
+        target=supervise, args=("inference", inference_worker), daemon=True)
     inference_thread.start()
 
     print("[+] Inference worker thread started.")
     # Start error log monitor for R.U.D.Y. / slow POST detection
     error_log_thread = threading.Thread(
-        target=tail_nginx_error_logs,
-        args=(NGINX_ERROR_LOG,),
+        target=supervise,
+        args=("rudy", tail_nginx_error_logs, NGINX_ERROR_LOG),
         daemon=True
     )
     error_log_thread.start()
@@ -1010,7 +1040,8 @@ try:
     # unless L7_SHADOW=1, so the default daemon behaviour is unchanged.
     if L7_SHADOW:
         l7_shadow_thread = threading.Thread(
-            target=l7_shadow_monitor, args=(L7_SOCKET_PATH,), daemon=True)
+            target=supervise, args=("l7_shadow", l7_shadow_monitor, L7_SOCKET_PATH),
+            daemon=True)
         l7_shadow_thread.start()
         print(f"[+] L7 shadow ingestion thread started (socket {L7_SOCKET_PATH}).")
     

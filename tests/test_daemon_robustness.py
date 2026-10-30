@@ -12,6 +12,7 @@ import sys
 import threading
 import types
 import unittest
+import warnings
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -273,6 +274,119 @@ class MainLoopTest(DaemonCase):
         self.assertEqual(main.bpf.removed, [("veth_server", 0)])
         self.assertEqual(d.events("daemon_error"), [])
         self.assertEqual(d.clock.sleeps, 1)
+
+
+
+class FullBlacklist(H.FakeBlacklist):
+    """blacklist_map whose next `failures` updates fail the way bcc's do on a full BPF hash
+    map: bcc 0.35 raises a bare Exception (bcc/table.py:379-382)."""
+
+    def __init__(self, failures=0):
+        super().__init__()
+        self.failures = failures
+
+    def __setitem__(self, key, leaf):
+        if self.failures:
+            self.failures -= 1
+            raise Exception("Could not update table: Argument list too long")  # noqa: TRY002
+        super().__setitem__(key, leaf)
+
+
+def use_blacklist(d, blacklist):
+    blacklist.entries.update(d.blacklist.entries)
+    d.blacklist = blacklist
+    d.ns["blacklist_map"] = blacklist
+
+
+MAP_FULL = "Exception: Could not update table: Argument list too long"
+
+
+class TelemetryGuardTest(DaemonCase):
+    """H-02: the telemetry loop had no exception guard. One error (a failed BPF map update in
+    ban_ip, say) ended the thread for good: no more L4 detection, TTL unbans or idle eviction,
+    while the process ran on and no event said so."""
+
+    def test_a_failing_poll_is_reported_and_the_next_poll_bans_and_unbans(self):
+        d = self.daemon()
+        d.call("ban_ip", OTHER, reason="r", engine="l4_syn")    # t=1000: expires after t=1300
+        blacklist = FullBlacklist()
+        use_blacklist(d, blacklist)
+        d.clock.now = 1299.0
+
+        def setup(k):
+            d.telemetry.add(IP, pkts=300, syn=300)               # a SYN flood in both polls
+            if k == 1:
+                blacklist.failures = 1                           # the first poll's ban fails
+        d.poll(2, setup)
+        [err] = d.events("daemon_error")
+        self.assertEqual((err["where"], err["error"]), ("telemetry", MAP_FULL))
+        self.assertEqual([(b["ip"], b["engine"]) for b in d.bans()],
+                         [(OTHER, "l4_syn"), (IP, "l4_syn")])
+        self.assertEqual(d.ban_timestamps, {IP: 1301.0})        # banned by the second poll
+        self.assertEqual([e["ip"] for e in d.events("unban")], [OTHER])  # TTL sweep, t=1301
+        self.assertEqual(d.blacklist.ips(), {IP})
+
+
+class SupervisorTest(DaemonCase):
+    """H-02: the worker threads ran their targets bare, so an exception ended a thread for good,
+    with a traceback on stderr and no event. Now each target runs under supervise()."""
+
+    def started_threads(self, d):
+        """The threads the daemon's main statement starts (none runs), its main loop stopping
+        at once."""
+        main = MainRun(d)
+
+        def tailer(_path):
+            d.stop_event.set()
+            return
+            yield                                               # a generator, like the real one
+        main.run(tailer)
+        d.stop_event.clear()
+        return main.threads
+
+    @staticmethod
+    def running(threads, func):
+        [thread] = [t for t in threads if func in (t.target, *t.args)]
+        return thread
+
+    def test_the_rudy_thread_survives_a_failed_ban_and_bans_after_its_restart(self):
+        d = self.daemon()
+        d.ns["NGINX_ERROR_LOG"] = d.error_log
+        thread = self.running(self.started_threads(d), d.tail_nginx_error_logs)
+        use_blacklist(d, FullBlacklist(failures=1))
+        # The first tailer reads three body timeouts and its ban fails. The restarted one
+        # reads a fourth, still inside the 60-s window, and bans.
+        line = body_timeout_line().decode()
+        d._fake_logs += [H.FakeLogFile([(0, line)] * 3, d.clock), H.FakeLogFile([(0, line)], d.clock)]
+        d.clock.on_sleep = lambda k: d.stop_event.set() if k >= 2 else None
+        with contextlib.redirect_stdout(d.out):
+            thread.target(*thread.args)                          # what the thread runs
+        self.assertEqual([(b["ip"], b["engine"], b["value"]) for b in d.bans()],
+                         [(IP, "l7_rudy", 4)])
+        [err] = d.events("daemon_error")
+        self.assertEqual((err["where"], err["error"]), ("thread:rudy", MAP_FULL))
+        self.assertEqual(d.clock.sleeps, 2)                     # the backoff, then end of file
+
+    def test_every_worker_thread_is_supervised(self):
+        d = self.daemon(L7_SHADOW="1")
+        threads = self.started_threads(d)
+        self.assertEqual(sorted(t.args[0] for t in threads if t.target is d.supervise),
+                         ["inference", "l7_shadow", "rudy", "telemetry"])
+        self.assertEqual([t for t in threads if t.target is not d.supervise], [])
+
+    def test_a_worker_that_ends_while_the_daemon_runs_is_reported_once(self):
+        # The L7 shadow returns when it cannot bind its socket: it is not restarted, but the
+        # event log now says so.
+        d = self.daemon(L7_SHADOW="1", L7_SOCKET_PATH="/nonexistent-T013/ddos_l7.sock")
+        thread = self.running(self.started_threads(d), d.l7_shadow_monitor)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ResourceWarning)    # l7_ingest's unbound socket
+            with contextlib.redirect_stdout(d.out):
+                thread.target(*thread.args)
+        self.assertIn("L7 shadow: cannot bind", d.console())
+        [err] = d.events("daemon_error")
+        self.assertEqual((err["where"], err["error"], err["action"]),
+                         ("thread:l7_shadow", "returned", "not restarted"))
 
 
 if __name__ == "__main__":

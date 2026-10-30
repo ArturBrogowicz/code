@@ -247,7 +247,7 @@ at the run directory; standalone default `/var/log/ddos/ban_events.jsonl`; `""` 
 | `unban` | `ip`, `backend`, `age_s` |
 | `suppress_on`, `suppress_off` | `syn_delta`, `pkt_delta`: the GRU pause during volumetric floods (observed once per 1-s poll) |
 | `gru_suppressed` | `ip`, `value` (probability), `hits`: a GRU detection dropped because the pause was active |
-| `daemon_error` | `where`, `error` (type and message, at most 300 characters), `action`: an error the daemon survived and retried (since 2026-10-30; `where` is `access_log` for the main loop's tailer). A run without one had no such error |
+| `daemon_error` | `where`, `error` (type and message, at most 300 characters), `action`: an error the daemon survived and retried (since 2026-10-30; `where` is `access_log` for the main loop's tailer, `telemetry` for one L4 poll, `thread:<name>` for a worker thread's target: `telemetry`, `inference`, `rudy`, `l7_shadow`). A run without one had no such error |
 
 Engines: `l4_syn`, `l4_volumetric`, `l4_slowconn`, `l4_lowsyn`, `l7_rate`, `l7_rudy`,
 `gru`. The `value` of the L4 engines is a count per poll interval (1 s plus the loop's
