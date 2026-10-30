@@ -45,6 +45,7 @@ import ipaddress
 import json
 import math
 import os
+import re
 import sys
 
 import numpy as np
@@ -71,6 +72,8 @@ DEGRADED_Q, RECOVERED_Q, RECOVERY_BINS = 95.0, 99.0, 5     # a second below / at
 CONTROL_CLASS_Q_MIN = 95.0        # "the class's p95 within its SLO" over all its requests: 95 % of them within it
 HRR_DRAWS, HRR_SEED = 10_000, 20261023
 BAN_FILE = "ban_events.jsonl"                      # a protected run's daemon writes its events there (bench/executor.py daemon_plan)
+UNFINISHED = ".unfinished."                        # bench/gate_campaign.py keeps an unfinished run's ban file as <run>.unfinished.<k>.<BAN_FILE>
+BLOCK_DIR = re.compile(r"^b(\d+)_a(\d+)$")
 REFUSED_STATUSES = (429, 503)                      # what Nginx's limit_req and limit_conn answer a request they refuse
 
 
@@ -561,13 +564,14 @@ def unprotected_fails(blocks, outcome=None):
             "passed": evaluable and len(harmed) >= need}
 
 
-def protected_works(rows, outcome=None):
+def protected_works(rows, outcome=None, also_blocked=()):
     """The second half for one mode: `rows` are paired blocks as dicts with block, q_control, q_mitigated and benign_blocked (the
-    legit identities its daemon banned). A block holds when Q(M) is at least `protected_q_ratio` of Q(C)."""
+    legit identities its daemon banned). A block holds when Q(M) is at least `protected_q_ratio` of Q(C). `also_blocked` are the legit
+    identities banned in the mode's other runs, which count all the same: "no legit identity blocked in any of its runs"."""
     o = outcome or P2_OUTCOME
     held = [r["block"] for r in rows if r["q_control"] is not None and r["q_mitigated"] is not None
             and r["q_mitigated"] >= o["protected_q_ratio"] * r["q_control"]]
-    blocked = sorted({ip for r in rows for ip in r["benign_blocked"]})
+    blocked = sorted({ip for r in rows for ip in r["benign_blocked"]} | set(also_blocked))
     n = len(rows)
     evaluable = n >= o["min_blocks"]
     need = blocks_needed(n, o["block_share"])
@@ -584,9 +588,36 @@ def p2_verdict(unprotected, protected):
     return "MET" if unprotected["passed"] and protected["passed"] else "NOT MET"
 
 
-def protected_arm(blocks, mode, gating=()):
+def campaign_benign_bans(root, attempts, name):
+    """Every ban of a legit identity by a daemon of the protected run `name` (M_<mode>) anywhere in the campaign `root` (F-01 of
+    T-028): in the run of every attempt, final or superseded, valid or not, with or without a run record, and in the ban files that
+    bench/gate_campaign.py kept of the unfinished runs it removed. One row per (file, address): ip, block, attempt, where it was found
+    and whether that run was valid (None when it has no record)."""
+    valid = {(a["block"], a["attempt"]): a["runs"][name]["valid"] for a in attempts if name in a["runs"]}
+    rows = []
+    for d in sorted(os.listdir(root)):
+        m = BLOCK_DIR.match(d)
+        if not m or not os.path.isdir(os.path.join(root, d)):
+            continue
+        block, attempt = int(m.group(1)), int(m.group(2))
+        files = [os.path.join(name, BAN_FILE)] + sorted(f for f in os.listdir(os.path.join(root, d))
+                                                        if f.startswith(name + UNFINISHED) and f.endswith(BAN_FILE))
+        for rel in files:
+            path = os.path.join(root, d, rel)
+            if not os.path.isfile(path):
+                continue
+            kept = rel != os.path.join(name, BAN_FILE)
+            for ip in sorted(BE.first_bans(BE.read_events(path))):
+                if _within(ip, POP.BENIGN_NETS):
+                    rows.append({"ip": ip, "block": block, "attempt": attempt, "file": f"{d}/{rel}",
+                                 "run_valid": None if kept else valid.get((block, attempt))})
+    return rows
+
+
+def protected_arm(blocks, mode, gating=(), benign_bans=()):
     """The pre-registered P2 outcome (P2_OUTCOME) for one protected mode over a campaign's final blocks: the unprotected half over the
-    blocks valid for Gate A, the protected half over those whose M_<mode> run is valid too. Reported with it, not judged: the time to
+    blocks valid for Gate A, the protected half over those whose M_<mode> run is valid too, and the legit identities blocked in ANY
+    run of the mode (`benign_bans`, campaign_benign_bans: every attempt, valid or not). Reported with it, not judged: the time to
     mitigate of the attack identities banned, how many were banned of how many, and the legit requests refused (503/429) in the
     window. INVALID with `gating` (a campaign whose protocol was broken, or whose runs carry overrides), whatever the figures."""
     name = MITIGATED + mode
@@ -595,7 +626,7 @@ def protected_arm(blocks, mode, gating=()):
     held = [b for b in pairs if name in b["runs"] and b["runs"][name]["valid"]]
     rows = [{"block": b["block"], "q_control": b["runs"][CONTROL]["metrics"]["Q"], "q_mitigated": b["runs"][name]["metrics"]["Q"],
              "benign_blocked": b["runs"][name]["mitigation"]["benign_blocked"]} for b in held]
-    protected = protected_works(rows)
+    protected = protected_works(rows, also_blocked=[r["ip"] for r in benign_bans])
     reasons = list(gating)
     need = P2_OUTCOME["min_blocks"]
     if not unprotected["evaluable"]:
@@ -609,7 +640,8 @@ def protected_arm(blocks, mode, gating=()):
             "ttm_s": {"n": len(ttm), "median": float(np.median(ttm)) if ttm else None, "max": max(ttm, default=None)},
             "attack_banned": sum(b["runs"][name]["mitigation"]["attack_banned"] for b in held),
             "attack_identities": sum(identities) if identities and None not in identities else None,
-            "refused_window": sum(b["runs"][name]["metrics"]["refused"]["window"] for b in held), "blocks": rows}
+            "refused_window": sum(b["runs"][name]["metrics"]["refused"]["window"] for b in held), "blocks": rows,
+            "benign_bans": list(benign_bans)}
 
 
 def _mean(values):
@@ -686,7 +718,7 @@ def analyse(root, cal, dry_run=False, metrics=METRICS, slo_scale=1.0, allow_over
             "hrr": [hrr(valid, m) for m in modes] if verdict == "PASS" else None,
             "hrr_p95": [hrr_p95(valid, m) for m in modes] if verdict == "PASS" else None,
             "hrr_withheld": bool(modes) and verdict != "PASS",
-            "protected": [protected_arm(blocks, m, gating) for m in arm_modes],
+            "protected": [protected_arm(blocks, m, gating, campaign_benign_bans(root, attempts, MITIGATED + m)) for m in arm_modes],
             "blocks": blocks, "attempts": [a for a in attempts if a is not final[a["block"]]]}   # the superseded ones
 
 
@@ -789,6 +821,9 @@ def to_markdown(r):
                 out.append(f"* {MITIGATED}{p['mode']}, no verdict: " + "; ".join(p["reasons"]))
             if p["protected"]["benign_blocked"]:
                 out.append(f"* {MITIGATED}{p['mode']} blocked legit identities: " + ", ".join(p["protected"]["benign_blocked"]))
+                for b in p.get("benign_bans", []):
+                    state = {True: "valid", False: "not valid", None: "no record of the run"}[b["run_valid"]]
+                    out.append(f"  * {b['ip']} in block {b['block']} attempt {b['attempt']} ({b['file']}, {state})")
         out.append("")
     out.append("Limits: p95 is over successes (Q counts the failures and is the primary number); the pooled p95 weighs "
                "route classes by their share of the mix; the SLOs, floors and judged links are the calibration's.")

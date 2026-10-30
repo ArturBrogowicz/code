@@ -1139,6 +1139,52 @@ class ProtectedVerdictTest(WithCopies):
         self.assertNotIn("## Protected arms", H.to_markdown(self.analyse(BASE["fail"])))
 
 
+def write_bans(path, ips):
+    """A ban file with a start event and one ban per address, as a daemon writes them."""
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps({"t_wall": 1.0, "kind": "start", "pid": 7}) + "\n")
+        fh.writelines(json.dumps({"t_wall": 2.0 + i, "kind": "ban", "ip": ip, "engine": "l4_slowconn"}) + "\n" for i, ip in enumerate(ips))
+
+
+class EveryLegitBanTest(WithCopies):
+    """F-01 of T-028: "no legit identity blocked in any of its runs" counts the bans of every M run the campaign made, the runs that
+    are not valid and the attempts a re-run superseded included; otherwise a ban could hide in exactly the run the gate drops."""
+
+    def test_a_legit_ban_in_an_m_run_that_is_not_valid_misses_the_outcome(self):
+        root = self.copy_of("protected")
+        write_block(root, 11, FROZEN, {"U": {"fail_p": 0.3}, "M_x": {}})
+        third = os.path.join(root, "b03_a1")
+        edit_json(legit_summary(third, "M_x"), lambda j: j.update(cpu={"share": 0.99}))
+        write_bans(os.path.join(third, "M_x", H.BAN_FILE), ["10.0.1.7"])
+        r = self.analyse(root)
+        self.assertFalse(self.block(r, 3)["runs"]["M_x"]["valid"])
+        (p,) = r["protected"]
+        self.assertEqual((p["protected"]["n"], p["protected"]["held"]), (10, 10), "ten blocks with a valid M_x run are enough")
+        self.assertEqual((p["verdict"], p["protected"]["benign_blocked"]), ("NOT MET", ["10.0.1.7"]))
+        self.assertEqual(p["benign_bans"], [{"ip": "10.0.1.7", "block": 3, "attempt": 1, "file": "b03_a1/M_x/ban_events.jsonl",
+                                             "run_valid": False}])
+        self.assertIn("  * 10.0.1.7 in block 3 attempt 1 (b03_a1/M_x/ban_events.jsonl, not valid)", H.to_markdown(r))
+
+    def test_a_legit_ban_in_an_attempt_a_re_run_superseded_misses_the_outcome(self):
+        root = self.copy_of("protected")
+        first = os.path.join(root, "b03_a1")
+        edit_json(legit_summary(first, "M_x"), lambda j: j.update(cpu={"share": 0.99}))
+        write_bans(os.path.join(first, "M_x", H.BAN_FILE), ["10.0.1.7"])
+        shutil.copytree(os.path.join(BASE["protected"], "b03_a1"), os.path.join(root, "b03_a2"))
+        edit_json(os.path.join(root, "b03_a2", "block.json"), lambda j: j.update(attempt=2))
+        r = self.analyse(root)
+        self.assertEqual((r["reruns"], r["verdict"], self.block(r, 3)["attempt"]), (1, "PASS", 2))
+        (p,) = r["protected"]
+        self.assertEqual((p["verdict"], p["protected"]["held"], p["protected"]["benign_blocked"]), ("NOT MET", 10, ["10.0.1.7"]))
+
+    def test_the_ban_file_kept_of_an_unfinished_run_counts_too(self):
+        root = self.copy_of("protected")
+        write_bans(os.path.join(root, "b05_a1", f"M_x{H.UNFINISHED}1.{H.BAN_FILE}"), ["10.0.1.9", "10.0.2.3"])
+        (p,) = self.analyse(root)["protected"]
+        self.assertEqual((p["verdict"], p["protected"]["benign_blocked"]), ("NOT MET", ["10.0.1.9"]))
+        self.assertEqual(p["benign_bans"][0]["run_valid"], None)
+
+
 class P2OutcomeTest(unittest.TestCase):
     """The pre-registered P2 outcome (PRIORITY_PLAN 3): its constants are fixed before any protected run and pinned here, and its two
     halves are tested at their boundaries. A change to a value below is a new pre-registration, not a fix."""

@@ -159,6 +159,24 @@ class ProtectedCampaignTest(CampaignCase):
         result = H.analyse(self.path(), self.CAL, allow_overrides=True)
         self.assertEqual((result["reruns"], [r for r in result["reasons"] if "re-run" in r]), (1, []))
 
+    def test_the_ban_file_of_an_unfinished_protected_run_is_kept_when_the_run_is_made_again(self):
+        self.run_campaign(modes=("xdp",), blocks=1)
+        run = self.path("b01_a1", "M_xdp")
+        os.remove(os.path.join(run, GC.DONE))
+        with open(self.path("b01_a1", "block.json"), encoding="utf-8") as fh:
+            meta = json.load(fh)
+        meta["complete"] = False
+        with open(self.path("b01_a1", "block.json"), "w", encoding="utf-8") as fh:
+            json.dump(meta, fh)
+        with open(os.path.join(run, H.BAN_FILE), "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"t_wall": 1.0, "kind": "ban", "ip": "10.0.1.7", "engine": "l7_rate"}) + "\n")
+        self.run_campaign(modes=("xdp",), blocks=1)
+        kept = self.path("b01_a1", f"M_xdp{H.UNFINISHED}1.{H.BAN_FILE}")
+        self.assertTrue(os.path.isfile(kept))
+        self.assertTrue(any("its ban file is kept as M_xdp.unfinished.1.ban_events.jsonl" in m for m in self.say), self.say)
+        result = H.analyse(self.path(), self.CAL, allow_overrides=True)
+        self.assertEqual(result["protected"][0]["protected"]["benign_blocked"], ["10.0.1.7"])
+
     def test_the_plan_prints_the_arms_the_pins_the_outcome_and_the_budget(self):
         text = GC.describe(self.scn, self.CAL, SPEC_SHA, GC.Options(blocks=10, modes=("xdp",)))
         self.assertIn("a block is C, Cp, U, M_xdp in the order shown", text)

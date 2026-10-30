@@ -232,6 +232,20 @@ def plans_of(scn, cal, cal_path, scenario_sha, out_dir, seed, opts):
     return plans
 
 
+def keep_ban_file(block_path, kind, run_path):
+    """The ban file of an unfinished run about to be removed, kept beside it as <kind>.unfinished.<k>.ban_events.jsonl: a legit
+    identity its daemon banned still counts against the protected arm (harm_gate.campaign_benign_bans). Its name, or None."""
+    src = os.path.join(run_path, H.BAN_FILE)
+    if not os.path.isfile(src):
+        return None
+    k = 1
+    while os.path.exists(os.path.join(block_path, f"{kind}{H.UNFINISHED}{k}.{H.BAN_FILE}")):
+        k += 1
+    dst = os.path.join(block_path, f"{kind}{H.UNFINISHED}{k}.{H.BAN_FILE}")
+    shutil.copy2(src, dst)
+    return os.path.basename(dst)
+
+
 def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opts, gate, say):
     """Make the runs of one attempt that are not made yet, write its block.json, and return the gate's assessment of it and
     the gate mode the next run should use. A run that fails or is found unsound ends the attempt: the block is invalid
@@ -250,7 +264,9 @@ def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opt
         record = read_done(run_path)
         if record is None:
             if os.path.exists(run_path):
-                say(f"block {block} attempt {attempt} {kind}: removing the unfinished run")
+                kept = keep_ban_file(d, kind, run_path)
+                say(f"block {block} attempt {attempt} {kind}: removing the unfinished run"
+                    + (f"; its ban file is kept as {kept}" if kept else ""))
                 shutil.rmtree(run_path)
             say(f"block {block} attempt {attempt} seed {seed}: run {kind}")
             try:
