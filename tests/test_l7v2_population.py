@@ -41,7 +41,10 @@ class TrainingPlanTest(unittest.TestCase):
         self.assertEqual(p["duration_s"], 900.0)
         self.assertEqual(sorted(ph["name"] for ph in p["timeline"]["phases"]), ["C2", "C3a", "C3b"])
         self.assertFalse([e for e in p["entities"] if e["held_out"]])
-        self.assertEqual(p["schema"], 2)
+        self.assertEqual(p["schema"], 3, "the CGNAT pools' users are entities")
+        pools = [e for e in p["entities"] if e["params"].get("users", 1) > 1]
+        self.assertTrue(pools and all(e["users"] == [f"{e['entity_id']}/u{k}" for k in range(e["params"]["users"])]
+                                      for e in pools))
         self.assertEqual(p["server"]["backend"], "costed")
         counts = {}
         for e in p["entities"]:

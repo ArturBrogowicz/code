@@ -254,6 +254,29 @@ def reuse_problems(entities):
     return probs
 
 
+def pool_users(entity):
+    """Schema 3: the user entities of a pool (params.users > 1: a CGNAT pool, a NAT gateway), each its own unit with the
+    pool's entity as their cluster (docs/P3_DATASET_DESIGN.md 4.4): ["<entity_id>/u0", ...]; [] for one user."""
+    users = entity["params"].get("users", 1) if isinstance(entity.get("params"), dict) else 1
+    return [f"{entity['entity_id']}/u{k}" for k in range(users)] if isinstance(users, int) and users > 1 else []
+
+
+def users_problems(entities):
+    """Schema 3: an entity whose `users` list is not exactly its pool's user entities."""
+    return [f"entity {e['entity_id']}: users {e.get('users')!r} are not its pool's {len(pool_users(e))} user entities"
+            for e in entities if e.get("users", []) != pool_users(e)]
+
+
+def user_units(m):
+    """The benign-budget units of a capture as (unit, cluster entity, role): every entity, and in schema 3 a pool counted
+    by its users, so a flagged 24-user pool costs 24 units, not one."""
+    out = []
+    for e in m["entities"]:
+        users = e.get("users") if m.get("format") == DATASET_FORMAT_V3 else None
+        out += [(u, e["entity_id"], e["role"]) for u in (users or [e["entity_id"]])]
+    return out
+
+
 def time_origin(m):
     """The wall-clock time (s) the schedule's seconds count from, or None (schema 1, or no t0 recorded)."""
     t0 = (m.get("timeline") or {}).get("t0_wall") if isinstance(m.get("timeline"), dict) else None
@@ -384,7 +407,7 @@ def manifest_problems(m):
     if probs:
         return probs
     if v3:
-        probs += reuse_problems(ents)
+        probs += reuse_problems(ents) + users_problems(ents)
         if m["address_map"] != address_map_from_entities(ents):
             probs.append("address_map does not match the entities")
         if time_origin(m) is None and any(len(r) > 1 for r in address_map_from_entities(ents).values()):

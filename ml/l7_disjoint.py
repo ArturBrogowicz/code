@@ -25,6 +25,8 @@ Each failure starts with its rule number:
   13  an entity puts several users on one address (a CGNAT pool, a NAT gateway): address reuse needs schema 3, where
       each user is an entity and the pool their cluster; schema 2 would count the pool as one entity in the benign
       budget (review T-029 P3-09). Two entities on one address already fail rule 1 with the same reason.
+      Schema 3 replaces this guard: a pool lists its users as entities (l7_dataset.pool_users, checked by rule 1) and
+      passes; entities that share an address in time pass rule 1 when their schedules do not overlap.
   14  a capture is not valid: its origin was never ready, it did not complete, or its access log has no line
       (review T-029 P3-05; the capture still writes a manifest so that the attempt is recorded)
 
@@ -166,6 +168,8 @@ def check(splits, *, prereg=None, split_file=None, selection_file=None, verify_f
         for d, m in loaded[s]:
             for e in m["entities"]:
                 users = e["params"].get("users", 1) if isinstance(e["params"], dict) else 1
+                if m.get("format") == D.DATASET_FORMAT_V3 and D.pool_users(e) and e.get("users") == D.pool_users(e):
+                    continue                     # schema 3: the pool's users are entities (rule 1 checks the list)
                 if not isinstance(users, int) or users > 1:
                     fails.append(f"13 {d}: entity {e['entity_id']} ({e['kind_or_family']}) puts {users} users on "
                                  f"{e['address']}: {D.NEEDS_SCHEMA_3}")

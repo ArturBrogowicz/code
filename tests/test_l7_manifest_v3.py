@@ -134,6 +134,40 @@ class SchemaThreeTest(unittest.TestCase):
         self.assertEqual(label1("10.0.1.1", 5.0), ("benign", None, False, "10.0.1.1"))
 
 
+class PoolTest(unittest.TestCase):
+    """The P3-09 guard gives way in schema 3: a pool lists its users as entities and passes the checker."""
+
+    def pool_capture(self, root, users_list=True, schema=3):
+        ents, _c2, _m3 = reuse_entities()
+        pool = next(e for e in ents if e["role"] == "benign")
+        pool["kind_or_family"], pool["params"] = "cgnat_browsers", {"users": 12, "level": 30}
+        if users_list:
+            pool["users"] = D.pool_users(pool)
+        for e in ents:
+            e["plan_sha256"] = D.entity_plan_sha256(e)
+        if schema == 3:
+            return capture_v3(root, ents) + (pool,)
+        return None, None, pool
+
+    def test_a_listed_pool_passes_and_counts_its_users(self):
+        with tempfile.TemporaryDirectory() as root:
+            vdir = os.path.join(root, VERSION)
+            tr, _ = FX.capture(vdir, VERSION, 1001, "train", FX.entities(VERSION, 1001), started="2026-11-01T10:00:00Z",
+                               ended="2026-11-01T10:15:00Z")
+            va, _ = FX.capture(vdir, VERSION, 2001, "val", FX.entities(VERSION, 2001), started="2026-11-01T11:00:00Z",
+                               ended="2026-11-01T11:15:00Z")
+            ev, m, pool = self.pool_capture(os.path.join(root, "ev"))
+            self.assertEqual(D.manifest_problems(m), [])
+            self.assertEqual(l7_disjoint.check({"train": [tr], "val": [va], "eval": [ev]}), [])
+        units = [u for u, cluster, _ in D.user_units(m) if cluster == pool["entity_id"]]
+        self.assertEqual(units, [f"{pool['entity_id']}/u{k}" for k in range(12)])
+
+    def test_an_unlisted_pool_still_fails(self):
+        with tempfile.TemporaryDirectory() as root:
+            _ev, m, _pool = self.pool_capture(os.path.join(root, "ev"), users_list=False)
+        self.assertTrue([p for p in D.manifest_problems(m) if "user entities" in p])
+
+
 class ReadersTest(unittest.TestCase):
     def test_the_trainer_labels_a_reused_address_per_entity(self):
         ents, c2, m3 = reuse_entities()

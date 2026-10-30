@@ -217,6 +217,7 @@ POPULATIONS = {
     "l7v2": {
         "name": "l7v2-v1",
         "backend": "costed",
+        "schema": 3,
         "timeline": {"lead_in_s": 60.0, "phase_s": 240.0, "tail_s": 120.0, "eval_tail_s": 240.0, "edge_jitter_s": 10.0},
         "phases": [{"name": "C2", "families": ["C2"]}, {"name": "C3a", "families": ["C3a"]},
                    {"name": "C3b", "families": ["C3b@M2", "C3b@M1"]}],
@@ -409,13 +410,16 @@ def build_plan(version, seed, seed_role, population="smoke", *, heuristics="tole
         while r["params"].get("ua") == donor["params"].get("ua"):
             r["params"]["ua"] = draw_value(["ua_table"], None, urng)
         rows.append(r)
+    schema = 3 if reusers or pop.get("schema") == 3 else 2
     for r in rows:
         r["plan_sha256"] = l7_dataset.entity_plan_sha256(r)
+        if schema == 3 and l7_dataset.pool_users(r):
+            r["users"] = l7_dataset.pool_users(r)       # schema 3: a pool's users are entities (P3 note 4.4, §10)
     cid, cfg = p3_prereg.server_config(seed, pre)
     out_rates = None if rates is None else {k: v for k, v in rates.items() if k != "route_costs_ms"}
     return {"format": PLAN_FORMAT, "dataset_version": version, "seed": seed, "seed_role": seed_role,
             "population": pop["name"], "scale": scale, "heuristics": heuristics, "duration_s": duration,
-            "schema": 3 if reusers else 2, "intensity": out_rates,
+            "schema": schema, "intensity": out_rates,
             "server": {"config_id": cid, "gunicorn_workers": cfg["gunicorn_workers"],
                        "gunicorn_threads": cfg["gunicorn_threads"], "backend": pop.get("backend", "legacy")},
             "pool": {"range": str(POOL_NET), "permutation_seed": subseed(version, seed, "pool"),
