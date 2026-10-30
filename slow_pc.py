@@ -14,10 +14,13 @@ and the rule that picks one grid point from the validation runs. They come first
 commit, and a test pins them: the values are chosen on the validation seeds, never tuned on
 the evaluation seeds, and the grid is not widened after seeing data.
 """
+import collections
 import ipaddress
 import re
 from fractions import Fraction
 from typing import NamedTuple
+
+import l7_ingest
 
 # ── Frozen 2026-10-30, before any data (docs/P4_SLOW_DESIGN.md §6.4, D-S4 to D-S6) ──
 T_GRID_S = (5, 10, 15, 20)         # T: a connection older than T s can be suspect (T_mit 30 s)
@@ -223,3 +226,231 @@ def parse_ss(text):
         else:
             socks.append(sock)
     return socks, present, skipped, (bad[:160] if bad else None)
+
+
+# ── The rule: the five legs and the persistence (§6.2), the guards (§6.3), the address
+#    aggregate, the shared-address guard and the caps (§7) ──
+ANSWERED_SLACK_S = 2.0     # :443: a request logged up to this long before the first poll that saw
+                           # its connection still answers it (the poll's resolution, with margin)
+ANSWERED_KEEP_S = 120.0    # how long a logged (client, port) waits for its socket to be seen
+CLOSE_BATCH = 32           # connections per `ss -K` call in the daemon
+
+
+class Close(NamedTuple):
+    """A connection the rule closes (enforcing) or would close (shadow)."""
+    ip: str
+    port: int
+    local: str
+    sport: int
+    age_s: float           # since the first poll that saw it
+    bytes_received: int
+    bytes_acked: int
+    segs_after: int        # data segments received since that poll
+    streak: int            # consecutive suspect polls
+    ua_keys: int           # the address's UA keys in the access log, last UA_WINDOW_S
+
+
+class Ban(NamedTuple):
+    ip: str
+    closes: int            # its connections closed within BAN_WINDOW_S
+    ua_keys: int
+
+
+class PollResult(NamedTuple):
+    closes: list           # Close, the oldest connection first
+    capped_closes: int     # suspects over MAX_CLOSES_PER_POLL: still candidates next poll
+    bans: list             # Ban
+    capped_bans: list      # addresses over MAX_BANS_PER_MIN: judged again next poll
+    spared: list           # Ban: the K closes were reached, but the address is shared
+
+
+class _Conn:
+    __slots__ = ("answered", "decided", "first_seen", "segs0", "streak")
+
+    def __init__(self, first_seen, segs0):
+        self.first_seen, self.segs0 = first_seen, segs0
+        self.streak, self.decided, self.answered = 0, False, False
+
+
+def l7_item(obj, t):
+    """(ip, port or None, UA key, t) of one access-log record, or None without a usable client
+    address. It reads the daemon's json_ml_format (client_ip, user_agent, and the client port
+    where the format has one, as profile R's does) and the l7json format (ip, port, ua). The UA
+    key is the L7 engine's (l7_ingest.stable_hash32), so "UA keys" mean the same thing here."""
+    if not isinstance(obj, dict):
+        return None
+    ip = obj.get("client_ip", obj.get("ip"))
+    if not isinstance(ip, str) or not _ipv4(ip):
+        return None
+    port = obj.get("port", obj.get("client_port"))
+    if isinstance(port, str) and port.isascii() and port.isdigit() and len(port) <= 5:
+        port = int(port)
+    if type(port) is not int or not 0 < port < 65536:
+        port = None
+    ua = obj.get("user_agent", obj.get("ua"))
+    return ip, port, l7_ingest.stable_hash32(ua if isinstance(ua, str) else ""), t
+
+
+class Detector:
+    """The rule at one grid point (t_s, f_bps, k). Each poll, call poll() with the text that
+    `ss -tinpH` printed, or skip() when that call failed. The detector decides; its caller
+    enforces the decisions or only logs them, and reports the closes it issued with closed().
+    Pure: the caller passes the time, and nothing here touches the system."""
+
+    def __init__(self, t_s, f_bps, k, ttl_s=BAN_TTL_S):
+        if (t_s, f_bps, k) not in GRID:
+            raise ValueError(f"({t_s}, {f_bps}, {k}) is not a point of the frozen grid")
+        self.t_s, self.f_bps, self.k, self.ttl_s = t_s, f_bps, k, ttl_s
+        self.conns = {}          # key -> _Conn
+        self.closes = {}         # ip -> deque of (t, key): its connections closed
+        self.ua = {}             # ip -> {UA key: the last t it was logged}
+        self.answered = {}       # (ip, port) -> the last t a request on that client port completed
+        self.banned_until = {}   # ip -> t: the rule's own bans, whose sockets it skips meanwhile
+        self.ban_times = collections.deque()   # the t of each ban, for MAX_BANS_PER_MIN
+        self.pending = set()     # addresses whose ban was capped
+        self.issued = set()      # keys the caller closed after the last poll
+        self.stats = collections.Counter()
+        self.gauges = {"sockets": 0, "owned": 0}
+        self.bad_sample = None
+
+    # ── inputs ──
+    def take_l7(self, items):
+        for ip, port, ua_key, t in items:
+            seen = self.ua.setdefault(ip, {})
+            seen[ua_key] = max(t, seen.get(ua_key, t))
+            if port is not None:
+                self.answered[(ip, port)] = max(t, self.answered.get((ip, port), t))
+
+    def ua_keys(self, ip, now):
+        return sum(1 for t in self.ua.get(ip, {}).values() if t >= now - UA_WINDOW_S)
+
+    def closed(self, keys):
+        """The caller closed these connections: the next poll checks that they are gone."""
+        self.issued = set(keys)
+
+    def skip(self, now, l7_items=()):
+        """A poll whose `ss` call failed: the access-log items are kept, and nothing else
+        changes. In particular no streak is reset to clean (§6.3)."""
+        self.take_l7(l7_items)
+        self.stats["ss_failed"] += 1
+
+    # ── one poll ──
+    def poll(self, now, text, l7_items=(), banned=()):
+        """Judge every socket of one `ss -tinpH` output at time `now`. `banned` are the
+        addresses other engines banned: their sockets are not judged."""
+        self.take_l7(l7_items)
+        self._expire(now)
+        socks, present, skipped, bad = parse_ss(text)
+        st = self.stats
+        st["polls"] += 1
+        st["skipped_lines"] += skipped
+        self.bad_sample = self.bad_sample or bad
+        st["close_failed"] += len(self.issued & present)
+        self.issued = set()
+        out = set(banned) | set(self.banned_until)
+        candidates, owned = [], 0
+        for s in socks:
+            if s.ip in out:
+                self.conns.pop(s.key, None)
+                continue
+            c = self.conns.get(s.key)
+            if c is None:
+                c = self.conns[s.key] = _Conn(now, s.info["data_segs_in"])
+            owned += s.owned
+            if c.decided:
+                continue
+            if self._suspect(s, c, now):
+                c.streak += 1
+                st["suspect"] += 1
+                if c.streak >= PERSISTENCE_POLLS:
+                    candidates.append((c.first_seen, s.key, s, c))
+            else:
+                c.streak = 0
+        for key in [k for k in self.conns if k not in present]:
+            del self.conns[key]
+        self.gauges = {"sockets": len(socks), "owned": owned}
+        candidates.sort(key=lambda x: (x[0], x[1]))
+        closes = []
+        for first_seen, key, s, c in candidates[:MAX_CLOSES_PER_POLL]:
+            c.decided = True
+            self.closes.setdefault(s.ip, collections.deque()).append((now, key))
+            closes.append(Close(s.ip, s.port, s.local, s.sport, round(now - first_seen, 3),
+                                s.info["bytes_received"], s.info["bytes_acked"],
+                                s.info["data_segs_in"] - c.segs0, c.streak,
+                                self.ua_keys(s.ip, now)))
+        capped = max(0, len(candidates) - MAX_CLOSES_PER_POLL)
+        bans, capped_bans, spared = self._judge({cl.ip for cl in closes} | self.pending, out, now)
+        st["closes"] += len(closes)
+        st["capped_closes"] += capped
+        st["bans"] += len(bans)
+        st["capped_bans"] += len(capped_bans)
+        st["spared"] += len(spared)
+        return PollResult(closes, capped, bans, capped_bans, spared)
+
+    def _suspect(self, s, c, now):
+        """The five legs of §6.2: owned, old, unanswered, slow, dribbling."""
+        if s.sport == 443 and not c.answered:      # §6.3: the access log answers on :443
+            t = self.answered.get((s.ip, s.port))
+            c.answered = t is not None and t >= c.first_seen - ANSWERED_SLACK_S
+        age = now - c.first_seen
+        unanswered = (s.info["bytes_acked"] <= ANSWERED_MAX_BYTES_80 if s.sport == 80
+                      else not c.answered)
+        return (s.owned and age > self.t_s and unanswered
+                and s.info["bytes_received"] < self.f_bps * age
+                and s.info["data_segs_in"] - c.segs0 >= DRIBBLE_MIN_SEGS)
+
+    def _judge(self, ips, out, now):
+        """The address aggregate of §7.2: >= K closes within BAN_WINDOW_S and fewer than
+        SHARED_UA_KEYS UA keys; at most MAX_BANS_PER_MIN bans in any 60 s."""
+        bans, capped, spared = [], [], []
+        for ip in sorted(ips):
+            n = len(self.closes.get(ip, ()))
+            if n < self.k or ip in out:
+                self.pending.discard(ip)
+                continue
+            keys = self.ua_keys(ip, now)
+            if keys >= SHARED_UA_KEYS:
+                self.pending.discard(ip)
+                spared.append(Ban(ip, n, keys))
+                continue
+            if len(self.ban_times) >= MAX_BANS_PER_MIN:
+                self.pending.add(ip)
+                capped.append(ip)
+                continue
+            self.pending.discard(ip)
+            self.ban_times.append(now)
+            self.banned_until[ip] = now + self.ttl_s
+            self.closes.pop(ip, None)
+            for key in [k for k in self.conns if k[0] == ip]:
+                del self.conns[key]
+            bans.append(Ban(ip, n, keys))
+        return bans, capped, spared
+
+    def _expire(self, now):
+        for ip in list(self.ua):
+            seen = {u: t for u, t in self.ua[ip].items() if t >= now - UA_WINDOW_S}
+            if seen:
+                self.ua[ip] = seen
+            else:
+                del self.ua[ip]
+        self.answered = {k: t for k, t in self.answered.items() if t >= now - ANSWERED_KEEP_S}
+        for ip in [ip for ip, until in self.banned_until.items() if until < now]:
+            del self.banned_until[ip]
+        while self.ban_times and self.ban_times[0] <= now - 60.0:
+            self.ban_times.popleft()
+        for ip in list(self.closes):
+            q = self.closes[ip]
+            while q and q[0][0] < now - BAN_WINDOW_S:
+                q.popleft()
+            if not q:
+                del self.closes[ip]
+
+    def take_stats(self):
+        """The counters since the last call (then reset), the gauges and the first skipped line."""
+        names = ("polls", "ss_failed", "suspect", "closes", "capped_closes", "bans",
+                 "capped_bans", "spared", "skipped_lines", "close_failed")
+        out = {n: self.stats.get(n, 0) for n in names}
+        out.update(self.gauges, tracked=len(self.conns), bad_sample=self.bad_sample)
+        self.stats.clear()
+        self.bad_sample = None
+        return out
