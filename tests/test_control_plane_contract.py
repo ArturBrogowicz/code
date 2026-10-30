@@ -40,7 +40,7 @@ class ControlPlaneContractTest(unittest.TestCase):
                                 and f.value.id == "EVENTS")
 
     def test_every_ban_names_a_known_engine(self):
-        self.assertEqual(len(self.ban_calls), 7)       # one per detection path
+        self.assertEqual(len(self.ban_calls), 8)       # one per detection path
         engines = []
         for call in self.ban_calls:
             kw = {k.arg: k.value for k in call.keywords}

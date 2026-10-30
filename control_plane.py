@@ -152,10 +152,15 @@ elif HEURISTIC_PROFILE != "default":
 # P4 per-connection slow rule (docs/P4_SLOW_DESIGN.md §6-§7; the rule itself is slow_pc.py). OFF
 # unless SLOW_PC=1, so by default the daemon runs exactly as before. SLOW_PC=1 runs it in shadow:
 # once per telemetry poll it reads `ss -tinpH` and logs the connections it would close and the
-# addresses it would ban (slow_pc_close / slow_pc_would_ban events). SLOW_PC_RECORD appends every
-# poll's input to a gzip file for the offline replay (§6.1). T, F and K must be a point of the
-# frozen grid; the defaults are its most conservative point until the validation runs choose one.
+# addresses it would ban (slow_pc_close / slow_pc_would_ban events). It enforces (§7: `ss -K` on
+# each connection, an XDP ban of the address, engine l4_slowconn_pc) only with SLOW_PC_ENFORCE=1
+# as well; the kill file, checked every poll, and GRU_ONLY=1 send it back to shadow.
+# SLOW_PC_RECORD appends every poll's input to a gzip file for the offline replay (§6.1). T, F
+# and K must be a point of the frozen grid; the defaults are its most conservative point until
+# the validation runs choose one.
 SLOW_PC = os.environ.get("SLOW_PC", "0") == "1"
+SLOW_PC_ENFORCE = os.environ.get("SLOW_PC_ENFORCE", "0") == "1"
+SLOW_PC_KILL_FILE = os.environ.get("SLOW_PC_KILL_FILE", "/run/l7v2/kill")
 SLOW_PC_RECORD = os.environ.get("SLOW_PC_RECORD", "")
 SLOW_PC_T = int(os.environ.get("SLOW_PC_T", "20"))
 SLOW_PC_F = int(os.environ.get("SLOW_PC_F", "16"))
@@ -492,16 +497,54 @@ def slow_pc_record(now, text, items, banned, enforce):
         report_daemon_error("slow_pc_record", e, "recording stopped")
 
 
-def slow_pc_act(result):
-    """Log one poll's decisions. Shadow: nothing is closed or banned."""
+def slow_pc_close(conns):
+    """Close these connections, (client address, client port, server port) each, every one by
+    its own filter, at most slow_pc.CLOSE_BATCH per `ss -K` call (§7.1). An empty list makes no
+    call: `ss -K` without a filter would close every socket. Returns the number of failed
+    calls; whether each socket went is checked at the next poll (ss -K skips silently what the
+    kernel cannot close)."""
+    failed = 0
+    for i in range(0, len(conns), slow_pc.CLOSE_BATCH):
+        expr = " or ".join(f"( dst {ip} and dport = :{port} and sport = :{sport} )"
+                           for ip, port, sport in conns[i:i + slow_pc.CLOSE_BATCH])
+        try:
+            res = subprocess.run(["ss", "-K", "-t", "state", "established", expr],
+                                 capture_output=True, timeout=2, check=False)
+            failed += res.returncode != 0
+        except (subprocess.SubprocessError, OSError):
+            failed += 1
+    return failed
+
+
+def slow_pc_act(result, enforce):
+    """Carry out one poll's decisions (§7), or in shadow only log them: close each connection,
+    then ban each address the aggregate names, through ban_ip (TTL BAN_TTL_SECONDS) and, as every
+    engine does after a ban, close the rest of its sockets."""
     for c in result.closes:
-        EVENTS.emit("slow_pc_close", enforced=False, **c._asdict())
+        EVENTS.emit("slow_pc_close", enforced=enforce, **c._asdict())
+    if enforce and result.closes:
+        failed = slow_pc_close([(c.ip, c.port, c.sport) for c in result.closes])
+        slow_pc_engine.closed([(c.ip, c.port, c.local, c.sport) for c in result.closes])
+        if failed:
+            report_daemon_error("slow_pc", f"{failed} ss -K call(s) failed",
+                                "checked at the next poll")
     if result.capped_closes:
         EVENTS.emit("slow_pc_capped", what="close", n=result.capped_closes,
                     cap=slow_pc.MAX_CLOSES_PER_POLL)
     for b in result.bans:
-        EVENTS.emit("slow_pc_would_ban", ip=b.ip, value=b.closes, threshold=SLOW_PC_K,
-                    ua_keys=b.ua_keys)
+        if not enforce:
+            EVENTS.emit("slow_pc_would_ban", ip=b.ip, value=b.closes, threshold=SLOW_PC_K,
+                        ua_keys=b.ua_keys)
+            continue
+        with banned_ips_lock:
+            if b.ip in banned_ips:
+                continue
+        print(f"\n[L4-DETECT] SLOW CONNECTIONS, PER CONNECTION - IP: {b.ip} | "
+              f"{b.closes} closed in {slow_pc.BAN_WINDOW_S:g}s | UA keys: {b.ua_keys}")
+        ban_ip(b.ip, reason=f"Per-connection slow rule ({b.closes} connections closed in "
+                            f"{slow_pc.BAN_WINDOW_S:g} s)",
+               engine="l4_slowconn_pc", value=b.closes, threshold=SLOW_PC_K, ua_keys=b.ua_keys)
+        kill_zombie_connections(b.ip)
     if result.capped_bans:
         EVENTS.emit("slow_pc_capped", what="ban", n=len(result.capped_bans),
                     cap=slow_pc.MAX_BANS_PER_MIN, ips=result.capped_bans[:50])
@@ -510,8 +553,9 @@ def slow_pc_act(result):
 def slow_pc_poll():
     """One poll of the P4 per-connection rule (SLOW_PC=1; docs/P4_SLOW_DESIGN.md §6-§7), in the
     telemetry thread after the per-address rules. A failed `ss` call skips the poll and resets no
-    streak (§6.3). It cannot raise: the GRU feed and the SYN-cookie check after it run as before.
-    """
+    streak (§6.3). It enforces only with SLOW_PC_ENFORCE=1, without GRU_ONLY and while the kill
+    file does not exist. It cannot raise: the GRU feed and the SYN-cookie check after it run as
+    before."""
     global slow_pc_engine, slow_pc_last_report
     try:
         now = time.time()
@@ -525,15 +569,17 @@ def slow_pc_poll():
                 break
         with banned_ips_lock:
             banned = set(banned_ips)
+        enforce = SLOW_PC_ENFORCE and not GRU_ONLY and not os.path.exists(SLOW_PC_KILL_FILE)
         text, err = slow_pc_read()
-        slow_pc_record(now, text, items, banned, False)
+        slow_pc_record(now, text, items, banned, enforce)
         if text is None:
             slow_pc_engine.skip(now, items)
             report_daemon_error("slow_pc", err, "poll skipped, streaks kept")
         else:
-            slow_pc_act(slow_pc_engine.poll(now, text, items, banned))
+            slow_pc_act(slow_pc_engine.poll(now, text, items, banned), enforce)
         if now - slow_pc_last_report >= SLOW_PC_REPORT_INTERVAL:
-            EVENTS.emit("slow_pc_poll", mode="shadow", **slow_pc_engine.take_stats(),
+            EVENTS.emit("slow_pc_poll", mode="enforce" if enforce else "shadow",
+                        **slow_pc_engine.take_stats(),
                         inbox_dropped=slow_pc_counts.get("inbox_dropped", 0),
                         note_errors=slow_pc_counts.get("note_errors", 0))
             slow_pc_last_report = now
@@ -1166,6 +1212,7 @@ try:
     EVENTS.emit("start", pid=os.getpid(), backend=os.environ.get("MITIGATION_BACKEND", "xdp"),
                 gru_only=GRU_ONLY, xdp_gru=XDP_GRU, l7_shadow=L7_SHADOW,
                 heuristic_profile=HEURISTIC_PROFILE, slow_pc=SLOW_PC,
+                slow_pc_enforce=SLOW_PC_ENFORCE,
                 slow_pc_sha256=ban_events.file_sha256("slow_pc.py"),
                 l7_model=L7_MODEL or None, l7_record=bool(L7_RECORD),
                 interface=INTERFACE, model=MODEL_PATH,

@@ -274,5 +274,128 @@ class RecordTest(SlowPcCase):
         self.assertIs(d.slow_pc_record_fh, False)
 
 
+ENFORCE = {**FAST, "SLOW_PC_ENFORCE": "1"}
+
+
+class EnforceTest(SlowPcCase):
+    """§7: ss -K on each connection, an XDP ban of the address on the aggregate, the caps, the
+    kill switch."""
+
+    def test_each_connection_is_closed_by_its_own_filter_then_the_address_is_banned(self):
+        d = self.daemon(**ENFORCE)
+        self.run_world(d, 10, loris_world())
+        expr = " or ".join(f"( dst {IP} and dport = :{41000 + i} and sport = :80 )"
+                           for i in range(6))
+        self.assertEqual(d.proc.matching("ss", "-K"),
+                         [["ss", "-K", "-t", "state", "established", expr],
+                          ["ss", "-K", "dst", IP]])                # then kill_zombie_connections
+        [ban] = d.bans()
+        self.assertEqual(self.brief(ban, "ip", "engine", "value", "threshold", "ua_keys", "ttl_s"),
+                         (IP, "l4_slowconn_pc", 6, 6, 0, 300))
+        self.assertEqual(ban["reason"], "Per-connection slow rule (6 connections closed in 60 s)")
+        self.assertEqual(H.ban_events.engine_from_reason(ban["reason"]), "l4_slowconn_pc")
+        self.assertEqual(H.ban_events.ENGINE_LABELS["l4_slowconn_pc"], "L4 SlowConn-PC")
+        self.assertEqual((d.blacklist.ips(), d.banned_ips), ({IP}, {IP}))
+        self.assertEqual({c["enforced"] for c in d.events("slow_pc_close")}, {True})
+        self.assertEqual(d.events("slow_pc_would_ban"), [])
+        self.assertIn(f"[BAN] {IP} banned for 300s. Reason: Per-connection slow rule", d.console())
+        d = self.daemon(SLOW_PC_ENFORCE="1")                    # without SLOW_PC=1: off
+        self.run_world(d, 12, loris_world())
+        self.assertEqual((d.proc.matching("ss", "-tinpH"), d.proc.matching("ss", "-K")), ([], []))
+
+    def test_at_most_32_connections_per_call_and_never_an_unfiltered_kill(self):
+        d = self.daemon(**ENFORCE)
+        self.run_world(d, 9, loris_world(conns=40))
+        kills = d.proc.matching("ss", "-K")
+        self.assertEqual([k[5].count("( dst ") for k in kills[:2]], [32, 8])
+        self.assertEqual(kills[2:], [["ss", "-K", "dst", IP]])
+        d.proc.calls.clear()
+        self.assertEqual(d.call("slow_pc_close", []), 0)
+        self.assertEqual(d.proc.calls, [])
+
+    def test_a_failed_close_call_is_reported_and_a_surviving_socket_counted(self):
+        for gone in (True, False):
+            with self.subTest(gone=gone):
+                d = self.daemon(**ENFORCE)
+                if not gone:
+                    d.proc.failures[("ss", "-K", "-t")] = 1         # the close call fails
+
+                def world(t, d=d, gone=gone):
+                    return "" if gone and d.proc.matching("ss", "-K") else loris_world()(t)
+                self.run_world(d, 11, world)
+                failed = sum(r["close_failed"] for r in d.events("slow_pc_poll"))
+                errors = [e["error"] for e in d.events("daemon_error")]
+                self.assertEqual((failed, errors),
+                                 (0, []) if gone else (6, ["1 ss -K call(s) failed"]))
+
+    def test_the_kill_file_and_gru_only_send_it_back_to_shadow(self):
+        def world(t):
+            two = loris_world("10.0.3.2")(t) if t >= 1010 else ""
+            return loris_world()(t) + two
+        for case in ("kill file", "GRU_ONLY"):
+            with self.subTest(case):
+                d = self.daemon(**ENFORCE, **({"GRU_ONLY": "1"} if case == "GRU_ONLY" else {}))
+                kill = os.path.join(d._tmp.name, "kill")
+                d.ns["SLOW_PC_KILL_FILE"] = kill
+                if case == "kill file":
+                    with open(kill, "w", encoding="utf-8"):
+                        pass
+
+                def setup(k, kill=kill):
+                    if k == 10 and os.path.exists(kill):
+                        os.remove(kill)                         # the switch is read every poll
+                self.run_world(d, 19, world, setup)
+                closes = {(c["ip"], c["enforced"]) for c in d.events("slow_pc_close")}
+                would = [w["ip"] for w in d.events("slow_pc_would_ban")]
+                bans = [b["ip"] for b in d.bans()]
+                if case == "kill file":
+                    self.assertEqual(closes, {(IP, False), ("10.0.3.2", True)})
+                    self.assertEqual((would, bans), ([IP], ["10.0.3.2"]))
+                else:
+                    self.assertEqual(closes, {(IP, False), ("10.0.3.2", False)})
+                    self.assertEqual((would, bans), ([IP, "10.0.3.2"], []))
+                modes = [r["mode"] for r in d.events("slow_pc_poll")]
+                self.assertEqual(modes[0], "shadow")
+
+    def test_m_def_bans_the_cgnat_pool_and_misses_slowloris_m_pc_the_reverse(self):
+        # A co-resident CGNAT pool (72 idle keep-alive connections, all answered: P5c.1's pools)
+        # and a Slowloris address at 6 connections, the benign device's footprint (§5, §8).
+        # M_def, the default profile without the rule: SlowConn bans the pool (>= 8 connections,
+        # < 250 B per poll, 3 polls) and never sees 6 < 8. M_pc (D-S7), the tolerant profile
+        # (SlowConn at 180) with the rule enforcing: the Slowloris address only.
+        def world(t):
+            pool = "".join(sock(CGNAT, 42000 + i, acked=5200, received=420) for i in range(72))
+            return pool + loris_world()(t)
+        for arm, env, bans in (("M_def", {}, [(CGNAT, "l4_slowconn")]),
+                               ("M_pc", {**ENFORCE, "HEURISTIC_PROFILE": "tolerant"},
+                                [(IP, "l4_slowconn_pc")])):
+            with self.subTest(arm=arm):
+                d = self.daemon(**env)
+
+                def setup(_k, d=d):
+                    d.telemetry.add(CGNAT, pkts=4, nbytes=200)
+                    d.telemetry.add(IP, pkts=2, nbytes=60)
+                    d.set_established({CGNAT: 72, IP: 6})
+                self.run_world(d, 30, world, setup)
+                self.assertEqual([self.brief(b, "ip", "engine") for b in d.bans()], bans)
+                self.assertEqual({c["ip"] for c in d.events("slow_pc_close")},
+                                 {IP} if arm == "M_pc" else set())
+
+    def test_the_caps_are_logged(self):
+        # 90 addresses x 6 Slowloris connections, all due at t = 1009: 500 closes and 40 held
+        # back; 83 addresses complete, 20 banned and 63 held back; at 1010 the last 40 close and
+        # 7 more addresses complete, all held back (20 bans in the last minute).
+        def world(t):
+            return "".join(loris(f"10.2.0.{a + 1}", 53000 + i, t) for a in range(90)
+                           for i in range(6))
+        d = self.daemon(**ENFORCE)
+        self.run_world(d, 10, world)
+        capped = [self.brief(c, "what", "n", "cap") for c in d.events("slow_pc_capped")]
+        self.assertEqual(capped, [("close", 40, 500), ("ban", 63, 20), ("ban", 70, 20)])
+        self.assertEqual(len(d.bans()), 20)
+        self.assertEqual(len(d.events("slow_pc_close")), 540)
+        self.assertEqual(len(d.events("slow_pc_capped")[1]["ips"]), 50)
+
+
 if __name__ == "__main__":
     unittest.main()
