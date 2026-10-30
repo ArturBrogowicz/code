@@ -940,23 +940,32 @@ def timer_probe(host, cpus, samples=200, interval=0.01):
         return None
 
 
+def quiet_gate(host, wait_gate_min=30.0, say=None):
+    """The uptime and load of the environment gate (docs/HG1B_MINIMAL_DESIGN.md 7.2 step 0; loadtool_validate.GATE: up 30 minutes,
+    1-minute load below 0.3): waits up to `wait_gate_min` minutes for them, polling, and refuses with EnvironmentRefused when they
+    are not met by then. Returns what was seen. A campaign's first run takes it through `environment`; the calibrator's origin step,
+    which makes no run, takes it on its own (calibrate.Runner.quiet)."""
+    import loadtool_validate as V
+    seen = V.wait_for_gate(wait_gate_min, read_up=lambda: float(host.read_text("/proc/uptime").split()[0]),
+                           read_load=lambda: float(host.read_text("/proc/loadavg").split()[0]), sleep=host.sleep,
+                           clock=host.monotonic, say=say or (lambda m: None))
+    if not seen["met"]:
+        raise EnvironmentRefused(f"the machine is not quiet enough: uptime {seen['uptime_s']:.0f} s (needs "
+                                 f"{seen['limit_uptime_s']}), load {seen['load1']:.2f} (needs below {seen['limit_load1']})")
+    return seen
+
+
 def environment(host, plan, gate="full", wait_gate_min=30.0, say=None):
     """The environment gate (docs/HG1B_MINIMAL_DESIGN.md 7.2 step 0). The timer on the legit CPU must wake on time, always:
     p99 below the plan's `timer_limit_ms`, which is the calibration's validity.timer_p99_ms unless a smoke test set it (the
     limit used, and whether it was set, are recorded). Uptime and load are the gate of a campaign's start (`gate="full"`:
-    waits up to `wait_gate_min` for them); between the runs of a campaign (`gate="timer"`) they are only recorded, since
-    the load a run leaves is its own and would make every next run wait for it to decay. Refuses with EnvironmentRefused;
+    waits up to `wait_gate_min` for them, `quiet_gate`); between the runs of a campaign (`gate="timer"`) they are only recorded,
+    since the load a run leaves is its own and would make every next run wait for it to decay. Refuses with EnvironmentRefused;
     the caller may wait and ask again."""
-    import loadtool_validate as V
     say = say or (lambda m: None)
     up, load = float(host.read_text("/proc/uptime").split()[0]), float(host.read_text("/proc/loadavg").split()[0])
     if gate == "full":
-        seen = V.wait_for_gate(wait_gate_min, read_up=lambda: float(host.read_text("/proc/uptime").split()[0]),
-                               read_load=lambda: float(host.read_text("/proc/loadavg").split()[0]), sleep=host.sleep,
-                               clock=host.monotonic, say=say)
-        if not seen["met"]:
-            raise EnvironmentRefused(f"the machine is not quiet enough: uptime {seen['uptime_s']:.0f} s (needs "
-                                     f"{seen['limit_uptime_s']}), load {seen['load1']:.2f} (needs below {seen['limit_load1']})")
+        seen = quiet_gate(host, wait_gate_min, say)
     else:
         seen = {"met": None, "uptime_s": up, "load1": load, "waited_s": 0.0}
     probe = timer_probe(host, P.PIN_PLAN["legit"])

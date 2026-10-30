@@ -269,7 +269,7 @@ class OriginTest(unittest.TestCase):
     def step(self, noise, **faults):
         host = S.SimHost(origin_costs=dict(TEMPLATE["route_costs_ms"]), origin_noise=noise, faults=faults)
         say = []
-        result = K.origin_step(host, TEMPLATE, C.PLACEHOLDER, self.tmp.name, say.append)
+        result = K.origin_step(K.Runner(host), TEMPLATE, C.PLACEHOLDER, self.tmp.name, say.append)
         return host, result, say
 
     def test_three_sessions_each_a_process_on_cpu_zero_and_their_median_are_the_step(self):
@@ -319,10 +319,11 @@ class OriginTest(unittest.TestCase):
 
     @staticmethod
     def scripted(*answers):
-        """A host whose origin sessions answer one after another: a dict is a session's medians, a string is a session that failed."""
+        """A host whose origin sessions answer one after another: a dict is a session's medians, a string is a session that failed.
+        Its uptime and load are the simulated host's, which meet the environment gate at once."""
         left = list(answers)
 
-        class Host:
+        class Host(S.SimHost):
             def run(self, argv, **kw):
                 answer = left.pop(0)
                 return X.Result(1, "", answer) if isinstance(answer, str) else X.Result(0, json.dumps(answer), "")
@@ -339,7 +340,7 @@ class OriginTest(unittest.TestCase):
     def run_step(self, host):
         say = []
         try:
-            return K.origin_step(host, TEMPLATE, C.PLACEHOLDER, self.tmp.name, say.append), say
+            return K.origin_step(K.Runner(host), TEMPLATE, C.PLACEHOLDER, self.tmp.name, say.append), say
         except K.CalibrationStop as exc:
             return exc, say
 
@@ -411,6 +412,81 @@ class OriginTest(unittest.TestCase):
         self.assertEqual(saved["rounds"][0]["sessions"][2]["C1"], 9.4)
         self.assertEqual([s["C1"] for s in saved["partial_sessions"]], [3.9])
         self.assertIn("gave nothing readable", str(stop))
+
+
+class OriginGateTest(unittest.TestCase):
+    """The origin step takes the environment gate of a campaign's start before its first session (docs/HG1C_DESIGN.md departure
+    28): uptime 1800 s and a load below 0.3, waiting up to --wait-gate minutes for them. Until then --wait-gate was read and
+    ignored for this step, and HG2b's first attempt began 11 minutes after a boot."""
+
+    class Clocked(S.SimHost):
+        """The simulated host, which also notes the time on its clock at which each origin session begins."""
+
+        def __init__(self, **kw):
+            super().__init__(origin_costs=dict(TEMPLATE["route_costs_ms"]), **kw)
+            self.session_at = []
+
+        def _origin_session(self):
+            self.session_at.append(self.t)
+            return super()._origin_session()
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.out = os.path.join(self.tmp.name, "s")
+
+    def origin(self, host, *args):
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(X.signal, "signal"), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = K.main(["origin", "--out", self.out, *args], host=host)
+        return code, out.getvalue(), err.getvalue()
+
+    def test_a_machine_up_for_a_minute_is_refused_after_the_wait_and_no_session_is_made(self):
+        host = self.Clocked(uptime_s=60.0)
+        code, _, err = self.origin(host, "--wait-gate", "1")
+        self.assertEqual(code, K.EXIT_STOPPED)
+        self.assertIn("EnvironmentRefused: the machine is not quiet enough: uptime 120 s (needs 1800)", err)
+        self.assertEqual(host.session_at, [], "no session before the gate")
+        self.assertEqual(sum(host.sleeps), 60.0, "it waited the minute --wait-gate gave it")
+        self.assertFalse(os.path.exists(os.path.join(self.out, "origin")), "nothing measured, nothing written")
+
+    def test_a_busy_machine_is_refused(self):
+        host = self.Clocked(load1=0.5)
+        code, _, err = self.origin(host, "--wait-gate", "0")
+        self.assertEqual(code, K.EXIT_STOPPED)
+        self.assertIn("load 0.50 (needs below 0.3)", err)
+        self.assertEqual((host.session_at, host.sleeps), ([], []))
+
+    def test_the_step_waits_for_the_gate_and_then_measures(self):
+        host = self.Clocked(uptime_s=1750.0)
+        code, text, _ = self.origin(host, "--wait-gate", "5")
+        self.assertEqual(code, K.EXIT_OK)
+        self.assertIn("waiting up to 5 min", text)
+        gate = K.read_json(os.path.join(self.out, "origin", "origin.json"))["gate"]
+        self.assertEqual((gate["met"], gate["waited_s"], gate["uptime_s"]), (True, 60.0, 1810.0))
+        self.assertEqual(len(host.session_at), 3)
+        self.assertGreaterEqual(min(host.session_at), 60.0, "every session began after the wait")
+
+    def test_a_quiet_machine_passes_at_once_and_the_record_says_what_the_gate_saw(self):
+        host = self.Clocked()
+        self.assertEqual(self.origin(host)[0], K.EXIT_OK)
+        self.assertEqual(host.sleeps, [])
+        self.assertEqual(K.read_json(os.path.join(self.out, "origin", "origin.json"))["gate"],
+                         {"met": True, "uptime_s": 7200.0, "load1": 0.05, "waited_s": 0.0, "limit_uptime_s": 1800,
+                          "limit_load1": 0.3})
+
+    def test_wait_gate_is_how_long_the_step_waits(self):
+        for minutes in (0, 1, 3):
+            with self.subTest(minutes=minutes):
+                host = self.Clocked(uptime_s=60.0)
+                self.assertEqual(self.origin(host, "--wait-gate", str(minutes))[0], K.EXIT_STOPPED)
+                self.assertEqual(sum(host.sleeps), 60.0 * minutes)
+
+    def test_a_step_that_stops_after_the_gate_keeps_what_the_gate_saw(self):
+        host = self.Clocked(origin_noise=(-0.1, 0.0, 0.2))
+        self.assertEqual(self.origin(host)[0], K.EXIT_STOPPED)
+        saved = K.read_json(os.path.join(self.out, "origin", "stopped_1.json"))
+        self.assertEqual((saved["gate"]["met"], saved["gate"]["uptime_s"]), (True, 7200.0))
 
 
 class HarmTest(unittest.TestCase):
@@ -827,7 +903,7 @@ class SimulatedCalibrationTest(unittest.TestCase):
         cls.host = S.SimHost(server=S.SyntheticServer(cls.template, (30, 45, 30), capacity_cpu=CAPACITY_CPU), tag="placeholder",
                              origin_costs=dict(cls.template["route_costs_ms"]), origin_noise=(0.0, 0.01, -0.01))
         cls.runner = K.Runner(cls.host)
-        cls.origin = K.origin_step(cls.host, cls.template, C.PLACEHOLDER, cls.out, cls.say.append)
+        cls.origin = K.origin_step(cls.runner, cls.template, C.PLACEHOLDER, cls.out, cls.say.append)
         cls.capacity = K.capacity_step(cls.runner, cls.template, C.PLACEHOLDER, cls.out, say=cls.say.append)
         cls.draft, cls.under = K.session_draft(cls.out, cls.template)
         cls.ladders = {f: K.ladder_step(cls.runner, cls.draft, C.PLACEHOLDER, f, cls.out, cls.under, say=cls.say.append)

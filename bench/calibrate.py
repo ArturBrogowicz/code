@@ -123,16 +123,17 @@ def combine_origin(sessions):
     return {klass: statistics.median([s[klass] for s in sessions]) for klass in sessions[0]}
 
 
-def save_stopped_origin(out, cal, rounds, partial, reason):
+def save_stopped_origin(out, cal, rounds, partial, reason, gate=None):
     """What a stopped origin step measured, which would otherwise be lost with the exception: the rounds made and the sessions of
-    the round it was in. It goes beside where origin.json would be, under the first free number so that a second stop does not
-    replace the first, and origin.json itself is never written for a stop (docs/HG1C_DESIGN.md 27)."""
+    the round it was in, and what the environment gate saw before them. It goes beside where origin.json would be, under the first
+    free number so that a second stop does not replace the first, and origin.json itself is never written for a stop
+    (docs/HG1C_DESIGN.md 27)."""
     n = 1
     while os.path.exists(os.path.join(out, "origin", f"stopped_{n}.json")):
         n += 1
     path = os.path.join(out, "origin", f"stopped_{n}.json")
-    write_json(path, {"step": "origin", "stopped": reason, "created_utc": now(), "rounds": rounds, "partial_sessions": partial,
-                      "sessions": ORIGIN_SESSIONS, "repeats": ORIGIN_REPEATS, "cpu": ORIGIN_CPU,
+    write_json(path, {"step": "origin", "stopped": reason, "created_utc": now(), "gate": gate, "rounds": rounds,
+                      "partial_sessions": partial, "sessions": ORIGIN_SESSIONS, "repeats": ORIGIN_REPEATS, "cpu": ORIGIN_CPU,
                       "template_sha256": cal.get("sha256") or C.digest(cal)})
     return path
 
@@ -147,11 +148,15 @@ def origin_session(cal, repeats=ORIGIN_REPEATS):
         origin.close()
 
 
-def origin_step(host, cal, cal_path, out, say=print):
-    """Three sessions, each its own process pinned to CPU 0, and their median. If any route's medians are further apart than
+def origin_step(runner, cal, cal_path, out, say=print):
+    """The environment gate of a campaign's start first (`runner.quiet`: uptime and load, waiting up to the runner's
+    `wait_gate_min`; a machine that does not meet it refuses the step before any session, docs/HG1C_DESIGN.md departure 28), then
+    three sessions, each its own process pinned to CPU 0, and their median. If any route's medians are further apart than
     10 % the three sessions are made once more and only the second round counts; if they are still, the host's timing is not
     stable enough to calibrate on. A round says which route and which session disagreed most, and a step that stops keeps the
-    sessions it measured in `origin/stopped_N.json` (never in origin.json)."""
+    sessions it measured in `origin/stopped_N.json` (never in origin.json). Both records keep what the gate saw."""
+    gate = runner.quiet(say)
+    host = runner.host
     rounds = []
     for number in (1, 2):
         sessions = []
@@ -162,7 +167,7 @@ def origin_step(host, cal, cal_path, out, say=print):
                 sessions.append({k: float(v) for k, v in json.loads(r.out).items()})
             except (ValueError, AttributeError) as exc:
                 reason = f"an origin session gave nothing readable (exit {r.code}): {(r.err or r.out)[:200]}"
-                path = save_stopped_origin(out, cal, rounds, sessions, reason)
+                path = save_stopped_origin(out, cal, rounds, sessions, reason, gate)
                 raise CalibrationStop(f"{reason} (the sessions read so far are in {path})") from exc
         rnd = origin_round(sessions)
         rounds.append(rnd)
@@ -172,10 +177,10 @@ def origin_step(host, cal, cal_path, out, say=print):
     else:
         reason = (f"the unloaded cost of the routes differs by more than {ORIGIN_SPREAD:.0%} between sessions, twice: "
                   "the host's timing is not stable enough to calibrate on")
-        path = save_stopped_origin(out, cal, rounds, [], reason)
+        path = save_stopped_origin(out, cal, rounds, [], reason, gate)
         where = "; ".join(f"round {i}: {origin_said(rnd)}" for i, rnd in enumerate(rounds, 1))
         raise CalibrationStop(f"{reason} ({where}; the sessions of both rounds are in {path})")
-    result = {"step": "origin", "created_utc": now(), "route_costs_ms": combine_origin(rounds[-1]["sessions"]),
+    result = {"step": "origin", "created_utc": now(), "gate": gate, "route_costs_ms": combine_origin(rounds[-1]["sessions"]),
               "rounds": rounds, "sessions": ORIGIN_SESSIONS, "repeats": ORIGIN_REPEATS, "cpu": ORIGIN_CPU,
               "template_sha256": cal.get("sha256") or C.digest(cal)}
     write_json(os.path.join(out, "origin", "origin.json"), result)
@@ -658,6 +663,13 @@ class Runner:
         self.allow_dirty, self.clean, self.wait_gate_min, self.tries = allow_dirty, clean, wait_gate_min, tries
         self.gate = "full"
 
+    def quiet(self, say=print):
+        """The full gate's uptime and load without a run (executor.quiet_gate, the code a campaign's first run takes it through):
+        waits up to `wait_gate_min` minutes, from --wait-gate, and refuses with EnvironmentRefused. For the origin step, whose
+        sessions measure the host as a run does but are not one; the timer of the legit streams' CPU, which only streams need, is
+        not probed. Returns what was seen."""
+        return X.quiet_gate(self.host, self.wait_gate_min, say)
+
     def run(self, plan, say=print):
         record = GC.read_done(plan.out)
         if record is not None:
@@ -837,7 +849,7 @@ def _dispatch(args, host):
     host = host or _host_for(args, template, timeline)
     runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate)
     if args.command == "origin":
-        origin_step(host, template, cal_path, out)
+        origin_step(runner, template, cal_path, out)
         return EXIT_OK
     if args.command == "capacity":
         capacity_step(runner, template, cal_path, out, args.levels, args.step_s, args.repeats)
