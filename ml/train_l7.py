@@ -186,14 +186,15 @@ def fit_scaling(train_windows, n_cols):
 
 # ───────────────────────────── GRU ─────────────────────────────
 
-def train_gru(train, val, cols, mean, std, *, seed, epochs, hidden, layers, batch=128):
+def train_gru(train, val, cols, mean, std, *, seed, epochs, hidden, layers, batch=128, threads=None):
+    """`threads` caps torch's threads (the learning curves run with 2); None keeps half the CPUs."""
     import torch
     from torch import nn, optim
     from torch.utils.data import DataLoader, TensorDataset
 
     from GRU_ML_model import GRUDDoSClassifier
     torch.manual_seed(seed)
-    torch.set_num_threads(max(1, (os.cpu_count() or 2) // 2))
+    torch.set_num_threads(int(threads) if threads else max(1, (os.cpu_count() or 2) // 2))
 
     def prep(ws):
         X = F.apply_scaling(np.stack([w["X"] for w in ws]), mean, std)
