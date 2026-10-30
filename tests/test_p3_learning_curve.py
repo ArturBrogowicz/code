@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 import numpy as np
 
@@ -148,42 +149,82 @@ TINY = {"fractions": [0.5, 1.0], "draws": 1, "inits": 1, "full_inits": 2, "epoch
         "B": 20, "threads": 1}
 
 
-class EndToEndTest(unittest.TestCase):
+class SelectThenScoreTest(unittest.TestCase):
+    """Review T-029 P3-03: evaluation is scored only by `score`, only with the frozen selection file whose sha256
+    the caller recorded, and (P3) only after the checker's rule 10 has compared the split file with it."""
 
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="p3lc_")
         self.addCleanup(shutil.rmtree, self.root, True)
 
-    def test_legacy_capture_is_mechanics_only(self):
+    def test_legacy_capture_select_then_score(self):
         d = os.path.join(self.root, "ds")
         synth_dataset(d, n_benign=6, n_attack=3, held_benign=1)
         cols = LC.F.columns(LC.T.variant_groups()[LC.VARIANT])
         sets = LC.legacy_sets(d, cols, LC.T.DEFAULT_SEQ, LC.T.DEFAULT_STRIDE)
-        res = LC.run(sets, os.path.join(self.root, "out"), valid_for_claims=False, source="fixture", **TINY)
+        sel_dir = os.path.join(self.root, "sel")
+        sel, sha = LC.select({"train": sets["train"], "val": sets["val"]}, sel_dir, valid_for_claims=False,
+                             source="fixture", split_sha256=LC.legacy_split_sha256(sets), **TINY)
+        path = os.path.join(sel_dir, "selection.json")
+        with open(os.path.join(sel_dir, "selection.sha256"), encoding="utf-8") as fh:
+            self.assertEqual(fh.read().split()[0], sha)
+        self.assertEqual(len(sel["fits"]), 4 * 3)                # (1 + 2 fits) x 4 models
+        self.assertTrue(all(f["artifact_sha256"] for f in sel["fits"]))
+        for bad in (None, "0" * 64):
+            with self.assertRaises(LC.SelectionError):
+                LC.load_selection(path, bad)
+        res = LC.score(sets["eval"], LC.load_selection(path, sha), path, os.path.join(self.root, "out"),
+                       threads=1)
         self.assertFalse(res["valid_for_claims"])
         self.assertTrue(res["decision"]["verdict"].startswith("NOT A RESULT"))
-        self.assertEqual(len(res["fits"]), 4 * 3)                # (1 + 2 fits) x 4 models
+        self.assertEqual(res["selection_sha256"], sha)
         saved = read_json(os.path.join(self.root, "out", "curve.json"))
         self.assertEqual(saved["format"], LC.FORMAT)
         self.assertIn("gru@1.0", saved["estimates"])
         self.assertIn("| gru | 1.0 |", LC.summary_md(res))
+        art = os.path.join(sel_dir, sel["fits"][0]["artifact"])
+        with open(art, "ab") as fh:                              # an altered model is refused
+            fh.write(b"x")
+        with self.assertRaises(LC.SelectionError):
+            LC.load_selection(path, sha)
 
-    def test_p3_captures_need_the_disjointness_check(self):
+    def test_p3_captures_score_only_after_rule_10(self):
         V = "2026-11-t1"
         vdir = os.path.join(self.root, V)
         tr = [FX.capture(vdir, V, s, "train", FX.entities(V, s))[0] for s in (1001, 1002)]
         va = [FX.capture(vdir, V, 2001, "val", FX.entities(V, 2001))[0]]
         ev = [FX.capture(vdir, V, 3201, "eval", FX.entities(V, 3201), started="2026-11-03T10:00:00Z",
                          ended="2026-11-03T10:17:00Z")[0]]
-        out = os.path.join(self.root, "p3")
-        args = ["--train", *tr, "--val", *va, "--eval", *ev, "--out", out, "--smoke", "--threads", "1"]
-        cols = LC.F.columns(LC.T.variant_groups()[LC.VARIANT])
-        sets = LC.p3_sets(tr, va, ev, cols, LC.T.DEFAULT_SEQ, LC.T.DEFAULT_STRIDE)
-        self.assertTrue(all(x["ip"].startswith(V) for x in sets["eval"]))   # keyed by entity id
-        res = LC.run(sets, out, valid_for_claims=True, source="fixture", **TINY)
-        self.assertEqual(res["eval_attack_entities"], 4)
-        bad = subprocess.run([sys.executable, os.path.join(FX.REPO, "ml", "learning_curve.py"),
-                              *args[:-7], "--eval", tr[0], "--out", out], capture_output=True, text=True, check=False)
+        sel_dir, out = os.path.join(self.root, "sel"), os.path.join(self.root, "out")
+        data = ["--train", *tr, "--val", *va, "--eval", *ev, "--threads", "1"]
+        loaded = []
+        real = LC.T.load_records
+
+        def spy(d):
+            loaded.append(os.path.abspath(d))
+            return real(d)
+        with mock.patch.object(LC.T, "load_records", spy):
+            self.assertEqual(LC.main(["select", *data, "--out", sel_dir, "--smoke"]), 0)
+        self.assertNotIn(os.path.abspath(ev[0]), loaded)          # select opened no evaluation log
+        path = os.path.join(sel_dir, "selection.json")
+        with open(os.path.join(sel_dir, "selection.sha256"), encoding="utf-8") as fh:
+            sha = fh.read().split()[0]
+        with self.assertRaises(LC.SelectionError):
+            LC.main(["score", *data, "--out", out, "--selection", path, "--selection-sha256", "f" * 64])
+        with self.assertRaises(SystemExit):
+            LC.main(["score", *data, "--out", out])
+        self.assertEqual(LC.main(["score", *data, "--out", out, "--selection", path, "--selection-sha256", sha]), 0)
+        self.assertEqual(read_json(os.path.join(out, "curve.json"))["eval_attack_entities"], 4)
+        split = os.path.join(sel_dir, "split.json")
+        with open(split, "ab") as fh:                            # the split changed after the freeze
+            fh.write(b" ")
+        import l7_disjoint
+        with self.assertRaises(l7_disjoint.DisjointnessError) as ctx:
+            LC.main(["score", *data, "--out", out, "--selection", path, "--selection-sha256", sha])
+        self.assertIn("\n  10 ", str(ctx.exception))
+        bad = subprocess.run([sys.executable, os.path.join(FX.REPO, "ml", "learning_curve.py"), "select",
+                              "--train", *tr, "--val", *va, "--eval", tr[0], "--out", os.path.join(self.root, "x")],
+                             capture_output=True, text=True, check=False)
         self.assertNotEqual(bad.returncode, 0)
         self.assertIn("refusing to fit", bad.stderr)
 

@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
-"""The P3 learning-curve runner (docs/P3_DATASET_DESIGN.md §6, T-005's protocol refined). Offline, CPU.
+"""The P3 learning-curve runner (docs/P3_DATASET_DESIGN.md §6, T-005's protocol refined). Offline, CPU. Two steps, so that
+evaluation is scored only with a selection frozen before (§4.8, §8 row 5; review T-029 P3-03):
 
-    # P3 captures: the disjointness check (ml/l7_disjoint.py) runs first and must pass
-    ./venv/bin/python ml/learning_curve.py --train T1 T2 T3 T4 --val V1 V2 --eval E1 ... --out DIR
+    # select: fits on the training entities, operating points on the validation entities; writes the frozen
+    # selection (selection.json, its sha256 in selection.sha256, the fitted models under fits/) and split.json.
+    # P3 captures go through the disjointness checker first; no evaluation log is opened.
+    ./venv/bin/python ml/learning_curve.py select --train T1 T2 T3 T4 --val V1 V2 --eval E1 ... --out SEL
+    # score: refuses unless --selection-sha256 is the recorded hash of SEL/selection.json and every model it names
+    # still matches; for P3 captures the checker runs again with rule 10 (split file vs selection) first.
+    ./venv/bin/python ml/learning_curve.py score --train ... --val ... --eval ... --selection SEL/selection.json \
+        --selection-sha256 <hash> --out OUT
     # one legacy (schema-1) capture, within-capture split: mechanics only, never a claim
-    ./venv/bin/python ml/learning_curve.py --legacy-capture results/2026-10-16_l7-p5c3-capture --out DIR --smoke
+    ./venv/bin/python ml/learning_curve.py select --legacy-capture results/2026-10-16_l7-p5c3-capture --out SEL --smoke
 
 The design, with every constant from ml/p3_prereg.json ("learning_curve"):
   * fractions f of the TRAINING entities, stratified by (kind or family, training capture) with at least one entity
@@ -13,13 +20,14 @@ The design, with every constant from ml/p3_prereg.json ("learning_curve"):
   * models on identical windows: gru (train_l7's GRU), hgb (window summaries), lr (standardised summaries, balanced
     class weights) and gru_shuffled (each fitted GRU scoring windows whose valid rows are shuffled);
   * each fit's operating point (threshold, consecutive) on the VALIDATION entities at the benign budget
-    (train_l7.operating_point), applied unchanged to the evaluation entities;
+    (train_l7.operating_point), frozen in the selection and applied unchanged to the evaluation entities;
   * metrics: entity recall per attack family and pooled, benign flags per client-hour per kind, time to decision;
   * a two-level bootstrap: each draw resamples the fits, the evaluation captures (clusters) and the entities within
     each capture; the estimate is the mean over fits of the pooled recall; 95 % percentile intervals;
   * the decision rules of §6.3 (decide(), fixture-tested): flattened, still learning, ranking, sequence helps.
 """
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -264,10 +272,38 @@ def decide(stats, models, fractions, rules):
     return out
 
 
-# ───────────────────────────── the run ─────────────────────────────
+# ───────────────────────────── select (validation only) ─────────────────────────────
 
-def run(sets, out_dir, *, fractions, draws, inits, full_inits, epochs, hidden, layers, B, threads, seed=0,
-        valid_for_claims, source):
+SEL_FORMAT = "p3-lc-selection/1"
+SPLIT_FORMAT_LEGACY = "p3-lc-legacy-split/1"
+
+
+class SelectionError(RuntimeError):
+    """The frozen selection file is missing, altered, or does not match the data it would be scored on."""
+
+
+def _sha_file(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def legacy_split_sha256(sets):
+    """The legacy (one capture) analogue of the split file's hash: the sorted entities of each split."""
+    rec = {"format": SPLIT_FORMAT_LEGACY, **{k: sorted({w["ip"] for w in sets[k]}) for k in ("train", "val", "eval")}}
+    return hashlib.sha256(D.canonical_json(rec)).hexdigest()
+
+
+def select(sets, out_dir, *, fractions, draws, inits, full_inits, epochs, hidden, layers, B, threads, seed=0,
+           valid_for_claims, source, split_sha256):
+    """Fit every (fraction, draw, init) on the training entities, choose each fit's operating point on the
+    validation entities, save every fitted model under out_dir/fits/, and write the frozen selection file
+    (selection.json: design, split sha256, per fit its point and its artifact's sha256) with selection.sha256 beside
+    it. Reads the "train" and "val" sets only. Returns (selection, its sha256)."""
+    import pickle
+
     import torch
     from sklearn.ensemble import HistGradientBoostingClassifier
     from sklearn.linear_model import LogisticRegression
@@ -276,53 +312,153 @@ def run(sets, out_dir, *, fractions, draws, inits, full_inits, epochs, hidden, l
     torch.set_num_threads(threads)
     rules = p3_prereg.load()["learning_curve"]
     cols = F.columns(T.variant_groups()[VARIANT])
-    t0, c0 = time.time(), time.process_time()
-    val, ev = sets["val"], sets["eval"]
-    units = eval_units(ev)
-    unit_idx = {u[0]: i for i, u in enumerate(units)}
+    os.makedirs(os.path.join(out_dir, "fits"), exist_ok=True)
+    t0 = time.time()
+    val = sets["val"]
     sv, _ = T.summaries(val, cols)
-    se, _ = T.summaries(ev, cols)
-    ev_shuf = shuffled(ev, seed)
     val_shuf = shuffled(val, seed + 1)
-    fits = []
-    hgb_cache = {}
+    fits, tab_cache = [], {}
+
+    def save(obj, name, how):
+        path = os.path.join(out_dir, "fits", name)
+        if how == "torch":
+            torch.save(obj, path)
+        else:
+            with open(path, "wb") as fh:
+                pickle.dump(obj, fh)
+        return f"fits/{name}", _sha_file(path)
+
     for f, d, i in fit_plan(fractions, draws, inits, full_inits):
         keep = nested_subsets(sets["train"], fractions, 1000 * seed + d)[f]
         train = [w for w in sets["train"] if w["ip"] in keep]
         mean, std = T.fit_scaling(train, len(cols))
         model, vloss = T.train_gru(train, val, cols, mean, std, seed=1000 * d + i, epochs=epochs, hidden=hidden,
                                    layers=layers, threads=threads)
-        scores = {"gru": (T.gru_scores(model, val, mean, std), T.gru_scores(model, ev, mean, std)),
-                  "gru_shuffled": (T.gru_scores(model, val_shuf, mean, std), T.gru_scores(model, ev_shuf, mean, std))}
-        if (f, d) not in hgb_cache:
+        g_art = save({"state": model.state_dict(), "mean": [float(x) for x in mean], "std": [float(x) for x in std],
+                      "cols": list(cols), "hidden": hidden, "layers": layers}, f"gru_f{f}_d{d}_i{i}.pt", "torch")
+        val_scores = {"gru": (g_art, T.gru_scores(model, val, mean, std)),
+                      "gru_shuffled": (g_art, T.gru_scores(model, val_shuf, mean, std))}
+        if (f, d) not in tab_cache:
             Xs, ys = T.summaries(train, cols)
             hgb = HistGradientBoostingClassifier(max_iter=200, random_state=seed).fit(Xs, ys)   # train_l7's B4
             lr = make_pipeline(StandardScaler(), LogisticRegression(max_iter=3000, class_weight="balanced"))
             lr.fit(Xs, ys)
-            hgb_cache[(f, d)] = {"hgb": (hgb.predict_proba(sv)[:, 1], hgb.predict_proba(se)[:, 1]),
-                                 "lr": (lr.predict_proba(sv)[:, 1], lr.predict_proba(se)[:, 1])}
-        scores.update(hgb_cache[(f, d)])
+            tab_cache[(f, d)] = {"hgb": (save(hgb, f"hgb_f{f}_d{d}.pkl", "pickle"), hgb.predict_proba(sv)[:, 1]),
+                                 "lr": (save(lr, f"lr_f{f}_d{d}.pkl", "pickle"), lr.predict_proba(sv)[:, 1])}
+        val_scores.update(tab_cache[(f, d)])
         for m in MODELS:
-            pv, pe = scores[m]
+            (art, sha), pv = val_scores[m]
             op = T.operating_point(val_shuf if m == "gru_shuffled" else val, pv, rules["theta_grid"], rules["k_grid"],
                                    rules["benign_budget"])
-            row = {"model": m, "fraction": f, "draw": d, "init": i, "train_entities": len(keep),
-                   "train_windows": len(train), "val_loss": round(vloss, 5) if m.startswith("gru") else None,
-                   "operating_point": op}
-            if op is None:
-                row["detected"] = [0] * len(units)
-                row["note"] = "no operating point within the benign budget on validation: detects nothing"
+            fits.append({"model": m, "fraction": f, "draw": d, "init": i, "artifact": art, "artifact_sha256": sha,
+                         "train_entities": len(keep), "train_windows": len(train),
+                         "val_loss": round(vloss, 5) if m.startswith("gru") else None, "operating_point": op})
+    sel = {"format": SEL_FORMAT, "source": source, "valid_for_claims": valid_for_claims, "variant": VARIANT,
+           "seed": seed, "split_sha256": split_sha256,
+           "design": {"fractions": fractions, "draws": draws, "inits": inits, "full_inits": full_inits,
+                      "epochs": epochs, "hidden": hidden, "layers": layers, "bootstrap_b": B, "threads": threads},
+           "counts": {"train": len(sets["train"]), "val": len(val)}, "fits": fits,
+           "select_wall_s": round(time.time() - t0, 1)}
+    data = D.canonical_json(sel) + b"\n"
+    with open(os.path.join(out_dir, "selection.json"), "wb") as fh:
+        fh.write(data)
+    sha = hashlib.sha256(data).hexdigest()
+    with open(os.path.join(out_dir, "selection.sha256"), "w", encoding="utf-8") as fh:
+        fh.write(f"{sha}  selection.json\n")
+    return sel, sha
+
+
+# ───────────────────────────── score (evaluation, frozen selection only) ─────────────────────────────
+
+def load_selection(path, expected_sha256):
+    """The frozen selection, after checking that its sha256 is the one the caller recorded and that every
+    artifact it names still has its recorded sha256. Raises SelectionError otherwise."""
+    if not expected_sha256:
+        raise SelectionError("refusing to score: the frozen selection's sha256 must be given (--selection-sha256)")
+    try:
+        actual = _sha_file(path)
+    except OSError as exc:
+        raise SelectionError(f"refusing to score: no frozen selection file: {exc}") from exc
+    if actual != expected_sha256:
+        raise SelectionError(f"refusing to score: {path} has sha256 {actual}, not the recorded {expected_sha256}")
+    with open(path, encoding="utf-8") as fh:
+        sel = json.load(fh)
+    if sel.get("format") != SEL_FORMAT:
+        raise SelectionError(f"refusing to score: {path} is not a {SEL_FORMAT} file")
+    base = os.path.dirname(os.path.abspath(path))
+    for art, sha in sorted({(f["artifact"], f["artifact_sha256"]) for f in sel["fits"]}):
+        p = os.path.normpath(os.path.join(base, art))
+        if not p.startswith(base + os.sep) or not os.path.isfile(p) or _sha_file(p) != sha:
+            raise SelectionError(f"refusing to score: artifact {art} is missing or altered")
+    return sel
+
+
+def _load_models(sel, base):
+    import pickle
+
+    import torch
+
+    from GRU_ML_model import GRUDDoSClassifier
+    out = {}
+    for art in sorted({f["artifact"] for f in sel["fits"]}):
+        path = os.path.join(base, art)
+        if art.endswith(".pt"):
+            blob = torch.load(path, weights_only=True)
+            model = GRUDDoSClassifier(input_size=len(blob["cols"]), hidden_size=blob["hidden"],
+                                      num_layers=blob["layers"])
+            model.load_state_dict(blob["state"])
+            model.eval()
+            out[art] = ("gru", model, np.array(blob["mean"], dtype=np.float32), np.array(blob["std"], dtype=np.float32))
+        else:
+            with open(path, "rb") as fh:
+                out[art] = ("tab", pickle.load(fh), None, None)      # hash-checked in load_selection
+    return out
+
+
+def score(eval_windows, sel, sel_path, out_dir, *, threads, seed=0):
+    """Apply every fit's frozen operating point to the evaluation windows; recall per family, benign flags per kind,
+    time to decision, the two-level bootstrap and the decision rules. Writes curve.json and summary.md."""
+    import torch
+    torch.set_num_threads(threads)
+    rules = p3_prereg.load()["learning_curve"]
+    cols = F.columns(T.variant_groups()[sel["variant"]])
+    t0 = time.time()
+    design = sel["design"]
+    fractions = design["fractions"]
+    ev = eval_windows
+    units = eval_units(ev)
+    unit_idx = {u[0]: i for i, u in enumerate(units)}
+    se, _ = T.summaries(ev, cols)
+    ev_shuf = shuffled(ev, seed)
+    models = _load_models(sel, os.path.dirname(os.path.abspath(sel_path)))
+    cache = {}
+    fits = []
+    for fit in sel["fits"]:
+        m, art, op = fit["model"], fit["artifact"], fit["operating_point"]
+        key = (art, m == "gru_shuffled")
+        if key not in cache:
+            kind, model, mean, std = models[art]
+            if kind == "gru":
+                cache[key] = T.gru_scores(model, ev_shuf if m == "gru_shuffled" else ev, mean, std)
             else:
-                det, ttd = detections(ev_shuf if m == "gru_shuffled" else ev, pe, op["threshold"], op["consecutive"])
-                vec = [0] * len(units)
-                for e, hit in det.items():
-                    if e in unit_idx:
-                        vec[unit_idx[e]] = int(hit)
-                row["detected"] = vec
-                times = sorted(v for e, v in ttd.items() if e in unit_idx and v is not None)
-                row["ttd_median_s"] = round(times[len(times) // 2], 3) if times else None
-                row["benign"] = benign_rate(ev, det)
-            fits.append(row)
+                cache[key] = model.predict_proba(se)[:, 1]
+        row = {k: fit[k] for k in ("model", "fraction", "draw", "init", "train_entities", "train_windows",
+                                   "val_loss", "operating_point")}
+        if op is None:
+            row["detected"] = [0] * len(units)
+            row["note"] = "no operating point within the benign budget on validation: detects nothing"
+        else:
+            det, ttd = detections(ev_shuf if m == "gru_shuffled" else ev, cache[key], op["threshold"],
+                                  op["consecutive"])
+            vec = [0] * len(units)
+            for e, hit in det.items():
+                if e in unit_idx:
+                    vec[unit_idx[e]] = int(hit)
+            row["detected"] = vec
+            times = sorted(v for e, v in ttd.items() if e in unit_idx and v is not None)
+            row["ttd_median_s"] = round(times[len(times) // 2], 3) if times else None
+            row["benign"] = benign_rate(ev, det)
+        fits.append(row)
     curves = {}
     for m in MODELS:
         for f in fractions:
@@ -332,7 +468,7 @@ def run(sets, out_dir, *, fractions, draws, inits, full_inits, epochs, hidden, l
     pairs = [((m, full), (m, f)) for m in MODELS for f in fractions if f < full]
     pairs += [((a, full), (b, full)) for a in MODELS for b in MODELS if a != b]
     pairs += [(("gru", f), ("gru_shuffled", f)) for f in fractions]
-    stats = bootstrap(curves, units, B, seed, pairs) if units else {}
+    stats = bootstrap(curves, units, design["bootstrap_b"], seed, pairs) if units else {}
     families = sorted({u[2] for u in units})
     per_family = {}
     for fam in families:
@@ -340,21 +476,22 @@ def run(sets, out_dir, *, fractions, draws, inits, full_inits, epochs, hidden, l
         per_family[fam] = {f"{m}@{f}": round(float(curves[(m, f)][:, idx].mean()), 4) if curves[(m, f)].size else None
                            for m in MODELS for f in fractions}
     verdict = decide(stats, MODELS, fractions, rules) if units else {"verdict": "no evaluation attack entities"}
-    if not valid_for_claims:
-        verdict["verdict"] = "NOT A RESULT (mechanics only: " + source + "): " + verdict["verdict"]
-    res = {"format": FORMAT, "source": source, "valid_for_claims": valid_for_claims, "variant": VARIANT,
-           "design": {"fractions": fractions, "draws": draws, "inits": inits, "full_inits": full_inits,
-                      "epochs": epochs, "hidden": hidden, "layers": layers, "bootstrap_b": B, "threads": threads},
-           "counts": {k: len(v) for k, v in sets.items()}, "eval_attack_entities": len(units),
-           "eval_families": families,
+    if not sel["valid_for_claims"]:
+        verdict["verdict"] = "NOT A RESULT (mechanics only: " + sel["source"] + "): " + verdict["verdict"]
+    res = {"format": FORMAT, "source": sel["source"], "valid_for_claims": sel["valid_for_claims"],
+           "variant": sel["variant"], "design": design,
+           "selection_sha256": _sha_file(sel_path), "split_sha256": sel["split_sha256"],
+           "counts": {**sel["counts"], "eval": len(ev)}, "eval_attack_entities": len(units), "eval_families": families,
            "estimates": {f"{k[0]}@{k[1]}" if isinstance(k[0], str) else f"{k[0][0]}@{k[0][1]}-{k[1][0]}@{k[1][1]}":
                          [None if x is None else round(x, 4) for x in v] for k, v in stats.items()},
            "per_family_mean_recall": per_family, "decision": verdict, "fits": fits,
-           "wall_s": round(time.time() - t0, 1), "cpu_s_main_process": round(time.process_time() - c0, 1)}
+           "score_wall_s": round(time.time() - t0, 1)}
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "curve.json"), "w", encoding="utf-8") as fh:
         json.dump(res, fh, indent=1, sort_keys=True, default=str)
         fh.write("\n")
+    with open(os.path.join(out_dir, "summary.md"), "w", encoding="utf-8") as fh:
+        fh.write(summary_md(res))
     return res
 
 
@@ -363,49 +500,77 @@ def summary_md(res):
              f"valid_for_claims: **{res['valid_for_claims']}**; verdict: {res['decision']['verdict']}", "",
              (f"design: {res['design']}; counts: {res['counts']}; evaluation attack entities "
               f"{res['eval_attack_entities']} ({', '.join(map(str, res['eval_families']))})"), "",
+             f"frozen selection sha256 {res['selection_sha256']}, split sha256 {res['split_sha256']}", "",
              "| model | fraction | recall (mean over fits) | 95 % CI | fits |", "|---|---|---|---|---|"]
     for m in MODELS:
         for f in res["design"]["fractions"]:
             e = res["estimates"].get(f"{m}@{f}", [None, None, None])
             n = sum(1 for r in res["fits"] if r["model"] == m and r["fraction"] == f)
             lines.append(f"| {m} | {f} | {e[0]} | [{e[1]}, {e[2]}] | {n} |")
-    lines += ["", f"wall {res['wall_s']} s, main-process CPU {res['cpu_s_main_process']} s"]
+    lines += ["", f"score wall {res['score_wall_s']} s"]
     return "\n".join(lines) + "\n"
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("step", choices=("select", "score"),
+                    help="select: fits and validation operating points, writes the frozen selection; "
+                         "score: the evaluation captures, only with that frozen selection")
     ap.add_argument("--train", nargs="*", default=[])
     ap.add_argument("--val", nargs="*", default=[])
     ap.add_argument("--eval", nargs="*", default=[])
     ap.add_argument("--legacy-capture", help="one schema-1 capture, within-capture split (mechanics only)")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--selection", help="score: the frozen selection.json written by select")
+    ap.add_argument("--selection-sha256", help="score: the sha256 recorded for that file when it was frozen")
     ap.add_argument("--smoke", action="store_true",
-                    help="a small design for a mechanics check: 2 draws x 1 init, 2 full inits, 5 epochs, B 300")
+                    help="select: a small design for a mechanics check: 2 draws x 1 init, 2 full inits, 5 epochs, B 300")
     ap.add_argument("--threads", type=int, default=2)
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args(argv)
     lc = p3_prereg.load()["learning_curve"]
-    design = {"fractions": lc["fractions"], "draws": lc["draws"], "inits": lc["inits"], "full_inits": lc["full_inits"],
-              "epochs": lc["epochs"], "hidden": lc["hidden"], "layers": lc["layers"], "B": lc["bootstrap_b"]}
-    if args.smoke:
-        design.update(draws=2, inits=1, full_inits=2, epochs=5, B=300)
     cols = F.columns(T.variant_groups()[VARIANT])
+    splits = {"train": args.train, "val": args.val, "eval": args.eval}
+    if args.legacy_capture and (args.train or args.val or args.eval):
+        ap.error("--legacy-capture takes no --train/--val/--eval")
+    if args.step == "select":
+        design = {"fractions": lc["fractions"], "draws": lc["draws"], "inits": lc["inits"],
+                  "full_inits": lc["full_inits"], "epochs": lc["epochs"], "hidden": lc["hidden"],
+                  "layers": lc["layers"], "B": lc["bootstrap_b"]}
+        if args.smoke:
+            design.update(draws=2, inits=1, full_inits=2, epochs=5, B=300)
+        os.makedirs(args.out, exist_ok=True)
+        if args.legacy_capture:
+            sets = legacy_sets(args.legacy_capture, cols, T.DEFAULT_SEQ, T.DEFAULT_STRIDE)
+            split_sha = legacy_split_sha256(sets)
+            valid = False
+            source = (f"legacy single capture {os.path.basename(os.path.normpath(args.legacy_capture))}, "
+                      "within-capture split, attack side not entity-disjoint")
+        else:
+            import l7_disjoint
+            l7_disjoint.require(splits)
+            split_sha = l7_disjoint.write_split(os.path.join(args.out, "split.json"), splits)
+            sets = p3_sets(args.train, args.val, [], cols, T.DEFAULT_SEQ, T.DEFAULT_STRIDE)    # no evaluation logs
+            valid, source = not args.smoke, "P3 captures" + (" (smoke design)" if args.smoke else "")
+        _sel, sha = select({"train": sets["train"], "val": sets["val"]}, args.out, threads=args.threads,
+                           seed=args.seed, valid_for_claims=valid, source=source, split_sha256=split_sha, **design)
+        print(f"{sha}  {os.path.join(args.out, 'selection.json')}")
+        return 0
+    if not args.selection:
+        ap.error("score needs --selection and --selection-sha256 (the frozen file from select)")
+    sel = load_selection(args.selection, args.selection_sha256)
     if args.legacy_capture:
-        if args.train or args.val or args.eval:
-            ap.error("--legacy-capture takes no --train/--val/--eval")
         sets = legacy_sets(args.legacy_capture, cols, T.DEFAULT_SEQ, T.DEFAULT_STRIDE)
-        valid = False
-        source = (f"legacy single capture {os.path.basename(os.path.normpath(args.legacy_capture))}, "
-                  "within-capture split, attack side not entity-disjoint")
+        if legacy_split_sha256(sets) != sel["split_sha256"]:
+            raise SelectionError("refusing to score: the split differs from the one the selection was made on")
+        ev = sets["eval"]
     else:
         import l7_disjoint
-        l7_disjoint.require({"train": args.train, "val": args.val, "eval": args.eval})
-        sets = p3_sets(args.train, args.val, args.eval, cols, T.DEFAULT_SEQ, T.DEFAULT_STRIDE)
-        valid, source = not args.smoke, "P3 captures" + (" (smoke design)" if args.smoke else "")
-    res = run(sets, args.out, threads=args.threads, seed=args.seed, valid_for_claims=valid, source=source, **design)
-    with open(os.path.join(args.out, "summary.md"), "w", encoding="utf-8") as fh:
-        fh.write(summary_md(res))
+        l7_disjoint.require(splits, split_file=os.path.join(os.path.dirname(os.path.abspath(args.selection)),
+                                                            "split.json"),
+                            selection_file=args.selection)            # rule 10 before any evaluation log is read
+        ev = p3_sets([], [], args.eval, cols, T.DEFAULT_SEQ, T.DEFAULT_STRIDE)["eval"]
+    res = score(ev, sel, args.selection, args.out, threads=args.threads, seed=args.seed)
     print(summary_md(res))
     return 0
 
