@@ -1,0 +1,116 @@
+{
+ "format": "l7v2-prereg/1",
+ "source": "docs/L7V2_DESIGN.md sections 4, 5, 7, 12 and 13 (approved 2026-10-30 as recommended, D-V1..D-V10; TPC-W v1.8 as the benign navigation source); the T-018 review's mapping rules (2026-10-30)",
+ "rule": "The traffic side of L7 v2, frozen before any L7 v2 or P3 capture (design section 13 items 3 and 4, the harm admission rule). A change is a new file version, labelled post hoc in the design's 'As built' section; tests/test_l7v2_prereg.py pins every value. Every value marked ASSUMPTION is declared, not measured.",
+ "navigation": {
+  "model": "TPC-W v1.8 clause 5.2.2.4 Threshold tables (ml/tpcw_v18.json); next interaction by rule 5.2.2.3",
+  "train_mix": "browsing",
+  "held_out_mixes": ["shopping"],
+  "unused_mixes": ["ordering"],
+  "unused_note": "Ordering is not emulated: 49.5 % of its interactions have no route, and no order-flow mapping is frozen (T-018 F13)",
+  "iid_zipf": "held_out",
+  "iid_zipf_note": "today's i.i.d. Zipf page model (ml/l7_benign.browser_views) stays as an additional held-out benign kind",
+  "session_start": "Home",
+  "session_model": "in-session navigation for the whole run; the User Session Minimum Duration (15 min) is not emulated",
+  "think": {"law": "negative exponential, truncated", "mean_s": 7.0, "cap_s": 70.0, "source": "TPC-W v1.8 5.3.1.1 and Comment 1"},
+  "routes": {
+   "Home": ["page", "/"],
+   "Product Detail": ["product", "/page/<n>"],
+   "New Products": ["page", "/page/new"],
+   "Best Sellers": ["page", "/page/best"],
+   "Search Request": ["page", "/page/search"],
+   "Search Results": ["inpage", "search"],
+   "Order Inquiry": ["page", "/page/account"],
+   "Order Display": ["inpage", "export"]
+  },
+  "unmapped": ["Admin Confirm", "Admin Request", "Buy Confirm", "Buy Request", "Customer Registration", "Shopping Cart"],
+  "unmapped_rule": "watched chain: a step into an unmapped state emits no request and takes no time; the next emitted interaction is the next mapped state the chain reaches",
+  "mapping_notes": [
+   "Search Request is the page that carries the form, a C1 page view; only Search Results runs the query (T-018 F10, F12)",
+   "the Order group is not mapped to /export; only Order Display (it 'displays the status of the last order') is, as an in-page C5 request",
+   "Order Inquiry ('enter or confirm their identity') is a form page, like Search Request [DEVIATION from T-018 F11's approximate row, which put it on /export too]"
+  ],
+  "product_popularity": {"law": "Zipf", "alpha": 0.75, "pages": 200, "note": "ASSUMPTION kept from P5b (ml/l7_benign.py)"},
+  "referer": "a page request carries the previous document of the device (none at session entry); its assets and its in-page requests carry their document",
+  "cookies": "every client keeps the cookies the server sets (one requests.Session per device)"
+ },
+ "search_terms": {"law": "uniform", "words": "bench/origin.py WORDS (62 words)", "terms": "one word", "note": "the same function for benign search users and for the bots (C2: 'search terms drawn like the benign search users'')"},
+ "export_r": {"law": "uniform integer", "lo": 1, "hi": 1000, "note": "r changes only the URL's work factor (bench/origin.py)"},
+ "benign_kinds": {
+  "search_user": {
+   "model": "a browser device: Home, then the search page; each search is in-page from the search page; after a search, a product page with probability p_detail, then back to the search page; otherwise the next search",
+   "p_detail": 0.619462,
+   "p_detail_source": "TPC-W v1.8 browsing mix, Search Results -> Product Detail (threshold 9868 - 3674)",
+   "think": "as navigation.think",
+   "status": "ASSUMPTION (no measured source, T-012 G3 gap)"
+  },
+  "exporter": {
+   "model": "a browser device: visits separated by a uniform gap; a visit loads the account page, waits a think time, then requests one export in-page",
+   "visit_gap_s": [60.0, 300.0],
+   "first_visit_s": [0.0, 120.0],
+   "status": "ASSUMPTION (no measured source, T-012 G3 gap)"
+  },
+  "flash_crowd": {
+   "model": "new TPC-W browsing devices (one address each) whose first view falls within the first 60 s of their slot",
+   "users": 30,
+   "arrive_within_s": 60.0,
+   "held_out": true,
+   "grounding": "[G3-06-Q1]: in a flash crowd, per-client rates drop; so no client here is faster than an ordinary device"
+  }
+ },
+ "classes": {
+  "C2": {
+   "name": "request-cost abuse",
+   "route": "C3", "variant_route": "C5",
+   "pacing": "Poisson",
+   "intensity": "level L of the spare capacity S (bench/calibration.spare_capacity of the record in use)",
+   "sources_p1": 100,
+   "per_source_rps": "L * S / (sources * cost_ms(route) / 1000)",
+   "ua": "one browser UA per source, drawn from ml/l7_benign.UA_TABLE by weight",
+   "cookies": "kept", "assets": "none",
+   "referer": "the page that carries the route's form (/page/search for C3, /page/account for C5), never loaded by the bot",
+   "role": "control"
+  },
+  "C3a": {
+   "name": "browser-claiming HTTP-library bots",
+   "pages": "product pages, uniform with replacement",
+   "page_gap_s": [2.0, 8.0], "page_gap_status": "ASSUMPTION (design 7.1)",
+   "costly": "one costly request right after each page", "route": "C3", "variant_route": "C5",
+   "intensity": "level L of S, carried by the number of sources n = ceil(L * S / ((cost_C1 + cost_route) / 1000 / mean(page_gap_s)))",
+   "sources_bounds": [50, 100],
+   "out_of_bounds": "a level whose n falls outside the bounds is not run; the ladder reports it as not reachable",
+   "ua": "browser UA from ml/l7_benign.UA_TABLE", "cookies": "kept", "assets": "none (no JS)",
+   "referer": "page requests carry the previous page (none for the first); the costly request carries its page",
+   "role": "control"
+  },
+  "C3b": {
+   "name": "headless-browser bots, non-human navigation (a request-level emulation)",
+   "costly": "one costly request per view, after the view's assets", "route": "C3", "variant_route": "C5",
+   "intensity": "the number of bots",
+   "ladder_bots": [50, 100, 200, 300],
+   "ladder_note": "if 300 bots cannot be carried (the ~300-alias limit with the benign population), the ladder stops at 200 and the knee is searched below it",
+   "level_choices": [30, 60],
+   "first_view_s": [0.0, 10.0],
+   "ua": "browser UA from ml/l7_benign.UA_TABLE", "cookies": "kept", "assets": "waves and a cache like a browser device, 6 keep-alive connections",
+   "referer": "like the benign browser: the previous page for a page, the page for its assets and its costly request",
+   "role": "the GRU's fair chance"
+  }
+ },
+ "mimicry": {
+  "M1": {"pages": "product pages, uniform without replacement (deep links)", "dwell_s": {"law": "constant", "value": 3.0}, "use": "secondary, joins the C3b phase", "held_out": false},
+  "M2": {"pages": "product pages, uniform without replacement (deep links)", "dwell_s": {"law": "uniform", "lo": 2.0, "hi": 12.0}, "use": "primary", "held_out": false},
+  "M3": {"pages": "the TPC-W browsing chain watched on its page states (Home, Product Detail, New Products, Best Sellers, Search Request, Order Inquiry); product pages uniform without replacement (no back-navigation)", "dwell_s": {"law": "uniform", "lo": 2.0, "hi": 12.0}, "use": "held out, evaluation only", "held_out": true},
+  "M2exp": {"pages": "as M2", "dwell_s": {"law": "negative exponential, truncated", "mean": 7.0, "cap": 70.0}, "use": "held-out variant (design 12.4), evaluation only", "held_out": true},
+  "exhausted": "when every product page has been visited, a new uniform permutation starts",
+  "rule": "the values are ASSUMPTIONS fixed here, before any model sees data; they are never adjusted after a model has been scored; the harm ladder may change only the number of bots"
+ },
+ "harm": {
+  "metric": "request-level Q and p95 of the benign clients against the calibration record's slo_ms, on its judged_profiles, with eval/harm_gate.py's rules unchanged (criterion, floors, control health, 1-s bins)",
+  "never_sent_after_s": 10.0,
+  "never_sent_rule": "a planned view whose nominal start falls in the attack window and that has not started 10 s after its nominal start counts every request it planned as failed (err never_sent), at t_intended = its nominal start",
+  "admission": "class k enters the P1 verdicts only if U_k passes the harm gate's criterion against C over at least min_blocks valid blocks (dQ or dL), its placebo C' does not pass, and the calibration record is frozen; otherwise its verdict is V-D 'no harm'. Nothing is retuned after admission",
+  "cross_check": {"client_dq_pp": 10.0, "server_q_min": 99.0, "rule": "a block is invalid as a client-side artefact when its client-side dQ >= 10 pp but the server-side Q(U), from nginx's $request_time for the same benign entities, is >= 99 %"},
+  "ladder": {"pilot_seeds": "p1_pilot of ml/p3_prereg.json (9001-9008)", "levels": [1, 2, 4, 8], "repeats": 2, "knee": "bench/calibration.knee: the lowest level whose harm reaches the floor in both repeats"},
+  "verdict_record": "only a frozen calibration record; a placeholder or a measured record is refused"
+ }
+}
