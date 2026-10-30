@@ -1185,6 +1185,68 @@ class EveryLegitBanTest(WithCopies):
         self.assertEqual(p["benign_bans"][0]["run_valid"], None)
 
 
+class PostBanRuleTest(unittest.TestCase):
+    """T-028 F-02, fixed before any protected data and pending the user's confirmation: in a protected run an attack stream's sending
+    is judged only up to its sources' first bans; what it could not send after them is mitigated, not unsent."""
+
+    NAN = float("nan")
+
+    def run_of(self, tmp, rows, role="mitigated"):
+        """One attack stream of two sources (ident 0 and 1) at offset 10 s, with these (t_intended, t_sent, err, ident) records."""
+        path = os.path.join(tmp, "a.csv.gz")
+        df = pd.DataFrame([(t, s, s + 0.01, 200 if err == "" else 0, err, ident) for t, s, err, ident in rows],
+                          columns=["t_intended", "t_sent", "t_done", "status", "err", "ident"])
+        df.insert(0, "i", range(len(df)))
+        df.to_csv(path, index=False, compression="gzip", na_rep="nan")
+        sent = sum(1 for r in rows if not math.isnan(r[1]))
+        summary = {"intended": len(rows), "sent": sent, "dropped": len(rows) - sent, "cpu": {"share": 0.02}, "slip_s": {"p99": 0.001},
+                   "flags": {**OK_FLAGS, "dropped": sent < len(rows), "descriptors": any(r[2] == "fd" for r in rows)}}
+        return {"dir": tmp, "role": role, "executor": None, "streams": [
+            {"id": "A-cheap_static_flood-perfect-0", "kind": "attack", "route_class": "C1", "netem": "perfect", "records": path,
+             "offset_s": 10.0, "summary": summary, "addresses": ["10.0.2.1", "10.0.2.2"]}]}
+
+    def requests(self, unsent_b_after=3.0, extra=()):
+        """Source A (ident 0) is banned at 12 s on the axis (2 s into the stream); A's requests after it are not sent, and B's
+        (ident 1) are dropped by the engine's cap from `unsent_b_after`."""
+        out = []
+        for k in range(100):
+            t, ident = k / 10, k % 2
+            lost = (ident == 0 and t >= 2.0) or (ident == 1 and t >= unsent_b_after)
+            out.append((t, self.NAN if lost else t + 0.001, "dropped" if lost else "", ident))
+        return out + list(extra)
+
+    def test_drops_after_the_bans_void_the_run_under_the_old_rule_and_not_under_the_new(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run = self.run_of(tmp, self.requests())
+            old = H.validity(run, FROZEN, None, None)
+            new = H.validity(run, FROZEN, None, None, {"10.0.2.1": 12.0})
+        self.assertIn("A-cheap_static_flood-perfect-0: sent 25 of 100 intended", old["relative"]["reasons"])
+        self.assertEqual((new["relative"]["ok"], new["strict"]["ok"]), (True, True), new["strict"]["reasons"])
+        self.assertEqual(new["post_ban"]["A-cheap_static_flood-perfect-0"],
+                         {"judged_intended": 25, "judged_sent": 25, "judged_dropped": 0, "judged_fd": 0, "judged_port": 0,
+                          "mitigated": 75, "first_ban_s": 12.0})
+
+    def test_a_generator_that_fails_before_the_first_ban_still_voids_the_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dropped = self.run_of(tmp, self.requests(unsent_b_after=1.0))
+            new = H.validity(dropped, FROZEN, None, None, {"10.0.2.1": 12.0})
+        self.assertIn("A-cheap_static_flood-perfect-0: sent 15 of the 20 requests due before its sources' bans",
+                      new["relative"]["reasons"])
+        self.assertIn("A-cheap_static_flood-perfect-0: dropped 5 requests before its sources' bans", new["strict"]["reasons"])
+        with tempfile.TemporaryDirectory() as tmp:
+            fd = self.run_of(tmp, self.requests(extra=[(0.55, self.NAN, "fd", 1), (5.0, self.NAN, "fd", 0)]))
+            new = H.validity(fd, FROZEN, None, None, {"10.0.2.1": 12.0})
+        self.assertIn("A-cheap_static_flood-perfect-0: out of descriptors before its sources' bans", new["relative"]["reasons"])
+
+    def test_a_run_that_is_not_protected_or_has_no_ban_is_judged_as_before(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            u = H.validity(self.run_of(tmp, self.requests(), role="attack"), FROZEN, None, None, {"10.0.2.1": 12.0})
+            m = H.validity(self.run_of(tmp, self.requests()), FROZEN, None, None, {})
+        for v in (u, m):
+            self.assertIn("A-cheap_static_flood-perfect-0: sent 25 of 100 intended", v["relative"]["reasons"])
+            self.assertNotIn("post_ban", v)
+
+
 class P2OutcomeTest(unittest.TestCase):
     """The pre-registered P2 outcome (PRIORITY_PLAN 3): its constants are fixed before any protected run and pinned here, and its two
     halves are tested at their boundaries. A change to a value below is a new pre-registration, not a fix."""

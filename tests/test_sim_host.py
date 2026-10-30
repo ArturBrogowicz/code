@@ -724,6 +724,27 @@ class MitigatedServerTest(unittest.TestCase):
         _, named = self.write("M_xdp", effects={"U": {"fail_p": 1.0}, "M_xdp": {}}, others=attack)
         self.assertFalse(np.any(named), "an effect named for the run is taken as it is")
 
+    def test_requests_to_a_banned_source_fill_the_engines_cap_and_it_drops_the_rest(self):
+        workdir = os.path.join(self.tmp.name, "block", "M_xdp", "streams", "A-cheap_static_flood-perfect-0")
+        os.makedirs(workdir)
+        opts = {"--rate": "300", "--duration": "30", "--process": "constant", "--seed": "5", "--timeout": "10",
+                "--summary": os.path.join(workdir, "loadgen.summary.json"), "--records": os.path.join(workdir, "loadgen.records.csv.gz")}
+        zero = X.ENGINE_T0_OFFSET_S
+        S.SyntheticServer(CAL, TIMELINE).write("A-cheap_static_flood-perfect-0", opts, 30.5, 1, (), 0.0,
+                                               bans={"10.0.2.1": [zero + 5.0, None]}, local=("10.0.2.1",), max_inflight=500)
+        with gzip.open(opts["--records"], "rt", newline="") as fh:
+            rows = list(csv.DictReader(fh))
+        with open(opts["--summary"], encoding="utf-8") as fh:
+            summary = json.load(fh)
+        dropped = [float(r["t_intended"]) for r in rows if r["err"] == "dropped"]
+        self.assertEqual(len(rows), 9000, "with bans the attack stream's records are all written")
+        self.assertAlmostEqual(min(dropped), 5.0 + 500 / 300, delta=0.05)
+        self.assertTrue(all(r["t_sent"] == "nan" for r in rows if r["err"] == "dropped"))
+        sent = [(float(r["t_sent"]), float(r["t_done"])) for r in rows if r["err"] != "dropped"]
+        self.assertLessEqual(max(sum(1 for s, d in sent if s <= t < d) for t in np.arange(0.0, 30.0, 0.25)), 500)
+        self.assertEqual((summary["intended"], summary["sent"], summary["dropped"]), (9000, 9000 - len(dropped), len(dropped)))
+        self.assertTrue(summary["flags"]["dropped"] and summary["flags"]["sent_short"])
+
     def test_a_banned_attack_source_costs_the_server_nothing(self):
         server = S.SyntheticServer(CAL, TIMELINE, capacity_cpu=1.0)
         others = [{"kind": "legit", "begin": 0.0, "end": 30.0, "rate": 10.0, "route": "C1", "addresses": ("10.0.1.5",)},

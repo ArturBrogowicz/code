@@ -240,6 +240,39 @@ class OutcomeRecordTest(RunCase):
         self.assertTrue(first_legit.addresses)
 
 
+class PostBanRunTest(RunCase):
+    """T-028 F-02 on the simulated host: banned attack sources make their engine's requests wait out the timeout, the in-flight cap
+    fills and the engine drops requests; the old rule voided that run for what the mitigation did, the new one judges the attack
+    streams up to their sources' bans only, and still voids a generator that failed before them."""
+
+    def flood(self, **host_kw):
+        scn = SC.load(os.path.join(REPO, "bench", "scenarios", "cheap_static_flood.json"))
+        plan = X.plan_run(scn, self.cal, "M_xdp", 1, os.path.join(self.tmp.name, "flood", "M_xdp"), C.PLACEHOLDER, "sha",
+                          settings=bare_settings(), rho=20.0, timeline=SHORT)
+        host = F.SimHost(server=F.SyntheticServer(self.cal, SHORT, F.EFFECT_PRESETS["pass"]), **host_kw)
+        result = X.execute(plan, host)
+        self.assertTrue(result.ok, result.reasons)
+        run = H.read_run(plan.out)
+        return run, H.mitigation(run)
+
+    def test_a_mitigation_that_fills_the_engines_cap_voided_its_run_under_the_old_rule_and_not_under_the_new(self):
+        run, m = self.flood(max_inflight=1000)
+        big = max((s for s in run["streams"] if s["kind"] == "attack"), key=lambda s: s["summary"]["intended"])
+        self.assertLess(big["summary"]["sent"], 0.99 * big["summary"]["intended"], "the engine dropped requests after the bans")
+        old = H.validity(run, self.cal, None, None)
+        self.assertTrue([r for r in old["relative"]["reasons"] if r.startswith(f"{big['id']}: sent ")], old["relative"]["reasons"])
+        new = H.validity(run, self.cal, None, None, m["first_ban_axis_s"])
+        self.assertEqual([r for r in new["relative"]["reasons"] if r.startswith("A-")], [])
+        split = new["post_ban"][big["id"]]
+        self.assertEqual(split["judged_sent"], split["judged_intended"])
+        self.assertGreater(split["mitigated"], 0.5 * big["summary"]["intended"])
+
+    def test_an_engine_that_drops_before_the_bans_still_voids_the_run(self):
+        run, m = self.flood(max_inflight=1)
+        new = H.validity(run, self.cal, None, None, m["first_ban_axis_s"])
+        self.assertTrue([r for r in new["relative"]["reasons"] if "requests due before its sources' bans" in r], new["relative"]["reasons"])
+
+
 class ExitStampTest(RunCase):
     """The executor block keeps the exit stamp of each stream, the moment its process was reaped, which its start was estimated from
     (docs/HG1C_DESIGN.md 26). With the time the engine's summary was last written it says how long an exit took, which S4 and HG2a

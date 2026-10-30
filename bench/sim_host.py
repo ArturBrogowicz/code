@@ -144,8 +144,10 @@ class SimHost(X.Host):
                  log_lines=20, tag="placeholder", python_exists=True, steal_share=0.0, on_sleep=None, server=None,
                  fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,), wall_late_s=None, silent=None, nonzero=None,
                  ping_drops=None, daemon_holds_pipes=True, run_cost_s=None, daemon_startup_s=DAEMON_STARTUP_S,
-                 daemon_ban_rps=DAEMON_BAN_RPS, daemon_ban_delay_s=DAEMON_BAN_DELAY_S, h01_fix_in_history=False):
+                 daemon_ban_rps=DAEMON_BAN_RPS, daemon_ban_delay_s=DAEMON_BAN_DELAY_S, h01_fix_in_history=False,
+                 max_inflight=None):
         self.t = 0.0
+        self.max_inflight = max_inflight      # a lower in-flight cap for the engines than their --max-inflight (a test of F-02)
         self.h01_fix_in_history = h01_fix_in_history           # what `git merge-base --is-ancestor <the H-01 fix> HEAD` says
         self.daemon_startup_s, self.daemon_ban_rps, self.daemon_ban_delay_s = daemon_startup_s, daemon_ban_rps, daemon_ban_delay_s
         self.daemons = {}                     # pid -> what the model keeps of a daemon (its run, namespace, files, program)
@@ -281,7 +283,8 @@ class SimHost(X.Host):
 
     def _start_stream(self, argv, ns, stderr):
         opts = {a: argv[i + 1] for i, a in enumerate(argv)
-                if a in ("--rate", "--duration", "--summary", "--records", "--process", "--seed", "--period", "--duty")}
+                if a in ("--rate", "--duration", "--summary", "--records", "--process", "--seed", "--period", "--duty",
+                         "--max-inflight", "--timeout")}
         local = [argv[i + 1] for i, a in enumerate(argv) if a == "--local-addr"]
         sid = os.path.basename(os.path.dirname(opts["--summary"]))
         kind = "legit" if sid.startswith("L-") else "attack"
@@ -341,8 +344,10 @@ class SimHost(X.Host):
         duration = float(opts["--duration"])
         os.makedirs(os.path.dirname(opts["--summary"]), exist_ok=True)
         if self.server is not None:
+            caps = [int(opts["--max-inflight"])] if "--max-inflight" in opts else []
+            caps += [self.max_inflight] if self.max_inflight else []
             n = self.server.write(sid, opts, X.ENGINE_T0_OFFSET_S, max(1, len(local)), self.registry.get(_run_dir(opts), ()), loop_start,
-                                  bans=self.bans.get(_run_dir(opts)), local=tuple(local))
+                                  bans=self.bans.get(_run_dir(opts)), local=tuple(local), max_inflight=min(caps, default=None))
         else:
             with gzip.open(opts["--records"], "wt") as fh:
                 fh.write(RECORD_HEADER)
@@ -859,11 +864,14 @@ def _run_dir(opts):
     return os.path.dirname(os.path.dirname(os.path.dirname(opts["--summary"])))
 
 
-def write_summary(path, intended, completed, slip_p99, wall, errors=None):
-    """The engine's summary, with the keys the harm gate reads."""
-    summary = {"schema": 1, "tool": "loadgen", "intended": intended, "sent": intended, "dropped": 0, "completed": completed,
+def write_summary(path, intended, completed, slip_p99, wall, errors=None, sent=None):
+    """The engine's summary, with the keys the harm gate reads; `sent` less than `intended` is the engine's drops (its in-flight cap),
+    flagged as bench/loadgen.py flags them."""
+    sent = intended if sent is None else sent
+    flags = {**OK_FLAGS, "dropped": sent < intended, "sent_short": intended > 0 and sent < 0.99 * intended}
+    summary = {"schema": 1, "tool": "loadgen", "intended": intended, "sent": sent, "dropped": intended - sent, "completed": completed,
                "errors": errors or {}, "slip_s": {"p99": slip_p99}, "cpu": {"share": 0.02, "process_s": 0.1, "spin_s": 0.0},
-               "wall_s": wall, "flags": dict(OK_FLAGS), "valid": True}
+               "wall_s": wall, "flags": flags, "valid": not any(flags.values())}
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(summary, fh)
 
@@ -960,11 +968,12 @@ class SyntheticServer:
             protected &= self.banned(ip, at, bans)
         return ~protected
 
-    def write(self, sid, opts, wall, identities, others=(), begin=0.0, bans=None, local=()):
+    def write(self, sid, opts, wall, identities, others=(), begin=0.0, bans=None, local=(), max_inflight=None):
         """The records and the summary of one stream at the paths in `opts`; returns the number of requests it intended. The wall
         time in the summary is `wall` or, if more, until the last request was answered (a timeout included) plus the engine's offset.
         `local` are the stream's source addresses in the engine's order (request i comes from local[i % len(local)]); with `bans`
-        a request from a banned source times out."""
+        a request from a banned source times out. With `max_inflight` the engine drops (never sends) a request that is due while
+        that many are in flight, as bench/loadgen.py does: requests to banned sources wait out their timeout and fill it (F-02)."""
         run_dir = _run_dir(opts)
         run = os.path.basename(run_dir)
         label = f"{os.path.basename(os.path.dirname(run_dir))}/{run}"          # b03_a1/U, 07_L2_r1/U: what makes a run this run
@@ -999,16 +1008,40 @@ class SyntheticServer:
             for j, ip in enumerate(local):
                 bad |= (source == j) & self.banned(ip, zero + sent, bans)
         done = sent + service
-        done[bad] = sent[bad] + TIMEOUT_S
-        rows = n if kind == "legit" else min(n, ATTACK_RECORDS)
+        done[bad] = sent[bad] + float(opts.get("--timeout", TIMEOUT_S))
+        dropped = self.over_cap(sent, done, max_inflight)
+        bad &= ~dropped
+        # the gate reads an attack stream's records only in a run with bans (its sending is judged up to them); elsewhere the summary
+        rows = n if kind == "legit" or bans else min(n, ATTACK_RECORDS)
         with gzip.open(opts["--records"], "wt") as fh:
             fh.write(RECORD_HEADER)
             for i in range(rows):
+                if dropped[i]:
+                    fh.write(f"{i},{sched[i]:.6f},nan,nan,0,0,dropped,{i % identities},0\n")
+                    continue
                 failed = bool(bad[i])
                 fh.write(f"{i},{sched[i]:.6f},{sent[i]:.6f},{done[i]:.6f},{0 if failed else 200},100,"
                          f"{'timeout' if failed else ''},{i % identities},1\n")
-        if n:                                          # the loop ends when its last request has, a timeout included
-            wall = max(wall, float(done.max()) + X.ENGINE_T0_OFFSET_S)
-        write_summary(opts["--summary"], n, int(n - bad.sum()), float(np.quantile(slip, 0.99)) if n else None, wall,
-                      {"timeout": int(bad.sum())} if bad.any() else None)
+        if n and not dropped.all():                    # the loop ends when its last request has, a timeout included
+            wall = max(wall, float(done[~dropped].max()) + X.ENGINE_T0_OFFSET_S)
+        errors = {k: v for k, v in (("timeout", int(bad.sum())), ("dropped", int(dropped.sum()))) if v}
+        write_summary(opts["--summary"], n, int(n - bad.sum() - dropped.sum()),
+                      float(np.quantile(slip[~dropped], 0.99)) if (~dropped).any() else None, wall, errors or None,
+                      sent=int(n - dropped.sum()))
         return n
+
+    @staticmethod
+    def over_cap(sent, done, cap):
+        """Which requests the engine drops: those due while `cap` others are in flight (sent and not done), in schedule order."""
+        dropped = np.zeros(len(sent), dtype=bool)
+        if not cap:
+            return dropped
+        flight = []
+        for i in range(len(sent)):
+            while flight and flight[0] <= sent[i]:
+                heapq.heappop(flight)
+            if len(flight) >= cap:
+                dropped[i] = True
+            else:
+                heapq.heappush(flight, done[i])
+        return dropped

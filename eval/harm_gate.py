@@ -25,6 +25,9 @@ under the run contract (5.5), the output is a verdict, a Markdown report and a J
     "the class's p95 within its SLO", taken over all its requests and not only the successful ones). A failed block is
     re-run once with the same seed, at most `max_reruns` times in all; a valid block is never re-run. Validity
     does not read the attack's effect.
+  * in a protected run (M_<mode>) an attack stream is judged for its sending only up to the first ban of its source (post_ban_split:
+    a design fix made before any protected data, pending the user's confirmation; T-028 F-02): what the engine did not send after
+    that, or dropped because requests to banned sources filled its in-flight cap, is "mitigated", not "unsent".
   * no verdict on a calibration that is not frozen, except with --dry-run, which labels everything it prints.
   * no verdict on runs that carry overrides (`run.json` and `block.json` `overrides`: a smoke test's load, timeline or
     timer limit): the campaign is INVALID and says why, whatever the figures. `--allow-overrides` lifts that for a simulated
@@ -295,22 +298,58 @@ def mitigation(run):
     identities = {a for s in run["streams"] if s["kind"] == "attack" for a in s.get("addresses", [])}
     offsets = [s["offset_s"] for s in run["streams"] if s["kind"] == "attack"]
     ttm = None
-    if attack and offsets and run.get("zero_epoch_s") is not None:
+    zero = run.get("zero_epoch_s")
+    first_ban_axis = {} if zero is None else {ip: round(float(first[ip]["t_wall"]) - zero, 3) for ip in first}
+    if attack and offsets and zero is not None:
         start = run["zero_epoch_s"] + float(np.median(offsets))
         values = {ip: round(float(first[ip]["t_wall"]) - start, 3) for ip in attack}
         ordered = sorted(values.values())
         ttm = {"n": len(ordered), "median": float(np.median(ordered)), "min": ordered[0], "max": ordered[-1], "by_identity": values}
     return {"ban_file": present, "bans": sum(1 for e in events if e["kind"] == "ban"), "benign_blocked": benign,
-            "attack_identities": len(identities) or None, "attack_banned": len(attack), "ttm_s": ttm,
+            "attack_identities": len(identities) or None, "attack_banned": len(attack), "ttm_s": ttm, "first_ban_axis_s": first_ban_axis,
             "engines": dict(sorted(collections.Counter(str(first[ip].get("engine", "unknown")) for ip in first).items()))}
 
 
 # --- validity ----------------------------------------------------------------------------------
 
-def validity(run, cal, slip_p99, control_slip_p99):
-    """Both profiles for a run: {'relative': {'ok', 'reasons'}, 'strict': {...}} (docs/HG1B_MINIMAL_DESIGN.md 4)."""
+def post_ban_split(stream, first_ban_axis):
+    """T-028 F-02, a design fix made before any protected data and pending the user's confirmation: in a protected run an attack
+    stream's sending is judged only up to the first ban of its source. A request due at or after its own source's first ban is
+    `mitigated`, sent or not; so is a request the engine's in-flight cap dropped (err "dropped") at or after the first ban of any
+    source of the stream, since requests to banned sources wait out their timeout behind XDP and fill the cap. Every other request is
+    judged, and what of those was not sent, or failed for want of descriptors or ports, is the generator's failure. `first_ban_axis`
+    maps an address to its first ban on the run's axis. The counts, from the stream's records; None when no source was banned."""
+    addresses = list(stream.get("addresses") or [])
+    bans = [first_ban_axis[a] for a in addresses if a in first_ban_axis]
+    if not bans:
+        return None
+    first_any, offset = min(bans), float(stream["offset_s"])
+    out = {"judged_intended": 0, "judged_sent": 0, "judged_dropped": 0, "judged_fd": 0, "judged_port": 0, "mitigated": 0,
+           "first_ban_s": first_any}
+    opener = gzip.open if stream["records"].endswith(".gz") else open
+    try:
+        with opener(stream["records"], "rt", newline="", encoding="utf-8") as fh:
+            for row in csv.DictReader(fh):
+                due, err = float(row["t_intended"]) + offset, row["err"]
+                own = first_ban_axis.get(addresses[int(row["ident"]) % len(addresses)])
+                if (own is not None and due >= own) or (err == "dropped" and due >= first_any):
+                    out["mitigated"] += 1
+                    continue
+                out["judged_intended"] += 1
+                out["judged_sent"] += math.isfinite(float(row["t_sent"]))
+                out["judged_dropped"] += err == "dropped"
+                out["judged_fd"] += err == "fd"
+                out["judged_port"] += err == "port"
+    except (OSError, EOFError, KeyError, ValueError, csv.Error) as exc:
+        raise GateError(f"{stream['records']}: {exc}") from exc
+    return out
+
+
+def validity(run, cal, slip_p99, control_slip_p99, first_ban_axis=None):
+    """Both profiles for a run: {'relative': {'ok', 'reasons'}, 'strict': {...}} (docs/HG1B_MINIMAL_DESIGN.md 4), and, when any attack
+    stream of a protected run was judged up to its sources' bans (post_ban_split, with `first_ban_axis`), `post_ban`: their counts."""
     v = cal["validity"]
-    shared, relative, strict = [], [], []
+    shared, relative, strict, post_ban = [], [], [], {}
     for s in run["streams"]:
         sm, sid = s["summary"], s["id"]
         try:
@@ -321,16 +360,30 @@ def validity(run, cal, slip_p99, control_slip_p99):
             raise GateError(f"{run['dir']}: the summary of stream {sid} lacks {exc}") from exc
         if intended > 0 and cpu > v["cpu_share"]:               # no request: its microseconds of CPU over its microseconds of wall time
             shared.append(f"{sid}: CPU share {cpu:.2f} above {v['cpu_share']:g}")
-        if intended > 0 and sent < v["sent_share"] * intended:
-            shared.append(f"{sid}: sent {sent} of {intended} intended")
-        if flags.get("descriptors"):
-            shared.append(f"{sid}: out of descriptors")
-        if flags.get("ports"):
-            shared.append(f"{sid}: out of ports")
-        if dropped > 0 and s["kind"] == "legit":
-            relative.append(f"{sid}: a legit stream dropped {dropped} requests")
-        if dropped > 0:
-            strict.append(f"{sid}: dropped {dropped} requests")
+        split = (post_ban_split(s, first_ban_axis) if first_ban_axis and s["kind"] == "attack" and run.get("role") == "mitigated"
+                 else None)
+        if split is not None:
+            post_ban[sid] = split
+            judged, done = split["judged_intended"], split["judged_sent"]
+            if judged > 0 and done < v["sent_share"] * judged:
+                shared.append(f"{sid}: sent {done} of the {judged} requests due before its sources' bans")
+            if split["judged_fd"]:
+                shared.append(f"{sid}: out of descriptors before its sources' bans")
+            if split["judged_port"]:
+                shared.append(f"{sid}: out of ports before its sources' bans")
+            if split["judged_dropped"]:
+                strict.append(f"{sid}: dropped {split['judged_dropped']} requests before its sources' bans")
+        else:
+            if intended > 0 and sent < v["sent_share"] * intended:
+                shared.append(f"{sid}: sent {sent} of {intended} intended")
+            if flags.get("descriptors"):
+                shared.append(f"{sid}: out of descriptors")
+            if flags.get("ports"):
+                shared.append(f"{sid}: out of ports")
+            if dropped > 0 and s["kind"] == "legit":
+                relative.append(f"{sid}: a legit stream dropped {dropped} requests")
+            if dropped > 0:
+                strict.append(f"{sid}: dropped {dropped} requests")
         if slip is not None and slip > v["strict_slip_p99_s"]:
             strict.append(f"{sid}: slip p99 {slip * 1000:.0f} ms above {v['strict_slip_p99_s'] * 1000:.0f} ms")
     executor = run.get("executor")
@@ -341,8 +394,9 @@ def validity(run, cal, slip_p99, control_slip_p99):
     if control_slip_p99 is not None and slip_p99 is not None and slip_p99 > control_slip_p99 + v["slip_delta_s"]:
         relative.append(f"legit slip p99 {slip_p99 * 1000:.0f} ms exceeds the control's {control_slip_p99 * 1000:.0f} ms "
                         f"by more than {v['slip_delta_s'] * 1000:.0f} ms")
-    return {"relative": {"ok": not shared + relative, "reasons": shared + relative},
-            "strict": {"ok": not shared + strict, "reasons": shared + strict}}
+    out = {"relative": {"ok": not shared + relative, "reasons": shared + relative},
+           "strict": {"ok": not shared + strict, "reasons": shared + strict}}
+    return {**out, "post_ban": post_ban} if post_ban else out
 
 
 def control_health(m, cal):
@@ -391,10 +445,12 @@ def assess_block(block_dir, cal, slo_scale=1.0):
     out_runs = {}
     for name, run in runs.items():
         m = metrics[name]
-        val = validity(run, cal, m["slip_p99_s"], None if name == CONTROL or not control else control["slip_p99_s"])
+        mit = mitigation(run)
+        val = validity(run, cal, m["slip_p99_s"], None if name == CONTROL or not control else control["slip_p99_s"],
+                       mit["first_ban_axis_s"])
         out_runs[name] = {"role": run["role"], "mode": run["mode"], "metrics": m, "validity": val,
                           "valid": val[cal["validity"]["profile"]]["ok"], "strict_ok": val["strict"]["ok"],
-                          "mitigation": mitigation(run)}
+                          "mitigation": mit}
     reasons = list(problems)
     for name in (CONTROL, PLACEBO, ATTACK):
         if name in out_runs and not out_runs[name]["valid"]:
