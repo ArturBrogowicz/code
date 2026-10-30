@@ -16,6 +16,7 @@ from GRU_ML_model import GRUDDoSClassifier
 import ban_events
 import l7_engine
 import l7_ingest
+import slow_pc
 
 # Limit PyTorch internal thread pool to 1 to prevent GIL contention
 # between PyTorch's intra-op parallelism and our Python threads.
@@ -148,6 +149,22 @@ if HEURISTIC_PROFILE == "tolerant":
 elif HEURISTIC_PROFILE != "default":
     raise SystemExit(f"[-] unknown HEURISTIC_PROFILE {HEURISTIC_PROFILE!r} (default|tolerant)")
 
+# P4 per-connection slow rule (docs/P4_SLOW_DESIGN.md §6-§7; the rule itself is slow_pc.py). OFF
+# unless SLOW_PC=1, so by default the daemon runs exactly as before. SLOW_PC=1 runs it in shadow:
+# once per telemetry poll it reads `ss -tinpH` and logs the connections it would close and the
+# addresses it would ban (slow_pc_close / slow_pc_would_ban events). SLOW_PC_RECORD appends every
+# poll's input to a gzip file for the offline replay (§6.1). T, F and K must be a point of the
+# frozen grid; the defaults are its most conservative point until the validation runs choose one.
+SLOW_PC = os.environ.get("SLOW_PC", "0") == "1"
+SLOW_PC_RECORD = os.environ.get("SLOW_PC_RECORD", "")
+SLOW_PC_T = int(os.environ.get("SLOW_PC_T", "20"))
+SLOW_PC_F = int(os.environ.get("SLOW_PC_F", "16"))
+SLOW_PC_K = int(os.environ.get("SLOW_PC_K", "6"))
+if SLOW_PC and (SLOW_PC_T, SLOW_PC_F, SLOW_PC_K) not in slow_pc.GRID:
+    raise SystemExit(f"[-] SLOW_PC_T/F/K = ({SLOW_PC_T}, {SLOW_PC_F}, {SLOW_PC_K}) is not a point "
+                     "of the frozen grid (slow_pc.GRID)")
+SLOW_PC_REPORT_INTERVAL = 5.0
+
 # Eviction timeout for idle client tracking data (seconds)
 CLIENT_IDLE_TIMEOUT = 60.0
 
@@ -245,6 +262,15 @@ volumetric_active_until = 0.0
 
 # Track last-seen timestamp per client for idle eviction
 client_last_seen = {}
+
+# P4 per-connection slow rule (SLOW_PC=1). The detector and the record file belong to the
+# telemetry thread, which creates them at its first poll. The access-log loop hands it (ip, port,
+# UA key, t) of every logged request through the inbox; a full inbox drops the item and counts it.
+slow_pc_engine = None
+slow_pc_inbox = queue.Queue(maxsize=100000)
+slow_pc_counts = defaultdict(int)   # inbox_dropped, note_errors: written by the access-log loop
+slow_pc_record_fh = None            # the SLOW_PC_RECORD file; False once a write failed
+slow_pc_last_report = 0.0
 
 # Queue for offloading ML inference to a dedicated thread
 inference_queue = queue.Queue()
@@ -421,6 +447,98 @@ def get_established_conns_by_ip():
         peer_ip = peer.rsplit(":", 1)[0].strip("[]")
         counts[peer_ip] += 1
     return counts
+
+
+def slow_pc_note(log_data):
+    """The access-log side of the P4 per-connection rule (main thread): hand (ip, port, UA key,
+    t) of one logged request to the telemetry thread, for the shared-address guard and, on :443,
+    the answered connections. It cannot raise, so the L7 rate rule after it runs as before."""
+    try:
+        item = slow_pc.l7_item(log_data, time.time())
+        if item is not None:
+            slow_pc_inbox.put_nowait(item)
+    except queue.Full:
+        slow_pc_counts["inbox_dropped"] += 1
+    except Exception:  # noqa: BLE001 - the L7 rate rule after this call must run as before
+        slow_pc_counts["note_errors"] += 1
+
+
+def slow_pc_read():
+    """(text, error) of one `ss -tinpH` read in server_ns; text is None when the call failed.
+    Bytes that are not UTF-8 are read as U+FFFD (H-01)."""
+    try:
+        res = subprocess.run(slow_pc.SS_ARGV, capture_output=True, timeout=2, check=False)
+    except (subprocess.SubprocessError, OSError) as e:
+        return None, e
+    if res.returncode != 0:
+        err = res.stderr.decode("utf-8", "replace").strip()[:200]
+        return None, f"ss exited {res.returncode}: {err}"
+    return res.stdout.decode("utf-8", "replace"), None
+
+
+def slow_pc_record(now, text, items, banned, enforce):
+    """Append this poll's input to SLOW_PC_RECORD as one gzip member, for the offline replay
+    (§6.1; slow_pc.read_record). A failed write stops the recording, never the rule."""
+    global slow_pc_record_fh
+    if not SLOW_PC_RECORD or slow_pc_record_fh is False:
+        return
+    try:
+        if slow_pc_record_fh is None:
+            slow_pc_record_fh = open(SLOW_PC_RECORD, "ab")  # noqa: SIM115 - held for the run
+        slow_pc_record_fh.write(slow_pc.record_member(now, text, items, banned, enforce))
+        slow_pc_record_fh.flush()
+    except (OSError, ValueError) as e:
+        slow_pc_record_fh = False
+        report_daemon_error("slow_pc_record", e, "recording stopped")
+
+
+def slow_pc_act(result):
+    """Log one poll's decisions. Shadow: nothing is closed or banned."""
+    for c in result.closes:
+        EVENTS.emit("slow_pc_close", enforced=False, **c._asdict())
+    if result.capped_closes:
+        EVENTS.emit("slow_pc_capped", what="close", n=result.capped_closes,
+                    cap=slow_pc.MAX_CLOSES_PER_POLL)
+    for b in result.bans:
+        EVENTS.emit("slow_pc_would_ban", ip=b.ip, value=b.closes, threshold=SLOW_PC_K,
+                    ua_keys=b.ua_keys)
+    if result.capped_bans:
+        EVENTS.emit("slow_pc_capped", what="ban", n=len(result.capped_bans),
+                    cap=slow_pc.MAX_BANS_PER_MIN, ips=result.capped_bans[:50])
+
+
+def slow_pc_poll():
+    """One poll of the P4 per-connection rule (SLOW_PC=1; docs/P4_SLOW_DESIGN.md §6-§7), in the
+    telemetry thread after the per-address rules. A failed `ss` call skips the poll and resets no
+    streak (§6.3). It cannot raise: the GRU feed and the SYN-cookie check after it run as before.
+    """
+    global slow_pc_engine, slow_pc_last_report
+    try:
+        now = time.time()
+        if slow_pc_engine is None:
+            slow_pc_engine = slow_pc.Detector(SLOW_PC_T, SLOW_PC_F, SLOW_PC_K, BAN_TTL_SECONDS)
+        items = []
+        while True:
+            try:
+                items.append(slow_pc_inbox.get_nowait())
+            except queue.Empty:
+                break
+        with banned_ips_lock:
+            banned = set(banned_ips)
+        text, err = slow_pc_read()
+        slow_pc_record(now, text, items, banned, False)
+        if text is None:
+            slow_pc_engine.skip(now, items)
+            report_daemon_error("slow_pc", err, "poll skipped, streaks kept")
+        else:
+            slow_pc_act(slow_pc_engine.poll(now, text, items, banned))
+        if now - slow_pc_last_report >= SLOW_PC_REPORT_INTERVAL:
+            EVENTS.emit("slow_pc_poll", mode="shadow", **slow_pc_engine.take_stats(),
+                        inbox_dropped=slow_pc_counts.get("inbox_dropped", 0),
+                        note_errors=slow_pc_counts.get("note_errors", 0))
+            slow_pc_last_report = now
+    except Exception as e:  # noqa: BLE001 - the rest of the telemetry poll must run
+        report_daemon_error("slow_pc", e, "poll skipped")
 
 
 # Robustness (review of 2026-10-29, H-01/H-02): an error the daemon survives is reported on
@@ -931,6 +1049,12 @@ def l3_l4_telemetry_monitor():
             # cumulative and are reclaimed only when an IP goes idle (see
             # evict_idle_clients) -- that is what preserves flow duration + counts.
 
+            # --- P4 per-connection slow rule (SLOW_PC=1): its own `ss -tinpH` reader, after the
+            # per-address rules and before the GRU feed (docs/P4_SLOW_DESIGN.md §6.5). It reads no
+            # XDP delta, so it runs on a re-baselining poll too, and it cannot raise.
+            if SLOW_PC:
+                slow_pc_poll()
+
             if rebaseline:
                 # D-01: this poll only re-took the snapshots that the failed poll(s) left
                 # behind. Read now, their deltas would span the whole outage and ban sources at
@@ -1041,7 +1165,8 @@ try:
         print("[!] GRU_ONLY=1 — all non-GRU ban paths DISABLED (test isolation mode).")
     EVENTS.emit("start", pid=os.getpid(), backend=os.environ.get("MITIGATION_BACKEND", "xdp"),
                 gru_only=GRU_ONLY, xdp_gru=XDP_GRU, l7_shadow=L7_SHADOW,
-                heuristic_profile=HEURISTIC_PROFILE,
+                heuristic_profile=HEURISTIC_PROFILE, slow_pc=SLOW_PC,
+                slow_pc_sha256=ban_events.file_sha256("slow_pc.py"),
                 l7_model=L7_MODEL or None, l7_record=bool(L7_RECORD),
                 interface=INTERFACE, model=MODEL_PATH,
                 model_sha256=ban_events.file_sha256(MODEL_PATH),
@@ -1058,7 +1183,8 @@ try:
                     "gru_consecutive": GRU_CONSECUTIVE_THRESH,
                     "global_syn": GLOBAL_SYN_THRESHOLD, "global_pps": GLOBAL_PPS_THRESHOLD,
                     "volumetric_cooldown_s": VOLUMETRIC_COOLDOWN, "ban_ttl_s": BAN_TTL_SECONDS,
-                    "poll_interval_s": L4_POLL_INTERVAL})
+                    "poll_interval_s": L4_POLL_INTERVAL,
+                    "slow_pc_t_s": SLOW_PC_T, "slow_pc_f_bps": SLOW_PC_F, "slow_pc_k": SLOW_PC_K})
 
     # Every worker runs under supervise() (H-02): an exception is reported and retried.
     telemetry_thread = threading.Thread(
@@ -1105,6 +1231,8 @@ try:
                 try:
                     log_data = json.loads(log_line)
                     client_ip = log_data.get("client_ip")
+                    if SLOW_PC:
+                        slow_pc_note(log_data)   # P4: cannot raise; the rule below is unchanged
 
                     with banned_ips_lock:
                         if client_ip in banned_ips:

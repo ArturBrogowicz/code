@@ -14,10 +14,12 @@ Every record has:
     t_mono_ns  int    CLOCK_MONOTONIC in ns (time.monotonic_ns())
     kind       str    "start" | "ban" | "unban" | "suppress_on" | "suppress_off"
                       | "gru_suppressed" | "l7_shadow" | "l7_gru_poll" | "l7_would_ban"
-                      | "daemon_error"
+                      | "daemon_error" | "slow_pc_close" | "slow_pc_would_ban"
+                      | "slow_pc_capped" | "slow_pc_poll"
                       (the l7_* kinds are the L7 shadow engine's telemetry; a
                       would-ban is a decision that was logged, not enforced; a
-                      daemon_error is an error the daemon survived and retried)
+                      daemon_error is an error the daemon survived and retried;
+                      the slow_pc_* kinds are the P4 per-connection rule's, slow_pc.py)
 plus kind-specific fields (ip, engine, value, threshold, ...); the full schema is
 documented in docs/EVALUATION.md.
 """

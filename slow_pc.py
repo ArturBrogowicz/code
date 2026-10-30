@@ -15,7 +15,9 @@ commit, and a test pins them: the values are chosen on the validation seeds, nev
 the evaluation seeds, and the grid is not widened after seeing data.
 """
 import collections
+import gzip
 import ipaddress
+import json
 import re
 from fractions import Fraction
 from typing import NamedTuple
@@ -454,3 +456,41 @@ class Detector:
         self.stats.clear()
         self.bad_sample = None
         return out
+
+
+# ── Recording and replay (§6.1: every poll's input is recorded, so every rule can be replayed) ──
+def record_member(now, text, items, banned, enforce):
+    """One poll's input as one gzip member of a SLOW_PC_RECORD file: the `ss -tinpH` text (None
+    when the call failed), the access-log items, the addresses the daemon had banned and whether
+    the rule enforced. Concatenated members make one gzip file, and a run that ends mid-write
+    loses at most the member it was writing."""
+    line = json.dumps({"t": now, "ss": text, "l7": [list(i) for i in items],
+                       "banned": sorted(banned), "enforce": enforce}, separators=(",", ":"))
+    return gzip.compress((line + "\n").encode("utf-8"))
+
+
+def read_record(path):
+    """The polls of a SLOW_PC_RECORD file, oldest first; a cut last member is dropped."""
+    polls = []
+    with gzip.open(path, "rt", encoding="utf-8") as fh:
+        try:
+            for line in fh:
+                polls.append(json.loads(line))
+        except (EOFError, OSError, ValueError):
+            pass
+    return polls
+
+
+def replay(polls, t_s, f_bps, k, ttl_s=BAN_TTL_S):
+    """The rule at (t_s, f_bps, k) over recorded polls, with every decision taken as enforced (a
+    closed connection is skipped afterwards, a banned address for ttl_s): [(t, PollResult)] of the
+    polls whose read succeeded. A failed read is a skipped poll, as in the daemon."""
+    det = Detector(t_s, f_bps, k, ttl_s)
+    out = []
+    for p in polls:
+        items = [tuple(i) for i in p.get("l7", ())]
+        if p.get("ss") is None:
+            det.skip(p["t"], items)
+        else:
+            out.append((p["t"], det.poll(p["t"], p["ss"], items, p.get("banned", ()))))
+    return out
