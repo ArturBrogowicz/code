@@ -346,6 +346,14 @@ scored. The harm ladder may change only the number of bots.
 - **Exact tolerance:** |Δp| ≤ 1e-5 (`ml/l7_probes.py:35`).
 - **Unchanged:** `server_load` (R17) stays, and so does the robustness tolerance of a 5 % decision-flip rate
   (`ml/l7_probes.py:36`).
+- **As built (T-025b, 2026-10-30): a change to a hard gate, approved with this design (D-V5).**
+  - The L7 v2 gate is `ml/l7_probes.py` `GATE_PROBES_V2`: `ua_swap`, `uri_bijection_class`, `sid_swap`, `time_offset`,
+    `server_load`, frozen in `ml/l7v2_model_prereg.json` ("probes") before any capture.
+  - `uri_bijection_class` renames every URI identity to a fresh one while each request keeps its route class (`rc`, set
+    at ingest from the site map), and renames the Referers with the same map.
+  - The P5c probe `uri_bijection` and the P5c gate `GATE_PROBES` are unchanged and remain the defaults of `run_probes`
+    and `gate_pass`, so the published P5c runs reproduce. L7 v2 reports still list `uri_bijection`, ungated: a model
+    that reads `ref_known` fails it by construction (F-V8).
 
 ## 9. The enforcing arm (today the L7 engine is shadow-only)
 
