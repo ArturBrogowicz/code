@@ -1,0 +1,63 @@
+{
+ "format": "p3-prereg/1",
+ "source": "docs/P3_DATASET_DESIGN.md sections 5, 6 and 8 (approved 2026-10-30, D-D2, D-D3, D-D4, D-D5); docs/L7V2_DESIGN.md section 13 item 3",
+ "rule": "Frozen before the first training capture (P3 note section 8 item 3). A change is a new file version, labelled post hoc; tests/test_p3_prereg.py pins every value.",
+ "seeds": {
+  "p3_train": [1001, 1002, 1003, 1004],
+  "p3_val": [2001, 2002],
+  "p3_eval": [3201, 3202, 3203, 3204, 3205, 3206, 3207, 3208, 3209, 3210],
+  "p1_live_eval": [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009, 3010],
+  "p4_val": [4001, 4002],
+  "p4_eval": [3101, 3102, 3103, 3104, 3105, 3106, 3107, 3108, 3109, 3110],
+  "p1_pilot": [9001, 9002, 9003, 9004, 9005, 9006, 9007, 9008],
+  "p4_pilot": [9101, 9102, 9103, 9104, 9105, 9106],
+  "p3_smoke": [9201, 9202]
+ },
+ "p3_roles": {"train": "p3_train", "val": "p3_val", "eval": "p3_eval", "pilot": "p3_smoke"},
+ "eval_extension": {
+  "next_seed": 3211,
+  "max_eval_captures": 20,
+  "rule": "n_eval = ceil(10 * (hw_pred / 8) ** 2), capped at 20, decided from the two validation captures before any evaluation capture is scored; only the count may change"
+ },
+ "pool": {"range": "10.0.16.0/20", "address_limit": 300},
+ "volume": {
+  "capture_s": 900,
+  "eval_capture_s": 1020,
+  "lead_in_s": 60,
+  "phase_s": 240,
+  "tail_s": 120,
+  "eval_tail_s": 240,
+  "eval_tail_note": "evaluation captures only: the 240 s slot after the core phases holds C3b@M3 and the held-out benign kinds, so 60 + 3 x 240 + 240 = 1020 s",
+  "core_phases": ["C2", "C3a", "C3b@M2"],
+  "eval_only_phase": "C3b@M3",
+  "phase_intensity_multipliers": [0.5, 1, 2],
+  "c3b_m1_entities": 10,
+  "benign_users_min": 200,
+  "cgnat_pools": 2,
+  "cgnat_users": 36,
+  "attack_entities_per_core_family_min": 50
+ },
+ "server_configs": {
+  "A": {"seeds": "odd", "gunicorn_workers": 2, "gunicorn_threads": 8},
+  "B": {"seeds": "even", "gunicorn_workers": 4, "gunicorn_threads": 4}
+ },
+ "learning_curve": {
+  "fractions": [0.1, 0.25, 0.5, 1.0],
+  "draws": 5,
+  "inits": 3,
+  "full_inits": 15,
+  "models": ["gru", "hgb", "lr", "gru_shuffled"],
+  "epochs": 25,
+  "hidden": 64,
+  "layers": 2,
+  "benign_budget": 0.01,
+  "theta_grid": [0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.99, 0.995, 0.999],
+  "k_grid": [1, 2, 3, 5, 8],
+  "bootstrap_b": 2000,
+  "ci": 0.95,
+  "flatten_pp": 5.0,
+  "still_learning_pp": 5.0,
+  "ranking_pp": 10.0,
+  "sequence_pp": 10.0
+ }
+}
