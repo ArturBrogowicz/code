@@ -144,8 +144,9 @@ class SimHost(X.Host):
                  log_lines=20, tag="placeholder", python_exists=True, steal_share=0.0, on_sleep=None, server=None,
                  fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,), wall_late_s=None, silent=None, nonzero=None,
                  ping_drops=None, daemon_holds_pipes=True, run_cost_s=None, daemon_startup_s=DAEMON_STARTUP_S,
-                 daemon_ban_rps=DAEMON_BAN_RPS, daemon_ban_delay_s=DAEMON_BAN_DELAY_S):
+                 daemon_ban_rps=DAEMON_BAN_RPS, daemon_ban_delay_s=DAEMON_BAN_DELAY_S, h01_fix_in_history=False):
         self.t = 0.0
+        self.h01_fix_in_history = h01_fix_in_history           # what `git merge-base --is-ancestor <the H-01 fix> HEAD` says
         self.daemon_startup_s, self.daemon_ban_rps, self.daemon_ban_delay_s = daemon_startup_s, daemon_ban_rps, daemon_ban_delay_s
         self.daemons = {}                     # pid -> what the model keeps of a daemon (its run, namespace, files, program)
         self.xdp = {}                         # namespace -> the id of the program attached to its veth_server
@@ -655,6 +656,8 @@ class SimHost(X.Host):
             return X.Result(0, "feat/hg1c\n", "")
         if a[0] == "status":
             return X.Result(0, " M bench/executor.py\n" if self.dirty else "", "")
+        if a[:2] == ["merge-base", "--is-ancestor"]:
+            return X.Result(0 if self.h01_fix_in_history else 1, "", "")
         return X.Result(1, "", "fake: unknown git command")
 
     def _cmd_taskset(self, a, ns, stdin):

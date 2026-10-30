@@ -1037,17 +1037,44 @@ def preflight(host, plan, allow_dirty=False, clean=False):
 
 
 PROVENANCE_FILES = ("origin.py", "loadgen.py", "loadtools.json", "population.py", "scenario.py", "executor.py")
+# what a protected run's daemon is made of (paths in the checkout): hashed into the run's provenance
+DAEMON_FILES = ("control_plane.py", "ban_events.py", "xdp_ddos_filter.c", "l7_engine.py", "l7_ingest.py", "GRU_ML_model.py",
+                "training_results/feature_config_testbed.json")
+# H-01 (T-017; fixed on fix/daemon-robustness): one request with a byte that is not UTF-8 ended the daemon's main loop, whose finally
+# detached XDP and lifted every ban. A daemon launched for a result must come from a checkout that has the fix (docs/HG1C_DESIGN.md
+# 15). The run records whether it has: the fix's first commit is an ancestor of HEAD, or both of the daemon's log tailers read
+# undecodable bytes as U+FFFD (the fix's change, which a rebase keeps). A run without it is recorded and warned of, not refused.
+DAEMON_FIX_H01 = "8db9827a2a0f78e29c689f8520ccc9f5482fcc92"
+H01_TAILER = "open(file_path, 'r', encoding='utf-8', errors='replace')"
 
 
-def provenance(plan):
+def daemon_provenance(host=None):
+    """The daemon's files (sha256, None for one that is not there) and the H-01 record: whether the fix's commit is an ancestor of
+    the checkout's HEAD (None when git cannot say: no host, or a commit it does not have), how many of the daemon's tailers read
+    undecodable bytes as U+FFFD (2 with the fix), and whether either says the fix is in."""
+    files = {name: sha256_file(os.path.join(REPO, name)) if os.path.exists(os.path.join(REPO, name)) else None for name in DAEMON_FILES}
+    tailers = _text(DAEMON).count(H01_TAILER) if os.path.exists(DAEMON) else None
+    ancestor = None
+    if host is not None:
+        r = host.run(["git", "-c", f"safe.directory={REPO}", "-C", REPO, "merge-base", "--is-ancestor", DAEMON_FIX_H01, "HEAD"])
+        ancestor = {0: True, 1: False}.get(r.code)
+    return {"files": files, "h01": {"fix_commit": DAEMON_FIX_H01, "fix_is_ancestor": ancestor, "tailers_replace_undecodable": tailers,
+                                    "has_fix": ancestor is True or tailers == 2}}
+
+
+def provenance(plan, host=None):
     """sha256 of what a result depends on, as the executor finds it: the files of bench/ that make the load and the origin, this
-    runner, the Nginx configuration as it is in the repository and as rendered for this run, and the engine as the tool manifest
-    pins it."""
+    runner, the Nginx configuration as it is in the repository (the mode's) and as rendered for this run, and the engine as the tool
+    manifest pins it; for a run with a daemon, the daemon's files and the H-01 record (daemon_provenance)."""
     manifest = LT.load_manifest()
     files = {name: sha256_file(os.path.join(HERE, name)) for name in PROVENANCE_FILES}
-    return {"files": files, "nginx_source_sha256": sha256_file(NGINX_CONF), "nginx_rendered_sha256": plan.nginx_conf_sha256,
-            "engine_pinned_sha256": manifest["tools"]["loadgen"]["sha256"],
-            "engine_is_pinned": files["loadgen.py"] == manifest["tools"]["loadgen"]["sha256"]}
+    source = NGINX_CONF if plan.mode is None else os.path.join(REPO, MODES[plan.mode]["conf"])
+    out = {"files": files, "nginx_source": plan.nginx_source, "nginx_source_sha256": sha256_file(source),
+           "nginx_rendered_sha256": plan.nginx_conf_sha256, "engine_pinned_sha256": manifest["tools"]["loadgen"]["sha256"],
+           "engine_is_pinned": files["loadgen.py"] == manifest["tools"]["loadgen"]["sha256"]}
+    if plan.daemon is not None:
+        out["daemon"] = daemon_provenance(host)
+    return out
 
 
 def timer_probe(host, cpus, samples=200, interval=0.01):
@@ -1875,10 +1902,13 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
         _failed(out, exc)
         raise
     record = {**env, **pre, "facts": host.facts(), "calibration_sha256": plan.calibration_sha256,
-              "scenario_sha256": plan.scenario_sha256, "provenance": provenance(plan), "checked_utc": _utc(host.time())}
+              "scenario_sha256": plan.scenario_sha256, "provenance": provenance(plan, host), "checked_utc": _utc(host.time())}
     write_json(f"{out}/environment.json", record)
     write_json(f"{out}/plan.json", as_json(plan))
     log(f"run {plan.kind} of {plan.scenario}, seed {plan.seed}: preflight and environment passed")
+    if plan.daemon is not None and not record["provenance"]["daemon"]["h01"]["has_fix"]:
+        log(f"WARNING: this checkout's daemon lacks the H-01 fix ({DAEMON_FIX_H01[:7]}, fix/daemon-robustness): one request with a "
+            "byte that is not UTF-8 can end it and lift every ban during the run. Recorded in environment.json (provenance.daemon.h01)")
     procs, sampler, daemon = {}, sampler or Sampler(host), None
     try:
         retries = 0

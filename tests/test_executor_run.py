@@ -1497,6 +1497,43 @@ class ProvenanceTest(RunCase):
         self.assertTrue(prov["engine_is_pinned"])
         self.assertEqual(prov["engine_pinned_sha256"], prov["files"]["loadgen.py"])
 
+    def test_a_protected_run_hashes_the_configuration_it_rendered_and_the_daemons_files(self):
+        plan, _, _ = self.go("M_xdp")
+        prov = json.loads(self.read(plan, "environment.json"))["provenance"]
+        self.assertEqual((prov["nginx_source"], prov["nginx_source_sha256"]),
+                         ("nginx.conf", X.sha256_file(os.path.join(REPO, "nginx.conf"))))
+        self.assertEqual(sorted(prov["daemon"]["files"]), sorted(X.DAEMON_FILES))
+        for name, digest in prov["daemon"]["files"].items():
+            self.assertEqual(digest, X.sha256_file(os.path.join(REPO, name)), name)
+        u, _, _ = self.go("U", plan_args={"name": "u/U"})
+        unprotected = json.loads(self.read(u, "environment.json"))["provenance"]
+        self.assertEqual(unprotected["nginx_source"], "nginx_unprotected.conf")
+        self.assertNotIn("daemon", unprotected)
+
+    def test_a_daemon_without_the_h01_fix_is_recorded_and_warned_of_and_not_refused(self):
+        plan, host, result = self.go("M_xdp")
+        h01 = json.loads(self.read(plan, "environment.json"))["provenance"]["daemon"]["h01"]
+        tailers = X._text(X.DAEMON).count(X.H01_TAILER)
+        self.assertEqual((h01["fix_commit"], h01["fix_is_ancestor"], h01["tailers_replace_undecodable"]),
+                         (X.DAEMON_FIX_H01, False, tailers))
+        self.assertEqual(h01["has_fix"], tailers == 2)
+        self.assertEqual(len(host.ran("git", "-c", f"safe.directory={X.REPO}", "-C", X.REPO, "merge-base", "--is-ancestor")), 1)
+        if not h01["has_fix"]:
+            self.assertIn("WARNING: this checkout's daemon lacks the H-01 fix", self.read(plan, "executor.log"))
+        self.assertTrue(result.ok, "recorded, not refused")
+
+    def test_the_fix_in_the_history_or_in_both_tailers_counts_as_the_fix(self):
+        plan, _, _ = self.go("M_xdp", F.SimHost(h01_fix_in_history=True))
+        h01 = json.loads(self.read(plan, "environment.json"))["provenance"]["daemon"]["h01"]
+        self.assertEqual((h01["fix_is_ancestor"], h01["has_fix"]), (True, True))
+        self.assertNotIn("WARNING", self.read(plan, "executor.log"))
+        fixed = os.path.join(self.tmp.name, "control_plane.py")
+        with open(fixed, "w", encoding="utf-8") as fh:
+            fh.write(f"            with {X.H01_TAILER} as f:\n" * 2)
+        with mock.patch.object(X, "DAEMON", fixed):
+            h01 = X.daemon_provenance()["h01"]
+        self.assertEqual((h01["fix_is_ancestor"], h01["tailers_replace_undecodable"], h01["has_fix"]), (None, 2, True))
+
     def test_the_stack_as_started_is_read_back(self):
         plan, _, _ = self.go("C", F.SimHost(nofile=(524288, 524288)))
         stack = json.loads(self.read(plan, "environment.json"))["stack"]
