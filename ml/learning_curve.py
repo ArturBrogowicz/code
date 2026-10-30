@@ -25,6 +25,12 @@ The design, with every constant from ml/p3_prereg.json ("learning_curve"):
   * a two-level bootstrap: each draw resamples the fits, the evaluation captures (clusters) and the entities within
     each capture; the estimate is the mean over fits of the pooled recall; 95 % percentile intervals;
   * the decision rules of §6.3 (decide(), fixture-tested): flattened, still learning, ranking, sequence helps.
+
+L7 v2 (--level view, the default for schema-3 captures): the models of §6.1 on identical VIEW windows keyed by
+(IP, UA, sid): the view GRU (l7_view_model), HGB and LR on the same windows' token summaries, and the shuffled-GRU
+(tokens shuffled within each window at scoring, its own operating point as at the request level), built by
+ml/train_l7v2.py; each fit's operating point uses L7 v2's unit cost and tie rules (ml/l7v2_model_prereg.json, grids and
+budget pinned equal to this file's), and recall counts every evaluation attack entity with a request.
 """
 import argparse
 import hashlib
@@ -406,8 +412,13 @@ def _load_models(sel, base):
         path = os.path.join(base, art)
         if art.endswith(".pt"):
             blob = torch.load(path, weights_only=True)
-            model = GRUDDoSClassifier(input_size=len(blob["cols"]), hidden_size=blob["hidden"],
-                                      num_layers=blob["layers"])
+            if blob.get("level") == "view":
+                from l7_view_model import ViewGRU
+                model = ViewGRU(input_size=len(blob["cols"]), embed_size=blob["embed"], hidden_size=blob["hidden"],
+                                num_layers=blob["layers"])
+            else:
+                model = GRUDDoSClassifier(input_size=len(blob["cols"]), hidden_size=blob["hidden"],
+                                          num_layers=blob["layers"])
             model.load_state_dict(blob["state"])
             model.eval()
             out[art] = ("gru", model, np.array(blob["mean"], dtype=np.float32), np.array(blob["std"], dtype=np.float32))
@@ -425,8 +436,6 @@ def score(eval_windows, sel, sel_path, out_dir, *, threads, seed=0):
     rules = p3_prereg.load()["learning_curve"]
     cols = F.columns(T.variant_groups()[sel["variant"]])
     t0 = time.time()
-    design = sel["design"]
-    fractions = design["fractions"]
     ev = eval_windows
     units = eval_units(ev)
     unit_idx = {u[0]: i for i, u in enumerate(units)}
@@ -461,6 +470,14 @@ def score(eval_windows, sel, sel_path, out_dir, *, threads, seed=0):
             row["ttd_median_s"] = round(times[len(times) // 2], 3) if times else None
             row["benign"] = benign_rate(ev, det)
         fits.append(row)
+    return _curve_result(fits, units, sel, sel_path, out_dir, rules, len(ev), t0, seed)
+
+
+def _curve_result(fits, units, sel, sel_path, out_dir, rules, n_eval, t0, seed):
+    """The curves, the two-level bootstrap, the decision rules and the files (curve.json, summary.md) from the
+    scored fits; shared by the request level and the view level."""
+    design = sel["design"]
+    fractions = design["fractions"]
     curves = {}
     for m in MODELS:
         for f in fractions:
@@ -483,7 +500,7 @@ def score(eval_windows, sel, sel_path, out_dir, *, threads, seed=0):
     res = {"format": FORMAT, "source": sel["source"], "valid_for_claims": sel["valid_for_claims"],
            "variant": sel["variant"], "design": design,
            "selection_sha256": _sha_file(sel_path), "split_sha256": sel["split_sha256"],
-           "counts": {**sel["counts"], "eval": len(ev)}, "eval_attack_entities": len(units), "eval_families": families,
+           "counts": {**sel["counts"], "eval": n_eval}, "eval_attack_entities": len(units), "eval_families": families,
            "estimates": {f"{k[0]}@{k[1]}" if isinstance(k[0], str) else f"{k[0][0]}@{k[0][1]}-{k[1][0]}@{k[1][1]}":
                          [None if x is None else round(x, 4) for x in v] for k, v in stats.items()},
            "per_family_mean_recall": per_family, "decision": verdict, "fits": fits,
@@ -495,6 +512,153 @@ def score(eval_windows, sel, sel_path, out_dir, *, threads, seed=0):
     with open(os.path.join(out_dir, "summary.md"), "w", encoding="utf-8") as fh:
         fh.write(summary_md(res))
     return res
+
+
+# ───────────────────────────── L7 v2: the view level (§6.1, docs/L7V2_DESIGN.md §8) ─────────────────────────────
+# The models of §6.1 on identical view windows: the view GRU (l7_view_model), HGB and LR on the same windows' token
+# summaries, and the shuffled-GRU, all keyed by (IP, UA, sid) through ml/train_l7v2.py. Each fit's operating point is
+# chosen on the validation captures with L7 v2's unit cost and tie rules (ml/l7v2_model_prereg.json, whose grids and
+# budget are pinned equal to this protocol's); recall's denominator is every evaluation attack entity with a request.
+
+LEVELS = ("request", "view")
+
+
+def default_level(dirs):
+    """'view' for L7 v2 captures (schema 3), whose models are the view-level ones; 'request' otherwise."""
+    for d in dirs:
+        try:
+            with open(os.path.join(d, D.MANIFEST_FILE), encoding="utf-8") as fh:
+                if json.load(fh).get("format") == D.DATASET_FORMAT_V3:
+                    return "view"
+        except (OSError, ValueError):
+            continue
+    return "request"
+
+
+def view_sets(train_dirs, val_dirs, eval_dirs):
+    """{split: train_l7v2.Split} of view windows with the split's denominators (attack entities, benign units)."""
+    import train_l7v2 as V
+    return {name: V.Split([V.load_capture(d) for d in dirs], request=False)
+            for name, dirs in (("train", train_dirs), ("val", val_dirs), ("eval", eval_dirs))}
+
+
+def select_view(sets, out_dir, *, fractions, draws, inits, full_inits, epochs, hidden, layers, B, threads, seed=0,
+                valid_for_claims, source, split_sha256):
+    """select() at the view level: `sets` holds train_l7v2.Split objects for "train" and "val"."""
+    import pickle
+
+    import l7v2_model_prereg
+    import torch
+    import train_l7v2 as V
+    from sklearn.ensemble import HistGradientBoostingClassifier
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+
+    from l7_view_model import ViewGRU
+    torch.set_num_threads(threads)
+    mp = l7v2_model_prereg.load()["models"]
+    vg, rules = mp["view_gru"], l7v2_model_prereg.selection()
+    cols = list(F.TOKEN_COLUMNS)
+    os.makedirs(os.path.join(out_dir, "fits"), exist_ok=True)
+    t0 = time.time()
+    val = sets["val"]
+    Xv = V._stack(val.view)
+    sv = V.summaries(Xv)
+    Xv_shuf = V.shuffled_stack(val.view, seed + 1)
+    fits, tab_cache = [], {}
+
+    def save(obj, name, how):
+        path = os.path.join(out_dir, "fits", name)
+        if how == "torch":
+            torch.save(obj, path)
+        else:
+            with open(path, "wb") as fh:
+                pickle.dump(obj, fh)
+        return f"fits/{name}", _sha_file(path)
+
+    for f, d, i in fit_plan(fractions, draws, inits, full_inits):
+        keep = nested_subsets(sets["train"].view, fractions, 1000 * seed + d)[f]
+        train = V.thin([w for w in sets["train"].view if w["ip"] in keep])
+        mean, std = T.fit_scaling(train, len(cols))
+        model, vloss = V.fit_torch(ViewGRU(len(cols), vg["embed"], hidden, layers, vg["dropout"]), train, val.view,
+                                   mean, std, seed=1000 * d + i, epochs=epochs, lr=vg["lr"], batch=vg["batch"],
+                                   threads=threads)
+        g_art = save({"state": model.state_dict(), "mean": [float(x) for x in mean], "std": [float(x) for x in std],
+                      "cols": cols, "embed": vg["embed"], "hidden": hidden, "layers": layers, "level": "view"},
+                     f"gru_f{f}_d{d}_i{i}.pt", "torch")
+        val_scores = {"gru": (g_art, V.torch_scores(model, Xv, mean, std)),
+                      "gru_shuffled": (g_art, V.torch_scores(model, Xv_shuf, mean, std))}
+        if (f, d) not in tab_cache:
+            Xs, ys = V.summaries(V._stack(train)), np.array([w["y"] for w in train])
+            hgb = HistGradientBoostingClassifier(max_iter=mp["hgb"]["max_iter"], random_state=seed).fit(Xs, ys)
+            lr = make_pipeline(StandardScaler(), LogisticRegression(max_iter=mp["lr"]["max_iter"],
+                                                                    class_weight=mp["lr"]["class_weight"]))
+            lr.fit(Xs, ys)
+            tab_cache[(f, d)] = {"hgb": (save(hgb, f"hgb_f{f}_d{d}.pkl", "pickle"), hgb.predict_proba(sv)[:, 1]),
+                                 "lr": (save(lr, f"lr_f{f}_d{d}.pkl", "pickle"), lr.predict_proba(sv)[:, 1])}
+        val_scores.update(tab_cache[(f, d)])
+        for m in MODELS:
+            (art, sha), pv = val_scores[m]
+            op = V.operating_point(val.view, pv, val, rules)
+            if op is not None:
+                op = {k: v for k, v in op.items() if not k.startswith("_")}
+            fits.append({"model": m, "fraction": f, "draw": d, "init": i, "artifact": art, "artifact_sha256": sha,
+                         "train_entities": len(keep), "train_windows": len(train),
+                         "val_loss": round(vloss, 5) if m.startswith("gru") else None, "operating_point": op})
+    sel = {"format": SEL_FORMAT, "level": "view", "source": source, "valid_for_claims": valid_for_claims,
+           "variant": "view", "seed": seed, "split_sha256": split_sha256,
+           "prereg_sha256": _sha_file(l7v2_model_prereg.PREREG_PATH),
+           "design": {"fractions": fractions, "draws": draws, "inits": inits, "full_inits": full_inits,
+                      "epochs": epochs, "hidden": hidden, "layers": layers, "bootstrap_b": B, "threads": threads},
+           "counts": {"train": len(sets["train"].view), "val": len(val.view)}, "fits": fits,
+           "select_wall_s": round(time.time() - t0, 1)}
+    data = D.canonical_json(sel) + b"\n"
+    with open(os.path.join(out_dir, "selection.json"), "wb") as fh:
+        fh.write(data)
+    sha = hashlib.sha256(data).hexdigest()
+    with open(os.path.join(out_dir, "selection.sha256"), "w", encoding="utf-8") as fh:
+        fh.write(f"{sha}  selection.json\n")
+    return sel, sha
+
+
+def score_view(ev, sel, sel_path, out_dir, *, threads, seed=0):
+    """score() at the view level: `ev` is the evaluation train_l7v2.Split."""
+    import torch
+    import train_l7v2 as V
+    torch.set_num_threads(threads)
+    rules = p3_prereg.load()["learning_curve"]
+    t0 = time.time()
+    units = sorted((e, e.split("|", 1)[0], str(ev.kind.get(e))) for e in ev.attack)
+    unit_idx = {u[0]: i for i, u in enumerate(units)}
+    Xe = V._stack(ev.view)
+    se = V.summaries(Xe)
+    Xe_shuf = V.shuffled_stack(ev.view, seed)
+    models = _load_models(sel, os.path.dirname(os.path.abspath(sel_path)))
+    cache, fits = {}, []
+    for fit in sel["fits"]:
+        m, art, op = fit["model"], fit["artifact"], fit["operating_point"]
+        key = (art, m == "gru_shuffled")
+        if key not in cache:
+            kind, model, mean, std = models[art]
+            cache[key] = (V.torch_scores(model, Xe_shuf if m == "gru_shuffled" else Xe, mean, std) if kind == "gru"
+                          else model.predict_proba(se)[:, 1] if len(se) else np.zeros(0))
+        row = {k: fit[k] for k in ("model", "fraction", "draw", "init", "train_entities", "train_windows",
+                                   "val_loss", "operating_point")}
+        if op is None:
+            row["detected"] = [0] * len(units)
+            row["note"] = "no operating point within the benign budget on validation: detects nothing"
+        else:
+            a = V.at_point(ev.view, cache[key], ev, op)
+            vec = [0] * len(units)
+            for e in a["_caught"]:
+                vec[unit_idx[e]] = 1
+            row["detected"] = vec
+            row["ttd_median_s"] = a["median_ttd_s"]
+            row["benign"] = benign_rate(ev.view, {e: True for e in a["_flagged"]})
+            row["benign_units_flagged"] = a["benign_units_flagged"]
+        fits.append(row)
+    return _curve_result(fits, units, sel, sel_path, out_dir, rules, len(ev.view), t0, seed)
 
 
 def summary_md(res):
@@ -529,6 +693,9 @@ def main(argv=None):
                     help="select: a small design for a mechanics check: 2 draws x 1 init, 2 full inits, 5 epochs, B 300")
     ap.add_argument("--threads", type=int, default=2)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--level", choices=LEVELS, default=None,
+                    help="select: request (the P5 windows) or view (L7 v2, the models of §6.1); default: view for "
+                         "L7 v2 (schema-3) captures, request otherwise. score follows the selection's level")
     args = ap.parse_args(argv)
     lc = p3_prereg.load()["learning_curve"]
     cols = F.columns(T.variant_groups()[VARIANT])
@@ -542,6 +709,20 @@ def main(argv=None):
         if args.smoke:
             design.update(draws=2, inits=1, full_inits=2, epochs=5, B=300)
         os.makedirs(args.out, exist_ok=True)
+        level = args.level or ("request" if args.legacy_capture else default_level(args.train + args.val))
+        if level == "view":
+            if args.legacy_capture:
+                ap.error("--level view needs P3 captures (the legacy capture is request-level mechanics)")
+            import l7_disjoint
+            l7_disjoint.require(splits)
+            split_sha = l7_disjoint.write_split(os.path.join(args.out, "split.json"), splits)
+            vs = view_sets(args.train, args.val, [])                                  # no evaluation logs
+            _sel, sha = select_view({"train": vs["train"], "val": vs["val"]}, args.out, threads=args.threads,
+                                    seed=args.seed, valid_for_claims=not args.smoke,
+                                    source="P3 captures, view level" + (" (smoke design)" if args.smoke else ""),
+                                    split_sha256=split_sha, **design)
+            print(f"{sha}  {os.path.join(args.out, 'selection.json')}")
+            return 0
         if args.legacy_capture:
             sets = legacy_sets(args.legacy_capture, cols, T.DEFAULT_SEQ, T.DEFAULT_STRIDE)
             split_sha = legacy_split_sha256(sets)
@@ -561,6 +742,17 @@ def main(argv=None):
     if not args.selection:
         ap.error("score needs --selection and --selection-sha256 (the frozen file from select)")
     sel = load_selection(args.selection, args.selection_sha256)
+    if sel.get("level", "request") == "view":
+        if args.legacy_capture:
+            raise SelectionError("refusing to score: a view-level selection is scored on P3 captures")
+        import l7_disjoint
+        l7_disjoint.require(splits, split_file=os.path.join(os.path.dirname(os.path.abspath(args.selection)),
+                                                            "split.json"),
+                            selection_file=args.selection)            # rule 10 before any evaluation log is read
+        res = score_view(view_sets([], [], args.eval)["eval"], sel, args.selection, args.out, threads=args.threads,
+                         seed=args.seed)
+        print(summary_md(res))
+        return 0
     if args.legacy_capture:
         sets = legacy_sets(args.legacy_capture, cols, T.DEFAULT_SEQ, T.DEFAULT_STRIDE)
         if legacy_split_sha256(sets) != sel["split_sha256"]:
