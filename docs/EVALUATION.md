@@ -264,7 +264,12 @@ Known limits:
 
 * A recreated tailer opens its log at the end, so lines written during the 1-s backoff are not read.
 * After a failed poll, detection resumes one poll later: the next poll only re-takes the snapshots. A
-  failed or re-baseline poll neither extends nor resets the SlowConn and low-SYN streaks.
+  failed or re-baseline poll neither extends nor resets the SlowConn and low-SYN streaks. A flood that
+  starts and ends entirely inside an outage of failed polls is therefore never banned, and every failed
+  poll costs one poll of detection, even one that failed after all snapshots were taken (review R1-01).
+* Only SIGTERM is ignored while the stop is under way. A second Ctrl-C during the shutdown can still
+  interrupt the `finally` before the XDP detach (pre-existing, review R1-02), and subprocesses started
+  during the shutdown inherit the ignored SIGTERM, so a hung shutdown needs SIGKILL (review R1-03).
 * The R.U.D.Y. pattern takes the last `client: <IPv4>` of a line (a separate finding, not changed here). A
   capture that is not an IP address fails its ban, so the thread restarts on each such line.
 * Because `ml/eval_l7.py` stops the daemon with SIGTERM, which is now graceful, its `l7_gru_poll` totals
