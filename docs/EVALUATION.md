@@ -401,6 +401,11 @@ recovery with its onset). With the first reading, one noisy bin made a late reco
 block 0.68-0.96 for a true recovery at +95 s); seeded binomial fixtures now pin that a recovery at +95 s fails (a)
 and one at +60 s passes, at 20 and 50 judged requests a second and Q(C) 99.5 and 99.9.
 
+**Re-registration record (D-035, V-02).** 2026-10-31T12:44Z, before any data: fewer than 10 valid blocks decide
+nothing. The family's status is "invalid (k of 10 valid)", never "not harmful" or "harmful but not mitigated"; M7
+is "invalid (k of 10 valid)" unless another family qualifies, and then it names the invalid family next to its claim
+(T-039 V-02: one block that stayed invalid used to make a family "not harmful").
+
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
 user's decision.

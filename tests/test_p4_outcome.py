@@ -235,10 +235,30 @@ class OutcomeTest(unittest.TestCase):
         self.assertEqual(res["M7"], "not supported")
 
     def test_fewer_than_10_valid_blocks_decide_nothing(self):
+        # Updated by D-035 (V-02): this test pinned "not harmful" for 9 valid blocks, a negative verdict made of
+        # missing data; it is now "invalid (9 of 10 valid)", and M7 names it next to the family that qualifies.
         res = O.outcome(campaign({("U_post", 0): {"valid": False}}))
         self.assertEqual(res["families"]["post"]["harm"]["valid_blocks"], 9)
-        self.assertEqual(res["families"]["post"]["status"], "not harmful")
-        self.assertEqual(res["M7"], "supported with scope: profile R, Slowloris at this scale, this testbed")
+        self.assertEqual(res["families"]["post"]["status"], "invalid (9 of 10 valid)")
+        self.assertEqual(res["M7"], "supported with scope: profile R, Slowloris at this scale, this testbed; "
+                                    "slow POST: invalid (9 of 10 valid)")
+
+    def test_missing_data_is_never_a_negative_verdict(self):
+        res = O.outcome(campaign({("U_post", 0): {"valid": False}, ("Cp", 4): {"valid": False}}))
+        self.assertEqual({f: r["status"] for f, r in res["families"].items()},
+                         {"loris": "invalid (9 of 10 valid)", "post": "invalid (8 of 10 valid)"})
+        self.assertEqual(res["M7"], "invalid (8 of 10 valid)")
+        res = O.outcome(campaign({("M_pc_loris", 2): {"valid": False}}))
+        self.assertEqual(res["families"]["loris"]["status"], "invalid (9 of 10 valid)")    # not "not mitigated"
+        runs = [r for r in campaign() if r["block"] != 3110]                               # a block never run
+        res = O.outcome(runs)
+        self.assertEqual(res["M7"], "invalid (9 of 10 valid)")
+        over = {f"U_{f}": {"q": 98.5, "p95": 0.10, "q_per_s": bins(99.5)} for f in O.FAMILIES}
+        over[("U_post", 0)] = {"valid": False}
+        res = O.outcome(campaign(over))
+        self.assertEqual(res["M7"], "invalid (9 of 10 valid)")                             # loris not harmful
+        self.assertEqual(O.invalid(7), "invalid (7 of 10 valid)")
+        self.assertIn("Re-registration record (D-035, V-02", O.__doc__)
 
     def test_the_level_window_alone_can_fail_mitigation(self):
         res = O.outcome(campaign({"M_pc_loris": {"q_level": 98.0}}))

@@ -235,7 +235,7 @@ class ExecuteTest(unittest.TestCase):
             self.assertEqual(OUT.main([runs_path, "--json", out]), 0)
         with open(out, encoding="utf-8") as fh:
             verdict = json.load(fh)
-        self.assertEqual(verdict["M7"], "not supported")              # one block of the ten
+        self.assertEqual(verdict["M7"], "invalid (1 of 10 valid)")    # one block of the ten (D-035, V-02)
         self.assertEqual(verdict["families"]["loris"]["harm"]["valid_blocks"], 1)
         self.assertEqual(verdict["bans_by_arm"]["M_pc_loris"], {"attack": 6})
         idx = index(self.root)

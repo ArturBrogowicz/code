@@ -15,8 +15,10 @@ recovery. Per family (loris, post):
     >= 0.99 x Q(C) as a mean over the blocks and in at least 9 of 10 of them, and (c) no benign address (CGNAT
     pools and browser devices included) is banned in any M_pc run. Benign connections closed are reported.
   * the status: "not harmful", "harmful but not mitigated", "mitigated with collateral" (a and b, not c), or
-    "mitigated". M7 is "supported with scope" for the families that are harmful and mitigated (profile R, these
-    families at this scale, this testbed), else "not supported".
+    "mitigated"; "invalid (k of 10 valid)" when fewer than 10 blocks are valid for the harm or, for a harmful
+    family, for the mitigation (D-035, below). M7 is "supported with scope" for the families that are harmful and
+    mitigated (profile R, these families at this scale, this testbed), naming next to it any family that is
+    invalid; "invalid (k of 10 valid)" when no family qualifies and one is invalid; else "not supported".
   * reported next to it: Q(M_pc) - Q(M_def) per block with eval/run_level_stats.decide, and the bans per arm by
     role.
 
@@ -38,6 +40,11 @@ attack's start; a run with no such harm has recovered at once (0). recovery() re
 the onset it was counted from, and mitigation() reports both per block. The noisy fixtures of
 tests/test_p4_outcome.py (binomial bins, seeded) pin it: with the harm starting 30 s into the attack, a true
 recovery at +95 s fails (a) and one at +60 s passes, at 20 and 50 judged requests a second and Q(C) 99.5 and 99.9.
+
+Re-registration record (D-035, V-02; 2026-10-31T12:44Z, before any data; review T-039 V-02). Fewer than 10 valid
+blocks decide nothing: the family is "invalid (k of 10 valid)", never "not harmful" or "harmful but not
+mitigated", and so is M7 unless another family qualifies (then M7 names the invalid family next to its claim), as
+the harm gate this code cites says INVALID (eval/harm_gate.py).
 
 A run record (one dict per run; summarize() builds it from eval/harm_gate.run_metrics and the ban events):
     {"block": 3101, "arm": "M_pc_loris", "valid": true, "Q": 97.5, "p95_s": 0.21,
@@ -228,23 +235,37 @@ def bans_by_arm(runs):
     return out
 
 
+def invalid(k):
+    """The status of a family, or of M7, with fewer than MIN_VALID_BLOCKS valid blocks (D-035, V-02)."""
+    return f"invalid ({k} of {len(BLOCK_SEEDS)} valid)"
+
+
 def outcome(runs):
     """The verdict of §10 over a list of run records."""
     blocks = _blocks(runs)
     fam = {}
     for f in FAMILIES:
         h, m = harm(blocks, f), mitigation(blocks, f)
-        if not h["harmful"]:
+        k = None
+        if h["valid_blocks"] < MIN_VALID_BLOCKS:
+            k, status = h["valid_blocks"], invalid(h["valid_blocks"])
+        elif not h["harmful"]:
             status = "not harmful"
+        elif m["valid_blocks"] < MIN_VALID_BLOCKS:
+            k, status = m["valid_blocks"], invalid(m["valid_blocks"])
         elif m["a"] and m["b"]:
             status = "mitigated" if m["c"] else "mitigated with collateral"
         else:
             status = "harmful but not mitigated"
-        fam[f] = {"status": status, "harm": h, "mitigation": m}
+        fam[f] = {"status": status, "harm": h, "mitigation": m, "valid_blocks_if_invalid": k}
     qualified = [f for f in FAMILIES if fam[f]["status"] == "mitigated"]
+    lacking = [f for f in FAMILIES if fam[f]["valid_blocks_if_invalid"] is not None]
     if qualified:
         m7 = "supported with scope: " + SCOPE.format(
             families=" and ".join(FAMILY_NAMES[f] for f in qualified))
+        m7 += "".join(f"; {FAMILY_NAMES[f]}: {fam[f]['status']}" for f in lacking)
+    elif lacking:
+        m7 = invalid(min(fam[f]["valid_blocks_if_invalid"] for f in lacking))
     else:
         m7 = "not supported"
     return {"M7": m7, "families": fam, "bans_by_arm": bans_by_arm(runs), "t_mit_s": T_MIT_S}
