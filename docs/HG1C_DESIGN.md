@@ -687,7 +687,8 @@ pre-registration, after it a departure.
 0-1, daemon 2, executor 6, legit 7, attack 3-5. With D14 as amended on 2026-10-31 (D-032: the legit streams and the timer gate on CPU 7,
 the attack on 3-6), only the executor (from 2) and the attack (from 3-6) move: the executor takes CPU 6 from the attack, which needs at most
 about 2 % of a CPU per set of streams (T-004 p2_capacity 2), and nothing else uses CPU 7. Runs and campaigns without a daemon, and the
-calibrator, keep `PIN_PLAN` with the executor on 2.
+calibrator, keep `PIN_PLAN` with the executor on 2. `scenario.py --plan --daemon` shows a block on these pins, the attack's CPU share
+over its three CPUs (T-039 V-32).
 
 **H-01: the daemon must come from a checkout that has `fix/daemon-robustness`.** One request with a byte that is not UTF-8 ended the daemon's
 main loop on this branch's `control_plane.py`; its `finally` detached XDP and lifted every ban (T-017 H-01, fixed in 8db9827 and the

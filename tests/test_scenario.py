@@ -577,6 +577,42 @@ class GoldenTest(unittest.TestCase):
                                  f"> tests/golden/{name}.plan.txt, and read the diff")
 
 
+class DaemonPinsTest(unittest.TestCase):
+    """T-039 V-32: the plan of a campaign with a daemon shows that campaign's pins (PIN_PLAN_DAEMON), not PIN_PLAN's."""
+
+    def test_the_plan_with_the_daemons_pins_puts_the_attack_on_its_three_cpus_and_changes_nothing_else(self):
+        scn = scenario("cheap_static_flood")
+        plain, daemon = S.plan(scn, CAL), S.plan(scn, CAL, pins=P.PIN_PLAN_DAEMON)
+        a, b = plain["generator"]["kinds"]["attack"], daemon["generator"]["kinds"]["attack"]
+        self.assertEqual((a["pin"], a["cpus"]), (P.PIN_PLAN["attack"], 4))
+        self.assertEqual((b["pin"], b["cpus"]), (P.PIN_PLAN_DAEMON["attack"], 3))
+        self.assertAlmostEqual(b["share"], a["share"] * 4 / 3)
+        self.assertEqual(daemon["generator"]["kinds"]["legit"]["pin"], P.PIN_PLAN_DAEMON["legit"])
+        self.assertEqual({(x["kind"], x["pin"]) for x in daemon["streams"]},
+                         {("legit", P.PIN_PLAN_DAEMON["legit"]), ("attack", P.PIN_PLAN_DAEMON["attack"])})
+        for p in (plain, daemon):
+            for k in p["generator"]["kinds"].values():
+                for key in ("pin", "cpus", "share"):
+                    k.pop(key)
+            for x in p["streams"]:
+                x.pop("pin")
+        self.assertEqual(plain, daemon)
+        self.assertEqual(S.plan(scn, CAL, pins=P.PIN_PLAN), S.plan(scn, CAL))
+
+    def test_the_command_line_prints_the_daemons_pins_with_daemon(self):
+        spec = path_of("cheap_static_flood")
+        code, out, err = run_main("--plan", "--json", "--daemon", spec)
+        self.assertEqual((code, err), (0, ""))
+        self.assertEqual(json.loads(out)[0]["generator"]["kinds"]["attack"]["pin"], "3-5")
+        code, text, _ = run_main("--plan", "--daemon", spec)
+        rows = [line.split() for line in text.splitlines() if line.split()[:1] == ["attack"] and line.split()[1].isdigit()]
+        self.assertTrue(rows)
+        self.assertIn("3-5", rows[0])
+        self.assertNotIn("3-6", text)
+        with open(os.path.join(GOLDEN, "cheap_static_flood.plan.txt"), encoding="utf-8") as fh:
+            self.assertEqual(run_main("--plan", spec)[1], fh.read(), "without --daemon the plan is the golden one")
+
+
 class CommandLineTest(unittest.TestCase):
     def test_check_lists_the_specs_and_their_controls(self):
         code, out, err = run_main("--check", *[path_of(n) for n in NAMES])
