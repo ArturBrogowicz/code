@@ -573,6 +573,52 @@ emulation of their observable pattern".
 | The C3b emulation is too easy or too hard | Mimicry levels fixed before the data; held-out variants; per-level reporting |
 | Multiple comparisons | The fixed testing order (section 11) |
 
+## As built (feat/l7v2-traffic; recorded 2026-10-31)
+
+Every departure from the text above is labelled here, as section 13 requires. The approved text is left as it was.
+
+**Accepted as built by the user (2026-10-31).**
+- **The intensity application in the P3 captures** (`ml/l7_pools.py`):
+  - C2's per-entity rate is m x L_knee x S / (n x cost);
+  - C3a's page gaps are divided by m;
+  - for C3b, m is recorded and not applied. C3b's frozen parameters may change only through the number of bots, and P3
+    fixes that number.
+
+**Re-registered by the user on 2026-10-31, before any capture** (review T-030):
+- **The never-sent guard (L7V2-01, L7V2-02).** Each view, and each paced request, is judged against the device's own
+  closed-loop schedule: the previous view's or request's completion plus its pause or gap. One stall then fails only the
+  views that were slow, and a paced kind's own latency books no failure. (`ml/l7v2_prereg.json` harm;
+  `eval/l7v2_harm.py`.)
+- **Arrivals (L7V2-03).**
+  - Benign entities arrive across the whole timeline in every role, and attack entities arrive across their slot.
+  - Held-out benign kinds arrive like the trained ones. The flash crowd's minute starts at least 60 s from every slot start.
+  - A plan is refused unless the first-seen times of the two roles are matched: KS ≤ 0.3, AUC within 0.5 ± 0.15, and the
+    held-out kinds' KS ≤ 0.45. (`ml/l7v2_prereg.json` arrivals; `ml/l7_pools.age_check`.)
+  - **This replaces section 5's reading** that the held-out benign kinds share the evaluation tail with C3b at M3. The
+    tail slot holds C3b at M3. The held-out kinds arrive over the whole capture.
+- **C3b's costly request (L7V2-04).** After each navigation view, the bot loads the costly route's form page, and a dwell
+  later issues one costly request in-page from it. Its Referer and its timing are those of a benign search or export.
+  C2 and C3a, the controls, keep their tells.
+- **P3's benign target is 120 users per capture seed**, not 200 (`ml/p3_prereg.json`). 200 users do not fit the 300
+  verified aliases next to the L7 v2 classes.
+
+**Other departures, labelled post hoc:**
+- **Navigation mapping (section 12.1).** The T-018 review's rules replace "search -> /search, order -> /export":
+  - Home -> `/`; Product Detail -> `/page/<n>`;
+  - Search Request -> the form page `/page/search`; Search Results -> `/search`, in-page from it;
+  - New Products and Best Sellers -> `/page/new` and `/page/best`;
+  - Order Inquiry -> the form page `/page/account`; Order Display -> `/export`, in-page;
+  - the order flow and the admin pages are unmapped (the chain is watched on the mapped states).
+- **Held-out and unused mixes.** Browsing is trained and Shopping is held out. Ordering is unused: 49.5 % of it has no
+  route. The i.i.d. Zipf model is a held-out kind (`zipf_browser`), no longer the trained default.
+- **Think time.** The think mean is drawn per device, uniform on [7, 8] s, within TPC-W v1.8's 7-8 s. The
+  pre-registration's 7.0 s is the module default and M2exp's mean.
+- **Log fields (section 8.4).** The third field is `sid_set` (`$upstream_cookie_sid`). `nginx_unprotected.conf` keeps
+  its format because the harm benchmark pins its sha256, so a P1 runner renders the fields into its own copy (ledger D-028).
+- **Schema 3** (sections 6 and 7.3):
+  - two entities share an address in time (M3 on the C2 phase's addresses);
+  - a CGNAT pool lists its users as entities, which the benign budget counts (`l7_dataset.user_units`).
+
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.
 - G1-02 Kadel et al., BOTracle, ESORICS Workshops 2024.
