@@ -211,5 +211,43 @@ class EndToEndTest(L7Case):
         self.assertEqual((deny["ip"], deny["p"]), (BOT, wb["p"]))
 
 
+class SocketTest(L7Case):
+    """T-042 E06: with the arm on, the L7 socket can drive bans, so only nginx's group may send to it."""
+
+    def test_the_socket_is_0660_with_nginxs_group_only_when_enforcing(self):
+        off = self.daemon(L7_SHADOW="1")
+        self.shadow(off, [], until=1001.0)
+        self.assertEqual(off.reader_calls, [("/run/ddos_l7.sock", {})])          # 0666 as before
+        on = self.daemon(**ENFORCE)
+        self.assertEqual(on.L7_SOCKET_GROUP, "nogroup")
+        on.ns["L7_SOCKET_GROUP"] = os.getgid()
+        on.call("l7_enforce_init")
+        self.shadow(on, [], until=1001.0)
+        self.assertEqual(on.reader_calls, [("/run/ddos_l7.sock", {"mode": 0o660, "group": os.getgid()})])
+
+    def test_an_unknown_group_stops_the_daemon(self):
+        d = self.daemon(**ENFORCE, L7_SOCKET_GROUP="no-such-group-T042")
+        with self.assertRaises(SystemExit):
+            d.call("l7_enforce_init")
+        self.assertIn("no-such-group-T042", d.events("daemon_error")[0]["error"])
+
+    def test_the_reader_binds_with_the_mode_and_group_it_is_given(self):
+        import stat
+        import tempfile
+        import warnings
+        with tempfile.TemporaryDirectory() as tmp:
+            for kw, mode in (({}, 0o666), ({"mode": 0o660, "group": os.getgid()}, 0o660)):
+                path = os.path.join(tmp, "l7.sock")
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", ResourceWarning)
+                    reader = l7_ingest.SyslogDatagramReader(path, **kw)
+                st = os.stat(path)
+                self.assertEqual((stat.S_IMODE(st.st_mode), st.st_gid), (mode, os.getgid()))
+                reader.close()
+        self.assertEqual(l7_ingest.group_id(os.getgid()), os.getgid())
+        with self.assertRaises(ValueError):
+            l7_ingest.group_id("no-such-group-T042")
+
+
 if __name__ == "__main__":
     unittest.main()

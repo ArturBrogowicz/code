@@ -56,6 +56,10 @@ L7_ALLOWLIST = os.environ.get("L7_ALLOWLIST", "")
 # The arm's kill switch, read every step: while this file exists it takes no action, and when it appears the deny map
 # is emptied (one reload) and the arm's XDP bans are lifted. The default is SLOW_PC_KILL_FILE's, so one file stops both.
 L7_KILL_FILE = os.environ.get("L7_KILL_FILE", "/run/l7v2/kill")
+# With the arm on, a datagram on the L7 socket can drive a ban, so the socket is bound 0660 with nginx's group instead of
+# 0666 (T-042 E06). nginx's workers run as nobody:nogroup here: the installed nginx 1.28.3 was built without --user or
+# --group, and nginx.conf (and the runner's copy) sets no `user`. With another `user` directive, name its group here.
+L7_SOCKET_GROUP = os.environ.get("L7_SOCKET_GROUP", "nogroup")
 # One path for every arm (9.5; l7_arms.py): the arm's detector, any of the view GRU, the HGB, the LR or a rule, and its
 # own operating point come from the frozen selection L7_SELECTION, whose sha256 the runner gives in L7_SELECTION_SHA256,
 # by the arm's name L7_ARM. L7_MODEL is the shadow's model only: with L7_ENFORCE=1 it must be unset.
@@ -308,9 +312,11 @@ slow_pc_counts = defaultdict(int)   # inbox_dropped, note_errors: written by the
 slow_pc_record_fh = None            # the SLOW_PC_RECORD file; False once a write failed
 slow_pc_last_report = 0.0
 
-# The L7 v2 enforcing arm (L7_ENFORCE=1) and its detector: built by l7_enforce_init() before the threads start.
+# The L7 v2 enforcing arm (L7_ENFORCE=1), its detector and the L7 socket's group: set by l7_enforce_init() before the
+# threads start.
 l7_arm = None
 l7_detector = None
+l7_socket_gid = None
 
 # Queue for offloading ML inference to a dedicated thread
 inference_queue = queue.Queue()
@@ -708,8 +714,9 @@ def l7_enforce_init():
     """Build the L7 v2 enforcing arm (L7_ENFORCE=1); the main statement calls it before any thread starts. A run
     directory the daemon may not use, a malformed L7_ALLOWLIST, or a detector l7_arms refuses (a placeholder operating
     point, an ablation, an altered artifact, a selection that is not the recorded one) stops the daemon."""
-    global l7_arm, l7_detector
+    global l7_arm, l7_detector, l7_socket_gid
     try:
+        l7_socket_gid = l7_ingest.group_id(L7_SOCKET_GROUP)
         l7_denymap.prepare_run_dir(L7_ENFORCE_DIR)
         allow = l7_enforce.allowlist(L7_ALLOWLIST)
         l7_detector = l7_arms.load(L7_SELECTION, L7_SELECTION_SHA256, L7_ARM)
@@ -932,7 +939,11 @@ def l7_shadow_monitor(socket_path):
     request and every would-ban; the arm acts in its own thread (l7_enforce_monitor).
     """
     try:
-        reader = l7_ingest.SyslogDatagramReader(socket_path)
+        if L7_ENFORCE:
+            # 0660 with nginx's group, not 0666: with the arm on a datagram here can drive a ban (T-042 E06)
+            reader = l7_ingest.SyslogDatagramReader(socket_path, mode=0o660, group=l7_socket_gid)
+        else:
+            reader = l7_ingest.SyslogDatagramReader(socket_path)
     except OSError as e:
         print(f"[-] L7 shadow: cannot bind {socket_path}: {e}")
         return

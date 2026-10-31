@@ -745,6 +745,9 @@ before any data). Usage and events: `docs/EVALUATION.md`, "L7 v2: the enforcing 
   the file appears; only the daemon's stop reloads at once. A file toggled every second gave 30 reloads a minute.
 - **E05, claims-valid selections only.** A selection marked `valid_for_claims` false (a `--smoke` run or a legacy
   capture) is refused for enforcement; the daemon logs why (`daemon_error`, `where` `l7_enforce`) and does not start.
+- **E06, the L7 socket.** With the arm on, a datagram on the sink can drive a ban, so the socket is bound 0660 with
+  nginx's group (`L7_SOCKET_GROUP`, default `nogroup`: the installed nginx's compiled worker group, as no `user` is
+  set) instead of 0666; without `L7_ENFORCE=1` it is 0666 as before. An unknown group stops the daemon at start.
 
 **A conflict for the user, resolved by D-038 (below).** 9.4 excludes `;` from a writable UA. Every UA of
 `ml/l7_benign.UA_TABLE` contains one (17 of 17, weight 0.99 of 0.99; 3 of the 6 `ml/l7_gen.UAS`), so as written no

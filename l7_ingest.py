@@ -333,6 +333,17 @@ class L7KeyStore:
                 "full_windows": full, "late_dropped": self.late, "truncated": self.truncated}
 
 
+def group_id(group):
+    """The gid of a group given by name or number; ValueError if there is no such group."""
+    if isinstance(group, int):
+        return group
+    import grp
+    try:
+        return grp.getgrnam(str(group)).gr_gid
+    except KeyError as e:
+        raise ValueError(f"no group {group!r}") from e
+
+
 class SyslogDatagramReader:
     """Bind a Unix-domain datagram socket and yield raw access-log datagrams.
 
@@ -343,7 +354,7 @@ class SyslogDatagramReader:
     """
 
     def __init__(self, path=DEFAULT_SOCKET_PATH, rcvbuf=DEFAULT_RCVBUF,
-                 unlink_stale=True, mode=DEFAULT_SOCKET_MODE):
+                 unlink_stale=True, mode=DEFAULT_SOCKET_MODE, group=None):
         self.path = path
         if unlink_stale:
             self._unlink()
@@ -353,6 +364,9 @@ class SyslogDatagramReader:
         except OSError:
             pass
         self.sock.bind(path)
+        if group is not None:
+            # The L7 v2 enforcing arm binds 0660 with nginx's group (T-042 E06): a datagram here can drive a ban.
+            os.chown(path, -1, group_id(group))
         if mode is not None:
             # Let the unprivileged Nginx worker send to a root-bound socket.
             os.chmod(path, mode)

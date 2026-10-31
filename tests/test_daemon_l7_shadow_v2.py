@@ -114,7 +114,8 @@ def run_shadow(d, records, until, scorer=None, tick=None):
         return built[-1]
     reader = FakeReader(d, records, until, tick)
     ingest = types.SimpleNamespace(**{k: getattr(l7_ingest, k) for k in dir(l7_ingest) if not k.startswith("__")})
-    ingest.SyslogDatagramReader = lambda _path: reader
+    d.reader_calls = []
+    ingest.SyslogDatagramReader = lambda path, **kw: d.reader_calls.append((path, kw)) or reader
     d.ns["l7_ingest"] = ingest
     d.ns["l7_engine"] = types.SimpleNamespace(build_engine=build_engine, EngineRecorder=l7_engine.EngineRecorder)
     d.call("l7_shadow_monitor", "/run/ddos_l7.sock")

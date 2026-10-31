@@ -455,6 +455,7 @@ a legacy capture; T-042 E05), and the replay-only ablations are refused: the dae
 | `L7_ALLOWLIST` | (none) | comma-separated IPv4 addresses or networks never acted on (the runner's monitoring identities), besides 127.0.0.0/8 and 10.0.0.1 |
 | `L7_KILL_FILE` | `/run/l7v2/kill` | the kill switch |
 | `L7_SELECTION`, `L7_SELECTION_SHA256`, `L7_ARM` | (none) | the frozen selection, its recorded sha256, and the arm's name (`view_gru`, `hgb`, `lr`) |
+| `L7_SOCKET_GROUP` | `nogroup` | the group of the L7 socket, bound 0660 instead of 0666 while the arm runs (T-042 E06): a datagram there can drive a ban. Assumption: nginx's workers run as nobody:nogroup, the compiled defaults of the installed nginx 1.28.3 (no `--user`/`--group` in its configure string) with no `user` directive in `nginx.conf` or the runner's copy; with a `user` directive, set its group. Without `L7_ENFORCE=1` the socket stays 0666 as before |
 
 **The runner's confs** (ledger D-028, review L7V2-09): `l7_conf.unprotected(text)` adds `ref`, `sid` and `sid_set` to
 the l7json of a run's own copy of `nginx_unprotected.conf` (C, C', U); `l7_conf.protected(text, run_dir)` adds the

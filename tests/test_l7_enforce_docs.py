@@ -49,7 +49,7 @@ class ContractTest(unittest.TestCase):
         section = doc[start:doc.index("\n## ", start + 1)]
         daemon = source("control_plane.py")
         for var in ("L7_ENFORCE", "L7_ENFORCE_DIR", "L7_NGINX_CONF", "L7_ALLOWLIST", "L7_KILL_FILE", "L7_SELECTION",
-                    "L7_SELECTION_SHA256", "L7_ARM"):
+                    "L7_SELECTION_SHA256", "L7_ARM", "L7_SOCKET_GROUP"):
             self.assertIn(f'os.environ.get("{var}"', daemon, var)
             self.assertIn(f"`{var}`", section, var)
         for name in sorted(os.listdir(os.path.join(REPO, "tests"))):
