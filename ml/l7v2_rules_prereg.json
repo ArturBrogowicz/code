@@ -1,0 +1,41 @@
+{
+ "format": "l7v2-rules-prereg/1",
+ "source": "docs/L7V2_DESIGN.md section 10 (the rule arms, their grids, the budget, the tau grid, R*), 9.5 (one score(batch) -> p interface, rules give p in {0, 1}) and 8.3 (the population-level detector); ml/l7_baselines.py's grids; control_plane.py's default and tolerant heuristic; nginx.conf's limit_req",
+ "rule": "The rule arms, frozen by commit before the code that tunes them and before any capture. Each tuned arm is tuned on the validation captures only, at the common budget of ml/l7v2_model_prereg.json selection (budget, unit cost, objective, ties, k_grid, the engine's scored windows), with its own grid below; R* is chosen among best_rule.candidates of ml/l7v2_verdict_prereg.json. A change is a new file version, labelled post hoc; tests/test_l7v2_rules.py pins the sha256 and every value.",
+ "decision_points": "the view arms' windows (ml/train_l7v2.view_windows), restricted at selection to the windows the live engine would score (train_l7v2.engine_scored); a rule arm decides on the same keys (IP, ua_h, sid_h), at the same times, with the same k-consecutive policy",
+ "theta": 0.5,
+ "theta_note": "a rule's p is 0 or 1, so every theta in [0, 1) gives the same decisions; the rule arms take theta 0.5 and the k grid of ml/l7v2_model_prereg.json",
+ "statistic": {
+  "time": "a request's completion time (nginx $msec), clamped to be non-decreasing per state key; requests are processed in (completion time, arrival) order",
+  "per_request": "each statistic is computed at every request of its state key, over that key's requests up to and including it (a live limiter's view)",
+  "per_window": "a window's statistic is the maximum of the per-request statistic over the requests of its max key that completed in (lo, t], plus the max key's latest request at or before t; t is the window's completion, lo is the later of the key session's previous scored window's t (or the session's first request start for its first window) and t - lookback_s",
+  "lookback_s": 300.0,
+  "why": "the rule sees every request between two decision points, as a live limiter would, so no burst between two windows is lost (no rule is starved by the window choice)"
+ },
+ "state_keys": {"ip_ua": ["ip", "ua_h"], "ip_ua_sid": ["ip", "ua_h", "sid_h"], "ip": ["ip"]},
+ "key_grid": ["ip_ua", "ip_ua_sid"],
+ "key_note": "every per-key rule arm takes its key as a grid dimension on validation: (IP, UA) as section 10 writes for the sustained rate and the token bucket, and the L7 v2 key (IP, UA, sid) of section 8.3; a reading for strong baselines, labelled post hoc before any data",
+ "columns": {
+  "per_key": {"rate_s": [1, 10, 30, 60, 300], "cost_s": [10, 60, 300], "bucket_rates": [5, 10, 15, 20, 25, 30]},
+  "rate": "requests of the state key completed in (T - w, T], divided by w (requests per second)",
+  "cost": "the sum, over the state key's requests completed in (T - w, T], of the frozen class cost (ms) of each request's route class (route_costs_ms of the calibration record in use; an uncosted request costs 0)",
+  "bucket": "the token bucket's excess as ml/l7_baselines._bucket_rejects computes it: 0 at the key's first request, then max(0, excess - rate x dt + 1)",
+  "per_ip": ["daemon_default", "daemon_tolerant", "pop_new_keys_60", "pop_cookieless_60"],
+  "own": ["nginx_reject"]
+ },
+ "arms": {
+  "sustained_rate": {"tuned": true, "key": "key_grid", "windows_s": [10, 30, 60], "thresholds_rps": [2, 5, 10, 15, 20, 25, 30, 40, 50], "fires": "rate over the window > threshold", "grid_order": ["key", "window", "threshold"], "source": "ml/l7_baselines.py SUSTAIN_WINDOWS, SUSTAIN_THRESHOLDS (B2)"},
+  "token_bucket": {"tuned": true, "key": "key_grid", "rates": [5, 10, 15, 20, 25, 30], "bursts": [10, 25, 50, 100], "fires": "excess at the rate > burst", "grid_order": ["key", "rate", "burst"], "source": "ml/l7_baselines.py BUCKET_RATES, BUCKET_BURSTS (B3)"},
+  "cost_budget": {"tuned": true, "key": "key_grid", "windows_s": [10, 60, 300], "tau": "tau_grid", "fires": "cost over the window > tau x its benign validation maximum", "grid_order": ["key", "window", "tau"], "source": "section 10 (new)"},
+  "multiscale_rate": {"tuned": true, "key": "key_grid", "windows_s": [1, 10, 60, 300], "tau": "tau_grid per window, jointly", "fires": "the rate over any of the windows > its tau x that window's benign validation maximum", "grid_order": ["key", "tau_1", "tau_10", "tau_60", "tau_300"], "source": "section 10 (new)"},
+  "population": {"tuned": true, "key": "ip", "statistics": ["pop_new_keys_60", "pop_cookieless_60"], "tau": "tau_grid per statistic, jointly", "fires": "either statistic > its tau x its benign validation maximum", "grid_order": ["tau_new_keys", "tau_cookieless"], "pop_new_keys_60": "the distinct L7 v2 keys first seen at the IP in the last 60 s (a key unseen for lookback_s counts as new again)", "pop_cookieless_60": "the share of the IP's requests in the last 60 s without a session id (sid_h = -1)", "source": "section 8.3, replay only"},
+  "default_rules": {"tuned": false, "key": "ip", "column": "daemon_default", "consecutive": 1, "rule": "control_plane.py's L7 heuristic per IP: requests kept for HEURISTIC_WINDOW s, at >= HEURISTIC_MIN_REQUESTS of them rps = n / max(elapsed, 1) > HEURISTIC_MAX_RPS, or error share > HEURISTIC_ERROR_RATIO with rps > 10 (status >= 400 except 503); a firing clears the IP's tracker and bans the IP for BAN_TTL_SECONDS, during which its requests are not seen; the statistic is 1 while the IP is banned", "max_rps": 50},
+  "tolerant_rules": {"tuned": false, "key": "ip", "column": "daemon_tolerant", "consecutive": 1, "rule": "as default_rules with control_plane.py's tolerant HEURISTIC_MAX_RPS", "max_rps": 108},
+  "nginx_limits": {"tuned": false, "key": "ip", "column": "nginx_reject", "consecutive": 1, "rule": "nginx.conf's limit_req per $binary_remote_addr, nodelay: a request whose excess would pass the burst is rejected and leaves the state unchanged; a key is acted on when one of its own requests is rejected. limit_conn is not replayable from the access log and is left out", "rate_rps": 30, "burst": 100}
+ },
+ "daemon": {"window_s": 10.0, "min_requests": 5, "error_ratio": 0.8, "error_min_rps": 10, "ban_ttl_s": 300.0},
+ "tau_grid": [0.8, 1.0, 1.2, 1.5, 2.0],
+ "tau_rule": "a threshold is tau x the maximum of its statistic over the benign windows of the validation captures (design 10); a maximum of 0 gives the threshold 0",
+ "selection": "per tuned arm, the grid point and k with the highest validation attack-entity recall among those within the budget; ties: fewer benign units flagged, the lower median time to decision, then grid order (k in k_grid order, then the arm's grid in its grid_order, each dimension in its listed order). The fixed replays take their rule at k = 1 and are reported with their validation benign units, never selected",
+ "costs": "the cost columns use the route costs of the calibration record in use; a rule package records the record's sha256 and its costs, and a selection is valid for claims only on a frozen record"
+}
