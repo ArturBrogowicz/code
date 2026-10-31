@@ -258,6 +258,30 @@ class TuningTest(unittest.TestCase):
         self.assertEqual(PRE.load()["models"]["lr"]["class_weight"], "balanced")
 
 
+class ShuffledVariantsTest(unittest.TestCase):
+    """T038-05 (D-034): the pin_first variant and the benign units beside every gap."""
+
+    def test_pin_first_keeps_the_first_valid_token(self):
+        _m, recs, _c = population()
+        ws = V.view_windows(recs, 8, 4)
+        X = V.shuffled_stack(ws, 7, pin_first=True)
+        moved = 0
+        for w, x in zip(ws, X, strict=True):
+            idx = np.flatnonzero(w["X"][:, 0] > 0)
+            np.testing.assert_array_equal(x[idx[0]], w["X"][idx[0]])
+            self.assertEqual(sorted(map(tuple, x[idx])), sorted(map(tuple, w["X"][idx])))
+            moved += int(not np.array_equal(x, w["X"]))
+        self.assertGreater(moved, 0)
+        np.testing.assert_array_equal(V.shuffled_stack(ws, 7), np.stack([F.shuffle_valid_rows(w["X"], r) for w, r in
+                                                                          zip(ws, [np.random.default_rng(7)] * len(ws),
+                                                                              strict=True)]))
+
+    def test_the_gap_carries_both_units(self):
+        g = V.order_gap({"recall": 0.8, "benign_units_flagged": 1}, {"recall": 0.5, "benign_units_flagged": 4}, 2)
+        self.assertEqual(g, {"recall_gap_pp": 30.0, "benign_units_view_gru": 1, "benign_units_shuffled": 4,
+                             "allowed": 2, "shuffled_within_budget": False})
+
+
 def timed(cap="c1", seed=0, phase=(20.0, 40.0), intensity=2.0):
     """population() with a P3 timeline (t0_wall 0, one attack phase) and its bots scheduled in that phase."""
     m, recs, cap = population(cap, seed)
@@ -314,6 +338,14 @@ class SelectScoreTest(unittest.TestCase):
             self.assertIn("operating_point", arm)
         self.assertEqual(self.sel["arms"]["gru_shuffled"]["operating_point"],
                          self.sel["arms"]["view_gru"]["operating_point"])
+
+    def test_the_shuffled_variants_report_their_units_beside_the_gap(self):
+        sh = self.sel["arms"]["gru_shuffled"]
+        for part in (sh, sh["pin_first"]):
+            self.assertIn("benign_units_flagged", part["val_at_point"])
+            if self.sel["arms"]["view_gru"]["operating_point"] is not None:
+                self.assertEqual(part["gap"]["benign_units_shuffled"], part["val_at_point"]["benign_units_flagged"])
+                self.assertIn("benign_units_view_gru", part["gap"])
 
     def test_every_arm_reports_the_load_split(self):
         for name, arm in [*self.sel["arms"].items(), *self.sel["baselines"].items()]:
@@ -372,6 +404,8 @@ class SelectScoreTest(unittest.TestCase):
         for arm in res["arms"].values():
             self.assertEqual(arm["attack_entities"], 4)
             self.assertEqual(set(arm["by_family"]), {"C3b@M1"})
+        self.assertIn("pin_first", res["arms"]["gru_shuffled"])
+        self.assertIn("benign_units_flagged", res["arms"]["gru_shuffled"]["pin_first"])
         self.assertEqual(res["baselines"]["age_only"]["attack_entities"], 4)
         self.assertIn("auc", res["baselines"]["age_only"])
         with open(os.path.join(self.dir, "eval", "eval.json"), encoding="utf-8") as fh:

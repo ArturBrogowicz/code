@@ -289,9 +289,33 @@ def tab_scores(clf, X):
     return clf.predict_proba(summaries(X))[:, 1] if len(X) else np.zeros(0)
 
 
-def shuffled_stack(windows, seed):
+def shuffle_rows_pin_first(matrix, rng):
+    """A copy of a window matrix with its valid rows permuted among themselves except the first, which stays in place
+    (the shuffled-GRU's pin_first variant, D-034, T038-05: every C3b window starts with the key's entry token)."""
+    X = np.array(matrix, dtype=np.float32, copy=True)
+    rest = np.flatnonzero(X[:, 0] > 0)[1:]
+    X[rest] = X[rng.permutation(rest)]
+    return X
+
+
+def shuffled_stack(windows, seed, pin_first=False):
     rng = np.random.default_rng(seed)
-    return np.stack([F.shuffle_valid_rows(w["X"], rng) for w in windows]) if windows else _stack(windows)
+    shuffle = shuffle_rows_pin_first if pin_first else F.shuffle_valid_rows
+    return np.stack([shuffle(w["X"], rng) for w in windows]) if windows else _stack(windows)
+
+
+def order_gap(gru, shuffled, allowed=None):
+    """The view GRU's recall minus a shuffled variant's at the GRU's (theta, k), with the benign units each flags beside
+    it (ml/l7v2_model_prereg.json models.gru_shuffled.report, D-034, T038-05)."""
+    if not gru or gru.get("recall") is None or shuffled.get("recall") is None:
+        return None
+    out = {"recall_gap_pp": round(100.0 * (gru["recall"] - shuffled["recall"]), 2),
+           "benign_units_view_gru": gru.get("benign_units_flagged"),
+           "benign_units_shuffled": shuffled.get("benign_units_flagged")}
+    if allowed is not None:
+        out["allowed"] = allowed
+        out["shuffled_within_budget"] = out["benign_units_shuffled"] <= allowed
+    return out
 
 
 def window_auc(scores, labels):
@@ -532,14 +556,19 @@ def select(train, val, out_dir, *, arms=PRE.ARMS, epochs=None, threads=2, seed=N
                                   "operating_point": "selection.json" if op else None})
         artifact("view_gru", "view_gru/config.json")
         if "gru_shuffled" in arms:
-            ps = torch_scores(model, shuffled_stack(val.view, mods["gru_shuffled"]["shuffle_seed"]), mean, std)
+            sh = mods["gru_shuffled"]["shuffle_seed"]
+            ps = torch_scores(model, shuffled_stack(val.view, sh), mean, std)
+            pp = torch_scores(model, shuffled_stack(val.view, sh, pin_first=True), mean, std)
             shuf = val.view
+            at_s = {x: v for x, v in at_point(shuf, ps, val, op).items() if not x.startswith("_")}
+            at_p = {x: v for x, v in at_point(shuf, pp, val, op).items() if not x.startswith("_")}
+            allowed = op["allowed"] if op else None
             out["gru_shuffled"] = {"artifact": out["view_gru"]["artifact"],
                                    "artifact_sha256": out["view_gru"]["artifact_sha256"],
                                    "probe_gate_pass": out["view_gru"]["probe_gate_pass"],
                                    "operating_point": op, "rule": mods["gru_shuffled"]["operating_point"],
-                                   "val_at_point": {x: v for x, v in at_point(shuf, ps, val, op).items()
-                                                    if not x.startswith("_")},
+                                   "val_at_point": at_s, "gap": order_gap(op, at_s, allowed),
+                                   "pin_first": {"val_at_point": at_p, "gap": order_gap(op, at_p, allowed)},
                                    "load_split": load_split(shuf, ps, val, op)}
     for name in ("hgb", "lr"):
         if name not in arms:
@@ -665,6 +694,15 @@ def score(ev, sel, sel_path, out_dir, *, threads=2):
                              "operating_point": op, "by_family": {str(f): {"caught": c, "entities": n}
                                                                   for f, (c, n) in sorted(fam.items(), key=str)},
                              "benign_units_flagged_by_kind": {str(k): v for k, v in sorted(kinds.items(), key=str)}}
+    if "gru_shuffled" in res["arms"] and "view_gru" in res["arms"]:   # T038-05: units beside every gap, pin_first
+        op = sel["arms"]["gru_shuffled"]["operating_point"]
+        sc = S.L7Scorer.load(os.path.dirname(os.path.join(base, sel["arms"]["gru_shuffled"]["artifact"])), level="view")
+        X = shuffled_stack(ev.view, pre["models"]["gru_shuffled"]["shuffle_seed"], pin_first=True)
+        a = {x: v for x, v in at_point(ev.view, sc.score(X) if ev.view else np.zeros(0), ev, op).items()
+             if not x.startswith("_")}
+        allowed = op["allowed"] if op else None
+        res["arms"]["gru_shuffled"]["gap"] = order_gap(res["arms"]["view_gru"], res["arms"]["gru_shuffled"], allowed)
+        res["arms"]["gru_shuffled"]["pin_first"] = {**a, "gap": order_gap(res["arms"]["view_gru"], a, allowed)}
     for name, b in sel.get("baselines", {}).items():           # the age-only baseline (D-034), at its frozen point
         with open(os.path.join(base, b["artifact"]), encoding="utf-8") as fh:
             pa = age_scores(json.load(fh)["benign_train_ages"], ev.view)
