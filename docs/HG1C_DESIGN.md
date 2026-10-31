@@ -184,7 +184,7 @@ question, and (b) leaves it open.
 | Step | What | Time |
 |---|---|---|
 | 1 | Preflight: root, venv, clean tree (`--allow-dirty` is recorded), no leftovers (it refuses and reports; `--clean` runs the cleanup), the manifest says the engine is `verified` with the pinned hash, the scope lock accepts `http://10.0.0.1/` | 1 s |
-| 2 | Environment: uptime and load (`wait_for_gate`), timer lateness p99 on the legit streams' CPU, CPU 7 since D14 was amended on 2026-10-31 (CPU 6 before) (200 samples, below the calibration's `validity.timer_p99_ms`, 10 ms, or a smoke test's `--timer-limit-ms`: departure 19; judged; the other CPU sets once per campaign, recorded), steal, TIME_WAIT settle, `git` state | 4 s plus waiting |
+| 2 | Environment: uptime and load (`wait_for_gate`), timer lateness p99 on the legit streams' CPU, CPU 7 since D14 was amended on 2026-10-31 (CPU 6 before) (200 samples, below the calibration's `validity.timer_p99_ms`, 10 ms, or a smoke test's `--timer-limit-ms`: departure 19; judged; then, where the pin plan gives the executor a CPU of its own (a campaign with a daemon: CPU 6), the same probe on that CPU in every run, recorded and not judged (T-039 V-33); the other CPU sets are not probed, so HG1B 4 rule 2's "the other CPUs are recorded" is not built), steal, TIME_WAIT settle, `git` state | 4 s plus waiting |
 | 3 | Topology: bridge, `server_ns`, the namespaces `hg_<i>_<profile>` with their aliases and netem; verification | 6 s |
 | 4 | Stack: render `nginx.conf`, start gunicorn then Nginx in `server_ns`, wait for HTTP 200 and check `X-Route-Class` of each sample route | 12 s |
 | 5 | Warm-up: two requests per route from `server_ns`; telemetry starts | 3 s |
@@ -687,7 +687,9 @@ pre-registration, after it a departure.
 0-1, daemon 2, executor 6, legit 7, attack 3-5. With D14 as amended on 2026-10-31 (D-032: the legit streams and the timer gate on CPU 7,
 the attack on 3-6), only the executor (from 2) and the attack (from 3-6) move: the executor takes CPU 6 from the attack, which needs at most
 about 2 % of a CPU per set of streams (T-004 p2_capacity 2), and nothing else uses CPU 7. Runs and campaigns without a daemon, and the
-calibrator, keep `PIN_PLAN` with the executor on 2. `scenario.py --plan --daemon` shows a block on these pins, the attack's CPU share
+calibrator, keep `PIN_PLAN` with the executor on 2. Every run on `PIN_PLAN_DAEMON`, each arm alike, also probes the timer of the
+executor's CPU after the gate and records it (`environment.json`, `timer_executor`), never judged: the run's clock is made of the exit
+stamps taken there (T-039 V-33). `scenario.py --plan --daemon` shows a block on these pins, the attack's CPU share
 over its three CPUs (T-039 V-32).
 
 **H-01: the daemon must come from a checkout that has `fix/daemon-robustness`.** One request with a byte that is not UTF-8 ended the daemon's

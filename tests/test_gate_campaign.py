@@ -141,6 +141,8 @@ class ProtectedCampaignTest(CampaignCase):
             self.assertEqual((sorted(meta["order"]), meta["planned_order"]), (["C", "Cp", "M_xdp", "U"], meta["order"]))
             for kind in meta["order"]:
                 self.assertEqual(self.json(d, kind, "plan.json")["pins"], X.P.PIN_PLAN_DAEMON, (d, kind))
+                env = self.json(d, kind, "environment.json")     # T-039 V-33: in every arm alike, recorded, not judged
+                self.assertEqual((env["timer_executor_cpus"], env["timer_executor"]["samples"]), ("6", 200), (d, kind))
         self.assertEqual([(p["mode"], p["verdict"]) for p in state["gate"]["protected"]], [("xdp", "INVALID")],
                          "three blocks: fewer than the outcome needs")
         self.assertTrue(any(m.startswith("P2 outcome of M_xdp: INVALID") for m in self.say), self.say)

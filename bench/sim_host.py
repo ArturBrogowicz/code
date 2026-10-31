@@ -145,7 +145,7 @@ class SimHost(X.Host):
                  fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,), wall_late_s=None, silent=None, nonzero=None,
                  ping_drops=None, daemon_holds_pipes=True, run_cost_s=None, daemon_startup_s=DAEMON_STARTUP_S,
                  daemon_ban_rps=DAEMON_BAN_RPS, daemon_ban_delay_s=DAEMON_BAN_DELAY_S, h01_fix_in_history=False,
-                 max_inflight=None, host_feed=None):
+                 max_inflight=None, host_feed=None, timer_p99_by_cpu=None):
         self.t = 0.0
         self.inodes = itertools.count(7000)
         self.max_inflight = max_inflight      # a lower in-flight cap for the engines than their --max-inflight (a test of F-02)
@@ -169,6 +169,7 @@ class SimHost(X.Host):
         self.commands, self.prims, self.sleeps = [], [], []
         self.root, self.dirty, self.nofile = root, dirty, nofile
         self.uptime_s, self.load1, self.timer_p99_ms = uptime_s, load1, timer_p99_ms
+        self.timer_p99_by_cpu = dict(timer_p99_by_cpu or {})       # the CPU list taskset is given -> p99; else timer_p99_ms
         self.exit_delay_s, self.exit_delay_per_request_s = exit_delay_s, exit_delay_per_request_s
         self.startup_s = startup_s or (lambda sid, index, kind: (LEGIT_STARTUP_S if kind == "legit" else ATTACK_STARTUP_S) + 0.002 * index)
         self.faults = dict(faults or {})
@@ -686,8 +687,8 @@ class SimHost(X.Host):
     def _cmd_taskset(self, a, ns, stdin):
         rest = a[2:]
         if "timer-probe" in rest:
-            return X.Result(0, json.dumps({"interval_s": 0.01, "samples": 200, "p50_ms": 0.1, "p99_ms": self.timer_p99_ms,
-                                           "max_ms": self.timer_p99_ms * 2}), "")
+            p99 = self.timer_p99_by_cpu.get(a[1], self.timer_p99_ms)
+            return X.Result(0, json.dumps({"interval_s": 0.01, "samples": 200, "p50_ms": 0.1, "p99_ms": p99, "max_ms": p99 * 2}), "")
         if "origin-session" in rest:
             return self._origin_session()
         if rest and rest[0] == "nginx":
