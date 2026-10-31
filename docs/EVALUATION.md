@@ -78,6 +78,7 @@ changed its default on 2026-10-19 (see "Defaults changed on 2026-10-19" below).
 | `ONLY_SCENARIOS` | all | e.g. `4` or `4,7,8,9` |
 | `GRU_ONLY` | 0 | 1 = only the XDP-fed GRU may ban (isolation tests); implies `XDP_GRU=1` unless that is set explicitly |
 | `XDP_GRU` | 0 | 1 = also run the XDP-fed GRU (`flow_map` → GRU feed and drain). Off by default since 2026-10-19; recorded in the daemon's `start` event |
+| `SLOW_PC`, `SLOW_PC_ENFORCE` | 0, 0 | the P4 per-connection slow rule: 1 = run it (in shadow), and 1 = also enforce it. Its other variables are in "P4: the per-connection slow rule and profile R" below |
 
 Operating points (a variable of the same name overrides a value):
 
@@ -200,6 +201,214 @@ Still open: a live `hping3 --rand-source` flood with the daemon polling (the ker
 and the userspace read are covered above, the daemon under a real flood is not); and the remaining
 G-17 checks (`doff`, fragments, IPv6 / 802.1Q, `tot_len`), which the program still lacks.
 
+## Defaults changed on 2026-10-30
+
+The orchestrated review of 2026-10-29 (`/home/artur/agent_workspace/final/REPORT.md`, H-03; security
+review S11 of task T-007) led to one change in what a suite run executes:
+
+| Change | Before | Now | Why |
+|---|---|---|---|
+| gunicorn bind in the suite (`_start_web_stack`) | `0.0.0.0:8080` | `127.0.0.1:8080`, nginx's upstream (`proxy_pass http://127.0.0.1:8080` in `nginx.conf` and `nginx_unprotected.conf`) | gunicorn listened on every address of `server_ns`, so a client could reach the backend directly and bypass nginx's limits, its access log (the L7 rate rule and the L7 shadow) and SlowConn, which counts connections to :80 and :443 only |
+
+What this means for earlier results: nothing, as far as the bypass goes. No published campaign's
+client used it [FACT]: in every version of `test_distributed_suite.py` (`git log -G8080`), port 8080
+appears only in the gunicorn bind; the legit clients, the readiness probe, wrk and the open-loop
+generators target `HTTP_URL` (`http://10.0.0.1/`, port 80), hping3 `-p 80`, and the Slowloris and
+R.U.D.Y. scripts `PORT = 80`. Not changed: `setup.sh` (the legacy two-namespace topology, still
+`0.0.0.0:8080`) and the runners that start their own backend (`capture_testbed_dataset.py`,
+`ml/capture_l7.py`, `ml/eval_l7.py`, all `0.0.0.0:8080`); `bench/executor.py` already binds
+`127.0.0.1:8080`. The change is checked offline only (the suite's argv and the confs, in
+`tests/test_daemon_robustness.py`); it has not been run on the testbed.
+
+## Daemon robustness (2026-10-30)
+
+Three defects from the review of 2026-10-29 (`/home/artur/agent_workspace/final/REPORT.md`) are fixed on
+`fix/daemon-robustness`. Detection and enforcement are unchanged, and `tests/test_daemon_rules.py` passes
+unchanged.
+
+* **H-01: one request stopped the defence.** nginx's `escape=json` writes bytes ≥ 0x80 as they are, and both
+  log tailers decoded strict UTF-8. One request with a non-UTF-8 User-Agent or URI therefore raised
+  `UnicodeDecodeError`. In the R.U.D.Y. thread it ended the thread. In the main loop it reached the
+  `finally`, which detached XDP and so lifted every ban. A valid multi-byte character cut by a partly
+  written line did the same. Now undecodable bytes read as U+FFFD. Any other error from the access-log
+  tailer is reported, and the tailer is recreated after 1 s with XDP still attached. Only Ctrl-C or SIGTERM
+  reaches the `finally`. SIGTERM goes there through a new handler: before, it killed the daemon and left
+  XDP attached. The suite itself uses SIGKILL. The handler and the `finally` ignore any further SIGTERM, so
+  a second one cannot deadlock the stop (D-02).
+* **H-02: threads died silently.** The telemetry loop had no guard, and no thread had a supervisor. One
+  exception ended L4 detection, the TTL sweep and the idle eviction, or ended R.U.D.Y. detection, with no
+  event. One such exception is bcc's bare `Exception` when a ban does not fit into the full 100 000-entry
+  `blacklist_map`. Now each telemetry poll is guarded, and every worker thread runs under `supervise()`,
+  which reports the exception and restarts the target after 1 s. The poll after a failed one only re-takes
+  the per-source snapshots and applies no threshold (D-01). Read at once, its deltas would span the whole
+  outage and ban sources at their normal rate.
+* **H-03: the nginx bypass.** See "Defaults changed on 2026-10-30".
+
+Every error the daemon survives is written as a `daemon_error` event and a console line.
+
+`tests/test_daemon_robustness.py` checks this offline, against fakes:
+
+* `UndecodableBytesTest`: 0xFF, 0x80, truncated sequences, and a character cut at the end of the file, in
+  both tailers. Such lines still count for the rate rule.
+* `MainLoopTest`: a tailer error keeps XDP attached. Ctrl-C after an error, or SIGTERM, detaches it once,
+  even when a SIGTERM arrives inside `stop_event.set()`.
+* `TelemetryGuardTest`: after a failed ban the TTL sweep still runs and the rules resume after one
+  re-baseline poll. After a 30-poll outage no client is banned at its normal rate, and a flood that began
+  during the outage is banned at its one-poll rate.
+* `SupervisorTest`: the R.U.D.Y. thread bans again after its restart, every worker is supervised, and a
+  worker that ends early is reported.
+* `BackendBindTest`: the suite's gunicorn bind.
+
+[NOT RUN] The live path needs the testbed: nginx writing raw bytes, a real full map, a real SIGTERM.
+
+Known limits:
+
+* A recreated tailer opens its log at the end, so lines written during the 1-s backoff are not read.
+* After a failed poll, detection resumes one poll later: the next poll only re-takes the snapshots. A
+  failed or re-baseline poll neither extends nor resets the SlowConn and low-SYN streaks. A flood that
+  starts and ends entirely inside an outage of failed polls is therefore never banned, and every failed
+  poll costs one poll of detection, even one that failed after all snapshots were taken (review R1-01).
+* Only SIGTERM is ignored while the stop is under way. A second Ctrl-C during the shutdown can still
+  interrupt the `finally` before the XDP detach (pre-existing, review R1-02), and subprocesses started
+  during the shutdown inherit the ignored SIGTERM, so a hung shutdown needs SIGKILL (review R1-03).
+* Because `ml/eval_l7.py` stops the daemon with SIGTERM, which is now graceful, its `l7_gru_poll` totals
+  (summed over every record, `ml/eval_l7.py:162-164`) may include one extra, final poll, so compare them
+  with P5/P5c with that caveat (D-04).
+
+**H-26, the R.U.D.Y. client field (fixed on `fix/rudy-client-ip`, 2026-10-30).** The error-log rule took the
+last `client: <IPv4>` of a line, so an address in the URI, the Host or the Referer was counted and banned
+instead of the client. Non-ASCII digits made `ban_ip` raise, which restarted the thread, and a body-timeout
+text that the client wrote into another line (a header timeout, an ignored header line) counted as well.
+nginx writes the client field right after its message and action, and the request line and the headers only
+after it (`ngx_http_log_error`, `src/http/ngx_http_request.c:3918-4007` of nginx 1.28.3). The pattern is now
+anchored at the start of the line and takes the field up to the `, server: ` that follows it, and the tailer
+ends lines at LF only, as nginx does, so a CR inside a field cannot start a forged line. A field that is not
+an IPv4 address is skipped and reported (`daemon_error`, `where` `error_log`). Thresholds, window, keying,
+the ban path and the ban event are unchanged. `RudyClientFieldTest` in `tests/test_daemon_rudy_client.py`
+checks this offline, and each of its tests fails on the daemon before the fix. [NOT RUN] on the testbed,
+where the rule does not fire at all: nginx 1.28.3 never writes "while reading client request body". The
+string is in neither its sources nor the installed `/usr/sbin/nginx`, an HTTP/1.1 body timeout ends in a 408
+without an error-log line (`src/http/ngx_http_request_body.c:276-282`), and none of the VM's error logs of
+2026-10-07 to 2026-10-23 has such a line.
+
+## P4: the per-connection slow rule and profile R (2026-10-30)
+
+Part 1 of P4 (`docs/P4_SLOW_DESIGN.md`, approved 2026-10-30 as recommended) is built offline on
+`feat/p4-slow-detector`; nothing of it has run on the testbed. Part 2, the generators' scale and the
+runner, comes after the L7 v2 pipeline.
+
+**Profile R**, a named configuration of the system under test (D-S1, D-S2). Every P4 arm runs on it, and in
+P4 "unprotected" means R, not the hardened configurations above; results on R do not transfer to them, nor
+the reverse.
+
+| File | Arms | What it is |
+|---|---|---|
+| `nginx_profile_r.conf` | C, C', U | `nginx_l7capture.conf` with the knobs of §4.1 at the distribution's and nginx's defaults: 2 workers x 768 connections (1,536 slots), 60 s header and body timeouts, 75 s keep-alive, 60 s send timeout, `client_max_body_size` 1m (10m on `/upload`), `large_client_header_buffers 4 8k`, `proxy_request_buffering off` on `/upload` only, nginx's default proxy timeouts (60 s, P4-05), no limits. The daemon's access log gains the client port (`json_ml_port`), and `stub_status` listens on 127.0.0.1:8081 |
+| `nginx_profile_r_limits.conf` | M_def, M_pc, M_tol | the same plus the deployed `limit_req` (30 r/s, burst 100) and `limit_conn` (50) |
+| `gunicorn_profile_r.py` | all | 5 sync workers (2 x 2 CPUs + 1) on 127.0.0.1:8080; gunicorn's defaults otherwise, written out |
+
+`tests/test_profile_r.py` pins every value statically. The proxy timeouts (P4-05) are nginx's own defaults,
+60 s for connect, send and read (`ngx_http_proxy_module.c:3716-3723` of nginx 1.28.3), as D-S1 asks of every
+value the design note does not set; the harness's 5 s / 10 s / 10 s are hardening, under which a request queued
+behind R's five busy sync workers would end in a 504 after 10 s. `nginx -t`, the slot exhaustion and the sha256 in
+each run's provenance belong to the runner and the smoke run.
+
+**The per-connection rule** (`slow_pc.py`, engine `l4_slowconn_pc`; D-S4, D-S5, D-S7, D-S8). The deployed
+slow rules key on the address, and SlowConn bans every subscriber behind a shared address (the CGNAT pools of
+P5c.1). This rule judges each established socket of nginx on :80 and :443 from `ss -tinpH` once a second, in its
+own supervised thread (P4-07: a slow or stuck `ss` delays this rule only, never the L4 rules of the telemetry
+thread). A socket is suspect when nginx owns it (not one still in the listen
+backlog), it is older than T since the first poll that saw it, it is unanswered (:80: `bytes_acked` <= 64;
+:443: no request of that client port in the access log during its lifetime, judged only once the log has
+shown a client port), it brought fewer than F bytes/s on average, and at least 2 data segments arrived after
+that first poll (a request waiting on a slow server is spared). After 3 suspect polls in a row the connection
+is closed. An address is banned only after K closes within 60 s and only with fewer than 3 UA keys in the
+access log over 10 minutes; the TTL is the daemon's 300 s, and at most 500 closes per poll and 20 bans per
+minute are carried out (the rest is logged as capped).
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `SLOW_PC` | 0 | 1 = run the rule. Alone it runs in shadow: it logs what it would close and ban and does nothing |
+| `SLOW_PC_ENFORCE` | 0 | 1 = also close (`ss -K`, one filter per connection, at most 32 per call) and ban (XDP, then `ss -K dst`) |
+| `SLOW_PC_KILL_FILE` | `/run/l7v2/kill` | while it exists, the rule runs in shadow (read every poll); so it does with `GRU_ONLY=1` |
+| `SLOW_PC_T`, `SLOW_PC_F`, `SLOW_PC_K` | 20, 16, 6 | a point of the frozen grid, or the daemon stops at start. The default is the grid's most conservative point, a placeholder until the validation runs choose |
+| `SLOW_PC_RECORD` | (none) | a gzip file that receives every poll's input (the `ss` text, the access-log items, the banned addresses), for `slow_pc.read_record()` and `slow_pc.replay()` |
+
+**Frozen before any data** (§6.4, §13 row 3): the grid T in {5, 10, 15, 20} s, F in {16, 64, 256, 1024} B/s,
+K in {2, 3, 4, 6}, the fixed constants, and `slow_pc.select_thresholds()`: on the validation seeds 4001-4002
+(C, U_loris and U_post, the rule in shadow, replayed offline), among the points that ban no benign address,
+close no slow uploader and close at most 0.1 % of the benign connections, the largest share of attacking
+addresses banned within T_mit = 90 s (`slow_pc.DEADLINE_S`) of their first connection wins; ties go to the
+larger T, the smaller F, the larger K; if no point qualifies, the rule fails its budget and the grid is not
+widened. Its first commit holds
+nothing else, and `tests/test_slow_pc_rule.py` pins its text by sha256.
+
+**Re-registration record.** 2026-10-30: T_mit 30 → 90 s, decided by the user BEFORE any data, because the
+frozen detector's dribble leg needs 2 data segments after the first poll. At the frozen pacing: W-SLOW's dry
+run (T-023, seed 1): median closes 55 s (Slowloris) / 39 s (slow POST); the independent re-simulation (T-029):
+52 s / 36 s, with a median ban at 66 s at K = 2. The share within 30 s stays reported as a secondary figure.
+`slow_pc.DEADLINE_S` is T_mit for both the selection rule and the outcome of §10 (criterion (a)); the grid,
+the constraints and the tie-breaks are unchanged, and the pin was renewed in the same commit. (The sources
+were corrected the same day: the first version of this record, 74020b6, attributed all figures to one run.)
+
+**Scoring the validation runs** (P4-03; `eval/p4_validation.py`, committed before any validation run). Each
+validation run's manifest names its `SLOW_PC_RECORD` file and the role of every client address (`attack`,
+`slow_uploader`, or any other benign kind). The scorer replays each record once, through one detector per grid
+point (`Detector.poll_parsed`), counts every point's `slow_pc.Outcome` as the frozen definitions say, sums them
+over the six runs (it refuses any other set of runs, and any address without a role) and applies
+`slow_pc.select_thresholds()`. Next to each point it reports the share banned within 30 s, the secondary figure
+of the re-registration. `tests/test_p4_validation.py` scores a synthetic validation set worked out by hand.
+
+**The pre-registered outcome** (§10; `eval/p4_outcome.py`, written and tested before any evaluation data).
+Over run records, one per run of the ten blocks (seeds 3101-3110, arms C, C', U, M_def and M_pc per family,
+each run 30 s of baseline, 210 s of attack and 30 s of recovery;
+`summarize()` builds a record from `eval/harm_gate.run_metrics` and the ban events), it decides per family
+whether the attack is harmful (the harm gate on U against C, at least 10 valid blocks, the placebo not
+passing, and at least 9 of 10 blocks harmed on their own) and whether M_pc mitigates it: (a) 5 consecutive
+1-s bins back at 0.99 x Q(C) within T_mit = 90 s, (b) the level over [attack start + T_mit, attack end], 120 s
+(`LEVEL_WINDOW_S`, 120-240 s of the run), (c)
+no benign address banned. M7 is "supported with scope" for the families that pass, else "not supported";
+Q(M_pc) - Q(M_def) and the bans per arm and role are reported. Two readings are the code's and are pinned
+by tests: (a) starts counting at the first second below the threshold, a reading the user accepted on
+2026-10-31 ("P4 recovery + HG4"), and (b)'s window starts at T_mit,
+which was the note's "+ 30 s" when T_mit was 30 s. `tests/test_p4_outcome.py` covers each outcome the
+note names on synthetic records.
+
+**Re-registration record.** The P4 attack length 120 → 210 s, re-registered 2026-10-31 by the user, before any
+data, so that the window of (b), from attack start + T_mit (90 s) to the attack's end, is 120 s long; a run is
+now 270 s (`eval/p4_outcome.TIMELINE`). The VM budget of the note's §11 grows with it [ESTIMATE, §11's method:
+the traffic plus about 60 s of set-up per run]: about 5.5 min per run instead of 4, so the smoke run (3 runs)
+about 0.3 h, the harm ladder (24) 2.2 h, the validation (6) 0.55 h, the campaign (80) 7.3 h and the re-runs (at
+most 16) 1.5 h: about 11.8 h in all, 10.4 h without re-runs, against 8.6 h and 7.5 h with the 120-s attack. The
+Slowloris-only cut grows by the same factor, from about 5 h to about 6.9 h.
+
+The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
+on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
+user's decision.
+
+Tests, all offline: `tests/test_slow_pc_rule.py` (the frozen rule), `tests/test_slow_pc.py` (the `ss`
+reader and the detector on the cases of §9: CGNAT pools answered on :80 and through the log on :443,
+Slowloris, slow POST below F, a slow uploader above F, a waiting request, a backlog socket, a TLS handshake
+without a request, the guards, the window, the UA guard, the TTL, the caps), `tests/test_daemon_slow_pc.py`
+(the rule in the daemon's real loop: off by default, shadow, enforcement, the kill switch, the caps, a
+CGNAT pool that SlowConn bans at 8 and that nothing bans in the new arm, the record and its replay),
+`tests/test_profile_r.py`, and `tests/test_l7_admissibility_pc.py` (the admissibility replica: both CGNAT
+pools trip SlowConn at the default 8 and the per-connection rule closes none of their connections at any grid
+point).
+
+[NOT RUN] on the testbed: the token layout of `ss -tinpH` (F-S3; a fixture recorded in the smoke run will be
+a test), the `ss -K` filter closing exactly one socket, the reader's cost at ~2,000 sockets per poll,
+`nginx -t` and the harm of profile R.
+
+Known limits:
+
+* A connection's age counts from the first poll that saw it. One that existed before the rule ran (or before
+  a ban of its address ended) looks younger than it is, so its average rate looks higher.
+* The :443 leg needs a client port in the daemon's access log (profile R's `json_ml_port`). With the deployed
+  `json_ml_format` the rule judges :80 only.
+* In shadow, a connection is judged closed once and then skipped, so a shadow run's decisions are those an
+  enforcing run would have made only until the first close: the attacker's reconnects are not simulated.
+
 ## Outputs of a run (`RESULTS_DIR`)
 
 | File | Content |
@@ -242,14 +451,20 @@ at the run directory; standalone default `/var/log/ddos/ban_events.jsonl`; `""` 
 
 | `kind` | Fields |
 |---|---|
-| `start` | `pid`, `backend`, `gru_only`, `xdp_gru`, `interface`, `model`, `model_sha256`, `scaler_sha256`, `xdp_sha256`, `thresholds` |
-| `ban` | `ip`, `engine`, `reason`, `backend`, `enforced`, `ttl_s`, `value`, `threshold`; plus `bytes` (`l4_slowconn`), `error_ratio` (`l7_rate`), `hits` (`gru`) |
+| `start` | `pid`, `backend`, `gru_only`, `xdp_gru`, `interface`, `model`, `model_sha256`, `scaler_sha256`, `xdp_sha256`, `thresholds`; since P4 also `slow_pc`, `slow_pc_enforce`, `slow_pc_sha256`, and `slow_pc_t_s`, `slow_pc_f_bps`, `slow_pc_k` in `thresholds` |
+| `ban` | `ip`, `engine`, `reason`, `backend`, `enforced`, `ttl_s`, `value`, `threshold`; plus `bytes` (`l4_slowconn`), `error_ratio` (`l7_rate`), `hits` (`gru`), `ua_keys` (`l4_slowconn_pc`: `value` is the address's closes within 60 s, `threshold` K) |
 | `unban` | `ip`, `backend`, `age_s` |
 | `suppress_on`, `suppress_off` | `syn_delta`, `pkt_delta`: the GRU pause during volumetric floods (observed once per 1-s poll) |
 | `gru_suppressed` | `ip`, `value` (probability), `hits`: a GRU detection dropped because the pause was active |
+| `daemon_error` | `where`, `error` (type and message, at most 300 characters), `action`: an error the daemon survived and retried (since 2026-10-30; `where` is `access_log` for the main loop's tailer, `telemetry` for one L4 poll, `thread:<name>` for a worker thread's target: `telemetry`, `inference`, `rudy`, `l7_shadow`, `slow_pc`; `error_log` for a R.U.D.Y. body-timeout line whose client field is not an IPv4 address, skipped with `action` `line skipped`, H-26; `slow_pc` for a failed `ss` read or `ss -K` call of the per-connection rule, `slow_pc_record` for its record file). A run without one had no such error |
+| `slow_pc_close` | `ip`, `port`, `local`, `sport`, `age_s`, `bytes_received`, `bytes_acked`, `segs_after`, `streak`, `ua_keys`, `enforced`: a connection the per-connection rule closed (`enforced` true) or would have closed (shadow) |
+| `slow_pc_would_ban` | `ip`, `value` (closes within 60 s), `threshold` (K), `ua_keys`: a ban the rule decided in shadow |
+| `slow_pc_close_retry` | `ip`, `port`, `local`, `sport`, `attempt`, `gave_up`: a closed connection still there at the next poll, closed again (`attempt` 2 or 3) or, after the last retry, given up (`gave_up` true; P4-06). A connection that ended between the read and the kill is gone, not an error, and the exit status of `ss -K` decides nothing |
+| `slow_pc_capped` | `what` (`close` or `ban`), `n`, `cap`, and for bans `ips` (at most 50): decisions held back by the caps of 500 closes per poll and 20 bans per minute |
+| `slow_pc_poll` | every 5 s: `mode` (`shadow` or `enforce`), the counters since the last one (`polls`, `ss_failed`, `suspect`, `closes`, `capped_closes`, `bans`, `capped_bans`, `spared` by the shared-address guard, `skipped_lines`, `close_retries`, `close_failed`: connections given up after the last retry), `sockets`, `owned`, `tracked`, `bad_sample` (the first skipped line), `inbox_dropped`, `note_errors` |
 
 Engines: `l4_syn`, `l4_volumetric`, `l4_slowconn`, `l4_lowsyn`, `l7_rate`, `l7_rudy`,
-`gru`. The `value` of the L4 engines is a count per poll interval (1 s plus the loop's
+`gru`, `l4_slowconn_pc` (P4, the per-connection slow rule; only with `SLOW_PC=1 SLOW_PC_ENFORCE=1`). The `value` of the L4 engines is a count per poll interval (1 s plus the loop's
 work), not a rate normalised by elapsed time (review D5).
 
 ## Metrics

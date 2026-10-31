@@ -16,7 +16,9 @@ sys.path.insert(0, REPO)
 import ban_events
 
 EVENT_KINDS = {"start", "ban", "unban", "suppress_on", "suppress_off", "gru_suppressed",
-               "l7_shadow", "l7_gru_poll", "l7_would_ban"}
+               "l7_shadow", "l7_gru_poll", "l7_would_ban", "daemon_error",
+               "slow_pc_close", "slow_pc_would_ban", "slow_pc_capped", "slow_pc_poll",
+               "slow_pc_close_retry"}
 # The L7 shadow modules must not be able to enforce anything (docs/L7_GRU_DESIGN.md §8).
 L7_MODULES = ("l7_ingest.py", "l7_features.py", "l7_scorer.py", "l7_engine.py")
 BAN_PATH_NAMES = ("ban_ip", "block_ip_in_xdp", "blacklist_map", "kill_zombie_connections",
@@ -39,7 +41,7 @@ class ControlPlaneContractTest(unittest.TestCase):
                                 and f.value.id == "EVENTS")
 
     def test_every_ban_names_a_known_engine(self):
-        self.assertEqual(len(self.ban_calls), 7)       # one per detection path
+        self.assertEqual(len(self.ban_calls), 8)       # one per detection path
         engines = []
         for call in self.ban_calls:
             kw = {k.arg: k.value for k in call.keywords}
@@ -93,7 +95,7 @@ class ControlPlaneContractTest(unittest.TestCase):
         # control_plane.py cannot be imported offline (it attaches XDP at import), so
         # check that every l7_* module attribute it references actually exists.
         import importlib
-        for mod_name in ("l7_engine", "l7_ingest"):
+        for mod_name in ("l7_engine", "l7_ingest", "slow_pc"):
             mod = importlib.import_module(mod_name)
             refs = {n.attr for n in ast.walk(self.tree) if isinstance(n, ast.Attribute)
                     and isinstance(n.value, ast.Name) and n.value.id == mod_name}

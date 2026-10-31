@@ -14,8 +14,12 @@ Every record has:
     t_mono_ns  int    CLOCK_MONOTONIC in ns (time.monotonic_ns())
     kind       str    "start" | "ban" | "unban" | "suppress_on" | "suppress_off"
                       | "gru_suppressed" | "l7_shadow" | "l7_gru_poll" | "l7_would_ban"
+                      | "daemon_error" | "slow_pc_close" | "slow_pc_would_ban"
+                      | "slow_pc_capped" | "slow_pc_poll" | "slow_pc_close_retry"
                       (the l7_* kinds are the L7 shadow engine's telemetry; a
-                      would-ban is a decision that was logged, not enforced)
+                      would-ban is a decision that was logged, not enforced; a
+                      daemon_error is an error the daemon survived and retried;
+                      the slow_pc_* kinds are the P4 per-connection rule's, slow_pc.py)
 plus kind-specific fields (ip, engine, value, threshold, ...); the full schema is
 documented in docs/EVALUATION.md.
 """
@@ -30,13 +34,13 @@ DEFAULT_PATH = "/var/log/ddos/ban_events.jsonl"
 
 # Detection engines of control_plane.py.
 ENGINES = ("l4_syn", "l4_volumetric", "l4_slowconn", "l4_lowsyn",
-           "l7_rate", "l7_rudy", "gru")
+           "l7_rate", "l7_rudy", "gru", "l4_slowconn_pc")
 
 # Console labels, identical to the ones the suite derived from the [BAN] log line.
 ENGINE_LABELS = {
     "l4_syn": "L4 SYN", "l4_volumetric": "L4 Volumetric", "l4_slowconn": "L4 SlowConn",
     "l4_lowsyn": "L4 Low-SYN", "l7_rate": "L7 Heuristic", "l7_rudy": "L7 R.U.D.Y.",
-    "gru": "GRU ML", "unknown": "Unknown",
+    "gru": "GRU ML", "l4_slowconn_pc": "L4 SlowConn-PC", "unknown": "Unknown",
 }
 
 
@@ -144,7 +148,8 @@ def engine_from_reason(reason):
     """Engine id for the free-text reason of a "[BAN] ... Reason: ..." log line, for
     daemon logs written before ban events existed. Order matters: the R.U.D.Y.
     reason also contains "Heuristic"."""
-    for needle, engine in (("R.U.D.Y.", "l7_rudy"), ("GRU", "gru"),
+    for needle, engine in (("Per-connection slow", "l4_slowconn_pc"),
+                           ("R.U.D.Y.", "l7_rudy"), ("GRU", "gru"),
                            ("Low-and-slow", "l4_lowsyn"), ("SYN flood", "l4_syn"),
                            ("Volumetric", "l4_volumetric"),
                            ("Slow connection", "l4_slowconn"), ("Heuristic", "l7_rate")):
