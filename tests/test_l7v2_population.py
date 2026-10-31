@@ -111,7 +111,8 @@ class EvaluationPlanTest(unittest.TestCase):
         held_benign = [e for e in p["entities"] if e["role"] == "benign" and e["held_out"]]
         self.assertEqual(sorted({e["kind_or_family"] for e in held_benign}),
                          ["api_bulk", "flash_crowd", "tpcw_shopping", "zipf_browser"])
-        self.assertTrue(all(e["schedule"]["start_s"] == 780.0 for e in held_benign))
+        self.assertTrue([e for e in held_benign if e["kind_or_family"] != "flash_crowd" and e["schedule"]["start_s"] < 600],
+                        "held-out kinds arrive across the timeline, not with the M3 slot")
         addresses = {e["address"] for e in p["entities"]}
         self.assertLessEqual(len(addresses), p3_prereg.load()["pool"]["address_limit"])
         for ns in p["namespaces"]:
@@ -130,7 +131,7 @@ class EvaluationPlanTest(unittest.TestCase):
         self.assertEqual(D.manifest_problems(m), [])
         label = D.labeler(m)
         e3 = next(e for e in p["entities"] if e["kind_or_family"] == "C3b@M3")
-        self.assertEqual(label(e3["address"], 800.0)[1:], ("C3b@M3", True, e3["entity_id"]))
+        self.assertEqual(label(e3["address"], e3["schedule"]["start_s"] + 1.0)[1:], ("C3b@M3", True, e3["entity_id"]))
 
     def test_the_pool_role_map_does_not_list_a_reused_address_twice(self):
         p = Cache.get(3201, "eval")
@@ -155,6 +156,59 @@ class HeldOutNamesTest(unittest.TestCase):
         a = l7_benign.plan_client("zipf_browser", {"level": 30}, 600.0, random.Random(4))
         b = l7_benign.plan_client("browser_page", {"level": 30, "referer": True}, 600.0, random.Random(4))
         self.assertEqual(a["users"], b["users"])
+
+
+class KeyAgeTest(unittest.TestCase):
+    """L7V2-03: key age (first-seen time) carries no information on role in a seed's plan (ml/l7v2_prereg.json arrivals,
+    re-registered 2026-10-31)."""
+    RULE = None
+
+    @classmethod
+    def setUpClass(cls):
+        import l7v2_prereg
+        cls.RULE = l7v2_prereg.load()["arrivals"]["age_check"]
+        cls.plans = [Cache.get(1001, "train"), Cache.get(3201, "eval"), plan(2001, "val"), plan(1002, "train"),
+                     plan(3202, "eval"), plan(9201, "pilot", knees=None)]
+
+    def test_first_seen_times_are_matched_across_roles(self):
+        for p in self.plans:
+            a = p["age_check"]
+            self.assertTrue(a["pass"], (p["seed"], a))
+            self.assertLessEqual(a["ks"], self.RULE["ks_max"])
+            self.assertLessEqual(abs(a["auc"] - 0.5), self.RULE["auc_band"])
+            self.assertEqual(a, LP.age_check(p["entities"], self.RULE))
+
+    def test_benign_users_arrive_across_the_whole_timeline_in_every_role(self):
+        for p in self.plans:
+            last_slot_end = max(ph["stop_s"] for ph in p["timeline"]["phases"])
+            ben = [t for r, _h, _k, t in LP.first_seen(p["entities"]) if r == "benign"]
+            self.assertLess(min(ben), 60.0)
+            self.assertGreater(max(ben), 0.8 * (last_slot_end - 60.0), p["seed_role"])
+
+    def test_attack_entities_arrive_across_their_slot(self):
+        p = Cache.get(1001, "train")
+        for ph in p["timeline"]["phases"]:
+            starts = [e["schedule"]["start_s"] for e in p["entities"] if e["kind_or_family"] in ph["families"]]
+            self.assertGreater(max(starts) - min(starts), 120.0, ph["name"])
+            self.assertTrue(all(ph["start_s"] <= s <= ph["stop_s"] - 60.0 for s in starts))
+
+    def test_held_out_kinds_are_not_born_with_an_attack_slot(self):
+        for p in (Cache.get(3201, "eval"), self.plans[4]):
+            slots = [ph["start_s"] for ph in p["timeline"]["phases"]]
+            flash = {e["schedule"]["start_s"] for e in p["entities"] if e["kind_or_family"] == "flash_crowd"}
+            self.assertEqual(len(flash), 1)
+            f = flash.pop()
+            self.assertTrue(all(not (f - 60.0 <= s < f + 120.0) for s in slots), (f, slots))
+            self.assertLessEqual(p["age_check"]["held_out_ks"], self.RULE["held_out_ks_max"])
+
+    def test_the_old_arrivals_fail_the_check(self):
+        rows = [{"kind_or_family": "tpcw_browsing", "role": "benign", "held_out": False,
+                 "schedule": {"start_s": 0.3 * k, "stop_s": 900.0}} for k in range(90)]
+        rows += [{"kind_or_family": "C2", "role": "attack", "held_out": False,
+                  "schedule": {"start_s": s + 0.2 * k, "stop_s": s + 240.0}} for s in (60.0, 300.0, 540.0) for k in range(50)]
+        a = LP.age_check(rows, self.RULE)
+        self.assertFalse(a["pass"])
+        self.assertGreater(a["ks"], 0.9)
 
 
 class SmokeUnchangedTest(unittest.TestCase):

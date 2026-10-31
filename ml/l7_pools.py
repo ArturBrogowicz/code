@@ -26,6 +26,13 @@ crowd, api_bulk). The M3 bots reuse the C2 phase's addresses with new entity ids
 (l7_dataset: the time-indexed address map). Held-out kinds and families are left out of training and validation
 captures by construction.
 
+L7 v2 arrivals (re-registered 2026-10-31, T-030 L7V2-03; ml/l7v2_prereg.json "arrivals"): every benign entity, in every
+role, arrives at a uniform time over [0, the last attack slot's end - 60 s] and runs to the end (a CGNAT pool runs from 0,
+its users arriving over that span; held-out kinds arrive like the trained ones); every attack entity arrives at a uniform
+time over [its slot's start, its slot's end - 60 s]; the flash crowd's minute starts at least 60 s from every slot start.
+build_plan records the key-age check (the first-seen times of benign and attack units: KS distance, AUC) and refuses an
+l7v2 plan whose key ages would carry its roles.
+
 L7 v2 intensity: each phase draws a multiplier m from {0.5, 1, 2} (ml/p3_prereg.json) on its family's knee from the
 P1 ladder. C2's per-entity rate is m x L_knee x S / (n x cost(route)), S and the cost from the calibration record
 in use (l7_backend.load_record; the placeholder until HG2 is frozen); C3a's page gaps are divided by m; C3b's frozen
@@ -33,6 +40,7 @@ parameters may change only through the number of bots, which P3 fixes, so m is r
 training, validation or evaluation plan needs frozen knees (`knees`); a pilot plan without them uses the placeholder
 knee L = 1 and says so.
 """
+import bisect
 import copy
 import hashlib
 import ipaddress
@@ -158,14 +166,14 @@ def _attack_families():
 def _l7v2_benign():
     """The L7 v2 benign mix (docs/L7V2_DESIGN.md §7.2, §7.3; ml/l7v2_prereg.json): every browser-like kind sends a
     Referer and keeps cookies; TPC-W's think mean is drawn per device within the specification's 7-8 s."""
-    tp, draws = {"level": 30, "first_visit_s": [0.0, 30.0]}, {"level": ["choice", [30, 60]],
+    tp, draws = {"level": 30, "first_visit_s": [0.0, 10.0]}, {"level": ["choice", [30, 60]],
                                                                "think_mean_s": ["uniform", 7.0, 8.0]}
-    tail = {"held_out": True, "slot": "tail"}
+    tail = {"held_out": True}                        # held-out kinds arrive across the timeline too (L7V2-03)
     return [
         {"kind": "tpcw_browsing", "count": 52, "ports": [80, 443], "gate": True, "params": dict(tp), "draws": dict(draws)},
-        {"kind": "cgnat_browsers", "count": 1, "ports": [443], "gate": True,
+        {"kind": "cgnat_browsers", "count": 1, "ports": [443], "gate": True, "arrival": "users",
          "params": {"users": 12, "level": 30, "first_visit_s": [0.0, 60.0], "nav": "tpcw:browsing"}},
-        {"kind": "cgnat_browsers", "count": 1, "ports": [443], "gate": True,
+        {"kind": "cgnat_browsers", "count": 1, "ports": [443], "gate": True, "arrival": "users",
          "params": {"users": 24, "level": 30, "first_visit_s": [0.0, 60.0], "nav": "tpcw:browsing"}},
         {"kind": "search_user", "count": 20, "ports": [80, 443], "gate": True, "params": dict(tp), "draws": dict(draws)},
         {"kind": "exporter", "count": 5, "ports": [443], "gate": True, "params": {"level": 30},
@@ -177,7 +185,7 @@ def _l7v2_benign():
          "draws": dict(draws), **tail},
         {"kind": "zipf_browser", "count": 10, "ports": [80, 443], "gate": True, "params": dict(tp),
          "draws": {"level": ["choice", [30, 60]]}, **tail},
-        {"kind": "flash_crowd", "count": 30, "ports": [80, 443], "gate": True, "params": {"level": 30},
+        {"kind": "flash_crowd", "count": 30, "ports": [80, 443], "gate": True, "params": {"level": 30}, "arrival": "flash",
          "draws": {"level": ["choice", [30, 60]], "think_mean_s": ["uniform", 7.0, 8.0]}, **tail},
         {"kind": "api_bulk", "count": 1, "ports": [443], "gate": True, "params": {"rps": [15.0, 20.0], "endpoints": [2, 3]},
          **tail},
@@ -222,6 +230,7 @@ POPULATIONS = {
         "phases": [{"name": "C2", "families": ["C2"]}, {"name": "C3a", "families": ["C3a"]},
                    {"name": "C3b", "families": ["C3b@M2", "C3b@M1"]}],
         "eval_slot": {"name": "C3b@M3", "families": ["C3b@M3"]},
+        "arrivals": "spread",
         "intensity": [0.5, 1.0, 2.0],
         "benign": _l7v2_benign(),
         "attack": _l7v2_attack(),
@@ -259,6 +268,74 @@ def _timeline(pop, version, seed, eval_slot=False):
     total = start + tail
     return {"lead_in_s": t["lead_in_s"], "phase_s": t["phase_s"], "tail_s": tail,
             "edge_jitter_s": t["edge_jitter_s"], "phases": phases, "duration_s": total}
+
+
+def _flash_start(slots, span, rule, within, rng):
+    """The flash crowd's start: uniform over [0, span - within], its minute at least flash_gap_s from every slot start."""
+    gap = rule["flash_gap_s"]
+    for _ in range(10_000):
+        f = round(rng.uniform(0.0, span - within), 3)
+        if all(not (f - gap <= s["start_s"] < f + within + gap) for s in slots):
+            return f
+    raise PlanError("no flash crowd start keeps its distance from the attack slots")
+
+
+def ks_distance(a, b):
+    """The two-sample Kolmogorov-Smirnov distance."""
+    a, b = sorted(a), sorted(b)
+    i = j = 0
+    d = 0.0
+    while i < len(a) and j < len(b):
+        t = min(a[i], b[j])
+        while i < len(a) and a[i] <= t:
+            i += 1
+        while j < len(b) and b[j] <= t:
+            j += 1
+        d = max(d, abs(i / len(a) - j / len(b)))
+    return d
+
+
+def auc(neg, pos):
+    """P(a positive value exceeds a negative one), ties counting one half: first-seen time as a score for `pos`."""
+    pos = sorted(pos)
+    total = 0.0
+    for x in neg:
+        lo, hi = bisect.bisect_left(pos, x), bisect.bisect_right(pos, x)
+        total += (len(pos) - hi) + 0.5 * (hi - lo)
+    return total / (len(neg) * len(pos))
+
+
+def first_seen(rows):
+    """(role, held_out, kind, t) of every key unit: an entity's arrival (its schedule start), and each CGNAT user's first
+    view; the flash crowd is left out, a burst by definition."""
+    import l7_benign
+    out = []
+    for e in rows:
+        kind, start = e["kind_or_family"], e["schedule"]["start_s"]
+        if kind == "flash_crowd":
+            continue
+        if kind == "cgnat_browsers":
+            plan = l7_benign.plan_client(kind, e["params"], e["schedule"]["stop_s"] - start, random.Random(e["client_seed"]))
+            out += [(e["role"], e["held_out"], kind, start + u["views"][0]["t"]) for u in plan["users"] if u["views"]]
+        else:
+            out.append((e["role"], e["held_out"], kind, start))
+    return out
+
+
+def age_check(rows, rule):
+    """The pre-registered key-age check (ml/l7v2_prereg.json arrivals.age_check) of a plan's entity rows."""
+    fs = first_seen(rows)
+    ben = [t for r, _h, _k, t in fs if r == "benign"]
+    atk = [t for r, _h, _k, t in fs if r == "attack"]
+    out = {"ks": round(ks_distance(ben, atk), 4), "auc": round(auc(ben, atk), 4), "n_benign": len(ben),
+           "n_attack": len(atk)}
+    ok = out["ks"] <= rule["ks_max"] and abs(out["auc"] - 0.5) <= rule["auc_band"]
+    held = [t for r, h, _k, t in fs if r == "benign" and h]
+    if held:
+        out["held_out_ks"] = round(ks_distance(held, [t for r, h, _k, t in fs if r == "benign" and not h]), 4)
+        ok = ok and out["held_out_ks"] <= rule["held_out_ks_max"]
+    out["pass"] = ok
+    return out
 
 
 def c2_rps(m, level, spare_cpu_s, n, cost_ms):
@@ -305,6 +382,14 @@ def build_plan(version, seed, seed_role, population="smoke", *, heuristics="tole
     timeline = _timeline(pop, version, seed, eval_slot=keep_held)
     duration = timeline["duration_s"]
     phase_of = {f: p for p in timeline["phases"] for f in p["families"]}
+    spread = None
+    if pop.get("arrivals") == "spread":
+        import l7v2_prereg
+        rule = l7v2_prereg.load()["arrivals"]
+        within = l7v2_prereg.load()["benign_kinds"]["flash_crowd"]["arrive_within_s"]
+        span = max(p["stop_s"] for p in timeline["phases"]) - rule["min_active_s"]
+        spread = {"rule": rule, "span": span, "flash": _flash_start(timeline["phases"], span, rule, within,
+                                                                     random.Random(subseed(version, seed, "flash")))}
     rates = None
     if population == "l7v2":
         import l7_backend
@@ -356,21 +441,30 @@ def build_plan(version, seed, seed_role, population="smoke", *, heuristics="tole
                 if row["held_out"]:
                     held_report.append({"entity_id": row["entity_id"], "violations": rec["violations"]})
                 j = timeline["edge_jitter_s"]
-                start = round(ph["start_s"] + erng.uniform(0.0, j), 3)
+                late = ph["stop_s"] - ph["start_s"] - spread["rule"]["min_active_s"] if spread else j
+                start = round(ph["start_s"] + erng.uniform(0.0, late), 3)
                 stop = round(ph["stop_s"] - erng.uniform(0.0, j), 3)
                 row["schedule"] = {"start_s": start, "stop_s": stop, "phase": ph["name"]}
+            elif spread:
+                if spec.get("arrival") == "users":
+                    start, params["first_visit_s"] = 0.0, [0.0, round(spread["span"], 3)]
+                elif spec.get("arrival") == "flash":
+                    start = spread["flash"]
+                else:
+                    start = round(random.Random(subseed(version, seed, f"arrive|{i}")).uniform(0.0, spread["span"]), 3)
+                row["schedule"] = {"start_s": start, "stop_s": duration, "phase": None}
             else:
                 slot = next((p for p in timeline["phases"] if p.get("slot") == spec.get("slot")), None) \
                     if spec.get("slot") else None
                 row["schedule"] = {"start_s": slot["start_s"] if slot else 0.0, "stop_s": duration,
                                    "phase": slot["name"] if slot else None}
-                if spec.get("gate"):
-                    verdict = _gate(name, params, duration, gate_seeds, heuristics, gate_cache)
-                    row["gate_admissible"] = verdict["admissible"]
-                    if not verdict["admissible"] and not launch_inadmissible:
-                        dropped.append({"entity_index": i, "kind": name, "params": params,
-                                        "trips": verdict["trips"]})
-                        continue
+            if role == "benign" and spec.get("gate"):
+                verdict = _gate(name, params, duration, gate_seeds, heuristics, gate_cache)
+                row["gate_admissible"] = verdict["admissible"]
+                if not verdict["admissible"] and not launch_inadmissible:
+                    dropped.append({"entity_index": i, "kind": name, "params": params,
+                                    "trips": verdict["trips"]})
+                    continue
             rows.append(row)
 
     reusers = [r for r in rows if r.get("reuse")]
@@ -410,6 +504,9 @@ def build_plan(version, seed, seed_role, population="smoke", *, heuristics="tole
         while r["params"].get("ua") == donor["params"].get("ua"):
             r["params"]["ua"] = draw_value(["ua_table"], None, urng)
         rows.append(r)
+    age = age_check(rows, spread["rule"]["age_check"]) if spread else None
+    if age is not None and not age["pass"]:
+        raise PlanError(f"the plan's key ages would carry its roles (ml/l7v2_prereg.json arrivals.age_check): {age}")
     schema = 3 if reusers or pop.get("schema") == 3 else 2
     for r in rows:
         r["plan_sha256"] = l7_dataset.entity_plan_sha256(r)
@@ -419,7 +516,7 @@ def build_plan(version, seed, seed_role, population="smoke", *, heuristics="tole
     out_rates = None if rates is None else {k: v for k, v in rates.items() if k != "route_costs_ms"}
     return {"format": PLAN_FORMAT, "dataset_version": version, "seed": seed, "seed_role": seed_role,
             "population": pop["name"], "scale": scale, "heuristics": heuristics, "duration_s": duration,
-            "schema": schema, "intensity": out_rates,
+            "schema": schema, "intensity": out_rates, "age_check": age,
             "server": {"config_id": cid, "gunicorn_workers": cfg["gunicorn_workers"],
                        "gunicorn_threads": cfg["gunicorn_threads"], "backend": pop.get("backend", "legacy")},
             "pool": {"range": str(POOL_NET), "permutation_seed": subseed(version, seed, "pool"),
