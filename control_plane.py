@@ -14,6 +14,7 @@ import joblib
 import numpy as np
 from GRU_ML_model import GRUDDoSClassifier
 import ban_events
+import l7_arms
 import l7_denymap
 import l7_enforce
 import l7_engine
@@ -55,10 +56,19 @@ L7_ALLOWLIST = os.environ.get("L7_ALLOWLIST", "")
 # The arm's kill switch, read every step: while this file exists it takes no action, and when it appears the deny map
 # is emptied (one reload) and the arm's XDP bans are lifted. The default is SLOW_PC_KILL_FILE's, so one file stops both.
 L7_KILL_FILE = os.environ.get("L7_KILL_FILE", "/run/l7v2/kill")
+# One path for every arm (9.5; l7_arms.py): the arm's detector, any of the view GRU, the HGB, the LR or a rule, and its
+# own operating point come from the frozen selection L7_SELECTION, whose sha256 the runner gives in L7_SELECTION_SHA256,
+# by the arm's name L7_ARM. L7_MODEL is the shadow's model only: with L7_ENFORCE=1 it must be unset.
+L7_SELECTION = os.environ.get("L7_SELECTION", "")
+L7_SELECTION_SHA256 = os.environ.get("L7_SELECTION_SHA256", "")
+L7_ARM = os.environ.get("L7_ARM", "")
 L7_ENFORCE_POLL_INTERVAL = 1.0
-if L7_ENFORCE and not (L7_SHADOW and L7_NGINX_CONF):
-    raise SystemExit("[-] L7_ENFORCE=1 needs L7_SHADOW=1 (the arm acts on the L7 engine's decisions) and "
-                     "L7_NGINX_CONF (the configuration of the nginx it reloads)")
+if L7_ENFORCE and not (L7_SHADOW and L7_NGINX_CONF and L7_SELECTION and L7_SELECTION_SHA256 and L7_ARM):
+    raise SystemExit("[-] L7_ENFORCE=1 needs L7_SHADOW=1 (the arm acts on the L7 engine's decisions), L7_NGINX_CONF "
+                     "(the configuration of the nginx it reloads) and L7_SELECTION, L7_SELECTION_SHA256, L7_ARM "
+                     "(the arm's detector and its operating point)")
+if L7_ENFORCE and L7_MODEL:
+    raise SystemExit("[-] L7_ENFORCE=1: the arm's model comes from L7_SELECTION; L7_MODEL must be unset")
 # GRU inference is driven by the Tier-1 (testbed-native) model. Its feature set,
 # sequence length and layer sizes are read from the training config so inference
 # can never silently drift from training. The 8 per-FLOW forward features (and
@@ -298,8 +308,9 @@ slow_pc_counts = defaultdict(int)   # inbox_dropped, note_errors: written by the
 slow_pc_record_fh = None            # the SLOW_PC_RECORD file; False once a write failed
 slow_pc_last_report = 0.0
 
-# The L7 v2 enforcing arm (L7_ENFORCE=1): built by l7_enforce_init() before the threads start.
+# The L7 v2 enforcing arm (L7_ENFORCE=1) and its detector: built by l7_enforce_init() before the threads start.
 l7_arm = None
+l7_detector = None
 
 # Queue for offloading ML inference to a dedicated thread
 inference_queue = queue.Queue()
@@ -695,12 +706,14 @@ def l7_ip_banned(ip_str):
 
 def l7_enforce_init():
     """Build the L7 v2 enforcing arm (L7_ENFORCE=1); the main statement calls it before any thread starts. A run
-    directory the daemon may not use, or a malformed L7_ALLOWLIST, stops the daemon."""
-    global l7_arm
+    directory the daemon may not use, a malformed L7_ALLOWLIST, or a detector l7_arms refuses (a placeholder operating
+    point, an ablation, an altered artifact, a selection that is not the recorded one) stops the daemon."""
+    global l7_arm, l7_detector
     try:
         l7_denymap.prepare_run_dir(L7_ENFORCE_DIR)
         allow = l7_enforce.allowlist(L7_ALLOWLIST)
-    except (OSError, ValueError) as e:
+        l7_detector = l7_arms.load(L7_SELECTION, L7_SELECTION_SHA256, L7_ARM)
+    except (OSError, ValueError) as e:                  # l7_arms.DetectorError is a ValueError
         raise SystemExit(f"[-] L7_ENFORCE=1: {e}") from e
     l7_arm = l7_enforce.Arm(l7_denymap.DenyMap(L7_ENFORCE_DIR), reload=l7_nginx_reload, ban=ban_ip,
                             close=kill_zombie_connections, banned=l7_ip_banned, events=EVENTS, lift=l7_lift_bans,
@@ -923,7 +936,10 @@ def l7_shadow_monitor(socket_path):
         print(f"[-] L7 shadow: cannot bind {socket_path}: {e}")
         return
     try:
-        engine = l7_engine.build_engine(L7_MODEL or None)
+        if L7_ENFORCE:
+            engine = l7_engine.build_engine(scorer=l7_detector)   # the arm's detector, loaded and checked at start
+        else:
+            engine = l7_engine.build_engine(L7_MODEL or None)
     except (ValueError, OSError) as e:      # l7_scorer.PackageError is a ValueError
         print(f"[-] L7 shadow: model package {L7_MODEL!r} rejected ({e}); features-only.")
         engine = l7_engine.build_engine(None)
@@ -1361,6 +1377,7 @@ try:
                 heuristic_profile=HEURISTIC_PROFILE, slow_pc=SLOW_PC,
                 slow_pc_enforce=SLOW_PC_ENFORCE,
                 l7_enforce=L7_ENFORCE, l7_enforce_sha256=ban_events.file_sha256("l7_enforce.py"),
+                l7_arm=L7_ARM or None, l7_selection_sha256=L7_SELECTION_SHA256 or None,
                 slow_pc_sha256=ban_events.file_sha256("slow_pc.py"),
                 l7_model=L7_MODEL or None, l7_record=bool(L7_RECORD),
                 interface=INTERFACE, model=MODEL_PATH,

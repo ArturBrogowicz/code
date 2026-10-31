@@ -105,16 +105,20 @@ class FakeReader:
 
 
 def run_shadow(d, records, until, scorer=None, tick=None):
-    """The daemon's real l7_shadow_monitor over `records` through a real L7ViewEngine; returns the engine."""
-    engine = l7_engine.L7ViewEngine(l7_ingest.L7KeyStore(max_views=8), scorer=scorer or RefStub())
+    """The daemon's real l7_shadow_monitor over `records` through a real L7ViewEngine, scored by the detector the
+    daemon hands build_engine (the enforcing arm's), else by `scorer` (a RefStub by default); returns the engine."""
+    built = []
+
+    def build_engine(_model=None, scorer=None, default=scorer):
+        built.append(l7_engine.L7ViewEngine(l7_ingest.L7KeyStore(max_views=8), scorer=scorer or default or RefStub()))
+        return built[-1]
     reader = FakeReader(d, records, until, tick)
     ingest = types.SimpleNamespace(**{k: getattr(l7_ingest, k) for k in dir(l7_ingest) if not k.startswith("__")})
     ingest.SyslogDatagramReader = lambda _path: reader
     d.ns["l7_ingest"] = ingest
-    d.ns["l7_engine"] = types.SimpleNamespace(build_engine=lambda _model=None: engine,
-                                              EngineRecorder=l7_engine.EngineRecorder)
+    d.ns["l7_engine"] = types.SimpleNamespace(build_engine=build_engine, EngineRecorder=l7_engine.EngineRecorder)
     d.call("l7_shadow_monitor", "/run/ddos_l7.sock")
-    return engine
+    return built[-1]
 
 
 class ViewShadowReportTest(unittest.TestCase):

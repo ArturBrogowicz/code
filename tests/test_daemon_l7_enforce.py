@@ -6,6 +6,7 @@ fakes. Nothing is imported from control_plane.py and nothing is attached, starte
 import ast
 import os
 import sys
+import types
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -24,14 +25,18 @@ CONF = "/var/tmp/ddos_campaigns/example/run/nginx.conf"     # the run's rendered
 RELOAD = ["nginx", "-c", CONF, "-s", "reload"]
 BOT, BOT_UA, POOL, SID, SID2, SID3 = V2.BOT, V2.BOT_UA, V2.POOL, V2.SID, V2.SID2, V2.SID3
 RefStub, bot, browser, rec, run_shadow = V2.RefStub, V2.bot, V2.browser, V2.rec, V2.run_shadow
-ENFORCE = {"L7_SHADOW": "1", "L7_ENFORCE": "1", "L7_NGINX_CONF": CONF}
+ENFORCE = {"L7_SHADOW": "1", "L7_ENFORCE": "1", "L7_NGINX_CONF": CONF, "L7_ARM": "view_gru",
+           "L7_SELECTION": "/var/tmp/ddos_campaigns/example/sel/selection.json", "L7_SELECTION_SHA256": "0" * 64}
 
 
 class L7Case(unittest.TestCase):
     def daemon(self, **env):
         d = H.Daemon(env)
         self.addCleanup(d.close)
-        d.ns.update(l7_denymap=l7_denymap, l7_enforce=l7_enforce)
+        self.detector = RefStub()                                      # what l7_arms.load gives the arm
+        self.loads = []
+        arms = types.SimpleNamespace(load=lambda *a: self.loads.append(a) or self.detector)
+        d.ns.update(l7_denymap=l7_denymap, l7_enforce=l7_enforce, l7_arms=arms)
         d.ns["L7_ENFORCE_DIR"] = os.path.join(d._tmp.name, "l7v2")
         d.clock.now = 999.0
         return d
@@ -67,15 +72,16 @@ class OffByDefaultTest(L7Case):
         for node in ast.walk(monitor):
             if isinstance(node, ast.If) and isinstance(node.test, ast.Name) and node.test.id == "L7_ENFORCE":
                 guarded |= {id(n) for s in node.body for n in ast.walk(s)}
-        uses = [n for n in ast.walk(monitor) if isinstance(n, ast.Name) and n.id == "l7_arm"]
-        self.assertEqual(len(uses), 3)                                  # attach, observe, submit
+        uses = [n for n in ast.walk(monitor) if isinstance(n, ast.Name) and n.id in ("l7_arm", "l7_detector")]
+        self.assertEqual(len(uses), 4)                                  # the detector; attach, observe, submit
         self.assertTrue(all(id(n) in guarded for n in uses))
         # no ban path from the shadow thread, whatever the switch (test_control_plane_contract checks direct calls)
         called = {n.func.id for n in ast.walk(monitor) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
         self.assertFalse(called & {"ban_ip", "block_ip_in_xdp", "kill_zombie_connections", "l7_nginx_reload"})
 
     def test_an_enforcing_daemon_without_the_engine_or_the_conf_does_not_start(self):
-        for env in ({"L7_ENFORCE": "1", "L7_NGINX_CONF": CONF}, {"L7_ENFORCE": "1", "L7_SHADOW": "1"}):
+        for env in [{k: v for k, v in ENFORCE.items() if k != gone} for gone in ENFORCE if gone != "L7_ENFORCE"] + [
+                {**ENFORCE, "L7_MODEL": "/var/tmp/pkg"}]:
             with self.subTest(env=env), self.assertRaises(SystemExit):
                 H.Daemon(env)
         self.assertFalse(self.daemon(L7_NGINX_CONF=CONF).L7_ENFORCE)    # unused while off
@@ -103,6 +109,8 @@ class ThreadTest(L7Case):
         names = [t.args[0] for t in threads]
         self.assertLess(names.index("l7_enforce"), names.index("l7_shadow"))
         self.assertIsInstance(d.l7_arm, l7_enforce.Arm)
+        self.assertEqual(self.loads, [(ENFORCE["L7_SELECTION"], "0" * 64, "view_gru")])
+        self.assertIs(d.l7_detector, self.detector)
         self.assertEqual(self.map_lines(d), [])                         # the run directory and an empty map
         [start] = d.events("start")
         self.assertTrue(start["l7_enforce"])
@@ -191,8 +199,8 @@ class EndToEndTest(L7Case):
         d.call("l7_enforce_init")
         burst = [rec(BOT, f"/api/item/{n}", 1000.0 + 0.09 * n) for n in range(10)]
         later = [rec(BOT, f"/api/item/{n}", 1030.0 + 0.5 * n) for n in range(4)]
-        scorer = RefStub()
-        engine = self.shadow(d, burst + later, until=1040.0, scorer=scorer)
+        scorer = self.detector
+        engine = self.shadow(d, burst + later, until=1040.0)
         self.assertEqual(scorer.calls[0], l7_engine.MAX_NEW_WINDOWS)    # 6 windows completed, the last 4 scored
         [wb] = d.events("l7_would_ban")
         self.assertLess(wb["t_poll"], 1002.0)                           # the poll that took the whole burst

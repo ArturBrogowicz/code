@@ -40,7 +40,8 @@ OUT = "/var/tmp/ddos_campaigns/example/b01_a1"
 # P4's per-connection rule: the daemon reads these, and uses them only with SLOW_PC=1
 SLOW_PC_PARAMETERS = {"SLOW_PC_ENFORCE", "SLOW_PC_KILL_FILE", "SLOW_PC_RECORD", "SLOW_PC_T", "SLOW_PC_F", "SLOW_PC_K"}
 # the L7 v2 enforcing arm: the daemon reads these, and uses them only with L7_ENFORCE=1
-L7_ENFORCE_PARAMETERS = {"L7_ENFORCE_DIR", "L7_NGINX_CONF", "L7_ALLOWLIST", "L7_KILL_FILE"}
+L7_ENFORCE_PARAMETERS = {"L7_ENFORCE_DIR", "L7_NGINX_CONF", "L7_ALLOWLIST", "L7_KILL_FILE", "L7_SELECTION",
+                         "L7_SELECTION_SHA256", "L7_ARM"}
 
 
 def spec_path(name):

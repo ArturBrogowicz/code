@@ -161,8 +161,9 @@ class Arm:
         be enforced; `refuse` is a reason given by the daemon (GRU_ONLY=1, say). Emits l7_enforce_arm."""
         scorer = getattr(engine, "scorer", None)
         meta = (getattr(scorer, "cfg", None) or {}).get("meta") or {}
-        info = {"arm": meta.get("arm") or getattr(scorer, "arm", None),
+        info = {"arm": meta.get("arm") or getattr(scorer, "arm", None), "arm_kind": getattr(scorer, "kind", None),
                 "model": getattr(scorer, "sha256", None) or None,
+                "selection_sha256": getattr(scorer, "selection_sha256", None),
                 "level": getattr(engine, "level", "request"),
                 "threshold": getattr(engine, "threshold", None), "consecutive": getattr(engine, "consecutive", None)}
         why = refuse
