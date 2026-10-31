@@ -26,7 +26,7 @@ under the run contract (5.5), the output is a verdict, a Markdown report and a J
     re-run once with the same seed, at most `max_reruns` times in all; a valid block is never re-run. Validity
     does not read the attack's effect.
   * in a protected run (M_<mode>) an attack stream is judged for its sending only up to the first ban of its source (post_ban_split:
-    a design fix made before any protected data, pending the user's confirmation; T-028 F-02): what the engine did not send after
+    a design fix approved by the user on 2026-10-30, before any data; T-028 F-02): what the engine did not send after
     that, or dropped because requests to banned sources filled its in-flight cap, is "mitigated", not "unsent".
   * no verdict on a calibration that is not frozen, except with --dry-run, which labels everything it prints.
   * no verdict on runs that carry overrides (`run.json` and `block.json` `overrides`: a smoke test's load, timeline or
@@ -313,7 +313,7 @@ def mitigation(run):
 # --- validity ----------------------------------------------------------------------------------
 
 def post_ban_split(stream, first_ban_axis):
-    """T-028 F-02, a design fix made before any protected data and pending the user's confirmation: in a protected run an attack
+    """T-028 F-02, a design fix approved by the user on 2026-10-30, before any data: in a protected run an attack
     stream's sending is judged only up to the first ban of its source. A request due at or after its own source's first ban is
     `mitigated`, sent or not; so is a request the engine's in-flight cap dropped (err "dropped") at or after the first ban of any
     source of the stream, since requests to banned sources wait out their timeout behind XDP and fill the cap. Every other request is

@@ -596,22 +596,23 @@ model (`bench/sim_host.py`) until AP-5 says otherwise.
 
 | commit | what | G |
 |---|---|---|
-| 14e587a | the P2 outcome pre-registered as constants and pure rules (`harm_gate.P2_OUTCOME`, `unprotected_fails`, `protected_works`, `p2_verdict`), pinned by tests before any protected run | G10 |
-| 91fdaee | the simulated host gets a daemon model: start-up, XDP attach, start event, bans after a delay, XDP drop, signals, bpftool, faults | G13 |
-| cfce08e | the executor plans `M_limits` and `M_xdp` (U's attack, U's clients, `nginx.conf`), the daemon's command, environment and directory; `M_l7shadow` and `M_l7` are named and refused | G1, G2, G12 |
-| 981f3c8 | the daemon run by its handle: readiness, SIGINT then KILL, XDP off, the bpftool leftover check, the daemon's CPU apart from the origin's | G3, G4 |
-| 529db35 | a protected run is unsound unless the daemon lived through it with its program, its start event and its ban file, and its CPU was sampled | G11 |
-| 9e629e0 | run.json keeps the axis zero and each stream's addresses; the gate counts legit identities blocked, legit requests refused, and the time to mitigate | G8, G9 |
-| dacfa3c | provenance: the configuration rendered, the daemon's files, the H-01 record | G2, H-01 |
-| 21821c3 | the executor on CPU 7 when the daemon has CPU 2, for every run of the campaign | G5 |
-| c005887 | the order check covers the protected runs; `valid_all` for a campaign | G7 |
-| e7c7d30 | HRR on log2 p95 beside HRR on Q | G10 |
-| b69fa14 | the protected-arm verdict per mode in the analysis and the report | G10 |
-| ce5d8c6 | campaigns with `--modes`: blocks of C, Cp, U and M_<mode>, the re-run rule on the whole block, the budget | G6 |
-| 9fc4229 | review T-028 F-01: every legit identity banned in any M run of the campaign counts (invalid runs, superseded attempts, kept files of unfinished runs) | G10 |
-| 75298c6 | review F-02: an M run's attack streams are judged for their sending only up to their sources' first bans | G11 |
-| 19dc7e7 | review F-07: the H-01 record tells the fix by both tailers decoding with replacement | H-01 |
-| a939657 | review F-04, F-06: the host's logs moved into the run, not erased; a feed rotated or truncated during the run makes it unsound | H1 |
+| 029a202 | the P2 outcome pre-registered as constants and pure rules (`harm_gate.P2_OUTCOME`, `unprotected_fails`, `protected_works`, `p2_verdict`), pinned by tests before any protected run | G10 |
+| 51b5223 | the simulated host gets a daemon model: start-up, XDP attach, start event, bans after a delay, XDP drop, signals, bpftool, faults | G13 |
+| f110d8d | the executor plans `M_limits` and `M_xdp` (U's attack, U's clients, `nginx.conf`), the daemon's command, environment and directory; `M_l7shadow` and `M_l7` are named and refused | G1, G2, G12 |
+| 88aa352 | the daemon run by its handle: readiness, SIGINT then KILL, XDP off, the bpftool leftover check, the daemon's CPU apart from the origin's | G3, G4 |
+| 8ef1e93 | a protected run is unsound unless the daemon lived through it with its program, its start event and its ban file, and its CPU was sampled | G11 |
+| 3b59496 | run.json keeps the axis zero and each stream's addresses; the gate counts legit identities blocked, legit requests refused, and the time to mitigate | G8, G9 |
+| 0e0527d | provenance: the configuration rendered, the daemon's files, the H-01 record | G2, H-01 |
+| 1270346 | the executor on a CPU of its own when the daemon has CPU 2, for every run of the campaign | G5 |
+| 338b54e | the order check covers the protected runs; `valid_all` for a campaign | G7 |
+| 3cc95ca | HRR on log2 p95 beside HRR on Q | G10 |
+| e09626a | the protected-arm verdict per mode in the analysis and the report | G10 |
+| 6b47c7f | campaigns with `--modes`: blocks of C, Cp, U and M_<mode>, the re-run rule on the whole block, the budget | G6 |
+| 44738f5 | review T-028 F-01: every legit identity banned in any M run of the campaign counts (invalid runs, superseded attempts, kept files of unfinished runs) | G10 |
+| c5db562 | review F-02: an M run's attack streams are judged for their sending only up to their sources' first bans | G11 |
+| 602d3b6 | review F-07: the H-01 record tells the fix by both tailers decoding with replacement | H-01 |
+| 8c488bb | review F-04, F-06: the host's logs moved into the run, not erased; a feed rotated or truncated during the run makes it unsound | H1 |
+| 6c7a568 | after the rebase onto D-032 (d62236f: legit streams and timer gate on CPU 7): the daemon's pin plan with the executor on 6 | G5 |
 
 **The modes.** `M_limits` is U's attack against `nginx.conf` (`limit_req` 30 r/s burst 100 nodelay, `limit_conn` 50; 503 for a refused
 request) and no daemon. `M_xdp` adds `control_plane.py` in `server_ns` with `MITIGATION_BACKEND=xdp`, `XDP_GRU=0` (the XDP-fed GRU is off
@@ -661,14 +662,14 @@ judged as before. The simulated engine drops at its cap, so the tests show the o
 
 **What the gate reports and judges (G7 to G10).** A block's order covers its M runs (they are drawn with C, Cp and U); `valid` is Gate A's
 (C, Cp, U only) and `valid_all` adds every planned arm there and valid. **This changes HG1c's re-run rule for campaigns with `--modes`, and
-so Gate A (review F-08), pending the user's approval:** a block whose C, Cp and U are valid is made again when its M run is not, so Gate
+so Gate A (review F-08), approved by the user on 2026-10-31, before any data:** a block whose C, Cp and U are valid is made again when its M run is not, so Gate
 A's figures for that block come from the new attempt (same seed, a new order), a failed M run uses Gate A's re-run budget (`max_reruns`),
 and the campaign's early stop counts complete blocks only. Campaigns without `--modes` are unchanged. Per run:
 the legit identities its daemon blocked (a ban of an address of the benign networks), the legit requests refused with 503 or 429 (in the
 window, judged links, and over the run), and the time to mitigate of each attack identity banned: its first ban less the attack's start
 on the run's axis (`executor.zero_epoch_s`, which the executor now keeps, plus the attack streams' offset; the daemon stamps its events
 with the same host clock). HRR is given on Q and on log2 p95, after a PASS only. The protected-arm verdict is the P2 outcome fixed in
-14e587a: MET, NOT MET or INVALID per mode. Its "no legit identity blocked" counts every M run of the mode that the campaign made (review
+029a202: MET, NOT MET or INVALID per mode. Its "no legit identity blocked" counts every M run of the mode that the campaign made (review
 F-01): a run that is not valid, an attempt a re-run superseded, and the ban file the campaign keeps of an unfinished run it removes
 (`<run>.unfinished.<k>.ban_events.jsonl`); the report lists each ban and where it was found.
 
@@ -676,8 +677,8 @@ F-01): a run that is not valid, an attempt a re-run superseded, and the ban file
 of 10) for "unprotected fails" only. The protected half takes the same: Q(M) >= 0.99 x Q(C) in at least 9 of 10 paired blocks, and 0 legit
 identities blocked over all of the mode's runs. A rule on the mean would let one broken block hide behind nine good ones; 10 of 10 would
 let one noisy block fail the arm. The time to mitigate is reported, not judged (the plan's own "a time to mitigate reported"), so MET is
-possible with no ban at all (limits alone holding Q); review F-03 asked the user to confirm that it is report-only, which the decision of
-2026-10-30 did not address. The constants are pinned by `P2OutcomeTest`; changing one before the first protected campaign is a new
+possible with no ban at all (limits alone holding Q); that TTM is report-only was approved by the user on 2026-10-31, before any data
+(review F-03). The constants are pinned by `P2OutcomeTest`; changing one before the first protected campaign is a new
 pre-registration, after it a departure.
 
 **The pin plan (G5), a proposal.** A campaign with a daemon pins every run, the warm-up included, with `population.PIN_PLAN_DAEMON`: server
