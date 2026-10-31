@@ -46,6 +46,8 @@ PATHS_PER_STREAM = 100
 # them the timer gate, move from CPU 6 to CPU 7, the quietest vCPU of the latest idle timer probes; the attack takes CPU 6 in exchange
 # and keeps four CPUs; the server (0-1) and the daemon's CPU (2, the executor's while there is no daemon) do not move
 PIN_PLAN = {"server": "0-1", "daemon": "2", "legit": "7", "attack": "3-6"}
+# D14 as approved on 2026-10-23 and in force until D-032: no run uses it; it names what a record made then, without its pins, ran with
+PIN_PLAN_BEFORE_D032 = {"server": "0-1", "daemon": "2", "legit": "6", "attack": "3-5,7"}
 # HG4 (docs/HG1C_DESIGN.md 15, G5): with the mitigation daemon on CPU 2 the executor may not stay there (its reaper threads stamp every
 # stream's exit, which the run's clock is made of; its sampler reads /proc once a second). It moves to CPU 6, which the attack streams
 # give up: they need at most about 2 % of a CPU per set of streams (T-004 p2_capacity 2), and keep 3-5. The server (0-1), the daemon's

@@ -301,7 +301,9 @@ for block b = 1 .. blocks:                       seed = first_seed + b - 1
 * The decision to re-run uses the gate's own `assess_block`, so the rule cannot be applied differently here and in the analysis;
   `harm_gate.analyse` re-checks the whole directory (`protocol_problems`) and still has the last word.
 * Resume: a run with `DONE` is skipped, a partial one is removed and redone, and the order is recomputed from the seeds. The
-  campaign refuses to resume with other settings, as `run_campaign.py:275-281` does.
+  campaign refuses to resume with other settings, as `run_campaign.py:275-281` does. The pin plan is one of them; a record without
+  one was made before campaigns recorded their pins, perhaps under D14's first plan (legit and the timer gate on CPU 6), and is refused
+  rather than resumed under the current plan (T-039 V-22; `s4_1` of 2026-10-28 is such a record).
 * One unscored **warm-up** run (a `C` run at the first block's seed) precedes block 1 and is kept apart from the blocks (D25).
 * `--simulate` runs the whole campaign on the fake host with the synthetic server model of the HG1b tests, and `harm_gate` then
   returns a verdict: this is the offline integration test.
