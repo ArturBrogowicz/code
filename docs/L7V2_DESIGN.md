@@ -718,6 +718,119 @@ engine's constants. Each module's constants are tested against it.
 - On the P5c.3 capture, the base 30cb4d8 and this branch give byte-identical window matrices for all five variants,
   probe transforms and 2-epoch GRU weights (`S3:T-025b/test_logs/p5c_regen_*.json`).
 
+## 17. As built: the D-034 fix round (T-041, 2026-10-31, branch `feat/l7v2-fix2`)
+
+Review T-038 found that key age still coded the role (T038-01), that the v2 probe gate cannot fail a view arm on server
+load (T038-02), that the seq-64 request ablation reads sizes (T038-03), and conformance gaps (T038-04..08). The user
+approved the three recommended changes on 2026-10-31 at 12:10:57Z ("Approve all three", D-034). Built offline; nothing
+ran on the VM and no capture exists. **Every item below is labelled post hoc, before any data.** Each frozen value was
+committed in 7b40c86, sha256-pinned by tests, before the code that implements or judges it; T038-03's groups were
+re-registered with their mirror constant in one commit.
+
+**Key lifetimes (T038-01; `ml/l7v2_prereg.json` `arrivals.lifetimes`).**
+- **One law for every key unit, whatever its role:** uniform on [60, 420] s [ASSUMPTION: no measured session-length
+  source in the T-012 corpus]. Its floor is `min_active_s`; its ceiling is above the 240 s slot, so a share of the keys
+  of either role outlives one slot.
+- **Benign keys are sessions.** An L7 v2 browser-like kind (TPC-W browsing and shopping, the i.i.d. Zipf browser,
+  search users, exporters, the flash crowd, and each CGNAT user) runs, from its first view, sessions of a drawn lifetime
+  with a gap U[10, 120] s between two, while at least 60 s of its run remain. Each session starts with a fresh browser
+  state: no cookies, so a new sid and a new key, and an empty cache. A returning user is a new key. The entity, its
+  address, its UA and its budget units are unchanged, so the 120 benign users (D-031) and the per-key budget rule hold.
+- **Machine clients** (the polite crawler, api_bulk and the P5 kinds, whose generators have no sessions) run one
+  lifetime from their arrival.
+- **Attack entities** run one lifetime from their arrival, which is unchanged. So an attack key may stay active past its
+  slot, into the next slot or the tail: 70-80 % of the attack entities at seeds 1001, 2001 and 3201 run past their
+  slot's end, 52-64 % by more than 60 s, and 40-51 % live longer than a slot. The class parameters are unchanged.
+- **Evaluation and pilot captures** end with the same 120 s benign tail after the M3 slot that every capture has after
+  its last slot: 1,140 s instead of 1,020 s (`ml/p3_prereg.json` `eval_capture_s`, re-registered). Without it the M3
+  bots' lifetimes, and so their window ages, are cut short (window-age AUC 0.31 at seed 3201). **VM cost:** +120 s per
+  evaluation and pilot capture.
+- **M3's addresses.** An M3 bot takes the address of a trained attack entity that has stopped before it starts and that
+  no other M3 bot holds, C2 entities first. With lifetimes past the slots, C2's addresses alone do not always suffice.
+
+**The extended age check (`arrivals.age_check`, `rule_v2`; `ml/l7_pools.age_check`).** The first-seen check is unchanged.
+A plan is also refused unless:
+- the lifetimes of the trained benign and attack key units have KS <= 0.3 and an AUC within 0.5 ± 0.15;
+- window age has an AUC within 0.5 ± 0.15, pooled and for every attack family with >= 20 key units, held-out families
+  included, each against the trained benign windows;
+- the held-out benign kinds' lifetimes have KS <= 0.45 against the trained kinds'.
+
+Window age is replayed at nominal times, as T-038's probe does.
+
+**The re-run of T-038's probe (the acceptance test)** [FACT, `S3:T-041/artifacts/probe_age_tokens_*.txt`]:
+
+| Seed | AUC(window age), pooled | C3b@M2 | Held-out C3b@M3 |
+|---|---|---|---|
+| 1001 train, before -> after | 0.886 -> 0.496 | 0.860 -> 0.516 | – |
+| 2001 val, before -> after | 0.877 -> 0.520 | 0.861 -> 0.544 | – |
+| 3201 eval, before -> after | 0.877 -> 0.545 | 0.847 -> 0.486 | 0.849 -> 0.533 |
+
+- **The check on every pre-registered seed** (train, validation, P3 and P1 evaluation, pilots; 36 plans) and on the
+  extension seeds 3211-3220 passes. Window-age AUC is 0.449-0.537; C3b@M2 0.456-0.587; C3b@M3 0.438-0.517.
+  Lifetime KS is <= 0.267 and its AUC 0.515-0.642; attack keys live a little longer, because benign sessions are cut by
+  the capture's end more often. The benign gate drops no entity.
+- **What stays.** The probe's token-count AUCs (entry flag 0.12-0.23, n_valid) now separate in the other direction:
+  C2's high rate gives its keys many full windows. That is rate, a class behaviour, not age. C3b@M2 still holds its
+  entry token in 97-100 % of its windows, against 84-87 % of benign windows (T-038: 100 % vs 46 %), because it makes
+  about two tokens per three dwells.
+- **The probe's in-phase restriction** drops the windows outside every attack slot. It now also drops the oldest windows
+  of the bots that outlive the last slot. So C3b@M2's in-phase AUC is 0.638 and 0.664 at seeds 1001 and 2001, where
+  C3b's slot is the last one, against 0.516 and 0.544 on all windows. That is inside the band, and the pre-registered
+  check uses all windows.
+
+**The age-only baseline (T038-01; `ml/l7v2_model_prereg.json` `baselines.age_only`; `train_l7v2.age_scores`).**
+- **The score:** the key-level time since the key session's first view. p is the share of the training benign windows
+  that are older, so the θ grid reads quantiles of the benign training ages.
+- **Selection:** it takes its operating point by the same rules as every arm, sits in `selection.json` and `eval.json`
+  under `baselines`, and is never selected or run live.
+- **Pre-registered reading:** its validation AUC must lie within 0.5 ± 0.15. Outside the band, every view-level result on
+  those captures is age-confounded and supports neither V-A nor "sequence helps".
+- **On synthetic validation** replayed from the plans at nominal times (train 1001, validation 2001;
+  `S3:T-041/artifacts/age_only_synthetic_*.json`): AUC 0.874, "age-confounded", with T-038's lifetimes; AUC 0.520, "near
+  chance", with D-034's.
+- **What it still catches.** At its operating point (θ 0.99, k 5) it catches 48 of 160 attack entities, all C2 at load
+  level 0.5. The earliest windows of a fast key are younger than any benign window, because time since the first view
+  at token j is about j divided by the token rate. That is rate, read through age, at the extreme tail. It is reported,
+  not gated.
+
+**T038-03, the request ablation's groups (`request_level.groups`, `l7_features.V2_REQUEST_GROUPS`).** Re-registered
+post hoc, before any capture: the size group (log_rlen, log_bsent, size_ratio) is dropped, as P5c's published
+`no_size_no_server_timing` drops it. A request-versus-view comparison then no longer mixes the horizon with sizes.
+`DEFAULT_GROUPS` and the P5c paths are unchanged.
+
+**T038-02, the probe gate and the load split.** See section 8.5. The gate is a pipeline-invariance check. The
+descriptive load split is reported per arm on validation.
+
+**Conformance (LOW).**
+- **T038-04, one tuning rule.**
+  - Every learned arm runs fixed epochs or iterations, and the last epoch is kept. The GRUs no longer keep their best
+    epoch by validation loss, and the HGB no longer early-stops on 10 % of its training windows.
+  - One class weighting, balanced: the GRUs' pos_weight = negatives / positives, the LR's and the HGB's 'balanced'. The
+    P3 view-level curves use the same HGB.
+  - Not changed: the P3 request-level curves still call `train_l7.train_gru`, which keeps its best validation epoch.
+    Changing it would touch the P5c code path. Their GRU is the ablation, not an L7 v2 arm.
+- **T038-05, the shuffled-GRU.** Its benign units are reported beside every gap, in `selection.json` and in
+  `eval.json`. A second variant keeps each window's first valid token in place (`pin_first`). Both use the view GRU's
+  (θ, k).
+- **T038-06, engine-trainer parity.** At the view level the evaluator counts k consecutive windows over the windows the
+  live engine would score: per key and 1-s poll, the newest 4 (`train_l7v2.engine_scored`). A parity test drives
+  `l7_engine.L7ViewEngine` (unchanged) with a key that completes 8 windows a second. The request level, an offline
+  ablation, scores every window.
+- **T038-07, the selection freeze.** `select` refuses a directory that already holds a selection. `score` takes the
+  training and validation captures from split.json: from the frozen selection's `split_dirs` when they are omitted.
+  Given or not, their capture ids and manifest hashes must be exactly split.json's.
+- **T038-08, limitation.** Exporters have a median of 3 view tokens per key, and with sessions 1-2. A view window needs
+  5 token starts, so no view arm scores the exporters, while the request ablation can. C3 and C5 merge into one costly
+  count at the token level, so the search users remain C3b's matched negatives. Exporter FP is reported per kind.
+
+**Files touched in this round:**
+- `ml/l7v2_prereg.json`, `ml/l7v2_prereg.py`, `ml/l7v2_model_prereg.json`, `ml/p3_prereg.json`;
+- `ml/l7_benign.py` (the session path, opt-in; the L7 v2 kinds only), `ml/l7_pools.py`, `ml/train_l7v2.py`,
+  `ml/learning_curve.py` (one line: the view HGB), `l7_features.py` (`V2_REQUEST_GROUPS`);
+- tests, and this note and the P3 note.
+
+`control_plane.py`, `l7_engine.py`, `bench/`, `server/`, the nginx confs and `l7_backend.py` are untouched.
+
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.
 - G1-02 Kadel et al., BOTracle, ESORICS Workshops 2024.

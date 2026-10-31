@@ -332,3 +332,15 @@ signal is rate-separable" (`S1:T-005/learning_curve_protocol.md`).
 - **The shuffled-GRU is scored at its GRU's (θ, k)**, at both levels. This is the user's decision of 2026-10-31, the
   rule `docs/L7V2_DESIGN.md` section 10 gives the P1 arm. Before that decision, the request level chose the
   shuffled-GRU's own validation point. With the shared point, the gap measures order, not a re-tuned threshold.
+
+## 12. As built: key lifetimes and the evaluation capture's tail (T-041, 2026-10-31, D-034)
+
+- **Re-registered under D-034, post hoc, before any capture** (`ml/p3_prereg.json` `eval_tail_label`). An evaluation or
+  pilot capture now ends with the same 120 s benign tail after the 240 s C3b@M3 slot that every capture has after its
+  last slot: 60 + 3 × 240 + 240 + 120 = 1,140 s, instead of 1,020 s. Every key's lifetime now comes from one law
+  (`docs/L7V2_DESIGN.md` section 17). Without the tail, the M3 bots' lifetimes and window ages are cut short: window-age
+  AUC 0.31 at seed 3201, outside the pre-registered 0.5 ± 0.15.
+- **Cost:** +120 s for each of the 10 evaluation and 8 pilot captures, about 36 min of VM time.
+- **The curves.** At the view level, the HGB of 6.1 is balanced and runs without early stopping, as the L7 v2 arms do.
+  The request level is unchanged: its GRU still keeps its best validation epoch (`ml/train_l7.py`). This is labelled
+  here as a residual departure from 6.1's "fixed epochs".
