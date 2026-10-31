@@ -11,9 +11,10 @@ recomputed offline. `freeze` reads those directories and never touches the VM.
     python3 bench/calibrate.py freeze --dir DIR --out bench/calibration/<host>-<date>.json         # 4+5  the knees, the record
     sudo ./venv/bin/python bench/calibrate.py drift --calibration FILE --out DIR                   # 7  before a later campaign
 
-Every step that runs the VM is a separate approval, takes the same preflight and environment gate as a campaign, and can be given
-`--simulate` to run on the simulated host (bench/sim_host.py) with a server of a known capacity: the steps, the stop rules and the
-arithmetic seen working offline. A step stops, and says what that means, when the host cannot be calibrated: nothing is tuned.
+Every step that runs the VM is a separate approval and takes the environment gate of a campaign's start: the steps that make runs
+take it with the executor's preflight, as a campaign does; the origin step, which builds nothing, takes the gate's uptime and load
+alone (Runner.quiet, docs/HG1C_DESIGN.md departure 28). Each can be given `--simulate` to run on the simulated host
+(bench/sim_host.py) with a server of a known capacity: the steps, the stop rules and the arithmetic seen working offline. A step stops, and says what that means, when the host cannot be calibrated: nothing is tuned.
 """
 import argparse
 import copy
@@ -106,11 +107,33 @@ def origin_widest(sessions, spread):
     return klass, which + 1, values[which], med
 
 
-def origin_round(sessions):
-    """A round as the record keeps it: the sessions' medians, the spread of each route and where the sessions disagree most."""
+def origin_round(sessions, timing):
+    """A round as the record keeps it: the sessions' medians, how each session timed the routes (its clock and the batch of each
+    route), the spread of each route and where the sessions disagree most."""
     spread = origin_spread(sessions)
     klass, number, cost, med = origin_widest(sessions, spread)
-    return {"sessions": sessions, "spread": spread, "widest": {"route": klass, "session": number, "cost_ms": cost, "median_ms": med}}
+    return {"sessions": sessions, "timing": timing, "spread": spread,
+            "widest": {"route": klass, "session": number, "cost_ms": cost, "median_ms": med}}
+
+
+def origin_estimator():
+    """How a session times the routes (origin.time_routes), for the records of the step; `version` is origin.ESTIMATOR_VERSION,
+    which the later steps and the freeze require of an origin (origin_estimator_problem)."""
+    return {"version": O.ESTIMATOR_VERSION, "batch_min_s": O.BATCH_MIN_S, "batch_max": O.BATCH_MAX,
+            "order": "the routes in turn, one batch each, per repeat", "cost": "the median over the repeats of a batch's time per call"}
+
+
+def origin_estimator_problem(origin):
+    """Why the costs of an origin record cannot be used with this code, or None: they were measured with another estimator than
+    this code's (origin.ESTIMATOR_VERSION), or the record does not say with which, as one made before the version was recorded
+    does (HG2a's, /var/tmp/ddos_campaigns/hg2_1). The costs of two estimators differ by up to about 9 % a route, within the 25 %
+    of the origin's start-up self-check, which would let a frozen record of one pass under the other without a word."""
+    got = (origin.get("estimator") or {}).get("version")
+    if got == O.ESTIMATOR_VERSION:
+        return None
+    said = "does not say which estimator measured it" if got is None else f"was measured with estimator version {got}"
+    return (f"the origin step {said}, and this code's is version {O.ESTIMATOR_VERSION}: its costs are not comparable with what this "
+            "code measures; make the origin step again in a new session directory")
 
 
 def origin_said(rnd):
@@ -123,48 +146,59 @@ def combine_origin(sessions):
     return {klass: statistics.median([s[klass] for s in sessions]) for klass in sessions[0]}
 
 
-def save_stopped_origin(out, cal, rounds, partial, reason):
+def save_stopped_origin(out, cal, rounds, partial, reason, gate=None, partial_timing=None):
     """What a stopped origin step measured, which would otherwise be lost with the exception: the rounds made and the sessions of
-    the round it was in. It goes beside where origin.json would be, under the first free number so that a second stop does not
-    replace the first, and origin.json itself is never written for a stop (docs/HG1C_DESIGN.md 27)."""
+    the round it was in (with how each timed the routes), and what the environment gate saw before them. It goes beside where
+    origin.json would be, under the first free number so that a second stop does not replace the first, and origin.json itself is
+    never written for a stop (docs/HG1C_DESIGN.md 27)."""
     n = 1
     while os.path.exists(os.path.join(out, "origin", f"stopped_{n}.json")):
         n += 1
     path = os.path.join(out, "origin", f"stopped_{n}.json")
-    write_json(path, {"step": "origin", "stopped": reason, "created_utc": now(), "rounds": rounds, "partial_sessions": partial,
-                      "sessions": ORIGIN_SESSIONS, "repeats": ORIGIN_REPEATS, "cpu": ORIGIN_CPU,
+    write_json(path, {"step": "origin", "stopped": reason, "created_utc": now(), "gate": gate, "rounds": rounds,
+                      "partial_sessions": partial, "partial_timing": partial_timing or [], "sessions": ORIGIN_SESSIONS,
+                      "repeats": ORIGIN_REPEATS, "cpu": ORIGIN_CPU, "estimator": origin_estimator(),
                       "template_sha256": cal.get("sha256") or C.digest(cal)})
     return path
 
 
 def origin_session(cal, repeats=ORIGIN_REPEATS):
-    """One session in this process: `repeats` timings of every route of the origin, unloaded, and their median in ms. The
-    origin is built with the record's knobs; the clock is the process's CPU time."""
+    """One session in this process: every route of the origin, unloaded, timed `repeats` times in batches of at least 1 ms with
+    the routes in turn (origin.time_routes): the median cost of each route in ms, the batch each route was timed in, and the
+    clock, the calling thread's CPU time (time.thread_time). The origin is built with the record's knobs."""
     origin = O.Origin(C.knobs_of(cal), X.ORIGIN_SEED, "placeholder")
     try:
-        return O.measure_unloaded(origin, repeats=repeats)
+        return O.time_routes(origin, repeats=repeats)
     finally:
         origin.close()
 
 
-def origin_step(host, cal, cal_path, out, say=print):
-    """Three sessions, each its own process pinned to CPU 0, and their median. If any route's medians are further apart than
+def origin_step(runner, cal, cal_path, out, say=print):
+    """The environment gate of a campaign's start first (`runner.quiet`: uptime and load, waiting up to the runner's
+    `wait_gate_min`; a machine that does not meet it refuses the step before any session, docs/HG1C_DESIGN.md departure 28), then
+    three sessions, each its own process pinned to CPU 0, and their median. If any route's medians are further apart than
     10 % the three sessions are made once more and only the second round counts; if they are still, the host's timing is not
     stable enough to calibrate on. A round says which route and which session disagreed most, and a step that stops keeps the
-    sessions it measured in `origin/stopped_N.json` (never in origin.json)."""
+    sessions it measured in `origin/stopped_N.json` (never in origin.json). Both records keep what the gate saw."""
+    gate = runner.quiet(say)
+    host = runner.host
     rounds = []
     for number in (1, 2):
-        sessions = []
+        sessions, timing = [], []
         for _ in range(ORIGIN_SESSIONS):
             r = host.run(["taskset", "-c", ORIGIN_CPU, sys.executable, os.path.abspath(__file__), "origin-session",
                           "--repeats", str(ORIGIN_REPEATS), "--calibration", cal_path], timeout=600)
             try:
-                sessions.append({k: float(v) for k, v in json.loads(r.out).items()})
-            except (ValueError, AttributeError) as exc:
+                got = json.loads(r.out)
+                costs = {k: float(v) for k, v in got["costs_ms"].items()}
+                timed = {"clock": str(got["clock"]), "batch": {k: int(v) for k, v in got["batch"].items()}}
+            except (ValueError, AttributeError, KeyError, TypeError) as exc:
                 reason = f"an origin session gave nothing readable (exit {r.code}): {(r.err or r.out)[:200]}"
-                path = save_stopped_origin(out, cal, rounds, sessions, reason)
+                path = save_stopped_origin(out, cal, rounds, sessions, reason, gate, timing)
                 raise CalibrationStop(f"{reason} (the sessions read so far are in {path})") from exc
-        rnd = origin_round(sessions)
+            sessions.append(costs)
+            timing.append(timed)
+        rnd = origin_round(sessions, timing)
         rounds.append(rnd)
         say(f"origin round {number}: widest spread {max(rnd['spread'].values()):.1%} (limit {ORIGIN_SPREAD:.0%}), {origin_said(rnd)}")
         if max(rnd["spread"].values()) <= ORIGIN_SPREAD:
@@ -172,12 +206,12 @@ def origin_step(host, cal, cal_path, out, say=print):
     else:
         reason = (f"the unloaded cost of the routes differs by more than {ORIGIN_SPREAD:.0%} between sessions, twice: "
                   "the host's timing is not stable enough to calibrate on")
-        path = save_stopped_origin(out, cal, rounds, [], reason)
+        path = save_stopped_origin(out, cal, rounds, [], reason, gate)
         where = "; ".join(f"round {i}: {origin_said(rnd)}" for i, rnd in enumerate(rounds, 1))
         raise CalibrationStop(f"{reason} ({where}; the sessions of both rounds are in {path})")
-    result = {"step": "origin", "created_utc": now(), "route_costs_ms": combine_origin(rounds[-1]["sessions"]),
+    result = {"step": "origin", "created_utc": now(), "gate": gate, "route_costs_ms": combine_origin(rounds[-1]["sessions"]),
               "rounds": rounds, "sessions": ORIGIN_SESSIONS, "repeats": ORIGIN_REPEATS, "cpu": ORIGIN_CPU,
-              "template_sha256": cal.get("sha256") or C.digest(cal)}
+              "estimator": origin_estimator(), "template_sha256": cal.get("sha256") or C.digest(cal)}
     write_json(os.path.join(out, "origin", "origin.json"), result)
     return result
 
@@ -526,7 +560,7 @@ def under_of(template, origin, capacity):
 
 def session_draft(directory, template):
     """The template with the origin and the capacity that the session in `directory` has measured, and what that is made of.
-    Steps 1 and 2 must have been made."""
+    Steps 1 and 2 must have been made, the origin with this code's estimator."""
     parts = []
     for step in ("origin", "capacity"):
         path = os.path.join(directory, step, step + ".json")
@@ -534,6 +568,9 @@ def session_draft(directory, template):
             raise CalibrationStop(f"{directory}: no {step} step ({path}): the steps are made in order")
         parts.append(read_json(path))
     origin, capacity = parts
+    why = origin_estimator_problem(origin)
+    if why:
+        raise CalibrationStop(why)
     if capacity.get("stopped"):
         raise CalibrationStop(f"the capacity step stopped: {capacity['stopped']}")
     if capacity.get("smoke"):
@@ -571,9 +608,10 @@ def read_session(directory):
 
 
 def freeze_problems(session, template):
-    """Reasons for which `session` cannot be frozen: a smoke step, a screening that is not valid, steps made under another template
-    or other measured costs and capacity, or a reference that was taken for another set of knees."""
-    reasons = []
+    """Reasons for which `session` cannot be frozen: an origin measured with another estimator, a smoke step, a screening that is
+    not valid, steps made under another template or other measured costs and capacity, or a reference that was taken for another
+    set of knees."""
+    reasons = [why] if (why := origin_estimator_problem(session["origin"])) else []
     under = under_of(template, session["origin"], session["capacity"])
     named = (("origin", session["origin"]), ("capacity", session["capacity"]), ("reference", session["reference"]),
              *[(f"ladder {f}", ladder) for f, ladder in session["ladders"].items()])
@@ -658,6 +696,13 @@ class Runner:
         self.allow_dirty, self.clean, self.wait_gate_min, self.tries = allow_dirty, clean, wait_gate_min, tries
         self.gate = "full"
 
+    def quiet(self, say=print):
+        """The full gate's uptime and load without a run (executor.quiet_gate, the code a campaign's first run takes it through):
+        waits up to `wait_gate_min` minutes, from --wait-gate, and refuses with EnvironmentRefused. For the origin step, whose
+        sessions measure the host as a run does but are not one; the timer of the legit streams' CPU, which only streams need, is
+        not probed. Returns what was seen."""
+        return X.quiet_gate(self.host, self.wait_gate_min, say)
+
     def run(self, plan, say=print):
         record = GC.read_done(plan.out)
         if record is not None:
@@ -695,7 +740,8 @@ def plan_text(template):
     runs = {"capacity": CAPACITY_REPEATS, "screening": 3 * (LADDER_REPEATS * 7 + 4), "reference": REFERENCE_PROBES + 3}
     sha = (template.get("sha256") or C.digest(template))[:8]
     out = [f"== calibration of the harm benchmark, template sha256:{sha} ==", ""]
-    out.append("step 1  origin     three sessions of 21 timings per route, each its own process on CPU 0; the median of the medians;")
+    out.append("step 1  origin     three sessions of 21 timed batches per route (each at least 1 ms, the routes in turn), each its own "
+               "process on CPU 0; the median of the medians;")
     out.append("                   if any route's sessions differ by more than 10 % the three are made once more, then it stops")
     out.append(f"step 2  capacity   {CAPACITY_REPEATS} runs, each the legit load stepping through {len(levels)} levels "
                f"({levels[0]:g} to {levels[-1]:g} req/s), {STEP_S:g} s a step, Q over {Q_WINDOW[0]:g}-{Q_WINDOW[1]:g} s of each;")
@@ -837,7 +883,7 @@ def _dispatch(args, host):
     host = host or _host_for(args, template, timeline)
     runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate)
     if args.command == "origin":
-        origin_step(host, template, cal_path, out)
+        origin_step(runner, template, cal_path, out)
         return EXIT_OK
     if args.command == "capacity":
         capacity_step(runner, template, cal_path, out, args.levels, args.step_s, args.repeats)

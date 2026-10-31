@@ -121,6 +121,100 @@ class OrderTest(unittest.TestCase):
         self.assertEqual(sorted(names), ["b01_a1", "b01_a2", "b02_a1", "b02_a2", "b10_a1", "b10_a2"])
 
 
+class ProtectedCampaignTest(CampaignCase):
+    """G6: blocks with the protected runs: C, Cp, U and M_<mode> in a drawn order, every run on the daemon's pin plan, the re-run
+    rule on the whole block, the budget of blocks of four runs or more, and the gate's protected-arm verdict at the end."""
+
+    def test_the_order_draws_the_protected_runs_with_the_others_and_is_unchanged_without_them(self):
+        for b in range(1, 11):
+            self.assertEqual(sorted(GC.run_order(self.scn, b, 1, ("xdp",))), ["C", "Cp", "M_xdp", "U"])
+        self.assertEqual(len({tuple(GC.run_order(self.scn, b, 1, ("xdp",))) for b in range(1, 300)}), 24)
+        self.assertEqual([GC.run_order(self.scn, b, a, ()) for b in range(1, 8) for a in (1, 2)],
+                         [GC.run_order(self.scn, b, a) for b in range(1, 8) for a in (1, 2)])
+
+    def test_a_protected_campaign_makes_every_block_with_its_arm_on_the_daemons_pins(self):
+        state = self.run_campaign(modes=("xdp",))
+        self.assertEqual(state["state"], "complete")
+        self.assertEqual((state["fingerprint"]["modes"], state["fingerprint"]["pins"]), (["xdp"], X.P.PIN_PLAN_DAEMON))
+        for d in self.dirs():
+            meta = self.json(d, "block.json")
+            self.assertEqual((sorted(meta["order"]), meta["planned_order"]), (["C", "Cp", "M_xdp", "U"], meta["order"]))
+            for kind in meta["order"]:
+                self.assertEqual(self.json(d, kind, "plan.json")["pins"], X.P.PIN_PLAN_DAEMON, (d, kind))
+        self.assertEqual([(p["mode"], p["verdict"]) for p in state["gate"]["protected"]], [("xdp", "INVALID")],
+                         "three blocks: fewer than the outcome needs")
+        self.assertTrue(any(m.startswith("P2 outcome of M_xdp: INVALID") for m in self.say), self.say)
+        self.assertTrue([a for a in state["attempts"] if a["valid_all"]])
+
+    def test_a_block_whose_protected_run_is_unsound_is_made_again(self):
+        b = next(b for b in range(1, 11) if GC.run_order(self.scn, b, 1, ("xdp",))[-1] == "M_xdp")
+        state = self.run_campaign(modes=("xdp",), blocks=max(3, b), host=self.host(fault_schedule={4 * b: {"stream_dies": 1}}))
+        first = self.json(f"b{b:02d}_a1", "block.json")
+        self.assertEqual((first["aborted"], sorted(first["order"])), ("M_xdp", ["C", "Cp", "M_xdp", "U"]))
+        rows = {(a["block"], a["attempt"]): a for a in state["attempts"]}
+        self.assertEqual((rows[(b, 1)]["valid"], rows[(b, 1)]["valid_all"]), (True, False))
+        self.assertTrue(rows[(b, 1)]["arm_reasons"])
+        self.assertTrue(rows[(b, 2)]["valid_all"])
+        self.assertEqual(state["reruns"], 1)
+        result = H.analyse(self.path(), self.CAL, allow_overrides=True)
+        self.assertEqual((result["reruns"], [r for r in result["reasons"] if "re-run" in r]), (1, []))
+
+    def test_the_ban_file_of_an_unfinished_protected_run_is_kept_when_the_run_is_made_again(self):
+        self.run_campaign(modes=("xdp",), blocks=1)
+        run = self.path("b01_a1", "M_xdp")
+        os.remove(os.path.join(run, GC.DONE))
+        with open(self.path("b01_a1", "block.json"), encoding="utf-8") as fh:
+            meta = json.load(fh)
+        meta["complete"] = False
+        with open(self.path("b01_a1", "block.json"), "w", encoding="utf-8") as fh:
+            json.dump(meta, fh)
+        with open(os.path.join(run, H.BAN_FILE), "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"t_wall": 1.0, "kind": "ban", "ip": "10.0.1.7", "engine": "l7_rate"}) + "\n")
+        self.run_campaign(modes=("xdp",), blocks=1)
+        kept = self.path("b01_a1", f"M_xdp{H.UNFINISHED}1.{H.BAN_FILE}")
+        self.assertTrue(os.path.isfile(kept))
+        self.assertTrue(any("its ban file is kept as M_xdp.unfinished.1.ban_events.jsonl" in m for m in self.say), self.say)
+        result = H.analyse(self.path(), self.CAL, allow_overrides=True)
+        self.assertEqual(result["protected"][0]["protected"]["benign_blocked"], ["10.0.1.7"])
+
+    def test_the_plan_prints_the_arms_the_pins_the_outcome_and_the_budget(self):
+        text = GC.describe(self.scn, self.CAL, SPEC_SHA, GC.Options(blocks=10, modes=("xdp",)))
+        self.assertIn("a block is C, Cp, U, M_xdp in the order shown", text)
+        self.assertIn("pins         server 0-1, daemon 2, executor 6, legit 7, attack 3-5 for every run (the executor on CPU 6)", text)
+        self.assertIn("P2 outcome   pre-registered (harm_gate.P2_OUTCOME)", text)
+        self.assertIn("VM time      41 runs at about 150 s = 1.7 h; each re-run adds 10.0 min (4 runs); at most 2 re-runs, 20.0 min", text)
+        self.assertIn("a block whose protected run is not valid is not valid either", text)
+        self.assertRegex(text, r"\n    1     1  (C|Cp|U|M_xdp), (C|Cp|U|M_xdp), (C|Cp|U|M_xdp), (C|Cp|U|M_xdp)\n")
+
+    def test_a_reserved_or_repeated_mode_is_refused_before_anything_runs(self):
+        for modes, fragment in ((("l7",), "not built yet"), (("xdp", "xdp"), "each mode once"), (("iptables",), "kind")):
+            with self.subTest(modes=modes), self.assertRaisesRegex(GC.CampaignError, fragment):
+                self.run_campaign(modes=modes)
+        self.assertFalse(os.path.exists(self.path()))
+
+    def test_a_campaign_resumes_only_with_its_modes_and_one_made_before_them_resumes_as_before(self):
+        self.run_campaign(modes=("xdp",), blocks=1)
+        with self.assertRaisesRegex(GC.CampaignError, "modes, pins"):
+            self.run_campaign(blocks=1)
+        self.run_campaign(out="old", blocks=1)
+        path = os.path.join(self.tmp.name, "old", GC.CAMPAIGN)
+        with open(path, encoding="utf-8") as fh:
+            state = json.load(fh)
+        for key in ("modes", "pins"):
+            state["fingerprint"].pop(key)
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(state, fh)
+        self.assertEqual(self.run_campaign(out="old", blocks=1)["state"], "complete")
+
+    def test_the_command_line_takes_the_modes(self):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            self.assertEqual(GC.main(["plan", SPEC, "--calibration", self.cal_path, "--modes", "xdp"]), GC.EXIT_OK)
+            self.assertEqual(GC.main(["plan", SPEC, "--calibration", self.cal_path, "--modes", "l7"]), GC.EXIT_STOPPED)
+        self.assertIn("M_xdp", out.getvalue())
+        self.assertIn("not built yet", err.getvalue())
+
+
 class PlanTextTest(CampaignCase):
     def text(self, cal=None, **kw):
         return GC.describe(self.scn, cal or self.CAL, SPEC_SHA, self.options(**kw))

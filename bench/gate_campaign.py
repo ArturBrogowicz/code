@@ -6,10 +6,11 @@ in a drawn order, run by the executor and judged by eval/harm_gate.py (docs/HG1C
     sudo ./venv/bin/python bench/gate_campaign.py run SPEC --calibration FILE --out DIR [--dry-run] [--blocks N]
     sudo ./venv/bin/python bench/gate_campaign.py run SPEC --calibration FILE --out DIR --dry-run --timer-limit-ms 50   # a smoke test
     python3 bench/gate_campaign.py run SPEC --calibration FILE --out DIR --simulate pass       # no root, no namespace
+    sudo ./venv/bin/python bench/gate_campaign.py run SPEC --calibration FILE --out DIR --modes xdp    # with the protected arm M_xdp
     python3 bench/gate_campaign.py status DIR
 
 A campaign directory holds `campaign.json`, an unscored `warmup/C`, and one directory `bNN_aM` per block attempt with its
-`block.json` and the runs `C`, `Cp` and `U`, each in the run contract (bench/executor.py). `DONE` marks a finished run; the same
+`block.json` and the runs `C`, `Cp` and `U` (and `M_<mode>` for each `--modes`), each in the run contract (bench/executor.py). `DONE` marks a finished run; the same
 command resumes an interrupted campaign and refuses to resume with other settings. After a block the decision to re-run it is
 made by harm_gate.assess_block, so the rule cannot be applied differently here and in the analysis; harm_gate.analyse re-checks the
 whole directory and has the last word. `--simulate` runs the whole campaign on the simulated host (bench/sim_host.py), with a harm of
@@ -67,6 +68,17 @@ class Options:
     timer_limit_ms: float | None = None     # smoke test: the limit for the timer on the legit CPU, instead of the calibration's
     settings: tuple = ()                    # executor settings changed, as (name, value) pairs
     simulate: str | None = None             # the name of an effect preset of bench/sim_host.py
+    modes: tuple = ()                       # the protected arms, M_<mode> in every block beside C, Cp and U (HG4)
+
+
+def kinds_of(opts):
+    """The runs of a block: C, Cp, U and one M_<mode> for each protected mode."""
+    return [*X.KINDS, *(X.MITIGATED + m for m in opts.modes)]
+
+
+def pins_of(opts):
+    """The pin plan of every run of the campaign (the warm-up's too): the daemon's as soon as one mode has a daemon."""
+    return X.pins_for(kinds_of(opts))
 
 
 def now():
@@ -85,10 +97,11 @@ def block_count(scn, opts):
     return planned if opts.blocks is None else opts.blocks
 
 
-def run_order(scn, block, attempt):
-    """The order of C, Cp and U in an attempt, drawn from the scenario, the block and the attempt, so that it can be
-    recomputed when a campaign resumes. The order recorded in block.json is the one that counts."""
-    runs = list(X.KINDS)
+def run_order(scn, block, attempt, modes=()):
+    """The order of C, Cp, U and the protected runs M_<mode> in an attempt, drawn from the scenario, the block and the attempt, so
+    that it can be recomputed when a campaign resumes. The order recorded in block.json is the one that counts. Without modes the
+    draw is the one it always was."""
+    runs = [*X.KINDS, *(X.MITIGATED + m for m in modes)]
     random.Random(f"{scn.id}|{scn.first_seed}|{block}|{attempt}").shuffle(runs)
     return runs
 
@@ -108,7 +121,7 @@ def fingerprint(scn, cal, scenario_sha, opts):
             "calibration_status": cal["status"], "seed_namespace": scn.seed_namespace, "first_seed": scn.first_seed,
             "blocks": block_count(scn, opts), "timeline": timeline_of(scn, opts), "rho_rps": opts.rho,
             "timer_limit_ms": opts.timer_limit_ms, "settings": {**X.SETTINGS, **dict(opts.settings)}, "gate": cal["gate"],
-            "warmup": opts.warmup, "simulate": opts.simulate}
+            "warmup": opts.warmup, "simulate": opts.simulate, "modes": list(opts.modes), "pins": pins_of(opts)}
 
 
 # --- the plan ---------------------------------------------------------------------------------
@@ -117,7 +130,8 @@ def describe(scn, cal, scenario_sha, opts):
     """What the campaign would do, as text. Pure."""
     n = block_count(scn, opts)
     gate = cal["gate"]
-    runs = 3 * n + (1 if opts.warmup else 0)
+    per_block = len(kinds_of(opts))
+    runs = per_block * n + (1 if opts.warmup else 0)
     out = [f"== gate campaign: {scn.id} ({scn.seed_namespace}), {n} blocks =="]
     out.append(f"calibration  sha256:{(cal.get('sha256') or C.digest(cal))[:8]} "
                + ("PLACEHOLDER: a dry run, nothing it makes is a result" if cal["status"] != "frozen" else "frozen"))
@@ -129,21 +143,33 @@ def describe(scn, cal, scenario_sha, opts):
         out.append("OVERRIDES    " + ", ".join(f"{k} {v}" for k, v in smoke.items()) + ": a smoke test, not a result")
     if opts.simulate:
         out.append(f"SIMULATED    the simulated host, preset {opts.simulate}: no namespace, no traffic, nothing about any server")
-    out.append(f"blocks       seeds {scn.first_seed}-{scn.first_seed + n - 1} in {scn.seed_namespace}; a block is C, Cp and U in "
-               "the order shown; a failed block is re-run once with its seed and a new order")
-    out.append(f"re-runs      at most {gate['max_reruns']} in the campaign; a valid block is never re-run")
+    out.append(f"blocks       seeds {scn.first_seed}-{scn.first_seed + n - 1} in {scn.seed_namespace}; a block is "
+               + ", ".join(kinds_of(opts)) + " in the order shown; a failed block is re-run once with its seed and a new order")
+    out.append(f"re-runs      at most {gate['max_reruns']} in the campaign; a valid block is never re-run"
+               + ("; a block whose protected run is not valid is not valid either" if opts.modes else ""))
+    if opts.modes:
+        pins = pins_of(opts)
+        o = H.P2_OUTCOME
+        out.append(f"arms         {', '.join(X.MITIGATED + m for m in opts.modes)}: {'; '.join(X.MODE_TEXT[m] for m in opts.modes)}")
+        out.append("pins         " + ", ".join(f"{k} {v}" for k, v in pins.items()) + f" for every run (the executor on CPU "
+                   f"{P.executor_cpus(pins)})")
+        out.append(f"P2 outcome   pre-registered (harm_gate.P2_OUTCOME): unprotected fails in {o['block_share']:.0%} of the blocks "
+                   f"(dQ >= {o['unprotected_floor_pp']:g} pp or p95 >= {o['unprotected_p95_ratio']:g} x C); protected works when "
+                   f"Q(M) >= {o['protected_q_ratio']:g} x Q(C) in as many and no legit identity is blocked; TTM reported")
     out.append(f"the gate     needs {gate['min_blocks']} valid blocks; floors {gate['floor_pp']:g} pp and "
                f"{gate['floor_log2_p95']:g} in log2 p95; interval {gate['ci_level']:g}, same sign {gate['same_sign_share']:.0%}")
     out.append("warm-up      " + (f"one unscored C run at seed {scn.first_seed}, in {WARMUP}/" if opts.warmup
                                   else "none (--no-warmup)"))
     out.append(f"VM time      {runs} runs at about {RUN_ESTIMATE_S:.0f} s = {runs * RUN_ESTIMATE_S / 3600:.1f} h; each re-run adds "
-               f"{3 * RUN_ESTIMATE_S / 60:.1f} min")
+               f"{per_block * RUN_ESTIMATE_S / 60:.1f} min" + (f" ({per_block} runs); at most {gate['max_reruns']} re-runs, "
+                                                               f"{gate['max_reruns'] * per_block * RUN_ESTIMATE_S / 60:.1f} min"
+                                                               if per_block != 3 else ""))
     out.append("")
     if n < gate["min_blocks"]:
         out.append(f"WARNING: {n} blocks are fewer than the {gate['min_blocks']} the gate needs: the verdict would be INVALID.\n")
     out.append("block  seed  order of attempt 1")
     for b in range(1, n + 1):
-        out.append(f"{b:>5}  {scn.first_seed + b - 1:>4}  " + ", ".join(run_order(scn, b, 1)))
+        out.append(f"{b:>5}  {scn.first_seed + b - 1:>4}  " + ", ".join(run_order(scn, b, 1, opts.modes)))
     return "\n".join(out) + "\n"
 
 
@@ -157,7 +183,8 @@ def load_state(out, fp):
             raise CampaignError(f"{out} holds something that is not a campaign (no {CAMPAIGN})")
         return None
     state = read_json(path)
-    differ = sorted(k for k in fp if state["fingerprint"].get(k) != fp[k])
+    before = {"modes": [], "pins": dict(P.PIN_PLAN), **state["fingerprint"]}      # a campaign of before HG4 had neither
+    differ = sorted(k for k in fp if before.get(k) != fp[k])
     if differ:
         raise CampaignError(f"{out} was started with other settings ({', '.join(differ)}); a campaign resumes only as it "
                             "began. Use another directory for another campaign.")
@@ -190,16 +217,33 @@ def read_done(run_path):
 # --- one attempt ------------------------------------------------------------------------------
 
 def plans_of(scn, cal, cal_path, scenario_sha, out_dir, seed, opts):
-    """The plans of C, Cp and U of a block; their legit streams must be the same."""
+    """The plans of the runs of a block (C, Cp, U and the protected ones), with the campaign's pin plan; their legit streams must
+    be the same."""
     plans = {kind: X.plan_run(scn, cal, kind, seed, os.path.join(out_dir, kind), cal_path, scenario_sha,
                               settings=dict(opts.settings), rho=opts.rho, timeline=opts.timeline,
-                              timer_limit_ms=opts.timer_limit_ms)
-             for kind in X.KINDS}
+                              timer_limit_ms=opts.timer_limit_ms, pins=pins_of(opts))
+             for kind in kinds_of(opts)}
     hashes = {p.plan_sha256 for p in plans.values()}
     if len(hashes) != 1:
-        raise CampaignError(f"the legit streams of C, Cp and U differ (plan hashes {sorted(h[:8] for h in hashes)}): "
+        names = list(plans)
+        raise CampaignError(f"the legit streams of {', '.join(names[:-1])} and {names[-1]} differ (plan hashes "
+                            f"{sorted(h[:8] for h in hashes)}): "
                             "a block compares runs that must have the same clients")
     return plans
+
+
+def keep_ban_file(block_path, kind, run_path):
+    """The ban file of an unfinished run about to be removed, kept beside it as <kind>.unfinished.<k>.ban_events.jsonl: a legit
+    identity its daemon banned still counts against the protected arm (harm_gate.campaign_benign_bans). Its name, or None."""
+    src = os.path.join(run_path, H.BAN_FILE)
+    if not os.path.isfile(src):
+        return None
+    k = 1
+    while os.path.exists(os.path.join(block_path, f"{kind}{H.UNFINISHED}{k}.{H.BAN_FILE}")):
+        k += 1
+    dst = os.path.join(block_path, f"{kind}{H.UNFINISHED}{k}.{H.BAN_FILE}")
+    shutil.copy2(src, dst)
+    return os.path.basename(dst)
 
 
 def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opts, gate, say):
@@ -214,13 +258,15 @@ def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opt
         return H.assess_block(d, cal), gate
     plans = plans_of(scn, cal, cal_path, scenario_sha, d, seed, opts)
     os.makedirs(d, exist_ok=True)
-    planned, made, records, aborted = run_order(scn, block, attempt), [], {}, None
+    planned, made, records, aborted = run_order(scn, block, attempt, opts.modes), [], {}, None
     for kind in planned:
         run_path = plans[kind].out
         record = read_done(run_path)
         if record is None:
             if os.path.exists(run_path):
-                say(f"block {block} attempt {attempt} {kind}: removing the unfinished run")
+                kept = keep_ban_file(d, kind, run_path)
+                say(f"block {block} attempt {attempt} {kind}: removing the unfinished run"
+                    + (f"; its ban file is kept as {kept}" if kept else ""))
                 shutil.rmtree(run_path)
             say(f"block {block} attempt {attempt} seed {seed}: run {kind}")
             try:
@@ -255,7 +301,8 @@ def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opt
 
 def attempt_row(a):
     return {"block": a["block"], "attempt": a["attempt"], "seed": a["seed"], "valid": a["valid"], "reasons": a["reasons"],
-            "order": a["order"], "dQ": a["dQ"], "dL": a["dL"], "dQ_placebo": a["dQ_placebo"]}
+            "order": a["order"], "dQ": a["dQ"], "dL": a["dL"], "dQ_placebo": a["dQ_placebo"],
+            "valid_all": a["valid_all"], "arm_reasons": a["arm_reasons"]}
 
 
 def warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate, say):
@@ -268,7 +315,7 @@ def warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate, say):
     if os.path.exists(path):
         shutil.rmtree(path)
     plan = X.plan_run(scn, cal, "C", scn.first_seed, path, cal_path, scenario_sha, settings=dict(opts.settings),
-                      rho=opts.rho, timeline=opts.timeline, timer_limit_ms=opts.timer_limit_ms)
+                      rho=opts.rho, timeline=opts.timeline, timer_limit_ms=opts.timer_limit_ms, pins=pins_of(opts))
     say(f"warm-up run C at seed {scn.first_seed}")
     try:
         record = run_record(X.execute(plan, host, gate, opts.allow_dirty, opts.clean, opts.wait_gate_min, say))
@@ -292,6 +339,18 @@ def check_options(opts):
     if opts.timer_limit_ms is not None and not opts.dry_run:
         raise CampaignError("--timer-limit-ms: a smoke test's override, so the campaign is a dry run: pass --dry-run, or run it "
                             "with the calibration's limit")
+    check_modes(opts)
+
+
+def check_modes(opts):
+    """Each protected mode once, and one that is built (the L7 GRU's are named and refused until they are)."""
+    if len(set(opts.modes)) != len(opts.modes):
+        raise CampaignError(f"--modes: each mode once, got {', '.join(opts.modes)}")
+    for mode in opts.modes:
+        try:
+            X.mode_of(X.MITIGATED + mode)
+        except X.PlanError as exc:
+            raise CampaignError(f"--modes: {exc}") from exc
 
 
 def run_campaign(scn, cal, cal_path, scenario_sha, out, host, opts=None, say=print):
@@ -325,7 +384,7 @@ def run_campaign(scn, cal, cal_path, scenario_sha, out, host, opts=None, say=pri
                 attempts.append(attempt_row(a))
                 state.update(attempts=attempts, reruns=reruns)
                 save_state(out, state)
-                if a["valid"]:
+                if a["valid_all"]:                  # C, Cp, U and every protected run: a block missing an arm is made again
                     valid += 1
                     break
                 say(f"block {block} attempt {attempt} is not valid: {'; '.join(a['reasons'])[:300]}")
@@ -375,9 +434,12 @@ def analyse_into(out, cal, state, say, allow_overrides=False):
     if result["overrides"]:
         say(f"OVERRIDES {result['overrides']}: a smoke test, not a result"
             + ("" if allow_overrides else "; the gate gives no verdict on it"))
+    for p in result["protected"]:
+        say(f"P2 outcome of {X.MITIGATED}{p['mode']}: {p['verdict']}" + (f" ({'; '.join(p['reasons'])[:200]})" if p["reasons"] else ""))
     return {"verdict": result["verdict"], "reasons": result["reasons"], "blocks_valid": result["blocks_valid"],
             "blocks_total": result["blocks_total"], "reruns": result["reruns"], "dry_run": result["dry_run"],
-            "overrides": result["overrides"]}
+            "overrides": result["overrides"],
+            "protected": [{"mode": p["mode"], "verdict": p["verdict"], "reasons": p["reasons"]} for p in result["protected"]]}
 
 
 def status_text(out):
@@ -388,7 +450,8 @@ def status_text(out):
     state = read_json(path)
     fp = state["fingerprint"]
     lines = [f"campaign {fp['scenario']} ({fp['seed_namespace']}), {fp['blocks']} blocks, calibration "
-             f"{fp['calibration_sha256'][:8]} {fp['calibration_status']}" + (", SIMULATED" if state.get("simulated") else ""),
+             f"{fp['calibration_sha256'][:8]} {fp['calibration_status']}" + (", SIMULATED" if state.get("simulated") else "")
+             + (f", arms {', '.join(X.MITIGATED + m for m in fp['modes'])}" if fp.get("modes") else ""),
              f"state {state['state']}" + (f": {state['stopped']}" if state.get("stopped") else "") + f"; re-runs {state['reruns']}"]
     for a in state["attempts"]:
         lines.append(f"  block {a['block']:>2} attempt {a['attempt']} seed {a['seed']}: " + ("valid" if a["valid"] else "NOT valid")
@@ -420,6 +483,12 @@ def _add_common(p):
                    help="smoke test: refuse a run if the timer on the legit CPU has p99 of this many ms or more, instead of the "
                         "calibration's validity.timer_p99_ms; needs --dry-run")
     p.add_argument("--no-warmup", action="store_true", help="skip the unscored warm-up run")
+    p.add_argument("--modes", type=_modes_arg, default=(), metavar="MODE[,MODE]",
+                   help="the protected arms: an M_<mode> run in every block (limits, xdp; l7shadow and l7 are not built yet)")
+
+
+def _modes_arg(text):
+    return tuple(m.strip() for m in text.split(",") if m.strip())
 
 
 def options_of(args):
@@ -427,7 +496,7 @@ def options_of(args):
                    allow_dirty=getattr(args, "allow_dirty", False), clean=getattr(args, "clean", False),
                    wait_gate_min=getattr(args, "wait_gate", 30.0), keep_going=getattr(args, "keep_going", False),
                    rho=args.rho, timeline=args.timeline, timer_limit_ms=args.timer_limit_ms,
-                   simulate=getattr(args, "simulate", None))
+                   simulate=getattr(args, "simulate", None), modes=args.modes)
 
 
 def main(argv=None, host=None):
@@ -454,6 +523,7 @@ def main(argv=None, host=None):
             return EXIT_OK
         scn, cal = SC.load(args.spec), C.load(args.calibration)
         opts = options_of(args)
+        check_modes(opts)
         scenario_sha = sha256_of(args.spec)
         if args.command == "plan":
             print(describe(scn, cal, scenario_sha, opts), end="")
@@ -467,7 +537,7 @@ def main(argv=None, host=None):
                                      faults=parse_faults(args.simulate_fault), tag=S.origin_tag(cal))
         else:
             host = host or X.RealHost()
-            host.pin(P.PIN_PLAN["daemon"])
+            host.pin(P.executor_cpus(pins_of(opts)))
             X._install_signal_handlers()
         state = run_campaign(scn, cal, args.calibration, scenario_sha, args.out, host, opts)
         return EXIT_OK if state["state"] == "complete" else EXIT_STOPPED

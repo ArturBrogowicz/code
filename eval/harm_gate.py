@@ -25,6 +25,9 @@ under the run contract (5.5), the output is a verdict, a Markdown report and a J
     "the class's p95 within its SLO", taken over all its requests and not only the successful ones). A failed block is
     re-run once with the same seed, at most `max_reruns` times in all; a valid block is never re-run. Validity
     does not read the attack's effect.
+  * in a protected run (M_<mode>) an attack stream is judged for its sending only up to the first ban of its source (post_ban_split:
+    a design fix approved by the user on 2026-10-30, before any data; T-028 F-02): what the engine did not send after
+    that, or dropped because requests to banned sources filled its in-flight cap, is "mitigated", not "unsent".
   * no verdict on a calibration that is not frozen, except with --dry-run, which labels everything it prints.
   * no verdict on runs that carry overrides (`run.json` and `block.json` `overrides`: a smoke test's load, timeline or
     timer limit): the campaign is INVALID and says why, whatever the figures. `--allow-overrides` lifts that for a simulated
@@ -38,11 +41,14 @@ mix, the per-class figures are reported next to it; an SLO is a choice, the cali
     ./venv/bin/python eval/harm_gate.py --block BLOCK_DIR --calibration FILE      # one block's assessment, no verdict
 """
 import argparse
+import collections
 import csv
 import gzip
+import ipaddress
 import json
 import math
 import os
+import re
 import sys
 
 import numpy as np
@@ -50,8 +56,12 @@ import numpy as np
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO, "bench"))
 sys.path.insert(0, os.path.join(REPO, "eval"))
+sys.path.append(REPO)                              # ban_events.py, at the top of the checkout, after bench/ and eval/
 import calibration as CAL
+import population as POP
 import run_level_stats as RLS
+
+import ban_events as BE
 
 CONTROL, PLACEBO, ATTACK = "C", "Cp", "U"
 MITIGATED = "M_"                                   # M_<mode>
@@ -64,6 +74,10 @@ METRICS = ("Q", "p95")
 DEGRADED_Q, RECOVERED_Q, RECOVERY_BINS = 95.0, 99.0, 5     # a second below / at or above these; five seconds
 CONTROL_CLASS_Q_MIN = 95.0        # "the class's p95 within its SLO" over all its requests: 95 % of them within it
 HRR_DRAWS, HRR_SEED = 10_000, 20261023
+BAN_FILE = "ban_events.jsonl"                      # a protected run's daemon writes its events there (bench/executor.py daemon_plan)
+UNFINISHED = ".unfinished."                        # bench/gate_campaign.py keeps an unfinished run's ban file as <run>.unfinished.<k>.<BAN_FILE>
+BLOCK_DIR = re.compile(r"^b(\d+)_a(\d+)$")
+REFUSED_STATUSES = (429, 503)                      # what Nginx's limit_req and limit_conn answer a request they refuse
 
 
 class GateError(ValueError):
@@ -136,6 +150,7 @@ def read_run(run_dir):
         raise GateError(f"{run_dir}/run.json: executor needs ok (a boolean) and reasons (a list)")
     return {"dir": run_dir, "name": name, "role": want, "mode": meta.get("mode"),
             "started_utc": meta.get("started_utc"), "executor": executor, "streams": streams,
+            "zero_epoch_s": executor.get("zero_epoch_s"),
             "overrides": _overrides(meta.get("overrides"), f"{run_dir}/run.json")}
 
 
@@ -223,6 +238,7 @@ def run_metrics(run, cal, timeline, slo_scale=1.0, window=None):
         ok = answered & twoxx & (service <= limit)
         in_window = (a["t_run"] >= lo) & (a["t_run"] < hi)
         slow = answered & twoxx & (service > limit)
+        refused = np.isin(a["status"], REFUSED_STATUSES)
     window_j = in_window & judged                             # the requests that vote
     n_w, ok_w = int(window_j.sum()), int((ok & window_j).sum())
     sent = ~np.isnan(a["t_sent"])
@@ -254,15 +270,86 @@ def run_metrics(run, cal, timeline, slo_scale=1.0, window=None):
             "slip_p99_s": _q(slip, 0.99), "failures": {k: v for k, v in causes.items() if v},
             "by_class": by_class, "by_profile": by_profile,
             "judged_share": n_w / int(in_window.sum()) if in_window.any() else None,
+            "refused": {"window": int((refused & in_window).sum()), "window_judged": int((refused & window_j).sum()),
+                        "run": int(refused.sum())},
             **time_resolved(nb, okb, base, base + float(timeline["attack_s"]))}
+
+
+def _within(ip, nets):
+    try:
+        address = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return any(address in net for net in nets)
+
+
+def mitigation(run):
+    """What a run's daemon did, from its ban file (G8, G9): its bans; the legit identities it blocked (a ban of an address of the
+    population's benign networks: collateral damage); and, for each attack identity it banned, the time to mitigate: its first ban
+    less the attack's start on the run's axis, which is the run's zero on the executor's clock (`executor.zero_epoch_s`) plus the attack
+    streams' offset. The daemon stamps its events with the same host clock, so this is a subtraction. A run without a ban file (C, Cp,
+    U, M_limits) has no ban; a run without the zero has no time to mitigate."""
+    path = os.path.join(run["dir"], BAN_FILE)
+    present = os.path.exists(path)
+    events = BE.read_events(path) if present else []
+    first = BE.first_bans(events)
+    benign = sorted(ip for ip in first if _within(ip, POP.BENIGN_NETS))
+    attack = sorted(ip for ip in first if _within(ip, POP.ATTACK_NETS))
+    identities = {a for s in run["streams"] if s["kind"] == "attack" for a in s.get("addresses", [])}
+    offsets = [s["offset_s"] for s in run["streams"] if s["kind"] == "attack"]
+    ttm = None
+    zero = run.get("zero_epoch_s")
+    first_ban_axis = {} if zero is None else {ip: round(float(first[ip]["t_wall"]) - zero, 3) for ip in first}
+    if attack and offsets and zero is not None:
+        start = run["zero_epoch_s"] + float(np.median(offsets))
+        values = {ip: round(float(first[ip]["t_wall"]) - start, 3) for ip in attack}
+        ordered = sorted(values.values())
+        ttm = {"n": len(ordered), "median": float(np.median(ordered)), "min": ordered[0], "max": ordered[-1], "by_identity": values}
+    return {"ban_file": present, "bans": sum(1 for e in events if e["kind"] == "ban"), "benign_blocked": benign,
+            "attack_identities": len(identities) or None, "attack_banned": len(attack), "ttm_s": ttm, "first_ban_axis_s": first_ban_axis,
+            "engines": dict(sorted(collections.Counter(str(first[ip].get("engine", "unknown")) for ip in first).items()))}
 
 
 # --- validity ----------------------------------------------------------------------------------
 
-def validity(run, cal, slip_p99, control_slip_p99):
-    """Both profiles for a run: {'relative': {'ok', 'reasons'}, 'strict': {...}} (docs/HG1B_MINIMAL_DESIGN.md 4)."""
+def post_ban_split(stream, first_ban_axis):
+    """T-028 F-02, a design fix approved by the user on 2026-10-30, before any data: in a protected run an attack
+    stream's sending is judged only up to the first ban of its source. A request due at or after its own source's first ban is
+    `mitigated`, sent or not; so is a request the engine's in-flight cap dropped (err "dropped") at or after the first ban of any
+    source of the stream, since requests to banned sources wait out their timeout behind XDP and fill the cap. Every other request is
+    judged, and what of those was not sent, or failed for want of descriptors or ports, is the generator's failure. `first_ban_axis`
+    maps an address to its first ban on the run's axis. The counts, from the stream's records; None when no source was banned."""
+    addresses = list(stream.get("addresses") or [])
+    bans = [first_ban_axis[a] for a in addresses if a in first_ban_axis]
+    if not bans:
+        return None
+    first_any, offset = min(bans), float(stream["offset_s"])
+    out = {"judged_intended": 0, "judged_sent": 0, "judged_dropped": 0, "judged_fd": 0, "judged_port": 0, "mitigated": 0,
+           "first_ban_s": first_any}
+    opener = gzip.open if stream["records"].endswith(".gz") else open
+    try:
+        with opener(stream["records"], "rt", newline="", encoding="utf-8") as fh:
+            for row in csv.DictReader(fh):
+                due, err = float(row["t_intended"]) + offset, row["err"]
+                own = first_ban_axis.get(addresses[int(row["ident"]) % len(addresses)])
+                if (own is not None and due >= own) or (err == "dropped" and due >= first_any):
+                    out["mitigated"] += 1
+                    continue
+                out["judged_intended"] += 1
+                out["judged_sent"] += math.isfinite(float(row["t_sent"]))
+                out["judged_dropped"] += err == "dropped"
+                out["judged_fd"] += err == "fd"
+                out["judged_port"] += err == "port"
+    except (OSError, EOFError, KeyError, ValueError, csv.Error) as exc:
+        raise GateError(f"{stream['records']}: {exc}") from exc
+    return out
+
+
+def validity(run, cal, slip_p99, control_slip_p99, first_ban_axis=None):
+    """Both profiles for a run: {'relative': {'ok', 'reasons'}, 'strict': {...}} (docs/HG1B_MINIMAL_DESIGN.md 4), and, when any attack
+    stream of a protected run was judged up to its sources' bans (post_ban_split, with `first_ban_axis`), `post_ban`: their counts."""
     v = cal["validity"]
-    shared, relative, strict = [], [], []
+    shared, relative, strict, post_ban = [], [], [], {}
     for s in run["streams"]:
         sm, sid = s["summary"], s["id"]
         try:
@@ -273,16 +360,30 @@ def validity(run, cal, slip_p99, control_slip_p99):
             raise GateError(f"{run['dir']}: the summary of stream {sid} lacks {exc}") from exc
         if intended > 0 and cpu > v["cpu_share"]:               # no request: its microseconds of CPU over its microseconds of wall time
             shared.append(f"{sid}: CPU share {cpu:.2f} above {v['cpu_share']:g}")
-        if intended > 0 and sent < v["sent_share"] * intended:
-            shared.append(f"{sid}: sent {sent} of {intended} intended")
-        if flags.get("descriptors"):
-            shared.append(f"{sid}: out of descriptors")
-        if flags.get("ports"):
-            shared.append(f"{sid}: out of ports")
-        if dropped > 0 and s["kind"] == "legit":
-            relative.append(f"{sid}: a legit stream dropped {dropped} requests")
-        if dropped > 0:
-            strict.append(f"{sid}: dropped {dropped} requests")
+        split = (post_ban_split(s, first_ban_axis) if first_ban_axis and s["kind"] == "attack" and run.get("role") == "mitigated"
+                 else None)
+        if split is not None:
+            post_ban[sid] = split
+            judged, done = split["judged_intended"], split["judged_sent"]
+            if judged > 0 and done < v["sent_share"] * judged:
+                shared.append(f"{sid}: sent {done} of the {judged} requests due before its sources' bans")
+            if split["judged_fd"]:
+                shared.append(f"{sid}: out of descriptors before its sources' bans")
+            if split["judged_port"]:
+                shared.append(f"{sid}: out of ports before its sources' bans")
+            if split["judged_dropped"]:
+                strict.append(f"{sid}: dropped {split['judged_dropped']} requests before its sources' bans")
+        else:
+            if intended > 0 and sent < v["sent_share"] * intended:
+                shared.append(f"{sid}: sent {sent} of {intended} intended")
+            if flags.get("descriptors"):
+                shared.append(f"{sid}: out of descriptors")
+            if flags.get("ports"):
+                shared.append(f"{sid}: out of ports")
+            if dropped > 0 and s["kind"] == "legit":
+                relative.append(f"{sid}: a legit stream dropped {dropped} requests")
+            if dropped > 0:
+                strict.append(f"{sid}: dropped {dropped} requests")
         if slip is not None and slip > v["strict_slip_p99_s"]:
             strict.append(f"{sid}: slip p99 {slip * 1000:.0f} ms above {v['strict_slip_p99_s'] * 1000:.0f} ms")
     executor = run.get("executor")
@@ -293,8 +394,9 @@ def validity(run, cal, slip_p99, control_slip_p99):
     if control_slip_p99 is not None and slip_p99 is not None and slip_p99 > control_slip_p99 + v["slip_delta_s"]:
         relative.append(f"legit slip p99 {slip_p99 * 1000:.0f} ms exceeds the control's {control_slip_p99 * 1000:.0f} ms "
                         f"by more than {v['slip_delta_s'] * 1000:.0f} ms")
-    return {"relative": {"ok": not shared + relative, "reasons": shared + relative},
-            "strict": {"ok": not shared + strict, "reasons": shared + strict}}
+    out = {"relative": {"ok": not shared + relative, "reasons": shared + relative},
+           "strict": {"ok": not shared + strict, "reasons": shared + strict}}
+    return {**out, "post_ban": post_ban} if post_ban else out
 
 
 def control_health(m, cal):
@@ -331,7 +433,7 @@ def assess_block(block_dir, cal, slo_scale=1.0):
     for need in (CONTROL, PLACEBO, ATTACK):
         if need not in runs:
             problems.append(f"run {need} is missing")
-    made = sorted(n for n in runs if not n.startswith(MITIGATED))
+    made = sorted(runs)                            # the protected runs too: the block's drawn order covers them (G7)
     if sorted(meta["order"]) != made:
         problems.append(f"order {meta['order']} is not the runs made ({', '.join(made)})")
     overrides = dict(_overrides(meta.get("overrides"), os.path.join(block_dir, "block.json")))
@@ -343,20 +445,34 @@ def assess_block(block_dir, cal, slo_scale=1.0):
     out_runs = {}
     for name, run in runs.items():
         m = metrics[name]
-        val = validity(run, cal, m["slip_p99_s"], None if name == CONTROL or not control else control["slip_p99_s"])
+        mit = mitigation(run)
+        val = validity(run, cal, m["slip_p99_s"], None if name == CONTROL or not control else control["slip_p99_s"],
+                       mit["first_ban_axis_s"])
         out_runs[name] = {"role": run["role"], "mode": run["mode"], "metrics": m, "validity": val,
-                          "valid": val[cal["validity"]["profile"]]["ok"], "strict_ok": val["strict"]["ok"]}
+                          "valid": val[cal["validity"]["profile"]]["ok"], "strict_ok": val["strict"]["ok"],
+                          "mitigation": mit}
     reasons = list(problems)
     for name in (CONTROL, PLACEBO, ATTACK):
         if name in out_runs and not out_runs[name]["valid"]:
             reasons += [f"{name}: {r}" for r in out_runs[name]["validity"][cal["validity"]["profile"]]["reasons"]]
     if control:
         reasons += [f"control: {r}" for r in control_health(control, cal)]
+    # the protected arms the block planned (block.json `planned_order`, else its order) and those it has: a campaign needs each of
+    # them there and valid (`valid_all`); Gate A's own validity (`valid`) reads C, Cp and U only
+    planned = meta.get("planned_order") or meta["order"]
+    arms = sorted({n for n in planned if n.startswith(MITIGATED)} | {n for n in runs if n.startswith(MITIGATED)})
+    arm_reasons = [f"run {n} is missing" for n in arms if n not in out_runs]
+    for n in arms:
+        if n in out_runs and not out_runs[n]["valid"]:
+            arm_reasons += [f"{n}: {r}" for r in out_runs[n]["validity"][cal["validity"]["profile"]]["reasons"]] or [f"{n}: not valid"]
     u, cp = metrics.get(ATTACK), metrics.get(PLACEBO)
     return {"dir": os.path.basename(block_dir), "block": meta["block"], "attempt": meta["attempt"],
             "seed": meta["seed"], "seed_namespace": meta["seed_namespace"], "scenario": meta["scenario"],
             "calibration_sha256": meta["calibration_sha256"], "order": meta["order"], "runs": out_runs,
             "valid": not reasons, "reasons": reasons, "overrides": overrides,
+            "arms": arms, "arms_valid": not arm_reasons, "arm_reasons": arm_reasons, "valid_all": not reasons and not arm_reasons,
+            "benign_blocked": {n: out_runs[n]["mitigation"]["benign_blocked"] for n in sorted(out_runs) if n.startswith(MITIGATED)},
+            "refused": {n: out_runs[n]["metrics"]["refused"]["window"] for n in sorted(out_runs)},
             "dQ": _diff(control and control["Q"], u and u["Q"]),
             "dL": _log2_ratio(u and u["p95_s"], control and control["p95_s"]),
             "dQ_placebo": _diff(control and control["Q"], cp and cp["Q"]),
@@ -387,7 +503,7 @@ def protocol_problems(attempts, cal):
             p.append(f"block {number}: the re-run used another seed")
         if len(group) > 1:
             reruns += 1
-            if group[0]["valid"]:
+            if group[0].get("valid_all", group[0]["valid"]):          # a block with an invalid protected run may be made again
                 p.append(f"block {number}: re-run although attempt 1 was valid")
     if reruns > cal["gate"]["max_reruns"]:
         p.append(f"{reruns} blocks were re-run; at most {cal['gate']['max_reruns']} in a gate")
@@ -427,16 +543,35 @@ def _criteria(blocks, gate, metrics, dq_key, dl_key):
     return out
 
 
+def _hrr_rows(valid_blocks, mode, value):
+    """(C, U, M) of `value(metrics)` for the valid blocks whose M_<mode> run is valid too; a block lacking one is left out."""
+    name = MITIGATED + mode
+    rows = [tuple(value(b["runs"][run]["metrics"]) for run in (CONTROL, ATTACK, name))
+            for b in valid_blocks if name in b["runs"] and b["runs"][name]["valid"]]
+    return [r for r in rows if None not in r]
+
+
 def hrr(valid_blocks, mode, draws=HRR_DRAWS, seed=HRR_SEED):
     """HRR = (Q(M) - Q(U)) / (Q(C) - Q(U)) from block means, with a percentile block-bootstrap interval."""
-    rows = [(b["runs"][CONTROL]["metrics"]["Q"], b["runs"][ATTACK]["metrics"]["Q"], b["runs"][MITIGATED + mode]["metrics"]["Q"])
-            for b in valid_blocks if MITIGATED + mode in b["runs"] and b["runs"][MITIGATED + mode]["valid"]]
-    rows = [r for r in rows if None not in r]
+    return {"mode": mode, **_hrr(_hrr_rows(valid_blocks, mode, lambda m: m["Q"]), draws, seed)}
+
+
+def hrr_p95(valid_blocks, mode, draws=HRR_DRAWS, seed=HRR_SEED):
+    """HRR on the latency (G10): the share of the attack's harm to p95 that the protection takes back, on the scale the gate
+    judges p95 on (log2): (L(U) - L(M)) / (L(U) - L(C)) with L = log2 p95, from block means with the same block bootstrap. 1 is p95
+    back at the control's, 0 is p95 as bad as unprotected; defined only where U's p95 is above C's on average."""
+    def minus_log2(m):
+        return -math.log2(m["p95_s"]) if m["p95_s"] else None
+    return {"mode": mode, "metric": "log2 p95", **_hrr(_hrr_rows(valid_blocks, mode, minus_log2), draws, seed)}
+
+
+def _hrr(rows, draws, seed):
+    """(M - U) / (C - U) of the means of the rows (C, U, M), larger being better, and its percentile block-bootstrap interval."""
     if not rows:
-        return {"mode": mode, "n": 0, "hrr": None}
+        return {"n": 0, "hrr": None}
     c, u, m = (np.array(col, dtype=float) for col in zip(*rows, strict=True))
     den = c.mean() - u.mean()
-    out = {"mode": mode, "n": len(rows), "hrr": float((m.mean() - u.mean()) / den) if den > 0 else None,
+    out = {"n": len(rows), "hrr": float((m.mean() - u.mean()) / den) if den > 0 else None,
            "lo": None, "hi": None, "dropped_draws": 0}
     if out["hrr"] is None or len(rows) < 2:
         return out
@@ -448,6 +583,121 @@ def hrr(valid_blocks, mode, draws=HRR_DRAWS, seed=HRR_SEED):
     if len(values):
         out["lo"], out["hi"] = float(np.quantile(values, 0.025)), float(np.quantile(values, 0.975))
     return out
+
+
+# --- the protected arms: the pre-registered P2 outcome --------------------------------------------
+
+# PRIORITY_PLAN 3, fixed on 2026-10-30 before any protected run was made and pinned by tests/test_harm_gate.py (P2OutcomeTest):
+# changing a value is a new pre-registration, not a correction. Both halves are taken block by block over the paired blocks.
+#   * the unprotected server fails: in at least `block_share` of the blocks (9 of 10), legit SLO success during the attack is at
+#     least `unprotected_floor_pp` below the control's, or its p95 at least `unprotected_p95_ratio` times the control's;
+#   * the protected server works (one mode, M_<mode>): in at least `block_share` of the blocks its success is at least
+#     `protected_q_ratio` of the control's (Q(M) >= 0.99 x Q(C)), and no legit identity is blocked in any of its runs
+#     (`protected_benign_blocked_max`); the time to mitigate is reported, not judged.
+# Fewer than `min_blocks` paired blocks give no verdict. The block share of the protected half is the unprotected half's: the plan
+# names none for it, and a rule on the mean would let one broken block hide behind nine good ones.
+P2_OUTCOME = {"unprotected_floor_pp": 10.0, "unprotected_p95_ratio": 2.0, "protected_q_ratio": 0.99,
+              "protected_benign_blocked_max": 0, "block_share": 0.9, "min_blocks": 10}
+
+
+def blocks_needed(n, share):
+    """How many of `n` blocks must meet a rule that asks for `share` of them: 9 of 10 at 0.9 (the product is taken with a
+    tolerance, so that a share that is a hair off in floating point does not ask for one block more)."""
+    return math.ceil(share * n - 1e-9)
+
+
+def unprotected_fails(blocks, outcome=None):
+    """The first half of the P2 outcome over paired blocks (dicts with block, dQ and dL, as assess_block makes them): how many
+    are harmed (dQ at least the floor, or dL at least log2 of the p95 ratio) and whether that is enough of them."""
+    o = outcome or P2_OUTCOME
+    floor_l = math.log2(o["unprotected_p95_ratio"])
+    harmed = [b["block"] for b in blocks if (b["dQ"] is not None and b["dQ"] >= o["unprotected_floor_pp"])
+              or (b["dL"] is not None and b["dL"] >= floor_l)]
+    n = len(blocks)
+    evaluable = n >= o["min_blocks"]
+    need = blocks_needed(n, o["block_share"])
+    return {"n": n, "harmed": len(harmed), "harmed_blocks": harmed, "needed": need, "evaluable": evaluable,
+            "passed": evaluable and len(harmed) >= need}
+
+
+def protected_works(rows, outcome=None, also_blocked=()):
+    """The second half for one mode: `rows` are paired blocks as dicts with block, q_control, q_mitigated and benign_blocked (the
+    legit identities its daemon banned). A block holds when Q(M) is at least `protected_q_ratio` of Q(C). `also_blocked` are the legit
+    identities banned in the mode's other runs, which count all the same: "no legit identity blocked in any of its runs"."""
+    o = outcome or P2_OUTCOME
+    held = [r["block"] for r in rows if r["q_control"] is not None and r["q_mitigated"] is not None
+            and r["q_mitigated"] >= o["protected_q_ratio"] * r["q_control"]]
+    blocked = sorted({ip for r in rows for ip in r["benign_blocked"]} | set(also_blocked))
+    n = len(rows)
+    evaluable = n >= o["min_blocks"]
+    need = blocks_needed(n, o["block_share"])
+    return {"n": n, "held": len(held), "held_blocks": held, "needed": need, "benign_blocked": blocked,
+            "evaluable": evaluable,
+            "passed": evaluable and len(held) >= need and len(blocked) <= o["protected_benign_blocked_max"]}
+
+
+def p2_verdict(unprotected, protected):
+    """MET when the unprotected server fails and the protected one works, NOT MET when either half says otherwise, INVALID when
+    either half has too few blocks to say anything."""
+    if not unprotected["evaluable"] or not protected["evaluable"]:
+        return "INVALID"
+    return "MET" if unprotected["passed"] and protected["passed"] else "NOT MET"
+
+
+def campaign_benign_bans(root, attempts, name):
+    """Every ban of a legit identity by a daemon of the protected run `name` (M_<mode>) anywhere in the campaign `root` (F-01 of
+    T-028): in the run of every attempt, final or superseded, valid or not, with or without a run record, and in the ban files that
+    bench/gate_campaign.py kept of the unfinished runs it removed. One row per (file, address): ip, block, attempt, where it was found
+    and whether that run was valid (None when it has no record)."""
+    valid = {(a["block"], a["attempt"]): a["runs"][name]["valid"] for a in attempts if name in a["runs"]}
+    rows = []
+    for d in sorted(os.listdir(root)):
+        m = BLOCK_DIR.match(d)
+        if not m or not os.path.isdir(os.path.join(root, d)):
+            continue
+        block, attempt = int(m.group(1)), int(m.group(2))
+        files = [os.path.join(name, BAN_FILE)] + sorted(f for f in os.listdir(os.path.join(root, d))
+                                                        if f.startswith(name + UNFINISHED) and f.endswith(BAN_FILE))
+        for rel in files:
+            path = os.path.join(root, d, rel)
+            if not os.path.isfile(path):
+                continue
+            kept = rel != os.path.join(name, BAN_FILE)
+            for ip in sorted(BE.first_bans(BE.read_events(path))):
+                if _within(ip, POP.BENIGN_NETS):
+                    rows.append({"ip": ip, "block": block, "attempt": attempt, "file": f"{d}/{rel}",
+                                 "run_valid": None if kept else valid.get((block, attempt))})
+    return rows
+
+
+def protected_arm(blocks, mode, gating=(), benign_bans=()):
+    """The pre-registered P2 outcome (P2_OUTCOME) for one protected mode over a campaign's final blocks: the unprotected half over the
+    blocks valid for Gate A, the protected half over those whose M_<mode> run is valid too, and the legit identities blocked in ANY
+    run of the mode (`benign_bans`, campaign_benign_bans: every attempt, valid or not). Reported with it, not judged: the time to
+    mitigate of the attack identities banned, how many were banned of how many, and the legit requests refused (503/429) in the
+    window. INVALID with `gating` (a campaign whose protocol was broken, or whose runs carry overrides), whatever the figures."""
+    name = MITIGATED + mode
+    pairs = [b for b in blocks if b["valid"]]
+    unprotected = unprotected_fails([{"block": b["block"], "dQ": b["dQ"], "dL": b["dL"]} for b in pairs])
+    held = [b for b in pairs if name in b["runs"] and b["runs"][name]["valid"]]
+    rows = [{"block": b["block"], "q_control": b["runs"][CONTROL]["metrics"]["Q"], "q_mitigated": b["runs"][name]["metrics"]["Q"],
+             "benign_blocked": b["runs"][name]["mitigation"]["benign_blocked"]} for b in held]
+    protected = protected_works(rows, also_blocked=[r["ip"] for r in benign_bans])
+    reasons = list(gating)
+    need = P2_OUTCOME["min_blocks"]
+    if not unprotected["evaluable"]:
+        reasons.append(f"{unprotected['n']} blocks valid for the gate, fewer than the {need} the outcome needs")
+    if not protected["evaluable"]:
+        reasons.append(f"{protected['n']} blocks with a valid {name} run, fewer than the {need} the outcome needs")
+    ttm = [v for b in held for v in ((b["runs"][name]["mitigation"]["ttm_s"] or {}).get("by_identity") or {}).values()]
+    identities = [b["runs"][name]["mitigation"]["attack_identities"] for b in held]
+    return {"mode": mode, "verdict": "INVALID" if gating else p2_verdict(unprotected, protected), "reasons": reasons,
+            "outcome": dict(P2_OUTCOME), "unprotected": unprotected, "protected": protected,
+            "ttm_s": {"n": len(ttm), "median": float(np.median(ttm)) if ttm else None, "max": max(ttm, default=None)},
+            "attack_banned": sum(b["runs"][name]["mitigation"]["attack_banned"] for b in held),
+            "attack_identities": sum(identities) if identities and None not in identities else None,
+            "refused_window": sum(b["runs"][name]["metrics"]["refused"]["window"] for b in held), "blocks": rows,
+            "benign_bans": list(benign_bans)}
 
 
 def _mean(values):
@@ -499,6 +749,7 @@ def analyse(root, cal, dry_run=False, metrics=METRICS, slo_scale=1.0, allow_over
             smoke.setdefault(key, value)
     if smoke and not allow_overrides:
         reasons.append(f"the runs carry overrides {smoke}: a smoke test, not a result, so there is no verdict")
+    gating = list(reasons)                  # a broken protocol or a smoke test gives the protected arms no verdict either
     if len(valid) < gate["min_blocks"]:
         reasons.append(f"{len(valid)} valid blocks, fewer than the {gate['min_blocks']} the gate needs")
     criteria = _criteria(valid, gate, metrics, "dQ", "dL")
@@ -510,6 +761,7 @@ def analyse(root, cal, dry_run=False, metrics=METRICS, slo_scale=1.0, allow_over
     else:
         verdict = "PASS" if any(c["passed"] for c in criteria.values()) else "FAIL"
     modes = sorted({n[len(MITIGATED):] for b in valid for n in b["runs"] if n.startswith(MITIGATED)})
+    arm_modes = sorted({n[len(MITIGATED):] for b in blocks for n in b["arms"]})
     return {"scenario": blocks[0]["scenario"], "seed_namespace": blocks[0]["seed_namespace"],
             "calibration": {"status": cal["status"], "sha256": cal.get("sha256") or CAL.digest(cal)},
             "dry_run": cal["status"] != "frozen", "overrides": smoke, "overrides_allowed": bool(smoke) and allow_overrides,
@@ -520,7 +772,9 @@ def analyse(root, cal, dry_run=False, metrics=METRICS, slo_scale=1.0, allow_over
             "criteria": criteria, "by_profile": profile_table(valid, cal),
             "placebo": {"criteria": placebo, "passed": any(c["passed"] for c in placebo.values())},
             "hrr": [hrr(valid, m) for m in modes] if verdict == "PASS" else None,
+            "hrr_p95": [hrr_p95(valid, m) for m in modes] if verdict == "PASS" else None,
             "hrr_withheld": bool(modes) and verdict != "PASS",
+            "protected": [protected_arm(blocks, m, gating, campaign_benign_bans(root, attempts, MITIGATED + m)) for m in arm_modes],
             "blocks": blocks, "attempts": [a for a in attempts if a is not final[a["block"]]]}   # the superseded ones
 
 
@@ -593,12 +847,40 @@ def to_markdown(r):
     out.append(f"Strict profile (design 8.3 as written), computed and not judged unless chosen: {strict_bad} run(s) "
                "of the final blocks would fail it.\n")
     if r["hrr"]:
-        out += ["## HRR", "", "| mode | blocks | HRR | 95 % block-bootstrap interval |", "|---|---|---|---|"]
-        out += [f"| {h['mode']} | {h['n']} | {_f(h['hrr'], '.2f')} | [{_f(h.get('lo'), '.2f')}, {_f(h.get('hi'), '.2f')}] |"
-                for h in r["hrr"]]
+        out += ["## HRR", "", ("The share of the harm the protected arm takes back, from block means: on Q, (Q(M) - Q(U)) / (Q(C) - Q(U)); "
+                               "on p95, the same on log2 p95, (L(U) - L(M)) / (L(U) - L(C))."), "",
+                "| mode | blocks | HRR on Q | 95 % block-bootstrap interval | HRR on p95 | 95 % block-bootstrap interval |",
+                "|---|---|---|---|---|---|"]
+        for h, p in zip(r["hrr"], r.get("hrr_p95") or [{}] * len(r["hrr"]), strict=True):
+            out.append(f"| {h['mode']} | {h['n']} | {_f(h['hrr'], '.2f')} | [{_f(h.get('lo'), '.2f')}, {_f(h.get('hi'), '.2f')}] | "
+                       f"{_f(p.get('hrr'), '.2f')} | [{_f(p.get('lo'), '.2f')}, {_f(p.get('hi'), '.2f')}] |")
         out.append("")
     elif r["hrr_withheld"]:
         out += ["HRR is not computed: its denominator is the gate-passed harm and the gate did not pass.\n"]
+    if r.get("protected"):
+        o = P2_OUTCOME
+        out += ["## Protected arms: the pre-registered P2 outcome", "",
+                (f"Fixed before any protected run (PRIORITY_PLAN 3, `harm_gate.P2_OUTCOME`): the unprotected server fails when, in at "
+                 f"least {o['block_share']:.0%} of the blocks, dQ >= {o['unprotected_floor_pp']:g} pp or p95 >= "
+                 f"{o['unprotected_p95_ratio']:g} x the control's; the protected one works when Q(M) >= {o['protected_q_ratio']:g} x Q(C) "
+                 f"in as many blocks and no legit identity is blocked; at least {o['min_blocks']} blocks. The time to mitigate (TTM: an "
+                 f"attack identity's first ban after the attack began) and the refused requests are reported, not judged."), "",
+                ("| arm | P2 outcome | unprotected fails | protected works | legit identities blocked | refused in the window | "
+                 "attack identities banned | TTM median s | TTM max s |"), "|---|---|---|---|---|---|---|---|---|"]
+        for p in r["protected"]:
+            u, w, t = p["unprotected"], p["protected"], p["ttm_s"]
+            out.append(f"| {MITIGATED}{p['mode']} | {p['verdict']} | {u['harmed']} of {u['n']} (needs {u['needed']}) | "
+                       f"{w['held']} of {w['n']} (needs {w['needed']}) | {len(w['benign_blocked'])} | {p['refused_window']} | "
+                       f"{p['attack_banned']} of {_f(p['attack_identities'], 'd')} | {_f(t['median'], '.2f')} | {_f(t['max'], '.2f')} |")
+        for p in r["protected"]:
+            if p["reasons"]:
+                out.append(f"* {MITIGATED}{p['mode']}, no verdict: " + "; ".join(p["reasons"]))
+            if p["protected"]["benign_blocked"]:
+                out.append(f"* {MITIGATED}{p['mode']} blocked legit identities: " + ", ".join(p["protected"]["benign_blocked"]))
+                for b in p.get("benign_bans", []):
+                    state = {True: "valid", False: "not valid", None: "no record of the run"}[b["run_valid"]]
+                    out.append(f"  * {b['ip']} in block {b['block']} attempt {b['attempt']} ({b['file']}, {state})")
+        out.append("")
     out.append("Limits: p95 is over successes (Q counts the failures and is the primary number); the pooled p95 weighs "
                "route classes by their share of the mix; the SLOs, floors and judged links are the calibration's.")
     return "\n".join(out) + "\n"

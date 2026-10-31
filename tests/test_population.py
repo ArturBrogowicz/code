@@ -298,10 +298,15 @@ class CommandTest(unittest.TestCase):
                 lo, _, hi = part.partition("-")
                 out |= set(range(int(lo), int(hi or lo) + 1))
             return out
-        self.assertEqual(cpus(P.PIN_PLAN["legit"]), {6})                  # the healthy vCPU (D14)
+        self.assertEqual(cpus(P.PIN_PLAN["legit"]), {7})                  # the healthy vCPU (D14, amended 2026-10-31)
         for other in ("server", "daemon", "attack"):
             self.assertFalse(cpus(P.PIN_PLAN["legit"]) & cpus(P.PIN_PLAN[other]), other)
-        self.assertEqual(cpus(P.PIN_PLAN["attack"]), {3, 4, 5, 7})
+        self.assertEqual(cpus(P.PIN_PLAN["attack"]), {3, 4, 5, 6})
+
+    def test_the_pin_plan_is_d14_as_amended_by_the_user_on_2026_10_31(self):
+        """D-032, before any capacity data: the legit streams and the timer gate on CPU 7; the attack on 3-6, as many CPUs as before;
+        the server on 0-1 (the origin step of AP-1 runs on CPU 0, unaffected) and the daemon's CPU on 2."""
+        self.assertEqual(P.PIN_PLAN, {"server": "0-1", "daemon": "2", "legit": "7", "attack": "3-6"})
 
     def test_the_open_file_limit_covers_the_idle_pools_the_in_flight_cap_and_a_margin(self):
         for s in POP.streams:
@@ -363,6 +368,41 @@ class StagedTest(unittest.TestCase):
             spec = P.to_load_spec(s, "http://10.0.0.1/")
             self.assertEqual(spec.duration, 6.0)
             LT.validate(spec)
+
+
+class DaemonPinPlanTest(unittest.TestCase):
+    """G5: with the daemon on CPU 2 the executor gets a CPU of its own (6, which the attack gives up); nothing else moves, and the legit
+    streams keep CPU 7 to themselves (D14 as amended on 2026-10-31)."""
+
+    @staticmethod
+    def cpus(text):
+        out = set()
+        for part in text.split(","):
+            lo, _, hi = part.partition("-")
+            out |= set(range(int(lo), int(hi or lo) + 1))
+        return out
+
+    def test_every_role_has_cpus_of_its_own(self):
+        self.assertEqual(sorted(P.PIN_PLAN_DAEMON), ["attack", "daemon", "executor", "legit", "server"])
+        seen = set()
+        for role, text in P.PIN_PLAN_DAEMON.items():
+            self.assertFalse(self.cpus(text) & seen, role)
+            seen |= self.cpus(text)
+        self.assertLessEqual(seen, set(range(8)))
+
+    def test_only_the_executor_and_the_attack_move(self):
+        for role in ("server", "daemon", "legit"):
+            self.assertEqual(P.PIN_PLAN_DAEMON[role], P.PIN_PLAN[role], role)
+        self.assertEqual(self.cpus(P.PIN_PLAN_DAEMON["attack"]) | self.cpus(P.PIN_PLAN_DAEMON["executor"]),
+                         self.cpus(P.PIN_PLAN["attack"]))
+        self.assertGreaterEqual(len(self.cpus(P.PIN_PLAN_DAEMON["attack"])), 3)
+
+    def test_the_executor_sits_on_the_daemons_cpu_only_in_a_plan_without_a_daemon(self):
+        self.assertEqual((P.executor_cpus(P.PIN_PLAN), P.executor_cpus(P.PIN_PLAN_DAEMON)), ("2", "6"))
+
+    def test_the_daemon_plan_is_the_amended_plan_with_the_executor_on_6(self):
+        self.assertEqual(P.PIN_PLAN_DAEMON, {"server": "0-1", "daemon": "2", "executor": "6", "legit": "7", "attack": "3-5"})
+        self.assertNotIn(7, self.cpus(P.PIN_PLAN_DAEMON["executor"]) | self.cpus(P.PIN_PLAN_DAEMON["attack"]))
 
 
 if __name__ == "__main__":

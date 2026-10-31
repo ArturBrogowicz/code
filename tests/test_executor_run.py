@@ -10,6 +10,7 @@ import itertools
 import json
 import math
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -122,7 +123,7 @@ class ContractTest(RunCase):
     def test_streams_are_listed_with_what_the_gate_requires(self):
         plan, _, _ = self.go("C")
         for s in self.run_json(plan)["streams"]:
-            self.assertEqual(sorted(s), sorted(H.STREAM_KEYS))
+            self.assertEqual(sorted(s), sorted([*H.STREAM_KEYS, "addresses"]), "the gate's keys, and the identities the stream carries")
             self.assertTrue(os.path.exists(os.path.join(plan.out, s["summary"])))
             self.assertTrue(os.path.exists(os.path.join(plan.out, s["records"])))
             self.assertIn(s["netem"], C.LINK_PROFILES)
@@ -194,6 +195,82 @@ class ContractTest(RunCase):
     def test_the_suite_is_never_imported_by_a_run_on_a_scripted_host(self):
         with mock.patch.object(X.RealHost, "suite", side_effect=AssertionError("the suite was imported")):
             self.go("C")
+
+
+class OutcomeRecordTest(RunCase):
+    """What the gate needs of a run to say what its daemon did (G8, G9): the zero of the run's axis on the executor's clock, which the
+    daemon's events share, and the identities each stream carries."""
+
+    def test_run_json_keeps_the_axis_zero_and_each_streams_addresses(self):
+        plan, _, _ = self.go("U")
+        run = self.run_json(plan)
+        zero, per = run["executor"]["zero_epoch_s"], plan.settings["exit_delay_per_request_s"]
+        addresses = {s.id: list(s.addresses) for s in plan.streams}
+        for s in run["streams"]:
+            with open(os.path.join(plan.out, s["summary"]), encoding="utf-8") as fh:
+                summary = json.load(fh)
+            wall = X.consistent_wall(summary["wall_s"], X.last_done(os.path.join(plan.out, s["records"])))
+            t0 = X.estimate_t0(run["executor"]["exit_epoch_s"][s["id"]], wall, summary["intended"], per)
+            self.assertAlmostEqual(t0 - s["offset_s"], zero, delta=0.002, msg=s["id"])
+            self.assertEqual(s["addresses"], addresses[s["id"]])
+        self.assertEqual(sorted({a for s in run["streams"] for a in s["addresses"]}),
+                         sorted(a for n in plan.namespaces for a in n.addresses))
+
+    def flood(self, host):
+        scn = SC.load(os.path.join(REPO, "bench", "scenarios", "cheap_static_flood.json"))
+        plan = X.plan_run(scn, self.cal, "M_xdp", 1, os.path.join(self.tmp.name, "flood", "M_xdp"), C.PLACEHOLDER, "sha",
+                          settings=bare_settings(), rho=20.0, timeline=SHORT)
+        result = X.execute(plan, host)
+        self.assertTrue(result.ok, result.reasons)
+        return plan, H.mitigation(H.read_run(plan.out))
+
+    def test_the_gate_reads_what_the_simulated_daemon_did_to_a_flood(self):
+        plan, m = self.flood(F.SimHost(server=F.SyntheticServer(self.cal, SHORT, F.EFFECT_PRESETS["pass"])))
+        sources = sorted({a for s in plan.streams if s.kind == "attack" for a in s.addresses})
+        self.assertGreater(min(s.rate / len(s.addresses) for s in plan.streams if s.kind == "attack"), F.DAEMON_BAN_RPS)
+        self.assertEqual((m["attack_identities"], m["attack_banned"], m["benign_blocked"]), (len(sources), len(sources), []))
+        self.assertAlmostEqual(m["ttm_s"]["median"], F.DAEMON_BAN_DELAY_S, delta=0.15)
+        self.assertAlmostEqual(m["ttm_s"]["max"], F.DAEMON_BAN_DELAY_S, delta=0.15)
+
+    def test_a_legit_identity_the_simulated_daemon_banned_is_counted_as_blocked(self):
+        plan, m = self.flood(F.SimHost(faults={"daemon_bans_benign": 1}))
+        first_legit = next(s for s in sorted(plan.streams, key=lambda s: s.id) if s.kind == "legit")
+        self.assertEqual(len(m["benign_blocked"]), 1)
+        self.assertIn(m["benign_blocked"][0], [a for s in plan.streams if s.kind == "legit" for a in s.addresses])
+        self.assertTrue(first_legit.addresses)
+
+
+class PostBanRunTest(RunCase):
+    """T-028 F-02 on the simulated host: banned attack sources make their engine's requests wait out the timeout, the in-flight cap
+    fills and the engine drops requests; the old rule voided that run for what the mitigation did, the new one judges the attack
+    streams up to their sources' bans only, and still voids a generator that failed before them."""
+
+    def flood(self, **host_kw):
+        scn = SC.load(os.path.join(REPO, "bench", "scenarios", "cheap_static_flood.json"))
+        plan = X.plan_run(scn, self.cal, "M_xdp", 1, os.path.join(self.tmp.name, "flood", "M_xdp"), C.PLACEHOLDER, "sha",
+                          settings=bare_settings(), rho=20.0, timeline=SHORT)
+        host = F.SimHost(server=F.SyntheticServer(self.cal, SHORT, F.EFFECT_PRESETS["pass"]), **host_kw)
+        result = X.execute(plan, host)
+        self.assertTrue(result.ok, result.reasons)
+        run = H.read_run(plan.out)
+        return run, H.mitigation(run)
+
+    def test_a_mitigation_that_fills_the_engines_cap_voided_its_run_under_the_old_rule_and_not_under_the_new(self):
+        run, m = self.flood(max_inflight=1000)
+        big = max((s for s in run["streams"] if s["kind"] == "attack"), key=lambda s: s["summary"]["intended"])
+        self.assertLess(big["summary"]["sent"], 0.99 * big["summary"]["intended"], "the engine dropped requests after the bans")
+        old = H.validity(run, self.cal, None, None)
+        self.assertTrue([r for r in old["relative"]["reasons"] if r.startswith(f"{big['id']}: sent ")], old["relative"]["reasons"])
+        new = H.validity(run, self.cal, None, None, m["first_ban_axis_s"])
+        self.assertEqual([r for r in new["relative"]["reasons"] if r.startswith("A-")], [])
+        split = new["post_ban"][big["id"]]
+        self.assertEqual(split["judged_sent"], split["judged_intended"])
+        self.assertGreater(split["mitigated"], 0.5 * big["summary"]["intended"])
+
+    def test_an_engine_that_drops_before_the_bans_still_voids_the_run(self):
+        run, m = self.flood(max_inflight=1)
+        new = H.validity(run, self.cal, None, None, m["first_ban_axis_s"])
+        self.assertTrue([r for r in new["relative"]["reasons"] if "requests due before its sources' bans" in r], new["relative"]["reasons"])
 
 
 class ExitStampTest(RunCase):
@@ -591,7 +668,7 @@ class RefusalTest(RunCase):
     def test_a_timer_that_wakes_late_on_the_legit_cpu_is_refused(self):
         _, why = self.refused(F.SimHost(timer_p99_ms=25.0), error=X.EnvironmentRefused)
         self.assertIn("p99 25.0 ms", why)
-        self.assertIn("CPU 6", why)
+        self.assertIn("CPU 7", why)
 
     def test_a_timer_just_under_the_limit_is_accepted_and_one_at_it_is_not(self):
         _, _, result = self.go("C", F.SimHost(timer_p99_ms=9.99))
@@ -919,6 +996,265 @@ class SetupTest(RunCase):
         self.assertEqual(by_ns, {ns.name for ns in plan.namespaces})
 
 
+class DaemonRunTest(RunCase):
+    """A protected run's daemon (HG4 G3, G4): started after the stack, held by its handle, ready on its line, its start event and its
+    XDP program; stopped by the handle with SIGINT, KILL if it must, XDP detached in any case; a program left loaded is a leftover.
+    Each run has a daemon and a namespace of its own, so no ban outlives its run."""
+
+    @staticmethod
+    def daemons(host):
+        return [p for p in host.procs.values() if p.role == "daemon"]
+
+    def events(self, plan):
+        return [json.loads(line) for line in self.read(plan, "ban_events.jsonl").splitlines()]
+
+    def test_the_daemon_is_started_after_the_stack_and_stopped_by_its_handle_before_the_rest(self):
+        plan, host, result = self.go("M_xdp")
+        self.assertTrue(result.ok, result.reasons)
+        lines = self.read(plan, "executor.log").splitlines()
+        order = [next(i for i, line in enumerate(lines) if key in line)
+                 for key in ("stack ready", "started the daemon", "launched 29 legit streams", "timeline over", "stopped the daemon",
+                             "stopped 1 process(es) of this run", "teardown complete")]
+        self.assertEqual(order, sorted(order))
+        (daemon,) = self.daemons(host)
+        self.assertEqual((daemon.ns, daemon.argv, daemon.returncode), (X.SERVER_NS, plan.daemon.argv, 0), "SIGINT ran its finally")
+        self.assertEqual(host.ran("ip", "link", "set", "dev", "veth_server", "xdp", "off"),
+                         [("run", X.SERVER_NS, ("ip", "link", "set", "dev", "veth_server", "xdp", "off"))])
+        self.assertTestbedEmpty(host)
+        self.assertEqual(host.loaded_programs(), [])
+
+    def test_its_ban_file_its_log_and_its_record_are_the_runs(self):
+        plan, _, _ = self.go("M_xdp")
+        (start,) = self.events(plan)
+        self.assertEqual((start["kind"], start["backend"], start["xdp_gru"]), ("start", "xdp", False))
+        self.assertIn(X.DAEMON_READY_LINE, self.read(plan, "daemon.log"))
+        meta = self.run_json(plan)
+        self.assertEqual((meta["role"], meta["mode"]), ("mitigated", "xdp"))
+        self.assertEqual((H.read_run(plan.out)["role"], H.read_run(plan.out)["mode"]), ("mitigated", "xdp"))
+        d = meta["daemon"]
+        self.assertEqual((d["pid"], d["xdp_prog_at_ready"]), (start["pid"], 41))
+        self.assertAlmostEqual(d["ready_after_s"], F.DAEMON_STARTUP_S, delta=0.5)
+        self.assertEqual((d["stop"]["signal"], d["stop"]["exit"], d["stop"]["killed"], d["stop"]["xdp_off"]), ("INT", 0, False, True))
+
+    def test_each_run_has_a_daemon_of_its_own_so_that_no_ban_outlives_its_run(self):
+        host = F.SimHost()
+        first, second = self.plan("M_xdp", name="b1/M_xdp"), self.plan("M_xdp", name="b2/M_xdp")
+        self.assertTrue(X.execute(first, host).ok)
+        self.assertTrue(X.execute(second, host).ok)
+        pids = [p.pid for p in self.daemons(host)]
+        self.assertEqual(len(set(pids)), 2)
+        for plan, pid in zip((first, second), pids, strict=True):
+            self.assertEqual([(e["kind"], e["pid"]) for e in self.events(plan)], [("start", pid)])
+        moved = host.ran("mv", "-f", X.FEED_ACCESS_LOG)
+        self.assertEqual([argv[-1] for _, _, argv in moved], [f"{second.out}/feed_before/ddos_ml_access.log"],
+                         "each run starts its feed afresh: the second moves the first's into itself")
+
+    def test_a_daemon_that_ignores_sigint_is_killed_after_the_grace_and_xdp_is_detached_all_the_same(self):
+        host = F.SimHost(faults={"daemon_ignores_int": 1})
+        plan, _, result = self.go("M_xdp", host)
+        self.assertTrue(result.ok, result.reasons)
+        self.assertIn("KILL the daemon", self.read(plan, "executor.log"))
+        stop = self.run_json(plan)["daemon"]["stop"]
+        self.assertEqual((stop["signal"], stop["killed"], stop["exit"], stop["xdp_off"]), ("INT", True, -9, True))
+        self.assertGreaterEqual(stop["seconds"], X.DAEMON_STOP_GRACE_S)
+        self.assertEqual(host.loaded_programs(), [])
+        self.assertTestbedEmpty(host)
+
+    def test_a_daemon_that_is_not_ready_in_time_fails_the_setup_which_is_retried(self):
+        host = F.SimHost(faults={"daemon_not_ready": 1})
+        plan, _, result = self.go("M_xdp", host)
+        self.assertTrue(result.ok, result.reasons)
+        self.assertEqual(result.setup_retries, 1)
+        self.assertIn(f"the daemon was not ready within {X.DAEMON_READY_TIMEOUT_S:g} s: no line '{X.DAEMON_READY_LINE}', no start "
+                      "event, no XDP program on veth_server", self.read(plan, "executor.log"))
+        self.assertEqual(len(self.daemons(host)), 2)
+        self.assertTestbedEmpty(host)
+
+    def test_a_daemon_that_cannot_start_fails_the_setup_three_times_and_leaves_nothing(self):
+        host = F.SimHost(faults={"daemon_fails": None})
+        plan = self.plan("M_xdp")
+        with self.assertRaises(X.SetupFailed) as ctx:
+            X.execute(plan, host)
+        self.assertIn("the daemon exited with 1 before it was ready", str(ctx.exception))
+        self.assertIn("No such device", str(ctx.exception))
+        self.assertEqual(len(self.daemons(host)), 3)
+        self.assertIn("SetupFailed", self.failed(plan))
+        self.assertTestbedEmpty(host)
+
+    def test_a_daemon_that_attaches_nothing_is_not_ready(self):
+        with self.assertRaisesRegex(X.SetupFailed, "no XDP program on veth_server"):
+            X.execute(self.plan("M_xdp"), F.SimHost(faults={"xdp_not_attached": None}))
+
+    def test_m_limits_has_no_daemon_and_looks_for_no_program(self):
+        plan, host, result = self.go("M_limits")
+        self.assertTrue(result.ok, result.reasons)
+        self.assertEqual(self.daemons(host), [])
+        meta = self.run_json(plan)
+        self.assertEqual((meta["role"], meta["mode"], meta["daemon"]), ("mitigated", "limits", None))
+        self.assertEqual(host.ran("bpftool"), [])
+        self.assertFalse(os.path.exists(os.path.join(plan.out, "ban_events.jsonl")))
+        self.assertRegex(self.read(plan, "nginx.conf"), r"\n[ \t]*limit_req zone=mylimit burst=100 nodelay;")
+
+    def test_the_daemons_cpu_is_sampled_apart_from_the_origins(self):
+        plan, _, _ = self.go("M_xdp")
+        with open(os.path.join(plan.out, "server.csv"), encoding="utf-8", newline="") as fh:
+            later = list(csv.DictReader(fh))[5]
+        self.assertEqual((float(later["daemon_cpu_pct"]), float(later["origin_cpu_pct"])), (5.0, 50.0),
+                         "the daemon runs Python in server_ns, and is not counted as the origin")
+        stack = json.loads(self.read(plan, "environment.json"))["stack"]
+        self.assertEqual(stack["daemon"]["cpus_allowed"], [P.PIN_PLAN["daemon"]])
+        self.assertEqual(stack["daemon"]["processes"], 1)
+        control, _, _ = self.go("C", plan_args={"name": "ctl/C"})
+        with open(os.path.join(control.out, "server.csv"), encoding="utf-8", newline="") as fh:
+            self.assertNotIn("daemon_cpu_pct", next(csv.reader(fh)))
+        self.assertNotIn("daemon", json.loads(self.read(control, "environment.json"))["stack"])
+
+    def test_an_xdp_program_left_loaded_is_a_leftover_and_the_next_protected_run_is_refused(self):
+        host = F.SimHost(faults={"xdp_leftover": None})
+        plan = self.plan("M_xdp")
+        with self.assertRaises(X.LeftoverError) as ctx:
+            X.execute(plan, host)
+        self.assertIn("xdp program 41 xdp_ddos_mitiga", str(ctx.exception))
+        self.assertIn("bpf map blacklist_map", str(ctx.exception))
+        with self.assertRaisesRegex(X.PreflightRefused, "xdp program 41"):
+            X.execute(self.plan("M_xdp", name="next/M_xdp"), host)
+
+    def test_the_maps_looked_for_are_the_xdp_programs_and_the_model_has_the_same(self):
+        with open(os.path.join(REPO, "xdp_ddos_filter.c"), encoding="utf-8") as fh:
+            declared = re.findall(r"^BPF_(HASH|TABLE)\(([^;]*)\);", fh.read(), re.MULTILINE)
+        names = [args.split(",")[0 if kind == "HASH" else 3].strip() for kind, args in declared]
+        self.assertEqual(sorted(X.DAEMON_MAPS), sorted(names))
+        self.assertEqual((X.DAEMON_MAPS, X.XDP_DEVICE), (F.DAEMON_MAPS, F.XDP_DEVICE))
+
+    def test_a_bpf_listing_that_cannot_be_read_does_not_call_the_machine_clean(self):
+        with self.assertRaisesRegex(X.TableUnreadable, "bpftool"):
+            X.execute(self.plan("M_xdp"), F.SimHost(faults={"bpftool_fails": None}))
+
+    def test_the_daemon_is_stopped_when_the_run_fails_after_it_started(self):
+        host = F.SimHost(faults={"engines_die": 1})
+        plan = self.plan("M_xdp")
+        with self.assertRaises(X.RunFailed):
+            X.execute(plan, host)
+        (daemon,) = self.daemons(host)
+        self.assertEqual(daemon.returncode, 0, "stopped with SIGINT in the teardown")
+        self.assertIn("stopped the daemon", self.read(plan, "executor.log"))
+        self.assertEqual(host.loaded_programs(), [])
+        self.assertTestbedEmpty(host)
+
+
+class DaemonValidityTest(RunCase):
+    """An M run with a daemon is sound only if the daemon lived from before the attack to the end of the run, its XDP program was
+    still the one it attached, its ban file holds a start event that says what the mode asks for, and its CPU was sampled (G11). These
+    are looked at when the timeline is over, before the daemon is stopped; none of them reads what the attack did."""
+
+    def daemon_record(self, plan):
+        return self.run_json(plan)["daemon"]
+
+    def test_a_sound_run_records_what_was_looked_at(self):
+        plan, _, result = self.go("M_xdp")
+        self.assertTrue(result.ok, result.reasons)
+        d = self.daemon_record(plan)
+        self.assertEqual((d["alive_at_end"], d["xdp_prog_at_end"], d["xdp_prog_at_ready"]), (True, 41, 41))
+        self.assertLess(d["ready_epoch_s"], self.run_json(plan)["executor"]["exit_epoch_s"]["A-costly_search_flood-perfect-0"])
+        self.assertGreater(d["cpu"]["samples"], 20)
+        self.assertAlmostEqual(d["cpu"]["mean_pct"], 5.0, delta=0.5)
+        self.assertGreater(d["cpu"]["seconds"], 1.0)
+
+    def test_a_daemon_that_dies_during_the_run_makes_it_unsound(self):
+        host = F.SimHost(faults={"daemon_dies": 1})
+        plan, _, result = self.go("M_xdp", host)
+        self.assertFalse(result.ok)
+        self.assertTrue(any(r.startswith("the daemon exited with 1 at T+") and "before the end of the run" in r for r in result.reasons),
+                        result.reasons)
+        self.assertIn("XDP: the program on veth_server at the end of the run is none, not 41, the one attached at readiness",
+                      result.reasons)
+        d = self.daemon_record(plan)
+        self.assertEqual((d["alive_at_end"], d["xdp_prog_at_end"], d["stop"]["signal"]), (False, None, None))
+        self.assertFalse(self.run_json(plan)["executor"]["ok"])
+
+    def test_a_start_event_that_does_not_say_what_the_mode_asks_for_makes_it_unsound(self):
+        plan = self.plan("M_xdp")
+        env = tuple((k, "1" if k == "XDP_GRU" else v) for k, v in plan.daemon.env)
+        plan = dataclasses.replace(plan, daemon=dataclasses.replace(plan.daemon, env=env))
+        result = X.execute(plan, F.SimHost())
+        self.assertFalse(result.ok)
+        self.assertIn("the daemon's start event says xdp_gru True, the mode asks for False", result.reasons)
+
+    def test_a_ban_file_that_is_gone_at_the_end_makes_it_unsound(self):
+        def remove(host):
+            if host.t > 20.0 and os.path.exists(plan.daemon.events):
+                os.remove(plan.daemon.events)
+        plan = self.plan("M_xdp")
+        result = X.execute(plan, F.SimHost(on_sleep=remove))
+        self.assertIn(f"the ban file {os.path.basename(plan.daemon.events)} is not there", result.reasons)
+
+    def test_a_daemon_whose_cpu_was_never_sampled_makes_it_unsound(self):
+        real = F.SimHost._proc_file
+
+        def no_daemon_stat(host, pid, what, path):
+            if what == "stat" and host.procs[pid].role == "daemon":
+                raise FileNotFoundError(path)
+            return real(host, pid, what, path)
+        with mock.patch.object(F.SimHost, "_proc_file", no_daemon_stat):
+            plan, _, result = self.go("M_xdp")
+        self.assertIn("the daemon's CPU was never sampled", result.reasons)
+        self.assertEqual(self.daemon_record(plan)["cpu"]["samples"], 0)
+
+    def test_a_program_replaced_or_taken_off_during_the_run_makes_it_unsound(self):
+        def detach(host):
+            if 20.0 < host.t < 21.5 and host.xdp.get(X.SERVER_NS):
+                host.run(["ip", "link", "set", "dev", "veth_server", "xdp", "off"], ns=X.SERVER_NS)
+        plan, _, result = self.go("M_xdp", F.SimHost(on_sleep=detach))
+        self.assertIn("XDP: the program on veth_server at the end of the run is none, not 41, the one attached at readiness",
+                      result.reasons)
+        self.assertEqual(self.daemon_record(plan)["alive_at_end"], True)
+
+
+class FeedTest(RunCase):
+    """The daemon's feed, the host's Nginx logs (T-028 F-04, F-06): a run with a daemon moves what they held into itself instead of
+    erasing it, says so in its provenance, and is unsound if the feed was replaced (logrotate) or truncated during the run."""
+
+    HOST_FEED = ((X.FEED_ACCESS_LOG, 1234), (X.FEED_ERROR_LOG, 56))
+
+    def test_what_the_hosts_logs_held_is_moved_into_the_run_and_recorded(self):
+        plan, _, result = self.go("M_xdp", F.SimHost(host_feed=dict(self.HOST_FEED)))
+        self.assertTrue(result.ok, result.reasons)
+        for path, size in self.HOST_FEED:
+            self.assertEqual(os.path.getsize(os.path.join(plan.out, "feed_before", os.path.basename(path))), size)
+        prov = json.loads(self.read(plan, "environment.json"))["provenance"]["daemon"]["feed_before"]
+        self.assertEqual(prov, {path: {"moved_to": f"feed_before/{os.path.basename(path)}", "bytes": size}
+                                for path, size in self.HOST_FEED})
+        d = self.run_json(plan)["daemon"]
+        for path, _ in self.HOST_FEED:
+            self.assertEqual(d["feed_at_ready"][path][0], d["feed_at_end"][path][0], "the same file all along")
+        self.assertEqual(d["feed_at_end"][X.FEED_ACCESS_LOG][1], d["run_access_log_bytes"])
+        self.assertGreater(d["run_access_log_bytes"], 0)
+
+    def test_with_nothing_to_move_the_record_says_so(self):
+        plan, _, result = self.go("M_xdp")
+        self.assertTrue(result.ok, result.reasons)
+        self.assertEqual(json.loads(self.read(plan, "environment.json"))["provenance"]["daemon"]["feed_before"],
+                         {X.FEED_ACCESS_LOG: None, X.FEED_ERROR_LOG: None})
+
+    def test_a_feed_replaced_during_the_run_makes_it_unsound(self):
+        _, _, result = self.go("M_xdp", F.SimHost(faults={"feed_rotated": 1}))
+        self.assertFalse(result.ok)
+        self.assertTrue([r for r in result.reasons if r.startswith(f"the daemon's feed {X.FEED_ACCESS_LOG} was replaced or removed")],
+                        result.reasons)
+
+    def test_a_feed_truncated_during_the_run_makes_it_unsound(self):
+        _, _, result = self.go("M_xdp", F.SimHost(faults={"feed_truncated": 1}))
+        self.assertFalse(result.ok)
+        self.assertTrue([r for r in result.reasons if r.endswith("it was truncated during the run")], result.reasons)
+
+    def test_m_limits_leaves_the_hosts_logs_alone(self):
+        plan, host, result = self.go("M_limits", F.SimHost(host_feed=dict(self.HOST_FEED)))
+        self.assertTrue(result.ok, result.reasons)
+        self.assertEqual(host.ran("mv"), [])
+        self.assertFalse(os.path.exists(os.path.join(plan.out, "feed_before")))
+        self.assertEqual({p: host.feed[p][1] for p, _ in self.HOST_FEED}, dict(self.HOST_FEED))
+
+
 class TeardownTest(RunCase):
     def test_a_origin_that_ignores_term_is_killed_after_the_grace(self):
         host = F.SimHost(faults={"stubborn_origin": 1})
@@ -1228,6 +1564,17 @@ class ProcessTableTest(RunCase):
         self.assertTrue(os.path.exists(os.path.join(plan.out, "run.json")))
 
 
+# the two tailers as fix/daemon-robustness has them, the error tailer with fix/rudy-client-ip's newline='\n' (T-028 F-07)
+TAILERS = ("def tail_nginx_logs(file_path):\n"
+           "    while True:\n"
+           "        with open(file_path, 'r', encoding='utf-8', errors='replace') as f:\n"
+           "            f.seek(0, os.SEEK_END)\n\n\n"
+           "def tail_nginx_error_logs(file_path):\n"
+           "    while True:\n"
+           "        with open(file_path, 'r', encoding='utf-8', errors='replace', newline='\\n') as f:\n"
+           "            f.seek(0, os.SEEK_END)\n")
+
+
 class ProvenanceTest(RunCase):
     def test_the_files_the_result_depends_on_are_hashed(self):
         plan, _, _ = self.go("U")
@@ -1240,6 +1587,52 @@ class ProvenanceTest(RunCase):
         self.assertNotEqual(prov["nginx_source_sha256"], prov["nginx_rendered_sha256"], "two log paths differ")
         self.assertTrue(prov["engine_is_pinned"])
         self.assertEqual(prov["engine_pinned_sha256"], prov["files"]["loadgen.py"])
+
+    def test_a_protected_run_hashes_the_configuration_it_rendered_and_the_daemons_files(self):
+        plan, _, _ = self.go("M_xdp")
+        prov = json.loads(self.read(plan, "environment.json"))["provenance"]
+        self.assertEqual((prov["nginx_source"], prov["nginx_source_sha256"]),
+                         ("nginx.conf", X.sha256_file(os.path.join(REPO, "nginx.conf"))))
+        self.assertEqual(sorted(prov["daemon"]["files"]), sorted(X.DAEMON_FILES))
+        for name, digest in prov["daemon"]["files"].items():
+            self.assertEqual(digest, X.sha256_file(os.path.join(REPO, name)), name)
+        u, _, _ = self.go("U", plan_args={"name": "u/U"})
+        unprotected = json.loads(self.read(u, "environment.json"))["provenance"]
+        self.assertEqual(unprotected["nginx_source"], "nginx_unprotected.conf")
+        self.assertNotIn("daemon", unprotected)
+
+    def test_a_daemon_without_the_h01_fix_is_recorded_and_warned_of_and_not_refused(self):
+        plan, host, result = self.go("M_xdp")
+        h01 = json.loads(self.read(plan, "environment.json"))["provenance"]["daemon"]["h01"]
+        tailers = X.h01_tailers(X._text(X.DAEMON))
+        self.assertEqual((h01["fix_commit"], h01["fix_is_ancestor"], h01["tailers_replace_undecodable"]),
+                         (X.DAEMON_FIX_H01, False, tailers))
+        self.assertEqual(h01["has_fix"], tailers == 2)
+        self.assertEqual(len(host.ran("git", "-c", f"safe.directory={X.REPO}", "-C", X.REPO, "merge-base", "--is-ancestor")), 1)
+        if not h01["has_fix"]:
+            self.assertIn("WARNING: this checkout's daemon lacks the H-01 fix", self.read(plan, "executor.log"))
+        self.assertTrue(result.ok, "recorded, not refused")
+
+    def test_the_fix_in_the_history_or_in_both_tailers_counts_as_the_fix(self):
+        plan, _, _ = self.go("M_xdp", F.SimHost(h01_fix_in_history=True))
+        h01 = json.loads(self.read(plan, "environment.json"))["provenance"]["daemon"]["h01"]
+        self.assertEqual((h01["fix_is_ancestor"], h01["has_fix"]), (True, True))
+        self.assertNotIn("WARNING", self.read(plan, "executor.log"))
+        fixed = os.path.join(self.tmp.name, "control_plane.py")
+        with open(fixed, "w", encoding="utf-8") as fh:
+            fh.write(TAILERS)
+        with mock.patch.object(X, "DAEMON", fixed):
+            h01 = X.daemon_provenance()["h01"]
+        self.assertEqual((h01["fix_is_ancestor"], h01["tailers_replace_undecodable"], h01["has_fix"]), (None, 2, True))
+
+    def test_the_fix_is_told_by_both_tailers_decoding_with_replacement_whatever_else_their_open_says(self):
+        self.assertEqual(X.h01_tailers(TAILERS), 2, "fix/rudy-client-ip's error tailer adds newline='\\n'")
+        self.assertEqual(X.h01_tailers(TAILERS.replace("errors='replace'", 'errors="replace"')), 2)
+        self.assertEqual(X.h01_tailers(TAILERS.replace(", encoding='utf-8', errors='replace')", ")")), 1)
+        self.assertEqual(X.h01_tailers(TAILERS.replace("errors='replace'", "errors='strict'")), 0)
+        self.assertEqual(X.h01_tailers("def tail_nginx_logs(p):\n    pass\n\nx = open(p, errors='replace')\n"), 0,
+                         "an open() outside the tailers is not the fix")
+        self.assertEqual(X.h01_tailers(X._text(X.DAEMON)), 0, "this branch's daemon has no fix")
 
     def test_the_stack_as_started_is_read_back(self):
         plan, _, _ = self.go("C", F.SimHost(nofile=(524288, 524288)))
@@ -2213,6 +2606,34 @@ class RealHostTest(unittest.TestCase):
         self.assertEqual(proc.poll(), -signal.SIGTERM)
         proc.kill()                          # already gone: not an error
 
+    def test_a_process_can_be_interrupted_as_ctrl_c_would(self):
+        proc = X.RealHost().popen(["sleep", "30"])
+        proc.interrupt()
+        deadline = time.time() + 10
+        while proc.poll() is None and time.time() < deadline:
+            time.sleep(0.01)
+        self.assertEqual(proc.poll(), -signal.SIGINT)
+        proc.interrupt()                     # already gone: not an error
+
+    def test_a_file_is_stat_by_its_inode_and_size(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "f")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("12345")
+            self.assertEqual(X.RealHost().stat(path), (os.stat(path).st_ino, 5))
+            self.assertIsNone(X.RealHost().stat(os.path.join(tmp, "none")))
+
+    def test_a_process_starts_in_the_directory_it_is_given(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "where")
+            with open(path, "wb") as out:
+                proc = X.RealHost().popen(["pwd"], stdout=out, cwd=tmp)
+            deadline = time.time() + 10
+            while proc.poll() is None and time.time() < deadline:
+                time.sleep(0.01)
+            with open(path, encoding="utf-8") as fh:
+                self.assertEqual(fh.read().strip(), os.path.realpath(tmp))
+
     def test_the_shield_ignores_the_signals_that_end_a_run_and_puts_the_handlers_back(self):
         sigs = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
         before = {sig: signal.getsignal(sig) for sig in sigs}
@@ -2543,6 +2964,21 @@ class CommandLineTest(RunCase):
         self.assertEqual(host.pinned, P.PIN_PLAN["daemon"])
         self.assertEqual({c.args[0] for c in handlers.call_args_list}, {signal.SIGTERM, signal.SIGHUP})
         self.assertIn("sound", shown)
+
+    def test_a_protected_run_pins_the_executor_apart_from_its_daemon(self):
+        host = F.SimHost()
+        code, _, _, _ = self.run_main(*self.base("M_xdp"), host=host)
+        self.assertEqual(code, X.EXIT_OK)
+        self.assertEqual(host.pinned, P.PIN_PLAN_DAEMON["executor"])
+
+    def test_the_timer_is_probed_on_the_legit_cpu_of_the_runs_pin_plan(self):
+        plan = self.plan("C")
+        plan = dataclasses.replace(plan, pins={**plan.pins, "legit": "5"})
+        host = F.SimHost()
+        X.execute(plan, host)
+        probes = [argv for _, _, argv in host.commands if "timer-probe" in argv]
+        self.assertTrue(probes)
+        self.assertEqual({argv[2] for argv in probes}, {"5"})
 
     def test_a_run_with_a_timer_limit_says_it_is_a_smoke_test_and_the_harm_gate_will_not_judge_it(self):
         host = F.SimHost(timer_p99_ms=15.0)

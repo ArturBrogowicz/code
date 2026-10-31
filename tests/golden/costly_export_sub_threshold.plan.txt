@@ -53,48 +53,48 @@ attack        costly_export_flood on C5 (150 ms unloaded) from 100 sources
   connections a source: idle pool 4, about 0.011 in flight at the unloaded cost (limit_conn 50, SlowConn from 8)
 
 generator     in-repo engine; at most 5000 req/s a stream; 0.1 ms of CPU a request
-  kind    streams  req/s  largest  in flight   cap  vCPU   cores  share  limit  idle pool  nofile  split
-  legit        29  90.07    11.80        118  2000  6      0.009   0.9%    70%       2892    2394      0
-  attack        4   7.36     2.50         25  5000  3-5,7  0.001   0.0%    70%        400    5200      0
+  kind    streams  req/s  largest  in flight   cap  vCPU  cores  share  limit  idle pool  nofile  split
+  legit        29  90.07    11.80        118  2000  7     0.009   0.9%    70%       2892    2394      0
+  attack        4   7.36     2.50         25  5000  3-6   0.001   0.0%    70%        400    5200      0
   33 processes, memory about 990 MB (30 MB each)
   in flight: the largest stream's rate x the request timeout, the most it can hold when the server stalls; cap: the engine's limit on it
   idle pool: an upper bound over all processes; nofile: what the largest process needs; split: streams the ceiling added
   client namespaces and the aliases each must carry: client_perfect_1 103, client_broadband_1 98, client_mobile_3g_1 62, client_mobile_bad_1 37
   streams:
-    id                                  route  process  req/s  addrs  ns  vCPU   start        seed
-    L-poisson-C0-broadband-1            C0     poisson  11.80     25   1  6          0   489528663
-    L-poisson-C0-mobile_3g-2            C0     poisson   5.42     18   2  6          0  1416140998
-    L-poisson-C0-mobile_bad-3           C0     poisson   2.49      9   3  6          0  1339393272
-    L-poisson-C0-perfect-0              C0     poisson   9.63     32   0  6          0  1853810916
-    L-poisson-C1-broadband-1            C1     poisson   7.82     40   1  6          0  1640100807
-    L-poisson-C1-mobile_3g-2            C1     poisson   3.69     28   2  6          0   156624610
-    L-poisson-C1-mobile_bad-3           C1     poisson   1.48     15   3  6          0   463976929
-    L-poisson-C1-perfect-0              C1     poisson   7.89     55   0  6          0  1575444594
-    L-poisson-C2-broadband-1            C2     poisson   6.80     41   1  6          0   533969622
-    L-poisson-C2-mobile_3g-2            C2     poisson   2.18     26   2  6          0  1036549470
-    L-poisson-C2-mobile_bad-3           C2     poisson   1.18     12   3  6          0  1067617013
-    L-poisson-C2-perfect-0              C2     poisson   8.12     45   0  6          0  2145378850
-    L-poisson-C3-broadband-1            C3     poisson   2.72     15   1  6          0  1631329322
-    L-poisson-C3-mobile_3g-2            C3     poisson   2.10     10   2  6          0   426962457
-    L-poisson-C3-mobile_bad-3           C3     poisson   0.61      3   3  6          0   444786490
-    L-poisson-C3-perfect-0              C3     poisson   2.58     10   0  6          0   955006928
-    L-poisson-C5-broadband-1            C5     poisson   0.30     15   1  6          0  1256269712
-    L-poisson-C5-mobile_3g-2            C5     poisson   0.07     10   2  6          0  1200560428
-    L-poisson-C5-mobile_bad-3           C5     poisson   0.11      6   3  6          0  1746156071
-    L-poisson-C5-perfect-0              C5     poisson   0.41     23   0  6          0  1195775076
-    L-pulse-C1-broadband-1              C1     pulse     0.07      2   1  6          0   548712329
-    L-pulse-C1-mobile_3g-2              C1     pulse     0.07      1   2  6          0  1980105487
-    L-pulse-C1-perfect-0                C1     pulse     0.40      7   0  6          0  1529779097
-    L-pulse-C2-broadband-1              C2     pulse     3.07      8   1  6          0   972913533
-    L-pulse-C2-mobile_3g-2              C2     pulse     1.53      4   2  6          0   323420468
-    L-pulse-C2-perfect-0                C2     pulse     5.73     10   0  6          0  1239707200
-    L-pulse-C3-broadband-1              C3     pulse     0.73      6   1  6          0  1701428432
-    L-pulse-C3-mobile_3g-2              C3     pulse     0.40      3   2  6          0   258445907
-    L-pulse-C3-perfect-0                C3     pulse     0.67      3   0  6          0  1258960736
-    A-costly_export_flood-perfect-0     C5     poisson   1.84     25   0  3-5,7     30  1011703078
-    A-costly_export_flood-broadband-1   C5     poisson   2.50     34   1  3-5,7     30  1679488632
-    A-costly_export_flood-mobile_3g-2   C5     poisson   1.62     22   2  3-5,7     30   546889075
-    A-costly_export_flood-mobile_bad-3  C5     poisson   1.40     19   3  3-5,7     30   707015894
+    id                                  route  process  req/s  addrs  ns  vCPU  start        seed
+    L-poisson-C0-broadband-1            C0     poisson  11.80     25   1  7         0   489528663
+    L-poisson-C0-mobile_3g-2            C0     poisson   5.42     18   2  7         0  1416140998
+    L-poisson-C0-mobile_bad-3           C0     poisson   2.49      9   3  7         0  1339393272
+    L-poisson-C0-perfect-0              C0     poisson   9.63     32   0  7         0  1853810916
+    L-poisson-C1-broadband-1            C1     poisson   7.82     40   1  7         0  1640100807
+    L-poisson-C1-mobile_3g-2            C1     poisson   3.69     28   2  7         0   156624610
+    L-poisson-C1-mobile_bad-3           C1     poisson   1.48     15   3  7         0   463976929
+    L-poisson-C1-perfect-0              C1     poisson   7.89     55   0  7         0  1575444594
+    L-poisson-C2-broadband-1            C2     poisson   6.80     41   1  7         0   533969622
+    L-poisson-C2-mobile_3g-2            C2     poisson   2.18     26   2  7         0  1036549470
+    L-poisson-C2-mobile_bad-3           C2     poisson   1.18     12   3  7         0  1067617013
+    L-poisson-C2-perfect-0              C2     poisson   8.12     45   0  7         0  2145378850
+    L-poisson-C3-broadband-1            C3     poisson   2.72     15   1  7         0  1631329322
+    L-poisson-C3-mobile_3g-2            C3     poisson   2.10     10   2  7         0   426962457
+    L-poisson-C3-mobile_bad-3           C3     poisson   0.61      3   3  7         0   444786490
+    L-poisson-C3-perfect-0              C3     poisson   2.58     10   0  7         0   955006928
+    L-poisson-C5-broadband-1            C5     poisson   0.30     15   1  7         0  1256269712
+    L-poisson-C5-mobile_3g-2            C5     poisson   0.07     10   2  7         0  1200560428
+    L-poisson-C5-mobile_bad-3           C5     poisson   0.11      6   3  7         0  1746156071
+    L-poisson-C5-perfect-0              C5     poisson   0.41     23   0  7         0  1195775076
+    L-pulse-C1-broadband-1              C1     pulse     0.07      2   1  7         0   548712329
+    L-pulse-C1-mobile_3g-2              C1     pulse     0.07      1   2  7         0  1980105487
+    L-pulse-C1-perfect-0                C1     pulse     0.40      7   0  7         0  1529779097
+    L-pulse-C2-broadband-1              C2     pulse     3.07      8   1  7         0   972913533
+    L-pulse-C2-mobile_3g-2              C2     pulse     1.53      4   2  7         0   323420468
+    L-pulse-C2-perfect-0                C2     pulse     5.73     10   0  7         0  1239707200
+    L-pulse-C3-broadband-1              C3     pulse     0.73      6   1  7         0  1701428432
+    L-pulse-C3-mobile_3g-2              C3     pulse     0.40      3   2  7         0   258445907
+    L-pulse-C3-perfect-0                C3     pulse     0.67      3   0  7         0  1258960736
+    A-costly_export_flood-perfect-0     C5     poisson   1.84     25   0  3-6      30  1011703078
+    A-costly_export_flood-broadband-1   C5     poisson   2.50     34   1  3-6      30  1679488632
+    A-costly_export_flood-mobile_3g-2   C5     poisson   1.62     22   2  3-6      30   546889075
+    A-costly_export_flood-mobile_bad-3  C5     poisson   1.40     19   3  3-6      30   707015894
 
 expected gate likely PASS (A = 2 S; PASS is expected from 2, FAIL up to 0.5; first order)
 

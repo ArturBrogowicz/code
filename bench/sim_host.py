@@ -39,7 +39,24 @@ LEGIT_STARTUP_S = 2.8                     # a legit engine's loop begins this lo
 ATTACK_STARTUP_S = 0.14                   # an attack engine's, on CPUs of its own
 EXIT_DELAY_PER_REQUEST_S = 8e-6           # an engine exits this much later for each request it sent
 NGINX_FORK_S = 0.05                       # the launcher of the Nginx daemon returns this long after the daemon has forked
-OK_FLAGS = {"slip": False, "sent_short": False, "cpu": False, "descriptors": False, "ports": False, "dropped": False}
+# the mitigation daemon (control_plane.py), as far as the protected arms need it (HG4, docs/HG1C_DESIGN.md 15). The times are the model's
+# assumptions, not measurements: a smoke run (AP-5) measures them
+DAEMON_PROGRAM = "control_plane.py"
+DAEMON_STARTUP_S = 4.0                    # it compiles the XDP program and loads its model before it attaches XDP and listens
+DAEMON_STOP_S = 0.2                       # on SIGINT its finally detaches XDP and it exits 0
+DAEMON_DIES_AFTER_S = 20.0                # with the fault daemon_dies: this long after it was ready, as one non-UTF-8 byte did (H-01)
+DAEMON_BAN_RPS = 50.0                     # control_plane.HEURISTIC_MAX_RPS (default profile): a source above it is banned
+DAEMON_BAN_DELAY_S = 1.0                  # after the source's first request: the rule needs a window of at least a second
+DAEMON_BENIGN_BAN_S = 5.0                 # with the fault daemon_bans_benign: a legit source banned this long after its stream begins
+DAEMON_LINES = {"compiling": "[*] Compiling and loading eBPF code from file: xdp_ddos_filter.c...",
+                "attached": "[+] Successfully attached XDP program to interface veth_server.",
+                "listening": "[*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log",
+                "stopping": "[*] Execution interrupted by user. Cleaning up environment...",
+                "detached": "[+] XDP program detached from veth_server. Finished."}
+XDP_DEVICE = "veth_server"
+XDP_PROG_NAME = "xdp_ddos_mitiga"         # xdp_ddos_mitigation as the kernel keeps a program's name (15 characters)
+DAEMON_MAPS = ("blacklist_map", "telemetry_map", "flow_map")      # the maps of xdp_ddos_filter.c
+OK_FLAGS ={"slip": False, "sent_short": False, "cpu": False, "descriptors": False, "ports": False, "dropped": False}
 RECORD_HEADER = "i,t_intended,t_sent,t_done,status,bytes,err,ident,reused\n"
 CLASS_OF_PATH = {path: klass for klass, path in O.SAMPLE_URLS.items()}
 CPUS = 8
@@ -69,6 +86,7 @@ class SimProc:
         self.returncode = None
         self.exit_time = None
         self.ignores_term = False            # survives TERM, dies on KILL
+        self.ignores_int = False             # the daemon: survives SIGINT (its finally never runs), dies on KILL
         self.immortal = False                # survives both: what a teardown cannot take down
 
     def poll(self):
@@ -77,11 +95,14 @@ class SimProc:
     def terminate(self):
         self.host.deliver(self, signal.SIGTERM)
 
+    def interrupt(self):
+        self.host.deliver(self, signal.SIGINT)
+
     def kill(self):
         self.host.deliver(self, signal.SIGKILL)
 
     def jiffies(self):
-        share = {"origin": 0.5, "nginx": 0.2}.get(self.role, 0.0)
+        share = {"origin": 0.5, "nginx": 0.2, "daemon": 0.05}.get(self.role, 0.0)
         return int((self.host.t - self.started) * 100 * share)
 
 
@@ -99,12 +120,22 @@ class SimHost(X.Host):
     docs/HG1C_DESIGN.md 14); started like the suite starts it, with no pipe, the launcher returns a moment after the daemon forks.
     `run_cost_s(argv)` is how long a command takes on the virtual clock (none, by default), so that a time the executor logs for a
     step can be told from another's.
+    The mitigation daemon (control_plane.py, the protected arms) is a model of what the executor sees of it: it needs the repository
+    as its working directory and `server_ns` to attach to; `daemon_startup_s` after its start it attaches an XDP program to
+    veth_server, writes its start event to BAN_EVENTS and prints the line it listens with; it bans each source of an attack stream
+    whose rate per source exceeds `daemon_ban_rps`, `daemon_ban_delay_s` after the source's first request, writing a ban event; and the
+    synthetic server drops what a banned source sends while the program is attached (XDP: the requests time out). On SIGINT its
+    finally detaches XDP and it exits 0; TERM (the daemon of this branch has no handler for it) and KILL end it at once and leave the
+    program attached until the namespace goes; an exception (the fault daemon_dies) runs the finally. The program is loaded while it
+    is attached, while the daemon lives, or for good with the fault xdp_leftover (a pin).
     The names the tests use:
     missing_address, duplicate_mac, no_netem, ping_fails, nginx_fails, nginx_foreground (Nginx that does not daemonise: its launcher
     never returns), origin_dies, not_ready, wrong_class, wrong_tag,
     stubborn_origin, stubborn_nginx, origin_session_fails, leftover_nginx_after_teardown, server_address_missing, stream_dies (one
     engine dies), engines_die (every engine of one run dies: none of them can start), stream_silent, stream_nonzero, stream_hangs,
-    table_unreadable."""
+    table_unreadable; of the daemon: daemon_fails (it cannot attach and exits 1), daemon_not_ready (it never gets past compiling),
+    daemon_dies, xdp_not_attached (it runs and listens but nothing is attached), daemon_no_events (no ban file), daemon_ignores_int,
+    daemon_bans_benign (one legit source banned: a false positive), xdp_leftover, bpftool_fails."""
 
     simulated = True
 
@@ -112,8 +143,22 @@ class SimHost(X.Host):
                  preexisting=(), startup_s=None, exit_delay_s=0.04, exit_delay_per_request_s=EXIT_DELAY_PER_REQUEST_S, faults=None,
                  log_lines=20, tag="placeholder", python_exists=True, steal_share=0.0, on_sleep=None, server=None,
                  fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,), wall_late_s=None, silent=None, nonzero=None,
-                 ping_drops=None, daemon_holds_pipes=True, run_cost_s=None):
+                 ping_drops=None, daemon_holds_pipes=True, run_cost_s=None, daemon_startup_s=DAEMON_STARTUP_S,
+                 daemon_ban_rps=DAEMON_BAN_RPS, daemon_ban_delay_s=DAEMON_BAN_DELAY_S, h01_fix_in_history=False,
+                 max_inflight=None, host_feed=None):
         self.t = 0.0
+        self.inodes = itertools.count(7000)
+        self.max_inflight = max_inflight      # a lower in-flight cap for the engines than their --max-inflight (a test of F-02)
+        self.h01_fix_in_history = h01_fix_in_history           # what `git merge-base --is-ancestor <the H-01 fix> HEAD` says
+        self.daemon_startup_s, self.daemon_ban_rps, self.daemon_ban_delay_s = daemon_startup_s, daemon_ban_rps, daemon_ban_delay_s
+        self.daemons = {}                     # pid -> what the model keeps of a daemon (its run, namespace, files, program)
+        self.xdp = {}                         # namespace -> the id of the program attached to its veth_server
+        self.progs, self.prog_ids = {}, itertools.count(41)        # program id -> {"holder": pid, "pinned": bool}
+        self.bans = {}                        # run directory -> {address: [banned at, lifted at or None]}, on the virtual clock
+        # the host's Nginx logs the daemon reads (its feed), as the model keeps them: path -> [inode, size]; and the inode each is
+        # written to by the running Nginx, which keeps writing to the file it opened when the path is replaced
+        self.feed = {path: [next(self.inodes), size] for path, size in (host_feed or {}).items()}
+        self.feed_open = {}
         self.daemon_holds_pipes, self.call_timeout = daemon_holds_pipes, X.RealHost.COMMAND_TIMEOUT_S
         self.run_cost_s = run_cost_s
         self.wall_late_s, self.silent, self.nonzero, self.ping_drops = wall_late_s, silent, nonzero, ping_drops
@@ -186,6 +231,9 @@ class SimHost(X.Host):
     def deliver(self, proc, sig):
         if proc.returncode is not None or proc.immortal:
             return
+        if proc.role == "daemon":
+            self._daemon_signal(proc, sig)
+            return
         if sig == signal.SIGTERM and proc.ignores_term:
             return
         self.end(proc, -int(sig))
@@ -200,10 +248,12 @@ class SimHost(X.Host):
         self.procs[proc.pid] = proc
         return proc
 
-    def popen(self, argv, ns="", env=None, stdout=None, stderr=None):
+    def popen(self, argv, ns="", env=None, stdout=None, stderr=None, cwd=None):
         argv = list(argv)
         self.commands.append(("popen", ns, tuple(argv)))
         text = " ".join(argv)
+        if X.program_of(exec_args(argv)) == DAEMON_PROGRAM:
+            return self._start_daemon(argv, ns, env, cwd, stdout)
         if "bench/loadgen.py" in text:
             return self._start_stream(argv, ns, stderr)
         if "nginx" in (os.path.basename(a) for a in argv):
@@ -238,7 +288,8 @@ class SimHost(X.Host):
 
     def _start_stream(self, argv, ns, stderr):
         opts = {a: argv[i + 1] for i, a in enumerate(argv)
-                if a in ("--rate", "--duration", "--summary", "--records", "--process", "--seed", "--period", "--duty")}
+                if a in ("--rate", "--duration", "--summary", "--records", "--process", "--seed", "--period", "--duty",
+                         "--max-inflight", "--timeout")}
         local = [argv[i + 1] for i, a in enumerate(argv) if a == "--local-addr"]
         sid = os.path.basename(os.path.dirname(opts["--summary"]))
         kind = "legit" if sid.startswith("L-") else "attack"
@@ -260,9 +311,10 @@ class SimHost(X.Host):
                 stderr.write(b"Traceback: the simulated engine died\n")
             self.schedule(loop_start + 3.0, lambda: self.end(proc, 2))
             return proc
-        self.registry.setdefault(run_dir, []).append(
-            {"kind": kind, "begin": loop_start, "end": loop_start + X.ENGINE_T0_OFFSET_S + duration, "rate": rate,
-             "route": parse_stream_id(sid)[1]})
+        entry = {"kind": kind, "begin": loop_start, "end": loop_start + X.ENGINE_T0_OFFSET_S + duration, "rate": rate,
+                 "route": parse_stream_id(sid)[1], "addresses": tuple(local)}
+        self.registry.setdefault(run_dir, []).append(entry)
+        self._daemon_sees(run_dir, entry)
         silent = self.fault("stream_silent") or (self.silent is not None and self.silent(sid))
         code = 3 if self.fault("stream_nonzero") or (self.nonzero is not None and self.nonzero(sid)) else 0
         late = self.wall_late_s(sid, index, kind) if self.wall_late_s else 0.0
@@ -297,7 +349,10 @@ class SimHost(X.Host):
         duration = float(opts["--duration"])
         os.makedirs(os.path.dirname(opts["--summary"]), exist_ok=True)
         if self.server is not None:
-            n = self.server.write(sid, opts, X.ENGINE_T0_OFFSET_S, max(1, len(local)), self.registry.get(_run_dir(opts), ()), loop_start)
+            caps = [int(opts["--max-inflight"])] if "--max-inflight" in opts else []
+            caps += [self.max_inflight] if self.max_inflight else []
+            n = self.server.write(sid, opts, X.ENGINE_T0_OFFSET_S, max(1, len(local)), self.registry.get(_run_dir(opts), ()), loop_start,
+                                  bans=self.bans.get(_run_dir(opts)), local=tuple(local), max_inflight=min(caps, default=None))
         else:
             with gzip.open(opts["--records"], "wt") as fh:
                 fh.write(RECORD_HEADER)
@@ -317,12 +372,141 @@ class SimHost(X.Host):
         return took, n
 
     def _log_requests(self, ip, zero, duration, count):
+        lines = [json.dumps({"timestamp": _iso(int(BASE_EPOCH + zero + (i + 0.5) * duration / count)), "client_ip": ip,
+                             "request_method": "GET", "request_uri": "/static/1", "status": 200, "request_time": 0.01,
+                             "request_length": 100, "bytes_sent": 200, "user_agent": "fake"}) + "\n" for i in range(count)]
         with open(self.access_log, "a", encoding="utf-8") as fh:
-            for i in range(count):
-                ended = int(BASE_EPOCH + zero + (i + 0.5) * duration / count)
-                fh.write(json.dumps({"timestamp": _iso(ended), "client_ip": ip, "request_method": "GET",
-                                     "request_uri": "/static/1", "status": 200, "request_time": 0.01,
-                                     "request_length": 100, "bytes_sent": 200, "user_agent": "fake"}) + "\n")
+            fh.writelines(lines)
+        path = X.FEED_ACCESS_LOG                   # Nginx writes the same lines to the daemon's feed, to the file it opened
+        if path in self.feed_open and self.feed.get(path, [None])[0] == self.feed_open[path]:
+            self.feed[path][1] += sum(len(line.encode()) for line in lines)
+            if self.fault("feed_truncated"):       # copytruncate, or anything that empties the file under Nginx
+                self.feed[path][1] = 0
+
+    # --- the mitigation daemon --------------------------------------------------------------------
+
+    def _start_daemon(self, argv, ns, env, cwd, stdout):
+        """control_plane.py started in `ns` with `env` and the working directory `cwd`: what the model keeps of it, and its course
+        (see the class's docstring). Its output goes to the file `stdout` names, line by line as the daemon would print it."""
+        proc = self.spawn(argv, ns, "python3", "daemon")
+        env = dict(env or {})
+        events = env.get("BAN_EVENTS") or None         # without it the real one writes to /var/log/ddos: the model writes nowhere
+        gru_only = env.get("GRU_ONLY", "0") == "1"
+        d = {"proc": proc, "ns": ns, "log": getattr(stdout, "name", None), "events": events,
+             "run": os.path.dirname(events) if events else None, "ready": False, "prog": None,
+             "backend": env.get("MITIGATION_BACKEND", "xdp"), "start": {
+                 "backend": env.get("MITIGATION_BACKEND", "xdp"), "gru_only": gru_only,
+                 "xdp_gru": env.get("XDP_GRU", "1" if gru_only else "0") == "1", "l7_shadow": env.get("L7_SHADOW", "0") == "1",
+                 "heuristic_profile": env.get("HEURISTIC_PROFILE", "default"), "l7_model": env.get("L7_MODEL") or None,
+                 "l7_record": bool(env.get("L7_RECORD")), "interface": XDP_DEVICE}}
+        self.daemons[proc.pid] = d
+        if cwd != REPO:                                 # its model, its scaler and its XDP source are named relative to the checkout
+            self._daemon_say(d, "FileNotFoundError: [Errno 2] No such file or directory: 'training_results/feature_config_testbed.json'")
+            self.schedule(self.t + 0.3, lambda: self._daemon_exit(d, 1, detach=False))
+            return proc
+        self._daemon_say(d, DAEMON_LINES["compiling"])
+        proc.ignores_int = self.fault("daemon_ignores_int")
+        if ns != X.SERVER_NS or X.SERVER_NS not in self.namespaces or self.fault("daemon_fails"):
+            self.schedule(self.t + 1.0, lambda: (self._daemon_say(d, "Exception: Failed to attach BPF program xdp_ddos_mitigation to "
+                                                                     "veth_server: No such device"), self._daemon_exit(d, 1, detach=False)))
+        elif not self.fault("daemon_not_ready"):
+            self.schedule(self.t + self.daemon_startup_s, lambda: self._daemon_ready(d))
+        return proc
+
+    def _daemon_say(self, d, line):
+        if d["log"]:
+            with open(d["log"], "a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
+
+    def _daemon_event(self, d, kind, **fields):
+        if d["events"]:
+            with open(d["events"], "a", encoding="utf-8") as fh:
+                fh.write(json.dumps({"t_wall": self.time(), "t_mono_ns": int(self.t * 1e9), "kind": kind, **fields}) + "\n")
+
+    def _daemon_ready(self, d):
+        """The daemon has compiled its program: it attaches it, writes its start event and listens."""
+        if d["proc"].returncode is not None:
+            return
+        if not self.fault("xdp_not_attached"):
+            d["prog"] = next(self.prog_ids)
+            self.progs[d["prog"]] = {"holder": d["proc"].pid, "pinned": self.fault_peek("xdp_leftover")}
+            self.xdp[d["ns"]] = d["prog"]
+            self._daemon_say(d, DAEMON_LINES["attached"])
+        if not self.fault("daemon_no_events"):
+            self._daemon_event(d, "start", pid=d["proc"].pid, **d["start"])
+        self._daemon_say(d, DAEMON_LINES["listening"])
+        d["ready"] = True
+        if self.fault("feed_rotated"):                 # logrotate: the path renamed and created anew, Nginx not told
+            self.schedule(self.t + 2.0, lambda: self.feed.__setitem__(X.FEED_ACCESS_LOG, [next(self.inodes), 0]))
+        if self.fault("daemon_dies"):
+            self.schedule(self.t + DAEMON_DIES_AFTER_S, lambda: (
+                self._daemon_say(d, "UnicodeDecodeError: 'utf-8' codec can't decode byte 0xff in position 133: invalid start byte"),
+                self._daemon_exit(d, 1, detach=True)))
+
+    def _daemon_detach(self, d):
+        """Its finally: the program comes off veth_server, and with it every ban."""
+        if d["prog"] is not None and self.xdp.get(d["ns"]) == d["prog"]:
+            del self.xdp[d["ns"]]
+            self._lift(d["run"])
+
+    def _lift(self, run):
+        for ban in self.bans.get(run, {}).values():
+            if ban[1] is None:
+                ban[1] = self.t
+
+    def _daemon_exit(self, d, code, detach):
+        if d["proc"].returncode is not None:
+            return
+        if detach:
+            self._daemon_detach(d)
+            self._daemon_say(d, DAEMON_LINES["detached"])
+        self.end(d["proc"], code)
+
+    def _daemon_signal(self, proc, sig):
+        """SIGINT runs the finally (detach, exit 0) unless the daemon ignores it; TERM and KILL end it where it stands, the program
+        left attached (the daemon of this branch installs no handler for TERM)."""
+        d = self.daemons[proc.pid]
+        if sig == signal.SIGINT:
+            if not proc.ignores_int:
+                self._daemon_say(d, DAEMON_LINES["stopping"])
+                self.schedule(self.t + DAEMON_STOP_S, lambda: self._daemon_exit(d, 0, detach=True))
+            return
+        self.end(proc, -int(sig))
+
+    def _daemon_of(self, run_dir):
+        return next((d for d in self.daemons.values() if d["run"] == run_dir and d["proc"].returncode is None), None)
+
+    def _daemon_sees(self, run_dir, entry):
+        """A stream of a run whose daemon lives: each source of an attack stream above the rule is banned after the delay; with the
+        fault daemon_bans_benign the first source of one legit stream is banned too."""
+        d = self._daemon_of(run_dir)
+        if d is None or not entry["addresses"]:
+            return
+        per_source = entry["rate"] / len(entry["addresses"])
+        if entry["kind"] == "attack" and per_source > self.daemon_ban_rps:
+            for ip in entry["addresses"]:
+                self.schedule(entry["begin"] + X.ENGINE_T0_OFFSET_S + self.daemon_ban_delay_s,
+                              lambda ip=ip: self._daemon_ban(d, ip, per_source))
+        elif entry["kind"] == "legit" and self.fault("daemon_bans_benign"):
+            self.schedule(entry["begin"] + X.ENGINE_T0_OFFSET_S + DAEMON_BENIGN_BAN_S,
+                          lambda: self._daemon_ban(d, entry["addresses"][0], per_source))
+
+    def _daemon_ban(self, d, ip, rps):
+        """A ban as control_plane.ban_ip makes it: an event, and the address in the program's blacklist (enforced while attached)."""
+        banned = d.setdefault("banned", set())
+        if d["proc"].returncode is not None or not d["ready"] or ip in banned:
+            return
+        banned.add(ip)
+        enforced = d["backend"] == "xdp" and d["prog"] is not None and self.xdp.get(d["ns"]) == d["prog"]
+        if enforced:
+            self.bans.setdefault(d["run"], {})[ip] = [self.t, None]
+        self._daemon_event(d, "ban", ip=ip, engine="l7_rate", reason=f"Heuristic (RPS={rps:.1f}, errors=0%)", backend=d["backend"],
+                           enforced=enforced, ttl_s=300, value=round(rps, 3), threshold=DAEMON_BAN_RPS, error_ratio=0.0)
+
+    def loaded_programs(self):
+        """The ids of the XDP programs the kernel holds: attached somewhere, held by a live daemon, or pinned."""
+        return sorted(i for i, p in self.progs.items()
+                      if i in self.xdp.values() or p["pinned"] or (p["holder"] in self.procs and self.procs[p["holder"]].returncode is None))
 
     # --- the suite's primitives ------------------------------------------------------------------
 
@@ -377,6 +561,12 @@ class SimHost(X.Host):
                 return X.Result(1, "", "Cannot remove namespace file: No such file or directory")
             del self.namespaces[a[2]]
             self.links.discard(X.outer_veth(a[2]))
+            self._xdp_off(a[2])                       # its veth goes, and the program attached to it
+            return X.Result(0, "", "")
+        if a == ["link", "set", "dev", XDP_DEVICE, "xdp", "off"]:
+            if ns not in self.namespaces:
+                return X.Result(1, "", "Cannot open network namespace")
+            self._xdp_off(ns)
             return X.Result(0, "", "")
         if a[:2] == ["link", "del"]:
             if a[2] not in self.links:
@@ -398,8 +588,43 @@ class SimHost(X.Host):
             info = self.namespaces.get(ns)
             if info is None:
                 return X.Result(1, "", "Cannot open network namespace")
-            return X.Result(0, json.dumps([{"ifname": a[3], "address": info["mac"]}]), "")
+            link = {"ifname": a[3], "address": info["mac"]}
+            if a[3] == XDP_DEVICE and self.xdp.get(ns) is not None:
+                link["xdp"] = {"mode": 1, "prog": {"id": self.xdp[ns], "name": XDP_PROG_NAME, "tag": "4b1a7e5f0c2d9e83", "jited": 1}}
+            return X.Result(0, json.dumps([link]), "")
         return X.Result(1, "", f"fake: unknown ip command {a}")
+
+    def _xdp_off(self, ns):
+        """The program attached in `ns` comes off; the bans its daemon made are no longer enforced."""
+        prog = self.xdp.pop(ns, None)
+        for d in self.daemons.values():
+            if prog is not None and d["prog"] == prog:
+                self._lift(d["run"])
+
+    def _cmd_bpftool(self, a, ns, stdin):
+        """The programs and maps the kernel holds (`bpftool -j prog show`, `bpftool -j map show`): the daemon's XDP program and its maps
+        while they are loaded, nothing else."""
+        if self.fault("bpftool_fails"):
+            return X.Result(255, "", "Error: can't get next program: Operation not permitted")
+        loaded = self.loaded_programs()
+        if a == ["-j", "prog", "show"]:
+            return X.Result(0, json.dumps([{"id": i, "type": "xdp", "name": XDP_PROG_NAME, "tag": "4b1a7e5f0c2d9e83",
+                                            "gpl_compatible": True, "map_ids": [100 * i + k for k in range(len(DAEMON_MAPS))]}
+                                           for i in loaded]), "")
+        if a == ["-j", "map", "show"]:
+            return X.Result(0, json.dumps([{"id": 100 * i + k, "type": "hash", "name": name, "flags": 0}
+                                           for i in loaded for k, name in enumerate(DAEMON_MAPS)]), "")
+        return X.Result(1, "", f"fake: unknown bpftool command {a}")
+
+    def _cmd_mv(self, a, ns, stdin):
+        """`mv -f SRC DST` of the daemon's feed into a run: the model's file goes, and DST (in the run's directory, on the machine)
+        gets as many bytes as the model's file had."""
+        src, dst = a[-2], a[-1]
+        if src not in self.feed:
+            return X.Result(1, "", f"mv: cannot stat '{src}': No such file or directory")
+        with open(dst, "w", encoding="utf-8") as fh:
+            fh.write("x" * self.feed.pop(src)[1])
+        return X.Result(0, "", "")
 
     def _batch(self, ns, stdin):
         info = self.namespaces.get(ns)
@@ -454,6 +679,8 @@ class SimHost(X.Host):
             return X.Result(0, "feat/hg1c\n", "")
         if a[0] == "status":
             return X.Result(0, " M bench/executor.py\n" if self.dirty else "", "")
+        if a[:2] == ["merge-base", "--is-ancestor"]:
+            return X.Result(0 if self.h01_fix_in_history else 1, "", "")
         return X.Result(1, "", "fake: unknown git command")
 
     def _cmd_taskset(self, a, ns, stdin):
@@ -468,15 +695,18 @@ class SimHost(X.Host):
         return X.Result(127, "", f"fake: no such command under taskset: {rest[:1]}")
 
     def _origin_session(self):
-        """One session of the calibrator's step 1: the cost of each route in ms, each session scaled by its own factor of
-        `origin_noise` (cycled), so that sessions can disagree by a known amount."""
+        """One session of the calibrator's step 1, as origin.time_routes reports it: the cost of each route in ms, each session
+        scaled by its own factor of `origin_noise` (cycled), so that sessions can disagree by a known amount, and the batch each
+        route would be timed in at that cost (origin.batch_size)."""
         costs = self.origin_costs or ({k: v * 1000.0 for k, v in self.server.cost.items()} if self.server else
                                       {klass: 1.0 for klass in O.CLASSES})
         factor = 1.0 + self.origin_noise[self.origin_calls % len(self.origin_noise)]
         self.origin_calls += 1
         if self.fault("origin_session_fails"):
             return X.Result(1, "", "Traceback: the simulated session failed")
-        return X.Result(0, json.dumps({k: v * factor for k, v in costs.items()}), "")
+        session = {k: v * factor for k, v in costs.items()}
+        batch = {k: O.batch_size(lambda n, ms=ms: n * ms / 1000.0) for k, ms in session.items()}
+        return X.Result(0, json.dumps({"costs_ms": session, "batch": batch, "clock": "simulated"}), "")
 
     def _cmd_nginx(self, a, ns, stdin, cpus=None):
         """Nginx run to completion with its output captured: the daemon forks and the call, whose pipes it holds, returns at its timeout."""
@@ -494,8 +724,13 @@ class SimHost(X.Host):
         if self.fault("nginx_fails"):
             return 1, "nginx: [emerg] bind() to 0.0.0.0:80 failed"
         with open(a[a.index("-c") + 1], encoding="utf-8") as fh:
-            m = re.search(r"access_log\s+(\S+)\s+json_ml_format;", fh.read())
+            conf = fh.read()
+        m = re.search(r"access_log\s+(\S+)\s+json_ml_format;", conf)
         self.access_log = m.group(1) if m else None
+        for path in (X.FEED_ACCESS_LOG, X.FEED_ERROR_LOG):     # Nginx opens (creates) the daemon's feed if its configuration names it
+            if re.search(rf"_log\s+{re.escape(path)}\s", conf):
+                self.feed.setdefault(path, [next(self.inodes), 0])
+                self.feed_open[path] = self.feed[path][0]
         for role in ("master", "worker"):
             proc = self.spawn(["nginx:", f"{role} process"], ns, "nginx", "nginx")
             proc.cpus = cpus or proc.cpus
@@ -588,7 +823,18 @@ class SimHost(X.Host):
             return "sockets: used 20\nTCP: inuse 17 orphan 0 tw 5 alloc 20 mem 3\n"
         raise FileNotFoundError(path)
 
+    def stat(self, path):
+        if path in (X.FEED_ACCESS_LOG, X.FEED_ERROR_LOG):
+            return tuple(self.feed[path]) if path in self.feed else None
+        try:
+            st = os.stat(path)
+        except OSError:
+            return None
+        return st.st_ino, st.st_size
+
     def exists(self, path):
+        if path in (X.FEED_ACCESS_LOG, X.FEED_ERROR_LOG):      # the model's, never the machine's
+            return path in self.feed
         m = re.fullmatch(r"/proc/(\d+)", path)
         if m:
             proc = self.procs.get(int(m.group(1)))
@@ -652,11 +898,14 @@ def _run_dir(opts):
     return os.path.dirname(os.path.dirname(os.path.dirname(opts["--summary"])))
 
 
-def write_summary(path, intended, completed, slip_p99, wall, errors=None):
-    """The engine's summary, with the keys the harm gate reads."""
-    summary = {"schema": 1, "tool": "loadgen", "intended": intended, "sent": intended, "dropped": 0, "completed": completed,
+def write_summary(path, intended, completed, slip_p99, wall, errors=None, sent=None):
+    """The engine's summary, with the keys the harm gate reads; `sent` less than `intended` is the engine's drops (its in-flight cap),
+    flagged as bench/loadgen.py flags them."""
+    sent = intended if sent is None else sent
+    flags = {**OK_FLAGS, "dropped": sent < intended, "sent_short": intended > 0 and sent < 0.99 * intended}
+    summary = {"schema": 1, "tool": "loadgen", "intended": intended, "sent": sent, "dropped": intended - sent, "completed": completed,
                "errors": errors or {}, "slip_s": {"p99": slip_p99}, "cpu": {"share": 0.02, "process_s": 0.1, "spin_s": 0.0},
-               "wall_s": wall, "flags": dict(OK_FLAGS), "valid": True}
+               "wall_s": wall, "flags": flags, "valid": not any(flags.values())}
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(summary, fh)
 
@@ -705,7 +954,12 @@ class SyntheticServer:
 
     The random draws depend on the run's directory and its parent's name (b03_a1/U), so two attack-free runs of a block differ the way a
     control and its placebo do, and the repeats of a level differ from one another; the same run made again is the same. Not a model
-    of any server."""
+    of any server.
+
+    A protected run (M_<mode>) has the bans of its daemon (`bans`, address -> [banned at, lifted at or None] on the host's clock): a
+    banned source's requests are dropped (XDP: they time out) while its ban holds, and a banned attack source costs the server nothing.
+    With `effects` and no effect named for it, an M run has U's effect for as long as any attack source is not banned: the daemon
+    ends the harm when it has banned them all, and a run with no daemon (M_limits), or one that bans none, is harmed as U is."""
 
     def __init__(self, cal, timeline, effects=None, seed=1, capacity_cpu=None):
         self.cost = {klass: ms / 1000.0 for klass, ms in cal["route_costs_ms"].items()}
@@ -715,20 +969,45 @@ class SyntheticServer:
         self.seed = seed
         self.capacity_cpu = capacity_cpu
 
-    def utilisation(self, times, begin, others):
+    @staticmethod
+    def banned(ip, at, bans):
+        """Whether the source `ip` is banned at the host times `at` (an array)."""
+        ban = (bans or {}).get(ip)
+        if ban is None:
+            return np.zeros(len(at), dtype=bool)
+        return (at >= ban[0]) & ((at < ban[1]) if ban[1] is not None else True)
+
+    def utilisation(self, times, begin, others, bans=None):
         """Load over capacity at `times` (seconds into the stream) of a stream that began at `begin`, from the streams in
-        `others` (dicts with kind, begin, end, rate, route; times of the host's clock): the run's axis starts where the first
-        legit stream began."""
+        `others` (dicts with kind, begin, end, rate, route and addresses; times of the host's clock): the run's axis starts where the
+        first legit stream began. An attack stream's sources that are banned (`bans`) send nothing that reaches the server."""
         zero = min((o["begin"] for o in others if o["kind"] == "legit"), default=begin)
         at = (begin - zero) + times
         load = np.zeros(len(times))
         for o in others:
-            load += np.where((at >= o["begin"] - zero) & (at < o["end"] - zero), o["rate"] * self.cost[o["route"]], 0.0)
+            share = np.ones(len(times))
+            if bans and o["kind"] == "attack" and o.get("addresses"):
+                share = 1.0 - sum(self.banned(ip, at + zero, bans) for ip in o["addresses"]) / len(o["addresses"])
+            load += np.where((at >= o["begin"] - zero) & (at < o["end"] - zero), o["rate"] * self.cost[o["route"]] * share, 0.0)
         return load / self.capacity_cpu
 
-    def write(self, sid, opts, wall, identities, others=(), begin=0.0):
+    def unmitigated(self, at, others, bans):
+        """At the host times `at`, whether any attack source of the run is not banned (True where the attack still reaches the
+        server). A run without an attack source is never mitigated."""
+        sources = [ip for o in others if o["kind"] == "attack" for ip in o.get("addresses", ())]
+        if not sources:
+            return np.ones(len(at), dtype=bool)
+        protected = np.ones(len(at), dtype=bool)
+        for ip in sources:
+            protected &= self.banned(ip, at, bans)
+        return ~protected
+
+    def write(self, sid, opts, wall, identities, others=(), begin=0.0, bans=None, local=(), max_inflight=None):
         """The records and the summary of one stream at the paths in `opts`; returns the number of requests it intended. The wall
-        time in the summary is `wall` or, if more, until the last request was answered (a timeout included) plus the engine's offset."""
+        time in the summary is `wall` or, if more, until the last request was answered (a timeout included) plus the engine's offset.
+        `local` are the stream's source addresses in the engine's order (request i comes from local[i % len(local)]); with `bans`
+        a request from a banned source times out. With `max_inflight` the engine drops (never sends) a request that is due while
+        that many are in flight, as bench/loadgen.py does: requests to banned sources wait out their timeout and fill it (F-02)."""
         run_dir = _run_dir(opts)
         run = os.path.basename(run_dir)
         label = f"{os.path.basename(os.path.dirname(run_dir))}/{run}"          # b03_a1/U, 07_L2_r1/U: what makes a run this run
@@ -739,31 +1018,64 @@ class SyntheticServer:
         n = len(sched)
         rng = np.random.default_rng([self.seed, zlib.crc32(label.encode()), zlib.crc32(sid.encode()), int(opts.get("--seed", 1))])
         effect = self.effects.get(run, {}) if kind == "legit" else {}
+        zero = begin + X.ENGINE_T0_OFFSET_S                                     # the stream's schedule zero on the host's clock
+        harmed = np.ones(n, dtype=bool)
+        if kind == "legit" and run.startswith("M_") and run not in self.effects:
+            effect = self.effects.get("U", {})
+            harmed = self.unmitigated(zero + sched, others, bans)
         slip = effect.get("slip", 0.002) * (0.5 + rng.random(n))
         sent = sched + slip
         service = self.cost[route] * rng.lognormal(0.0, 0.2, n)
         mean, jitter, loss = LINKS[profile]
         link = np.maximum(0.0, rng.normal(mean, jitter, n)) + np.where(rng.random(n) < loss, RETRANSMIT_S, 0.0)
         if self.capacity_cpu and kind == "legit":
-            u = self.utilisation(sched, begin, others)
+            u = self.utilisation(sched, begin, others, bans)
             over = np.maximum(u, 1.0)
             bad = rng.random(n) < 1.0 - 1.0 / over
             service = service * over + link
         else:
-            hit = (sched >= self.window[0]) & (sched < self.window[1]) & (kind == "legit")
+            hit = (sched >= self.window[0]) & (sched < self.window[1]) & (kind == "legit") & harmed
             bad = hit & (rng.random(n) < effect.get("fail_p", 0.0))
             service = np.where(hit & ~bad, service * effect.get("slow", 1.0), service) + link
+        if bans and local:
+            source = np.arange(n) % len(local)
+            for j, ip in enumerate(local):
+                bad |= (source == j) & self.banned(ip, zero + sent, bans)
         done = sent + service
-        done[bad] = sent[bad] + TIMEOUT_S
-        rows = n if kind == "legit" else min(n, ATTACK_RECORDS)
+        done[bad] = sent[bad] + float(opts.get("--timeout", TIMEOUT_S))
+        dropped = self.over_cap(sent, done, max_inflight)
+        bad &= ~dropped
+        # the gate reads an attack stream's records only in a run with bans (its sending is judged up to them); elsewhere the summary
+        rows = n if kind == "legit" or bans else min(n, ATTACK_RECORDS)
         with gzip.open(opts["--records"], "wt") as fh:
             fh.write(RECORD_HEADER)
             for i in range(rows):
+                if dropped[i]:
+                    fh.write(f"{i},{sched[i]:.6f},nan,nan,0,0,dropped,{i % identities},0\n")
+                    continue
                 failed = bool(bad[i])
                 fh.write(f"{i},{sched[i]:.6f},{sent[i]:.6f},{done[i]:.6f},{0 if failed else 200},100,"
                          f"{'timeout' if failed else ''},{i % identities},1\n")
-        if n:                                          # the loop ends when its last request has, a timeout included
-            wall = max(wall, float(done.max()) + X.ENGINE_T0_OFFSET_S)
-        write_summary(opts["--summary"], n, int(n - bad.sum()), float(np.quantile(slip, 0.99)) if n else None, wall,
-                      {"timeout": int(bad.sum())} if bad.any() else None)
+        if n and not dropped.all():                    # the loop ends when its last request has, a timeout included
+            wall = max(wall, float(done[~dropped].max()) + X.ENGINE_T0_OFFSET_S)
+        errors = {k: v for k, v in (("timeout", int(bad.sum())), ("dropped", int(dropped.sum()))) if v}
+        write_summary(opts["--summary"], n, int(n - bad.sum() - dropped.sum()),
+                      float(np.quantile(slip[~dropped], 0.99)) if (~dropped).any() else None, wall, errors or None,
+                      sent=int(n - dropped.sum()))
         return n
+
+    @staticmethod
+    def over_cap(sent, done, cap):
+        """Which requests the engine drops: those due while `cap` others are in flight (sent and not done), in schedule order."""
+        dropped = np.zeros(len(sent), dtype=bool)
+        if not cap:
+            return dropped
+        flight = []
+        for i in range(len(sent)):
+            while flight and flight[0] <= sent[i]:
+                heapq.heappop(flight)
+            if len(flight) >= cap:
+                dropped[i] = True
+            else:
+                heapq.heappush(flight, done[i])
+        return dropped
