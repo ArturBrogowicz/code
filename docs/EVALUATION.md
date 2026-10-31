@@ -394,6 +394,13 @@ per-connection rule logged `slow_pc_poll` at least every 10 s (`eval/p4_runner.p
 daemon logs one every 5 s, so this is two missed reports), with no longer gap from the traffic's start to the first
 poll or from the last to the run's end; the runner applies the same bound to the validation runs.
 
+**Re-registration record (D-035, V-01).** 2026-10-31T12:44Z, before any data: the harmed second of (a) is the
+first of 5 consecutive 1-s bins below 0.99 x Q(C) inside the attack window, and the recovery the end of the first 5
+consecutive bins at or above it after that second (0 when no such harm; `eval/p4_outcome.recovery` reports the
+recovery with its onset). With the first reading, one noisy bin made a late recovery pass (T-039 V-01: P(a) per
+block 0.68-0.96 for a true recovery at +95 s); seeded binomial fixtures now pin that a recovery at +95 s fails (a)
+and one at +60 s passes, at 20 and 50 judged requests a second and Q(C) 99.5 and 99.9.
+
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
 user's decision.

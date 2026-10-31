@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import os
+import random
 import sys
 import tempfile
 import unittest
@@ -87,8 +88,10 @@ class PinnedConstantsTest(unittest.TestCase):
 
 
 class RecoveryTest(unittest.TestCase):
-    def test_the_recovery_time_after_the_first_dip(self):
-        self.assertEqual(O.recovery_s(bins(99.5), 98.5), 0)                       # never dipped
+    def test_the_recovery_time_after_the_harmed_second(self):
+        # D-035 (V-01) re-registered the harmed second: the first of 5 consecutive bins below the bar. The flat
+        # fixtures of the first reading keep their values (their dips last longer than 5 s).
+        self.assertEqual(O.recovery_s(bins(99.5), 98.5), 0)                       # never harmed
         self.assertEqual(O.recovery_s(bins(99.5, 50.0, until=60), 98.5), 35)       # 60 + 5 - 30
         self.assertEqual(O.recovery_s(bins(99.5, 50.0, until=115), 98.5), 90)     # just in time
         self.assertEqual(O.recovery_s(bins(99.5, 50.0, until=116), 98.5), 91)
@@ -96,6 +99,18 @@ class RecoveryTest(unittest.TestCase):
         q = bins(99.5, 50.0, until=60)
         q[62] = None                                                              # an empty second
         self.assertEqual(O.recovery_s(q, 98.5), 38)
+        self.assertEqual(O.recovery(bins(99.5, 50.0, until=60), 98.5), {"onset_s": 5, "recovery_s": 35})
+
+    def test_a_dip_shorter_than_5_bins_is_not_the_harmed_second(self):
+        q = bins(99.5, 50.0, start=35, until=39)                                  # 4 bins low, then healthy
+        self.assertEqual(O.recovery(q, 98.5), {"onset_s": None, "recovery_s": 0})
+        q = bins(99.5, 50.0, start=60, until=130)                                 # the real harm comes later
+        q[33] = q[41] = 97.0                                                      # two noisy seconds before it
+        self.assertEqual(O.recovery(q, 98.5), {"onset_s": 30, "recovery_s": 105})
+        q = bins(99.5, 50.0, start=236, until=270)                                # its 5 bins leave the window
+        self.assertEqual(O.recovery(q, 98.5), {"onset_s": None, "recovery_s": 0})
+        q = bins(99.5, 50.0, start=235, until=270)
+        self.assertEqual(O.recovery(q, 98.5), {"onset_s": 205, "recovery_s": None})
 
     def test_the_recovery_reading_was_accepted_by_the_user(self):
         # 2026-10-31: the user accepted reading (a), counted from the first second below
@@ -107,12 +122,66 @@ class RecoveryTest(unittest.TestCase):
                           "user accepted on 2026-10-31", " ".join(fh.read().split()))
         q = bins(99.5, 50.0, start=60, until=100)        # harm builds up for 30 s, then 40 s low
         self.assertEqual(O.recovery_s(q, 98.5), 75)       # 100 + 5 - 30, not the first 5 seconds
+        self.assertIn("Re-registration record (D-035, V-01", O.__doc__)
 
     def test_the_share_of_blocks(self):
         self.assertEqual([O.enough(k, 10) for k in (8, 9, 10)], [False, True, True])
         self.assertEqual([O.enough(k, 12) for k in (10, 11)], [False, True])
         self.assertFalse(O.enough(0, 0))
 
+
+def noisy(rng, n, qc, onset, true_rec, harm):
+    """1-s bins with binomial noise (review T-039 work/sim_recovery.py): n judged requests a second, each a success
+    with probability Q(C) before the harm and after the true recovery, `harm` during it; the harm runs from `onset`
+    to `true_rec` seconds after the attack's start."""
+    out = []
+    for i in range(O.RUN_S):
+        p = harm if onset <= i - O.TIMELINE["baseline_s"] < true_rec else qc / 100.0
+        out.append(100.0 * rng.binomialvariate(n, p) / n)
+    return out
+
+
+class NoisyRecoveryTest(unittest.TestCase):
+    """D-035 (V-01): with the harm starting 30 s into the attack, a true recovery at +95 s must fail (a) and one at
+    +60 s must pass, at 20 and 50 judged requests a second and Q(C) 99.5 and 99.9; seeded."""
+
+    CASES = tuple((n, qc, harm) for n in (20, 50) for qc in (99.5, 99.9) for harm in (0.60, 0.90))
+
+    def pass_rate(self, rng, n, qc, true_rec, harm, blocks=200):
+        hits = 0
+        for _ in range(blocks):
+            r = O.recovery_s(noisy(rng, n, qc, 30, true_rec, harm), O.RECOVERY_RATIO * qc)
+            hits += r is not None and r <= O.T_MIT_S
+        return hits / blocks
+
+    def test_the_per_block_pass_rates(self):
+        rng = random.Random(20261031)
+        for n, qc, harm in self.CASES:
+            late, early = self.pass_rate(rng, n, qc, 95, harm), self.pass_rate(rng, n, qc, 60, harm)
+            self.assertLessEqual(late, 0.05, (n, qc, harm, "recovery at +95 s"))
+            self.assertGreaterEqual(early, 0.90, (n, qc, harm, "recovery at +60 s"))
+
+    def test_criterion_a_over_ten_noisy_blocks(self):
+        # (a) over 10 blocks, in 40 seeded campaigns per case: never passed with the true recovery at +95 s, passed
+        # in at least 36 of 40 with it at +60 s. The per-block rate at 50 judged requests a second and Q(C) 99.5 is
+        # about 0.97 (one failed request in 50 puts a bin under the bar), so about 3.5 % of honest campaigns fail
+        # (a) there (artifacts/v01_pass_rates.txt of T-023c); a single seeded campaign would pin luck, not the rule.
+        rng = random.Random(31)
+        for n, qc, harm in self.CASES:
+            for true_rec, low, high in ((95, 0, 0), (60, 36, 40)):
+                passed, onsets = 0, []
+                for _ in range(40):
+                    over = {}
+                    for i in range(10):
+                        over[("C", i)] = {"q": qc}
+                        over[("M_pc_loris", i)] = {"q_per_s": noisy(rng, n, qc, 30, true_rec, harm)}
+                    m = O.outcome(campaign(over))["families"]["loris"]["mitigation"]
+                    passed += m["a"]
+                    onsets += m["recovery_onset_s"]
+                self.assertTrue(low <= passed <= high, (n, qc, harm, true_rec, passed))
+                # counted from the harm: its first second, or up to 4 s before it when noisy healthy bins join its run
+                inside = sum(1 for o in onsets if o is not None and 26 <= o < true_rec) / len(onsets)
+                self.assertGreaterEqual(inside, 0.95, (n, qc, harm, true_rec))
 
 class OutcomeTest(unittest.TestCase):
     def test_both_families_harmful_and_mitigated(self):

@@ -20,6 +20,7 @@ was; each place a re-registration changes carries a marker "[re-registered: ...]
 | D-031 | 2026-10-31T09:23Z | The recovery reading of §10 (a), accepted as recommended: the 5 consecutive bins at ≥ 0.99 × Q(C) are counted from the first harmed second after the attack starts (a run that never dips has recovered at once), and must end within T_mit. (b)'s window is [attack start + T_mit, attack end] = [120 s, 240 s] of the run (`LEVEL_WINDOW_S`) | §10 (a), (b) |
 | D-035 (V-04) | 2026-10-31T12:44Z | The validation runs (§6.4) run M_pc's daemon mode without enforcement: tolerant profile, SLOW_PC=1, SLOW_PC_ENFORCE=0, SLOW_PC_RECORD; each manifest records it, and the scorer refuses another mode, an enforcing poll and a poll whose banned set holds a non-attack address (`eval/p4_validation.py`) | §6.4 "the detector runs in shadow mode" (no daemon profile named) |
 | D-035 (V-08) | 2026-10-31T12:44Z | An M_pc run is valid only if the rule logged slow_pc_poll at least every 10 s from the traffic's start to the run's end (`eval/p4_runner.py` SLOW_PC_POLL_GAP_S; the daemon logs one every 5 s); the runner applies it to the validation runs too | §5.4 of `docs/L7V2_DESIGN.md` names only "the daemon was alive" |
+| D-035 (V-01) | 2026-10-31T12:44Z | The harmed second of (a) is the first of 5 consecutive 1-s bins below 0.99 × Q(C) inside the attack window; the recovery is the end of the first 5 consecutive bins at or above it after that second; 0 without such harm; the recovery is reported with its onset. Noisy fixtures pin it: onset at +30 s, a true recovery at +95 s fails (a), one at +60 s passes (`eval/p4_outcome.py` recovery) | §10 (a) |
 
 Two further forms appear here:
 - `T0:` facts were read on this VM on 2026-10-30, without running anything: package metadata, the ss manual page, the kernel
@@ -334,7 +335,7 @@ fixture. It confirms the token layout of F-S3 [NOT RUN].
   - **and** ≥ 9 of 10 blocks are individually at dQ ≥ 10 pp or dL ≥ 1, the plan's stricter count.
 - **"Mitigated", per family, for M_pc.** All three must hold:
   - (a) recovery: Q(M_pc) in 1-s bins reaches ≥ 0.99 × Q(C) for 5 consecutive bins within T_mit = 30 s of the attack start, in
-    ≥ 9 of 10 blocks; [re-registered: T_mit = 90 s, D-025; the bins counted from the first harmed second, D-031]
+    ≥ 9 of 10 blocks; [re-registered: T_mit = 90 s, D-025; the bins counted from the first harmed second, D-031; the harmed second is the first of 5 consecutive harmed bins, D-035]
   - (b) level: Q(M_pc) over [attack start + 30 s, attack end] is ≥ 0.99 × Q(C) as a mean over blocks, and in ≥ 9 of 10 blocks;
     [re-registered: over [attack start + T_mit, attack end] = [120 s, 240 s] of the run, D-025, D-030, D-031]
   - (c) collateral: **0 benign addresses banned in all M_pc runs**, the CGNAT pools and browser devices included. Benign

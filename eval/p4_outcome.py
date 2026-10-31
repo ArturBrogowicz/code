@@ -20,15 +20,24 @@ recovery. Per family (loris, post):
   * reported next to it: Q(M_pc) - Q(M_def) per block with eval/run_level_stats.decide, and the bans per arm by
     role.
 
-Two readings are this code's, not the note's, and are pinned by tests: (a) counts the 5 bins from the first bin
-below 0.99 x Q(C) after the attack starts (a run that never dips has recovered at once), and they must end
-within T_mit; (b)'s window starts at attack start + T_mit, which was the note's "+ 30 s" when T_mit was 30 s,
+Two readings are this code's, not the note's, and are pinned by tests: (a) counts the 5 bins from the first
+harmed second after the attack starts (a run that is never harmed has recovered at once; the harmed second as
+re-registered by D-035 below), and they must end within T_mit; (b)'s window starts at attack start + T_mit, which was the note's "+ 30 s" when T_mit was 30 s,
 and ends with the attack (LEVEL_WINDOW_S). Reading (a) was accepted by the user on 2026-10-31 ("P4 recovery
 + HG4"); (b)'s window is the one the re-registration below names.
 
 Re-registration record. The P4 attack length 120 → 210 s, re-registered 2026-10-31 by the user, before any
 data, so that the window of (b), from attack start + T_mit (90 s) to the attack's end, is 120 s long; a run
 is now 270 s.
+
+Re-registration record (D-035, V-01; 2026-10-31T12:44Z, the user's "Approve all four", before any data; review
+T-039 V-01). The harmed second of (a) is the first of RECOVERY_BINS = 5 consecutive 1-s bins below 0.99 x Q(C)
+inside the attack window (one bin below the bar is sampling noise when a second holds 20-50 judged requests);
+the recovery is the end of the first 5 consecutive bins at or above 0.99 x Q(C) after it, in seconds from the
+attack's start; a run with no such harm has recovered at once (0). recovery() reports the recovery together with
+the onset it was counted from, and mitigation() reports both per block. The noisy fixtures of
+tests/test_p4_outcome.py (binomial bins, seeded) pin it: with the harm starting 30 s into the attack, a true
+recovery at +95 s fails (a) and one at +60 s passes, at 20 and 50 judged requests a second and Q(C) 99.5 and 99.9.
 
 A run record (one dict per run; summarize() builds it from eval/harm_gate.run_metrics and the ban events):
     {"block": 3101, "arm": "M_pc_loris", "valid": true, "Q": 97.5, "p95_s": 0.21,
@@ -107,19 +116,26 @@ def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow
             "level_window": [float(x) for x in level_window], "banned": banned, "benign_closed": benign_closed}
 
 
+def recovery(q_per_s, threshold, start=TIMELINE["baseline_s"]):
+    """Reading (a) as re-registered by D-035: {"onset_s", "recovery_s"}, both in seconds from the attack's start.
+    The harmed second (onset) is the first of RECOVERY_BINS consecutive bins below `threshold`, all inside the
+    attack window; the recovery is the end of the first RECOVERY_BINS consecutive bins at or above it after the
+    onset. No harmed second: {"onset_s": None, "recovery_s": 0}; harmed and never back: recovery_s None. An empty
+    second (None) is neither harmed nor recovered."""
+    end, n = start + TIMELINE["attack_s"], RECOVERY_BINS
+    onset = next((i for i in range(start, min(end, len(q_per_s)) - n + 1)
+                  if all(x is not None and x < threshold for x in q_per_s[i:i + n])), None)
+    if onset is None:
+        return {"onset_s": None, "recovery_s": 0}
+    for i in range(onset + 1, len(q_per_s) - n + 1):
+        if all(x is not None and x >= threshold for x in q_per_s[i:i + n]):
+            return {"onset_s": onset - start, "recovery_s": i + n - start}
+    return {"onset_s": onset - start, "recovery_s": None}
+
+
 def recovery_s(q_per_s, threshold, start=TIMELINE["baseline_s"]):
-    """Seconds from the attack's start to the end of the first 5 consecutive bins at >= threshold
-    that follow the first bin below it; 0 if no bin of the attack window is below it; None if the
-    bins never recover."""
-    end = start + TIMELINE["attack_s"]
-    dips = [i for i in range(start, min(end, len(q_per_s)))
-            if q_per_s[i] is not None and q_per_s[i] < threshold]
-    if not dips:
-        return 0
-    for i in range(dips[0] + 1, len(q_per_s) - RECOVERY_BINS + 1):
-        if all(x is not None and x >= threshold for x in q_per_s[i:i + RECOVERY_BINS]):
-            return i + RECOVERY_BINS - start
-    return None
+    """The recovery of recovery() alone."""
+    return recovery(q_per_s, threshold, start)["recovery_s"]
 
 
 def enough(count, n):
@@ -182,7 +198,8 @@ def mitigation(blocks, family):
     """(a) recovery, (b) level and (c) collateral of M_pc for one family, and the M_def comparison."""
     m = f"M_pc_{family}"
     valid = [b for b in blocks.values() if _ok(b, CONTROL, m)]
-    rec = [recovery_s(b[m]["q_per_s"], RECOVERY_RATIO * b[CONTROL]["Q"]) for b in valid]
+    found = [recovery(b[m]["q_per_s"], RECOVERY_RATIO * b[CONTROL]["Q"]) for b in valid]
+    rec = [x["recovery_s"] for x in found]
     in_time = sum(1 for r in rec if r is not None and r <= T_MIT_S)
     level_ok = sum(1 for b in valid if b[m]["q_level"] >= LEVEL_RATIO * b[CONTROL]["Q"])
     mean_ok = bool(valid) and (sum(b[m]["q_level"] for b in valid)
@@ -193,7 +210,8 @@ def mitigation(blocks, family):
     b_ = len(valid) >= MIN_VALID_BLOCKS and mean_ok and enough(level_ok, len(valid))
     pairs = [b for b in blocks.values() if _ok(b, m, f"M_def_{family}")]
     d = [b[m]["Q"] - b[f"M_def_{family}"]["Q"] for b in pairs]
-    return {"valid_blocks": len(valid), "recovery_s": rec, "recovered_in_time": in_time, "a": a,
+    return {"valid_blocks": len(valid), "recovery_s": rec, "recovery_onset_s": [x["onset_s"] for x in found],
+            "recovered_in_time": in_time, "a": a,
             "level_blocks": level_ok, "level_mean_ok": mean_ok, "b": b_,
             "benign_banned": [list(x) for x in collateral], "c": not collateral,
             "benign_closed": sum(b[m].get("benign_closed", 0) for b in blocks.values() if m in b),
