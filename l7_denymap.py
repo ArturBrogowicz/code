@@ -30,6 +30,12 @@ https://nginx.org/en/docs/http/ngx_http_map_module.html, and the source where th
     src/core/ngx_hash.c:248-288), and the default bucket size is one cache line (32|64|128, the page). The longest key
     written here is 15 + 1 + 256 + 1 + 32 = 305 bytes, so the rendered conf sets the bucket size (l7_conf.py).
 
+The raw side table (RawKeys; T-025b F7). The engine keys on hashes (l7_ingest.key_v2: IP, stable_hash32 of the UA
+and of the session id) and drops the raw strings at ingest; the map needs them. RawKeys keeps, per key, the raw (UA,
+sid) that nginx will compare, in memory only and only for keys that pass the write rules; a key that fails keeps only
+the name of the rule (it is "unenforceable" at level 1). It is a bounded LRU, and nothing in it is logged or written
+anywhere but the deny map.
+
 The file is replaced atomically (a temporary file in the same directory, fsync, rename), so nginx never reads a half
 written map. TTL bookkeeping: an entry expires DENY_TTL_S after it was added (the daemon's BAN_TTL_SECONDS), and at most
 MAX_DENIES entries are active.
@@ -40,11 +46,15 @@ import os
 import re
 import stat
 import tempfile
+from collections import OrderedDict
+
+import l7_ingest
 
 DENY_FILE = "deny.map"
 MAX_DENIES = 2000              # 9.3: active denies at most
 DENY_TTL_S = 300               # 9.2: like control_plane.BAN_TTL_SECONDS
 MAX_UA_BYTES = 256             # 9.4
+MAX_RAW_KEYS = 16384           # the raw side table's LRU bound (keys)
 FORBIDDEN_UA_CHARS = frozenset('"\\;{}$')   # 9.4, as written; only `"` and `\` are special to nginx inside quotes
 SID_RE = re.compile(r"[0-9a-f]{32}")       # l7_backend.SID_RE
 SEP = "|"
@@ -223,3 +233,68 @@ class DenyMap:
         """Write the file atomically; returns its path."""
         write_atomic(self.path, self.text().encode("ascii"))
         return self.path
+
+
+def raw_strings(obj):
+    """(UA, sid) as nginx's map will see them for the client of this parsed l7json log object: the User-Agent field as
+    logged (the value l7_ingest.normalise hashes), and the session id of the key: `sid_set`, the cookie the answer set,
+    if present, else the request's `sid` cookie, as l7_ingest.sid_hash chooses. Without either, the sid is the `sid`
+    field as logged: "" when the client sent no cookie (escape=json logs an absent variable as nothing,
+    ngx_http_log_module.c:1059-1061 of nginx 1.28.3), or a literal value such as "-", which then fails the write rules
+    (the hash reads "-" as absent, the map would not)."""
+    ua = obj.get("ua") or obj.get("user_agent") or ""
+    for name in l7_ingest.SID_FIELDS:
+        value = obj.get(name)
+        if value is not None and str(value).strip() not in l7_ingest.ABSENT:
+            return ua, value
+    return ua, obj.get("sid") or ""
+
+
+class RawKeys:
+    """The enforcement-only side table: (IP, ua_hash, sid_hash) -> the raw (UA, sid) of a key that passes the write
+    rules, or the rule it fails, and the start of its first request seen (the key-age gate). Bounded LRU. Not
+    thread-safe: the caller holds its lock."""
+
+    def __init__(self, max_keys=MAX_RAW_KEYS):
+        self.max_keys = max_keys
+        self._keys = OrderedDict()     # key -> (ua or None, sid or None, failed rule or None, first start)
+        self.evicted = 0
+        self.ambiguous = 0
+
+    def __len__(self):
+        return len(self._keys)
+
+    def note(self, key, ua, sid, start):
+        """Record one request of `key` (its IP is key[0]) with these raw strings, started at `start`."""
+        problem = key_problem(key[0], ua, sid)
+        old = self._keys.get(key)
+        if old is None:
+            self._keys[key] = (None, None, problem, start) if problem else (ua, sid, None, start)
+            if len(self._keys) > self.max_keys:
+                self._keys.popitem(last=False)
+                self.evicted += 1
+            return
+        self._keys.move_to_end(key)
+        o_ua, o_sid, o_problem, first = old
+        first = min(first, start)
+        if o_problem is None and (ua, sid) != (o_ua, o_sid) or o_problem not in (None, "ambiguous") and not problem:
+            # two raw forms under one key (a hash collision, or a sid the hash and the map read differently):
+            # nginx would deny only one of them, so the key is not written
+            self._keys[key] = (None, None, "ambiguous", first)
+            self.ambiguous += 1
+        else:
+            self._keys[key] = (o_ua, o_sid, o_problem, first)
+
+    def lookup(self, key):
+        """("ok", ua, sid) for a key the map can deny, else ("unenforceable", the rule, None); "no_raw" when the key is
+        not (or no longer) in the table."""
+        entry = self._keys.get(key)
+        if entry is None:
+            return "unenforceable", "no_raw", None
+        ua, sid, problem, _first = entry
+        return ("unenforceable", problem, None) if problem else ("ok", ua, sid)
+
+    def first_seen(self, key):
+        """The start time of the key's first request seen, or None."""
+        entry = self._keys.get(key)
+        return None if entry is None else entry[3]
