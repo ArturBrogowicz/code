@@ -382,6 +382,13 @@ about 0.3 h, the harm ladder (24) 2.2 h, the validation (6) 0.55 h, the campaign
 most 16) 1.5 h: about 11.8 h in all, 10.4 h without re-runs, against 8.6 h and 7.5 h with the 120-s attack. The
 Slowloris-only cut grows by the same factor, from about 5 h to about 6.9 h.
 
+**Re-registration record (D-035, V-04).** 2026-10-31T12:44Z, the user's "Approve all four", before any data: the
+validation runs run M_pc's daemon mode without enforcement (HEURISTIC_PROFILE=tolerant, SLOW_PC=1,
+SLOW_PC_ENFORCE=0, SLOW_PC_RECORD), recorded under "daemon" in each manifest by `eval/p4_runner.py`;
+`eval/p4_validation.py` refuses a manifest with another mode, a poll the rule enforced, and a poll whose banned
+set holds an address that is not an attacker's (T-039 V-04: otherwise another engine's ban of a CGNAT pool would
+make the benign constraints hold by construction).
+
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
 user's decision.

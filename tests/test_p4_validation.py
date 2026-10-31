@@ -78,7 +78,8 @@ def write_run(tmp, seed, arm, roles=ROLES, polls=60, failed=()):
             text = None if k in failed else world(arm, t)
             fh.write(P.record_member(t, text, items if k == 1 else [], [], False))
     with open(os.path.join(d, "run.json"), "w", encoding="utf-8") as fh:
-        json.dump({"seed": seed, "arm": arm, "record": "slow_pc.jsonl.gz", "roles": roles}, fh)
+        json.dump({"seed": seed, "arm": arm, "record": "slow_pc.jsonl.gz", "roles": roles,
+                   "daemon": V.VALIDATION_DAEMON}, fh)
     return os.path.join(d, "run.json")
 
 
@@ -158,6 +159,46 @@ class InputTest(ValidationSetCase):
         self.assertEqual((rec["deadline_s"], rec["secondary_deadline_s"]), (90.0, 30.0))
         self.assertEqual(len(rec["runs"]), 6)
         self.assertEqual(len(rec["slow_pc_sha256"]), 64)
+
+
+
+class ValidationDaemonTest(unittest.TestCase):
+    """D-035 (V-04): M_pc's daemon mode without enforcement, recorded and checked; no foreign ban."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+
+    def test_the_mode_is_pinned_and_another_is_refused(self):
+        self.assertEqual(V.VALIDATION_DAEMON, {"HEURISTIC_PROFILE": "tolerant", "SLOW_PC": "1", "SLOW_PC_ENFORCE": "0"})
+        path = write_run(self.tmp.name, 4001, "C")
+        with open(path, encoding="utf-8") as fh:
+            m = json.load(fh)
+        for daemon in (None, {**V.VALIDATION_DAEMON, "HEURISTIC_PROFILE": "default"},
+                       {**V.VALIDATION_DAEMON, "SLOW_PC_ENFORCE": "1"}):
+            bad = dict(m) if daemon is None else dict(m, daemon=daemon)
+            if daemon is None:
+                bad.pop("daemon")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(bad, fh)
+            with self.assertRaisesRegex(ValueError, "D-035"):
+                V.load_run(path)
+
+    def polls(self, banned, enforce=False):
+        return [{"t": 1.0, "ss": world("U_loris", 1.0), "l7": [], "banned": banned, "enforce": enforce}]
+
+    def test_a_record_with_a_benign_address_banned_is_refused(self):
+        self.assertTrue(V.score_run(self.polls(["10.0.3.1"]), ROLES, [(5, 64, 2)]))      # an attacker: fine
+        for ip in ("10.0.4.1", "10.0.5.1", "10.0.1.1", "10.9.9.9"):
+            with self.assertRaisesRegex(ValueError, "not attackers"):
+                V.score_run(self.polls(["10.0.3.1", ip]), ROLES, [(5, 64, 2)])
+        failed = [{"t": 2.0, "ss": None, "l7": [], "banned": ["10.0.4.1"], "enforce": False}]
+        with self.assertRaisesRegex(ValueError, "not attackers"):
+            V.score_run(failed, ROLES, [(5, 64, 2)])
+
+    def test_an_enforcing_record_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "enforced"):
+            V.score_run(self.polls([], enforce=True), ROLES, [(5, 64, 2)])
 
 
 if __name__ == "__main__":

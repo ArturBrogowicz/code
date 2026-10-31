@@ -11,12 +11,20 @@ slow_pc.select_thresholds() choose T, F and K. Pure and offline: it reads files 
 One manifest per run (JSON), written by the runner:
 
     {"seed": 4001, "arm": "U_loris", "record": "slow_pc.jsonl.gz",
-     "roles": {"10.0.2.1": "attack", "10.0.4.1": "cgnat", "10.0.5.1": "slow_uploader", ...}}
+     "roles": {"10.0.2.1": "attack", "10.0.4.1": "cgnat", "10.0.5.1": "slow_uploader", ...},
+     "daemon": {"HEURISTIC_PROFILE": "tolerant", "SLOW_PC": "1", "SLOW_PC_ENFORCE": "0"}}
 
 `record` is relative to the manifest. The runs must be exactly slow_pc.VALIDATION_SEEDS x
 slow_pc.VALIDATION_RUNS. Every address with a readable socket in a run's snapshots needs a role:
 "attack" for the attackers, "slow_uploader" for the slow uploaders (benign as well), and any other
 non-empty string for the other benign clients (browser devices, CGNAT pools, uploaders, ...).
+
+Re-registration record (D-035, 2026-10-31T12:44Z, the user's "Approve all four", before any data; review T-039
+V-04). A validation run runs M_pc's daemon mode without enforcement: the tolerant profile, the rule in shadow and
+recording (HEURISTIC_PROFILE=tolerant, SLOW_PC=1, SLOW_PC_ENFORCE=0, SLOW_PC_RECORD). Its manifest records that mode
+under "daemon" (eval/p4_runner.py writes it), and the scorer refuses a manifest with another mode, a poll the rule
+enforced, and a poll whose `banned` set holds an address that is not an attacker's: another engine's ban of a benign
+address would drop its sockets unjudged at every grid point and make the benign constraints hold by construction.
 
 The share of attacking addresses banned within SECONDARY_DEADLINE_S of their first connection, the T_mit
 of the design note before its re-registration, is reported next to each point; it is not used.
@@ -34,6 +42,7 @@ import ban_events
 import slow_pc
 
 ATTACK, SLOW_UPLOADER = "attack", "slow_uploader"
+VALIDATION_DAEMON = {"HEURISTIC_PROFILE": "tolerant", "SLOW_PC": "1", "SLOW_PC_ENFORCE": "0"}   # D-035 (V-04)
 SECONDARY_DEADLINE_S = 30.0
 
 
@@ -46,6 +55,9 @@ def load_run(manifest_path):
     roles = m["roles"]
     if not isinstance(roles, dict) or not all(isinstance(r, str) and r for r in roles.values()):
         raise ValueError(f"{manifest_path}: roles must map each address to a non-empty string")
+    if m.get("daemon") != VALIDATION_DAEMON:
+        raise ValueError(f"{manifest_path}: a validation run runs the daemon as {VALIDATION_DAEMON} (D-035), "
+                         f"the manifest says {m.get('daemon')!r}")
     record = os.path.join(os.path.dirname(os.path.abspath(manifest_path)), m["record"])
     return {"seed": m["seed"], "arm": m["arm"], "roles": dict(roles),
             "polls": slow_pc.read_record(record), "manifest": manifest_path, "record": record}
@@ -69,6 +81,12 @@ def score_run(polls, roles, grid=slow_pc.GRID, ttl_s=slow_pc.BAN_TTL_S):
     banned_at = {pt: {} for pt in grid}
     for p in polls:
         t, items = p["t"], [tuple(i) for i in p.get("l7", ())]
+        if p.get("enforce"):
+            raise ValueError(f"the rule enforced at t={t}: a validation run records it in shadow (D-035)")
+        foreign = sorted(ip for ip in p.get("banned", ()) if roles.get(ip) != ATTACK)
+        if foreign:
+            raise ValueError(f"the daemon had banned addresses that are not attackers' at t={t}: {foreign[:5]} "
+                             "(D-035: such a record is refused, its benign sockets would go unjudged)")
         if p.get("ss") is None:
             for d in dets.values():
                 d.skip(t, items)
