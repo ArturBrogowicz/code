@@ -345,14 +345,14 @@ SELECTIONS = ("val", "p5c")
 
 def default_selection(dataset_dirs, val_dirs=None):
     """The rule when none is given (review T-029 P3-01): "val" with validation captures or for any
-    schema-2 (P3) capture, "p5c" for legacy schema-1 datasets, so that the published commands, which
-    pass no --selection, reproduce the published reports."""
+    schema-2 or schema-3 (P3, L7 v2) capture, "p5c" for legacy schema-1 datasets, so that the published
+    commands, which pass no --selection, reproduce the published reports."""
     if val_dirs:
         return "val"
     for d in dataset_dirs:
         try:
             with open(os.path.join(d, l7_dataset.MANIFEST_FILE), encoding="utf-8") as fh:
-                if json.load(fh).get("format") == l7_dataset.DATASET_FORMAT_V2:
+                if json.load(fh).get("format") in l7_dataset.FORMATS_P3:      # schema 2 and 3 (T-030 L7V2-06)
                     return "val"
         except (OSError, ValueError):
             continue
