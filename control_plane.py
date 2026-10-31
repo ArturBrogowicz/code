@@ -420,11 +420,15 @@ def evict_idle_clients():
 
 
 def kill_zombie_connections(ip_str):
+    # timeout: the per-connection rule's thread calls this after each of its bans, and a hung
+    # `ss -K` must not stall that thread (review T-039 V-08); the address is banned either way.
     try:
-        subprocess.run(["ss", "-K", "dst", ip_str], check=True, capture_output=True)
+        subprocess.run(["ss", "-K", "dst", ip_str], check=True, capture_output=True, timeout=2)
         print(f"[OS] Killed hanging TCP sessions for address {ip_str}.")
     except subprocess.CalledProcessError as e:
         print(f"[-] Error while killing sessions for {ip_str}: {e.stderr.decode().strip()}")
+    except subprocess.TimeoutExpired:
+        print(f"[-] Killing the sessions of {ip_str} took more than 2 s: given up.")
     except FileNotFoundError:
         print("[-] The 'ss' tool is not installed (iproute2 package).")
 
