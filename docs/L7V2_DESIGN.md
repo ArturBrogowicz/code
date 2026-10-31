@@ -599,6 +599,14 @@ Every departure from the text above is labelled here, as section 13 requires. Th
 - **C3b's costly request (L7V2-04).** After each navigation view, the bot loads the costly route's form page, and a dwell
   later issues one costly request in-page from it. Its Referer and its timing are those of a benign search or export.
   C2 and C3a, the controls, keep their tells.
+- **C3b's costly route is export (C5), search (C3) the variant** (the user's "Keep, aim at export", 2026-10-31). Its form
+  page is the account page that benign exporters load. The page-then-dwell placement above is confirmed: its earlier
+  "by the user" label was a forward reference. [ESTIMATE, arithmetic: AP-1's measured C5 cost of 159.7 ms, a costly
+  request every three dwells (21 s at M2 or M3), the placeholder S = 0.552 CPU-s/s]
+  - Each bot costs about 7.6 ms of CPU per second.
+  - 300 bots give about 2.3 CPU-s/s, about 4 S, which is above the 0.75-1.06 CPU-s/s where T-004 expects harm.
+  - About 100-140 bots reach that range; with C3, 300 bots gave only about 0.43.
+  - `tasks/T-025a/artifacts/c3b_export_arithmetic.json`.
 - **P3's benign target is 120 users per capture seed**, not 200 (`ml/p3_prereg.json`). 200 users do not fit the 300
   verified aliases next to the L7 v2 classes.
 
