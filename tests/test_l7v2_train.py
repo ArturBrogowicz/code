@@ -221,6 +221,39 @@ class AgeOnlyTest(unittest.TestCase):
         self.assertEqual(set(rep["auc_by_family"]), {"C3b@M1"})
 
 
+def timed(cap="c1", seed=0, phase=(20.0, 40.0), intensity=2.0):
+    """population() with a P3 timeline (t0_wall 0, one attack phase) and its bots scheduled in that phase."""
+    m, recs, cap = population(cap, seed)
+    m = {**m, "timeline": {"t0_wall": 0.0, "phases": [{"name": "C3b", "start_s": phase[0], "stop_s": phase[1],
+                                                       "intensity": intensity}]}}
+    for e in m["entities"]:
+        e["schedule"] = {"start_s": 0.0, "stop_s": 99.0, "phase": "C3b" if e["role"] == "attack" else None}
+    return m, recs, cap
+
+
+class LoadSplitTest(unittest.TestCase):
+    """The descriptive load split (ml/l7v2_model_prereg.json load_split, D-034, T038-02): never a gate."""
+
+    def test_benign_flags_inside_and_outside_the_phases_and_recall_by_level(self):
+        split = V.Split([timed()], request=False)
+        ws = split.view
+        p = np.array([0.99 if (w["y"] or split.inside(w)) else 0.1 for w in ws])
+        res = V.load_split(ws, p, split, {"threshold": 0.5, "consecutive": 1})
+        inside = [w for w in ws if not w["y"] and split.inside(w)]
+        outside = [w for w in ws if not w["y"] and not split.inside(w)]
+        self.assertTrue(inside and outside)
+        self.assertEqual(res["benign_inside"], {"flagged": len(inside), "windows": len(inside), "rate": 1.0})
+        self.assertEqual(res["benign_outside"], {"flagged": 0, "windows": len(outside), "rate": 0.0})
+        self.assertEqual(res["recall_by_load"], {"2.0": {"caught": 4, "entities": 4, "recall": 1.0}})
+
+    def test_no_point_no_split_and_no_timeline_no_phase(self):
+        split = V.Split([population()], request=False)
+        self.assertIsNone(V.load_split(split.view, np.zeros(len(split.view)), split, None))
+        res = V.load_split(split.view, np.zeros(len(split.view)), split, {"threshold": 0.5, "consecutive": 1})
+        self.assertEqual(res["benign_inside"]["windows"] + res["benign_outside"]["windows"], 0)
+        self.assertEqual(res["recall_by_load"], {"None": {"caught": 0, "entities": 4, "recall": 0.0}})
+
+
 class SelectScoreTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -244,6 +277,12 @@ class SelectScoreTest(unittest.TestCase):
             self.assertIn("operating_point", arm)
         self.assertEqual(self.sel["arms"]["gru_shuffled"]["operating_point"],
                          self.sel["arms"]["view_gru"]["operating_point"])
+
+    def test_every_arm_reports_the_load_split(self):
+        for name, arm in [*self.sel["arms"].items(), *self.sel["baselines"].items()]:
+            self.assertIn("load_split", arm, name)
+            if arm["operating_point"] is not None:
+                self.assertEqual(set(arm["load_split"]), {"benign_inside", "benign_outside", "recall_by_load"}, name)
 
     def test_the_age_only_baseline_is_scored_beside_the_arms(self):
         b = self.sel["baselines"]["age_only"]

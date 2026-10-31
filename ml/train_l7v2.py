@@ -179,7 +179,9 @@ class Split:
         rl = pre["request_level"]
         self.cols_req = F.columns(tuple(rl["groups"]))
         self.view, self.req, self.attack, self.units, self.first, self.kind = [], [], set(), {}, {}, {}
+        self.phases, self.load = {}, {}
         for m, recs, cap in loaded:
+            self._timeline(m, cap)
             if view:
                 self.view += view_windows(recs, pre["views"]["max_views"], pre["views"]["min_views"])
             if request:
@@ -192,6 +194,26 @@ class Split:
                 s = F.start_time(r)
                 self.first[e] = min(self.first.get(e, math.inf), s)
                 self.kind.setdefault(e, r.get("_kof") or r.get("_family"))
+
+
+    def _timeline(self, m, cap):
+        """The capture's attack phases [(start, stop) in wall-clock seconds] and each attack entity's load level (the
+        intensity multiplier the plan records for its schedule's phase), for the descriptive load split (D-034)."""
+        t0, tl = D.time_origin(m), m.get("timeline")
+        if t0 is None or not isinstance(tl, dict):
+            return
+        phases = tl.get("phases") or []
+        self.phases[cap] = [(t0 + ph["start_s"], t0 + ph["stop_s"]) for ph in phases]
+        level = {ph["name"]: ph.get("intensity") for ph in phases}
+        for e in m.get("entities", []):
+            if e.get("role") == "attack" and (e.get("schedule") or {}).get("phase") in level:
+                self.load[f"{cap}|{e['entity_id']}"] = level[e["schedule"]["phase"]]
+
+    def inside(self, w):
+        """True when the window's completion lies inside an attack phase of its capture, None without a timeline."""
+        if w["capture"] not in self.phases:
+            return None
+        return any(a <= w["t"] < b for a, b in self.phases[w["capture"]])
 
 
 def legacy_split(dataset_dir, seed=0):
@@ -412,6 +434,32 @@ def at_point(windows, scores, split, op):
     return a
 
 
+def load_split(windows, scores, split, op):
+    """The descriptive load split of an arm at its operating point (ml/l7v2_model_prereg.json load_split, registered
+    2026-10-31 under D-034, T038-02; never a gate): the share of benign windows with p > theta inside and outside the
+    attack phases, and attack-entity recall per load level (the phase intensity the plan records)."""
+    if op is None:
+        return None
+    thr, out = op["threshold"], {"benign_inside": [0, 0], "benign_outside": [0, 0]}
+    for w, p in zip(windows, scores, strict=True):
+        where = split.inside(w)
+        if w["y"] or where is None:
+            continue
+        cell = out["benign_inside" if where else "benign_outside"]
+        cell[0] += int(p > thr)
+        cell[1] += 1
+    caught = assess(decisions(key_runs(windows, scores), thr, op["consecutive"]), split)["_caught"]
+    by = {}
+    for e in split.attack:
+        lvl = str(split.load.get(e))
+        by.setdefault(lvl, [0, 0])
+        by[lvl][0] += int(e in caught)
+        by[lvl][1] += 1
+    res = {k: {"flagged": f, "windows": n, "rate": round(f / n, 5) if n else None} for k, (f, n) in out.items()}
+    res["recall_by_load"] = {k: {"caught": c, "entities": n, "recall": round(c / n, 4)} for k, (c, n) in sorted(by.items())}
+    return res
+
+
 # ───────────────────────────── select ─────────────────────────────
 
 def _sha_file(path):
@@ -458,10 +506,12 @@ def select(train, val, out_dir, *, arms=PRE.ARMS, epochs=None, threads=2, seed=N
     out = {}
 
     def finish(name, val_scores, windows, scorer, extra=None):
-        """The v2 probe gate on validation records, then (if it passes) the operating point on validation."""
+        """The v2 probe gate on validation records, then (if it passes) the operating point on validation, and the
+        descriptive load split at that point."""
         rep = _probe(scorer, windows, seed, pre["probes"]["max_windows"])
         op = operating_point(windows, val_scores, val, sel_rules) if rep["gate_pass"] else None
-        out[name] = {"probe_gate_pass": rep["gate_pass"], "probes": rep, "operating_point": op, **(extra or {})}
+        out[name] = {"probe_gate_pass": rep["gate_pass"], "probes": rep, "operating_point": op,
+                     "load_split": load_split(windows, val_scores, val, op), **(extra or {})}
         return op
 
     def artifact(name, rel):
@@ -492,7 +542,8 @@ def select(train, val, out_dir, *, arms=PRE.ARMS, epochs=None, threads=2, seed=N
                                    "probe_gate_pass": out["view_gru"]["probe_gate_pass"],
                                    "operating_point": op, "rule": mods["gru_shuffled"]["operating_point"],
                                    "val_at_point": {x: v for x, v in at_point(shuf, ps, val, op).items()
-                                                    if not x.startswith("_")}}
+                                                    if not x.startswith("_")},
+                                   "load_split": load_split(shuf, ps, val, op)}
     for name in ("hgb", "lr"):
         if name not in arms:
             continue
@@ -529,8 +580,9 @@ def select(train, val, out_dir, *, arms=PRE.ARMS, epochs=None, threads=2, seed=N
         fh.write("\n")
     pa = age_scores(ages, val.view)
     rep = age_report(val.view, pa)
+    age_op = operating_point(val.view, pa, val, sel_rules)
     base = {"age_only": {"artifact": "age_only.json", "artifact_sha256": _sha_file(os.path.join(out_dir, "age_only.json")),
-                         "operating_point": operating_point(val.view, pa, val, sel_rules),
+                         "operating_point": age_op, "load_split": load_split(val.view, pa, val, age_op),
                          "val_auc": rep["auc"], "val_auc_by_family": rep["auc_by_family"],
                          "reading": age_reading(rep["auc"]), "rule": pre["baselines"]["age_only"]["reading"]}}
     sel = {"format": SEL_FORMAT, "source": source, "valid_for_claims": bool(valid_for_claims),

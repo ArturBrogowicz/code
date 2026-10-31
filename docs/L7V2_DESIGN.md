@@ -354,6 +354,21 @@ scored. The harm ladder may change only the number of bots.
   - The P5c probe `uri_bijection` and the P5c gate `GATE_PROBES` are unchanged and remain the defaults of `run_probes`
     and `gate_pass`, so the published P5c runs reproduce. L7 v2 reports still list `uri_bijection`, ungated: a model
     that reads `ref_known` fails it by construction (F-V8).
+- **What the v2 gate is, re-registered 2026-10-31 under D-034 (review T-038, T038-02; labelled post hoc, before any
+  data): a pipeline-invariance check, not a test of what a view arm learned.**
+  - `server_load` holds every request's start fixed and scales its rt and urt. View tokens are built from start times
+    (dwell, counts, shares, the status and method mix, creq), so every view arm passes it exactly, whatever it learned.
+  - `ua_swap`, `uri_bijection_class`, `sid_swap` and `time_offset` pass by construction too, because no identity and no
+    absolute time is a feature. The P5c gate behaved the same way for its published variant (T-038,
+    `p5c_window_hash.txt`).
+  - What the gate does catch: a pipeline that lets an identity, an absolute time or a server timing into the inputs.
+  - What it cannot catch: load that reaches the features through the closed loop. A loaded server delays every next view
+    of a closed-loop client, so load enters `log_dwell`, `log_span` and `log_rate`, and attack windows exist only under
+    attack load (R17).
+  - **So a descriptive load split is reported for every arm on validation** (`ml/l7v2_model_prereg.json` `load_split`;
+    `train_l7v2.load_split`, in `selection.json` beside each arm's operating point): the benign flag rate inside versus
+    outside the attack phases, and attack-entity recall per load level (the phase intensity the plan records). It is
+    descriptive and never a gate. A closed-loop load probe stays optional (D-034).
 
 ## 9. The enforcing arm (today the L7 engine is shadow-only)
 
