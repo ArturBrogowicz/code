@@ -104,6 +104,25 @@
   "exhausted": "when every product page has been visited, a new uniform permutation starts",
   "rule": "the values are ASSUMPTIONS fixed here, before any model sees data; they are never adjusted after a model has been scored; the harm ladder may change only the number of bots"
  },
+ "arrivals": {
+  "label": "re-registered 2026-10-31 by the user, before any capture (T-030 L7V2-03; the user's 'L7v2 fixes: approve both')",
+  "benign": "every benign entity, in every role, arrives at a time drawn uniformly over [0, the last attack slot's end - min_active_s] and runs to the capture's end; a CGNAT pool runs from 0 and each of its users arrives over the same span; held-out kinds arrive like the trained ones, with no slot",
+  "attack": "every attack entity arrives at a time drawn uniformly over [its slot's start, its slot's end - min_active_s] and runs to its slot's end",
+  "flash_crowd": "its arrival window (arrive_within_s) starts at a time drawn uniformly over the benign arrival span, at least flash_gap_s away from every attack slot's start",
+  "first_visit_s": [
+   0.0,
+   10.0
+  ],
+  "min_active_s": 60.0,
+  "flash_gap_s": 60.0,
+  "age_check": {
+   "statistic": "the first-seen times (seconds from the capture start) of the key units: an entity's arrival, and each CGNAT user's first view; the flash crowd is left out, being a burst by definition",
+   "ks_max": 0.3,
+   "auc_band": 0.15,
+   "held_out_ks_max": 0.45,
+   "rule": "an l7v2 plan is refused unless the two-sample KS distance between the benign and the attack first-seen times is at most ks_max, the AUC of first-seen time as a score for the attack role is within 0.5 +- auc_band, and, when it holds held-out benign kinds, their KS distance to the trained benign kinds' is at most held_out_ks_max"
+  }
+ },
  "harm": {
   "metric": "request-level Q and p95 of the benign clients against the calibration record's slo_ms, on its judged_profiles, with eval/harm_gate.py's rules unchanged (criterion, floors, control health, 1-s bins)",
   "never_sent_after_s": 10.0,

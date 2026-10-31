@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(REPO, "ml"))
 import l7_tpcw
 import l7v2_prereg as P
 
-PREREG_SHA256 = "e71c8381ab168651b5f5a42466ff8c7edf8406eb5ff69b0d6093976213c0d80e"
+PREREG_SHA256 = "27d1eb9738ce0c815a7b3ce5418eed6e77d85b646b536d95df160c090c45a3e4"
 
 
 class FrozenFileTest(unittest.TestCase):
@@ -98,6 +98,14 @@ class FrozenFileTest(unittest.TestCase):
         e = [P.dwell("M2exp", rng) for _ in range(4000)]
         self.assertLessEqual(max(e), 70.0)
         self.assertAlmostEqual(sum(e) / len(e), 7.0, delta=0.4)
+
+    def test_arrivals(self):
+        a = P.load()["arrivals"]
+        self.assertTrue(a["label"].startswith("re-registered 2026-10-31 by the user, before any capture"))
+        self.assertEqual((a["min_active_s"], a["flash_gap_s"], a["first_visit_s"]), (60.0, 60.0, [0.0, 10.0]))
+        self.assertEqual({k: a["age_check"][k] for k in ("ks_max", "auc_band", "held_out_ks_max")},
+                         {"ks_max": 0.3, "auc_band": 0.15, "held_out_ks_max": 0.45})
+        self.assertIn("every role", a["benign"])
 
     def test_harm(self):
         h = P.load()["harm"]
