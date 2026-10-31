@@ -53,7 +53,7 @@ below 50 ms; neither can be met on most vCPUs.
 
 **Rules, frozen before any gate data.**
 
-1. **Pinning [PROPOSAL, replaces design 7.4].** Server stack CPUs 0-1, daemon CPU 2, **legit streams CPU 6**, attack streams CPUs 3, 4, 5 and 7.
+1. **Pinning [PROPOSAL, replaces design 7.4].** Server stack CPUs 0-1, daemon CPU 2, **legit streams CPU 6**, attack streams CPUs 3, 4, 5 and 7 (as approved on 2026-10-23; amended below).
    **D14 amended 2026-10-31 by the user, before any capacity data (AP-1's origin step runs on CPU 0, unaffected; D-032):** the legit
    streams, and the timer gate with them (rule 2: one probe, p99 below 10 ms, the limit unchanged), move to **CPU 7**, which the latest
    idle timer probes found the quietest (T-000, 2026-10-29: only CPU 7 under 10 ms p99; CPU 6 at 12.6 ms) [CLAIMED, T-000/T-004]; the
@@ -71,7 +71,7 @@ below 50 ms; neither can be met on most vCPUs.
    are not repeated.
 
 **Not decided here.** Whether idle-priority busy loops on the other vCPUs would remove the lateness at its root (it needs a short VM probe and
-changes the system under test). It is the fallback if the environment gate of 2 fails on vCPU 6 in HG2.
+changes the system under test). It is the fallback if the environment gate of 2 fails on the legit streams' vCPU in HG2 (vCPU 7 since the amendment of 1; vCPU 6 before).
 
 ## 5. Contracts
 
