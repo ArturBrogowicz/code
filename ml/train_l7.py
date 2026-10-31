@@ -378,13 +378,30 @@ def entity_flags(windows, scores, threshold, consecutive):
     return out
 
 
+def unit_cost(flagged_keys, units):
+    """The benign-budget units an entity's flags cost: one unit per flagged key, at most the entity's units
+    (l7_dataset.user_units). The user's rule of 2026-10-31 ("budget counted per key, a CGNAT user = one key"),
+    shared by this module's operating_point (the P3 curves) and ml/train_l7v2.py (the L7 v2 arms)."""
+    return min(int(flagged_keys), int(units))
+
+
+def flagged_keys(windows, scores, threshold, consecutive):
+    """{entity: number of its keys (window "ip", "ua_h") with `consecutive` successive windows over `threshold`}."""
+    out = {}
+    for (ent, _ua), g in per_group(windows, scores).items():
+        if policy_detected(g, [p for _, p, _ in g], threshold, consecutive):
+            out[ent] = out.get(ent, 0) + 1
+    return out
+
+
 def operating_point(windows, scores, theta_grid=None, k_grid=None, budget=None):
     """The (threshold, consecutive) chosen on VALIDATION windows: among the grid points that flag
     at most floor(budget x benign units) benign units, the one with the highest attack-entity
     recall; ties go to fewer benign flags, a smaller k (faster), then a higher threshold. None when
     the set has no attack or no benign entity, or no point fits the budget. A benign entity is one
-    unit, except a schema-3 pool, which is as many units as it has users: flagging a 24-user CGNAT
-    pool charges 24 (l7_dataset.user_units; T-030 L7V2-07)."""
+    unit, except a schema-3 pool, which is as many units as it has users (l7_dataset.user_units;
+    T-030 L7V2-07), and a flagged key costs one unit, at most its entity's units (unit_cost: the
+    user's per-key rule of 2026-10-31, so one flagged key of a 24-user CGNAT pool costs 1, not 24)."""
     lc = _prereg_curve()
     theta_grid = lc["theta_grid"] if theta_grid is None else theta_grid
     k_grid = lc["k_grid"] if k_grid is None else k_grid
@@ -399,11 +416,11 @@ def operating_point(windows, scores, theta_grid=None, k_grid=None, budget=None):
     best = None
     for k in k_grid:
         for thr in theta_grid:
-            flags = entity_flags(windows, scores, thr, k)
-            fb = sum(units[e] for e in ben if flags.get(e, False))
+            nkeys = flagged_keys(windows, scores, thr, k)
+            fb = sum(unit_cost(nkeys.get(e, 0), units[e]) for e in ben)
             if fb > allowed:
                 continue
-            caught = sum(flags.get(e, False) for e in atk)
+            caught = sum(1 for e in atk if nkeys.get(e, 0))
             key = (caught, -fb, -k, thr)
             if best is None or key > best[0]:
                 best = (key, {"threshold": float(thr), "consecutive": int(k), "val_attack_caught": caught,

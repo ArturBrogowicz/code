@@ -20,21 +20,27 @@ class DefaultSelectionTest(unittest.TestCase):
             self.assertEqual(T.default_selection([d]), "val")
 
 
-def window(ent, cls, units=1):
-    return {"ip": ent, "ua_h": 1, "t": 0.0, "cls": cls, "recs": [{"_units": units}]}
+def window(ent, cls, units=1, ua=1):
+    return {"ip": ent, "ua_h": ua, "t": 0.0, "cls": cls, "recs": [{"_units": units}]}
 
 
 class UserUnitsTest(unittest.TestCase):
-    def test_the_budget_refuses_a_flagged_24_user_pool(self):
+    def test_a_flagged_pool_key_costs_one_unit(self):
+        """The budget's denominator counts a pool by its users (T-030 L7V2-07); a flagged key costs one unit, at
+        most its entity's units: the user's per-key rule of 2026-10-31 (a CGNAT user = one key; T-035)."""
         windows = [window(f"b{i}", "benign") for i in range(173)] + [window("pool", "benign", 24)]
         windows += [window(f"a{i}", "attack") for i in range(20)]
         scores = [0.0] * 173 + [0.96] + [0.96] * 20
         point = T.operating_point(windows, scores, theta_grid=[0.95, 0.98], k_grid=[1], budget=0.01)
         self.assertEqual((point["benign_allowed"], point["val_benign_units"]), (1, 197))
-        self.assertEqual((point["threshold"], point["val_benign_flagged"], point["val_attack_caught"]), (0.98, 0, 0))
-        legacy = [dict(w, recs=[{}]) for w in windows]          # one unit per entity: the pool would pass as 1 flag
-        self.assertEqual(T.operating_point(legacy, scores, theta_grid=[0.95, 0.98], k_grid=[1], budget=0.01)["threshold"],
-                         0.95)
+        self.assertEqual((point["threshold"], point["val_benign_flagged"], point["val_attack_caught"]), (0.95, 1, 20))
+        two = windows + [window("pool", "benign", 24, ua=2)]         # a second user of the pool: 2 units > 1
+        point2 = T.operating_point(two, scores + [0.96], theta_grid=[0.95, 0.98], k_grid=[1], budget=0.01)
+        self.assertEqual((point2["threshold"], point2["val_benign_flagged"], point2["val_attack_caught"]),
+                         (0.98, 0, 0))
+        one_unit = [dict(w, recs=[{}]) for w in two]                 # one unit per entity: two keys still cost 1
+        self.assertEqual(T.operating_point(one_unit, scores + [0.96], theta_grid=[0.95, 0.98], k_grid=[1],
+                                           budget=0.01)["threshold"], 0.95)
 
     def test_records_carry_their_pools_units(self):
         with tempfile.TemporaryDirectory() as root:

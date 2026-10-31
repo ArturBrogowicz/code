@@ -669,9 +669,15 @@ engine's constants. Each module's constants are tested against it.
   be 0 by construction. `page_view` tells such tokens from page views.
 - **Sessions.** v2 keys idle for 300 s are evicted, and the trainer splits keys at the same start-time gap. The P5
   engine's 60 s would cut a benign key at the 70 s think-time cap.
-- **The budget's unit cost.** A flagged key costs one unit of its entity, at most the entity's `user_units`. Key-level
-  flags (level 1 of 9.2) act on one user of a CGNAT pool, not on all of them. The P3 note's section 10 counts a
-  flagged pool by all its users; that is the XDP-ban (level 2) reading.
+- **The budget's unit cost.**
+  - **The user's decision (2026-10-31):** "budget counted per key (a CGNAT user = one key)".
+  - **The rule:** a flagged key costs one unit of its entity, at most the entity's `user_units` (`train_l7.unit_cost`).
+  - **One rule, two consumers:** `train_l7v2.assess` (the arms) and `train_l7.operating_point` (the P3 curves and the
+    trainer's validation rule) both use it.
+  - **It supersedes** commit 9662960 of `feat/l7v2-traffic` ("the benign budget counts a pool by its users"). That
+    commit charged a flagged pool all its users, in `train_l7.operating_point` and its test
+    `test_the_budget_refuses_a_flagged_24_user_pool`. The denominator still counts a pool by its users.
+  - **At the request level** the key is (entity, UA), so pool users who share a UA count as one key.
 - **Recall's denominator** is every attack entity with a labelled request, the same for every arm. An arm cannot gain
   by scoring fewer entities.
 

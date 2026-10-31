@@ -319,7 +319,7 @@ def assess(dec, split):
             caught[ent] = min(caught.get(ent, math.inf), ttd)
         else:
             flagged_keys[ent] = flagged_keys.get(ent, 0) + 1
-    ben_flagged = sum(min(n, split.units.get(ent, 1)) for ent, n in flagged_keys.items())
+    ben_flagged = sum(T.unit_cost(n, split.units.get(ent, 1)) for ent, n in flagged_keys.items())
     ttds = sorted(caught.values())
     return {"caught": len(caught), "attack_entities": len(split.attack),
             "recall": round(len(caught) / len(split.attack), 4) if split.attack else None,

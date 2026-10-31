@@ -157,6 +157,11 @@ class OperatingPointTest(unittest.TestCase):
         a = V.assess(dec, self.split)
         self.assertEqual((a["benign_units_flagged"], a["benign_entities_flagged"]), (2, 2))
 
+    def test_one_unit_rule_for_both_budget_consumers(self):
+        self.assertEqual([train_l7.unit_cost(n, 3) for n in (0, 1, 2, 3, 5)], [0, 1, 2, 3, 3])
+        dec = {("c1", ("10.0.16.200", 1, s)): ("c1|pool", 50.0) for s in (1, 2)}
+        self.assertEqual(V.assess(dec, self.split)["benign_units_flagged"], train_l7.unit_cost(2, 3))
+
     def test_ties_go_to_fewer_benign_flags_then_faster_then_grid_order(self):
         s = self.scores(bot=0.99, benign=0.55)
         op = V.operating_point(self.ws, s, self.split, {**PRE.selection(), "budget": 0.5})
