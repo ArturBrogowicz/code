@@ -684,9 +684,8 @@ engine's constants. Each module's constants are tested against it.
 **Arms (10), as built in `ml/train_l7v2.py`:**
 - The view GRU, the HGB and LR on the same windows' token summaries, the per-request GRU (seq 64, `V2_REQUEST_GROUPS`),
   and the shuffled-GRU at the view GRU's (θ, k).
-- The P3 curves (`ml/learning_curve.py --level view`) keep the P3 tool's rule instead: the shuffled-GRU gets its own
-  validation point. The P3 note does not say which rule applies, so the two notes differ here. This is flagged for the
-  user.
+- The P3 curves (`ml/learning_curve.py`) score the shuffled-GRU at its GRU's (θ, k) too, at both levels. This is the
+  user's decision of 2026-10-31. Before it, the P3 tool chose the shuffled-GRU's own validation point.
 - **Not built here:**
   - the rule arms (per-endpoint cost budget, multi-scale rate, population-level detector);
   - the enforcing arm (9, T-025c);

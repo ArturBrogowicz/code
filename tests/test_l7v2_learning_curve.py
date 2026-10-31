@@ -51,6 +51,9 @@ class ViewCurveTest(unittest.TestCase):
             self.assertIn("benign_units_flagged", op)
             self.assertFalse(any(k.startswith("_") for k in op))
 
+    def test_the_shuffled_gru_takes_its_grus_point(self):
+        assert_shuffled_at_gru_point(self, self.sel)
+
     def test_the_models_load_at_their_level(self):
         from l7_view_model import ViewGRU
         models = LC._load_models(self.sel, self.out)
@@ -79,6 +82,33 @@ class ViewCurveTest(unittest.TestCase):
             fh.write(b"x")
         with self.assertRaises(LC.SelectionError):
             LC.load_selection(os.path.join(tmp, "selection.json"), self.sha)
+
+
+def assert_shuffled_at_gru_point(case, sel):
+    """The user's decision of 2026-10-31: every shuffled-GRU fit carries the operating point of the GRU fit it
+    shuffles (same fraction, draw and init), at both levels."""
+    gru = {(f["fraction"], f["draw"], f["init"]): f for f in sel["fits"] if f["model"] == "gru"}
+    shuffled = [f for f in sel["fits"] if f["model"] == "gru_shuffled"]
+    case.assertEqual(len(shuffled), len(gru))
+    for f in shuffled:
+        twin = gru[(f["fraction"], f["draw"], f["init"])]
+        case.assertEqual(f["operating_point"], twin["operating_point"])
+        case.assertEqual(f["artifact"], twin["artifact"])
+
+
+class RequestLevelShuffledTest(unittest.TestCase):
+    def test_the_request_level_shuffled_gru_takes_its_grus_point(self):
+        from test_l7_train import synth_dataset
+        with tempfile.TemporaryDirectory() as root:
+            d = os.path.join(root, "ds")
+            synth_dataset(d, n_benign=6, n_attack=3, held_benign=1)
+            cols = LC.F.columns(LC.T.variant_groups()[LC.VARIANT])
+            sets = LC.legacy_sets(d, cols, LC.T.DEFAULT_SEQ, LC.T.DEFAULT_STRIDE)
+            sel, _sha = LC.select({"train": sets["train"], "val": sets["val"]}, os.path.join(root, "sel"),
+                                  threads=2, seed=0, valid_for_claims=False, source="fixture",
+                                  split_sha256=LC.legacy_split_sha256(sets), **DESIGN)
+        assert_shuffled_at_gru_point(self, sel)
+        self.assertEqual((LC.SHUFFLED, LC.SHUFFLED_POINT_OF), ("gru_shuffled", "gru"))
 
 
 class LevelTest(unittest.TestCase):

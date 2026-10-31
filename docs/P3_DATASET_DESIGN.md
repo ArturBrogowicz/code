@@ -329,5 +329,6 @@ signal is rate-separable" (`S1:T-005/learning_curve_protocol.md`).
 - **Operating points (6.1)** use the grids and the budget of `ml/p3_prereg.json`, with L7 v2's unit cost and tie rules
   (`ml/l7v2_model_prereg.json`, pinned equal to this protocol's grids and budget). Recall counts every evaluation attack
   entity with a request; an entity without a window counts as missed.
-- **The shuffled-GRU keeps its own validation point here**, as at the request level. `docs/L7V2_DESIGN.md` section 10
-  gives the P1 arm the GRU's (θ, k) instead; see its section 16.
+- **The shuffled-GRU is scored at its GRU's (θ, k)**, at both levels. This is the user's decision of 2026-10-31, the
+  rule `docs/L7V2_DESIGN.md` section 10 gives the P1 arm. Before that decision, the request level chose the
+  shuffled-GRU's own validation point. With the shared point, the gap measures order, not a re-tuned threshold.

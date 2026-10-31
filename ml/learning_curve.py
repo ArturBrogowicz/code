@@ -20,7 +20,9 @@ The design, with every constant from ml/p3_prereg.json ("learning_curve"):
   * models on identical windows: gru (train_l7's GRU), hgb (window summaries), lr (standardised summaries, balanced
     class weights) and gru_shuffled (each fitted GRU scoring windows whose valid rows are shuffled);
   * each fit's operating point (threshold, consecutive) on the VALIDATION entities at the benign budget
-    (train_l7.operating_point), frozen in the selection and applied unchanged to the evaluation entities;
+    (train_l7.operating_point), frozen in the selection and applied unchanged to the evaluation entities; the
+    shuffled-GRU takes the operating point of the GRU it shuffles (the user's decision of 2026-10-31, as
+    docs/L7V2_DESIGN.md section 10 gives it), at both levels, so the gap measures order, not a re-tuned threshold;
   * metrics: entity recall per attack family and pooled, benign flags per client-hour per kind, time to decision;
   * a two-level bootstrap: each draw resamples the fits, the evaluation captures (clusters) and the entities within
     each capture; the estimate is the mean over fits of the pooled recall; 95 % percentile intervals;
@@ -28,7 +30,7 @@ The design, with every constant from ml/p3_prereg.json ("learning_curve"):
 
 L7 v2 (--level view, the default for schema-3 captures): the models of §6.1 on identical VIEW windows keyed by
 (IP, UA, sid): the view GRU (l7_view_model), HGB and LR on the same windows' token summaries, and the shuffled-GRU
-(tokens shuffled within each window at scoring, its own operating point as at the request level), built by
+(tokens shuffled within each window at scoring, at its GRU's operating point as at the request level), built by
 ml/train_l7v2.py; each fit's operating point uses L7 v2's unit cost and tie rules (ml/l7v2_model_prereg.json, grids and
 budget pinned equal to this file's), and recall counts every evaluation attack entity with a request.
 """
@@ -57,6 +59,7 @@ import l7_features as F
 
 FORMAT = "p3-learning-curve/1"
 MODELS = ("gru", "hgb", "lr", "gru_shuffled")
+SHUFFLED, SHUFFLED_POINT_OF = "gru_shuffled", "gru"     # the shuffled-GRU is scored at its GRU's (theta, k)
 VARIANT = "no_size_no_server_timing"      # the variant every P5c result used; P3 freezes its own (§6.1)
 
 
@@ -354,10 +357,14 @@ def select(sets, out_dir, *, fractions, draws, inits, full_inits, epochs, hidden
             tab_cache[(f, d)] = {"hgb": (save(hgb, f"hgb_f{f}_d{d}.pkl", "pickle"), hgb.predict_proba(sv)[:, 1]),
                                  "lr": (save(lr, f"lr_f{f}_d{d}.pkl", "pickle"), lr.predict_proba(sv)[:, 1])}
         val_scores.update(tab_cache[(f, d)])
+        ops = {}
         for m in MODELS:
             (art, sha), pv = val_scores[m]
-            op = T.operating_point(val_shuf if m == "gru_shuffled" else val, pv, rules["theta_grid"], rules["k_grid"],
-                                   rules["benign_budget"])
+            if m == SHUFFLED:                  # the GRU's own (theta, k): the user's decision of 2026-10-31
+                op = ops[SHUFFLED_POINT_OF]
+            else:
+                op = T.operating_point(val, pv, rules["theta_grid"], rules["k_grid"], rules["benign_budget"])
+            ops[m] = op
             fits.append({"model": m, "fraction": f, "draw": d, "init": i, "artifact": art, "artifact_sha256": sha,
                          "train_entities": len(keep), "train_windows": len(train),
                          "val_loss": round(vloss, 5) if m.startswith("gru") else None, "operating_point": op})
@@ -598,11 +605,16 @@ def select_view(sets, out_dir, *, fractions, draws, inits, full_inits, epochs, h
             tab_cache[(f, d)] = {"hgb": (save(hgb, f"hgb_f{f}_d{d}.pkl", "pickle"), hgb.predict_proba(sv)[:, 1]),
                                  "lr": (save(lr, f"lr_f{f}_d{d}.pkl", "pickle"), lr.predict_proba(sv)[:, 1])}
         val_scores.update(tab_cache[(f, d)])
+        ops = {}
         for m in MODELS:
             (art, sha), pv = val_scores[m]
-            op = V.operating_point(val.view, pv, val, rules)
-            if op is not None:
-                op = {k: v for k, v in op.items() if not k.startswith("_")}
+            if m == SHUFFLED:                  # the GRU's own (theta, k): the user's decision of 2026-10-31
+                op = ops[SHUFFLED_POINT_OF]
+            else:
+                op = V.operating_point(val.view, pv, val, rules)
+                if op is not None:
+                    op = {k: v for k, v in op.items() if not k.startswith("_")}
+            ops[m] = op
             fits.append({"model": m, "fraction": f, "draw": d, "init": i, "artifact": art, "artifact_sha256": sha,
                          "train_entities": len(keep), "train_windows": len(train),
                          "val_loss": round(vloss, 5) if m.startswith("gru") else None, "operating_point": op})
