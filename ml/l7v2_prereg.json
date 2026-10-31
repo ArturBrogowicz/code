@@ -86,8 +86,9 @@
   "C3b": {
    "name": "headless-browser bots, non-human navigation (a request-level emulation)",
    "costly": "each navigation view is followed by the form page of its costly route (/page/search for C3, /page/account for C5; a page view whose Referer is the navigation page) and then by one costly request issued in-page from that form page (Referer: the form page); every step waits a dwell from the mimicry law, so the costly request comes a dwell after its form page, as a benign search or export does",
-   "costly_label": "re-registered 2026-10-31 by the user, before any capture (T-030 L7V2-04: no Referer or timing tell; C2 and C3a, the controls, keep theirs)",
-   "route": "C3", "variant_route": "C5",
+   "costly_label": "re-registered 2026-10-31 by the user, before any capture (T-030 L7V2-04: no Referer or timing tell; C2 and C3a, the controls, keep theirs). When 05176fc wrote this label the user had not yet decided: it was a forward reference, confirmed by the user on 2026-10-31 (C3b: 'Keep, aim at export')",
+   "route": "C5", "variant_route": "C3",
+   "route_label": "re-registered 2026-10-31 by the user, before any capture: C3b's costly route is export (C5), search (C3) the variant (the user's 'Keep, aim at export'); its form page is the account page that benign exporters load",
    "intensity": "the number of bots",
    "ladder_bots": [50, 100, 200, 300],
    "ladder_note": "if 300 bots cannot be carried (the ~300-alias limit with the benign population), the ladder stops at 200 and the knee is searched below it",
