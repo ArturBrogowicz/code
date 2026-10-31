@@ -53,6 +53,7 @@ and selection.json (variant, operating point, split sha256) beside the package.
     ./venv/bin/python ml/train_l7.py results/2026-10-16_l7-p5c3-capture ...   # p5c, as published
 """
 import argparse
+import collections
 import json
 import math
 import os
@@ -87,6 +88,8 @@ def load_records(dataset_dir):
     label = l7_dataset.labeler(manifest)
     t0 = l7_dataset.time_origin(manifest)
     kof = l7_dataset.kind_or_family(manifest)
+    units = collections.Counter(cluster for _u, cluster, _r in l7_dataset.user_units(manifest)) \
+        if manifest.get("format") in l7_dataset.FORMATS_P3 else {}
     by_entity = manifest.get("format") in l7_dataset.FORMATS_P3
     recs = []
     with l7_dataset.open_log(log_path) as fh:      # plain or gzipped (schema 2, published)
@@ -103,6 +106,7 @@ def load_records(dataset_dir):
             rec["_cls"], rec["_family"], rec["_held"] = cls, family, held
             rec["_entity"] = entity
             rec["_kof"] = kof.get(entity if by_entity else rec["ip"])
+            rec["_units"] = units.get(entity, 1)       # a schema-3 pool counts by its users (T-030 L7V2-07)
             recs.append(rec)
     return manifest, recs
 
@@ -376,24 +380,27 @@ def entity_flags(windows, scores, threshold, consecutive):
 
 def operating_point(windows, scores, theta_grid=None, k_grid=None, budget=None):
     """The (threshold, consecutive) chosen on VALIDATION windows: among the grid points that flag
-    at most floor(budget x benign entities) benign entities, the one with the highest attack-entity
+    at most floor(budget x benign units) benign units, the one with the highest attack-entity
     recall; ties go to fewer benign flags, a smaller k (faster), then a higher threshold. None when
-    the set has no attack or no benign entity, or no point fits the budget."""
+    the set has no attack or no benign entity, or no point fits the budget. A benign entity is one
+    unit, except a schema-3 pool, which is as many units as it has users: flagging a 24-user CGNAT
+    pool charges 24 (l7_dataset.user_units; T-030 L7V2-07)."""
     lc = _prereg_curve()
     theta_grid = lc["theta_grid"] if theta_grid is None else theta_grid
     k_grid = lc["k_grid"] if k_grid is None else k_grid
     budget = lc["benign_budget"] if budget is None else budget
     cls = {w["ip"]: w["cls"] for w in windows}
+    units = {w["ip"]: (w.get("recs") or [{}])[0].get("_units", 1) for w in windows}
     ben = sorted(e for e, c in cls.items() if c == l7_dataset.BENIGN)
     atk = sorted(e for e, c in cls.items() if c == l7_dataset.ATTACK)
     if not ben or not atk:
         return None
-    allowed = math.floor(budget * len(ben) + 1e-9)
+    allowed = math.floor(budget * sum(units[e] for e in ben) + 1e-9)
     best = None
     for k in k_grid:
         for thr in theta_grid:
             flags = entity_flags(windows, scores, thr, k)
-            fb = sum(flags.get(e, False) for e in ben)
+            fb = sum(units[e] for e in ben if flags.get(e, False))
             if fb > allowed:
                 continue
             caught = sum(flags.get(e, False) for e in atk)
@@ -402,6 +409,7 @@ def operating_point(windows, scores, theta_grid=None, k_grid=None, budget=None):
                 best = (key, {"threshold": float(thr), "consecutive": int(k), "val_attack_caught": caught,
                               "val_attack_entities": len(atk), "val_recall": round(caught / len(atk), 4),
                               "val_benign_flagged": fb, "val_benign_entities": len(ben),
+                              "val_benign_units": sum(units[e] for e in ben),
                               "benign_allowed": allowed, "budget": budget})
     return best[1] if best else None
 
