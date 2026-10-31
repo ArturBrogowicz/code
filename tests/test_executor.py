@@ -37,6 +37,8 @@ SPECS = os.path.join(REPO, "bench", "scenarios")
 GOLDEN = os.path.join(REPO, "tests", "golden")
 CAL = C.load(C.PLACEHOLDER)
 OUT = "/var/tmp/ddos_campaigns/example/b01_a1"
+# P4's per-connection rule: the daemon reads these, and uses them only with SLOW_PC=1
+SLOW_PC_PARAMETERS = {"SLOW_PC_ENFORCE", "SLOW_PC_KILL_FILE", "SLOW_PC_RECORD", "SLOW_PC_T", "SLOW_PC_F", "SLOW_PC_K"}
 
 
 def spec_path(name):
@@ -540,7 +542,8 @@ class MitigatedPlanTest(unittest.TestCase):
         self.assertIn(f'NGINX_ERROR_LOG = "{EX.FEED_ERROR_LOG}"', self.DAEMON_SOURCE)
         read_by_daemon = set(re.findall(r'os\.environ\.get\(\s*"(\w+)"', self.DAEMON_SOURCE))
         planned = {k for k, _ in plan("M_xdp").daemon.env}
-        self.assertEqual(read_by_daemon - planned, {"L7_SOCKET_PATH"}, "read only when L7_SHADOW=1, which the plan sets to 0")
+        self.assertEqual(read_by_daemon - planned, {"L7_SOCKET_PATH"} | SLOW_PC_PARAMETERS,
+                         "read only when L7_SHADOW=1, or used only when SLOW_PC=1, which the plan sets to 0")
         self.assertLessEqual(planned, read_by_daemon)
 
     def test_the_daemon_is_planned_with_its_environment_its_directory_and_its_cpu(self):
@@ -552,7 +555,7 @@ class MitigatedPlanTest(unittest.TestCase):
         self.assertEqual((d.events, d.log), (f"{p.out}/ban_events.jsonl", f"{p.out}/daemon.log"))
         self.assertEqual(dict(d.env), {"MITIGATION_BACKEND": "xdp", "BAN_EVENTS": f"{p.out}/ban_events.jsonl", "XDP_GRU": "0",
                                        "GRU_ONLY": "0", "L7_SHADOW": "0", "HEURISTIC_PROFILE": "default", "L7_MODEL": "",
-                                       "L7_RECORD": ""})
+                                       "L7_RECORD": "", "SLOW_PC": "0"})
         for kind in ("C", "Cp", "U", "M_limits"):
             self.assertIsNone(plan(kind).daemon, kind)
 
