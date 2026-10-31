@@ -219,19 +219,59 @@ def benign_downloader(host, port, params, dur, rng):
         time.sleep(rng.uniform(lo, hi))
 
 
+class PacedBody:
+    """An upload body of `n` bytes that leaves no faster than `rate` bytes/s: P4's slow_uploader, a client behind a
+    16 kbit/s link (ml/l7_benign.py upload kinds). A file-like object with a length, so `requests` sends it with a
+    Content-Length like any body of known size, and reads it a piece at a time; each read returns at most CHUNK bytes,
+    once the rate allows them."""
+    CHUNK = 512
+
+    def __init__(self, n, rate, clock=time.monotonic, sleep=time.sleep):
+        if not rate > 0:
+            raise ValueError(f"rate {rate!r}: a positive number of bytes per second")
+        self.n, self.rate, self.clock, self.sleep = int(n), float(rate), clock, sleep
+        self.sent, self.t0 = 0, None
+
+    def __len__(self):
+        return self.n
+
+    def read(self, size=-1):
+        left = self.n - self.sent
+        if left <= 0:
+            return b""
+        if self.t0 is None:
+            self.t0 = self.clock()
+        want = min(left, self.CHUNK if size is None or size < 0 else max(1, min(size, self.CHUNK)))
+        wait = self.t0 + (self.sent + want) / self.rate - self.clock()
+        if wait > 0:
+            self.sleep(wait)
+        self.sent += want
+        return b"x" * want
+
+
 def benign_uploader(host, port, params, dur, rng):
+    """Post a body to /upload, think, repeat (ml/l7_benign.upload_plan; the P5 uploader's draws). With `rate_Bps` (P4's
+    slow_uploader) the body is paced at that rate (PacedBody); everything else is the same."""
     import requests
-    lo, hi = params.get("think_s", [4.0, 10.0])
-    blo, bhi = params.get("body_bytes", [200, 60000])
     path = params.get("path", "/upload")
+    rate = params.get("rate_Bps")
     end = _deadline(dur)
-    while time.time() < end:
-        body = b"x" * rng.randint(blo, bhi)
+    for size, think in l7_benign.upload_plan(params, dur, rng):
+        if time.time() >= end:
+            break
+        body = PacedBody(size, rate) if rate else b"x" * size
         try:
             _one_shot("post", _base(host, port) + path, data=body, verify=False, timeout=15)
         except requests.RequestException:
             pass
-        time.sleep(rng.uniform(lo, hi))
+        time.sleep(think)
+
+
+def benign_slow_uploader(host, port, params, dur, rng):
+    """P4's slow_uploader: the uploader with its body paced at params["rate_Bps"] (docs/P4_SLOW_DESIGN.md §4.2)."""
+    if not params.get("rate_Bps"):
+        raise SystemExit("[-] slow_uploader needs params rate_Bps (bytes per second)")
+    benign_uploader(host, port, params, dur, rng)
 
 
 def benign_nat_gateway(host, port, params, dur, rng):
@@ -551,7 +591,8 @@ BENIGN = {"curl_oneshot": benign_curl_oneshot, "http2": benign_http2,
           "crawler_polite": benign_crawler_polite, "tpcw_browsing": benign_tpcw_browsing,
           "tpcw_shopping": benign_tpcw_shopping, "zipf_browser": benign_zipf_browser,
           "search_user": benign_search_user,
-          "exporter": benign_exporter, "flash_crowd": benign_flash_crowd}
+          "exporter": benign_exporter, "flash_crowd": benign_flash_crowd,
+          "slow_uploader": benign_slow_uploader}
 ATTACK = {"subthreshold_flood": attack_subthreshold_flood, "scraper": attack_scraper,
           "padded_flood": attack_padded_flood, "credstuff": attack_credstuff,
           "slowloris": attack_slowloris, "slowpost": attack_slowpost,
