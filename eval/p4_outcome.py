@@ -32,8 +32,11 @@ is now 270 s.
 
 A run record (one dict per run; summarize() builds it from eval/harm_gate.run_metrics and the ban events):
     {"block": 3101, "arm": "M_pc_loris", "valid": true, "Q": 97.5, "p95_s": 0.21,
-     "q_per_s": [...one value or None per second of the run...], "q_level": 98.9,
+     "q_per_s": [...one value or None per second of the run...], "q_level": 98.9, "level_window": [120, 240],
      "banned": {"10.0.3.1": "attack", ...}, "benign_closed": 0}
+A record is refused unless it has one bin per second of the pre-registered run (RUN_S = 270) and its q_level was
+taken over LEVEL_WINDOW_S (review T-039 V-05): a run on another timeline, or a level over another window, is not
+judged silently.
 
     ./venv/bin/python eval/p4_outcome.py RUNS.jsonl [--json OUT]
 """
@@ -66,15 +69,27 @@ LEVEL_RATIO = 0.99
 LEVEL_FROM_S = T_MIT_S           # (b): [attack start + T_mit, attack end]
 LEVEL_WINDOW_S = (TIMELINE["baseline_s"] + LEVEL_FROM_S,           # the same span in run time: the
                   TIMELINE["baseline_s"] + TIMELINE["attack_s"])   # `window` of run_metrics for q_level
+RUN_S = sum(TIMELINE.values())   # a record has one q_per_s bin per second of the run
 ATTACK = "attack"
 SCOPE = "profile R, {families} at this scale, this testbed"
 FAMILY_NAMES = {"loris": "Slowloris", "post": "slow POST"}
 
 
-def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow_pc_closes=()):
+def check_record_timeline(q_per_s, level_window):
+    """Refuse bins that are not one per second of the pre-registered run, or a level not taken over
+    LEVEL_WINDOW_S."""
+    if len(q_per_s) != RUN_S:
+        raise ValueError(f"{len(q_per_s)} one-second bins, not {RUN_S} (the run of {TIMELINE})")
+    if level_window is None or [float(x) for x in level_window] != [float(x) for x in LEVEL_WINDOW_S]:
+        raise ValueError(f"q_level taken over {level_window!r}, not LEVEL_WINDOW_S {list(LEVEL_WINDOW_S)}")
+
+
+def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow_pc_closes=(), *, level_window):
     """One run record from the run's harm-gate metrics (eval/harm_gate.run_metrics: over the attack
-    window, and with window=LEVEL_WINDOW_S for `level_metrics`), its ban events and the role of every
-    client address. Every banned address must have a role."""
+    window, and with window=LEVEL_WINDOW_S for `level_metrics`; `level_window` is the window the caller
+    took it over, and must be LEVEL_WINDOW_S), its ban events and the role of every client address.
+    Every banned address must have a role."""
+    check_record_timeline(metrics["q_per_s"], level_window)
     banned = {}
     for ev in ban_events:
         if ev.get("kind") != "ban":
@@ -86,8 +101,8 @@ def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow
     benign_closed = len({(c["ip"], c["port"], c["sport"]) for c in slow_pc_closes
                          if roles.get(c["ip"], ATTACK) != ATTACK})
     return {"block": block, "arm": arm, "valid": bool(valid), "Q": metrics["Q"], "p95_s": metrics["p95_s"],
-            "q_per_s": list(metrics["q_per_s"]), "q_level": level_metrics["Q"], "banned": banned,
-            "benign_closed": benign_closed}
+            "q_per_s": list(metrics["q_per_s"]), "q_level": level_metrics["Q"],
+            "level_window": [float(x) for x in level_window], "banned": banned, "benign_closed": benign_closed}
 
 
 def recovery_s(q_per_s, threshold, start=TIMELINE["baseline_s"]):
@@ -118,6 +133,10 @@ def _blocks(runs):
             raise ValueError(f"unknown arm {r['arm']!r}")
         if r["block"] not in BLOCK_SEEDS:
             raise ValueError(f"block {r['block']!r} is not an evaluation seed")
+        try:
+            check_record_timeline(r["q_per_s"], r.get("level_window"))
+        except ValueError as exc:
+            raise ValueError(f"block {r['block']} {r['arm']}: {exc}") from None
         if r["arm"] in by.setdefault(r["block"], {}):
             raise ValueError(f"two runs of {r['arm']} in block {r['block']}")
         by[r["block"]][r["arm"]] = r

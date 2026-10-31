@@ -29,8 +29,8 @@ def bins(base, dip=None, until=None, total=270, start=35):
 def rec(block, arm, q, p95=0.10, q_per_s=None, q_level=None, banned=None, valid=True, closed=0):
     return {"block": block, "arm": arm, "valid": valid, "Q": q, "p95_s": p95,
             "q_per_s": q_per_s if q_per_s is not None else bins(q),
-            "q_level": q if q_level is None else q_level, "banned": banned or {},
-            "benign_closed": closed}
+            "q_level": q if q_level is None else q_level, "level_window": list(O.LEVEL_WINDOW_S),
+            "banned": banned or {}, "benign_closed": closed}
 
 
 def campaign(over=None):
@@ -186,17 +186,40 @@ class InputTest(unittest.TestCase):
                 O.outcome(bad)
 
     def test_summarize_from_the_harm_gate_metrics_and_the_events(self):
-        metrics = {"Q": 97.0, "p95_s": 0.2, "q_per_s": [99.0, None, 98.0]}
+        q = [99.0, None, 98.0] * 90
+        metrics = {"Q": 97.0, "p95_s": 0.2, "q_per_s": q}
         events = [{"kind": "start"}, {"kind": "ban", "ip": "10.0.3.1"}, {"kind": "ban", "ip": "10.0.4.1"}]
         closes = [{"ip": "10.0.4.1", "port": 1, "sport": 443}, {"ip": "10.0.4.1", "port": 1, "sport": 443},
                   {"ip": "10.0.3.1", "port": 2, "sport": 80}]
         roles = {"10.0.3.1": "attack", "10.0.4.1": "cgnat"}
-        r = O.summarize(3101, "M_pc_loris", True, metrics, {"Q": 98.0}, events, roles, closes)
+        win = O.LEVEL_WINDOW_S
+        r = O.summarize(3101, "M_pc_loris", True, metrics, {"Q": 98.0}, events, roles, closes, level_window=win)
         self.assertEqual(r, {"block": 3101, "arm": "M_pc_loris", "valid": True, "Q": 97.0, "p95_s": 0.2,
-                             "q_per_s": [99.0, None, 98.0], "q_level": 98.0,
+                             "q_per_s": q, "q_level": 98.0, "level_window": [120.0, 240.0],
                              "banned": {"10.0.3.1": "attack", "10.0.4.1": "cgnat"}, "benign_closed": 1})
         with self.assertRaises(ValueError):
-            O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [{"kind": "ban", "ip": "10.9.9.9"}], roles)
+            O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [{"kind": "ban", "ip": "10.9.9.9"}], roles,
+                        level_window=win)
+
+    def test_a_run_on_another_timeline_or_window_is_refused(self):
+        metrics = {"Q": 97.0, "p95_s": 0.2, "q_per_s": [99.0] * 180}          # the 30 + 120 + 30 s schedule
+        with self.assertRaises(ValueError):
+            O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [], {}, level_window=O.LEVEL_WINDOW_S)
+        metrics["q_per_s"] = [99.0] * 270
+        for window in ((30, 240), (60, 150), None):
+            with self.assertRaises(ValueError):
+                O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [], {}, level_window=window)
+        self.assertEqual(O.RUN_S, 270)
+        short = campaign({("M_pc_loris", 4): {"q_per_s": bins(99.5, total=180)}})
+        with self.assertRaisesRegex(ValueError, "180 one-second bins"):
+            O.outcome(short)
+        runs = campaign()
+        runs[7] = dict(runs[7], level_window=[60.0, 240.0])
+        with self.assertRaisesRegex(ValueError, "LEVEL_WINDOW_S"):
+            O.outcome(runs)
+        runs[7].pop("level_window")
+        with self.assertRaises(ValueError):
+            O.outcome(runs)
 
     def test_the_command_line(self):
         with tempfile.TemporaryDirectory() as tmp:
