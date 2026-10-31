@@ -71,10 +71,12 @@ class PinnedVolumeAndCurveTest(unittest.TestCase):
         v = P.load()["volume"]
         self.assertEqual((v["capture_s"], v["eval_capture_s"]), (900, 1140))
         self.assertEqual(v["lead_in_s"] + 3 * v["phase_s"] + v["tail_s"], v["capture_s"])
-        # The C3b@M3 slot is one 240 s slot after the core phases, and (D-034, 2026-10-31) the 120 s benign tail
+        # The C3b@M3 slot is one 240 s slot after the core phases, and (D-036, 2026-10-31) the 120 s benign tail
         # follows it as in every capture: 60 + 3 x 240 + 240 + 120 = 1,140 s (it was 1,020 s, the slot as the tail).
         self.assertEqual(v["lead_in_s"] + 3 * v["phase_s"] + v["eval_tail_s"] + v["tail_s"], v["eval_capture_s"])
-        self.assertTrue(v["eval_tail_label"].startswith("re-registered 2026-10-31 under D-034, before any capture"))
+        self.assertTrue(v["eval_tail_label"].startswith("re-registered 2026-10-31, before any capture"))
+        self.assertIn("confirmed by the user at 14:46:37Z ('Confirm 1140 s', D-036)", v["eval_tail_label"])
+        self.assertIn("forward reference", v["eval_tail_label"])
         self.assertEqual(v["core_phases"], ["C2", "C3a", "C3b@M2"])
         self.assertEqual(v["eval_only_phase"], "C3b@M3")
         self.assertEqual(v["phase_intensity_multipliers"], [0.5, 1, 2])

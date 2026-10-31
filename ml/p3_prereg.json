@@ -28,7 +28,7 @@
   "tail_s": 120,
   "eval_tail_s": 240,
   "eval_tail_note": "evaluation captures only: the 240 s slot after the core phases holds C3b@M3 and the held-out benign kinds, and the 120 s benign tail follows it as in every capture, so 60 + 3 x 240 + 240 + 120 = 1140 s",
-  "eval_tail_label": "re-registered 2026-10-31 under D-034, before any capture (T038-01): 1020 -> 1140 s; with key lifetimes from one law (ml/l7v2_prereg.json arrivals.lifetimes), an M3 bot needs the tail after its slot that the last core slot has, or its lifetimes, and so its window ages, are cut short (window-age AUC 0.31 at seed 3201 without it)",
+  "eval_tail_label": "re-registered 2026-10-31, before any capture: 1020 -> 1140 s, confirmed by the user at 14:46:37Z ('Confirm 1140 s', D-036). Committed in 7b40c86 (12:51Z) as part of the D-034 round (T038-01), whose text does not cover the capture length: until D-036 that label was a forward reference (T-042 F05). With key lifetimes from one law (ml/l7v2_prereg.json arrivals.lifetimes), an M3 bot needs the tail after its slot that the last core slot has, or its lifetimes, and so its window ages, are cut short (window-age AUC 0.31 at seed 3201 without it)",
   "core_phases": ["C2", "C3a", "C3b@M2"],
   "eval_only_phase": "C3b@M3",
   "phase_intensity_multipliers": [0.5, 1, 2],
