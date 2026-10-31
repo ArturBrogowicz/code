@@ -703,6 +703,38 @@ engine's constants. Each module's constants are tested against it.
 - On the P5c.3 capture, the base 30cb4d8 and this branch give byte-identical window matrices for all five variants,
   probe transforms and 2-epoch GRU weights (`S3:T-025b/test_logs/p5c_regen_*.json`).
 
+## As built: the enforcing arm (T-025c, 2026-10-31, branch `feat/l7v2-enforce`)
+
+Built offline; nothing ran on the VM. Section 9 as written, with these readings and additions (labelled post hoc,
+before any data). Usage and events: `docs/EVALUATION.md`, "L7 v2: the enforcing arm".
+
+**Readings of the design (not departures):**
+- **Key-age gate (9.1).** A decision on a key younger than 20 s waits and is acted on when the key is 20 s old. The
+  engine fires once per streak, so dropping it would let a fast key escape for good.
+- **"Keeps sending >= 30 s after its deny" (9.2).** A request of the key that started at least 30 s after the reload
+  that published its deny (nginx answers it 429 and logs it). For an unenforceable key, whose level 1 is a miss, the
+  reference is the decision.
+- **Single-key (9.2).** Distinct UA hashes, and distinct sids of requests that carry one, seen from the address in
+  the last 10 min. An address the arm has not seen counts as shared.
+- **TTL (9.2).** A deny ends 300 s after it was added (not after it took effect).
+- **One path (9.5).** The enforcing arm takes its detector and operating point from the frozen selection
+  (`L7_SELECTION`, its sha256, `L7_ARM`), never from `L7_MODEL` (the shadow's), so a placeholder point cannot reach it.
+
+**Additions the design does not cover:**
+- nginx matches map strings ignoring case and refuses a map that lists one key twice, so keys that differ only in
+  case share one line (`ngx_http_map_module.c`, `ngx_hash.c` of nginx 1.28.3).
+- nginx refuses a map whose longest key does not fit a hash bucket; the run's conf sets the bucket and max sizes.
+- No deny outlives its daemon: the map is emptied at the daemon's start and stop. The kill switch also drops the
+  decisions waiting for the key-age gate.
+- The level-2 ban reaches `ban_ip` through the arm's injected callable, engine `l7v2`, kept out of
+  `ban_events.ENGINES` (which `tests/test_control_plane_contract.py` pins to the direct calls).
+
+**A conflict for the user (not resolved here).** 9.4 excludes `;` from a writable UA. Every UA of
+`ml/l7_benign.UA_TABLE` contains one (17 of 17, weight 0.99 of 0.99; 3 of the 6 `ml/l7_gen.UAS`), so as written no
+testbed browser key can be denied at level 1: P1's arm would act only by misses and level-2 bans of single-key
+addresses. Inside nginx's double quotes only `"` and `\` are special (`ngx_conf_read_token`,
+`src/core/ngx_conf_file.c` of 1.28.3); `;`, `{`, `}` and `$` are ordinary. Without `;` in the rule, all 23 UAs pass.
+
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.
 - G1-02 Kadel et al., BOTracle, ESORICS Workshops 2024.

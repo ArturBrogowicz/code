@@ -18,12 +18,12 @@ Every record has:
                       | "slow_pc_capped" | "slow_pc_poll" | "slow_pc_close_retry"
                       | "l7_enforce_arm" | "l7_deny" | "l7_deny_end" | "l7_enforce_skip"
                       | "l7_enforce_miss" | "l7_enforce_capped" | "l7_reload"
-                      | "l7_enforce_poll"
+                      | "l7_enforce_poll" | "l7_kill"
                       (the l7_* kinds are the L7 shadow engine's telemetry; a
                       would-ban is a decision that was logged, not enforced; a
                       daemon_error is an error the daemon survived and retried;
                       the slow_pc_* kinds are the P4 per-connection rule's, slow_pc.py;
-                      l7_enforce_*, l7_deny* and l7_reload are the L7 v2 enforcing
+                      l7_enforce_*, l7_deny*, l7_reload and l7_kill are the L7 v2 enforcing
                       arm's, l7_enforce.py, written only with L7_ENFORCE=1)
 plus kind-specific fields (ip, engine, value, threshold, ...); the full schema is
 documented in docs/EVALUATION.md.
