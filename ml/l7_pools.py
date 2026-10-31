@@ -45,8 +45,9 @@ L7 v2 intensity: each phase draws a multiplier m from {0.5, 1, 2} (ml/p3_prereg.
 P1 ladder. C2's per-entity rate is m x L_knee x S / (n x cost(route)), S and the cost from the calibration record
 in use (l7_backend.load_record; the placeholder until HG2 is frozen); C3a's page gaps are divided by m; C3b's frozen
 parameters may change only through the number of bots, which P3 fixes, so m is recorded for C3b and not applied. A
-training, validation or evaluation plan needs frozen knees (`knees`); a pilot plan without them uses the placeholder
-knee L = 1 and says so.
+training, validation or evaluation plan needs frozen knees (`knees`) bound to a frozen calibration record: the knees
+carry the sha256 of the record they were measured on (`record_sha256`, the record's own digest), and the plan's record
+must be that record (T-030 L7V2-08); a pilot plan without knees uses the placeholder knee L = 1 and says so.
 """
 import bisect
 import copy
@@ -480,16 +481,28 @@ def c2_rps(m, level, spare_cpu_s, n, cost_ms):
     return round(m * level * spare_cpu_s / (n * cost_ms / 1000.0), 4)
 
 
-def _knees(knees, seed_role):
-    """The knees a plan uses: frozen ones for training, validation and evaluation; the placeholder for a pilot."""
-    if knees is None:
-        if seed_role in ("train", "val", "eval"):
+def _knees(knees, seed_role, rec):
+    """The knees a plan uses (T-030 L7V2-08): for training, validation and evaluation, frozen knees measured on the
+    plan's own calibration record, which must be frozen; the placeholder for a pilot without knees. Knees that name
+    their record (`record_sha256`, the record's digest) are refused on any other record, whatever the role."""
+    bound = knees.get("record_sha256") if knees else None
+    if bound is not None and bound != rec.get("sha256"):
+        raise PlanError(f"the knees were measured on the calibration record {str(bound)[:12]}..., not on the record in "
+                        f"use ({str(rec.get('sha256'))[:12]}...): C2's rate would mix two records")
+    if seed_role in ("train", "val", "eval"):
+        if knees is None:
             raise PlanError("an L7 v2 plan for training, validation or evaluation needs the frozen knees of the P1 "
                             "ladder (docs/L7V2_DESIGN.md 5.3); none is given")
-        return dict(PLACEHOLDER_KNEES)
-    if seed_role in ("train", "val", "eval") and knees.get("status") != "frozen":
-        raise PlanError(f"knees with status {knees.get('status')!r}: training, validation and evaluation need frozen ones")
-    return dict(knees)
+        if knees.get("status") != "frozen":
+            raise PlanError(f"knees with status {knees.get('status')!r}: training, validation and evaluation need "
+                            "frozen ones")
+        if rec.get("status") != "frozen":
+            raise PlanError(f"the calibration record in use is {rec.get('status')!r}: training, validation and evaluation "
+                            "need a frozen record (--calibration)")
+        if bound is None:
+            raise PlanError("knees for training, validation or evaluation must name the calibration record they were "
+                            "measured on (record_sha256)")
+    return dict(PLACEHOLDER_KNEES) if knees is None else dict(knees)
 
 
 def build_plan(version, seed, seed_role, population="smoke", *, heuristics="tolerant", scale=1,
@@ -535,7 +548,7 @@ def build_plan(version, seed, seed_role, population="smoke", *, heuristics="tole
         if status == "measured":
             rec = l7_backend.arithmetic_record(rec, l7_backend.load_record()[0])
         import calibration as CAL
-        rates = {"knees": _knees(knees, seed_role), "record_status": rec["status"], "record_tag": tag,
+        rates = {"knees": _knees(knees, seed_role, rec), "record_status": rec["status"], "record_tag": tag,
                  "label": l7_backend.label(rec), "spare_cpu_s": CAL.spare_capacity(rec),
                  "route_costs_ms": dict(rec["route_costs_ms"])}
 

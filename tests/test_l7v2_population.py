@@ -1,14 +1,16 @@
 """The L7 v2 population of the P3 capture plans (ml/l7_pools.py POPULATIONS["l7v2"]; docs/L7V2_DESIGN.md §6, §7.2,
 §7.3; docs/P3_DATASET_DESIGN.md §5). Offline and pure; the admissibility gate is simulated over two seeds."""
+import json
 import os
 import sys
 import tempfile
 import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-for _p in (REPO, os.path.join(REPO, "ml"), os.path.join(REPO, "bench")):
+for _p in (REPO, os.path.join(REPO, "ml"), os.path.join(REPO, "bench"), os.path.join(REPO, "tests")):
     sys.path.insert(0, _p)
 import calibration as CAL
+import calibration_fixtures
 import l7_benign
 import l7_pools as LP
 import p3_prereg
@@ -16,12 +18,20 @@ import p3_prereg
 import l7_backend
 import l7_dataset as D
 
-FROZEN_KNEES = {"status": "frozen", "C2": 4.0}
 GATE = (0, 1)
+# a frozen record with the placeholder's numbers (tests/calibration_fixtures.frozen), so the plans keep their rates;
+# the knees name it (T-030 L7V2-08)
+FROZEN = calibration_fixtures.frozen()
+FROZEN_KNEES = {"status": "frozen", "C2": 4.0, "record_sha256": FROZEN["sha256"]}
+_TMP = tempfile.TemporaryDirectory()
+FROZEN_PATH = os.path.join(_TMP.name, "frozen.json")
+with open(FROZEN_PATH, "w", encoding="utf-8") as _fh:
+    json.dump(FROZEN, _fh)
 
 
-def plan(seed, role, knees=FROZEN_KNEES, **kw):
-    return LP.build_plan("2026-11-v1", seed, role, "l7v2", knees=knees, gate_seeds=GATE, check_role=False, **kw)
+def plan(seed, role, knees=FROZEN_KNEES, record_path=FROZEN_PATH, **kw):
+    return LP.build_plan("2026-11-v1", seed, role, "l7v2", knees=knees, gate_seeds=GATE, check_role=False,
+                         record_path=record_path, **kw)
 
 
 _PLANS = {}
@@ -70,15 +80,35 @@ class TrainingPlanTest(unittest.TestCase):
             with self.subTest(knees=knees), self.assertRaises(LP.PlanError):
                 plan(1001, "train", knees=knees)
 
+    def test_knees_are_bound_to_a_frozen_record(self):
+        # T-030 L7V2-08: the knees name the record they were measured on, and a training, validation or evaluation
+        # plan runs on that record, frozen
+        other = calibration_fixtures.frozen(created="2026-10-25T08:00:00Z")
+        self.assertNotEqual(other["sha256"], FROZEN["sha256"])
+        for role, seed in (("train", 1001), ("val", 2001), ("eval", 3201)):
+            for why, knees, path in (
+                    ("knees of another record", {**FROZEN_KNEES, "record_sha256": other["sha256"]}, FROZEN_PATH),
+                    ("knees that name no record", {"status": "frozen", "C2": 4.0}, FROZEN_PATH),
+                    ("the placeholder record", FROZEN_KNEES, None),
+                    ("the placeholder record, knees bound to it",
+                     {**FROZEN_KNEES, "record_sha256": l7_backend.load_record()[0]["sha256"]}, None)):
+                with self.subTest(role=role, why=why), self.assertRaises(LP.PlanError):
+                    plan(seed, role, knees=knees, record_path=path)
+        with self.assertRaisesRegex(LP.PlanError, "measured on the calibration record"):
+            plan(9201, "pilot", knees={**FROZEN_KNEES, "record_sha256": other["sha256"]}, record_path=None)
+        self.assertEqual(plan(9201, "pilot", knees=FROZEN_KNEES)["intensity"]["knees"], FROZEN_KNEES)
+
     def test_c2_rate_follows_its_rule_on_the_record_in_use(self):
         p = Cache.get(1001, "train")
-        rec, _, _ = l7_backend.load_record()
+        rec, _, _ = l7_backend.load_record(FROZEN_PATH)
         s = CAL.spare_capacity(rec)
         ph = next(x for x in p["timeline"]["phases"] if x["name"] == "C2")
         for e in (e for e in p["entities"] if e["kind_or_family"] == "C2"):
             self.assertAlmostEqual(e["params"]["rps"], ph["intensity"] * 4.0 * s / (50 * 0.030), places=3)
             self.assertIn(e["params"]["ua"], [ua for _, ua in l7_benign.UA_TABLE])
-        self.assertEqual((p["intensity"]["record_status"], p["intensity"]["label"]), ("placeholder", "PLACEHOLDER"))
+        self.assertEqual((p["intensity"]["record_status"], p["intensity"]["label"]), ("frozen", "frozen"))
+        self.assertEqual(CAL.spare_capacity(rec), CAL.spare_capacity(l7_backend.load_record()[0]),
+                         "the fixture keeps the placeholder's numbers")
 
     def test_c3b_aims_at_export(self):
         p = Cache.get(1001, "train")
@@ -145,8 +175,9 @@ class EvaluationPlanTest(unittest.TestCase):
         self.assertEqual(set(p["pool"]["role_map"]), {e["address"] for e in p["entities"]})
 
     def test_a_pilot_plan_uses_the_placeholder_knee_and_says_so(self):
-        p = plan(9201, "pilot", knees=None)
+        p = plan(9201, "pilot", knees=None, record_path=None)
         self.assertEqual(p["intensity"]["knees"], {"status": "placeholder", "C2": 1.0})
+        self.assertEqual(p["intensity"]["record_status"], "placeholder")
         self.assertEqual(p["duration_s"], 1140.0)
 
 

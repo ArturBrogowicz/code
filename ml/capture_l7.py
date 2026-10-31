@@ -655,8 +655,9 @@ def main():
                     help="p3: simulated seeds of the benign admissibility gate")
     ap.add_argument("--calibration", help="p3 l7v2: the calibration record the costed backend serves under "
                                           "(default: the placeholder; recorded with its status)")
-    ap.add_argument("--knees", help="p3 l7v2: a JSON file of the frozen knees of the P1 ladder (training, validation "
-                                    "and evaluation plans need it)")
+    ap.add_argument("--knees", help="p3 l7v2: a JSON file of the frozen knees of the P1 ladder with the record_sha256 "
+                                    "of the --calibration record they were measured on (training, validation and "
+                                    "evaluation plans need both)")
     ap.add_argument("--store", default="/home/artur/datasets/l7",
                     help="p3: the dataset store; the capture goes to <store>/<version>/<capture_id>/ "
                          "(refused under /var/tmp, /tmp or the repository)")
