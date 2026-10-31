@@ -56,7 +56,7 @@ def write_run(run_dir, role, klass, seed, harm=0.0, server_harm=None, ok=True, d
         with open(os.path.join(run_dir, "records", e["entity_id"].replace(":", "_") + ".csv"), "w", newline="") as fh:
             w = csv.writer(fh)
             w.writerow(H.RECORD_COLUMNS)
-            for (u, v), (t_rel, classes) in sorted(planned.items()):
+            for (u, v), (t_rel, classes, _pause) in sorted(planned.items()):
                 if drop_view == (e["index"], u, v):
                     continue
                 t_nom = origin + t_rel
@@ -93,30 +93,106 @@ def write_block(root, block, cal, harm, attempt=1, **kw):
     return d
 
 
-PLANNED = {(0, 0): (0.0, ["C1", "C0"]), (0, 1): (10.0, ["C1"]), (0, 2): (20.0, ["C3", "C0"]), (0, 3): (30.0, ["C1"])}
+PLANNED = {(0, 0): (0.0, ["C1", "C0"], 10.0), (0, 1): (10.0, ["C1"], 10.0), (0, 2): (20.0, ["C3", "C0"], 10.0),
+           (0, 3): (30.0, ["C1"], 10.0)}
+
+
+def row(view, t_sent, klass="C1", took=0.01, user=0):
+    return {"t_intended": t_sent, "t_sent": t_sent, "t_done": t_sent + took, "status": 200.0, "err": "",
+            "route_class": klass, "user": user, "view": view, "wave": 0, "t_nominal": 0.0, "t_origin": 1000.0}
+
+
+def never(out):
+    return sorted((r["view"], r["route_class"], round(r["t_intended"], 2)) for r in out if r["err"] == H.NEVER_SENT)
 
 
 class NeverSentTest(unittest.TestCase):
-
-    def row(self, view, t_sent, klass="C1"):
-        return {"t_intended": t_sent, "t_sent": t_sent, "t_done": t_sent + 0.01, "status": 200.0, "err": "",
-                "route_class": klass, "user": 0, "view": view, "wave": 0, "t_nominal": 0.0, "t_origin": 1000.0}
-
-    def test_views_due_in_the_window_that_never_started_fail(self):
-        rows = [self.row(0, 1000.0), self.row(1, 1011.0)]
+    def test_each_view_is_judged_on_the_devices_own_schedule(self):
+        # view 0 done at 1000.01 -> view 1 is intended at 1010.01 and starts at 1011 (on time); it is done at 1011.01 ->
+        # view 2 is intended at 1021.01 and never starts, so its two requests fail there; it never completed, so view 3
+        # is intended a pause later, at 1031.01, and fails too
+        rows = [row(0, 1000.0, "C1"), row(0, 1000.0, "C0"), row(1, 1011.0)]
         out = H.with_never_sent(rows, PLANNED, 1000.0, (1005.0, 1035.0), after_s=10.0)
-        failed = [r for r in out if r["err"] == H.NEVER_SENT]
-        self.assertEqual(sorted((r["view"], r["route_class"], r["t_intended"]) for r in failed),
-                         [(2, "C0", 1020.0), (2, "C3", 1020.0), (3, "C1", 1030.0)])
-        self.assertEqual(len(out), 5, "the two sent rows stay")
+        self.assertEqual(never(out), [(2, "C0", 1021.01), (2, "C3", 1021.01), (3, "C1", 1031.01)])
+        self.assertEqual(len(out), 6)
 
-    def test_a_view_started_too_late_counts_as_never_sent_once(self):
-        rows = [self.row(2, 1031.0, "C3"), self.row(2, 1031.1, "C0")]
+    def test_a_view_started_too_late_on_its_own_schedule_fails_once(self):
+        rows = [row(0, 1000.0, "C1"), row(0, 1000.0, "C0"), row(1, 1010.01), row(2, 1031.5, "C3"), row(2, 1031.6, "C0")]
         out = H.with_never_sent(rows, PLANNED, 1000.0, (1015.0, 1025.0), after_s=10.0)
-        self.assertEqual([(r["err"], r["t_intended"]) for r in out], [(H.NEVER_SENT, 1020.0)] * 2)
+        self.assertEqual([(r["view"], r["err"]) for r in out if r["view"] == 2], [(2, H.NEVER_SENT)] * 2)
+        self.assertEqual(never(out), [(2, "C0", 1020.02), (2, "C3", 1020.02)])
 
-    def test_the_guard_is_the_pre_registered_ten_seconds(self):
+    def test_a_started_view_with_a_missing_request(self):
+        out = H.with_never_sent([row(0, 1000.0, "C1")], PLANNED, 1000.0, (995.0, 1005.0), after_s=10.0)
+        self.assertEqual(never(out), [(0, "C0", 1000.0)])
+        self.assertEqual(len(out), 2)
+
+    def test_the_guard_is_the_pre_registered_ten_seconds_on_the_own_schedule(self):
         self.assertEqual(H._rule()["never_sent_after_s"], 10.0)
+        self.assertEqual(H._rule()["never_sent_schedule"], "the device's own closed loop")
+
+
+ORIGIN, WINDOW = 1000.0, (1060.0, 1240.0)
+TPCW = {"entity_id": "x:1:0", "kind_or_family": "tpcw_browsing", "client_seed": 4242,
+        "params": {"level": 30, "first_visit_s": [0.0, 30.0], "think_mean_s": 7.5}}
+PACED = {"api_bulk": {"entity_id": "x:1:1", "kind_or_family": "api_bulk", "client_seed": 77,
+                      "params": {"rps": [15.0, 20.0], "endpoints": [2, 3]}},
+         "crawler_polite": {"entity_id": "x:1:2", "kind_or_family": "crawler_polite", "client_seed": 78,
+                            "params": {"rps": [2.0, 5.0], "level": 30}}}
+
+
+def closed_loop(planned, load_s, stall_view=None, stall_s=11.0, stop_after=None):
+    """The reviewer's probes (T-030 P7, probe_paced): a closed-loop device whose every view or request takes load_s (one
+    view stall_s), each next one starting at the previous completion plus its pause; it sends nothing after view
+    stop_after."""
+    rows, lag = [], 0.0
+    for (u, v), (t_rel, classes, _pause) in sorted(planned.items()):
+        if stop_after is not None and v > stop_after:
+            break
+        start = ORIGIN + t_rel + lag
+        took = stall_s if v == stall_view else load_s
+        for c in classes:                       # as the probe: each request answered in 0.05 s, the view taking load_s
+            rows.append({"t_intended": start, "t_sent": start, "t_done": start + (stall_s if v == stall_view else 0.05),
+                         "status": 200.0, "err": "",
+                         "route_class": c, "user": u, "view": v, "wave": 0, "t_nominal": ORIGIN + t_rel,
+                         "t_origin": ORIGIN})
+        lag += took
+    return rows
+
+
+class ReviewerProbeTest(unittest.TestCase):
+    def setUp(self):
+        self.planned = H.planned_views(TPCW, 300.0)
+        self.in_window = [(u, v) for (u, v), (t, _c, _p) in self.planned.items() if WINDOW[0] <= ORIGIN + t < WINDOW[1]]
+        self.assertGreater(len(self.in_window), 10)
+
+    def test_p7_one_stall_fails_only_the_slow_view(self):
+        stall = min(v for _u, v in self.in_window)
+        for load, stalled in ((0.2, None), (0.2, stall), (0.5, None)):
+            rows = closed_loop(self.planned, load, stalled)
+            out = H.with_never_sent(rows, self.planned, ORIGIN, WINDOW)
+            self.assertEqual(never(out), [], (load, stalled))
+            for r in out:
+                r["netem"] = "perfect"
+            m = H.metrics(out, CF.placeholder(), WINDOW, ORIGIN, 300.0)
+            want = len(self.planned[(0, stall)][1]) if stalled is not None else 0
+            self.assertEqual(m["failures"].get("slow", 0), want, (load, stalled))
+            self.assertEqual(m["failures"].get("never_sent", 0), 0)
+
+    def test_an_omission_still_counts(self):
+        stop = min(v for _u, v in self.in_window)
+        out = H.with_never_sent(closed_loop(self.planned, 0.2, stop_after=stop), self.planned, ORIGIN, WINDOW)
+        failed_views = {v for v, _c, _t in never(out)}
+        self.assertEqual(failed_views, {v for _u, v in self.in_window if v > stop})
+
+    def test_probe_paced_no_failure_in_a_healthy_control(self):
+        for kind, e in PACED.items():
+            planned = H.planned_views(e, 300.0)
+            n_in = sum(1 for (_u, _v), (t, _c, _p) in planned.items() if WINDOW[0] <= ORIGIN + t < WINDOW[1])
+            self.assertGreater(n_in, 100, kind)
+            for lat in (0.002, 0.005, 0.02):
+                out = H.with_never_sent(closed_loop(planned, lat), planned, ORIGIN, WINDOW)
+                self.assertEqual(never(out), [], (kind, lat))
 
 
 class MetricsTest(unittest.TestCase):
@@ -232,13 +308,13 @@ class RecordsTest(unittest.TestCase):
             rec.close()
             rows = H.read_client_records(path)
         planned = H.planned_views(e, 60.0)
-        self.assertEqual(len(rows), sum(len(c) for _, c in planned.values()))
+        self.assertEqual(len(rows), sum(len(c) for _, c, _p in planned.values()))
         self.assertEqual({(r["user"], r["view"]) for r in rows}, set(planned))
         for r in rows:
             self.assertEqual((r["t_intended"], r["status"], r["err"]), (r["t_sent"], 200.0, ""))
             self.assertAlmostEqual(r["t_nominal"] - r["t_origin"], planned[(r["user"], r["view"])][0], places=3)
         self.assertEqual(sorted(r["route_class"] for r in rows),
-                         sorted(c for _, cs in planned.values() for c in cs))
+                         sorted(c for _, cs, _p in planned.values() for c in cs))
 
     def test_records_are_refused_for_an_attack_or_a_non_plan_kind(self):
         for argv in (["--role", "attack", "--family", "C2"], ["--role", "benign", "--kind", "keepalive"]):

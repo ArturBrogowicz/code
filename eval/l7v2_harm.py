@@ -9,10 +9,13 @@ applied to closed-loop benign clients:
   * every benign client writes one row per request (ml/l7_gen.py --records): t_intended, t_sent, t_done, status, err,
     route_class, user, view, wave, t_nominal, t_origin (wall-clock seconds). A closed-loop client has no schedule
     within a view, so a sent request has t_intended = t_sent;
-  * the never-sent guard: a planned view whose nominal start falls in the attack window and that has not started
-    `never_sent_after_s` (10 s) after it counts every request it planned as failed (err never_sent) at t_intended =
-    its nominal start. The plan is recomputed from the manifest (l7_benign.plan_client with the entity's kind, params
-    and client seed), so a client that stalled, died or never started cannot hide its omissions;
+  * the never-sent guard, on each device's own closed-loop schedule (re-registered 2026-10-31, T-030 L7V2-01/02): a
+    view's intended start is the completion of the device's previous view plus that one's pause, so one stall fails
+    only the views that were slow and a paced kind's latency books no failure; a view whose intended start falls in the
+    attack window and that has not started `never_sent_after_s` (10 s) after it counts every request it planned as
+    failed (err never_sent) at that intended start. The plan is recomputed from the manifest (l7_benign.plan_client
+    with the entity's kind, params and client seed), so a client that stalled, died or never started cannot hide its
+    omissions;
   * Q is the share of the judged requests (a benign entity on a judged link profile, a route class with an SLO)
     whose t_intended is in the attack window and that returned 2xx within the class's SLO; p95 is over the
     successful ones. Per block: dQ = Q(C) - Q(U_k), dL = log2(p95(U_k) / p95(C)), and the same against the placebo C';
@@ -31,6 +34,7 @@ stores them flat, records_<entity_id>.csv.gz), access.log[.gz], and run.json {"r
     ./venv/bin/python eval/l7v2_harm.py CAMPAIGN --calibration FILE --class C3b [--dry-run] [--json OUT]
 """
 import argparse
+import collections
 import csv
 import gzip
 import json
@@ -88,46 +92,61 @@ def read_client_records(path):
 
 
 def planned_views(entity, duration_s):
-    """{(user, view): (t_nominal_rel, [route classes of the planned requests])} of a benign entity, recomputed from its
-    manifest row exactly as its generator built it. A paced request is a one-request view."""
+    """{(user, view): (t_nominal_rel, [route classes of the planned requests], pause_s)} of a benign entity, recomputed
+    from its manifest row exactly as its generator built it. A paced request is a one-request view whose pause is its
+    gap."""
     plan = l7_benign.plan_client(entity["kind_or_family"], entity["params"], duration_s,
                                  random.Random(entity["client_seed"]))
     out = {}
     for u, user in enumerate(plan["users"]):
         if "views" in user:
             for v, view in enumerate(user["views"]):
-                out[(u, v)] = (view["t"], [l7_webapp.route_class("GET", p) or "" for w in view["waves"] for p in w])
+                out[(u, v)] = (view["t"], [l7_webapp.route_class("GET", p) or "" for w in view["waves"] for p in w],
+                               view["pause_s"])
         else:
             t = 0.0
             for v, (path, gap, *_rest) in enumerate(user["requests"]):
-                out[(u, v)] = (t, [l7_webapp.route_class("GET", path) or ""])
+                out[(u, v)] = (t, [l7_webapp.route_class("GET", path) or ""], gap)
                 t += gap
     return out
 
 
+def _failed(t, klass, key, origin):
+    return {"t_intended": t, "t_sent": math.nan, "t_done": math.nan, "status": math.nan, "err": NEVER_SENT,
+            "route_class": klass, "user": key[0], "view": key[1], "wave": -1, "t_nominal": t, "t_origin": origin}
+
+
 def with_never_sent(rows, planned, origin, window_abs, after_s=None):
-    """`rows` with the never-sent guard applied: each planned view whose nominal start (origin + t) is in window_abs and
-    that did not start within `after_s` of it is replaced by one failed row per planned request."""
+    """`rows` with the never-sent guard on each device's own closed-loop schedule (ml/l7v2_prereg.json harm, re-registered
+    2026-10-31): a view's intended start is the completion of the device's previous view plus that one's pause (the first
+    view's is its nominal start, origin + t; a view that never completed hands its intended start on). A view whose
+    intended start is in window_abs and that did not start within `after_s` of it fails every request it planned, at that
+    start; a started view's planned requests that have no row fail the same way. A paced request is a one-request view."""
     after_s = _rule()["never_sent_after_s"] if after_s is None else after_s
     lo, hi = window_abs
     by_view = {}
     for r in rows:
         by_view.setdefault((r["user"], r["view"]), []).append(r)
-    late = set()
-    out = []
-    for key, (t_rel, classes) in sorted(planned.items()):
-        t_nom = origin + t_rel
-        if not lo <= t_nom < hi:
-            continue
-        got = by_view.get(key, [])
-        sent = [r["t_sent"] for r in got if not math.isnan(r["t_sent"])]
-        if sent and min(sent) - t_nom <= after_s:
-            continue
-        late.add(key)
-        out += [{"t_intended": t_nom, "t_sent": math.nan, "t_done": math.nan, "status": math.nan, "err": NEVER_SENT,
-                 "route_class": c, "user": key[0], "view": key[1], "wave": -1, "t_nominal": t_nom,
-                 "t_origin": origin} for c in classes]
-    out += [r for r in rows if (r["user"], r["view"]) not in late]
+    out, judged = [], set()
+    for user in sorted({u for u, _v in planned}):
+        intended = None
+        for key in sorted(k for k in planned if k[0] == user):
+            t_rel, classes, pause = planned[key]
+            intended = origin + t_rel if intended is None else intended
+            got = by_view.get(key, [])
+            judged.add(key)
+            sent = [r["t_sent"] for r in got if not math.isnan(r["t_sent"])]
+            if lo <= intended < hi:
+                if not sent or min(sent) - intended > after_s:
+                    out += [_failed(intended, c, key, origin) for c in classes]
+                    got = []
+                else:
+                    missing = collections.Counter(classes) - collections.Counter(r["route_class"] for r in got)
+                    out += [_failed(intended, c, key, origin) for c in sorted(missing.elements())]
+            out += got
+            done = [r["t_done"] for r in by_view.get(key, []) if not math.isnan(r["t_done"])]
+            intended = (max(done) if classes and len(done) >= len(classes) else intended) + pause
+    out += [r for k, g in by_view.items() if k not in judged for r in g]
     return out
 
 
