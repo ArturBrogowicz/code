@@ -80,6 +80,11 @@ class TrainingPlanTest(unittest.TestCase):
             self.assertIn(e["params"]["ua"], [ua for _, ua in l7_benign.UA_TABLE])
         self.assertEqual((p["intensity"]["record_status"], p["intensity"]["label"]), ("placeholder", "PLACEHOLDER"))
 
+    def test_c3b_aims_at_export(self):
+        p = Cache.get(1001, "train")
+        self.assertEqual({e["params"]["route"] for e in p["entities"] if e["kind_or_family"].startswith("C3b@")}, {"C5"})
+        self.assertEqual({e["params"]["route"] for e in p["entities"] if e["kind_or_family"] in ("C2", "C3a")}, {"C3"})
+
     def test_c3a_gaps_scale_with_the_phase(self):
         p = Cache.get(1001, "train")
         m = next(x for x in p["timeline"]["phases"] if x["name"] == "C3a")["intensity"]

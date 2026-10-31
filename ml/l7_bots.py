@@ -11,6 +11,8 @@ its existing machinery (closed-loop paced requests, or the browser-device execut
        request; no assets, no JS; cookies kept; Referer = the previous page (the costly request: its page)
   C3b  headless-browser bots, a request-level emulation: views that load like a browser's (asset waves, a cache,
        six keep-alive connections); after each navigation view, the costly route's form page and, a dwell later,
+       (the route is export, C5, from the account page benign exporters load: the user's 2026-10-31 decision;
+       search, C3, is the variant)
        one costly request issued from it (re-registered 2026-10-31: no Referer or timing tell); Referer and cookies
        like the benign browser; the navigation is the mimicry level's:
          M1     product pages uniform without replacement (deep links), a constant 3 s dwell (a sanity level)
@@ -104,7 +106,7 @@ def c3b_views(params, duration_s, rng, mimicry):
     in-page from that form page (Referer: the form page); every step waits a dwell from the mimicry law, so the costly
     request comes a dwell after its form page, as a benign search or export does. Views: [{"t", "page", "waves",
     "pause_s", "ref", "doc"}]."""
-    level, route = params["level"], params.get("route", "C3")
+    level, route = params["level"], params.get("route", l7v2_prereg.load()["classes"]["C3b"]["route"])
     first = params.get("first_view_s", l7v2_prereg.load()["classes"]["C3b"]["first_view_s"])
     form = FORM_PAGE[route]
     wave1_all, fonts = l7_webapp.site_assets(level)

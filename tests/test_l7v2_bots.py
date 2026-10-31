@@ -72,11 +72,13 @@ class C3aTest(unittest.TestCase):
 
 
 FORM = {"C3": "/page/search", "C5": "/page/account"}
+C3B_ROUTE = P.load()["classes"]["C3b"]["route"]
 
 
 class C3bTest(unittest.TestCase):
-    def check_views(self, views, route="C3", deep_links=True):
+    def check_views(self, views, route=None, deep_links=True):
         """Cycles of (navigation view, the form page, one in-page costly request), each step a dwell after the last."""
+        route = route or C3B_ROUTE
         doc, seen, assets = None, set(), []
         for i, v in enumerate(views):
             step = i % 3
@@ -105,11 +107,11 @@ class C3bTest(unittest.TestCase):
         self.assertEqual({v["pause_s"] for v in u["views"]}, {3.0})
         self.assertLess(u["views"][0]["t"], 10.0)
 
-    def test_m2_uniform_dwell_and_the_c5_variant(self):
+    def test_m2_uniform_dwell_and_the_c3_variant(self):
         vs = plan("C3b@M2", {"level": 60}, 2, 1200.0)["views"]
         self.check_views(vs)
         self.assertTrue(all(2.0 <= v["pause_s"] <= 12.0 for v in vs))
-        self.check_views(plan("C3b@M2", {"level": 30, "route": "C5"})["views"], route="C5")
+        self.check_views(plan("C3b@M2", {"level": 30, "route": "C3"})["views"], route="C3")
 
     def test_m3_walks_the_page_states_of_the_benign_chain(self):
         vs = plan("C3b@M3", {"level": 30}, 4, 6000.0)["views"]
@@ -128,6 +130,20 @@ class C3bTest(unittest.TestCase):
         pages = [v["waves"][0][0] for v in nav]
         self.assertEqual(len(set(pages[:200])), 200)
         self.assertGreater(len(pages), 200)
+
+    def test_c3b_costly_requests_are_exports_from_the_export_page(self):
+        # the user's 2026-10-31 decision: C3b aims at export, from the page that benign exporters load
+        import l7_benign
+        ex = l7_benign.plan_client("exporter", {"level": 30}, 3600.0, random.Random(3))["users"][0]["views"]
+        export_page = {v["ref"] for v in ex if v["waves"][0][0].startswith("/export")}
+        self.assertEqual(export_page, {"/page/account"})
+        for family in ("C3b@M1", "C3b@M2", "C3b@M3", "C3b@M2exp"):
+            costly = plan(family, {"level": 30}, 9, 1200.0)["views"][2::3]
+            self.assertGreater(len(costly), 10, family)
+            for v in costly:
+                self.assertEqual(l7_webapp.route_class("GET", v["waves"][0][0]), "C5", family)
+                self.assertRegex(v["waves"][0][0], r"^/export\?r=\d{1,4}$")
+                self.assertEqual(v["ref"], "/page/account", family)
 
     def test_costly_requests_carry_no_placement_tell(self):
         # T-030 L7V2-04: like a benign search, the costly request names its form page and comes a dwell after it

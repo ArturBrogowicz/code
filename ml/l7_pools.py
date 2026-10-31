@@ -202,11 +202,11 @@ def _l7v2_attack():
                                                                                          "page_gap_s": [2.0, 8.0]},
          "draws": dict(ua)},
         {"family": "C3b@M2", "mechanism": "nav", "count": 50, "ports": [80, 443],
-         "params": {"route": "C3", "mimicry": "M2", "level": 30}, "draws": {**ua, "level": ["choice", [30, 60]]}},
+         "params": {"route": "C5", "mimicry": "M2", "level": 30}, "draws": {**ua, "level": ["choice", [30, 60]]}},
         {"family": "C3b@M1", "mechanism": "nav", "count": 10, "ports": [80, 443],
-         "params": {"route": "C3", "mimicry": "M1", "level": 30}, "draws": {**ua, "level": ["choice", [30, 60]]}},
+         "params": {"route": "C5", "mimicry": "M1", "level": 30}, "draws": {**ua, "level": ["choice", [30, 60]]}},
         {"family": "C3b@M3", "mechanism": "nav", "count": 50, "ports": [80, 443], "held_out": True,
-         "params": {"route": "C3", "mimicry": "M3", "level": 30}, "draws": {**ua, "level": ["choice", [30, 60]]},
+         "params": {"route": "C5", "mimicry": "M3", "level": 30}, "draws": {**ua, "level": ["choice", [30, 60]]},
          "reuse": "C2"},
     ]
 
