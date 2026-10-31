@@ -17,7 +17,7 @@ import p4_outcome as O
 BOTH = "supported with scope: profile R, Slowloris and slow POST at this scale, this testbed"
 
 
-def bins(base, dip=None, until=None, total=180, start=35):
+def bins(base, dip=None, until=None, total=270, start=35):
     """1-s bins of a run: `base`, except `dip` from second `start` to `until` (run time)."""
     q = [base] * total
     if dip is not None:
@@ -64,12 +64,26 @@ class PinnedConstantsTest(unittest.TestCase):
         self.assertEqual(O.BLOCK_SEEDS, tuple(range(3101, 3111)))
         self.assertEqual(O.ARMS, ("C", "Cp", "U_loris", "U_post", "M_def_loris", "M_pc_loris",
                                   "M_def_post", "M_pc_post"))
-        self.assertEqual(O.TIMELINE, {"baseline_s": 30, "attack_s": 120, "recovery_s": 30})
+        self.assertEqual(O.TIMELINE, {"baseline_s": 30, "attack_s": 210, "recovery_s": 30})
         self.assertEqual(O.GATE, {"floor_pp": 10.0, "floor_log2_p95": 1.0, "ci_level": 0.95,
                                   "same_sign_share": 0.8})
         self.assertEqual((O.MIN_VALID_BLOCKS, O.BLOCK_SHARE), (10, (9, 10)))
         self.assertEqual((O.T_MIT_S, O.LEVEL_FROM_S), (90.0, 90.0))      # re-registered 2026-10-30
         self.assertEqual((O.RECOVERY_RATIO, O.RECOVERY_BINS, O.LEVEL_RATIO), (0.99, 5, 0.99))
+
+    def test_the_attack_was_re_registered_to_210_s_before_any_data(self):
+        # The user's decision of 2026-10-31 ("Lengthen to 210 s"): (b)'s window, from attack start +
+        # T_mit to the attack's end, is 120 s long again; the record is in the module and in
+        # docs/EVALUATION.md.
+        record = ("The P4 attack length 120 → 210 s, re-registered 2026-10-31 by the user, before "
+                  "any data")
+        self.assertEqual(O.LEVEL_WINDOW_S, (120.0, 240.0))
+        self.assertEqual(O.LEVEL_WINDOW_S[1] - O.LEVEL_WINDOW_S[0], 120.0)
+        self.assertEqual(sum(O.TIMELINE.values()), 270)
+        with open(os.path.join(REPO, "docs", "EVALUATION.md"), encoding="utf-8") as fh:
+            doc = " ".join(fh.read().split())
+        for text in (" ".join(O.__doc__.split()), doc):
+            self.assertIn(record, text)
 
 
 class RecoveryTest(unittest.TestCase):

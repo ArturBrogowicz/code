@@ -3,7 +3,7 @@
 analysis over run records, written and tested on synthetic fixtures before any evaluation data exist.
 
 Units: a BLOCK is one evaluation seed (3101-3110) with eight runs, C, Cp (the placebo C'), U_loris, U_post,
-M_def_loris, M_pc_loris, M_def_post and M_pc_post; a run is 30 s of baseline, 120 s of attack and 30 s of
+M_def_loris, M_pc_loris, M_def_post and M_pc_post; a run is 30 s of baseline, 210 s of attack and 30 s of
 recovery. Per family (loris, post):
 
   * HARMFUL iff the harm gate passes U against C (eval/harm_gate.criterion: a mean dQ = Q(C) - Q(U) of at least
@@ -22,7 +22,12 @@ recovery. Per family (loris, post):
 
 Two readings are this code's, not the note's, and are pinned by tests: (a) counts the 5 bins from the first bin
 below 0.99 x Q(C) after the attack starts (a run that never dips has recovered at once), and they must end
-within T_mit; (b)'s window starts at attack start + T_mit, which was the note's "+ 30 s" when T_mit was 30 s.
+within T_mit; (b)'s window starts at attack start + T_mit, which was the note's "+ 30 s" when T_mit was 30 s,
+and ends with the attack (LEVEL_WINDOW_S).
+
+Re-registration record. The P4 attack length 120 → 210 s, re-registered 2026-10-31 by the user, before any
+data, so that the window of (b), from attack start + T_mit (90 s) to the attack's end, is 120 s long; a run
+is now 270 s.
 
 A run record (one dict per run; summarize() builds it from eval/harm_gate.run_metrics and the ban events):
     {"block": 3101, "arm": "M_pc_loris", "valid": true, "Q": 97.5, "p95_s": 0.21,
@@ -50,7 +55,7 @@ BLOCK_SEEDS = tuple(range(3101, 3111))
 CONTROL, PLACEBO = "C", "Cp"
 FAMILIES = ("loris", "post")
 ARMS = (CONTROL, PLACEBO, "U_loris", "U_post", "M_def_loris", "M_pc_loris", "M_def_post", "M_pc_post")
-TIMELINE = {"baseline_s": 30, "attack_s": 120, "recovery_s": 30}
+TIMELINE = {"baseline_s": 30, "attack_s": 210, "recovery_s": 30}   # attack 120 -> 210 s, 2026-10-31
 GATE = {"floor_pp": 10.0, "floor_log2_p95": 1.0, "ci_level": 0.95, "same_sign_share": 0.8}
 MIN_VALID_BLOCKS = 10
 BLOCK_SHARE = (9, 10)            # "in >= 9 of 10 blocks", for harm, (a) and (b)
@@ -58,6 +63,8 @@ T_MIT_S = slow_pc.DEADLINE_S     # 90 s since the re-registration of 2026-10-30
 RECOVERY_RATIO, RECOVERY_BINS = 0.99, 5
 LEVEL_RATIO = 0.99
 LEVEL_FROM_S = T_MIT_S           # (b): [attack start + T_mit, attack end]
+LEVEL_WINDOW_S = (TIMELINE["baseline_s"] + LEVEL_FROM_S,           # the same span in run time: the
+                  TIMELINE["baseline_s"] + TIMELINE["attack_s"])   # `window` of run_metrics for q_level
 ATTACK = "attack"
 SCOPE = "profile R, {families} at this scale, this testbed"
 FAMILY_NAMES = {"loris": "Slowloris", "post": "slow POST"}
@@ -65,8 +72,8 @@ FAMILY_NAMES = {"loris": "Slowloris", "post": "slow POST"}
 
 def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow_pc_closes=()):
     """One run record from the run's harm-gate metrics (eval/harm_gate.run_metrics: over the attack
-    window, and over [attack start + T_mit, attack end] for `level_metrics`), its ban events and the
-    role of every client address. Every banned address must have a role."""
+    window, and with window=LEVEL_WINDOW_S for `level_metrics`), its ban events and the role of every
+    client address. Every banned address must have a role."""
     banned = {}
     for ev in ban_events:
         if ev.get("kind") != "ban":

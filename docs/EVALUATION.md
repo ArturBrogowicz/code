@@ -360,16 +360,26 @@ over the six runs (it refuses any other set of runs, and any address without a r
 of the re-registration. `tests/test_p4_validation.py` scores a synthetic validation set worked out by hand.
 
 **The pre-registered outcome** (§10; `eval/p4_outcome.py`, written and tested before any evaluation data).
-Over run records, one per run of the ten blocks (seeds 3101-3110, arms C, C', U, M_def and M_pc per family;
+Over run records, one per run of the ten blocks (seeds 3101-3110, arms C, C', U, M_def and M_pc per family,
+each run 30 s of baseline, 210 s of attack and 30 s of recovery;
 `summarize()` builds a record from `eval/harm_gate.run_metrics` and the ban events), it decides per family
 whether the attack is harmful (the harm gate on U against C, at least 10 valid blocks, the placebo not
 passing, and at least 9 of 10 blocks harmed on their own) and whether M_pc mitigates it: (a) 5 consecutive
-1-s bins back at 0.99 x Q(C) within T_mit = 90 s, (b) the level over [attack start + T_mit, attack end], (c)
+1-s bins back at 0.99 x Q(C) within T_mit = 90 s, (b) the level over [attack start + T_mit, attack end], 120 s
+(`LEVEL_WINDOW_S`, 120-240 s of the run), (c)
 no benign address banned. M7 is "supported with scope" for the families that pass, else "not supported";
 Q(M_pc) - Q(M_def) and the bans per arm and role are reported. Two readings are the code's and are pinned
 by tests: (a) starts counting at the first second below the threshold, and (b)'s window starts at T_mit,
 which was the note's "+ 30 s" when T_mit was 30 s. `tests/test_p4_outcome.py` covers each outcome the
 note names on synthetic records.
+
+**Re-registration record.** The P4 attack length 120 → 210 s, re-registered 2026-10-31 by the user, before any
+data, so that the window of (b), from attack start + T_mit (90 s) to the attack's end, is 120 s long; a run is
+now 270 s (`eval/p4_outcome.TIMELINE`). The VM budget of the note's §11 grows with it [ESTIMATE, §11's method:
+the traffic plus about 60 s of set-up per run]: about 5.5 min per run instead of 4, so the smoke run (3 runs)
+about 0.3 h, the harm ladder (24) 2.2 h, the validation (6) 0.55 h, the campaign (80) 7.3 h and the re-runs (at
+most 16) 1.5 h: about 11.8 h in all, 10.4 h without re-runs, against 8.6 h and 7.5 h with the 120-s attack. The
+Slowloris-only cut grows by the same factor, from about 5 h to about 6.9 h.
 
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
