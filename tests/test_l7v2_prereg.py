@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(REPO, "ml"))
 import l7_tpcw
 import l7v2_prereg as P
 
-PREREG_SHA256 = "6a42743f73b50cc448a7074d78a38b6c882fb8e2cfb1b9f4b25984e63887f13b"
+PREREG_SHA256 = "e71c8381ab168651b5f5a42466ff8c7edf8406eb5ff69b0d6093976213c0d80e"
 
 
 class FrozenFileTest(unittest.TestCase):
@@ -102,6 +102,9 @@ class FrozenFileTest(unittest.TestCase):
     def test_harm(self):
         h = P.load()["harm"]
         self.assertEqual(h["never_sent_after_s"], 10.0)
+        self.assertEqual(h["never_sent_schedule"], "the device's own closed loop")
+        self.assertIn("the completion of the device's previous view (or request) plus that one's pause", h["never_sent_rule"])
+        self.assertTrue(h["never_sent_label"].startswith("re-registered 2026-10-31 by the user, before any capture"))
         self.assertEqual((h["cross_check"]["client_dq_pp"], h["cross_check"]["server_q_min"]), (10.0, 99.0))
         self.assertEqual((h["ladder"]["levels"], h["ladder"]["repeats"]), ([1, 2, 4, 8], 2))
         self.assertIn("only a frozen calibration record", h["verdict_record"])

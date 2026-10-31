@@ -107,7 +107,9 @@
  "harm": {
   "metric": "request-level Q and p95 of the benign clients against the calibration record's slo_ms, on its judged_profiles, with eval/harm_gate.py's rules unchanged (criterion, floors, control health, 1-s bins)",
   "never_sent_after_s": 10.0,
-  "never_sent_rule": "a planned view whose nominal start falls in the attack window and that has not started 10 s after its nominal start counts every request it planned as failed (err never_sent), at t_intended = its nominal start",
+  "never_sent_rule": "every planned view, and every paced request, is judged against the device's own closed-loop schedule: its intended start is the completion of the device's previous view (or request) plus that one's pause (or gap), the first one's is its nominal start, and a view that never completed hands its intended start on. A view whose intended start falls in the attack window and that did not start within never_sent_after_s of it counts every request it planned as failed (err never_sent) at t_intended = that intended start; a started view's planned requests without a row count the same way. One stall therefore fails only the views that were slow, and a paced kind's own latency books no failure",
+  "never_sent_schedule": "the device's own closed loop",
+  "never_sent_label": "re-registered 2026-10-31 by the user, before any capture (T-030 L7V2-01, L7V2-02; the user's 'L7v2 fixes: approve both')",
   "admission": "class k enters the P1 verdicts only if U_k passes the harm gate's criterion against C over at least min_blocks valid blocks (dQ or dL), its placebo C' does not pass, and the calibration record is frozen; otherwise its verdict is V-D 'no harm'. Nothing is retuned after admission",
   "cross_check": {"client_dq_pp": 10.0, "server_q_min": 99.0, "rule": "a block is invalid as a client-side artefact when its client-side dQ >= 10 pp but the server-side Q(U), from nginx's $request_time for the same benign entities, is >= 99 %"},
   "ladder": {"pilot_seeds": "p1_pilot of ml/p3_prereg.json (9001-9008)", "levels": [1, 2, 4, 8], "repeats": 2, "knee": "bench/calibration.knee: the lowest level whose harm reaches the floor in both repeats"},
