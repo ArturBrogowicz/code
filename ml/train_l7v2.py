@@ -501,8 +501,16 @@ def _probe(scorer, windows, seed, max_windows):
     return rep
 
 
+def refuse_overwrite(out_dir):
+    """A frozen selection is never replaced (D-034, T038-07): select refuses a directory that holds one."""
+    for name in ("selection.json", "selection.sha256", "split.json"):
+        if os.path.exists(os.path.join(out_dir, name)):
+            raise SelectionError(f"refusing to overwrite {os.path.join(out_dir, name)}: a frozen selection is never "
+                                 "replaced; select into a new directory")
+
+
 def select(train, val, out_dir, *, arms=PRE.ARMS, epochs=None, threads=2, seed=None, valid_for_claims, source,
-           split_sha256):
+           split_sha256, split_dirs=None):
     """Fit every arm on `train` (a Split), gate it and choose its operating point on `val` (a Split) only, save the
     artifacts and the frozen selection (selection.json, its sha256 in selection.sha256). Returns (selection, sha)."""
     import torch
@@ -515,6 +523,8 @@ def select(train, val, out_dir, *, arms=PRE.ARMS, epochs=None, threads=2, seed=N
     from GRU_ML_model import GRUDDoSClassifier
     from l7_view_model import ViewGRU
     pre = PRE.load()
+    if os.path.exists(os.path.join(out_dir, "selection.json")):
+        refuse_overwrite(out_dir)
     mods, sel_rules, views = pre["models"], pre["selection"], pre["views"]
     seed = mods["fit_seed"] if seed is None else seed
     threads = min(int(threads), mods["threads_max"])
@@ -621,6 +631,8 @@ def select(train, val, out_dir, *, arms=PRE.ARMS, epochs=None, threads=2, seed=N
                       "val_attack_entities": len(val.attack), "val_benign_units": sum(val.units.values())},
            "rule": sel_rules["objective"] + "; ties: " + ", ".join(sel_rules["ties"]),
            "arms": out, "baselines": base, "select_wall_s": round(time.time() - t0, 1)}
+    if split_dirs is not None:
+        sel["split_dirs"] = {k: [os.path.abspath(d) for d in split_dirs.get(k, [])] for k in ("train", "val")}
     data = D.canonical_json(sel) + b"\n"
     with open(os.path.join(out_dir, "selection.json"), "wb") as fh:
         fh.write(data)
@@ -652,6 +664,34 @@ def load_selection(path, expected_sha256):
         if not p.startswith(base + os.sep) or not os.path.isfile(p) or _sha_file(p) != arm["artifact_sha256"]:
             raise SelectionError(f"refusing to score: the artifact of {name} is missing or altered")
     return sel
+
+
+def derive_splits(sel_path, sel, train=None, val=None, eval_dirs=(), manifest_of=None):
+    """The splits score checks (D-034, T038-07): the training and validation captures are split.json's, never the command
+    line's alone. Without --train/--val they come from the frozen selection's split_dirs; either way their capture ids
+    and manifest hashes must be exactly split.json's train and val captures, or scoring is refused."""
+    import l7_disjoint
+    manifest_of = manifest_of or (lambda d: l7_disjoint.load_manifest(d)[0])
+    path = os.path.join(os.path.dirname(os.path.abspath(sel_path)), "split.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            rec = json.load(fh)
+    except (OSError, ValueError) as exc:
+        raise SelectionError(f"refusing to score: no readable split.json beside the selection: {exc}") from exc
+    recorded = sel.get("split_dirs") or {}
+    out = {"train": list(train or recorded.get("train", [])), "val": list(val or recorded.get("val", [])),
+           "eval": list(eval_dirs)}
+    for s in ("train", "val"):
+        want = sorted((cid, c["manifest_sha256"]) for cid, c in rec.get("captures", {}).items() if c["split"] == s)
+        got = []
+        for d in out[s]:
+            m = manifest_of(d)
+            if m is None:
+                raise SelectionError(f"refusing to score: {d} has no readable manifest")
+            got.append((m["capture_id"], m["manifest_sha256"]))
+        if sorted(got) != want:
+            raise SelectionError(f"refusing to score: the {s} captures {sorted(got)} are not split.json's {want}")
+    return out
 
 
 def score(ev, sel, sel_path, out_dir, *, threads=2):
@@ -744,13 +784,15 @@ def main(argv=None):
                                     "benign entity-disjoint, held-out families as validation: mechanics only")
         else:
             import l7_disjoint
+            refuse_overwrite(args.out)
             l7_disjoint.require({**splits, "eval": []})
             split_sha = l7_disjoint.write_split(os.path.join(args.out, "split.json"), {**splits, "eval": []})
             tr = [load_capture(d) for d in args.train]
             va = [load_capture(d) for d in args.val]
             valid, source = not args.smoke, "P3 captures" + (" (smoke)" if args.smoke else "")
         _sel, sha = select(Split(tr), Split(va), args.out, arms=tuple(args.arms), epochs=3 if args.smoke else None,
-                           threads=args.threads, valid_for_claims=valid, source=source, split_sha256=split_sha)
+                           threads=args.threads, valid_for_claims=valid, source=source, split_sha256=split_sha,
+                           split_dirs=None if args.legacy_capture else {"train": args.train, "val": args.val})
         print(f"{sha}  {os.path.join(args.out, 'selection.json')}")
         return 0
     if not args.selection:
@@ -759,6 +801,7 @@ def main(argv=None):
     if args.legacy_capture:
         raise SelectionError("a legacy capture has no evaluation split; score P3 evaluation captures")
     import l7_disjoint
+    splits = derive_splits(args.selection, sel, args.train, args.val, args.eval)
     l7_disjoint.require(splits, split_file=os.path.join(os.path.dirname(os.path.abspath(args.selection)), "split.json"),
                         selection_file=args.selection)
     res = score(Split([load_capture(d) for d in args.eval]), sel, args.selection, args.out, threads=args.threads)

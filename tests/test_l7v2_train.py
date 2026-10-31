@@ -282,6 +282,50 @@ class ShuffledVariantsTest(unittest.TestCase):
                              "allowed": 2, "shuffled_within_budget": False})
 
 
+class FreezeTest(unittest.TestCase):
+    """T038-07 (D-034): a selection is never overwritten, and score's train/val captures are split.json's."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir)
+        self.sel_path = os.path.join(self.dir, "selection.json")
+        with open(os.path.join(self.dir, "split.json"), "w", encoding="utf-8") as fh:
+            json.dump({"format": "x", "captures": {"T1": {"split": "train", "seed": 1001, "manifest_sha256": "a"},
+                                                   "V1": {"split": "val", "seed": 2001, "manifest_sha256": "b"}},
+                       "entities": {}}, fh)
+        self.man = {"/d/t1": {"capture_id": "T1", "manifest_sha256": "a"},
+                    "/d/v1": {"capture_id": "V1", "manifest_sha256": "b"},
+                    "/d/v2": {"capture_id": "V2", "manifest_sha256": "c"}}
+        self.sel = {"split_dirs": {"train": ["/d/t1"], "val": ["/d/v1"]}}
+
+    def derive(self, train=None, val=None, sel=None):
+        return V.derive_splits(self.sel_path, self.sel if sel is None else sel, train, val, ["/d/e1"],
+                               manifest_of=self.man.get)
+
+    def test_omitted_train_and_val_come_from_the_frozen_selection(self):
+        self.assertEqual(self.derive(), {"train": ["/d/t1"], "val": ["/d/v1"], "eval": ["/d/e1"]})
+
+    def test_given_ones_must_be_split_jsons(self):
+        self.assertEqual(self.derive(["/d/t1"], ["/d/v1"])["val"], ["/d/v1"])
+        for train, val in ((["/d/t1"], ["/d/v2"]), (["/d/t1"], []), ([], ["/d/v1"])):
+            with self.subTest(train=train, val=val), self.assertRaises(V.SelectionError):
+                self.derive(train, val, sel={})
+        with self.assertRaises(V.SelectionError):
+            V.derive_splits(os.path.join(self.dir, "nowhere", "selection.json"), self.sel, None, None, [],
+                            manifest_of=self.man.get)
+
+    def test_select_refuses_an_existing_selection(self):
+        for name in ("selection.json", "split.json"):
+            d = tempfile.mkdtemp()
+            self.addCleanup(shutil.rmtree, d)
+            with open(os.path.join(d, name), "w", encoding="utf-8") as fh:
+                fh.write("{}")
+            with self.subTest(name=name), self.assertRaises(V.SelectionError):
+                V.refuse_overwrite(d)
+        with self.assertRaises(V.SelectionError):
+            V.main(["select", "--train", "/d/t1", "--val", "/d/v1", "--out", self.dir])
+
+
 def timed(cap="c1", seed=0, phase=(20.0, 40.0), intensity=2.0):
     """population() with a P3 timeline (t0_wall 0, one attack phase) and its bots scheduled in that phase."""
     m, recs, cap = population(cap, seed)
@@ -387,6 +431,15 @@ class SelectScoreTest(unittest.TestCase):
             V.load_selection(os.path.join(self.out, "selection.json"), "f" * 64)
         with self.assertRaises(V.SelectionError):
             V.load_selection(os.path.join(self.out, "selection.json"), None)
+
+    def test_a_second_select_into_the_same_directory_is_refused(self):
+        with open(os.path.join(self.out, "selection.json"), "rb") as fh:
+            before = fh.read()
+        with self.assertRaises(V.SelectionError):
+            V.select(V.Split([population("t1", seed=1)]), V.Split([population("v1", seed=3)]), self.out, epochs=1,
+                     threads=1, valid_for_claims=False, source="again", split_sha256="1" * 64)
+        with open(os.path.join(self.out, "selection.json"), "rb") as fh:
+            self.assertEqual(fh.read(), before)
 
     def test_an_altered_artifact_is_refused(self):
         tmp = os.path.join(self.dir, "copy")
