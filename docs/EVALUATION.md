@@ -369,7 +369,8 @@ passing, and at least 9 of 10 blocks harmed on their own) and whether M_pc mitig
 (`LEVEL_WINDOW_S`, 120-240 s of the run), (c)
 no benign address banned. M7 is "supported with scope" for the families that pass, else "not supported";
 Q(M_pc) - Q(M_def) and the bans per arm and role are reported. Two readings are the code's and are pinned
-by tests: (a) starts counting at the first second below the threshold, and (b)'s window starts at T_mit,
+by tests: (a) starts counting at the first second below the threshold, a reading the user accepted on
+2026-10-31 ("P4 recovery + HG4"), and (b)'s window starts at T_mit,
 which was the note's "+ 30 s" when T_mit was 30 s. `tests/test_p4_outcome.py` covers each outcome the
 note names on synthetic records.
 

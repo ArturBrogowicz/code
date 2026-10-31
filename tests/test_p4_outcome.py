@@ -97,6 +97,17 @@ class RecoveryTest(unittest.TestCase):
         q[62] = None                                                              # an empty second
         self.assertEqual(O.recovery_s(q, 98.5), 38)
 
+    def test_the_recovery_reading_was_accepted_by_the_user(self):
+        # 2026-10-31: the user accepted reading (a), counted from the first second below
+        # 0.99 x Q(C); the seconds before the harm builds up are not a recovery.
+        record = "Reading (a) was accepted by the user on 2026-10-31"
+        self.assertIn(record, " ".join(O.__doc__.split()))
+        with open(os.path.join(REPO, "docs", "EVALUATION.md"), encoding="utf-8") as fh:
+            self.assertIn("(a) starts counting at the first second below the threshold, a reading the "
+                          "user accepted on 2026-10-31", " ".join(fh.read().split()))
+        q = bins(99.5, 50.0, start=60, until=100)        # harm builds up for 30 s, then 40 s low
+        self.assertEqual(O.recovery_s(q, 98.5), 75)       # 100 + 5 - 30, not the first 5 seconds
+
     def test_the_share_of_blocks(self):
         self.assertEqual([O.enough(k, 10) for k in (8, 9, 10)], [False, True, True])
         self.assertEqual([O.enough(k, 12) for k in (10, 11)], [False, True])

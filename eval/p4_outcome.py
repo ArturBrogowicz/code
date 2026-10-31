@@ -23,7 +23,8 @@ recovery. Per family (loris, post):
 Two readings are this code's, not the note's, and are pinned by tests: (a) counts the 5 bins from the first bin
 below 0.99 x Q(C) after the attack starts (a run that never dips has recovered at once), and they must end
 within T_mit; (b)'s window starts at attack start + T_mit, which was the note's "+ 30 s" when T_mit was 30 s,
-and ends with the attack (LEVEL_WINDOW_S).
+and ends with the attack (LEVEL_WINDOW_S). Reading (a) was accepted by the user on 2026-10-31 ("P4 recovery
++ HG4"); (b)'s window is the one the re-registration below names.
 
 Re-registration record. The P4 attack length 120 → 210 s, re-registered 2026-10-31 by the user, before any
 data, so that the window of (b), from attack start + T_mit (90 s) to the attack's end, is 120 s long; a run
