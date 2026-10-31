@@ -591,7 +591,7 @@ class RefusalTest(RunCase):
     def test_a_timer_that_wakes_late_on_the_legit_cpu_is_refused(self):
         _, why = self.refused(F.SimHost(timer_p99_ms=25.0), error=X.EnvironmentRefused)
         self.assertIn("p99 25.0 ms", why)
-        self.assertIn("CPU 6", why)
+        self.assertIn("CPU 7", why)
 
     def test_a_timer_just_under_the_limit_is_accepted_and_one_at_it_is_not(self):
         _, _, result = self.go("C", F.SimHost(timer_p99_ms=9.99))

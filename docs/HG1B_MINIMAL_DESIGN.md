@@ -24,7 +24,7 @@ the data it will judge; **[RISK]** a hazard with its mitigation.
 
 | # | Decision | State |
 |---|---|---|
-| D14 | O4: the legit streams run on vCPU 6 (the healthy one), generator validity is relative to the control (a ceiling and a difference; the ceiling is pooled since 9.7), no `--spin-ms` for populations (allowed on at most four attack streams), the environment gate judges the timers on the vCPU of the legit streams | approved 2026-10-23 |
+| D14 | O4: the legit streams run on vCPU 6 (the healthy one; amended 2026-10-31 by the user to vCPU 7, with the timer gate: section 4), generator validity is relative to the control (a ceiling and a difference; the ceiling is pooled since 9.7), no `--spin-ms` for populations (allowed on at most four attack streams), the environment gate judges the timers on the vCPU of the legit streams | approved 2026-10-23 |
 | D15 | Deltas 1-10 of section 3 | approved 2026-10-23 |
 | D16 | The executor and the calibration runner are HG1c, with their own design note and approval | acknowledged |
 | D17 | The full cut: commits 0-7 | approved 2026-10-23 |
@@ -54,6 +54,11 @@ below 50 ms; neither can be met on most vCPUs.
 **Rules, frozen before any gate data.**
 
 1. **Pinning [PROPOSAL, replaces design 7.4].** Server stack CPUs 0-1, daemon CPU 2, **legit streams CPU 6**, attack streams CPUs 3, 4, 5 and 7.
+   **D14 amended 2026-10-31 by the user, before any capacity data (AP-1's origin step runs on CPU 0, unaffected; D-032):** the legit
+   streams, and the timer gate with them (rule 2: one probe, p99 below 10 ms, the limit unchanged), move to **CPU 7**, which the latest
+   idle timer probes found the quietest (T-000, 2026-10-29: only CPU 7 under 10 ms p99; CPU 6 at 12.6 ms) [CLAIMED, T-000/T-004]; the
+   attack streams take CPU 6 in exchange and keep four CPUs, 3-6, so their planned CPU share does not change; nothing else uses CPU 7.
+   `population.PIN_PLAN` = server 0-1, daemon 2, legit 7, attack 3-6, pinned by a test.
 2. **Environment gate.** The timer probe (200 x 10 ms) is judged on the CPU of the legit streams: p99 below 10 ms. The other CPUs are
    recorded, not judged. The probe is repeated before every run, as the harness already does.
 3. **Generator validity, profile `relative` (the default).** A stream is invalid when its CPU share exceeds 0.70, when it sent fewer

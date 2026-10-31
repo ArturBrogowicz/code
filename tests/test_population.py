@@ -298,10 +298,15 @@ class CommandTest(unittest.TestCase):
                 lo, _, hi = part.partition("-")
                 out |= set(range(int(lo), int(hi or lo) + 1))
             return out
-        self.assertEqual(cpus(P.PIN_PLAN["legit"]), {6})                  # the healthy vCPU (D14)
+        self.assertEqual(cpus(P.PIN_PLAN["legit"]), {7})                  # the healthy vCPU (D14, amended 2026-10-31)
         for other in ("server", "daemon", "attack"):
             self.assertFalse(cpus(P.PIN_PLAN["legit"]) & cpus(P.PIN_PLAN[other]), other)
-        self.assertEqual(cpus(P.PIN_PLAN["attack"]), {3, 4, 5, 7})
+        self.assertEqual(cpus(P.PIN_PLAN["attack"]), {3, 4, 5, 6})
+
+    def test_the_pin_plan_is_d14_as_amended_by_the_user_on_2026_10_31(self):
+        """D-032, before any capacity data: the legit streams and the timer gate on CPU 7; the attack on 3-6, as many CPUs as before;
+        the server on 0-1 (the origin step of AP-1 runs on CPU 0, unaffected) and the daemon's CPU on 2."""
+        self.assertEqual(P.PIN_PLAN, {"server": "0-1", "daemon": "2", "legit": "7", "attack": "3-6"})
 
     def test_the_open_file_limit_covers_the_idle_pools_the_in_flight_cap_and_a_margin(self):
         for s in POP.streams:

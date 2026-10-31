@@ -42,7 +42,10 @@ CPU_MS_PER_REQUEST = 0.1           # the engine's cost per request, from the sam
 PROCESS_MB = 30                    # resident memory of one engine process (estimate)
 PULSE_PERIOD, PULSE_DUTY = 15.0, 0.2
 PATHS_PER_STREAM = 100
-PIN_PLAN = {"server": "0-1", "daemon": "2", "legit": "6", "attack": "3-5,7"}      # docs/HG1B_MINIMAL_DESIGN.md 4
+# docs/HG1B_MINIMAL_DESIGN.md 4 (D14). Amended 2026-10-31 by the user, before any capacity data (D-032): the legit streams, and with
+# them the timer gate, move from CPU 6 to CPU 7, the quietest vCPU of the latest idle timer probes; the attack takes CPU 6 in exchange
+# and keeps four CPUs; the server (0-1) and the daemon's CPU (2, the executor's while there is no daemon) do not move
+PIN_PLAN = {"server": "0-1", "daemon": "2", "legit": "7", "attack": "3-6"}
 POOL = {"legit": 6, "attack": 4}                                                  # idle connections per identity
 
 

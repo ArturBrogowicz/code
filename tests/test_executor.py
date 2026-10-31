@@ -167,7 +167,7 @@ class PlanTest(unittest.TestCase):
             for s in streams:
                 head = ["prlimit", f"--nofile={s.nofile}", "--", "taskset", "-c", P.PIN_PLAN[kind]]
                 self.assertEqual(list(s.argv[:6]), head, s.id)
-        self.assertEqual(P.PIN_PLAN["legit"], "6")
+        self.assertEqual(P.PIN_PLAN["legit"], "7")
 
     def test_every_stream_command_is_one_the_engine_accepts_and_names_its_own_files(self):
         for s in plan().streams:

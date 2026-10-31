@@ -215,7 +215,7 @@ question, and (b) leaves it open.
 |---|---|---|
 | Origin | `gunicorn --chdir bench --workers 2 --threads 8 --bind 127.0.0.1:8080 origin:app`, with `ORIGIN_CALIBRATION` and `ORIGIN_SEED=1` in the environment | HG1b 7: 2 x 8 slots; bound to loopback so that nothing reaches the origin except through Nginx; each worker builds its own SQLite and, with a frozen calibration, runs the 25 % self-check before serving |
 | Nginx | `nginx_unprotected.conf` rendered into the run directory, **only** `access_log` and `error_log` changed, the log files created with mode 0666 (the workers run as `nobody`); a test compares the rendering with the original and fails on any other difference; its sha256 goes into the record; it is started like the origin, a process of its own with no pipe for its daemon to hold (departure 20) | the stack of every earlier campaign; the log of each run is then its own (precedent: `ml/capture_l7.py:285-295`) |
-| Pins | `taskset -c 0-1` for gunicorn and Nginx; the executor and its sampler on CPU 2; legit streams on 6; attack streams on 3-5,7 (`population.PIN_PLAN`, HG1b 4) | D14 |
+| Pins | `taskset -c 0-1` for gunicorn and Nginx; the executor and its sampler on CPU 2; legit streams on 6; attack streams on 3-5,7 (`population.PIN_PLAN`, HG1b 4). D14 amended 2026-10-31 by the user, before any capacity data (AP-1's origin step runs on CPU 0, unaffected; D-032): legit streams and the timer gate on 7, attack streams on 3-6 (HG1b 4, rule 1) | D14 |
 | Daemon, XDP, iptables | none (Gate A is the unprotected stack) | design 10 |
 
 ### 6.5 Streams
