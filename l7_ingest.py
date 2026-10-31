@@ -167,12 +167,23 @@ def sid_hash(obj):
     return NO_SID
 
 
+# The text fields nginx's log formats write as JSON strings. Another JSON type in one of them can only come from a
+# forged datagram; it used to raise here (stable_hash32 calls .encode) or in the engine (a key with an int IP is not
+# sortable with the others), which restarted the shadow thread with a fresh engine (T-042 E07). Such a record is dropped.
+TEXT_FIELDS = ("ip", "client_ip", "ua", "user_agent", "uri", "request_uri", "method", "request_method", "proto",
+               "server_protocol", "compl", "request_completion", "lreq", "limit_req_status", "tls", "reused", "ref",
+               "sid", "sid_set")
+
+
 def normalise(obj):
     """Turn a parsed log object into the slim record the window store keeps:
     numeric fields coerced, URI and UA replaced by 32-bit hashes, raw strings
     dropped. L7 v2: the Referer's path (ref_h, None when absent) and the session id
     (sid_h, NO_SID when absent) are hashed too, and the raw URI's route class is kept
-    (rc). Returns None if there is no client IP to key on."""
+    (rc). Returns None if there is no client IP to key on, or if a text field holds
+    another JSON type than a string (TEXT_FIELDS)."""
+    if any(obj.get(k) is not None and not isinstance(obj[k], str) for k in TEXT_FIELDS):
+        return None
     ip = obj.get("ip") or obj.get("client_ip")
     if not ip:
         return None

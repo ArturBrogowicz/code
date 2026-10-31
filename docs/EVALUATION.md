@@ -485,6 +485,9 @@ Known limits:
   `\`, `$`, `{`, `}`, other bytes and UAs over 256 bytes stay excluded.
 * The stop (T-042 E03): `Arm.stop` and the arm's steps hold one lock, and no step runs after the stop, so once the
   stop returns `deny.map` is empty and nginx was told to reload it.
+* Hostile field types (T-042 E07): a log record whose text field (ip, ua, uri, sid, ...) holds another JSON type than a
+  string, which only a forged datagram can produce, is dropped at ingest (`l7_ingest.normalise`); it used to raise and
+  restart the shadow thread with a fresh engine. Numeric fields are coerced as before.
 * D-040 (T-042 E02): a key without a session is written as `ip|ua|`, which nginx matches for every cookie-less request
   from that address with that UA (in any case), including the first request of another user's session (a 429 means
   the server never sets that user's sid). So such a key is denied at level 1 only while its address is single-key

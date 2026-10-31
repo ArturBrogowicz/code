@@ -748,6 +748,9 @@ before any data). Usage and events: `docs/EVALUATION.md`, "L7 v2: the enforcing 
 - **E06, the L7 socket.** With the arm on, a datagram on the sink can drive a ban, so the socket is bound 0660 with
   nginx's group (`L7_SOCKET_GROUP`, default `nogroup`: the installed nginx's compiled worker group, as no `user` is
   set) instead of 0666; without `L7_ENFORCE=1` it is 0666 as before. An unknown group stops the daemon at start.
+- **E07, hostile field types.** `l7_ingest.normalise` drops a record whose text field holds another JSON type than a
+  string (only a forged datagram can); it used to raise, or make the engine's keys unsortable, and so restart the
+  shadow thread with a fresh engine. Records nginx writes normalise as before; the engine is unchanged.
 
 **A conflict for the user, resolved by D-038 (below).** 9.4 excludes `;` from a writable UA. Every UA of
 `ml/l7_benign.UA_TABLE` contains one (17 of 17, weight 0.99 of 0.99; 3 of the 6 `ml/l7_gen.UAS`), so as written no

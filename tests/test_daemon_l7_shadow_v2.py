@@ -138,5 +138,33 @@ class ViewShadowReportTest(unittest.TestCase):
         self.assertEqual(engine.totals["would_bans"], 1)
 
 
+class HostileFieldTypesTest(unittest.TestCase):
+    """T-042 E07: a text field of another JSON type (only a forged datagram can carry one) used to raise in normalise,
+    or make the engine's dirty keys unsortable, and so restart the shadow thread with a fresh engine."""
+
+    HOSTILE = ({"ip": 167772161}, {"ip": ["10.0.17.5"]}, {"ua": 7}, {"ua": ["x"]}, {"uri": {"a": 1}},
+               {"sid": 12345}, {"sid_set": True}, {"method": 1.5}, {"ref": ["http://x/"]}, {"client_ip": 1})
+
+    def test_normalise_drops_them_and_keeps_nginxs_records_as_they_were(self):
+        good = rec(BOT, "/page/1", 1000.0)
+        base = l7_ingest.normalise(good)
+        for bad in self.HOSTILE:
+            with self.subTest(bad=bad):
+                self.assertIsNone(l7_ingest.normalise({**good, **bad}))
+        self.assertEqual(l7_ingest.normalise(dict(good)), base)
+        self.assertEqual(l7_ingest.normalise({**good, "sid": None, "ref": None})["sid_h"], l7_ingest.NO_SID)
+
+    def test_the_shadow_thread_keeps_its_engine_through_them(self):
+        d = H.Daemon({"L7_SHADOW": "1"})
+        self.addCleanup(d.close)
+        d.clock.now = 999.0
+        hostile = [{**rec(BOT, "/page/1", 1000.0 + 2 * n), **bad} for n, bad in enumerate(self.HOSTILE * 3)]
+        engine = run_shadow(d, bot() + browser() + hostile, until=1060.0)
+        [wb] = d.events("l7_would_ban")
+        self.assertEqual((wb["ip"], engine.totals["would_bans"]), (BOT, 1))
+        self.assertEqual(d.events("daemon_error"), [])
+        self.assertEqual({type(k[0]) for k in engine.store._recs}, {str})
+
+
 if __name__ == "__main__":
     unittest.main()
