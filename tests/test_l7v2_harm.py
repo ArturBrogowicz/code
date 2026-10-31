@@ -281,6 +281,32 @@ class BlockTest(unittest.TestCase):
         self.assertTrue(dry["dry_run"])
 
 
+class CoverageTest(unittest.TestCase):
+    """T-030 L7V2-05 and L7V2-10: a run that holds a P5 kind is assessed, the kind is named as unrecorded, and the
+    server-side cross-check judges only the entities the client side judged."""
+
+    def test_a_p5_kind_is_named_not_fatal_and_left_out_on_both_sides(self):
+        with tempfile.TemporaryDirectory() as root:
+            d = write_block(root, 1, CF.frozen(), 0.0)
+            run = os.path.join(d, "U_C3b")
+            with open(os.path.join(run, D.MANIFEST_FILE)) as fh:
+                m = json.load(fh)
+            p5 = dict(m["entities"][0], entity_id="2026-11-p1:3001:99", index=99, kind_or_family="keepalive",
+                      address="10.0.17.99", netem="perfect", params={"think_s": [0.5, 2.0]})
+            m["entities"].append(p5)
+            m["ip_map"] = D.ip_map_from_entities(m["entities"])
+            with open(os.path.join(run, D.MANIFEST_FILE), "w") as fh:
+                json.dump(m, fh)
+            slow = [json.dumps({"msec": T0 + 40.0 + k, "rt": 5.0, "ip": p5["address"], "status": 200, "method": "GET",
+                                "uri": "/page/1", "ua": "x"}) + "\n" for k in range(50)]
+            with gzip.open(os.path.join(run, D.ACCESS_LOG_GZ), "at") as fh:
+                fh.writelines(slow)
+            got = H.assess_run(run, CF.frozen(), TIMELINE)
+        self.assertEqual(got["metrics"]["unrecorded"], {"keepalive": 1})
+        self.assertEqual(got["server"]["Q"], 100.0, "the keepalive entity's slow requests are not judged server-side")
+        self.assertEqual(got["metrics"]["failures"], {})
+
+
 class FakeSession:
     def __init__(self):
         self.headers = {}
@@ -309,6 +335,7 @@ class RecordsTest(unittest.TestCase):
             rows = H.read_client_records(path)
         planned = H.planned_views(e, 60.0)
         self.assertEqual(len(rows), sum(len(c) for _, c, _p in planned.values()))
+        self.assertIn(e["kind_or_family"], H.PLAN_KINDS)
         self.assertEqual({(r["user"], r["view"]) for r in rows}, set(planned))
         for r in rows:
             self.assertEqual((r["t_intended"], r["status"], r["err"]), (r["t_sent"], 200.0, ""))

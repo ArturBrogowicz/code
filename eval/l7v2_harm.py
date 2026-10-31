@@ -61,6 +61,8 @@ import l7_webapp
 RECORD_COLUMNS = ("t_intended", "t_sent", "t_done", "status", "err", "route_class", "user", "view", "wave",
                   "t_nominal", "t_origin")
 NEVER_SENT = "never_sent"
+PLAN_KINDS = tuple(l7_benign.KINDS) + tuple(l7_benign.L7V2_KINDS)   # the kinds whose generators record and whose plans
+                                                                    # the guard recomputes (T-030 L7V2-05)
 CONTROL, PLACEBO, ATTACK_PREFIX, MITIGATED_PREFIX = "C", "Cp", "U_", "M_"
 
 
@@ -151,15 +153,21 @@ def with_never_sent(rows, planned, origin, window_abs, after_s=None):
 
 
 def run_rows(run_dir, manifest, window_rel, duration_s=None):
-    """Every judged-or-not benign row of a run, with its entity's netem, after the never-sent guard."""
+    """Every benign row of a run, with its entity's netem, after the never-sent guard, and which entities it covers:
+    (rows, t0, {"recorded": [entity ids], "unrecorded": {kind: count}}). A kind without a plan (the P5 kinds) writes no
+    records and is left out, by name, here and in the server-side cross-check (T-030 L7V2-05, L7V2-10)."""
     t0 = l7_dataset.time_origin(manifest)
     if t0 is None:
         raise HarmError(f"{run_dir}: manifest timeline.t0_wall missing")
     window_abs = (t0 + window_rel[0], t0 + window_rel[1])
-    out = []
+    out, cover = [], {"recorded": [], "unrecorded": {}}
     for e in manifest["entities"]:
         if e["role"] != "benign":
             continue
+        if e["kind_or_family"] not in PLAN_KINDS:
+            cover["unrecorded"][e["kind_or_family"]] = cover["unrecorded"].get(e["kind_or_family"], 0) + 1
+            continue
+        cover["recorded"].append(e["entity_id"])
         rows = []
         stem = e["entity_id"].replace(":", "_")
         for path in (os.path.join(run_dir, "records", stem + ".csv.gz"), os.path.join(run_dir, "records", stem + ".csv"),
@@ -172,7 +180,7 @@ def run_rows(run_dir, manifest, window_rel, duration_s=None):
         for r in with_never_sent(rows, planned_views(e, dur), origin, window_abs):
             r["netem"], r["entity"] = e["netem"], e["entity_id"]
             out.append(r)
-    return out, t0
+    return out, t0, cover
 
 
 # --- the figures of one run ------------------------------------------------------------------------------------------
@@ -221,8 +229,9 @@ def metrics(rows, cal, window_abs, t0, total_s):
             **HG.time_resolved(nb, okb, lo - t0, hi - t0)}
 
 
-def server_q(access_log, manifest, cal, window_rel):
-    """Q from nginx's $request_time for the benign entities on judged links, labelled by the manifest in time."""
+def server_q(access_log, manifest, cal, window_rel, entities=None):
+    """Q from nginx's $request_time for the benign entities on judged links, labelled by the manifest in time; with
+    `entities`, only those (the client side's recorded entities, so both sides judge the same requests)."""
     t0 = l7_dataset.time_origin(manifest)
     label = l7_dataset.labeler(manifest)
     netem = {e["entity_id"]: e["netem"] for e in manifest["entities"]}
@@ -241,6 +250,8 @@ def server_q(access_log, manifest, cal, window_rel):
             cls, _fam, _held, entity = label(obj["ip"], t_rel)
             klass = l7_webapp.route_class(obj.get("method") or "GET", obj.get("uri") or "")
             if cls != l7_dataset.BENIGN or netem.get(entity) not in judged or klass not in slo:
+                continue
+            if entities is not None and entity not in entities:
                 continue
             status = int(l7_ingest._num(obj.get("status")))
             n += 1
@@ -264,13 +275,14 @@ def assess_run(run_dir, cal, timeline):
     meta = _json(os.path.join(run_dir, "run.json"))
     window = (float(timeline["baseline_s"]), float(timeline["baseline_s"]) + float(timeline["attack_s"]))
     total = sum(float(timeline[k]) for k in ("baseline_s", "attack_s", "recovery_s"))
-    rows, t0 = run_rows(run_dir, manifest, window)
+    rows, t0, cover = run_rows(run_dir, manifest, window)
     m = metrics(rows, cal, (t0 + window[0], t0 + window[1]), t0, total)
+    m["unrecorded"] = cover["unrecorded"]
     log = next((os.path.join(run_dir, n) for n in (l7_dataset.ACCESS_LOG_GZ, l7_dataset.ACCESS_LOG)
                 if os.path.isfile(os.path.join(run_dir, n))), None)
     checks = meta.get("checks") if isinstance(meta.get("checks"), dict) else {"ok": False, "reasons": ["no checks"]}
     return {"name": os.path.basename(run_dir), "role": meta.get("role"), "class": meta.get("class"), "metrics": m,
-            "server": server_q(log, manifest, cal, window) if log else None, "checks": checks}
+            "server": server_q(log, manifest, cal, window, set(cover["recorded"])) if log else None, "checks": checks}
 
 
 def assess_block(block_dir, cal):
