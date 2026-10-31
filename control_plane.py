@@ -849,7 +849,13 @@ def l7_shadow_monitor(socket_path):
                         EVENTS.emit("l7_would_ban", **ev)
                 last_poll = now
             if now - last_report >= L7_SHADOW_REPORT_INTERVAL:
-                EVENTS.emit("l7_shadow", **counters.as_dict(), **engine.store.stats())
+                # L7 v2's key store counts its truncated keys under the name the ingest counters give truncated
+                # datagrams; the duplicate keyword raised TypeError here, which restarted this thread every 5 s
+                # and threw the engine's state away. The store's count is reported as store_truncated.
+                store = engine.store.stats()
+                if "truncated" in store:
+                    store["store_truncated"] = store.pop("truncated")
+                EVENTS.emit("l7_shadow", **counters.as_dict(), **store)
                 EVENTS.emit("l7_gru_poll", **engine.take_summary())
                 last_report = now
     finally:
