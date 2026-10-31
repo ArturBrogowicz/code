@@ -54,6 +54,17 @@ class ViewCurveTest(unittest.TestCase):
     def test_the_shuffled_gru_takes_its_grus_point(self):
         assert_shuffled_at_gru_point(self, self.sel)
 
+    def test_the_view_hgb_is_tuned_as_the_v2_arms(self):
+        # one tuning rule for every arm (D-034, T038-04): balanced, no early stopping
+        import glob
+        import pickle
+        paths = glob.glob(os.path.join(self.out, "**", "hgb_*.pkl"), recursive=True)
+        self.assertTrue(paths)
+        for path in paths:
+            with open(path, "rb") as fh:
+                params = pickle.load(fh).get_params()
+            self.assertEqual((params["class_weight"], params["early_stopping"]), ("balanced", False), path)
+
     def test_the_models_load_at_their_level(self):
         from l7_view_model import ViewGRU
         models = LC._load_models(self.sel, self.out)

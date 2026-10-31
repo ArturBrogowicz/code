@@ -241,8 +241,10 @@ def _stack(windows):
 
 
 def fit_torch(model, train, val, mean, std, *, seed, epochs, lr, batch, threads):
-    """Adam on BCE-with-logits (pos_weight = negatives / positives of the training windows); the epoch with the lowest
-    validation loss is kept. Returns (model, best validation loss)."""
+    """Adam on BCE-with-logits (pos_weight = negatives / positives of the training windows: balanced, as the LR's and the
+    HGB's class weights) for a fixed number of epochs; the last epoch's weights are kept (ml/l7v2_model_prereg.json
+    models.training, re-registered 2026-10-31 under D-034, T038-04: no epoch is chosen on validation). Returns (model,
+    the last epoch's validation loss, reported only)."""
     import torch
     from torch import nn, optim
     from torch.utils.data import DataLoader, TensorDataset
@@ -257,21 +259,16 @@ def fit_torch(model, train, val, mean, std, *, seed, epochs, lr, batch, threads)
     crit = nn.BCEWithLogitsLoss(pos_weight=pos_w)
     opt = optim.Adam(model.parameters(), lr=lr)
     loader = DataLoader(TensorDataset(Xtr, ytr), batch_size=batch, shuffle=True)
-    best_loss, best_state = math.inf, None
     for _ep in range(epochs):
         model.train()
         for xb, yb in loader:
             opt.zero_grad()
             crit(model(xb), yb).backward()
             opt.step()
-        model.eval()
-        with torch.no_grad():
-            vloss = float(crit(model(Xva), yva)) if len(val) else 0.0
-        if best_state is None or vloss < best_loss:
-            best_loss, best_state = vloss, {k: v.clone() for k, v in model.state_dict().items()}
-    model.load_state_dict(best_state)
     model.eval()
-    return model, best_loss
+    with torch.no_grad():
+        vloss = float(crit(model(Xva), yva)) if len(val) else 0.0
+    return model, vloss
 
 
 def torch_scores(model, X, mean, std):
@@ -549,7 +546,9 @@ def select(train, val, out_dir, *, arms=PRE.ARMS, epochs=None, threads=2, seed=N
             continue
         Xs, ys = summaries(_stack(tr_view)), np.array([w["y"] for w in tr_view])
         if name == "hgb":
-            clf = HistGradientBoostingClassifier(max_iter=mods["hgb"]["max_iter"], random_state=seed).fit(Xs, ys)
+            h = mods["hgb"]                            # balanced, no early stopping (D-034, T038-04)
+            clf = HistGradientBoostingClassifier(max_iter=h["max_iter"], class_weight=h["class_weight"],
+                                                 early_stopping=h["early_stopping"], random_state=seed).fit(Xs, ys)
         else:
             clf = make_pipeline(StandardScaler(), LogisticRegression(max_iter=mods["lr"]["max_iter"],
                                                                      class_weight=mods["lr"]["class_weight"]))

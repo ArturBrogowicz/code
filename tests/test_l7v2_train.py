@@ -221,6 +221,43 @@ class AgeOnlyTest(unittest.TestCase):
         self.assertEqual(set(rep["auc_by_family"]), {"C3b@M1"})
 
 
+class TuningTest(unittest.TestCase):
+    """One tuning rule for every arm (ml/l7v2_model_prereg.json models.training, D-034, T038-04)."""
+
+    def test_the_gru_weights_do_not_depend_on_the_validation_windows(self):
+        import torch
+
+        from l7_view_model import ViewGRU
+        tr = V.Split([population("t1", seed=1)], request=False).view
+        va = V.Split([population("v1", seed=3)], request=False).view
+        mean, std = train_l7.fit_scaling(tr, len(F.TOKEN_COLUMNS))
+        states = []
+        for val in (va, va[:3], []):
+            torch.manual_seed(0)                       # the same initial weights each time
+            m, _loss = V.fit_torch(ViewGRU(len(F.TOKEN_COLUMNS), 8, 8, 1, 0.0), tr, val, mean, std, seed=0, epochs=3,
+                                   lr=0.01, batch=16, threads=1)
+            states.append({k: v.clone() for k, v in m.state_dict().items()})
+        for st in states[1:]:
+            for k in st:
+                self.assertTrue(torch.equal(st[k], states[0][k]), k)
+
+    def test_the_hgb_is_balanced_without_early_stopping(self):
+        import pickle
+        d = tempfile.mkdtemp()
+        try:
+            train = V.Split([population("t1", seed=1)], request=False)
+            val = V.Split([population("v1", seed=3)], request=False)
+            V.select(train, val, d, arms=("hgb",), threads=1, valid_for_claims=False, source="fixture",
+                     split_sha256="0" * 64)
+            with open(os.path.join(d, "hgb.pkl"), "rb") as fh:
+                params = pickle.load(fh).get_params()
+        finally:
+            shutil.rmtree(d)
+        self.assertEqual((params["class_weight"], params["early_stopping"], params["max_iter"]),
+                         ("balanced", False, PRE.load()["models"]["hgb"]["max_iter"]))
+        self.assertEqual(PRE.load()["models"]["lr"]["class_weight"], "balanced")
+
+
 def timed(cap="c1", seed=0, phase=(20.0, 40.0), intensity=2.0):
     """population() with a P3 timeline (t0_wall 0, one attack phase) and its bots scheduled in that phase."""
     m, recs, cap = population(cap, seed)

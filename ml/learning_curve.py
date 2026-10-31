@@ -598,7 +598,8 @@ def select_view(sets, out_dir, *, fractions, draws, inits, full_inits, epochs, h
                       "gru_shuffled": (g_art, V.torch_scores(model, Xv_shuf, mean, std))}
         if (f, d) not in tab_cache:
             Xs, ys = V.summaries(V._stack(train)), np.array([w["y"] for w in train])
-            hgb = HistGradientBoostingClassifier(max_iter=mp["hgb"]["max_iter"], random_state=seed).fit(Xs, ys)
+            hgb = HistGradientBoostingClassifier(max_iter=mp["hgb"]["max_iter"], class_weight=mp["hgb"]["class_weight"],
+                                                 early_stopping=mp["hgb"]["early_stopping"], random_state=seed).fit(Xs, ys)
             lr = make_pipeline(StandardScaler(), LogisticRegression(max_iter=mp["lr"]["max_iter"],
                                                                     class_weight=mp["lr"]["class_weight"]))
             lr.fit(Xs, ys)
