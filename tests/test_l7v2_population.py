@@ -63,8 +63,7 @@ class TrainingPlanTest(unittest.TestCase):
         self.assertEqual(sorted(cgnat), [12, 24])
         self.assertEqual(len(benign), 87)
         self.assertTrue(124 <= users <= 130, users)   # 120 + the nat_gateway's 4-10 users
-        self.assertLess(users, p3_prereg.load()["volume"]["benign_users_min"],
-                        "P3's 200-user target does not fit 300 aliases with this mix: reported, not hidden")
+        self.assertGreaterEqual(users, p3_prereg.load()["volume"]["benign_users_min"], "P3's re-registered 120 users")
 
     def test_training_needs_frozen_knees(self):
         for knees in (None, {"status": "placeholder", "C2": 1.0}):

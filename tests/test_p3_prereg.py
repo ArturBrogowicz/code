@@ -77,7 +77,8 @@ class PinnedVolumeAndCurveTest(unittest.TestCase):
         self.assertEqual(v["core_phases"], ["C2", "C3a", "C3b@M2"])
         self.assertEqual(v["eval_only_phase"], "C3b@M3")
         self.assertEqual(v["phase_intensity_multipliers"], [0.5, 1, 2])
-        self.assertEqual((v["benign_users_min"], v["attack_entities_per_core_family_min"]), (200, 50))
+        self.assertEqual((v["benign_users_min"], v["attack_entities_per_core_family_min"]), (120, 50))
+        self.assertIn("re-registered 2026-10-31 by the user, before any capture", v["benign_users_min_note"])
         self.assertEqual((v["cgnat_pools"], v["cgnat_users"], v["c3b_m1_entities"]), (2, 36, 10))
         pool = P.load()["pool"]
         self.assertEqual((pool["range"], pool["address_limit"]), ("10.0.16.0/20", 300))

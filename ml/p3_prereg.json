@@ -32,7 +32,8 @@
   "eval_only_phase": "C3b@M3",
   "phase_intensity_multipliers": [0.5, 1, 2],
   "c3b_m1_entities": 10,
-  "benign_users_min": 200,
+  "benign_users_min": 120,
+  "benign_users_min_note": "re-registered 2026-10-31 by the user, before any capture: 200 -> 120 users per capture seed (200 do not fit the 300 verified aliases next to the L7 v2 classes; T-025a F3)",
   "cgnat_pools": 2,
   "cgnat_users": 36,
   "attack_entities_per_core_family_min": 50
