@@ -88,7 +88,7 @@ def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow
     """One run record from the run's harm-gate metrics (eval/harm_gate.run_metrics: over the attack
     window, and with window=LEVEL_WINDOW_S for `level_metrics`; `level_window` is the window the caller
     took it over, and must be LEVEL_WINDOW_S), its ban events and the role of every client address.
-    Every banned address must have a role."""
+    Every banned address, and every address with a closed connection, must have a role."""
     check_record_timeline(metrics["q_per_s"], level_window)
     banned = {}
     for ev in ban_events:
@@ -98,8 +98,10 @@ def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow
         if ip not in roles:
             raise ValueError(f"banned address without a role: {ip!r}")
         banned[ip] = roles[ip]
-    benign_closed = len({(c["ip"], c["port"], c["sport"]) for c in slow_pc_closes
-                         if roles.get(c["ip"], ATTACK) != ATTACK})
+    unlabelled = sorted({c["ip"] for c in slow_pc_closes} - set(roles))
+    if unlabelled:                                  # fail closed, as for a ban (review T-039 V-06)
+        raise ValueError(f"closed connections of addresses without a role: {unlabelled[:5]}")
+    benign_closed = len({(c["ip"], c["port"], c["sport"]) for c in slow_pc_closes if roles[c["ip"]] != ATTACK})
     return {"block": block, "arm": arm, "valid": bool(valid), "Q": metrics["Q"], "p95_s": metrics["p95_s"],
             "q_per_s": list(metrics["q_per_s"]), "q_level": level_metrics["Q"],
             "level_window": [float(x) for x in level_window], "banned": banned, "benign_closed": benign_closed}

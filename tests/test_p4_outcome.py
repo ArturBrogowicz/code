@@ -201,6 +201,13 @@ class InputTest(unittest.TestCase):
             O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [{"kind": "ban", "ip": "10.9.9.9"}], roles,
                         level_window=win)
 
+    def test_a_close_of_an_unlabelled_address_is_refused(self):
+        metrics = {"Q": 97.0, "p95_s": 0.2, "q_per_s": [99.0] * 270}
+        closes = [{"ip": "10.0.4.1", "port": 1, "sport": 443}, {"ip": "10.0.9.9", "port": 2, "sport": 80}]
+        with self.assertRaisesRegex(ValueError, "10.0.9.9"):
+            O.summarize(3101, "M_pc_loris", True, metrics, {"Q": 98.0}, [], {"10.0.4.1": "cgnat"}, closes,
+                        level_window=O.LEVEL_WINDOW_S)
+
     def test_a_run_on_another_timeline_or_window_is_refused(self):
         metrics = {"Q": 97.0, "p95_s": 0.2, "q_per_s": [99.0] * 180}          # the 30 + 120 + 30 s schedule
         with self.assertRaises(ValueError):
