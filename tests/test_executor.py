@@ -615,7 +615,7 @@ class PinsTest(unittest.TestCase):
             argv = list(s.argv)
             self.assertEqual(argv[argv.index("taskset") + 2], P.PIN_PLAN_DAEMON["legit" if s.kind == "legit" else "attack"], s.id)
         self.assertEqual(p.daemon.argv[:3], ("taskset", "-c", "2"))
-        self.assertIn("pins          server 0-1, daemon 2, executor 7, legit 6, attack 3-5: the executor on CPU 7", EX.describe(p))
+        self.assertIn("pins          server 0-1, daemon 2, executor 6, legit 7, attack 3-5: the executor on CPU 6", EX.describe(p))
         self.assertNotIn("pins          ", EX.describe(plan("U")))
 
 

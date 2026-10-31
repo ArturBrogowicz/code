@@ -180,7 +180,7 @@ class ProtectedCampaignTest(CampaignCase):
     def test_the_plan_prints_the_arms_the_pins_the_outcome_and_the_budget(self):
         text = GC.describe(self.scn, self.CAL, SPEC_SHA, GC.Options(blocks=10, modes=("xdp",)))
         self.assertIn("a block is C, Cp, U, M_xdp in the order shown", text)
-        self.assertIn("pins         server 0-1, daemon 2, executor 7, legit 6, attack 3-5 for every run (the executor on CPU 7)", text)
+        self.assertIn("pins         server 0-1, daemon 2, executor 6, legit 7, attack 3-5 for every run (the executor on CPU 6)", text)
         self.assertIn("P2 outcome   pre-registered (harm_gate.P2_OUTCOME)", text)
         self.assertIn("VM time      41 runs at about 150 s = 1.7 h; each re-run adds 10.0 min (4 runs); at most 2 re-runs, 20.0 min", text)
         self.assertIn("a block whose protected run is not valid is not valid either", text)

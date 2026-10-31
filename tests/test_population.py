@@ -371,7 +371,8 @@ class StagedTest(unittest.TestCase):
 
 
 class DaemonPinPlanTest(unittest.TestCase):
-    """G5: with the daemon on CPU 2 the executor gets a CPU of its own (7, which the attack gives up); nothing else moves."""
+    """G5: with the daemon on CPU 2 the executor gets a CPU of its own (6, which the attack gives up); nothing else moves, and the legit
+    streams keep CPU 7 to themselves (D14 as amended on 2026-10-31)."""
 
     @staticmethod
     def cpus(text):
@@ -397,7 +398,11 @@ class DaemonPinPlanTest(unittest.TestCase):
         self.assertGreaterEqual(len(self.cpus(P.PIN_PLAN_DAEMON["attack"])), 3)
 
     def test_the_executor_sits_on_the_daemons_cpu_only_in_a_plan_without_a_daemon(self):
-        self.assertEqual((P.executor_cpus(P.PIN_PLAN), P.executor_cpus(P.PIN_PLAN_DAEMON)), ("2", "7"))
+        self.assertEqual((P.executor_cpus(P.PIN_PLAN), P.executor_cpus(P.PIN_PLAN_DAEMON)), ("2", "6"))
+
+    def test_the_daemon_plan_is_the_amended_plan_with_the_executor_on_6(self):
+        self.assertEqual(P.PIN_PLAN_DAEMON, {"server": "0-1", "daemon": "2", "executor": "6", "legit": "7", "attack": "3-5"})
+        self.assertNotIn(7, self.cpus(P.PIN_PLAN_DAEMON["executor"]) | self.cpus(P.PIN_PLAN_DAEMON["attack"]))
 
 
 if __name__ == "__main__":

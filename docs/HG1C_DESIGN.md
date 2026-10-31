@@ -681,10 +681,10 @@ possible with no ban at all (limits alone holding Q); review F-03 asked the user
 pre-registration, after it a departure.
 
 **The pin plan (G5), a proposal.** A campaign with a daemon pins every run, the warm-up included, with `population.PIN_PLAN_DAEMON`: server
-0-1, daemon 2, executor 7, legit 6, attack 3-5. Only the executor (from 2) and the attack (from 3-5,7) move; the attack needs at most about
-2 % of a CPU per set of streams (T-004 p2_capacity 2). Runs and campaigns without a daemon, and the calibrator, keep `PIN_PLAN` with the
-executor on 2. [CLAIMED, memory and T-000] CPU 7 was the quietest vCPU in the latest timer surveys, which is a reason for the executor's
-exit stamps to sit there, not for moving the legit streams (their timer gate on 6 is the calibration's).
+0-1, daemon 2, executor 6, legit 7, attack 3-5. With D14 as amended on 2026-10-31 (D-032: the legit streams and the timer gate on CPU 7,
+the attack on 3-6), only the executor (from 2) and the attack (from 3-6) move: the executor takes CPU 6 from the attack, which needs at most
+about 2 % of a CPU per set of streams (T-004 p2_capacity 2), and nothing else uses CPU 7. Runs and campaigns without a daemon, and the
+calibrator, keep `PIN_PLAN` with the executor on 2.
 
 **H-01: the daemon must come from a checkout that has `fix/daemon-robustness`.** One request with a byte that is not UTF-8 ended the daemon's
 main loop on this branch's `control_plane.py`; its `finally` detached XDP and lifted every ban (T-017 H-01, fixed in 8db9827 and the
