@@ -443,8 +443,9 @@ daemon's start (a map an earlier daemon left) and at its stop, after XDP is deta
 **One path for every arm** (9.5). The arm's detector and its own operating point come from the frozen selection of
 `ml/train_l7v2.py select`: the view GRU, the HGB or the LR (or a rule, once one is registered in `l7_arms.RULES`)
 behind `score(batch) -> p`. A selection that is not the recorded one, an altered artifact, an arm whose operating
-point is null (its package carries the placeholder 0.5 x 1), and the replay-only ablations are refused, and the
-daemon does not start.
+point is null (its package carries the placeholder 0.5 x 1), a selection not marked `valid_for_claims` (a smoke run or
+a legacy capture; T-042 E05), and the replay-only ablations are refused: the daemon writes why as a `daemon_error`
+(`where` `l7_enforce`) and does not start.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -546,7 +547,7 @@ at the run directory; standalone default `/var/log/ddos/ban_events.jsonl`; `""` 
 | `slow_pc_would_ban` | `ip`, `value` (closes within 60 s), `threshold` (K), `ua_keys`: a ban the rule decided in shadow |
 | `slow_pc_close_retry` | `ip`, `port`, `local`, `sport`, `attempt`, `gave_up`: a closed connection still there at the next poll, closed again (`attempt` 2 or 3) or, after the last retry, given up (`gave_up` true; P4-06). A connection that ended between the read and the kill is gone, not an error, and the exit status of `ss -K` decides nothing |
 | `slow_pc_capped` | `what` (`close` or `ban`), `n`, `cap`, and for bans `ips` (at most 50): decisions held back by the caps of 500 closes per poll and 20 bans per minute |
-| `l7_enforce_arm` | `armed`, `reason` (why not), `arm`, `arm_kind`, `model`, `selection_sha256`, `level`, `threshold`, `consecutive`: the L7 v2 arm attached to the shadow thread's engine (`L7_ENFORCE=1` only, as every kind below) |
+| `l7_enforce_arm` | `armed`, `reason` (why not), `arm`, `arm_kind`, `model`, `selection_sha256`, `valid_for_claims`, `level`, `threshold`, `consecutive`: the L7 v2 arm attached to the shadow thread's engine (`L7_ENFORCE=1` only, as every kind below) |
 | `l7_deny` | `ip`, `ua_h`, `sid_h`, `arm`, `threshold`, `consecutive`, `p`, `t_poll`, `level` (1), `shared` (a case-insensitive twin's line covers it), `key_age_s`, `active`, `ttl_s`: a key denied at nginx |
 | `l7_deny_end` | the key fields, `reason` (`ttl`, `kill`, `stop`, `cgnat_guard`: a sid-less line withdrawn when its address turned shared, D-040), `denied`, `effective`, `age_s` |
 | `l7_enforce_skip` | the key fields, `reason` (`not_armed`, `killed`, `ip_format` (not a canonical dotted-quad IPv4 address), `allowlist`, `already_denied`, `ip_banned`, `key_age` with `key_age_s` and `until`, `cgnat_guard` with `ua_keys` and `sid_keys`) |

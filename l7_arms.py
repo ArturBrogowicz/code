@@ -8,6 +8,8 @@ a view-level Detector behind score(batch) -> p, scored by the same l7_engine.L7V
 
 Refused for enforcement (DetectorError), so the daemon does not start:
   * a selection whose sha256 is not the one the runner gives (L7_SELECTION_SHA256), or not of this format;
+  * a selection not marked valid_for_claims (ml/train_l7v2.py writes false for a --smoke run or a legacy capture;
+    T-042 E05): it would enforce like a real arm and look like one in the events;
   * an arm whose artifact is missing or altered (its sha256 in the selection);
   * an arm without an operating point: `select` writes null when no grid point fits the benign budget, and the
     package then carries the placeholder 0.5 x 1 (T-025b report 6), which no arm may enforce;
@@ -65,6 +67,7 @@ class Detector:
         self.max_views = self.seq_len = int(max_views or F.MAX_VIEWS)
         self.threshold, self.consecutive = float(threshold), int(consecutive)
         self.sha256, self.selection_sha256 = sha256, selection_sha256
+        self.valid_for_claims = True                # load() refuses any other selection
         self.cfg = {"meta": {"arm": arm, "kind": kind, "operating_point": "selection.json"}}
         self._fn = fn
 
@@ -94,6 +97,9 @@ def load(selection_path, selection_sha256, arm):
         raise DetectorError(f"{selection_path} has sha256 {actual}, not the recorded {selection_sha256}")
     if not isinstance(sel, dict) or sel.get("format") != SEL_FORMAT:
         raise DetectorError(f"{selection_path} is not a {SEL_FORMAT} file")
+    if sel.get("valid_for_claims") is not True:
+        raise DetectorError(f"{selection_path} is marked valid_for_claims={sel.get('valid_for_claims')!r} (a smoke run "
+                            "or a legacy capture): it is not enforced")
     entry = (sel.get("arms") or {}).get(arm)
     if entry is None:
         raise DetectorError(f"no arm {arm!r} in the selection (arms: {sorted(sel.get('arms') or {})})")

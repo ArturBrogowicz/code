@@ -89,10 +89,13 @@ class SelectionCase(unittest.TestCase):
         cls.tmp.cleanup()
 
     @classmethod
-    def write(cls, name, arms, fmt=L.SEL_FORMAT):
+    def write(cls, name, arms, fmt=L.SEL_FORMAT, valid=True):
         path = os.path.join(cls.dir, name)
+        sel = {"format": fmt, "source": "test", "arms": arms, "valid_for_claims": valid}
+        if valid is None:
+            del sel["valid_for_claims"]
         with open(path, "w", encoding="utf-8") as fh:
-            json.dump({"format": fmt, "source": "test", "arms": arms}, fh)
+            json.dump(sel, fh)
         return path, sha(path)
 
     def setUp(self):
@@ -188,6 +191,14 @@ class RefusalTest(SelectionCase):
         path, digest = self.write("sel_outside.json", arms)
         self.refused(path, digest, "lr", "outside")
 
+    def test_a_selection_not_valid_for_claims_is_never_enforced(self):
+        # T-042 E05: train_l7v2 writes valid_for_claims false for a --smoke run or a legacy capture
+        for name, valid in (("sel_smoke.json", False), ("sel_old.json", None)):
+            with self.subTest(valid=valid):
+                path, digest = self.write(name, self.arms, valid=valid)
+                self.refused(path, digest, "lr", "valid_for_claims")
+        self.assertTrue(L.load(self.sel, self.sha, "lr").valid_for_claims)
+
     def test_a_rule_must_be_registered_and_give_0_or_1(self):
         L.RULES.pop("test_costly")
         self.refused(self.sel, self.sha, "cost_rule", "registered rule")
@@ -198,6 +209,17 @@ class RefusalTest(SelectionCase):
 
 
 class DaemonLoadTest(DE.L7Case, SelectionCase):
+    def test_a_smoke_selection_stops_the_daemon_and_says_why(self):
+        path, digest = self.write("sel_smoke_daemon.json", self.arms, valid=False)
+        d = self.daemon(**{**DE.ENFORCE, "L7_SELECTION": path, "L7_SELECTION_SHA256": digest, "L7_ARM": "hgb"})
+        d.ns["l7_arms"] = L
+        with self.assertRaises(SystemExit):
+            d.call("l7_enforce_init")
+        [err] = d.events("daemon_error")
+        self.assertEqual((err["where"], err["action"]), ("l7_enforce", "the daemon stops: nothing is enforced"))
+        self.assertIn("valid_for_claims=False", err["error"])
+        self.assertIsNone(d.l7_arm)
+
     def test_the_daemon_loads_its_arm_from_the_selection_and_a_refusal_stops_it(self):
         for arm, ok in (("hgb", True), ("gru_shuffled", False)):
             with self.subTest(arm=arm):

@@ -743,6 +743,8 @@ before any data). Usage and events: `docs/EVALUATION.md`, "L7 v2: the enforcing 
   could add entries after the stop's clear or replace its empty map (65 of 300 trials in the review's probe).
 - **E04, the kill switch's reload is paced** like every other (at most one per 10 s), so it may come up to 10 s after
   the file appears; only the daemon's stop reloads at once. A file toggled every second gave 30 reloads a minute.
+- **E05, claims-valid selections only.** A selection marked `valid_for_claims` false (a `--smoke` run or a legacy
+  capture) is refused for enforcement; the daemon logs why (`daemon_error`, `where` `l7_enforce`) and does not start.
 
 **A conflict for the user, resolved by D-038 (below).** 9.4 excludes `;` from a writable UA. Every UA of
 `ml/l7_benign.UA_TABLE` contains one (17 of 17, weight 0.99 of 0.99; 3 of the 6 `ml/l7_gen.UAS`), so as written no

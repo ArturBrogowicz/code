@@ -184,6 +184,7 @@ class Arm:
         info = {"arm": meta.get("arm") or getattr(scorer, "arm", None), "arm_kind": getattr(scorer, "kind", None),
                 "model": getattr(scorer, "sha256", None) or None,
                 "selection_sha256": getattr(scorer, "selection_sha256", None),
+                "valid_for_claims": getattr(scorer, "valid_for_claims", None),
                 "level": getattr(engine, "level", "request"),
                 "threshold": getattr(engine, "threshold", None), "consecutive": getattr(engine, "consecutive", None)}
         why = refuse
