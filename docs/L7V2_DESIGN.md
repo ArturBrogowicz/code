@@ -831,6 +831,76 @@ descriptive load split is reported per arm on validation.
 
 `control_plane.py`, `l7_engine.py`, `bench/`, `server/`, the nginx confs and `l7_backend.py` are untouched.
 
+## 18. As built: the verdict constants, the rule arms, the verdict code and the replay scorer (T-025d, 2026-10-31, branch `feat/l7v2-arms`)
+
+Built offline; nothing ran on the VM and no capture exists. Every item below is labelled post hoc, before any data.
+
+**Frozen first (section 13 item 4).** `ml/l7v2_verdict_prereg.json` (commit 2b8b949), sha256-pinned by its test before
+the verdict code existed: the ladder, the effect sizes, the testing order, the live set, R*'s definition and
+candidates, the units and statistics, and the blocks on V-A. `ml/l7v2_rules_prereg.json` (commit d663785) freezes the
+rule arms' grids and readings with the code that tunes them, before any capture.
+
+**Open judging choices, written down and not picked** (`open_choices`, resolution null; for the user):
+- OC-1, the "best learned arm" of V-B and V-C for C3b: the live learned arm with the higher evaluation mean Q, the one
+  with the higher validation recall, or the GRU.
+- OC-2, the measure of "meets the budget on the evaluation seeds": the replay of the U runs, or the live M runs.
+- OC-3, whether U is one of V-A's "live baseline arms".
+- OC-4, the verdict when R* beats the best learned arm on harm (no rung names it): inconclusive, or V-C.
+- `ml/l7v2_verdict.judge` computes the verdict under every combination of the open options and claims one only when
+  all agree; otherwise it names the choices that decide it. A resolution is a new file version.
+
+**Readings of section 11 (R-1..R-8 in the file):** harm contrasts are `eval/run_level_stats` unchanged; detection
+contrasts compare the replays of the same U runs, with a two-stage bootstrap (blocks, then entities within a block);
+V-A's other harm contrasts join step 3 as an intersection-union test; V-B's "equivalent to or loses to" is the detection
+contrast (the shuffled-GRU never runs live); a V-A that a block stops (age-confounded validation, structureless benign
+model) is inconclusive with the block named; the shuffled-GRU of the ladder is the plain variant. Under the fixed
+testing order, steps 4 and 5 are reached only when step 3 (the best learned arm beats R*) passes, so V-A needs it too.
+
+**The rule arms (`ml/l7v2_rules.py`), readings for strong baselines:**
+- **Decision points.** A rule decides where the view arms decide: the same (IP, UA, sid) keys and view windows, the
+  windows the live engine would score, the same k-consecutive policy, budget, objective and ties. Rules give p in
+  {0, 1}, so theta is fixed at 0.5 and k comes from the common k grid.
+- **The statistic of a window** is the maximum of its per-request value over the requests of its state key since the
+  key's previous scored window (looking back at most 300 s), so no burst between two decision points is lost.
+- **Key.** Each per-key arm takes (IP, UA), as section 10 writes, or the L7 v2 key (IP, UA, sid), chosen on validation.
+- **Grids.** The cost budget takes one window per grid point (section 10 says "tau grid", not "jointly"); the
+  multi-scale rate and the population detector take their tau per statistic jointly. Grid order is k first, then the
+  arm's own grid as listed.
+- **R*'s candidates** are the four arms whose section-10 row says "the best of the rule arms runs live" or "may be the
+  live rule". The population detector (replay only) and the fixed replays (default and tolerant rules, nginx limits)
+  are reported and never R*.
+- **The fixed replays** run on the log's completion time, not on the daemon's receive clock. nginx's `limit_conn` is
+  not replayable from an access log and is left out.
+
+**Finding: on synthetic validation, three of the four R* candidates are starved by their grids** [synthetic plans
+2001 and 2002 replayed at nominal times, placeholder record; `S3:T-025d/artifacts/rules_synthetic_val_2001_2002.json`].
+- The sustained-rate thresholds (2-50 req/s) and the token-bucket rates (5-30 r/s) of `ml/l7_baselines.py` were sized
+  for P5's floods. A C2 source sends m x L x S / (n x cost) req/s, under 1 req/s at L = 4 on the placeholder, and a
+  C3a or C3b bot a page every 2-12 s. Each arm catches 2 of 320 attack entities at its point.
+- The tau grid starts at 0.8 x the benign validation maximum. Benign page loads are the burstiest keys, so every
+  attack family's per-key rate stays below that floor on every window, and the multi-scale rate catches 0 of 320.
+- The cost budget reaches its point at the grid's lowest tau (0.8 over 60 s per L7 v2 key, 1 of 2 allowed benign units)
+  and catches 270 of 320 (C2 and C3b all, C3a half). It is R* here, at the edge of its grid.
+- The grids are left as approved. Extending them downward, or replacing the multiples with benign quantiles, is the
+  user's call, before any capture.
+
+**The replay scorer (`ml/l7v2_replay.py`).** A recording (records and poll ticks) runs through each view arm's own
+`l7_engine.L7ViewEngine` at its frozen (theta, k), and through `TapEngine` for the rule arms and the age-only arm: the
+same engine, which also hands the windows it is about to score to the arm. A key is decided at the poll of its first
+`l7_would_ban`; time to decision runs from the entity's first request start to that poll, at most one poll later than
+the evaluator's deciding window. Tests check that the rule arms, the age-only arm and a view arm decide in the replay
+exactly the keys `train_l7v2` decides on the same records.
+
+**L7V2-08.** Knees carry `record_sha256`, the digest of the calibration record they were measured on.
+`l7_pools.build_plan` refuses knees whose record is not the one in use (any role), and a training, validation or
+evaluation plan on a record that is not frozen or with knees that name no record. T-041's age check of the 36
+pre-registered plans ran on the placeholder; a frozen record with the placeholder's numbers gives the same plans
+(`tests/test_l7v2_population.py`).
+
+**Files touched in this round:** `ml/l7v2_verdict_prereg.{json,py}`, `ml/l7v2_rules_prereg.json`, `ml/l7v2_rules.py`,
+`ml/l7v2_verdict.py`, `ml/l7v2_replay.py`, `ml/l7_pools.py` (`_knees`), `ml/capture_l7.py` (one help line), tests and
+this note. `control_plane.py`, `l7_engine.py`, `bench/`, `server/`, the nginx confs and the generators are untouched.
+
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.
 - G1-02 Kadel et al., BOTracle, ESORICS Workshops 2024.
