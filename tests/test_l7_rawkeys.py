@@ -66,7 +66,7 @@ class RawKeysTest(unittest.TestCase):
         browser = note(t, obj(ua="Mozilla/5.0 (Windows NT 10.0; Win64; x64)", ip="10.0.16.8"))
         self.assertEqual(t.lookup(good), ("ok", UA, SID))
         self.assertEqual(t.lookup(bad), ("unenforceable", "ua_forbidden_char", None))
-        self.assertEqual(t.lookup(browser), ("unenforceable", "ua_forbidden_char", None))
+        self.assertEqual(t.lookup(browser), ("ok", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", ""))   # D-038
         self.assertNotIn(hostile, repr(t._keys))                          # never kept, so never logged or written
         self.assertEqual(t.lookup((IP, 1, 2)), ("unenforceable", "no_raw", None))
 

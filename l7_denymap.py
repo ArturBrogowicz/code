@@ -6,10 +6,16 @@ it). The daemon writes deny.map: one line `"<ip>|<ua>|<sid>" 1;` per denied (IP,
 User-Agent and the session cookie are client-chosen bytes written into nginx's configuration, so only keys that pass
 the write rules of 9.4 are written (key_problem):
   * the IP is a canonical dotted IPv4 address (the testbed's only family, and the XDP ban path's);
-  * the UA is printable ASCII (0x20-0x7E), at most 256 bytes, without any of  " \\ ; { } $ ;
+  * the UA is printable ASCII (0x20-0x7E), at most 256 bytes, without any of  " \\ { } $  (a ';' is allowed since
+    D-038, below);
   * the sid is empty (no cookie) or the server's own format, l7_backend.SID_RE (restated here, so this module stays
     standard library only; tests/test_l7_denymap.py keeps the two equal).
 Any other key is refused here; the decision policy (l7_enforce.py) logs it as unenforceable at level 1.
+
+Amendment D-038 (2026-10-31, the user's decision "Allow ';'"): 9.4 as written also excluded ';'. Every User-Agent of
+ml/l7_benign.UA_TABLE contains one, so no testbed browser key could have been denied at level 1 (T-025c report F3).
+Inside nginx's double quotes ';' is an ordinary character (below), so it is now written; '"', '\\', '$', '{', '}',
+bytes outside 0x20-0x7E and UAs over 256 bytes stay excluded.
 
 nginx's semantics this module follows (nginx 1.28.3, the installed version; the map page,
 https://nginx.org/en/docs/http/ngx_http_map_module.html, and the source where the page is silent):
@@ -55,12 +61,12 @@ MAX_DENIES = 2000              # 9.3: active denies at most
 DENY_TTL_S = 300               # 9.2: like control_plane.BAN_TTL_SECONDS
 MAX_UA_BYTES = 256             # 9.4
 MAX_RAW_KEYS = 16384           # the raw side table's LRU bound (keys)
-FORBIDDEN_UA_CHARS = frozenset('"\\;{}$')   # 9.4, as written; only `"` and `\` are special to nginx inside quotes
+FORBIDDEN_UA_CHARS = frozenset('"\\{}$')    # 9.4 with D-038 (';' allowed); only `"` and `\` are special to nginx in quotes
 SID_RE = re.compile(r"[0-9a-f]{32}")       # l7_backend.SID_RE
 SEP = "|"
 # what one line of deny.map is, exactly (the tests read the file with this and with a port of nginx's tokenizer)
 LINE_RE = re.compile(r'"((?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?:\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}'
-                     r'\|[\x20\x21\x23\x25-\x3a\x3c-\x5b\x5d-\x7a\x7c\x7e]*\|(?:[0-9a-f]{32})?)" 1;')
+                     r'\|[\x20\x21\x23\x25-\x5b\x5d-\x7a\x7c\x7e]*\|(?:[0-9a-f]{32})?)" 1;')
 
 
 def ip_problem(ip):

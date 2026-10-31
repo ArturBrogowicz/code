@@ -148,7 +148,6 @@ HOSTILE = {
     "café": "ua_not_printable_ascii",
     "bot�": "ua_not_printable_ascii",
     "ÿ\u0080": "ua_not_printable_ascii",
-    "Mozilla/5.0 (X11; Linux x86_64)": "ua_forbidden_char",
     "x { return 200; }": "ua_forbidden_char",
     "}": "ua_forbidden_char",
     "${http_host}": "ua_forbidden_char",
@@ -190,6 +189,17 @@ class WriteRulesTest(unittest.TestCase):
         self.assertEqual(len(D.map_key("255.255.255.255", "x" * D.MAX_UA_BYTES, SID)), 305)
 
 
+# D-038: ';' is an ordinary character inside nginx's double quotes, so it is written; next to a quote or a backslash
+# the key is still refused (for the quote or the backslash).
+SEMICOLONS_WRITABLE = (";", ";" * 16, "; ;", ";x", "x;", " ;", "; ", "a;b;c", "Mozilla/5.0 (X11; Linux x86_64)",
+                       "x" * 255 + ";", ";" * 256, "; return 200;", ";#;", "a;b")
+SEMICOLONS_REFUSED = {'";': "ua_forbidden_char", ';"': "ua_forbidden_char", "\\;": "ua_forbidden_char",
+                      ";\\": "ua_forbidden_char", '\\";': "ua_forbidden_char", ';\\"': "ua_forbidden_char",
+                      '"; include /etc/passwd; "': "ua_forbidden_char", ";{": "ua_forbidden_char",
+                      ";$host": "ua_forbidden_char", ";\\n": "ua_forbidden_char", ";\n;": "ua_not_printable_ascii",
+                      ";" * 257: "ua_too_long"}
+
+
 class FileTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -225,6 +235,34 @@ class FileTest(unittest.TestCase):
         parsed = nginx_directives(text)
         self.assertEqual(sorted(parsed), sorted([k, "1"] for k in written))
         self.assertTrue(all(k[0].isdigit() for k, _v in parsed))          # never a ~ regex, never a special word
+
+    def test_semicolons_are_written_and_the_file_stays_one_key_line_per_entry_d038(self):
+        dm = self.deny_map()
+        written = []
+        for n, ua in enumerate(SEMICOLONS_WRITABLE + tuple(SEMICOLONS_REFUSED)):
+            ip, sid = f"10.0.9.{n + 1}", SID if n % 2 else ""
+            status, detail = dm.add(ip, ua, sid, 1000.0)
+            if ua in SEMICOLONS_WRITABLE:
+                self.assertEqual(status, "added", ua)
+                written.append(f"{ip}|{ua}|{sid}")
+            else:
+                self.assertEqual((status, detail), ("refused", SEMICOLONS_REFUSED[ua]), ua)
+        dm.write()
+        text = self.read()
+        self.assertEqual(len(text.splitlines()), len(written))
+        for ln in text.splitlines(keepends=True):
+            self.assertTrue(ln.endswith(" 1;\n"))
+            self.assertRegex(ln[:-1], f"^{D.LINE_RE.pattern}$")
+        self.assertEqual(sorted(nginx_directives(text)), sorted([k, "1"] for k in written))
+
+    def test_every_testbed_browser_user_agent_is_writable_d038(self):
+        sys.path.insert(0, os.path.join(REPO, "ml"))
+        import l7_benign
+        import l7_gen
+        uas = [ua for _w, ua in l7_benign.UA_TABLE] + list(l7_gen.UAS)
+        self.assertEqual((len(uas), sum(";" in ua for ua in uas)), (23, 20))
+        self.assertEqual([ua for ua in uas if D.ua_problem(ua)], [])
+        self.assertEqual(D.FORBIDDEN_UA_CHARS, frozenset('"\\{}$'))
 
     def test_keys_that_differ_only_in_case_are_one_entry(self):
         # nginx lower-cases the keys of a map and refuses a map that lists one twice ("conflicting parameter").

@@ -20,7 +20,7 @@ BOT = "10.0.17.5"
 POOL = "10.0.18.9"
 SID = "b" * 32
 UA = "Bot/2.0 (compatible, deep-linker)"
-BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"        # a ';': unenforceable at level 1 (9.4)
+BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) {x}"    # a brace: unenforceable at level 1 (9.4, D-038)
 
 
 def obj(ip=BOT, ua=UA, sid=SID, start=1000.0, rt=0.01, uri="/page/1"):

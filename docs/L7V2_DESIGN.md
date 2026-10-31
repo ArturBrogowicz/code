@@ -729,11 +729,17 @@ before any data). Usage and events: `docs/EVALUATION.md`, "L7 v2: the enforcing 
 - The level-2 ban reaches `ban_ip` through the arm's injected callable, engine `l7v2`, kept out of
   `ban_events.ENGINES` (which `tests/test_control_plane_contract.py` pins to the direct calls).
 
-**A conflict for the user (not resolved here).** 9.4 excludes `;` from a writable UA. Every UA of
+**A conflict for the user, resolved by D-038 (below).** 9.4 excludes `;` from a writable UA. Every UA of
 `ml/l7_benign.UA_TABLE` contains one (17 of 17, weight 0.99 of 0.99; 3 of the 6 `ml/l7_gen.UAS`), so as written no
 testbed browser key can be denied at level 1: P1's arm would act only by misses and level-2 bans of single-key
 addresses. Inside nginx's double quotes only `"` and `\` are special (`ngx_conf_read_token`,
 `src/core/ngx_conf_file.c` of 1.28.3); `;`, `{`, `}` and `$` are ordinary. Without `;` in the rule, all 23 UAs pass.
+
+**Amendment D-038 (2026-10-31; the user's decision "Allow ';'", before any data).** 9.4's write rules now allow `;` in
+a UA written into the deny map. `"`, `\`, `$`, `{`, `}`, bytes outside 0x20-0x7E and UAs over 256 bytes stay
+excluded (`l7_denymap.FORBIDDEN_UA_CHARS`). All 17 UAs of `ml/l7_benign.UA_TABLE` and all 6 of `ml/l7_gen.UAS` pass;
+the tests write UAs with `;` alone, repeated, next to quotes and backslashes, and at either end, and read the file
+back with a port of nginx's tokenizer: one `"key" 1;` line per entry.
 
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.

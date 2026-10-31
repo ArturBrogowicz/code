@@ -424,7 +424,7 @@ the `l7_would_ban` events the shadow thread logs. No action on an allowlisted ad
 * Level 1: the (IP, UA, sid) key gets a line in `<L7_ENFORCE_DIR>/deny.map`, and nginx answers it 429. The map is
   written atomically and nginx reloaded (`nginx -c L7_NGINX_CONF -s reload`) at most once per 10 s, batched. Only
   keys that pass the write rules of 9.4 are written: a canonical IPv4 address, a printable-ASCII UA of at most 256
-  bytes without `"`, `\`, `;`, `{`, `}`, `$`, and an empty sid or one in the server's format. Any other key is an
+  bytes without `"`, `\`, `{`, `}`, `$` (a `;` is allowed since D-038), and an empty sid or one in the server's format. Any other key is an
   `l7_enforce_miss` (unenforceable). Keys that differ only in case share a line (nginx matches map strings ignoring
   case and refuses a map that lists one twice).
 * Level 2: an XDP ban of the address through `ban_ip` (engine `l7v2`, TTL 300 s), then `ss -K dst`, only if the key
@@ -476,10 +476,10 @@ fakes).
 
 Known limits:
 
-* The write rules exclude `;`, which every User-Agent of `ml/l7_benign.UA_TABLE` contains: as written, no testbed
-  browser key can be denied at level 1, so such keys are misses, or XDP bans when their address is single-key.
-  Inside nginx's double quotes `;`, `{`, `}` and `$` are ordinary characters; relaxing the rule is the user's
-  decision.
+* D-038 (2026-10-31, the user: "Allow ';'"): 9.4 as written excluded `;`, which every User-Agent of
+  `ml/l7_benign.UA_TABLE` contains, so no testbed browser key could have been denied at level 1. Inside nginx's
+  double quotes `;` is an ordinary character; it is now written, and all 17 UA_TABLE entries pass the rules. `"`,
+  `\`, `$`, `{`, `}`, other bytes and UAs over 256 bytes stay excluded.
 * A bot that sends a fresh well-formed sid with every request gets a new key each time (T-025b F8), and its address
   looks multi-key, so neither level reaches it; the population-level detector is the counter.
 * `nginx -s reload`'s exit status says whether the new configuration parsed; that the workers took it is seen only
