@@ -186,6 +186,41 @@ class OperatingPointTest(unittest.TestCase):
         self.assertEqual((sel["budget"], sel["k_grid"][0], sel["theta_grid"][0]), (0.01, 1, 0.5))
 
 
+class AgeOnlyTest(unittest.TestCase):
+    """The age-only baseline (ml/l7v2_model_prereg.json baselines.age_only, D-034, T038-01)."""
+
+    def test_a_window_carries_its_key_age(self):
+        _m, recs, _c = population(n_benign=1, n_bots=0, pool_users=0)
+        ws = V.view_windows(recs, 8, 4)
+        starts = sorted(F.start_time(r) for r in recs)
+        self.assertTrue(all(w["age"] is not None and w["age"] > 0 for w in ws))
+        self.assertEqual([round(w["age"], 6) for w in ws],
+                         sorted(round(w["age"], 6) for w in ws), "age grows along a key")
+        self.assertLessEqual(max(w["age"] for w in ws), starts[-1] - starts[0] + 1e-9)
+
+    def test_younger_scores_higher_on_benign_quantiles(self):
+        ref = [10.0, 20.0, 30.0, 40.0]
+        p = V.age_scores(ref, [{"age": a} for a in (5.0, 20.0, 35.0, 50.0)])
+        np.testing.assert_allclose(p, [1.0, 0.625, 0.25, 0.0])
+
+    def test_the_reading(self):
+        self.assertEqual(V.age_reading(0.62), "near chance")
+        self.assertEqual(V.age_reading(0.36), "near chance")
+        self.assertEqual(V.age_reading(0.66), "age-confounded")
+        self.assertEqual(V.age_reading(0.30), "age-confounded")
+        self.assertEqual(V.window_auc([0.9, 0.8, 0.1, 0.2], [1, 1, 0, 0]), 1.0)
+        self.assertEqual(V.window_auc([0.5, 0.5], [1, 0]), 0.5)
+
+    def test_young_bots_read_as_age_confounded(self):
+        # the fixture's bots load a page every 3 s from t ~ 0, its browsers every ~8 s: attack windows are younger
+        split = V.Split([population()], request=False)
+        p = V.age_scores([w["age"] for w in split.view if not w["y"]], split.view)
+        rep = V.age_report(split.view, p)
+        self.assertGreater(rep["auc"], 0.65)
+        self.assertEqual(V.age_reading(rep["auc"]), "age-confounded")
+        self.assertEqual(set(rep["auc_by_family"]), {"C3b@M1"})
+
+
 class SelectScoreTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -209,6 +244,23 @@ class SelectScoreTest(unittest.TestCase):
             self.assertIn("operating_point", arm)
         self.assertEqual(self.sel["arms"]["gru_shuffled"]["operating_point"],
                          self.sel["arms"]["view_gru"]["operating_point"])
+
+    def test_the_age_only_baseline_is_scored_beside_the_arms(self):
+        b = self.sel["baselines"]["age_only"]
+        self.assertNotIn("age_only", self.sel["arms"])
+        self.assertEqual(b["artifact"], "age_only.json")
+        self.assertIn("operating_point", b)
+        self.assertIn(b["reading"], ("near chance", "age-confounded"))
+        self.assertEqual(b["reading"], V.age_reading(b["val_auc"]))
+        self.assertEqual(set(b["val_auc_by_family"]), {"C3b@M1"})
+
+    def test_an_altered_age_artifact_is_refused(self):
+        tmp = os.path.join(self.dir, "copy_age")
+        shutil.copytree(self.out, tmp)
+        with open(os.path.join(tmp, "age_only.json"), "a", encoding="utf-8") as fh:
+            fh.write(" ")
+        with self.assertRaises(V.SelectionError):
+            V.load_selection(os.path.join(tmp, "selection.json"), self.sha)
 
     def test_the_packages_carry_their_level(self):
         import l7_scorer as S
@@ -244,6 +296,8 @@ class SelectScoreTest(unittest.TestCase):
         for arm in res["arms"].values():
             self.assertEqual(arm["attack_entities"], 4)
             self.assertEqual(set(arm["by_family"]), {"C3b@M1"})
+        self.assertEqual(res["baselines"]["age_only"]["attack_entities"], 4)
+        self.assertIn("auc", res["baselines"]["age_only"])
         with open(os.path.join(self.dir, "eval", "eval.json"), encoding="utf-8") as fh:
             self.assertEqual(json.load(fh)["selection_sha256"], self.sha)
 

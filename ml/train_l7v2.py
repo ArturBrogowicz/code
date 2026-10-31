@@ -20,6 +20,9 @@ The arms, on identical keys (l7_ingest.key_v2) and, for the view-level arms, ide
   hgb, lr       HistGradientBoosting and a standardised, class-balanced logistic regression on the token summaries
   request_gru   the per-request GRU over the last 64 requests (V2_REQUEST_GROUPS): the offline ablation
   gru_shuffled  the fitted view GRU scoring windows whose tokens are shuffled; it takes the view GRU's (theta, k)
+and, beside them, the age-only baseline (registered 2026-10-31 under D-034, T038-01; ml/l7v2_model_prereg.json
+baselines.age_only): the key-level time since the key's first view as the score, through the same operating-point
+rules; a diagnostic whose validation AUC must stay near chance, never selected or run live.
 
 Selection (design 10): an arm passes the v2 probe gate (l7_probes.GATE_PROBES_V2, on validation records) or gets no
 operating point. Its (theta, k) is the grid point with the highest attack-entity recall over the validation captures
@@ -112,17 +115,19 @@ def _by_key(recs):
     return groups
 
 
-def _window(seq, r_last, X, t, n, key):
+def _window(seq, r_last, X, t, n, key, age=None):
     r0 = seq[0]
     return {"X": X, "y": 1 if r0["_cls"] == D.ATTACK else 0, "ip": r0["_ent"], "key": key, "t": t, "n": n,
             "cls": r0["_cls"], "family": r0["_family"], "held": r0["_held"], "kof": r0.get("_kof"),
-            "capture": r0["_cap"], "recs": seq}
+            "capture": r0["_cap"], "recs": seq, "age": age}
 
 
 def view_windows(recs, max_views=F.MAX_VIEWS, min_views=F.MIN_VIEWS, idle_s=None):
     """One window per completed token of each (IP, UA, sid) key and session, once the key has >= min_views complete
     tokens: the last max_views complete tokens plus the request that completed the last one (its opener), encoded with
-    l7_features.token_matrix. t is that request's completion (msec): when the engine could score the window."""
+    l7_features.token_matrix. t is that request's completion (msec): when the engine could score the window. age is
+    the key-level time since the key session's first view: the start of that request minus the start of the session's
+    first token (the age-only baseline's input, D-034)."""
     idle_s = PRE.load()["ingest"]["idle_timeout_s"] if idle_s is None else idle_s
     out = []
     for key, seq in _by_key(recs).items():
@@ -131,7 +136,8 @@ def view_windows(recs, max_views=F.MAX_VIEWS, min_views=F.MIN_VIEWS, idle_s=None
             for j in range(min_views, len(opens)):
                 window = sess[opens[max(0, j - max_views)]:opens[j] + 1]
                 out.append(_window(window, sess[opens[j]], F.token_matrix(window, max_views),
-                                   sess[opens[j]]["msec"], min(j, max_views), key))
+                                   sess[opens[j]]["msec"], min(j, max_views), key,
+                                   F.start_time(sess[opens[j]]) - F.start_time(sess[opens[0]])))
     return out
 
 
@@ -267,6 +273,51 @@ def tab_scores(clf, X):
 def shuffled_stack(windows, seed):
     rng = np.random.default_rng(seed)
     return np.stack([F.shuffle_valid_rows(w["X"], rng) for w in windows]) if windows else _stack(windows)
+
+
+def window_auc(scores, labels):
+    """P(an attack window scores above a benign one), ties counting one half; None without both classes."""
+    s, y = np.asarray(scores, dtype=np.float64), np.asarray(labels, dtype=int)
+    pos, neg = s[y == 1], np.sort(s[y == 0])
+    if not len(pos) or not len(neg):
+        return None
+    lo, hi = np.searchsorted(neg, pos, "left"), np.searchsorted(neg, pos, "right")
+    return float((lo + 0.5 * (hi - lo)).sum() / (len(pos) * len(neg)))
+
+
+def age_scores(benign_train_ages, windows):
+    """The age-only baseline (ml/l7v2_model_prereg.json baselines.age_only, D-034): p = the share of the training benign
+    windows older than the window, ties counting one half, so a younger window scores higher."""
+    ref = np.sort(np.asarray(benign_train_ages, dtype=np.float64))
+    if not len(windows):
+        return np.zeros(0)
+    if not len(ref):
+        return np.full(len(windows), 0.5)
+    ages = np.array([w["age"] for w in windows], dtype=np.float64)
+    lo, hi = np.searchsorted(ref, ages, "left"), np.searchsorted(ref, ages, "right")
+    return (len(ref) - hi + 0.5 * (hi - lo)) / len(ref)
+
+
+def age_reading(auc, band=None):
+    """The pre-registered reading of the age-only baseline's validation AUC: 'near chance' inside 0.5 +- band, else
+    'age-confounded' (no view-level result on those captures supports V-A or 'sequence helps')."""
+    band = PRE.load()["baselines"]["age_only"]["auc_band"] if band is None else band
+    if auc is None:
+        return "no AUC (one class missing)"
+    return "near chance" if abs(auc - 0.5) <= band + 1e-12 else "age-confounded"
+
+
+def age_report(windows, scores):
+    """The baseline's AUC pooled and per attack family (each family's windows against every benign window)."""
+    y = [w["y"] for w in windows]
+    pooled = window_auc(scores, y)
+    out = {"auc": None if pooled is None else round(pooled, 4), "auc_by_family": {}}
+    ben = [i for i, w in enumerate(windows) if not w["y"]]
+    for fam in sorted({str(w["family"]) for w in windows if w["y"]}):
+        idx = ben + [i for i, w in enumerate(windows) if w["y"] and str(w["family"]) == fam]
+        a = window_auc([scores[i] for i in idx], [y[i] for i in idx])
+        out["auc_by_family"][fam] = None if a is None else round(a, 4)
+    return out
 
 
 class ArmScorer:
@@ -472,6 +523,16 @@ def select(train, val, out_dir, *, arms=PRE.ARMS, epochs=None, threads=2, seed=N
                        op["threshold"] if op else 0.5, op["consecutive"] if op else 1, m["hidden"], m["layers"],
                        meta={"arm": "request_gru", "seed": seed, "source": source}, level="request")
         artifact("request_gru", "request_gru/config.json")
+    ages = sorted(float(w["age"]) for w in tr_view if not w["y"])
+    with open(os.path.join(out_dir, "age_only.json"), "w", encoding="utf-8") as fh:
+        json.dump({"format": "l7v2-age-only/1", "benign_train_ages": ages}, fh)
+        fh.write("\n")
+    pa = age_scores(ages, val.view)
+    rep = age_report(val.view, pa)
+    base = {"age_only": {"artifact": "age_only.json", "artifact_sha256": _sha_file(os.path.join(out_dir, "age_only.json")),
+                         "operating_point": operating_point(val.view, pa, val, sel_rules),
+                         "val_auc": rep["auc"], "val_auc_by_family": rep["auc_by_family"],
+                         "reading": age_reading(rep["auc"]), "rule": pre["baselines"]["age_only"]["reading"]}}
     sel = {"format": SEL_FORMAT, "source": source, "valid_for_claims": bool(valid_for_claims),
            "prereg_sha256": _sha_file(PRE.PREREG_PATH), "split_sha256": split_sha256, "seed": seed,
            "epochs": epochs or mods["view_gru"]["epochs"], "threads": threads,
@@ -479,7 +540,7 @@ def select(train, val, out_dir, *, arms=PRE.ARMS, epochs=None, threads=2, seed=N
                       "val_view_windows": len(val.view), "val_request_windows": len(val.req),
                       "val_attack_entities": len(val.attack), "val_benign_units": sum(val.units.values())},
            "rule": sel_rules["objective"] + "; ties: " + ", ".join(sel_rules["ties"]),
-           "arms": out, "select_wall_s": round(time.time() - t0, 1)}
+           "arms": out, "baselines": base, "select_wall_s": round(time.time() - t0, 1)}
     data = D.canonical_json(sel) + b"\n"
     with open(os.path.join(out_dir, "selection.json"), "wb") as fh:
         fh.write(data)
@@ -506,7 +567,7 @@ def load_selection(path, expected_sha256):
     if sel.get("format") != SEL_FORMAT:
         raise SelectionError(f"refusing to score: {path} is not a {SEL_FORMAT} file")
     base = os.path.dirname(os.path.abspath(path))
-    for name, arm in sel["arms"].items():
+    for name, arm in [*sel["arms"].items(), *sel.get("baselines", {}).items()]:
         p = os.path.normpath(os.path.join(base, arm["artifact"]))
         if not p.startswith(base + os.sep) or not os.path.isfile(p) or _sha_file(p) != arm["artifact_sha256"]:
             raise SelectionError(f"refusing to score: the artifact of {name} is missing or altered")
@@ -553,6 +614,12 @@ def score(ev, sel, sel_path, out_dir, *, threads=2):
                              "operating_point": op, "by_family": {str(f): {"caught": c, "entities": n}
                                                                   for f, (c, n) in sorted(fam.items(), key=str)},
                              "benign_units_flagged_by_kind": {str(k): v for k, v in sorted(kinds.items(), key=str)}}
+    for name, b in sel.get("baselines", {}).items():           # the age-only baseline (D-034), at its frozen point
+        with open(os.path.join(base, b["artifact"]), encoding="utf-8") as fh:
+            pa = age_scores(json.load(fh)["benign_train_ages"], ev.view)
+        a = at_point(ev.view, pa, ev, b["operating_point"])
+        res.setdefault("baselines", {})[name] = {**{x: v for x, v in a.items() if not x.startswith("_")},
+                                                 "operating_point": b["operating_point"], **age_report(ev.view, pa)}
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "eval.json"), "w", encoding="utf-8") as fh:
         json.dump(res, fh, indent=1, sort_keys=True)
