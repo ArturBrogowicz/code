@@ -313,6 +313,66 @@ def _nav_views(params, duration_s, rng, first_visit_s):
     raise ValueError(f"unknown nav {nav!r}")
 
 
+SESSION_KINDS = ("tpcw_browsing", "tpcw_shopping", "zipf_browser", "search_user", "exporter", "flash_crowd",
+                 "cgnat_browsers")
+
+
+def session_users(ua, first_s, duration_s, rng, make_views, device=0):
+    """L7 v2 sessions (ml/l7v2_prereg.json arrivals.lifetimes, re-registered 2026-10-31 under D-034, T038-01): from
+    `first_s`, sessions of a lifetime from the frozen law, a gap from gap_s between two, while at least min_left_s of the
+    run remain (always one). Each session is a plan user of its own, so the executor gives it a fresh browser state (a
+    new requests.Session: no cookies, so a new sid and a new key) and make_views a fresh cache; its views are planned
+    for its lifetime from 0 and shifted to its start. A returning user is therefore a new key. Every user carries its
+    "device" (the CGNAT user or the device it belongs to) and its "session" number."""
+    rule = l7v2_prereg.load()["arrivals"]["lifetimes"]
+    users, t = [], first_s
+    while t < duration_s and (not users or duration_s - t >= rule["min_left_s"]):
+        life = l7v2_prereg.lifetime(rng)
+        views = make_views(min(life, duration_s - t))
+        for v in views:
+            v["t"] = round(v["t"] + t, 4)
+        users.append({"ua": ua, "views": views, "device": device, "session": len(users)})
+        t += life + rng.uniform(*rule["gap_s"])
+    return users
+
+
+def _session_plan(kind, params, duration_s, rng):
+    """The plan of an L7 v2 kind whose params ask for sessions ("sessions": true): its views, as the kind plans them,
+    split into sessions (session_users); a CGNAT pool's users each arrive as before and then run sessions."""
+    level, mv = params.get("level", 30), model_values(params)
+    think = mv.get("think_mean_s", THINK_MEAN_S)
+    zero = (0.0, 0.0)
+    if kind == "cgnat_browsers":
+        users = []
+        for k in range(params["users"]):
+            urng = type(rng)(rng.randrange(2**31))
+            ua = draw_ua(urng)
+            first = urng.uniform(*tuple(params.get("first_visit_s", (0.0, 60.0))))
+            users += session_users(ua, first, duration_s, urng,
+                                   lambda d, _r=urng: _nav_views(params, d, _r, zero), device=k)
+        return {"kind": kind, "users": users}
+    ua = draw_ua(rng)
+    if kind in ("tpcw_browsing", "tpcw_shopping"):
+        first, make = (tuple(params.get("first_visit_s", (0.0, 30.0))),
+                       lambda d: tpcw_views(level, d, rng, kind[5:], zero, think_mean_s=think))
+    elif kind == "zipf_browser":
+        first, make = (tuple(params.get("first_visit_s", (0.0, 30.0))),
+                       lambda d: browser_views(level, d, rng, zero, referer=True, **mv))
+    elif kind == "flash_crowd":
+        within = l7v2_prereg.load()["benign_kinds"]["flash_crowd"]["arrive_within_s"]
+        mix = params.get("nav", "tpcw:" + l7v2_prereg.load()["navigation"]["train_mix"])[5:]
+        first, make = (0.0, within), lambda d: tpcw_views(level, d, rng, mix, zero, think_mean_s=think)
+    elif kind == "search_user":
+        first, make = (tuple(params.get("first_visit_s", (0.0, 30.0))),
+                       lambda d: search_views(level, d, rng, zero, think_mean_s=think))
+    else:                                          # exporter: its first visit as the kind draws it, then sessions
+        spec = l7v2_prereg.load()["benign_kinds"]["exporter"]
+        first, make = (tuple(params.get("first_visit_s") or spec["first_visit_s"]),
+                       lambda d: export_views(level, d, rng, zero, think_mean_s=think,
+                                              visit_gap_s=params.get("visit_gap_s")))
+    return {"kind": kind, "users": session_users(ua, rng.uniform(*first), duration_s, rng, make)}
+
+
 def _paced(paths, rps, duration_s, rng, jitter=None):
     """[(path, gap_s)]: issue `path`, then wait gap_s; Poisson gaps, or 1/rps x jitter."""
     out, t, i = [], 0.0, 0
@@ -326,7 +386,11 @@ def _paced(paths, rps, duration_s, rng, jitter=None):
 
 def plan_client(kind, params, duration_s, rng):
     """The plan for one client. Every kind returns {"kind", "users": [...]}; a user is
-    {"ua", "views"} (browser-like) or {"ua", "requests": [(path, gap_s)]} (paced)."""
+    {"ua", "views"} (browser-like) or {"ua", "requests": [(path, gap_s)]} (paced). An L7 v2 kind of SESSION_KINDS
+    whose params carry "sessions": true is planned in sessions (_session_plan, D-034); without it, the plan is the
+    kind's earlier one, draw for draw."""
+    if params.get("sessions") and kind in SESSION_KINDS:
+        return _session_plan(kind, params, duration_s, rng)
     if kind == "browser_page":
         ua = draw_ua(rng)
         views = _nav_views(params, duration_s, rng, tuple(params.get("first_visit_s", (0.0, 30.0))))

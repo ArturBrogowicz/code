@@ -98,16 +98,18 @@ class TrainingPlanTest(unittest.TestCase):
 class EvaluationPlanTest(unittest.TestCase):
     def test_the_eval_slot_and_the_reused_addresses(self):
         p = Cache.get(3201, "eval")
-        self.assertEqual(p["duration_s"], 1020.0)
+        self.assertEqual(p["duration_s"], 1140.0, "D-034: the 120 s benign tail follows the M3 slot")
         slot = p["timeline"]["phases"][-1]
         self.assertEqual((slot["name"], slot["start_s"], slot["stop_s"]), ("C3b@M3", 780.0, 1020.0))
         self.assertEqual(p["schema"], 3)
         ents = {e["entity_id"]: e for e in p["entities"]}
         m3 = [e for e in p["entities"] if e["kind_or_family"] == "C3b@M3"]
-        c2 = {e["address"]: e for e in p["entities"] if e["kind_or_family"] == "C2"}
+        trained = {e["address"]: e for e in p["entities"] if e["role"] == "attack" and not e["held_out"]}
         self.assertEqual(len(m3), 50)
+        self.assertEqual(len({e["address"] for e in m3}), 50, "D-034: no two M3 bots share a donor")
+        self.assertGreater(sum(trained[e["address"]]["kind_or_family"] == "C2" for e in m3), 0, "C2 donors first")
         for e in m3:
-            donor = c2[e["address"]]
+            donor = trained[e["address"]]
             self.assertTrue(e["held_out"])
             self.assertEqual((e["namespace"], e["netem"]), (donor["namespace"], donor["netem"]))
             self.assertNotEqual(e["params"]["ua"], donor["params"]["ua"], "a new UA on a reused address")
@@ -145,7 +147,7 @@ class EvaluationPlanTest(unittest.TestCase):
     def test_a_pilot_plan_uses_the_placeholder_knee_and_says_so(self):
         p = plan(9201, "pilot", knees=None)
         self.assertEqual(p["intensity"]["knees"], {"status": "placeholder", "C2": 1.0})
-        self.assertEqual(p["duration_s"], 1020.0)
+        self.assertEqual(p["duration_s"], 1140.0)
 
 
 class HeldOutNamesTest(unittest.TestCase):
@@ -211,9 +213,60 @@ class KeyAgeTest(unittest.TestCase):
                  "schedule": {"start_s": 0.3 * k, "stop_s": 900.0}} for k in range(90)]
         rows += [{"kind_or_family": "C2", "role": "attack", "held_out": False,
                   "schedule": {"start_s": s + 0.2 * k, "stop_s": s + 240.0}} for s in (60.0, 300.0, 540.0) for k in range(50)]
-        a = LP.age_check(rows, self.RULE)
+        first_seen_rule = {k: self.RULE[k] for k in ("ks_max", "auc_band", "held_out_ks_max")}
+        a = LP.age_check(rows, first_seen_rule)
         self.assertFalse(a["pass"])
         self.assertGreater(a["ks"], 0.9)
+
+    def test_the_extended_check_passes_every_plan_d034(self):
+        for p in self.plans:
+            a = p["age_check"]
+            self.assertLessEqual(a["lifetime_ks"], self.RULE["lifetime_ks_max"], p["seed"])
+            self.assertLessEqual(abs(a["lifetime_auc"] - 0.5), self.RULE["lifetime_auc_band"], p["seed"])
+            self.assertLessEqual(abs(a["window_age_auc"] - 0.5), self.RULE["window_age_auc_band"], p["seed"])
+            self.assertTrue({"C2", "C3a", "C3b@M2"} <= set(a["window_age_auc_by_family"]), p["seed"])
+            for fam, v in a["window_age_auc_by_family"].items():
+                self.assertLessEqual(abs(v - 0.5), self.RULE["window_age_auc_band"], (p["seed"], fam))
+            if p["seed_role"] in ("eval", "pilot"):
+                self.assertIn("C3b@M3", a["window_age_auc_by_family"], "held-out families are checked too")
+                self.assertLessEqual(a["held_out_lifetime_ks"], self.RULE["held_out_lifetime_ks_max"])
+
+    def test_the_lifetimes_of_t038_fail_the_extended_check(self):
+        # T038-01's plans: benign keys to the capture's end, attack keys inside their slot (window-age AUC ~0.88)
+        import copy
+        rows = copy.deepcopy(Cache.get(1001, "train")["entities"])
+        stops = {ph["name"]: ph["stop_s"] for ph in Cache.get(1001, "train")["timeline"]["phases"]}
+        for e in rows:
+            e["params"].pop("sessions", None)
+            e["schedule"]["stop_s"] = stops[e["schedule"]["phase"]] if e["role"] == "attack" else 900.0
+        a = LP.age_check(rows, self.RULE)
+        self.assertFalse(a["pass"])
+        self.assertGreater(abs(a["window_age_auc"] - 0.5), 0.3, a)
+        self.assertTrue(a["ks"] <= self.RULE["ks_max"], "the first-seen check alone passed them")
+
+    def test_lifetimes_d034(self):
+        import l7v2_prereg
+        law = l7v2_prereg.load()["arrivals"]["lifetimes"]["law"]
+        p = Cache.get(1001, "train")
+        slots = {ph["name"]: ph for ph in p["timeline"]["phases"]}
+        attack = [e for e in p["entities"] if e["role"] == "attack"]
+        for e in attack:
+            s = e["schedule"]
+            self.assertLessEqual(s["stop_s"] - s["start_s"], law["hi"] + 1e-6)
+            self.assertTrue(s["stop_s"] - s["start_s"] >= law["lo"] - 1e-6 or s["stop_s"] == p["duration_s"])
+        past = [e for e in attack if e["schedule"]["stop_s"] > slots[e["schedule"]["phase"]]["stop_s"] + 60.0]
+        self.assertGreater(len(past) / len(attack), 0.25, "a share of the attack keys stays active past its slot")
+        ben = [e for e in p["entities"] if e["role"] == "benign"]
+        sess = [e for e in ben if e["params"].get("sessions")]
+        self.assertEqual({e["kind_or_family"] for e in sess},
+                         {"tpcw_browsing", "cgnat_browsers", "search_user", "exporter"})
+        for e in ben:
+            if e not in sess:                              # machine clients and P5 kinds: one lifetime
+                self.assertLessEqual(e["schedule"]["stop_s"] - e["schedule"]["start_s"], law["hi"] + 1e-6)
+            else:
+                self.assertEqual(e["schedule"]["stop_s"], p["duration_s"])
+        units = LP.key_units(p["entities"])
+        self.assertGreater(len([u for u in units if u[0] == "benign"]), 2 * 87, "sessions: a returning user is a new key")
 
 
 class SmokeUnchangedTest(unittest.TestCase):

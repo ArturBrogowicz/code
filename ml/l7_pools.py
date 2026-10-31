@@ -33,6 +33,14 @@ time over [its slot's start, its slot's end - 60 s]; the flash crowd's minute st
 build_plan records the key-age check (the first-seen times of benign and attack units: KS distance, AUC) and refuses an
 l7v2 plan whose key ages would carry its roles.
 
+L7 v2 lifetimes (re-registered 2026-10-31 under D-034, T-038 finding T038-01; ml/l7v2_prereg.json arrivals.lifetimes):
+every key lives one lifetime from one law, whatever its role. A browser-like benign kind runs sessions ("sessions": true in
+its params; ml/l7_benign.session_users), each a new key; a machine client (the crawler, api_bulk, the P5 kinds) and every
+attack entity run one lifetime from their arrival, capped at the capture's end, so an attack key may stay active past its
+slot. An evaluation or pilot plan ends with the same 120 s benign tail after the M3 slot as every plan after its last
+slot (1,140 s), and an M3 bot takes the address of a trained attack entity that has stopped (C2 first). The age check is
+extended (rule_v2) to the key units' lifetimes and to window age at nominal times (key_units, nominal_tokens).
+
 L7 v2 intensity: each phase draws a multiplier m from {0.5, 1, 2} (ml/p3_prereg.json) on its family's knee from the
 P1 ladder. C2's per-entity rate is m x L_knee x S / (n x cost(route)), S and the cost from the calibration record
 in use (l7_backend.load_record; the placeholder until HG2 is frozen); C3a's page gaps are divided by m; C3b's frozen
@@ -44,6 +52,7 @@ import bisect
 import copy
 import hashlib
 import ipaddress
+import math
 import os
 import random
 import sys
@@ -251,7 +260,8 @@ def _gate(kind, params, duration_s, gate_seeds, heuristics, cache):
 
 def _timeline(pop, version, seed, eval_slot=False):
     """Lead-in, the phases in a seeded order, then the tail; with eval_slot (L7 v2 evaluation and pilot captures) the
-    tail is the eval slot of eval_tail_s seconds, its phase at intensity 1."""
+    eval slot of eval_tail_s seconds, its phase at intensity 1, follows the phases: in the l7v2 population (spread
+    arrivals) the tail comes after it (D-034), in any other it is the tail."""
     t = pop["timeline"]
     phases = [dict(p) for p in pop["phases"]]
     random.Random(subseed(version, seed, "phases")).shuffle(phases)
@@ -263,8 +273,12 @@ def _timeline(pop, version, seed, eval_slot=False):
         start += t["phase_s"]
     tail = t["tail_s"]
     if eval_slot and pop.get("eval_slot"):
-        tail = t["eval_tail_s"]
-        phases.append(dict(pop["eval_slot"], start_s=start, stop_s=start + tail, intensity=1.0, slot="tail"))
+        slot = t["eval_tail_s"]
+        phases.append(dict(pop["eval_slot"], start_s=start, stop_s=start + slot, intensity=1.0, slot="tail"))
+        if pop.get("arrivals") == "spread":        # D-034: the benign tail follows the eval slot, as it follows the
+            start += slot                          # last core slot in every plan, so M3's lifetimes are cut alike
+        else:
+            tail = slot
     total = start + tail
     return {"lead_in_s": t["lead_in_s"], "phase_s": t["phase_s"], "tail_s": tail,
             "edge_jitter_s": t["edge_jitter_s"], "phases": phases, "duration_s": total}
@@ -316,14 +330,84 @@ def first_seen(rows):
             continue
         if kind == "cgnat_browsers":
             plan = l7_benign.plan_client(kind, e["params"], e["schedule"]["stop_s"] - start, random.Random(e["client_seed"]))
-            out += [(e["role"], e["held_out"], kind, start + u["views"][0]["t"]) for u in plan["users"] if u["views"]]
+            first = {}                                # a user's first view (its first session's, D-034)
+            for k, u in enumerate(plan["users"]):
+                if u["views"]:
+                    d = u.get("device", k)
+                    first[d] = min(first.get(d, math.inf), u["views"][0]["t"])
+            out += [(e["role"], e["held_out"], kind, start + t) for _d, t in sorted(first.items())]
         else:
             out.append((e["role"], e["held_out"], kind, start))
     return out
 
 
+def _plan_of(e):
+    """An entity row's plan as its generator builds it (duration max(1, stop - start), its client seed), or None for a
+    kind without a plan (the P5 kinds and the smoke families)."""
+    import l7_benign
+    import l7_bots
+    dur = max(1.0, e["schedule"]["stop_s"] - e["schedule"]["start_s"])
+    rng = random.Random(e["client_seed"])
+    try:
+        if e["role"] == "attack":
+            return l7_bots.plan_bot(e["kind_or_family"], e["params"], dur, rng)
+        return l7_benign.plan_client(e["kind_or_family"], e["params"], dur, rng)
+    except ValueError:
+        return None
+
+
+def nominal_requests(user):
+    """[(t, path)] of one plan user at nominal times (no network time), from its own start."""
+    if "views" in user:
+        return [(v["t"], p) for v in user["views"] for w in v["waves"] for p in w]
+    out, t = [], 0.0
+    for path, gap, *_rest in user["requests"]:
+        out.append((t, path))
+        t += gap
+    return out
+
+
+def nominal_tokens(reqs):
+    """The token starts of a key at nominal times (docs/L7V2_DESIGN.md 8.1, section 16): a page request (route class C1)
+    opens a token, a later non-page request joins the open token, a request before the key's first page is a pageless
+    token of its own."""
+    import l7_webapp
+    toks, page_open = [], False
+    for t, path in reqs:
+        if l7_webapp.route_class("GET", path) == "C1":
+            toks.append(t)
+            page_open = True
+        elif not page_open:
+            toks.append(t)
+    return toks
+
+
+def key_units(rows):
+    """Every key unit of a plan's entity rows (D-034, ml/l7v2_prereg.json arrivals.age_check.key_units_v2):
+    (role, held_out, kind or family, first seen, last seen, token starts or None), absolute seconds."""
+    out = []
+    for e in rows:
+        start, kof = e["schedule"]["start_s"], e["kind_or_family"]
+        plan = _plan_of(e)
+        if plan is None:
+            out.append((e["role"], e["held_out"], kof, start, e["schedule"]["stop_s"], None))
+            continue
+        for u in plan["users"]:
+            reqs = nominal_requests(u)
+            if reqs:
+                out.append((e["role"], e["held_out"], kof, start + reqs[0][0], start + reqs[-1][0],
+                            [start + t for t in nominal_tokens(reqs)]))
+    return out
+
+
+def window_ages(toks, min_views):
+    """The age of each view window of a key at nominal times: token j's start minus the first token's, j >= min_views."""
+    return [toks[j] - toks[0] for j in range(min_views, len(toks or []))]
+
+
 def age_check(rows, rule):
-    """The pre-registered key-age check (ml/l7v2_prereg.json arrivals.age_check) of a plan's entity rows."""
+    """The pre-registered key-age check (ml/l7v2_prereg.json arrivals.age_check) of a plan's entity rows: first-seen
+    times; with the D-034 extension (rule_v2), key lifetimes and window age too."""
     fs = first_seen(rows)
     ben = [t for r, _h, _k, t in fs if r == "benign"]
     atk = [t for r, _h, _k, t in fs if r == "attack"]
@@ -334,8 +418,61 @@ def age_check(rows, rule):
     if held:
         out["held_out_ks"] = round(ks_distance(held, [t for r, h, _k, t in fs if r == "benign" and not h]), 4)
         ok = ok and out["held_out_ks"] <= rule["held_out_ks_max"]
+    if "rule_v2" in rule:
+        ok = _age_check_v2(rows, rule, out) and ok
     out["pass"] = ok
     return out
+
+
+def _age_check_v2(rows, rule, out):
+    """rule_v2 of the age check (D-034, T038-01): lifetimes, window age pooled and per family, held-out lifetimes."""
+    units = key_units(rows)
+    life = {(r, h): [] for r in ("benign", "attack") for h in (False, True)}
+    wins, fam_units = {}, {}
+    for r, h, k, first, last, toks in units:
+        life[(r, h)].append(last - first)
+        if r == "attack":
+            fam_units[k] = fam_units.get(k, 0) + 1
+        wins.setdefault((r, h, k), []).extend(window_ages(toks, rule["min_views"]))
+    lb, la = life[("benign", False)], life[("attack", False)]
+    bw = [a for (r, h, _k), v in wins.items() if r == "benign" and not h for a in v]
+    aw = [a for (r, h, _k), v in wins.items() if r == "attack" and not h for a in v]
+    out.update({"units_benign": len(lb), "units_attack": len(la), "windows_benign": len(bw), "windows_attack": len(aw),
+                "lifetime_ks": round(ks_distance(lb, la), 4), "lifetime_auc": round(auc(lb, la), 4),
+                "window_age_auc": round(auc(bw, aw), 4) if bw and aw else None, "window_age_auc_by_family": {}})
+    ok = out["lifetime_ks"] <= rule["lifetime_ks_max"] and abs(out["lifetime_auc"] - 0.5) <= rule["lifetime_auc_band"]
+    ok = ok and out["window_age_auc"] is not None and abs(out["window_age_auc"] - 0.5) <= rule["window_age_auc_band"]
+    for fam, n in sorted(fam_units.items()):
+        fw = [a for (r, _h, k), v in wins.items() if r == "attack" and k == fam for a in v]
+        if n >= rule["family_min_units"]:
+            a = round(auc(bw, fw), 4) if bw and fw else None
+            out["window_age_auc_by_family"][fam] = a
+            ok = ok and a is not None and abs(a - 0.5) <= rule["window_age_auc_band"]
+    hb = life[("benign", True)]
+    if hb:
+        out["held_out_lifetime_ks"] = round(ks_distance(hb, lb), 4)
+        ok = ok and out["held_out_lifetime_ks"] <= rule["held_out_lifetime_ks_max"]
+    return ok
+
+
+def _lifetime_stop(version, seed, index, start, duration):
+    """The stop of an entity that runs one lifetime (ml/l7v2_prereg.json arrivals.lifetimes, D-034) from `start`, capped
+    at the capture's end; its own seeded stream, so no other draw of the plan moves."""
+    import l7v2_prereg
+    life = l7v2_prereg.lifetime(random.Random(subseed(version, seed, f"life|{index}")))
+    return round(min(start + life, duration), 3)
+
+
+def _donor(reuser, family, rows, taken):
+    """The trained attack entity whose address `reuser` takes (D-034, ml/l7v2_prereg.json arrivals.lifetimes.reuse): one
+    that stopped before the reuser starts and whose address no other reuser holds, `family` first, then the other
+    trained families, in plan order; None when there is none."""
+    trained = [d for d in rows if d["role"] == "attack" and not d["held_out"]]
+    for d in ([d for d in trained if d["kind_or_family"] == family]
+              + [d for d in trained if d["kind_or_family"] != family]):
+        if d["address"] not in taken and d["schedule"]["stop_s"] <= reuser["schedule"]["start_s"]:
+            return d
+    return None
 
 
 def c2_rps(m, level, spare_cpu_s, n, cost_ms):
@@ -384,6 +521,7 @@ def build_plan(version, seed, seed_role, population="smoke", *, heuristics="tole
     phase_of = {f: p for p in timeline["phases"] for f in p["families"]}
     spread = None
     if pop.get("arrivals") == "spread":
+        import l7_benign
         import l7v2_prereg
         rule = l7v2_prereg.load()["arrivals"]
         within = l7v2_prereg.load()["benign_kinds"]["flash_crowd"]["arrive_within_s"]
@@ -443,7 +581,10 @@ def build_plan(version, seed, seed_role, population="smoke", *, heuristics="tole
                 j = timeline["edge_jitter_s"]
                 late = ph["stop_s"] - ph["start_s"] - spread["rule"]["min_active_s"] if spread else j
                 start = round(ph["start_s"] + erng.uniform(0.0, late), 3)
-                stop = round(ph["stop_s"] - erng.uniform(0.0, j), 3)
+                if spread:                                # D-034: one lifetime from the frozen law, past the slot
+                    stop = _lifetime_stop(version, seed, i, start, duration)
+                else:
+                    stop = round(ph["stop_s"] - erng.uniform(0.0, j), 3)
                 row["schedule"] = {"start_s": start, "stop_s": stop, "phase": ph["name"]}
             elif spread:
                 if spec.get("arrival") == "users":
@@ -452,7 +593,12 @@ def build_plan(version, seed, seed_role, population="smoke", *, heuristics="tole
                     start = spread["flash"]
                 else:
                     start = round(random.Random(subseed(version, seed, f"arrive|{i}")).uniform(0.0, spread["span"]), 3)
-                row["schedule"] = {"start_s": start, "stop_s": duration, "phase": None}
+                stop = duration
+                if name in l7_benign.SESSION_KINDS:        # D-034: sessions, each a new key
+                    params["sessions"] = True
+                else:                                      # a machine client: one lifetime
+                    stop = _lifetime_stop(version, seed, i, start, duration)
+                row["schedule"] = {"start_s": start, "stop_s": stop, "phase": None}
             else:
                 slot = next((p for p in timeline["phases"] if p.get("slot") == spec.get("slot")), None) \
                     if spec.get("slot") else None
@@ -491,12 +637,19 @@ def build_plan(version, seed, seed_role, population="smoke", *, heuristics="tole
             namespaces.append({"name": name, "profile": prof, "addresses": [r["address"] for r in chunk]})
             for r in chunk:
                 r["namespace"] = name
+    taken = set()
     for k, r in enumerate(reusers):                       # schema 3: an earlier phase's address, a new UA
         family = r.pop("reuse")
         donors = [d for d in rows if d["kind_or_family"] == family]
         if not donors:
             raise PlanError(f"{r['entity_id']}: no entity of the phase whose addresses it reuses")
-        donor = donors[k % len(donors)]
+        if spread:                                         # D-034: lifetimes outlive slots, so pick a stopped donor
+            donor = _donor(r, family, rows, taken)
+            if donor is None:
+                raise PlanError(f"{r['entity_id']}: no trained attack entity has stopped before it starts")
+            taken.add(donor["address"])
+        else:
+            donor = donors[k % len(donors)]
         if not donor["schedule"]["stop_s"] <= r["schedule"]["start_s"]:
             raise PlanError(f"{r['entity_id']}: reuses {donor['entity_id']}'s address while it is active")
         r["address"], r["namespace"], r["netem"] = donor["address"], donor["namespace"], donor["netem"]
