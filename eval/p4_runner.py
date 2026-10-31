@@ -25,7 +25,15 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     slow_pc_manifest.json, the input of eval/p4_validation.py;
   * checks: the stack answered, every generator started and ended cleanly, the daemon was ready before the traffic
     and alive to the end with XDP attached, the record exists, the kill file stayed absent, stub_status answered in at
-    least 90 % of the seconds. A run that fails one is invalid, with its reasons.
+    least 90 % of the seconds, and (D-035, V-08 of review T-039) in an M_pc or validation run the rule's slow_pc_poll
+    events are never more than SLOW_PC_POLL_GAP_S = 10 s apart, from the traffic's start to the run's end. A run that
+    fails one is invalid, with its reasons.
+
+Re-registration record (D-035, 2026-10-31T12:44Z, the user's "Approve all four", before any data): an M_pc run is
+valid only if the per-connection rule logged slow_pc_poll at least every 10 s (the daemon logs one every
+SLOW_PC_REPORT_INTERVAL = 5 s, control_plane.py, so 10 s is two missed reports): no gap between the traffic's start
+(t0) and the first poll, between two polls, or between the last poll and t0 + 270 s, longer than 10.0 s. The runner
+applies the same bound to the validation runs, whose record the rule writes in the same thread.
 A block is one seed's runs in a seeded order: the 8 arms of an evaluation block (seeds 3101-3110), the 3 runs of a
 validation seed (4001-4002), (C, U) at one ladder level of a pilot seed (9101-9106), or the runs a smoke test names.
 Every attempt, valid or not, is a line of ROOT/index.jsonl with its reasons (§13 row 6); an attempt is a directory
@@ -42,6 +50,7 @@ and the closes) unchanged; `--summarize ROOT OUT.jsonl` writes the run records o
 import argparse
 import datetime
 import hashlib
+import itertools
 import json
 import os
 import random
@@ -80,6 +89,7 @@ XDP_ATTACHED_LINE = "Successfully attached XDP program"
 DAEMON_READY_TIMEOUT_S, STACK_READY_TIMEOUT_S = 60.0, 30.0
 STOP_GRACE_S = 10.0
 STUB_STATUS_MIN_SHARE = 0.9
+SLOW_PC_POLL_GAP_S = 10.0          # D-035 (V-08): the longest silence of the rule in an M_pc or validation run
 # every variable the daemon reads, set, so that nothing of the operator's environment reaches it (bench/executor.py
 # DAEMON_ENV); MITIGATION_BACKEND is XDP in every P4 arm
 DAEMON_BASE_ENV = {"XDP_GRU": "0", "GRU_ONLY": "0", "L7_SHADOW": "0", "L7_MODEL": "", "L7_RECORD": "",
@@ -517,6 +527,12 @@ def checks(host, plan, t0, stub, launched):
             rec = d["env"]["SLOW_PC_RECORD"]
             if not os.path.isfile(rec) or os.path.getsize(rec) == 0:
                 reasons.append("the per-connection rule's record is missing or empty")
+            polls = sorted(e["t_wall"] for e in _events(d["env"]["BAN_EVENTS"]) if e.get("kind") == "slow_pc_poll")
+            edges = [t0] + [p for p in polls if t0 <= p <= t0 + total] + [t0 + total]
+            gap = max(b - a for a, b in itertools.pairwise(edges))
+            if gap > SLOW_PC_POLL_GAP_S:
+                reasons.append(f"the per-connection rule logged no poll for {gap:.1f} s (more than "
+                               f"{SLOW_PC_POLL_GAP_S:g} s, D-035)")
     return reasons
 
 

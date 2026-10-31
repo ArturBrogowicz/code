@@ -389,6 +389,11 @@ SLOW_PC_ENFORCE=0, SLOW_PC_RECORD), recorded under "daemon" in each manifest by 
 set holds an address that is not an attacker's (T-039 V-04: otherwise another engine's ban of a CGNAT pool would
 make the benign constraints hold by construction).
 
+**Re-registration record (D-035, V-08).** 2026-10-31T12:44Z, before any data: an M_pc run is valid only if the
+per-connection rule logged `slow_pc_poll` at least every 10 s (`eval/p4_runner.py` SLOW_PC_POLL_GAP_S = 10.0; the
+daemon logs one every 5 s, so this is two missed reports), with no longer gap from the traffic's start to the first
+poll or from the last to the run's end; the runner applies the same bound to the validation runs.
+
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
 user's decision.

@@ -312,5 +312,21 @@ class ExecuteTest(unittest.TestCase):
         res = R.execute_run(F.FakeHost(gen_fails=[bad], modelled_attackers=1), run)
         self.assertTrue(any("exited with code 3" in r for r in res["reasons"]), res["reasons"])
 
+    def test_the_rule_must_poll_at_least_every_10_s(self):
+        """D-035 (V-08): an M_pc (or validation) run whose rule logged no poll for more than 10 s is invalid."""
+        self.assertEqual(R.SLOW_PC_POLL_GAP_S, 10.0)
+        for every, ok in ((5.0, True), (9.5, True), (10.5, False), (15.0, False)):
+            run = self.one_run(f"poll_{every}", "campaign", 3105, "M_pc_post", thresholds=POINT)
+            res = R.execute_run(F.FakeHost(poll_every_s=every, modelled_attackers=1), run)
+            silent = [r for r in res["reasons"] if "logged no poll" in r]
+            self.assertEqual(not silent, ok, (every, res["reasons"]))
+        res = R.execute_run(F.FakeHost(daemon_dies_at=150.0, modelled_attackers=1),
+                            self.one_run("dies", "validation", 4001, "C"))
+        self.assertTrue(any("logged no poll" in r for r in res["reasons"]), res["reasons"])
+        res = R.execute_run(F.FakeHost(poll_every_s=30.0), self.one_run("no_rule", "campaign", 3105, "M_def_post",
+                                                                        thresholds=POINT))
+        self.assertFalse(any("logged no poll" in r for r in res["reasons"]), "M_def runs no rule")
+
+
 if __name__ == "__main__":
     unittest.main()
