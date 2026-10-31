@@ -8,7 +8,13 @@ gunicorn's own default [CLAIMED, gunicorn documentation], written out for the ru
 in particular a worker silent for `timeout` seconds is killed and replaced, which bounds how long
 one slow body can hold one worker.
 
-Usage: gunicorn -c gunicorn_profile_r.py <app>    (the runner names the app and the CPU set)
+The backend is the costed L7 app (l7_backend.py, docs/L7V2_DESIGN.md §4) with the upload route of
+profile R: `raw_env` sets L7_BACKEND=costed and L7_UPLOAD=streamed in the server's environment
+before the workers load `wsgi_app`, so POST /upload reads its body as it arrives and a slow body
+holds a worker (P4 part 2b). The calibration record is the runner's (L7_CALIBRATION, the
+placeholder by default), and so is the CPU set.
+
+Usage: gunicorn -c gunicorn_profile_r.py           (the runner sets L7_CALIBRATION and the CPU set)
 """
 bind = "127.0.0.1:8080"
 workers = 5
@@ -18,3 +24,5 @@ timeout = 30
 graceful_timeout = 30
 keepalive = 2
 backlog = 2048
+wsgi_app = "l7_webapp:app"
+raw_env = ["L7_BACKEND=costed", "L7_UPLOAD=streamed"]
