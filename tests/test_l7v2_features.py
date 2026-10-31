@@ -54,9 +54,17 @@ class GroupsTest(unittest.TestCase):
 
     def test_the_v2_request_columns(self):
         self.assertEqual(F.columns(F.V2_REQUEST_GROUPS),
-                         [c for c in P5_DEFAULT_COLUMNS if c not in ("log_rt", "log_urt")]
+                         [c for c in P5_DEFAULT_COLUMNS if c not in ("log_rt", "log_urt", "log_rlen", "log_bsent",
+                                                                     "size_ratio")]
                          + ["is_page", "is_asset", "is_costly", "asset_refetch", "page_revisit", "ref_present",
                             "ref_known", "log_page_gap"])
+
+    def test_the_request_ablation_reads_no_sizes_as_p5c(self):
+        # T038-03 (D-034): the seq-64 ablation's groups are P5c's published variant plus nav
+        import train_l7
+        self.assertEqual(list(F.V2_REQUEST_GROUPS),
+                         [*train_l7.variant_groups()["no_size_no_server_timing"], "nav"])
+        self.assertFalse(set(F.FEATURE_GROUPS["size"]) & set(F.columns(F.V2_REQUEST_GROUPS)))
 
     def test_the_constants_are_the_pre_registered_ones(self):
         pre = l7v2_model_prereg.load()

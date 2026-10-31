@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(REPO, "ml"))
 import l7v2_model_prereg as P
 import p3_prereg
 
-PREREG_SHA256 = "3eedd1d5e0ac69a0ae3d74f4574fbeff4d0cad79e691fc4e440d808009c73706"
+PREREG_SHA256 = "b023005c676e5f1ed2c6e8fa88408f22ba99114cde225045670673a49c53fd38"
 
 
 class FrozenFileTest(unittest.TestCase):
@@ -39,8 +39,11 @@ class FrozenFileTest(unittest.TestCase):
         rl = P.load()["request_level"]
         self.assertEqual(rl["nav_features"], ["is_page", "is_asset", "is_costly", "asset_refetch", "page_revisit",
                                               "ref_present", "ref_known", "log_page_gap"])
-        self.assertEqual(rl["groups"], ["timing", "completion", "status", "method", "size", "connection", "uri",
+        self.assertEqual(rl["groups"], ["timing", "completion", "status", "method", "connection", "uri",
                                         "ratelimit", "nav"])
+        self.assertNotIn("size", rl["groups"], "T038-03, re-registered under D-034: the ablation reads no sizes")
+        self.assertTrue(rl["groups_label"].startswith("re-registered 2026-10-31 under D-034"))
+        self.assertIn("post hoc but before any capture", rl["groups_label"])
         self.assertEqual((rl["seq_len"], rl["stride"], rl["min_events"], rl["page_gap_clip_s"]), (64, 3, 5, 3600.0))
 
     def test_views(self):
