@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(REPO, "ml"))
 import l7_tpcw
 import l7v2_prereg as P
 
-PREREG_SHA256 = "919931422c575686bea2c26270e46eee1ad345136852b443fc1eee119b9ca192"
+PREREG_SHA256 = "b29fd14a7fa1d0adeb170b6da785702ecb8914a9a5c6d14e11be07f251d008a0"
 
 
 class FrozenFileTest(unittest.TestCase):
@@ -112,6 +112,35 @@ class FrozenFileTest(unittest.TestCase):
                          {"ks_max": 0.3, "auc_band": 0.15, "held_out_ks_max": 0.45})
         self.assertIn("every role", a["benign"])
 
+    def test_lifetimes_d034(self):
+        # T038-01, re-registered 2026-10-31 under D-034: one lifetime law for every key unit of either role
+        life = P.load()["arrivals"]["lifetimes"]
+        self.assertTrue(life["label"].startswith("re-registered 2026-10-31 under D-034"))
+        self.assertIn("2026-10-31T12:10:57Z", life["label"])
+        self.assertEqual(life["law"], {"law": "uniform", "lo": 60.0, "hi": 420.0})
+        self.assertEqual((life["gap_s"], life["min_left_s"]), ([10.0, 120.0], 60.0))
+        self.assertIn("a returning user is a new key", life["benign"])
+        self.assertIn("past its slot's end into the next slot", life["attack"])
+        self.assertIn("one lifetime drawn from the law", life["machine_clients"])
+        self.assertIn("stopped before the M3 bot starts", life["reuse"])
+        rng = random.Random(3)
+        draws = [P.lifetime(rng) for _ in range(4000)]
+        self.assertTrue(60.0 <= min(draws) and max(draws) <= 420.0)
+        self.assertAlmostEqual(sum(draws) / len(draws), 240.0, delta=6.0)
+        self.assertGreater(sum(d > 240.0 for d in draws) / len(draws), 0.4, "a share of the keys outlives one slot")
+
+    def test_the_extended_age_check_d034(self):
+        a = P.load()["arrivals"]["age_check"]
+        self.assertEqual({k: a[k] for k in ("ks_max", "auc_band", "held_out_ks_max")},
+                         {"ks_max": 0.3, "auc_band": 0.15, "held_out_ks_max": 0.45}, "the first-seen check is unchanged")
+        self.assertEqual({k: a[k] for k in ("min_views", "lifetime_ks_max", "lifetime_auc_band", "window_age_auc_band",
+                                            "family_min_units", "held_out_lifetime_ks_max")},
+                         {"min_views": 4, "lifetime_ks_max": 0.3, "lifetime_auc_band": 0.15, "window_age_auc_band": 0.15,
+                          "family_min_units": 20, "held_out_lifetime_ks_max": 0.45})
+        self.assertTrue(a["label_v2"].startswith("extended 2026-10-31 under D-034, before any capture"))
+        self.assertIn("held-out families included", a["rule_v2"])
+        self.assertIn("each plan user of a benign entity (a session", a["key_units_v2"])
+
     def test_harm(self):
         h = P.load()["harm"]
         self.assertEqual(h["never_sent_after_s"], 10.0)
@@ -140,6 +169,9 @@ class ConsistencyTest(unittest.TestCase):
             lambda p: p["navigation"]["routes"].update({"Shopping Cart": ["inpage", "cart"]}),
             lambda p: p["navigation"].update(unused_mixes=[]),
             lambda p: p["mimicry"].pop("M3"),
+            lambda p: p["arrivals"]["lifetimes"]["law"].update(lo=30.0),        # below min_active_s
+            lambda p: p["arrivals"]["lifetimes"]["law"].update(law="lognormal"),
+            lambda p: p["arrivals"]["lifetimes"].update(gap_s=[30.0, 10.0]),
         ]
         with tempfile.TemporaryDirectory() as d:
             for i, mutate in enumerate(cases):

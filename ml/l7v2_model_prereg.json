@@ -49,10 +49,11 @@
  "models": {
   "view_gru": {"level": "view", "embed": 32, "hidden": 64, "layers": 2, "dropout": 0.2, "epochs": 25, "lr": 0.001, "batch": 128},
   "request_gru": {"level": "request", "hidden": 64, "layers": 2, "dropout": 0.2, "epochs": 25, "lr": 0.001, "batch": 128},
-  "hgb": {"input": "token summaries", "max_iter": 200},
+  "hgb": {"input": "token summaries", "max_iter": 200, "class_weight": "balanced", "early_stopping": false},
   "lr": {"input": "token summaries", "scaler": "standard", "max_iter": 3000, "class_weight": "balanced"},
-  "gru_shuffled": {"what": "the fitted view GRU scoring windows whose tokens are shuffled within the window", "operating_point": "the view GRU's (theta, k), applied unchanged (design 10)", "shuffle_seed": 7},
-  "training": "Adam, BCE with logits and pos_weight = negatives / positives of the training windows; the epoch with the lowest loss on the validation windows is kept (validation captures only, never evaluation data); no architecture search",
+  "gru_shuffled": {"what": "the fitted view GRU scoring windows whose tokens are shuffled within the window", "operating_point": "the view GRU's (theta, k), applied unchanged (design 10)", "shuffle_seed": 7, "pin_first": "a variant that keeps each window's first valid token in place and shuffles the others, at the same (theta, k) (T038-05: every C3b window starts with the key's entry token)", "report": "at the view GRU's (theta, k), the benign units each shuffled variant flags are reported beside every gap", "label": "pin_first and report re-registered 2026-10-31 under D-034, before any capture (T038-05)"},
+  "training": "Adam, BCE with logits; fixed epochs (each model's epochs), the last epoch's weights kept: no epoch or iteration count is chosen on validation (docs/P3_DATASET_DESIGN.md 6.1); one class weighting for every learned arm, balanced: the GRUs' pos_weight = negatives / positives of the training windows, the LR's and the HGB's class_weight 'balanced'; the HGB without early stopping (max_iter iterations); no architecture search",
+  "training_label": "re-registered 2026-10-31 under D-034, before any capture (T038-04); before, the GRUs kept the epoch with the lowest loss on the validation windows, and the HGB had no class weight and sklearn's automatic early stopping on 10 % of its training windows",
   "fit_seed": 0,
   "threads_max": 2
  },
@@ -79,9 +80,30 @@
   "theta_grid": [0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.99, 0.995, 0.999],
   "k_grid": [1, 2, 3, 5, 8],
   "policy": "p > theta in k consecutive scored windows of a key (design 9.1)",
+  "policy_engine": "at the view level the k consecutive windows are those the live engine would score: of the windows a key completes between two polls (polls at whole seconds of the log clock, poll_s apart; a window belongs to the first poll after its completion), only the newest engine.max_new_windows_per_key_per_poll are scored, the older ones are skipped and counted; the request level, an offline ablation that no engine runs, scores every window",
+  "policy_engine_poll_s": 1.0,
+  "policy_engine_label": "re-registered 2026-10-31 under D-034, before any capture (T038-06): before, the evaluator scored every window, so k consecutive could differ from the engine's on a key that completes more than 4 windows in one poll",
   "time_to_decision": "from the entity's first request start to the completion (msec) of the request that closed the deciding window",
   "probe_gate": "an arm that fails the v2 gate gets no operating point and cannot be selected",
   "arms": ["view_gru", "hgb", "lr", "request_gru", "gru_shuffled"]
+ },
+ "baselines": {
+  "age_only": {
+   "label": "registered 2026-10-31 under D-034 (the user's 'Approve all three', 2026-10-31T12:10:57Z), before any capture (T038-01)",
+   "score": "the key-level time since the key's first view: for a view window, the start of the request that completes it minus the start of its key session's first token; p = the share of the training benign windows whose age is greater (ties count one half), so a younger window scores higher and the theta grid reads quantiles of the benign training ages",
+   "windows": "the view arms' windows (train_l7v2.view_windows), the same keys, sessions and denominators",
+   "operating_point": "chosen on validation by the selection rules of every arm (budget, grids, ties, policy); no probe gate: it reads start times only; a diagnostic, never selected or run live",
+   "reading": "near chance on validation: the AUC of p, attack windows against benign windows pooled over the validation captures, must lie within 0.5 +- auc_band; outside the band the validation captures carry key age, and every view-level result on them is labelled age-confounded: none supports V-A or 'sequence helps'. Its AUC per core family and its recall and benign units at its operating point are reported beside the arms",
+   "auc_band": 0.15
+  }
+ },
+ "load_split": {
+  "label": "registered 2026-10-31 under D-034, before any capture (T038-02); descriptive, never a gate",
+  "data": "validation captures only, every arm (and the age-only baseline) at its own operating point",
+  "phase_rule": "a window is inside an attack phase when its completion, in seconds from the manifest's timeline.t0_wall, lies in [start_s, stop_s) of a phase of the manifest's timeline; otherwise outside (lead-in, tail)",
+  "benign": "the share of benign windows with p > theta inside and outside the attack phases, with their counts",
+  "recall_by_load": "attack-entity recall per load level: the intensity multiplier the plan records for the phase of the entity's schedule (C3b's is recorded and not applied)",
+  "why": "the v2 probe gate is a pipeline-invariance check: server_load holds request starts fixed and view tokens read start times only, so it cannot fail a view arm, while closed-loop load reaches dwell, span and rate"
  },
  "engine": {
   "observe_only": true,
