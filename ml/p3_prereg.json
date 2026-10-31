@@ -60,6 +60,15 @@
   "flatten_pp": 5.0,
   "still_learning_pp": 5.0,
   "ranking_pp": 10.0,
-  "sequence_pp": 10.0
+  "sequence_pp": 10.0,
+  "age_only_ip_ua": {
+   "label": "registered 2026-10-31 under D-040 (the orchestrator's T-042 follow-ups, 15:48:50Z; finding T042-F01), before any capture",
+   "key": "the request level's key, (IP, UA): l7_ingest.key_of, as train_l7.group_windows groups the windows",
+   "score": "age = the window's last request start minus the start of its (IP, UA) key's first request in its capture; p = the share of the training benign windows that are older (ties count one half), so a younger window scores higher",
+   "operating_point": "the curves' own rule (train_l7.operating_point on the validation windows, the theta and k grids and the benign budget above)",
+   "reading": "the AUC of p, attack windows against benign windows of the validation captures, within 0.5 +- auc_band is 'near chance'; otherwise every request-level curve result is labelled 'age-assisted': a benign device keeps its address and UA for the whole capture, so (IP, UA) key age can carry the role (T042-F01)",
+   "auc_band": 0.15,
+   "report": "its validation AUC pooled and per family, its reading, and its recall at its operating point on the evaluation captures, beside the curves; the view level keys by (IP, UA, sid) and has its own age-only baseline (ml/l7v2_model_prereg.json baselines.age_only)"
+  }
  }
 }

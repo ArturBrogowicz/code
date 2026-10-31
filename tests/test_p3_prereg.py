@@ -104,6 +104,16 @@ class PinnedVolumeAndCurveTest(unittest.TestCase):
         self.assertEqual((lc["flatten_pp"], lc["still_learning_pp"], lc["ranking_pp"],
                           lc["sequence_pp"]), (5.0, 5.0, 10.0, 10.0))
 
+    def test_the_ip_ua_age_only_baseline_d040(self):
+        # T042-F01, registered 2026-10-31 under D-040 before any capture: the request level's (IP, UA)-key age-only
+        # baseline and the 'age-assisted' label
+        b = P.load()["learning_curve"]["age_only_ip_ua"]
+        self.assertTrue(b["label"].startswith("registered 2026-10-31 under D-040"))
+        self.assertEqual(b["auc_band"], 0.15)
+        self.assertIn("(IP, UA)", b["key"])
+        self.assertIn("'age-assisted'", b["reading"])
+        self.assertIn("within 0.5 +- auc_band is 'near chance'", b["reading"])
+
 
 if __name__ == "__main__":
     unittest.main()
