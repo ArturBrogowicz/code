@@ -282,6 +282,16 @@ class ExecuteTest(unittest.TestCase):
         R.run_block(F.FakeHost(modelled_attackers=1), self.block("campaign", 3103, thresholds=POINT, attempt=2))
         self.assertEqual(len(index(self.root)), 16)
         self.assertEqual({x["attempt"] for x in index(self.root)}, {1, 2})
+        out = os.path.join(self.root, "runs.jsonl")
+        R.summarize_root(self.root, CAL, out)                       # D-035 (V-03): every attempt, valid or not
+        with open(out, encoding="utf-8") as fh:
+            records = [json.loads(line) for line in fh]
+        self.assertEqual(sorted((r["attempt"], r["arm"]) for r in records),
+                         sorted((a, arm) for a in (1, 2) for arm in OUT.ARMS))
+        refused = [r for r in records if r["attempt"] == 1 and r["arm"].startswith("M_pc_")]
+        self.assertTrue(all(not r["valid"] and r["Q"] is None for r in refused))
+        verdict = OUT.outcome(records)
+        self.assertEqual(verdict["families"]["loris"]["mitigation"]["attempts"], 2)
 
     def one_run(self, name, phase="validation", seed=4002, arm="C", **kw):
         kw.setdefault("sources", KNEE)

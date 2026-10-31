@@ -46,8 +46,13 @@ blocks decide nothing: the family is "invalid (k of 10 valid)", never "not harmf
 mitigated", and so is M7 unless another family qualifies (then M7 names the invalid family next to its claim), as
 the harm gate this code cites says INVALID (eval/harm_gate.py).
 
+Re-registration record (D-035, V-03; 2026-10-31T12:44Z, before any data; review T-039 V-03). The outcome takes
+every attempt of the run index: each record names its attempt, and a block may hold several attempts of an arm.
+The harm and (a) and (b) are judged on the last valid attempt of each (block, arm); (c), the benign connections
+closed and the bans per arm are counted over ALL attempts, invalid ones included, so a re-run cannot hide a ban.
+
 A run record (one dict per run; summarize() builds it from eval/harm_gate.run_metrics and the ban events):
-    {"block": 3101, "arm": "M_pc_loris", "valid": true, "Q": 97.5, "p95_s": 0.21,
+    {"block": 3101, "arm": "M_pc_loris", "attempt": 1, "valid": true, "Q": 97.5, "p95_s": 0.21,
      "q_per_s": [...one value or None per second of the run...], "q_level": 98.9, "level_window": [120, 240],
      "banned": {"10.0.3.1": "attack", ...}, "benign_closed": 0}
 A record is refused unless it has one bin per second of the pre-registered run (RUN_S = 270) and its q_level was
@@ -100,7 +105,8 @@ def check_record_timeline(q_per_s, level_window):
         raise ValueError(f"q_level taken over {level_window!r}, not LEVEL_WINDOW_S {list(LEVEL_WINDOW_S)}")
 
 
-def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow_pc_closes=(), *, level_window):
+def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow_pc_closes=(), *, level_window,
+              attempt):
     """One run record from the run's harm-gate metrics (eval/harm_gate.run_metrics: over the attack
     window, and with window=LEVEL_WINDOW_S for `level_metrics`; `level_window` is the window the caller
     took it over, and must be LEVEL_WINDOW_S), its ban events and the role of every client address.
@@ -118,7 +124,8 @@ def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow
     if unlabelled:                                  # fail closed, as for a ban (review T-039 V-06)
         raise ValueError(f"closed connections of addresses without a role: {unlabelled[:5]}")
     benign_closed = len({(c["ip"], c["port"], c["sport"]) for c in slow_pc_closes if roles[c["ip"]] != ATTACK})
-    return {"block": block, "arm": arm, "valid": bool(valid), "Q": metrics["Q"], "p95_s": metrics["p95_s"],
+    return {"block": block, "arm": arm, "attempt": attempt, "valid": bool(valid), "Q": metrics["Q"],
+            "p95_s": metrics["p95_s"],
             "q_per_s": list(metrics["q_per_s"]), "q_level": level_metrics["Q"],
             "level_window": [float(x) for x in level_window], "banned": banned, "benign_closed": benign_closed}
 
@@ -162,10 +169,15 @@ def _blocks(runs):
             check_record_timeline(r["q_per_s"], r.get("level_window"))
         except ValueError as exc:
             raise ValueError(f"block {r['block']} {r['arm']}: {exc}") from None
-        if r["arm"] in by.setdefault(r["block"], {}):
-            raise ValueError(f"two runs of {r['arm']} in block {r['block']}")
-        by[r["block"]][r["arm"]] = r
-    return by
+        att = r.get("attempt")
+        if not isinstance(att, int) or isinstance(att, bool) or att < 1:
+            raise ValueError(f"block {r['block']} {r['arm']}: a record names its attempt of the run index, got {att!r}")
+        if any(x["attempt"] == att for x in by.setdefault(r["block"], {}).setdefault(r["arm"], [])):
+            raise ValueError(f"two records of {r['arm']} attempt {att} in block {r['block']}")
+        by[r["block"]][r["arm"]].append(r)
+    chosen = {b: {arm: max((x for x in rs if x["valid"]), key=lambda x: x["attempt"], default=None)
+                  or max(rs, key=lambda x: x["attempt"]) for arm, rs in arms.items()} for b, arms in by.items()}
+    return chosen, by
 
 
 def _ok(block, *arms):
@@ -201,8 +213,10 @@ def harm(blocks, family):
                                                           and enough(each, len(valid)))}
 
 
-def mitigation(blocks, family):
-    """(a) recovery, (b) level and (c) collateral of M_pc for one family, and the M_def comparison."""
+def mitigation(blocks, family, every=None):
+    """(a) recovery, (b) level and (c) collateral of M_pc for one family, and the M_def comparison. `blocks` holds the
+    attempt judged per (block, arm); `every` all the attempts, over which (c) and the benign closes are counted."""
+    every = every or {b: {arm: [r] for arm, r in arms.items()} for b, arms in blocks.items()}
     m = f"M_pc_{family}"
     valid = [b for b in blocks.values() if _ok(b, CONTROL, m)]
     found = [recovery(b[m]["q_per_s"], RECOVERY_RATIO * b[CONTROL]["Q"]) for b in valid]
@@ -211,8 +225,8 @@ def mitigation(blocks, family):
     level_ok = sum(1 for b in valid if b[m]["q_level"] >= LEVEL_RATIO * b[CONTROL]["Q"])
     mean_ok = bool(valid) and (sum(b[m]["q_level"] for b in valid)
                                >= LEVEL_RATIO * sum(b[CONTROL]["Q"] for b in valid))
-    collateral = sorted({(b[m]["block"], ip, role) for b in blocks.values() if m in b
-                         for ip, role in b[m]["banned"].items() if role != ATTACK})
+    attempts = [r for arms in every.values() for r in arms.get(m, ())]
+    collateral = sorted({(r["block"], ip, role) for r in attempts for ip, role in r["banned"].items() if role != ATTACK})
     a = len(valid) >= MIN_VALID_BLOCKS and enough(in_time, len(valid))
     b_ = len(valid) >= MIN_VALID_BLOCKS and mean_ok and enough(level_ok, len(valid))
     pairs = [b for b in blocks.values() if _ok(b, m, f"M_def_{family}")]
@@ -221,7 +235,7 @@ def mitigation(blocks, family):
             "recovered_in_time": in_time, "a": a,
             "level_blocks": level_ok, "level_mean_ok": mean_ok, "b": b_,
             "benign_banned": [list(x) for x in collateral], "c": not collateral,
-            "benign_closed": sum(b[m].get("benign_closed", 0) for b in blocks.values() if m in b),
+            "benign_closed": sum(r.get("benign_closed", 0) for r in attempts), "attempts": len(attempts),
             "vs_m_def": {"n": len(d), "decision": RLS.decide(d)}}
 
 
@@ -242,10 +256,10 @@ def invalid(k):
 
 def outcome(runs):
     """The verdict of §10 over a list of run records."""
-    blocks = _blocks(runs)
+    blocks, every = _blocks(runs)
     fam = {}
     for f in FAMILIES:
-        h, m = harm(blocks, f), mitigation(blocks, f)
+        h, m = harm(blocks, f), mitigation(blocks, f, every)
         k = None
         if h["valid_blocks"] < MIN_VALID_BLOCKS:
             k, status = h["valid_blocks"], invalid(h["valid_blocks"])

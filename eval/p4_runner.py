@@ -41,7 +41,8 @@ ROOT/<phase>/b<seed>_a<attempt>[_<label>]/<arm>/, with block.json beside its run
 
 What the runs write feeds eval/p4_validation.py (slow_pc_manifest.json, slow_pc.jsonl.gz) and eval/p4_outcome.py
 (run_record(): the client-side figures of eval/l7v2_harm.py over the attack window and LEVEL_WINDOW_S, the ban events
-and the closes) unchanged; `--summarize ROOT OUT.jsonl` writes the run records of the evaluation blocks.
+and the closes) unchanged; `--summarize ROOT OUT.jsonl` writes the run records of every evaluation attempt of the
+run index, valid or not (D-035, V-03).
 
     sudo ./venv/bin/python eval/p4_runner.py --phase campaign --seed 3101 --loris 175 --post 10 --thresholds 20,64,2
     ./venv/bin/python eval/p4_runner.py --phase validation --seed 4001 --loris 175 --post 10 --plan
@@ -576,15 +577,23 @@ def run_block(host, block):
 
 # --- the records eval/p4_outcome.py judges ----------------------------------------------------------
 
-def run_record(run_dir, cal, block=None):
+def run_record(run_dir, cal, block=None, attempt=1):
     """eval/p4_outcome.summarize of one run directory: the client-side figures of eval/l7v2_harm.py over the attack
-    window and over LEVEL_WINDOW_S, the ban events, the closes the rule enforced and the run's labels."""
+    window and over LEVEL_WINDOW_S, the ban events, the closes the rule enforced, the run's labels and its attempt. A
+    run that never started (refused before its traffic) is an invalid record without figures."""
     import l7v2_harm as LH
     with open(os.path.join(run_dir, "manifest.json"), encoding="utf-8") as fh:
         man = json.load(fh)
     with open(os.path.join(run_dir, "run.json"), encoding="utf-8") as fh:
         meta = json.load(fh)
     t = man["timeline"]
+    events = _events(os.path.join(run_dir, "ban_events.jsonl"))
+    closes = [e for e in events if e.get("kind") == "slow_pc_close" and e.get("enforced")]
+    seed = man["seed"] if block is None else block
+    if t.get("t0_wall") is None:
+        empty = {"Q": None, "p95_s": None, "q_per_s": [None] * OUT.RUN_S}
+        return OUT.summarize(seed, man["arm"], False, empty, {"Q": None}, events, man["roles"], closes,
+                             level_window=OUT.LEVEL_WINDOW_S, attempt=attempt)
     total = sum(t[k] for k in ("baseline_s", "attack_s", "recovery_s"))
     attack = (t["baseline_s"], t["baseline_s"] + t["attack_s"])
     rows, t0, _cover = LH.run_rows(run_dir, man, attack)
@@ -592,29 +601,20 @@ def run_record(run_dir, cal, block=None):
     lw = OUT.LEVEL_WINDOW_S
     rows_l, _t0, _c = LH.run_rows(run_dir, man, lw)
     level = LH.metrics(rows_l, cal, (t0 + lw[0], t0 + lw[1]), t0, total)
-    events = _events(os.path.join(run_dir, "ban_events.jsonl"))
-    closes = [e for e in events if e.get("kind") == "slow_pc_close" and e.get("enforced")]
-    return OUT.summarize(man["seed"] if block is None else block, man["arm"], meta["checks"]["ok"], m, level,
-                         events, man["roles"], closes, level_window=lw)
+    return OUT.summarize(seed, man["arm"], meta["checks"]["ok"], m, level, events, man["roles"], closes,
+                         level_window=lw, attempt=attempt)
 
 
 def summarize_root(root, cal, out_path):
-    """The run records of every evaluation attempt under ROOT/campaign, the last attempt of each block counting."""
-    base = os.path.join(root, "campaign")
-    last = {}
-    for name in sorted(os.listdir(base)):
-        bj = os.path.join(base, name, "block.json")
-        if os.path.isfile(bj):
-            with open(bj, encoding="utf-8") as fh:
-                meta = json.load(fh)
-            if meta["block"] not in last or meta["attempt"] > last[meta["block"]][0]:
-                last[meta["block"]] = (meta["attempt"], os.path.join(base, name))
+    """The run records of EVERY evaluation attempt of ROOT/index.jsonl, valid or not (D-035, V-03): eval/p4_outcome.py
+    judges the last valid attempt of each (block, arm) and counts the bans and closes of all of them."""
+    with open(os.path.join(root, "index.jsonl"), encoding="utf-8") as fh:
+        lines = [json.loads(x) for x in fh if x.strip()]
     with open(out_path, "w", encoding="utf-8") as fh:
-        for seed in sorted(last):
-            bdir = last[seed][1]
-            for arm in sorted(os.listdir(bdir)):
-                if os.path.isfile(os.path.join(bdir, arm, "run.json")):
-                    fh.write(json.dumps(run_record(os.path.join(bdir, arm), cal, seed)) + "\n")
+        for x in lines:
+            if x["phase"] == "campaign":
+                rec = run_record(os.path.join(root, x["dir"]), cal, x["block"], x["attempt"])
+                fh.write(json.dumps(rec) + "\n")
 
 
 # --- the command line --------------------------------------------------------------------------------

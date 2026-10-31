@@ -406,6 +406,12 @@ nothing. The family's status is "invalid (k of 10 valid)", never "not harmful" o
 is "invalid (k of 10 valid)" unless another family qualifies, and then it names the invalid family next to its claim
 (T-039 V-02: one block that stayed invalid used to make a family "not harmful").
 
+**Re-registration record (D-035, V-03).** 2026-10-31T12:44Z, before any data: the outcome takes every attempt of
+the run index (`eval/p4_runner.py --summarize` writes a record for each, valid or not, and each record names its
+attempt): the harm and (a) and (b) are judged on the last valid attempt of each (block, arm), while (c), the benign
+connections closed and the bans per arm count ALL attempts, invalid ones included, so that a re-run cannot hide a
+ban (T-039 V-03, the recurrence of T-028 F-01).
+
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
 user's decision.

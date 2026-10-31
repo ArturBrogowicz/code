@@ -27,8 +27,8 @@ def bins(base, dip=None, until=None, total=270, start=35):
     return q
 
 
-def rec(block, arm, q, p95=0.10, q_per_s=None, q_level=None, banned=None, valid=True, closed=0):
-    return {"block": block, "arm": arm, "valid": valid, "Q": q, "p95_s": p95,
+def rec(block, arm, q, p95=0.10, q_per_s=None, q_level=None, banned=None, valid=True, closed=0, attempt=1):
+    return {"block": block, "arm": arm, "attempt": attempt, "valid": valid, "Q": q, "p95_s": p95,
             "q_per_s": q_per_s if q_per_s is not None else bins(q),
             "q_level": q if q_level is None else q_level, "level_window": list(O.LEVEL_WINDOW_S),
             "banned": banned or {}, "benign_closed": closed}
@@ -267,6 +267,43 @@ class OutcomeTest(unittest.TestCase):
                          (True, False, "harmful but not mitigated"))
 
 
+class AttemptsTest(unittest.TestCase):
+    """D-035 (V-03): every attempt of the run index; (a) and (b) on the last valid one, (c) over all."""
+
+    def test_a_ban_in_an_invalid_attempt_is_not_hidden_by_the_re_run(self):
+        runs = campaign()
+        k = next(i for i, r in enumerate(runs) if (r["block"], r["arm"]) == (3104, "M_pc_loris"))
+        runs[k] = dict(runs[k], attempt=2)
+        runs.append(rec(3104, "M_pc_loris", 99.0, valid=False, banned={"10.0.4.1": "cgnat", "10.0.3.1": "attack"},
+                        closed=3, attempt=1))
+        loris = O.outcome(runs)["families"]["loris"]
+        self.assertEqual(loris["status"], "mitigated with collateral")
+        self.assertEqual(loris["mitigation"]["benign_banned"], [[3104, "10.0.4.1", "cgnat"]])
+        self.assertEqual((loris["mitigation"]["benign_closed"], loris["mitigation"]["attempts"]), (3, 11))
+        self.assertTrue(loris["mitigation"]["a"] and loris["mitigation"]["b"])
+        self.assertEqual(O.outcome(runs)["bans_by_arm"]["M_pc_loris"], {"attack": 11, "cgnat": 1})
+
+    def test_the_last_valid_attempt_is_judged(self):
+        runs = campaign()
+        late = {"q_per_s": bins(99.5, 50.0, until=125), "q_level": 98.0}
+        runs.append(rec(3101, "M_pc_post", 99.0, attempt=2, **late))                       # a later valid attempt
+        runs.append(rec(3101, "M_pc_post", 99.0, attempt=3, valid=False))                  # then an invalid one
+        m = O.outcome(runs)["families"]["post"]["mitigation"]
+        self.assertEqual(max(m["recovery_s"]), 100)                                           # attempt 2 judged
+        self.assertEqual(m["valid_blocks"], 10)
+
+    def test_every_record_names_its_attempt(self):
+        runs = campaign()
+        runs[5] = {k: v for k, v in runs[5].items() if k != "attempt"}
+        with self.assertRaisesRegex(ValueError, "names its attempt"):
+            O.outcome(runs)
+        runs = campaign()
+        runs.append(dict(runs[3]))
+        with self.assertRaisesRegex(ValueError, "two records"):
+            O.outcome(runs)
+        self.assertIn("Re-registration record (D-035, V-03", O.__doc__)
+
+
 class InputTest(unittest.TestCase):
     def test_bad_records_are_refused(self):
         runs = campaign()
@@ -282,29 +319,30 @@ class InputTest(unittest.TestCase):
                   {"ip": "10.0.3.1", "port": 2, "sport": 80}]
         roles = {"10.0.3.1": "attack", "10.0.4.1": "cgnat"}
         win = O.LEVEL_WINDOW_S
-        r = O.summarize(3101, "M_pc_loris", True, metrics, {"Q": 98.0}, events, roles, closes, level_window=win)
-        self.assertEqual(r, {"block": 3101, "arm": "M_pc_loris", "valid": True, "Q": 97.0, "p95_s": 0.2,
+        r = O.summarize(3101, "M_pc_loris", True, metrics, {"Q": 98.0}, events, roles, closes, level_window=win,
+                        attempt=1)
+        self.assertEqual(r, {"block": 3101, "arm": "M_pc_loris", "attempt": 1, "valid": True, "Q": 97.0, "p95_s": 0.2,
                              "q_per_s": q, "q_level": 98.0, "level_window": [120.0, 240.0],
                              "banned": {"10.0.3.1": "attack", "10.0.4.1": "cgnat"}, "benign_closed": 1})
         with self.assertRaises(ValueError):
             O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [{"kind": "ban", "ip": "10.9.9.9"}], roles,
-                        level_window=win)
+                        level_window=win, attempt=1)
 
     def test_a_close_of_an_unlabelled_address_is_refused(self):
         metrics = {"Q": 97.0, "p95_s": 0.2, "q_per_s": [99.0] * 270}
         closes = [{"ip": "10.0.4.1", "port": 1, "sport": 443}, {"ip": "10.0.9.9", "port": 2, "sport": 80}]
         with self.assertRaisesRegex(ValueError, "10.0.9.9"):
             O.summarize(3101, "M_pc_loris", True, metrics, {"Q": 98.0}, [], {"10.0.4.1": "cgnat"}, closes,
-                        level_window=O.LEVEL_WINDOW_S)
+                        level_window=O.LEVEL_WINDOW_S, attempt=1)
 
     def test_a_run_on_another_timeline_or_window_is_refused(self):
         metrics = {"Q": 97.0, "p95_s": 0.2, "q_per_s": [99.0] * 180}          # the 30 + 120 + 30 s schedule
         with self.assertRaises(ValueError):
-            O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [], {}, level_window=O.LEVEL_WINDOW_S)
+            O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [], {}, level_window=O.LEVEL_WINDOW_S, attempt=1)
         metrics["q_per_s"] = [99.0] * 270
         for window in ((30, 240), (60, 150), None):
             with self.assertRaises(ValueError):
-                O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [], {}, level_window=window)
+                O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [], {}, level_window=window, attempt=1)
         self.assertEqual(O.RUN_S, 270)
         short = campaign({("M_pc_loris", 4): {"q_per_s": bins(99.5, total=180)}})
         with self.assertRaisesRegex(ValueError, "180 one-second bins"):
