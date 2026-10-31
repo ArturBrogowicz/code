@@ -10,8 +10,9 @@ its existing machinery (closed-loop paced requests, or the browser-device execut
   C3a  browser-claiming HTTP-library bots: a product page every U[2, 8] s, each followed at once by one costly
        request; no assets, no JS; cookies kept; Referer = the previous page (the costly request: its page)
   C3b  headless-browser bots, a request-level emulation: views that load like a browser's (asset waves, a cache,
-       six keep-alive connections), one costly request per view after its assets, Referer and cookies like the
-       benign browser; the navigation is the mimicry level's:
+       six keep-alive connections); after each navigation view, the costly route's form page and, a dwell later,
+       one costly request issued from it (re-registered 2026-10-31: no Referer or timing tell); Referer and cookies
+       like the benign browser; the navigation is the mimicry level's:
          M1     product pages uniform without replacement (deep links), a constant 3 s dwell (a sanity level)
          M2     as M1 with a uniform U[2, 12] s dwell (primary)
          M3     the TPC-W browsing chain watched on its page states, product pages uniform without replacement (no
@@ -98,33 +99,53 @@ def c3a_requests(params, duration_s, rng):
 
 
 def c3b_views(params, duration_s, rng, mimicry):
-    """C3b at `mimicry`: browser views [{"t", "page", "waves", "pause_s", "ref", "doc"}], each with one costly request
-    as its last wave."""
+    """C3b at `mimicry` (ml/l7v2_prereg.json classes.C3b, re-registered 2026-10-31, T-030 L7V2-04): each navigation view is
+    followed by the form page of the costly route (Referer: the navigation page) and then by one costly request issued
+    in-page from that form page (Referer: the form page); every step waits a dwell from the mimicry law, so the costly
+    request comes a dwell after its form page, as a benign search or export does. Views: [{"t", "page", "waves",
+    "pause_s", "ref", "doc"}]."""
     level, route = params["level"], params.get("route", "C3")
     first = params.get("first_view_s", l7v2_prereg.load()["classes"]["C3b"]["first_view_s"])
+    form = FORM_PAGE[route]
     wave1_all, fonts = l7_webapp.site_assets(level)
-    products, cached, views, doc = _Products(rng), set(), [], None
+    products, cached, views, doc = _Products(rng), set(), [], [None]
     walk = None
     if mimicry == "M3":
         walk = l7_tpcw.walk(l7v2_prereg.load()["navigation"]["train_mix"], rng, l7v2_prereg.page_states())
         routes = l7v2_prereg.routes()
+
+    def key_of(path):
+        key = "home" if path == "/" else path[len("/page/"):]
+        return int(key) if key.isdigit() else key
+
+    def step(t, waves, doc_path, ref):
+        dwell = l7v2_prereg.dwell(mimicry, rng)
+        views.append({"t": round(t, 4), "page": key_of(doc_path), "waves": waves, "pause_s": round(dwell, 4),
+                      "ref": ref, "doc": doc_path})
+        return t + dwell
+
+    def page(t, path):
+        wave1 = [p for p in wave1_all if p not in cached]
+        wave2 = [p for p in fonts + l7_webapp.page_assets(level, key_of(path)) if p not in cached]
+        cached.update(wave1)
+        cached.update(wave2)
+        t = step(t, [[path], wave1, wave2], path, doc[0])
+        doc[0] = path
+        return t
+
     t = rng.uniform(*first)
     while t < duration_s:
         if walk is not None:
             kind, target = routes[next(walk)]
-            path = products.next() if kind == "product" else target
+            t = page(t, products.next() if kind == "product" else target)
         else:
-            path = products.next()
-        key = "home" if path == "/" else path[len("/page/"):]
-        key = int(key) if isinstance(key, str) and key.isdigit() else key
-        wave1 = [p for p in wave1_all if p not in cached]
-        wave2 = [p for p in fonts + l7_webapp.page_assets(level, key) if p not in cached]
-        cached.update(wave1)
-        cached.update(wave2)
-        dwell = l7v2_prereg.dwell(mimicry, rng)
-        views.append({"t": round(t, 4), "page": key, "waves": [[path], wave1, wave2, [costly_path(route, rng)]],
-                      "pause_s": round(dwell, 4), "ref": doc, "doc": path})
-        doc, t = path, t + dwell
+            t = page(t, products.next())
+        if t >= duration_s:
+            break
+        t = page(t, form)
+        if t >= duration_s:
+            break
+        t = step(t, [[costly_path(route, rng)]], form, form)
     return views
 
 

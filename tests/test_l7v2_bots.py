@@ -71,23 +71,33 @@ class C3aTest(unittest.TestCase):
         self.assertFalse([p for p, _, _ in reqs if p.startswith("/static/")], "no assets")
 
 
+FORM = {"C3": "/page/search", "C5": "/page/account"}
+
+
 class C3bTest(unittest.TestCase):
-    def check_views(self, views, deep_links=True):
+    def check_views(self, views, route="C3", deep_links=True):
+        """Cycles of (navigation view, the form page, one in-page costly request), each step a dwell after the last."""
         doc, seen, assets = None, set(), []
-        for v in views:
+        for i, v in enumerate(views):
+            step = i % 3
+            if step == 2:                                   # the costly request, from the form page
+                self.assertEqual(len(v["waves"]), 1)
+                self.assertEqual(l7_webapp.route_class("GET", v["waves"][0][0]), route)
+                self.assertEqual((v["ref"], v["doc"]), (FORM[route], FORM[route]))
+                continue
             page = v["waves"][0][0]
-            self.assertEqual((v["ref"], v["doc"]), (doc, page))
-            self.assertEqual(len(v["waves"]), 4)
-            self.assertEqual(len(v["waves"][3]), 1, "one costly request per view")
-            self.assertEqual(l7_webapp.route_class("GET", v["waves"][3][0]), "C3")
-            assets += [p for w in v["waves"][1:3] for p in w]
-            if page.startswith("/page/") and page[6:].isdigit():
+            self.assertEqual((v["ref"], v["doc"], len(v["waves"])), (doc, page, 3))
+            assets += [p for w in v["waves"][1:] for p in w]
+            if step == 1:
+                self.assertEqual(page, FORM[route])
+            elif page.startswith("/page/") and page[6:].isdigit():
                 self.assertNotIn(page, seen, "no revisit of a product page")
                 seen.add(page)
             elif deep_links:
                 self.fail(f"a deep-link bot loaded {page}")
             doc = page
         self.assertEqual(len(assets), len(set(assets)), "a browser cache: no asset twice")
+        return [v for i, v in enumerate(views) if i % 3 == 0]
 
     def test_m1_constant_dwell(self):
         u = plan("C3b@M1", {"level": 30})
@@ -99,15 +109,13 @@ class C3bTest(unittest.TestCase):
         vs = plan("C3b@M2", {"level": 60}, 2, 1200.0)["views"]
         self.check_views(vs)
         self.assertTrue(all(2.0 <= v["pause_s"] <= 12.0 for v in vs))
-        c5 = plan("C3b@M2", {"level": 30, "route": "C5"})["views"]
-        self.assertTrue(all(v["waves"][3][0].startswith("/export?r=") for v in c5))
+        self.check_views(plan("C3b@M2", {"level": 30, "route": "C5"})["views"], route="C5")
 
     def test_m3_walks_the_page_states_of_the_benign_chain(self):
-        vs = plan("C3b@M3", {"level": 30}, 4, 3000.0)["views"]
-        self.check_views(vs, deep_links=False)
+        vs = plan("C3b@M3", {"level": 30}, 4, 6000.0)["views"]
+        nav = self.check_views(vs, deep_links=False)
         self.assertEqual(vs[0]["waves"][0][0], "/", "the chain's sessions start at Home")
-        pages = {v["waves"][0][0] for v in vs}
-        self.assertTrue({"/", "/page/new", "/page/best", "/page/search"} <= pages)
+        self.assertTrue({"/", "/page/new", "/page/best", "/page/search"} <= {v["waves"][0][0] for v in nav})
         self.assertTrue(all(2.0 <= v["pause_s"] <= 12.0 for v in vs))
 
     def test_m2exp_benign_think_law(self):
@@ -116,10 +124,18 @@ class C3bTest(unittest.TestCase):
         self.assertAlmostEqual(sum(v["pause_s"] for v in vs) / len(vs), 7.0, delta=0.5)
 
     def test_the_product_universe_restarts_after_it_is_exhausted(self):
-        vs = plan("C3b@M1", {"level": 30}, 5, 3 * 450.0)["views"]
-        pages = [v["waves"][0][0] for v in vs]
+        nav = plan("C3b@M1", {"level": 30}, 5, 9 * 450.0)["views"][0::3]      # revisits begin only after all 200
+        pages = [v["waves"][0][0] for v in nav]
         self.assertEqual(len(set(pages[:200])), 200)
         self.assertGreater(len(pages), 200)
+
+    def test_costly_requests_carry_no_placement_tell(self):
+        # T-030 L7V2-04: like a benign search, the costly request names its form page and comes a dwell after it
+        vs = plan("C3b@M2", {"level": 30}, 6, 3000.0)["views"]
+        for form_view, costly in zip(vs[1::3], vs[2::3], strict=False):
+            self.assertEqual(costly["ref"], form_view["waves"][0][0])
+            self.assertGreaterEqual(costly["t"] - form_view["t"], 2.0)
+            self.assertAlmostEqual(costly["t"] - form_view["t"], form_view["pause_s"], places=3)
 
 
 class CalibrationTest(unittest.TestCase):
