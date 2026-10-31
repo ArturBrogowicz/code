@@ -52,6 +52,9 @@ L7_ENFORCE = os.environ.get("L7_ENFORCE", "0") == "1"
 L7_ENFORCE_DIR = os.environ.get("L7_ENFORCE_DIR", "/run/l7v2")
 L7_NGINX_CONF = os.environ.get("L7_NGINX_CONF", "")
 L7_ALLOWLIST = os.environ.get("L7_ALLOWLIST", "")
+# The arm's kill switch, read every step: while this file exists it takes no action, and when it appears the deny map
+# is emptied (one reload) and the arm's XDP bans are lifted. The default is SLOW_PC_KILL_FILE's, so one file stops both.
+L7_KILL_FILE = os.environ.get("L7_KILL_FILE", "/run/l7v2/kill")
 L7_ENFORCE_POLL_INTERVAL = 1.0
 if L7_ENFORCE and not (L7_SHADOW and L7_NGINX_CONF):
     raise SystemExit("[-] L7_ENFORCE=1 needs L7_SHADOW=1 (the arm acts on the L7 engine's decisions) and "
@@ -360,10 +363,11 @@ def ban_ip(ip_str, reason="unknown", engine="unknown", **detail):
         
     with banned_ips_lock:
         banned_ips.add(ip_str)
-        ban_timestamps[ip_str] = time.time()
+        ban_timestamps[ip_str] = banned_at = time.time()
     print(f"[BAN] {ip_str} banned for {BAN_TTL_SECONDS}s. Reason: {reason}")
     EVENTS.emit("ban", ip=ip_str, engine=engine, reason=reason, backend=backend,
                 enforced=enforced, ttl_s=BAN_TTL_SECONDS, **detail)
+    return banned_at
 
 
 def unblock_expired_bans():
@@ -643,6 +647,47 @@ def l7_nginx_reload():
     return True, ""
 
 
+def l7_lift_bans(bans):
+    """The arm's kill switch: lift its XDP bans, (ip, the time ban_ip recorded) each, that are still the bans it made.
+    A ban that expired, or that another engine made since, is left alone, and so is every other engine's ban (L3/L4,
+    slow_pc, the L7 rate rule). Each lift is an `unban` event with lifted_by "l7_kill". Returns the IPs lifted."""
+    backend = os.environ.get("MITIGATION_BACKEND", "xdp")
+    now = time.time()
+    lifted = []
+    with banned_ips_lock:
+        for ip_str, banned_at in bans:
+            if banned_at is None or ban_timestamps.get(ip_str) != banned_at:
+                continue
+            if backend == "iptables":
+                subprocess.run(["ip", "netns", "exec", "server_ns", "iptables", "-D", "INPUT", "-s", ip_str,
+                                "-j", "DROP"], check=False)
+            else:
+                try:
+                    del blacklist_map[blacklist_map.Key(ip_to_network_bytes(ip_str))]
+                except KeyError:
+                    pass
+            banned_ips.discard(ip_str)
+            del ban_timestamps[ip_str]
+            lifted.append((ip_str, now - banned_at))
+    for ip_str, age in lifted:
+        EVENTS.emit("unban", ip=ip_str, backend=backend, age_s=round(age, 3), lifted_by="l7_kill")
+    return [ip_str for ip_str, _age in lifted]
+
+
+def l7_killed():
+    return os.path.exists(L7_KILL_FILE)
+
+
+def l7_enforce_stop():
+    """At the daemon's stop (the main statement's finally, after XDP is detached): the arm empties the deny map with
+    one reload, so no deny outlives the daemon. It cannot raise."""
+    try:
+        if l7_arm is not None:
+            l7_arm.stop(time.time())
+    except Exception as e:  # noqa: BLE001 - the stop must finish
+        report_daemon_error("l7_enforce", e, "deny map not emptied at stop")
+
+
 def l7_ip_banned(ip_str):
     with banned_ips_lock:
         return ip_str in banned_ips
@@ -658,9 +703,11 @@ def l7_enforce_init():
     except (OSError, ValueError) as e:
         raise SystemExit(f"[-] L7_ENFORCE=1: {e}") from e
     l7_arm = l7_enforce.Arm(l7_denymap.DenyMap(L7_ENFORCE_DIR), reload=l7_nginx_reload, ban=ban_ip,
-                            close=kill_zombie_connections, banned=l7_ip_banned, events=EVENTS, allow=allow,
-                            clock=time.time)
-    print(f"[*] L7 v2 enforcing arm: deny map {l7_arm.denies.path}, reloads nginx -c {L7_NGINX_CONF}.")
+                            close=kill_zombie_connections, banned=l7_ip_banned, events=EVENTS, lift=l7_lift_bans,
+                            killed=l7_killed, allow=allow, clock=time.time)
+    l7_arm.start(time.time())
+    print(f"[*] L7 v2 enforcing arm: deny map {l7_arm.denies.path}, reloads nginx -c {L7_NGINX_CONF}, "
+          f"kill switch {L7_KILL_FILE}.")
 
 
 def l7_enforce_monitor():
@@ -1467,3 +1514,5 @@ finally:
     stop_event.set()
     bpf.remove_xdp(INTERFACE, 0)
     print(f"[+] XDP program detached from {INTERFACE}. Finished.")
+    if L7_ENFORCE:
+        l7_enforce_stop()

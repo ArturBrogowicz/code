@@ -24,6 +24,16 @@ The decision policy (9.1, 9.2), for a would-ban of the key (IP, ua_h, sid_h):
     9.2), and an IP the arm has not seen counts as one with more.
   * a deny ends DENY_TTL_S after it was added (l7_denymap.DenyMap.expire).
 
+Safeguards (9.3):
+  * the kill switch, read every step: while `killed()` is true (the daemon: the file L7_KILL_FILE exists, by default
+    /run/l7v2/kill like SLOW_PC_KILL_FILE) no new action is taken (decisions are logged as skipped, "killed"), and
+    on the step that sees it appear the deny map is emptied with one reload and the XDP bans this arm made are lifted
+    through the injected `lift`, which leaves every other engine's bans (L3/L4, slow_pc) alone;
+  * rate caps: at most MAX_LEVEL2_PER_MIN level-2 bans in any 60 s and l7_denymap.MAX_DENIES active denies; beyond
+    either, an l7_enforce_capped event and no action (a capped level-2 ban is tried again at the next step);
+  * no deny outlives its daemon: start() empties a map an earlier daemon left (one reload), stop() empties the map
+    when the daemon stops (one reload), as detaching XDP lifts every ban.
+
 Events (ban_events.EventLog; documented in docs/EVALUATION.md): l7_enforce_arm, l7_deny, l7_deny_end,
 l7_enforce_skip, l7_enforce_miss, l7_enforce_capped, l7_reload, l7_enforce_poll, and the daemon's own `ban` for
 level 2. They carry hashes, never a raw User-Agent or session id.
@@ -46,11 +56,12 @@ LEVEL2_AFTER_S = 30.0          # 9.2: level 2 only for a key still sending this 
 GUARD_KEYS = 3                 # 9.2: an IP with this many distinct UA hashes, or sids, is never XDP-banned
 KEYS_WINDOW_S = 600.0          # 9.2: ... in the last 10 min
 RELOAD_MIN_S = 10.0            # 9.2: a graceful reload at most once per 10 s
+MAX_LEVEL2_PER_MIN = 20        # 9.3: level-2 bans in any 60 s at most
 REPORT_INTERVAL_S = 5.0
 MAX_IPS = 65536                # IpKeys' LRU bound
 MAX_INBOX = 100000             # would-ban events waiting for the next step at most
 SERVER_ADDRESSES = ("127.0.0.0/8", "10.0.0.1/32")    # loopback and the server's address in server_ns
-SKIP_REASONS = ("not_armed", "allowlist", "already_denied", "ip_banned", "key_age", "cgnat_guard")
+SKIP_REASONS = ("not_armed", "killed", "allowlist", "already_denied", "ip_banned", "key_age", "cgnat_guard")
 
 
 def allowlist(extra=""):
@@ -117,9 +128,15 @@ class Arm:
     """The enforcing arm. observe() and submit() are called by the L7 shadow thread, step() by the arm's own thread;
     the shared tables are guarded by one lock, which is never held across a callback (reload, ban, close, events)."""
 
-    def __init__(self, deny_map, *, reload, ban, close, banned, events, allow=(), clock=time.time):
+    def __init__(self, deny_map, *, reload, ban, close, banned, events, lift=None, killed=None, allow=(),
+                 clock=time.time):
         self.denies = deny_map
         self.reload, self.ban, self.close, self.banned, self.events = reload, ban, close, banned, events
+        self.lift = lift or (lambda _bans: [])
+        self.killed = killed or (lambda: False)
+        self.kill_on = False
+        self.xdp_bans = {}             # ip -> the time ban_ip recorded for this arm's level-2 ban (for the kill switch)
+        self.level2_times = []         # times of the level-2 bans in the last 60 s
         self.allow = tuple(allow) or allowlist()
         self.clock = clock
         self.lock = threading.Lock()
@@ -133,7 +150,7 @@ class Arm:
         self.last_report = None
         self.changes = 0
         self.counts = dict.fromkeys(("would_bans", "denied", "missed", "level2", "guarded", "capped", "reloads",
-                                     "reload_failed", "ended", "inbox_dropped", "observe_errors"), 0)
+                                     "reload_failed", "ended", "lifted", "inbox_dropped", "observe_errors"), 0)
         self.skips = dict.fromkeys(SKIP_REASONS, 0)
         self.first_error = None
 
@@ -185,9 +202,32 @@ class Arm:
 
     # --- the arm's own thread ---------------------------------------------------------------------------------------
 
-    def step(self, now=None):
-        """One step: the new decisions, the key-age gate, the deny TTL, the batched map write and reload, level 2."""
+    def start(self, now=None):
+        """At the daemon's start: a deny map an earlier daemon left behind is emptied, with one reload."""
         now = self.clock() if now is None else now
+        try:
+            with open(self.denies.path, "rb") as fh:
+                stale = fh.read().count(b"\n")
+        except OSError:
+            stale = 0
+        if stale:
+            self.denies.dirty, self.changes = True, stale
+            self._publish(now, force=True)
+
+    def stop(self, now=None):
+        """At the daemon's stop: every deny is lifted, with one reload (XDP's detach lifts the bans)."""
+        now = self.clock() if now is None else now
+        self._end(self.denies.clear(), now, "stop")
+        self._publish(now, force=True)
+
+    def step(self, now=None):
+        """One step: the kill switch, the new decisions, the key-age gate, the deny TTL, the batched map write and
+        reload, level 2."""
+        now = self.clock() if now is None else now
+        if self._kill_switch(now):
+            self._publish(now)                    # a kill reload that failed is retried
+            self._report(now)
+            return
         with self.lock:
             inbox, self.inbox = self.inbox, []
             first = {self._key(ev): self.raw.first_seen(self._key(ev)) for ev in inbox}
@@ -211,6 +251,50 @@ class Arm:
         self._publish(now)
         self._level2(now)
         self._report(now)
+
+    def _kill_switch(self, now):
+        """True while the kill switch is on: decisions are skipped; on its first step everything is lifted."""
+        killed = bool(self.killed())
+        if killed != self.kill_on:
+            self.kill_on = killed
+            if not killed:
+                self.events.emit("l7_kill", on=False)
+                return False
+            cleared = self.denies.clear()
+            self._end(cleared, now, "kill")
+            for ev, _t in self.waiting.values():
+                self._skip("killed", ev)
+            self.waiting.clear()
+            self._publish(now, force=True)
+            lifted = list(self.lift(sorted(self.xdp_bans.items())))
+            self.xdp_bans.clear()
+            self.counts["lifted"] += len(lifted)
+            self.events.emit("l7_kill", on=True, denies=len(cleared), bans_lifted=sorted(lifted))
+        if killed:
+            with self.lock:
+                inbox, self.inbox = self.inbox, []
+            for ev in inbox:
+                self.counts["would_bans"] += 1
+                self._skip("killed", ev)
+        return killed
+
+    def _end(self, entries, now, reason):
+        """Forget the keys of these removed denies (and, on a kill or a stop, every key acted on): l7_deny_end each."""
+        gone = {e.ident: e for e in entries}
+        everything = reason in ("kill", "stop")
+        with self.lock:
+            ended = [(k, tr) for k, tr in self.tracked.items() if everything or tr["ident"] in gone
+                     or tr["ident"] is None and now - tr["t_virtual"] > self.denies.ttl]
+            for k, _tr in ended:
+                del self.tracked[k]
+        for _k, tr in ended:
+            self.counts["ended"] += 1
+            e = gone.get(tr["ident"])
+            self.events.emit("l7_deny_end", reason=reason, denied=e is not None,
+                             effective=e is not None and e.t_loaded is not None,
+                             age_s=round(now - (e.t_added if e else tr["t_virtual"]), 3), **self._decision(tr["ev"]))
+        if gone:
+            self.changes += len(gone)
 
     @staticmethod
     def _key(ev):
@@ -265,20 +349,9 @@ class Arm:
                                  "escalated": False, "guarded": False}
 
     def _expire(self, now):
-        gone = {e.ident: e for e in self.denies.expire(now)}
-        with self.lock:
-            ended = [(k, tr) for k, tr in self.tracked.items()
-                     if tr["ident"] in gone or tr["ident"] is None and now - tr["t_virtual"] > self.denies.ttl]
-            for k, _tr in ended:
-                del self.tracked[k]
-        for _k, tr in ended:
-            self.counts["ended"] += 1
-            e = gone.get(tr["ident"])
-            self.events.emit("l7_deny_end", reason="ttl", denied=e is not None,
-                             effective=e is not None and e.t_loaded is not None,
-                             age_s=round(now - (e.t_added if e else tr["t_virtual"]), 3), **self._decision(tr["ev"]))
-        if gone:
-            self.changes += len(gone)
+        self._end(self.denies.expire(now), now, "ttl")
+        for ip in [ip for ip, t in self.xdp_bans.items() if now - t > 2 * self.denies.ttl]:
+            del self.xdp_bans[ip]                 # long expired: the kill switch has nothing left to lift there
 
     def _publish(self, now, force=False):
         """Write the map and reload nginx if it changed, at most once per RELOAD_MIN_S (unless `force`)."""
@@ -303,6 +376,8 @@ class Arm:
             self.changes = 0
 
     def _level2(self, now):
+        self.level2_times = [t for t in self.level2_times if now - t < 60.0]
+        capped = []
         with self.lock:
             due = []
             for key, tr in self.tracked.items():
@@ -328,16 +403,25 @@ class Arm:
             if self.banned(ip):
                 tr["escalated"] = True
                 continue
+            if len(self.level2_times) >= MAX_LEVEL2_PER_MIN:
+                capped.append(ip)                 # tried again at the next step
+                continue
             tr["escalated"] = True
             self.counts["level2"] += 1
+            self.level2_times.append(now)
             after = round(tr["last"] - t_eff, 3)
-            self.ban(ip, reason=f"L7 v2 arm {info['arm']}: key kept sending {after:g} s after its "
+            banned_at = self.ban(ip, reason=f"L7 v2 arm {info['arm']}: key kept sending {after:g} s after its "
                                 f"{'deny' if tr['ident'] else 'decision'} (p={info['p']} > {info['threshold']} in "
                                 f"{info['consecutive']} windows)",
                      engine=ban_events.L7V2_ENGINE, level=2, value=info["p"], p=info["p"], threshold=info["threshold"],
                      consecutive=info["consecutive"], arm=info["arm"], ua_h=info["ua_h"], sid_h=info["sid_h"],
                      ua_keys=counts[0], sid_keys=counts[1], after_s=after, denied=tr["ident"] is not None)
+            self.xdp_bans[ip] = banned_at
             self.close(ip)
+        if capped:
+            self.counts["capped"] += len(capped)
+            self.events.emit("l7_enforce_capped", what="ban", n=len(capped), cap=MAX_LEVEL2_PER_MIN, level=2,
+                             arm=self.info.get("arm"), ips=sorted(set(capped))[:50])
 
     def _report(self, now):
         if self.last_report is not None and now - self.last_report < REPORT_INTERVAL_S:
@@ -346,5 +430,6 @@ class Arm:
         with self.lock:
             sizes = {"raw_keys": len(self.raw), "raw_evicted": self.raw.evicted, "raw_ambiguous": self.raw.ambiguous,
                      "ips": len(self.ips), "tracked": len(self.tracked)}
-        self.events.emit("l7_enforce_poll", armed=self.armed, active=len(self.denies), waiting=len(self.waiting),
+        self.events.emit("l7_enforce_poll", armed=self.armed, killed=self.kill_on, active=len(self.denies),
+                         waiting=len(self.waiting),
                          **sizes, **self.counts, skips=dict(self.skips), first_error=self.first_error)
