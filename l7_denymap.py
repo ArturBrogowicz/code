@@ -207,6 +207,13 @@ class DenyMap:
         self.dirty = True
         return "added", entry
 
+    def remove(self, idents):
+        """Remove and return the entries with these idents (those present)."""
+        gone = [self._entries.pop(i) for i in idents if i in self._entries]
+        if gone:
+            self.dirty = True
+        return gone
+
     def expire(self, now):
         """Remove and return the entries added more than `ttl` seconds ago (strictly, as the daemon's TTL sweep)."""
         gone = [e for e in self._entries.values() if now - e.t_added > self.ttl]

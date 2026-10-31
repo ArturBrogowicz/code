@@ -480,6 +480,12 @@ Known limits:
   `ml/l7_benign.UA_TABLE` contains, so no testbed browser key could have been denied at level 1. Inside nginx's
   double quotes `;` is an ordinary character; it is now written, and all 17 UA_TABLE entries pass the rules. `"`,
   `\`, `$`, `{`, `}`, other bytes and UAs over 256 bytes stay excluded.
+* D-040 (T-042 E02): a key without a session is written as `ip|ua|`, which nginx matches for every cookie-less request
+  from that address with that UA (in any case), including the first request of another user's session (a 429 means
+  the server never sets that user's sid). So such a key is denied at level 1 only while its address is single-key
+  (fewer than 3 UA hashes and 3 sids in 10 min); on a shared address it is a miss (`sid_less_shared`), and a line
+  already written is withdrawn (`l7_deny_end` reason `cgnat_guard`) at the next write once the address turns shared;
+  nginx keeps the old map until that reload (at most 10 s). Such a key can still reach level 2 only if single-key.
 * A bot that sends a fresh well-formed sid with every request gets a new key each time (T-025b F8), and its address
   looks multi-key, so neither level reaches it; the population-level detector is the counter.
 * `nginx -s reload`'s exit status says whether the new configuration parsed; that the workers took it is seen only
@@ -539,9 +545,9 @@ at the run directory; standalone default `/var/log/ddos/ban_events.jsonl`; `""` 
 | `slow_pc_capped` | `what` (`close` or `ban`), `n`, `cap`, and for bans `ips` (at most 50): decisions held back by the caps of 500 closes per poll and 20 bans per minute |
 | `l7_enforce_arm` | `armed`, `reason` (why not), `arm`, `arm_kind`, `model`, `selection_sha256`, `level`, `threshold`, `consecutive`: the L7 v2 arm attached to the shadow thread's engine (`L7_ENFORCE=1` only, as every kind below) |
 | `l7_deny` | `ip`, `ua_h`, `sid_h`, `arm`, `threshold`, `consecutive`, `p`, `t_poll`, `level` (1), `shared` (a case-insensitive twin's line covers it), `key_age_s`, `active`, `ttl_s`: a key denied at nginx |
-| `l7_deny_end` | the key fields, `reason` (`ttl`, `kill`, `stop`), `denied`, `effective`, `age_s` |
+| `l7_deny_end` | the key fields, `reason` (`ttl`, `kill`, `stop`, `cgnat_guard`: a sid-less line withdrawn when its address turned shared, D-040), `denied`, `effective`, `age_s` |
 | `l7_enforce_skip` | the key fields, `reason` (`not_armed`, `killed`, `ip_format` (not a canonical dotted-quad IPv4 address), `allowlist`, `already_denied`, `ip_banned`, `key_age` with `key_age_s` and `until`, `cgnat_guard` with `ua_keys` and `sid_keys`) |
-| `l7_enforce_miss` | the key fields, `rule` (the write rule the key fails, `no_raw`, `ambiguous`): unenforceable at level 1 |
+| `l7_enforce_miss` | the key fields, `rule` (the write rule the key fails, `no_raw`, `ambiguous`, `sid_less_shared`: a key without a session on a shared address, D-040): unenforceable at level 1 |
 | `l7_enforce_capped` | `what` (`deny`: the key fields, `cap`, `active`; `ban`: `n`, `cap`, `ips`, at most 50) |
 | `l7_reload` | `ok`, `entries`, `changes`, `detail` (nginx's error text with quoted strings blanked) |
 | `l7_kill` | `on`; when on, `denies` emptied and `bans_lifted` |

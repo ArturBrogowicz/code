@@ -20,7 +20,10 @@ The decision policy (9.1, 9.2), for a would-ban of the key (IP, ua_h, sid_h):
   * level 1, the key is denied at nginx: its line is added to deny.map (l7_denymap.DenyMap), which is written, and
     nginx reloaded through the injected `reload` callable, at most once per RELOAD_MIN_S with every change since the
     last reload in one batch. A key whose raw strings fail the write rules of 9.4 is "unenforceable": it is logged as
-    a miss (l7_enforce_miss) and can reach level 2 only;
+    a miss (l7_enforce_miss) and can reach level 2 only. A key without a session (D-040, T-042 E02) is denied at
+    level 1 only while its address is single-key: its line "ip|ua|" matches every cookie-less request from the address
+    with that UA (in any case), the first request of another user's session included, so on a shared address it is a
+    miss ("sid_less_shared"), and a line already written is withdrawn once the address turns shared;
   * level 2, an XDP ban of the IP through the injected `ban` (the daemon's ban_ip, engine ban_events.L7V2_ENGINE, the
     daemon's TTL) and `close` (its kill_zombie_connections): only when the key keeps sending, a request that started
     LEVEL2_AFTER_S or more after its deny took effect (the reload that published it; for an unenforceable key, after
@@ -87,6 +90,11 @@ def allowed(ip, nets):
         return True
     addr = ipaddress.IPv4Address(ip)
     return any(addr in n for n in nets)
+
+
+def shared(counts):
+    """The CGNAT guard's test on IpKeys.counts: an unseen address, or one with GUARD_KEYS UA hashes or sids, is shared."""
+    return counts is None or counts[0] >= GUARD_KEYS or counts[1] >= GUARD_KEYS
 
 
 def redact(text):
@@ -258,6 +266,7 @@ class Arm:
                 del self.waiting[key]
                 self._act(ev, now, t_first)
         self._expire(now)
+        self._guard_sid_less(now)
         self._publish(now)
         self._level2(now)
         self._report(now)
@@ -335,6 +344,11 @@ class Arm:
         with self.lock:
             status, ua, sid = self.raw.lookup(key)
         age = round(now - t_first, 3)
+        if status == "ok" and not sid:
+            with self.lock:
+                counts = self.ips.counts(ip, now)
+            if shared(counts):
+                status, ua = "unenforceable", "sid_less_shared"      # D-040
         if status == "ok":
             got, entry = self.denies.add(ip, ua, sid, now)
             if got == "capped":
@@ -364,6 +378,26 @@ class Arm:
         self._end(self.denies.expire(now), now, "ttl")
         for ip in [ip for ip, t in self.xdp_bans.items() if now - t > 2 * self.denies.ttl]:
             del self.xdp_bans[ip]                 # long expired: the kill switch has nothing left to lift there
+
+    def _guard_sid_less(self, now):
+        """D-040: withdraw the line of a sid-less deny whose address has turned shared. Its keys stay tracked as misses
+        from the time the line took effect, so they may still reach level 2 if the address is single-key again."""
+        with self.lock:
+            stale = [e.ident for e in self.denies if not e.sid and shared(self.ips.counts(e.ip, now))]
+        if not stale:
+            return
+        gone = {e.ident: e for e in self.denies.remove(stale)}
+        with self.lock:
+            moved = [tr for tr in self.tracked.values() if tr["ident"] in gone]
+            for tr in moved:
+                e = gone[tr["ident"]]
+                tr["ident"], tr["t_virtual"], tr["withdrawn"] = None, e.t_loaded if e.t_loaded else now, e
+        for tr in moved:
+            e = tr.pop("withdrawn")
+            self.counts["guarded"] += 1
+            self.events.emit("l7_deny_end", reason="cgnat_guard", denied=True, effective=e.t_loaded is not None,
+                             age_s=round(now - e.t_added, 3), **self._decision(tr["ev"]))
+        self.changes += len(gone)
 
     def _publish(self, now, force=False):
         """Write the map and reload nginx if it changed, at most once per RELOAD_MIN_S (unless `force`)."""
@@ -408,7 +442,7 @@ class Arm:
             if l7_denymap.ip_problem(ip) or allowed(ip, self.allow):
                 tr["escalated"] = True            # never tracked by _act; kept as a second fence (T-042 E01)
                 continue
-            if counts is None or counts[0] >= GUARD_KEYS or counts[1] >= GUARD_KEYS:
+            if shared(counts):
                 if not tr["guarded"]:
                     tr["guarded"] = True
                     self.counts["guarded"] += 1

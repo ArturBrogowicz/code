@@ -735,6 +735,10 @@ before any data). Usage and events: `docs/EVALUATION.md`, "L7 v2: the enforcing 
   canonical addresses only. The XDP ban path parses with `inet_aton`, which reads `10.0.4617`, `012.0.18.9`,
   `0xa.0.18.9` or `10.0.18.9 ` as 10.0.18.9: a forged datagram could have bypassed the guard and the allowlist of
   the real address.
+- **E02, a key without a session (orchestrator's decision D-040, under the CGNAT guard).** Its line `ip|ua|` matches
+  every cookie-less request from the address with that UA, any case, a new user's first request included. It is
+  written only while the address is single-key in the guard's window; on a shared address the key is a miss
+  (`sid_less_shared`), and a line already written is withdrawn once the address turns shared. Level 2 is unchanged.
 
 **A conflict for the user, resolved by D-038 (below).** 9.4 excludes `;` from a writable UA. Every UA of
 `ml/l7_benign.UA_TABLE` contains one (17 of 17, weight 0.99 of 0.99; 3 of the 6 `ml/l7_gen.UAS`), so as written no

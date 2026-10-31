@@ -370,5 +370,64 @@ class CanonicalAddressTest(ArmCase):
         self.assertTrue(A.allowed("10.0.0.1", nets))
 
 
+class SidlessKeyTest(ArmCase):
+    """D-040 (T-042 E02): a deny line without a sid, "ip|ua|", matches every cookie-less request from the address with
+    that UA; it is written only while the address is single-key."""
+
+    def test_a_sid_less_key_is_denied_on_a_single_key_address_only(self):
+        self.see(ip="10.0.30.1", sid="", start=900.0)                    # alone on its address
+        for ua in ("A/1", "B/1"):
+            self.see(ip="10.0.30.2", ua=ua, start=900.0)                  # three UAs: shared
+        self.see(ip="10.0.30.2", sid="", start=900.0)
+        self.arm.submit(would_ban(ip="10.0.30.1", sid=""))
+        self.arm.submit(would_ban(ip="10.0.30.2", sid=""))
+        self.step(1000.0)
+        self.assertEqual(self.map_lines(), [f'"10.0.30.1|{UA}|" 1;'])
+        [miss] = self.f.read("l7_enforce_miss")
+        self.assertEqual((miss["ip"], miss["rule"]), ("10.0.30.2", "sid_less_shared"))
+
+    def test_a_written_line_is_withdrawn_when_its_address_turns_shared(self):
+        self.see(ip="10.0.30.1", sid="", start=990.0)
+        self.arm.submit(would_ban(ip="10.0.30.1", sid=""))
+        self.step(1010.0)
+        self.assertEqual(len(self.map_lines()), 1)
+        for sid in (SID, "c" * 32, "d" * 32):                              # three sessions start there
+            self.see(ip="10.0.30.1", ua="Other/1", sid=sid, start=1012.0)
+        self.step(1020.0)
+        self.assertEqual(self.map_lines(), [])
+        [end] = self.f.read("l7_deny_end")
+        self.assertEqual((end["reason"], end["ip"], end["effective"]), ("cgnat_guard", "10.0.30.1", True))
+        self.see(ip="10.0.30.1", sid="", start=1060.0)                     # it keeps sending: still no level 2
+        self.step(1061.0)
+        self.assertEqual(self.f.bans, [])
+
+    def test_no_sid_less_line_is_ever_written_for_a_shared_address(self):
+        import random
+        rng = random.Random(40)
+        written = []
+
+        def reload():
+            with open(os.path.join(self.run_dir, D.DENY_FILE), encoding="ascii") as fh:
+                for line in fh.read().splitlines():
+                    ip, _ua, sid = line[1:-4].split("|")
+                    if not sid:
+                        written.append(ip)
+                        self.assertFalse(A.shared(self.arm.ips.counts(ip, self.f.now)), line)
+            return True, ""
+        self.arm.reload = reload
+        t = 1000.0
+        for _round in range(60):
+            t += 5.0
+            for _n in range(8):
+                ip = f"10.0.31.{rng.randrange(12)}"
+                ua, sid = rng.choice(("U/1", "U/2", "U/3", UA)), rng.choice(("", "", SID, "c" * 32, "d" * 32))
+                self.see(ip=ip, ua=ua, sid=sid, start=t - 25.0)
+                if rng.random() < 0.5:
+                    self.arm.submit(would_ban(ip=ip, ua=ua, sid=sid, t=t))
+            self.step(t)
+        self.assertTrue(written)                                           # the case is exercised, and holds
+        self.assertTrue([e for e in self.f.read("l7_enforce_miss") if e["rule"] == "sid_less_shared"])
+
+
 if __name__ == "__main__":
     unittest.main()
