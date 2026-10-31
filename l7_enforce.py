@@ -8,6 +8,11 @@ never bans. The shadow thread also shows the arm every request it ingests (Arm.o
 (l7_denymap.RawKeys), the UA and sid hashes per IP (IpKeys) and whether a denied key keeps sending.
 
 The decision policy (9.1, 9.2), for a would-ban of the key (IP, ua_h, sid_h):
+  * no decision at all on an address that is not a canonical dotted-quad IPv4 address (l7_denymap.ip_problem; skip
+    reason "ip_format"; T-042 E01): nginx logs $remote_addr canonically, but the XDP ban path parses with inet_aton,
+    which reads "10.0.4617", "012.0.18.9", "0xa.0.18.9" or "10.0.18.9 " as 10.0.18.9, so a forged spelling would
+    bypass the allowlist and the CGNAT guard of the real address. The allowlist fails closed on such a spelling, and
+    the guard counts canonical addresses only;
   * no action on an allowlisted IP (the server's own addresses, SERVER_ADDRESSES, and the monitoring identities the
     runner names in L7_ALLOWLIST), on a key already acted on, or on an IP already banned by any engine;
   * the key-age gate: no action on a key younger than KEY_AGE_S, counted from the start of its first request seen;
@@ -61,7 +66,8 @@ REPORT_INTERVAL_S = 5.0
 MAX_IPS = 65536                # IpKeys' LRU bound
 MAX_INBOX = 100000             # would-ban events waiting for the next step at most
 SERVER_ADDRESSES = ("127.0.0.0/8", "10.0.0.1/32")    # loopback and the server's address in server_ns
-SKIP_REASONS = ("not_armed", "killed", "allowlist", "already_denied", "ip_banned", "key_age", "cgnat_guard")
+SKIP_REASONS = ("not_armed", "killed", "ip_format", "allowlist", "already_denied", "ip_banned", "key_age",
+                "cgnat_guard")
 
 
 def allowlist(extra=""):
@@ -75,10 +81,11 @@ def allowlist(extra=""):
 
 
 def allowed(ip, nets):
-    try:
-        addr = ipaddress.ip_address(ip)
-    except ValueError:
-        return False
+    """True if `ip` is in the allowlist. Fails closed: an address that is not a canonical dotted-quad IPv4 address is
+    treated as allowlisted (no action), since inet_aton would read it as another address (T-042 E01)."""
+    if l7_denymap.ip_problem(ip):
+        return True
+    addr = ipaddress.IPv4Address(ip)
     return any(addr in n for n in nets)
 
 
@@ -105,6 +112,8 @@ class IpKeys:
             del seen[min(seen, key=seen.get)]
 
     def note(self, ip, ua_h, sid_h, t):
+        if l7_denymap.ip_problem(ip):
+            return                             # canonical addresses only (T-042 E01)
         entry = self._ips.get(ip)
         if entry is None:
             entry = self._ips[ip] = ({}, {})
@@ -315,6 +324,8 @@ class Arm:
         key, ip = self._key(ev), ev["ip"]
         if not self.armed:
             return self._skip("not_armed", ev, why=self.why)
+        if l7_denymap.ip_problem(ip):
+            return self._skip("ip_format", ev)
         if allowed(ip, self.allow):
             return self._skip("allowlist", ev)
         if key in self.tracked:
@@ -394,6 +405,9 @@ class Arm:
                 due.append((key, tr, t_eff, self.ips.counts(key[0], now)))
         for key, tr, t_eff, counts in due:
             ip, info = key[0], self._decision(tr["ev"])
+            if l7_denymap.ip_problem(ip) or allowed(ip, self.allow):
+                tr["escalated"] = True            # never tracked by _act; kept as a second fence (T-042 E01)
+                continue
             if counts is None or counts[0] >= GUARD_KEYS or counts[1] >= GUARD_KEYS:
                 if not tr["guarded"]:
                     tr["guarded"] = True

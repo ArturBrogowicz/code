@@ -540,7 +540,7 @@ at the run directory; standalone default `/var/log/ddos/ban_events.jsonl`; `""` 
 | `l7_enforce_arm` | `armed`, `reason` (why not), `arm`, `arm_kind`, `model`, `selection_sha256`, `level`, `threshold`, `consecutive`: the L7 v2 arm attached to the shadow thread's engine (`L7_ENFORCE=1` only, as every kind below) |
 | `l7_deny` | `ip`, `ua_h`, `sid_h`, `arm`, `threshold`, `consecutive`, `p`, `t_poll`, `level` (1), `shared` (a case-insensitive twin's line covers it), `key_age_s`, `active`, `ttl_s`: a key denied at nginx |
 | `l7_deny_end` | the key fields, `reason` (`ttl`, `kill`, `stop`), `denied`, `effective`, `age_s` |
-| `l7_enforce_skip` | the key fields, `reason` (`not_armed`, `killed`, `allowlist`, `already_denied`, `ip_banned`, `key_age` with `key_age_s` and `until`, `cgnat_guard` with `ua_keys` and `sid_keys`) |
+| `l7_enforce_skip` | the key fields, `reason` (`not_armed`, `killed`, `ip_format` (not a canonical dotted-quad IPv4 address), `allowlist`, `already_denied`, `ip_banned`, `key_age` with `key_age_s` and `until`, `cgnat_guard` with `ua_keys` and `sid_keys`) |
 | `l7_enforce_miss` | the key fields, `rule` (the write rule the key fails, `no_raw`, `ambiguous`): unenforceable at level 1 |
 | `l7_enforce_capped` | `what` (`deny`: the key fields, `cap`, `active`; `ban`: `n`, `cap`, `ips`, at most 50) |
 | `l7_reload` | `ok`, `entries`, `changes`, `detail` (nginx's error text with quoted strings blanked) |

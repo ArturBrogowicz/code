@@ -729,6 +729,13 @@ before any data). Usage and events: `docs/EVALUATION.md`, "L7 v2: the enforcing 
 - The level-2 ban reaches `ban_ip` through the arm's injected callable, engine `l7v2`, kept out of
   `ban_events.ENGINES` (which `tests/test_control_plane_contract.py` pins to the direct calls).
 
+**Fix round after review T-042 (2026-10-31), each its own commit:**
+- **E01, canonical addresses only.** No decision, at level 1 or level 2, on an address that is not a canonical
+  dotted-quad IPv4 address (skip reason `ip_format`); the allowlist fails closed on one, and the CGNAT guard counts
+  canonical addresses only. The XDP ban path parses with `inet_aton`, which reads `10.0.4617`, `012.0.18.9`,
+  `0xa.0.18.9` or `10.0.18.9 ` as 10.0.18.9: a forged datagram could have bypassed the guard and the allowlist of
+  the real address.
+
 **A conflict for the user, resolved by D-038 (below).** 9.4 excludes `;` from a writable UA. Every UA of
 `ml/l7_benign.UA_TABLE` contains one (17 of 17, weight 0.99 of 0.99; 3 of the 6 `ml/l7_gen.UAS`), so as written no
 testbed browser key can be denied at level 1: P1's arm would act only by misses and level-2 bans of single-key

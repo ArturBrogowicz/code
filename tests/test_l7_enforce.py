@@ -331,5 +331,44 @@ class NothingRawTest(ArmCase):
             self.assertNotIn(raw, text)
 
 
+class CanonicalAddressTest(ArmCase):
+    """T-042 E01: inet_aton, which the XDP ban path uses, reads these as 10.0.18.9; nginx never logs them."""
+
+    SPELLINGS = ("10.0.4617", "012.0.18.9", "0xa.0.18.9", "10.0.18.9 ")
+
+    def test_no_decision_on_an_address_that_is_not_canonical_dotted_quad(self):
+        for n, ip in enumerate(self.SPELLINGS):
+            for t in (900.0, 1000.0, 1050.0, 1100.0):
+                self.see(ip=ip, start=t + n)
+            self.arm.submit(would_ban(ip=ip))
+        for t in (1000.0, 1060.0, 1120.0):
+            self.step(t)
+        skips = [(s["reason"], s["ip"]) for s in self.f.read("l7_enforce_skip")]
+        self.assertEqual(skips, [("ip_format", ip) for ip in self.SPELLINGS])
+        self.assertEqual((self.map_lines(), self.f.bans, self.f.read("l7_enforce_miss")), ([], [], []))
+        self.assertEqual([ip for ip in self.SPELLINGS if self.arm.ips.counts(ip, 1120.0) is not None], [])
+
+    def test_a_forged_spelling_cannot_ban_a_shared_and_allowlisted_address(self):
+        # the review's probe: 10.0.18.9 is a CGNAT address (3 UAs) and allowlisted; records under '10.0.4617' keep
+        # coming for minutes
+        self.arm.allow = A.allowlist("10.0.18.9")
+        for ua in ("A/1", "B/1", "C/1"):
+            self.see(ip="10.0.18.9", ua=ua, start=990.0)
+        for t in range(990, 1200, 5):
+            self.see(ip="10.0.4617", start=float(t))
+        self.arm.submit(would_ban(ip="10.0.4617"))
+        for t in range(1010, 1200, 10):
+            self.step(float(t))
+        self.assertEqual((self.f.bans, self.map_lines()), ([], []))
+        self.assertEqual(self.arm.ips.counts("10.0.18.9", 1100.0), (3, 1))
+
+    def test_the_allowlist_fails_closed(self):
+        nets = A.allowlist()
+        for ip in self.SPELLINGS + ("", "::1", None, 7):
+            self.assertTrue(A.allowed(ip, nets), ip)
+        self.assertFalse(A.allowed("10.0.18.9", nets))
+        self.assertTrue(A.allowed("10.0.0.1", nets))
+
+
 if __name__ == "__main__":
     unittest.main()
