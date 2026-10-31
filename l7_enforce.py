@@ -35,8 +35,9 @@ The decision policy (9.1, 9.2), for a would-ban of the key (IP, ua_h, sid_h):
 Safeguards (9.3):
   * the kill switch, read every step: while `killed()` is true (the daemon: the file L7_KILL_FILE exists, by default
     /run/l7v2/kill like SLOW_PC_KILL_FILE) no new action is taken (decisions are logged as skipped, "killed"), and
-    on the step that sees it appear the deny map is emptied with one reload and the XDP bans this arm made are lifted
-    through the injected `lift`, which leaves every other engine's bans (L3/L4, slow_pc) alone;
+    on the step that sees it appear the deny map is emptied and the XDP bans this arm made are lifted through the
+    injected `lift`, which leaves every other engine's bans (L3/L4, slow_pc) alone. The emptied map's reload keeps the
+    10-s spacing (T-042 E04), so it may come up to RELOAD_MIN_S later; only the daemon's stop reloads at once;
   * rate caps: at most MAX_LEVEL2_PER_MIN level-2 bans in any 60 s and l7_denymap.MAX_DENIES active denies; beyond
     either, an l7_enforce_capped event and no action (a capped level-2 ban is tried again at the next step);
   * no deny outlives its daemon: start() empties a map an earlier daemon left (one reload), stop() empties the map
@@ -235,7 +236,7 @@ class Arm:
             stale = 0
         if stale:
             self.denies.dirty, self.changes = True, stale
-            self._publish(now, force=True)
+            self._publish(now)                    # the first reload of this daemon: not held back
 
     def stop(self, now=None):
         """At the daemon's stop: every deny is lifted, with one reload (XDP's detach lifts the bans). It waits for a step
@@ -297,7 +298,7 @@ class Arm:
             for ev, _t in self.waiting.values():
                 self._skip("killed", ev)
             self.waiting.clear()
-            self._publish(now, force=True)
+            self._publish(now)                    # paced like every reload (T-042 E04): a flapping file cannot storm
             lifted = list(self.lift(sorted(self.xdp_bans.items())))
             self.xdp_bans.clear()
             self.counts["lifted"] += len(lifted)
@@ -413,7 +414,8 @@ class Arm:
         self.changes += len(gone)
 
     def _publish(self, now, force=False):
-        """Write the map and reload nginx if it changed, at most once per RELOAD_MIN_S (unless `force`)."""
+        """Write the map and reload nginx if it changed, at most once per RELOAD_MIN_S. Only stop() forces it: the
+        daemon is ending, and one last reload empties nginx's map (T-042 E04: the kill switch's reload is paced)."""
         if not self.denies.dirty:
             return
         if not force and self.last_reload is not None and now - self.last_reload < RELOAD_MIN_S:

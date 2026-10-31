@@ -58,17 +58,35 @@ class KillSwitchTest(T.ArmCase):
         self.step(1101.0)
         self.assertEqual(len(self.f.read("l7_deny")), 2)                # new actions again
 
-    def test_a_kill_reload_that_fails_is_retried(self):
+    def test_a_kill_reload_waits_for_the_spacing_and_a_failed_one_is_retried(self):
         self.see(start=990.0)
         self.arm.submit(T.would_ban())
         self.step(1010.0)
-        self.kill, self.f.reload_ok = True, False
-        self.step(1011.0)
-        self.f.reload_ok = True
+        self.kill = True
+        self.step(1011.0)                                              # emptied now, reloaded when the spacing allows
         self.step(1015.0)
-        self.step(1021.0)
+        self.assertEqual((self.map_lines(), self.f.reloads), ([f'"{BOT}|{UA}|{SID}" 1;'], [1010.0]))
+        self.f.reload_ok = False
+        self.step(1020.0)
+        self.f.reload_ok = True
+        self.step(1025.0)
+        self.step(1030.0)
+        self.assertEqual(self.f.reloads, [1010.0, 1020.0, 1030.0])
         self.assertEqual([(r["ok"], r["entries"]) for r in self.f.read("l7_reload")],
                          [(True, 1), (False, 0), (True, 0)])
+
+    def test_a_flapping_kill_file_reloads_at_most_once_per_10_s(self):
+        # T-042 E04: the file toggled every second for a minute, new decisions in between
+        for n in range(60):
+            self.see(ip=f"10.0.60.{n + 1}", start=900.0)
+        for n in range(60):
+            self.kill = n % 2 == 1
+            self.arm.submit(T.would_ban(ip=f"10.0.60.{n + 1}", t=1000.0 + n))
+            self.step(1000.0 + n)
+        gaps = [b - a for a, b in zip(self.f.reloads, self.f.reloads[1:])]
+        self.assertGreaterEqual(min(gaps), 10.0)
+        self.assertLessEqual(len(self.f.reloads), 6)
+        self.assertGreaterEqual(len(self.f.read("l7_kill")), 59)
 
 
 class CapsTest(T.ArmCase):

@@ -434,7 +434,8 @@ the `l7_would_ban` events the shadow thread logs. No action on an allowlisted ad
 * A deny ends 300 s after it was added.
 
 **Safeguards.** The kill switch: while `L7_KILL_FILE` exists (read every step; by default `/run/l7v2/kill`, the same
-file as `SLOW_PC_KILL_FILE`) no action is taken, and when it appears the map is emptied with one reload and the arm's
+file as `SLOW_PC_KILL_FILE`) no action is taken, and when it appears the map is emptied with one reload, which keeps the
+10-s spacing (T-042 E04: up to 10 s later; a flapping file cannot storm nginx), and the arm's
 own XDP bans are lifted (`unban` with `lifted_by` `l7_kill`); every other engine's bans stay. At most 20 level-2 bans
 in any 60 s and 2,000 active denies; beyond either, `l7_enforce_capped` and no action. The map is emptied at the
 daemon's start (a map an earlier daemon left) and at its stop, after XDP is detached.
