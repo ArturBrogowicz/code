@@ -1632,7 +1632,8 @@ class ProvenanceTest(RunCase):
         self.assertEqual(X.h01_tailers(TAILERS.replace("errors='replace'", "errors='strict'")), 0)
         self.assertEqual(X.h01_tailers("def tail_nginx_logs(p):\n    pass\n\nx = open(p, errors='replace')\n"), 0,
                          "an open() outside the tailers is not the fix")
-        self.assertEqual(X.h01_tailers(X._text(X.DAEMON)), 0, "this branch's daemon has no fix")
+        self.assertEqual(X.h01_tailers(X._text(X.DAEMON)), 2,
+                         "the merged daemon has the fix (fix/daemon-robustness, with fix/rudy-client-ip's newline)")
 
     def test_the_stack_as_started_is_read_back(self):
         plan, _, _ = self.go("C", F.SimHost(nofile=(524288, 524288)))
