@@ -26,6 +26,18 @@ and parameters whatever the halvings, so a halved plan is the full plan without 
 Each entity's P4 label (`p4_role`) is what eval/p4_validation.py and eval/p4_outcome.py read: "slow_uploader", "cgnat",
 and the kind for every other benign entity ("attack" for the attack families).
 
+The two P4 families at the frozen scale of §5 (FAMILIES; scenario parameters of the in-repo generators, ml/l7_gen.py
+slowloris and slowpost, nothing else): sources from the ladders {100, 175, 250, 300} and {5, 10, 20, 40}, on port 80,
+each attacking only during the attack (30-240 s of the run):
+  * Slowloris (family 1): 6 connections per source, the benign device's footprint; each connection sends a header
+    line of at most 32 B every U[10, 40] s, never completing the request;
+  * slow POST, R.U.D.Y.-like (family 2): 1-2 connections per source (drawn per source) on /upload, each declaring a
+    Content-Length of U[100 KB, 1 MB] and sending a chunk of 1-16 B every U[5, 30] s.
+A connection that is closed is re-opened at once and carries on with its slot's schedule, as the in-repo generators
+re-open. loris_schedule() and post_schedule() are each source's seeded schedule, the one its generator executes and
+prints with --plan. Only the number of sources moves (the ladder); the pacing is frozen. Slow read stays secondary
+(§5: recorded and replayed, not in the verdict) and is not built here.
+
 This module stays light (no numpy, no eval/ imports): ml/l7_gen.py, which every generator process runs, imports it.
 """
 import copy
@@ -66,9 +78,21 @@ BENIGN = (
      "params": {**_UPLOAD, "rate_Bps": 2000}},
 )
 BENIGN_ENTITIES = sum(s["count"] for s in BENIGN)
-# Entity indices after the benign ones are the attack families' (the third commit of part 2b): the pool is drawn
-# at its largest size, so that an address does not depend on the halvings or on the ladder's level.
-POOL_SIZE = BENIGN_ENTITIES + 300 + 40
+# §5, frozen with the smoke run (§13 row 2). `levels` is the ladder of sources; `params` are the generator's.
+LINE_MAX_BYTES = 32
+FAMILIES = {
+    "loris": {"family": "slowloris", "mechanism": "conns", "levels": (100, 175, 250, 300), "ports": [80],
+              "params": {"conns": 6, "header_every_s": [10.0, 40.0], "line_max_bytes": LINE_MAX_BYTES}},
+    "post": {"family": "slowpost", "mechanism": "conns", "levels": (5, 10, 20, 40), "ports": [80],
+             "params": {"conns": 1, "byte_every_s": [5.0, 30.0], "chunk_bytes": [1, 16],
+                        "content_length": [100_000, 1_000_000], "path": "/upload"},
+             "draws": {"conns": ["int", 1, 2]}},
+}
+CONTENT_LENGTHS_PER_SLOT = 32       # the Content-Lengths a slow-POST slot declares, one per (re)open, in turn
+# Entity indices after the benign ones are the attack families', loris then post, each at its ladder's top: the
+# pool is drawn at its largest size, so that an address depends neither on the halvings nor on the ladder's level.
+FAMILY_BASE = {"loris": BENIGN_ENTITIES, "post": BENIGN_ENTITIES + FAMILIES["loris"]["levels"][-1]}
+POOL_SIZE = BENIGN_ENTITIES + sum(f["levels"][-1] for f in FAMILIES.values())
 
 
 class PlanError(ValueError):
@@ -128,6 +152,59 @@ def benign_rows(pools, seed, halvings):
     return rows
 
 
+def attack_rows(pools, seed, family, sources):
+    """The first `sources` sources of a family (entity indices from FAMILY_BASE), attacking from the end of the
+    baseline to the end of the attack."""
+    spec = FAMILIES[family]
+    if not (isinstance(sources, int) and not isinstance(sources, bool) and 0 <= sources <= spec["levels"][-1]):
+        raise PlanError(f"{family}: {sources!r} sources, 0 to {spec['levels'][-1]}")
+    start = float(TIMELINE["baseline_s"])
+    rows = []
+    for k in range(sources):
+        row = _entity(pools, seed, FAMILY_BASE[family] + k, "attack", spec["family"], spec)
+        row["params"]["port"] = row["port"]
+        row["schedule"] = {"start_s": start, "stop_s": start + TIMELINE["attack_s"], "phase": family}
+        rows.append(row)
+    return rows
+
+
+def _events(gap, size, duration_s, rng):
+    """[[t, n]]: a gap U[gap] before each event, n uniform on the integer range `size`, until duration_s."""
+    out, t = [], 0.0
+    while True:
+        t += rng.uniform(*gap)
+        if t >= duration_s:
+            return out
+        out.append([round(t, 3), rng.randint(*size)])
+
+
+def loris_schedule(params, duration_s, rng):
+    """One Slowloris source's slots: for each of its `conns` connections, the header lines it sends, [[t, line]] with
+    t in seconds from the source's start (a gap U[header_every_s] before each), every line at most line_max_bytes."""
+    lo, hi = params["header_every_s"]
+    slots = []
+    for _ in range(params["conns"]):
+        srng = random.Random(rng.randrange(2 ** 31))
+        lines = [[t, f"X-{srng.randrange(10 ** 4)}: {srng.randrange(10 ** 4)}\r\n"]
+                 for t, _n in _events((lo, hi), (0, 0), duration_s, srng)]
+        if any(len(line) > params.get("line_max_bytes", LINE_MAX_BYTES) for _t, line in lines):
+            raise PlanError("a header line longer than line_max_bytes")
+        slots.append({"lines": lines})
+    return slots
+
+
+def post_schedule(params, duration_s, rng):
+    """One slow-POST source's slots: for each of its `conns` connections, the Content-Lengths it declares (one per
+    (re)open, in turn) and its chunks, [[t, bytes]] with a gap U[byte_every_s] before each."""
+    slots = []
+    for _ in range(params["conns"]):
+        srng = random.Random(rng.randrange(2 ** 31))
+        lengths = [srng.randint(*params["content_length"]) for _ in range(CONTENT_LENGTHS_PER_SLOT)]
+        slots.append({"content_lengths": lengths,
+                      "chunks": _events(params["byte_every_s"], params["chunk_bytes"], duration_s, srng)})
+    return slots
+
+
 def assign(pools, seed, rows):
     """Addresses by entity index from the seed's pool, and netem balanced within each role over the profiles of
     l7_pools (an entity with a netem of its own, the slow uploaders, keeps it)."""
@@ -143,14 +220,18 @@ def assign(pools, seed, rows):
     return rows
 
 
-def build_plan(seed, seed_role, *, halvings=0, check_role=True):
-    """One seed's P4 population as data (benign entities; see the module docstring)."""
+def build_plan(seed, seed_role, *, halvings=0, loris=0, post=0, check_role=True):
+    """One seed's P4 population as data: the benign entities and `loris` and `post` sources of the two families (see
+    the module docstring). A run uses the benign entities and the sources of its arm's family."""
     import l7_pools as pools
     if check_role:
         check_seed(seed, seed_role)
-    rows = assign(pools, seed, benign_rows(pools, seed, halvings))
+    rows = benign_rows(pools, seed, halvings) + attack_rows(pools, seed, "loris", loris) \
+        + attack_rows(pools, seed, "post", post)
+    rows = assign(pools, seed, rows)
     return {"format": PLAN_FORMAT, "version": VERSION, "seed": seed, "seed_role": seed_role, "halvings": halvings,
-            "browser_devices": browser_devices(halvings), "timeline": dict(TIMELINE),
+            "browser_devices": browser_devices(halvings), "sources": {"loris": loris, "post": post},
+            "timeline": dict(TIMELINE),
             "pool": {"range": str(pools.POOL_NET), "size": POOL_SIZE,
                      "permutation_seed": pools.subseed(VERSION, seed, "pool")},
             "entities": rows}
