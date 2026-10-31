@@ -189,6 +189,52 @@ class ParityTest(unittest.TestCase):
             for a, b in zip(seen[key], mats, strict=True):
                 np.testing.assert_array_equal(a, b)
 
+    def test_k_consecutive_counts_the_windows_the_engine_scores(self):
+        # T038-06 (D-034): a pageless key completes 8 windows per second, more than the engine's 4 per poll. Within each
+        # second its windows score H L L L L H H H (by the dwell of the last complete token); the engine scores the newest
+        # 4 of each poll (L H H H), so k = 4 never fires live, while every window in a row (H H H | H) would fire offline.
+        offs, objs = (0.0, 0.05, 0.10, 0.15, 0.20, 0.40, 0.60, 0.80), []
+        for sec in range(4):
+            objs += [obj(f"/search?q=w{sec}{k}", 10.0 + sec + o, "10.0.18.7", "f" * 32, "/page/search")
+                     for k, o in enumerate(offs)]
+
+        class DwellStub(RefStub):
+            def __init__(self):
+                super().__init__(consecutive=4)
+
+            def score(self, batch):
+                batch = np.asarray(batch, np.float32)
+                j = self.cols.index("log_dwell")
+                last = [row[np.flatnonzero(row[:, 0] > 0)[-1], j] for row in batch]
+                return np.array([0.99 if v > np.log1p(0.1) else 0.01 for v in last], np.float32)
+
+        stub = DwellStub()
+        eng = engine(stub)
+        live, objs = [], sorted(objs, key=lambda o: o["msec"])
+        nxt = 11.0
+        for o in objs:
+            while o["msec"] >= nxt:                     # polls at whole seconds of the log clock
+                live += eng.poll(nxt)
+                nxt += 1.0
+            eng.on_record(I.normalise(o))
+        live += eng.poll(nxt)
+        self.assertGreater(eng.totals["windows"], 0)
+        recs = []
+        for i, o in enumerate(objs):
+            r = I.normalise(o)
+            r.update({"_seq": i, "_cls": "attack", "_family": "C2", "_held": False, "_kof": "C2", "_cap": "c",
+                      "_ent": "c|bot"})
+            recs.append(r)
+        ws = V.view_windows(recs, 8, 4, idle_s=300.0)
+        p = stub.score(np.stack([w["X"] for w in ws]))
+        offline = V.decisions(V.key_runs(ws, p), stub.threshold, stub.consecutive)
+        self.assertEqual(len(V.engine_scored(ws)), eng.totals["windows"], "the same windows are scored")
+        self.assertEqual([e for e in live if e["kind"] == "l7_would_ban"], [])
+        self.assertEqual([when for _e, when in offline.values()], [None], "offline agrees: no decision")
+        every = V.decisions({k: [(w["t"], float(q), "c|bot") for w, q in zip(ws, p, strict=True)] for k in offline},
+                            stub.threshold, stub.consecutive)
+        self.assertIsNotNone(next(iter(every.values()))[1], "scoring every window would have fired")
+
     def test_replay_drives_the_view_engine(self):
         stub = RefStub()
         eng = engine(stub)

@@ -115,11 +115,11 @@ def _by_key(recs):
     return groups
 
 
-def _window(seq, r_last, X, t, n, key, age=None):
+def _window(seq, r_last, X, t, n, key, age=None, level="request"):
     r0 = seq[0]
     return {"X": X, "y": 1 if r0["_cls"] == D.ATTACK else 0, "ip": r0["_ent"], "key": key, "t": t, "n": n,
             "cls": r0["_cls"], "family": r0["_family"], "held": r0["_held"], "kof": r0.get("_kof"),
-            "capture": r0["_cap"], "recs": seq, "age": age}
+            "capture": r0["_cap"], "recs": seq, "age": age, "level": level}
 
 
 def view_windows(recs, max_views=F.MAX_VIEWS, min_views=F.MIN_VIEWS, idle_s=None):
@@ -137,7 +137,7 @@ def view_windows(recs, max_views=F.MAX_VIEWS, min_views=F.MIN_VIEWS, idle_s=None
                 window = sess[opens[max(0, j - max_views)]:opens[j] + 1]
                 out.append(_window(window, sess[opens[j]], F.token_matrix(window, max_views),
                                    sess[opens[j]]["msec"], min(j, max_views), key,
-                                   F.start_time(sess[opens[j]]) - F.start_time(sess[opens[0]])))
+                                   F.start_time(sess[opens[j]]) - F.start_time(sess[opens[0]]), "view"))
     return out
 
 
@@ -379,10 +379,29 @@ class ArmScorer:
 
 # ───────────────────────────── operating points (design 10) ─────────────────────────────
 
+def engine_scored(windows, poll_s=None, cap=None):
+    """The indices of the view windows the live engine would score (ml/l7v2_model_prereg.json selection.policy_engine,
+    re-registered 2026-10-31 under D-034, T038-06): per (capture, key), of the windows completed before the same poll
+    (polls at whole multiples of poll_s of the log clock; a window completing at t is scored at the first poll after
+    it), only the newest `cap` (l7_engine.L7ViewEngine._windows keeps new[-max_new_windows:]); the others are skipped.
+    Windows come per key in token order (view_windows), so the newest are the last ones of each group."""
+    pre = PRE.load()
+    poll_s = pre["selection"]["policy_engine_poll_s"] if poll_s is None else poll_s
+    cap = pre["engine"]["max_new_windows_per_key_per_poll"] if cap is None else cap
+    groups = {}
+    for i, w in enumerate(windows):
+        groups.setdefault((w["capture"], w["key"], math.floor(w["t"] / poll_s)), []).append(i)
+    return {i for idx in groups.values() for i in idx[-cap:]}
+
+
 def key_runs(windows, scores):
-    """{(capture, key): [(t, p, entity)] in time order}: the policy's input."""
+    """{(capture, key): [(t, p, entity)] in time order}: the policy's input. At the view level only the windows the live
+    engine would score enter (engine_scored, D-034); the request level, an offline ablation, keeps every window."""
+    keep = engine_scored(windows) if windows and windows[0].get("level") == "view" else None
     groups = {}
     for i, (w, p) in enumerate(zip(windows, scores, strict=True)):
+        if keep is not None and i not in keep:
+            continue
         groups.setdefault((w["capture"], w["key"]), []).append((w["t"], i, float(p), w["ip"]))
     return {k: [(t, p, e) for t, _i, p, e in sorted(v)] for k, v in groups.items()}
 
