@@ -157,6 +157,8 @@ class Arm:
         self.allow = tuple(allow) or allowlist()
         self.clock = clock
         self.lock = threading.Lock()
+        self.run_lock = threading.Lock()   # one of step() / start() / stop() at a time (T-042 E03)
+        self.stopped = False
         self.raw = l7_denymap.RawKeys()
         self.ips = IpKeys()
         self.inbox = []
@@ -222,7 +224,10 @@ class Arm:
 
     def start(self, now=None):
         """At the daemon's start: a deny map an earlier daemon left behind is emptied, with one reload."""
-        now = self.clock() if now is None else now
+        with self.run_lock:
+            self._start(self.clock() if now is None else now)
+
+    def _start(self, now):
         try:
             with open(self.denies.path, "rb") as fh:
                 stale = fh.read().count(b"\n")
@@ -233,15 +238,23 @@ class Arm:
             self._publish(now, force=True)
 
     def stop(self, now=None):
-        """At the daemon's stop: every deny is lifted, with one reload (XDP's detach lifts the bans)."""
-        now = self.clock() if now is None else now
-        self._end(self.denies.clear(), now, "stop")
-        self._publish(now, force=True)
+        """At the daemon's stop: every deny is lifted, with one reload (XDP's detach lifts the bans). It waits for a step
+        in flight and no step runs after it (T-042 E03: a step racing the stop could write a map after it), so once it
+        returns deny.map is empty."""
+        with self.run_lock:
+            self.stopped = True
+            now = self.clock() if now is None else now
+            self._end(self.denies.clear(), now, "stop")
+            self._publish(now, force=True)
 
     def step(self, now=None):
         """One step: the kill switch, the new decisions, the key-age gate, the deny TTL, the batched map write and
-        reload, level 2."""
-        now = self.clock() if now is None else now
+        reload, level 2. Nothing after stop()."""
+        with self.run_lock:
+            if not self.stopped:
+                self._step(self.clock() if now is None else now)
+
+    def _step(self, now):
         if self._kill_switch(now):
             self._publish(now)                    # a kill reload that failed is retried
             self._report(now)

@@ -739,6 +739,8 @@ before any data). Usage and events: `docs/EVALUATION.md`, "L7 v2: the enforcing 
   every cookie-less request from the address with that UA, any case, a new user's first request included. It is
   written only while the address is single-key in the guard's window; on a shared address the key is a miss
   (`sid_less_shared`), and a line already written is withdrawn once the address turns shared. Level 2 is unchanged.
+- **E03, the stop.** `Arm.stop` and the arm's own steps hold one lock and no step runs after the stop: a step in flight
+  could add entries after the stop's clear or replace its empty map (65 of 300 trials in the review's probe).
 
 **A conflict for the user, resolved by D-038 (below).** 9.4 excludes `;` from a writable UA. Every UA of
 `ml/l7_benign.UA_TABLE` contains one (17 of 17, weight 0.99 of 0.99; 3 of the 6 `ml/l7_gen.UAS`), so as written no

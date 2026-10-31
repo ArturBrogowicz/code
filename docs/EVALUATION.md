@@ -480,6 +480,8 @@ Known limits:
   `ml/l7_benign.UA_TABLE` contains, so no testbed browser key could have been denied at level 1. Inside nginx's
   double quotes `;` is an ordinary character; it is now written, and all 17 UA_TABLE entries pass the rules. `"`,
   `\`, `$`, `{`, `}`, other bytes and UAs over 256 bytes stay excluded.
+* The stop (T-042 E03): `Arm.stop` and the arm's steps hold one lock, and no step runs after the stop, so once the
+  stop returns `deny.map` is empty and nginx was told to reload it.
 * D-040 (T-042 E02): a key without a session is written as `ip|ua|`, which nginx matches for every cookie-less request
   from that address with that UA (in any case), including the first request of another user's session (a 429 means
   the server never sets that user's sid). So such a key is denied at level 1 only while its address is single-key

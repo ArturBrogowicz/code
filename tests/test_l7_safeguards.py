@@ -183,5 +183,37 @@ class DaemonKillTest(DE.L7Case):
         self.assertEqual([r["entries"] for r in d.events("l7_reload")], [0])
 
 
+class StopRaceTest(T.ArmCase):
+    """T-042 E03: the daemon's stop runs while the arm's thread may be in a step; after stop() returns the map must be
+    empty. The review's probe found 65 of 300 trials with a non-empty map; the same shape, seeded."""
+
+    def test_after_stop_returns_the_map_is_empty_300_trials(self):
+        import random
+        import threading
+        import time
+        rng = random.Random(42)
+        for trial in range(300):
+            with self.subTest(trial=trial):
+                self.setUp()
+                for n in range(60):
+                    self.see(ip=f"10.0.50.{n + 1}", start=900.0)
+                self.arm.reload = lambda: (time.sleep(rng.random() * 0.0005), (True, ""))[1]
+                done = threading.Event()
+
+                def stepper(arm=self.arm, done=done):
+                    for n in range(60):
+                        if done.is_set():
+                            break
+                        arm.submit(T.would_ban(ip=f"10.0.50.{n + 1}", t=1000.0 + 11 * n))
+                        arm.step(1000.0 + 11 * n)
+                thread = threading.Thread(target=stepper)
+                thread.start()
+                time.sleep(rng.random() * 0.002)
+                self.arm.stop(5000.0)
+                done.set()
+                thread.join()
+                self.assertEqual((self.map_lines(), len(self.arm.denies)), ([], 0))
+
+
 if __name__ == "__main__":
     unittest.main()
