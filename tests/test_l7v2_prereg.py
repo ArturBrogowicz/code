@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(REPO, "ml"))
 import l7_tpcw
 import l7v2_prereg as P
 
-PREREG_SHA256 = "27d1eb9738ce0c815a7b3ce5418eed6e77d85b646b536d95df160c090c45a3e4"
+PREREG_SHA256 = "ddd00b7df2bf3c3c90c5ebbede405f6978a95f6f378f2fc2dc957d90627e1e4f"
 
 
 class FrozenFileTest(unittest.TestCase):
@@ -79,6 +79,8 @@ class FrozenFileTest(unittest.TestCase):
                          ([2.0, 8.0], [50, 100], "C3"))
         self.assertEqual((c["C3b"]["ladder_bots"], c["C3b"]["level_choices"], c["C3b"]["first_view_s"], c["C3b"]["route"]),
                          ([50, 100, 200, 300], [30, 60], [0.0, 10.0], "C3"))
+        self.assertIn("issued in-page from that form page", c["C3b"]["costly"])
+        self.assertTrue(c["C3b"]["costly_label"].startswith("re-registered 2026-10-31 by the user, before any capture"))
         self.assertEqual({k: v["role"] for k, v in c.items()},
                          {"C2": "control", "C3a": "control", "C3b": "the GRU's fair chance"})
 

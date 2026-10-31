@@ -85,14 +85,16 @@
   },
   "C3b": {
    "name": "headless-browser bots, non-human navigation (a request-level emulation)",
-   "costly": "one costly request per view, after the view's assets", "route": "C3", "variant_route": "C5",
+   "costly": "each navigation view is followed by the form page of its costly route (/page/search for C3, /page/account for C5; a page view whose Referer is the navigation page) and then by one costly request issued in-page from that form page (Referer: the form page); every step waits a dwell from the mimicry law, so the costly request comes a dwell after its form page, as a benign search or export does",
+   "costly_label": "re-registered 2026-10-31 by the user, before any capture (T-030 L7V2-04: no Referer or timing tell; C2 and C3a, the controls, keep theirs)",
+   "route": "C3", "variant_route": "C5",
    "intensity": "the number of bots",
    "ladder_bots": [50, 100, 200, 300],
    "ladder_note": "if 300 bots cannot be carried (the ~300-alias limit with the benign population), the ladder stops at 200 and the knee is searched below it",
    "level_choices": [30, 60],
    "first_view_s": [0.0, 10.0],
    "ua": "browser UA from ml/l7_benign.UA_TABLE", "cookies": "kept", "assets": "waves and a cache like a browser device, 6 keep-alive connections",
-   "referer": "like the benign browser: the previous page for a page, the page for its assets and its costly request",
+   "referer": "like the benign browser: the previous page for a page, the page for its assets, the form page for the costly request",
    "role": "the GRU's fair chance"
   }
  },
