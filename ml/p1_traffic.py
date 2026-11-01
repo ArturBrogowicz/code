@@ -1,0 +1,294 @@
+"""P1 traffic (docs/L7V2_DESIGN.md 5.3, 6, 7, 12, 14): one block's population, as data, for eval/p1_runner.py.
+
+Pure and seeded; nothing here touches the system. A block is one seed: build_block() draws its address pool, role map,
+per-entity parameters, netem profiles and schedules, and every run of the block uses them unchanged, its entities being
+the benign ones and the sources of the run's class (run_entities). It reuses l7_pools (the P3 and L7 v2 pool, sub-seeds,
+draws, the benign mix and the families' parameters, the C2 rate, the age check), under its own stream name, as
+ml/p4_traffic.py does; nothing is added to l7_pools's P3 population.
+
+What a block holds:
+  * benign: l7_pools.POPULATIONS["l7v2"]'s frozen mix, the held-out kinds included (5.2: FP per benign kind), through the
+    benign gate under the tolerant profile, as a P3 plan;
+  * C2: classes.C2.sources_p1 sources, each at L x S / (n x cost(route)) (l7_pools.c2_rps at m = 1);
+  * C3a: n = ceil(L x S / ((cost_C1 + cost_route) / mean(page_gap_s))) sources, refused outside classes.C3a.sources_bounds
+    ("not reachable", ml/l7v2_prereg.json);
+  * C3b: `level` bots at M2, the primary family (D-043), and SIDE_FAMILIES, a fixed number of bots at M1, M3 and M2exp,
+    which only the ladder's level does not move. All of ml/l7_bots.FAMILIES' C3b levels run here: M2exp is in the frozen
+    class table (ml/l7v2_prereg.json mimicry, design 12.4), so it has its entity labels here, and l7_pools's P3 population
+    stays without it;
+  * the timeline of design 14: 30 s of baseline, 120 s of attack, 30 s of recovery.
+
+Arrivals and lifetimes follow ml/l7v2_prereg.json arrivals on one slot, the attack window (readings, labelled in the
+design's As-built section):
+  * a benign entity arrives at a uniform time over [0, the attack's end - min_active_s] and runs to the run's end; a CGNAT
+    pool runs from 0 and each user arrives over that span; a browser-like kind runs sessions, a machine client one lifetime;
+  * an attack entity arrives at a uniform time over [the attack's start, its end - min_active_s] and runs one lifetime,
+    capped at the attack's end: the recovery is attack-free, so the run's time to mitigate means what it says;
+  * the flash crowd's minute starts at a uniform time over the benign arrival span. flash_gap_s cannot be kept on one
+    slot (no start is 60 s from a slot that begins at 30 s, within a span of 90 s), and the plan says so;
+  * arrivals.age_check is computed and recorded per class (age_report), not enforced: with a baseline, benign arrivals
+    begin 30 s before the attack's, so its first-seen KS is 0.33 against a limit of 0.30 by construction. See the design's
+    As-built section.
+
+This module stays light: no numpy, no eval/ imports.
+"""
+import copy
+import math
+import os
+import random
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.dirname(HERE))
+
+VERSION = "2026-11-p1"           # the stream name under which l7_pools draws a P1 plan's pool and sub-seeds
+PLAN_FORMAT = "p1-plan/1"
+TIMELINE = {"baseline_s": 30, "attack_s": 120, "recovery_s": 30}     # design 14
+ROLES = {"eval": "p1_live_eval", "pilot": "p1_pilot"}               # ml/p3_prereg.json seeds
+PRIMARY = {"C2": "C2", "C3a": "C3a", "C3b": "C3b@M2"}
+SIDE_FAMILIES = {"C3b": {"C3b@M1": 10, "C3b@M3": 10, "C3b@M2exp": 10}}   # [ASSUMPTION] reported separately, judge nothing
+MAX_SOURCES = {"C2": 100, "C3a": 100, "C3b": 300}                   # each family's index range, its ladder's top
+FAMILY_ORDER = ("C2", "C3a", "C3b@M2", "C3b@M1", "C3b@M3", "C3b@M2exp")
+
+
+class PlanError(ValueError):
+    """The block cannot be planned as asked (seed, level or limits)."""
+
+
+def check_seed(seed, seed_role):
+    import p3_prereg
+    if seed_role not in ROLES:
+        raise PlanError(f"a P1 seed role is one of {sorted(ROLES)}, not {seed_role!r}")
+    if seed not in p3_prereg.load()["seeds"][ROLES[seed_role]]:
+        raise PlanError(f"seed {seed} is not pre-registered as {ROLES[seed_role]}")
+
+
+def run_seconds():
+    return sum(TIMELINE.values())
+
+
+def attack_window():
+    return float(TIMELINE["baseline_s"]), float(TIMELINE["baseline_s"] + TIMELINE["attack_s"])
+
+
+def ladder_levels(cls):
+    """A class's ladder (ml/l7v2_prereg.json harm.ladder.levels; C3b's is its number of bots)."""
+    import l7v2_prereg
+    pre = l7v2_prereg.load()
+    return list(pre["classes"]["C3b"]["ladder_bots"]) if cls == "C3b" else list(pre["harm"]["ladder"]["levels"])
+
+
+def c3a_sources(level, spare_cpu_s, costs, route, gap):
+    """C3a's sources at level L (ml/l7v2_prereg.json classes.C3a.intensity)."""
+    return math.ceil(level * spare_cpu_s / ((costs["C1"] + costs[route]) / 1000.0 / (sum(gap) / len(gap))))
+
+
+def _family_specs():
+    """The attack families' specs of l7_pools, by name, with C3b@M2exp added: C3b@M2's spec at the frozen M2exp level."""
+    import l7_pools as LP
+    out = {s["family"]: copy.deepcopy(s) for s in LP.POPULATIONS["l7v2"]["attack"]}
+    exp = copy.deepcopy(out["C3b@M2"])
+    exp.update(family="C3b@M2exp", held_out=True)
+    exp["params"]["mimicry"] = "M2exp"
+    out["C3b@M2exp"] = exp
+    for s in out.values():
+        s.pop("reuse", None)          # no M3 bot needs a C2 address here: one class runs at a time
+    return out
+
+
+def _bases(n_benign):
+    """Each family's first entity index: a family keeps its indices, sub-seeds and addresses whatever the levels."""
+    bases, at = {}, n_benign
+    for fam in FAMILY_ORDER:
+        bases[fam] = at
+        if fam in PRIMARY.values():
+            at += MAX_SOURCES[next(c for c, f in PRIMARY.items() if f == fam)]
+        else:
+            at += SIDE_FAMILIES["C3b"][fam]
+    return bases, at
+
+
+def _entity(LP, seed, index, role, name, spec):
+    sub = LP.subseed(VERSION, seed, index)
+    rng = random.Random(sub)
+    params = copy.deepcopy(spec["params"])
+    for key, how in sorted(spec.get("draws", {}).items()):
+        params[key] = LP.draw_value(how, params.get(key), rng)
+    port = rng.choice(spec["ports"])
+    row = {"entity_id": f"{VERSION}:{seed}:{index}", "index": index, "subseed": sub, "role": role, "kind_or_family": name,
+           "mechanism": spec.get("mechanism") if role == "attack" else None, "held_out": bool(spec.get("held_out")),
+           "port": port, "params": params, "client_seed": rng.randrange(2 ** 31)}
+    if role == "attack":
+        params["port"] = port
+    return row, rng
+
+
+def _benign(LP, seed, specs, span, flash, heuristics, gate_seeds):
+    """The benign rows on the run's timeline, through the benign gate, and what the gate dropped."""
+    import l7_benign
+    total = float(run_seconds())
+    rows, dropped, cache, index = [], [], {}, 0
+    for spec in specs:
+        for _ in range(spec["count"]):
+            i, index = index, index + 1
+            row, _rng = _entity(LP, seed, i, "benign", spec["kind"], spec)
+            params = row["params"]
+            if spec.get("arrival") == "users":
+                start, params["first_visit_s"] = 0.0, [0.0, round(span, 3)]
+            elif spec.get("arrival") == "flash":
+                start = flash
+            else:
+                start = round(random.Random(LP.subseed(VERSION, seed, f"arrive|{i}")).uniform(0.0, span), 3)
+            stop = total
+            if spec["kind"] in l7_benign.SESSION_KINDS:
+                params["sessions"] = True
+            else:
+                stop = LP._lifetime_stop(VERSION, seed, i, start, total)
+            row["schedule"] = {"start_s": start, "stop_s": stop, "phase": None}
+            if spec.get("gate"):
+                verdict = LP._gate(spec["kind"], params, total, gate_seeds, heuristics, cache)
+                row["gate_admissible"] = verdict["admissible"]
+                if not verdict["admissible"]:
+                    dropped.append({"entity_index": i, "kind": spec["kind"], "params": params, "trips": verdict["trips"]})
+                    continue
+            rows.append(row)
+    return rows, dropped
+
+
+def _attack(LP, seed, cls, fam, spec, base, n, rule, rates):
+    """The rows of one attack family: `n` sources from its index base, arriving over the attack's first part."""
+    import l7_traffic
+    lo, hi = attack_window()
+    out = []
+    for k in range(n):
+        i = base + k
+        row, rng = _entity(LP, seed, i, "attack", fam, spec)
+        if fam == "C2":
+            row["params"]["rps"] = LP.c2_rps(1.0, rates["C2"], rates["spare_cpu_s"], rates["c2_sources"],
+                                             rates["route_costs_ms"][row["params"].get("route", "C3")])
+        check = l7_traffic._check_spec(l7_traffic.AttackSpec(fam, spec["mechanism"], row["held_out"], row["params"]))
+        if check["violations"] and not row["held_out"]:
+            raise PlanError(f"{row['entity_id']} {fam}: not sub-threshold: {check['violations']}")
+        start = round(lo + rng.uniform(0.0, hi - lo - rule["min_active_s"]), 3)
+        row["schedule"] = {"start_s": start, "stop_s": min(LP._lifetime_stop(VERSION, seed, i, start, run_seconds()), hi),
+                           "phase": cls}
+        out.append(row)
+    return out
+
+
+def _netem(LP, seed, group, name):
+    """Netem balanced within a group whatever its size: a seeded order of the profiles, in turn along the group."""
+    order = list(LP.NETEM_PROFILES)
+    random.Random(LP.subseed(VERSION, seed, f"netem|{name}")).shuffle(order)
+    for k, row in enumerate(group):
+        row["netem"] = order[k % len(order)]
+
+
+def build_block(seed, seed_role, levels, *, record_path=None, knees=None, check_role=True, heuristics="tolerant",
+                gate_seeds=(0, 1), benign_specs=None, max_sources=None):
+    """One block's population as data. `levels` {class: level}: C2's and C3a's a level of S, C3b's a number of bots; a class
+    left out has no sources. An evaluation block needs frozen knees bound to a frozen record (l7_pools._knees, L7V2-08),
+    and its levels must be the knees. `benign_specs` and `max_sources` thin a plan for tests, never the rates."""
+    import calibration as CAL
+    import l7_pools as LP
+    import l7v2_prereg
+
+    import l7_backend
+    import l7_dataset
+    if check_role:
+        check_seed(seed, seed_role)
+    rec, status, tag = l7_backend.load_record(record_path)
+    if status == "measured":
+        rec = l7_backend.arithmetic_record(rec, l7_backend.load_record()[0])
+    try:
+        bound = LP._knees(knees, seed_role, rec)
+    except LP.PlanError as exc:
+        raise PlanError(str(exc)) from exc
+    if seed_role == "eval":
+        wrong = {c: (lv, bound.get(c)) for c, lv in levels.items() if bound.get(c) != lv}
+        if wrong:
+            raise PlanError(f"an evaluation block runs at the frozen knees: {wrong} (level, knee)")
+    pre = l7v2_prereg.load()
+    rule = pre["arrivals"]
+    span = attack_window()[1] - rule["min_active_s"]
+    within = pre["benign_kinds"]["flash_crowd"]["arrive_within_s"]
+    flash = round(random.Random(LP.subseed(VERSION, seed, "flash")).uniform(0.0, span - within), 3)
+    specs = LP.POPULATIONS["l7v2"]["benign"] if benign_specs is None else benign_specs
+    benign, dropped = _benign(LP, seed, specs, span, flash, heuristics, gate_seeds)
+    n_full = sum(s["count"] for s in specs)
+    bases, pool_size = _bases(n_full)
+    costs = dict(rec["route_costs_ms"])
+    spare = CAL.spare_capacity(rec)
+    rates = {"spare_cpu_s": spare, "route_costs_ms": costs, "c2_sources": pre["classes"]["C2"]["sources_p1"]}
+    fams, attack = _family_specs(), {}
+    sources = {}
+    for cls, level in sorted(levels.items()):
+        if cls not in PRIMARY:
+            raise PlanError(f"unknown class {cls!r} (have {sorted(PRIMARY)})")
+        if cls == "C2":
+            n, rates["C2"] = rates["c2_sources"], level
+        elif cls == "C3a":
+            c3a = pre["classes"]["C3a"]
+            n = c3a_sources(level, spare, costs, fams["C3a"]["params"]["route"], c3a["page_gap_s"])
+            if not c3a["sources_bounds"][0] <= n <= c3a["sources_bounds"][1]:
+                raise PlanError(f"C3a at level {level} needs {n} sources, outside {c3a['sources_bounds']}: not reachable "
+                                "(ml/l7v2_prereg.json classes.C3a.out_of_bounds)")
+        else:
+            n = int(level)
+            if not 1 <= n <= MAX_SOURCES["C3b"]:
+                raise PlanError(f"C3b at {level} bots is outside 1..{MAX_SOURCES['C3b']}")
+        sources[cls] = n
+        wanted = {PRIMARY[cls]: n, **SIDE_FAMILIES.get(cls, {})}
+        rows = []
+        for fam, count in wanted.items():
+            count = min(count, max_sources) if max_sources else count
+            group = _attack(LP, seed, cls, fam, fams[fam], bases[fam], count, rule, rates)
+            _netem(LP, seed, group, fam)
+            rows += group
+        attack[cls] = rows
+    _netem(LP, seed, benign, "benign")
+    addresses = LP.draw_pool(VERSION, seed, pool_size)
+    for row in benign + [r for rows in attack.values() for r in rows]:
+        row["address"] = addresses[row["index"]]
+        row["plan_sha256"] = l7_dataset.entity_plan_sha256(row)
+        if l7_dataset.pool_users(row):
+            row["users"] = l7_dataset.pool_users(row)
+    return {"format": PLAN_FORMAT, "version": VERSION, "seed": seed, "seed_role": seed_role, "levels": dict(levels),
+            "sources": sources, "timeline": dict(TIMELINE), "duration_s": float(run_seconds()), "benign": benign,
+            "attack": attack, "dropped": dropped, "heuristics": heuristics,
+            "intensity": {"record_status": rec["status"], "record_tag": tag, "label": l7_backend.label(rec),
+                          "record_sha256": rec.get("sha256"), "spare_cpu_s": spare, "knees": bound},
+            "flash": {"start_s": flash, "gap_kept": False, "why": "flash_gap_s cannot be kept on one slot"},
+            "pool": {"range": str(LP.POOL_NET), "size": pool_size,
+                     "permutation_seed": LP.subseed(VERSION, seed, "pool"), "address_limit": _address_limit()}}
+
+
+def _address_limit():
+    import p3_prereg
+    return p3_prereg.load()["pool"]["address_limit"]
+
+
+def run_entities(block, cls=None):
+    """A run's entities: copies of the block's benign ones and, for a class, its sources. An attack-free control is cls None.
+    A run over the verified address limit is refused (ml/p3_prereg.json pool.address_limit)."""
+    rows = [dict(e) for e in block["benign"]]
+    if cls is not None:
+        if cls not in block["attack"]:
+            raise PlanError(f"the block has no sources of class {cls!r}")
+        rows += [dict(e) for e in block["attack"][cls]]
+    limit = block["pool"]["address_limit"]
+    if len({e["address"] for e in rows}) > limit:
+        raise PlanError(f"{cls}: {len(rows)} addresses exceed the verified limit of {limit} (ml/p3_prereg.json "
+                        "pool.address_limit): this level is not reachable as planned")
+    return rows
+
+
+def age_report(block):
+    """The frozen key-age check (ml/l7v2_prereg.json arrivals.age_check, l7_pools.age_check) per class, recorded and not
+    enforced on P1's one-slot timeline (see the module docstring)."""
+    import l7_pools as LP
+    import l7v2_prereg
+    rule = l7v2_prereg.load()["arrivals"]["age_check"]
+    return {cls: LP.age_check(run_entities(block, cls), rule) for cls in sorted(block["attack"])}
