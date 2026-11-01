@@ -7,6 +7,9 @@ l7_enforce_monitor, one Arm.step per second), so every action follows a logged w
 never bans. The shadow thread also shows the arm every request it ingests (Arm.observe): the raw strings of the key
 (l7_denymap.RawKeys), the UA and sid hashes per IP (IpKeys) and whether a denied key keeps sending.
 
+R* (T-025e) decides on (IP, UA) keys (l7_rule_engine.L7RuleEngine, level "rule"): attach() sets the arm's key level, and
+everything below applies to the key (IP, ua_h) as it does to a learned arm's (IP, ua_h, sid_h).
+
 The decision policy (9.1, 9.2), for a would-ban of the key (IP, ua_h, sid_h):
   * no decision at all on an address that is not a canonical dotted-quad IPv4 address (l7_denymap.ip_problem; skip
     reason "ip_format"; T-042 E01): nginx logs $remote_addr canonically, but the XDP ban path parses with inet_aton,
@@ -166,6 +169,7 @@ class Arm:
         self.tracked = {}              # key -> what the arm did with it (level 1 or a miss) and what followed
         self.waiting = {}              # key -> (event, start of its first request): held by the key-age gate
         self.armed, self.why, self.info = False, "no engine attached", {"arm": None}
+        self.rule_level = False        # R*: the keys are (IP, ua_h), whatever the session
         self.last_reload = None
         self.last_report = None
         self.changes = 0
@@ -177,8 +181,9 @@ class Arm:
     # --- the shadow thread's side -----------------------------------------------------------------------------------
 
     def attach(self, engine, refuse=None):
-        """The engine whose decisions the arm acts on. Only an engine that scores (IP, UA, sid) keys with a model can
-        be enforced; `refuse` is a reason given by the daemon (GRU_ONLY=1, say). Emits l7_enforce_arm."""
+        """The engine whose decisions the arm acts on. Only an engine that scores (IP, UA, sid) keys with a model, or
+        R*'s (IP, UA) path, can be enforced; `refuse` is a reason given by the daemon (GRU_ONLY=1, say). Emits
+        l7_enforce_arm."""
         scorer = getattr(engine, "scorer", None)
         meta = (getattr(scorer, "cfg", None) or {}).get("meta") or {}
         info = {"arm": meta.get("arm") or getattr(scorer, "arm", None), "arm_kind": getattr(scorer, "kind", None),
@@ -190,10 +195,13 @@ class Arm:
         why = refuse
         if why is None and scorer is None:
             why = "no model: the engine runs features-only"
-        elif why is None and info["level"] != "view":
+        elif why is None and info["level"] not in ("view", "rule"):
             why = "a request-level engine keys by (IP, UA); the deny map needs (IP, UA, sid) keys"
+        if info["level"] == "rule":
+            info["rule"] = getattr(scorer, "rule_name", None)
         with self.lock:
             self.armed, self.why, self.info = why is None, why, info
+            self.rule_level = info["level"] == "rule"
         self.events.emit("l7_enforce_arm", armed=why is None, reason=why, **info)
 
     def observe(self, obj, rec):
@@ -204,9 +212,13 @@ class Arm:
             start = rec["msec"] - rec["rt"]
             ua, sid = l7_denymap.raw_strings(obj)
             with self.lock:
-                self.raw.note(key, ua, sid, start)
+                if self.rule_level:            # a rule's key is every session of (IP, UA)
+                    self.raw.note(key[:2], ua, "", start)
+                    tr = self.tracked.get(key[:2])
+                else:
+                    self.raw.note(key, ua, sid, start)
+                    tr = self.tracked.get(key)
                 self.ips.note(key[0], key[1], key[2], start)
-                tr = self.tracked.get(key)
                 if tr is not None and (tr["last"] is None or start > tr["last"]):
                     tr["last"] = start
         except Exception as e:  # noqa: BLE001 - see the docstring
@@ -330,13 +342,15 @@ class Arm:
         if gone:
             self.changes += len(gone)
 
-    @staticmethod
-    def _key(ev):
+    def _key(self, ev):
+        if self.rule_level:
+            return (ev["ip"], ev["ua_h"])
         return (ev["ip"], ev["ua_h"], ev.get("sid_h", l7_ingest.NO_SID))
 
     def _decision(self, ev):
         """The fields every decision event carries: the key's hashes, the arm and its operating point, the score."""
-        return {"ip": ev["ip"], "ua_h": ev["ua_h"], "sid_h": ev.get("sid_h", l7_ingest.NO_SID),
+        return {"ip": ev["ip"], "ua_h": ev["ua_h"],
+                "sid_h": None if self.rule_level else ev.get("sid_h", l7_ingest.NO_SID),
                 "arm": self.info.get("arm"), "threshold": ev.get("threshold"), "consecutive": ev.get("consecutive"),
                 "p": ev.get("p"), "t_poll": ev.get("t_poll")}
 
@@ -359,6 +373,8 @@ class Arm:
         with self.lock:
             status, ua, sid = self.raw.lookup(key)
         age = round(now - t_first, 3)
+        if self.rule_level and status == "ok":
+            status, ua = "unenforceable", "no_key_map"           # level 1 needs the (IP, UA) map, not built yet
         if status == "ok" and not sid:
             with self.lock:
                 counts = self.ips.counts(ip, now)

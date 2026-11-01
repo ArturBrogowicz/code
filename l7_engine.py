@@ -389,9 +389,13 @@ def build_engine(model_path=None, window=None, idle_timeout=None, level=None, sc
     seq_len (the model was trained on windows of that length). A "view" package (or
     level="view" without one) gets the L7 v2 view engine and its (IP, UA, sid) store.
     `scorer`, a detector already loaded (l7_arms.load: any L7 v2 arm behind
-    score(batch) -> p, with its own threshold and consecutive), is used as it is."""
+    score(batch) -> p, with its own threshold and consecutive), is used as it is;
+    a rule detector (R*, level "rule") gets its own (IP, UA) path (l7_rule_engine)."""
     if scorer is not None and model_path:
         raise ValueError("give a model package or a loaded scorer, not both")
+    if scorer is not None and getattr(scorer, "level", None) == "rule":
+        import l7_rule_engine
+        return l7_rule_engine.L7RuleEngine(scorer)
     if model_path:
         import l7_scorer  # torch is imported only when a model is used
         L7Scorer, PACKAGE_FORMAT_V2 = l7_scorer.L7Scorer, l7_scorer.PACKAGE_FORMAT_V2
