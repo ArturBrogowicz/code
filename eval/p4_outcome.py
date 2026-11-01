@@ -2,8 +2,8 @@
 """The pre-registered outcome of P4 (docs/P4_SLOW_DESIGN.md §10, with T_mit re-registered to 90 s), as pure
 analysis over run records, written and tested on synthetic fixtures before any evaluation data exist.
 
-Units: a BLOCK is one evaluation seed (3101-3110) with eight runs, C, Cp (the placebo C'), U_loris, U_post,
-M_def_loris, M_pc_loris, M_def_post and M_pc_post; a run is 30 s of baseline, 210 s of attack and 30 s of
+Units: a BLOCK is one evaluation seed (3101-3110) with nine runs, C, Cp (the placebo C'), C_M (the attack-free
+protected control, D-041), U_loris, U_post, M_def_loris, M_pc_loris, M_def_post and M_pc_post; a run is 30 s of baseline, 210 s of attack and 30 s of
 recovery. Per family (loris, post):
 
   * HARMFUL iff the harm gate passes U against C (eval/harm_gate.criterion: a mean dQ = Q(C) - Q(U) of at least
@@ -12,8 +12,10 @@ recovery. Per family (loris, post):
     not pass the same rule, and at least 9 of 10 blocks are individually at dQ >= 10 pp or dL >= 1.
   * MITIGATED (M_pc) iff (a) in at least 9 of 10 blocks Q(M_pc) in 1-s bins is back at >= 0.99 x Q(C) for 5
     consecutive bins within T_mit of the attack's start, (b) Q(M_pc) over [attack start + T_mit, attack end] is
-    >= 0.99 x Q(C) as a mean over the blocks and in at least 9 of 10 of them, and (c) no benign address (CGNAT
-    pools and browser devices included) is banned in any M_pc run. Benign connections closed are reported.
+    >= 0.99 x Q(C_M) as a mean over the blocks and in at least 9 of 10 of them, and (c) no benign address (CGNAT
+    pools and browser devices included) is banned in any M_pc run. Benign connections closed are reported. A block
+    counts for the mitigation only with C, C_M and M_pc valid; C_M's validity is what C's is, the run's own checks,
+    with no floor on its Q, since a low Q(C_M) is the cost it exists to show.
   * the status: "not harmful", "harmful but not mitigated", "mitigated with collateral" (a and b, not c), or
     "mitigated"; "invalid (k of 10 valid)" when fewer than 10 blocks are valid for the harm or, for a harmful
     family, for the mitigation (D-035, below). M7 is "supported with scope" for the families that are harmful and
@@ -85,9 +87,9 @@ import slow_pc
 
 # ── pinned against docs/P4_SLOW_DESIGN.md §10 (tests/test_p4_outcome.py) ──
 BLOCK_SEEDS = tuple(range(3101, 3111))
-CONTROL, PLACEBO = "C", "Cp"
+CONTROL, PLACEBO, PROTECTED = "C", "Cp", "C_M"   # C_M: attack-free, R + the deployed limits + M_pc's daemon (D-041)
 FAMILIES = ("loris", "post")
-ARMS = (CONTROL, PLACEBO, "U_loris", "U_post", "M_def_loris", "M_pc_loris", "M_def_post", "M_pc_post")
+ARMS = (CONTROL, PLACEBO, PROTECTED, "U_loris", "U_post", "M_def_loris", "M_pc_loris", "M_def_post", "M_pc_post")
 TIMELINE = {"baseline_s": 30, "attack_s": 210, "recovery_s": 30}   # attack 120 -> 210 s, 2026-10-31
 GATE = {"floor_pp": 10.0, "floor_log2_p95": 1.0, "ci_level": 0.95, "same_sign_share": 0.8}
 MIN_VALID_BLOCKS = 10
@@ -226,13 +228,13 @@ def mitigation(blocks, family, every=None):
     attempt judged per (block, arm); `every` all the attempts, over which (c) and the benign closes are counted."""
     every = every or {b: {arm: [r] for arm, r in arms.items()} for b, arms in blocks.items()}
     m = f"M_pc_{family}"
-    valid = [b for b in blocks.values() if _ok(b, CONTROL, m)]
+    valid = [b for b in blocks.values() if _ok(b, CONTROL, PROTECTED, m)]
     found = [recovery(b[m]["q_per_s"], RECOVERY_RATIO * b[CONTROL]["Q"]) for b in valid]
     rec = [x["recovery_s"] for x in found]
     in_time = sum(1 for r in rec if r is not None and r <= T_MIT_S)
-    level_ok = sum(1 for b in valid if b[m]["q_level"] >= LEVEL_RATIO * b[CONTROL]["Q"])
+    level_ok = sum(1 for b in valid if b[m]["q_level"] >= LEVEL_RATIO * b[PROTECTED]["Q"])
     mean_ok = bool(valid) and (sum(b[m]["q_level"] for b in valid)
-                               >= LEVEL_RATIO * sum(b[CONTROL]["Q"] for b in valid))
+                               >= LEVEL_RATIO * sum(b[PROTECTED]["Q"] for b in valid))
     attempts = [r for arms in every.values() for r in arms.get(m, ())]
     collateral = sorted({(r["block"], ip, role) for r in attempts for ip, role in r["banned"].items() if role != ATTACK})
     a = len(valid) >= MIN_VALID_BLOCKS and enough(in_time, len(valid))

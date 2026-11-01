@@ -10,12 +10,12 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     the level given), the run's entities being the benign ones and the sources of the arm's family;
   * client namespaces grouped by netem profile (at most MAX_ALIASES addresses each, l7_pools's rule), the slow
     uploaders on their own 16 kbit/s link (p4_traffic.NETEM_SLOW_ARGV);
-  * nginx with nginx_profile_r.conf (C, C', U and the validation runs) or nginx_profile_r_limits.conf (M arms), and
+  * nginx with nginx_profile_r.conf (C, C', U and the validation runs) or nginx_profile_r_limits.conf (M arms, C_M), and
     gunicorn -c gunicorn_profile_r.py (the costed app with the streamed upload, L7_CALIBRATION the record in use), both
     in server_ns on CPUs 0-1; the sha256 of the three files and of the record in the provenance;
   * the daemon (control_plane.py, in server_ns on CPU 2, every variable it reads set) per arm: M_def the default
     profile without the per-connection rule; M_pc the tolerant profile with SLOW_PC=1 SLOW_PC_ENFORCE=1, the
-    committed T, F, K and SLOW_PC_RECORD; the validation runs (and the smoke runs) the tolerant profile with the rule
+    committed T, F, K and SLOW_PC_RECORD; C_M (D-041) M_pc's configuration, with no attack; the validation runs (and the smoke runs) the tolerant profile with the rule
     in shadow (SLOW_PC=1, SLOW_PC_RECORD), as M_pc without enforcement. C, C' and U run without a daemon. The kill
     file (SLOW_PC_KILL_FILE, /run/l7v2/kill) must be absent for an enforcing run, before and during it;
   * the timeline 30 + 210 + 30 s (eval/p4_outcome.TIMELINE): the benign generators (ml/l7_gen.py, one per entity,
@@ -35,7 +35,7 @@ SLOW_PC_REPORT_INTERVAL = 5 s, control_plane.py, so 10 s is two missed reports):
 (t0) and the first poll, between two polls, or between the last poll and t0 + 270 s, longer than 10.0 s. The runner
 applies the same bound to the validation runs, whose record the rule writes in the same thread (a reading the user
 accepted, D-041, 2026-10-31T16:06Z, as "seeded order" = each block's runs in a seeded order).
-A block is one seed's runs in a seeded order: the 8 arms of an evaluation block (seeds 3101-3110), the 3 runs of a
+A block is one seed's runs in a seeded order: the 9 arms of an evaluation block (seeds 3101-3110), the 3 runs of a
 validation seed (4001-4002), (C, U) at one ladder level of a pilot seed (9101-9106), or the runs a smoke test names.
 Every attempt, valid or not, is a line of ROOT/index.jsonl with its reasons (§13 row 6); an attempt is a directory
 ROOT/<phase>/b<seed>_a<attempt>[_<label>]/<arm>/, with block.json beside its runs.
@@ -119,6 +119,8 @@ class PlanError(ValueError):
 def arm_spec(arm, phase):
     """(nginx configuration, daemon mode or None, family or None) of an arm in a phase."""
     family = next((f for f in OUT.FAMILIES if arm.endswith("_" + f)), None)
+    if arm == OUT.PROTECTED and phase in ("campaign", "smoke"):
+        return CONF_LIMITS, "pc", None                # D-041: R + the deployed limits + M_pc's daemon, no attack
     if phase in ("validation", "smoke"):
         if arm not in slow_pc.VALIDATION_RUNS:
             raise PlanError(f"{phase} runs are {slow_pc.VALIDATION_RUNS}, not {arm!r}")
@@ -225,6 +227,8 @@ def daemon_env(mode, out, thresholds):
 def plan_run(pop, phase, arm, out, *, thresholds=None, calibration=PLACEHOLDER, python=PYTHON):
     """One run as data: everything execute_run() does, and nothing it does not."""
     conf, mode, family = arm_spec(arm, phase)
+    if mode == "pc" and thresholds is None:
+        raise PlanError(f"{arm} runs M_pc's daemon: it needs --thresholds T,F,K")
     ents = [dict(e) for e in pop["entities"]
             if e["role"] == "benign" or (family is not None and e["schedule"]["phase"] == family)]
     nss = namespaces(ents)
@@ -266,6 +270,8 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresh
     role = check_phase(phase, seed, sources, thresholds, family) if phase != "smoke" else "pilot"
     if phase == "smoke":
         PT.check_seed(seed, "pilot")
+        if thresholds is not None and tuple(thresholds) not in slow_pc.GRID:
+            raise PlanError("smoke: --thresholds T,F,K must be a point of slow_pc.GRID")
     if phase == "ladder":                        # the ladder's runs carry only the family under test
         sources = {f: (n if f == family else 0) for f, n in sources.items()}
     pop = PT.build_plan(seed, role, halvings=halvings, loris=sources["loris"], post=sources["post"])
@@ -493,8 +499,8 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
         with open(os.path.join(out, "stub_status.jsonl"), "w", encoding="utf-8") as fh:
             fh.writelines(json.dumps(s, sort_keys=True) + "\n" for s in stub)
     ok = not reasons
-    meta = {"role": {"C": "control", "Cp": "placebo"}.get(plan["arm"], "attack" if plan["arm"].startswith("U_")
-                                                          else "mitigated"),
+    roles = {"C": "control", "Cp": "placebo", OUT.PROTECTED: "protected_control"}
+    meta = {"role": roles.get(plan["arm"], "attack" if plan["arm"].startswith("U_") else "mitigated"),
             "class": plan["family"], "arm": plan["arm"], "phase": plan["phase"], "seed": plan["seed"],
             "checks": {"ok": ok, "reasons": reasons}, "started_utc": _utc(started), "ended_utc": _utc(ended),
             "daemon": None if plan["daemon"] is None else {"mode": plan["daemon"]["mode"],
@@ -638,9 +644,9 @@ def main(argv=None, host=None):
     ap.add_argument("--post", type=int, default=0, help="slow-POST sources (a ladder level; the knee)")
     ap.add_argument("--family", choices=OUT.FAMILIES, help="the ladder's family")
     ap.add_argument("--label", default="", help="a ladder's level and repeat, a smoke run's name")
-    ap.add_argument("--arms", help="smoke only: the runs, comma-separated (C, U_loris, U_post)")
+    ap.add_argument("--arms", help="smoke only: the runs, comma-separated (C, U_loris, U_post, C_M)")
     ap.add_argument("--halvings", type=int, default=0, help="how often the halving rule of §4.2 has fired")
-    ap.add_argument("--thresholds", type=_thresholds, help="campaign: the committed T,F,K")
+    ap.add_argument("--thresholds", type=_thresholds, help="campaign: the committed T,F,K; a smoke C_M: a grid point")
     ap.add_argument("--calibration", default=PLACEHOLDER)
     ap.add_argument("--root", default="/var/tmp/p4_runs")
     ap.add_argument("--python", default=PYTHON)

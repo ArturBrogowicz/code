@@ -45,7 +45,8 @@ class PlanTest(unittest.TestCase):
         self.block = R.plan_block("campaign", 3101, "/r", sources=KNEE, thresholds=POINT)
         self.runs = {r["arm"]: r for r in self.block["runs"]}
 
-    def test_the_eight_arms_in_a_seeded_order(self):
+    def test_the_nine_arms_in_a_seeded_order(self):
+        self.assertEqual(len(self.block["order"]), 9)                     # with C_M, re-registered by D-041
         self.assertEqual(sorted(self.block["order"]), sorted(OUT.ARMS))
         self.assertEqual(self.block["order"], R.plan_block("campaign", 3101, "/x", sources=KNEE,
                                                            thresholds=POINT)["order"])
@@ -103,6 +104,7 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(count["Cp"], (60, 0))
         self.assertEqual(count["U_loris"], (60, 100))
         self.assertEqual(count["M_pc_post"], (60, 5))
+        self.assertEqual(count["C_M"], (60, 0))
         loris = self.runs["U_loris"]
         self.assertEqual(loris["roles"], PT.roles(loris["entities"]))
         self.assertEqual(sorted(set(loris["roles"].values()) - {"attack"}),
@@ -124,6 +126,29 @@ class PlanTest(unittest.TestCase):
         self.assertEqual(len(slow[0]["addresses"]), 2)
         self.assertTrue(all(len(n["addresses"]) <= R.MAX_ALIASES for n in loris["namespaces"]))
         self.assertEqual(sum(len(n["addresses"]) for n in loris["namespaces"]), 160)
+
+    def test_the_protected_control_is_m_pc_without_the_attack(self):
+        cm, mpc, c = self.runs["C_M"], self.runs["M_pc_loris"], self.runs["C"]
+        self.assertEqual((cm["nginx"]["conf"], cm["family"], cm["enforcing"], cm["thresholds"]),
+                         ("nginx_profile_r_limits.conf", None, True, list(POINT)))
+        arm_free = {k: v for k, v in cm["daemon"]["env"].items() if k not in ("BAN_EVENTS", "SLOW_PC_RECORD")}
+        self.assertEqual(arm_free, {k: v for k, v in mpc["daemon"]["env"].items()
+                                    if k not in ("BAN_EVENTS", "SLOW_PC_RECORD")})
+        self.assertEqual(cm["entities"], c["entities"], "seeded with the block, the same benign population")
+        self.assertEqual(cm["namespaces"], c["namespaces"])
+        self.assertFalse([x for x in cm["launches"] if x["role"] == "attack"])
+
+    def test_a_smoke_run_of_the_protected_control(self):
+        block = R.plan_block("smoke", 9101, "/r", arms=["C_M"], thresholds=(20, 16, 6), label="s3")
+        [run] = block["runs"]
+        self.assertEqual((run["nginx"]["conf"], run["daemon"]["mode"], run["daemon"]["env"]["SLOW_PC_T"]),
+                         ("nginx_profile_r_limits.conf", "pc", "20"))
+        with self.assertRaises(R.PlanError):
+            R.plan_block("smoke", 9101, "/r", arms=["C_M"])
+        with self.assertRaises(R.PlanError):
+            R.plan_block("smoke", 9101, "/r", arms=["C_M"], thresholds=(7, 16, 6))
+        with self.assertRaises(R.PlanError):
+            R.plan_block("validation", 4001, "/r", sources=KNEE, arms=["C_M"])
 
     def test_validation_and_ladder_runs(self):
         val = R.plan_block("validation", 4001, "/r", sources=KNEE)
@@ -251,6 +276,10 @@ class ExecuteTest(unittest.TestCase):
         with open(os.path.join(run, "run.json"), encoding="utf-8") as fh:
             meta = json.load(fh)
         self.assertEqual((meta["role"], meta["class"], meta["thresholds"]), ("mitigated", "post", list(POINT)))
+        with open(os.path.join(self.root, "campaign", "b3102_a1", "C_M", "run.json"), encoding="utf-8") as fh:
+            cm = json.load(fh)
+        self.assertEqual((cm["role"], cm["class"], cm["thresholds"], cm["checks"]["ok"]),
+                         ("protected_control", None, list(POINT), True))
         with open(os.path.join(run, "manifest.json"), encoding="utf-8") as fh:
             man = json.load(fh)
         self.assertGreater(man["timeline"]["t0_wall"], F.BASE_EPOCH)
@@ -272,15 +301,15 @@ class ExecuteTest(unittest.TestCase):
         host = F.FakeHost(kill_file=True, modelled_attackers=1)
         res = dict(R.run_block(host, self.block("campaign", 3103, thresholds=POINT)))
         for arm in OUT.ARMS:
-            self.assertEqual(res[arm]["ok"], not arm.startswith("M_pc_"), arm)
+            self.assertEqual(res[arm]["ok"], not (arm.startswith("M_pc_") or arm == "C_M"), arm)
         self.assertIn("the kill file /run/l7v2/kill exists", res["M_pc_loris"]["reasons"][0])
         idx = index(self.root)
-        self.assertEqual(len(idx), 8)
-        self.assertEqual({x["arm"] for x in idx if not x["valid"]}, {"M_pc_loris", "M_pc_post"})
+        self.assertEqual(len(idx), 9)
+        self.assertEqual({x["arm"] for x in idx if not x["valid"]}, {"M_pc_loris", "M_pc_post", "C_M"})
         with self.assertRaises(R.PlanError):
             R.run_block(F.FakeHost(), self.block("campaign", 3103, thresholds=POINT))
         R.run_block(F.FakeHost(modelled_attackers=1), self.block("campaign", 3103, thresholds=POINT, attempt=2))
-        self.assertEqual(len(index(self.root)), 16)
+        self.assertEqual(len(index(self.root)), 18)
         self.assertEqual({x["attempt"] for x in index(self.root)}, {1, 2})
         out = os.path.join(self.root, "runs.jsonl")
         R.summarize_root(self.root, CAL, out)                       # D-035 (V-03): every attempt, valid or not

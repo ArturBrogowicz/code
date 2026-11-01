@@ -44,6 +44,7 @@ def campaign(over=None):
         c = 99.5 + 0.1 * (i % 3)
         base = {
             "C": {"q": c, "p95": 0.100 + 0.001 * i},
+            "C_M": {"q": c, "p95": 0.100 + 0.001 * i},
             "Cp": {"q": c + (0.2 if i % 2 else -0.2),
                    "p95": 0.100 + 0.001 * i + (0.001 if i % 2 else -0.001)},
         }
@@ -63,8 +64,9 @@ def campaign(over=None):
 class PinnedConstantsTest(unittest.TestCase):
     def test_the_constants_of_section_10(self):
         self.assertEqual(O.BLOCK_SEEDS, tuple(range(3101, 3111)))
-        self.assertEqual(O.ARMS, ("C", "Cp", "U_loris", "U_post", "M_def_loris", "M_pc_loris",
-                                  "M_def_post", "M_pc_post"))
+        self.assertEqual(O.ARMS, ("C", "Cp", "C_M", "U_loris", "U_post", "M_def_loris", "M_pc_loris",
+                                  "M_def_post", "M_pc_post"))           # C_M re-registered by D-041
+        self.assertEqual(O.PROTECTED, "C_M")
         self.assertEqual(O.TIMELINE, {"baseline_s": 30, "attack_s": 210, "recovery_s": 30})
         self.assertEqual(O.GATE, {"floor_pp": 10.0, "floor_log2_p95": 1.0, "ci_level": 0.95,
                                   "same_sign_share": 0.8})
@@ -302,6 +304,53 @@ class AttemptsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "two records"):
             O.outcome(runs)
         self.assertIn("Re-registration record (D-035, V-03", O.__doc__)
+
+
+class ProtectedControlTest(unittest.TestCase):
+    """D-041: (b) is judged against Q(C_M); (a), the harm and (c) are what they were; C_M's validity rules are C's."""
+
+    def test_the_protected_control_is_the_bar_of_b(self):
+        # The limits cost 2 pp and M_pc holds what they leave: under 0.99 x Q(C), at 0.99 x Q(C_M).
+        low = O.outcome(campaign({"C_M": {"q": 97.5}, "M_pc_loris": {"q_level": 97.0}}))["families"]["loris"]
+        self.assertEqual((low["mitigation"]["b"], low["mitigation"]["level_blocks"], low["status"]),
+                         (True, 10, "mitigated"))
+        # A protected control above M_pc fails (b), although M_pc is within 0.99 x Q(C) (98.5 to 98.7).
+        high = O.outcome(campaign({"C_M": {"q": 99.9}, "M_pc_loris": {"q_level": 98.8}}))["families"]["loris"]
+        self.assertEqual((high["mitigation"]["b"], high["mitigation"]["level_blocks"], high["status"]),
+                         (False, 0, "harmful but not mitigated"))
+        at_bar = O.outcome(campaign({"C_M": {"q": 100.0}, "M_pc_post": {"q_level": 99.0}}))["families"]["post"]
+        self.assertTrue(at_bar["mitigation"]["b"])                                   # at 0.99 x Q(C_M) exactly
+
+    def test_a_and_the_harm_stay_on_the_unprotected_control(self):
+        # M_pc back at the limits' level only: 97 % never reaches 0.99 x Q(C), so (a) fails although (b) holds. D-041
+        # moved (b) alone; this pins it, and the report asks whether (a) should follow.
+        flat = {"C_M": {"q": 97.5}, "M_pc_loris": {"q_per_s": bins(99.5, 97.0, start=35, until=270), "q_level": 97.0}}
+        loris = O.outcome(campaign(flat))["families"]["loris"]
+        self.assertEqual((loris["mitigation"]["a"], loris["mitigation"]["b"], loris["status"]),
+                         (False, True, "harmful but not mitigated"))
+        self.assertEqual(O.outcome(campaign({"C_M": {"q": 50.0}}))["families"]["loris"]["harm"],
+                         O.outcome(campaign())["families"]["loris"]["harm"])
+
+    def test_c_ms_validity_counts_for_the_mitigation_only(self):
+        res = O.outcome(campaign({("C_M", 2): {"valid": False}}))
+        self.assertEqual({r["status"] for r in res["families"].values()}, {"invalid (9 of 10 valid)"})
+        self.assertEqual({r["harm"]["valid_blocks"] for r in res["families"].values()}, {10})
+        self.assertEqual(res["M7"], "invalid (9 of 10 valid)")
+        missing = [r for r in campaign() if not (r["arm"] == "C_M" and r["block"] == 3105)]
+        self.assertEqual(O.outcome(missing)["families"]["post"]["mitigation"]["valid_blocks"], 9)
+        rerun = campaign({("C_M", 2): {"valid": False, "q": 10.0}})
+        rerun.append(rec(3103, "C_M", 99.5, attempt=2))                              # the last valid attempt is judged
+        self.assertEqual(O.outcome(rerun)["M7"], BOTH)
+
+    def test_c_m_has_no_floor_on_its_q(self):
+        res = O.outcome(campaign({"C_M": {"q": 80.0}, "M_pc_loris": {"q_level": 79.5}}))
+        self.assertEqual(res["families"]["loris"]["mitigation"]["valid_blocks"], 10)
+        self.assertTrue(res["families"]["loris"]["mitigation"]["b"])
+
+    def test_a_benign_ban_in_c_m_is_reported_and_not_counted_in_c(self):
+        res = O.outcome(campaign({("C_M", 1): {"banned": {"10.0.4.1": "cgnat"}}}))
+        self.assertTrue(res["families"]["loris"]["mitigation"]["c"])
+        self.assertEqual(res["bans_by_arm"]["C_M"], {"cgnat": 1})
 
 
 class InputTest(unittest.TestCase):
