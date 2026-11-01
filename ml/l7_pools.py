@@ -460,6 +460,17 @@ def age_check(rows, rule):
     return out
 
 
+def small_family_aucs(benign_windows, small, wins):
+    """The window-age AUC of each attack family below family_min_units (C3b@M1), against the trained benign windows, and
+    of C3b@M1 pooled with C3b@M2 (report_v3.small_families, D-040, T042-F03): report-only, the per-family check of rule_v2
+    exempts them."""
+    out = {fam: round(auc(benign_windows, v), 4) if benign_windows and v else None for fam, v in sorted(small.items())}
+    if "C3b@M1" in small:
+        both = small["C3b@M1"] + [a for (r, _h, k), v in wins.items() if r == "attack" and k == "C3b@M2" for a in v]
+        out["C3b@M1+C3b@M2"] = round(auc(benign_windows, both), 4) if benign_windows and both else None
+    return out
+
+
 def _age_check_v2(rows, rule, out):
     """rule_v2 of the age check (D-034, T038-01): lifetimes, window age pooled and per family, held-out lifetimes."""
     units = _unit_rows(rows)
@@ -490,6 +501,9 @@ def _age_check_v2(rows, rule, out):
         ok = ok and out["held_out_lifetime_ks"] <= rule["held_out_lifetime_ks_max"]
     if "report_v3" in rule:                        # D-040: report-only, it never changes ok
         out["report_v3"] = age_report_v3(units, rule["min_views"])
+        small = {fam: [a for (r, _h, k), v in wins.items() if r == "attack" and k == fam for a in v]
+                 for fam, n in fam_units.items() if n < rule["family_min_units"]}
+        out["report_v3"]["small_families"] = small_family_aucs(bw, small, wins)
     return ok
 
 

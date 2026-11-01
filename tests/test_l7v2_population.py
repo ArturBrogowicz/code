@@ -257,6 +257,18 @@ class KeyAgeTest(unittest.TestCase):
             if p["seed_role"] in ("eval", "pilot"):
                 self.assertIn("C3b@M3", r["address_age_auc_by_family"])
 
+    def test_the_small_families_are_reported_d040(self):
+        # T042-F03: C3b@M1 (10 units) is exempt from rule_v2's per-family check, so it is reported
+        for p in self.plans:
+            a = p["age_check"]
+            self.assertNotIn("C3b@M1", a["window_age_auc_by_family"])
+            small = a["report_v3"]["small_families"]
+            self.assertEqual(set(small), {"C3b@M1", "C3b@M1+C3b@M2"}, p["seed"])
+        r = LP.small_family_aucs([10.0, 30.0], {"C3b@M1": [20.0]},
+                                 {("attack", False, "C3b@M1"): [20.0], ("attack", False, "C3b@M2"): [40.0],
+                                  ("benign", False, "tpcw_browsing"): [10.0, 30.0]})
+        self.assertEqual(r, {"C3b@M1": 0.5, "C3b@M1+C3b@M2": 0.75})
+
     def test_the_report_counts_from_the_address_and_the_key(self):
         toks = [0.0, 10.0, 20.0, 30.0, 40.0, 50.0]
         def at(t):
