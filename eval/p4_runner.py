@@ -33,7 +33,8 @@ Re-registration record (D-035, 2026-10-31T12:44Z, the user's "Approve all four",
 valid only if the per-connection rule logged slow_pc_poll at least every 10 s (the daemon logs one every
 SLOW_PC_REPORT_INTERVAL = 5 s, control_plane.py, so 10 s is two missed reports): no gap between the traffic's start
 (t0) and the first poll, between two polls, or between the last poll and t0 + 270 s, longer than 10.0 s. The runner
-applies the same bound to the validation runs, whose record the rule writes in the same thread.
+applies the same bound to the validation runs, whose record the rule writes in the same thread (a reading the user
+accepted, D-041, 2026-10-31T16:06Z, as "seeded order" = each block's runs in a seeded order).
 A block is one seed's runs in a seeded order: the 8 arms of an evaluation block (seeds 3101-3110), the 3 runs of a
 validation seed (4001-4002), (C, U) at one ladder level of a pilot seed (9101-9106), or the runs a smoke test names.
 Every attempt, valid or not, is a line of ROOT/index.jsonl with its reasons (§13 row 6); an attempt is a directory

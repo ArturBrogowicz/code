@@ -51,6 +51,14 @@ every attempt of the run index: each record names its attempt, and a block may h
 The harm and (a) and (b) are judged on the last valid attempt of each (block, arm); (c), the benign connections
 closed and the bans per arm are counted over ALL attempts, invalid ones included, so a re-run cannot hide a ban.
 
+Re-registration record (D-041; 2026-10-31T16:06Z, the user's "Approve as recommended", before any data; T-023c F3,
+review T-039 V-13), committed before the code it judges. Each block gains an attack-free protected control C_M:
+profile R with the deployed limits (nginx_profile_r_limits.conf) and M_pc's daemon configuration, no attack, seeded
+with the block, its validity rules C's. Criterion (b) compares M_pc's level window with 0.99 x Q(C_M) instead of
+Q(C); (a) and the harm stay on Q(C). The limits' own cost (Q(C_M) against Q(C), 503s by role, the CGNAT pools named) is
+reported as a separate finding and judges nothing. Also accepted: when one family qualifies and the other is invalid,
+M7 states its claim and names the invalid family.
+
 A run record (one dict per run; summarize() builds it from eval/harm_gate.run_metrics and the ban events):
     {"block": 3101, "arm": "M_pc_loris", "attempt": 1, "valid": true, "Q": 97.5, "p95_s": 0.21,
      "q_per_s": [...one value or None per second of the run...], "q_level": 98.9, "level_window": [120, 240],

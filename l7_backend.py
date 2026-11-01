@@ -34,7 +34,8 @@ UPLOAD_CHUNK bytes a read and never past the Content-Length (a chunked body: to 
 R's sync workers for as long as it lasts: the worker-slot harm of the slow-POST family. Its class is C6, whose SLO every
 record holds; no record holds a C6 cost (bench/calibration.py lists C6 for its SLO only, and route_costs_ms is C0-C5),
 so once the body is in, the route does C2's work (an indexed write acknowledged like an API call, ident = crc32 of the
-byte count): the per-class cost the record sets and, with a frozen record, the 25 % start-up self-check covers. It
+byte count): the per-class cost the record sets and, with a frozen record, the 25 % start-up self-check covers; the
+user accepted that reading until a measured C6 cost exists (D-041, docs/P4_SLOW_DESIGN.md). It
 answers {"received": n} with X-Route-Class C6, X-Work (C2's units) and the record's X-Origin-Calibration. A body that
 ends before its Content-Length (the client went away) is a 400 and costs no work.
 """

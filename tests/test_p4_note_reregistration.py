@@ -42,7 +42,37 @@ class ReRegistrationTest(unittest.TestCase):
                     "over [attack start + 30 s, attack end]", "180 s of traffic"):
             at = text.index(old)
             self.assertIn("[re-registered:", text[at:at + 400], old)
-        self.assertEqual(text[text.index("Two further forms"):].count("[re-registered:"), 6)
+        self.assertEqual(text[text.index("Two further forms"):].count("[re-registered:"), 7)
+
+    def test_d041_is_dated_everywhere_before_the_code_it_judges(self):
+        text = note()
+        block = text[text.index("**Re-registrations, dated, all before any P4 data**"):text.index("Two further forms")]
+        for row in ("| D-041 (1) | 2026-10-31T16:06Z |", "| D-041 (2) | 2026-10-31T16:06Z |"):
+            self.assertIn(row, block)
+        for needle in ("0.99 × Q(C_M) instead of Q(C)", "(a) and the harm stay on Q(C)", "503s by role",
+                       "the CGNAT pools named"):
+            self.assertIn(needle, block)
+        for needle in ("liveness bound applies to the validation runs too", "names the invalid family",
+                       "each block's runs in a seeded order", "class C6 doing C2's work until a measured C6 cost exists"):
+            self.assertIn(needle, block)
+        with open(os.path.join(REPO, "docs", "EVALUATION.md"), encoding="utf-8") as fh:
+            self.assertIn("**Re-registration record (D-041).** 2026-10-31T16:06Z", fh.read())
+        self.assertIn("Re-registration record (D-041; 2026-10-31T16:06Z", O.__doc__)
+        for path in ("eval/p4_runner.py", "l7_backend.py"):
+            with open(os.path.join(REPO, path), encoding="utf-8") as fh:
+                self.assertIn("D-041", fh.read(), path)
+
+    def test_the_vm_budget_of_d041_is_section_11s_arithmetic(self):
+        minutes = 5.5                                  # 270 s of traffic plus about 60 s of set-up, §11's method
+        smoke, ladder, validation = 3, 24, 6
+        campaign, reruns = 10 * 9, 2 * 9               # 9 runs a block with C_M; re-runs of at most 2 blocks
+        without = (smoke + ladder + validation + campaign) * minutes / 60
+        total = without + reruns * minutes / 60
+        self.assertEqual((f"{campaign * minutes / 60:.2f}", f"{reruns * minutes / 60:.2f}"), ("8.25", "1.65"))
+        self.assertEqual((f"{total:.1f}", f"{without:.1f}"), ("12.9", "11.3"))
+        block = note()
+        self.assertIn("campaign 90 runs, 8.25 h; re-runs at most 18, 1.65 h; in all ~12.9 h, ~11.3 h without re-runs",
+                      block)
 
 
 if __name__ == "__main__":

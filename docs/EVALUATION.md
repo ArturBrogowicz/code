@@ -412,6 +412,19 @@ attempt): the harm and (a) and (b) are judged on the last valid attempt of each 
 connections closed and the bans per arm count ALL attempts, invalid ones included, so that a re-run cannot hide a
 ban (T-039 V-03, the recurrence of T-028 F-01).
 
+**Re-registration record (D-041).** 2026-10-31T16:06Z, the user's "Approve as recommended", before any data
+(T-023c F3, T-039 V-13: in simulation the deployed limits refuse CGNAT-24 requests in 9 of 10 seeds, so Q(C) was
+the wrong bar for a run behind them). Each block gains an attack-free protected control C_M: profile R with
+`nginx_profile_r_limits.conf` and M_pc's daemon configuration, no attack, seeded with the block, its validity rules
+C's. Criterion (b) compares M_pc's level window with 0.99 x Q(C_M) instead of Q(C); (a) and the harm stay on Q(C). The
+limits' own cost, Q(C_M) against Q(C) and the 503s by role with the CGNAT pools named, is reported as a separate
+finding and judges nothing. The VM budget by §11's method at about 5.5 min per run: the campaign is 90 runs, 8.25 h
+(was 7.3 h), the re-runs at most 18, 1.65 h (was 1.5 h), about 12.9 h in all and 11.3 h without re-runs (were 11.8 h
+and 10.4 h); the Slowloris-only cut about 8.0 h (was 6.9 h). These count §11's 3 smoke runs; the P4-S packet as drafted
+holds 5 runs and hand steps, about 0.75 h, which would add about 0.5 h. The same decision accepted four readings:
+the slow_pc liveness bound also on the validation runs; M7 states its claim and names an invalid family; "seeded
+order" is each block's runs in a seeded order; `/upload` is class C6 doing C2's work until a measured C6 cost exists.
+
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
 user's decision.
