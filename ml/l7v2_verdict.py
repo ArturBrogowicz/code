@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-"""The P1 verdict per class (docs/L7V2_DESIGN.md section 11; constants from ml/l7v2_verdict_prereg.json, frozen first).
+"""The P1 verdict per class (docs/L7V2_DESIGN.md section 11; constants from ml/l7v2_verdict_prereg_v2.json, frozen first).
 
-judge(cls, inputs) applies the ladder to one class's evaluation results:
+judge(cls, inputs) applies the ladder to one class's evaluation results and claims one verdict:
   * harm contrasts: Q in percent per block and arm, paired by block, judged by eval/run_level_stats (decide,
     t_interval, blocks_for_power) with the pre-registered effect sizes (beats >= 5 pp and supported; equivalent when the
     95 % interval lies strictly inside +-5 pp over >= 10 blocks);
-  * detection contrasts: per-entity caught flags of each arm's replay of the same U runs, the two-stage cluster
+  * detection contrasts: per-entity caught flags of each arm's replay of the same U runs, on the class's primary
+    families (D-043: C3b@M2 for C3b; M1, M3 and M2exp get their own descriptive contrasts), with the two-stage cluster
     bootstrap over (block, entity), B 2000, percentile 95 % (beats >= 10 pp with the interval excluding 0; equivalent
     when it lies strictly inside +-10 pp);
   * the fixed testing order: harm admission, budget, best learned vs R*, GRU vs HGB, GRU vs shuffled-GRU; a step is
     tested only when the earlier ones passed;
   * the rungs V-D, V-A, V-B, V-C, inconclusive, the first that holds; V-A is blocked (inconclusive, the block named) on
-    an age-confounded validation set, a structureless benign model, and never given on a non-frozen record.
-Open choices (OC-1..OC-4, resolution null) are not picked: the verdict is computed under every combination of their
-options, and a verdict is claimed only when all combinations agree ("verdict"); otherwise "verdict" is None and
-"by_option" shows which choice decides it.
+    an age-confounded validation set, a structureless benign model, and never given on a non-frozen record;
+  * the settled choices (D-044): the best learned arm has the higher validation recall at the budget, frozen in the
+    selection (ties: the GRU); the budget on evaluation is the live reading, with the replay's reported beside it;
+    V-A's live baselines include U; when R* beats the best learned arm on harm the verdict is V-C.
 
 Pure (numpy and eval/run_level_stats); it reads no capture. The inputs come from the P1 runner, after the selections
 were frozen; judge() refuses without their sha256s and without a frozen calibration record.
 """
-import itertools
 import math
 import os
 import sys
@@ -29,6 +29,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), "eval"))
+import l7v2_model_prereg as MPRE
 import l7v2_verdict_prereg as PRE
 import run_level_stats as RLS
 
@@ -103,7 +104,7 @@ def detection_contrast(blocks, caught_a, caught_b, pre=None):
 
 def _meets(entry):
     flagged, total = entry
-    return flagged <= math.floor(0.01 * total + 1e-9)
+    return flagged <= math.floor(MPRE.selection()["budget"] * total + 1e-9)
 
 
 def _check(cls, inputs, pre):
@@ -121,7 +122,19 @@ def _check(cls, inputs, pre):
         raise VerdictError(f"{cls}: harm per block is missing for {sorted(set(live) - set(harm))}")
     if len({len(v) for v in harm.values()}) > 1:
         raise VerdictError(f"{cls}: every arm needs Q for the same blocks")
+    if inputs.get("detection") is not None:
+        ent = pre["detection_entities"]["per_class"][cls]
+        unknown = set(inputs["detection"]["families"]) - set(ent["primary"]) - set(ent["reported_separately"])
+        if unknown:
+            raise VerdictError(f"{cls}: attack entities of families no contrast of the class reads: {sorted(unknown)}")
     return live
+
+
+def _subset(det, families):
+    """The detection inputs restricted to the attack entities of `families`."""
+    idx = [i for i, f in enumerate(det["families"]) if f in families]
+    return {"blocks": [det["blocks"][i] for i in idx],
+            "caught": {a: [v[i] for i in idx] for a, v in det["caught"].items()}}
 
 
 def _best_learned(option, live, harm, val_recall):
@@ -131,12 +144,14 @@ def _best_learned(option, live, harm, val_recall):
     if option == "eval_q":
         score = {a: float(np.mean(harm[a])) for a in learned}
     else:
+        if set(learned) - set(val_recall):
+            raise VerdictError("the best learned arm needs the validation recall of every live learned arm")
         score = {a: float(val_recall[a]) for a in learned}
     return max(learned, key=lambda a: (score[a], a == GRU))
 
 
 def _ladder(cls, live, inputs, opts, pre, memo):
-    """One verdict under one combination of open-choice options: (verdict, the steps taken, notes)."""
+    """The class's verdict under the settled choices `opts`: (verdict, the steps taken, notes)."""
     steps, notes = [], []
     if not inputs["admitted"]:
         steps.append(("harm_admission", "fails"))
@@ -158,7 +173,7 @@ def _ladder(cls, live, inputs, opts, pre, memo):
     def det_c(a, b):
         key = ("det", a, b)
         if key not in memo:
-            det = inputs["detection"]
+            det = _subset(inputs["detection"], pre["detection_entities"]["per_class"][cls]["primary"])
             memo[key] = detection_contrast(det["blocks"], det["caught"][a], det["caught"][b], pre)
         return memo[key]
 
@@ -216,48 +231,42 @@ def judge(cls, inputs, pre=None):
       frozen               {"selection_sha256", "rules_selection_sha256"} of the frozen selections
       admitted             the harm admission of U_k (the harm gate's result, with its placebo)
       harm                 {arm: [Q in percent per block]} for every live arm of the class (U, R*, ...), same blocks
-      budget               {"replay": {arm: (benign units flagged, benign units)}, "live": {...}} pooled over blocks
-      detection            {"blocks": [block of each attack entity], "caught": {arm: [0/1 per entity]}} for the GRU,
-                           the HGB, the shuffled-GRU, R* and, when given, the age-only arm (replays of the U runs)
-      validation_recall    {arm: recall} of the live learned arms at their frozen points (OC-1 'validation')
+      budget               {"live": {arm: (benign users wrongly acted on, benign users)} pooled over the arm's own M runs,
+                           "replay": the same from the replays of the U runs, reported beside it} for every enforcing arm
+      detection            {"blocks": [block of each attack entity], "families": [its family],
+                           "caught": {arm: [0/1 per entity]}} for the GRU, the HGB, the shuffled-GRU, R* and, when
+                           given, the age-only arm (replays of the U runs)
+      validation_recall    {arm: recall} of the live learned arms at their frozen points (OC-1)
       age_only_val_auc     the age-only baseline's validation AUC
       structured_benign_model  True when the trained benign navigation is the TPC-W model"""
     pre = pre or PRE.load()
     live = _check(cls, inputs, pre)
-    options = PRE.choice_options(pre)
-    names = sorted(options)
-    memo, by_option, trace = {}, {}, {}
-    for combo in itertools.product(*(options[n] for n in names)):
-        opts = dict(zip(names, combo, strict=True))
-        verdict, steps, notes = _ladder(cls, live, inputs, opts, pre, memo)
-        label = ",".join(f"{n}={opts[n]}" for n in names)
-        by_option[label] = verdict
-        trace[label] = {"steps": steps, "notes": notes}
-    verdicts = sorted(set(by_option.values()))
-    deciding = [n for n in names if _decides(n, options, by_option)]
-    out ={"class": cls, "verdict": verdicts[0] if len(verdicts) == 1 else None,
-           "verdicts_under_options": verdicts, "deciding_choices": deciding, "by_option": by_option,
-           "trace": trace, "contrasts": {}}
+    opts = PRE.resolutions(pre)
+    memo = {}
+    verdict, steps, notes = _ladder(cls, live, inputs, opts, pre, memo)
+    out = {"class": cls, "verdict": verdict, "resolutions": opts, "steps": steps, "notes": notes, "contrasts": {},
+           "v_a_blocks": v_a_blocks(inputs, pre)}
     for key, c in memo.items():
         name = f"detection {key[1]} vs {key[2]}" if key[0] == "det" else f"harm {key[0]} vs {key[1]}"
         out["contrasts"][name] = c
-    det = inputs.get("detection") or {}
-    if AGE in (det.get("caught") or {}) and GRU in det["caught"]:
+    budget = inputs.get("budget") or {}
+    out["budget"] = {reading: {a: {"flagged": v[0], "users": v[1], "meets": _meets(v)} for a, v in entries.items()}
+                     for reading, entries in budget.items()}
+    det, ent = inputs.get("detection"), pre["detection_entities"]["per_class"][cls]
+    if det is None:
+        return out
+    primary = _subset(det, ent["primary"])
+    if AGE in det["caught"] and GRU in det["caught"] and primary["blocks"]:
         out["contrasts"]["detection view_gru vs age_only (descriptive)"] = detection_contrast(
-            det["blocks"], det["caught"][GRU], det["caught"][AGE], pre)
-    out["v_a_blocks"] = v_a_blocks(inputs, pre)
+            primary["blocks"], primary["caught"][GRU], primary["caught"][AGE], pre)
+    out["reported_separately"] = {}
+    for fam in ent["reported_separately"]:
+        sub = _subset(det, [fam])
+        if not sub["blocks"]:
+            continue
+        out["reported_separately"][fam] = {
+            "entities": len(sub["blocks"]),
+            **{f"detection view_gru vs {other}": detection_contrast(sub["blocks"], sub["caught"][GRU],
+                                                                    sub["caught"][other], pre)
+               for other in (HGB, SHUF, RSTAR) if other in sub["caught"]}}
     return out
-
-
-def _decides(name, options, by_option):
-    """True when changing only the open choice `name` changes the verdict somewhere."""
-    others = [n for n in sorted(options) if n != name]
-    for combo in itertools.product(*(options[n] for n in others)):
-        fixed = dict(zip(others, combo, strict=True))
-        seen = set()
-        for opt in options[name]:
-            label = ",".join(f"{n}={opt if n == name else fixed[n]}" for n in sorted(options))
-            seen.add(by_option[label])
-        if len(seen) > 1:
-            return True
-    return False

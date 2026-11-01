@@ -1,6 +1,6 @@
 """The L7 v2 verdict pre-registration (docs/L7V2_DESIGN.md section 11 and section 13 item 4): the verdict ladder, the
-effect sizes, the fixed testing order, the live set per block, R*'s definition, the statistics and the open judging
-choices, read from the committed l7v2_verdict_prereg.json.
+effect sizes, the fixed testing order, the live set per block, R*'s definition, the statistics, the judging choices the
+user settled (D-044) and each class's detection entities (D-043), read from the committed l7v2_verdict_prereg_v2.json.
 
 Pure and standard library only. load() checks the file's format and its internal consistency; tests pin every value,
 and the verdict code (ml/l7v2_verdict.py) reads its constants from here, so code and pre-registration cannot drift.
@@ -9,8 +9,8 @@ import json
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PREREG_PATH = os.path.join(HERE, "l7v2_verdict_prereg.json")
-FORMAT = "l7v2-verdict-prereg/1"
+PREREG_PATH = os.path.join(HERE, "l7v2_verdict_prereg_v2.json")
+FORMAT = "l7v2-verdict-prereg/2"
 VERDICTS = ("V-D", "V-A", "V-B", "V-C", "inconclusive")
 STEPS = ("harm_admission", "budget", "best_learned_vs_rstar", "gru_vs_hgb", "gru_vs_shuffled")
 
@@ -50,19 +50,19 @@ def load(path=PREREG_PATH):
         raise PreregError("one minimum number of blocks")
     if len(pre["units"]["eval_seeds"]) < pre["units"]["min_blocks"]:
         raise PreregError("fewer evaluation seeds than the minimum number of blocks")
-    ids = [c["id"] for c in pre["open_choices"]]
+    ids = [c["id"] for c in pre["choices"]]
     if len(set(ids)) != len(ids):
-        raise PreregError("duplicate open-choice ids")
-    for c in pre["open_choices"]:
-        if len(c["options"]) < 2 or (c["resolution"] is not None and c["resolution"] not in c["options"]):
-            raise PreregError(f"{c['id']}: at least two options, and a resolution that is one of them or null")
+        raise PreregError("duplicate choice ids")
+    for c in pre["choices"]:
+        if c["resolution"] not in c["options"]:
+            raise PreregError(f"{c['id']}: the resolution must be one of its options")
+    per_class = pre["detection_entities"]["per_class"]
+    if set(per_class) != set(pre["classes"]) or not all(v["primary"] for v in per_class.values()):
+        raise PreregError("every class needs its primary detection families, and only the classes have them")
     _cache[path] = pre
     return pre
 
 
-def choice_options(pre=None):
-    """{open-choice id: [the options still in play]}: every option while the choice is unresolved, else the one
-    resolved; the verdict code evaluates each and claims a verdict only when all agree."""
-    pre = pre or load()
-    return {c["id"]: list(c["options"]) if c["resolution"] is None else [c["resolution"]]
-            for c in pre["open_choices"]}
+def resolutions(pre=None):
+    """{choice id: its resolution} (D-044): the verdict code judges under exactly these."""
+    return {c["id"]: c["resolution"] for c in (pre or load())["choices"]}
