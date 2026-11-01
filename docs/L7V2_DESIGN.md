@@ -1032,6 +1032,49 @@ excluded (`l7_denymap.FORBIDDEN_UA_CHARS`). All 17 UAs of `ml/l7_benign.UA_TABLE
 the tests write UAs with `;` alone, repeated, next to quotes and backslashes, and at either end, and read the file
 back with a port of nginx's tokenizer: one `"key" 1;` line per entry.
 
+## As built: R*'s live path (T-025e, 2026-11-01, branch `feat/l7v2-rstar`)
+
+Built offline; nothing ran on the VM. Sections 9.5, 10 and 19 as written, with these readings and additions, labelled
+post hoc, before any data. Usage and events: `docs/EVALUATION.md`, "L7 v2: the enforcing arm".
+
+**The path.** `l7_rule_engine.L7RuleEngine` is the rule arm behind the view engine's interface, so the shadow thread and the
+arm take it unchanged: every record into `ml/l7v2_rules.RuleStats`, one row per (IP, UA) key with a request at each poll, p >
+theta in k consecutive rows a decision, a suppressing poll clearing every run. The statistics and the scorer are the
+replay's own objects, imported from `ml/`, not a copy. `ml/l7v2_replay.RulePath` is the reference and is not touched:
+`tests/test_l7_rstar.py` holds the two to the same keys at the same polls, at four rules on generated streams and on a
+recording the daemon's own shadow thread wrote.
+
+**Readings (not departures):**
+- **Which arm.** `L7_ARM=R*` with the frozen rule selection in `L7_SELECTION`; R* is `r_star` of that file. Every other rule
+  arm and the fixed replays are refused: section 10 runs only the best rule live.
+- **Key-age gate.** It counts from the first request of the (IP, UA) key, of any session.
+- **"Keeps sending" and single-key.** Any session of the key counts as the key sending. The CGNAT guard is unchanged, so a
+  key with three sessions in 10 min on its address is never XDP-banned, however few users are behind it.
+- **A decision is made when a run reaches k**, as in the view engine; a key whose run breaks and reaches k again is decided
+  again. `RulePath` keeps the first decision only, so the parity is on first decisions.
+
+**Additions the design does not cover:**
+- **The second map.** `deny_key.map`, one `"ip|ua" 1;` line per key, mapped from `"$remote_addr|$http_user_agent"` in the
+  run's own copy (`l7_conf.protected(text, run_dir, key_map=True)`; no tracked conf changes), with the same write rules,
+  case folding, cap, TTL, reload pacing and kill switch. Its keys are shorter than the session map's, so the hash sizes hold.
+- **D-040 and D-043.** D-040 keeps a sid-less line off a shared address because such a line hits users the session-level
+  decision did not mean to. A line of R*'s means to: D-043 charges a flagged (IP, UA) key every user behind it. So D-040's
+  guard does not apply to this map, and R* can deny a whole UA on a shared address; level 2 keeps the guard.
+- **`users_seen`** on R*'s events, for the budget's live reading (D-044 OC-2): the distinct session ids seen under the key
+  so far, a request without a session counting as one, which is `ml/l7v2_rules.key_costs`'s fallback. One user can hold
+  several sessions, so it reads high; the run's manifest gives the devices.
+- **Bounds.** The replay's statistics do not evict. Live, at most 65,536 keys and 65,536 addresses are kept, the least
+  recently seen going first and counted as `evicted`; the parity holds while `evicted` is 0.
+- **Validity.** Beyond the learned arms' refusals: the calibration record must be frozen and the package's, since the
+  thresholds are in its costs, and the rule spec must be this tree's.
+- **Removed.** The view-window hook for rule arms (`l7_arms.RULES`, `"kind": "rule"`), empty since T-025c and against
+  section 19, with its tests.
+
+**A limit of section 9, for every arm [FACT on fakes for R*, INFERENCE for the view engine, which fires the same way; NOT RUN].** A deny, or an XDP ban, ends after its 300 s TTL.
+A key decided once fires again only after its run breaks, and a key that keeps sending keeps its run, so its deny is not
+renewed: from the TTL's end it is served again until a row or window falls below the threshold. Section 9 is unchanged here;
+the question is open in T-025e's report, and it matters for an entity that outlives its deny by more than a poll or two.
+
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.
 - G1-02 Kadel et al., BOTracle, ESORICS Workshops 2024.

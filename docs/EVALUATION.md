@@ -491,9 +491,17 @@ own XDP bans are lifted (`unban` with `lifted_by` `l7_kill`); every other engine
 in any 60 s and 2,000 active denies; beyond either, `l7_enforce_capped` and no action. The map is emptied at the
 daemon's start (a map an earlier daemon left) and at its stop, after XDP is detached.
 
-**One path for every arm** (9.5). The arm's detector and its own operating point come from the frozen selection of
-`ml/train_l7v2.py select`: the view GRU, the HGB or the LR (or a rule, once one is registered in `l7_arms.RULES`)
-behind `score(batch) -> p`. A selection that is not the recorded one, an altered artifact, an arm whose operating
+**R*** (9.5, 10, 19; T-025e). The best rule arm runs on its own (IP, UA) path, `l7_rule_engine.py`, with the replay's own
+statistics and scorer, through this same policy. Its level 1 is a line in `<L7_ENFORCE_DIR>/deny_key.map`, `"ip|ua" 1;`,
+which covers every session of the key: a run's conf maps `"$remote_addr|$http_user_agent"` to `$l7_deny_key`
+(`l7_conf.protected(text, run_dir, key_map=True)`) and `l7_denymap.prepare_run_dir(run_dir, key_level=True)` creates the
+file before nginx starts. The write rules, reload pacing, TTL, caps, kill switch, start and stop are the same; D-040's
+guard is not, as a line of R*'s means to hit every user behind its key, and D-043 charges them. Level 2 keeps the CGNAT
+guard. `ml/l7v2_replay.RulePath` is the reference for its decisions.
+
+**One path for every arm** (9.5). The arm's detector and its own operating point come from a frozen selection: the view
+GRU, the HGB or the LR from `ml/train_l7v2.py select`, behind `score(batch) -> p`, or R* from `ml/l7v2_rules.py select`
+(`L7_ARM=R*`), whose calibration record must also be frozen and whose rule spec must be this tree's. A selection that is not the recorded one, an altered artifact, an arm whose operating
 point is null (its package carries the placeholder 0.5 x 1), a selection not marked `valid_for_claims` (a smoke run or
 a legacy capture; T-042 E05), and the replay-only ablations are refused: the daemon writes why as a `daemon_error`
 (`where` `l7_enforce`) and does not start.
@@ -505,7 +513,7 @@ a legacy capture; T-042 E05), and the replay-only ablations are refused: the dae
 | `L7_NGINX_CONF` | (none) | the configuration of the nginx the arm reloads (the run's copy, `l7_conf.protected`) |
 | `L7_ALLOWLIST` | (none) | comma-separated IPv4 addresses or networks never acted on (the runner's monitoring identities), besides 127.0.0.0/8 and 10.0.0.1 |
 | `L7_KILL_FILE` | `/run/l7v2/kill` | the kill switch |
-| `L7_SELECTION`, `L7_SELECTION_SHA256`, `L7_ARM` | (none) | the frozen selection, its recorded sha256, and the arm's name (`view_gru`, `hgb`, `lr`) |
+| `L7_SELECTION`, `L7_SELECTION_SHA256`, `L7_ARM` | (none) | the frozen selection, its recorded sha256, and the arm's name (`view_gru`, `hgb`, `lr` from the learned selection; `R*` from the rule selection) |
 | `L7_SOCKET_GROUP` | `nogroup` | the group of the L7 socket, bound 0660 instead of 0666 while the arm runs (T-042 E06): a datagram there can drive a ban. Assumption: nginx's workers run as nobody:nogroup, the compiled defaults of the installed nginx 1.28.3 (no `--user`/`--group` in its configure string) with no `user` directive in `nginx.conf` or the runner's copy; with a `user` directive, set its group. Without `L7_ENFORCE=1` the socket stays 0666 as before |
 
 **The runner's confs** (ledger D-028, review L7V2-09): `l7_conf.unprotected(text)` adds `ref`, `sid` and `sid_set` to
@@ -523,9 +531,10 @@ Tests, all offline: `tests/test_l7_denymap.py` (hostile UAs and sids against the
 port of nginx's tokenizer), `tests/test_l7_rawkeys.py`, `tests/test_l7_enforce.py` (the policy on fakes),
 `tests/test_l7_safeguards.py`, `tests/test_l7_arms.py`, `tests/test_l7_conf.py`, `tests/test_daemon_l7_enforce.py`
 and `tests/test_daemon_l7_shadow_v2.py` (the daemon's real L7 shadow thread and the arm's steps on the harness's
-fakes).
+fakes), and for R* `tests/test_l7_rstar.py` (its parity with the replay), `tests/test_l7_rstar_map.py` and
+`tests/test_l7_rstar_events.py`.
 
-[NOT RUN] on the testbed: `nginx -t` of the rendered copies with a full map, a reload under load, a deny answered
+[NOT RUN] on the testbed: R*'s path and its map; `nginx -t` of the rendered copies with a full map, a reload under load, a deny answered
 429, the reload's cost and the lingering of old workers (9.2's fallback, `auth_request`, is not built).
 
 Known limits:
@@ -534,6 +543,11 @@ Known limits:
   `ml/l7_benign.UA_TABLE` contains, so no testbed browser key could have been denied at level 1. Inside nginx's
   double quotes `;` is an ordinary character; it is now written, and all 17 UA_TABLE entries pass the rules. `"`,
   `\`, `$`, `{`, `}`, other bytes and UAs over 256 bytes stay excluded.
+* A deny, or an XDP ban, ends after its TTL, and a key that keeps sending keeps its decision's run, so it is not decided
+  again until its run breaks: from the TTL's end it is served again, for every arm (`KnownLimitTest` pins it for R*; the
+  view engine fires the same way). [NOT RUN]
+* R*'s parity with the replay holds while `evicted` in `l7_shadow` is 0 (at most 65,536 keys and addresses are kept live).
+* `users_seen` counts sessions, not devices: one user can hold several. The run's manifest gives the devices.
 * The stop (T-042 E03): `Arm.stop` and the arm's steps hold one lock, and no step runs after the stop, so once the
   stop returns `deny.map` is empty and nginx was told to reload it.
 * Hostile field types (T-042 E07): a log record whose text field (ip, ua, uri, sid, ...) holds another JSON type than a
@@ -602,7 +616,7 @@ at the run directory; standalone default `/var/log/ddos/ban_events.jsonl`; `""` 
 | `slow_pc_would_ban` | `ip`, `value` (closes within 60 s), `threshold` (K), `ua_keys`: a ban the rule decided in shadow |
 | `slow_pc_close_retry` | `ip`, `port`, `local`, `sport`, `attempt`, `gave_up`: a closed connection still there at the next poll, closed again (`attempt` 2 or 3) or, after the last retry, given up (`gave_up` true; P4-06). A connection that ended between the read and the kill is gone, not an error, and the exit status of `ss -K` decides nothing |
 | `slow_pc_capped` | `what` (`close` or `ban`), `n`, `cap`, and for bans `ips` (at most 50): decisions held back by the caps of 500 closes per poll and 20 bans per minute |
-| `l7_enforce_arm` | `armed`, `reason` (why not), `arm`, `arm_kind`, `model`, `selection_sha256`, `valid_for_claims`, `level`, `threshold`, `consecutive`: the L7 v2 arm attached to the shadow thread's engine (`L7_ENFORCE=1` only, as every kind below) |
+| `l7_enforce_arm` | `armed`, `reason` (why not), `arm`, `arm_kind`, `model`, `selection_sha256`, `valid_for_claims`, `level`, `threshold`, `consecutive`: the L7 v2 arm attached to the shadow thread's engine (`L7_ENFORCE=1` only, as every kind below). R* adds `rule_arm`, `stat_threshold`, `calibration_sha256`, and every decision event of R* (and its `ban`) adds `rule_arm`, `statistic`, `stat_threshold` and `users_seen` (the session ids seen under the key so far), with `sid_h` null |
 | `l7_deny` | `ip`, `ua_h`, `sid_h`, `arm`, `threshold`, `consecutive`, `p`, `t_poll`, `level` (1), `shared` (a case-insensitive twin's line covers it), `key_age_s`, `active`, `ttl_s`: a key denied at nginx |
 | `l7_deny_end` | the key fields, `reason` (`ttl`, `kill`, `stop`, `cgnat_guard`: a sid-less line withdrawn when its address turned shared, D-040), `denied`, `effective`, `age_s` |
 | `l7_enforce_skip` | the key fields, `reason` (`not_armed`, `killed`, `ip_format` (not a canonical dotted-quad IPv4 address), `allowlist`, `already_denied`, `ip_banned`, `key_age` with `key_age_s` and `until`, `cgnat_guard` with `ua_keys` and `sid_keys`) |
