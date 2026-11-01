@@ -1116,6 +1116,10 @@ def provenance(plan, host=None):
     return out
 
 
+# docs/HG1C_DESIGN.md departure 30 (D-045): how long the timer gate waits after a refused probe before it probes again
+TIMER_REPROBE_S = 30.0
+
+
 def timer_probe(host, cpus, samples=200, interval=0.01):
     """The timer-lateness probe of the HG1a harness, pinned to `cpus`: how late the machine wakes a sleeper."""
     import loadtool_validate as V

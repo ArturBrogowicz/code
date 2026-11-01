@@ -60,7 +60,8 @@ below 50 ms; neither can be met on most vCPUs.
    attack streams take CPU 6 in exchange and keep four CPUs, 3-6, so their planned CPU share does not change; nothing else uses CPU 7.
    `population.PIN_PLAN` = server 0-1, daemon 2, legit 7, attack 3-6, pinned by a test.
 2. **Environment gate.** The timer probe (200 x 10 ms) is judged on the CPU of the legit streams: p99 below 10 ms. The other CPUs are
-   recorded, not judged. The probe is repeated before every run, as the harness already does.
+   recorded, not judged. The probe is repeated before every run, as the harness already does. Since 2026-11-01 (D-045; HG1C departure 30) a refused probe is
+   made again within the wait, at the same limit.
 3. **Generator validity, profile `relative` (the default).** A stream is invalid when its CPU share exceeds 0.70, when it sent fewer
    than 99 % of its intended requests, when it ran out of descriptors or ports, or, for a legit stream, when it dropped a request. Slip is a
    difference, not an absolute: the p99 slip of the legit streams in a run may exceed the control's by at most 50 ms and may not

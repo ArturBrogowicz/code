@@ -774,6 +774,25 @@ class TimerLimitTest(RunCase):
         self.assertFalse(os.path.exists(os.path.join(plan.out, "run.json")))
 
 
+class ReprobePreRegisteredTest(unittest.TestCase):
+    """docs/HG1C_DESIGN.md departure 30 (D-045), pre-registered on 2026-11-01, post hoc but before any capacity or campaign data. Moving
+    one of these is a new departure, not a fix."""
+
+    def test_the_wait_between_probes_the_limit_and_the_cpu_are_the_pre_registered_ones(self):
+        self.assertEqual(X.TIMER_REPROBE_S, 30.0)
+        self.assertEqual(C.load(C.PLACEHOLDER)["validity"]["timer_p99_ms"], 10)
+        self.assertEqual((P.PIN_PLAN["legit"], P.PIN_PLAN_DAEMON["legit"]), ("7", "7"))
+
+    def test_the_departure_says_what_the_constants_say(self):
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "HG1C_DESIGN.md"),
+                  encoding="utf-8") as fh:
+            rows = [line for line in fh if line.startswith("| 30 |")]
+        self.assertEqual(len(rows), 1)
+        for phrase in ("D-045", "before any capacity or campaign data", "`executor.TIMER_REPROBE_S` (30 s)",
+                       "`validity.timer_p99_ms` (10 ms)", "`--wait-gate 0` gives exactly one probe", "ReprobePreRegisteredTest"):
+            self.assertIn(phrase, rows[0])
+
+
 class SetupTest(RunCase):
     def build(self, faults, expect=X.SetupFailed, **kw):
         host = F.SimHost(faults=faults)
