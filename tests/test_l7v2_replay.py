@@ -114,7 +114,7 @@ class ReplayParityTest(unittest.TestCase):
 
     def rule(self, columns, thresholds, k):
         op = {"params": {}, "columns": columns, "thresholds": thresholds, "threshold": 0.5, "consecutive": k}
-        return R.RuleScorer(R.make_package("sustained_rate", op, COSTS, {"sha256": None, "status": "placeholder"}, {}))
+        return R.RuleScorer(R.make_package("sustained_rate", op, COSTS, {"sha256": None, "status": "placeholder"}))
 
     def test_rule_arms_decide_the_evaluators_keys(self):
         decided = 0
@@ -169,6 +169,18 @@ class ReplayParityTest(unittest.TestCase):
         got = RP.score_arm(flood, RP.RulePath(sc), self.truth)
         self.assertEqual((got["decisions"], got["suppressed_polls"]), (0, got["polls"]))
         self.assertEqual(with_ticks["level"], "rule")
+
+    def test_a_flagged_benign_rule_key_costs_the_users_behind_it(self):
+        sc = self.rule(["ip:pop_new_keys_60"], [0.5], 1)
+        key_maps, ent, attack, units = self.truth
+        plain = RP.score_arm(self.items, RP.RulePath(sc), self.truth)
+        self.assertEqual(plain["benign_units_flagged"], 12, "one user behind each browser's (IP, UA) key")
+        cost = {k: 3 for k in key_maps["rule_cost"]}
+        got = RP.score_arm(self.items, RP.RulePath(sc), ({**key_maps, "rule_cost": cost}, ent, attack,
+                                                         {e: 2 for e in units}))
+        self.assertEqual(got["benign_units_flagged"], 24, "3 users behind the key, capped at the entity's 2 units")
+        view = RP.score_arm(self.items, CostlyStub(), ({**key_maps, "rule_cost": cost}, ent, attack, units))
+        self.assertEqual(view["benign_units_flagged"], 0)
 
     def test_the_result_lists_every_arm(self):
         res = RP.replay(self.items, {"stub": CostlyStub(), "none": None}, self.labels)

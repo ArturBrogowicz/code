@@ -1,7 +1,8 @@
-"""The L7 v2 rule arms at their own level (ml/l7v2_rules.py, ml/l7v2_rules_prereg_v2.json; docs/L7V2_DESIGN.md 9.5,
-10; review finding T042-E08): the causal statistics per (IP, UA) key and address over wall-clock windows, the rows per
-key and poll, the vectorised policy against train_l7v2's, tuning at the common budget on validation only, the (IP, UA)
-age-only arm beside the rules, R*, and the packages behind score(batch) -> p. Offline and pure (synthetic records)."""
+"""The L7 v2 rule arms at their own level (ml/l7v2_rules.py, ml/l7v2_rules_prereg_v3.json; docs/L7V2_DESIGN.md 9.5,
+10; review finding T042-E08, the user's D-043): the causal statistics per (IP, UA) key and address over wall-clock
+windows, the rows per key and poll, the vectorised policy against train_l7v2's, the threshold levels (multiples and
+benign quantiles), the users behind a flagged key, tuning at the common budget on validation only, the (IP, UA) age-only
+arm beside the rules, R*, and the packages behind score(batch) -> p. Offline and pure (synthetic records)."""
 import hashlib
 import json
 import os
@@ -17,6 +18,7 @@ sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "ml"))
 sys.path.insert(0, os.path.join(REPO, "tests"))
 import l7_baselines
+import l7_pools as LP
 import l7_testutil as U
 import l7v2_model_prereg as MPRE
 import l7v2_rules as R
@@ -29,8 +31,9 @@ import l7_ingest as I
 COSTS = {"C0": 0.05, "C1": 3.0, "C2": 2.0, "C3": 30.0, "C5": 150.0}
 
 
-def make_capture(cap="val2001", n_benign=6, attackers=((4.0, 60.0, 240.0),), seed=0, t0=1000.0, rotate_sid=False):
-    """(manifest, records, capture): benign browsers (a page and five assets every 5-9 s over 300 s, one sid each) and
+def make_capture(cap="val2001", n_benign=6, attackers=((4.0, 60.0, 240.0),), seed=0, t0=1000.0, rotate_sid=False,
+                 assets=5):
+    """(manifest, records, capture): benign browsers (a page and `assets` assets every 5-9 s over 300 s, one sid each) and
     attackers (pageless /search requests at `rps` from `start` to `stop`; no sid, or a new sid per request), labelled as
     train_l7v2 labels."""
     rng = random.Random(seed)
@@ -40,7 +43,7 @@ def make_capture(cap="val2001", n_benign=6, attackers=((4.0, 60.0, 240.0),), see
         while t < 300.0:
             rows.append((t, f"10.0.1.{b + 1}", f"/page/{rng.randrange(50)}", f"s{b}", "benign", f"b{b}"))
             rows += [(t + 0.05 * (a + 1), f"10.0.1.{b + 1}", f"/static/a{a}.css", f"s{b}", "benign", f"b{b}")
-                     for a in range(5)]
+                     for a in range(assets)]
             t += rng.uniform(5.0, 9.0)
     for a, (rps, start, stop) in enumerate(attackers):
         t, n = start + a, 0
@@ -82,18 +85,19 @@ def per_request(recs, costs=COSTS):
 
 
 class SpecTest(unittest.TestCase):
-    def test_the_spec_is_the_rule_level_version(self):
+    def test_the_spec_is_the_d043_version(self):
         spec = R.load_spec()
-        self.assertEqual(spec["format"], "l7v2-rules-prereg/2")
-        self.assertEqual(R.SPEC_PATH, os.path.join(REPO, "ml", "l7v2_rules_prereg_v2.json"))
-        self.assertFalse(os.path.exists(os.path.join(REPO, "ml", "l7v2_rules_prereg.json")),
-                         "format 1 (rules on view windows) is replaced, T042-E08")
+        self.assertEqual(spec["format"], "l7v2-rules-prereg/3")
+        self.assertEqual(R.SPEC_PATH, os.path.join(REPO, "ml", "l7v2_rules_prereg_v3.json"))
+        for old in ("l7v2_rules_prereg.json", "l7v2_rules_prereg_v2.json"):
+            self.assertFalse(os.path.exists(os.path.join(REPO, "ml", old)), f"{old} is replaced")
 
     def test_columns(self):
         cols = R.columns()
-        self.assertEqual(len(cols), 15 + 5 + 1)
+        self.assertEqual(len(cols), 20 + 5 + 1)
         self.assertEqual(cols[:3], ["key:rate_1", "key:rate_10", "key:rate_30"])
-        self.assertEqual(cols[14:], ["key:age", "ip:daemon_default", "ip:daemon_tolerant", "ip:pop_new_keys_60",
+        self.assertEqual(cols[8:11], ["key:bucket_0.1", "key:bucket_0.25", "key:bucket_0.5"])
+        self.assertEqual(cols[19:], ["key:age", "ip:daemon_default", "ip:daemon_tolerant", "ip:pop_new_keys_60",
                                      "ip:pop_cookieless_60", "ip:age", "own:nginx_reject"])
 
 
@@ -119,7 +123,7 @@ class StatisticsTest(unittest.TestCase):
     def test_the_bucket_fires_as_l7_baselines(self):
         rng = random.Random(5)
         for trial in range(20):
-            rate = rng.choice([5, 10, 30])
+            rate = rng.choice([0.25, 5, 10, 30])
             ts = sorted(rng.uniform(0, 20) for _ in range(rng.randrange(20, 400)))
             _rs, st = per_request(stream(ts))
             col = R.columns().index(f"key:bucket_{rate}")
@@ -229,18 +233,60 @@ class TuningTest(unittest.TestCase):
     def setUpClass(cls):
         cls.loaded = [make_capture(n_benign=120, attackers=tuple((6.0, 60.0 + a, 240.0) for a in range(5)))]
         cls.rows, cls.stats, cls.runs = R.validation_rows(cls.loaded, COSTS)
-        cls.maxima = R.benign_maxima(cls.stats, cls.rows)
+        cls.levels = R.benign_levels(cls.stats, cls.rows)
 
-    def test_grid_sizes_and_tau_thresholds(self):
-        sizes = {a: len(R.grid(a, self.maxima)) for a in R.ARMS}
-        self.assertEqual(sizes, {"sustained_rate": 27, "token_bucket": 24, "cost_budget": 15, "multiscale_rate": 625,
-                                 "population": 25, "default_rules": 1, "tolerant_rules": 1, "nginx_limits": 1})
-        params, cols, thr = R.grid("cost_budget", self.maxima)[1]
-        self.assertEqual((params["tau"], cols), (1.0, ["key:cost_10"]))
-        self.assertEqual(thr, [self.maxima["key:cost_10"]])
+    def test_grid_sizes(self):
+        sizes = {a: len(R.grid(a, self.levels)) for a in R.ARMS if a not in R.JOINT}
+        self.assertEqual(sizes, {"sustained_rate": 48, "token_bucket": 44, "cost_budget": 36, "default_rules": 1,
+                                 "tolerant_rules": 1, "nginx_limits": 1})
+        k = len(MPRE.selection()["k_grid"])
+        self.assertEqual(R.tune("population", self.stats, self.runs, self.levels)["grid_size"], 12 ** 2 * k)
+        self.assertEqual(R.tune("multiscale_rate", self.stats, self.runs, self.levels)["grid_size"], 12 ** 4 * k)
+
+    def test_threshold_levels_are_multiples_and_benign_quantiles(self):
+        j = R.columns().index("key:cost_60")
+        ben = np.flatnonzero([not r["y"] for r in self.rows])
+        per_key = {}
+        for i in ben:
+            k = self.rows[i]["key"]
+            per_key[k] = max(per_key.get(k, 0.0), self.stats[i, j])
+        vals = sorted(per_key.values())
+        self.assertEqual(len(vals), 120)
+        lev = dict(self.levels["key:cost_60"])
+        self.assertEqual(list(lev), ["tau_0.8", "tau_1.0", "tau_1.2", "tau_1.5", "tau_2.0", "q_0.5", "q_0.75", "q_0.9",
+                                     "q_0.95", "q_0.98", "q_0.99", "q_0.995"])
+        self.assertEqual(lev["tau_1.0"], vals[-1])
+        self.assertAlmostEqual(lev["tau_1.5"], 1.5 * vals[-1])
+        self.assertAlmostEqual(lev["q_0.5"], float(np.median(vals)))
+        self.assertAlmostEqual(lev["q_0.995"], float(np.quantile(vals, 0.995)))
+        params, cols, thr = R.grid("cost_budget", self.levels)[1]
+        self.assertEqual((params["level"], cols, thr), ("tau_1.0", ["key:cost_10"], [dict(self.levels["key:cost_10"])["tau_1.0"]]))
+
+    def test_the_joint_search_is_the_whole_product(self):
+        # dropping the levels that alone are over the budget changes nothing
+        got = R.tune("population", self.stats, self.runs, self.levels)
+        sel = MPRE.selection()
+        cols, _names = R.joint_columns("population")
+        lv = [self.levels[c] for c in cols]
+        allowed, best, within = 1, None, 0
+        for ki, k in enumerate(sel["k_grid"]):
+            for i, (_a, t0) in enumerate(lv[0]):
+                for j, (_b, t1) in enumerate(lv[1]):
+                    a = self.runs.evaluate(R.fires(self.stats, cols, [t0, t1]), k)
+                    if a["benign_units_flagged"] > allowed:
+                        continue
+                    within += 1
+                    med = a["median_ttd_s"] if a["median_ttd_s"] is not None else float("inf")
+                    rank = (-a["caught"], a["benign_units_flagged"], med, ki * 144 + i * 12 + j)
+                    best = rank if best is None or rank < best else best
+        self.assertEqual(got["within_budget"], within)
+        self.assertEqual(got["operating_point"]["grid_index"], best[3])
+        op = got["operating_point"]
+        p = R.fires(self.stats, op["columns"], op["thresholds"])
+        self.assertEqual(self.runs.evaluate(p, op["consecutive"])["caught"], op["caught"])
 
     def test_each_candidate_meets_the_budget_and_catches_the_flood(self):
-        res = {a: R.tune(a, self.stats, self.runs, self.maxima) for a in R.TUNED}
+        res = {a: R.tune(a, self.stats, self.runs, self.levels) for a in R.TUNED}
         cands = VPRE.load()["best_rule"]["candidates"]
         for a in cands:
             op = res[a]["operating_point"]
@@ -248,15 +294,14 @@ class TuningTest(unittest.TestCase):
                 self.assertIsNotNone(op)
                 self.assertLessEqual(op["benign_units_flagged"], op["allowed"])
                 self.assertEqual((op["allowed"], op["caught"], op["threshold"]), (1, 5, 0.5))
-                self.assertLessEqual(op["benign_units_flagged"], op["benign_users_behind"] + op["benign_units_flagged"])
         ops = {a: res[a]["operating_point"] for a in cands}
         best = min(ops, key=lambda a: (-ops[a]["caught"], ops[a]["benign_units_flagged"], ops[a]["median_ttd_s"],
                                        cands.index(a)))
         self.assertEqual(R.best_rule(res), best)
 
     def test_the_operating_point_is_the_brute_force_one(self):
-        r = R.tune("sustained_rate", self.stats, self.runs, self.maxima)
-        sel, points, best = MPRE.selection(), R.grid("sustained_rate", self.maxima), None
+        r = R.tune("sustained_rate", self.stats, self.runs, self.levels)
+        sel, points, best = MPRE.selection(), R.grid("sustained_rate", self.levels), None
         for ki, k in enumerate(sel["k_grid"]):
             for pi, (_params, cols, thr) in enumerate(points):
                 p = R.fires(self.stats, cols, thr)
@@ -278,7 +323,7 @@ class TuningTest(unittest.TestCase):
 
     def test_no_point_within_the_budget_gives_no_operating_point(self):
         _rows, stats, runs = R.validation_rows([make_capture(n_benign=6)], COSTS)
-        r = R.tune("cost_budget", stats, runs, {c: 0.0 for c in R.columns()})
+        r = R.tune("cost_budget", stats, runs, {c: [("tau_1.0", 0.0)] for c in R.columns()})
         self.assertIsNone(r["operating_point"])
         self.assertEqual(r["within_budget"], 0)
 
@@ -293,7 +338,6 @@ class TuningTest(unittest.TestCase):
         f = R.fixed("default_rules", self.stats, self.runs)
         self.assertEqual((f["consecutive"], f["columns"]), (1, ["ip:daemon_default"]))
         self.assertIn("within_budget", f)
-        self.assertIn("benign_users_behind", f)
 
 
 class SidRotationTest(unittest.TestCase):
@@ -301,20 +345,85 @@ class SidRotationTest(unittest.TestCase):
         loaded = [make_capture(n_benign=30, attackers=((3.0, 60.0, 240.0),), rotate_sid=True)]
         rows, stats, runs = R.validation_rows(loaded, COSTS)
         self.assertEqual(len({r["key"] for r in rows if r["y"]}), 1)
-        op = R.tune("sustained_rate", stats, runs, R.benign_maxima(stats, rows))["operating_point"]
+        op = R.tune("sustained_rate", stats, runs, R.benign_levels(stats, rows))["operating_point"]
         self.assertEqual(op["caught"], 1)
+
+
+class D043GridTest(unittest.TestCase):
+    def test_the_extended_grids_reach_a_source_below_1_req_s(self):
+        # 0.5 req/s against benign pages without assets: below every threshold of ml/l7_baselines' grids
+        loaded = [make_capture(n_benign=120, attackers=((0.5, 20.0, 280.0),), assets=0)]
+        rows, stats, runs = R.validation_rows(loaded, COSTS)
+        levels = R.benign_levels(stats, rows)
+        for arm, reach in (("sustained_rate", lambda op: op["params"]["threshold_rps"] < 1),
+                           ("token_bucket", lambda op: op["params"]["rate"] < 1)):
+            op = R.tune(arm, stats, runs, levels)["operating_point"]
+            with self.subTest(arm=arm):
+                self.assertEqual(op["caught"], 1)
+                self.assertTrue(reach(op), op["params"])
+
+    def test_a_quantile_catches_what_the_maximum_cannot(self):
+        # one benign key has a far larger cost than the others: every multiple of the maximum sits above the attacker,
+        # a quantile does not, and the budget allows that one key
+        m, recs, cap = make_capture(n_benign=120, attackers=((0.5, 20.0, 280.0),), assets=0)
+        outlier = [r for r in recs if r["_entity"] == "b0"]
+        for r in outlier:
+            r["rc"] = "C5"
+        rows, stats, runs = R.validation_rows([(m, recs, cap)], COSTS)
+        levels = R.benign_levels(stats, rows)
+        op = R.tune("cost_budget", stats, runs, levels)["operating_point"]
+        self.assertTrue(op["params"]["level"].startswith("q_"), op["params"])
+        self.assertEqual((op["caught"], op["benign_units_flagged"]), (1, 1))
+
+
+class UsersBehindTest(unittest.TestCase):
+    def pool(self, users=12):
+        return {"entity_id": "2026-11-v1:1:9", "role": "benign", "kind_or_family": "cgnat_browsers", "address": "10.0.1.7",
+                "params": {"users": users, "level": 30, "first_visit_s": [0.0, 60.0], "nav": "tpcw:browsing",
+                           "sessions": True}, "client_seed": 5, "schedule": {"start_s": 0.0, "stop_s": 900.0}}
+
+    def test_plan_users_counts_devices_not_sessions(self):
+        e = self.pool()
+        got = R.plan_users({"format": D.DATASET_FORMAT_V3, "entities": [e]})
+        plan = LP._plan_of(e)
+        self.assertGreater(len(plan["users"]), 12, "sessions are plan users of their own")
+        self.assertEqual(sum(got.values()), 12)
+        self.assertTrue(all(k[0] == "10.0.1.7" for k in got))
+        self.assertGreater(max(got.values()), 1, "UAs collide in a pool of 12")
+        self.assertEqual(R.plan_users({"format": "test"}), {})
+
+    def test_key_costs_fall_back_on_session_ids(self):
+        recs = [{**r, "_seq": i} for i, r in enumerate(stream([1000.0], sid="a") + stream([1001.0], sid="b"))]
+        self.assertEqual(R.key_costs([({"format": "test"}, recs, "c")]),
+                         {("c", ("10.0.2.9", I.stable_hash32("Mozilla/5.0"))): 2})
+
+    def test_a_flagged_key_costs_the_users_behind_it_up_to_the_entitys_units(self):
+        loaded = [make_capture(n_benign=4, attackers=())]
+        rows, _stats = R.rule_rows(loaded, COSTS)
+        split = V.Split(loaded, view=False, request=False)
+        ent = "val2001|b0"
+        key = next(r["key"] for r in rows if r["ip"] == ent)
+        p = np.array([1.0 if r["ip"] == ent else 0.0 for r in rows])
+        self.assertEqual(R.Runs(rows, split).evaluate(p, 1)["benign_units_flagged"], 1)
+        split.units[ent] = 24
+        self.assertEqual(R.Runs(rows, split).evaluate(p, 1)["benign_units_flagged"], 1, "D-031's rule without key costs")
+        runs = R.Runs(rows, split, {("val2001", key): 7})
+        self.assertEqual(runs.evaluate(p, 1)["benign_units_flagged"], 7)
+        split.units[ent] = 5
+        runs = R.Runs(rows, split, {("val2001", key): 7})
+        self.assertEqual(runs.evaluate(p, 1)["benign_units_flagged"], 5)
 
 
 class PackageTest(unittest.TestCase):
     def setUp(self):
         self.loaded = [make_capture(n_benign=30, attackers=((3.0, 60.0, 240.0),))]
         self.rows, self.stats, self.runs = R.validation_rows(self.loaded, COSTS)
-        self.maxima = R.benign_maxima(self.stats, self.rows)
+        self.levels = R.benign_levels(self.stats, self.rows)
 
     def test_round_trip_score_and_tamper(self):
-        op = R.tune("cost_budget", self.stats, self.runs, self.maxima)["operating_point"]
+        op = R.tune("cost_budget", self.stats, self.runs, self.levels)["operating_point"]
         cal = {"sha256": "ab" * 32, "status": "placeholder"}
-        cfg = R.make_package("cost_budget", op, COSTS, cal, self.maxima)
+        cfg = R.make_package("cost_budget", op, COSTS, cal)
         self.assertEqual((cfg["calibration"], cfg["costs_ms"], cfg["level"], cfg["key"]),
                          (cal, COSTS, "rule", ["ip", "ua_h"]))
         with tempfile.TemporaryDirectory() as d:
@@ -344,6 +453,7 @@ class PackageTest(unittest.TestCase):
             self.assertEqual(set(sel["arms"]), set(R.ARMS))
             self.assertEqual(set(sel["recall_beside_age_only"]), {*R.ARMS, "age_only_key"})
             self.assertIn("val_auc", sel["age_only_key"])
+            self.assertEqual(len(sel["benign_levels"]["key:cost_10"]), 12)
             for a in R.TUNED:
                 if sel["arms"][a]["operating_point"]:
                     R.RuleScorer.load(os.path.join(d, sel["arms"][a]["artifact"]))

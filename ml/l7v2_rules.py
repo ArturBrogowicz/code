@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""The L7 v2 rule arms at their own level (docs/L7V2_DESIGN.md 9.5, 10; ml/l7v2_rules_prereg_v2.json, re-registered
-under review finding T042-E08) as detector packages on the common score(batch) -> p interface, tuned on validation
-captures only at the common budget.
+"""The L7 v2 rule arms at their own level (docs/L7V2_DESIGN.md 9.5, 10; ml/l7v2_rules_prereg_v3.json, re-registered
+under review finding T042-E08 and the user's decision D-043) as detector packages on the common score(batch) -> p
+interface, tuned on validation captures only at the common budget.
 
 Each rule is keyed (IP, UA), or reaches a key through its address, as section 10 states it: its statistics are computed
 at every request over wall-clock windows of the key's (or the address's) whole history, and it decides at its own
@@ -9,16 +9,19 @@ decision points, one row per (IP, UA) key and engine poll (whole seconds of the 
 the replay): each statistic's maximum over the key's requests in the poll (RuleStats). The rule gives p = 1 when any of
 its statistics passes its threshold (RuleScorer.score), theta is 0.5, and the policy is the section-9 one: p > theta in
 k consecutive rows of the key. The budget, the objective, the ties and the k grid are the learned arms'
-(ml/l7v2_model_prereg.json selection), with one unit per flagged (IP, UA) key of a benign entity, at most its units.
-A rule arm never decides on the view windows of (IP, UA, sid) keys: a 32-token window of a C2 key spans seconds and
+(ml/l7v2_model_prereg.json selection); a flagged (IP, UA) key costs every benign user behind it, because a deny there
+hits them all (D-043; D-031's one unit per key stays for the learned arms' view-level keys). A rule arm never decides on the view windows of (IP, UA, sid) keys: a 32-token window of a C2 key spans seconds and
 sid rotation splits an (IP, UA) key, so that would starve it (T042-E08; the format-1 build did).
 
-Arms (ml/l7v2_rules_prereg_v2.json "arms"):
-  sustained_rate   requests over {10, 30, 60} s > {2..50} req/s (ml/l7_baselines B2)
-  token_bucket     the bucket's excess at rate {5..30} > burst {10..100} (B3)
-  cost_budget      the frozen class costs summed over {10, 60, 300} s > tau x benign max
-  multiscale_rate  any of the rates over {1, 10, 60, 300} s > its tau x benign max (jointly)
-  population       the address's new keys in 60 s, or its cookie-less share in 60 s, > tau x benign max (replay only)
+A threshold level (D-043) is tau x the statistic's benign validation maximum (section 10), or a quantile, from the median
+up, of its per-key maximum over the benign keys.
+
+Arms (ml/l7v2_rules_prereg_v3.json "arms"):
+  sustained_rate   requests over {10, 30, 60} s > {0.05..50} req/s (ml/l7_baselines B2, extended below 1 req/s)
+  token_bucket     the bucket's excess at rate {0.1..30} > burst {10..100} (B3, rates extended below 1 req/s)
+  cost_budget      the frozen class costs summed over {10, 60, 300} s > a threshold level
+  multiscale_rate  any of the rates over {1, 10, 60, 300} s > its threshold level (jointly)
+  population       the address's new keys in 60 s, or its cookie-less share in 60 s, > its level (jointly; replay only)
   default_rules, tolerant_rules, nginx_limits: the fixed replays (control_plane.py's heuristic, nginx.conf's limit_req)
   age_only_key     a diagnostic beside them: the (IP, UA) key's age (T042-F01), never R*, never live
 R* is the best of the candidates of ml/l7v2_verdict_prereg.json best_rule by validation recall at the budget.
@@ -31,6 +34,7 @@ import bisect
 import collections
 import hashlib
 import heapq
+import itertools
 import json
 import math
 import os
@@ -41,6 +45,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 sys.path.insert(0, HERE)
+import l7_pools as LP
 import l7v2_model_prereg as MPRE
 import l7v2_verdict_prereg as VPRE
 import train_l7v2 as V
@@ -48,11 +53,12 @@ import train_l7v2 as V
 import l7_dataset as D
 import l7_ingest as I
 
-SPEC_PATH = os.path.join(HERE, "l7v2_rules_prereg_v2.json")
-SPEC_FORMAT = "l7v2-rules-prereg/2"
-PACKAGE_FORMAT = "l7v2-rule-package/2"
-SELECTION_FORMAT = "l7v2-rule-selection/2"
+SPEC_PATH = os.path.join(HERE, "l7v2_rules_prereg_v3.json")
+SPEC_FORMAT = "l7v2-rules-prereg/3"
+PACKAGE_FORMAT = "l7v2-rule-package/3"
+SELECTION_FORMAT = "l7v2-rule-selection/3"
 TUNED = ("sustained_rate", "token_bucket", "cost_budget", "multiscale_rate", "population")
+JOINT = ("multiscale_rate", "population")
 FIXED = ("default_rules", "tolerant_rules", "nginx_limits")
 ARMS = TUNED + FIXED
 POP_WINDOW_S = 60.0
@@ -77,8 +83,10 @@ def load_spec(path=SPEC_PATH):
         raise RuleError(f"the rule arms are {ARMS}, the tuned ones {TUNED}")
     if spec["level"]["key"] != ["ip", "ua_h"]:
         raise RuleError("a per-key rule is keyed (IP, UA) (T042-E08)")
-    if spec["tau_grid"] != sorted(spec["tau_grid"]) or spec["theta"] != 0.5:
-        raise RuleError("the tau grid is ascending and a rule's theta is 0.5")
+    lev = spec["threshold_levels"]
+    if lev["multiples"] != sorted(lev["multiples"]) or lev["quantiles"] != sorted(lev["quantiles"]) \
+            or spec["theta"] != 0.5:
+        raise RuleError("the threshold levels are ascending and a rule's theta is 0.5")
     ck, a = spec["columns"]["key"], spec["arms"]
     if not (set(a["sustained_rate"]["windows_s"]) | set(a["multiscale_rate"]["windows_s"])) <= set(ck["rate_s"]) \
             or set(a["cost_budget"]["windows_s"]) != set(ck["cost_s"]) or a["token_bucket"]["rates"] != ck["bucket_rates"]:
@@ -262,19 +270,18 @@ def rule_rows(loaded, costs, poll_s=None, spec=None):
     """The rule-level decision points of the captures `loaded` [(manifest, records, capture)]: (rows, matrix). Each
     capture's records, in (completion, arrival) order, are polled at whole multiples of poll_s of the log clock (a
     request completing at t joins the first poll after t, as train_l7v2.engine_scored). A row is a dict with the
-    capture, the (IP, UA) key, its time, its entity (the key's first request's) as "ip", its class "y", the poll and
-    the key's distinct session ids so far; the matrix holds its statistics (columns())."""
+    capture, the (IP, UA) key, its time, its entity (the key's first request's) as "ip", its class "y" and the poll;
+    the matrix holds its statistics (columns())."""
     poll_s = MPRE.load()["selection"]["policy_engine_poll_s"] if poll_s is None else poll_s
     rows, mat = [], []
     for _m, recs, cap in loaded:
-        rs, first, sids, boundary = RuleStats(costs, spec), {}, {}, None
+        rs, first, boundary = RuleStats(costs, spec), {}, None
 
-        def emit(b, _cap=cap, _rs=rs, _first=first, _sids=sids):
+        def emit(b, _cap=cap, _rs=rs, _first=first):
             for key, t, row in _rs.poll():
                 r0 = _first[key]
                 rows.append({"capture": _cap, "key": key, "t": t, "ip": r0["_ent"],
-                             "y": int(r0["_cls"] == D.ATTACK), "level": "rule", "poll": b,
-                             "n_sids": len(_sids[key])})
+                             "y": int(r0["_cls"] == D.ATTACK), "level": "rule", "poll": b})
                 mat.append(row)
 
         for r in sorted(recs, key=lambda r: (r["msec"], r["_seq"])):
@@ -284,11 +291,41 @@ def rule_rows(loaded, costs, poll_s=None, spec=None):
             boundary = b
             rs.observe(r)
             first.setdefault(rule_key(r), r)
-            sids.setdefault(rule_key(r), set()).add(r.get("sid_h", I.NO_SID))
         if boundary is not None:
             emit(boundary)
     width = len(columns(spec))
     return rows, (np.asarray(mat, dtype=np.float64) if mat else np.zeros((0, width)))
+
+
+def plan_users(manifest):
+    """{(address, ua_h): the benign users behind that (IP, UA) key}, from the manifest's entity plans (D-043, E-4): the
+    plan's devices that carry the UA (a plan user's "device", one device per plan user without sessions)."""
+    out = {}
+    if manifest.get("format") not in D.FORMATS_P3:
+        return out
+    for e in manifest.get("entities", []):
+        plan = LP._plan_of(e) if e.get("role") != "attack" and "client_seed" in e else None
+        if plan is None:
+            continue
+        devices = {}
+        for i, u in enumerate(plan["users"]):
+            devices.setdefault(I.stable_hash32(u["ua"]), set()).add(u.get("device", i))
+        for ua, d in devices.items():
+            out[(e["address"], ua)] = out.get((e["address"], ua), 0) + len(d)
+    return out
+
+
+def key_costs(loaded):
+    """{(capture, (IP, UA) key): the benign users a flag on it costs} (ml/l7v2_rules_prereg_v3.json unit_rule): the plan's
+    users behind the key, and where the manifest has no plan for its entity, its distinct session ids."""
+    out = {}
+    for m, recs, cap in loaded:
+        users, sids = plan_users(m), {}
+        for r in recs:
+            sids.setdefault(rule_key(r), set()).add(r.get("sid_h", I.NO_SID))
+        for key, s in sids.items():
+            out[(cap, key)] = users.get(key) or len(s)
+    return out
 
 
 # ───────────────────────────── the common policy, vectorised ─────────────────────────────
@@ -297,9 +334,10 @@ class Runs:
     """train_l7v2's policy and assessment (key_runs, decisions, assess) over a fixed list of decision points (view
     windows, of which those the live engine would score, or rule rows, all of them), vectorised so that a rule's whole
     grid can be scored: the same time order per (capture, key), the same k-consecutive rule, the same entity outcome
-    (one unit per flagged key, at most the entity's units). A test checks it equals train_l7v2's."""
+    (one unit per flagged key, at most the entity's units; a test checks it equals train_l7v2's). `key_cost` {(capture,
+    key): units} gives the rule level's cost of a flagged key (the users behind it, D-043); a capped entity stays capped."""
 
-    def __init__(self, windows, split):
+    def __init__(self, windows, split, key_cost=None):
         keep = V.engine_scored(windows) if windows and windows[0].get("level") == "view" else range(len(windows))
         groups = {}
         for i in sorted(keep):
@@ -315,6 +353,7 @@ class Runs:
         names = sorted(set(ents))
         index = {e: j for j, e in enumerate(names)}
         self.split, self.names, self.gkey = split, names, list(groups)
+        self.gcost = np.asarray([(key_cost or {}).get(g, 1) for g in groups], dtype=np.float64)
         self.order = np.asarray(order, dtype=np.int64)
         self.t = np.asarray([windows[i]["t"] for i in order], dtype=np.float64)
         self.gid = np.asarray(gid, dtype=np.int64)
@@ -346,7 +385,7 @@ class Runs:
         ttd = np.full(self.n_ent, np.inf)
         np.minimum.at(ttd, ent[att], when[att] - self.first[ent[att]])
         caught = np.isfinite(ttd)
-        flagged = np.bincount(ent[~att], minlength=self.n_ent)
+        flagged = np.bincount(ent[~att], weights=self.gcost[g][~att], minlength=self.n_ent)
         ben = int(np.minimum(flagged, self.units).sum())
         ttds = np.sort(ttd[caught])
         n_att = len(self.split.attack)
@@ -356,41 +395,43 @@ class Runs:
                 "benign_entities_flagged": int((flagged > 0).sum()),
                 "median_ttd_s": round(float(ttds[len(ttds) // 2]), 3) if len(ttds) else None}
 
-    def users_behind(self, p, k, n_sids, thr=0.5):
-        """The users behind the flagged benign keys (their distinct session ids, at most the entity's units): reported
-        beside the per-key units, never used for selection (ml/l7v2_rules_prereg_v2.json unit_rule)."""
-        g, _when = self.decided(p, k, thr)
-        per = np.zeros(self.n_ent, dtype=np.int64)
-        for x in g:
-            e = self.gent[x]
-            if not self.attack[e]:
-                per[e] += n_sids.get(self.gkey[x], 1)
-        return int(np.minimum(per, self.units).sum())
-
-
-def key_sids(rows):
-    """{(capture, key): its distinct session ids} from rule rows (the last row's count)."""
-    out = {}
-    for r in rows:
-        out[(r["capture"], r["key"])] = max(out.get((r["capture"], r["key"]), 0), r["n_sids"])
-    return out
-
 
 # ───────────────────────────── grids, tuning, R* ─────────────────────────────
 
-def benign_maxima(stats, rows):
-    """{column: the maximum of the statistic over the benign rows} (the tau grid's unit)."""
-    ben = np.asarray([not r["y"] for r in rows], dtype=bool)
-    if not ben.any():
-        return {}
-    return {c: float(stats[ben, j].max()) for j, c in enumerate(columns())}
-
-
-def grid(arm, maxima, spec=None):
-    """The arm's grid in its grid order: [(params, columns, thresholds)]; a rule fires when any column passes its
-    threshold (strictly)."""
+def benign_levels(stats, rows, spec=None):
+    """{column: [(level name, threshold)]}: the threshold levels of ml/l7v2_rules_prereg_v3.json threshold_levels in
+    their order, tau x the statistic's maximum over the benign rows, then the quantiles of its per-key maximum over the
+    benign keys (D-043); empty without a benign row."""
     spec = spec or load_spec()
-    a, tau = spec["arms"][arm], spec["tau_grid"]
+    keys = {}
+    for i, r in enumerate(rows):
+        if not r["y"]:
+            keys.setdefault((r["capture"], r["key"]), []).append(i)
+    if not keys:
+        return {}
+    per_key = np.stack([stats[idx].max(axis=0) for idx in keys.values()])
+    lev = spec["threshold_levels"]
+    out = {}
+    for j, c in enumerate(columns(spec)):
+        v = per_key[:, j]
+        out[c] = [(f"tau_{m}", float(m * v.max())) for m in lev["multiples"]] + \
+            [(f"q_{q}", float(np.quantile(v, q))) for q in lev["quantiles"]]
+    return out
+
+
+def joint_columns(arm, spec=None):
+    """(columns, level names) of an arm whose statistics take a level each, jointly."""
+    a = (spec or load_spec())["arms"][arm]
+    if arm == "multiscale_rate":
+        return [f"key:rate_{w}" for w in a["windows_s"]], [f"level_{w}" for w in a["windows_s"]]
+    return [f"ip:{s}" for s in a["statistics"]], ["level_new_keys", "level_cookieless"]
+
+
+def grid(arm, levels, spec=None):
+    """The grid of an arm with one statistic per point, in its grid order: [(params, columns, thresholds)]; a rule fires
+    when any column passes its threshold (strictly). The joint arms are searched by tune_joint."""
+    spec = spec or load_spec()
+    a = spec["arms"][arm]
     if not a["tuned"]:
         return [({"rule": "fixed"}, [a["column"]], [0.5])]
     out = []
@@ -403,23 +444,8 @@ def grid(arm, maxima, spec=None):
     elif arm == "cost_budget":
         for w in a["windows_s"]:
             c = f"key:cost_{w}"
-            if c in maxima:
-                out += [({"window_s": w, "tau": t}, [c], [t * maxima[c]]) for t in tau]
-    elif arm in ("multiscale_rate", "population"):
-        cs = [f"key:rate_{w}" for w in a["windows_s"]] if arm == "multiscale_rate" else \
-            [f"ip:{s}" for s in a["statistics"]]
-        names = [f"tau_{w}" for w in a["windows_s"]] if arm == "multiscale_rate" else ["tau_new_keys", "tau_cookieless"]
-        if all(c in maxima for c in cs):
-            for taus in _product(tau, len(cs)):
-                out.append((dict(zip(names, taus, strict=True)), cs,
-                            [t * maxima[c] for t, c in zip(taus, cs, strict=True)]))
+            out += [({"window_s": w, "level": name}, [c], [thr]) for name, thr in levels.get(c, [])]
     return out
-
-
-def _product(values, n):
-    if n == 0:
-        return [()]
-    return [(v, *rest) for v in values for rest in _product(values, n - 1)]
 
 
 def fires(stats, cols, thresholds):
@@ -428,14 +454,23 @@ def fires(stats, cols, thresholds):
     return (stats[:, idx] > np.asarray(thresholds, dtype=np.float64)).any(axis=1).astype(np.float64)
 
 
+def _allowed(runs, sel):
+    return math.floor(sel["budget"] * sum(runs.split.units.values()) + 1e-9)
+
+
+def _better(best, a, gi, entry):
+    """The common ties (design 10): the most caught, fewer benign units, the lower median time to decision, grid order."""
+    med = a["median_ttd_s"] if a["median_ttd_s"] is not None else math.inf
+    rank = (-a["caught"], a["benign_units_flagged"], med, gi)
+    return (rank, entry) if best is None or rank < best[0] else best
+
+
 def _search(points, p_of, runs, sel, extra=None):
-    """The common selection over (k, point): the highest recall within the budget; ties: fewer benign units, the lower
-    median time to decision, grid order (k first)."""
-    total = sum(runs.split.units.values())
+    """The common selection over (k, point): the highest recall within the budget; ties: _better, grid order k first."""
     out = {"grid_size": len(points) * len(sel["k_grid"]), "within_budget": 0, "operating_point": None}
-    if not runs.split.attack or not total or not points:
+    if not runs.split.attack or not sum(runs.split.units.values()) or not points:
         return out
-    allowed = math.floor(sel["budget"] * total + 1e-9)
+    allowed = _allowed(runs, sel)
     best = None
     for pi, point in enumerate(points):
         p, thr = p_of(point)
@@ -445,24 +480,61 @@ def _search(points, p_of, runs, sel, extra=None):
                 continue
             out["within_budget"] += 1
             gi = ki * len(points) + pi
-            med = a["median_ttd_s"] if a["median_ttd_s"] is not None else math.inf
-            rank = (-a["caught"], a["benign_units_flagged"], med, gi)
-            if best is None or rank < best[0]:
-                best = (rank, {**extra(point, thr), "consecutive": int(k), "grid_index": gi, "allowed": allowed,
-                               "budget": sel["budget"], **a, "_p": p})
-    if best:
-        op = best[1]
-        p = op.pop("_p")
-        if hasattr(runs, "n_sids"):
-            op["benign_users_behind"] = runs.users_behind(p, op["consecutive"], runs.n_sids, op["threshold"])
-        out["operating_point"] = op
+            best = _better(best, a, gi, {**extra(point, thr), "consecutive": int(k), "grid_index": gi,
+                                         "allowed": allowed, "budget": sel["budget"], **a})
+    out["operating_point"] = best[1] if best else None
     return out
 
 
-def tune(arm, stats, runs, maxima, sel=None, spec=None):
+def tune_joint(arm, stats, runs, levels, sel=None, spec=None):
+    """The operating point of an arm whose statistics each take a level, jointly (design 10): the same selection as
+    _search over the whole product of levels and k. A rule fires when any statistic passes its threshold, so a level
+    that alone is over the budget at k is over it in every combination (a superset of rows fires, so a superset of keys
+    is flagged): such levels are dropped per k before the product, which changes no result."""
+    sel, spec = sel or MPRE.selection(), spec or load_spec()
+    cols, names = joint_columns(arm, spec)
+    L = len(levels.get(cols[0], []))
+    n_points = L ** len(cols)
+    out = {"grid_size": n_points * len(sel["k_grid"]), "within_budget": 0, "operating_point": None}
+    if not runs.split.attack or not sum(runs.split.units.values()) or not L:
+        return out
+    allowed = _allowed(runs, sel)
+    cols_idx = [columns(spec).index(c) for c in cols]
+    fire = [[stats[:, j] > thr for _name, thr in levels[c]] for j, c in zip(cols_idx, cols, strict=True)]
+    best = None
+    for ki, k in enumerate(sel["k_grid"]):
+        keep = [[li for li in range(L) if runs.evaluate(fire[d][li], k)["benign_units_flagged"] <= allowed]
+                for d in range(len(cols))]
+        for combo in itertools.product(*keep):
+            p = fire[0][combo[0]]
+            for d in range(1, len(cols)):
+                p = p | fire[d][combo[d]]
+            a = runs.evaluate(p, k)
+            if a["benign_units_flagged"] > allowed:
+                continue
+            out["within_budget"] += 1
+            pi = 0
+            for li in combo:
+                pi = pi * L + li
+            gi = ki * n_points + pi
+            best = _better(best, a, gi, {"combo": combo, "consecutive": int(k), "grid_index": gi, "allowed": allowed,
+                                         "budget": sel["budget"], **a})
+    if best:
+        op = dict(best[1])
+        combo = op.pop("combo")
+        out["operating_point"] = {"params": {n: levels[c][li][0] for n, c, li in zip(names, cols, combo, strict=True)},
+                                  "columns": cols, "thresholds": [levels[c][li][1] for c, li in zip(cols, combo,
+                                                                                                    strict=True)],
+                                  "threshold": spec["theta"], **op}
+    return out
+
+
+def tune(arm, stats, runs, levels, sel=None, spec=None):
     """The arm's operating point on validation (design 10) at its own decision points."""
     sel, spec = sel or MPRE.selection(), spec or load_spec()
-    return _search(grid(arm, maxima, spec), lambda pt: (fires(stats, pt[1], pt[2]), spec["theta"]), runs, sel,
+    if arm in JOINT:
+        return tune_joint(arm, stats, runs, levels, sel, spec)
+    return _search(grid(arm, levels, spec), lambda pt: (fires(stats, pt[1], pt[2]), spec["theta"]), runs, sel,
                    lambda pt, thr: {"params": pt[0], "columns": pt[1], "thresholds": [float(x) for x in pt[2]],
                                     "threshold": thr})
 
@@ -502,14 +574,10 @@ def fixed(arm, stats, runs, sel=None, spec=None):
     """A fixed replay at its own rule (k = 1), with its validation benign units against the budget; never selected."""
     sel = sel or MPRE.selection()
     (params, cols, thr), = grid(arm, {}, spec)
-    p = fires(stats, cols, thr)
-    a = runs.evaluate(p, 1)
-    allowed = math.floor(sel["budget"] * sum(runs.split.units.values()) + 1e-9)
-    out = {"params": params, "columns": cols, "thresholds": thr, "threshold": 0.5, "consecutive": 1,
-           "allowed": allowed, "within_budget": a["benign_units_flagged"] <= allowed, **a}
-    if hasattr(runs, "n_sids"):
-        out["benign_users_behind"] = runs.users_behind(p, 1, runs.n_sids)
-    return out
+    a = runs.evaluate(fires(stats, cols, thr), 1)
+    allowed = _allowed(runs, sel)
+    return {"params": params, "columns": cols, "thresholds": thr, "threshold": 0.5, "consecutive": 1,
+            "allowed": allowed, "within_budget": a["benign_units_flagged"] <= allowed, **a}
 
 
 def best_rule(results, candidates=None):
@@ -531,17 +599,17 @@ def best_rule(results, candidates=None):
 
 # ───────────────────────────── packages ─────────────────────────────
 
-def make_package(arm, op, costs, calibration, maxima):
-    """The rule package of an arm at its operating point: its level and decision points, its columns and thresholds,
-    theta 0.5 and k, the class costs and the calibration record they come from, the benign maxima its thresholds
-    scale; sha256 over the rest."""
+def make_package(arm, op, costs, calibration):
+    """The rule package of an arm at its operating point: its level and decision points, its columns and thresholds
+    (params names their levels), theta 0.5 and k, the class costs and the calibration record they come from; sha256 over
+    the rest."""
     spec = load_spec()
     cfg = {"format": PACKAGE_FORMAT, "arm": arm, "level": "rule", "key": spec["level"]["key"],
            "poll_s": spec["decision_points"]["poll_s"], "params": op["params"], "columns": op["columns"],
            "thresholds": op["thresholds"], "threshold": op["threshold"], "consecutive": op["consecutive"],
            "costs_ms": {k: float(v) for k, v in sorted(costs.items())},
            "calibration": {"sha256": calibration.get("sha256"), "status": calibration.get("status")},
-           "benign_max": {c: maxima.get(c) for c in op["columns"]}, "spec_sha256": spec_sha256()}
+           "spec_sha256": spec_sha256()}
     cfg["sha256"] = hashlib.sha256(D.canonical_json(cfg)).hexdigest()
     return cfg
 
@@ -598,12 +666,10 @@ def refuse_non_validation(loaded):
 
 
 def validation_rows(loaded, costs):
-    """(rows, statistics, Runs with the users-behind counts) of the validation captures at the rule level."""
+    """(rows, statistics, Runs with each key's cost in users) of the validation captures at the rule level."""
     split = V.Split(loaded, view=False, request=False)
     rows, stats = rule_rows(loaded, costs)
-    runs = Runs(rows, split)
-    runs.n_sids = key_sids(rows)
-    return rows, stats, runs
+    return rows, stats, Runs(rows, split, key_costs(loaded))
 
 
 def select(loaded, out_dir, calibration, *, valid_for_claims, source):
@@ -616,13 +682,13 @@ def select(loaded, out_dir, calibration, *, valid_for_claims, source):
             raise RuleError(f"refusing to overwrite {os.path.join(out_dir, name)}: select into a new directory")
     costs = calibration["route_costs_ms"]
     rows, stats, runs = validation_rows(loaded, costs)
-    maxima = benign_maxima(stats, rows)
+    levels = benign_levels(stats, rows)
     os.makedirs(os.path.join(out_dir, "rules"), exist_ok=True)
     res = {}
     for arm in TUNED:
-        r = tune(arm, stats, runs, maxima)
+        r = tune(arm, stats, runs, levels)
         if r["operating_point"] is not None:
-            cfg = make_package(arm, r["operating_point"], costs, calibration, maxima)
+            cfg = make_package(arm, r["operating_point"], costs, calibration)
             rel = f"rules/{arm}.json"
             save_package(os.path.join(out_dir, rel), cfg)
             r["artifact"], r["artifact_sha256"] = rel, V._sha_file(os.path.join(out_dir, rel))
@@ -637,7 +703,7 @@ def select(loaded, out_dir, calibration, *, valid_for_claims, source):
            "captures": sorted({cap for _m, _r, cap in loaded}),
            "counts": {"rule_rows": len(rows), "rule_keys": len(runs.gkey), "val_attack_entities": len(runs.split.attack),
                       "val_benign_units": sum(runs.split.units.values())},
-           "benign_max": maxima, "arms": res, "age_only_key": age,
+           "benign_levels": {c: dict(v) for c, v in levels.items()}, "arms": res, "age_only_key": age,
            "recall_beside_age_only": {**recall, "age_only_key": (age["operating_point"] or {}).get("recall")},
            "r_star": best_rule(res)}
     data = D.canonical_json(sel) + b"\n"

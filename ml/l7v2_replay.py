@@ -10,8 +10,8 @@ benign units, attributed from the run's manifest.
                                                one T038-06 aligned the evaluator with) and its l7_would_ban events
   age_only (view level)                        through TapEngine, the same engine with one addition: the windows it is
                                                about to score are handed to the arm first (its row is the window's age)
-  rule arms (ml/l7v2_rules.py packages)        on their own (IP, UA) path, RulePath (ml/l7v2_rules_prereg_v2.json,
-                                               T042-E08): every record feeds the rule's statistics, every poll tick
+  rule arms (ml/l7v2_rules.py packages)        on their own (IP, UA) path, RulePath (ml/l7v2_rules_prereg_v3.json,
+                                               T042-E08, D-043): every record feeds the rule's statistics, every poll tick
                                                gives one row per (IP, UA) key with requests since the previous tick,
                                                and the section-9 policy (k consecutive rows, a flood clears the runs)
 A key is decided at the poll of its first decision; an entity's time to decision is that poll minus the entity's first
@@ -105,7 +105,7 @@ class _Tapped:
 
 
 class RulePath:
-    """A rule package on its own (IP, UA) path (ml/l7v2_rules_prereg_v2.json r_star_live and decision_points), the
+    """A rule package on its own (IP, UA) path (ml/l7v2_rules_prereg_v3.json r_star_live and decision_points), the
     path R* runs live: every record feeds RuleStats; every poll tick gives the rows of the (IP, UA) keys with a request
     since the previous tick, scored with the package (score(batch) -> p); p > theta in k consecutive rows of a key
     decides it; a suppressing tick (flood) clears every run and decides nothing, as the engine's poll does. Without
@@ -208,6 +208,7 @@ class RunLabels:
         self.t0 = D.time_origin(manifest)
         self.kof = D.kind_or_family(manifest)
         self.by_entity = manifest.get("format") in D.FORMATS_P3
+        self.plan_users = R.plan_users(manifest)
         self.units = {}
         if self.by_entity:
             for _u, ent, role in D.user_units(manifest):
@@ -231,7 +232,7 @@ def ground_truth(items, labels):
     """Each key's entity (its first labelled record's), each entity's class, kind and first request start, the attack
     entities with a labelled request (recall's denominator) and the benign units."""
     key_ent, ent = {}, {}
-    rule_ent = {}
+    rule_ent, sids = {}, {}
     for it in items:
         if it[0] != "record":
             continue
@@ -243,11 +244,13 @@ def ground_truth(items, labels):
             continue
         key_ent.setdefault(I.key_v2(rec), e)
         rule_ent.setdefault(R.rule_key(rec), e)
+        sids.setdefault(R.rule_key(rec), set()).add(rec.get("sid_h", I.NO_SID))
         info = ent.setdefault(e, {"cls": cls, "family": fam, "kind": kof or fam, "first": math.inf})
         info["first"] = min(info["first"], F.start_time(rec))
     attack = {e for e, i in ent.items() if i["cls"] == D.ATTACK}
     units = labels.units or {e: 1 for e, i in ent.items() if i["cls"] == D.BENIGN}
-    return {"view": key_ent, "rule": rule_ent}, ent, attack, units
+    rule_cost = {k: labels.plan_users.get(k) or len(s) for k, s in sids.items()}   # the users behind it (D-043, E-4)
+    return {"view": key_ent, "rule": rule_ent, "rule_cost": rule_cost}, ent, attack, units
 
 
 # ───────────────────────────── the replay ─────────────────────────────
@@ -266,7 +269,7 @@ def score_arm(items, scorer, truth):
     key_maps, ent, attack, units = truth
     if isinstance(scorer, RulePath):
         decided, counts = scorer.run(items)
-        key_ent = key_maps["rule"]
+        key_ent, key_cost = key_maps["rule"], key_maps["rule_cost"]
     else:
         events = replay_l7.replay(items, make_engine(scorer))
         decided = {}
@@ -276,7 +279,7 @@ def score_arm(items, scorer, truth):
         summary = [e for e in events if e.get("kind") == "l7_gru_poll"]
         counts = {"windows": sum(s.get("windows", 0) for s in summary),
                   "skipped": sum(s.get("skipped", 0) for s in summary)}
-        key_ent = key_maps["view"]
+        key_ent, key_cost = key_maps["view"], {}          # D-031: one unit per view-level key
     caught, flagged = {}, {}
     for key, t in decided.items():
         e = key_ent.get(key)
@@ -285,7 +288,7 @@ def score_arm(items, scorer, truth):
         if e in attack:
             caught[e] = min(caught.get(e, math.inf), t - ent[e]["first"])
         else:
-            flagged[e] = flagged.get(e, 0) + 1
+            flagged[e] = flagged.get(e, 0) + key_cost.get(key, 1)
     fam, kinds = {}, {}
     for e in attack:
         f = str(ent[e]["family"])
@@ -332,7 +335,7 @@ def load_rules(path, expected_sha256):
         if "fixed" in arm:
             f = arm["fixed"]
             cfg = R.make_package(name, {"params": f["params"], "columns": f["columns"], "thresholds": f["thresholds"],
-                                        "threshold": 0.5, "consecutive": 1}, {}, sel["calibration"], {})
+                                        "threshold": 0.5, "consecutive": 1}, {}, sel["calibration"])
             # the fixed replays read no cost column, so they carry no class costs
             arms[name] = R.RuleScorer(cfg)
             continue
