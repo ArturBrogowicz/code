@@ -182,11 +182,44 @@ class SelectThenScoreTest(unittest.TestCase):
         self.assertEqual(saved["format"], LC.FORMAT)
         self.assertIn("gru@1.0", saved["estimates"])
         self.assertIn("| gru | 1.0 |", LC.summary_md(res))
+        # D-040 (T042-F01): the (IP, UA)-key age-only baseline beside the curves, and the label it sets
+        age = sel["age_only_ip_ua"]
+        self.assertIn(age["reading"], ("near chance", "age-assisted"))
+        self.assertEqual(age["reading"] == "near chance",
+                         age["val_auc"] is not None and abs(age["val_auc"] - 0.5) <= 0.15)
+        self.assertEqual(sel["label"], None if age["reading"] == "near chance" else "age-assisted")
+        self.assertEqual(res["age_only_ip_ua"]["reading"], age["reading"])
+        self.assertIn("eval_recall", res["age_only_ip_ua"])
+        self.assertIn("age-only baseline (D-040)", LC.summary_md(res))
         art = os.path.join(sel_dir, sel["fits"][0]["artifact"])
         with open(art, "ab") as fh:                              # an altered model is refused
             fh.write(b"x")
         with self.assertRaises(LC.SelectionError):
             LC.load_selection(path, sha)
+
+    def test_the_ip_ua_key_age_and_the_age_assisted_label(self):
+        d = os.path.join(self.root, "ds")
+        synth_dataset(d, n_benign=6, n_attack=3, held_benign=1)
+        cols = LC.F.columns(LC.T.variant_groups()[LC.VARIANT])
+        sets = LC.legacy_sets(d, cols, LC.T.DEFAULT_SEQ, LC.T.DEFAULT_STRIDE)
+        ws = [w for s in sets.values() for w in s]
+        self.assertTrue(ws and all(w["age"] >= 0 for w in ws))
+        for w in ws:                                 # the key started no later than the window's first request
+            self.assertGreaterEqual(w["age"], LC.F.start_time(w["recs"][-1]) - LC.F.start_time(w["recs"][0]) - 1e-9)
+        sel_path = os.path.join(self.root, "sel.json")
+        with open(sel_path, "w", encoding="utf-8") as fh:
+            fh.write("{}")
+        sel = {"source": "fixture", "valid_for_claims": True, "variant": LC.VARIANT, "split_sha256": "0" * 64,
+               "design": {"fractions": [1.0], "bootstrap_b": 10}, "counts": {}, "label": "age-assisted",
+               "age_only_ip_ua": {"val_auc": 0.81}}
+        res = LC._curve_result([], [], sel, sel_path, os.path.join(self.root, "o"), LC.p3_prereg.load()["learning_curve"],
+                               0, 0.0, 0)
+        self.assertTrue(res["decision"]["verdict"].startswith("AGE-ASSISTED"), res["decision"])
+        self.assertEqual(res["label"], "age-assisted")
+        sel["label"] = None
+        res = LC._curve_result([], [], sel, sel_path, os.path.join(self.root, "o2"),
+                               LC.p3_prereg.load()["learning_curve"], 0, 0.0, 0)
+        self.assertFalse(res["decision"]["verdict"].startswith("AGE-ASSISTED"))
 
     def test_p3_captures_score_only_after_rule_10(self):
         V = "2026-11-t1"
