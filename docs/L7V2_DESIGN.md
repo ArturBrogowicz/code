@@ -742,9 +742,10 @@ re-registered with their mirror constant in one commit.
   slot, into the next slot or the tail: 70-80 % of the attack entities at seeds 1001, 2001 and 3201 run past their
   slot's end, 52-64 % by more than 60 s, and 40-51 % live longer than a slot. The class parameters are unchanged.
 - **Evaluation and pilot captures** end with the same 120 s benign tail after the M3 slot that every capture has after
-  its last slot: 1,140 s instead of 1,020 s (`ml/p3_prereg.json` `eval_capture_s`, re-registered). Without it the M3
-  bots' lifetimes, and so their window ages, are cut short (window-age AUC 0.31 at seed 3201). **VM cost:** +120 s per
-  evaluation and pilot capture.
+  its last slot: 1,140 s instead of 1,020 s (`ml/p3_prereg.json` `eval_capture_s`, re-registered). D-034's text does not
+  cover the capture's length: the user confirmed it at 14:46:37Z ("Confirm 1140 s", D-036), after 7b40c86 had committed
+  it (T-042 F05). Without it the M3 bots' lifetimes, and so their window ages, are cut short (window-age AUC 0.31 at
+  seed 3201). **VM cost:** +120 s per evaluation and pilot capture.
 - **M3's addresses.** An M3 bot takes the address of a trained attack entity that has stopped before it starts and that
   no other M3 bot holds, C2 entities first. With lifetimes past the slots, C2's addresses alone do not always suffice.
 
@@ -766,7 +767,9 @@ Window age is replayed at nominal times, as T-038's probe does.
 | 3201 eval, before -> after | 0.877 -> 0.545 | 0.847 -> 0.486 | 0.849 -> 0.533 |
 
 - **The check on every pre-registered seed** (train, validation, P3 and P1 evaluation, pilots; 36 plans) and on the
-  extension seeds 3211-3220 passes. Window-age AUC is 0.449-0.537; C3b@M2 0.456-0.587; C3b@M3 0.438-0.517.
+  extension seeds 3211-3220 passes. Window-age AUC, age as a score for the attack role, is 0.449-0.537; C3b@M2
+  0.456-0.587; C3b@M3 0.438-0.517. C3b@M1 has 10 key units, so the per-family check exempts it: over the 34 P3 and P1
+  plans it reads 0.336-0.575, outside the band at pilot 9008 (section 18).
   Lifetime KS is <= 0.267 and its AUC 0.515-0.642; attack keys live a little longer, because benign sessions are cut by
   the capture's end more often. The benign gate drops no entity.
 - **What stays.** The probe's token-count AUCs (entry flag 0.12-0.23, n_valid) now separate in the other direction:
@@ -775,8 +778,9 @@ Window age is replayed at nominal times, as T-038's probe does.
   about two tokens per three dwells.
 - **The probe's in-phase restriction** drops the windows outside every attack slot. It now also drops the oldest windows
   of the bots that outlive the last slot. So C3b@M2's in-phase AUC is 0.638 and 0.664 at seeds 1001 and 2001, where
-  C3b's slot is the last one, against 0.516 and 0.544 on all windows. That is inside the band, and the pre-registered
-  check uses all windows.
+  C3b's slot is the last one, against 0.516 and 0.544 on all windows. **Corrected 2026-11-01 (T-042 F02):** this bullet
+  first called both values inside the band, but 0.664 is outside 0.5 ± 0.15. The pre-registered check uses all windows,
+  so it does not see this. Section 18 gives the in-phase view of every family, held-out C3b@M3 included.
 
 **The age-only baseline (T038-01; `ml/l7v2_model_prereg.json` `baselines.age_only`; `train_l7v2.age_scores`).**
 - **The score:** the key-level time since the key session's first view. p is the share of the training benign windows
@@ -830,6 +834,104 @@ descriptive load split is reported per arm on validation.
 - tests, and this note and the P3 note.
 
 `control_plane.py`, `l7_engine.py`, `bench/`, `server/`, the nginx confs and `l7_backend.py` are untouched.
+
+## 18. As built: the T-042 fix round (T-041, 2026-11-01, branch `feat/l7v2-fix2`, D-040)
+
+Review T-042 rated the D-034 round READY-WITH-NITS; the orchestrator ordered these follow-ups under D-040 (2026-10-31,
+15:48:50Z). Built offline; no capture exists, and **the generators are unchanged in this round**. Everything here is
+labelled post hoc, before any data. The new baseline and readings were registered in 07c086d before their code.
+
+**The figures are recomputed** [FACT, `S3:T-041/artifacts/round2/age_views_34plans.*`, my own script; T-038's probe re-run
+unchanged at 07c086d, `probe_age_tokens_34plans_07c086d.txt`]. They cover 34 plans at nominal times: P3 training and
+validation, P3 and P1 evaluation, P1 pilots (28 of them hold C3b@M3).
+- **Direction.** Unlike rule_v2's window-age AUC (age as a score for the attack role), the table below is AUC(-age):
+  P(an attack window is younger than a trained benign window). It is 1 minus rule_v2's reading, and T-038's and T-042's
+  direction.
+- **Agreement with T-042.** My figures match T-042's to rounding, except C2 at the pilots, where I built the plans with
+  the placeholder knee, as a pilot plan is built. For example, pooled at 9004 reads 0.471 in T-042's run with a frozen
+  knee.
+
+| View: range over the plans (plans outside 0.5 ± 0.15) | Trained, pooled | C2 | C3a | C3b@M1 | C3b@M2 | Held-out C3b@M3 |
+|---|---|---|---|---|---|---|
+| A. Key (IP, UA, sid), all windows | 0.463-0.551 (0) | 0.461-0.576 (0) | 0.402-0.533 (0) | 0.425-0.664 (1) | 0.413-0.544 (0) | 0.483-0.562 (0) |
+| B. As A, inside attack phases | 0.450-0.630 (0) | 0.444-0.721 (3) | 0.393-0.527 (0) | 0.410-0.789 (2) | 0.399-0.664 (1) | 0.599-0.685 (11 of 28) |
+| C. As A, time-matched in 30-s bins | 0.418-0.595 (0) | 0.384-0.642 (0) | 0.343-0.534 (1) | 0.341-0.693 (3) | 0.341-0.623 (1) | 0.507-0.607 (0) |
+| D. From the (IP, UA) key's first request | 0.750-0.837 (34) | 0.748-0.837 (34) | 0.713-0.838 (34) | 0.735-0.873 (34) | 0.719-0.823 (34) | 0.809-0.851 (28 of 28) |
+| E. From the address's first request | 0.792-0.859 (34) | 0.790-0.860 (34) | 0.764-0.859 (34) | 0.781-0.903 (34) | 0.769-0.844 (34) | 0.154-0.537 (12 of 28) |
+
+Plans outside the band in views A-C:
+- **A:** C3b@M1 at 9008 (0.664).
+- **B:** C2 at 1003, 1004 and 2002 (0.672, 0.721, 0.686); C3b@M1 at 1001 and 2001 (0.789, 0.697); C3b@M2 at 2001 (0.664);
+  C3b@M3 in 11 of 28 plans (up to 0.685 at 3201).
+- **C:** C3a at 1002 (0.343); C3b@M1 at 1001, 2001 and 3209 (0.693, 0.686, 0.341); C3b@M2 at 3209 (0.341).
+
+**F01: the role-coded age moved from the key to the address.**
+- **What remains.** D-034 made benign keys finite, but a benign device keeps its address and UA for the whole capture,
+  while an attack entity holds its address for one lifetime. So views D and E read 0.71-0.90 for every trained family in
+  all 34 plans: attack windows are the younger ones. The generators are not changed in this round, so this stays.
+- **Who can read it.** The consumers keyed by (IP, UA) or by address: the P3 request-level curves, the P5 request engine,
+  the planned per-(IP, UA) rule arms and the population detector. The view arms key by (IP, UA, sid), and no view feature
+  reads address history [INFERENCE from T-042 and the token list of 8.1].
+- **M3 on a reused address.** View E counts from the donor's first request, so M3's address is older than its key: it
+  reads 0.154-0.537, the other direction in 12 of 28 plans. Its new UA makes a new (IP, UA) key, so view D reads
+  0.809-0.851.
+- **The request-level baseline and its label** (`ml/p3_prereg.json` `learning_curve.age_only_ip_ua`,
+  `learning_curve.age_only_ip_ua()`).
+  - Each request-level window carries its (IP, UA)-key age. The baseline scores it as the view level's does, and reports
+    its validation AUC, its reading and its evaluation recall beside the curves.
+  - Unless its validation AUC reads near chance (0.5 ± 0.15), `selection.json` and `curve.json` carry the label
+    **age-assisted**, and the verdict starts with AGE-ASSISTED. A missing AUC cannot read near chance, so it labels too.
+  - **Expect the label.** On records replayed from plans 1001 and 2001 it reads AUC 0.724, "age-assisted" (C2 0.670, C3a
+    0.684, C3b@M1 0.755, C3b@M2 0.774; `round2/round2_synthetic_1001_2001.txt`). Those records are synthetic, so this is
+    [FACT] for the replay and [INFERENCE] for the captures.
+  - At its operating point on that replay it catches nothing: the budget allows 0 of the replay's 80 benign units.
+- **The plan's report** (`ml/l7v2_prereg.json` `arrivals.age_check.report_v3`, `l7_pools.age_report_v3`). Views D and E per
+  family sit in `plan["age_check"]["report_v3"]`, in the check's direction. They are report-only and refuse no plan.
+- **Not done:** D-040 also puts this baseline beside the rule arms. They are not on this branch (feat/l7v2-arms carries
+  the arms' work), so that consumer still has to read it.
+
+**F02: the in-phase view.** Views B and C are reported, not gated: rule_v2 still judges all windows.
+- **Held-out C3b@M3 is outside the band in phase in 11 of 28 plans** (0.599-0.685). Its slot is the last one, so the
+  restriction drops the windows its bots make in the tail, their oldest [INFERENCE from the arrival rule; the same effect
+  moves C3b@M2 where its slot is last].
+- **Time-matched, M3 stays inside** (0.507-0.607), but it leans the same way in every plan: M3 windows are the younger.
+- **So** an M3 recall can owe a little to age. Read it beside these values and the view-level age-only baseline on the
+  evaluation captures. Nothing in this round removes that.
+
+**F03: C3b@M1.** The per-family check still exempts it, at 10 key units (`family_min_units` is unchanged). It is now reported:
+- on its own, in rule_v2's direction, 0.336-0.575 over the 34 plans, outside the band at pilot 9008 (0.336);
+- pooled with C3b@M2, 0.437-0.570, inside the band in all 34 plans (`report_v3.small_families`).
+
+**F05.** `eval_tail_label` now cites D-036 and calls its earlier D-034 wording a forward reference. The value is unchanged.
+
+**F06: the rest of T038-06, on the evaluator side.** `l7_engine.py` is not edited.
+- **The report.** `train_l7v2.engine_replay` drives the real observe-only engine with a capture's records in completion
+  order. `engine_parity` compares its windows with the evaluator's per capture, at poll phases 0.0 (the evaluator's
+  convention) and 0.5 (the live phase is arbitrary), in `selection.json` and `eval.json`. It counts:
+  - windows the same and windows built differently (a request that completed after the window's poll is absent);
+  - evaluator-only windows (the cap, a late opener) and engine-only windows;
+  - disagreements between the `engine_scored` rule and the engine;
+  - records dropped as older than the pruned history, and truncated records.
+- **Fixtures** (`tests/test_l7v2_engine.py`): a friendly key, slow assets (the count matches an independent
+  reconstruction), a key over the cap, and a request older than the pruned history.
+- **On records replayed from plan 2001** (`round2/round2_synthetic_1001_2001.txt`; 73,106 records, about 12 s per capture):
+
+| Completion times | Phase | Same | Built differently | Evaluator-only | Rule vs engine |
+|---|---|---|---|---|---|
+| rt 20 ms | 0.0 | 16,623 | 0 | 16 | 0 and 0 |
+| rt 20 ms | 0.5 | 16,630 | 0 | 9 | 9 and 16 |
+| rt 1 s, every request | 0.0 | 16,625 | 0 | 14 | 0 and 0 |
+| rt 10 s non-pages, 20 ms pages | 0.0 | 11,360 | 5,265 | 15 | 1 and 0 |
+
+- **What this means.**
+  - A uniform slowdown moves no completion past another's.
+  - The last row is an illustration, not a measured load: slow non-page requests change about a third of the windows.
+  - The operating points stay on the evaluator's windows, so **on a loaded capture live decisions can differ from
+    offline ones**. The report sizes the window difference per run; how many decisions it changes is not computed.
+    How large the difference is under real load is [NOT RUN].
+
+**Not addressed:** T-042's INFO items F04 (a token-count tell for C3b, behaviour rather than age) and F07 (the age-only
+baseline's held-out FP per kind).
 
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.

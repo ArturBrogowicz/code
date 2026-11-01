@@ -335,8 +335,9 @@ signal is rate-separable" (`S1:T-005/learning_curve_protocol.md`).
 
 ## 12. As built: key lifetimes and the evaluation capture's tail (T-041, 2026-10-31, D-034)
 
-- **Re-registered under D-034, post hoc, before any capture** (`ml/p3_prereg.json` `eval_tail_label`). An evaluation or
-  pilot capture now ends with the same 120 s benign tail after the 240 s C3b@M3 slot that every capture has after its
+- **Re-registered post hoc, before any capture; the user confirmed it on 2026-10-31 ("Confirm 1140 s", D-036)**
+  (`ml/p3_prereg.json` `eval_tail_label`). It was committed in the D-034 round, whose text does not cover the capture's
+  length. An evaluation or pilot capture now ends with the same 120 s benign tail after the 240 s C3b@M3 slot that every capture has after its
   last slot: 60 + 3 × 240 + 240 + 120 = 1,140 s, instead of 1,020 s. Every key's lifetime now comes from one law
   (`docs/L7V2_DESIGN.md` section 17). Without the tail, the M3 bots' lifetimes and window ages are cut short: window-age
   AUC 0.31 at seed 3201, outside the pre-registered 0.5 ± 0.15.
@@ -344,3 +345,8 @@ signal is rate-separable" (`S1:T-005/learning_curve_protocol.md`).
 - **The curves.** At the view level, the HGB of 6.1 is balanced and runs without early stopping, as the L7 v2 arms do.
   The request level is unchanged: its GRU still keeps its best validation epoch (`ml/train_l7.py`). This is labelled
   here as a residual departure from 6.1's "fixed epochs".
+- **The request-level curves are labelled (D-040, T-042 F01).** They key by (IP, UA), and a benign device keeps its address
+  and UA for the whole capture, so (IP, UA) key age can carry the role. An (IP, UA)-key age-only baseline now runs beside
+  them (`learning_curve.age_only_ip_ua` in `ml/p3_prereg.json`). Unless it reads near chance on validation (AUC
+  0.5 ± 0.15), every request-level result is labelled **age-assisted**: expect the label, since the replayed plans read
+  0.724 (`docs/L7V2_DESIGN.md` section 18). The view level keys by (IP, UA, sid) and has its own baseline.
