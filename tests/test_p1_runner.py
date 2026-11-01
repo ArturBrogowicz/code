@@ -1,0 +1,375 @@
+"""The P1 runner (eval/p1_runner.py; docs/L7V2_DESIGN.md 4.3, 5.3, 5.4, 9, 10, 14), offline: plans as data, and blocks executed
+on the fake host of tests/p1_fake_host.py. Nothing touches the machine."""
+import contextlib
+import copy
+import io
+import json
+import os
+import sys
+import tempfile
+import unittest
+from unittest import mock
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(HERE)
+for _p in (HERE, REPO, os.path.join(REPO, "eval"), os.path.join(REPO, "ml"), os.path.join(REPO, "bench")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+import executor as X
+import l7v2_verdict_prereg as VP
+import p1_fake_host as F
+import p1_runner as R
+import population as POP
+
+import ban_events
+import l7_conf
+import l7_dataset
+
+RUN_NAMES = ["C", "Cp", "M_default_rules_C3b", "M_gru_C2", "M_gru_C3a", "M_gru_C3b", "M_hgb_C3b", "M_rstar_C2", "M_rstar_C3a",
+             "M_rstar_C3b", "U_C2", "U_C3a", "U_C3b"]
+
+
+def thin(frozen, root, seed=3001, **kw):
+    return R.plan_block("campaign", seed, root, frozen=frozen, benign_specs=F.thin_benign(), max_sources=3, **kw)
+
+
+def read_json(path):
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def index(root):
+    with open(os.path.join(root, "index.jsonl"), encoding="utf-8") as fh:
+        return [json.loads(x) for x in fh]
+
+
+class Base(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.frozen = F.frozen_inputs(os.path.join(cls.tmp.name, "frozen"))
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(dir=self.tmp.name)
+
+
+class PlanTest(Base):
+    def setUp(self):
+        super().setUp()
+        self.block = thin(self.frozen, self.root)
+        self.runs = {r["name"]: r for r in self.block["runs"]}
+
+    def test_the_live_set_in_a_seeded_order(self):
+        self.assertEqual(sorted(self.block["order"]), RUN_NAMES)
+        self.assertEqual(len(RUN_NAMES), VP.load()["live_set"]["runs_per_block"])
+        again = thin(self.frozen, self.root)
+        self.assertEqual(again["order"], self.block["order"])
+        self.assertNotEqual(thin(self.frozen, self.root, seed=3002)["order"], self.block["order"])
+        self.assertEqual(thin(self.frozen, self.root, attempt=2)["order"], self.block["order"], "a re-run keeps its order")
+
+    def test_the_minimum_cut(self):
+        cut = thin(self.frozen, self.root, cut=True)
+        self.assertEqual(sorted(cut["order"]), ["C", "Cp", "M_gru_C2", "M_gru_C3b", "M_hgb_C3b", "M_rstar_C2", "M_rstar_C3b",
+                                                "U_C2", "U_C3b"])
+        self.assertEqual(len(cut["order"]), VP.load()["live_set"]["minimum_cut"]["runs_per_block"])
+
+    def test_a_run_holds_the_benign_entities_and_its_class_only(self):
+        n_benign = sum(1 for e in self.runs["C"]["entities"] if e["role"] == "benign")
+        self.assertEqual({e["role"] for e in self.runs["C"]["entities"]}, {"benign"})
+        for name, fams in (("U_C2", {"C2"}), ("M_gru_C3a", {"C3a"}), ("U_C3b", {"C3b@M2", "C3b@M1", "C3b@M3", "C3b@M2exp"})):
+            ents = self.runs[name]["entities"]
+            self.assertEqual({e["kind_or_family"] for e in ents if e["role"] == "attack"}, fams)
+            self.assertEqual(sum(1 for e in ents if e["role"] == "benign"), n_benign)
+        self.assertEqual([e["address"] for e in self.runs["U_C2"]["entities"]],
+                         [e["address"] for e in self.runs["M_gru_C2"]["entities"]], "every run of a block uses them unchanged")
+
+    def test_the_arm_table_is_the_only_source_of_each_arms_daemon(self):
+        base = {**dict(X.DAEMON_ENV), "MITIGATION_BACKEND": "xdp"}
+        run = self.runs["M_gru_C3b"]
+        env = run["daemon"]["env"]
+        out = run["out"]
+        self.assertEqual(env, {**base, "HEURISTIC_PROFILE": "tolerant", "L7_SHADOW": "1", "L7_ENFORCE": "1", "L7_ARM": "view_gru",
+                               "L7_KILL_FILE": R.KILL_FILE, "BAN_EVENTS": os.path.join(out, "ban_events.jsonl"),
+                               "L7_ENFORCE_DIR": os.path.join(out, "l7v2_deny"), "L7_NGINX_CONF": os.path.join(out, "nginx.conf"),
+                               "L7_SELECTION": self.frozen["selection"], "L7_SELECTION_SHA256": self.frozen["selection_sha256"],
+                               "L7_RECORD": os.path.join(out, "l7_record.jsonl")})
+        self.assertEqual(self.runs["M_hgb_C3b"]["daemon"]["env"]["L7_ARM"], "hgb")
+        star = self.runs["M_rstar_C2"]["daemon"]["env"]
+        self.assertEqual((star["L7_ARM"], star["L7_SELECTION"], star["L7_SELECTION_SHA256"]),
+                         ("R*", self.frozen["rules"], self.frozen["rules_sha256"]))
+        dflt = self.runs["M_default_rules_C3b"]["daemon"]["env"]
+        self.assertEqual({k: dflt[k] for k in ("HEURISTIC_PROFILE", "L7_SHADOW", "L7_ENFORCE", "L7_MODEL")},
+                         {"HEURISTIC_PROFILE": "default", "L7_SHADOW": "0", "L7_ENFORCE": "0", "L7_MODEL": ""})
+        for name in ("C", "Cp", "U_C2", "U_C3a", "U_C3b"):
+            self.assertIsNone(self.runs[name]["daemon"], name)
+
+    def test_changing_the_table_changes_the_plan_in_one_place(self):
+        table = copy.deepcopy(R.ARM_TABLE)
+        table["R*"]["daemon"]["L7_NEW"] = "x"
+        with mock.patch.object(R, "ARM_TABLE", table):
+            block = thin(self.frozen, self.root)
+        star = {r["name"]: r for r in block["runs"]}["M_rstar_C3b"]
+        self.assertEqual(star["daemon"]["env"]["L7_NEW"], "x")
+
+    def test_pins_are_the_harm_benchmarks(self):
+        self.assertEqual(R.PINS, POP.PIN_PLAN_DAEMON)
+        run = self.runs["M_gru_C3b"]
+        self.assertEqual(run["nginx"]["start"][:3], ["taskset", "-c", R.PINS["server"]])
+        self.assertEqual(run["gunicorn"]["argv"][:3], ["taskset", "-c", R.PINS["server"]])
+        self.assertEqual(run["daemon"]["argv"][:3], ["taskset", "-c", R.PINS["daemon"]])
+        for x in run["launches"]:
+            self.assertEqual(x["argv"][:3], ["taskset", "-c", R.PINS["legit" if x["role"] == "benign" else "attack"]])
+
+    def test_gunicorn_is_the_costed_backend_on_loopback_as_design_4_3(self):
+        argv = self.runs["U_C2"]["gunicorn"]["argv"]
+        text = " ".join(argv)
+        self.assertIn(f"L7_BACKEND=costed L7_CALIBRATION={self.frozen['calibration']}", text)
+        self.assertIn("--workers 2 --threads 8 -b 127.0.0.1:8080 l7_webapp:app", text)
+
+    def test_generators_carry_their_entitys_plan(self):
+        run = self.runs["U_C3b"]
+        by = {e["entity_id"]: e for e in run["entities"]}
+        for x in run["launches"]:
+            e = by[x["entity_id"]]
+            a = x["argv"]
+            self.assertEqual(a[a.index("--source") + 1], e["address"])
+            self.assertEqual(a[a.index("--seed") + 1], str(e["client_seed"]))
+            self.assertEqual(json.loads(a[a.index("--params") + 1]), e["params"])
+            self.assertEqual(float(a[a.index("--duration") + 1]), round(e["schedule"]["stop_s"] - e["schedule"]["start_s"], 1))
+            self.assertEqual(a[a.index("--family") + 1] if e["role"] == "attack" else a[a.index("--kind") + 1], e["kind_or_family"])
+        starts = [x["start_s"] for x in run["launches"]]
+        self.assertEqual(starts, sorted(starts))
+
+    def test_frozen_items_are_checked_by_sha256_before_a_campaign(self):
+        for why, change in (("the selection's sha256", {"selection_sha256": "0" * 64}),
+                            ("the rules' sha256", {"rules_sha256": "0" * 64}),
+                            ("no selection", {"selection": None}),
+                            ("no knees", {"knees": None})):
+            with self.subTest(why), self.assertRaises(R.PlanError):
+                thin({**self.frozen, **change}, self.root)
+        self.assertEqual(self.block["frozen"]["selection"]["sha256"], self.frozen["selection_sha256"])
+        self.assertEqual(self.block["frozen"]["rules"]["sha256"], self.frozen["rules_sha256"])
+        self.assertEqual(self.block["frozen"]["calibration"]["status"], "frozen")
+
+    def test_a_campaign_refuses_a_placeholder_record_and_unclaimed_selections(self):
+        d = tempfile.mkdtemp(dir=self.tmp.name)
+        placeholder = F.frozen_inputs(os.path.join(d, "a"), record_status="placeholder")
+        with self.assertRaises(R.PlanError):
+            thin(placeholder, self.root)
+        unclaimed = F.frozen_inputs(os.path.join(d, "b"), valid=False)
+        with self.assertRaisesRegex(R.PlanError, "valid for claims"):
+            thin(unclaimed, self.root)
+
+    def test_the_rule_selection_must_come_from_the_record_in_use(self):
+        other = F.frozen_inputs(os.path.join(tempfile.mkdtemp(dir=self.tmp.name), "a"))
+        with open(other["rules"], encoding="utf-8") as fh:
+            sel = json.load(fh)
+        sel["calibration"]["sha256"] = "f" * 64
+        with open(other["rules"], "w", encoding="utf-8") as fh:
+            json.dump(sel, fh)
+        other["rules_sha256"] = R.sha256_file(other["rules"])
+        with self.assertRaisesRegex(R.PlanError, "another calibration record"):
+            thin(other, self.root)
+
+    def test_smoke_and_ladder_take_named_runs_on_pilot_seeds(self):
+        block = R.plan_block("ladder", 9001, self.root, frozen=self.frozen, levels={"C2": 2.0}, runs=["C", "U_C2"],
+                             label="C2_L2_r1", benign_specs=F.thin_benign(), max_sources=3)
+        self.assertEqual(sorted(block["order"]), ["C", "U_C2"])
+        self.assertIn("b9001_a1_C2_L2_r1", block["dir"])
+        with self.assertRaises(R.PlanError):
+            R.plan_block("ladder", 3001, self.root, frozen=self.frozen, levels={"C2": 2.0}, runs=["C", "U_C2"])
+
+    def test_the_plan_mode_starts_nothing(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = R.main(["--phase", "ladder", "--seed", "9001", "--class", "C3b", "--level", "50", "--plan",
+                           "--calibration", self.frozen["calibration"], "--root", self.root])
+        self.assertEqual(code, 0)
+        self.assertIn("run U_C3b", out.getvalue())
+        self.assertFalse(os.path.exists(os.path.join(self.root, "ladder")))
+
+    def test_vm_time_as_built(self):
+        self.assertAlmostEqual(R.vm_minutes(13), 13 * 3.75)
+        self.assertAlmostEqual(10 * R.vm_minutes(13) / 60.0, 8.125)
+
+
+class ConfTest(Base):
+    def render(self, arm):
+        return R.render_conf({**R.ARM_TABLE[arm]}, "/var/tmp/p1/run", "/var/tmp/p1/run/l7v2_deny")
+
+    def test_u_runs_log_every_field_to_their_own_sink_with_no_limits(self):
+        text = self.render("U")
+        self.assertIn("access_log /var/tmp/p1/run/access.log l7json;", text)
+        self.assertIn('"sid_set":"$upstream_cookie_sid"', text)
+        self.assertNotIn("limit_req zone", text)
+        self.assertNotIn("$l7_deny", text)
+        self.assertIn("access_log /var/tmp/p1/run/ddos_ml_access.log json_ml_format;", text)
+        self.assertNotIn("/var/log/nginx/ddos_ml_access.log", text, "no daemon, no feed")
+
+    def test_an_enforcing_arm_has_the_deny_map_the_socket_tolerant_limits_and_the_feed(self):
+        text = self.render("view_gru")
+        self.assertIn("include /var/tmp/p1/run/l7v2_deny/deny.map;", text)
+        self.assertIn("if ($l7_deny) {", text)
+        self.assertIn(f"access_log syslog:server=unix:{R.SOCKET_PATH},nohostname,tag=l7 l7json;", text)
+        self.assertIn("access_log /var/tmp/p1/run/access.log l7json;", text)
+        self.assertIn("rate=82r/s", text)
+        self.assertIn("burst=133 nodelay", text)
+        self.assertIn("access_log /var/log/nginx/ddos_ml_access.log json_ml_format;", text)
+
+    def test_the_status_quo_has_the_deployed_limits_and_no_arm(self):
+        text = self.render("default_rules")
+        self.assertIn("rate=30r/s", text)
+        self.assertIn("burst=100 nodelay", text)
+        self.assertNotIn("$l7_deny", text)
+        self.assertNotIn("syslog:server", text)
+        self.assertIn("access_log /var/tmp/p1/run/access.log l7json;", text)
+
+    def test_r_star_asks_for_its_key_map_once_t025e_is_merged(self):
+        seen = {}
+
+        def protected(text, run_dir, key_map=False):
+            seen["key_map"] = key_map
+            return text
+
+        self.assertEqual(R.ARM_TABLE["R*"]["conf_kw"], {"key_map": True})
+        with mock.patch.object(l7_conf, "protected", protected):
+            self.assertIsNone(R.rstar_pending())
+            self.render("R*")
+        self.assertEqual(seen, {"key_map": True})
+
+    def test_the_tracked_confs_are_only_read(self):
+        before = {n: R.sha256_file(os.path.join(REPO, n)) for n in ("nginx.conf", "nginx_unprotected.conf")}
+        for arm in ("U", "default_rules", "view_gru", "R*"):
+            self.render(arm)
+        self.assertEqual(before, {n: R.sha256_file(os.path.join(REPO, n)) for n in before})
+
+
+class ExecuteTest(Base):
+    def block(self, runs=("C", "U_C2", "M_gru_C2", "M_default_rules_C3b"), levels=None, **kw):
+        return R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels=levels or {"C2": 1.0, "C3b": 50}, runs=list(runs),
+                            benign_specs=F.thin_benign(), max_sources=3, **kw)
+
+    def test_a_block_writes_the_harm_contract_and_a_valid_index(self):
+        host = F.P1FakeHost()
+        block = self.block()
+        results = R.run_block(host, block)
+        self.assertTrue(all(res["ok"] for _n, res in results), results)
+        meta = read_json(os.path.join(block["dir"], "block.json"))
+        for key in ("block", "attempt", "seed", "calibration_sha256", "timeline", "order", "frozen"):
+            self.assertIn(key, meta)
+        self.assertEqual(meta["timeline"], {"baseline_s": 30, "attack_s": 120, "recovery_s": 30})
+        lines = index(self.root)
+        self.assertEqual([x["run"] for x in lines], block["order"])
+        for run in block["runs"]:
+            d = run["out"]
+            self.assertTrue(os.path.isfile(os.path.join(d, "access.log.gz")), d)
+            self.assertFalse(os.path.exists(os.path.join(d, "access.log")))
+            rj = read_json(os.path.join(d, "run.json"))
+            self.assertEqual((rj["role"], rj["class"], rj["checks"]["ok"]), (run["role"], run["class"], True))
+            self.assertEqual(rj["provenance"]["pins"], R.PINS)
+            self.assertEqual(rj["provenance"]["frozen"]["calibration"]["status"], "frozen")
+            self.assertIn("eval/p1_runner.py", rj["provenance"]["files_sha256"])
+            m = read_json(os.path.join(d, l7_dataset.MANIFEST_FILE))
+            self.assertEqual(m["format"], l7_dataset.DATASET_FORMAT_V3)
+            self.assertIsNotNone(l7_dataset.time_origin(m))
+            self.assertEqual(set(m["ip_map"]), {e["address"] for e in m["entities"]})
+
+    def test_the_deny_directory_and_the_conf_are_the_runs_own(self):
+        host = F.P1FakeHost()
+        block = self.block(runs=("M_gru_C2",))
+        R.run_block(host, block)
+        run = block["runs"][0]
+        deny = run["nginx"]["deny_dir"]
+        self.assertTrue(os.path.isfile(os.path.join(deny, "deny.map")))
+        self.assertEqual(os.stat(deny).st_mode & 0o777, 0o700)
+        with open(run["nginx"]["conf_path"], encoding="utf-8") as fh:
+            self.assertIn(f"include {deny}/deny.map;", fh.read())
+        self.assertEqual(host.kinds()["daemon"], 1)
+
+    def test_u_and_controls_have_no_daemon(self):
+        host = F.P1FakeHost()
+        R.run_block(host, self.block(runs=("C", "Cp", "U_C2")))
+        self.assertEqual(host.kinds().get("daemon", 0), 0)
+
+    def test_an_attempt_is_never_overwritten(self):
+        host = F.P1FakeHost()
+        R.run_block(host, self.block(runs=("C",)))
+        with self.assertRaises(R.PlanError):
+            R.run_block(host, self.block(runs=("C",)))
+        R.run_block(host, self.block(runs=("C",), attempt=2))
+        self.assertEqual([x["attempt"] for x in index(self.root)], [1, 2])
+
+    def invalid(self, host, runs=("M_gru_C2",), **kw):
+        block = self.block(runs=runs, **kw)
+        ((_n, res),) = R.run_block(host, block)
+        self.assertFalse(res["ok"])
+        self.assertEqual(index(self.root)[-1]["reasons"], res["reasons"])
+        return " | ".join(res["reasons"])
+
+    def test_refusals_before_the_traffic(self):
+        self.assertIn("not root", self.invalid(F.P1FakeHost(root=False)))
+        self.root = tempfile.mkdtemp(dir=self.tmp.name)
+        self.assertIn("leftover", self.invalid(F.P1FakeHost(netns=["p1n0_perfect"])))
+        self.root = tempfile.mkdtemp(dir=self.tmp.name)
+        self.assertIn("kill file", self.invalid(F.P1FakeHost(kill_file=True)))
+
+    def test_checks_of_a_run_that_ran(self):
+        cases = (("stack", {"stack_ready": False}, "did not answer"),
+                 ("nginx", {"nginx_fails": True}, "nginx did not start"),
+                 ("dies", {"daemon_dies_at": 100.0}, "the daemon exited"),
+                 ("late kill", {"kill_appears_at": 60.0}, "the kill file appeared"),
+                 ("not armed", {"armed": False}, "not armed"),
+                 ("lying start", {"start_overrides": {"heuristic_profile": "default"}}, "start event"),
+                 ("silence", {"quiet_from": 60.0}, "silence"))
+        for why, kw, want in cases:
+            with self.subTest(why):
+                self.root = tempfile.mkdtemp(dir=self.tmp.name)
+                self.assertIn(want, self.invalid(F.P1FakeHost(**kw)))
+
+    def test_a_generator_that_fails_invalidates_the_run(self):
+        probe = self.block(runs=("U_C2",))
+        ip = next(e["address"] for e in probe["runs"][0]["entities"] if e["role"] == "attack")
+        self.root = tempfile.mkdtemp(dir=self.tmp.name)
+        self.assertIn("exited with code", self.invalid(F.P1FakeHost(gen_fails=[ip]), runs=("U_C2",)))
+
+    def test_r_star_is_refused_on_a_real_host_until_t025e_is_merged(self):
+        pending = R.rstar_pending()
+        block = self.block(runs=("M_rstar_C2",))
+        self.assertEqual(block["runs"][0]["pending"], pending)
+        if pending:
+            host = F.P1FakeHost()
+            host.simulated = False
+            ((_n, res),) = R.run_block(host, block)
+            self.assertFalse(res["ok"])
+            self.assertIn("T-025e", res["reasons"][0])
+            self.assertEqual(host.kinds().get("server", 0), 0, "nothing was started")
+
+    def test_the_ban_parser_counts_the_arms_engine(self):
+        self.assertIn(ban_events.L7V2_ENGINE, R.BAN_ENGINES)
+        self.assertLessEqual(set(ban_events.ENGINES), set(R.BAN_ENGINES))
+        events = [{"kind": "ban", "engine": ban_events.L7V2_ENGINE, "ip": "10.0.16.1"}, {"kind": "ban", "engine": "l7_rate", "ip": "a"},
+                  {"kind": "l7_deny", "ip": "b"}, {"kind": "ban", "engine": "new_engine", "ip": "c"}]
+        got = R.run_bans(events)
+        self.assertEqual({k: len(v) for k, v in got.items()}, {"l7v2": 1, "l7_rate": 1, "new_engine": 1})
+
+    def test_the_command_line_runs_a_block_on_the_fake(self):
+        orig = R.PT.build_block
+
+        def thinned(*a, **kw):
+            return orig(*a, **{**kw, "benign_specs": F.thin_benign(), "max_sources": 2})
+        with mock.patch.object(R.PT, "build_block", side_effect=thinned):
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = R.main(["--phase", "ladder", "--seed", "9001", "--class", "C2", "--level", "1",
+                               "--calibration", self.frozen["calibration"], "--root", self.root], host=F.P1FakeHost())
+        self.assertEqual(code, 0, out.getvalue())
+        self.assertEqual({x["run"] for x in index(self.root)}, {"C", "U_C2"})
+        self.assertEqual(index(self.root)[0]["label"], "C2_L1_r1")
+
+
+if __name__ == "__main__":
+    unittest.main()
