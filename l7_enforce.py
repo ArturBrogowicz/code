@@ -8,7 +8,10 @@ never bans. The shadow thread also shows the arm every request it ingests (Arm.o
 (l7_denymap.RawKeys), the UA and sid hashes per IP (IpKeys) and whether a denied key keeps sending.
 
 R* (T-025e) decides on (IP, UA) keys (l7_rule_engine.L7RuleEngine, level "rule"): attach() sets the arm's key level, and
-everything below applies to the key (IP, ua_h) as it does to a learned arm's (IP, ua_h, sid_h).
+everything below applies to the key (IP, ua_h) as it does to a learned arm's (IP, ua_h, sid_h). Its level 1 is a line in
+deny_key.map, which covers every session of the key, and so every user behind it, on any address: D-043 charges a flagged
+(IP, UA) key every user behind it, and D-040's guard, which is about a sid-less line of a key at the session level, does
+not apply. Its level 2 is guarded as below.
 
 The decision policy (9.1, 9.2), for a would-ban of the key (IP, ua_h, sid_h):
   * no decision at all on an address that is not a canonical dotted-quad IPv4 address (l7_denymap.ip_problem; skip
@@ -54,6 +57,7 @@ Standard library only, like l7_ingest and l7_denymap; everything that touches ng
 so the tests use fakes.
 """
 import ipaddress
+import os
 import re
 import threading
 import time
@@ -197,6 +201,8 @@ class Arm:
             why = "no model: the engine runs features-only"
         elif why is None and info["level"] not in ("view", "rule"):
             why = "a request-level engine keys by (IP, UA); the deny map needs (IP, UA, sid) keys"
+        elif why is None and (info["level"] == "rule") != self.denies.key_level:
+            why = f"a {info['level']}-level engine with a map of the other level ({self.denies.path})"
         if info["level"] == "rule":
             info["rule"] = getattr(scorer, "rule_name", None)
         with self.lock:
@@ -242,11 +248,17 @@ class Arm:
             self._start(self.clock() if now is None else now)
 
     def _start(self, now):
-        try:
-            with open(self.denies.path, "rb") as fh:
-                stale = fh.read().count(b"\n")
-        except OSError:
-            stale = 0
+        stale = 0
+        for name in l7_denymap.MAP_FILES:            # either map, whichever arm's daemon left it
+            path = os.path.join(self.denies.run_dir, name)
+            try:
+                with open(path, "rb") as fh:
+                    lines = fh.read().count(b"\n")
+            except OSError:
+                continue
+            stale += lines
+            if lines and path != self.denies.path:
+                l7_denymap.write_atomic(path, b"")
         if stale:
             self.denies.dirty, self.changes = True, stale
             self._publish(now)                    # the first reload of this daemon: not held back
@@ -373,9 +385,7 @@ class Arm:
         with self.lock:
             status, ua, sid = self.raw.lookup(key)
         age = round(now - t_first, 3)
-        if self.rule_level and status == "ok":
-            status, ua = "unenforceable", "no_key_map"           # level 1 needs the (IP, UA) map, not built yet
-        if status == "ok" and not sid:
+        if status == "ok" and not sid and not self.rule_level:
             with self.lock:
                 counts = self.ips.counts(ip, now)
             if shared(counts):
@@ -412,7 +422,10 @@ class Arm:
 
     def _guard_sid_less(self, now):
         """D-040: withdraw the line of a sid-less deny whose address has turned shared. Its keys stay tracked as misses
-        from the time the line took effect, so they may still reach level 2 if the address is single-key again."""
+        from the time the line took effect, so they may still reach level 2 if the address is single-key again. Not R*'s
+        lines, which cover every session of their key on purpose (D-043)."""
+        if self.rule_level:
+            return
         with self.lock:
             stale = [e.ident for e in self.denies if not e.sid and shared(self.ips.counts(e.ip, now))]
         if not stale:

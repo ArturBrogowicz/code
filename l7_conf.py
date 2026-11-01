@@ -11,6 +11,9 @@ calibration record's host block), so it stays as it is, and so does nginx.conf.
     hash sizes the deny map's keys need; in the server block, `if ($l7_deny) { return 429; }`. A server-level `if`
     with `return` runs in the server rewrite phase, before any location and before limit_req, and the 429 is still
     logged, which is how the arm sees that a denied key keeps sending (l7_enforce, level 2).
+  * protected(text, run_dir, key_map=True): the same plus R*'s second map (T-025e), which denies every session of an
+    (IP, UA) key: `map "$remote_addr|$http_user_agent" $l7_deny_key { default 0; include <run_dir>/deny_key.map; }` and
+    `if ($l7_deny_key) { return 429; }`. Without key_map the text is as it was.
 Every insertion point must occur exactly once, or the text is refused (ConfError), as capture_l7.render_l7_sink and
 bench/executor.render_nginx_conf refuse. The `# L7-SYSLOG-SINK` marker is left in place: the runner adds the
 daemon's socket sink with capture_l7.render_l7_sink and the run's log paths with executor.render_nginx_conf, in any
@@ -32,9 +35,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 UNPROTECTED_CONF = os.path.join(HERE, "nginx_unprotected.conf")
 PROTECTED_CONF = os.path.join(HERE, "nginx.conf")
 DENY_FILE = "deny.map"                               # l7_denymap.DENY_FILE
+KEY_DENY_FILE = "deny_key.map"                       # l7_denymap.KEY_DENY_FILE
 DENY_VAR = "$l7_deny"
+KEY_DENY_VAR = "$l7_deny_key"
 DENY_STATUS = 429
 MAP_SOURCE = '"$remote_addr|$http_user_agent|$cookie_sid"'
+KEY_MAP_SOURCE = '"$remote_addr|$http_user_agent"'
 MAP_HASH_BUCKET_SIZE = 1024
 MAP_HASH_MAX_SIZE = 8192
 V2_FIELDS = (("ref", "$http_referer"), ("sid", "$cookie_sid"), ("sid_set", "$upstream_cookie_sid"))
@@ -70,15 +76,16 @@ def unprotected(text):
     return text[:start] + "\n".join(lines) + text[block.start(1) + ua.end():]
 
 
-def deny_map_path(run_dir):
+def deny_map_path(run_dir, name=DENY_FILE):
     """The deny map nginx includes for a run directory (an absolute path of letters, digits and _ . / -)."""
     if not isinstance(run_dir, str) or not RUN_DIR_RE.fullmatch(run_dir) or "/../" in run_dir + "/":
         raise ConfError(f"unusable run directory {run_dir!r}")
-    return f"{run_dir.rstrip('/')}/{DENY_FILE}"
+    return f"{run_dir.rstrip('/')}/{name}"
 
 
-def protected(text, run_dir):
-    """nginx.conf's text with the enforcing arm's deny map (http block) and its 429 (server block)."""
+def protected(text, run_dir, key_map=False):
+    """nginx.conf's text with the enforcing arm's deny map (http block) and its 429 (server block); with key_map, R*'s
+    second map and its 429 as well."""
     path = deny_map_path(run_dir)
     if DENY_VAR in text:
         raise ConfError(f"nginx configuration: {DENY_VAR} is already defined")
@@ -94,9 +101,17 @@ def protected(text, run_dir):
              f"{ind}    default 0;\n"
              f"{ind}    include {path};\n"
              f"{ind}}}\n\n")
+    if key_map:
+        block += (f"{ind}# R*'s level 1 (T-025e): one \"ip|ua\" 1; line per (IP, UA) key, every session of it (l7_denymap.py).\n"
+                  f"{ind}map {KEY_MAP_SOURCE} {KEY_DENY_VAR} {{\n"
+                  f"{ind}    default 0;\n"
+                  f"{ind}    include {deny_map_path(run_dir, KEY_DENY_FILE)};\n"
+                  f"{ind}}}\n\n")
     inner = name.group(1)
     deny = (f"\n\n{inner}# L7 v2 level 1: a denied (IP, UA, sid) key, before any location and limit\n"
             f"{inner}if ({DENY_VAR}) {{\n{inner}    return {DENY_STATUS};\n{inner}}}")
+    if key_map:
+        deny += f"\n{inner}if ({KEY_DENY_VAR}) {{\n{inner}    return {DENY_STATUS};\n{inner}}}"
     out = text[:name.end()] + deny + text[name.end():]
     return out[:server.start()] + block + out[server.start():]
 
@@ -106,6 +121,7 @@ def read(path):
         return fh.read()
 
 
-def run_confs(run_dir):
+def run_confs(run_dir, key_map=False):
     """{"unprotected": text, "protected": text}: the run's copies of the two tracked confs (read, never written)."""
-    return {"unprotected": unprotected(read(UNPROTECTED_CONF)), "protected": protected(read(PROTECTED_CONF), run_dir)}
+    return {"unprotected": unprotected(read(UNPROTECTED_CONF)),
+            "protected": protected(read(PROTECTED_CONF), run_dir, key_map)}

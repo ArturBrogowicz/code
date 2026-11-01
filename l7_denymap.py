@@ -36,6 +36,11 @@ https://nginx.org/en/docs/http/ngx_http_map_module.html, and the source where th
     src/core/ngx_hash.c:248-288), and the default bucket size is one cache line (32|64|128, the page). The longest key
     written here is 15 + 1 + 256 + 1 + 32 = 305 bytes, so the rendered conf sets the bucket size (l7_conf.py).
 
+R*'s map (T-025e; docs/L7V2_DESIGN.md 19, r_star_live). A rule decides on an (IP, UA) key, so its level-1 deny must cover
+every session of that key. It has its own file, deny_key.map (KEY_DENY_FILE), one line `"<ip>|<ua>" 1;` per key, which a
+run's conf maps from "$remote_addr|$http_user_agent" (l7_conf.protected(..., key_map=True)). The write rules are the
+same, without the sid: DenyMap(run_dir, key_level=True) writes it; the semantics above apply to it unchanged.
+
 The raw side table (RawKeys; T-025b F7). The engine keys on hashes (l7_ingest.key_v2: IP, stable_hash32 of the UA
 and of the session id) and drops the raw strings at ingest; the map needs them. RawKeys keeps, per key, the raw (UA,
 sid) that nginx will compare, in memory only and only for keys that pass the write rules; a key that fails keeps only
@@ -57,6 +62,8 @@ from collections import OrderedDict
 import l7_ingest
 
 DENY_FILE = "deny.map"
+KEY_DENY_FILE = "deny_key.map"  # R*: one (IP, UA) key per line, every session of it
+MAP_FILES = (DENY_FILE, KEY_DENY_FILE)
 MAX_DENIES = 2000              # 9.3: active denies at most
 DENY_TTL_S = 300               # 9.2: like control_plane.BAN_TTL_SECONDS
 MAX_UA_BYTES = 256             # 9.4
@@ -65,6 +72,8 @@ FORBIDDEN_UA_CHARS = frozenset('"\\{}$')    # 9.4 with D-038 (';' allowed); only
 SID_RE = re.compile(r"[0-9a-f]{32}")       # l7_backend.SID_RE
 SEP = "|"
 # what one line of deny.map is, exactly (the tests read the file with this and with a port of nginx's tokenizer)
+KEY_LINE_RE = re.compile(r'"((?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?:\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}'
+                         r'\|[\x20\x21\x23\x25-\x5b\x5d-\x7a\x7c\x7e]*)" 1;')
 LINE_RE = re.compile(r'"((?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])(?:\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}'
                      r'\|[\x20\x21\x23\x25-\x5b\x5d-\x7a\x7c\x7e]*\|(?:[0-9a-f]{32})?)" 1;')
 
@@ -115,6 +124,14 @@ def map_key(ip, ua, sid):
     return f"{ip}{SEP}{ua}{SEP}{sid}"
 
 
+def key_map_key(ip, ua):
+    """The source value nginx computes for R*'s map: "$remote_addr|$http_user_agent"."""
+    problem = key_problem(ip, ua, "")
+    if problem:
+        raise ValueError(f"the key fails the write rules: {problem}")
+    return f"{ip}{SEP}{ua}"
+
+
 def line(key):
     """One line of deny.map."""
     return f'"{key}" 1;\n'
@@ -125,9 +142,9 @@ class Entry:
 
     __slots__ = ("ip", "key", "sid", "t_added", "t_loaded", "ua")
 
-    def __init__(self, ip, ua, sid, t_added):
+    def __init__(self, ip, ua, sid, t_added, key_level=False):
         self.ip, self.ua, self.sid = ip, ua, sid
-        self.key = map_key(ip, ua, sid)
+        self.key = key_map_key(ip, ua) if key_level else map_key(ip, ua, sid)
         self.t_added = t_added
         self.t_loaded = None
 
@@ -136,10 +153,10 @@ class Entry:
         return self.key.lower()
 
 
-def prepare_run_dir(run_dir):
-    """Create the run directory (mode 0700) and an empty deny.map if they are missing, and return the map's path. A run
-    directory the daemon does not own, or one that others may write to, is refused: whoever can write there can write
-    nginx's configuration."""
+def prepare_run_dir(run_dir, key_level=False):
+    """Create the run directory (mode 0700) and an empty deny.map (with key_level also an empty deny_key.map) if they are
+    missing, and return deny.map's path. A run directory the daemon does not own, or one that others may write to, is
+    refused: whoever can write there can write nginx's configuration."""
     if not os.path.lexists(run_dir):
         os.makedirs(run_dir, mode=0o700)
     st = os.lstat(run_dir)
@@ -149,10 +166,11 @@ def prepare_run_dir(run_dir):
         raise ValueError(f"{run_dir}: owned by uid {st.st_uid}, not by this process ({os.geteuid()})")
     if stat.S_IMODE(st.st_mode) & 0o022:
         raise ValueError(f"{run_dir}: writable by group or others (mode {stat.S_IMODE(st.st_mode):o})")
-    path = os.path.join(run_dir, DENY_FILE)
-    if not os.path.lexists(path):
-        write_atomic(path, b"")
-    return path
+    for name in MAP_FILES if key_level else (DENY_FILE,):
+        path = os.path.join(run_dir, name)
+        if not os.path.lexists(path):
+            write_atomic(path, b"")
+    return os.path.join(run_dir, DENY_FILE)
 
 
 def write_atomic(path, data):
@@ -172,11 +190,13 @@ def write_atomic(path, data):
 
 
 class DenyMap:
-    """The active denies of one run and the file nginx includes. Not thread-safe: one thread (the arm's) owns it."""
+    """The active denies of one run and the file nginx includes: deny.map, or with key_level R*'s deny_key.map, whose
+    keys are (IP, UA). Not thread-safe: one thread (the arm's) owns it."""
 
-    def __init__(self, run_dir, ttl=DENY_TTL_S, cap=MAX_DENIES):
+    def __init__(self, run_dir, ttl=DENY_TTL_S, cap=MAX_DENIES, key_level=False):
         self.run_dir = run_dir
-        self.path = os.path.join(run_dir, DENY_FILE)
+        self.key_level = key_level
+        self.path = os.path.join(run_dir, KEY_DENY_FILE if key_level else DENY_FILE)
         self.ttl = ttl
         self.cap = cap
         self._entries = {}             # ident (the lower-cased map key) -> Entry
@@ -194,15 +214,16 @@ class DenyMap:
     def add(self, ip, ua, sid, now):
         """(status, detail): ("added", entry), ("present", the entry that already covers this key, nginx matching
         case-insensitively), ("capped", None) at `cap` active denies, or ("refused", the rule the key fails)."""
+        sid = "" if self.key_level else sid
         problem = key_problem(ip, ua, sid)
         if problem:
             return "refused", problem
-        ident = map_key(ip, ua, sid).lower()
+        ident = (key_map_key(ip, ua) if self.key_level else map_key(ip, ua, sid)).lower()
         if ident in self._entries:
             return "present", self._entries[ident]
         if len(self._entries) >= self.cap:
             return "capped", None
-        entry = Entry(ip, ua, sid, now)
+        entry = Entry(ip, ua, sid, now, self.key_level)
         self._entries[ident] = entry
         self.dirty = True
         return "added", entry

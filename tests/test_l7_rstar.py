@@ -316,6 +316,8 @@ class Section9Case(T.ArmCase):
 
     def setUp(self):
         super().setUp()
+        l7_denymap.prepare_run_dir(self.run_dir, key_level=True)
+        self.arm.denies = l7_denymap.DenyMap(self.run_dir, key_level=True)
         self.arm.attach(RuleEngineFake())
 
 
@@ -356,6 +358,7 @@ class Section9Test(Section9Case):
         self.assertEqual(self.f.read("l7_enforce_skip")[-1]["reason"], "killed")
 
     def test_a_view_arm_keeps_its_three_part_keys(self):
+        self.arm.denies = l7_denymap.DenyMap(self.run_dir)
         self.arm.attach(T.view_engine())
         self.see(start=900.0)
         self.arm.submit(T.would_ban())
