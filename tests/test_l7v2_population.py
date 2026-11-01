@@ -1,14 +1,16 @@
 """The L7 v2 population of the P3 capture plans (ml/l7_pools.py POPULATIONS["l7v2"]; docs/L7V2_DESIGN.md §6, §7.2,
 §7.3; docs/P3_DATASET_DESIGN.md §5). Offline and pure; the admissibility gate is simulated over two seeds."""
+import json
 import os
 import sys
 import tempfile
 import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-for _p in (REPO, os.path.join(REPO, "ml"), os.path.join(REPO, "bench")):
+for _p in (REPO, os.path.join(REPO, "ml"), os.path.join(REPO, "bench"), os.path.join(REPO, "tests")):
     sys.path.insert(0, _p)
 import calibration as CAL
+import calibration_fixtures
 import l7_benign
 import l7_pools as LP
 import p3_prereg
@@ -16,12 +18,20 @@ import p3_prereg
 import l7_backend
 import l7_dataset as D
 
-FROZEN_KNEES = {"status": "frozen", "C2": 4.0}
 GATE = (0, 1)
+# a frozen record with the placeholder's numbers (tests/calibration_fixtures.frozen), so the plans keep their rates;
+# the knees name it (T-030 L7V2-08)
+FROZEN = calibration_fixtures.frozen()
+FROZEN_KNEES = {"status": "frozen", "C2": 4.0, "record_sha256": FROZEN["sha256"]}
+_TMP = tempfile.TemporaryDirectory()
+FROZEN_PATH = os.path.join(_TMP.name, "frozen.json")
+with open(FROZEN_PATH, "w", encoding="utf-8") as _fh:
+    json.dump(FROZEN, _fh)
 
 
-def plan(seed, role, knees=FROZEN_KNEES, **kw):
-    return LP.build_plan("2026-11-v1", seed, role, "l7v2", knees=knees, gate_seeds=GATE, check_role=False, **kw)
+def plan(seed, role, knees=FROZEN_KNEES, record_path=FROZEN_PATH, **kw):
+    return LP.build_plan("2026-11-v1", seed, role, "l7v2", knees=knees, gate_seeds=GATE, check_role=False,
+                         record_path=record_path, **kw)
 
 
 _PLANS = {}
@@ -70,15 +80,35 @@ class TrainingPlanTest(unittest.TestCase):
             with self.subTest(knees=knees), self.assertRaises(LP.PlanError):
                 plan(1001, "train", knees=knees)
 
+    def test_knees_are_bound_to_a_frozen_record(self):
+        # T-030 L7V2-08: the knees name the record they were measured on, and a training, validation or evaluation
+        # plan runs on that record, frozen
+        other = calibration_fixtures.frozen(created="2026-10-25T08:00:00Z")
+        self.assertNotEqual(other["sha256"], FROZEN["sha256"])
+        for role, seed in (("train", 1001), ("val", 2001), ("eval", 3201)):
+            for why, knees, path in (
+                    ("knees of another record", {**FROZEN_KNEES, "record_sha256": other["sha256"]}, FROZEN_PATH),
+                    ("knees that name no record", {"status": "frozen", "C2": 4.0}, FROZEN_PATH),
+                    ("the placeholder record", FROZEN_KNEES, None),
+                    ("the placeholder record, knees bound to it",
+                     {**FROZEN_KNEES, "record_sha256": l7_backend.load_record()[0]["sha256"]}, None)):
+                with self.subTest(role=role, why=why), self.assertRaises(LP.PlanError):
+                    plan(seed, role, knees=knees, record_path=path)
+        with self.assertRaisesRegex(LP.PlanError, "measured on the calibration record"):
+            plan(9201, "pilot", knees={**FROZEN_KNEES, "record_sha256": other["sha256"]}, record_path=None)
+        self.assertEqual(plan(9201, "pilot", knees=FROZEN_KNEES)["intensity"]["knees"], FROZEN_KNEES)
+
     def test_c2_rate_follows_its_rule_on_the_record_in_use(self):
         p = Cache.get(1001, "train")
-        rec, _, _ = l7_backend.load_record()
+        rec, _, _ = l7_backend.load_record(FROZEN_PATH)
         s = CAL.spare_capacity(rec)
         ph = next(x for x in p["timeline"]["phases"] if x["name"] == "C2")
         for e in (e for e in p["entities"] if e["kind_or_family"] == "C2"):
             self.assertAlmostEqual(e["params"]["rps"], ph["intensity"] * 4.0 * s / (50 * 0.030), places=3)
             self.assertIn(e["params"]["ua"], [ua for _, ua in l7_benign.UA_TABLE])
-        self.assertEqual((p["intensity"]["record_status"], p["intensity"]["label"]), ("placeholder", "PLACEHOLDER"))
+        self.assertEqual((p["intensity"]["record_status"], p["intensity"]["label"]), ("frozen", "frozen"))
+        self.assertEqual(CAL.spare_capacity(rec), CAL.spare_capacity(l7_backend.load_record()[0]),
+                         "the fixture keeps the placeholder's numbers")
 
     def test_c3b_aims_at_export(self):
         p = Cache.get(1001, "train")
@@ -98,16 +128,18 @@ class TrainingPlanTest(unittest.TestCase):
 class EvaluationPlanTest(unittest.TestCase):
     def test_the_eval_slot_and_the_reused_addresses(self):
         p = Cache.get(3201, "eval")
-        self.assertEqual(p["duration_s"], 1020.0)
+        self.assertEqual(p["duration_s"], 1140.0, "D-034: the 120 s benign tail follows the M3 slot")
         slot = p["timeline"]["phases"][-1]
         self.assertEqual((slot["name"], slot["start_s"], slot["stop_s"]), ("C3b@M3", 780.0, 1020.0))
         self.assertEqual(p["schema"], 3)
         ents = {e["entity_id"]: e for e in p["entities"]}
         m3 = [e for e in p["entities"] if e["kind_or_family"] == "C3b@M3"]
-        c2 = {e["address"]: e for e in p["entities"] if e["kind_or_family"] == "C2"}
+        trained = {e["address"]: e for e in p["entities"] if e["role"] == "attack" and not e["held_out"]}
         self.assertEqual(len(m3), 50)
+        self.assertEqual(len({e["address"] for e in m3}), 50, "D-034: no two M3 bots share a donor")
+        self.assertGreater(sum(trained[e["address"]]["kind_or_family"] == "C2" for e in m3), 0, "C2 donors first")
         for e in m3:
-            donor = c2[e["address"]]
+            donor = trained[e["address"]]
             self.assertTrue(e["held_out"])
             self.assertEqual((e["namespace"], e["netem"]), (donor["namespace"], donor["netem"]))
             self.assertNotEqual(e["params"]["ua"], donor["params"]["ua"], "a new UA on a reused address")
@@ -143,9 +175,10 @@ class EvaluationPlanTest(unittest.TestCase):
         self.assertEqual(set(p["pool"]["role_map"]), {e["address"] for e in p["entities"]})
 
     def test_a_pilot_plan_uses_the_placeholder_knee_and_says_so(self):
-        p = plan(9201, "pilot", knees=None)
+        p = plan(9201, "pilot", knees=None, record_path=None)
         self.assertEqual(p["intensity"]["knees"], {"status": "placeholder", "C2": 1.0})
-        self.assertEqual(p["duration_s"], 1020.0)
+        self.assertEqual(p["intensity"]["record_status"], "placeholder")
+        self.assertEqual(p["duration_s"], 1140.0)
 
 
 class HeldOutNamesTest(unittest.TestCase):
@@ -211,9 +244,60 @@ class KeyAgeTest(unittest.TestCase):
                  "schedule": {"start_s": 0.3 * k, "stop_s": 900.0}} for k in range(90)]
         rows += [{"kind_or_family": "C2", "role": "attack", "held_out": False,
                   "schedule": {"start_s": s + 0.2 * k, "stop_s": s + 240.0}} for s in (60.0, 300.0, 540.0) for k in range(50)]
-        a = LP.age_check(rows, self.RULE)
+        first_seen_rule = {k: self.RULE[k] for k in ("ks_max", "auc_band", "held_out_ks_max")}
+        a = LP.age_check(rows, first_seen_rule)
         self.assertFalse(a["pass"])
         self.assertGreater(a["ks"], 0.9)
+
+    def test_the_extended_check_passes_every_plan_d034(self):
+        for p in self.plans:
+            a = p["age_check"]
+            self.assertLessEqual(a["lifetime_ks"], self.RULE["lifetime_ks_max"], p["seed"])
+            self.assertLessEqual(abs(a["lifetime_auc"] - 0.5), self.RULE["lifetime_auc_band"], p["seed"])
+            self.assertLessEqual(abs(a["window_age_auc"] - 0.5), self.RULE["window_age_auc_band"], p["seed"])
+            self.assertTrue({"C2", "C3a", "C3b@M2"} <= set(a["window_age_auc_by_family"]), p["seed"])
+            for fam, v in a["window_age_auc_by_family"].items():
+                self.assertLessEqual(abs(v - 0.5), self.RULE["window_age_auc_band"], (p["seed"], fam))
+            if p["seed_role"] in ("eval", "pilot"):
+                self.assertIn("C3b@M3", a["window_age_auc_by_family"], "held-out families are checked too")
+                self.assertLessEqual(a["held_out_lifetime_ks"], self.RULE["held_out_lifetime_ks_max"])
+
+    def test_the_lifetimes_of_t038_fail_the_extended_check(self):
+        # T038-01's plans: benign keys to the capture's end, attack keys inside their slot (window-age AUC ~0.88)
+        import copy
+        rows = copy.deepcopy(Cache.get(1001, "train")["entities"])
+        stops = {ph["name"]: ph["stop_s"] for ph in Cache.get(1001, "train")["timeline"]["phases"]}
+        for e in rows:
+            e["params"].pop("sessions", None)
+            e["schedule"]["stop_s"] = stops[e["schedule"]["phase"]] if e["role"] == "attack" else 900.0
+        a = LP.age_check(rows, self.RULE)
+        self.assertFalse(a["pass"])
+        self.assertGreater(abs(a["window_age_auc"] - 0.5), 0.3, a)
+        self.assertTrue(a["ks"] <= self.RULE["ks_max"], "the first-seen check alone passed them")
+
+    def test_lifetimes_d034(self):
+        import l7v2_prereg
+        law = l7v2_prereg.load()["arrivals"]["lifetimes"]["law"]
+        p = Cache.get(1001, "train")
+        slots = {ph["name"]: ph for ph in p["timeline"]["phases"]}
+        attack = [e for e in p["entities"] if e["role"] == "attack"]
+        for e in attack:
+            s = e["schedule"]
+            self.assertLessEqual(s["stop_s"] - s["start_s"], law["hi"] + 1e-6)
+            self.assertTrue(s["stop_s"] - s["start_s"] >= law["lo"] - 1e-6 or s["stop_s"] == p["duration_s"])
+        past = [e for e in attack if e["schedule"]["stop_s"] > slots[e["schedule"]["phase"]]["stop_s"] + 60.0]
+        self.assertGreater(len(past) / len(attack), 0.25, "a share of the attack keys stays active past its slot")
+        ben = [e for e in p["entities"] if e["role"] == "benign"]
+        sess = [e for e in ben if e["params"].get("sessions")]
+        self.assertEqual({e["kind_or_family"] for e in sess},
+                         {"tpcw_browsing", "cgnat_browsers", "search_user", "exporter"})
+        for e in ben:
+            if e not in sess:                              # machine clients and P5 kinds: one lifetime
+                self.assertLessEqual(e["schedule"]["stop_s"] - e["schedule"]["start_s"], law["hi"] + 1e-6)
+            else:
+                self.assertEqual(e["schedule"]["stop_s"], p["duration_s"])
+        units = LP.key_units(p["entities"])
+        self.assertGreater(len([u for u in units if u[0] == "benign"]), 2 * 87, "sessions: a returning user is a new key")
 
 
 class SmokeUnchangedTest(unittest.TestCase):

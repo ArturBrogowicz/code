@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(REPO, "ml"))
 import l7v2_model_prereg as P
 import p3_prereg
 
-PREREG_SHA256 = "ea8a24c60616e82f147a3cf6f6e3adf69042f91fd50f0a97b12e0dbbcb570372"
+PREREG_SHA256 = "b023005c676e5f1ed2c6e8fa88408f22ba99114cde225045670673a49c53fd38"
 
 
 class FrozenFileTest(unittest.TestCase):
@@ -39,8 +39,11 @@ class FrozenFileTest(unittest.TestCase):
         rl = P.load()["request_level"]
         self.assertEqual(rl["nav_features"], ["is_page", "is_asset", "is_costly", "asset_refetch", "page_revisit",
                                               "ref_present", "ref_known", "log_page_gap"])
-        self.assertEqual(rl["groups"], ["timing", "completion", "status", "method", "size", "connection", "uri",
+        self.assertEqual(rl["groups"], ["timing", "completion", "status", "method", "connection", "uri",
                                         "ratelimit", "nav"])
+        self.assertNotIn("size", rl["groups"], "T038-03, re-registered under D-034: the ablation reads no sizes")
+        self.assertTrue(rl["groups_label"].startswith("re-registered 2026-10-31 under D-034"))
+        self.assertIn("post hoc but before any capture", rl["groups_label"])
         self.assertEqual((rl["seq_len"], rl["stride"], rl["min_events"], rl["page_gap_clip_s"]), (64, 3, 5, 3600.0))
 
     def test_views(self):
@@ -59,11 +62,44 @@ class FrozenFileTest(unittest.TestCase):
                                          "epochs": 25, "lr": 0.001, "batch": 128})
         self.assertEqual(m["request_gru"], {"level": "request", "hidden": 64, "layers": 2, "dropout": 0.2,
                                             "epochs": 25, "lr": 0.001, "batch": 128})
-        self.assertEqual(m["hgb"], {"input": "token summaries", "max_iter": 200})
+        self.assertEqual(m["hgb"], {"input": "token summaries", "max_iter": 200, "class_weight": "balanced",
+                                    "early_stopping": False})
         self.assertEqual(m["lr"], {"input": "token summaries", "scaler": "standard", "max_iter": 3000,
                                    "class_weight": "balanced"})
         self.assertEqual(m["gru_shuffled"]["shuffle_seed"], 7)
         self.assertEqual((m["fit_seed"], m["threads_max"]), (0, 2))
+
+    def test_the_d034_re_registrations(self):
+        # T038-04 (one tuning rule), T038-05 (the shuffled variants' units), T038-06 (the engine's windows), each
+        # re-registered 2026-10-31 under D-034 before any capture
+        pre = P.load()
+        m, s = pre["models"], pre["selection"]
+        self.assertIn("fixed epochs", m["training"])
+        self.assertIn("the last epoch's weights kept", m["training"])
+        self.assertIn("class_weight 'balanced'", m["training"])
+        self.assertTrue(m["training_label"].startswith("re-registered 2026-10-31 under D-034, before any capture"))
+        self.assertIn("first valid token in place", m["gru_shuffled"]["pin_first"])
+        self.assertIn("beside every gap", m["gru_shuffled"]["report"])
+        self.assertIn("newest engine.max_new_windows_per_key_per_poll", s["policy_engine"])
+        self.assertEqual(s["policy_engine_poll_s"], 1.0)
+        self.assertTrue(s["policy_engine_label"].startswith("re-registered 2026-10-31 under D-034, before any capture"))
+
+    def test_the_age_only_baseline_d034(self):
+        b = P.load()["baselines"]["age_only"]
+        self.assertTrue(b["label"].startswith("registered 2026-10-31 under D-034"))
+        self.assertEqual(b["auc_band"], 0.15)
+        self.assertIn("time since the key's first view", b["score"])
+        self.assertIn("within 0.5 +- auc_band", b["reading"])
+        self.assertIn("age-confounded", b["reading"])
+        self.assertNotIn("age_only", P.ARMS, "a diagnostic, never a selected arm")
+
+    def test_the_load_split_d034(self):
+        ls = P.load()["load_split"]
+        self.assertIn("descriptive, never a gate", ls["label"])
+        self.assertIn("timeline.t0_wall", ls["phase_rule"])
+        self.assertIn("inside and outside the attack phases", ls["benign"])
+        self.assertIn("intensity multiplier", ls["recall_by_load"])
+        self.assertIn("pipeline-invariance check", ls["why"])
 
     def test_the_epochs_and_sizes_match_the_p3_curves(self):
         lc = p3_prereg.load()["learning_curve"]

@@ -61,9 +61,9 @@ FEATURE_GROUPS = {
 }
 DEFAULT_GROUPS = ("timing", "server_timing", "completion", "status", "method", "size",
                   "connection", "uri", "ratelimit")
-# L7 v2 per-request groups (design 8.2): the P5 defaults without server_timing (R17), plus nav.
-V2_REQUEST_GROUPS = ("timing", "completion", "status", "method", "size", "connection", "uri",
-                     "ratelimit", "nav")
+# L7 v2 per-request groups (design 8.2): the P5 defaults without server_timing (R17) and without size (re-registered
+# 2026-10-31 under D-034, T038-03: as P5c's no_size_no_server_timing; no view arm sees sizes), plus nav.
+V2_REQUEST_GROUPS = ("timing", "completion", "status", "method", "connection", "uri", "ratelimit", "nav")
 ALL_FEATURES = tuple(f for feats in FEATURE_GROUPS.values() for f in feats)
 _IDX = {name: i for i, name in enumerate(ALL_FEATURES)}
 

@@ -20,6 +20,9 @@ The arms, on identical keys (l7_ingest.key_v2) and, for the view-level arms, ide
   hgb, lr       HistGradientBoosting and a standardised, class-balanced logistic regression on the token summaries
   request_gru   the per-request GRU over the last 64 requests (V2_REQUEST_GROUPS): the offline ablation
   gru_shuffled  the fitted view GRU scoring windows whose tokens are shuffled; it takes the view GRU's (theta, k)
+and, beside them, the age-only baseline (registered 2026-10-31 under D-034, T038-01; ml/l7v2_model_prereg.json
+baselines.age_only): the key-level time since the key's first view as the score, through the same operating-point
+rules; a diagnostic whose validation AUC must stay near chance, never selected or run live.
 
 Selection (design 10): an arm passes the v2 probe gate (l7_probes.GATE_PROBES_V2, on validation records) or gets no
 operating point. Its (theta, k) is the grid point with the highest attack-entity recall over the validation captures
@@ -112,17 +115,19 @@ def _by_key(recs):
     return groups
 
 
-def _window(seq, r_last, X, t, n, key):
+def _window(seq, r_last, X, t, n, key, age=None, level="request"):
     r0 = seq[0]
     return {"X": X, "y": 1 if r0["_cls"] == D.ATTACK else 0, "ip": r0["_ent"], "key": key, "t": t, "n": n,
             "cls": r0["_cls"], "family": r0["_family"], "held": r0["_held"], "kof": r0.get("_kof"),
-            "capture": r0["_cap"], "recs": seq}
+            "capture": r0["_cap"], "recs": seq, "age": age, "level": level}
 
 
 def view_windows(recs, max_views=F.MAX_VIEWS, min_views=F.MIN_VIEWS, idle_s=None):
     """One window per completed token of each (IP, UA, sid) key and session, once the key has >= min_views complete
     tokens: the last max_views complete tokens plus the request that completed the last one (its opener), encoded with
-    l7_features.token_matrix. t is that request's completion (msec): when the engine could score the window."""
+    l7_features.token_matrix. t is that request's completion (msec): when the engine could score the window. age is
+    the key-level time since the key session's first view: the start of that request minus the start of the session's
+    first token (the age-only baseline's input, D-034)."""
     idle_s = PRE.load()["ingest"]["idle_timeout_s"] if idle_s is None else idle_s
     out = []
     for key, seq in _by_key(recs).items():
@@ -131,7 +136,8 @@ def view_windows(recs, max_views=F.MAX_VIEWS, min_views=F.MIN_VIEWS, idle_s=None
             for j in range(min_views, len(opens)):
                 window = sess[opens[max(0, j - max_views)]:opens[j] + 1]
                 out.append(_window(window, sess[opens[j]], F.token_matrix(window, max_views),
-                                   sess[opens[j]]["msec"], min(j, max_views), key))
+                                   sess[opens[j]]["msec"], min(j, max_views), key,
+                                   F.start_time(sess[opens[j]]) - F.start_time(sess[opens[0]]), "view"))
     return out
 
 
@@ -173,7 +179,9 @@ class Split:
         rl = pre["request_level"]
         self.cols_req = F.columns(tuple(rl["groups"]))
         self.view, self.req, self.attack, self.units, self.first, self.kind = [], [], set(), {}, {}, {}
+        self.phases, self.load = {}, {}
         for m, recs, cap in loaded:
+            self._timeline(m, cap)
             if view:
                 self.view += view_windows(recs, pre["views"]["max_views"], pre["views"]["min_views"])
             if request:
@@ -186,6 +194,26 @@ class Split:
                 s = F.start_time(r)
                 self.first[e] = min(self.first.get(e, math.inf), s)
                 self.kind.setdefault(e, r.get("_kof") or r.get("_family"))
+
+
+    def _timeline(self, m, cap):
+        """The capture's attack phases [(start, stop) in wall-clock seconds] and each attack entity's load level (the
+        intensity multiplier the plan records for its schedule's phase), for the descriptive load split (D-034)."""
+        t0, tl = D.time_origin(m), m.get("timeline")
+        if t0 is None or not isinstance(tl, dict):
+            return
+        phases = tl.get("phases") or []
+        self.phases[cap] = [(t0 + ph["start_s"], t0 + ph["stop_s"]) for ph in phases]
+        level = {ph["name"]: ph.get("intensity") for ph in phases}
+        for e in m.get("entities", []):
+            if e.get("role") == "attack" and (e.get("schedule") or {}).get("phase") in level:
+                self.load[f"{cap}|{e['entity_id']}"] = level[e["schedule"]["phase"]]
+
+    def inside(self, w):
+        """True when the window's completion lies inside an attack phase of its capture, None without a timeline."""
+        if w["capture"] not in self.phases:
+            return None
+        return any(a <= w["t"] < b for a, b in self.phases[w["capture"]])
 
 
 def legacy_split(dataset_dir, seed=0):
@@ -213,8 +241,10 @@ def _stack(windows):
 
 
 def fit_torch(model, train, val, mean, std, *, seed, epochs, lr, batch, threads):
-    """Adam on BCE-with-logits (pos_weight = negatives / positives of the training windows); the epoch with the lowest
-    validation loss is kept. Returns (model, best validation loss)."""
+    """Adam on BCE-with-logits (pos_weight = negatives / positives of the training windows: balanced, as the LR's and the
+    HGB's class weights) for a fixed number of epochs; the last epoch's weights are kept (ml/l7v2_model_prereg.json
+    models.training, re-registered 2026-10-31 under D-034, T038-04: no epoch is chosen on validation). Returns (model,
+    the last epoch's validation loss, reported only)."""
     import torch
     from torch import nn, optim
     from torch.utils.data import DataLoader, TensorDataset
@@ -229,21 +259,16 @@ def fit_torch(model, train, val, mean, std, *, seed, epochs, lr, batch, threads)
     crit = nn.BCEWithLogitsLoss(pos_weight=pos_w)
     opt = optim.Adam(model.parameters(), lr=lr)
     loader = DataLoader(TensorDataset(Xtr, ytr), batch_size=batch, shuffle=True)
-    best_loss, best_state = math.inf, None
     for _ep in range(epochs):
         model.train()
         for xb, yb in loader:
             opt.zero_grad()
             crit(model(xb), yb).backward()
             opt.step()
-        model.eval()
-        with torch.no_grad():
-            vloss = float(crit(model(Xva), yva)) if len(val) else 0.0
-        if best_state is None or vloss < best_loss:
-            best_loss, best_state = vloss, {k: v.clone() for k, v in model.state_dict().items()}
-    model.load_state_dict(best_state)
     model.eval()
-    return model, best_loss
+    with torch.no_grad():
+        vloss = float(crit(model(Xva), yva)) if len(val) else 0.0
+    return model, vloss
 
 
 def torch_scores(model, X, mean, std):
@@ -264,9 +289,78 @@ def tab_scores(clf, X):
     return clf.predict_proba(summaries(X))[:, 1] if len(X) else np.zeros(0)
 
 
-def shuffled_stack(windows, seed):
+def shuffle_rows_pin_first(matrix, rng):
+    """A copy of a window matrix with its valid rows permuted among themselves except the first, which stays in place
+    (the shuffled-GRU's pin_first variant, D-034, T038-05: every C3b window starts with the key's entry token)."""
+    X = np.array(matrix, dtype=np.float32, copy=True)
+    rest = np.flatnonzero(X[:, 0] > 0)[1:]
+    X[rest] = X[rng.permutation(rest)]
+    return X
+
+
+def shuffled_stack(windows, seed, pin_first=False):
     rng = np.random.default_rng(seed)
-    return np.stack([F.shuffle_valid_rows(w["X"], rng) for w in windows]) if windows else _stack(windows)
+    shuffle = shuffle_rows_pin_first if pin_first else F.shuffle_valid_rows
+    return np.stack([shuffle(w["X"], rng) for w in windows]) if windows else _stack(windows)
+
+
+def order_gap(gru, shuffled, allowed=None):
+    """The view GRU's recall minus a shuffled variant's at the GRU's (theta, k), with the benign units each flags beside
+    it (ml/l7v2_model_prereg.json models.gru_shuffled.report, D-034, T038-05)."""
+    if not gru or gru.get("recall") is None or shuffled.get("recall") is None:
+        return None
+    out = {"recall_gap_pp": round(100.0 * (gru["recall"] - shuffled["recall"]), 2),
+           "benign_units_view_gru": gru.get("benign_units_flagged"),
+           "benign_units_shuffled": shuffled.get("benign_units_flagged")}
+    if allowed is not None:
+        out["allowed"] = allowed
+        out["shuffled_within_budget"] = out["benign_units_shuffled"] <= allowed
+    return out
+
+
+def window_auc(scores, labels):
+    """P(an attack window scores above a benign one), ties counting one half; None without both classes."""
+    s, y = np.asarray(scores, dtype=np.float64), np.asarray(labels, dtype=int)
+    pos, neg = s[y == 1], np.sort(s[y == 0])
+    if not len(pos) or not len(neg):
+        return None
+    lo, hi = np.searchsorted(neg, pos, "left"), np.searchsorted(neg, pos, "right")
+    return float((lo + 0.5 * (hi - lo)).sum() / (len(pos) * len(neg)))
+
+
+def age_scores(benign_train_ages, windows):
+    """The age-only baseline (ml/l7v2_model_prereg.json baselines.age_only, D-034): p = the share of the training benign
+    windows older than the window, ties counting one half, so a younger window scores higher."""
+    ref = np.sort(np.asarray(benign_train_ages, dtype=np.float64))
+    if not len(windows):
+        return np.zeros(0)
+    if not len(ref):
+        return np.full(len(windows), 0.5)
+    ages = np.array([w["age"] for w in windows], dtype=np.float64)
+    lo, hi = np.searchsorted(ref, ages, "left"), np.searchsorted(ref, ages, "right")
+    return (len(ref) - hi + 0.5 * (hi - lo)) / len(ref)
+
+
+def age_reading(auc, band=None):
+    """The pre-registered reading of the age-only baseline's validation AUC: 'near chance' inside 0.5 +- band, else
+    'age-confounded' (no view-level result on those captures supports V-A or 'sequence helps')."""
+    band = PRE.load()["baselines"]["age_only"]["auc_band"] if band is None else band
+    if auc is None:
+        return "no AUC (one class missing)"
+    return "near chance" if abs(auc - 0.5) <= band + 1e-12 else "age-confounded"
+
+
+def age_report(windows, scores):
+    """The baseline's AUC pooled and per attack family (each family's windows against every benign window)."""
+    y = [w["y"] for w in windows]
+    pooled = window_auc(scores, y)
+    out = {"auc": None if pooled is None else round(pooled, 4), "auc_by_family": {}}
+    ben = [i for i, w in enumerate(windows) if not w["y"]]
+    for fam in sorted({str(w["family"]) for w in windows if w["y"]}):
+        idx = ben + [i for i, w in enumerate(windows) if w["y"] and str(w["family"]) == fam]
+        a = window_auc([scores[i] for i in idx], [y[i] for i in idx])
+        out["auc_by_family"][fam] = None if a is None else round(a, 4)
+    return out
 
 
 class ArmScorer:
@@ -285,10 +379,29 @@ class ArmScorer:
 
 # ───────────────────────────── operating points (design 10) ─────────────────────────────
 
+def engine_scored(windows, poll_s=None, cap=None):
+    """The indices of the view windows the live engine would score (ml/l7v2_model_prereg.json selection.policy_engine,
+    re-registered 2026-10-31 under D-034, T038-06): per (capture, key), of the windows completed before the same poll
+    (polls at whole multiples of poll_s of the log clock; a window completing at t is scored at the first poll after
+    it), only the newest `cap` (l7_engine.L7ViewEngine._windows keeps new[-max_new_windows:]); the others are skipped.
+    Windows come per key in token order (view_windows), so the newest are the last ones of each group."""
+    pre = PRE.load()
+    poll_s = pre["selection"]["policy_engine_poll_s"] if poll_s is None else poll_s
+    cap = pre["engine"]["max_new_windows_per_key_per_poll"] if cap is None else cap
+    groups = {}
+    for i, w in enumerate(windows):
+        groups.setdefault((w["capture"], w["key"], math.floor(w["t"] / poll_s)), []).append(i)
+    return {i for idx in groups.values() for i in idx[-cap:]}
+
+
 def key_runs(windows, scores):
-    """{(capture, key): [(t, p, entity)] in time order}: the policy's input."""
+    """{(capture, key): [(t, p, entity)] in time order}: the policy's input. At the view level only the windows the live
+    engine would score enter (engine_scored, D-034); the request level, an offline ablation, keeps every window."""
+    keep = engine_scored(windows) if windows and windows[0].get("level") == "view" else None
     groups = {}
     for i, (w, p) in enumerate(zip(windows, scores, strict=True)):
+        if keep is not None and i not in keep:
+            continue
         groups.setdefault((w["capture"], w["key"]), []).append((w["t"], i, float(p), w["ip"]))
     return {k: [(t, p, e) for t, _i, p, e in sorted(v)] for k, v in groups.items()}
 
@@ -361,6 +474,32 @@ def at_point(windows, scores, split, op):
     return a
 
 
+def load_split(windows, scores, split, op):
+    """The descriptive load split of an arm at its operating point (ml/l7v2_model_prereg.json load_split, registered
+    2026-10-31 under D-034, T038-02; never a gate): the share of benign windows with p > theta inside and outside the
+    attack phases, and attack-entity recall per load level (the phase intensity the plan records)."""
+    if op is None:
+        return None
+    thr, out = op["threshold"], {"benign_inside": [0, 0], "benign_outside": [0, 0]}
+    for w, p in zip(windows, scores, strict=True):
+        where = split.inside(w)
+        if w["y"] or where is None:
+            continue
+        cell = out["benign_inside" if where else "benign_outside"]
+        cell[0] += int(p > thr)
+        cell[1] += 1
+    caught = assess(decisions(key_runs(windows, scores), thr, op["consecutive"]), split)["_caught"]
+    by = {}
+    for e in split.attack:
+        lvl = str(split.load.get(e))
+        by.setdefault(lvl, [0, 0])
+        by[lvl][0] += int(e in caught)
+        by[lvl][1] += 1
+    res = {k: {"flagged": f, "windows": n, "rate": round(f / n, 5) if n else None} for k, (f, n) in out.items()}
+    res["recall_by_load"] = {k: {"caught": c, "entities": n, "recall": round(c / n, 4)} for k, (c, n) in sorted(by.items())}
+    return res
+
+
 # ───────────────────────────── select ─────────────────────────────
 
 def _sha_file(path):
@@ -381,8 +520,16 @@ def _probe(scorer, windows, seed, max_windows):
     return rep
 
 
+def refuse_overwrite(out_dir):
+    """A frozen selection is never replaced (D-034, T038-07): select refuses a directory that holds one."""
+    for name in ("selection.json", "selection.sha256", "split.json"):
+        if os.path.exists(os.path.join(out_dir, name)):
+            raise SelectionError(f"refusing to overwrite {os.path.join(out_dir, name)}: a frozen selection is never "
+                                 "replaced; select into a new directory")
+
+
 def select(train, val, out_dir, *, arms=PRE.ARMS, epochs=None, threads=2, seed=None, valid_for_claims, source,
-           split_sha256):
+           split_sha256, split_dirs=None):
     """Fit every arm on `train` (a Split), gate it and choose its operating point on `val` (a Split) only, save the
     artifacts and the frozen selection (selection.json, its sha256 in selection.sha256). Returns (selection, sha)."""
     import torch
@@ -395,6 +542,8 @@ def select(train, val, out_dir, *, arms=PRE.ARMS, epochs=None, threads=2, seed=N
     from GRU_ML_model import GRUDDoSClassifier
     from l7_view_model import ViewGRU
     pre = PRE.load()
+    if os.path.exists(os.path.join(out_dir, "selection.json")):
+        refuse_overwrite(out_dir)
     mods, sel_rules, views = pre["models"], pre["selection"], pre["views"]
     seed = mods["fit_seed"] if seed is None else seed
     threads = min(int(threads), mods["threads_max"])
@@ -407,10 +556,12 @@ def select(train, val, out_dir, *, arms=PRE.ARMS, epochs=None, threads=2, seed=N
     out = {}
 
     def finish(name, val_scores, windows, scorer, extra=None):
-        """The v2 probe gate on validation records, then (if it passes) the operating point on validation."""
+        """The v2 probe gate on validation records, then (if it passes) the operating point on validation, and the
+        descriptive load split at that point."""
         rep = _probe(scorer, windows, seed, pre["probes"]["max_windows"])
         op = operating_point(windows, val_scores, val, sel_rules) if rep["gate_pass"] else None
-        out[name] = {"probe_gate_pass": rep["gate_pass"], "probes": rep, "operating_point": op, **(extra or {})}
+        out[name] = {"probe_gate_pass": rep["gate_pass"], "probes": rep, "operating_point": op,
+                     "load_split": load_split(windows, val_scores, val, op), **(extra or {})}
         return op
 
     def artifact(name, rel):
@@ -434,20 +585,28 @@ def select(train, val, out_dir, *, arms=PRE.ARMS, epochs=None, threads=2, seed=N
                                   "operating_point": "selection.json" if op else None})
         artifact("view_gru", "view_gru/config.json")
         if "gru_shuffled" in arms:
-            ps = torch_scores(model, shuffled_stack(val.view, mods["gru_shuffled"]["shuffle_seed"]), mean, std)
+            sh = mods["gru_shuffled"]["shuffle_seed"]
+            ps = torch_scores(model, shuffled_stack(val.view, sh), mean, std)
+            pp = torch_scores(model, shuffled_stack(val.view, sh, pin_first=True), mean, std)
             shuf = val.view
+            at_s = {x: v for x, v in at_point(shuf, ps, val, op).items() if not x.startswith("_")}
+            at_p = {x: v for x, v in at_point(shuf, pp, val, op).items() if not x.startswith("_")}
+            allowed = op["allowed"] if op else None
             out["gru_shuffled"] = {"artifact": out["view_gru"]["artifact"],
                                    "artifact_sha256": out["view_gru"]["artifact_sha256"],
                                    "probe_gate_pass": out["view_gru"]["probe_gate_pass"],
                                    "operating_point": op, "rule": mods["gru_shuffled"]["operating_point"],
-                                   "val_at_point": {x: v for x, v in at_point(shuf, ps, val, op).items()
-                                                    if not x.startswith("_")}}
+                                   "val_at_point": at_s, "gap": order_gap(op, at_s, allowed),
+                                   "pin_first": {"val_at_point": at_p, "gap": order_gap(op, at_p, allowed)},
+                                   "load_split": load_split(shuf, ps, val, op)}
     for name in ("hgb", "lr"):
         if name not in arms:
             continue
         Xs, ys = summaries(_stack(tr_view)), np.array([w["y"] for w in tr_view])
         if name == "hgb":
-            clf = HistGradientBoostingClassifier(max_iter=mods["hgb"]["max_iter"], random_state=seed).fit(Xs, ys)
+            h = mods["hgb"]                            # balanced, no early stopping (D-034, T038-04)
+            clf = HistGradientBoostingClassifier(max_iter=h["max_iter"], class_weight=h["class_weight"],
+                                                 early_stopping=h["early_stopping"], random_state=seed).fit(Xs, ys)
         else:
             clf = make_pipeline(StandardScaler(), LogisticRegression(max_iter=mods["lr"]["max_iter"],
                                                                      class_weight=mods["lr"]["class_weight"]))
@@ -472,6 +631,17 @@ def select(train, val, out_dir, *, arms=PRE.ARMS, epochs=None, threads=2, seed=N
                        op["threshold"] if op else 0.5, op["consecutive"] if op else 1, m["hidden"], m["layers"],
                        meta={"arm": "request_gru", "seed": seed, "source": source}, level="request")
         artifact("request_gru", "request_gru/config.json")
+    ages = sorted(float(w["age"]) for w in tr_view if not w["y"])
+    with open(os.path.join(out_dir, "age_only.json"), "w", encoding="utf-8") as fh:
+        json.dump({"format": "l7v2-age-only/1", "benign_train_ages": ages}, fh)
+        fh.write("\n")
+    pa = age_scores(ages, val.view)
+    rep = age_report(val.view, pa)
+    age_op = operating_point(val.view, pa, val, sel_rules)
+    base = {"age_only": {"artifact": "age_only.json", "artifact_sha256": _sha_file(os.path.join(out_dir, "age_only.json")),
+                         "operating_point": age_op, "load_split": load_split(val.view, pa, val, age_op),
+                         "val_auc": rep["auc"], "val_auc_by_family": rep["auc_by_family"],
+                         "reading": age_reading(rep["auc"]), "rule": pre["baselines"]["age_only"]["reading"]}}
     sel = {"format": SEL_FORMAT, "source": source, "valid_for_claims": bool(valid_for_claims),
            "prereg_sha256": _sha_file(PRE.PREREG_PATH), "split_sha256": split_sha256, "seed": seed,
            "epochs": epochs or mods["view_gru"]["epochs"], "threads": threads,
@@ -479,7 +649,9 @@ def select(train, val, out_dir, *, arms=PRE.ARMS, epochs=None, threads=2, seed=N
                       "val_view_windows": len(val.view), "val_request_windows": len(val.req),
                       "val_attack_entities": len(val.attack), "val_benign_units": sum(val.units.values())},
            "rule": sel_rules["objective"] + "; ties: " + ", ".join(sel_rules["ties"]),
-           "arms": out, "select_wall_s": round(time.time() - t0, 1)}
+           "arms": out, "baselines": base, "select_wall_s": round(time.time() - t0, 1)}
+    if split_dirs is not None:
+        sel["split_dirs"] = {k: [os.path.abspath(d) for d in split_dirs.get(k, [])] for k in ("train", "val")}
     data = D.canonical_json(sel) + b"\n"
     with open(os.path.join(out_dir, "selection.json"), "wb") as fh:
         fh.write(data)
@@ -506,11 +678,39 @@ def load_selection(path, expected_sha256):
     if sel.get("format") != SEL_FORMAT:
         raise SelectionError(f"refusing to score: {path} is not a {SEL_FORMAT} file")
     base = os.path.dirname(os.path.abspath(path))
-    for name, arm in sel["arms"].items():
+    for name, arm in [*sel["arms"].items(), *sel.get("baselines", {}).items()]:
         p = os.path.normpath(os.path.join(base, arm["artifact"]))
         if not p.startswith(base + os.sep) or not os.path.isfile(p) or _sha_file(p) != arm["artifact_sha256"]:
             raise SelectionError(f"refusing to score: the artifact of {name} is missing or altered")
     return sel
+
+
+def derive_splits(sel_path, sel, train=None, val=None, eval_dirs=(), manifest_of=None):
+    """The splits score checks (D-034, T038-07): the training and validation captures are split.json's, never the command
+    line's alone. Without --train/--val they come from the frozen selection's split_dirs; either way their capture ids
+    and manifest hashes must be exactly split.json's train and val captures, or scoring is refused."""
+    import l7_disjoint
+    manifest_of = manifest_of or (lambda d: l7_disjoint.load_manifest(d)[0])
+    path = os.path.join(os.path.dirname(os.path.abspath(sel_path)), "split.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            rec = json.load(fh)
+    except (OSError, ValueError) as exc:
+        raise SelectionError(f"refusing to score: no readable split.json beside the selection: {exc}") from exc
+    recorded = sel.get("split_dirs") or {}
+    out = {"train": list(train or recorded.get("train", [])), "val": list(val or recorded.get("val", [])),
+           "eval": list(eval_dirs)}
+    for s in ("train", "val"):
+        want = sorted((cid, c["manifest_sha256"]) for cid, c in rec.get("captures", {}).items() if c["split"] == s)
+        got = []
+        for d in out[s]:
+            m = manifest_of(d)
+            if m is None:
+                raise SelectionError(f"refusing to score: {d} has no readable manifest")
+            got.append((m["capture_id"], m["manifest_sha256"]))
+        if sorted(got) != want:
+            raise SelectionError(f"refusing to score: the {s} captures {sorted(got)} are not split.json's {want}")
+    return out
 
 
 def score(ev, sel, sel_path, out_dir, *, threads=2):
@@ -553,6 +753,21 @@ def score(ev, sel, sel_path, out_dir, *, threads=2):
                              "operating_point": op, "by_family": {str(f): {"caught": c, "entities": n}
                                                                   for f, (c, n) in sorted(fam.items(), key=str)},
                              "benign_units_flagged_by_kind": {str(k): v for k, v in sorted(kinds.items(), key=str)}}
+    if "gru_shuffled" in res["arms"] and "view_gru" in res["arms"]:   # T038-05: units beside every gap, pin_first
+        op = sel["arms"]["gru_shuffled"]["operating_point"]
+        sc = S.L7Scorer.load(os.path.dirname(os.path.join(base, sel["arms"]["gru_shuffled"]["artifact"])), level="view")
+        X = shuffled_stack(ev.view, pre["models"]["gru_shuffled"]["shuffle_seed"], pin_first=True)
+        a = {x: v for x, v in at_point(ev.view, sc.score(X) if ev.view else np.zeros(0), ev, op).items()
+             if not x.startswith("_")}
+        allowed = op["allowed"] if op else None
+        res["arms"]["gru_shuffled"]["gap"] = order_gap(res["arms"]["view_gru"], res["arms"]["gru_shuffled"], allowed)
+        res["arms"]["gru_shuffled"]["pin_first"] = {**a, "gap": order_gap(res["arms"]["view_gru"], a, allowed)}
+    for name, b in sel.get("baselines", {}).items():           # the age-only baseline (D-034), at its frozen point
+        with open(os.path.join(base, b["artifact"]), encoding="utf-8") as fh:
+            pa = age_scores(json.load(fh)["benign_train_ages"], ev.view)
+        a = at_point(ev.view, pa, ev, b["operating_point"])
+        res.setdefault("baselines", {})[name] = {**{x: v for x, v in a.items() if not x.startswith("_")},
+                                                 "operating_point": b["operating_point"], **age_report(ev.view, pa)}
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "eval.json"), "w", encoding="utf-8") as fh:
         json.dump(res, fh, indent=1, sort_keys=True)
@@ -588,13 +803,15 @@ def main(argv=None):
                                     "benign entity-disjoint, held-out families as validation: mechanics only")
         else:
             import l7_disjoint
+            refuse_overwrite(args.out)
             l7_disjoint.require({**splits, "eval": []})
             split_sha = l7_disjoint.write_split(os.path.join(args.out, "split.json"), {**splits, "eval": []})
             tr = [load_capture(d) for d in args.train]
             va = [load_capture(d) for d in args.val]
             valid, source = not args.smoke, "P3 captures" + (" (smoke)" if args.smoke else "")
         _sel, sha = select(Split(tr), Split(va), args.out, arms=tuple(args.arms), epochs=3 if args.smoke else None,
-                           threads=args.threads, valid_for_claims=valid, source=source, split_sha256=split_sha)
+                           threads=args.threads, valid_for_claims=valid, source=source, split_sha256=split_sha,
+                           split_dirs=None if args.legacy_capture else {"train": args.train, "val": args.val})
         print(f"{sha}  {os.path.join(args.out, 'selection.json')}")
         return 0
     if not args.selection:
@@ -603,6 +820,7 @@ def main(argv=None):
     if args.legacy_capture:
         raise SelectionError("a legacy capture has no evaluation split; score P3 evaluation captures")
     import l7_disjoint
+    splits = derive_splits(args.selection, sel, args.train, args.val, args.eval)
     l7_disjoint.require(splits, split_file=os.path.join(os.path.dirname(os.path.abspath(args.selection)), "split.json"),
                         selection_file=args.selection)
     res = score(Split([load_capture(d) for d in args.eval]), sel, args.selection, args.out, threads=args.threads)

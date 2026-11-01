@@ -50,6 +50,13 @@ def load(path=PREREG_PATH):
         raise PreregError("the session start has no route")
     if set(pre["mimicry"]) - {"exhausted", "rule"} != set(MIMICRY):
         raise PreregError(f"mimicry levels must be {MIMICRY}")
+    life = pre["arrivals"].get("lifetimes")
+    if life is not None:
+        law = life["law"]
+        if law.get("law") != "uniform" or not pre["arrivals"]["min_active_s"] <= law["lo"] < law["hi"]:
+            raise PreregError(f"the lifetime law must be uniform with min_active_s <= lo < hi: {law}")
+        if not 0.0 <= life["gap_s"][0] <= life["gap_s"][1]:
+            raise PreregError(f"the session gap must be a range: {life['gap_s']}")
     _cache[path] = pre
     return pre
 
@@ -73,3 +80,10 @@ def dwell(mimicry, rng, pre=None):
     if law["law"] == "uniform":
         return rng.uniform(law["lo"], law["hi"])
     return min(rng.expovariate(1.0 / law["mean"]), law["cap"])
+
+
+def lifetime(rng, pre=None):
+    """One key lifetime in seconds from the frozen law (arrivals.lifetimes, re-registered 2026-10-31 under D-034, T038-01):
+    the same law for a benign session, a machine client and an attack entity."""
+    law = (pre or load())["arrivals"]["lifetimes"]["law"]
+    return rng.uniform(law["lo"], law["hi"])

@@ -118,12 +118,33 @@
   ],
   "min_active_s": 60.0,
   "flash_gap_s": 60.0,
+  "lifetimes": {
+   "label": "re-registered 2026-10-31 under D-034 (the user's 'Approve all three', 2026-10-31T12:10:57Z), before any capture (review T-038, finding T038-01: arrivals were matched, but key lifetimes still coded the role)",
+   "law": {"law": "uniform", "lo": 60.0, "hi": 420.0},
+   "law_status": "ASSUMPTION: no measured session-length source in the T-012 corpus; the floor is min_active_s; the ceiling is above the 240 s slot, so a share of the keys of either role outlives one slot",
+   "gap_s": [10.0, 120.0],
+   "min_left_s": 60.0,
+   "benign": "a benign key is a session: an L7 v2 browser-like kind (tpcw_browsing, tpcw_shopping, zipf_browser, search_user, exporter, flash_crowd, and each user of a CGNAT pool) runs, from its first view, sessions whose lifetimes are drawn from the law, separated by a gap drawn uniformly over gap_s, while at least min_left_s of its run remain (always one); every session starts with a fresh browser state (no cookies, so a new sid, and an empty cache), so a returning user is a new key; the entity, its address, its UA and its budget units are unchanged",
+   "machine_clients": "a benign entity whose generator has no sessions (the polite crawler, api_bulk and the P5 kinds) runs one lifetime drawn from the law from its arrival, capped at the capture's end",
+   "attack": "every attack entity runs one lifetime drawn from the law from its arrival (the arrival rule above is unchanged), capped at the capture's end, so it may stay active past its slot's end into the next slot",
+   "reuse": "an M3 bot reuses the address of a trained attack entity that has stopped before the M3 bot starts and whose address no other M3 bot uses: C2 entities first, then the other trained families, in plan order"
+  },
   "age_check": {
    "statistic": "the first-seen times (seconds from the capture start) of the key units: an entity's arrival, and each CGNAT user's first view; the flash crowd is left out, being a burst by definition",
    "ks_max": 0.3,
    "auc_band": 0.15,
    "held_out_ks_max": 0.45,
-   "rule": "an l7v2 plan is refused unless the two-sample KS distance between the benign and the attack first-seen times is at most ks_max, the AUC of first-seen time as a score for the attack role is within 0.5 +- auc_band, and, when it holds held-out benign kinds, their KS distance to the trained benign kinds' is at most held_out_ks_max"
+   "rule": "an l7v2 plan is refused unless the two-sample KS distance between the benign and the attack first-seen times is at most ks_max, the AUC of first-seen time as a score for the attack role is within 0.5 +- auc_band, and, when it holds held-out benign kinds, their KS distance to the trained benign kinds' is at most held_out_ks_max",
+   "label_v2": "extended 2026-10-31 under D-034, before any capture (T038-01): key lifetimes and window age join the first-seen check above, which is unchanged",
+   "key_units_v2": "a key unit is one key of the plan replayed at nominal times: each plan user of a benign entity (a session, or a machine client's one lifetime) and each attack entity; a P5 kind without a plan is one unit over its schedule and has no windows",
+   "window_rule": "the trainer's view windows at nominal times (docs/L7V2_DESIGN.md 8.1 and section 16): a page request (route class C1) opens a token, a later non-page request joins the open token, a request before the unit's first page is a pageless token; one window per token j >= min_views of a unit; its age is the nominal start of token j minus that of the unit's first token",
+   "min_views": 4,
+   "lifetime_ks_max": 0.3,
+   "lifetime_auc_band": 0.15,
+   "window_age_auc_band": 0.15,
+   "family_min_units": 20,
+   "held_out_lifetime_ks_max": 0.45,
+   "rule_v2": "an l7v2 plan is also refused unless (a) the lifetimes (the nominal start of a unit's last request minus that of its first) of the trained benign and the trained attack key units have a KS distance of at most lifetime_ks_max and an AUC, lifetime as a score for the attack role, within 0.5 +- lifetime_auc_band; (b) window age as a score for the attack role has an AUC within 0.5 +- window_age_auc_band for the trained attack windows pooled, and for the windows of every attack family with at least family_min_units key units (held-out families included), each against the trained benign windows; (c) when the plan holds held-out benign kinds, the KS distance of their lifetimes to the trained benign kinds' is at most held_out_lifetime_ks_max"
   }
  },
  "harm": {

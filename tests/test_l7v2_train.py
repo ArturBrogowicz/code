@@ -186,6 +186,179 @@ class OperatingPointTest(unittest.TestCase):
         self.assertEqual((sel["budget"], sel["k_grid"][0], sel["theta_grid"][0]), (0.01, 1, 0.5))
 
 
+class AgeOnlyTest(unittest.TestCase):
+    """The age-only baseline (ml/l7v2_model_prereg.json baselines.age_only, D-034, T038-01)."""
+
+    def test_a_window_carries_its_key_age(self):
+        _m, recs, _c = population(n_benign=1, n_bots=0, pool_users=0)
+        ws = V.view_windows(recs, 8, 4)
+        starts = sorted(F.start_time(r) for r in recs)
+        self.assertTrue(all(w["age"] is not None and w["age"] > 0 for w in ws))
+        self.assertEqual([round(w["age"], 6) for w in ws],
+                         sorted(round(w["age"], 6) for w in ws), "age grows along a key")
+        self.assertLessEqual(max(w["age"] for w in ws), starts[-1] - starts[0] + 1e-9)
+
+    def test_younger_scores_higher_on_benign_quantiles(self):
+        ref = [10.0, 20.0, 30.0, 40.0]
+        p = V.age_scores(ref, [{"age": a} for a in (5.0, 20.0, 35.0, 50.0)])
+        np.testing.assert_allclose(p, [1.0, 0.625, 0.25, 0.0])
+
+    def test_the_reading(self):
+        self.assertEqual(V.age_reading(0.62), "near chance")
+        self.assertEqual(V.age_reading(0.36), "near chance")
+        self.assertEqual(V.age_reading(0.66), "age-confounded")
+        self.assertEqual(V.age_reading(0.30), "age-confounded")
+        self.assertEqual(V.window_auc([0.9, 0.8, 0.1, 0.2], [1, 1, 0, 0]), 1.0)
+        self.assertEqual(V.window_auc([0.5, 0.5], [1, 0]), 0.5)
+
+    def test_young_bots_read_as_age_confounded(self):
+        # the fixture's bots load a page every 3 s from t ~ 0, its browsers every ~8 s: attack windows are younger
+        split = V.Split([population()], request=False)
+        p = V.age_scores([w["age"] for w in split.view if not w["y"]], split.view)
+        rep = V.age_report(split.view, p)
+        self.assertGreater(rep["auc"], 0.65)
+        self.assertEqual(V.age_reading(rep["auc"]), "age-confounded")
+        self.assertEqual(set(rep["auc_by_family"]), {"C3b@M1"})
+
+
+class TuningTest(unittest.TestCase):
+    """One tuning rule for every arm (ml/l7v2_model_prereg.json models.training, D-034, T038-04)."""
+
+    def test_the_gru_weights_do_not_depend_on_the_validation_windows(self):
+        import torch
+
+        from l7_view_model import ViewGRU
+        tr = V.Split([population("t1", seed=1)], request=False).view
+        va = V.Split([population("v1", seed=3)], request=False).view
+        mean, std = train_l7.fit_scaling(tr, len(F.TOKEN_COLUMNS))
+        states = []
+        for val in (va, va[:3], []):
+            torch.manual_seed(0)                       # the same initial weights each time
+            m, _loss = V.fit_torch(ViewGRU(len(F.TOKEN_COLUMNS), 8, 8, 1, 0.0), tr, val, mean, std, seed=0, epochs=3,
+                                   lr=0.01, batch=16, threads=1)
+            states.append({k: v.clone() for k, v in m.state_dict().items()})
+        for st in states[1:]:
+            for k in st:
+                self.assertTrue(torch.equal(st[k], states[0][k]), k)
+
+    def test_the_hgb_is_balanced_without_early_stopping(self):
+        import pickle
+        d = tempfile.mkdtemp()
+        try:
+            train = V.Split([population("t1", seed=1)], request=False)
+            val = V.Split([population("v1", seed=3)], request=False)
+            V.select(train, val, d, arms=("hgb",), threads=1, valid_for_claims=False, source="fixture",
+                     split_sha256="0" * 64)
+            with open(os.path.join(d, "hgb.pkl"), "rb") as fh:
+                params = pickle.load(fh).get_params()
+        finally:
+            shutil.rmtree(d)
+        self.assertEqual((params["class_weight"], params["early_stopping"], params["max_iter"]),
+                         ("balanced", False, PRE.load()["models"]["hgb"]["max_iter"]))
+        self.assertEqual(PRE.load()["models"]["lr"]["class_weight"], "balanced")
+
+
+class ShuffledVariantsTest(unittest.TestCase):
+    """T038-05 (D-034): the pin_first variant and the benign units beside every gap."""
+
+    def test_pin_first_keeps_the_first_valid_token(self):
+        _m, recs, _c = population()
+        ws = V.view_windows(recs, 8, 4)
+        X = V.shuffled_stack(ws, 7, pin_first=True)
+        moved = 0
+        for w, x in zip(ws, X, strict=True):
+            idx = np.flatnonzero(w["X"][:, 0] > 0)
+            np.testing.assert_array_equal(x[idx[0]], w["X"][idx[0]])
+            self.assertEqual(sorted(map(tuple, x[idx])), sorted(map(tuple, w["X"][idx])))
+            moved += int(not np.array_equal(x, w["X"]))
+        self.assertGreater(moved, 0)
+        np.testing.assert_array_equal(V.shuffled_stack(ws, 7), np.stack([F.shuffle_valid_rows(w["X"], r) for w, r in
+                                                                          zip(ws, [np.random.default_rng(7)] * len(ws),
+                                                                              strict=True)]))
+
+    def test_the_gap_carries_both_units(self):
+        g = V.order_gap({"recall": 0.8, "benign_units_flagged": 1}, {"recall": 0.5, "benign_units_flagged": 4}, 2)
+        self.assertEqual(g, {"recall_gap_pp": 30.0, "benign_units_view_gru": 1, "benign_units_shuffled": 4,
+                             "allowed": 2, "shuffled_within_budget": False})
+
+
+class FreezeTest(unittest.TestCase):
+    """T038-07 (D-034): a selection is never overwritten, and score's train/val captures are split.json's."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir)
+        self.sel_path = os.path.join(self.dir, "selection.json")
+        with open(os.path.join(self.dir, "split.json"), "w", encoding="utf-8") as fh:
+            json.dump({"format": "x", "captures": {"T1": {"split": "train", "seed": 1001, "manifest_sha256": "a"},
+                                                   "V1": {"split": "val", "seed": 2001, "manifest_sha256": "b"}},
+                       "entities": {}}, fh)
+        self.man = {"/d/t1": {"capture_id": "T1", "manifest_sha256": "a"},
+                    "/d/v1": {"capture_id": "V1", "manifest_sha256": "b"},
+                    "/d/v2": {"capture_id": "V2", "manifest_sha256": "c"}}
+        self.sel = {"split_dirs": {"train": ["/d/t1"], "val": ["/d/v1"]}}
+
+    def derive(self, train=None, val=None, sel=None):
+        return V.derive_splits(self.sel_path, self.sel if sel is None else sel, train, val, ["/d/e1"],
+                               manifest_of=self.man.get)
+
+    def test_omitted_train_and_val_come_from_the_frozen_selection(self):
+        self.assertEqual(self.derive(), {"train": ["/d/t1"], "val": ["/d/v1"], "eval": ["/d/e1"]})
+
+    def test_given_ones_must_be_split_jsons(self):
+        self.assertEqual(self.derive(["/d/t1"], ["/d/v1"])["val"], ["/d/v1"])
+        for train, val in ((["/d/t1"], ["/d/v2"]), (["/d/t1"], []), ([], ["/d/v1"])):
+            with self.subTest(train=train, val=val), self.assertRaises(V.SelectionError):
+                self.derive(train, val, sel={})
+        with self.assertRaises(V.SelectionError):
+            V.derive_splits(os.path.join(self.dir, "nowhere", "selection.json"), self.sel, None, None, [],
+                            manifest_of=self.man.get)
+
+    def test_select_refuses_an_existing_selection(self):
+        for name in ("selection.json", "split.json"):
+            d = tempfile.mkdtemp()
+            self.addCleanup(shutil.rmtree, d)
+            with open(os.path.join(d, name), "w", encoding="utf-8") as fh:
+                fh.write("{}")
+            with self.subTest(name=name), self.assertRaises(V.SelectionError):
+                V.refuse_overwrite(d)
+        with self.assertRaises(V.SelectionError):
+            V.main(["select", "--train", "/d/t1", "--val", "/d/v1", "--out", self.dir])
+
+
+def timed(cap="c1", seed=0, phase=(20.0, 40.0), intensity=2.0):
+    """population() with a P3 timeline (t0_wall 0, one attack phase) and its bots scheduled in that phase."""
+    m, recs, cap = population(cap, seed)
+    m = {**m, "timeline": {"t0_wall": 0.0, "phases": [{"name": "C3b", "start_s": phase[0], "stop_s": phase[1],
+                                                       "intensity": intensity}]}}
+    for e in m["entities"]:
+        e["schedule"] = {"start_s": 0.0, "stop_s": 99.0, "phase": "C3b" if e["role"] == "attack" else None}
+    return m, recs, cap
+
+
+class LoadSplitTest(unittest.TestCase):
+    """The descriptive load split (ml/l7v2_model_prereg.json load_split, D-034, T038-02): never a gate."""
+
+    def test_benign_flags_inside_and_outside_the_phases_and_recall_by_level(self):
+        split = V.Split([timed()], request=False)
+        ws = split.view
+        p = np.array([0.99 if (w["y"] or split.inside(w)) else 0.1 for w in ws])
+        res = V.load_split(ws, p, split, {"threshold": 0.5, "consecutive": 1})
+        inside = [w for w in ws if not w["y"] and split.inside(w)]
+        outside = [w for w in ws if not w["y"] and not split.inside(w)]
+        self.assertTrue(inside and outside)
+        self.assertEqual(res["benign_inside"], {"flagged": len(inside), "windows": len(inside), "rate": 1.0})
+        self.assertEqual(res["benign_outside"], {"flagged": 0, "windows": len(outside), "rate": 0.0})
+        self.assertEqual(res["recall_by_load"], {"2.0": {"caught": 4, "entities": 4, "recall": 1.0}})
+
+    def test_no_point_no_split_and_no_timeline_no_phase(self):
+        split = V.Split([population()], request=False)
+        self.assertIsNone(V.load_split(split.view, np.zeros(len(split.view)), split, None))
+        res = V.load_split(split.view, np.zeros(len(split.view)), split, {"threshold": 0.5, "consecutive": 1})
+        self.assertEqual(res["benign_inside"]["windows"] + res["benign_outside"]["windows"], 0)
+        self.assertEqual(res["recall_by_load"], {"None": {"caught": 0, "entities": 4, "recall": 0.0}})
+
+
 class SelectScoreTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -210,6 +383,37 @@ class SelectScoreTest(unittest.TestCase):
         self.assertEqual(self.sel["arms"]["gru_shuffled"]["operating_point"],
                          self.sel["arms"]["view_gru"]["operating_point"])
 
+    def test_the_shuffled_variants_report_their_units_beside_the_gap(self):
+        sh = self.sel["arms"]["gru_shuffled"]
+        for part in (sh, sh["pin_first"]):
+            self.assertIn("benign_units_flagged", part["val_at_point"])
+            if self.sel["arms"]["view_gru"]["operating_point"] is not None:
+                self.assertEqual(part["gap"]["benign_units_shuffled"], part["val_at_point"]["benign_units_flagged"])
+                self.assertIn("benign_units_view_gru", part["gap"])
+
+    def test_every_arm_reports_the_load_split(self):
+        for name, arm in [*self.sel["arms"].items(), *self.sel["baselines"].items()]:
+            self.assertIn("load_split", arm, name)
+            if arm["operating_point"] is not None:
+                self.assertEqual(set(arm["load_split"]), {"benign_inside", "benign_outside", "recall_by_load"}, name)
+
+    def test_the_age_only_baseline_is_scored_beside_the_arms(self):
+        b = self.sel["baselines"]["age_only"]
+        self.assertNotIn("age_only", self.sel["arms"])
+        self.assertEqual(b["artifact"], "age_only.json")
+        self.assertIn("operating_point", b)
+        self.assertIn(b["reading"], ("near chance", "age-confounded"))
+        self.assertEqual(b["reading"], V.age_reading(b["val_auc"]))
+        self.assertEqual(set(b["val_auc_by_family"]), {"C3b@M1"})
+
+    def test_an_altered_age_artifact_is_refused(self):
+        tmp = os.path.join(self.dir, "copy_age")
+        shutil.copytree(self.out, tmp)
+        with open(os.path.join(tmp, "age_only.json"), "a", encoding="utf-8") as fh:
+            fh.write(" ")
+        with self.assertRaises(V.SelectionError):
+            V.load_selection(os.path.join(tmp, "selection.json"), self.sha)
+
     def test_the_packages_carry_their_level(self):
         import l7_scorer as S
         self.assertEqual(S.L7Scorer.load(os.path.join(self.out, "view_gru"), level="view").max_views,
@@ -228,6 +432,15 @@ class SelectScoreTest(unittest.TestCase):
         with self.assertRaises(V.SelectionError):
             V.load_selection(os.path.join(self.out, "selection.json"), None)
 
+    def test_a_second_select_into_the_same_directory_is_refused(self):
+        with open(os.path.join(self.out, "selection.json"), "rb") as fh:
+            before = fh.read()
+        with self.assertRaises(V.SelectionError):
+            V.select(V.Split([population("t1", seed=1)]), V.Split([population("v1", seed=3)]), self.out, epochs=1,
+                     threads=1, valid_for_claims=False, source="again", split_sha256="1" * 64)
+        with open(os.path.join(self.out, "selection.json"), "rb") as fh:
+            self.assertEqual(fh.read(), before)
+
     def test_an_altered_artifact_is_refused(self):
         tmp = os.path.join(self.dir, "copy")
         shutil.copytree(self.out, tmp)
@@ -244,6 +457,10 @@ class SelectScoreTest(unittest.TestCase):
         for arm in res["arms"].values():
             self.assertEqual(arm["attack_entities"], 4)
             self.assertEqual(set(arm["by_family"]), {"C3b@M1"})
+        self.assertIn("pin_first", res["arms"]["gru_shuffled"])
+        self.assertIn("benign_units_flagged", res["arms"]["gru_shuffled"]["pin_first"])
+        self.assertEqual(res["baselines"]["age_only"]["attack_entities"], 4)
+        self.assertIn("auc", res["baselines"]["age_only"])
         with open(os.path.join(self.dir, "eval", "eval.json"), encoding="utf-8") as fh:
             self.assertEqual(json.load(fh)["selection_sha256"], self.sha)
 
