@@ -60,6 +60,7 @@ SEL_FORMAT = "l7v2-selection/1"
 RESULT_FORMAT = "l7v2-eval/1"
 VIEW_ARMS = ("view_gru", "hgb", "lr")
 MAX_TRAIN_WIN_PER_KEY = 400          # training windows per key (evenly thinned); validation and evaluation keep all
+ENGINE_PARITY_PHASES = (0.0, 0.5)    # engine_parity: the evaluator's convention and a shift (the live phase is arbitrary)
 
 
 class SelectionError(RuntimeError):
@@ -179,9 +180,11 @@ class Split:
         rl = pre["request_level"]
         self.cols_req = F.columns(tuple(rl["groups"]))
         self.view, self.req, self.attack, self.units, self.first, self.kind = [], [], set(), {}, {}, {}
-        self.phases, self.load = {}, {}
+        self.phases, self.load, self.records = {}, {}, {}
         for m, recs, cap in loaded:
             self._timeline(m, cap)
+            if view:
+                self.records[cap] = recs
             if view:
                 self.view += view_windows(recs, pre["views"]["max_views"], pre["views"]["min_views"])
             if request:
@@ -392,6 +395,62 @@ def engine_scored(windows, poll_s=None, cap=None):
     for i, w in enumerate(windows):
         groups.setdefault((w["capture"], w["key"], math.floor(w["t"] / poll_s)), []).append(i)
     return {i for idx in groups.values() for i in idx[-cap:]}
+
+
+def engine_replay(recs, phase=0.0):
+    """The windows the real observe-only engine (l7_engine.L7ViewEngine, not a copy of its logic) builds from one
+    capture's records, fed in completion order with polls every policy_engine_poll_s at `phase` of the log clock:
+    ({(key, its opener's start): (token matrix, poll time)}, the key store). A request not yet complete at a window's
+    poll is absent from it, and one that started before a key's pruned history is dropped (store.late)."""
+    import l7_engine as E
+    pre = PRE.load()
+    poll_s, v, e = pre["selection"]["policy_engine_poll_s"], pre["views"], pre["engine"]
+    built = {}
+
+    def hook(now, key, window, _p):
+        built[(key, F.start_time(window[-1]))] = (F.token_matrix(window, v["max_views"]), now)
+
+    store = I.L7KeyStore(idle_timeout=pre["ingest"]["idle_timeout_s"], max_records=e["max_records_per_key"],
+                         max_views=v["max_views"])
+    eng = E.L7ViewEngine(store, max_views=v["max_views"], min_views=v["min_views"], evict_every=e["evict_every_s"],
+                         max_new_windows=e["max_new_windows_per_key_per_poll"], window_hook=hook)
+    ordered = sorted(recs, key=lambda r: (r["msec"], r["_seq"]))
+    if ordered:
+        poll = (math.floor((ordered[0]["msec"] - phase) / poll_s) + 1) * poll_s + phase
+        for r in ordered:
+            while r["msec"] >= poll:
+                eng.poll(poll)
+                poll += poll_s
+            eng.on_record(r, now=r["msec"])
+        eng.poll(poll)
+    return built, store
+
+
+def engine_parity(split):
+    """Per capture and poll phase, how the windows the live engine would build differ from the evaluator's (T-042 F06, the
+    rest of T038-06; reported, never a gate; the operating points stay on the evaluator's windows): same; built_differently
+    (the same window without a request that completed after its poll); trainer_only (skipped by the cap, or an opener
+    that arrived late); engine_only; rule_not_engine and engine_not_rule (engine_scored against what the engine scored);
+    late_dropped (started before the pruned history); truncated (over max_records_per_key)."""
+    by_cap, out = {}, {}
+    for w in split.view:
+        by_cap.setdefault(w["capture"], []).append(w)
+    for cap, recs in split.records.items():
+        ws = by_cap.get(cap, [])
+        mine = {(w["key"], F.start_time(w["recs"][-1])): w for w in ws}
+        rule = {(ws[i]["key"], F.start_time(ws[i]["recs"][-1])) for i in engine_scored(ws)}
+        out[cap] = {}
+        for phase in ENGINE_PARITY_PHASES:
+            built, store = engine_replay(recs, phase)
+            both = set(built) & set(mine)
+            differ = sum(not np.array_equal(built[k][0], mine[k]["X"]) for k in both)
+            out[cap][str(phase)] = {"trainer_windows": len(mine), "engine_windows": len(built),
+                                    "same": len(both) - differ, "built_differently": differ,
+                                    "trainer_only": len(set(mine) - set(built)),
+                                    "engine_only": len(set(built) - set(mine)),
+                                    "rule_not_engine": len(rule - set(built)), "engine_not_rule": len(set(built) - rule),
+                                    "late_dropped": store.late, "truncated": store.truncated}
+    return out
 
 
 def key_runs(windows, scores):
@@ -649,7 +708,8 @@ def select(train, val, out_dir, *, arms=PRE.ARMS, epochs=None, threads=2, seed=N
                       "val_view_windows": len(val.view), "val_request_windows": len(val.req),
                       "val_attack_entities": len(val.attack), "val_benign_units": sum(val.units.values())},
            "rule": sel_rules["objective"] + "; ties: " + ", ".join(sel_rules["ties"]),
-           "arms": out, "baselines": base, "select_wall_s": round(time.time() - t0, 1)}
+           "arms": out, "baselines": base, "engine_parity": engine_parity(val),
+           "select_wall_s": round(time.time() - t0, 1)}
     if split_dirs is not None:
         sel["split_dirs"] = {k: [os.path.abspath(d) for d in split_dirs.get(k, [])] for k in ("train", "val")}
     data = D.canonical_json(sel) + b"\n"
@@ -768,6 +828,7 @@ def score(ev, sel, sel_path, out_dir, *, threads=2):
         a = at_point(ev.view, pa, ev, b["operating_point"])
         res.setdefault("baselines", {})[name] = {**{x: v for x, v in a.items() if not x.startswith("_")},
                                                  "operating_point": b["operating_point"], **age_report(ev.view, pa)}
+    res["engine_parity"] = engine_parity(ev)
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "eval.json"), "w", encoding="utf-8") as fh:
         json.dump(res, fh, indent=1, sort_keys=True)
