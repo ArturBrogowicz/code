@@ -413,8 +413,7 @@ connections closed and the bans per arm count ALL attempts, invalid ones include
 ban (T-039 V-03, the recurrence of T-028 F-01).
 
 **Re-registration record (D-041).** 2026-10-31T16:06Z, the user's "Approve as recommended", before any data
-(T-023c F3, T-039 V-13: in simulation the deployed limits refuse CGNAT-24 requests in 9 of 10 seeds, so Q(C) was
-the wrong bar for a run behind them). Each block gains an attack-free protected control C_M: profile R with
+(T-023c F3, T-039 V-13: in simulation the deployed limits refuse CGNAT-24 requests in 9 of 10 seeds). Each block gains an attack-free protected control C_M: profile R with
 `nginx_profile_r_limits.conf` and M_pc's daemon configuration, no attack, seeded with the block, its validity rules
 C's. Criterion (b) compares M_pc's level window with 0.99 x Q(C_M) instead of Q(C); (a) and the harm stay on Q(C). The
 limits' own cost, Q(C_M) against Q(C) and the 503s by role with the CGNAT pools named, is reported as a separate
@@ -424,6 +423,15 @@ and 10.4 h); the Slowloris-only cut about 8.0 h (was 6.9 h). These count §11's 
 holds 5 runs and hand steps, about 0.75 h, which would add about 0.5 h. The same decision accepted four readings:
 the slow_pc liveness bound also on the validation runs; M7 states its claim and names an invalid family; "seeded
 order" is each block's runs in a seeded order; `/upload` is class C6 doing C2's work until a measured C6 cost exists.
+
+**When the limits refuse, by simulation [computed, NOT RUN; T-023c `artifacts/limits_windows.txt`].**
+`ml/l7_admissibility`, limit_req at 30 r/s with a burst of 100, 10 seeds of the 270-s run: CGNAT-24 is refused mean 62
+and at most 207 of about 3,190 requests in the attack window and none in the level window, 120-240 s; CGNAT-12 none in
+either (at most 69 in the baseline). The refusals follow the pools' cold first views, whose arrivals end at 60 s. So in
+this simulation the level window carries none of that cost, while Q(C_M), taken over the attack window as Q(C) is,
+does: when CGNAT-24 sits on a judged link it lowers the bar of (b) by about 0.7 pp on average and 2.5 pp at worst
+[INFERENCE from the counts], and not at all on another link. `limits_cost()` reports C_M's level next to Q(C_M), so
+the runs will show it. A simulation of the plan is not a measurement: it has no network or server time.
 
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
