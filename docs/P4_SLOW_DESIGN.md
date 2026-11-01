@@ -9,6 +9,23 @@
 - `VR:Vn` is a verification row;
 - `[Gx-yy-Qz]` is a T-012 quote id.
 
+**Re-registrations, dated, all before any P4 data** (review T-039 V-07, T-029 P4-04). The approved text below is left as it
+was; each place a re-registration changes carries a marker "[re-registered: ...]" that points here. The pinned code is
+`slow_pc.py` (frozen block and docstring), `eval/p4_outcome.py` (module docstring and constants) and `docs/EVALUATION.md`.
+
+| Decision | Date (UTC) | What changed | Where the note said otherwise |
+|---|---|---|---|
+| D-025 | 2026-10-30T14:33Z | T_mit 30 s → **90 s**, the user's choice: the frozen dribble leg needs 2 data segments after the first poll, so at the frozen pacing the closes take a median of ~52-55 s (Slowloris) and ~36-39 s (slow POST). The share within 30 s stays reported as a secondary figure | D-S6; §6.4 objective; §10 (a) |
+| D-030 | 2026-10-31T09:23Z | P4 attacks last **210 s** (was 120 s): a run is 30 s of baseline, 210 s of attack and 30 s of recovery (270 s), so that the level window of (b), from attack start + T_mit (90 s) to the attack's end, is 120 s long. §11's VM estimate becomes ~11.8 h (10.4 h without re-runs) | §10 units; §11 |
+| D-031 | 2026-10-31T09:23Z | The recovery reading of §10 (a), accepted as recommended: the 5 consecutive bins at ≥ 0.99 × Q(C) are counted from the first harmed second after the attack starts (a run that never dips has recovered at once), and must end within T_mit. (b)'s window is [attack start + T_mit, attack end] = [120 s, 240 s] of the run (`LEVEL_WINDOW_S`) | §10 (a), (b) |
+| D-035 (V-04) | 2026-10-31T12:44Z | The validation runs (§6.4) run M_pc's daemon mode without enforcement: tolerant profile, SLOW_PC=1, SLOW_PC_ENFORCE=0, SLOW_PC_RECORD; each manifest records it, and the scorer refuses another mode, an enforcing poll and a poll whose banned set holds a non-attack address (`eval/p4_validation.py`) | §6.4 "the detector runs in shadow mode" (no daemon profile named) |
+| D-035 (V-08) | 2026-10-31T12:44Z | An M_pc run is valid only if the rule logged slow_pc_poll at least every 10 s from the traffic's start to the run's end (`eval/p4_runner.py` SLOW_PC_POLL_GAP_S; the daemon logs one every 5 s); the runner applies it to the validation runs too | §5.4 of `docs/L7V2_DESIGN.md` names only "the daemon was alive" |
+| D-035 (V-01) | 2026-10-31T12:44Z | The harmed second of (a) is the first of 5 consecutive 1-s bins below 0.99 × Q(C) inside the attack window; the recovery is the end of the first 5 consecutive bins at or above it after that second; 0 without such harm; the recovery is reported with its onset. Noisy fixtures pin it: onset at +30 s, a true recovery at +95 s fails (a), one at +60 s passes (`eval/p4_outcome.py` recovery) | §10 (a) |
+| D-035 (V-02) | 2026-10-31T12:44Z | Fewer than 10 valid blocks give "invalid (k of 10 valid)" for the family, never "not harmful" or "harmful but not mitigated", and for M7 unless another family qualifies, in which case M7 names the invalid family next to its claim (`eval/p4_outcome.py`) | §10 "≥ 10 valid blocks" (what fewer meant was unsaid) |
+| D-035 (V-03) | 2026-10-31T12:44Z | The outcome takes every attempt of the run index: the harm, (a) and (b) on the last valid attempt of each (block, arm); (c), the benign closes and the bans per arm over ALL attempts, invalid ones included (`eval/p4_outcome.py`, `eval/p4_runner.py --summarize`) | §10 (c) "in all M_pc runs" (which attempts was unsaid) |
+| D-041 (1) | 2026-10-31T16:06Z | Each block gains a ninth run, the attack-free protected control **C_M**: profile R with the deployed limits (`nginx_profile_r_limits.conf`) and M_pc's daemon configuration (tolerant profile, SLOW_PC=1, SLOW_PC_ENFORCE=1, the committed T, F, K, SLOW_PC_RECORD), no attack, seeded with the block; its validity rules are C's. Criterion (b) compares M_pc's level window with 0.99 × Q(C_M) instead of Q(C); (a) and the harm stay on Q(C). The limits' own cost (Q(C_M) against Q(C), 503s by role, the CGNAT pools named) is reported as a separate finding and judges nothing. VM budget by §11's method at ~5.5 min a run: campaign 90 runs, 8.25 h; re-runs at most 18, 1.65 h; in all ~12.9 h, ~11.3 h without re-runs (were ~11.8 h and ~10.4 h); the Slowloris-only cut ~8.0 h (was ~6.9 h) | §4.3 table; §10 units, (b); §11 |
+| D-041 (2) | 2026-10-31T16:06Z | Readings accepted: the slow_pc liveness bound applies to the validation runs too; when one family qualifies and the other is invalid, M7 states its claim and names the invalid family; "seeded order" means each block's runs in a seeded order; `/upload` is class C6 doing C2's work until a measured C6 cost exists | §10; §4.1 backend |
+
 Two further forms appear here:
 - `T0:` facts were read on this VM on 2026-10-30, without running anything: package metadata, the ss manual page, the kernel
   header and strings in binaries;
@@ -72,7 +89,7 @@ Two further forms appear here:
 | D-S3 | Attack scale: Slowloris from 100-300 sources × 6 connections (up to ~1,800 held); slow POST from 5-40 sources × 1-2 connections on `/upload`; the ladder picks the knee. Slow read and HTTP/2 variants are secondary: recorded and replayed, not in the verdict (section 5) | accept | 6 connections per address is the benign device's own footprint, so no single address stands out. Slow read needs a different predicate |
 | D-S4 | The per-connection detector: five legs and a 3-poll persistence, with thresholds chosen on validation seeds by a rule frozen now (section 6) | accept | It keys on the connection, not the address (`S1:T-006/p4_design_sketch.md` §2). F-S4 to F-S6 add the guards |
 | D-S5 | Enforcement: close the connection with `ss -K` on its 5-tuple after 3 suspect polls. Ban the address only if ≥ K of its connections were closed within 60 s **and** it carried < 3 UA keys in the L7 log in the last 10 min. TTL 300 s, rate caps and a kill switch (section 7) | accept | `CONFIG_INET_DIAG_DESTROY=y` [FACT, `tasks/T-006/review.md`]. The address ban stops reconnects, and the key guard spares shared addresses |
-| D-S6 | T_mit = 30 s, as in the plan, with the age threshold T restricted to {5, 10, 15, 20} s | 30 s | A larger T cannot meet 30 s. The alternative, T_mit = 60 s with T ≤ 30 s, is more lenient towards slow legitimate clients but weaker as a claim |
+| D-S6 | T_mit = 30 s, as in the plan, with the age threshold T restricted to {5, 10, 15, 20} s [re-registered: T_mit = 90 s, D-025; T's grid unchanged] | 30 s | A larger T cannot meet 30 s. The alternative, T_mit = 60 s with T ≤ 30 s, is more lenient towards slow legitimate clients but weaker as a claim |
 | D-S7 | The new arm runs the daemon's **tolerant** profile (SlowConn at 180) plus the per-connection rule, so the old per-address rule cannot ban the CGNAT pools inside the new arm. The default profile is a separate arm | accept | Otherwise a CGNAT ban by the old rule would be booked against the new one |
 | D-S8 | Port 80 is primary. Port 443 is secondary, with the log-derived answered set (section 6.3) | accept | F-S4 |
 | D-S9 | VM budget ~8.6 h with both families; a cut to Slowloris only, ~5 h (section 11) | full | F-S7 |
@@ -157,6 +174,8 @@ on R are not transferable to the hardened profile, and the reverse holds too. Th
 | M_pc | R plus the deployed limits | tolerant profile (SlowConn 180, L7 rate 108; `control_plane.py:142-148`) with XDP | **on, enforcing** |
 | M_tol | R plus the deployed limits | tolerant profile | off: replay only (section 8) |
 
+[re-registered: a ninth run per block, the attack-free protected control C_M (R plus the deployed limits, M_pc's daemon, no attack), D-041]
+
 **The prerequisite of every daemon arm is the daemon-robustness fix (D-ROB).** One non-UTF-8 logged byte currently stops the
 daemon and lifts every XDP ban (NEW-1), and the telemetry thread has no guard (NEW-2) [FACT, `S1:T-007/security.md` S1;
 `S1:T-007/p4_hooks.md` §1].
@@ -236,6 +255,7 @@ The fakes test each of these (section 9).
 - **Data:** 2 validation seeds (4001-4002), each with C (attack-free), U_loris and U_post on R. The detector runs in shadow mode
   and records the `ss` snapshots. It is replayed offline.
 - **Objective:** maximise the share of attacking addresses banned within 30 s of their first connection.
+  [re-registered: within T_mit = 90 s, D-025; the 30 s share is reported as a secondary figure]
 - **Constraints, all of which must hold:** 0 benign addresses banned (CGNAT included); ≤ 0.1 % of benign connections closed;
   0 slow_uploader connections closed.
 - **Ties** go to the larger T, then the smaller F, then the larger K: the more conservative choice.
@@ -314,15 +334,16 @@ fixture. It confirms the token layout of F-S3 [NOT RUN].
 ## 10. The pre-registered outcome (P4.5) [PROPOSAL]
 - **Units.** A block is one evaluation seed (3101-3110, disjoint from every other seed in the three notes). Each block has
   8 runs in a seeded random order: C, C', U_loris, U_post, M_def_loris, M_pc_loris, M_def_post and M_pc_post. One run is
-  30 s of baseline, 120 s of attack and 30 s of recovery.
+  30 s of baseline, 120 s of attack and 30 s of recovery. [re-registered: 210 s of attack, a run of 270 s, D-030; 9 runs a block with C_M, D-041]
 - **"Harmful", per family.** Both must hold:
   - the harm gate PASSes U against C: a mean dQ ≥ 10 pp or a mean dL ≥ 1, the 95 % t-interval excluding 0, ≥ 80 % of blocks
     with the sign of the mean, ≥ 10 valid blocks, and the placebo not passing (`eval/harm_gate.py:9-31`);
   - **and** ≥ 9 of 10 blocks are individually at dQ ≥ 10 pp or dL ≥ 1, the plan's stricter count.
 - **"Mitigated", per family, for M_pc.** All three must hold:
   - (a) recovery: Q(M_pc) in 1-s bins reaches ≥ 0.99 × Q(C) for 5 consecutive bins within T_mit = 30 s of the attack start, in
-    ≥ 9 of 10 blocks;
+    ≥ 9 of 10 blocks; [re-registered: T_mit = 90 s, D-025; the bins counted from the first harmed second, D-031; the harmed second is the first of 5 consecutive harmed bins, D-035]
   - (b) level: Q(M_pc) over [attack start + 30 s, attack end] is ≥ 0.99 × Q(C) as a mean over blocks, and in ≥ 9 of 10 blocks;
+    [re-registered: over [attack start + T_mit, attack end] = [120 s, 240 s] of the run, D-025, D-030, D-031; against 0.99 × Q(C_M), D-041]
   - (c) collateral: **0 benign addresses banned in all M_pc runs**, the CGNAT pools and browser devices included. Benign
     connections closed are reported against the ≤ 0.1 % validation budget.
 - **Comparison.** Q(M_pc) − Q(M_def), paired, with `eval/run_level_stats.py` (≥ 10 blocks, an interval excluding 0, ≥ 80 % same
@@ -335,7 +356,8 @@ fixture. It confirms the token layout of F-S3 [NOT RUN].
   exist.
 
 ## 11. VM budget and phasing [ESTIMATE, D-S9]
-One run is ~4 min: 180 s of traffic plus ~60 s to set up ~300 aliased addresses and 1,500 connections.
+One run is ~4 min: 180 s of traffic plus ~60 s to set up ~300 aliased addresses and 1,500 connections. [re-registered: 270 s
+of traffic, ~5.5 min a run, ~11.8 h in all (10.4 h without re-runs), D-030; with C_M ~12.9 h (~11.3 h), D-041]
 
 | Step | Runs | VM h |
 |---|---|---|

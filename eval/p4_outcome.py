@@ -2,8 +2,8 @@
 """The pre-registered outcome of P4 (docs/P4_SLOW_DESIGN.md §10, with T_mit re-registered to 90 s), as pure
 analysis over run records, written and tested on synthetic fixtures before any evaluation data exist.
 
-Units: a BLOCK is one evaluation seed (3101-3110) with eight runs, C, Cp (the placebo C'), U_loris, U_post,
-M_def_loris, M_pc_loris, M_def_post and M_pc_post; a run is 30 s of baseline, 210 s of attack and 30 s of
+Units: a BLOCK is one evaluation seed (3101-3110) with nine runs, C, Cp (the placebo C'), C_M (the attack-free
+protected control, D-041), U_loris, U_post, M_def_loris, M_pc_loris, M_def_post and M_pc_post; a run is 30 s of baseline, 210 s of attack and 30 s of
 recovery. Per family (loris, post):
 
   * HARMFUL iff the harm gate passes U against C (eval/harm_gate.criterion: a mean dQ = Q(C) - Q(U) of at least
@@ -12,17 +12,23 @@ recovery. Per family (loris, post):
     not pass the same rule, and at least 9 of 10 blocks are individually at dQ >= 10 pp or dL >= 1.
   * MITIGATED (M_pc) iff (a) in at least 9 of 10 blocks Q(M_pc) in 1-s bins is back at >= 0.99 x Q(C) for 5
     consecutive bins within T_mit of the attack's start, (b) Q(M_pc) over [attack start + T_mit, attack end] is
-    >= 0.99 x Q(C) as a mean over the blocks and in at least 9 of 10 of them, and (c) no benign address (CGNAT
-    pools and browser devices included) is banned in any M_pc run. Benign connections closed are reported.
+    >= 0.99 x Q(C_M) as a mean over the blocks and in at least 9 of 10 of them, and (c) no benign address (CGNAT
+    pools and browser devices included) is banned in any M_pc run. Benign connections closed are reported. A block
+    counts for the mitigation only with C, C_M and M_pc valid; C_M's validity is what C's is, the run's own checks,
+    with no floor on its Q, since a low Q(C_M) is the cost it exists to show.
   * the status: "not harmful", "harmful but not mitigated", "mitigated with collateral" (a and b, not c), or
-    "mitigated". M7 is "supported with scope" for the families that are harmful and mitigated (profile R, these
-    families at this scale, this testbed), else "not supported".
-  * reported next to it: Q(M_pc) - Q(M_def) per block with eval/run_level_stats.decide, and the bans per arm by
-    role.
+    "mitigated"; "invalid (k of 10 valid)" when fewer than 10 blocks are valid for the harm or, for a harmful
+    family, for the mitigation (D-035, below). M7 is "supported with scope" for the families that are harmful and
+    mitigated (profile R, these families at this scale, this testbed), naming next to it any family that is
+    invalid; "invalid (k of 10 valid)" when no family qualifies and one is invalid; else "not supported".
+  * reported next to it: Q(M_pc) - Q(M_def) per block with eval/run_level_stats.decide, the bans per arm by role,
+    and, as a finding of its own that judges nothing, the deployed limits' own cost (D-041, limits_cost()): Q(C_M)
+    against Q(C) per block, what nginx refused in C_M by role with the CGNAT pools named, and the per-connection
+    rule's own bans and closes in C_M.
 
-Two readings are this code's, not the note's, and are pinned by tests: (a) counts the 5 bins from the first bin
-below 0.99 x Q(C) after the attack starts (a run that never dips has recovered at once), and they must end
-within T_mit; (b)'s window starts at attack start + T_mit, which was the note's "+ 30 s" when T_mit was 30 s,
+Two readings are this code's, not the note's, and are pinned by tests: (a) counts the 5 bins from the first
+harmed second after the attack starts (a run that is never harmed has recovered at once; the harmed second as
+re-registered by D-035 below), and they must end within T_mit; (b)'s window starts at attack start + T_mit, which was the note's "+ 30 s" when T_mit was 30 s,
 and ends with the attack (LEVEL_WINDOW_S). Reading (a) was accepted by the user on 2026-10-31 ("P4 recovery
 + HG4"); (b)'s window is the one the re-registration below names.
 
@@ -30,10 +36,43 @@ Re-registration record. The P4 attack length 120 → 210 s, re-registered 2026-1
 data, so that the window of (b), from attack start + T_mit (90 s) to the attack's end, is 120 s long; a run
 is now 270 s.
 
+Re-registration record (D-035, V-01; 2026-10-31T12:44Z, the user's "Approve all four", before any data; review
+T-039 V-01). The harmed second of (a) is the first of RECOVERY_BINS = 5 consecutive 1-s bins below 0.99 x Q(C)
+inside the attack window (one bin below the bar is sampling noise when a second holds 20-50 judged requests);
+the recovery is the end of the first 5 consecutive bins at or above 0.99 x Q(C) after it, in seconds from the
+attack's start; a run with no such harm has recovered at once (0). recovery() reports the recovery together with
+the onset it was counted from, and mitigation() reports both per block. The noisy fixtures of
+tests/test_p4_outcome.py (binomial bins, seeded) pin it: with the harm starting 30 s into the attack, a true
+recovery at +95 s fails (a) and one at +60 s passes, at 20 and 50 judged requests a second and Q(C) 99.5 and 99.9.
+
+Re-registration record (D-035, V-02; 2026-10-31T12:44Z, before any data; review T-039 V-02). Fewer than 10 valid
+blocks decide nothing: the family is "invalid (k of 10 valid)", never "not harmful" or "harmful but not
+mitigated", and so is M7 unless another family qualifies (then M7 names the invalid family next to its claim), as
+the harm gate this code cites says INVALID (eval/harm_gate.py).
+
+Re-registration record (D-035, V-03; 2026-10-31T12:44Z, before any data; review T-039 V-03). The outcome takes
+every attempt of the run index: each record names its attempt, and a block may hold several attempts of an arm.
+The harm and (a) and (b) are judged on the last valid attempt of each (block, arm); (c), the benign connections
+closed and the bans per arm are counted over ALL attempts, invalid ones included, so a re-run cannot hide a ban.
+
+Re-registration record (D-041; 2026-10-31T16:06Z, the user's "Approve as recommended", before any data; T-023c F3,
+review T-039 V-13), committed before the code it judges. Each block gains an attack-free protected control C_M:
+profile R with the deployed limits (nginx_profile_r_limits.conf) and M_pc's daemon configuration, no attack, seeded
+with the block, its validity rules C's. Criterion (b) compares M_pc's level window with 0.99 x Q(C_M) instead of
+Q(C); (a) and the harm stay on Q(C). The limits' own cost (Q(C_M) against Q(C), 503s by role, the CGNAT pools named) is
+reported as a separate finding and judges nothing. Also accepted: when one family qualifies and the other is invalid,
+M7 states its claim and names the invalid family.
+
 A run record (one dict per run; summarize() builds it from eval/harm_gate.run_metrics and the ban events):
-    {"block": 3101, "arm": "M_pc_loris", "valid": true, "Q": 97.5, "p95_s": 0.21,
-     "q_per_s": [...one value or None per second of the run...], "q_level": 98.9,
-     "banned": {"10.0.3.1": "attack", ...}, "benign_closed": 0}
+    {"block": 3101, "arm": "M_pc_loris", "attempt": 1, "valid": true, "Q": 97.5, "p95_s": 0.21,
+     "q_per_s": [...one value or None per second of the run...], "q_level": 98.9, "level_window": [120, 240],
+     "banned": {"10.0.3.1": "attack", ...}, "benign_closed": 0,
+     "refused": {"by_role": {"cgnat": {"requests": 900, "refused": 12}, ...},
+                 "cgnat": {"CGNAT-12": {"address": "10.0.17.3", "requests": 300, "refused": 1}, ...}}}
+`refused` is optional and judges nothing (eval/p4_runner.py refusals(): nginx's 429 and 503 from the run's access log).
+A record is refused unless it has one bin per second of the pre-registered run (RUN_S = 270) and its q_level was
+taken over LEVEL_WINDOW_S (review T-039 V-05): a run on another timeline, or a level over another window, is not
+judged silently.
 
     ./venv/bin/python eval/p4_outcome.py RUNS.jsonl [--json OUT]
 """
@@ -53,9 +92,9 @@ import slow_pc
 
 # ── pinned against docs/P4_SLOW_DESIGN.md §10 (tests/test_p4_outcome.py) ──
 BLOCK_SEEDS = tuple(range(3101, 3111))
-CONTROL, PLACEBO = "C", "Cp"
+CONTROL, PLACEBO, PROTECTED = "C", "Cp", "C_M"   # C_M: attack-free, R + the deployed limits + M_pc's daemon (D-041)
 FAMILIES = ("loris", "post")
-ARMS = (CONTROL, PLACEBO, "U_loris", "U_post", "M_def_loris", "M_pc_loris", "M_def_post", "M_pc_post")
+ARMS = (CONTROL, PLACEBO, PROTECTED, "U_loris", "U_post", "M_def_loris", "M_pc_loris", "M_def_post", "M_pc_post")
 TIMELINE = {"baseline_s": 30, "attack_s": 210, "recovery_s": 30}   # attack 120 -> 210 s, 2026-10-31
 GATE = {"floor_pp": 10.0, "floor_log2_p95": 1.0, "ci_level": 0.95, "same_sign_share": 0.8}
 MIN_VALID_BLOCKS = 10
@@ -66,15 +105,28 @@ LEVEL_RATIO = 0.99
 LEVEL_FROM_S = T_MIT_S           # (b): [attack start + T_mit, attack end]
 LEVEL_WINDOW_S = (TIMELINE["baseline_s"] + LEVEL_FROM_S,           # the same span in run time: the
                   TIMELINE["baseline_s"] + TIMELINE["attack_s"])   # `window` of run_metrics for q_level
+RUN_S = sum(TIMELINE.values())   # a record has one q_per_s bin per second of the run
 ATTACK = "attack"
 SCOPE = "profile R, {families} at this scale, this testbed"
 FAMILY_NAMES = {"loris": "Slowloris", "post": "slow POST"}
 
 
-def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow_pc_closes=()):
+def check_record_timeline(q_per_s, level_window):
+    """Refuse bins that are not one per second of the pre-registered run, or a level not taken over
+    LEVEL_WINDOW_S."""
+    if len(q_per_s) != RUN_S:
+        raise ValueError(f"{len(q_per_s)} one-second bins, not {RUN_S} (the run of {TIMELINE})")
+    if level_window is None or [float(x) for x in level_window] != [float(x) for x in LEVEL_WINDOW_S]:
+        raise ValueError(f"q_level taken over {level_window!r}, not LEVEL_WINDOW_S {list(LEVEL_WINDOW_S)}")
+
+
+def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow_pc_closes=(), *, level_window,
+              attempt, refused=None):
     """One run record from the run's harm-gate metrics (eval/harm_gate.run_metrics: over the attack
-    window, and with window=LEVEL_WINDOW_S for `level_metrics`), its ban events and the role of every
-    client address. Every banned address must have a role."""
+    window, and with window=LEVEL_WINDOW_S for `level_metrics`; `level_window` is the window the caller
+    took it over, and must be LEVEL_WINDOW_S), its ban events and the role of every client address.
+    Every banned address, and every address with a closed connection, must have a role."""
+    check_record_timeline(metrics["q_per_s"], level_window)
     banned = {}
     for ev in ban_events:
         if ev.get("kind") != "ban":
@@ -83,26 +135,37 @@ def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow
         if ip not in roles:
             raise ValueError(f"banned address without a role: {ip!r}")
         banned[ip] = roles[ip]
-    benign_closed = len({(c["ip"], c["port"], c["sport"]) for c in slow_pc_closes
-                         if roles.get(c["ip"], ATTACK) != ATTACK})
-    return {"block": block, "arm": arm, "valid": bool(valid), "Q": metrics["Q"], "p95_s": metrics["p95_s"],
-            "q_per_s": list(metrics["q_per_s"]), "q_level": level_metrics["Q"], "banned": banned,
-            "benign_closed": benign_closed}
+    unlabelled = sorted({c["ip"] for c in slow_pc_closes} - set(roles))
+    if unlabelled:                                  # fail closed, as for a ban (review T-039 V-06)
+        raise ValueError(f"closed connections of addresses without a role: {unlabelled[:5]}")
+    benign_closed = len({(c["ip"], c["port"], c["sport"]) for c in slow_pc_closes if roles[c["ip"]] != ATTACK})
+    return {"block": block, "arm": arm, "attempt": attempt, "valid": bool(valid), "Q": metrics["Q"],
+            "p95_s": metrics["p95_s"],
+            "q_per_s": list(metrics["q_per_s"]), "q_level": level_metrics["Q"],
+            "level_window": [float(x) for x in level_window], "banned": banned, "benign_closed": benign_closed,
+            "refused": refused}
+
+
+def recovery(q_per_s, threshold, start=TIMELINE["baseline_s"]):
+    """Reading (a) as re-registered by D-035: {"onset_s", "recovery_s"}, both in seconds from the attack's start.
+    The harmed second (onset) is the first of RECOVERY_BINS consecutive bins below `threshold`, all inside the
+    attack window; the recovery is the end of the first RECOVERY_BINS consecutive bins at or above it after the
+    onset. No harmed second: {"onset_s": None, "recovery_s": 0}; harmed and never back: recovery_s None. An empty
+    second (None) is neither harmed nor recovered."""
+    end, n = start + TIMELINE["attack_s"], RECOVERY_BINS
+    onset = next((i for i in range(start, min(end, len(q_per_s)) - n + 1)
+                  if all(x is not None and x < threshold for x in q_per_s[i:i + n])), None)
+    if onset is None:
+        return {"onset_s": None, "recovery_s": 0}
+    for i in range(onset + 1, len(q_per_s) - n + 1):
+        if all(x is not None and x >= threshold for x in q_per_s[i:i + n]):
+            return {"onset_s": onset - start, "recovery_s": i + n - start}
+    return {"onset_s": onset - start, "recovery_s": None}
 
 
 def recovery_s(q_per_s, threshold, start=TIMELINE["baseline_s"]):
-    """Seconds from the attack's start to the end of the first 5 consecutive bins at >= threshold
-    that follow the first bin below it; 0 if no bin of the attack window is below it; None if the
-    bins never recover."""
-    end = start + TIMELINE["attack_s"]
-    dips = [i for i in range(start, min(end, len(q_per_s)))
-            if q_per_s[i] is not None and q_per_s[i] < threshold]
-    if not dips:
-        return 0
-    for i in range(dips[0] + 1, len(q_per_s) - RECOVERY_BINS + 1):
-        if all(x is not None and x >= threshold for x in q_per_s[i:i + RECOVERY_BINS]):
-            return i + RECOVERY_BINS - start
-    return None
+    """The recovery of recovery() alone."""
+    return recovery(q_per_s, threshold, start)["recovery_s"]
 
 
 def enough(count, n):
@@ -118,10 +181,19 @@ def _blocks(runs):
             raise ValueError(f"unknown arm {r['arm']!r}")
         if r["block"] not in BLOCK_SEEDS:
             raise ValueError(f"block {r['block']!r} is not an evaluation seed")
-        if r["arm"] in by.setdefault(r["block"], {}):
-            raise ValueError(f"two runs of {r['arm']} in block {r['block']}")
-        by[r["block"]][r["arm"]] = r
-    return by
+        try:
+            check_record_timeline(r["q_per_s"], r.get("level_window"))
+        except ValueError as exc:
+            raise ValueError(f"block {r['block']} {r['arm']}: {exc}") from None
+        att = r.get("attempt")
+        if not isinstance(att, int) or isinstance(att, bool) or att < 1:
+            raise ValueError(f"block {r['block']} {r['arm']}: a record names its attempt of the run index, got {att!r}")
+        if any(x["attempt"] == att for x in by.setdefault(r["block"], {}).setdefault(r["arm"], [])):
+            raise ValueError(f"two records of {r['arm']} attempt {att} in block {r['block']}")
+        by[r["block"]][r["arm"]].append(r)
+    chosen = {b: {arm: max((x for x in rs if x["valid"]), key=lambda x: x["attempt"], default=None)
+                  or max(rs, key=lambda x: x["attempt"]) for arm, rs in arms.items()} for b, arms in by.items()}
+    return chosen, by
 
 
 def _ok(block, *arms):
@@ -157,25 +229,29 @@ def harm(blocks, family):
                                                           and enough(each, len(valid)))}
 
 
-def mitigation(blocks, family):
-    """(a) recovery, (b) level and (c) collateral of M_pc for one family, and the M_def comparison."""
+def mitigation(blocks, family, every=None):
+    """(a) recovery, (b) level and (c) collateral of M_pc for one family, and the M_def comparison. `blocks` holds the
+    attempt judged per (block, arm); `every` all the attempts, over which (c) and the benign closes are counted."""
+    every = every or {b: {arm: [r] for arm, r in arms.items()} for b, arms in blocks.items()}
     m = f"M_pc_{family}"
-    valid = [b for b in blocks.values() if _ok(b, CONTROL, m)]
-    rec = [recovery_s(b[m]["q_per_s"], RECOVERY_RATIO * b[CONTROL]["Q"]) for b in valid]
+    valid = [b for b in blocks.values() if _ok(b, CONTROL, PROTECTED, m)]
+    found = [recovery(b[m]["q_per_s"], RECOVERY_RATIO * b[CONTROL]["Q"]) for b in valid]
+    rec = [x["recovery_s"] for x in found]
     in_time = sum(1 for r in rec if r is not None and r <= T_MIT_S)
-    level_ok = sum(1 for b in valid if b[m]["q_level"] >= LEVEL_RATIO * b[CONTROL]["Q"])
+    level_ok = sum(1 for b in valid if b[m]["q_level"] >= LEVEL_RATIO * b[PROTECTED]["Q"])
     mean_ok = bool(valid) and (sum(b[m]["q_level"] for b in valid)
-                               >= LEVEL_RATIO * sum(b[CONTROL]["Q"] for b in valid))
-    collateral = sorted({(b[m]["block"], ip, role) for b in blocks.values() if m in b
-                         for ip, role in b[m]["banned"].items() if role != ATTACK})
+                               >= LEVEL_RATIO * sum(b[PROTECTED]["Q"] for b in valid))
+    attempts = [r for arms in every.values() for r in arms.get(m, ())]
+    collateral = sorted({(r["block"], ip, role) for r in attempts for ip, role in r["banned"].items() if role != ATTACK})
     a = len(valid) >= MIN_VALID_BLOCKS and enough(in_time, len(valid))
     b_ = len(valid) >= MIN_VALID_BLOCKS and mean_ok and enough(level_ok, len(valid))
     pairs = [b for b in blocks.values() if _ok(b, m, f"M_def_{family}")]
     d = [b[m]["Q"] - b[f"M_def_{family}"]["Q"] for b in pairs]
-    return {"valid_blocks": len(valid), "recovery_s": rec, "recovered_in_time": in_time, "a": a,
+    return {"valid_blocks": len(valid), "recovery_s": rec, "recovery_onset_s": [x["onset_s"] for x in found],
+            "recovered_in_time": in_time, "a": a,
             "level_blocks": level_ok, "level_mean_ok": mean_ok, "b": b_,
             "benign_banned": [list(x) for x in collateral], "c": not collateral,
-            "benign_closed": sum(b[m].get("benign_closed", 0) for b in blocks.values() if m in b),
+            "benign_closed": sum(r.get("benign_closed", 0) for r in attempts), "attempts": len(attempts),
             "vs_m_def": {"n": len(d), "decision": RLS.decide(d)}}
 
 
@@ -189,26 +265,77 @@ def bans_by_arm(runs):
     return out
 
 
+def _add_counts(into, name, counts):
+    row = into.setdefault(name, {"requests": 0, "refused": 0})
+    row["requests"] += counts["requests"]
+    row["refused"] += counts["refused"]
+
+
+def _refused_total(record):
+    refused = record.get("refused")
+    return None if refused is None else sum(c["refused"] for c in refused["by_role"].values())
+
+
+def limits_cost(blocks):
+    """The deployed limits' own cost to benign users, a finding of its own that judges nothing (D-041). Per block with a
+    valid C and C_M: Q(C), Q(C_M) and C_M's level, what nginx refused in each, and the per-connection rule's own effect
+    in C_M (benign addresses banned, benign connections closed), which would lower (b)'s bar. Over them: the mean of
+    Q(C) - Q(C_M) with eval/run_level_stats.decide, and C_M's refusals by role and per CGNAT pool by name."""
+    rows, by_role, pools = [], {}, {}
+    for block in sorted(blocks):
+        b = blocks[block]
+        if not _ok(b, CONTROL, PROTECTED):
+            continue
+        c, cm = b[CONTROL], b[PROTECTED]
+        rows.append({"block": block, "Q_C": c["Q"], "Q_C_M": cm["Q"], "q_level_C_M": cm["q_level"],
+                     "dQ_pp": c["Q"] - cm["Q"], "refused_C": _refused_total(c), "refused_C_M": _refused_total(cm),
+                     "benign_banned_C_M": sorted(ip for ip, role in cm["banned"].items() if role != ATTACK),
+                     "benign_closed_C_M": cm.get("benign_closed", 0)})
+        refused = cm.get("refused") or {}
+        for role, counts in refused.get("by_role", {}).items():
+            _add_counts(by_role, role, counts)
+        for name, counts in refused.get("cgnat", {}).items():
+            _add_counts(pools, name, counts)
+    d = [r["dQ_pp"] for r in rows]
+    return {"blocks": rows, "mean_dQ_pp": sum(d) / len(d) if d else None,
+            "decision": RLS.decide(d), "refused_by_role": by_role, "refused_cgnat": pools}
+
+
+def invalid(k):
+    """The status of a family, or of M7, with fewer than MIN_VALID_BLOCKS valid blocks (D-035, V-02)."""
+    return f"invalid ({k} of {len(BLOCK_SEEDS)} valid)"
+
+
 def outcome(runs):
     """The verdict of §10 over a list of run records."""
-    blocks = _blocks(runs)
+    blocks, every = _blocks(runs)
     fam = {}
     for f in FAMILIES:
-        h, m = harm(blocks, f), mitigation(blocks, f)
-        if not h["harmful"]:
+        h, m = harm(blocks, f), mitigation(blocks, f, every)
+        k = None
+        if h["valid_blocks"] < MIN_VALID_BLOCKS:
+            k, status = h["valid_blocks"], invalid(h["valid_blocks"])
+        elif not h["harmful"]:
             status = "not harmful"
+        elif m["valid_blocks"] < MIN_VALID_BLOCKS:
+            k, status = m["valid_blocks"], invalid(m["valid_blocks"])
         elif m["a"] and m["b"]:
             status = "mitigated" if m["c"] else "mitigated with collateral"
         else:
             status = "harmful but not mitigated"
-        fam[f] = {"status": status, "harm": h, "mitigation": m}
+        fam[f] = {"status": status, "harm": h, "mitigation": m, "valid_blocks_if_invalid": k}
     qualified = [f for f in FAMILIES if fam[f]["status"] == "mitigated"]
+    lacking = [f for f in FAMILIES if fam[f]["valid_blocks_if_invalid"] is not None]
     if qualified:
         m7 = "supported with scope: " + SCOPE.format(
             families=" and ".join(FAMILY_NAMES[f] for f in qualified))
+        m7 += "".join(f"; {FAMILY_NAMES[f]}: {fam[f]['status']}" for f in lacking)
+    elif lacking:
+        m7 = invalid(min(fam[f]["valid_blocks_if_invalid"] for f in lacking))
     else:
         m7 = "not supported"
-    return {"M7": m7, "families": fam, "bans_by_arm": bans_by_arm(runs), "t_mit_s": T_MIT_S}
+    return {"M7": m7, "families": fam, "bans_by_arm": bans_by_arm(runs), "t_mit_s": T_MIT_S,
+            "limits_cost": limits_cost(blocks)}
 
 
 def main(argv=None):
@@ -222,6 +349,11 @@ def main(argv=None):
     print(f"M7: {res['M7']}")
     for f, r in res["families"].items():
         print(f"  {FAMILY_NAMES[f]}: {r['status']}")
+    cost = res["limits_cost"]
+    if cost["blocks"]:
+        print(f"  the deployed limits' own cost (judges nothing): Q(C) - Q(C_M) {cost['mean_dQ_pp']:.2f} pp over "
+              f"{len(cost['blocks'])} blocks, {cost['decision']}; refused in C_M {cost['refused_by_role']}, "
+              f"CGNAT pools {cost['refused_cgnat']}")
     if args.json:
         with open(args.json, "w", encoding="utf-8") as fh:
             json.dump(res, fh, indent=1, default=str)

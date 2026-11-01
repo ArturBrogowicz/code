@@ -10,6 +10,8 @@ it was served under. The route-to-class map is the site map in l7_webapp (route_
   GET /api/<name>            C2  Origin._c2, ident = crc32(name)
   GET /search?q=<term>       C3  Origin._c3 with the term (no sleep); a term the origin refuses is a 400
   GET /export[?r=<n>]        C5  Origin._c5; another query is a 400
+  POST /upload               C6  only with L7_UPLOAD=streamed (profile R, P4): the body is read as it arrives, then C2's
+                                 work (see below); without it uncosted like the rest
   anything else              uncosted: l7_webapp's own answer, unchanged (download, upload, login, robots, 404)
 
 Each URL's work factor is the origin's: a log-normal factor drawn from a hash of the URL (spread_sigma stays an
@@ -24,6 +26,18 @@ The record (L7_CALIBRATION, a path; default bench/calibration/placeholder.json) 
                (bench/origin.make_app), answers "frozen:<sha8>"
 No verdict code accepts anything but a frozen record (require_frozen). Without L7_BACKEND=costed, l7_webapp serves the
 2026-10 app unchanged, so the published P5/P5c captures and their legacy pipeline stay as they were.
+
+The upload route of profile R (docs/P4_SLOW_DESIGN.md §4.1, §5; L7_UPLOAD=streamed, which gunicorn_profile_r.py sets; the
+default, "legacy", leaves POST /upload to l7_webapp exactly as before, so the L7 v2 harness is unchanged). Nginx streams
+an upload's body to the backend there (proxy_request_buffering off), and this route reads it as it arrives, at most
+UPLOAD_CHUNK bytes a read and never past the Content-Length (a chunked body: to its end), so a slow body holds one of
+R's sync workers for as long as it lasts: the worker-slot harm of the slow-POST family. Its class is C6, whose SLO every
+record holds; no record holds a C6 cost (bench/calibration.py lists C6 for its SLO only, and route_costs_ms is C0-C5),
+so once the body is in, the route does C2's work (an indexed write acknowledged like an API call, ident = crc32 of the
+byte count): the per-class cost the record sets and, with a frozen record, the 25 % start-up self-check covers; the
+user accepted that reading until a measured C6 cost exists (D-041, docs/P4_SLOW_DESIGN.md). It
+answers {"received": n} with X-Route-Class C6, X-Work (C2's units) and the record's X-Origin-Calibration. A body that
+ends before its Content-Length (the client went away) is a 400 and costs no work.
 """
 import dataclasses
 import hashlib
@@ -43,7 +57,11 @@ import origin as O
 
 ENV_BACKEND = "L7_BACKEND"
 ENV_RECORD = "L7_CALIBRATION"
+ENV_UPLOAD = "L7_UPLOAD"
 BACKENDS = ("legacy", "costed")
+UPLOADS = ("legacy", "streamed")          # POST /upload: l7_webapp's answer, or read as it arrives (profile R)
+UPLOAD_PATH, UPLOAD_CLASS, UPLOAD_WORK_CLASS = "/upload", "C6", "C2"
+UPLOAD_CHUNK = 64 * 1024                  # at most this many bytes a read
 STATUSES = ("placeholder", "measured", "frozen")
 MEASURED_FORMAT = "l7v2-measured/1"
 SID_COOKIE = "sid"
@@ -147,7 +165,11 @@ class CostedApp:
     """l7_webapp's URL space over the origin's work (see the module docstring). `knobs` overrides the record's knobs
     (tests use small data sets); `sid_factory` makes session ids (tests make them deterministic)."""
 
-    def __init__(self, record_path=None, *, knobs=None, data_seed=1, clock=time.process_time, sid_factory=None):
+    def __init__(self, record_path=None, *, knobs=None, data_seed=1, clock=time.process_time, sid_factory=None,
+                 upload="legacy"):
+        if upload not in UPLOADS:
+            raise ValueError(f"{ENV_UPLOAD}={upload!r}: {' or '.join(UPLOADS)}")
+        self.upload = upload
         import l7_webapp
         self.site = l7_webapp
         self.record, self.status, self.tag = load_record(record_path)
@@ -163,7 +185,8 @@ class CostedApp:
     @classmethod
     def from_env(cls, environ=None):
         environ = os.environ if environ is None else environ
-        return cls(environ.get(ENV_RECORD) or None, data_seed=int(environ.get("ORIGIN_SEED", "1")))
+        return cls(environ.get(ENV_RECORD) or None, data_seed=int(environ.get("ORIGIN_SEED", "1")),
+                   upload=environ.get(ENV_UPLOAD) or "legacy")
 
     def _reply(self, start_response, status, ctype, body, *, klass=None, work=None, cache=None, cookie=None,
                head=False):
@@ -181,6 +204,8 @@ class CostedApp:
         method = environ.get("REQUEST_METHOD", "GET")
         path = environ.get("PATH_INFO", "/")
         qs = environ.get("QUERY_STRING", "")
+        if self.upload == "streamed" and method == "POST" and path == UPLOAD_PATH:
+            return self._upload(environ, start_response)
         klass = self.site.route_class("GET", path)
         if klass is None:
             def tagged(status, headers, exc_info=None):
@@ -212,6 +237,26 @@ class CostedApp:
             cookie = self.new_sid()
         return self._reply(start_response, "200 OK", ctype, body, klass=klass, work=work, cache="no-store",
                            cookie=cookie, head=head)
+
+
+    def _upload(self, environ, start_response):
+        """POST /upload with L7_UPLOAD=streamed (see the module docstring): the body read as it arrives, then C2's work."""
+        try:
+            want = int(environ.get("CONTENT_LENGTH") or -1)
+        except ValueError:
+            return self._reply(start_response, "400 Bad Request", "text/plain", b"bad content length\n")
+        inp, got = environ.get("wsgi.input"), 0
+        while inp is not None and (want < 0 or got < want):
+            chunk = inp.read(UPLOAD_CHUNK if want < 0 else min(UPLOAD_CHUNK, want - got))
+            if not chunk:
+                break
+            got += len(chunk)
+        if got < want:
+            return self._reply(start_response, "400 Bad Request", "text/plain", b"incomplete body\n")
+        factor = O.spread_factor(f"{UPLOAD_PATH}#{got}", self.data_seed, self.knobs.spread_sigma)
+        _ctype, _body, work = self.origin.handle(UPLOAD_WORK_CLASS, _ident(f"upload|{got}"), "", factor)
+        return self._reply(start_response, "200 OK", "application/json", json.dumps({"received": got}).encode(),
+                           klass=UPLOAD_CLASS, work=work, cache="no-store")
 
 
 def record_sha256(path):

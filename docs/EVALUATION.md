@@ -382,6 +382,57 @@ about 0.3 h, the harm ladder (24) 2.2 h, the validation (6) 0.55 h, the campaign
 most 16) 1.5 h: about 11.8 h in all, 10.4 h without re-runs, against 8.6 h and 7.5 h with the 120-s attack. The
 Slowloris-only cut grows by the same factor, from about 5 h to about 6.9 h.
 
+**Re-registration record (D-035, V-04).** 2026-10-31T12:44Z, the user's "Approve all four", before any data: the
+validation runs run M_pc's daemon mode without enforcement (HEURISTIC_PROFILE=tolerant, SLOW_PC=1,
+SLOW_PC_ENFORCE=0, SLOW_PC_RECORD), recorded under "daemon" in each manifest by `eval/p4_runner.py`;
+`eval/p4_validation.py` refuses a manifest with another mode, a poll the rule enforced, and a poll whose banned
+set holds an address that is not an attacker's (T-039 V-04: otherwise another engine's ban of a CGNAT pool would
+make the benign constraints hold by construction).
+
+**Re-registration record (D-035, V-08).** 2026-10-31T12:44Z, before any data: an M_pc run is valid only if the
+per-connection rule logged `slow_pc_poll` at least every 10 s (`eval/p4_runner.py` SLOW_PC_POLL_GAP_S = 10.0; the
+daemon logs one every 5 s, so this is two missed reports), with no longer gap from the traffic's start to the first
+poll or from the last to the run's end; the runner applies the same bound to the validation runs.
+
+**Re-registration record (D-035, V-01).** 2026-10-31T12:44Z, before any data: the harmed second of (a) is the
+first of 5 consecutive 1-s bins below 0.99 x Q(C) inside the attack window, and the recovery the end of the first 5
+consecutive bins at or above it after that second (0 when no such harm; `eval/p4_outcome.recovery` reports the
+recovery with its onset). With the first reading, one noisy bin made a late recovery pass (T-039 V-01: P(a) per
+block 0.68-0.96 for a true recovery at +95 s); seeded binomial fixtures now pin that a recovery at +95 s fails (a)
+and one at +60 s passes, at 20 and 50 judged requests a second and Q(C) 99.5 and 99.9.
+
+**Re-registration record (D-035, V-02).** 2026-10-31T12:44Z, before any data: fewer than 10 valid blocks decide
+nothing. The family's status is "invalid (k of 10 valid)", never "not harmful" or "harmful but not mitigated"; M7
+is "invalid (k of 10 valid)" unless another family qualifies, and then it names the invalid family next to its claim
+(T-039 V-02: one block that stayed invalid used to make a family "not harmful").
+
+**Re-registration record (D-035, V-03).** 2026-10-31T12:44Z, before any data: the outcome takes every attempt of
+the run index (`eval/p4_runner.py --summarize` writes a record for each, valid or not, and each record names its
+attempt): the harm and (a) and (b) are judged on the last valid attempt of each (block, arm), while (c), the benign
+connections closed and the bans per arm count ALL attempts, invalid ones included, so that a re-run cannot hide a
+ban (T-039 V-03, the recurrence of T-028 F-01).
+
+**Re-registration record (D-041).** 2026-10-31T16:06Z, the user's "Approve as recommended", before any data
+(T-023c F3, T-039 V-13: in simulation the deployed limits refuse CGNAT-24 requests in 9 of 10 seeds). Each block gains an attack-free protected control C_M: profile R with
+`nginx_profile_r_limits.conf` and M_pc's daemon configuration, no attack, seeded with the block, its validity rules
+C's. Criterion (b) compares M_pc's level window with 0.99 x Q(C_M) instead of Q(C); (a) and the harm stay on Q(C). The
+limits' own cost, Q(C_M) against Q(C) and the 503s by role with the CGNAT pools named, is reported as a separate
+finding and judges nothing. The VM budget by §11's method at about 5.5 min per run: the campaign is 90 runs, 8.25 h
+(was 7.3 h), the re-runs at most 18, 1.65 h (was 1.5 h), about 12.9 h in all and 11.3 h without re-runs (were 11.8 h
+and 10.4 h); the Slowloris-only cut about 8.0 h (was 6.9 h). These count §11's 3 smoke runs; the P4-S packet as drafted
+holds 5 runs and hand steps, about 0.75 h, which would add about 0.5 h. The same decision accepted four readings:
+the slow_pc liveness bound also on the validation runs; M7 states its claim and names an invalid family; "seeded
+order" is each block's runs in a seeded order; `/upload` is class C6 doing C2's work until a measured C6 cost exists.
+
+**When the limits refuse, by simulation [computed, NOT RUN; T-023c `artifacts/limits_windows.txt`].**
+`ml/l7_admissibility`, limit_req at 30 r/s with a burst of 100, 10 seeds of the 270-s run: CGNAT-24 is refused mean 62
+and at most 207 of about 3,190 requests in the attack window and none in the level window, 120-240 s; CGNAT-12 none in
+either (at most 69 in the baseline). The refusals follow the pools' cold first views, whose arrivals end at 60 s. So in
+this simulation the level window carries none of that cost, while Q(C_M), taken over the attack window as Q(C) is,
+does: when CGNAT-24 sits on a judged link it lowers the bar of (b) by about 0.7 pp on average and 2.5 pp at worst
+[INFERENCE from the counts], and not at all on another link. `limits_cost()` reports C_M's level next to Q(C_M), so
+the runs will show it. A simulation of the plan is not a measurement: it has no network or server time.
+
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
 user's decision.

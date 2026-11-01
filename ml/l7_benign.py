@@ -452,3 +452,27 @@ def plan_client(kind, params, duration_s, rng):
 
 KINDS = ("browser_page", "cgnat_browsers", "api_bulk", "crawler_polite")
 L7V2_KINDS = ("tpcw_browsing", "tpcw_shopping", "zipf_browser", "search_user", "exporter", "flash_crowd")
+
+
+# ── Uploads (the P5 `uploader`, and P4's two upload kinds on profile R: docs/P4_SLOW_DESIGN.md §4.2) ──
+# An uploader posts one body to /upload, then thinks. P4's `uploader` takes bodies up to 2 MB; its `slow_uploader`
+# is the same client behind a 16 kbit/s link: ml/l7_gen.py paces its body at `rate_Bps` bytes/s on the client side,
+# standing for the link, and the runner shapes its namespace with netem at that rate. Nothing else tells them apart.
+UPLOAD_DEFAULTS = {"think_s": (4.0, 10.0), "body_bytes": (200, 60000)}     # the P5 uploader (ml/l7_traffic.py)
+SLOW_UPLOAD_RATE_BPS = 2000                                                # 16 kbit/s [ASSUMPTION, §4.2]
+UPLOAD_KINDS = ("uploader", "slow_uploader")
+
+
+def upload_plan(params, duration_s, rng):
+    """[(body_bytes, think_s)]: one uploader's uploads over `duration_s` of nominal time (the sum of the think times),
+    drawn as the P5 uploader always drew them: the body's size, then the pause after it. A generator that runs out of
+    time executes a prefix of this list, so its draws are the P5 uploader's draw for draw."""
+    lo, hi = params.get("think_s", UPLOAD_DEFAULTS["think_s"])
+    blo, bhi = params.get("body_bytes", UPLOAD_DEFAULTS["body_bytes"])
+    out, t = [], 0.0
+    while t < duration_s:
+        body = rng.randint(blo, bhi)
+        think = rng.uniform(lo, hi)
+        out.append((body, think))
+        t += think
+    return out

