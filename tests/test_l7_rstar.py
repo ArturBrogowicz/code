@@ -205,7 +205,7 @@ class ParityTest(SelectionCase):
         self.assertEqual({e["level"] for e in d.events("l7_would_ban")}, {"rule"})
         self.assertGreater(counts["polls"], 200)
         [armed] = d.events("l7_enforce_arm")
-        self.assertEqual((armed["armed"], armed["arm"], armed["arm_kind"], armed["level"], armed["rule"],
+        self.assertEqual((armed["armed"], armed["arm"], armed["arm_kind"], armed["level"], armed["rule_arm"],
                           armed["consecutive"]), (True, "R*", "rule", "rule", "cost_budget", 3))
         self.assertEqual(d.events("daemon_error"), [])
         reports = d.events("l7_shadow")

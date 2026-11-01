@@ -114,7 +114,9 @@ class L7RuleEngine:
                 self.totals["would_bans"] += 1
                 events.append({"kind": "l7_would_ban", "level": "rule", "ip": key[0], "ua_h": key[1], "p": p,
                                "hits": hits, "t_row": t, "ip_banned": key[0] in banned, "threshold": self.threshold,
-                               "consecutive": self.consecutive, "t_poll": now})
+                               "consecutive": self.consecutive, "t_poll": now,
+                               "statistic": self.scorer.statistic(row),
+                               "stat_threshold": self.scorer.stat_thresholds})
         return events
 
     def take_summary(self):

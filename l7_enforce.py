@@ -51,7 +51,10 @@ Safeguards (9.3):
 
 Events (ban_events.EventLog; documented in docs/EVALUATION.md): l7_enforce_arm, l7_deny, l7_deny_end,
 l7_enforce_skip, l7_enforce_miss, l7_enforce_capped, l7_reload, l7_enforce_poll, and the daemon's own `ban` for
-level 2. They carry hashes, never a raw User-Agent or session id.
+level 2. They carry hashes, never a raw User-Agent or session id. R*'s also carry the rule arm, its statistics and their
+thresholds at the decision, and `users_seen`: the distinct session ids seen under the (IP, UA) key so far (a request
+without a session counts as one), the reading ml/l7v2_rules.key_costs falls back on without a plan, for the budget's
+live reading (D-044 OC-2). One user may hold several sessions, so it reads high; the run's manifest gives the devices.
 
 Standard library only, like l7_ingest and l7_denymap; everything that touches nginx, XDP or the event log is injected,
 so the tests use fakes.
@@ -76,6 +79,7 @@ MAX_LEVEL2_PER_MIN = 20        # 9.3: level-2 bans in any 60 s at most
 REPORT_INTERVAL_S = 5.0
 MAX_IPS = 65536                # IpKeys' LRU bound
 MAX_INBOX = 100000             # would-ban events waiting for the next step at most
+MAX_USERS_PER_KEY = 4096       # R*: distinct session ids counted under an (IP, UA) key at most
 SERVER_ADDRESSES = ("127.0.0.0/8", "10.0.0.1/32")    # loopback and the server's address in server_ns
 SKIP_REASONS = ("not_armed", "killed", "ip_format", "allowlist", "already_denied", "ip_banned", "key_age",
                 "cgnat_guard")
@@ -174,6 +178,7 @@ class Arm:
         self.waiting = {}              # key -> (event, start of its first request): held by the key-age gate
         self.armed, self.why, self.info = False, "no engine attached", {"arm": None}
         self.rule_level = False        # R*: the keys are (IP, ua_h), whatever the session
+        self.users = OrderedDict()     # R*: (IP, ua_h) -> the session ids seen under it; bounded as the raw table is
         self.last_reload = None
         self.last_report = None
         self.changes = 0
@@ -204,7 +209,8 @@ class Arm:
         elif why is None and (info["level"] == "rule") != self.denies.key_level:
             why = f"a {info['level']}-level engine with a map of the other level ({self.denies.path})"
         if info["level"] == "rule":
-            info["rule"] = getattr(scorer, "rule_name", None)
+            info.update(rule_arm=getattr(scorer, "rule_name", None), stat_threshold=getattr(scorer, "stat_thresholds", None),
+                        calibration_sha256=getattr(scorer, "calibration_sha256", None))
         with self.lock:
             self.armed, self.why, self.info = why is None, why, info
             self.rule_level = info["level"] == "rule"
@@ -220,6 +226,7 @@ class Arm:
             with self.lock:
                 if self.rule_level:            # a rule's key is every session of (IP, UA)
                     self.raw.note(key[:2], ua, "", start)
+                    self._note_user(key[:2], key[2])
                     tr = self.tracked.get(key[:2])
                 else:
                     self.raw.note(key, ua, sid, start)
@@ -231,6 +238,17 @@ class Arm:
             self.counts["observe_errors"] += 1
             if self.first_error is None:
                 self.first_error = f"{type(e).__name__}: {e}"[:200]
+
+    def _note_user(self, key, sid_h):
+        seen = self.users.get(key)
+        if seen is None:
+            seen = self.users[key] = set()
+            if len(self.users) > self.raw.max_keys:
+                self.users.popitem(last=False)
+        else:
+            self.users.move_to_end(key)
+        if len(seen) < MAX_USERS_PER_KEY:
+            seen.add(sid_h)
 
     def submit(self, event):
         """A logged `l7_would_ban` event (its fields, without "kind"), for the next step."""
@@ -361,10 +379,16 @@ class Arm:
 
     def _decision(self, ev):
         """The fields every decision event carries: the key's hashes, the arm and its operating point, the score."""
-        return {"ip": ev["ip"], "ua_h": ev["ua_h"],
-                "sid_h": None if self.rule_level else ev.get("sid_h", l7_ingest.NO_SID),
-                "arm": self.info.get("arm"), "threshold": ev.get("threshold"), "consecutive": ev.get("consecutive"),
-                "p": ev.get("p"), "t_poll": ev.get("t_poll")}
+        fields = {"ip": ev["ip"], "ua_h": ev["ua_h"],
+                  "sid_h": None if self.rule_level else ev.get("sid_h", l7_ingest.NO_SID),
+                  "arm": self.info.get("arm"), "threshold": ev.get("threshold"), "consecutive": ev.get("consecutive"),
+                  "p": ev.get("p"), "t_poll": ev.get("t_poll")}
+        if self.rule_level:
+            with self.lock:
+                users = len(self.users.get(self._key(ev), ()))
+            fields.update(rule_arm=self.info.get("rule_arm"), statistic=ev.get("statistic"),
+                          stat_threshold=ev.get("stat_threshold"), users_seen=users)
+        return fields
 
     def _skip(self, reason, ev, **extra):
         self.skips[reason] += 1
@@ -506,10 +530,11 @@ class Arm:
             after = round(tr["last"] - t_eff, 3)
             banned_at = self.ban(ip, reason=f"L7 v2 arm {info['arm']}: key kept sending {after:g} s after its "
                                 f"{'deny' if tr['ident'] else 'decision'} (p={info['p']} > {info['threshold']} in "
-                                f"{info['consecutive']} windows)",
+                                f"{info['consecutive']} {'rows' if self.rule_level else 'windows'})",
                      engine=ban_events.L7V2_ENGINE, level=2, value=info["p"], p=info["p"], threshold=info["threshold"],
                      consecutive=info["consecutive"], arm=info["arm"], ua_h=info["ua_h"], sid_h=info["sid_h"],
-                     ua_keys=counts[0], sid_keys=counts[1], after_s=after, denied=tr["ident"] is not None)
+                     ua_keys=counts[0], sid_keys=counts[1], after_s=after, denied=tr["ident"] is not None,
+                     **{k: info[k] for k in ("rule_arm", "statistic", "stat_threshold", "users_seen") if k in info})
             self.xdp_bans[ip] = banned_at
             self.close(ip)
         if capped:

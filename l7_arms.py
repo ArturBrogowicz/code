@@ -21,8 +21,10 @@ rules_selection.json, L7_SELECTION_SHA256 its sha256) by the arm's name "R*". A 
 its statistics, never on view windows (T042-E08), so it is a RuleDetector on l7_rule_engine's path, and the replay's own
 RuleStats and RuleScorer run in the daemon, imported from ml/l7v2_rules.py (0.05 s and 5 MB on top of torch, measured,
 and no root module shares a name with one in ml/). The same refusals apply: a selection that is not the recorded one or
-not valid for claims, an altered artifact, an operating point that is not the selection's. Only R* runs live: the other
-rule arms and the fixed replays are scored by the replay, and a selection in which no rule fits the budget has no R*.
+not valid for claims, an altered artifact, an operating point that is not the selection's. So do two of its own: the
+calibration record it was tuned on must be frozen and the package's, since its thresholds are in that record's costs, and
+its rule spec must be the one in this tree. Only R* runs live: the other rule arms and the fixed replays are scored by
+the replay, and a selection in which no rule fits the budget has no R*.
 """
 import hashlib
 import json
@@ -101,12 +103,18 @@ class RuleDetector:
         self.sha256, self.selection_sha256 = rule.sha256, selection_sha256
         self.valid_for_claims = True                # load() refuses any other selection
         self.cfg = {"meta": {"arm": RSTAR, "kind": "rule", "rule": rule.arm, "operating_point": "rules_selection.json"}}
+        self.stat_thresholds = {c: float(t) for c, t in zip(rule.stat_columns, rule.thresholds, strict=True)}
+        self.calibration_sha256 = rule.cfg["calibration"]["sha256"]
 
     def new_stats(self):
         return self._rules.RuleStats(self.rule.costs)
 
     def score(self, rows):
         return self.rule.score(self.rule.select(rows))
+
+    def statistic(self, row):
+        """The rule's statistics in one row, for the events: {column: value}."""
+        return {c: round(float(v), 6) for c, v in zip(self.rule.stat_columns, self.rule.select(row)[0], strict=True)}
 
 
 def rules_module():
@@ -134,6 +142,13 @@ def _load_rstar(sel, selection_path, selection_sha256, arm):
         raise DetectorError(f"{selection_path} is not a {rules.SELECTION_FORMAT} file")
     if arm != RSTAR:
         raise DetectorError(f"a rule selection enforces {RSTAR} only (section 10), not {arm!r}; the replay scores the rest")
+    cal = sel.get("calibration") or {}
+    if cal.get("status") != "frozen":
+        raise DetectorError(f"{selection_path} was tuned on a {cal.get('status')!r} calibration record, not a frozen one: "
+                            "it is not enforced")
+    if sel.get("spec_sha256") != rules.spec_sha256():
+        raise DetectorError(f"{selection_path} was tuned under another rule spec ({sel.get('spec_sha256')}), not this "
+                            f"tree's ({rules.spec_sha256()})")
     name = sel.get("r_star")
     entry = (sel.get("arms") or {}).get(name)
     op = (entry or {}).get("operating_point")
@@ -147,6 +162,8 @@ def _load_rstar(sel, selection_path, selection_sha256, arm):
     own = (rule.arm, rule.stat_columns, list(rule.cfg["thresholds"]), rule.consecutive)
     if own != (name, list(op["columns"]), list(op["thresholds"]), int(op["consecutive"])):
         raise DetectorError(f"arm {name!r}: the package's operating point is not the selection's")
+    if rule.cfg.get("calibration") != cal or rule.cfg.get("spec_sha256") != sel["spec_sha256"]:
+        raise DetectorError(f"arm {name!r}: the package's calibration record or rule spec is not the selection's")
     return RuleDetector(rules, rule, selection_sha256)
 
 
