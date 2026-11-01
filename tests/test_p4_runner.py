@@ -367,5 +367,47 @@ class ExecuteTest(unittest.TestCase):
         self.assertFalse(any("logged no poll" in r for r in res["reasons"]), "M_def runs no rule")
 
 
+    def test_the_limits_own_cost_comes_from_the_access_log(self):
+        host = F.FakeHost(modelled_attackers=2, limit_refuses=0.2)
+        res = R.run_block(host, self.block("campaign", 3106, thresholds=POINT))
+        self.assertTrue(all(r["ok"] for _a, r in res), [(a, r["reasons"]) for a, r in res if not r["ok"]])
+        out = os.path.join(self.root, "runs.jsonl")
+        R.summarize_root(self.root, CAL, out)
+        with open(out, encoding="utf-8") as fh:
+            by = {r["arm"]: r for r in map(json.loads, fh)}
+        self.assertEqual(sum(c["refused"] for c in by["C"]["refused"]["by_role"].values()), 0)
+        refused = by["C_M"]["refused"]
+        self.assertGreater(refused["by_role"]["cgnat"]["refused"], 0)
+        self.assertEqual({r for r, c in refused["by_role"].items() if c["refused"]}, {"cgnat"})
+        self.assertEqual({"uploader", "slow_uploader"} - set(refused["by_role"]), set())
+        self.assertEqual(sorted(refused["cgnat"]), ["CGNAT-12", "CGNAT-24"])
+        self.assertTrue(all(c["refused"] > 0 for c in refused["cgnat"].values()))
+        self.assertLessEqual(by["C_M"]["Q"], by["C"]["Q"])
+        cost = OUT.outcome(list(by.values()))["limits_cost"]
+        self.assertEqual([r["block"] for r in cost["blocks"]], [3106])
+        self.assertEqual(cost["blocks"][0]["refused_C"], 0)
+        self.assertEqual(cost["refused_cgnat"].keys(), {"CGNAT-12", "CGNAT-24"})
+
+    def test_refusals_reads_the_log_by_label_and_window(self):
+        man = {"timeline": {"t0_wall": 1000.0}, "roles": {"10.0.17.3": "cgnat", "10.0.16.5": "search_user"},
+               "entities": [{"address": "10.0.17.3", "kind_or_family": "cgnat_browsers", "params": {"users": 24}},
+                            {"address": "10.0.16.5", "kind_or_family": "search_user", "params": {}}]}
+        lines = [{"msec": 1050.5, "rt": 0.5, "ip": "10.0.17.3", "status": 503},
+                 {"msec": 1051.0, "rt": 0.5, "ip": "10.0.17.3", "status": 200},
+                 {"msec": 1051.0, "rt": 0.5, "ip": "10.0.16.5", "status": 429},
+                 {"msec": 1010.0, "rt": 0.0, "ip": "10.0.17.3", "status": 503},    # before the window
+                 {"msec": 1240.1, "rt": 0.0, "ip": "10.0.17.3", "status": 503},    # after it
+                 {"msec": 1100.0, "rt": 0.1, "ip": "10.9.9.9", "status": 503}]     # no label
+        path = os.path.join(self.root, "access.log")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.writelines(json.dumps(x) + "\n" for x in lines)
+            fh.write("not json\n")
+        got = R.refusals(path, man, (30, 240))
+        self.assertEqual(got["by_role"], {"cgnat": {"requests": 2, "refused": 1},
+                                          "search_user": {"requests": 1, "refused": 1},
+                                          "unlabelled": {"requests": 1, "refused": 1}})
+        self.assertEqual(got["cgnat"], {"CGNAT-24": {"address": "10.0.17.3", "requests": 2, "refused": 1}})
+
+
 if __name__ == "__main__":
     unittest.main()

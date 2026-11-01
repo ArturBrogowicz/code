@@ -27,11 +27,12 @@ def bins(base, dip=None, until=None, total=270, start=35):
     return q
 
 
-def rec(block, arm, q, p95=0.10, q_per_s=None, q_level=None, banned=None, valid=True, closed=0, attempt=1):
+def rec(block, arm, q, p95=0.10, q_per_s=None, q_level=None, banned=None, valid=True, closed=0, attempt=1,
+        refused=None):
     return {"block": block, "arm": arm, "attempt": attempt, "valid": valid, "Q": q, "p95_s": p95,
             "q_per_s": q_per_s if q_per_s is not None else bins(q),
             "q_level": q if q_level is None else q_level, "level_window": list(O.LEVEL_WINDOW_S),
-            "banned": banned or {}, "benign_closed": closed}
+            "banned": banned or {}, "benign_closed": closed, "refused": refused}
 
 
 def campaign(over=None):
@@ -353,6 +354,69 @@ class ProtectedControlTest(unittest.TestCase):
         self.assertEqual(res["bans_by_arm"]["C_M"], {"cgnat": 1})
 
 
+def refused_counts(cgnat12, cgnat24, others=0):
+    return {"by_role": {"cgnat": {"requests": 2000, "refused": cgnat12 + cgnat24},
+                        "tpcw_browsing": {"requests": 4000, "refused": others}},
+            "cgnat": {"CGNAT-12": {"address": "10.0.17.3", "requests": 700, "refused": cgnat12},
+                      "CGNAT-24": {"address": "10.0.18.9", "requests": 1300, "refused": cgnat24}}}
+
+
+class LimitsCostTest(unittest.TestCase):
+    """D-041: the deployed limits' own cost, a separate finding that judges nothing."""
+
+    def over(self):
+        out = {}
+        for i in range(10):
+            out[("C_M", i)] = {"q": 97.0 + 0.1 * i, "refused": refused_counts(5, 100 + i)}
+            out[("C", i)] = {"refused": refused_counts(0, 0)}
+        return out
+
+    def test_q_c_m_against_q_c_and_the_refusals_by_role_with_the_pools_named(self):
+        cost = O.outcome(campaign(self.over()))["limits_cost"]
+        self.assertEqual(len(cost["blocks"]), 10)
+        first = cost["blocks"][0]
+        self.assertEqual((first["block"], first["Q_C"], first["Q_C_M"], first["refused_C"], first["refused_C_M"]),
+                         (3101, 99.5, 97.0, 0, 105))
+        self.assertAlmostEqual(first["dQ_pp"], 2.5)
+        self.assertEqual(cost["decision"], "supported (+)")
+        self.assertGreater(cost["mean_dQ_pp"], 2.0)
+        self.assertEqual(cost["refused_by_role"]["cgnat"], {"requests": 20000, "refused": 50 + 1045})
+        self.assertEqual(cost["refused_by_role"]["tpcw_browsing"]["refused"], 0)
+        self.assertEqual(cost["refused_cgnat"], {"CGNAT-12": {"requests": 7000, "refused": 50},
+                                                 "CGNAT-24": {"requests": 13000, "refused": 1045}})
+
+    def test_the_rules_own_effect_in_c_m_is_shown(self):
+        over = self.over()
+        over[("C_M", 4)].update(banned={"10.0.4.1": "cgnat", "10.0.3.1": "attack"}, closed=7)
+        row = O.outcome(campaign(over))["limits_cost"]["blocks"][4]
+        self.assertEqual((row["benign_banned_C_M"], row["benign_closed_C_M"]), (["10.0.4.1"], 7))
+
+    def test_it_judges_nothing_and_needs_valid_controls(self):
+        plain, costed = O.outcome(campaign()), O.outcome(campaign({k: {"refused": v.get("refused")}
+                                                                   for k, v in self.over().items()}))
+        self.assertEqual((plain["M7"], plain["families"]["loris"]["status"]),
+                         (costed["M7"], costed["families"]["loris"]["status"]))
+        none = O.outcome(campaign())["limits_cost"]
+        self.assertEqual((none["blocks"][0]["refused_C_M"], none["refused_by_role"]), (None, {}))
+        over = self.over()
+        over[("C_M", 0)]["valid"] = False
+        over[("C", 1)]["valid"] = False
+        cost = O.outcome(campaign(over))["limits_cost"]
+        self.assertEqual([r["block"] for r in cost["blocks"]], list(O.BLOCK_SEEDS[2:]))
+        self.assertIsNone(O.outcome([r for r in campaign() if r["arm"] != "C_M"])["limits_cost"]["mean_dQ_pp"])
+
+    def test_the_command_line_prints_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            runs = os.path.join(tmp, "runs.jsonl")
+            with open(runs, "w", encoding="utf-8") as fh:
+                fh.writelines(json.dumps(r) + "\n" for r in campaign(self.over()))
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                self.assertEqual(O.main([runs]), 0)
+        self.assertIn("the deployed limits' own cost (judges nothing)", printed.getvalue())
+        self.assertIn("CGNAT-24", printed.getvalue())
+
+
 class InputTest(unittest.TestCase):
     def test_bad_records_are_refused(self):
         runs = campaign()
@@ -372,7 +436,8 @@ class InputTest(unittest.TestCase):
                         attempt=1)
         self.assertEqual(r, {"block": 3101, "arm": "M_pc_loris", "attempt": 1, "valid": True, "Q": 97.0, "p95_s": 0.2,
                              "q_per_s": q, "q_level": 98.0, "level_window": [120.0, 240.0],
-                             "banned": {"10.0.3.1": "attack", "10.0.4.1": "cgnat"}, "benign_closed": 1})
+                             "banned": {"10.0.3.1": "attack", "10.0.4.1": "cgnat"}, "benign_closed": 1,
+                             "refused": None})
         with self.assertRaises(ValueError):
             O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [{"kind": "ban", "ip": "10.9.9.9"}], roles,
                         level_window=win, attempt=1)

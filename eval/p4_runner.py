@@ -41,8 +41,8 @@ Every attempt, valid or not, is a line of ROOT/index.jsonl with its reasons (§1
 ROOT/<phase>/b<seed>_a<attempt>[_<label>]/<arm>/, with block.json beside its runs.
 
 What the runs write feeds eval/p4_validation.py (slow_pc_manifest.json, slow_pc.jsonl.gz) and eval/p4_outcome.py
-(run_record(): the client-side figures of eval/l7v2_harm.py over the attack window and LEVEL_WINDOW_S, the ban events
-and the closes) unchanged; `--summarize ROOT OUT.jsonl` writes the run records of every evaluation attempt of the
+(run_record(): the client-side figures of eval/l7v2_harm.py over the attack window and LEVEL_WINDOW_S, the ban events,
+the closes, and nginx's refusals by role from the access log, for the limits' own cost of D-041) unchanged; `--summarize ROOT OUT.jsonl` writes the run records of every evaluation attempt of the
 run index, valid or not (D-035, V-03).
 
     sudo ./venv/bin/python eval/p4_runner.py --phase campaign --seed 3101 --loris 175 --post 10 --thresholds 20,64,2
@@ -584,6 +584,36 @@ def run_block(host, block):
 
 # --- the records eval/p4_outcome.py judges ----------------------------------------------------------
 
+def refusals(path, man, window):
+    """What nginx refused over `window` of the run (status 429 or 503, what limit_req and limit_conn answer:
+    eval/harm_gate.REFUSED_STATUSES), from the run's access log and labels, for the limits' own cost of D-041:
+    {"by_role": {role: {"requests", "refused"}}, "cgnat": {"CGNAT-12": {"address", "requests", "refused"}, ...}}. A request
+    is placed at its start ($msec - $request_time), as eval/l7v2_harm.server_q does; a line that cannot be read is
+    skipped; an address without a label is counted as "unlabelled", never dropped."""
+    import l7_dataset
+    import l7_ingest
+    t0, roles = man["timeline"]["t0_wall"], man["roles"]
+    pools = {e["address"]: f"CGNAT-{e['params']['users']}" for e in man["entities"]
+             if e["kind_or_family"] == "cgnat_browsers"}
+    out = {"by_role": {}, "cgnat": {name: {"address": ip, "requests": 0, "refused": 0} for ip, name in pools.items()}}
+    with l7_dataset.open_log(path) as fh:
+        for line in fh:
+            obj = l7_ingest.parse_l7_line(line)
+            if obj is None or not obj.get("ip"):
+                continue
+            t_rel = l7_ingest._num(obj.get("msec")) - l7_ingest._num(obj.get("rt")) - t0
+            if not window[0] <= t_rel < window[1]:
+                continue
+            ip, hit = obj["ip"], int(l7_ingest._num(obj.get("status"))) in OUT.HG.REFUSED_STATUSES
+            rows = [out["by_role"].setdefault(roles.get(ip, "unlabelled"), {"requests": 0, "refused": 0})]
+            if ip in pools:
+                rows.append(out["cgnat"][pools[ip]])
+            for row in rows:
+                row["requests"] += 1
+                row["refused"] += hit
+    return out
+
+
 def run_record(run_dir, cal, block=None, attempt=1):
     """eval/p4_outcome.summarize of one run directory: the client-side figures of eval/l7v2_harm.py over the attack
     window and over LEVEL_WINDOW_S, the ban events, the closes the rule enforced, the run's labels and its attempt. A
@@ -608,8 +638,10 @@ def run_record(run_dir, cal, block=None, attempt=1):
     lw = OUT.LEVEL_WINDOW_S
     rows_l, _t0, _c = LH.run_rows(run_dir, man, lw)
     level = LH.metrics(rows_l, cal, (t0 + lw[0], t0 + lw[1]), t0, total)
+    log = os.path.join(run_dir, "access.log")
+    refused = refusals(log, man, attack) if os.path.isfile(log) else None
     return OUT.summarize(seed, man["arm"], meta["checks"]["ok"], m, level, events, man["roles"], closes,
-                         level_window=lw, attempt=attempt)
+                         level_window=lw, attempt=attempt, refused=refused)
 
 
 def summarize_root(root, cal, out_path):

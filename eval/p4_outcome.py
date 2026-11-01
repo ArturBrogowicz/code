@@ -21,8 +21,10 @@ recovery. Per family (loris, post):
     family, for the mitigation (D-035, below). M7 is "supported with scope" for the families that are harmful and
     mitigated (profile R, these families at this scale, this testbed), naming next to it any family that is
     invalid; "invalid (k of 10 valid)" when no family qualifies and one is invalid; else "not supported".
-  * reported next to it: Q(M_pc) - Q(M_def) per block with eval/run_level_stats.decide, and the bans per arm by
-    role.
+  * reported next to it: Q(M_pc) - Q(M_def) per block with eval/run_level_stats.decide, the bans per arm by role,
+    and, as a finding of its own that judges nothing, the deployed limits' own cost (D-041, limits_cost()): Q(C_M)
+    against Q(C) per block, what nginx refused in C_M by role with the CGNAT pools named, and the per-connection
+    rule's own bans and closes in C_M.
 
 Two readings are this code's, not the note's, and are pinned by tests: (a) counts the 5 bins from the first
 harmed second after the attack starts (a run that is never harmed has recovered at once; the harmed second as
@@ -64,7 +66,10 @@ M7 states its claim and names the invalid family.
 A run record (one dict per run; summarize() builds it from eval/harm_gate.run_metrics and the ban events):
     {"block": 3101, "arm": "M_pc_loris", "attempt": 1, "valid": true, "Q": 97.5, "p95_s": 0.21,
      "q_per_s": [...one value or None per second of the run...], "q_level": 98.9, "level_window": [120, 240],
-     "banned": {"10.0.3.1": "attack", ...}, "benign_closed": 0}
+     "banned": {"10.0.3.1": "attack", ...}, "benign_closed": 0,
+     "refused": {"by_role": {"cgnat": {"requests": 900, "refused": 12}, ...},
+                 "cgnat": {"CGNAT-12": {"address": "10.0.17.3", "requests": 300, "refused": 1}, ...}}}
+`refused` is optional and judges nothing (eval/p4_runner.py refusals(): nginx's 429 and 503 from the run's access log).
 A record is refused unless it has one bin per second of the pre-registered run (RUN_S = 270) and its q_level was
 taken over LEVEL_WINDOW_S (review T-039 V-05): a run on another timeline, or a level over another window, is not
 judged silently.
@@ -116,7 +121,7 @@ def check_record_timeline(q_per_s, level_window):
 
 
 def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow_pc_closes=(), *, level_window,
-              attempt):
+              attempt, refused=None):
     """One run record from the run's harm-gate metrics (eval/harm_gate.run_metrics: over the attack
     window, and with window=LEVEL_WINDOW_S for `level_metrics`; `level_window` is the window the caller
     took it over, and must be LEVEL_WINDOW_S), its ban events and the role of every client address.
@@ -137,7 +142,8 @@ def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow
     return {"block": block, "arm": arm, "attempt": attempt, "valid": bool(valid), "Q": metrics["Q"],
             "p95_s": metrics["p95_s"],
             "q_per_s": list(metrics["q_per_s"]), "q_level": level_metrics["Q"],
-            "level_window": [float(x) for x in level_window], "banned": banned, "benign_closed": benign_closed}
+            "level_window": [float(x) for x in level_window], "banned": banned, "benign_closed": benign_closed,
+            "refused": refused}
 
 
 def recovery(q_per_s, threshold, start=TIMELINE["baseline_s"]):
@@ -259,6 +265,42 @@ def bans_by_arm(runs):
     return out
 
 
+def _add_counts(into, name, counts):
+    row = into.setdefault(name, {"requests": 0, "refused": 0})
+    row["requests"] += counts["requests"]
+    row["refused"] += counts["refused"]
+
+
+def _refused_total(record):
+    refused = record.get("refused")
+    return None if refused is None else sum(c["refused"] for c in refused["by_role"].values())
+
+
+def limits_cost(blocks):
+    """The deployed limits' own cost to benign users, a finding of its own that judges nothing (D-041). Per block with a
+    valid C and C_M: Q(C), Q(C_M) and C_M's level, what nginx refused in each, and the per-connection rule's own effect
+    in C_M (benign addresses banned, benign connections closed), which would lower (b)'s bar. Over them: the mean of
+    Q(C) - Q(C_M) with eval/run_level_stats.decide, and C_M's refusals by role and per CGNAT pool by name."""
+    rows, by_role, pools = [], {}, {}
+    for block in sorted(blocks):
+        b = blocks[block]
+        if not _ok(b, CONTROL, PROTECTED):
+            continue
+        c, cm = b[CONTROL], b[PROTECTED]
+        rows.append({"block": block, "Q_C": c["Q"], "Q_C_M": cm["Q"], "q_level_C_M": cm["q_level"],
+                     "dQ_pp": c["Q"] - cm["Q"], "refused_C": _refused_total(c), "refused_C_M": _refused_total(cm),
+                     "benign_banned_C_M": sorted(ip for ip, role in cm["banned"].items() if role != ATTACK),
+                     "benign_closed_C_M": cm.get("benign_closed", 0)})
+        refused = cm.get("refused") or {}
+        for role, counts in refused.get("by_role", {}).items():
+            _add_counts(by_role, role, counts)
+        for name, counts in refused.get("cgnat", {}).items():
+            _add_counts(pools, name, counts)
+    d = [r["dQ_pp"] for r in rows]
+    return {"blocks": rows, "mean_dQ_pp": sum(d) / len(d) if d else None,
+            "decision": RLS.decide(d), "refused_by_role": by_role, "refused_cgnat": pools}
+
+
 def invalid(k):
     """The status of a family, or of M7, with fewer than MIN_VALID_BLOCKS valid blocks (D-035, V-02)."""
     return f"invalid ({k} of {len(BLOCK_SEEDS)} valid)"
@@ -292,7 +334,8 @@ def outcome(runs):
         m7 = invalid(min(fam[f]["valid_blocks_if_invalid"] for f in lacking))
     else:
         m7 = "not supported"
-    return {"M7": m7, "families": fam, "bans_by_arm": bans_by_arm(runs), "t_mit_s": T_MIT_S}
+    return {"M7": m7, "families": fam, "bans_by_arm": bans_by_arm(runs), "t_mit_s": T_MIT_S,
+            "limits_cost": limits_cost(blocks)}
 
 
 def main(argv=None):
@@ -306,6 +349,11 @@ def main(argv=None):
     print(f"M7: {res['M7']}")
     for f, r in res["families"].items():
         print(f"  {FAMILY_NAMES[f]}: {r['status']}")
+    cost = res["limits_cost"]
+    if cost["blocks"]:
+        print(f"  the deployed limits' own cost (judges nothing): Q(C) - Q(C_M) {cost['mean_dQ_pp']:.2f} pp over "
+              f"{len(cost['blocks'])} blocks, {cost['decision']}; refused in C_M {cost['refused_by_role']}, "
+              f"CGNAT pools {cost['refused_cgnat']}")
     if args.json:
         with open(args.json, "w", encoding="utf-8") as fh:
             json.dump(res, fh, indent=1, default=str)

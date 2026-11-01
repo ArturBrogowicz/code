@@ -12,6 +12,9 @@ The model, as far as the runner's outputs need it:
     generator, a slow uploader's connection unanswered at 2,000 B/s, and the connections of the first
     `modelled_attackers` attack sources, unanswered and dribbling (a line every 20 s); a connection the rule closes is
     re-opened 10 s later with a new port, and a banned address holds none;
+  * nginx's access log (l7json, written where the runner moves it): one line per answered request of a plan-kind
+    generator and one per other benign generator; behind nginx_profile_r_limits.conf a share `limit_refuses` of a CGNAT
+    pool's requests is refused with a 503, which its client also records;
   * the daemon (control_plane.py): `daemon_startup_s` after its start it prints its ready line and XDP's, writes its
     start event to BAN_EVENTS; with SLOW_PC=1, every `poll_every_s` it records the snapshot (slow_pc.record_member
     into SLOW_PC_RECORD), emits slow_pc_poll, and runs slow_pc.Detector at its SLOW_PC_T/F/K: in shadow its decisions
@@ -74,13 +77,14 @@ class FakeHost(X.Host):
 
     def __init__(self, *, root=True, netns=(), kill_file=False, kill_appears_at=None, stack_ready=True,
                  nginx_fails=False, daemon_dies_at=None, daemon_startup_s=3.0, gen_fails=(), gen_code=3,
-                 poll_every_s=1.0, modelled_attackers=None, harm=None, fail_prim=None):
+                 poll_every_s=1.0, modelled_attackers=None, harm=None, fail_prim=None, limit_refuses=0.0):
         self.t = 0.0
         self.root, self.netns, self.stack_ready, self.nginx_fails = root, list(netns), stack_ready, nginx_fails
         self.kill_file, self.kill_appears_at = kill_file, kill_appears_at
         self.daemon_dies_at, self.daemon_startup_s = daemon_dies_at, daemon_startup_s
         self.gen_fails, self.gen_code, self.poll_every_s = set(gen_fails), gen_code, poll_every_s
         self.modelled_attackers, self.harm, self.fail_prim = modelled_attackers, harm, fail_prim
+        self.limit_refuses = limit_refuses
         self.pids, self.seq = itertools.count(100), itertools.count()
         self.events, self.commands, self.prims, self.procs = [], [], [], []
         self.reset_world()
@@ -88,6 +92,7 @@ class FakeHost(X.Host):
     def reset_world(self):
         self.world = getattr(self, "world", 0) + 1
         self.socks = {}            # key -> {"ip", "port", "sport", "kind", "opened"}
+        self.access, self.limits = [], False
         self.banned, self.closed_at = {}, {}
         self.attack_trace = []     # (t, held attack connections)
         self.ports = itertools.count(20000)
@@ -141,8 +146,14 @@ class FakeHost(X.Host):
             return X.Result(0, STUB.format(a=held, n=10 + int(self.t), r=30 + 3 * int(self.t), w=held), "")
         if argv[0] == "curl":
             return X.Result(0, "200" if self.stack_ready else "502", "")
+        if argv[:3] == ["mv", "-f", "/var/log/nginx/l7_capture.log"] and self.access:
+            with open(argv[3], "w", encoding="utf-8") as fh:
+                fh.writelines(json.dumps(x) + "\n" for x in self.access)
+            self.access = []
+            return X.Result(0, "", "")
         if "nginx" in argv and "-s" not in argv:            # a run's stack starts: a new world
             self.reset_world()
+            self.limits = any("limits" in a for a in argv)
             return X.Result(1 if self.nginx_fails else 0, "", "")
         return X.Result(0, "", "")
 
@@ -201,6 +212,12 @@ class FakeHost(X.Host):
             del self.socks[key]
         if p.records:
             self._write_records(p)
+        elif p.role == "benign":
+            self._log(p, BASE_EPOCH + p.start + 60.0, "/upload", 200)
+
+    def _log(self, p, sent, path, status):
+        self.access.append({"msec": sent + 0.03, "rt": 0.03, "ip": p.ip, "port": 40000, "method": "GET", "uri": path,
+                            "status": status, "lreq": "REJECTED" if status == 503 else "", "lconn": ""})
 
     def _tick(self, world):
         if world != self.world:
@@ -231,13 +248,18 @@ class FakeHost(X.Host):
                     for vi, (path, gap, *_r) in enumerate(user["requests"]):
                         items.append((t, vi, 0, path))
                         t += gap
-                for t_nom, vi, wi, path in items:
+                every = round(1 / self.limit_refuses) if self.limits and self.limit_refuses \
+                    and p.name == "cgnat_browsers" else 0
+                for k, (t_nom, vi, wi, path) in enumerate(items):
                     if t_nom >= p.dur:
                         continue
                     sent = origin + t_nom
                     bad = self.harmed(p.start + t_nom)
+                    status = "nan" if bad else (503 if every and k % every == 0 else 200)
+                    if not bad:
+                        self._log(p, sent, path, status)
                     w.writerow([f"{sent:.6f}", f"{sent:.6f}", f"{sent + (0.1 if bad else 0.03):.6f}",
-                                "nan" if bad else 200, "conn" if bad else "",
+                                status, "conn" if bad else "",
                                 l7_webapp.route_class("GET", path) or "", u, vi, wi, f"{sent:.6f}", f"{origin:.6f}"])
 
     # --- the world as ss prints it ---------------------------------------------------------------
