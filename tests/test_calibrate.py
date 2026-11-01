@@ -856,6 +856,19 @@ class RunnerTest(unittest.TestCase):
             self.assertEqual(K.Runner(S.SimHost()).run(plan, lambda m: None), record)
         execute.assert_not_called()
 
+    def test_a_refused_probe_waits_within_the_steps_wait_and_a_last_refusal_stops_it_without_a_second_attempt(self):
+        host = S.SimHost(timer_p99_by_cpu={"7": [25.0, 5.0]})
+        self.assertTrue(K.Runner(host, wait_gate_min=1.0).run(self.plan("waits"), lambda m: None)["ok"])
+        self.assertEqual(host.sleeps[0], X.TIMER_REPROBE_S)
+        host = S.SimHost(timer_p99_ms=25.0)
+        with self.assertRaisesRegex(X.EnvironmentRefused, "2 probes over 30 s"):
+            K.Runner(host, wait_gate_min=0.5).run(self.plan("stops"), lambda m: None)
+        self.assertEqual(sum("timer-probe" in argv for _, _, argv in host.commands), 2, "one attempt: no retry of a refusal")
+
+    def test_the_plan_states_the_wait(self):
+        self.assertIn("a refused probe is made again every 30 s, up to --wait-gate minutes from the run's first probe (0: one probe)",
+                      K.plan_text(TEMPLATE))
+
     def test_the_first_run_of_a_process_waits_for_the_full_gate_and_the_next_for_the_timer(self):
         runner = K.Runner(S.SimHost())
         with mock.patch.object(K.X, "execute", wraps=X.execute) as spy:

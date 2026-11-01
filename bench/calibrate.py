@@ -762,6 +762,8 @@ def plan_text(template):
     total = sum(runs.values())
     out.append(f"runs    {runs['capacity']} capacity + {runs['screening']} screening + {runs['reference']} reference = {total}; at about "
                f"{RUN_ESTIMATE_S:.0f} s that is {total * RUN_ESTIMATE_S / 3600:.1f} h (the origin step is 0.1 h more)")
+    out.append(f"timer   every run, on CPU {P.PIN_PLAN['legit']}: a refused probe is made again every {X.TIMER_REPROBE_S:g} s, up to --wait-gate "
+               "minutes from the run's first probe (0: one probe); a last refusal stops the step; waits are not in the time above")
     out.append("seeds   " + ", ".join(f"{k} {v}+" for k, v in SEEDS.items()) + " in calib (the gate's blocks use 1-10)")
     return "\n".join(out) + "\n"
 
@@ -770,7 +772,7 @@ def _add_run_args(p):
     p.add_argument("--template", default=C.PLACEHOLDER, help="the template record: knobs, mix, SLOs, gate (default: the placeholder)")
     p.add_argument("--allow-dirty", action="store_true", help="run with uncommitted changes; they are recorded")
     p.add_argument("--clean", action="store_true", help="take down the namespaces and links of an earlier testbed first")
-    p.add_argument("--wait-gate", type=float, default=30.0, metavar="MIN", help="minutes to wait for uptime and load at the start")
+    p.add_argument("--wait-gate", type=float, default=30.0, metavar="MIN", help="minutes to wait for uptime and load at the start and, from each run's first probe, for a refused timer probe to pass; 0: one probe")
     p.add_argument("--simulate", action="store_true", help="run on the simulated host, with a server of a known capacity")
     p.add_argument("--sim-capacity-cpu", type=float, default=None, help="the simulated server's capacity in CPU-seconds a second")
 

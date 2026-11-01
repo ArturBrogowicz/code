@@ -546,7 +546,8 @@ def describe(plan, python=None):
            f"plan hash     {plan.plan_sha256[:12]} (the legit streams: equal in C, Cp and U of a block)",
            *([f"OVERRIDES     {plan.overrides}: a smoke test, not a result"] if plan.overrides else []),
            f"timer gate    refused if the timer on CPU {plan.pins['legit']} has p99 of {plan.timer_limit_ms:g} ms or more "
-           + ("(set by --timer-limit-ms)" if "timer_limit_ms" in plan.overrides else "(the calibration's validity.timer_p99_ms)"),
+           + ("(set by --timer-limit-ms)" if "timer_limit_ms" in plan.overrides else "(the calibration's validity.timer_p99_ms)")
+           + f"; a refused probe is made again every {TIMER_REPROBE_S:g} s, up to --wait-gate minutes from the first (0: one probe)",
            *([(f"timer record  the timer on the executor's CPU {plan.pins['executor']} is probed too, after the gate: recorded "
                "(environment.json, timer_executor), not judged")] if "executor" in plan.pins else []),
            f"nginx.conf    sha256:{plan.nginx_conf_sha256[:12]} ({plan.nginx_source} with its two log paths changed"
@@ -626,7 +627,10 @@ class PreflightRefused(RunFailed):
 
 
 class EnvironmentRefused(RunFailed):
-    """The machine is not in the state the gate asks for (timers, load, uptime); nothing was built."""
+    """The machine is not in the state the gate asks for (timers, load, uptime); nothing was built. `record` is what the timer gate
+    saw before it refused, for the run's environment.json; None for a refusal of uptime or load."""
+
+    record = None
 
 
 class SetupFailed(RunFailed):
@@ -1146,10 +1150,52 @@ def quiet_gate(host, wait_gate_min=30.0, say=None):
     return seen
 
 
+def timer_wait_text(wait_gate_min):
+    """What a run's timer gate does with this wait, for the plans' text."""
+    if wait_gate_min <= 0:
+        return "one probe (--wait-gate 0)"
+    return f"a refused probe is made again every {TIMER_REPROBE_S:g} s, for up to {wait_gate_min:g} min from the run's first probe"
+
+
+def timer_gate(host, plan, wait_gate_min=30.0, say=None):
+    """The timer of the legit streams' CPU, which every run takes (docs/HG1C_DESIGN.md departure 30, D-045): a probe must have p99
+    below the plan's `timer_limit_ms`. After a refused probe it waits TIMER_REPROBE_S and probes again, until a probe passes or
+    `wait_gate_min` minutes have passed since the first, so that 0 is one probe; a probe that cannot be read is a refused one. The
+    limit does not move. Returns the passing probe and the record of every probe; EnvironmentRefused, with the same record and the
+    last reading, after the last."""
+    say = say or (lambda m: None)
+    cpus, limit, raised = plan.pins["legit"], plan.timer_limit_ms, "timer_limit_ms" in plan.overrides
+    first, probes = host.monotonic(), []
+    while True:
+        utc = _utc(host.time())
+        probe = timer_probe(host, cpus)
+        passed = probe is not None and probe["p99_ms"] < limit
+        probes.append({"utc": utc, **{k: (probe or {}).get(k) for k in ("p50_ms", "p99_ms", "max_ms")}, "passed": passed})
+        waited = host.monotonic() - first
+        record = {"timer_limit_ms": limit, "timer_limit_is_override": raised, "timer_probes": probes,
+                  "timer_refused_probes": sum(not p["passed"] for p in probes), "timer_waited_s": round(waited, 1)}
+        reading = "unknown" if probe is None else f"{probe['p99_ms']:.1f} ms"
+        said = "unreadable" if probe is None else f"p50 {probe['p50_ms']:g}, p99 {probe['p99_ms']:g}, max {probe['max_ms']:g} ms"
+        verdict = "passed" if passed else f"refused, limit {limit:g} ms"
+        say(f"timer probe {len(probes)} on CPU {cpus} at {utc}: {said}: {verdict}")
+        if passed:
+            return probe, record
+        if waited >= wait_gate_min * 60:
+            text = (f"timer wake-up on CPU {cpus} (the legit streams'): p99 {reading}, needs below {limit:g} ms"
+                    + (" (set by --timer-limit-ms for a smoke test)" if raised else ""))
+            if len(probes) > 1:
+                text += f"; {len(probes)} probes over {waited:.0f} s (--wait-gate {wait_gate_min:g}), none passed"
+            refused = EnvironmentRefused(text)
+            refused.record = record
+            raise refused
+        host.sleep(TIMER_REPROBE_S)
+
+
 def environment(host, plan, gate="full", wait_gate_min=30.0, say=None):
     """The environment gate (docs/HG1B_MINIMAL_DESIGN.md 7.2 step 0). The timer on the legit CPU must wake on time, always:
     p99 below the plan's `timer_limit_ms`, which is the calibration's validity.timer_p99_ms unless a smoke test set it (the
-    limit used, and whether it was set, are recorded). Uptime and load are the gate of a campaign's start (`gate="full"`:
+    limit used, and whether it was set, are recorded), within the wait of `timer_gate`, which every run may use in full. Uptime and
+    load are the gate of a campaign's start (`gate="full"`:
     waits up to `wait_gate_min` for them, `quiet_gate`); between the runs of a campaign (`gate="timer"`) they are only recorded,
     since the load a run leaves is its own and would make every next run wait for it to decay. Refuses with EnvironmentRefused;
     the caller may wait and ask again. A plan that gives the executor a CPU of its own (PIN_PLAN_DAEMON: every run of a campaign
@@ -1161,12 +1207,7 @@ def environment(host, plan, gate="full", wait_gate_min=30.0, say=None):
         seen = quiet_gate(host, wait_gate_min, say)
     else:
         seen = {"met": None, "uptime_s": up, "load1": load, "waited_s": 0.0}
-    probe = timer_probe(host, plan.pins["legit"])
-    raised = "timer_limit_ms" in plan.overrides
-    if probe is None or probe["p99_ms"] >= plan.timer_limit_ms:
-        raise EnvironmentRefused(f"timer wake-up on CPU {plan.pins['legit']} (the legit streams'): p99 "
-                                 f"{'unknown' if probe is None else format(probe['p99_ms'], '.1f') + ' ms'}, needs below "
-                                 f"{plan.timer_limit_ms:g} ms" + (" (set by --timer-limit-ms for a smoke test)" if raised else ""))
+    probe, timer = timer_gate(host, plan, wait_gate_min, say)
     own = plan.pins.get("executor")
     timers = {"timer_executor": timer_probe(host, own), "timer_executor_cpus": own} if own is not None else {}
     stat = host.read_text("/proc/stat").splitlines()[0].split()
@@ -1174,8 +1215,7 @@ def environment(host, plan, gate="full", wait_gate_min=30.0, say=None):
         governor = host.read_text("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor").strip()
     except OSError:
         governor = None
-    return {"gate_mode": gate, "gate": seen, "timer_legit": probe, **timers, "timer_limit_ms": plan.timer_limit_ms,
-            "timer_limit_is_override": raised, "governor": governor,
+    return {"gate_mode": gate, "gate": seen, "timer_legit": probe, **timer, **timers, "governor": governor,
             "steal_jiffies": int(stat[8]) if len(stat) > 8 else None, "jiffies": sum(map(int, stat[1:9]))}
 
 
@@ -1972,10 +2012,12 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
     t_begin = host.monotonic()
     try:
         pre = preflight(host, plan, allow_dirty, clean)
-        env = environment(host, plan, gate, wait_gate_min, say)
+        env = environment(host, plan, gate, wait_gate_min, log)
     except RunFailed as exc:
         log(f"refused: {exc}")
         _failed(out, exc)
+        if getattr(exc, "record", None):
+            write_json(f"{out}/environment.json", {"refused": str(exc), "gate_mode": gate, **exc.record})
         raise
     record = {**env, **pre, "facts": host.facts(), "calibration_sha256": plan.calibration_sha256,
               "scenario_sha256": plan.scenario_sha256, "provenance": provenance(plan, host), "checked_utc": _utc(host.time())}
@@ -2296,7 +2338,8 @@ def main(argv=None, host=None):
     p.add_argument("--clean", action="store_true", help="take down the namespaces and links of an earlier testbed first")
     p.add_argument("--gate", choices=("full", "timer"), default="full",
                    help="full: wait for uptime and load as well (a campaign's first run); timer: the timer only")
-    p.add_argument("--wait-gate", type=float, default=30.0, metavar="MIN", help="minutes to wait for the full gate")
+    p.add_argument("--wait-gate", type=float, default=30.0, metavar="MIN", help="minutes to wait for uptime and load (the full gate) and, from the first probe, for a refused timer probe to pass; "
+                   "0: one probe")
     p = sub.add_parser("smoke-topology", help="S2: build and verify the topology of a plan, then take it down (root)")
     _add_plan_args(p, kind_required=False)
     p.add_argument("--allow-dirty", action="store_true")

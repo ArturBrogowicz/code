@@ -4,6 +4,7 @@ import contextlib
 import copy
 import csv
 import dataclasses
+import datetime
 import gzip
 import io
 import itertools
@@ -791,6 +792,133 @@ class ReprobePreRegisteredTest(unittest.TestCase):
         for phrase in ("D-045", "before any capacity or campaign data", "`executor.TIMER_REPROBE_S` (30 s)",
                        "`validity.timer_p99_ms` (10 ms)", "`--wait-gate 0` gives exactly one probe", "ReprobePreRegisteredTest"):
             self.assertIn(phrase, rows[0])
+
+
+class TimerReprobeTest(RunCase):
+    """docs/HG1C_DESIGN.md departure 30 (D-045): after a refused probe the gate waits 30 s and probes again, until a probe passes or
+    the wait has passed since the first; the limit does not move, and every probe is recorded."""
+
+    def probes(self, host):
+        return [argv[2] for _, _, argv in host.commands if "timer-probe" in argv]
+
+    def environment(self, plan):
+        return json.loads(self.read(plan, "environment.json"))
+
+    def test_refused_refused_passed_starts_the_run_on_the_third_probe_and_records_all_three(self):
+        host = F.SimHost(timer_p99_by_cpu={"7": [25.0, 11.5, 6.0]})
+        seen, build = [], X.build_topology
+
+        def built(h, *a, **k):
+            seen.append((len(self.probes(h)), len(h.sleeps), h.prims == []))
+            return build(h, *a, **k)
+
+        with mock.patch.object(X, "build_topology", built):
+            plan, _, result = self.go("C", host)
+        self.assertTrue(result.ok, result.reasons)
+        self.assertEqual(seen, [(3, 2, True)], "built after the third probe, with no sleep but the two waits before it")
+        self.assertEqual(host.sleeps[:2], [30.0, 30.0])
+        env = self.environment(plan)
+        probes = env["timer_probes"]
+        self.assertEqual([(p["p99_ms"], p["passed"]) for p in probes], [(25.0, False), (11.5, False), (6.0, True)])
+        self.assertEqual([(p["p50_ms"], p["max_ms"]) for p in probes], [(0.1, 50.0), (0.1, 23.0), (0.1, 12.0)])
+        stamps = [datetime.datetime.fromisoformat(p["utc"]) for p in probes]
+        self.assertEqual([(b - a).total_seconds() for a, b in itertools.pairwise(stamps)], [30.0, 30.0])
+        self.assertEqual((env["timer_refused_probes"], env["timer_waited_s"], env["timer_legit"]["p99_ms"]), (2, 60.0, 6.0))
+        log = self.read(plan, "executor.log")
+        for n, word in ((1, "refused, limit 10 ms"), (2, "refused, limit 10 ms"), (3, "passed")):
+            self.assertRegex(log, rf"timer probe {n} on CPU 7 at {re.escape(probes[n - 1]['utc'])}: p50 0.1, p99 [\d.]+, max [\d.]+ ms: {word}")
+
+    def test_never_passing_is_refused_after_the_wait_with_the_last_reading_and_nothing_built(self):
+        host = F.SimHost(timer_p99_by_cpu={"7": [25.0, 12.0, 14.5]})
+        plan = self.plan("C")
+        with self.assertRaises(X.EnvironmentRefused) as ctx:
+            X.execute(plan, host, wait_gate_min=1.0)
+        self.assertEqual(str(ctx.exception), "timer wake-up on CPU 7 (the legit streams'): p99 14.5 ms, needs below 10 ms; "
+                                             "3 probes over 60 s (--wait-gate 1), none passed")
+        self.assertEqual((host.sleeps, self.probes(host), host.prims, host.kinds()["popen"]), ([30.0, 30.0], ["7"] * 3, [], 0))
+        self.assertIn("EnvironmentRefused", self.failed(plan))
+        env = self.environment(plan)
+        self.assertEqual([p["passed"] for p in env["timer_probes"]], [False] * 3)
+        self.assertEqual((env["timer_refused_probes"], env["gate_mode"], env["refused"]), (3, "full", str(ctx.exception)))
+        self.assertFalse(os.path.exists(os.path.join(plan.out, "run.json")))
+        self.assertEqual(self.read(plan, "executor.log").count("timer probe"), 3)
+
+    def test_wait_gate_zero_is_one_probe_and_the_message_of_before(self):
+        host = F.SimHost(timer_p99_ms=25.0)
+        plan = self.plan("C")
+        with self.assertRaises(X.EnvironmentRefused) as ctx:
+            X.execute(plan, host, wait_gate_min=0)
+        self.assertEqual(str(ctx.exception), "timer wake-up on CPU 7 (the legit streams'): p99 25.0 ms, needs below 10 ms")
+        self.assertEqual((host.sleeps, self.probes(host)), ([], ["7"]))
+        plan, host, result = self.go("C", F.SimHost(), plan_args={"name": "ok/C"}, wait_gate_min=0)
+        self.assertTrue(result.ok, result.reasons)
+        self.assertEqual((self.probes(host), self.environment(plan)["timer_refused_probes"]), (["7"], 0))
+
+    def test_a_smoke_runs_limit_still_applies_while_it_waits_and_stays_recorded(self):
+        plan, _, result = self.go("C", F.SimHost(timer_p99_by_cpu={"7": [60.0, 40.0]}), plan_args={"timer_limit_ms": 50.0})
+        self.assertTrue(result.ok, result.reasons)
+        env = self.environment(plan)
+        self.assertEqual((env["timer_limit_ms"], env["timer_limit_is_override"], env["timer_refused_probes"]), (50.0, True, 1))
+        self.assertEqual(self.run_json(plan)["overrides"]["timer_limit_ms"], 50.0)
+        plan = self.plan("C", name="above/C", timer_limit_ms=50.0)
+        with self.assertRaisesRegex(X.EnvironmentRefused, r"p99 60\.0 ms, needs below 50 ms \(set by --timer-limit-ms for a smoke test\); 2 probes"):
+            X.execute(plan, F.SimHost(timer_p99_ms=60.0), wait_gate_min=0.5)
+        self.assertEqual(self.environment(plan)["timer_limit_is_override"], True)
+
+    def test_the_limit_itself_does_not_move_a_probe_at_it_is_refused_and_one_under_it_passes(self):
+        plan, _, _ = self.go("C", F.SimHost(timer_p99_by_cpu={"7": [10.0, 9.99]}))
+        self.assertEqual([(p["p99_ms"], p["passed"]) for p in self.environment(plan)["timer_probes"]], [(10.0, False), (9.99, True)])
+        self.assertEqual(self.environment(plan)["timer_limit_ms"], 10.0)
+
+    def test_between_the_runs_of_a_campaign_the_gate_waits_as_well(self):
+        plan, host, result = self.go("C", F.SimHost(timer_p99_by_cpu={"7": [25.0, 6.0]}, load1=2.5), gate="timer")
+        self.assertTrue(result.ok, result.reasons)
+        env = self.environment(plan)
+        self.assertEqual((env["gate_mode"], env["timer_refused_probes"], host.sleeps[0]), ("timer", 1, 30.0))
+
+    def test_the_wait_runs_from_the_first_probe_not_from_the_wait_for_uptime_and_load(self):
+        host = F.SimHost(uptime_s=1750.0, timer_p99_ms=25.0)
+        plan = self.plan("C")
+        with self.assertRaises(X.EnvironmentRefused):
+            X.execute(plan, host, wait_gate_min=1.0)
+        self.assertEqual(sum(s for s in host.sleeps if s != 30.0), 60.0, "uptime took a minute of its own")
+        self.assertEqual((host.sleeps[-2:], self.probes(host)), ([30.0, 30.0], ["7"] * 3))
+
+    def test_a_probe_that_cannot_be_read_is_a_refused_one(self):
+        good = {"p50_ms": 0.2, "p99_ms": 3.0, "max_ms": 4.0}
+        with mock.patch.object(X, "timer_probe", side_effect=[None, good]):
+            plan, _, result = self.go("C")
+        self.assertTrue(result.ok, result.reasons)
+        probes = self.environment(plan)["timer_probes"]
+        self.assertEqual([(p["p99_ms"], p["passed"]) for p in probes], [(None, False), (3.0, True)])
+        plan = self.plan("C", name="unread/C")
+        with mock.patch.object(X, "timer_probe", return_value=None), self.assertRaisesRegex(X.EnvironmentRefused, "p99 unknown"):
+            X.execute(plan, F.SimHost(), wait_gate_min=0)
+
+    def test_a_stop_during_the_wait_leaves_nothing_built(self):
+        host = F.SimHost(timer_p99_ms=25.0)
+
+        def stop(h):
+            raise KeyboardInterrupt
+
+        host.on_sleep = stop
+        with self.assertRaises(KeyboardInterrupt):
+            X.execute(self.plan("C"), host)
+        self.assertEqual((host.sleeps, host.prims), ([30.0], []))
+
+    def test_the_executors_own_probe_is_taken_once_after_the_pass_and_stays_out_of_the_gates_record(self):
+        daemon = X.pins_for(["M_xdp"])
+        plan, host, result = self.go("M_xdp", F.SimHost(timer_p99_by_cpu={"7": [25.0, 6.0], "6": 40.0}), plan_args={"pins": daemon})
+        self.assertTrue(result.ok, result.reasons)
+        self.assertEqual(self.probes(host), ["7", "7", "6"])
+        env = self.environment(plan)
+        self.assertEqual((len(env["timer_probes"]), env["timer_executor"]["p99_ms"], env["timer_executor_cpus"]), (2, 40.0, "6"))
+
+    def test_the_plan_says_what_the_gate_does_with_a_refused_probe(self):
+        self.assertIn("; a refused probe is made again every 30 s, up to --wait-gate minutes from the first (0: one probe)\n",
+                      X.describe(self.plan("C")))
+        self.assertEqual(X.timer_wait_text(10), "a refused probe is made again every 30 s, for up to 10 min from the run's first probe")
+        self.assertEqual(X.timer_wait_text(0), "one probe (--wait-gate 0)")
 
 
 class SetupTest(RunCase):

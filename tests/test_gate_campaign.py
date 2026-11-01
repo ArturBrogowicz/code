@@ -727,6 +727,35 @@ class StopTest(CampaignCase):
         self.assertEqual((resumed["state"], resumed["gate"]["verdict"]), ("complete", "PASS"))
         self.assertIsNone(self.state()["stopped"])
 
+    def test_a_probe_refused_before_every_run_waits_and_moves_nothing_the_campaign_is_judged_on(self):
+        """HG1C departure 30: the wait comes before a run's own clock, so that no clock rule of a block can see it."""
+        plain = self.run_campaign(out="plain")
+        host = self.host(timer_p99_by_cpu={"7": [25.0, 1.0] * 9 + [1.0]})
+        waited = self.run_campaign(out="waited", host=host)
+        self.assertEqual(sum(s == X.TIMER_REPROBE_S for s in host.sleeps), 9)
+        for d in self.dirs("waited"):
+            with open(os.path.join(self.tmp.name, "waited", d, "block.json"), encoding="utf-8") as fh:
+                meta = json.load(fh)
+            for kind in meta["order"]:
+                with open(os.path.join(self.tmp.name, "waited", d, kind, "environment.json"), encoding="utf-8") as fh:
+                    self.assertEqual(json.load(fh)["timer_refused_probes"], 1, (d, kind))
+        self.assertEqual(waited["gate"], plain["gate"])
+        self.assertEqual(waited["attempts"], plain["attempts"])
+
+    def test_a_last_refused_probe_still_stops_the_campaign_and_the_same_command_resumes_it(self):
+        with self.assertRaisesRegex(X.EnvironmentRefused, "3 probes over 60 s"):
+            self.run_campaign(host=self.host(timer_p99_ms=25.0), wait_gate_min=1.0)
+        state = self.state()
+        self.assertEqual(state["state"], "stopped")
+        self.assertIn("EnvironmentRefused", state["stopped"])
+        self.assertEqual(self.run_campaign()["state"], "complete")
+
+    def test_the_plan_of_a_campaign_states_the_wait(self):
+        text = GC.describe(self.scn, self.CAL, SPEC_SHA, self.options(wait_gate_min=10.0))
+        self.assertIn("timer gate   every run, on CPU 7: a refused probe is made again every 30 s, for up to 10 min from the run's first "
+                      "probe; a last refusal stops the campaign", text)
+        self.assertIn("on CPU 7: one probe (--wait-gate 0);", GC.describe(self.scn, self.CAL, SPEC_SHA, self.options(wait_gate_min=0)))
+
     def test_a_timer_that_goes_bad_mid_campaign_stops_it_and_the_made_runs_are_kept(self):
         def degrade(host):
             if host.t > 60.0:

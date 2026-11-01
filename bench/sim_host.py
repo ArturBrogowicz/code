@@ -169,7 +169,7 @@ class SimHost(X.Host):
         self.commands, self.prims, self.sleeps = [], [], []
         self.root, self.dirty, self.nofile = root, dirty, nofile
         self.uptime_s, self.load1, self.timer_p99_ms = uptime_s, load1, timer_p99_ms
-        self.timer_p99_by_cpu = dict(timer_p99_by_cpu or {})       # the CPU list taskset is given -> p99; else timer_p99_ms
+        self.timer_p99_by_cpu = dict(timer_p99_by_cpu or {})       # the CPU list taskset is given -> p99 or [p99, ...]; else timer_p99_ms
         self.exit_delay_s, self.exit_delay_per_request_s = exit_delay_s, exit_delay_per_request_s
         self.startup_s = startup_s or (lambda sid, index, kind: (LEGIT_STARTUP_S if kind == "legit" else ATTACK_STARTUP_S) + 0.002 * index)
         self.faults = dict(faults or {})
@@ -688,6 +688,8 @@ class SimHost(X.Host):
         rest = a[2:]
         if "timer-probe" in rest:
             p99 = self.timer_p99_by_cpu.get(a[1], self.timer_p99_ms)
+            if isinstance(p99, list):                                      # one reading a probe; the last one stays
+                p99 = p99.pop(0) if len(p99) > 1 else p99[0]
             return X.Result(0, json.dumps({"interval_s": 0.01, "samples": 200, "p50_ms": 0.1, "p99_ms": p99, "max_ms": p99 * 2}), "")
         if "origin-session" in rest:
             return self._origin_session()
