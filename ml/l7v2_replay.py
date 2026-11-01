@@ -8,11 +8,14 @@ benign units, attributed from the run's manifest.
                                                its frozen (theta, k): the engine's windows (at most 4 new ones per key
                                                and poll, the age gate, flood suppression), its k-consecutive rule (the
                                                one T038-06 aligned the evaluator with) and its l7_would_ban events
-  rule arms (ml/l7v2_rules.py packages)        through TapEngine, the same engine with one addition: the windows it is
-  age_only                                     about to score are handed to the arm first, since a rule's row is its
-                                               statistics at the window (key, time, session), not the token matrix
-A key is decided at the poll of its first l7_would_ban; an entity's time to decision is that poll minus the entity's
-first request start (the evaluator's train_l7v2.assess uses the deciding window's completion, at most one poll
+  age_only (view level)                        through TapEngine, the same engine with one addition: the windows it is
+                                               about to score are handed to the arm first (its row is the window's age)
+  rule arms (ml/l7v2_rules.py packages)        on their own (IP, UA) path, RulePath (ml/l7v2_rules_prereg_v2.json,
+                                               T042-E08): every record feeds the rule's statistics, every poll tick
+                                               gives one row per (IP, UA) key with requests since the previous tick,
+                                               and the section-9 policy (k consecutive rows, a flood clears the runs)
+A key is decided at the poll of its first decision; an entity's time to decision is that poll minus the entity's first
+request start (the evaluators use the completion of the deciding window's or row's last request, at most one poll
 earlier). Offline; nothing here touches the network or the VM.
 
     arms = load_arms(SEL/selection.json, <sha>, RULES/rules_selection.json, <sha>)
@@ -101,23 +104,65 @@ class _Tapped:
         return self.p(rows)
 
 
-class RuleArm(_Tapped):
-    """A rule package in the engine: RuleStats fed with every record, a row per window (its statistics)."""
+class RulePath:
+    """A rule package on its own (IP, UA) path (ml/l7v2_rules_prereg_v2.json r_star_live and decision_points), the
+    path R* runs live: every record feeds RuleStats; every poll tick gives the rows of the (IP, UA) keys with a request
+    since the previous tick, scored with the package (score(batch) -> p); p > theta in k consecutive rows of a key
+    decides it; a suppressing tick (flood) clears every run and decides nothing, as the engine's poll does. Without
+    ticks (a plain access log), polls are synthesised at whole seconds of the log clock, as the evaluator's."""
+
+    level = "rule"
 
     def __init__(self, package):
-        super().__init__(package.threshold, package.consecutive, package.sha256)
-        self.rule, self.stats = package, R.RuleStats(package.costs)
+        self.rule = package
+        self.threshold, self.consecutive, self.sha256 = package.threshold, package.consecutive, package.sha256
 
-    def observe(self, rec):
-        super().observe(rec)
-        self.stats.observe(rec)
+    def run(self, items):
+        """{(ip, ua_h): decision poll time} over the stream items, and the counts of polls and rows."""
+        stats, hits, decided = R.RuleStats(self.rule.costs), {}, {}
+        counts = {"polls": 0, "suppressed_polls": 0, "rows": 0, "late": 0}
+        was_supp = False
 
-    def rows(self, ctx):
-        return self.rule.select(self.stats.query([(k, t, s0) for k, t, s0, _s in ctx])) if ctx else \
-            np.zeros((0, len(self.rule.stat_columns)))
+        def tick(now, supp):
+            nonlocal was_supp
+            rows = stats.poll()
+            counts["polls"] += 1
+            if supp:
+                if not was_supp:
+                    hits.clear()
+                was_supp = True
+                counts["suppressed_polls"] += 1
+                return
+            was_supp = False
+            if not rows:
+                return
+            counts["rows"] += len(rows)
+            p = self.rule.score(self.rule.select(np.stack([row for _k, _t, row in rows])))
+            for (key, _t, _row), pi in zip(rows, p, strict=True):
+                h = hits.get(key, 0) + 1 if pi > self.threshold else 0
+                hits[key] = h
+                if h >= self.consecutive and key not in decided:
+                    decided[key] = now
 
-    def p(self, rows):
-        return self.rule.score(rows)
+        has_ticks = any(it[0] == "poll" for it in items)
+        poll_s, nxt = R.load_spec()["decision_points"]["poll_s"], None
+        for it in items:
+            if it[0] == "poll":
+                tick(it[1], it[2])
+                continue
+            rec = I.normalise(it[1])
+            if rec is None:
+                continue
+            if not has_ticks:
+                b = (math.floor(rec["msec"] / poll_s) + 1) * poll_s
+                if nxt is not None and b != nxt:
+                    tick(nxt, False)
+                nxt = b
+            stats.observe(rec)
+        if not has_ticks and nxt is not None:
+            tick(nxt, False)
+        counts["late"] = stats.late
+        return decided, counts
 
 
 class AgeArm(_Tapped):
@@ -186,6 +231,7 @@ def ground_truth(items, labels):
     """Each key's entity (its first labelled record's), each entity's class, kind and first request start, the attack
     entities with a labelled request (recall's denominator) and the benign units."""
     key_ent, ent = {}, {}
+    rule_ent = {}
     for it in items:
         if it[0] != "record":
             continue
@@ -196,11 +242,12 @@ def ground_truth(items, labels):
         if cls == D.OTHER:
             continue
         key_ent.setdefault(I.key_v2(rec), e)
+        rule_ent.setdefault(R.rule_key(rec), e)
         info = ent.setdefault(e, {"cls": cls, "family": fam, "kind": kof or fam, "first": math.inf})
         info["first"] = min(info["first"], F.start_time(rec))
     attack = {e for e, i in ent.items() if i["cls"] == D.ATTACK}
     units = labels.units or {e: 1 for e, i in ent.items() if i["cls"] == D.BENIGN}
-    return key_ent, ent, attack, units
+    return {"view": key_ent, "rule": rule_ent}, ent, attack, units
 
 
 # ───────────────────────────── the replay ─────────────────────────────
@@ -214,13 +261,22 @@ def make_engine(scorer):
 
 
 def score_arm(items, scorer, truth):
-    """One arm's replay: its decisions per key (the first l7_would_ban), entity outcomes and benign units."""
-    key_ent, ent, attack, units = truth
-    events = replay_l7.replay(items, make_engine(scorer))
-    decided = {}
-    for e in events:
-        if e.get("kind") == "l7_would_ban":
-            decided.setdefault((e["ip"], e["ua_h"], e["sid_h"]), e["t_poll"])
+    """One arm's replay: its decisions per key (a view arm's first l7_would_ban, a rule's first decision on its own
+    path), entity outcomes and benign units."""
+    key_maps, ent, attack, units = truth
+    if isinstance(scorer, RulePath):
+        decided, counts = scorer.run(items)
+        key_ent = key_maps["rule"]
+    else:
+        events = replay_l7.replay(items, make_engine(scorer))
+        decided = {}
+        for e in events:
+            if e.get("kind") == "l7_would_ban":
+                decided.setdefault((e["ip"], e["ua_h"], e["sid_h"]), e["t_poll"])
+        summary = [e for e in events if e.get("kind") == "l7_gru_poll"]
+        counts = {"windows": sum(s.get("windows", 0) for s in summary),
+                  "skipped": sum(s.get("skipped", 0) for s in summary)}
+        key_ent = key_maps["view"]
     caught, flagged = {}, {}
     for key, t in decided.items():
         e = key_ent.get(key)
@@ -239,8 +295,7 @@ def score_arm(items, scorer, truth):
     for e, n in flagged.items():
         kinds[str(ent[e]["kind"])] = kinds.get(str(ent[e]["kind"]), 0) + min(n, units.get(e, 1))
     ttds = sorted(caught.values())
-    summary = [e for e in events if e.get("kind") == "l7_gru_poll"]
-    return {"threshold": scorer.threshold, "consecutive": scorer.consecutive, "sha256": scorer.sha256,
+    return {"level": getattr(scorer, "level", "view"), "threshold": scorer.threshold, "consecutive": scorer.consecutive, "sha256": scorer.sha256,
             "caught": len(caught), "attack_entities": len(attack),
             "recall": round(len(caught) / len(attack), 4) if attack else None,
             "benign_units_flagged": sum(min(n, units.get(e, 1)) for e, n in flagged.items()),
@@ -248,9 +303,7 @@ def score_arm(items, scorer, truth):
             "median_ttd_s": round(ttds[len(ttds) // 2], 3) if ttds else None,
             "by_family": {f: {"caught": c, "entities": n} for f, (c, n) in sorted(fam.items())},
             "benign_units_flagged_by_kind": dict(sorted(kinds.items())),
-            "caught_entities": sorted(caught), "decisions": len(decided),
-            "windows": sum(s.get("windows", 0) for s in summary),
-            "skipped": sum(s.get("skipped", 0) for s in summary)}
+            "caught_entities": sorted(caught), "decisions": len(decided), **counts}
 
 
 def replay(items, arms, labels):
@@ -280,6 +333,7 @@ def load_rules(path, expected_sha256):
             f = arm["fixed"]
             cfg = R.make_package(name, {"params": f["params"], "columns": f["columns"], "thresholds": f["thresholds"],
                                         "threshold": 0.5, "consecutive": 1}, {}, sel["calibration"], {})
+            # the fixed replays read no cost column, so they carry no class costs
             arms[name] = R.RuleScorer(cfg)
             continue
         if arm.get("operating_point") is None:
@@ -294,8 +348,8 @@ def load_rules(path, expected_sha256):
 
 def load_arms(selection_path, selection_sha256, rules_path=None, rules_sha256=None):
     """The scorers of every arm at its frozen operating point: the learned arms and the age-only baseline from the
-    frozen selection (train_l7v2.load_selection checks every hash), the rule arms from the frozen rule selection;
-    R* is also given under its own name 'R*'."""
+    frozen selection (train_l7v2.load_selection checks every hash), the rule arms on their own path from the frozen
+    rule selection; R* is also given under its own name 'R*'."""
     import l7_scorer as S
     sel = V.load_selection(selection_path, selection_sha256)
     base = os.path.dirname(os.path.abspath(selection_path))
@@ -337,6 +391,6 @@ def load_arms(selection_path, selection_sha256, rules_path=None, rules_sha256=No
     if rules_path:
         rules, r_star = load_rules(rules_path, rules_sha256)
         for name, sc in rules.items():
-            arms[name] = None if sc is None else RuleArm(sc)
-        arms["R*"] = None if r_star is None or rules.get(r_star) is None else RuleArm(rules[r_star])
+            arms[name] = None if sc is None else RulePath(sc)
+        arms["R*"] = None if r_star is None or rules.get(r_star) is None else RulePath(rules[r_star])
     return arms

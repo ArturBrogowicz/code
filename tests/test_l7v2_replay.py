@@ -1,7 +1,8 @@
 """The replay scorer (ml/l7v2_replay.py; docs/L7V2_DESIGN.md 11): a recorded run through every arm at the engine's poll
-cadence. The rule arms, the age-only arm and a view arm decide in the replay exactly the keys the evaluator decides on
-the same records (train_l7v2's windows, engine_scored, k consecutive), one poll later at most; frozen selections load
-with their hashes checked. Offline and pure (synthetic records)."""
+cadence. The rule arms on their own (IP, UA) path decide exactly the keys the rule evaluator decides on the same records
+(l7v2_rules.rule_rows, k consecutive rows), and the age-only arm and a view arm exactly those train_l7v2 decides (its
+windows, engine_scored), one poll later at most; frozen selections load with their hashes checked. Offline and pure
+(synthetic records)."""
 import math
 import os
 import random
@@ -91,6 +92,11 @@ class CostlyStub:
         return np.where(mean > 0.3, 0.9, 0.1)
 
 
+def rule_caught(rows, split, p, k):
+    a = V.assess(V.decisions(V.key_runs(rows, p), 0.5, k), split)
+    return {e.split("|", 1)[1] for e in a["_caught"]}, {e.split("|", 1)[1] for e in a["_flagged"]}
+
+
 def evaluator_caught(split, p, k):
     a = V.assess(V.decisions(V.key_runs(split.view, p), 0.5, k), split)
     return {e.split("|", 1)[1] for e in a["_caught"]}, {e.split("|", 1)[1] for e in a["_flagged"]}
@@ -102,7 +108,7 @@ class ReplayParityTest(unittest.TestCase):
         cls.items, cls.manifest, cls.recs = synthetic_run()
         cls.loaded = [({"format": "test"}, cls.recs, CAP)]
         cls.split = V.Split(cls.loaded, view=True, request=False)
-        cls.stats = R.split_stats(cls.loaded, cls.split, COSTS)
+        cls.rows, cls.rstats = R.rule_rows(cls.loaded, COSTS)
         cls.labels = RP.RunLabels(cls.manifest)
         cls.truth = RP.ground_truth(cls.items, cls.labels)
 
@@ -112,13 +118,13 @@ class ReplayParityTest(unittest.TestCase):
 
     def test_rule_arms_decide_the_evaluators_keys(self):
         decided = 0
-        for cols, thr, k in ((["ip_ua_sid:rate_10"], [2.0], 2), (["ip_ua:bucket_5"], [10.0], 1),
-                             (["ip_ua_sid:cost_60"], [500.0], 3), (["ip_ua:rate_1", "ip_ua:rate_60"], [5.0, 0.4], 2),
+        for cols, thr, k in ((["key:rate_10"], [2.0], 2), (["key:bucket_5"], [10.0], 1),
+                             (["key:cost_60"], [500.0], 3), (["key:rate_1", "key:rate_60"], [5.0, 0.4], 2),
                              (["ip:pop_new_keys_60"], [0.5], 1), (["ip:daemon_default"], [0.5], 1),
                              (["own:nginx_reject"], [0.5], 1)):
             sc = self.rule(cols, thr, k)
-            want_caught, want_flagged = evaluator_caught(self.split, sc.score(sc.select(self.stats)), k)
-            got = RP.score_arm(self.items, RP.RuleArm(sc), self.truth)
+            want_caught, want_flagged = rule_caught(self.rows, self.split, sc.score(sc.select(self.rstats)), k)
+            got = RP.score_arm(self.items, RP.RulePath(sc), self.truth)
             with self.subTest(cols=cols):
                 self.assertEqual(set(got["caught_entities"]), want_caught)
                 self.assertEqual(got["benign_entities_flagged"], len(want_flagged))
@@ -143,15 +149,26 @@ class ReplayParityTest(unittest.TestCase):
         self.assertEqual(got["benign_entities_flagged"], len(want_flagged))
 
     def test_times_to_decision_are_one_poll_later_at_most(self):
-        sc = self.rule(["ip_ua_sid:rate_10"], [2.0], 2)
-        p = sc.score(sc.select(self.stats))
-        a = V.assess(V.decisions(V.key_runs(self.split.view, p), 0.5, 2), self.split)
-        got = RP.score_arm(self.items, RP.RuleArm(sc), self.truth)
+        sc = self.rule(["key:rate_10"], [2.0], 2)
+        p = sc.score(sc.select(self.rstats))
+        a = V.assess(V.decisions(V.key_runs(self.rows, p), 0.5, 2), self.split)
+        got = RP.score_arm(self.items, RP.RulePath(sc), self.truth)
         _key_ent, ent, _attack, _units = self.truth
         self.assertEqual(got["median_ttd_s"] is None, a["median_ttd_s"] is None)
         self.assertGreaterEqual(got["median_ttd_s"], a["median_ttd_s"])
         self.assertLessEqual(got["median_ttd_s"], a["median_ttd_s"] + 1.0 + 1e-9)
         self.assertEqual(set(ent), {o[1]["ip"] for o in self.items if o[0] == "record"})
+
+    def test_the_rule_path_without_ticks_and_under_a_flood(self):
+        sc = self.rule(["key:rate_10"], [2.0], 2)
+        with_ticks = RP.score_arm(self.items, RP.RulePath(sc), self.truth)
+        bare = [it for it in self.items if it[0] == "record"]
+        self.assertEqual(RP.score_arm(bare, RP.RulePath(sc), self.truth)["caught_entities"],
+                         with_ticks["caught_entities"])
+        flood = [("poll", it[1], True, ()) if it[0] == "poll" else it for it in self.items]
+        got = RP.score_arm(flood, RP.RulePath(sc), self.truth)
+        self.assertEqual((got["decisions"], got["suppressed_polls"]), (0, got["polls"]))
+        self.assertEqual(with_ticks["level"], "rule")
 
     def test_the_result_lists_every_arm(self):
         res = RP.replay(self.items, {"stub": CostlyStub(), "none": None}, self.labels)
@@ -176,7 +193,7 @@ class FrozenArmsTest(unittest.TestCase):
                                 os.path.join(d, "sel", "rules_selection.json"), rsha)
             for name in ("hgb", "lr", "age_only", *R.ARMS, "R*"):
                 self.assertIn(name, arms)
-            self.assertIsInstance(arms["default_rules"], RP.RuleArm)
+            self.assertIsInstance(arms["default_rules"], RP.RulePath)
             self.assertEqual(arms["R*"] is None, rsel["r_star"] is None)
             res = RP.replay(items, arms, RP.RunLabels(manifest))
             self.assertEqual(set(res["arms"]), set(arms))
