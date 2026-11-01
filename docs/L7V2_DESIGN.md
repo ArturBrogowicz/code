@@ -971,6 +971,67 @@ exposed to it.
 earlier format), `ml/l7v2_verdict_prereg.py`, `ml/l7v2_verdict.py`, `ml/l7v2_rules.py`, `ml/l7v2_replay.py`, tests and this
 note. `control_plane.py`, `l7_engine.py`, `bench/`, `server/`, the nginx confs and the generators are untouched.
 
+## As built: the enforcing arm (T-025c, 2026-10-31, branch `feat/l7v2-enforce`)
+
+Built offline; nothing ran on the VM. Section 9 as written, with these readings and additions (labelled post hoc,
+before any data). Usage and events: `docs/EVALUATION.md`, "L7 v2: the enforcing arm".
+
+**Readings of the design (not departures):**
+- **Key-age gate (9.1).** A decision on a key younger than 20 s waits and is acted on when the key is 20 s old. The
+  engine fires once per streak, so dropping it would let a fast key escape for good.
+- **"Keeps sending >= 30 s after its deny" (9.2).** A request of the key that started at least 30 s after the reload
+  that published its deny (nginx answers it 429 and logs it). For an unenforceable key, whose level 1 is a miss, the
+  reference is the decision.
+- **Single-key (9.2).** Distinct UA hashes, and distinct sids of requests that carry one, seen from the address in
+  the last 10 min. An address the arm has not seen counts as shared.
+- **TTL (9.2).** A deny ends 300 s after it was added (not after it took effect).
+- **One path (9.5).** The enforcing arm takes its detector and operating point from the frozen selection
+  (`L7_SELECTION`, its sha256, `L7_ARM`), never from `L7_MODEL` (the shadow's), so a placeholder point cannot reach it.
+
+**Additions the design does not cover:**
+- nginx matches map strings ignoring case and refuses a map that lists one key twice, so keys that differ only in
+  case share one line (`ngx_http_map_module.c`, `ngx_hash.c` of nginx 1.28.3).
+- nginx refuses a map whose longest key does not fit a hash bucket; the run's conf sets the bucket and max sizes.
+- No deny outlives its daemon: the map is emptied at the daemon's start and stop. The kill switch also drops the
+  decisions waiting for the key-age gate.
+- The level-2 ban reaches `ban_ip` through the arm's injected callable, engine `l7v2`, kept out of
+  `ban_events.ENGINES` (which `tests/test_control_plane_contract.py` pins to the direct calls).
+
+**Fix round after review T-042 (2026-10-31), each its own commit:**
+- **E01, canonical addresses only.** No decision, at level 1 or level 2, on an address that is not a canonical
+  dotted-quad IPv4 address (skip reason `ip_format`); the allowlist fails closed on one, and the CGNAT guard counts
+  canonical addresses only. The XDP ban path parses with `inet_aton`, which reads `10.0.4617`, `012.0.18.9`,
+  `0xa.0.18.9` or `10.0.18.9 ` as 10.0.18.9: a forged datagram could have bypassed the guard and the allowlist of
+  the real address.
+- **E02, a key without a session (orchestrator's decision D-040, under the CGNAT guard).** Its line `ip|ua|` matches
+  every cookie-less request from the address with that UA, any case, a new user's first request included. It is
+  written only while the address is single-key in the guard's window; on a shared address the key is a miss
+  (`sid_less_shared`), and a line already written is withdrawn once the address turns shared. Level 2 is unchanged.
+- **E03, the stop.** `Arm.stop` and the arm's own steps hold one lock and no step runs after the stop: a step in flight
+  could add entries after the stop's clear or replace its empty map (65 of 300 trials in the review's probe).
+- **E04, the kill switch's reload is paced** like every other (at most one per 10 s), so it may come up to 10 s after
+  the file appears; only the daemon's stop reloads at once. A file toggled every second gave 30 reloads a minute.
+- **E05, claims-valid selections only.** A selection marked `valid_for_claims` false (a `--smoke` run or a legacy
+  capture) is refused for enforcement; the daemon logs why (`daemon_error`, `where` `l7_enforce`) and does not start.
+- **E06, the L7 socket.** With the arm on, a datagram on the sink can drive a ban, so the socket is bound 0660 with
+  nginx's group (`L7_SOCKET_GROUP`, default `nogroup`: the installed nginx's compiled worker group, as no `user` is
+  set) instead of 0666; without `L7_ENFORCE=1` it is 0666 as before. An unknown group stops the daemon at start.
+- **E07, hostile field types.** `l7_ingest.normalise` drops a record whose text field holds another JSON type than a
+  string (only a forged datagram can); it used to raise, or make the engine's keys unsortable, and so restart the
+  shadow thread with a fresh engine. Records nginx writes normalise as before; the engine is unchanged.
+
+**A conflict for the user, resolved by D-038 (below).** 9.4 excludes `;` from a writable UA. Every UA of
+`ml/l7_benign.UA_TABLE` contains one (17 of 17, weight 0.99 of 0.99; 3 of the 6 `ml/l7_gen.UAS`), so as written no
+testbed browser key can be denied at level 1: P1's arm would act only by misses and level-2 bans of single-key
+addresses. Inside nginx's double quotes only `"` and `\` are special (`ngx_conf_read_token`,
+`src/core/ngx_conf_file.c` of 1.28.3); `;`, `{`, `}` and `$` are ordinary. Without `;` in the rule, all 23 UAs pass.
+
+**Amendment D-038 (2026-10-31; the user's decision "Allow ';'", before any data).** 9.4's write rules now allow `;` in
+a UA written into the deny map. `"`, `\`, `$`, `{`, `}`, bytes outside 0x20-0x7E and UAs over 256 bytes stay
+excluded (`l7_denymap.FORBIDDEN_UA_CHARS`). All 17 UAs of `ml/l7_benign.UA_TABLE` and all 6 of `ml/l7_gen.UAS` pass;
+the tests write UAs with `;` alone, repeated, next to quotes and backslashes, and at either end, and read the file
+back with a port of nginx's tokenizer: one `"key" 1;` line per entry.
+
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.
 - G1-02 Kadel et al., BOTracle, ESORICS Workshops 2024.

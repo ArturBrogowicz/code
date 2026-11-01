@@ -409,6 +409,96 @@ Known limits:
 * In shadow, a connection is judged closed once and then skipped, so a shadow run's decisions are those an
   enforcing run would have made only until the first close: the attacker's reconnects are not simulated.
 
+## L7 v2: the enforcing arm (2026-10-31)
+
+The enforcing arm of `docs/L7V2_DESIGN.md` section 9 (D-V7, approved 2026-10-30) is built offline on
+`feat/l7v2-enforce`; nothing of it has run on the testbed. It is off unless `L7_ENFORCE=1`, so the default daemon,
+and the L7 shadow without it, run as before. Modules: `l7_denymap.py` (what may be written into nginx's
+configuration, and the raw side table), `l7_enforce.py` (the decision policy and the safeguards), `l7_arms.py` (one
+path for every arm), `l7_conf.py` (the P1 runner's conf copies).
+
+**Policy.** The L7 v2 view engine stays observe-only; the arm acts, in its own supervised thread (`l7_enforce`), on
+the `l7_would_ban` events the shadow thread logs. No action on an allowlisted address (127.0.0.0/8, the server's
+10.0.0.1, `L7_ALLOWLIST`), on a key already acted on, or on an address already banned; a key younger than 20 s
+(from its first request seen) waits until it is 20 s old.
+* Level 1: the (IP, UA, sid) key gets a line in `<L7_ENFORCE_DIR>/deny.map`, and nginx answers it 429. The map is
+  written atomically and nginx reloaded (`nginx -c L7_NGINX_CONF -s reload`) at most once per 10 s, batched. Only
+  keys that pass the write rules of 9.4 are written: a canonical IPv4 address, a printable-ASCII UA of at most 256
+  bytes without `"`, `\`, `{`, `}`, `$` (a `;` is allowed since D-038), and an empty sid or one in the server's format. Any other key is an
+  `l7_enforce_miss` (unenforceable). Keys that differ only in case share a line (nginx matches map strings ignoring
+  case and refuses a map that lists one twice).
+* Level 2: an XDP ban of the address through `ban_ip` (engine `l7v2`, TTL 300 s), then `ss -K dst`, only if the key
+  sent a request at least 30 s after its deny took effect (after the decision, for an unenforceable key) and the
+  address had fewer than 3 UA hashes and fewer than 3 sids in the last 10 min. An address with more is never banned
+  by the arm (the CGNAT guard; `l7_enforce_skip` reason `cgnat_guard`).
+* A deny ends 300 s after it was added.
+
+**Safeguards.** The kill switch: while `L7_KILL_FILE` exists (read every step; by default `/run/l7v2/kill`, the same
+file as `SLOW_PC_KILL_FILE`) no action is taken, and when it appears the map is emptied with one reload, which keeps the
+10-s spacing (T-042 E04: up to 10 s later; a flapping file cannot storm nginx), and the arm's
+own XDP bans are lifted (`unban` with `lifted_by` `l7_kill`); every other engine's bans stay. At most 20 level-2 bans
+in any 60 s and 2,000 active denies; beyond either, `l7_enforce_capped` and no action. The map is emptied at the
+daemon's start (a map an earlier daemon left) and at its stop, after XDP is detached.
+
+**One path for every arm** (9.5). The arm's detector and its own operating point come from the frozen selection of
+`ml/train_l7v2.py select`: the view GRU, the HGB or the LR (or a rule, once one is registered in `l7_arms.RULES`)
+behind `score(batch) -> p`. A selection that is not the recorded one, an altered artifact, an arm whose operating
+point is null (its package carries the placeholder 0.5 x 1), a selection not marked `valid_for_claims` (a smoke run or
+a legacy capture; T-042 E05), and the replay-only ablations are refused: the daemon writes why as a `daemon_error`
+(`where` `l7_enforce`) and does not start.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `L7_ENFORCE` | 0 | 1 = run the arm; needs `L7_SHADOW=1`, `L7_NGINX_CONF`, `L7_SELECTION`, `L7_SELECTION_SHA256`, `L7_ARM`, and `L7_MODEL` unset, or the daemon stops at start. `bench/executor.py` plans it 0 |
+| `L7_ENFORCE_DIR` | `/run/l7v2` | the run directory that holds `deny.map`; created 0700, refused if others may write to it |
+| `L7_NGINX_CONF` | (none) | the configuration of the nginx the arm reloads (the run's copy, `l7_conf.protected`) |
+| `L7_ALLOWLIST` | (none) | comma-separated IPv4 addresses or networks never acted on (the runner's monitoring identities), besides 127.0.0.0/8 and 10.0.0.1 |
+| `L7_KILL_FILE` | `/run/l7v2/kill` | the kill switch |
+| `L7_SELECTION`, `L7_SELECTION_SHA256`, `L7_ARM` | (none) | the frozen selection, its recorded sha256, and the arm's name (`view_gru`, `hgb`, `lr`) |
+| `L7_SOCKET_GROUP` | `nogroup` | the group of the L7 socket, bound 0660 instead of 0666 while the arm runs (T-042 E06): a datagram there can drive a ban. Assumption: nginx's workers run as nobody:nogroup, the compiled defaults of the installed nginx 1.28.3 (no `--user`/`--group` in its configure string) with no `user` directive in `nginx.conf` or the runner's copy; with a `user` directive, set its group. Without `L7_ENFORCE=1` the socket stays 0666 as before |
+
+**The runner's confs** (ledger D-028, review L7V2-09): `l7_conf.unprotected(text)` adds `ref`, `sid` and `sid_set` to
+the l7json of a run's own copy of `nginx_unprotected.conf` (C, C', U); `l7_conf.protected(text, run_dir)` adds the
+deny map, `map_hash_bucket_size 1024`, `map_hash_max_size 8192` and `if ($l7_deny) { return 429; }` to a run's own
+copy of `nginx.conf` (the M arms). The tracked files are not changed (`nginx_unprotected.conf` is pinned by the harm
+benchmark). nginx refuses a map whose longest key does not fit a hash bucket, and the default bucket (one cache line)
+does not fit a testbed browser's key.
+
+Also fixed on this branch: with `L7_SHADOW=1` and an L7 v2 view package, the shadow thread's 5-s `l7_shadow` report
+passed `truncated` twice (the ingest's truncated datagrams and the key store's truncated keys), so the thread was
+restarted every 5 s with a fresh engine. The key store's count is now `store_truncated`.
+
+Tests, all offline: `tests/test_l7_denymap.py` (hostile UAs and sids against the write rules, the file read back with a
+port of nginx's tokenizer), `tests/test_l7_rawkeys.py`, `tests/test_l7_enforce.py` (the policy on fakes),
+`tests/test_l7_safeguards.py`, `tests/test_l7_arms.py`, `tests/test_l7_conf.py`, `tests/test_daemon_l7_enforce.py`
+and `tests/test_daemon_l7_shadow_v2.py` (the daemon's real L7 shadow thread and the arm's steps on the harness's
+fakes).
+
+[NOT RUN] on the testbed: `nginx -t` of the rendered copies with a full map, a reload under load, a deny answered
+429, the reload's cost and the lingering of old workers (9.2's fallback, `auth_request`, is not built).
+
+Known limits:
+
+* D-038 (2026-10-31, the user: "Allow ';'"): 9.4 as written excluded `;`, which every User-Agent of
+  `ml/l7_benign.UA_TABLE` contains, so no testbed browser key could have been denied at level 1. Inside nginx's
+  double quotes `;` is an ordinary character; it is now written, and all 17 UA_TABLE entries pass the rules. `"`,
+  `\`, `$`, `{`, `}`, other bytes and UAs over 256 bytes stay excluded.
+* The stop (T-042 E03): `Arm.stop` and the arm's steps hold one lock, and no step runs after the stop, so once the
+  stop returns `deny.map` is empty and nginx was told to reload it.
+* Hostile field types (T-042 E07): a log record whose text field (ip, ua, uri, sid, ...) holds another JSON type than a
+  string, which only a forged datagram can produce, is dropped at ingest (`l7_ingest.normalise`); it used to raise and
+  restart the shadow thread with a fresh engine. Numeric fields are coerced as before.
+* D-040 (T-042 E02): a key without a session is written as `ip|ua|`, which nginx matches for every cookie-less request
+  from that address with that UA (in any case), including the first request of another user's session (a 429 means
+  the server never sets that user's sid). So such a key is denied at level 1 only while its address is single-key
+  (fewer than 3 UA hashes and 3 sids in 10 min); on a shared address it is a miss (`sid_less_shared`), and a line
+  already written is withdrawn (`l7_deny_end` reason `cgnat_guard`) at the next write once the address turns shared;
+  nginx keeps the old map until that reload (at most 10 s). Such a key can still reach level 2 only if single-key.
+* A bot that sends a fresh well-formed sid with every request gets a new key each time (T-025b F8), and its address
+  looks multi-key, so neither level reaches it; the population-level detector is the counter.
+* `nginx -s reload`'s exit status says whether the new configuration parsed; that the workers took it is seen only
+  in the 429s.
+
 ## Outputs of a run (`RESULTS_DIR`)
 
 | File | Content |
@@ -451,20 +541,31 @@ at the run directory; standalone default `/var/log/ddos/ban_events.jsonl`; `""` 
 
 | `kind` | Fields |
 |---|---|
-| `start` | `pid`, `backend`, `gru_only`, `xdp_gru`, `interface`, `model`, `model_sha256`, `scaler_sha256`, `xdp_sha256`, `thresholds`; since P4 also `slow_pc`, `slow_pc_enforce`, `slow_pc_sha256`, and `slow_pc_t_s`, `slow_pc_f_bps`, `slow_pc_k` in `thresholds` |
+| `start` | `pid`, `backend`, `gru_only`, `xdp_gru`, `interface`, `model`, `model_sha256`, `scaler_sha256`, `xdp_sha256`, `thresholds`; since P4 also `slow_pc`, `slow_pc_enforce`, `slow_pc_sha256`, and `slow_pc_t_s`, `slow_pc_f_bps`, `slow_pc_k` in `thresholds`; since L7 v2 also `l7_enforce`, `l7_enforce_sha256`, `l7_arm`, `l7_selection_sha256` |
 | `ban` | `ip`, `engine`, `reason`, `backend`, `enforced`, `ttl_s`, `value`, `threshold`; plus `bytes` (`l4_slowconn`), `error_ratio` (`l7_rate`), `hits` (`gru`), `ua_keys` (`l4_slowconn_pc`: `value` is the address's closes within 60 s, `threshold` K) |
-| `unban` | `ip`, `backend`, `age_s` |
+| `unban` | `ip`, `backend`, `age_s`; `lifted_by` `l7_kill` when the L7 v2 arm's kill switch lifted it |
 | `suppress_on`, `suppress_off` | `syn_delta`, `pkt_delta`: the GRU pause during volumetric floods (observed once per 1-s poll) |
 | `gru_suppressed` | `ip`, `value` (probability), `hits`: a GRU detection dropped because the pause was active |
-| `daemon_error` | `where`, `error` (type and message, at most 300 characters), `action`: an error the daemon survived and retried (since 2026-10-30; `where` is `access_log` for the main loop's tailer, `telemetry` for one L4 poll, `thread:<name>` for a worker thread's target: `telemetry`, `inference`, `rudy`, `l7_shadow`, `slow_pc`; `error_log` for a R.U.D.Y. body-timeout line whose client field is not an IPv4 address, skipped with `action` `line skipped`, H-26; `slow_pc` for a failed `ss` read or `ss -K` call of the per-connection rule, `slow_pc_record` for its record file). A run without one had no such error |
+| `daemon_error` | `where`, `error` (type and message, at most 300 characters), `action`: an error the daemon survived and retried (since 2026-10-30; `where` is `access_log` for the main loop's tailer, `telemetry` for one L4 poll, `thread:<name>` for a worker thread's target: `telemetry`, `inference`, `rudy`, `l7_shadow`, `slow_pc`, `l7_enforce`; `l7_enforce` also for a step of the L7 v2 arm that failed, or a deny map not emptied at the stop; `error_log` for a R.U.D.Y. body-timeout line whose client field is not an IPv4 address, skipped with `action` `line skipped`, H-26; `slow_pc` for a failed `ss` read or `ss -K` call of the per-connection rule, `slow_pc_record` for its record file). A run without one had no such error |
 | `slow_pc_close` | `ip`, `port`, `local`, `sport`, `age_s`, `bytes_received`, `bytes_acked`, `segs_after`, `streak`, `ua_keys`, `enforced`: a connection the per-connection rule closed (`enforced` true) or would have closed (shadow) |
 | `slow_pc_would_ban` | `ip`, `value` (closes within 60 s), `threshold` (K), `ua_keys`: a ban the rule decided in shadow |
 | `slow_pc_close_retry` | `ip`, `port`, `local`, `sport`, `attempt`, `gave_up`: a closed connection still there at the next poll, closed again (`attempt` 2 or 3) or, after the last retry, given up (`gave_up` true; P4-06). A connection that ended between the read and the kill is gone, not an error, and the exit status of `ss -K` decides nothing |
 | `slow_pc_capped` | `what` (`close` or `ban`), `n`, `cap`, and for bans `ips` (at most 50): decisions held back by the caps of 500 closes per poll and 20 bans per minute |
+| `l7_enforce_arm` | `armed`, `reason` (why not), `arm`, `arm_kind`, `model`, `selection_sha256`, `valid_for_claims`, `level`, `threshold`, `consecutive`: the L7 v2 arm attached to the shadow thread's engine (`L7_ENFORCE=1` only, as every kind below) |
+| `l7_deny` | `ip`, `ua_h`, `sid_h`, `arm`, `threshold`, `consecutive`, `p`, `t_poll`, `level` (1), `shared` (a case-insensitive twin's line covers it), `key_age_s`, `active`, `ttl_s`: a key denied at nginx |
+| `l7_deny_end` | the key fields, `reason` (`ttl`, `kill`, `stop`, `cgnat_guard`: a sid-less line withdrawn when its address turned shared, D-040), `denied`, `effective`, `age_s` |
+| `l7_enforce_skip` | the key fields, `reason` (`not_armed`, `killed`, `ip_format` (not a canonical dotted-quad IPv4 address), `allowlist`, `already_denied`, `ip_banned`, `key_age` with `key_age_s` and `until`, `cgnat_guard` with `ua_keys` and `sid_keys`) |
+| `l7_enforce_miss` | the key fields, `rule` (the write rule the key fails, `no_raw`, `ambiguous`, `sid_less_shared`: a key without a session on a shared address, D-040): unenforceable at level 1 |
+| `l7_enforce_capped` | `what` (`deny`: the key fields, `cap`, `active`; `ban`: `n`, `cap`, `ips`, at most 50) |
+| `l7_reload` | `ok`, `entries`, `changes`, `detail` (nginx's error text with quoted strings blanked) |
+| `l7_kill` | `on`; when on, `denies` emptied and `bans_lifted` |
+| `l7_enforce_poll` | every 5 s: `armed`, `killed`, `active`, `waiting`, `tracked`, `raw_keys`, `raw_evicted`, `raw_ambiguous`, `ips`, the counters (`would_bans`, `denied`, `missed`, `level2`, `guarded`, `capped`, `reloads`, `reload_failed`, `ended`, `lifted`, `inbox_dropped`, `observe_errors`), `skips`, `first_error` |
 | `slow_pc_poll` | every 5 s: `mode` (`shadow` or `enforce`), the counters since the last one (`polls`, `ss_failed`, `suspect`, `closes`, `capped_closes`, `bans`, `capped_bans`, `spared` by the shared-address guard, `skipped_lines`, `close_retries`, `close_failed`: connections given up after the last retry), `sockets`, `owned`, `tracked`, `bad_sample` (the first skipped line), `inbox_dropped`, `note_errors` |
 
 Engines: `l4_syn`, `l4_volumetric`, `l4_slowconn`, `l4_lowsyn`, `l7_rate`, `l7_rudy`,
-`gru`, `l4_slowconn_pc` (P4, the per-connection slow rule; only with `SLOW_PC=1 SLOW_PC_ENFORCE=1`). The `value` of the L4 engines is a count per poll interval (1 s plus the loop's
+`gru`, `l4_slowconn_pc` (P4, the per-connection slow rule; only with `SLOW_PC=1 SLOW_PC_ENFORCE=1`), `l7v2` (the L7 v2
+arm's level 2, only with `L7_ENFORCE=1`; its `ban` adds `level`, `arm`, `p`, `consecutive`, `ua_h`, `sid_h`,
+`ua_keys`, `sid_keys`, `after_s`, `denied`). The `value` of the L4 engines is a count per poll interval (1 s plus the loop's
 work), not a rate normalised by elapsed time (review D5).
 
 ## Metrics

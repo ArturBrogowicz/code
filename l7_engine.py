@@ -383,12 +383,15 @@ class EngineRecorder:
         self._fh.close()
 
 
-def build_engine(model_path=None, window=None, idle_timeout=None, level=None, **kwargs):
+def build_engine(model_path=None, window=None, idle_timeout=None, level=None, scorer=None, **kwargs):
     """Build the window store and engine the same way for the daemon and the
     replay tool. With a model package, the store's window length is the package's
     seq_len (the model was trained on windows of that length). A "view" package (or
-    level="view" without one) gets the L7 v2 view engine and its (IP, UA, sid) store."""
-    scorer = None
+    level="view" without one) gets the L7 v2 view engine and its (IP, UA, sid) store.
+    `scorer`, a detector already loaded (l7_arms.load: any L7 v2 arm behind
+    score(batch) -> p, with its own threshold and consecutive), is used as it is."""
+    if scorer is not None and model_path:
+        raise ValueError("give a model package or a loaded scorer, not both")
     if model_path:
         import l7_scorer  # torch is imported only when a model is used
         L7Scorer, PACKAGE_FORMAT_V2 = l7_scorer.L7Scorer, l7_scorer.PACKAGE_FORMAT_V2

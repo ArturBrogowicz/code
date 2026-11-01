@@ -82,9 +82,11 @@ FEED_ACCESS_LOG, FEED_ERROR_LOG = "/var/log/nginx/ddos_ml_access.log", "/var/log
 FEED_BEFORE = "feed_before"               # where a run with a daemon keeps what the host's Nginx logs held before it (T-028 F-06)
 # every other variable the daemon reads, set, so that nothing of the operator's environment reaches it (GRU_ONLY=1 there would turn
 # its rules off); MITIGATION_BACKEND and BAN_EVENTS are the mode's and the run's. L7_SOCKET_PATH is read only with L7_SHADOW=1,
-# and SLOW_PC_ENFORCE, _KILL_FILE, _RECORD, _T, _F, _K (P4's per-connection rule) are used only with SLOW_PC=1
+# and SLOW_PC_ENFORCE, _KILL_FILE, _RECORD, _T, _F, _K (P4's per-connection rule) are used only with SLOW_PC=1, and the L7 v2
+# enforcing arm's L7_ENFORCE_DIR, L7_NGINX_CONF, L7_ALLOWLIST, L7_KILL_FILE, L7_SELECTION, L7_SELECTION_SHA256,
+# L7_ARM and L7_SOCKET_GROUP only with L7_ENFORCE=1
 DAEMON_ENV = (("XDP_GRU", "0"), ("GRU_ONLY", "0"), ("L7_SHADOW", "0"), ("HEURISTIC_PROFILE", "default"), ("L7_MODEL", ""),
-              ("L7_RECORD", ""), ("SLOW_PC", "0"))
+              ("L7_RECORD", ""), ("SLOW_PC", "0"), ("L7_ENFORCE", "0"))
 DAEMON_READY_LINE = "Listening for Nginx logs"      # what the daemon prints last before its loop; the suite waits for it too
 # what a protected run's daemon must say it runs with in its start event, besides the mode's backend (G11): the rules as deployed,
 # the XDP-fed GRU off (78cfc9c), no L7 shadow engine

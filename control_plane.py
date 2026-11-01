@@ -14,6 +14,9 @@ import joblib
 import numpy as np
 from GRU_ML_model import GRUDDoSClassifier
 import ban_events
+import l7_arms
+import l7_denymap
+import l7_enforce
 import l7_engine
 import l7_ingest
 import slow_pc
@@ -41,6 +44,35 @@ L7_SHADOW_REPORT_INTERVAL = 5.0
 L7_MODEL = os.environ.get("L7_MODEL", "")
 L7_RECORD = os.environ.get("L7_RECORD", "")
 L7_POLL_INTERVAL = 1.0
+# L7 v2 enforcing arm (docs/L7V2_DESIGN.md 9; l7_enforce.py, l7_denymap.py). OFF unless L7_ENFORCE=1, so by default the
+# daemon runs exactly as before. It acts on the L7 engine's would-ban decisions (so it needs L7_SHADOW=1), in its own
+# supervised thread: level 1 denies the (IP, UA, sid) key at nginx through L7_ENFORCE_DIR/deny.map and a graceful reload
+# of the nginx that runs L7_NGINX_CONF; level 2 XDP-bans a single-key IP (engine l7v2). L7_ALLOWLIST adds
+# comma-separated IPv4 addresses or networks (the runner's monitoring identities) to the server's own addresses.
+L7_ENFORCE = os.environ.get("L7_ENFORCE", "0") == "1"
+L7_ENFORCE_DIR = os.environ.get("L7_ENFORCE_DIR", "/run/l7v2")
+L7_NGINX_CONF = os.environ.get("L7_NGINX_CONF", "")
+L7_ALLOWLIST = os.environ.get("L7_ALLOWLIST", "")
+# The arm's kill switch, read every step: while this file exists it takes no action, and when it appears the deny map
+# is emptied (one reload) and the arm's XDP bans are lifted. The default is SLOW_PC_KILL_FILE's, so one file stops both.
+L7_KILL_FILE = os.environ.get("L7_KILL_FILE", "/run/l7v2/kill")
+# With the arm on, a datagram on the L7 socket can drive a ban, so the socket is bound 0660 with nginx's group instead of
+# 0666 (T-042 E06). nginx's workers run as nobody:nogroup here: the installed nginx 1.28.3 was built without --user or
+# --group, and nginx.conf (and the runner's copy) sets no `user`. With another `user` directive, name its group here.
+L7_SOCKET_GROUP = os.environ.get("L7_SOCKET_GROUP", "nogroup")
+# One path for every arm (9.5; l7_arms.py): the arm's detector, any of the view GRU, the HGB, the LR or a rule, and its
+# own operating point come from the frozen selection L7_SELECTION, whose sha256 the runner gives in L7_SELECTION_SHA256,
+# by the arm's name L7_ARM. L7_MODEL is the shadow's model only: with L7_ENFORCE=1 it must be unset.
+L7_SELECTION = os.environ.get("L7_SELECTION", "")
+L7_SELECTION_SHA256 = os.environ.get("L7_SELECTION_SHA256", "")
+L7_ARM = os.environ.get("L7_ARM", "")
+L7_ENFORCE_POLL_INTERVAL = 1.0
+if L7_ENFORCE and not (L7_SHADOW and L7_NGINX_CONF and L7_SELECTION and L7_SELECTION_SHA256 and L7_ARM):
+    raise SystemExit("[-] L7_ENFORCE=1 needs L7_SHADOW=1 (the arm acts on the L7 engine's decisions), L7_NGINX_CONF "
+                     "(the configuration of the nginx it reloads) and L7_SELECTION, L7_SELECTION_SHA256, L7_ARM "
+                     "(the arm's detector and its operating point)")
+if L7_ENFORCE and L7_MODEL:
+    raise SystemExit("[-] L7_ENFORCE=1: the arm's model comes from L7_SELECTION; L7_MODEL must be unset")
 # GRU inference is driven by the Tier-1 (testbed-native) model. Its feature set,
 # sequence length and layer sizes are read from the training config so inference
 # can never silently drift from training. The 8 per-FLOW forward features (and
@@ -280,6 +312,12 @@ slow_pc_counts = defaultdict(int)   # inbox_dropped, note_errors: written by the
 slow_pc_record_fh = None            # the SLOW_PC_RECORD file; False once a write failed
 slow_pc_last_report = 0.0
 
+# The L7 v2 enforcing arm (L7_ENFORCE=1), its detector and the L7 socket's group: set by l7_enforce_init() before the
+# threads start.
+l7_arm = None
+l7_detector = None
+l7_socket_gid = None
+
 # Queue for offloading ML inference to a dedicated thread
 inference_queue = queue.Queue()
 inference_result_queue = queue.Queue()
@@ -323,7 +361,8 @@ def ban_ip(ip_str, reason="unknown", engine="unknown", **detail):
 
     Centralizes the ban logic so every code path (GRU, heuristic, L4)
     consistently updates both the XDP blacklist and the internal tracking sets.
-    `engine` (one of ban_events.ENGINES) and `detail` (the measured value, its
+    `engine` (one of ban_events.ENGINES, or ban_events.L7V2_ENGINE when the L7 v2
+    enforcing arm calls it through its injected `ban`) and `detail` (the measured value, its
     threshold, ...) go only to the ban-event log; the [BAN] console line is
     unchanged because the test harness parses it.
     """
@@ -341,10 +380,11 @@ def ban_ip(ip_str, reason="unknown", engine="unknown", **detail):
         
     with banned_ips_lock:
         banned_ips.add(ip_str)
-        ban_timestamps[ip_str] = time.time()
+        ban_timestamps[ip_str] = banned_at = time.time()
     print(f"[BAN] {ip_str} banned for {BAN_TTL_SECONDS}s. Reason: {reason}")
     EVENTS.emit("ban", ip=ip_str, engine=engine, reason=reason, backend=backend,
                 enforced=enforced, ttl_s=BAN_TTL_SECONDS, **detail)
+    return banned_at
 
 
 def unblock_expired_bans():
@@ -609,6 +649,104 @@ def slow_pc_poll():
         report_daemon_error("slow_pc", e, "poll skipped")
 
 
+def l7_nginx_reload():
+    """The arm's graceful reload of the run's nginx: `nginx -c L7_NGINX_CONF -s reload`. The signaller parses the whole
+    configuration, deny map included, before it signals, and exits non-zero without signalling when it does not load
+    (src/core/nginx.c:293-330, src/core/ngx_cycle.c:314 of nginx 1.28.3), so the exit status says whether the new map
+    can take effect. Returns (ok, detail)."""
+    try:
+        res = subprocess.run(["nginx", "-c", L7_NGINX_CONF, "-s", "reload"], capture_output=True, timeout=10,
+                             check=False)
+    except (subprocess.SubprocessError, OSError) as e:
+        return False, f"{type(e).__name__}: {e}"
+    if res.returncode != 0:
+        return False, f"nginx exited {res.returncode}: {res.stderr.decode('utf-8', 'replace').strip()}"
+    return True, ""
+
+
+def l7_lift_bans(bans):
+    """The arm's kill switch: lift its XDP bans, (ip, the time ban_ip recorded) each, that are still the bans it made.
+    A ban that expired, or that another engine made since, is left alone, and so is every other engine's ban (L3/L4,
+    slow_pc, the L7 rate rule). Each lift is an `unban` event with lifted_by "l7_kill". Returns the IPs lifted."""
+    backend = os.environ.get("MITIGATION_BACKEND", "xdp")
+    now = time.time()
+    lifted = []
+    with banned_ips_lock:
+        for ip_str, banned_at in bans:
+            if banned_at is None or ban_timestamps.get(ip_str) != banned_at:
+                continue
+            if backend == "iptables":
+                subprocess.run(["ip", "netns", "exec", "server_ns", "iptables", "-D", "INPUT", "-s", ip_str,
+                                "-j", "DROP"], check=False)
+            else:
+                try:
+                    del blacklist_map[blacklist_map.Key(ip_to_network_bytes(ip_str))]
+                except KeyError:
+                    pass
+            banned_ips.discard(ip_str)
+            del ban_timestamps[ip_str]
+            lifted.append((ip_str, now - banned_at))
+    for ip_str, age in lifted:
+        EVENTS.emit("unban", ip=ip_str, backend=backend, age_s=round(age, 3), lifted_by="l7_kill")
+    return [ip_str for ip_str, _age in lifted]
+
+
+def l7_killed():
+    return os.path.exists(L7_KILL_FILE)
+
+
+def l7_enforce_stop():
+    """At the daemon's stop (the main statement's finally, after XDP is detached): the arm empties the deny map with
+    one reload, so no deny outlives the daemon. It cannot raise."""
+    try:
+        if l7_arm is not None:
+            l7_arm.stop(time.time())
+    except Exception as e:  # noqa: BLE001 - the stop must finish
+        report_daemon_error("l7_enforce", e, "deny map not emptied at stop")
+
+
+def l7_ip_banned(ip_str):
+    with banned_ips_lock:
+        return ip_str in banned_ips
+
+
+def l7_enforce_init():
+    """Build the L7 v2 enforcing arm (L7_ENFORCE=1); the main statement calls it before any thread starts. A run
+    directory the daemon may not use, a malformed L7_ALLOWLIST, or a detector l7_arms refuses (a placeholder operating
+    point, an ablation, an altered artifact, a selection that is not the recorded one) stops the daemon."""
+    global l7_arm, l7_detector, l7_socket_gid
+    try:
+        l7_socket_gid = l7_ingest.group_id(L7_SOCKET_GROUP)
+        l7_denymap.prepare_run_dir(L7_ENFORCE_DIR)
+        allow = l7_enforce.allowlist(L7_ALLOWLIST)
+        l7_detector = l7_arms.load(L7_SELECTION, L7_SELECTION_SHA256, L7_ARM)
+    except (OSError, ValueError) as e:                  # l7_arms.DetectorError is a ValueError
+        report_daemon_error("l7_enforce", e, "the daemon stops: nothing is enforced")   # why, in the event log
+        raise SystemExit(f"[-] L7_ENFORCE=1: {e}") from e
+    l7_arm = l7_enforce.Arm(l7_denymap.DenyMap(L7_ENFORCE_DIR), reload=l7_nginx_reload, ban=ban_ip,
+                            close=kill_zombie_connections, banned=l7_ip_banned, events=EVENTS, lift=l7_lift_bans,
+                            killed=l7_killed, allow=allow, clock=time.time)
+    l7_arm.start(time.time())
+    print(f"[*] L7 v2 enforcing arm: deny map {l7_arm.denies.path}, reloads nginx -c {L7_NGINX_CONF}, "
+          f"kill switch {L7_KILL_FILE}.")
+
+
+def l7_enforce_monitor():
+    """The enforcing arm's own thread (L7_ENFORCE=1), under supervise() like every worker thread: one Arm.step per
+    L7_ENFORCE_POLL_INTERVAL. A slow reload or ban delays the arm only, never the L7 ingestion or the L4 rules."""
+    while not stop_event.is_set():
+        time.sleep(L7_ENFORCE_POLL_INTERVAL)
+        l7_enforce_poll()
+
+
+def l7_enforce_poll():
+    """One step of the arm. It cannot raise: an error skips this step only."""
+    try:
+        l7_arm.step(time.time())
+    except Exception as e:  # noqa: BLE001 - the next step must run
+        report_daemon_error("l7_enforce", e, "step skipped")
+
+
 # Robustness (review of 2026-10-29, H-01/H-02): an error the daemon survives is reported on
 # the console and as a `daemon_error` event, and the failed part is retried after this backoff.
 ERROR_BACKOFF_S = 1.0
@@ -796,15 +934,24 @@ def l7_shadow_monitor(socket_path):
       * 'l7_would_ban' when a key meets the decision policy.
     It NEVER bans and never touches the live detection state (banned_ips is only
     read, to annotate would-ban events). With L7_RECORD set it also appends the
-    engine's exact input stream, for deterministic replay (ml/replay_l7.py).
+    engine's exact input stream, for deterministic replay (ml/replay_l7.py). With
+    L7_ENFORCE=1 it also shows the enforcing arm (l7_arm) the engine, every ingested
+    request and every would-ban; the arm acts in its own thread (l7_enforce_monitor).
     """
     try:
-        reader = l7_ingest.SyslogDatagramReader(socket_path)
+        if L7_ENFORCE:
+            # 0660 with nginx's group, not 0666: with the arm on a datagram here can drive a ban (T-042 E06)
+            reader = l7_ingest.SyslogDatagramReader(socket_path, mode=0o660, group=l7_socket_gid)
+        else:
+            reader = l7_ingest.SyslogDatagramReader(socket_path)
     except OSError as e:
         print(f"[-] L7 shadow: cannot bind {socket_path}: {e}")
         return
     try:
-        engine = l7_engine.build_engine(L7_MODEL or None)
+        if L7_ENFORCE:
+            engine = l7_engine.build_engine(scorer=l7_detector)   # the arm's detector, loaded and checked at start
+        else:
+            engine = l7_engine.build_engine(L7_MODEL or None)
     except (ValueError, OSError) as e:      # l7_scorer.PackageError is a ValueError
         print(f"[-] L7 shadow: model package {L7_MODEL!r} rejected ({e}); features-only.")
         engine = l7_engine.build_engine(None)
@@ -814,6 +961,8 @@ def l7_shadow_monitor(socket_path):
             recorder = l7_engine.EngineRecorder(L7_RECORD)
         except OSError as e:
             print(f"[-] L7 shadow: cannot record to {L7_RECORD}: {e}")
+    if L7_ENFORCE:
+        l7_arm.attach(engine, refuse="GRU_ONLY=1" if GRU_ONLY else None)
     mode = (f"model {engine.scorer.sha256[:12]}" if engine.scorer else "features-only")
     print(f"[*] L7 shadow ingestion on {socket_path} (SO_RCVBUF={reader.rcvbuf}, {mode}, "
           f"record={'on' if recorder else 'off'}).")
@@ -837,6 +986,8 @@ def l7_shadow_monitor(socket_path):
                         if recorder:
                             recorder.record(obj, time.time())
                         engine.on_record(rec)
+                        if L7_ENFORCE:
+                            l7_arm.observe(obj, rec)
             now = time.time()
             if now - last_poll >= L7_POLL_INTERVAL:
                 suppressing = now < volumetric_active_until
@@ -847,9 +998,17 @@ def l7_shadow_monitor(socket_path):
                 for ev in engine.poll(now, suppressing, banned):
                     if ev.pop("kind") == "l7_would_ban":
                         EVENTS.emit("l7_would_ban", **ev)
+                        if L7_ENFORCE:
+                            l7_arm.submit(ev)
                 last_poll = now
             if now - last_report >= L7_SHADOW_REPORT_INTERVAL:
-                EVENTS.emit("l7_shadow", **counters.as_dict(), **engine.store.stats())
+                # L7 v2's key store counts its truncated keys under the name the ingest counters give truncated
+                # datagrams; the duplicate keyword raised TypeError here, which restarted this thread every 5 s
+                # and threw the engine's state away. The store's count is reported as store_truncated.
+                store = engine.store.stats()
+                if "truncated" in store:
+                    store["store_truncated"] = store.pop("truncated")
+                EVENTS.emit("l7_shadow", **counters.as_dict(), **store)
                 EVENTS.emit("l7_gru_poll", **engine.take_summary())
                 last_report = now
     finally:
@@ -1229,6 +1388,8 @@ try:
                 gru_only=GRU_ONLY, xdp_gru=XDP_GRU, l7_shadow=L7_SHADOW,
                 heuristic_profile=HEURISTIC_PROFILE, slow_pc=SLOW_PC,
                 slow_pc_enforce=SLOW_PC_ENFORCE,
+                l7_enforce=L7_ENFORCE, l7_enforce_sha256=ban_events.file_sha256("l7_enforce.py"),
+                l7_arm=L7_ARM or None, l7_selection_sha256=L7_SELECTION_SHA256 or None,
                 slow_pc_sha256=ban_events.file_sha256("slow_pc.py"),
                 l7_model=L7_MODEL or None, l7_record=bool(L7_RECORD),
                 interface=INTERFACE, model=MODEL_PATH,
@@ -1269,6 +1430,15 @@ try:
     error_log_thread.start()
     print(f"[*] Listening for Nginx error logs (RUDY detection): {NGINX_ERROR_LOG}")
     print("[+] RUDY detection thread started.")
+
+    # L7 v2 enforcing arm (L7_ENFORCE=1): built before the L7 shadow thread shows it the engine, and run in its own
+    # supervised thread. OFF by default.
+    if L7_ENFORCE:
+        l7_enforce_init()
+        l7_enforce_thread = threading.Thread(
+            target=supervise, args=("l7_enforce", l7_enforce_monitor), daemon=True)
+        l7_enforce_thread.start()
+        print("[+] L7 v2 enforcing arm thread started.")
 
     # Phase P1 L7 shadow ingestion (docs/L7_GRU_DESIGN.md §8). Observe-only; OFF
     # unless L7_SHADOW=1, so the default daemon behaviour is unchanged.
@@ -1373,3 +1543,5 @@ finally:
     stop_event.set()
     bpf.remove_xdp(INTERFACE, 0)
     print(f"[+] XDP program detached from {INTERFACE}. Finished.")
+    if L7_ENFORCE:
+        l7_enforce_stop()

@@ -16,10 +16,15 @@ Every record has:
                       | "gru_suppressed" | "l7_shadow" | "l7_gru_poll" | "l7_would_ban"
                       | "daemon_error" | "slow_pc_close" | "slow_pc_would_ban"
                       | "slow_pc_capped" | "slow_pc_poll" | "slow_pc_close_retry"
+                      | "l7_enforce_arm" | "l7_deny" | "l7_deny_end" | "l7_enforce_skip"
+                      | "l7_enforce_miss" | "l7_enforce_capped" | "l7_reload"
+                      | "l7_enforce_poll" | "l7_kill"
                       (the l7_* kinds are the L7 shadow engine's telemetry; a
                       would-ban is a decision that was logged, not enforced; a
                       daemon_error is an error the daemon survived and retried;
-                      the slow_pc_* kinds are the P4 per-connection rule's, slow_pc.py)
+                      the slow_pc_* kinds are the P4 per-connection rule's, slow_pc.py;
+                      l7_enforce_*, l7_deny*, l7_reload and l7_kill are the L7 v2 enforcing
+                      arm's, l7_enforce.py, written only with L7_ENFORCE=1)
 plus kind-specific fields (ip, engine, value, threshold, ...); the full schema is
 documented in docs/EVALUATION.md.
 """
@@ -36,11 +41,16 @@ DEFAULT_PATH = "/var/log/ddos/ban_events.jsonl"
 ENGINES = ("l4_syn", "l4_volumetric", "l4_slowconn", "l4_lowsyn",
            "l7_rate", "l7_rudy", "gru", "l4_slowconn_pc")
 
+# The L7 v2 enforcing arm's level-2 XDP ban (l7_enforce.py; L7_ENFORCE=1). It reaches ban_ip through the arm's injected
+# `ban` callable, not through a direct call in control_plane.py, so it is kept apart from ENGINES, which
+# tests/test_control_plane_contract.py pins to the daemon's direct ban_ip calls; tests/test_daemon_l7_enforce.py pins it.
+L7V2_ENGINE = "l7v2"
+
 # Console labels, identical to the ones the suite derived from the [BAN] log line.
 ENGINE_LABELS = {
     "l4_syn": "L4 SYN", "l4_volumetric": "L4 Volumetric", "l4_slowconn": "L4 SlowConn",
     "l4_lowsyn": "L4 Low-SYN", "l7_rate": "L7 Heuristic", "l7_rudy": "L7 R.U.D.Y.",
-    "gru": "GRU ML", "l4_slowconn_pc": "L4 SlowConn-PC", "unknown": "Unknown",
+    "gru": "GRU ML", "l4_slowconn_pc": "L4 SlowConn-PC", L7V2_ENGINE: "L7 v2", "unknown": "Unknown",
 }
 
 
@@ -148,7 +158,7 @@ def engine_from_reason(reason):
     """Engine id for the free-text reason of a "[BAN] ... Reason: ..." log line, for
     daemon logs written before ban events existed. Order matters: the R.U.D.Y.
     reason also contains "Heuristic"."""
-    for needle, engine in (("Per-connection slow", "l4_slowconn_pc"),
+    for needle, engine in (("L7 v2 arm", L7V2_ENGINE), ("Per-connection slow", "l4_slowconn_pc"),
                            ("R.U.D.Y.", "l7_rudy"), ("GRU", "gru"),
                            ("Low-and-slow", "l4_lowsyn"), ("SYN flood", "l4_syn"),
                            ("Volumetric", "l4_volumetric"),
