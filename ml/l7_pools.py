@@ -382,27 +382,63 @@ def nominal_tokens(reqs):
     return toks
 
 
-def key_units(rows):
-    """Every key unit of a plan's entity rows (D-034, ml/l7v2_prereg.json arrivals.age_check.key_units_v2):
-    (role, held_out, kind or family, first seen, last seen, token starts or None), absolute seconds."""
+def _unit_rows(rows):
+    """Every key unit of a plan's entity rows (D-034, ml/l7v2_prereg.json arrivals.age_check.key_units_v2): (role,
+    held_out, kind or family, first seen, last seen, token starts or None, address, UA or None), absolute seconds."""
     out = []
     for e in rows:
         start, kof = e["schedule"]["start_s"], e["kind_or_family"]
         plan = _plan_of(e)
         if plan is None:
-            out.append((e["role"], e["held_out"], kof, start, e["schedule"]["stop_s"], None))
+            out.append((e["role"], e["held_out"], kof, start, e["schedule"]["stop_s"], None, e.get("address"), None))
             continue
         for u in plan["users"]:
             reqs = nominal_requests(u)
             if reqs:
                 out.append((e["role"], e["held_out"], kof, start + reqs[0][0], start + reqs[-1][0],
-                            [start + t for t in nominal_tokens(reqs)]))
+                            [start + t for t in nominal_tokens(reqs)], e.get("address"), u.get("ua")))
     return out
 
 
-def window_ages(toks, min_views):
-    """The age of each view window of a key at nominal times: token j's start minus the first token's, j >= min_views."""
-    return [toks[j] - toks[0] for j in range(min_views, len(toks or []))]
+def key_units(rows):
+    """Every key unit of a plan's entity rows: (role, held_out, kind or family, first seen, last seen, token starts or
+    None), absolute seconds."""
+    return [u[:6] for u in _unit_rows(rows)]
+
+
+def window_ages(toks, min_views, origin=None):
+    """The age of each view window of a key at nominal times: token j's start, j >= min_views, minus `origin` (the first
+    token's start by default)."""
+    toks = toks or []
+    return [toks[j] - (toks[0] if origin is None else origin) for j in range(min_views, len(toks))]
+
+
+def age_report_v3(units, min_views):
+    """The report-only age readings of a plan (ml/l7v2_prereg.json arrivals.age_check.report_v3, D-040, T042-F01), never
+    a refusal: `units` are _unit_rows; each window's age from the first request of its address (any entity's, so a
+    reused address counts from its donor's) and of its (IP, UA) key; the AUC of each as a score for the attack role,
+    pooled over the trained attack windows and per attack family (held-out ones too), against the trained benign
+    windows. An AUC below 0.5 means attack windows are the younger."""
+    first_addr, first_key = {}, {}
+    for _r, _h, _k, first, _last, _toks, addr, ua in units:
+        first_addr[addr] = min(first_addr.get(addr, math.inf), first)
+        first_key[(addr, ua)] = min(first_key.get((addr, ua), math.inf), first)
+    views = {"address": {}, "ip_ua": {}}
+    for r, h, k, _first, _last, toks, addr, ua in units:
+        for name, origin in (("address", first_addr[addr]), ("ip_ua", first_key[(addr, ua)])):
+            views[name].setdefault((r, h, k), []).extend(window_ages(toks, min_views, origin))
+    out = {}
+    for name, wins in views.items():
+        ben = [a for (r, h, _k), v in wins.items() if r == "benign" and not h for a in v]
+        atk = [a for (r, h, _k), v in wins.items() if r == "attack" and not h for a in v]
+        fams = sorted({k for r, _h, k in wins if r == "attack"})
+        out[f"{name}_age_auc"] = round(auc(ben, atk), 4) if ben and atk else None
+        by = {}
+        for fam in fams:
+            fw = [a for (r, _h, k), v in wins.items() if r == "attack" and k == fam for a in v]
+            by[fam] = round(auc(ben, fw), 4) if ben and fw else None
+        out[f"{name}_age_auc_by_family"] = by
+    return out
 
 
 def age_check(rows, rule):
@@ -426,10 +462,10 @@ def age_check(rows, rule):
 
 def _age_check_v2(rows, rule, out):
     """rule_v2 of the age check (D-034, T038-01): lifetimes, window age pooled and per family, held-out lifetimes."""
-    units = key_units(rows)
+    units = _unit_rows(rows)
     life = {(r, h): [] for r in ("benign", "attack") for h in (False, True)}
     wins, fam_units = {}, {}
-    for r, h, k, first, last, toks in units:
+    for r, h, k, first, last, toks, _addr, _ua in units:
         life[(r, h)].append(last - first)
         if r == "attack":
             fam_units[k] = fam_units.get(k, 0) + 1
@@ -452,6 +488,8 @@ def _age_check_v2(rows, rule, out):
     if hb:
         out["held_out_lifetime_ks"] = round(ks_distance(hb, lb), 4)
         ok = ok and out["held_out_lifetime_ks"] <= rule["held_out_lifetime_ks_max"]
+    if "report_v3" in rule:                        # D-040: report-only, it never changes ok
+        out["report_v3"] = age_report_v3(units, rule["min_views"])
     return ok
 
 

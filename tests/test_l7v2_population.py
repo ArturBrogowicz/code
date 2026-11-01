@@ -244,6 +244,43 @@ class KeyAgeTest(unittest.TestCase):
         self.assertGreater(abs(a["window_age_auc"] - 0.5), 0.3, a)
         self.assertTrue(a["ks"] <= self.RULE["ks_max"], "the first-seen check alone passed them")
 
+    def test_the_address_and_ip_ua_age_report_d040(self):
+        # T042-F01, report-only: a benign device keeps its address and UA, so these ages still separate the roles
+        for p in self.plans:
+            a = p["age_check"]
+            self.assertTrue(a["pass"], "report-only: it refuses no plan")
+            r = a["report_v3"]
+            self.assertTrue({"C2", "C3a", "C3b@M2", "C3b@M1"} <= set(r["address_age_auc_by_family"]), p["seed"])
+            self.assertEqual(set(r["address_age_auc_by_family"]), set(r["ip_ua_age_auc_by_family"]))
+            self.assertLess(r["address_age_auc"], 0.35, (p["seed"], "attack windows are younger, outside the band"))
+            self.assertLess(r["ip_ua_age_auc"], 0.35, p["seed"])
+            if p["seed_role"] in ("eval", "pilot"):
+                self.assertIn("C3b@M3", r["address_age_auc_by_family"])
+
+    def test_the_report_counts_from_the_address_and_the_key(self):
+        toks = [0.0, 10.0, 20.0, 30.0, 40.0, 50.0]
+        def at(t):
+            return [t + x for x in toks]
+        units = [
+            # one device, two sessions: the second's address and key age count from the first session's start
+            ("benign", False, "tpcw_browsing", 0.0, 50.0, at(0.0), "a1", "ua1"),
+            ("benign", False, "tpcw_browsing", 100.0, 150.0, at(100.0), "a1", "ua1"),
+            # a CGNAT address, two UAs: the address counts from the first user, the key from its own
+            ("benign", False, "cgnat_browsers", 0.0, 50.0, at(0.0), "a2", "ua1"),
+            ("benign", False, "cgnat_browsers", 200.0, 250.0, at(200.0), "a2", "ua2"),
+            # an M3 bot on a donor's address: the address counts from the donor's first request, the key from its own
+            ("attack", False, "C2", 300.0, 350.0, at(300.0), "a3", "ua3"),
+            ("attack", True, "C3b@M3", 700.0, 750.0, at(700.0), "a3", "ua4"),
+            ("benign", False, "uploader", 5.0, 9.0, None, "a4", None),          # no plan: no windows
+        ]
+        r = LP.age_report_v3(units, 4)
+        # window ages (j >= 4: tokens 40 and 50 s): benign address 40, 50, 140, 150, 40, 50, 240, 250; key 40, 50, 140,
+        # 150, 40, 50, 40, 50; C2 40, 50 in both; M3 address 440, 450 (740 and 750 minus the donor's 300), key 40, 50
+        self.assertEqual(r["ip_ua_age_auc_by_family"]["C3b@M3"], r["ip_ua_age_auc_by_family"]["C2"])
+        self.assertEqual(r["address_age_auc_by_family"]["C3b@M3"], 1.0)
+        self.assertEqual(r["ip_ua_age_auc"], LP.auc([40, 50, 140, 150, 40, 50, 40, 50], [40, 50]))
+        self.assertEqual(r["address_age_auc"], LP.auc([40, 50, 140, 150, 40, 50, 240, 250], [40, 50]))
+
     def test_lifetimes_d034(self):
         import l7v2_prereg
         law = l7v2_prereg.load()["arrivals"]["lifetimes"]["law"]
