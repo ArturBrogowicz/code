@@ -2981,6 +2981,33 @@ class CommandLineTest(RunCase):
         self.assertTrue(probes)
         self.assertEqual({argv[2] for argv in probes}, {"5"})
 
+    def test_a_run_on_the_daemons_pins_records_the_executors_timer_beside_the_legit_one_and_is_not_judged_on_it(self):
+        """T-039 V-33: under PIN_PLAN_DAEMON the executor's CPU (6) carries the exit stamps the run's clock is made of. Every run of
+        that plan, protected or not, probes its timer after the gate and records it; a late one refuses nothing. A plan without an
+        executor CPU of its own probes and records the legit CPU only, as before."""
+        daemon = X.pins_for(["M_xdp"])
+        for kind in ("M_xdp", "C"):
+            with self.subTest(kind=kind):
+                plan = self.plan(kind, name=f"d/{kind}", pins=daemon)
+                host = F.SimHost(timer_p99_by_cpu={daemon["executor"]: 40.0})
+                result = X.execute(plan, host)
+                self.assertTrue(result.ok, result.reasons)
+                probes = [argv[2] for _, _, argv in host.commands if "timer-probe" in argv]
+                self.assertEqual(probes, [daemon["legit"], daemon["executor"]])
+                env = json.loads(self.read(plan, "environment.json"))
+                self.assertEqual((env["timer_legit"]["p99_ms"], env["timer_executor"]["p99_ms"], env["timer_executor_cpus"]),
+                                 (1.0, 40.0, "6"))
+                self.assertIn("timer record  the timer on the executor's CPU 6 is probed too", X.describe(plan))
+        plan = self.plan("C", name="plain/C")
+        host = F.SimHost(timer_p99_by_cpu={P.PIN_PLAN["daemon"]: 40.0})
+        self.assertTrue(X.execute(plan, host).ok)
+        self.assertEqual([argv[2] for _, _, argv in host.commands if "timer-probe" in argv], [P.PIN_PLAN["legit"]])
+        env = json.loads(self.read(plan, "environment.json"))
+        self.assertNotIn("timer_executor", env)
+        self.assertNotIn("timer record", X.describe(plan))
+        with self.assertRaisesRegex(X.EnvironmentRefused, "CPU 7"):
+            X.execute(self.plan("M_xdp", name="late/M_xdp", pins=daemon), F.SimHost(timer_p99_by_cpu={daemon["legit"]: 40.0}))
+
     def test_a_run_with_a_timer_limit_says_it_is_a_smoke_test_and_the_harm_gate_will_not_judge_it(self):
         host = F.SimHost(timer_p99_ms=15.0)
         code, _, shown, _ = self.run_main(*self.base("C", "raised/C"), "--timer-limit-ms", "50", host=host)

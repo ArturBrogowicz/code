@@ -141,6 +141,8 @@ class ProtectedCampaignTest(CampaignCase):
             self.assertEqual((sorted(meta["order"]), meta["planned_order"]), (["C", "Cp", "M_xdp", "U"], meta["order"]))
             for kind in meta["order"]:
                 self.assertEqual(self.json(d, kind, "plan.json")["pins"], X.P.PIN_PLAN_DAEMON, (d, kind))
+                env = self.json(d, kind, "environment.json")     # T-039 V-33: in every arm alike, recorded, not judged
+                self.assertEqual((env["timer_executor_cpus"], env["timer_executor"]["samples"]), ("6", 200), (d, kind))
         self.assertEqual([(p["mode"], p["verdict"]) for p in state["gate"]["protected"]], [("xdp", "INVALID")],
                          "three blocks: fewer than the outcome needs")
         self.assertTrue(any(m.startswith("P2 outcome of M_xdp: INVALID") for m in self.say), self.say)
@@ -192,19 +194,35 @@ class ProtectedCampaignTest(CampaignCase):
                 self.run_campaign(modes=modes)
         self.assertFalse(os.path.exists(self.path()))
 
-    def test_a_campaign_resumes_only_with_its_modes_and_one_made_before_them_resumes_as_before(self):
+    def test_a_campaign_resumes_only_with_its_modes_and_pins_and_one_that_recorded_no_pins_is_refused(self):
+        """T-039 V-22: a record without pins was made before the campaigns recorded them, perhaps under D14's first plan (legit and
+        the timer gate on CPU 6; s4_1 of 2026-10-28 is one). It is read as that plan and refused, with or without modes, and nothing
+        is run in it; one that lacks only its modes resumes as before."""
         self.run_campaign(modes=("xdp",), blocks=1)
         with self.assertRaisesRegex(GC.CampaignError, "modes, pins"):
             self.run_campaign(blocks=1)
-        self.run_campaign(out="old", blocks=1)
+        self.assertEqual(self.run_campaign(out="old", blocks=1)["fingerprint"]["pins"], X.P.PIN_PLAN)
         path = os.path.join(self.tmp.name, "old", GC.CAMPAIGN)
         with open(path, encoding="utf-8") as fh:
             state = json.load(fh)
-        for key in ("modes", "pins"):
-            state["fingerprint"].pop(key)
+        state["fingerprint"].pop("modes")
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(state, fh)
         self.assertEqual(self.run_campaign(out="old", blocks=1)["state"], "complete")
+        state["fingerprint"].pop("pins")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(state, fh)
+        listed = sorted(os.listdir(os.path.join(self.tmp.name, "old")))
+        for modes in ((), ("xdp",)):
+            with self.subTest(modes=modes), self.assertRaises(GC.CampaignError) as ctx:
+                self.run_campaign(out="old", blocks=1, modes=modes)
+            text = str(ctx.exception)
+            self.assertIn("records no pin plan", text)
+            self.assertIn("before 2026-10-31 (D-032), server 0-1, daemon 2, legit 6, attack 3-5,7", text)
+            self.assertIn("would run with " + GC.pins_text(X.pins_for(GC.kinds_of(self.options(modes=modes)))), text)
+        self.assertEqual(sorted(os.listdir(os.path.join(self.tmp.name, "old"))), listed)
+        with open(path, encoding="utf-8") as fh:
+            self.assertNotIn("pins", json.load(fh)["fingerprint"], "the record is left as it was")
 
     def test_the_command_line_takes_the_modes(self):
         out, err = io.StringIO(), io.StringIO()

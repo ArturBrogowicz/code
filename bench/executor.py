@@ -549,6 +549,8 @@ def describe(plan, python=None):
            *([f"OVERRIDES     {plan.overrides}: a smoke test, not a result"] if plan.overrides else []),
            f"timer gate    refused if the timer on CPU {plan.pins['legit']} has p99 of {plan.timer_limit_ms:g} ms or more "
            + ("(set by --timer-limit-ms)" if "timer_limit_ms" in plan.overrides else "(the calibration's validity.timer_p99_ms)"),
+           *([(f"timer record  the timer on the executor's CPU {plan.pins['executor']} is probed too, after the gate: recorded "
+               "(environment.json, timer_executor), not judged")] if "executor" in plan.pins else []),
            f"nginx.conf    sha256:{plan.nginx_conf_sha256[:12]} ({plan.nginx_source} with its two log paths changed"
            + (", and the daemon's feed beside them)" if plan.daemon else ")"),
            *([f"mode          {plan.mode}: {MODE_TEXT[plan.mode]}"] if plan.mode else []),
@@ -1148,7 +1150,9 @@ def environment(host, plan, gate="full", wait_gate_min=30.0, say=None):
     limit used, and whether it was set, are recorded). Uptime and load are the gate of a campaign's start (`gate="full"`:
     waits up to `wait_gate_min` for them, `quiet_gate`); between the runs of a campaign (`gate="timer"`) they are only recorded,
     since the load a run leaves is its own and would make every next run wait for it to decay. Refuses with EnvironmentRefused;
-    the caller may wait and ask again."""
+    the caller may wait and ask again. A plan that gives the executor a CPU of its own (PIN_PLAN_DAEMON: every run of a campaign
+    with a daemon, the warm-up too) has that CPU's timer probed as well, after the gate, and recorded (`timer_executor`), never
+    judged: the executor's reaper threads stamp the streams' exits, which the run's clock is made of (T-039 V-33)."""
     say = say or (lambda m: None)
     up, load = float(host.read_text("/proc/uptime").split()[0]), float(host.read_text("/proc/loadavg").split()[0])
     if gate == "full":
@@ -1161,12 +1165,14 @@ def environment(host, plan, gate="full", wait_gate_min=30.0, say=None):
         raise EnvironmentRefused(f"timer wake-up on CPU {plan.pins['legit']} (the legit streams'): p99 "
                                  f"{'unknown' if probe is None else format(probe['p99_ms'], '.1f') + ' ms'}, needs below "
                                  f"{plan.timer_limit_ms:g} ms" + (" (set by --timer-limit-ms for a smoke test)" if raised else ""))
+    own = plan.pins.get("executor")
+    timers = {"timer_executor": timer_probe(host, own), "timer_executor_cpus": own} if own is not None else {}
     stat = host.read_text("/proc/stat").splitlines()[0].split()
     try:
         governor = host.read_text("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor").strip()
     except OSError:
         governor = None
-    return {"gate_mode": gate, "gate": seen, "timer_legit": probe, "timer_limit_ms": plan.timer_limit_ms,
+    return {"gate_mode": gate, "gate": seen, "timer_legit": probe, **timers, "timer_limit_ms": plan.timer_limit_ms,
             "timer_limit_is_override": raised, "governor": governor,
             "steal_jiffies": int(stat[8]) if len(stat) > 8 else None, "jiffies": sum(map(int, stat[1:9]))}
 

@@ -76,6 +76,10 @@ def kinds_of(opts):
     return [*X.KINDS, *(X.MITIGATED + m for m in opts.modes)]
 
 
+def pins_text(pins):
+    return ", ".join(f"{k} {v}" for k, v in pins.items())
+
+
 def pins_of(opts):
     """The pin plan of every run of the campaign (the warm-up's too): the daemon's as soon as one mode has a daemon."""
     return X.pins_for(kinds_of(opts))
@@ -151,7 +155,7 @@ def describe(scn, cal, scenario_sha, opts):
         pins = pins_of(opts)
         o = H.P2_OUTCOME
         out.append(f"arms         {', '.join(X.MITIGATED + m for m in opts.modes)}: {'; '.join(X.MODE_TEXT[m] for m in opts.modes)}")
-        out.append("pins         " + ", ".join(f"{k} {v}" for k, v in pins.items()) + f" for every run (the executor on CPU "
+        out.append("pins         " + pins_text(pins) + f" for every run (the executor on CPU "
                    f"{P.executor_cpus(pins)})")
         out.append(f"P2 outcome   pre-registered (harm_gate.P2_OUTCOME): unprotected fails in {o['block_share']:.0%} of the blocks "
                    f"(dQ >= {o['unprotected_floor_pp']:g} pp or p95 >= {o['unprotected_p95_ratio']:g} x C); protected works when "
@@ -176,14 +180,22 @@ def describe(scn, cal, scenario_sha, opts):
 # --- the state of a campaign ------------------------------------------------------------------
 
 def load_state(out, fp):
-    """campaign.json of `out`, checked against `fp`; None if the campaign is new."""
+    """campaign.json of `out`, checked against `fp`; None if the campaign is new. The pin plan is part of `fp`. A record without
+    one was made before the campaigns recorded their pins (HG4), possibly under D14's first plan (`population.PIN_PLAN_BEFORE_D032`:
+    the legit streams and the timer gate on CPU 6), which no plan of this code is: it is read as that plan and refused, so that one
+    campaign never mixes two layouts (T-039 V-22). Fails closed: such a campaign is not resumed; another directory starts anew."""
     path = os.path.join(out, CAMPAIGN)
     if not os.path.exists(path):
         if os.path.isdir(out) and os.listdir(out):
             raise CampaignError(f"{out} holds something that is not a campaign (no {CAMPAIGN})")
         return None
     state = read_json(path)
-    before = {"modes": [], "pins": dict(P.PIN_PLAN), **state["fingerprint"]}      # a campaign of before HG4 had neither
+    if "pins" not in state["fingerprint"]:
+        raise CampaignError(f"{out} records no pin plan: it was started before campaigns recorded theirs, and is read as the plan "
+                            f"of before 2026-10-31 (D-032), {pins_text(P.PIN_PLAN_BEFORE_D032)}, while this campaign would run "
+                            f"with {pins_text(fp['pins'])}; a campaign resumes only as it began. Use another directory for "
+                            "another campaign.")
+    before = {"modes": [], **state["fingerprint"]}      # a campaign of before HG4 had no modes (nor pins: refused above)
     differ = sorted(k for k in fp if before.get(k) != fp[k])
     if differ:
         raise CampaignError(f"{out} was started with other settings ({', '.join(differ)}); a campaign resumes only as it "
