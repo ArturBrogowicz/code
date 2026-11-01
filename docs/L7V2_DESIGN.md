@@ -901,6 +901,76 @@ pre-registered plans ran on the placeholder; a frozen record with the placeholde
 `ml/l7v2_verdict.py`, `ml/l7v2_replay.py`, `ml/l7_pools.py` (`_knees`), `ml/capture_l7.py` (one help line), tests and
 this note. `control_plane.py`, `l7_engine.py`, `bench/`, `server/`, the nginx confs and the generators are untouched.
 
+## 19. As built: the rule arms at their own level, and the user's decisions D-043 and D-044 (T-025d, 2026-11-01, branch `feat/l7v2-arms`)
+
+Built offline; nothing ran on the VM and no capture exists. Every item below is labelled post hoc, before any data. Each
+frozen file was committed and sha256-pinned before the code that reads it. Where this section and section 18 differ,
+this one holds.
+
+**T042-E08, the rules' level (format 2, commit cabe284; format 3 keeps it).** Review T-042 found that
+deciding the rules on the view windows of (IP, UA, sid) keys starves them: a C2 key's 32-token window spans seconds, and
+sid rotation splits an (IP, UA) key.
+- **Level.** A per-key rule is keyed (IP, UA) over wall-clock windows of the key's whole history. The population
+  detector and the daemon heuristic act on the address and reach a key through its own requests. nginx's `limit_req`
+  acts on the key that sent the rejected request. The key is no longer a grid dimension.
+- **Decision points.** One row per (IP, UA) key and engine poll in which the key has a request: each statistic's
+  maximum over those requests. The section-9 policy runs over the rows: p > 0.5 in k consecutive rows of the key.
+- **Age.** An (IP, UA) key age-only arm sits beside the rule arms on validation, with the address age's AUC (T042-F01).
+  It is a diagnostic, never R* and never live.
+- **What R* needs live.** Its own (IP, UA) path beside the view engine: every log record feeds its statistics, every
+  poll gives its rows, and section 9 applies unchanged, with a level-1 deny that covers every session of the (IP, UA)
+  key (the map of 9.2 is keyed IP|UA|sid today) and a level-2 ban only for a single-key address.
+  `ml/l7v2_replay.RulePath` is that path in the replay.
+
+**D-043 (the user: "Benign quantiles"; "M2; charge users behind"; `ml/l7v2_rules_prereg_v3.json`).**
+- **Thresholds.** A level is a multiple of section 10 {0.8, 1.0, 1.2, 1.5, 2.0} x the benign validation maximum, or a
+  quantile {0.5, 0.75, 0.9, 0.95, 0.98, 0.99, 0.995} of the statistic's per-key maximum over the benign keys. The
+  quantiles read the share of benign keys flagged at k = 1, which is why they are taken over keys and not rows.
+- **Absolute grids.** Sustained-rate thresholds extend down to 0.05 req/s and bucket rates down to 0.1 r/s.
+- **Cost of a flag.** A flagged (IP, UA) key costs every benign user behind it: the devices of its entity's plan that
+  carry that UA, at most the entity's units. D-031's one unit per key stays for the learned arms' view-level keys.
+- **Detection entities (`ml/l7v2_verdict_prereg_v2.json`).** C3b's primary contrast reads C3b@M2. M1, M3 and M2exp get
+  their own descriptive contrasts and judge nothing.
+
+**D-044 (the user: "Settle as recommended"; `ml/l7v2_verdict_prereg_v2.json`).** The verdict code now claims one verdict.
+- OC-1: the best learned arm has the higher validation recall at the budget, frozen in the selection (ties: the GRU).
+- OC-2: the budget on evaluation is benign users wrongly acted on in the arm's own M runs, pooled over blocks. The
+  replay's reading is reported beside it and judges nothing.
+- OC-3: V-A's live baselines include U.
+- OC-4: when R* beats the best learned arm on harm the verdict is V-C, read as "rules suffice or win".
+
+**Re-measured on synthetic validation** [synthetic plans 2001 and 2002 at nominal times, a frozen fixture record with the
+placeholder's numbers; a plan user's sid starts at its first page, as the origin issues it; 320 attack entities, 252
+benign users, 2 allowed; `S3:T-025d/artifacts/rules_level_synthetic_val_2001_2002.json`]:
+
+| Arm | Point | Caught | Benign users | C2, C3a, C3b@M1, C3b@M2 |
+|---|---|---|---|---|
+| cost budget (R*) | 60 s, q 0.995, k 3 | 255 of 320 | 0 | 100/100, 41/100, 20/20, 94/100 |
+| sustained rate | no point catches | 0 | 0 | none |
+| token bucket | no point catches | 0 | 0 | none |
+| multi-scale rate | no point catches | 0 | 0 | none |
+| population (no candidate) | new keys tau 1.0, cookie-less tau 0.8, k 2 | 100 | 0 | 100/100, 0, 0, 0 |
+| default rules (fixed) | - | 58 | 97, over budget | 0, 0, 14/20, 44/100 |
+| tolerant rules, nginx limits (fixed) | - | 0 | 0 | none |
+| (IP, UA) age-only (diagnostic) | theta 0.999, k 2; AUC 0.750, address 0.787 | 0 | 0 | none |
+
+**Three R* candidates still catch nothing, and the grids are no longer the reason.** On every rate window the attack
+families' per-key maxima lie inside the benign distribution: over 10 s at most 10.4 req/s against a benign q 0.99 of 12.4,
+over 60 s at most 3.7 against 4.5, because a benign browser's page load is the burstier client. No threshold does better: 200 log-spaced thresholds on each rate and
+bucket statistic alone, at every k, catch 0 attack entities within the budget (`any_threshold` in the file), and an OR
+of statistics that each catch none within the budget catches none. A rate rule cannot separate these low-rate classes
+within the budget. The cost budget can, because it reads what a request costs and not how many arrive, and its grid
+reaches the best any threshold reaches (255 over 60 s), so it is not starved. These numbers are synthetic and on placeholder costs; the
+real validation captures decide.
+
+**The (IP, UA) age-only arm reads "age-confounded"** (AUC 0.750, address 0.787), as T042-F01 found, yet catches nothing
+at the budget. No rule arm reads a key's age, so R*'s recall does not come from it; a model keyed (IP, UA) would be
+exposed to it.
+
+**Files touched in this round:** `ml/l7v2_rules_prereg_v3.json` and `ml/l7v2_verdict_prereg_v2.json` (each replacing its
+earlier format), `ml/l7v2_verdict_prereg.py`, `ml/l7v2_verdict.py`, `ml/l7v2_rules.py`, `ml/l7v2_replay.py`, tests and this
+note. `control_plane.py`, `l7_engine.py`, `bench/`, `server/`, the nginx confs and the generators are untouched.
+
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.
 - G1-02 Kadel et al., BOTracle, ESORICS Workshops 2024.
