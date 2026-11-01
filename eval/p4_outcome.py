@@ -12,7 +12,8 @@ recovery. Per family (loris, post):
     not pass the same rule, and at least 9 of 10 blocks are individually at dQ >= 10 pp or dL >= 1.
   * MITIGATED (M_pc) iff (a) in at least 9 of 10 blocks Q(M_pc) in 1-s bins is back at >= 0.99 x Q(C) for 5
     consecutive bins within T_mit of the attack's start, (b) Q(M_pc) over [attack start + T_mit, attack end] is
-    >= 0.99 x Q(C_M) as a mean over the blocks and in at least 9 of 10 of them, and (c) no benign address (CGNAT
+    >= 0.99 x C_M's level over that same window (D-046) as a mean over the blocks and in at least 9 of 10 of them, and
+    (c) no benign address (CGNAT
     pools and browser devices included) is banned in any M_pc run. Benign connections closed are reported. A block
     counts for the mitigation only with C, C_M and M_pc valid; C_M's validity is what C's is, the run's own checks,
     with no floor on its Q, since a low Q(C_M) is the cost it exists to show.
@@ -246,9 +247,9 @@ def mitigation(blocks, family, every=None):
     found = [recovery(b[m]["q_per_s"], RECOVERY_RATIO * b[CONTROL]["Q"]) for b in valid]
     rec = [x["recovery_s"] for x in found]
     in_time = sum(1 for r in rec if r is not None and r <= T_MIT_S)
-    level_ok = sum(1 for b in valid if b[m]["q_level"] >= LEVEL_RATIO * b[PROTECTED]["Q"])
+    level_ok = sum(1 for b in valid if b[m]["q_level"] >= LEVEL_RATIO * b[PROTECTED]["q_level"])
     mean_ok = bool(valid) and (sum(b[m]["q_level"] for b in valid)
-                               >= LEVEL_RATIO * sum(b[PROTECTED]["Q"] for b in valid))
+                               >= LEVEL_RATIO * sum(b[PROTECTED]["q_level"] for b in valid))
     attempts = [r for arms in every.values() for r in arms.get(m, ())]
     collateral = sorted({(r["block"], ip, role) for r in attempts for ip, role in r["banned"].items() if role != ATTACK})
     a = len(valid) >= MIN_VALID_BLOCKS and enough(in_time, len(valid))

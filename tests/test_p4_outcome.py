@@ -308,7 +308,22 @@ class AttemptsTest(unittest.TestCase):
 
 
 class ProtectedControlTest(unittest.TestCase):
-    """D-041: (b) is judged against Q(C_M); (a), the harm and (c) are what they were; C_M's validity rules are C's."""
+    """D-041 and D-046: (b) is judged against C_M's level over the same window; (a) and the harm are what they were; C_M's
+    validity rules are C's."""
+
+    def test_b_reads_c_ms_level_over_the_same_window_not_its_q(self):
+        # D-046: the limits' cost sits in C_M's attack window (Q 96), not in its level window (99.6). A run at 97.5 %
+        # over the level window is 2 pp under what C_M does there, and fails, although it clears 0.99 x 96.
+        cold = O.outcome(campaign({"C_M": {"q": 96.0, "q_level": 99.6},
+                                   "M_pc_loris": {"q_level": 97.5}}))["families"]["loris"]["mitigation"]
+        self.assertEqual((cold["b"], cold["level_blocks"], cold["level_mean_ok"]), (False, 0, False))
+        # The other way: a C_M whose level is low sets a low bar, whatever its Q over the attack window.
+        low = O.outcome(campaign({"C_M": {"q": 99.9, "q_level": 97.0},
+                                  "M_pc_loris": {"q_level": 96.5}}))["families"]["loris"]["mitigation"]
+        self.assertEqual((low["b"], low["level_blocks"], low["level_mean_ok"]), (True, 10, True))
+        at_bar = O.outcome(campaign({"C_M": {"q": 50.0, "q_level": 100.0},
+                                     "M_pc_post": {"q_level": 99.0}}))["families"]["post"]["mitigation"]
+        self.assertEqual((at_bar["b"], at_bar["level_blocks"]), (True, 10))           # at 0.99 x its level exactly
 
     def test_the_protected_control_is_the_bar_of_b(self):
         # The limits cost 2 pp and M_pc holds what they leave: under 0.99 x Q(C), at 0.99 x Q(C_M).
