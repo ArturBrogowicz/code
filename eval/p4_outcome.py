@@ -63,6 +63,14 @@ Q(C); (a) and the harm stay on Q(C). The limits' own cost (Q(C_M) against Q(C), 
 reported as a separate finding and judges nothing. Also accepted: when one family qualifies and the other is invalid,
 M7 states its claim and names the invalid family.
 
+Re-registration record (D-046; 2026-11-01T15:52Z, the user's "Keep, with changes", before any data, told first that the
+premise of D-041 was overstated), committed before the code it judges. C_M stays, and: (1) criterion (b) compares M_pc's
+level window with 0.99 x C_M's q_level over the same window, not with C_M's Q over the attack window; (2)
+eval/harm_gate.control_health (Q(C) >= 99 %, each route class >= 95 %) is enforced for a block to count, as §10 cites the
+harm gate: an unhealthy control makes the block invalid, "invalid (k of 10 valid)", never a negative verdict; it judges C
+alone, and C_M keeps no floor; (3) a CGNAT or browser identity banned in C_M, in any attempt, counts against (c), for
+both families.
+
 A run record (one dict per run; summarize() builds it from eval/harm_gate.run_metrics and the ban events):
     {"block": 3101, "arm": "M_pc_loris", "attempt": 1, "valid": true, "Q": 97.5, "p95_s": 0.21,
      "q_per_s": [...one value or None per second of the run...], "q_level": 98.9, "level_window": [120, 240],

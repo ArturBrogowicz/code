@@ -25,6 +25,9 @@ was; each place a re-registration changes carries a marker "[re-registered: ...]
 | D-035 (V-03) | 2026-10-31T12:44Z | The outcome takes every attempt of the run index: the harm, (a) and (b) on the last valid attempt of each (block, arm); (c), the benign closes and the bans per arm over ALL attempts, invalid ones included (`eval/p4_outcome.py`, `eval/p4_runner.py --summarize`) | §10 (c) "in all M_pc runs" (which attempts was unsaid) |
 | D-041 (1) | 2026-10-31T16:06Z | Each block gains a ninth run, the attack-free protected control **C_M**: profile R with the deployed limits (`nginx_profile_r_limits.conf`) and M_pc's daemon configuration (tolerant profile, SLOW_PC=1, SLOW_PC_ENFORCE=1, the committed T, F, K, SLOW_PC_RECORD), no attack, seeded with the block; its validity rules are C's. Criterion (b) compares M_pc's level window with 0.99 × Q(C_M) instead of Q(C); (a) and the harm stay on Q(C). The limits' own cost (Q(C_M) against Q(C), 503s by role, the CGNAT pools named) is reported as a separate finding and judges nothing. VM budget by §11's method at ~5.5 min a run: campaign 90 runs, 8.25 h; re-runs at most 18, 1.65 h; in all ~12.9 h, ~11.3 h without re-runs (were ~11.8 h and ~10.4 h); the Slowloris-only cut ~8.0 h (was ~6.9 h) | §4.3 table; §10 units, (b); §11 |
 | D-041 (2) | 2026-10-31T16:06Z | Readings accepted: the slow_pc liveness bound applies to the validation runs too; when one family qualifies and the other is invalid, M7 states its claim and names the invalid family; "seeded order" means each block's runs in a seeded order; `/upload` is class C6 doing C2's work until a measured C6 cost exists | §10; §4.1 backend |
+| D-046 (1) | 2026-11-01T15:52Z | Criterion (b) compares M_pc's level window with 0.99 × C_M's level over the same window (`q_level`), not with C_M's Q over the attack window: in simulation the limits refuse in 30-240 s and not in 120-240 s, so that Q carried a cost the level window does not. C_M stays | §10 (b) |
+| D-046 (2) | 2026-11-01T15:52Z | `harm_gate.control_health` (Q(C) ≥ 99 %, each route class ≥ 95 %) is enforced for a block to count in the campaign, as §10 cites the harm gate: an unhealthy control makes the block invalid, "invalid (k of 10 valid)", never a negative verdict. It judges C alone; C_M keeps no floor (D-041) | §10 "≥ 10 valid blocks" |
+| D-046 (3) | 2026-11-01T15:52Z | A CGNAT or browser identity banned in C_M, in any attempt, counts against (c), for both families; a ban of another benign identity there stays reported | §10 (c) |
 
 Two further forms appear here:
 - `T0:` facts were read on this VM on 2026-10-30, without running anything: package metadata, the ss manual page, the kernel
@@ -337,15 +340,15 @@ fixture. It confirms the token layout of F-S3 [NOT RUN].
   30 s of baseline, 120 s of attack and 30 s of recovery. [re-registered: 210 s of attack, a run of 270 s, D-030; 9 runs a block with C_M, D-041]
 - **"Harmful", per family.** Both must hold:
   - the harm gate PASSes U against C: a mean dQ ≥ 10 pp or a mean dL ≥ 1, the 95 % t-interval excluding 0, ≥ 80 % of blocks
-    with the sign of the mean, ≥ 10 valid blocks, and the placebo not passing (`eval/harm_gate.py:9-31`);
+    with the sign of the mean, ≥ 10 valid blocks, and the placebo not passing (`eval/harm_gate.py:9-31`); [re-registered: a block counts only with a healthy control, `harm_gate.control_health`, D-046]
   - **and** ≥ 9 of 10 blocks are individually at dQ ≥ 10 pp or dL ≥ 1, the plan's stricter count.
 - **"Mitigated", per family, for M_pc.** All three must hold:
   - (a) recovery: Q(M_pc) in 1-s bins reaches ≥ 0.99 × Q(C) for 5 consecutive bins within T_mit = 30 s of the attack start, in
     ≥ 9 of 10 blocks; [re-registered: T_mit = 90 s, D-025; the bins counted from the first harmed second, D-031; the harmed second is the first of 5 consecutive harmed bins, D-035]
   - (b) level: Q(M_pc) over [attack start + 30 s, attack end] is ≥ 0.99 × Q(C) as a mean over blocks, and in ≥ 9 of 10 blocks;
-    [re-registered: over [attack start + T_mit, attack end] = [120 s, 240 s] of the run, D-025, D-030, D-031; against 0.99 × Q(C_M), D-041]
+    [re-registered: over [attack start + T_mit, attack end] = [120 s, 240 s] of the run, D-025, D-030, D-031; against 0.99 × Q(C_M), D-041; against 0.99 × C_M's level over the same window, D-046]
   - (c) collateral: **0 benign addresses banned in all M_pc runs**, the CGNAT pools and browser devices included. Benign
-    connections closed are reported against the ≤ 0.1 % validation budget.
+    connections closed are reported against the ≤ 0.1 % validation budget. [re-registered: a CGNAT or browser identity banned in C_M counts too, D-046]
 - **Comparison.** Q(M_pc) − Q(M_def), paired, with `eval/run_level_stats.py` (≥ 10 blocks, an interval excluding 0, ≥ 80 % same
   sign). CGNAT bans are reported per arm.
 - **The claim.** If both families are harmful **and** mitigated, M7 moves from "not supported" to "supported with scope":
