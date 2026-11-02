@@ -42,7 +42,22 @@ class ReRegistrationTest(unittest.TestCase):
                     "over [attack start + 30 s, attack end]", "180 s of traffic"):
             at = text.index(old)
             self.assertIn("[re-registered:", text[at:at + 400], old)
-        self.assertEqual(text[text.index("Two further forms"):].count("[re-registered:"), 7)
+        self.assertEqual(text[text.index("Two further forms"):].count("[re-registered:"), 9)
+
+    def test_d046_is_dated_everywhere_before_the_code_it_judges(self):
+        text = note()
+        block = text[text.index("**Re-registrations, dated, all before any P4 data**"):text.index("Two further forms")]
+        for row in ("| D-046 (1) | 2026-11-01T15:52Z |", "| D-046 (2) | 2026-11-01T15:52Z |",
+                    "| D-046 (3) | 2026-11-01T15:52Z |"):
+            self.assertIn(row, block)
+        for needle in ("0.99 × C_M's level over the same window", "`harm_gate.control_health`", "invalid (k of 10 valid)",
+                       "A CGNAT or browser identity banned in C_M"):
+            self.assertIn(needle, block)
+        for marker in ("against 0.99 × C_M's level over the same window, D-046]", "a healthy control", "banned in C_M counts too"):
+            self.assertIn(marker, text[text.index("Two further forms"):])
+        with open(os.path.join(REPO, "docs", "EVALUATION.md"), encoding="utf-8") as fh:
+            self.assertIn("**Re-registration record (D-046).** 2026-11-01T15:52Z", fh.read())
+        self.assertIn("Re-registration record (D-046; 2026-11-01T15:52Z", O.__doc__)
 
     def test_d041_is_dated_everywhere_before_the_code_it_judges(self):
         text = note()

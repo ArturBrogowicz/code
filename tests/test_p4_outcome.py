@@ -28,11 +28,12 @@ def bins(base, dip=None, until=None, total=270, start=35):
 
 
 def rec(block, arm, q, p95=0.10, q_per_s=None, q_level=None, banned=None, valid=True, closed=0, attempt=1,
-        refused=None):
+        refused=None, control_reasons=None):
     return {"block": block, "arm": arm, "attempt": attempt, "valid": valid, "Q": q, "p95_s": p95,
             "q_per_s": q_per_s if q_per_s is not None else bins(q),
             "q_level": q if q_level is None else q_level, "level_window": list(O.LEVEL_WINDOW_S),
-            "banned": banned or {}, "benign_closed": closed, "refused": refused}
+            "banned": banned or {}, "benign_closed": closed, "refused": refused,
+            "control_reasons": ([] if arm == "C" else None) if control_reasons is None else control_reasons}
 
 
 def campaign(over=None):
@@ -68,6 +69,7 @@ class PinnedConstantsTest(unittest.TestCase):
         self.assertEqual(O.ARMS, ("C", "Cp", "C_M", "U_loris", "U_post", "M_def_loris", "M_pc_loris",
                                   "M_def_post", "M_pc_post"))           # C_M re-registered by D-041
         self.assertEqual(O.PROTECTED, "C_M")
+        self.assertEqual((O.CONTROL_Q_MIN, O.HG.CONTROL_CLASS_Q_MIN), (99.0, 95.0))    # D-046
         self.assertEqual(O.TIMELINE, {"baseline_s": 30, "attack_s": 210, "recovery_s": 30})
         self.assertEqual(O.GATE, {"floor_pp": 10.0, "floor_log2_p95": 1.0, "ci_level": 0.95,
                                   "same_sign_share": 0.8})
@@ -308,7 +310,22 @@ class AttemptsTest(unittest.TestCase):
 
 
 class ProtectedControlTest(unittest.TestCase):
-    """D-041: (b) is judged against Q(C_M); (a), the harm and (c) are what they were; C_M's validity rules are C's."""
+    """D-041 and D-046: (b) is judged against C_M's level over the same window; (a) and the harm are what they were; C_M's
+    validity rules are C's."""
+
+    def test_b_reads_c_ms_level_over_the_same_window_not_its_q(self):
+        # D-046: the limits' cost sits in C_M's attack window (Q 96), not in its level window (99.6). A run at 97.5 %
+        # over the level window is 2 pp under what C_M does there, and fails, although it clears 0.99 x 96.
+        cold = O.outcome(campaign({"C_M": {"q": 96.0, "q_level": 99.6},
+                                   "M_pc_loris": {"q_level": 97.5}}))["families"]["loris"]["mitigation"]
+        self.assertEqual((cold["b"], cold["level_blocks"], cold["level_mean_ok"]), (False, 0, False))
+        # The other way: a C_M whose level is low sets a low bar, whatever its Q over the attack window.
+        low = O.outcome(campaign({"C_M": {"q": 99.9, "q_level": 97.0},
+                                  "M_pc_loris": {"q_level": 96.5}}))["families"]["loris"]["mitigation"]
+        self.assertEqual((low["b"], low["level_blocks"], low["level_mean_ok"]), (True, 10, True))
+        at_bar = O.outcome(campaign({"C_M": {"q": 50.0, "q_level": 100.0},
+                                     "M_pc_post": {"q_level": 99.0}}))["families"]["post"]["mitigation"]
+        self.assertEqual((at_bar["b"], at_bar["level_blocks"]), (True, 10))           # at 0.99 x its level exactly
 
     def test_the_protected_control_is_the_bar_of_b(self):
         # The limits cost 2 pp and M_pc holds what they leave: under 0.99 x Q(C), at 0.99 x Q(C_M).
@@ -348,10 +365,40 @@ class ProtectedControlTest(unittest.TestCase):
         self.assertEqual(res["families"]["loris"]["mitigation"]["valid_blocks"], 10)
         self.assertTrue(res["families"]["loris"]["mitigation"]["b"])
 
-    def test_a_benign_ban_in_c_m_is_reported_and_not_counted_in_c(self):
-        res = O.outcome(campaign({("C_M", 1): {"banned": {"10.0.4.1": "cgnat"}}}))
-        self.assertTrue(res["families"]["loris"]["mitigation"]["c"])
-        self.assertEqual(res["bans_by_arm"]["C_M"], {"cgnat": 1})
+    def test_a_cgnat_or_browser_ban_in_c_m_counts_against_c(self):
+        # D-046 (3) replaces D-041's "reported, not counted", which this test pinned: for both families, in C_M's arm alone.
+        for ip, role in (("10.0.4.1", "cgnat"), ("10.0.1.7", "tpcw_browsing"), ("10.0.1.8", "search_user")):
+            res = O.outcome(campaign({("C_M", 1): {"banned": {ip: role}}}))
+            for f in O.FAMILIES:
+                m = res["families"][f]["mitigation"]
+                self.assertEqual((m["c"], m["benign_banned"], m["benign_banned_c_m"], res["families"][f]["status"]),
+                                 (False, [], [[3102, ip, role]], "mitigated with collateral"), role)
+            self.assertEqual(res["M7"], "not supported")
+            self.assertEqual(res["bans_by_arm"]["C_M"], {role: 1})
+
+    def test_a_ban_in_any_attempt_of_c_m_counts(self):
+        runs = campaign()
+        k = next(i for i, r in enumerate(runs) if (r["block"], r["arm"]) == (3104, "C_M"))
+        runs[k] = dict(runs[k], attempt=2)
+        runs.append(rec(3104, "C_M", 99.5, valid=False, banned={"10.0.4.1": "cgnat"}, attempt=1))
+        m = O.outcome(runs)["families"]["loris"]["mitigation"]
+        self.assertEqual((m["c"], m["benign_banned_c_m"], m["valid_blocks"]), (False, [[3104, "10.0.4.1", "cgnat"]], 10))
+
+    def test_another_benign_identity_banned_in_c_m_stays_reported(self):
+        for role in ("api_bulk", "crawler_polite", "uploader", "slow_uploader"):
+            res = O.outcome(campaign({("C_M", 1): {"banned": {"10.0.4.9": role}}}))
+            m = res["families"]["loris"]["mitigation"]
+            self.assertEqual((m["c"], m["benign_banned_c_m"], res["M7"]), (True, [], BOTH), role)
+            self.assertEqual(res["bans_by_arm"]["C_M"], {role: 1})
+            self.assertEqual(res["limits_cost"]["blocks"][1]["benign_banned_C_M"], ["10.0.4.9"])
+
+    def test_the_roles_are_the_labels_of_the_population(self):
+        sys.path.insert(0, os.path.join(REPO, "ml"))
+        import p4_traffic as PT
+        labels = set(PT.roles(PT.build_plan(3101, "eval")["entities"]).values())
+        self.assertEqual(O.C_M_COLLATERAL_ROLES, ("cgnat", "tpcw_browsing", "search_user"))
+        self.assertEqual(labels - set(O.C_M_COLLATERAL_ROLES), {"api_bulk", "crawler_polite", "uploader", "slow_uploader"})
+        self.assertLessEqual(set(O.C_M_COLLATERAL_ROLES), labels)
 
 
 def refused_counts(cgnat12, cgnat24, others=0):
@@ -417,6 +464,78 @@ class LimitsCostTest(unittest.TestCase):
         self.assertIn("CGNAT-24", printed.getvalue())
 
 
+HEALTH_CAL = {"gate": {"control_q_min": 99.0}, "slo_ms": {"C0": 100, "C1": 300}}
+
+
+class ControlHealthTest(unittest.TestCase):
+    """D-046: eval/harm_gate.control_health is enforced for a block to count; an unhealthy control makes it invalid."""
+
+    @staticmethod
+    def metrics(q, c1=100.0):
+        return {"Q": q, "p95_s": 0.1, "q_per_s": [q] * 270, "by_class": {"C1": {"n": 100, "ok": int(c1), "Q": c1}}}
+
+    def summarize(self, arm, metrics, cal=HEALTH_CAL):
+        return O.summarize(3101, arm, True, metrics, {"Q": metrics["Q"]}, [], {}, level_window=O.LEVEL_WINDOW_S,
+                           attempt=1, cal=cal)
+
+    def test_summarize_states_the_health_of_c_alone(self):
+        self.assertEqual(self.summarize("C", self.metrics(99.0))["control_reasons"], [])
+        self.assertIn("below 99 %", self.summarize("C", self.metrics(98.9))["control_reasons"][0])
+        self.assertIn("class C1", self.summarize("C", self.metrics(99.5, c1=94.0))["control_reasons"][0])
+        loose = {**HEALTH_CAL, "gate": {"control_q_min": 90.0}}
+        self.assertTrue(self.summarize("C", self.metrics(95.0), loose)["control_reasons"], "the floor is pinned")
+        for arm in ("Cp", "C_M", "M_pc_loris"):
+            self.assertIsNone(self.summarize(arm, self.metrics(80.0))["control_reasons"])
+        with self.assertRaisesRegex(ValueError, "D-046"):
+            self.summarize("C", self.metrics(99.5), cal=None)
+
+    def test_an_unhealthy_control_makes_the_block_invalid_never_a_negative_verdict(self):
+        why = ["Q(C) is 98.00 %, below 99 %"]
+        res = O.outcome(campaign({("C", 2): {"control_reasons": why}}))
+        for fam in res["families"].values():
+            self.assertEqual(fam["status"], "invalid (9 of 10 valid)")
+            self.assertEqual((fam["harm"]["valid_blocks"], fam["mitigation"]["valid_blocks"]), (9, 9))
+            self.assertEqual(fam["mitigation"]["vs_m_def"]["n"], 9)
+        self.assertEqual(res["M7"], "invalid (9 of 10 valid)")
+        self.assertEqual(res["unhealthy_controls"], [{"block": 3103, "attempt": 1, "reasons": why}])
+        self.assertEqual(len(res["limits_cost"]["blocks"]), 9)
+
+    def test_it_holds_when_the_harm_would_say_otherwise(self):
+        over = {f"U_{f}": {"q": 98.5, "p95": 0.10, "q_per_s": bins(99.5)} for f in O.FAMILIES}
+        over[("C", 0)] = {"control_reasons": ["x"]}
+        res = O.outcome(campaign(over))
+        self.assertEqual({r["status"] for r in res["families"].values()}, {"invalid (9 of 10 valid)"})   # not "not harmful"
+
+    def test_a_re_run_with_a_healthy_control_counts_and_the_first_stays_reported(self):
+        runs = campaign({("C", 2): {"control_reasons": ["x"]}})
+        runs.append(rec(3103, "C", 99.5, attempt=2))
+        res = O.outcome(runs)
+        self.assertEqual(res["M7"], BOTH)
+        self.assertEqual(res["unhealthy_controls"], [{"block": 3103, "attempt": 1, "reasons": ["x"]}])
+
+    def test_a_run_that_was_not_sound_is_not_called_unhealthy(self):
+        res = O.outcome(campaign({("C", 2): {"valid": False, "control_reasons": ["Q(C) is n/a"]}}))
+        self.assertEqual(res["unhealthy_controls"], [])
+        self.assertEqual(res["M7"], "invalid (9 of 10 valid)")
+
+    def test_a_record_of_c_must_state_its_health(self):
+        runs = campaign()
+        k = next(i for i, r in enumerate(runs) if r["arm"] == "C")
+        runs[k] = {a: v for a, v in runs[k].items() if a != "control_reasons"}
+        with self.assertRaisesRegex(ValueError, "states its health"):
+            O.outcome(runs)
+
+    def test_the_command_line_names_the_unhealthy_block(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "runs.jsonl")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.writelines(json.dumps(r) + "\n" for r in campaign({("C", 2): {"control_reasons": ["low Q"]}}))
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                self.assertEqual(O.main([path]), 0)
+        self.assertIn("unhealthy control, block 3103 attempt 1: low Q", printed.getvalue())
+
+
 class InputTest(unittest.TestCase):
     def test_bad_records_are_refused(self):
         runs = campaign()
@@ -437,7 +556,7 @@ class InputTest(unittest.TestCase):
         self.assertEqual(r, {"block": 3101, "arm": "M_pc_loris", "attempt": 1, "valid": True, "Q": 97.0, "p95_s": 0.2,
                              "q_per_s": q, "q_level": 98.0, "level_window": [120.0, 240.0],
                              "banned": {"10.0.3.1": "attack", "10.0.4.1": "cgnat"}, "benign_closed": 1,
-                             "refused": None})
+                             "refused": None, "control_reasons": None})
         with self.assertRaises(ValueError):
             O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [{"kind": "ban", "ip": "10.9.9.9"}], roles,
                         level_window=win, attempt=1)

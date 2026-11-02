@@ -433,6 +433,14 @@ does: when CGNAT-24 sits on a judged link it lowers the bar of (b) by about 0.7 
 [INFERENCE from the counts], and not at all on another link. `limits_cost()` reports C_M's level next to Q(C_M), so
 the runs will show it. A simulation of the plan is not a measurement: it has no network or server time.
 
+**Re-registration record (D-046).** 2026-11-01T15:52Z, the user's "Keep, with changes", before any data, told first
+that the premise of D-041 was overstated (the paragraph above). C_M stays, and: (1) criterion (b) compares M_pc's level
+window with 0.99 x C_M's `q_level` over the same window, not with C_M's Q over the attack window; (2)
+`harm_gate.control_health` (Q(C) at least 99 %, each route class at least 95 %) is enforced for a block to count in the
+campaign, as §10 cites the harm gate: an unhealthy control makes the block invalid, "invalid (k of 10 valid)", never a
+negative verdict; it judges C alone, and C_M keeps no floor; (3) a CGNAT or browser identity banned in C_M, in any
+attempt, counts against (c), for both families. The VM budget does not change.
+
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
 user's decision.
