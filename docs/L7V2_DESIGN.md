@@ -1032,6 +1032,59 @@ excluded (`l7_denymap.FORBIDDEN_UA_CHARS`). All 17 UAs of `ml/l7_benign.UA_TABLE
 the tests write UAs with `;` alone, repeated, next to quotes and backslashes, and at either end, and read the file
 back with a port of nginx's tokenizer: one `"key" 1;` line per entry.
 
+## As built: the P1 runner (T-025f, 2026-11-02, branch `feat/l7v2-runner`)
+
+Built offline and tested on a fake host (`tests/p1_fake_host.py`); nothing ran on the VM. `eval/p1_runner.py` is a T3 script,
+`ml/p1_traffic.py` a block's population, `eval/p1_records.py` a run's records and `eval/p1_analysis.py` a campaign's verdicts. Every
+item below is a reading or an addition, labelled post hoc, before any data.
+
+**The population (sections 5.3, 6, 7).**
+- **Timeline.** Section 14's 30 s + 120 s + 30 s. Attack sources stop at the attack's end, so the recovery is attack-free.
+- **Benign.** `l7_pools`'s frozen mix unchanged, held-out kinds included: 138 addresses, about 176-179 users.
+- **C3b's side bots** [ASSUMPTION]. Besides the level's bots at M2, every C3b run of a block carries 10 bots each at M1, M3 and
+  M2exp, so that D-043's separate reports have entities. They run in U and in every M arm, are constant across the ladder, and
+  judge nothing. M2exp is in the frozen class table (`ml/l7v2_prereg.json` mimicry), so it has its entity labels here; `l7_pools`'s P3
+  population stays without it. An M3 bot needs no reused address here, since one class runs at a time.
+- **Arrivals on one slot.** `arrivals` is applied with the attack window as the only slot: benign over [0, 90] s, attack over
+  [30, 90] s.
+
+**Two frozen rules do not fit one slot.** Neither is applied as written; the user should decide.
+- `arrivals.age_check` is computed per class and recorded in `block.json`, not enforced. Benign arrivals begin 30 s before the
+  attack's and benign keys run into the recovery, so it fails by construction. On all ten blocks and three classes it fails: first-seen KS 0.27-0.46
+  (limit 0.30) and AUC 0.62-0.74, lifetime KS 0.41-0.63, window-age AUC 0.25-0.38 (attack windows are younger; band 0.35-0.65).
+  The learned arms are trained on P3's age-matched captures and the rules read no age, so this is a shift at scoring, not a
+  leak in training [INFERENCE]. Any view-level contrast in P1 is read with it in view.
+- `flash_gap_s` cannot be kept: no start lies 60 s from a slot that opens at 30 s within a span of 90 s. The flash crowd's minute
+  starts at a uniform time in [0, 30] s, and the plan says so.
+
+**The address limit bounds C3b's ladder.** A run over `ml/p3_prereg.json` `pool.address_limit` (300) is refused. With the benign
+138 and 30 side bots, C3b reaches 132 bots: the ladder's 50 and 100 are reachable, 200 and 300 are not.
+
+**The arms (one table, `ARM_TABLE`, on T-025e's env per arm).**
+- **Heuristics [reading].** HGB, GRU and R* run the tolerant profile and its nginx limits, the default rules arm the default
+  profile and limits. Section 10 names the default rules as the status quo; with the default profile underneath them, every arm
+  would inherit the benign flags that P5c.2 was made to remove.
+- **One conf for every M arm** (T-025e's F8): `l7_conf.protected(..., key_map=True)`, both maps empty until the arm writes.
+- **Pins.** The harm benchmark's daemon plan in every run (`bench/population.PIN_PLAN_DAEMON`), so U and M differ only by the table.
+- **Validity (5.4).** Also the daemon's start and arm events against the table, and a limit of 10 s [ASSUMPTION] on the file sink's
+  silence.
+
+**The analysis (sections 11, 13).**
+- **The U run's recording.** A U run has no daemon. Its engine input is the file sink, lossless where the socket is not (section
+  15), with poll ticks at whole seconds of the log clock, the cadence `train_l7v2.engine_scored` assumes.
+- **The live budget (D-044).** An XDP ban of any engine, `L7V2_ENGINE` included (D-037), costs everyone behind the address; a
+  view-level deny one user (D-031); an (IP, UA) deny the plan's devices with that UA (D-043). At most the entity's units.
+- **A campaign the admission finds INVALID gets no verdict**, with its reasons: too few valid blocks are not V-D "no harm".
+- **Blocks a class judges** are the final attempts where the class is valid and every live run is sound; the others are listed.
+
+**VM time as built** [ESTIMATE, section 14's 45 s of set-up]: 3.75 min per run, 48.75 min per block, 8.1 h for 10 blocks (5.6 h for the
+minimum cut). The ladder, on the placeholder's numbers, has 14 reachable pairs of runs (C2 at 4 levels and C3b at 2, 2 repeats each; C3a
+at level 1 only, since level 2 needs 168 sources against its bound of 100), 1.75 h instead of section 14's 3 h. Re-runs add up to 1.6 h.
+
+**Files touched in this round:** `ml/p1_traffic.py`, `eval/p1_runner.py`, `eval/p1_records.py`, `eval/p1_analysis.py`, `eval/p4_runner.py`
+(two additive parameters), `ml/l7v2_replay.py` (`with_poll_ticks`), tests and this note. `control_plane.py`, `l7_engine.py`, `l7_enforce.py`,
+`bench/`, `server/` and the tracked nginx confs are untouched.
+
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.
 - G1-02 Kadel et al., BOTracle, ESORICS Workshops 2024.
