@@ -77,6 +77,23 @@ class ReRegistrationTest(unittest.TestCase):
             with open(os.path.join(REPO, path), encoding="utf-8") as fh:
                 self.assertIn("D-041", fh.read(), path)
 
+    def test_d050_is_dated_everywhere_before_the_code_it_judges(self):
+        text = note()
+        block = text[text.index("**Re-registrations, dated, all before any P4 data**"):text.index("Two further forms")]
+        for row in ("| D-050 (1) | 2026-11-02T08:48Z |", "| D-050 (2) | 2026-11-02T08:48Z |",
+                    "| D-050 (3) | 2026-11-02T08:48Z |"):
+            self.assertIn(row, block)
+        for needle in ("refuses `--attempt N`", "at most 2 re-run blocks", "judged on one attempt",
+                       "superseded attempts are listed", "stub_status is recorded, never a validity rule",
+                       "at least 20 judged requests"):
+            self.assertIn(needle, block)
+        self.assertIn("a block is judged on one attempt, D-050]", text[text.index("Two further forms"):])
+        with open(os.path.join(REPO, "docs", "EVALUATION.md"), encoding="utf-8") as fh:
+            self.assertIn("**Re-registration record (D-050).** 2026-11-02T08:48Z", fh.read())
+        self.assertIn("Re-registration record (D-050; 2026-11-02T08:48Z", O.__doc__)
+        with open(os.path.join(REPO, "eval", "p4_runner.py"), encoding="utf-8") as fh:
+            self.assertIn("Re-registration record (D-050, 2026-11-02T08:48Z", fh.read())
+
     def test_the_vm_budget_of_d041_is_section_11s_arithmetic(self):
         minutes = 5.5                                  # 270 s of traffic plus about 60 s of set-up, §11's method
         smoke, ladder, validation = 3, 24, 6

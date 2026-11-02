@@ -29,6 +29,11 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     events are never more than SLOW_PC_POLL_GAP_S = 10 s apart, from the traffic's start to the run's end. A run that
     fails one is invalid, with its reasons.
 
+Re-registration record (D-050, 2026-11-02T08:48Z, the user's "Approve as recommended", before any data; review T-047),
+committed before the code it judges: this runner refuses --attempt N unless the index shows that attempt N-1 of the block had
+an invalid needed arm or an unhealthy C, and the campaign holds at most 2 re-run blocks; stub_status is recorded, never a
+validity rule.
+
 Re-registration record (D-035, 2026-10-31T12:44Z, the user's "Approve all four", before any data): an M_pc run is
 valid only if the per-connection rule logged slow_pc_poll at least every 10 s (the daemon logs one every
 SLOW_PC_REPORT_INTERVAL = 5 s, control_plane.py, so 10 s is two missed reports): no gap between the traffic's start

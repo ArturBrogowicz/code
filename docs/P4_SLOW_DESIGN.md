@@ -28,6 +28,9 @@ was; each place a re-registration changes carries a marker "[re-registered: ...]
 | D-046 (1) | 2026-11-01T15:52Z | Criterion (b) compares M_pc's level window with 0.99 × C_M's level over the same window (`q_level`), not with C_M's Q over the attack window: in simulation the limits refuse in 30-240 s and not in 120-240 s, so that Q carried a cost the level window does not. C_M stays | §10 (b) |
 | D-046 (2) | 2026-11-01T15:52Z | `harm_gate.control_health` (Q(C) ≥ 99 %, each route class ≥ 95 %) is enforced for a block to count in the campaign, as §10 cites the harm gate: an unhealthy control makes the block invalid, "invalid (k of 10 valid)", never a negative verdict. It judges C alone; C_M keeps no floor (D-041) | §10 "≥ 10 valid blocks" |
 | D-046 (3) | 2026-11-01T15:52Z | A CGNAT or browser identity banned in C_M, in any attempt, counts against (c), for both families; a ban of another benign identity there stays reported | §10 (c) |
+| D-050 (1) | 2026-11-02T08:48Z | Re-runs and attempts (review T-047 P-03, P-04). The runner refuses `--attempt N` unless the index shows that attempt N-1 of the block had an invalid needed arm or an unhealthy C, and the campaign holds at most 2 re-run blocks. A block is judged on one attempt, the last with every arm a criterion needs valid (C, C', C_M, U and M_pc of both families; no criterion reads M_def), all arms from it. (c) and the benign closes count over all attempts; superseded attempts are listed in the output | §10; §11 re-runs; D-035's "per (block, arm)" |
+| D-050 (2) | 2026-11-02T08:48Z | stub_status is recorded, never a validity rule (T-047 P-02); §8 already said so | the runner, not the note |
+| D-050 (3) | 2026-11-02T08:48Z | In P4's control health the class floor (≥ 95 %) applies only to a class with at least 20 judged requests; smaller classes are reported, not judged. `harm_gate.control_health` itself stays unchanged for the harm benchmark (T-047 P-11) | D-046 (2) |
 
 Two further forms appear here:
 - `T0:` facts were read on this VM on 2026-10-30, without running anything: package metadata, the ss manual page, the kernel
@@ -337,7 +340,7 @@ fixture. It confirms the token layout of F-S3 [NOT RUN].
 ## 10. The pre-registered outcome (P4.5) [PROPOSAL]
 - **Units.** A block is one evaluation seed (3101-3110, disjoint from every other seed in the three notes). Each block has
   8 runs in a seeded random order: C, C', U_loris, U_post, M_def_loris, M_pc_loris, M_def_post and M_pc_post. One run is
-  30 s of baseline, 120 s of attack and 30 s of recovery. [re-registered: 210 s of attack, a run of 270 s, D-030; 9 runs a block with C_M, D-041]
+  30 s of baseline, 120 s of attack and 30 s of recovery. [re-registered: 210 s of attack, a run of 270 s, D-030; 9 runs a block with C_M, D-041; a block is judged on one attempt, D-050]
 - **"Harmful", per family.** Both must hold:
   - the harm gate PASSes U against C: a mean dQ ≥ 10 pp or a mean dL ≥ 1, the 95 % t-interval excluding 0, ≥ 80 % of blocks
     with the sign of the mean, ≥ 10 valid blocks, and the placebo not passing (`eval/harm_gate.py:9-31`); [re-registered: a block counts only with a healthy control, `harm_gate.control_health`, D-046]

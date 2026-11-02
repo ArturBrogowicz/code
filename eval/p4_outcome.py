@@ -74,6 +74,14 @@ harm gate: an unhealthy control makes the block invalid, "invalid (k of 10 valid
 alone, and C_M keeps no floor; (3) a CGNAT or browser identity banned in C_M, in any attempt, counts against (c), for
 both families.
 
+Re-registration record (D-050; 2026-11-02T08:48Z, the user's "Approve as recommended", before any data; review T-047 P-03,
+P-04, P-11), committed before the code it judges. A block is judged on one attempt, the last with every arm a criterion
+needs valid, all arms from it, replacing D-035's "last valid attempt of each (block, arm)"; (c) and the benign closes count
+over all attempts, and superseded attempts are listed in the output. A later attempt of a block whose earlier attempt had
+every needed arm valid and a healthy C is refused, and so are more than 2 re-runs in the campaign. In P4's control
+health the class floor (>= 95 %) applies only to a class with at least 20 judged requests; smaller classes are reported,
+not judged; eval/harm_gate.control_health itself is unchanged.
+
 A run of C states its health in its record: "control_reasons" is control_health's list, empty when it is healthy. A
 record of C without it is refused, and C's "valid" stays what the run's own checks said, the outcome adding the health.
 
