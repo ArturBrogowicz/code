@@ -330,7 +330,7 @@ def capacity_step(runner, cal, cal_path, out, levels=None, step_s=STEP_S, repeat
         costs.append(stack_cost(read_telemetry(os.path.join(plan.out, "server.csv")), steps, step_s,
                                 plan.settings["startup_delay_legit_s"]))
     result = {"step": "capacity", "created_utc": now(), "levels_rps": levels, "step_s": step_s, "window_s": list(Q_WINDOW),
-              "q_pct": q, "stack_cost": combine_stack_cost(costs), "smoke": smoke,
+              "q_pct": q, "stack_cost": combine_stack_cost(costs), "smoke": smoke, "pins": plan.pins,
               "template_sha256": cal.get("sha256") or C.digest(cal)}
     path = os.path.join(out, "capacity", "capacity.json")
     try:
@@ -464,7 +464,7 @@ def ladder_step(runner, cal, cal_path, family, out, under, levels=None, timeline
         entries.append({"kind": kind, "level": level, "repeat": repeat, "run": label, "metrics": metrics})
     result = {"step": "ladder", "family": family, "created_utc": now(), "seed": seed, "sequence": [list(s) for s in sequence],
               "levels_run": usable, "levels_left_out": {str(k): v for k, v in left_out.items()},
-              "smoke": levels is not None or timeline is not None, "under": under}
+              "smoke": levels is not None or timeline is not None, "under": under, "pins": plan.pins}
     result.update(analyse_ladder(entries, cal))
     say(f"ladder {family}: " + ("session valid" if result["valid"] else "session NOT valid: " + "; ".join(result["reasons"]))
         + f"; knee {result['knee']['level']}")
@@ -528,7 +528,7 @@ def reference_step(runner, draft, cal_path, knees, out, under, timeline=None, sa
     if any(m["Q"] is None or m["p95_s"] is None for m in legit) or any(a["Q"] is None or a["p95_s"] is None for a in attacks.values()):
         raise CalibrationStop("a reference probe had no judged request or no successful one: it cannot be a reference")
     result = {"step": "reference", "created_utc": now(), "legit": legit, "attacks": attacks, "smoke": timeline is not None,
-              "under": under, "reference": reference_of(C.rho_rps(draft), legit, attacks)}
+              "under": under, "pins": plan.pins, "reference": reference_of(C.rho_rps(draft), legit, attacks)}
     write_json(os.path.join(out, "reference", "reference.json"), result)
     return result
 
@@ -575,6 +575,9 @@ def session_draft(directory, template):
         raise CalibrationStop(f"the capacity step stopped: {capacity['stopped']}")
     if capacity.get("smoke"):
         raise CalibrationStop("the capacity step was a smoke test: its numbers are not a calibration's")
+    if capacity.get("pins") != P.PIN_PLAN:
+        raise CalibrationStop(f"the capacity step was made with {said_pins(capacity.get('pins'))}, and the next steps run with "
+                              f"{said_pins(P.PIN_PLAN)}: a calibration mixes no two layouts. Use another session directory.")
     return draft_record(template, origin, capacity), under_of(template, origin, capacity)
 
 
@@ -585,14 +588,15 @@ def _version(text):
     return m.group(0)
 
 
-def host_of(env):
-    """The frozen record's `host` from the environment.json of one of the runs (design 4.2): what the numbers were measured on."""
+def host_of(env, pins):
+    """The frozen record's `host` from the environment.json of one of the runs (design 4.2) and the pin plan the session's runs were
+    made with (`pins`, as its steps recorded it; not this code's plan, which may be another by now): what the numbers were measured on."""
     facts, prov, stack = env["facts"], env["provenance"], env.get("stack") or {}
     limits = ((stack.get("origin") or {}).get("nofile_soft_hard") or [[None]])[0]
     if not isinstance(limits[0], int):
         raise CalibrationStop("the origin's open-file limit was not read as a number: environment.json has no stack record")
     return {"uname": facts["uname"], "cpus": facts["cpus"], "mem_mib": facts["mem_mib"], "origin_seed": X.ORIGIN_SEED,
-            "origin_sha256": prov["files"]["origin.py"], "loadgen_sha256": prov["files"]["loadgen.py"], "pins": dict(P.PIN_PLAN),
+            "origin_sha256": prov["files"]["origin.py"], "loadgen_sha256": prov["files"]["loadgen.py"], "pins": dict(pins),
             "gunicorn": {"version": _version(facts["gunicorn"]), "workers": X.GUNICORN["workers"],
                          "threads": X.GUNICORN["threads"], "nofile": limits[0]},
             "nginx": {"version": _version(facts["nginx"]), "conf_sha256": prov["nginx_source_sha256"]}}
@@ -618,6 +622,9 @@ def freeze_problems(session, template):
     for name, step in named:
         if step.get("smoke"):
             reasons.append(f"{name} is a smoke test (levels, steps or timeline changed): a smoke test is not a calibration")
+        if name != "origin" and (not step.get("pins") or step["pins"] != session["capacity"].get("pins")):
+            reasons.append(f"{name} was made with {said_pins(step.get('pins'))}, not the pin plan of the capacity step: "
+                           "a calibration mixes no two layouts")
         if name in ("origin", "capacity") and step["template_sha256"] != under["template_sha256"]:
             reasons.append(f"{name} was made under another template")
         if name not in ("origin", "capacity") and step["under"] != under:
@@ -644,7 +651,7 @@ def freeze_step(directory, template, env, created_utc=None):
     reference = session["reference"]["reference"]
     if reference["rho_rps"] != C.rho_rps(draft):
         raise CalibrationStop(f"the reference was taken at rho {reference['rho_rps']:g}, the capacity gives {C.rho_rps(draft):g}")
-    return C.freeze(draft, created_utc or now(), host=host_of(env), drift_reference=reference)
+    return C.freeze(draft, created_utc or now(), host=host_of(env, session["capacity"]["pins"]), drift_reference=reference)
 
 
 # --- step 7: drift ----------------------------------------------------------------------------------
@@ -685,11 +692,32 @@ def drift_step(runner, cal, cal_path, out, families=None, timeline=None, say=pri
 
 # --- running the plans ------------------------------------------------------------------------------
 
+def said_pins(pins):
+    """A pin plan as a refusal says it. A record without one was made before runs and steps recorded theirs, perhaps under D14's first
+    plan (`population.PIN_PLAN_BEFORE_D032`), and is read as that, as `gate_campaign.load_state` reads a campaign's."""
+    if pins:
+        return GC.pins_text(dict(sorted(pins.items())))         # a record's keys are sorted on disk: both sides of a refusal read alike
+    return f"no pin plan on record, read as the plan of before 2026-10-31 (D-032), {GC.pins_text(P.PIN_PLAN_BEFORE_D032)}"
+
+
+def done_with_other_pins(plan):
+    """Why the finished run in `plan.out` may not stand in for `plan`: its plan.json has another pin plan, or says none. None if it may."""
+    try:
+        made_with = read_json(os.path.join(plan.out, "plan.json")).get("pins")
+    except (OSError, ValueError):
+        made_with = None
+    if made_with == plan.pins:
+        return None
+    return (f"{plan.out} is finished, but it was made with {said_pins(made_with)}, and this step runs with "
+            f"{said_pins(plan.pins)}: a calibration mixes no two layouts. Use another session directory.")
+
+
 class Runner:
     """Carries out plans through the executor for the steps of a calibration. The first run of the process waits for the full
     environment gate, the others for the timer; a run that is found unsound, or fails in its timeline, is made once more in its
     place (the first goes aside as `<run>.failed1`) and a second time stops the calibration; the executor's refusals stop it at
-    once. A run that is done is not made again, so that a step resumes."""
+    once. A run that is done is not made again, so that a step resumes, unless it was made with another pin plan: that refuses
+    (docs/HG1C_DESIGN.md departure 31)."""
 
     def __init__(self, host, settings=None, allow_dirty=False, clean=False, wait_gate_min=30.0, tries=2):
         self.host, self.settings = host, dict(settings or {})
@@ -706,6 +734,9 @@ class Runner:
     def run(self, plan, say=print):
         record = GC.read_done(plan.out)
         if record is not None:
+            why = done_with_other_pins(plan)
+            if why:
+                raise CalibrationStop(why)
             return record
         reasons = []
         for attempt in range(1, self.tries + 1):
@@ -762,6 +793,8 @@ def plan_text(template):
     total = sum(runs.values())
     out.append(f"runs    {runs['capacity']} capacity + {runs['screening']} screening + {runs['reference']} reference = {total}; at about "
                f"{RUN_ESTIMATE_S:.0f} s that is {total * RUN_ESTIMATE_S / 3600:.1f} h (the origin step is 0.1 h more)")
+    out.append(f"timer   every run, on CPU {P.PIN_PLAN['legit']}: a refused probe is made again every {X.TIMER_REPROBE_S:g} s, up to --wait-gate "
+               "minutes from the run's first probe (0: one probe); a last refusal stops the step; waits are not in the time above")
     out.append("seeds   " + ", ".join(f"{k} {v}+" for k, v in SEEDS.items()) + " in calib (the gate's blocks use 1-10)")
     return "\n".join(out) + "\n"
 
@@ -770,7 +803,7 @@ def _add_run_args(p):
     p.add_argument("--template", default=C.PLACEHOLDER, help="the template record: knobs, mix, SLOs, gate (default: the placeholder)")
     p.add_argument("--allow-dirty", action="store_true", help="run with uncommitted changes; they are recorded")
     p.add_argument("--clean", action="store_true", help="take down the namespaces and links of an earlier testbed first")
-    p.add_argument("--wait-gate", type=float, default=30.0, metavar="MIN", help="minutes to wait for uptime and load at the start")
+    p.add_argument("--wait-gate", type=float, default=30.0, metavar="MIN", help="minutes to wait for uptime and load at the start and, from each run's first probe, for a refused timer probe to pass; 0: one probe")
     p.add_argument("--simulate", action="store_true", help="run on the simulated host, with a server of a known capacity")
     p.add_argument("--sim-capacity-cpu", type=float, default=None, help="the simulated server's capacity in CPU-seconds a second")
 

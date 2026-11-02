@@ -160,6 +160,8 @@ def describe(scn, cal, scenario_sha, opts):
         out.append(f"P2 outcome   pre-registered (harm_gate.P2_OUTCOME): unprotected fails in {o['block_share']:.0%} of the blocks "
                    f"(dQ >= {o['unprotected_floor_pp']:g} pp or p95 >= {o['unprotected_p95_ratio']:g} x C); protected works when "
                    f"Q(M) >= {o['protected_q_ratio']:g} x Q(C) in as many and no legit identity is blocked; TTM reported")
+    out.append(f"timer gate   every run, on CPU {pins_of(opts)['legit']}: {X.timer_wait_text(opts.wait_gate_min)}; a last refusal stops the "
+               "campaign, and the same command resumes it; waits are not in the VM time below")
     out.append(f"the gate     needs {gate['min_blocks']} valid blocks; floors {gate['floor_pp']:g} pp and "
                f"{gate['floor_log2_p95']:g} in log2 p95; interval {gate['ci_level']:g}, same sign {gate['same_sign_share']:.0%}")
     out.append("warm-up      " + (f"one unscored C run at seed {scn.first_seed}, in {WARMUP}/" if opts.warmup
@@ -514,15 +516,17 @@ def options_of(args):
 def main(argv=None, host=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="command", required=True)
+    wait_help = "minutes to wait for uptime and load at the start and, from each run's first probe, for a refused timer probe to pass; 0: one probe"
     p = sub.add_parser("plan", help="print the campaign: seeds, orders, VM time (offline, no root)")
     _add_common(p)
+    p.add_argument("--wait-gate", type=float, default=30.0, metavar="MIN", help=wait_help)
     p = sub.add_parser("run", help="carry out the campaign, or resume it (root; or --simulate)")
     _add_common(p)
     p.add_argument("--out", required=True, help="the campaign directory")
     p.add_argument("--dry-run", action="store_true", help="allow a placeholder calibration; everything is labelled")
     p.add_argument("--allow-dirty", action="store_true", help="run with uncommitted changes; they are recorded")
     p.add_argument("--clean", action="store_true", help="take down the namespaces and links of an earlier testbed first")
-    p.add_argument("--wait-gate", type=float, default=30.0, metavar="MIN", help="minutes to wait for uptime and load at the start")
+    p.add_argument("--wait-gate", type=float, default=30.0, metavar="MIN", help=wait_help)
     p.add_argument("--keep-going", action="store_true", help="go on although the gate can no longer reach its valid blocks")
     p.add_argument("--simulate", choices=sorted(S.EFFECT_PRESETS), help="run on the simulated host with this effect")
     p.add_argument("--simulate-fault", action="append", metavar="NAME[:N]", help="a fault of the simulated host, N times")

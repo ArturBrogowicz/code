@@ -790,27 +790,31 @@ class RecordTest(unittest.TestCase):
         self.assertNotEqual(under, other)
 
     def test_the_host_is_what_the_environment_of_a_run_recorded(self):
-        host = K.host_of(ENV)
+        host = K.host_of(ENV, P.PIN_PLAN)
         self.assertEqual(host["gunicorn"], {"version": "26.2.0", "workers": 2, "threads": 8, "nofile": 524288})
         self.assertEqual(host["nginx"], {"version": "1.28.3", "conf_sha256": "c" * 64})
         self.assertEqual((host["origin_sha256"], host["loadgen_sha256"], host["origin_seed"]), ("a" * 64, "b" * 64, 1))
         self.assertEqual(host["pins"], P.PIN_PLAN)
         C.freeze(copy.deepcopy(TEMPLATE), host=host, drift_reference=CF.SAMPLE_DRIFT)
 
+    def test_the_hosts_pins_are_the_ones_it_is_given_not_this_codes_plan(self):
+        other = {**P.PIN_PLAN, "legit": "5"}
+        self.assertEqual(K.host_of(ENV, other)["pins"], other)
+
     def test_a_limit_that_is_not_a_number_or_a_missing_stack_record_stops_it(self):
         env = copy.deepcopy(ENV)
         env["stack"]["origin"]["nofile_soft_hard"] = [["unlimited", "unlimited"]]
         with self.assertRaisesRegex(K.CalibrationStop, "open-file limit"):
-            K.host_of(env)
+            K.host_of(env, P.PIN_PLAN)
         del env["stack"]
         with self.assertRaisesRegex(K.CalibrationStop, "open-file limit"):
-            K.host_of(env)
+            K.host_of(env, P.PIN_PLAN)
 
     def test_a_version_is_read_from_the_tools_own_words(self):
         env = copy.deepcopy(ENV)
         env["facts"]["nginx"] = "nothing"
         with self.assertRaisesRegex(K.CalibrationStop, "no version number"):
-            K.host_of(env)
+            K.host_of(env, P.PIN_PLAN)
 
 
 class ProbeTest(unittest.TestCase):
@@ -855,6 +859,47 @@ class RunnerTest(unittest.TestCase):
         with mock.patch.object(K.X, "execute") as execute:
             self.assertEqual(K.Runner(S.SimHost()).run(plan, lambda m: None), record)
         execute.assert_not_called()
+
+    def test_a_finished_run_from_another_pin_plan_is_refused_and_kept(self):
+        """T-039 V-22's follow-up, docs/HG1C_DESIGN.md departure 31: a step resumes from what is done, but not across two layouts."""
+        plan = self.plan()
+        record = K.Runner(S.SimHost()).run(plan, lambda m: None)
+        path = os.path.join(plan.out, "plan.json")
+        made = K.read_json(path)
+        self.assertEqual(made["pins"], P.PIN_PLAN, "a run says what it was made with")
+
+        def stands_in():
+            with mock.patch.object(K.X, "execute") as execute:
+                try:
+                    return K.Runner(S.SimHost()).run(plan, lambda m: None) == record
+                finally:
+                    execute.assert_not_called()
+
+        self.assertTrue(stands_in(), "the same plan: reused")
+        for label, pins, said in (("other", {**P.PIN_PLAN, "legit": "5"},
+                                   "made with attack 3-6, daemon 2, legit 5, server 0-1, and this step runs with attack 3-6, daemon 2, legit 7, server 0-1"),
+                                  ("none", None, r"no pin plan on record, read as the plan of before 2026-10-31 \(D-032\), server 0-1, daemon 2, legit 6, attack 3-5,7")):
+            with self.subTest(label):
+                K.write_json(path, {**made, "pins": pins} if pins else {k: v for k, v in made.items() if k != "pins"})
+                with self.assertRaisesRegex(K.CalibrationStop, said):
+                    stands_in()
+                self.assertTrue(os.path.exists(os.path.join(plan.out, GC.DONE)), "the run stays as it was")
+        os.remove(path)
+        with self.assertRaisesRegex(K.CalibrationStop, "no pin plan on record"):
+            stands_in()
+
+    def test_a_refused_probe_waits_within_the_steps_wait_and_a_last_refusal_stops_it_without_a_second_attempt(self):
+        host = S.SimHost(timer_p99_by_cpu={"7": [25.0, 5.0]})
+        self.assertTrue(K.Runner(host, wait_gate_min=1.0).run(self.plan("waits"), lambda m: None)["ok"])
+        self.assertEqual(host.sleeps[0], X.TIMER_REPROBE_S)
+        host = S.SimHost(timer_p99_ms=25.0)
+        with self.assertRaisesRegex(X.EnvironmentRefused, "2 probes over 30 s"):
+            K.Runner(host, wait_gate_min=0.5).run(self.plan("stops"), lambda m: None)
+        self.assertEqual(sum("timer-probe" in argv for _, _, argv in host.commands), 2, "one attempt: no retry of a refusal")
+
+    def test_the_plan_states_the_wait(self):
+        self.assertIn("a refused probe is made again every 30 s, up to --wait-gate minutes from the run's first probe (0: one probe)",
+                      K.plan_text(TEMPLATE))
 
     def test_the_first_run_of_a_process_waits_for_the_full_gate_and_the_next_for_the_timer(self):
         runner = K.Runner(S.SimHost())
@@ -1160,6 +1205,39 @@ class SimulatedCalibrationTest(unittest.TestCase):
     def freeze(self, dest, template=None):
         env = K.read_json(os.path.join(dest, "capacity", "r1", "C", "environment.json"))
         return K.freeze_step(dest, template or self.template, env)
+
+    def test_the_frozen_record_has_the_pins_the_steps_were_made_with(self):
+        self.assertEqual(self.frozen["host"]["pins"], P.PIN_PLAN)
+        for name in ("capacity", "reference"):
+            self.assertEqual(K.read_json(os.path.join(self.out, name, name + ".json"))["pins"], P.PIN_PLAN, name)
+        dest = self.copy_session()
+        other = {**P.PIN_PLAN, "legit": "5"}
+        for parts in (("capacity", "capacity.json"), ("reference", "reference.json"),
+                      *[(f"ladder_{f}", "ladder.json") for f in K.FAMILY_SPECS]):
+            self.edit(dest, *parts, change=lambda d: d.update(pins=other))
+        self.assertEqual(self.freeze(dest)["host"]["pins"], other, "what they were made with, not this code's plan")
+
+    def test_a_session_whose_steps_were_made_with_two_pin_plans_or_do_not_say_is_not_frozen(self):
+        for parts, change, said in ((("reference", "reference.json"), lambda d: d.update(pins={**P.PIN_PLAN, "legit": "5"}),
+                                     "reference was made with attack 3-6, daemon 2, legit 5, server 0-1"),
+                                    (("ladder_cheap_static_flood", "ladder.json"), lambda d: d.pop("pins"),
+                                     "ladder cheap_static_flood was made with no pin plan on record"),
+                                    (("capacity", "capacity.json"), lambda d: d.pop("pins"),
+                                     "capacity was made with no pin plan on record")):
+            with self.subTest(parts=parts):
+                dest = self.copy_session()
+                self.edit(dest, *parts, change=change)
+                with self.assertRaisesRegex(K.CalibrationStop, said):
+                    self.freeze(dest)
+
+    def test_a_later_step_refuses_a_capacity_made_with_other_pins_before_any_run(self):
+        dest = self.copy_session()
+        self.assertEqual(K.session_draft(dest, self.template)[0]["capacity"]["c_slo_rps"], self.capacity["c_slo_rps"])
+        for change, said in ((lambda d: d.update(pins={**P.PIN_PLAN, "legit": "5"}), "made with attack 3-6, daemon 2, legit 5, server 0-1"),
+                             (lambda d: d.pop("pins"), "no pin plan on record")):
+            self.edit(dest, "capacity", "capacity.json", change=change)
+            with self.assertRaisesRegex(K.CalibrationStop, said):
+                K.session_draft(dest, self.template)
 
     def test_a_copy_of_the_session_freezes_the_same(self):
         dest = self.copy_session()
