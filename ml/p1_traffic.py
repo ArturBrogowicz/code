@@ -363,8 +363,8 @@ def run_entities(block, cls=None):
 
 
 def age_report(block):
-    """The frozen key-age check (ml/l7v2_prereg.json arrivals.age_check, l7_pools.age_check) per class, recorded and not
-    enforced on P1's one-slot timeline (see the module docstring)."""
+    """The frozen key-age check (ml/l7v2_prereg.json arrivals.age_check, l7_pools.age_check) per class, recorded per run and not
+    applied on P1's one-slot timeline (D-049, ml/p1_prereg.json age_check; see the module docstring)."""
     import l7_pools as LP
     import l7v2_prereg
     rule = l7v2_prereg.load()["arrivals"]["age_check"]

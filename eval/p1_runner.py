@@ -329,7 +329,13 @@ def daemon_env(spec, out, deny_dir, conf_path, frozen):
     return env
 
 
-def plan_run(pop, phase, arm, cls, out, frozen, *, python=PYTHON):
+def run_age_check(report):
+    """What a run records of arrivals.age_check: the plan's report for its class, or none without an attack (D-049: recorded per run,
+    not applied, so it refuses nothing and invalidates nothing)."""
+    return {"applied": False, "rule": "ml/p1_prereg.json age_check", "report": report}
+
+
+def plan_run(pop, phase, arm, cls, out, frozen, *, python=PYTHON, age=None):
     """One run as data: everything execute_run() does, and nothing it does not."""
     spec = ARM_TABLE[arm]
     name = run_name(arm, cls)
@@ -348,7 +354,7 @@ def plan_run(pop, phase, arm, cls, out, frozen, *, python=PYTHON):
     return {
         "format": FORMAT, "phase": phase, "seed": pop["seed"], "seed_role": pop["seed_role"], "name": name, "arm": arm,
         "class": cls, "role": role, "out": out, "timeline": dict(PT.TIMELINE), "levels": dict(pop["levels"]),
-        "halvings": pop["halvings"],
+        "halvings": pop["halvings"], "age_check": run_age_check(age),
         "budget": spec.get("budget"), "spec": {k: v for k, v in spec.items() if k != "daemon"},
         "pending": m_arms_pending() if spec["conf"] == "protected" else None,
         "nginx": {"conf_path": conf_path, "deny_dir": deny_dir,
@@ -401,14 +407,16 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
     name = f"b{seed}_a{attempt}" + (f"_{label}" if label else "")
     bdir = os.path.join(root, phase, name)
     try:
-        planned = [plan_run(pop, phase, *names[n], os.path.join(bdir, n), frozen, python=python) for n in order]
+        ages = PT.age_report(pop)
+        planned = [plan_run(pop, phase, *names[n], os.path.join(bdir, n), frozen, python=python, age=ages.get(names[n][1]))
+                   for n in order]
     except PT.PlanError as exc:
         raise PlanError(str(exc)) from exc
     return {"phase": phase, "seed": seed, "attempt": attempt, "label": label, "dir": bdir, "root": root, "order": order,
             "levels": levels, "halvings": factor, "sources": pop["sources"], "cut": bool(cut), "frozen": sums,
             "calibration": frozen["calibration"],
             "intensity": pop["intensity"], "flash": pop["flash"], "dropped": pop["dropped"],
-            "age_check": PT.age_report(pop) if phase == "campaign" else None, "runs": planned}
+            "age_check": ages, "runs": planned}
 
 
 def vm_minutes(n_runs, setup_s=SETUP_S):
@@ -600,7 +608,8 @@ def finish(host, plan, reasons, ctx):
             fh.writelines(json.dumps(c, sort_keys=True) + "\n" for c in ctx["cpu"])
     ok = not reasons
     meta = {"format": FORMAT, "role": plan["role"], "class": plan["class"], "arm": plan["arm"], "phase": plan["phase"],
-            "seed": plan["seed"], "levels": plan["levels"], "halvings": plan["halvings"], "budget": plan["budget"],
+            "seed": plan["seed"], "levels": plan["levels"], "halvings": plan["halvings"], "age_check": plan["age_check"],
+            "budget": plan["budget"],
             "checks": {"ok": ok, "reasons": reasons},
             "started_utc": P4._utc(ctx["started"]), "ended_utc": P4._utc(ended),
             "daemon": None if plan["daemon"] is None else {"env": plan["daemon"]["env"]},

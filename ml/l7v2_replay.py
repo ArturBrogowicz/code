@@ -331,6 +331,45 @@ def score_arm(items, scorer, truth):
             "caught_entities": sorted(caught), "decisions": len(decided), **counts}
 
 
+class _AgeProbe(_Tapped):
+    """Every view window's age as AgeArm sees it, and no decision: p = 0 against a threshold no p reaches."""
+
+    def __init__(self):
+        super().__init__(1.0, 1, None)
+        self.seen = []
+
+    def rows(self, ctx):
+        self.seen += [(key, s - s0) for key, _t, s0, s in ctx]
+        return np.zeros(len(ctx), dtype=np.float64)
+
+    def p(self, rows):
+        return rows
+
+
+def age_windows(items, labels):
+    """The windows of a recording as the age-only arm sees them, on the engine's real path: [{"age", "y", "family"}], the windows of
+    the run's labelled keys. Pooled over runs on one timeline, age_auc reads them."""
+    probe = _AgeProbe()
+    replay_l7.replay(items, make_engine(probe))
+    keys, ent, _attack, _units = ground_truth(items, labels)
+    out = []
+    for key, age in probe.seen:
+        e = keys["view"].get(key)
+        if e is not None:
+            out.append({"age": float(age), "y": int(ent[e]["cls"] == D.ATTACK), "family": ent[e]["family"]})
+    return out
+
+
+def age_auc(windows):
+    """The window-age AUC of a recording, in the age-only arm's sense (train_l7v2.age_scores, age_report, age_reading): a younger
+    window scores higher, against the benign windows given, so AUC > 0.5 means that the attack's windows are younger. P1 reads it
+    descriptively (D-049): its verdict does not."""
+    scores = V.age_scores([w["age"] for w in windows if not w["y"]], windows)
+    report = V.age_report(windows, scores)
+    return {**report, "reading": V.age_reading(report["auc"]), "windows_benign": sum(1 for w in windows if not w["y"]),
+            "windows_attack": sum(1 for w in windows if w["y"])}
+
+
 def replay(items, arms, labels):
     """Every arm of `arms` {name: scorer at its frozen point} through the recording `items`; arms without an
     operating point are given as None and reported so."""

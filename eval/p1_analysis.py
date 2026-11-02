@@ -17,6 +17,10 @@ moves here. For each class:
 and then ml/l7v2_verdict.judge, with the minimum cut's live set when the campaign ran it. A record that is not frozen gets no
 verdict (a dry run stops before judging, and says so).
 
+Beside the judge, nothing reading it (D-049, ml/p1_prereg.json age_check): each class's age_only_on_U, the window-age AUC of its U
+replays, per block and per family, and the age-only arm's recall at its frozen point, with each U run's recorded age check; and
+view_level_contrasts, every contrast of the judge's output naming a view-level arm with that reading beside it.
+
 ladder_knees() reads a finished ladder (phase ladder) into the knees a campaign needs: per class the lowest level whose harm
 reaches the floor in both repeats (bench/calibration.knee, harm as bench/calibrate.harm against the session's control).
 
@@ -50,10 +54,12 @@ import p1_records as REC
 import p1_runner as RUN
 import p1_traffic as PT
 import p4_runner as P4
+import train_l7v2 as V
 
 import l7_dataset as D
 
 GRU, HGB, SHUF, AGE, RSTAR = J.GRU, J.HGB, J.SHUF, J.AGE, J.RSTAR
+VIEW_ARMS = {GRU, HGB, SHUF}
 DETECTION_ARMS = (GRU, HGB, SHUF, RSTAR, AGE)
 STRUCTURED_KIND = "tpcw_browsing"      # design 12.1: the trained benign navigation is TPC-W's multi-step chain
 LADDER_LABEL = re.compile(r"(?P<cls>[^_]+)_L(?P<level>[0-9.]+)_r(?P<repeat>\d+)$")
@@ -186,6 +192,45 @@ def class_inputs(root, cal, cls, blocks, live, frozen, arms_factory):
     return inputs, per_arm
 
 
+def age_only_on_u(root, blocks, cls, per_arm):
+    """The age-only reading on a class's U replays (D-049): descriptive, and nothing judges it. The window-age AUC pooled, per family
+    and per block; the age-only arm's recall from the replay; each U run's recorded arrivals.age_check, which is not applied."""
+    pooled, per_block = [], []
+    for b in blocks:
+        run_dir = os.path.join(root, "campaign", b["dir"], f"U_{cls}")
+        man = REC.read_json(os.path.join(run_dir, D.MANIFEST_FILE))
+        windows = RP.age_windows(REC.recording(run_dir), RP.RunLabels(man))
+        pooled += windows
+        got = RP.age_auc(windows)
+        report = (REC.read_json(os.path.join(run_dir, "run.json")).get("age_check") or {}).get("report") or {}
+        per_block.append({"block": b["block"], "auc": got["auc"], "reading": got["reading"], "age_check_pass": report.get("pass")})
+    got = RP.age_auc(pooled)
+    arm = per_arm.get(AGE) or {}
+    families = {}
+    for fam, auc in got["auc_by_family"].items():
+        hit = (arm.get("by_family") or {}).get(fam) or {"caught": None, "entities": None}
+        families[fam] = {"auc": auc, "reading": V.age_reading(auc), **hit}
+    return {"note": "descriptive (D-049): the verdict does not read it; AUC > 0.5 means that the attack's windows are younger",
+            "auc": got["auc"], "reading": got["reading"], "windows_benign": got["windows_benign"],
+            "windows_attack": got["windows_attack"], "caught": arm.get("caught"), "attack_entities": arm.get("attack_entities"),
+            "benign_units_flagged": arm.get("benign_units_flagged"), "by_family": families, "per_block": per_block}
+
+
+def view_level_contrasts(judged, reading, primary):
+    """Every contrast of the judge's output that names a view-level arm, with the age-only reading on the U replays beside it: the
+    primary families' for the verdict's contrasts, the family's for one reported separately. The judge's output stays as it is."""
+    fams = reading["by_family"]
+    out = {}
+    for name, c in judged.get("contrasts", {}).items():
+        if VIEW_ARMS & set(name.split()):
+            out[name] = {"contrast": c, "age_only_on_U": {f: fams.get(f) for f in primary}}
+    for fam, sub in (judged.get("reported_separately") or {}).items():
+        for name, c in sub.items():
+            if VIEW_ARMS & set(name.split()):
+                out[f"{fam}: {name}"] = {"contrast": c, "age_only_on_U": {fam: fams.get(fam)}}
+    return out
+
+
 def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, pre=None):
     """Every class's admission, inputs and verdict: {class: {"verdict", "admission", "judge", "excluded", "replay"}}."""
     pre = live_set(pre or VP.load(), cut)
@@ -213,11 +258,14 @@ def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, p
         inputs, per_arm = class_inputs(root, cal, cls, blocks, live, frozen, arms_factory)
         row["replay"] = per_arm
         row["blocks_judged"] = [b["block"] for b in blocks]
+        row["age_only_on_U"] = age_only_on_u(root, blocks, cls, per_arm)
         if dry_run:
             row["why_no_verdict"] = [f"a dry run on a {cal.get('status')} record gives no verdict"]
             continue
         row["judge"] = J.judge(cls, inputs, pre)
         row["verdict"] = row["judge"]["verdict"]
+        row["view_level_contrasts"] = view_level_contrasts(row["judge"], row["age_only_on_U"],
+                                                           pre["detection_entities"]["per_class"][cls]["primary"])
     return out
 
 

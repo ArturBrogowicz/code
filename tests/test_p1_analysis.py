@@ -191,6 +191,46 @@ class CampaignA(Campaign):
         self.assertEqual(res["format"], "p1-verdicts/1")
         self.assertEqual({k: v["verdict"] for k, v in res["classes"].items()}, {"C3b": "V-A", "C2": "V-C", "C3a": "V-D"})
 
+    def judged(self):
+        return {c: r for c, r in self.res.items() if r.get("replay")}
+
+    def test_each_admitted_class_has_the_age_only_reading_with_its_blocks(self):
+        self.assertTrue(self.judged())
+        for cls, row in self.judged().items():
+            with self.subTest(cls=cls):
+                got = row["age_only_on_U"]
+                self.assertEqual([b["block"] for b in got["per_block"]], row["blocks_judged"])
+                self.assertGreater(got["windows_benign"], 0)
+                self.assertGreater(got["windows_attack"], 0)
+                self.assertIsNotNone(got["auc"])
+                self.assertIn("descriptive", got["note"])
+                self.assertIn(got["reading"], ("near chance", "age-confounded"))
+                self.assertEqual(got["attack_entities"], row["replay"]["age_only"]["attack_entities"])
+                self.assertIn(got["per_block"][0]["age_check_pass"], (True, False))
+
+    def test_every_view_level_contrast_of_the_judge_has_the_reading_beside_it(self):
+        for cls, row in self.judged().items():
+            names = [n for n in row["judge"]["contrasts"] if A.VIEW_ARMS & set(n.split())]
+            with self.subTest(cls=cls):
+                self.assertTrue(names)
+                self.assertTrue(set(names) <= set(row["view_level_contrasts"]))
+                for name in names:
+                    self.assertTrue(all(row["view_level_contrasts"][name]["age_only_on_U"].values()), name)
+
+    def test_nothing_that_judges_reads_the_age_only_reading(self):
+        junk = {"by_family": {}, "note": "junk"}
+        with mock.patch.object(A, "age_only_on_u", return_value=junk):
+            other = A.analyse(self.root, self.cal, self.frozen, arms_factory=factory(self.SHARES), cut=self.CUT)
+        for cls, row in self.judged().items():
+            self.assertEqual(json.dumps(other[cls]["judge"], sort_keys=True, default=str),
+                             json.dumps(row["judge"], sort_keys=True, default=str), cls)
+
+    def test_a_dry_run_keeps_the_reading_without_a_contrast(self):
+        res = A.analyse(self.root, self.cal, self.frozen, arms_factory=factory(self.SHARES), cut=self.CUT, dry_run=True)
+        for cls in self.judged():
+            self.assertIn("age_only_on_U", res[cls])
+            self.assertNotIn("view_level_contrasts", res[cls])
+
 
 class CampaignB(Campaign):
     """C3b V-B, C2 inconclusive, C3a V-D (no enforcing arm within the budget, on the live reading)."""
@@ -306,6 +346,38 @@ class LadderTest(unittest.TestCase):
             R.run_block(F.P1FakeHost(), block)
         with self.assertRaisesRegex(ValueError, "one factor"):
             A.ladder_factor(root)
+
+
+class AgeReadingTest(unittest.TestCase):
+    """The age-only reading on the U replays (D-049): beside every view-level contrast, and read by nothing that judges."""
+
+    def test_the_auc_s_sign_and_reading(self):
+        young = [{"age": a, "y": 1, "family": "C2"} for a in (1.0, 2.0)] + [{"age": a, "y": 0, "family": None} for a in (10.0, 20.0, 30.0)]
+        got = RP.age_auc(young)
+        self.assertEqual((got["auc"], got["reading"]), (1.0, "age-confounded"))
+        self.assertEqual((got["windows_benign"], got["windows_attack"], got["auc_by_family"]), (3, 2, {"C2": 1.0}))
+        same = [{"age": a, "y": y, "family": "C2"} for a in (1.0, 2.0) for y in (0, 1)]
+        self.assertEqual(RP.age_auc(same)["reading"], "near chance")
+        self.assertEqual(RP.age_auc([{"age": 1.0, "y": 0, "family": None}])["auc"], None)
+
+    def test_the_probe_decides_nothing_and_sees_the_arm_s_windows(self):
+        rows = [(("a", "u", "s"), 1.0, 5.0, 8.0), (("b", "u", "s"), 2.0, 5.0, 5.0)]
+        probe = RP._AgeProbe()
+        got = probe.rows(rows)
+        self.assertEqual(probe.seen, [(("a", "u", "s"), 3.0), (("b", "u", "s"), 0.0)])
+        self.assertEqual(list(got), [0.0, 0.0])
+        self.assertFalse((probe.p(got) > probe.threshold).any())
+
+    def test_every_view_level_contrast_has_the_reading_beside_it(self):
+        reading = {"by_family": {"C3b@M2": {"auc": 0.7}, "C3b@M1": {"auc": 0.6}}}
+        judged = {"contrasts": {"detection view_gru vs hgb": {"d": 1}, "detection view_gru vs age_only (descriptive)": {"d": 2},
+                                "harm hgb vs R*": {"d": 3}, "harm R* vs U": {"d": 4}},
+                  "reported_separately": {"C3b@M1": {"entities": 10, "detection view_gru vs R*": {"d": 5}}}}
+        got = A.view_level_contrasts(judged, reading, ["C3b@M2"])
+        self.assertEqual(sorted(got), ["C3b@M1: detection view_gru vs R*", "detection view_gru vs age_only (descriptive)",
+                                       "detection view_gru vs hgb", "harm hgb vs R*"])
+        self.assertEqual(got["detection view_gru vs hgb"], {"contrast": {"d": 1}, "age_only_on_U": {"C3b@M2": {"auc": 0.7}}})
+        self.assertEqual(got["C3b@M1: detection view_gru vs R*"]["age_only_on_U"], {"C3b@M1": {"auc": 0.6}})
 
 
 class HealthTest(unittest.TestCase):

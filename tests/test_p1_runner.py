@@ -396,6 +396,34 @@ class ExecuteTest(Base):
         self.assertEqual(index(self.root)[0]["label"], "C2_L1_r1")
 
 
+class AgeCheckTest(Base):
+    """arrivals.age_check on P1's runs (D-049): recorded per run, not applied."""
+
+    def test_every_run_records_its_class_s_report_and_a_control_none(self):
+        block = thin(self.frozen, self.root)
+        by_name = {r["name"]: r for r in block["runs"]}
+        self.assertEqual(by_name["C"]["age_check"], {"applied": False, "rule": "ml/p1_prereg.json age_check", "report": None})
+        self.assertIsNone(by_name["Cp"]["age_check"]["report"])
+        for cls in ("C2", "C3a", "C3b"):
+            for name in (f"U_{cls}", f"M_gru_{cls}", f"M_rstar_{cls}"):
+                self.assertEqual(by_name[name]["age_check"]["report"], block["age_check"][cls], name)
+                self.assertFalse(by_name[name]["age_check"]["applied"])
+
+    def test_a_failing_check_invalidates_nothing_and_every_phase_records_it(self):
+        block = R.plan_block("ladder", 9001, self.root, frozen=self.frozen, levels={"C2": 2.0}, runs=["C", "U_C2"], label="x",
+                             benign_specs=F.thin_benign(), max_sources=3)
+        report = {"pass": False, "ks": 0.9}
+        with mock.patch.object(R.PT, "age_report", return_value={"C2": report}):
+            block = R.plan_block("ladder", 9001, self.root, frozen=self.frozen, levels={"C2": 2.0}, runs=["C", "U_C2"], label="y",
+                                 benign_specs=F.thin_benign(), max_sources=3)
+        results = dict(R.run_block(F.P1FakeHost(), block))
+        self.assertTrue(results["U_C2"]["ok"], results["U_C2"]["reasons"])
+        meta = read_json(os.path.join(block["dir"], "U_C2", "run.json"))
+        self.assertEqual(meta["age_check"]["report"], report)
+        self.assertTrue(meta["checks"]["ok"])
+        self.assertEqual(read_json(os.path.join(block["dir"], "block.json"))["age_check"], {"C2": report})
+
+
 class HalvingTest(Base):
     """The halving rule of ml/p1_prereg.json in the runner (D-049): a health step's two controls, a factor frozen before the ladder."""
 
