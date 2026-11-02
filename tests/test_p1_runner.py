@@ -93,7 +93,8 @@ class PlanTest(Base):
         env = run["daemon"]["env"]
         out = run["out"]
         self.assertEqual(env, {**base, "HEURISTIC_PROFILE": "tolerant", "L7_SHADOW": "1", "L7_ENFORCE": "1", "L7_ARM": "view_gru",
-                               "L7_KILL_FILE": R.KILL_FILE, "BAN_EVENTS": os.path.join(out, "ban_events.jsonl"),
+                               "L7_KILL_FILE": R.KILL_FILE, "L7_SOCKET_PATH": R.SOCKET_PATH, "L7_ALLOWLIST": "",
+                               "BAN_EVENTS": os.path.join(out, "ban_events.jsonl"),
                                "L7_ENFORCE_DIR": os.path.join(out, "l7v2_deny"), "L7_NGINX_CONF": os.path.join(out, "nginx.conf"),
                                "L7_SELECTION": self.frozen["selection"], "L7_SELECTION_SHA256": self.frozen["selection_sha256"],
                                "L7_RECORD": os.path.join(out, "l7_record.jsonl")})
@@ -104,6 +105,7 @@ class PlanTest(Base):
         dflt = self.runs["M_default_rules_C3b"]["daemon"]["env"]
         self.assertEqual({k: dflt[k] for k in ("HEURISTIC_PROFILE", "L7_SHADOW", "L7_ENFORCE", "L7_MODEL")},
                          {"HEURISTIC_PROFILE": "default", "L7_SHADOW": "0", "L7_ENFORCE": "0", "L7_MODEL": ""})
+        self.assertNotIn("L7_SELECTION", dflt)
         for name in ("C", "Cp", "U_C2", "U_C3a", "U_C3b"):
             self.assertIsNone(self.runs[name]["daemon"], name)
 
@@ -220,26 +222,37 @@ class ConfTest(Base):
         self.assertIn("burst=133 nodelay", text)
         self.assertIn("access_log /var/log/nginx/ddos_ml_access.log json_ml_format;", text)
 
-    def test_the_status_quo_has_the_deployed_limits_and_no_arm(self):
+    def test_the_status_quo_has_the_deployed_limits_and_no_socket_sink(self):
         text = self.render("default_rules")
         self.assertIn("rate=30r/s", text)
         self.assertIn("burst=100 nodelay", text)
-        self.assertNotIn("$l7_deny", text)
         self.assertNotIn("syslog:server", text)
         self.assertIn("access_log /var/tmp/p1/run/access.log l7json;", text)
 
-    def test_r_star_asks_for_its_key_map_once_t025e_is_merged(self):
+    def test_every_m_arm_has_one_conf_shape(self):
+        # T-025e's F8: one conf for every M arm, or R* alone pays the second map's lookup
+        for arm in ("default_rules", "hgb", "view_gru", "R*"):
+            with self.subTest(arm):
+                self.assertEqual(R.ARM_TABLE[arm]["conf_kw"], {"key_map": True})
+                self.assertEqual(R.ARM_TABLE[arm]["deny_kw"], {"key_level": True})
+                self.assertIn("include /var/tmp/p1/run/l7v2_deny/deny.map;", self.render(arm))
+
+    def test_an_m_arm_asks_for_the_key_map_once_t025e_is_merged(self):
         seen = {}
 
         def protected(text, run_dir, key_map=False):
             seen["key_map"] = key_map
             return text
 
-        self.assertEqual(R.ARM_TABLE["R*"]["conf_kw"], {"key_map": True})
-        with mock.patch.object(l7_conf, "protected", protected):
-            self.assertIsNone(R.rstar_pending())
-            self.render("R*")
-        self.assertEqual(seen, {"key_map": True})
+        def prepare(run_dir, key_level=False):
+            seen["key_level"] = key_level
+
+        with mock.patch.object(l7_conf, "protected", protected), mock.patch.object(R.l7_denymap, "prepare_run_dir", prepare):
+            self.assertIsNone(R.m_arms_pending())
+            self.render("view_gru")
+            spec = {"conf": "protected", **R.ARM_TABLE["view_gru"]}
+            R.l7_denymap.prepare_run_dir("/d", **spec["deny_kw"])
+        self.assertEqual(seen, {"key_map": True, "key_level": True})
 
     def test_the_tracked_confs_are_only_read(self):
         before = {n: R.sha256_file(os.path.join(REPO, n)) for n in ("nginx.conf", "nginx_unprotected.conf")}
@@ -324,6 +337,8 @@ class ExecuteTest(Base):
                  ("late kill", {"kill_appears_at": 60.0}, "the kill file appeared"),
                  ("not armed", {"armed": False}, "not armed"),
                  ("lying start", {"start_overrides": {"heuristic_profile": "default"}}, "start event"),
+                 ("another arm", {"arm_overrides": {"arm": "hgb"}}, "l7_enforce_arm event says arm"),
+                 ("another selection", {"arm_overrides": {"selection_sha256": "0" * 64}}, "l7_enforce_arm event says selection_sha256"),
                  ("silence", {"quiet_from": 60.0}, "silence"))
         for why, kw, want in cases:
             with self.subTest(why):
@@ -336,17 +351,27 @@ class ExecuteTest(Base):
         self.root = tempfile.mkdtemp(dir=self.tmp.name)
         self.assertIn("exited with code", self.invalid(F.P1FakeHost(gen_fails=[ip]), runs=("U_C2",)))
 
-    def test_r_star_is_refused_on_a_real_host_until_t025e_is_merged(self):
-        pending = R.rstar_pending()
-        block = self.block(runs=("M_rstar_C2",))
-        self.assertEqual(block["runs"][0]["pending"], pending)
+    def test_an_m_arm_is_refused_on_a_real_host_until_t025e_is_merged(self):
+        pending = R.m_arms_pending()
+        block = self.block(runs=("M_rstar_C2", "U_C2"))
+        self.assertEqual({r["name"]: r["pending"] for r in block["runs"]}, {"M_rstar_C2": pending, "U_C2": None})
         if pending:
             host = F.P1FakeHost()
             host.simulated = False
-            ((_n, res),) = R.run_block(host, block)
-            self.assertFalse(res["ok"])
-            self.assertIn("T-025e", res["reasons"][0])
-            self.assertEqual(host.kinds().get("server", 0), 0, "nothing was started")
+            res = dict(R.run_block(host, block))
+            self.assertFalse(res["M_rstar_C2"]["ok"])
+            self.assertIn("T-025e", res["M_rstar_C2"]["reasons"][0])
+            self.assertTrue(res["U_C2"]["ok"], res["U_C2"]["reasons"])
+            self.assertEqual(host.kinds().get("daemon", 0), 0, "nothing of the M arm was started")
+
+    def test_r_stars_rule_is_checked_against_the_rule_selection(self):
+        block = self.block(runs=("M_rstar_C2",))
+        ((_n, res),) = R.run_block(F.P1FakeHost(rule_arm="multiscale_rate"), block)
+        self.assertFalse(res["ok"])
+        self.assertIn("rule_arm='multiscale_rate'", res["reasons"][0])
+        self.root = tempfile.mkdtemp(dir=self.tmp.name)
+        ((_n, ok),) = R.run_block(F.P1FakeHost(), self.block(runs=("M_rstar_C2",)))
+        self.assertTrue(ok["ok"], ok["reasons"])
 
     def test_the_ban_parser_counts_the_arms_engine(self):
         self.assertIn(ban_events.L7V2_ENGINE, R.BAN_ENGINES)

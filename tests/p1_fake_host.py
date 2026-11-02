@@ -8,7 +8,7 @@ What it models, as far as the runner's and the analysis's inputs need it:
     requests (ml/l7_bots.plan_bot); a kind without a plan one line. A request is answered 200 in 30 ms, except a share
     `fail_share(run, block_dir, t)` of the benign ones, which fail (nginx logs a 503, so the server-side Q agrees);
   * the daemon: `daemon_startup_s` after its start it prints its ready line and XDP's and writes its start event from its
-    environment (`start_overrides` to make it lie), with L7_ENFORCE=1 an l7_enforce_arm event, and then the events
+    environment (`start_overrides` to make it lie), with L7_ENFORCE=1 an l7_enforce_arm event (`arm_overrides`), and then the events
     `acts(run, block_dir)` gives as (seconds after its start, event).
 frozen_inputs() writes the frozen items a campaign checks: a frozen record with the placeholder's numbers, knees bound to it,
 and small but well-formed selections. They are fixtures, not results.
@@ -43,11 +43,13 @@ def _sid(seed, user):
 
 
 class P1FakeHost(F.FakeHost):
-    def __init__(self, *, fail_share=None, acts=None, quiet_from=None, armed=True, start_overrides=None, **kw):
+    def __init__(self, *, fail_share=None, acts=None, quiet_from=None, armed=True, start_overrides=None, arm_overrides=None,
+                 rule_arm="cost_budget", **kw):
         super().__init__(**kw)
         self.fail_share = fail_share or (lambda _run, _block, _t: 0.0)
         self.acts, self.quiet_from = acts or (lambda _run, _block: []), quiet_from
-        self.armed, self.start_overrides = armed, dict(start_overrides or {})
+        self.armed, self.start_overrides, self.arm_overrides = armed, dict(start_overrides or {}), dict(arm_overrides or {})
+        self.rule_arm = rule_arm
         self.sink, self.lines, self.run_name, self.block_dir, self.n_request = None, [], None, None, 0
 
     def run(self, argv, ns="", stdin="", env=None, timeout=None):
@@ -151,7 +153,10 @@ class P1FakeHost(F.FakeHost):
                      "l7_selection_sha256": p.env.get("L7_SELECTION_SHA256") or None, **self.start_overrides}
             self._emit(p, "start", **start)
             if p.env.get("L7_ENFORCE") == "1":
-                self._emit(p, "l7_enforce_arm", armed=self.armed, reason=None if self.armed else "fixture says no")
+                self._emit(p, "l7_enforce_arm", **{"armed": self.armed, "reason": None if self.armed else "fixture says no",
+                                                   "arm": p.env.get("L7_ARM"), "selection_sha256": p.env.get("L7_SELECTION_SHA256"),
+                                                   **({"rule_arm": self.rule_arm} if p.env.get("L7_ARM") == "R*" else {}),
+                                                   **self.arm_overrides})
             for t, ev in self.acts(self.run_name, self.block_dir):
                 self.at(self.t + t, lambda ev=ev: p.returncode is None and self._emit(p, ev["kind"], **{
                     k: v for k, v in ev.items() if k != "kind"}))

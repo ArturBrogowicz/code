@@ -13,11 +13,13 @@ ROOT/index.jsonl with its reasons (section 13 row 6); an attempt is a directory 
 
 What each arm runs is one table, ARM_TABLE, and nothing else decides it:
   * C, C' and U: no daemon, l7_conf.unprotected(nginx_unprotected.conf), with the file sink;
+  * every M arm: l7_conf.protected(nginx.conf, key_map=True) and a deny directory with both maps (T-025e's report F8: one
+    conf for every M arm, or R* alone pays the second map's lookup; an empty map answers its default);
   * default_rules (C3b, the status quo): the daemon's default profile and nginx.conf's limits as deployed, no L7 engine;
   * hgb, view_gru, R*: the tolerant profile (P5c.2, the heuristics that realistic benign traffic does not trip) and its nginx
-    limits, the enforcing arm (L7_ENFORCE=1, L7_SHADOW=1, the arm from the frozen selection) and
-    l7_conf.protected(nginx.conf). R* takes its selection from the rule selection and its key map from T-025e: until that
-    branch is merged here (rstar_pending), its conf is planned without the map and a real run of it is refused.
+    limits, and the enforcing arm (L7_ENFORCE=1, L7_SHADOW=1, the arm from its frozen selection, T-025e's env per arm).
+The second map and R*'s live path are T-025e's (feat/l7v2-rstar, a parallel branch): until it is merged here (m_arms_pending),
+an M arm's conf is planned without the map and a real run of it is refused.
 Every conf is the run's own copy, the tracked files are only read (D-028): l7_conf for the arm, capture_l7.render_limits
 for the profile's limits, file_sink for the l7json file sink, capture_l7.render_l7_sink for the daemon's socket,
 executor.render_nginx_conf for the run's log paths. The deny run directory comes from l7_denymap.prepare_run_dir.
@@ -30,7 +32,7 @@ are bound to it (L7V2-08) and the block runs at them, and both selections are th
 
 Checks of a run (design 5.4): the stack answered; every planned client started and ended cleanly; in an M run the daemon was
 ready before the traffic, alive to the end, with XDP attached, its start event says what the table says and the arm armed;
-the kill file stayed absent; the file sink has no silence longer than LOG_GAP_MAX_S [ASSUMPTION] over the run. A run that
+its l7_enforce_arm event names the arm, the selection's sha256 and R*'s rule; the kill file stayed absent; the file sink has no silence longer than LOG_GAP_MAX_S [ASSUMPTION] over the run. A run that
 fails one is invalid, with its reasons. CPU per core is sampled every second (cpu.jsonl).
 
     sudo ./venv/bin/python eval/p1_runner.py --phase campaign --seed 3001 --calibration REC --knees KNEES \\
@@ -88,20 +90,21 @@ PROVENANCE_FILES = ("nginx.conf", "nginx_unprotected.conf", "control_plane.py", 
                     "ml/l7v2_verdict_prereg_v2.json", "eval/p1_runner.py")
 BAN_ENGINES = (*ban_events.ENGINES, ban_events.L7V2_ENGINE)     # D-037: the arm's engine sits outside ENGINES
 
-# The one table: what each arm runs. R*'s daemon variables and conf arguments come from T-025e (feat/l7v2-rstar) and change
-# here only. "budget" says what a flag on a benign key costs in the live reading (D-043, D-044: an XDP ban costs everyone
-# behind the address in every arm).
-_ENFORCING = {"HEURISTIC_PROFILE": "tolerant", "L7_SHADOW": "1", "L7_ENFORCE": "1", "L7_KILL_FILE": KILL_FILE}
+# The one table: what each arm runs (T-025e's report, "Env per arm for the P1 runner", feat/l7v2-rstar c6028ce). Everything an
+# arm's conf or daemon needs changes here only. L7_ALLOWLIST is empty: the runner's only monitoring is the readiness probe from
+# the server's own 10.0.0.1, which the arm's built-in list holds. "budget" says what a flag on a benign key costs in the live
+# reading (D-043, D-044; an XDP ban costs everyone behind the address in every arm).
+_M_CONF = {"conf": "protected", "conf_kw": {"key_map": True}, "deny_kw": {"key_level": True}}
+_ENFORCING = {"HEURISTIC_PROFILE": "tolerant", "L7_SHADOW": "1", "L7_ENFORCE": "1", "L7_KILL_FILE": KILL_FILE,
+              "L7_SOCKET_PATH": SOCKET_PATH, "L7_ALLOWLIST": ""}
 ARM_TABLE = {
     "C": {"conf": "unprotected", "daemon": None},
     "C'": {"conf": "unprotected", "daemon": None},
     "U": {"conf": "unprotected", "daemon": None},
-    "default_rules": {"conf": "deployed", "limits": "default", "daemon": {"HEURISTIC_PROFILE": "default"}},
-    "R*": {"conf": "protected", "limits": "tolerant", "conf_kw": {"key_map": True}, "selection": "rules", "budget": "rule_key",
-           "daemon": {**_ENFORCING, "L7_ARM": "R*"}},
-    "hgb": {"conf": "protected", "limits": "tolerant", "selection": "learned", "budget": "view_key",
-            "daemon": {**_ENFORCING, "L7_ARM": "hgb"}},
-    "view_gru": {"conf": "protected", "limits": "tolerant", "selection": "learned", "budget": "view_key",
+    "default_rules": {**_M_CONF, "limits": "default", "daemon": {"HEURISTIC_PROFILE": "default", "L7_SHADOW": "0", "L7_ENFORCE": "0"}},
+    "R*": {**_M_CONF, "limits": "tolerant", "selection": "rules", "budget": "rule_key", "daemon": {**_ENFORCING, "L7_ARM": "R*"}},
+    "hgb": {**_M_CONF, "limits": "tolerant", "selection": "learned", "budget": "view_key", "daemon": {**_ENFORCING, "L7_ARM": "hgb"}},
+    "view_gru": {**_M_CONF, "limits": "tolerant", "selection": "learned", "budget": "view_key",
                  "daemon": {**_ENFORCING, "L7_ARM": "view_gru"}},
 }
 SLUG = {"default_rules": "default_rules", "R*": "rstar", "hgb": "hgb", "view_gru": "gru"}
@@ -156,11 +159,12 @@ def block_order(phase, seed, names, label=""):
     return order
 
 
-def rstar_pending():
-    """Why this checkout cannot run R* live, or None: its second deny map comes with T-025e."""
-    if "key_map" in inspect.signature(l7_conf.protected).parameters:
+def m_arms_pending():
+    """Why this checkout cannot run the M arms as the table says, or None: the second deny map comes with T-025e."""
+    if "key_map" in inspect.signature(l7_conf.protected).parameters \
+            and "key_level" in inspect.signature(l7_denymap.prepare_run_dir).parameters:
         return None
-    return "R*'s key map and live path are T-025e's (feat/l7v2-rstar), not merged in this checkout"
+    return "the M arms' key map and R*'s live path are T-025e's (feat/l7v2-rstar), not merged in this checkout"
 
 
 # --- the conf ----------------------------------------------------------------------------------------
@@ -183,12 +187,10 @@ def render_conf(spec, out, deny_dir):
         text = l7_conf.unprotected(l7_conf.read(l7_conf.UNPROTECTED_CONF))
     else:
         text = CAP.render_limits(l7_conf.read(l7_conf.PROTECTED_CONF), spec["limits"])
-        if spec["conf"] == "protected":
-            kw = spec.get("conf_kw", {}) if rstar_pending() is None else {}
-            text = l7_conf.protected(text, deny_dir, **kw)
+        text = l7_conf.protected(text, deny_dir, **(spec["conf_kw"] if m_arms_pending() is None else {}))
     text = file_sink(text, os.path.join(out, l7_dataset.ACCESS_LOG))
-    if spec["conf"] == "protected":
-        text = CAP.render_l7_sink(text, SOCKET_PATH)
+    if (spec["daemon"] or {}).get("L7_SHADOW") == "1":
+        text = CAP.render_l7_sink(text, SOCKET_PATH)        # only with a daemon bound to it (audit G-23)
     return X.render_nginx_conf(text, os.path.join(out, "ddos_ml_access.log"), os.path.join(out, "error.log"),
                                feed=spec["daemon"] is not None)
 
@@ -275,7 +277,7 @@ def daemon_env(spec, out, deny_dir, conf_path, frozen):
     """Every variable the daemon reads, set (bench/executor.py DAEMON_ENV, off), then the arm's row of ARM_TABLE."""
     env = {**dict(X.DAEMON_ENV), "MITIGATION_BACKEND": "xdp", "BAN_EVENTS": os.path.join(out, "ban_events.jsonl"),
            **spec["daemon"]}
-    if spec["conf"] == "protected":
+    if spec.get("selection"):
         key, sha = ("rules", "rules_sha256") if spec["selection"] == "rules" else ("selection", "selection_sha256")
         env.update({"L7_ENFORCE_DIR": deny_dir, "L7_NGINX_CONF": conf_path, "L7_SELECTION": frozen.get(key) or "",
                     "L7_SELECTION_SHA256": frozen.get(sha) or "", "L7_RECORD": os.path.join(out, "l7_record.jsonl")})
@@ -302,12 +304,12 @@ def plan_run(pop, phase, arm, cls, out, frozen, *, python=PYTHON):
         "format": FORMAT, "phase": phase, "seed": pop["seed"], "seed_role": pop["seed_role"], "name": name, "arm": arm,
         "class": cls, "role": role, "out": out, "timeline": dict(PT.TIMELINE), "levels": dict(pop["levels"]),
         "budget": spec.get("budget"), "spec": {k: v for k, v in spec.items() if k != "daemon"},
-        "pending": rstar_pending() if arm == "R*" else None,
+        "pending": m_arms_pending() if spec["conf"] == "protected" else None,
         "nginx": {"conf_path": conf_path, "deny_dir": deny_dir,
                   "start": ["taskset", "-c", PINS["server"], "nginx", "-c", conf_path],
                   "stop": ["nginx", "-c", conf_path, "-s", "quit"]},
         "gunicorn": {"argv": gunicorn_argv(frozen["calibration"], python), "log": os.path.join(out, "gunicorn.log")},
-        "daemon": daemon, "kill_file": KILL_FILE, "enforcing": spec["conf"] == "protected",
+        "daemon": daemon, "kill_file": KILL_FILE, "enforcing": bool(spec.get("selection")),
         "namespaces": nss, "launches": launches, "entities": ents,
     }
 
@@ -390,8 +392,8 @@ def provenance(plan, frozen_sums):
             "frozen": frozen_sums, "pins": dict(PINS), "population": PT.VERSION, "gunicorn": dict(GUNICORN)}
 
 
-def start_problems(plan, events):
-    """What the daemon's start event says against what the table asks (design 5.4), as eval/p4 and the executor check it."""
+def start_problems(plan, events, frozen_sums=None):
+    """What the daemon's start and arm events say against what the table asks (design 5.4; T-025e's "run validity")."""
     env = plan["daemon"]["env"]
     start = next((e for e in events if e.get("kind") == "start"), None)
     if start is None:
@@ -401,9 +403,16 @@ def start_problems(plan, events):
             "l7_selection_sha256": env.get("L7_SELECTION_SHA256") or None}
     out = [f"the daemon's start event says {k}={start.get(k)!r}, the run asks {v!r}" for k, v in want.items()
            if start.get(k) != v]
-    if plan["enforcing"] and not any(e.get("kind") == "l7_enforce_arm" and e.get("armed") for e in events):
-        why = next((e.get("reason") for e in events if e.get("kind") == "l7_enforce_arm"), "no l7_enforce_arm event")
-        out.append(f"the enforcing arm is not armed: {why}")
+    if plan["enforcing"]:
+        arm = next((e for e in events if e.get("kind") == "l7_enforce_arm"), None)
+        if arm is None or not arm.get("armed"):
+            out.append(f"the enforcing arm is not armed: {arm.get('reason') if arm else 'no l7_enforce_arm event'}")
+        else:
+            asked = {"arm": env["L7_ARM"], "selection_sha256": env["L7_SELECTION_SHA256"]}
+            if env["L7_ARM"] == "R*":
+                asked["rule_arm"] = ((frozen_sums or {}).get("rules") or {}).get("r_star")
+            out += [f"the l7_enforce_arm event says {k}={arm.get(k)!r}, the run asks {v!r}" for k, v in asked.items()
+                    if arm.get(k) != v]
     return out
 
 
@@ -439,8 +448,8 @@ def execute_run(host, plan, frozen_sums):
     if plan["enforcing"] and host.exists(plan["kill_file"]):
         return finish(host, plan, [f"the kill file {plan['kill_file']} exists: nothing was started"], ctx)
     try:
-        if plan["nginx"]["deny_dir"]:
-            l7_denymap.prepare_run_dir(plan["nginx"]["deny_dir"])
+        if plan["nginx"]["deny_dir"]:               # nginx refuses an include of a missing file
+            l7_denymap.prepare_run_dir(plan["nginx"]["deny_dir"], **(plan["spec"]["deny_kw"] if m_arms_pending() is None else {}))
         with open(plan["nginx"]["conf_path"], "w", encoding="utf-8") as fh:
             fh.write(render_conf(plan["spec"] | {"daemon": plan["daemon"]}, out, plan["nginx"]["deny_dir"]))
         procs.append(("topology", None))                # from here on the teardown runs, whatever happens
@@ -522,7 +531,7 @@ def finish(host, plan, reasons, ctx):
         if procs:
             P4.teardown(host, plan)
     ended = host.time()
-    reasons += checks(host, plan, t0, launched)
+    reasons += checks(host, plan, t0, launched, ctx["sums"])
     log = os.path.join(out, l7_dataset.ACCESS_LOG)
     if os.path.isfile(log):                               # a run's sink is tens of MB; the readers take either form
         with open(log, "rb") as src, gzip.open(log + ".gz", "wb") as dst:
@@ -542,7 +551,7 @@ def finish(host, plan, reasons, ctx):
     return {"ok": ok, "reasons": reasons, "started": ctx["started"], "ended": ended}
 
 
-def checks(host, plan, t0, launched):
+def checks(host, plan, t0, launched, frozen_sums=None):
     """The validity checks of a run that ran (design 5.4)."""
     if t0 is None:
         return []
@@ -561,7 +570,7 @@ def checks(host, plan, t0, launched):
     if d:
         if P4.XDP_ATTACHED_LINE not in P4._text(host, d["log"]):
             reasons.append("the daemon's log does not show XDP attached")
-        reasons += start_problems(plan, P4._events(d["env"]["BAN_EVENTS"]))
+        reasons += start_problems(plan, P4._events(d["env"]["BAN_EVENTS"]), frozen_sums)
     return reasons
 
 
