@@ -1036,38 +1036,84 @@ back with a port of nginx's tokenizer: one `"key" 1;` line per entry.
 
 Built offline and tested on a fake host (`tests/p1_fake_host.py`); nothing ran on the VM. `eval/p1_runner.py` is a T3 script,
 `ml/p1_traffic.py` a block's population, `eval/p1_records.py` a run's records and `eval/p1_analysis.py` a campaign's verdicts. Every
-item below is a reading or an addition, labelled post hoc, before any data.
+item below is a reading or an addition, labelled post hoc, before any data. D-049 (2026-11-02, the user: "Approve as recommended",
+dated record `ml/p1_prereg.json`) accepted the readings, kept the two assumptions as assumptions, and settled the age check and the halving rule.
 
 **The population (sections 5.3, 6, 7).**
 - **Timeline.** Section 14's 30 s + 120 s + 30 s. Attack sources stop at the attack's end, so the recovery is attack-free.
-- **Benign.** `l7_pools`'s frozen mix unchanged, held-out kinds included: 138 addresses, about 176-179 users.
-- **C3b's side bots** [ASSUMPTION]. Besides the level's bots at M2, every C3b run of a block carries 10 bots each at M1, M3 and
+- **Benign.** `l7_pools`'s frozen mix, held-out kinds included: 138 addresses, about 176-179 users, unless the halving rule fires.
+- **C3b's side bots** [ASSUMPTION, kept as one by D-049]. Besides the level's bots at M2, every C3b run of a block carries 10 bots each at M1, M3 and
   M2exp, so that D-043's separate reports have entities. They run in U and in every M arm, are constant across the ladder, and
   judge nothing. M2exp is in the frozen class table (`ml/l7v2_prereg.json` mimicry), so it has its entity labels here; `l7_pools`'s P3
   population stays without it. An M3 bot needs no reused address here, since one class runs at a time.
 - **Arrivals on one slot.** `arrivals` is applied with the attack window as the only slot: benign over [0, 90] s, attack over
   [30, 90] s.
 
-**Two frozen rules do not fit one slot.** Neither is applied as written; the user should decide.
-- `arrivals.age_check` is computed per class and recorded in `block.json`, not enforced. Benign arrivals begin 30 s before the
+**Two frozen rules do not fit one slot.** Neither is applied as written.
+- `arrivals.age_check` stays enforced on P3's training, validation and held-out captures. On P1's runs it is recorded per run (`run.json`
+  `age_check`: `applied` false, the plan's report for the run's class, none for a control) and not applied: it refuses nothing and
+  invalidates nothing (D-049). Benign arrivals begin 30 s before the
   attack's and benign keys run into the recovery, so it fails by construction. On all ten blocks and three classes it fails: first-seen KS 0.27-0.46
   (limit 0.30) and AUC 0.62-0.74, lifetime KS 0.41-0.63, window-age AUC 0.25-0.38 (attack windows are younger; band 0.35-0.65).
   The learned arms are trained on P3's age-matched captures and the rules read no age, so this is a shift at scoring, not a
-  leak in training [INFERENCE]. Any view-level contrast in P1 is read with it in view.
+  leak in training [INFERENCE]. So the analysis puts the age-only reading on the U replays beside every view-level contrast
+  (`age_only_on_U`: the window-age AUC per block, per family and pooled, in the age-only arm's sense, AUC above 0.5 meaning younger attack
+  windows; the age-only arm's recall at its frozen point; each U run's recorded check. `view_level_contrasts`: every contrast of the
+  judge's output naming the GRU, the HGB or the shuffled GRU, with that reading beside it). It is descriptive: `judge`'s inputs do not read it,
+  and a test shows the verdict's output unchanged without it.
 - `flash_gap_s` cannot be kept: no start lies 60 s from a slot that opens at 30 s within a span of 90 s. The flash crowd's minute
   starts at a uniform time in [0, 30] s, and the plan says so.
 
 **The address limit bounds C3b's ladder.** A run over `ml/p3_prereg.json` `pool.address_limit` (300) is refused. With the benign
-138 and 30 side bots, C3b reaches 132 bots: the ladder's 50 and 100 are reachable, 200 and 300 are not.
+138 and 30 side bots, C3b reaches 132 bots: the ladder's 50 and 100 are reachable, 200 and 300 are not. C3b's addresses per level and halvings:
+
+| Halvings | 100 bots | 200 bots | 300 bots |
+|---|---|---|---|
+| 0 | 268 | 368 | 468 |
+| 1 | 204 | 304 | 404 |
+| 2 | 171 | 271 | 371 |
+
+Only a smoke may read above the limit (`--address-limit`, E-2), and nothing else moves it. A ladder or a campaign above 300 addresses needs a new
+dated decision after that read.
+
+**The halving rule (D-049, `ml/p1_prereg.json` `halving`, modelled on `ml/p4_traffic.py`'s).**
+- **Where.** Before the harm ladder, on pilot seed 9001. Phase `health` runs C and C' at `--halvings`; `eval/p1_analysis.py --health` reads
+  both through `eval/harm_gate.control_health` (Q(C) >= 99 %, each route class >= 95 %).
+- **Steps.** Either control unhealthy: one more halving, both controls again. The first step counting up from 0 with both healthy
+  gives the factor, and no step runs after it. A control whose run checks failed gives no reading and fires nothing; it is re-run at most twice.
+- **What is halved.** Every benign spec of count > 1 keeps its first `count >> halvings` entities, at least 1. A spec of count 1 stays: both CGNAT
+  pools, the NAT gateway, each single-entity kind. The draws run over the full mix, so an entity keeps its index, sub-seed, address, parameters
+  and netem profile whatever the halvings, and the attack's addresses do not move.
+- **The floor, my choice: 2 halvings.** 138, 74 and 41 addresses. At 2 the pools hold 36 of about 81 users and the flash crowd has 7 devices;
+  at 3 they would hold 36 of about 65, a majority, and the crowd 3. A halving raises the share of users behind the pools (20 %, 32 %, 44 %), so
+  a flagged pool costs a larger share of the budget's users (D-043): the factor is recorded with every run and must be reported with every result.
+- **Frozen.** The factor is in a health file bound to the record's digest. A ladder and a campaign take it from there (`--health`), a campaign's
+  knees must name the same factor, and each block, run and manifest records it. A ladder at two factors is refused.
+- **At the floor.** Still unhealthy at 2 halvings: no factor, and the ladder and the campaign refuse and say why. Going on is a new decision.
+
+**The benign rate against rho.** [FACT, arithmetic on plans, placeholder numbers in a frozen fixture; NOT RUN on a measured record] Seeds
+3001-3003 through `build_block` with a frozen record, over the attack window, without the seven kinds that have no plan:
+
+| Halvings | Addresses | Users (behind the pools) | Nominal req/s | Nominal CPU-s/s |
+|---|---|---|---|---|
+| 0 | 138 | 176-179 (20 %) | 170-176 | 0.170-0.183 |
+| 1 | 74 | 112-115 (31-32 %) | 106-110 | 0.114-0.127 |
+| 2 | 41 | 79-82 (44-46 %) | 71-75 | 0.084-0.094 |
+| The record's rho (0.5 C_slo) | | | 90 | 0.552 |
+
+The plan's rate is above rho in requests and below it in CPU: its mean cost is about 1.0 ms per request against the record's 6.14 ms, since
+most of its requests are cheap assets. Rho only sizes the attack, through S; the mix does not read the record. So S's assumption of 0.552 CPU-s/s
+of benign work is about three times what this mix costs at these numbers, and a level L of S leaves more capacity free than its name
+suggests, which the ladder's knee absorbs [INFERENCE]. `--plan` prints these figures on the record in use, and `block.json` keeps them.
 
 **The arms (one table, `ARM_TABLE`, on T-025e's env per arm).**
-- **Heuristics [reading].** HGB, GRU and R* run the tolerant profile and its nginx limits, the default rules arm the default
+- **Heuristics [reading, accepted by D-049].** HGB, GRU and R* run the tolerant profile and its nginx limits, the default rules arm the default
   profile and limits. Section 10 names the default rules as the status quo; with the default profile underneath them, every arm
   would inherit the benign flags that P5c.2 was made to remove.
 - **One conf for every M arm** (T-025e's F8): `l7_conf.protected(..., key_map=True)`, both maps empty until the arm writes.
 - **Pins.** The harm benchmark's daemon plan in every run (`bench/population.PIN_PLAN_DAEMON`), so U and M differ only by the table.
-- **Validity (5.4).** Also the daemon's start and arm events against the table, and a limit of 10 s [ASSUMPTION] on the file sink's
-  silence.
+- **Validity (5.4).** Also the daemon's start and arm events against the table, and a limit of 10 s [ASSUMPTION, kept as one by D-049] on
+  the file sink's silence.
 
 **The analysis (sections 11, 13).**
 - **The U run's recording.** A U run has no daemon. Its engine input is the file sink, lossless where the socket is not (section
@@ -1079,10 +1125,12 @@ item below is a reading or an addition, labelled post hoc, before any data.
 
 **VM time as built** [ESTIMATE, section 14's 45 s of set-up]: 3.75 min per run, 48.75 min per block, 8.1 h for 10 blocks (5.6 h for the
 minimum cut). The ladder, on the placeholder's numbers, has 14 reachable pairs of runs (C2 at 4 levels and C3b at 2, 2 repeats each; C3a
-at level 1 only, since level 2 needs 168 sources against its bound of 100), 1.75 h instead of section 14's 3 h. Re-runs add up to 1.6 h.
+at level 1 only, since level 2 needs 168 sources against its bound of 100), 1.75 h instead of section 14's 3 h. Re-runs add up to 1.6 h. The
+halving rule adds 7.5 min per step, 22.5 min at most without re-runs. The smoke is 12-16 runs, 45-60 min, with the rule's steps and two runs above the
+address limit.
 
 **Files touched in this round:** `ml/p1_traffic.py`, `eval/p1_runner.py`, `eval/p1_records.py`, `eval/p1_analysis.py`, `eval/p4_runner.py`
-(two additive parameters), `ml/l7v2_replay.py` (`with_poll_ticks`), tests and this note. `control_plane.py`, `l7_engine.py`, `l7_enforce.py`,
+(two additive parameters), `ml/l7v2_replay.py` (`with_poll_ticks`, `age_windows`, `age_auc`), `ml/p1_prereg.json`, tests and this note. `control_plane.py`, `l7_engine.py`, `l7_enforce.py`,
 `bench/`, `server/` and the tracked nginx confs are untouched.
 
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
