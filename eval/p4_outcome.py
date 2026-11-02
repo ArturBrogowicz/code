@@ -19,7 +19,8 @@ recovery. Per family (loris, post):
     with no floor on its Q, since a low Q(C_M) is the cost it exists to show.
   * the status: "not harmful", "harmful but not mitigated", "mitigated with collateral" (a and b, not c), or
     "mitigated"; "invalid (k of 10 valid)" when fewer than 10 blocks are valid for the harm or, for a harmful
-    family, for the mitigation (D-035, below). M7 is "supported with scope" for the families that are harmful and
+    family, for the mitigation (D-035, below). A control that is not healthy (eval/harm_gate.control_health: Q(C) >= 99 %,
+    each route class >= 95 %) makes its attempt of C invalid, and without a valid C a block counts for nothing (D-046). M7 is "supported with scope" for the families that are harmful and
     mitigated (profile R, these families at this scale, this testbed), naming next to it any family that is
     invalid; "invalid (k of 10 valid)" when no family qualifies and one is invalid; else "not supported".
   * reported next to it: Q(M_pc) - Q(M_def) per block with eval/run_level_stats.decide, the bans per arm by role,
@@ -72,6 +73,9 @@ harm gate: an unhealthy control makes the block invalid, "invalid (k of 10 valid
 alone, and C_M keeps no floor; (3) a CGNAT or browser identity banned in C_M, in any attempt, counts against (c), for
 both families.
 
+A run of C states its health in its record: "control_reasons" is control_health's list, empty when it is healthy. A
+record of C without it is refused, and C's "valid" stays what the run's own checks said, the outcome adding the health.
+
 A run record (one dict per run; summarize() builds it from eval/harm_gate.run_metrics and the ban events):
     {"block": 3101, "arm": "M_pc_loris", "attempt": 1, "valid": true, "Q": 97.5, "p95_s": 0.21,
      "q_per_s": [...one value or None per second of the run...], "q_level": 98.9, "level_window": [120, 240],
@@ -111,6 +115,7 @@ BLOCK_SHARE = (9, 10)            # "in >= 9 of 10 blocks", for harm, (a) and (b)
 T_MIT_S = slow_pc.DEADLINE_S     # 90 s since the re-registration of 2026-10-30
 RECOVERY_RATIO, RECOVERY_BINS = 0.99, 5
 LEVEL_RATIO = 0.99
+CONTROL_Q_MIN = 99.0             # D-046, with HG.CONTROL_CLASS_Q_MIN = 95 %; pinned here, whatever a record's gate says
 LEVEL_FROM_S = T_MIT_S           # (b): [attack start + T_mit, attack end]
 LEVEL_WINDOW_S = (TIMELINE["baseline_s"] + LEVEL_FROM_S,           # the same span in run time: the
                   TIMELINE["baseline_s"] + TIMELINE["attack_s"])   # `window` of run_metrics for q_level
@@ -130,11 +135,12 @@ def check_record_timeline(q_per_s, level_window):
 
 
 def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow_pc_closes=(), *, level_window,
-              attempt, refused=None):
+              attempt, refused=None, cal=None):
     """One run record from the run's harm-gate metrics (eval/harm_gate.run_metrics: over the attack
     window, and with window=LEVEL_WINDOW_S for `level_metrics`; `level_window` is the window the caller
     took it over, and must be LEVEL_WINDOW_S), its ban events and the role of every client address.
-    Every banned address, and every address with a closed connection, must have a role."""
+    Every banned address, and every address with a closed connection, must have a role. A run of C also states
+    its health (D-046): `cal` is the calibration record whose SLOs its classes were judged by."""
     check_record_timeline(metrics["q_per_s"], level_window)
     banned = {}
     for ev in ban_events:
@@ -148,11 +154,16 @@ def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow
     if unlabelled:                                  # fail closed, as for a ban (review T-039 V-06)
         raise ValueError(f"closed connections of addresses without a role: {unlabelled[:5]}")
     benign_closed = len({(c["ip"], c["port"], c["sport"]) for c in slow_pc_closes if roles[c["ip"]] != ATTACK})
+    control_reasons = None
+    if arm == CONTROL:
+        if cal is None:
+            raise ValueError("a record of C needs the calibration its health is judged under (D-046)")
+        control_reasons = HG.control_health(metrics, {**cal, "gate": {**cal["gate"], "control_q_min": CONTROL_Q_MIN}})
     return {"block": block, "arm": arm, "attempt": attempt, "valid": bool(valid), "Q": metrics["Q"],
             "p95_s": metrics["p95_s"],
             "q_per_s": list(metrics["q_per_s"]), "q_level": level_metrics["Q"],
             "level_window": [float(x) for x in level_window], "banned": banned, "benign_closed": benign_closed,
-            "refused": refused}
+            "refused": refused, "control_reasons": control_reasons}
 
 
 def recovery(q_per_s, threshold, start=TIMELINE["baseline_s"]):
@@ -199,6 +210,10 @@ def _blocks(runs):
             raise ValueError(f"block {r['block']} {r['arm']}: a record names its attempt of the run index, got {att!r}")
         if any(x["attempt"] == att for x in by.setdefault(r["block"], {}).setdefault(r["arm"], [])):
             raise ValueError(f"two records of {r['arm']} attempt {att} in block {r['block']}")
+        if r["arm"] == CONTROL:                     # D-046: an unhealthy control is not a valid control
+            if not isinstance(r.get("control_reasons"), list):
+                raise ValueError(f"block {r['block']} attempt {att}: a record of C states its health (control_reasons)")
+            r = {**r, "run_valid": r["valid"], "valid": r["valid"] and not r["control_reasons"]}
         by[r["block"]][r["arm"]].append(r)
     chosen = {b: {arm: max((x for x in rs if x["valid"]), key=lambda x: x["attempt"], default=None)
                   or max(rs, key=lambda x: x["attempt"]) for arm, rs in arms.items()} for b, arms in by.items()}
@@ -254,7 +269,7 @@ def mitigation(blocks, family, every=None):
     collateral = sorted({(r["block"], ip, role) for r in attempts for ip, role in r["banned"].items() if role != ATTACK})
     a = len(valid) >= MIN_VALID_BLOCKS and enough(in_time, len(valid))
     b_ = len(valid) >= MIN_VALID_BLOCKS and mean_ok and enough(level_ok, len(valid))
-    pairs = [b for b in blocks.values() if _ok(b, m, f"M_def_{family}")]
+    pairs = [b for b in blocks.values() if _ok(b, CONTROL, m, f"M_def_{family}")]
     d = [b[m]["Q"] - b[f"M_def_{family}"]["Q"] for b in pairs]
     return {"valid_blocks": len(valid), "recovery_s": rec, "recovery_onset_s": [x["onset_s"] for x in found],
             "recovered_in_time": in_time, "a": a,
@@ -310,6 +325,13 @@ def limits_cost(blocks):
             "decision": RLS.decide(d), "refused_by_role": by_role, "refused_cgnat": pools}
 
 
+def unhealthy_controls(every):
+    """Every attempt of C that ran soundly and was not healthy, with its reasons: what made those blocks invalid (D-046)."""
+    return [{"block": r["block"], "attempt": r["attempt"], "reasons": r["control_reasons"]}
+            for block in sorted(every) for r in every[block].get(CONTROL, ())
+            if r["run_valid"] and r["control_reasons"]]
+
+
 def invalid(k):
     """The status of a family, or of M7, with fewer than MIN_VALID_BLOCKS valid blocks (D-035, V-02)."""
     return f"invalid ({k} of {len(BLOCK_SEEDS)} valid)"
@@ -344,7 +366,7 @@ def outcome(runs):
     else:
         m7 = "not supported"
     return {"M7": m7, "families": fam, "bans_by_arm": bans_by_arm(runs), "t_mit_s": T_MIT_S,
-            "limits_cost": limits_cost(blocks)}
+            "limits_cost": limits_cost(blocks), "unhealthy_controls": unhealthy_controls(every)}
 
 
 def main(argv=None):
@@ -358,6 +380,8 @@ def main(argv=None):
     print(f"M7: {res['M7']}")
     for f, r in res["families"].items():
         print(f"  {FAMILY_NAMES[f]}: {r['status']}")
+    for u in res["unhealthy_controls"]:
+        print(f"  unhealthy control, block {u['block']} attempt {u['attempt']}: {'; '.join(u['reasons'])}")
     cost = res["limits_cost"]
     if cost["blocks"]:
         print(f"  the deployed limits' own cost (judges nothing): Q(C) - Q(C_M) {cost['mean_dQ_pp']:.2f} pp over "

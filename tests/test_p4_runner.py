@@ -252,6 +252,7 @@ class ExecuteTest(unittest.TestCase):
         self.assertEqual(sorted(by), sorted(OUT.ARMS))
         self.assertTrue(all(len(r["q_per_s"]) == 270 and r["level_window"] == [120.0, 240.0] for r in records))
         self.assertGreater(by["C"]["Q"], by["U_loris"]["Q"])
+        self.assertEqual((by["C"]["control_reasons"], by["U_loris"]["control_reasons"]), ([], None))
         self.assertEqual(set(by["M_pc_loris"]["banned"].values()), {"attack"})
         self.assertEqual(by["M_def_loris"]["banned"], {})
         self.assertGreater(by["M_pc_loris"]["q_level"], by["U_loris"]["q_level"])
@@ -407,6 +408,23 @@ class ExecuteTest(unittest.TestCase):
                                           "search_user": {"requests": 1, "refused": 1},
                                           "unlabelled": {"requests": 1, "refused": 1}})
         self.assertEqual(got["cgnat"], {"CGNAT-24": {"address": "10.0.17.3", "requests": 2, "refused": 1}})
+
+
+    def test_an_unhealthy_control_is_judged_when_the_records_are_made(self):
+        """D-046: every request fails in this fake run. Its C is sound as a run and is not healthy."""
+        res = dict(R.run_block(F.FakeHost(harm=lambda _t: True, modelled_attackers=1),
+                               self.block("campaign", 3107, thresholds=POINT)))
+        self.assertTrue(res["C"]["ok"], res["C"]["reasons"])
+        out = os.path.join(self.root, "runs.jsonl")
+        R.summarize_root(self.root, CAL, out)
+        with open(out, encoding="utf-8") as fh:
+            by = {r["arm"]: r for r in map(json.loads, fh)}
+        self.assertTrue(by["C"]["valid"])
+        self.assertIn("below 99 %", by["C"]["control_reasons"][0])
+        verdict = OUT.outcome(list(by.values()))
+        self.assertEqual(verdict["families"]["loris"]["harm"]["valid_blocks"], 0)
+        self.assertEqual(verdict["M7"], "invalid (0 of 10 valid)")
+        self.assertEqual([u["block"] for u in verdict["unhealthy_controls"]], [3107])
 
 
 if __name__ == "__main__":

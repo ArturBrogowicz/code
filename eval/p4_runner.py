@@ -616,8 +616,10 @@ def refusals(path, man, window):
 
 def run_record(run_dir, cal, block=None, attempt=1):
     """eval/p4_outcome.summarize of one run directory: the client-side figures of eval/l7v2_harm.py over the attack
-    window and over LEVEL_WINDOW_S, the ban events, the closes the rule enforced, the run's labels and its attempt. A
-    run that never started (refused before its traffic) is an invalid record without figures."""
+    window and over LEVEL_WINDOW_S, the ban events, the closes the rule enforced, the run's labels and its attempt; a
+    run of C also its health under `cal` (D-046), which the run index does not know: `--summarize`, and the outcome, say
+    which attempts it invalidates. A run that never started (refused before its traffic) is an invalid record without
+    figures."""
     import l7v2_harm as LH
     with open(os.path.join(run_dir, "manifest.json"), encoding="utf-8") as fh:
         man = json.load(fh)
@@ -628,9 +630,9 @@ def run_record(run_dir, cal, block=None, attempt=1):
     closes = [e for e in events if e.get("kind") == "slow_pc_close" and e.get("enforced")]
     seed = man["seed"] if block is None else block
     if t.get("t0_wall") is None:
-        empty = {"Q": None, "p95_s": None, "q_per_s": [None] * OUT.RUN_S}
+        empty = {"Q": None, "p95_s": None, "q_per_s": [None] * OUT.RUN_S, "by_class": {}}
         return OUT.summarize(seed, man["arm"], False, empty, {"Q": None}, events, man["roles"], closes,
-                             level_window=OUT.LEVEL_WINDOW_S, attempt=attempt)
+                             level_window=OUT.LEVEL_WINDOW_S, attempt=attempt, cal=cal)
     total = sum(t[k] for k in ("baseline_s", "attack_s", "recovery_s"))
     attack = (t["baseline_s"], t["baseline_s"] + t["attack_s"])
     rows, t0, _cover = LH.run_rows(run_dir, man, attack)
@@ -641,7 +643,7 @@ def run_record(run_dir, cal, block=None, attempt=1):
     log = os.path.join(run_dir, "access.log")
     refused = refusals(log, man, attack) if os.path.isfile(log) else None
     return OUT.summarize(seed, man["arm"], meta["checks"]["ok"], m, level, events, man["roles"], closes,
-                         level_window=lw, attempt=attempt, refused=refused)
+                         level_window=lw, attempt=attempt, refused=refused, cal=cal)
 
 
 def summarize_root(root, cal, out_path):
