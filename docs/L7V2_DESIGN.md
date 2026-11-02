@@ -1134,6 +1134,61 @@ Plans outside the band in views A-C:
 **Not addressed:** T-042's INFO items F04 (a token-count tell for C3b, behaviour rather than age) and F07 (the age-only
 baseline's held-out FP per kind).
 
+## As built: R*'s live path (T-025e, 2026-11-01, branch `feat/l7v2-rstar`)
+
+Built offline; nothing ran on the VM. Sections 9.5, 10 and 19 as written, with these readings and additions, labelled
+post hoc, before any data. Usage and events: `docs/EVALUATION.md`, "L7 v2: the enforcing arm".
+
+**The path.** `l7_rule_engine.L7RuleEngine` is the rule arm behind the view engine's interface, so the shadow thread and the
+arm take it unchanged: every record into `ml/l7v2_rules.RuleStats`, one row per (IP, UA) key with a request at each poll, p >
+theta in k consecutive rows a decision, a suppressing poll clearing every run. The statistics and the scorer are the
+replay's own objects, imported from `ml/`, not a copy. `ml/l7v2_replay.RulePath` is the reference and is not touched:
+`tests/test_l7_rstar.py` holds the two to the same keys at the same polls, at four rules on generated streams and on a
+recording the daemon's own shadow thread wrote.
+
+**Readings (not departures):**
+- **Which arm.** `L7_ARM=R*` with the frozen rule selection in `L7_SELECTION`; R* is `r_star` of that file. Every other rule
+  arm and the fixed replays are refused: section 10 runs only the best rule live.
+- **Key-age gate.** It counts from the first request of the (IP, UA) key, of any session.
+- **"Keeps sending" and single-key.** Any session of the key counts as the key sending. The CGNAT guard is unchanged, so a
+  key with three sessions in 10 min on its address is never XDP-banned, however few users are behind it.
+- **A decision is made when a run reaches k**, as in the view engine; a key whose run breaks and reaches k again is decided
+  again. `RulePath` keeps the first decision only, so the parity is on first decisions.
+
+**Additions the design does not cover:**
+- **The second map.** `deny_key.map`, one `"ip|ua" 1;` line per key, mapped from `"$remote_addr|$http_user_agent"` in the
+  run's own copy (`l7_conf.protected(text, run_dir, key_map=True)`; no tracked conf changes), with the same write rules,
+  case folding, cap, TTL, reload pacing and kill switch. Its keys are shorter than the session map's, so the hash sizes hold.
+- **D-040 and D-043.** D-040 keeps a sid-less line off a shared address because such a line hits users the session-level
+  decision did not mean to. A line of R*'s means to: D-043 charges a flagged (IP, UA) key every user behind it. So D-040's
+  guard does not apply to this map, and R* can deny a whole UA on a shared address; level 2 keeps the guard.
+- **`users_seen`** on R*'s events, for the budget's live reading (D-044 OC-2): the distinct session ids seen under the key
+  so far, a request without a session counting as one, which is `ml/l7v2_rules.key_costs`'s fallback. One user can hold
+  several sessions, so it reads high; the run's manifest gives the devices.
+- **Bounds.** The replay's statistics do not evict. Live, at most 65,536 keys and 65,536 addresses are kept, the least
+  recently seen going first and counted as `evicted`; the parity holds while `evicted` is 0.
+- **Validity.** Beyond the learned arms' refusals: the calibration record must be frozen and the package's, since the
+  thresholds are in its costs, and the rule spec must be this tree's.
+- **Removed.** The view-window hook for rule arms (`l7_arms.RULES`, `"kind": "rule"`), empty since T-025c and against
+  section 19, with its tests.
+
+**D-047, a pre-data change (2026-11-02; the orchestrator's decision on T-025e's F5, labelled before any data).** A decision
+fires when a run reaches k, and a denied key's 429s keep its run, so a deny whose 300 s TTL ended was not decided again, and
+a long attack on a shared address was served again. In P1's 180-s runs the TTL never ends, so no run is affected. For every
+arm alike (view arms and R*):
+- **A deny whose key keeps sending is renewed** when its TTL ends: `RENEW_RECENT_S`, a request that started within the last
+  120 s (longer than a closed-loop client's longest think time, 70 s; a value set here). A key under an XDP ban counts as
+  sending, as the ban hides its requests. A key that stopped sending lets its deny expire as before.
+- **It needs no new would-ban event and adds no line:** the entry's TTL starts again in place, so nothing reaches nginx, no
+  reload is due, and the pacing and the 2,000 cap hold. The kill switch ends every deny, and nothing renews one afterwards.
+  Each renewal is an `l7_deny_renew` event with the arm and the level. A sid-less line on an address that turned shared is
+  still withdrawn (D-040).
+- **Level 2:** when an XDP ban has ended, level 2 applies again as it did the first time (30 s of sending, the CGNAT guard,
+  the 20-per-minute cap), and its `ban` carries `renewal`. A level-1 miss is tracked through its ban the same way, as it has
+  no line to fall back on.
+- **Tested** on fakes for both arm kinds and through the daemon's real ban path (`tests/test_l7_deny_renewal.py`). [NOT RUN]
+  on the testbed.
+
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.
 - G1-02 Kadel et al., BOTracle, ESORICS Workshops 2024.

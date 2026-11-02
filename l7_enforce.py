@@ -7,6 +7,12 @@ l7_enforce_monitor, one Arm.step per second), so every action follows a logged w
 never bans. The shadow thread also shows the arm every request it ingests (Arm.observe): the raw strings of the key
 (l7_denymap.RawKeys), the UA and sid hashes per IP (IpKeys) and whether a denied key keeps sending.
 
+R* (T-025e) decides on (IP, UA) keys (l7_rule_engine.L7RuleEngine, level "rule"): attach() sets the arm's key level, and
+everything below applies to the key (IP, ua_h) as it does to a learned arm's (IP, ua_h, sid_h). Its level 1 is a line in
+deny_key.map, which covers every session of the key, and so every user behind it, on any address: D-043 charges a flagged
+(IP, UA) key every user behind it, and D-040's guard, which is about a sid-less line of a key at the session level, does
+not apply. Its level 2 is guarded as below.
+
 The decision policy (9.1, 9.2), for a would-ban of the key (IP, ua_h, sid_h):
   * no decision at all on an address that is not a canonical dotted-quad IPv4 address (l7_denymap.ip_problem; skip
     reason "ip_format"; T-042 E01): nginx logs $remote_addr canonically, but the XDP ban path parses with inet_aton,
@@ -30,7 +36,14 @@ The decision policy (9.1, 9.2), for a would-ban of the key (IP, ua_h, sid_h):
     the decision), AND its IP is single-key: fewer than GUARD_KEYS distinct UA hashes and fewer than GUARD_KEYS
     distinct sids in the last KEYS_WINDOW_S. An IP with more keys is never XDP-banned by this arm (the CGNAT guard,
     9.2), and an IP the arm has not seen counts as one with more.
-  * a deny ends DENY_TTL_S after it was added (l7_denymap.DenyMap.expire).
+  * a deny ends DENY_TTL_S after it was added, unless it is renewed (D-047, for every arm): when its TTL ends and the
+    key still sends, a request that started within RENEW_RECENT_S (longer than any closed-loop client's think time, 70
+    s at most), or its address is XDP-banned, which hides its requests, the deny's TTL starts again. No new would-ban
+    is needed, as a decision fires only when a run reaches k and the key's 429s keep its run. The line stays in the map, so
+    no reload is due and the pacing and the 2,000 cap are not touched; the kill switch ends every deny, and nothing
+    renews one afterwards. A key that stopped sending lets its deny expire. Each renewal is an l7_deny_renew event. A
+    level-1 miss is tracked the same way. When an XDP ban of the key's address has ended, level 2 applies again as
+    it did the first time (30 s of sending, the CGNAT guard, the rate cap), its `ban` marked as a renewal.
 
 Safeguards (9.3):
   * the kill switch, read every step: while `killed()` is true (the daemon: the file L7_KILL_FILE exists, by default
@@ -43,14 +56,18 @@ Safeguards (9.3):
   * no deny outlives its daemon: start() empties a map an earlier daemon left (one reload), stop() empties the map
     when the daemon stops (one reload), as detaching XDP lifts every ban.
 
-Events (ban_events.EventLog; documented in docs/EVALUATION.md): l7_enforce_arm, l7_deny, l7_deny_end,
+Events (ban_events.EventLog; documented in docs/EVALUATION.md): l7_enforce_arm, l7_deny, l7_deny_renew, l7_deny_end,
 l7_enforce_skip, l7_enforce_miss, l7_enforce_capped, l7_reload, l7_enforce_poll, and the daemon's own `ban` for
-level 2. They carry hashes, never a raw User-Agent or session id.
+level 2. They carry hashes, never a raw User-Agent or session id. R*'s also carry the rule arm, its statistics and their
+thresholds at the decision, and `users_seen`: the distinct session ids seen under the (IP, UA) key so far (a request
+without a session counts as one), the reading ml/l7v2_rules.key_costs falls back on without a plan, for the budget's
+live reading (D-044 OC-2). One user may hold several sessions, so it reads high; the run's manifest gives the devices.
 
 Standard library only, like l7_ingest and l7_denymap; everything that touches nginx, XDP or the event log is injected,
 so the tests use fakes.
 """
 import ipaddress
+import os
 import re
 import threading
 import time
@@ -65,10 +82,12 @@ LEVEL2_AFTER_S = 30.0          # 9.2: level 2 only for a key still sending this 
 GUARD_KEYS = 3                 # 9.2: an IP with this many distinct UA hashes, or sids, is never XDP-banned
 KEYS_WINDOW_S = 600.0          # 9.2: ... in the last 10 min
 RELOAD_MIN_S = 10.0            # 9.2: a graceful reload at most once per 10 s
+RENEW_RECENT_S = 120.0         # D-047: a key "keeps sending" if a request of it started this recently (THINK_CAP_S is 70)
 MAX_LEVEL2_PER_MIN = 20        # 9.3: level-2 bans in any 60 s at most
 REPORT_INTERVAL_S = 5.0
 MAX_IPS = 65536                # IpKeys' LRU bound
 MAX_INBOX = 100000             # would-ban events waiting for the next step at most
+MAX_USERS_PER_KEY = 4096       # R*: distinct session ids counted under an (IP, UA) key at most
 SERVER_ADDRESSES = ("127.0.0.0/8", "10.0.0.1/32")    # loopback and the server's address in server_ns
 SKIP_REASONS = ("not_armed", "killed", "ip_format", "allowlist", "already_denied", "ip_banned", "key_age",
                 "cgnat_guard")
@@ -166,10 +185,12 @@ class Arm:
         self.tracked = {}              # key -> what the arm did with it (level 1 or a miss) and what followed
         self.waiting = {}              # key -> (event, start of its first request): held by the key-age gate
         self.armed, self.why, self.info = False, "no engine attached", {"arm": None}
+        self.rule_level = False        # R*: the keys are (IP, ua_h), whatever the session
+        self.users = OrderedDict()     # R*: (IP, ua_h) -> the session ids seen under it; bounded as the raw table is
         self.last_reload = None
         self.last_report = None
         self.changes = 0
-        self.counts = dict.fromkeys(("would_bans", "denied", "missed", "level2", "guarded", "capped", "reloads",
+        self.counts = dict.fromkeys(("would_bans", "denied", "renewed", "missed", "level2", "guarded", "capped", "reloads",
                                      "reload_failed", "ended", "lifted", "inbox_dropped", "observe_errors"), 0)
         self.skips = dict.fromkeys(SKIP_REASONS, 0)
         self.first_error = None
@@ -177,8 +198,9 @@ class Arm:
     # --- the shadow thread's side -----------------------------------------------------------------------------------
 
     def attach(self, engine, refuse=None):
-        """The engine whose decisions the arm acts on. Only an engine that scores (IP, UA, sid) keys with a model can
-        be enforced; `refuse` is a reason given by the daemon (GRU_ONLY=1, say). Emits l7_enforce_arm."""
+        """The engine whose decisions the arm acts on. Only an engine that scores (IP, UA, sid) keys with a model, or
+        R*'s (IP, UA) path, can be enforced; `refuse` is a reason given by the daemon (GRU_ONLY=1, say). Emits
+        l7_enforce_arm."""
         scorer = getattr(engine, "scorer", None)
         meta = (getattr(scorer, "cfg", None) or {}).get("meta") or {}
         info = {"arm": meta.get("arm") or getattr(scorer, "arm", None), "arm_kind": getattr(scorer, "kind", None),
@@ -190,10 +212,16 @@ class Arm:
         why = refuse
         if why is None and scorer is None:
             why = "no model: the engine runs features-only"
-        elif why is None and info["level"] != "view":
+        elif why is None and info["level"] not in ("view", "rule"):
             why = "a request-level engine keys by (IP, UA); the deny map needs (IP, UA, sid) keys"
+        elif why is None and (info["level"] == "rule") != self.denies.key_level:
+            why = f"a {info['level']}-level engine with a map of the other level ({self.denies.path})"
+        if info["level"] == "rule":
+            info.update(rule_arm=getattr(scorer, "rule_name", None), stat_threshold=getattr(scorer, "stat_thresholds", None),
+                        calibration_sha256=getattr(scorer, "calibration_sha256", None))
         with self.lock:
             self.armed, self.why, self.info = why is None, why, info
+            self.rule_level = info["level"] == "rule"
         self.events.emit("l7_enforce_arm", armed=why is None, reason=why, **info)
 
     def observe(self, obj, rec):
@@ -204,15 +232,31 @@ class Arm:
             start = rec["msec"] - rec["rt"]
             ua, sid = l7_denymap.raw_strings(obj)
             with self.lock:
-                self.raw.note(key, ua, sid, start)
+                if self.rule_level:            # a rule's key is every session of (IP, UA)
+                    self.raw.note(key[:2], ua, "", start)
+                    self._note_user(key[:2], key[2])
+                    tr = self.tracked.get(key[:2])
+                else:
+                    self.raw.note(key, ua, sid, start)
+                    tr = self.tracked.get(key)
                 self.ips.note(key[0], key[1], key[2], start)
-                tr = self.tracked.get(key)
                 if tr is not None and (tr["last"] is None or start > tr["last"]):
                     tr["last"] = start
         except Exception as e:  # noqa: BLE001 - see the docstring
             self.counts["observe_errors"] += 1
             if self.first_error is None:
                 self.first_error = f"{type(e).__name__}: {e}"[:200]
+
+    def _note_user(self, key, sid_h):
+        seen = self.users.get(key)
+        if seen is None:
+            seen = self.users[key] = set()
+            if len(self.users) > self.raw.max_keys:
+                self.users.popitem(last=False)
+        else:
+            self.users.move_to_end(key)
+        if len(seen) < MAX_USERS_PER_KEY:
+            seen.add(sid_h)
 
     def submit(self, event):
         """A logged `l7_would_ban` event (its fields, without "kind"), for the next step."""
@@ -230,11 +274,17 @@ class Arm:
             self._start(self.clock() if now is None else now)
 
     def _start(self, now):
-        try:
-            with open(self.denies.path, "rb") as fh:
-                stale = fh.read().count(b"\n")
-        except OSError:
-            stale = 0
+        stale = 0
+        for name in l7_denymap.MAP_FILES:            # either map, whichever arm's daemon left it
+            path = os.path.join(self.denies.run_dir, name)
+            try:
+                with open(path, "rb") as fh:
+                    lines = fh.read().count(b"\n")
+            except OSError:
+                continue
+            stale += lines
+            if lines and path != self.denies.path:
+                l7_denymap.write_atomic(path, b"")
         if stale:
             self.denies.dirty, self.changes = True, stale
             self._publish(now)                    # the first reload of this daemon: not held back
@@ -280,6 +330,7 @@ class Arm:
             if now - t_first >= KEY_AGE_S:
                 del self.waiting[key]
                 self._act(ev, now, t_first)
+        self._renew(now)
         self._expire(now)
         self._guard_sid_less(now)
         self._publish(now)
@@ -318,7 +369,7 @@ class Arm:
         everything = reason in ("kill", "stop")
         with self.lock:
             ended = [(k, tr) for k, tr in self.tracked.items() if everything or tr["ident"] in gone
-                     or tr["ident"] is None and now - tr["t_virtual"] > self.denies.ttl]
+                     or self._miss_due(tr, now)]
             for k, _tr in ended:
                 del self.tracked[k]
         for _k, tr in ended:
@@ -330,15 +381,49 @@ class Arm:
         if gone:
             self.changes += len(gone)
 
-    @staticmethod
-    def _key(ev):
+    def _miss_due(self, tr, now):
+        """A tracked miss (no line in the map) whose TTL has ended."""
+        return tr["ident"] is None and now - (tr["t_virtual"] if tr["t_renewed"] is None else tr["t_renewed"]) > self.denies.ttl
+
+    def _renew(self, now):
+        """D-047, for every arm: start again the TTL of a deny, or of a tracked miss, whose key keeps sending, or whose
+        address is XDP-banned (the ban hides its requests, so its silence says nothing). The kill switch's step never
+        comes here, and a renewal adds no line, so the pacing, the cap and the kill switch hold as they are."""
+        due = {e.ident: e for e in self.denies.due(now)}
+        with self.lock:
+            tracks = [(k, tr, tr["last"]) for k, tr in self.tracked.items() if tr["ident"] in due or self._miss_due(tr, now)]
+        for key, tr, last in tracks:
+            recent = last is not None and now - last <= RENEW_RECENT_S
+            why = "sending" if recent else ("xdp_banned" if self.banned(key[0]) else None)
+            if why is None:
+                continue
+            entry = due.get(tr["ident"])
+            if entry is not None:
+                self.denies.renew(entry, now)
+            tr["t_renewed"] = now
+            tr["renewals"] += 1
+            self.counts["renewed"] += 1
+            self.events.emit("l7_deny_renew", level=1, why=why, renewal=tr["renewals"], denied=entry is not None,
+                             last_request_s=None if last is None else round(now - last, 3), ttl_s=self.denies.ttl,
+                             active=len(self.denies), **self._decision(tr["ev"]))
+
+    def _key(self, ev):
+        if self.rule_level:
+            return (ev["ip"], ev["ua_h"])
         return (ev["ip"], ev["ua_h"], ev.get("sid_h", l7_ingest.NO_SID))
 
     def _decision(self, ev):
         """The fields every decision event carries: the key's hashes, the arm and its operating point, the score."""
-        return {"ip": ev["ip"], "ua_h": ev["ua_h"], "sid_h": ev.get("sid_h", l7_ingest.NO_SID),
-                "arm": self.info.get("arm"), "threshold": ev.get("threshold"), "consecutive": ev.get("consecutive"),
-                "p": ev.get("p"), "t_poll": ev.get("t_poll")}
+        fields = {"ip": ev["ip"], "ua_h": ev["ua_h"],
+                  "sid_h": None if self.rule_level else ev.get("sid_h", l7_ingest.NO_SID),
+                  "arm": self.info.get("arm"), "threshold": ev.get("threshold"), "consecutive": ev.get("consecutive"),
+                  "p": ev.get("p"), "t_poll": ev.get("t_poll")}
+        if self.rule_level:
+            with self.lock:
+                users = len(self.users.get(self._key(ev), ()))
+            fields.update(rule_arm=self.info.get("rule_arm"), statistic=ev.get("statistic"),
+                          stat_threshold=ev.get("stat_threshold"), users_seen=users)
+        return fields
 
     def _skip(self, reason, ev, **extra):
         self.skips[reason] += 1
@@ -359,7 +444,7 @@ class Arm:
         with self.lock:
             status, ua, sid = self.raw.lookup(key)
         age = round(now - t_first, 3)
-        if status == "ok" and not sid:
+        if status == "ok" and not sid and not self.rule_level:
             with self.lock:
                 counts = self.ips.counts(ip, now)
             if shared(counts):
@@ -387,7 +472,8 @@ class Arm:
     def _track(self, key, ev, ident, t_virtual):
         with self.lock:
             self.tracked[key] = {"ev": ev, "ident": ident, "t_virtual": t_virtual, "last": None,
-                                 "escalated": False, "guarded": False}
+                                 "escalated": False, "guarded": False, "t_renewed": None, "renewals": 0,
+                                 "bans": 0, "t_rearmed": None}
 
     def _expire(self, now):
         self._end(self.denies.expire(now), now, "ttl")
@@ -396,7 +482,10 @@ class Arm:
 
     def _guard_sid_less(self, now):
         """D-040: withdraw the line of a sid-less deny whose address has turned shared. Its keys stay tracked as misses
-        from the time the line took effect, so they may still reach level 2 if the address is single-key again."""
+        from the time the line took effect, so they may still reach level 2 if the address is single-key again. Not R*'s
+        lines, which cover every session of their key on purpose (D-043)."""
+        if self.rule_level:
+            return
         with self.lock:
             stale = [e.ident for e in self.denies if not e.sid and shared(self.ips.counts(e.ip, now))]
         if not stale:
@@ -441,6 +530,11 @@ class Arm:
         self.level2_times = [t for t in self.level2_times if now - t < 60.0]
         capped = []
         with self.lock:
+            escalated = [(k, tr) for k, tr in self.tracked.items() if tr["escalated"]]
+        for key, tr in escalated:
+            if not self.banned(key[0]):               # D-047: the ban ended; level 2 applies again, as the first time
+                tr["escalated"], tr["t_rearmed"] = False, now
+        with self.lock:
             due = []
             for key, tr in self.tracked.items():
                 if tr["escalated"]:
@@ -450,6 +544,8 @@ class Arm:
                 else:
                     entry = self.denies.get(tr["ident"])
                     t_eff = entry.t_loaded if entry is not None else None
+                if t_eff is not None and tr["t_rearmed"] is not None:
+                    t_eff = max(t_eff, tr["t_rearmed"])
                 if t_eff is None or tr["last"] is None or tr["last"] < t_eff + LEVEL2_AFTER_S:
                     continue
                 due.append((key, tr, t_eff, self.ips.counts(key[0], now)))
@@ -475,12 +571,16 @@ class Arm:
             self.counts["level2"] += 1
             self.level2_times.append(now)
             after = round(tr["last"] - t_eff, 3)
+            renewal = {"renewal": tr["bans"]} if tr["bans"] else {}
+            tr["bans"] += 1
             banned_at = self.ban(ip, reason=f"L7 v2 arm {info['arm']}: key kept sending {after:g} s after its "
                                 f"{'deny' if tr['ident'] else 'decision'} (p={info['p']} > {info['threshold']} in "
-                                f"{info['consecutive']} windows)",
+                                f"{info['consecutive']} {'rows' if self.rule_level else 'windows'})",
                      engine=ban_events.L7V2_ENGINE, level=2, value=info["p"], p=info["p"], threshold=info["threshold"],
                      consecutive=info["consecutive"], arm=info["arm"], ua_h=info["ua_h"], sid_h=info["sid_h"],
-                     ua_keys=counts[0], sid_keys=counts[1], after_s=after, denied=tr["ident"] is not None)
+                     ua_keys=counts[0], sid_keys=counts[1], after_s=after, denied=tr["ident"] is not None,
+                     **{k: info[k] for k in ("rule_arm", "statistic", "stat_threshold", "users_seen") if k in info},
+                     **renewal)
             self.xdp_bans[ip] = banned_at
             self.close(ip)
         if capped:

@@ -721,13 +721,14 @@ def l7_enforce_init():
     global l7_arm, l7_detector, l7_socket_gid
     try:
         l7_socket_gid = l7_ingest.group_id(L7_SOCKET_GROUP)
-        l7_denymap.prepare_run_dir(L7_ENFORCE_DIR)
         allow = l7_enforce.allowlist(L7_ALLOWLIST)
         l7_detector = l7_arms.load(L7_SELECTION, L7_SELECTION_SHA256, L7_ARM)
+        key_level = getattr(l7_detector, "level", "view") == "rule"       # R* denies (IP, UA) keys: its own map
+        l7_denymap.prepare_run_dir(L7_ENFORCE_DIR, key_level=key_level)
     except (OSError, ValueError) as e:                  # l7_arms.DetectorError is a ValueError
         report_daemon_error("l7_enforce", e, "the daemon stops: nothing is enforced")   # why, in the event log
         raise SystemExit(f"[-] L7_ENFORCE=1: {e}") from e
-    l7_arm = l7_enforce.Arm(l7_denymap.DenyMap(L7_ENFORCE_DIR), reload=l7_nginx_reload, ban=ban_ip,
+    l7_arm = l7_enforce.Arm(l7_denymap.DenyMap(L7_ENFORCE_DIR, key_level=key_level), reload=l7_nginx_reload, ban=ban_ip,
                             close=kill_zombie_connections, banned=l7_ip_banned, events=EVENTS, lift=l7_lift_bans,
                             killed=l7_killed, allow=allow, clock=time.time)
     l7_arm.start(time.time())
