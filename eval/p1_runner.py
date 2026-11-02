@@ -599,7 +599,7 @@ def run_block(host, block):
     os.makedirs(block["dir"])
     P4.write_json(os.path.join(block["dir"], "block.json"),
                   {"block": block["seed"], "attempt": block["attempt"], "seed": block["seed"], "phase": block["phase"],
-                   "calibration_sha256": block["frozen"]["calibration"]["sha256"], "timeline": dict(PT.TIMELINE),
+                   "calibration_sha256": block["frozen"]["calibration"]["digest"], "timeline": dict(PT.TIMELINE),
                    "order": block["order"], "levels": block["levels"], "sources": block["sources"], "cut": block["cut"],
                    "frozen": block["frozen"], "intensity": block["intensity"], "flash": block["flash"],
                    "dropped": block["dropped"], "age_check": block["age_check"]})

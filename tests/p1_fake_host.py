@@ -6,7 +6,7 @@ What it models, as far as the runner's and the analysis's inputs need it:
   * a generator exits 0 at the end of its duration (`gen_code` for the addresses in `gen_fails`). A benign plan kind writes
     its client-side rows and its requests from its own plan (ml/l7_benign.plan_client with its seed); an attack family its
     requests (ml/l7_bots.plan_bot); a kind without a plan one line. A request is answered 200 in 30 ms, except a share
-    `fail_share(run, block_dir, t)` of the benign ones, which fail;
+    `fail_share(run, block_dir, t)` of the benign ones, which fail (nginx logs a 503, so the server-side Q agrees);
   * the daemon: `daemon_startup_s` after its start it prints its ready line and XDP's and writes its start event from its
     environment (`start_overrides` to make it lie), with L7_ENFORCE=1 an l7_enforce_arm event, and then the events
     `acts(run, block_dir)` gives as (seconds after its start, event).
@@ -132,8 +132,7 @@ class P1FakeHost(F.FakeHost):
                 sent = origin + t_nom
                 klass = l7_webapp.route_class("GET", path)
                 paged = paged or klass == "C1"
-                if not bad:
-                    self._line(p.ip, user["ua"], path, sent, 200, sid if paged else None, ref)
+                self._line(p.ip, user["ua"], path, sent, 503 if bad else 200, sid if paged else None, ref)
                 if writer:
                     writer.writerow([f"{sent:.6f}", f"{sent:.6f}", f"{sent + (0.1 if bad else 0.03):.6f}",
                                      "nan" if bad else 200, "conn" if bad else "", klass or "", u, vi, wi,
@@ -161,11 +160,11 @@ class P1FakeHost(F.FakeHost):
             self.at(self.t + self.daemon_dies_at, lambda: self.end(p, 1))
 
 
-def thin_benign():
+def thin_benign(counts=None):
     """A small benign mix with one or a few entities of each kind that records, for whole blocks on the fake."""
     import l7_pools as LP
-    counts = {"tpcw_browsing": 6, "search_user": 3, "exporter": 1, "crawler_polite": 1, "curl_oneshot": 1, "tpcw_shopping": 1,
-              "zipf_browser": 1, "flash_crowd": 1, "api_bulk": 1, "cgnat_browsers": 1}
+    counts = counts or {"tpcw_browsing": 6, "search_user": 3, "exporter": 1, "crawler_polite": 1, "curl_oneshot": 1,
+                        "tpcw_shopping": 1, "zipf_browser": 1, "flash_crowd": 1, "api_bulk": 1, "cgnat_browsers": 1}
     out, seen = [], {}
     for s in LP.POPULATIONS["l7v2"]["benign"]:
         n = counts.get(s["kind"], 0)
