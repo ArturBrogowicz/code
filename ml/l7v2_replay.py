@@ -228,6 +228,28 @@ def read_items(path):
         return list(E.read_stream(fh))
 
 
+def with_poll_ticks(items, poll_s=None):
+    """Stream items with poll ticks at whole multiples of poll_s of the log clock (the engine's cadence, ml/l7v2_model_prereg.json
+    selection.policy_engine_poll_s), each after the records that completed before it, in the stream's order. A recording
+    with its own ticks is returned as it is; a file sink has none (a U run has no daemon)."""
+    items = list(items)
+    if any(it[0] == "poll" for it in items):
+        return items
+    poll_s = MPRE.load()["selection"]["policy_engine_poll_s"] if poll_s is None else poll_s
+    out, tick = [], None
+    for it in items:
+        msec = I._num(it[1].get("msec"))
+        if tick is None:
+            tick = (math.floor(msec / poll_s) + 1) * poll_s
+        while msec >= tick:
+            out.append(("poll", float(tick), False, ()))
+            tick += poll_s
+        out.append(it)
+    if tick is not None:
+        out += [("poll", float(tick + i * poll_s), False, ()) for i in range(2)]
+    return out
+
+
 def ground_truth(items, labels):
     """Each key's entity (its first labelled record's), each entity's class, kind and first request start, the attack
     entities with a labelled request (recall's denominator) and the benign units."""

@@ -182,7 +182,7 @@ def sha256_file(path):
         return hashlib.sha256(fh.read()).hexdigest()
 
 
-def namespaces(entities):
+def namespaces(entities, prefix=NS_PREFIX):
     """Client namespaces: the entities grouped by netem profile, at most MAX_ALIASES addresses each."""
     out, profiles = [], []
     for e in entities:
@@ -191,7 +191,7 @@ def namespaces(entities):
     for prof in sorted(profiles):
         members = [e for e in entities if e["netem"] == prof]
         for c in range(0, len(members), MAX_ALIASES):
-            name = f"{NS_PREFIX}{len(out)}_{prof}"
+            name = f"{prefix}{len(out)}_{prof}"
             out.append({"name": name, "profile": prof, "addresses": [e["address"] for e in members[c:c + MAX_ALIASES]]})
             for e in members[c:c + MAX_ALIASES]:
                 e["namespace"] = name
@@ -203,10 +203,10 @@ def records_path(out, entity):
     return os.path.join(out, "records", entity["entity_id"].replace(":", "_") + ".csv")
 
 
-def gen_argv(entity, out, python):
+def gen_argv(entity, out, python, cpus=PINS["clients"]):
     role = "benign" if entity["role"] == "benign" else "attack"
     dur = entity["schedule"]["stop_s"] - entity["schedule"]["start_s"]
-    argv = ["taskset", "-c", PINS["clients"], python, GEN, "--role", role, "--host", SERVER_IP,
+    argv = ["taskset", "-c", cpus, python, GEN, "--role", role, "--host", SERVER_IP,
             "--port", str(entity["port"]), "--duration", f"{dur:.1f}", "--seed", str(entity["client_seed"]),
             "--params", json.dumps(entity["params"], sort_keys=True), "--source", entity["address"]]
     argv += ["--kind" if role == "benign" else "--family", entity["kind_or_family"]]
@@ -380,10 +380,10 @@ def teardown(host, plan):
         host.run(["ip", "link", "del", link])
 
 
-def leftovers(host, plan):
+def leftovers(host, plan, prefix=NS_PREFIX):
     ours = {ns["name"] for ns in plan["namespaces"]} | {SERVER_NS}
     listed = {line.split()[0] for line in host.run(["ip", "netns", "list"]).out.splitlines() if line.strip()}
-    return sorted(n for n in listed if n in ours or n.startswith(NS_PREFIX))
+    return sorted(n for n in listed if n in ours or n.startswith(prefix))
 
 
 def execute_run(host, plan):
