@@ -743,7 +743,9 @@ class Runner:
             if os.path.exists(plan.out):
                 if reasons:                      # an attempt of this call failed: it stays beside the run as evidence
                     os.rename(plan.out, f"{plan.out}.failed{attempt - 1}")
-                else:                            # an unfinished run of an earlier call
+                else:                            # an unfinished run of an earlier call: what its gate saw stays beside it
+                    kept = GC.keep_unfinished(os.path.dirname(plan.out), os.path.basename(plan.out), plan.out)
+                    say(f"{os.sep.join(plan.out.split(os.sep)[-3:])}: removing the unfinished run{kept}")
                     shutil.rmtree(plan.out)
             say(f"{os.sep.join(plan.out.split(os.sep)[-3:])}: attempt {attempt}")
             try:

@@ -902,9 +902,29 @@ class TimerReprobeTest(RunCase):
             raise KeyboardInterrupt
 
         host.on_sleep = stop
+        plan = self.plan("C")
         with self.assertRaises(KeyboardInterrupt):
-            X.execute(self.plan("C"), host)
+            X.execute(plan, host)
         self.assertEqual((host.sleeps, host.prims), ([30.0], []))
+        env = self.environment(plan)
+        self.assertEqual((env["gate_unfinished"], env["gate_mode"], env["timer_refused_probes"]), (True, "full", 1), "its probes stay")
+        self.assertEqual([p["p99_ms"] for p in env["timer_probes"]], [25.0])
+
+    def test_the_probes_are_on_disk_through_the_wait_and_the_full_record_replaces_them(self):
+        plan = self.plan("C")
+        host, seen = F.SimHost(timer_p99_by_cpu={"7": [25.0, 11.5, 6.0]}), []
+
+        def look(_):
+            if len(seen) < 2:
+                seen.append(len(self.environment(plan)["timer_probes"]))
+
+        host.on_sleep = look
+        self.assertTrue(X.execute(plan, host).ok)
+        self.assertEqual(seen, [1, 2])
+        env = self.environment(plan)
+        self.assertNotIn("gate_unfinished", env)
+        self.assertEqual((len(env["timer_probes"]), env["gate_mode"]), (3, "full"))
+        self.assertIn("facts", env)
 
     def test_the_executors_own_probe_is_taken_once_after_the_pass_and_stays_out_of_the_gates_record(self):
         daemon = X.pins_for(["M_xdp"])

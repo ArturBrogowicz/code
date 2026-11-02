@@ -860,6 +860,20 @@ class RunnerTest(unittest.TestCase):
             self.assertEqual(K.Runner(S.SimHost()).run(plan, lambda m: None), record)
         execute.assert_not_called()
 
+    def test_a_resume_keeps_the_probes_of_a_refused_run_beside_the_run_it_makes_again(self):
+        """T-047 G-01: as gate_campaign does, for a step that a last refusal stopped."""
+        plan = self.plan()
+        with self.assertRaises(X.EnvironmentRefused):
+            K.Runner(S.SimHost(timer_p99_ms=25.0), wait_gate_min=0.5).run(plan, lambda m: None)
+        said = []
+        self.assertTrue(K.Runner(S.SimHost()).run(plan, said.append)["ok"])
+        env = K.read_json(plan.out + ".unfinished.1.environment.json")
+        self.assertEqual([(p["p99_ms"], p["passed"]) for p in env["timer_probes"]], [(25.0, False)] * 2)
+        with open(plan.out + ".unfinished.1.executor.log", encoding="utf-8") as fh:
+            self.assertEqual(fh.read().count("timer probe"), 2)
+        self.assertEqual(K.read_json(os.path.join(plan.out, "environment.json"))["timer_refused_probes"], 0)
+        self.assertTrue(any("its gate's record is kept as C.unfinished.1.environment.json" in m for m in said), said)
+
     def test_a_finished_run_from_another_pin_plan_is_refused_and_kept(self):
         """T-039 V-22's follow-up, docs/HG1C_DESIGN.md departure 31: a step resumes from what is done, but not across two layouts."""
         plan = self.plan()

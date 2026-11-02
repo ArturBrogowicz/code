@@ -47,6 +47,7 @@ DONE, CAMPAIGN, SIMULATED, WARMUP = "DONE", "campaign.json", "SIMULATED", "warmu
 RUN_ESTIMATE_S = 150.0                      # one run, docs/HG1C_DESIGN.md 6.2; S4 replaces it with a measurement
 # refusals and failures of the setting-up end the campaign; they say nothing about the block and are not re-run
 STOP_ERRORS = (X.PreflightRefused, X.EnvironmentRefused, X.SetupFailed, X.LeftoverError, X.TableUnreadable)
+KEPT_OF_UNFINISHED = ((H.BAN_FILE, "ban file"), ("environment.json", "gate's record"), ("executor.log", "log"))
 EXIT_OK, EXIT_USAGE, EXIT_STOPPED, EXIT_INTERRUPTED = 0, 1, 2, 130
 
 
@@ -246,18 +247,22 @@ def plans_of(scn, cal, cal_path, scenario_sha, out_dir, seed, opts):
     return plans
 
 
-def keep_ban_file(block_path, kind, run_path):
-    """The ban file of an unfinished run about to be removed, kept beside it as <kind>.unfinished.<k>.ban_events.jsonl: a legit
-    identity its daemon banned still counts against the protected arm (harm_gate.campaign_benign_bans). Its name, or None."""
-    src = os.path.join(run_path, H.BAN_FILE)
-    if not os.path.isfile(src):
-        return None
-    k = 1
-    while os.path.exists(os.path.join(block_path, f"{kind}{H.UNFINISHED}{k}.{H.BAN_FILE}")):
+def keep_unfinished(parent, name, run_path):
+    """What must outlive an unfinished run about to be removed, copied beside it as <name>.unfinished.<k>.<file>, one k for one run:
+    its ban file (a legit identity its daemon banned still counts against the protected arm, harm_gate.campaign_benign_bans), and its
+    gate's record and log (every timer probe stays on record, D-045, and a resume starts a new wait: docs/HG1C_DESIGN.md departure 32).
+    Says what it kept, for the message about the removal."""
+    files = [(f, what) for f, what in KEPT_OF_UNFINISHED if os.path.isfile(os.path.join(run_path, f))]
+    if not files:
+        return ""
+    k, there, said = 1, os.listdir(parent), []
+    while any(f.startswith(f"{name}{H.UNFINISHED}{k}.") for f in there):
         k += 1
-    dst = os.path.join(block_path, f"{kind}{H.UNFINISHED}{k}.{H.BAN_FILE}")
-    shutil.copy2(src, dst)
-    return os.path.basename(dst)
+    for f, what in files:
+        kept = f"{name}{H.UNFINISHED}{k}.{f}"
+        shutil.copy2(os.path.join(run_path, f), os.path.join(parent, kept))
+        said.append(f"; its {what} is kept as {kept}")
+    return "".join(said)
 
 
 def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opts, gate, say):
@@ -278,9 +283,7 @@ def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opt
         record = read_done(run_path)
         if record is None:
             if os.path.exists(run_path):
-                kept = keep_ban_file(d, kind, run_path)
-                say(f"block {block} attempt {attempt} {kind}: removing the unfinished run"
-                    + (f"; its ban file is kept as {kept}" if kept else ""))
+                say(f"block {block} attempt {attempt} {kind}: removing the unfinished run{keep_unfinished(d, kind, run_path)}")
                 shutil.rmtree(run_path)
             say(f"block {block} attempt {attempt} seed {seed}: run {kind}")
             try:
@@ -327,6 +330,7 @@ def warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate, say):
     if record is not None:
         return record, gate
     if os.path.exists(path):
+        say(f"warm-up: removing the unfinished run{keep_unfinished(os.path.dirname(path), os.path.basename(path), path)}")
         shutil.rmtree(path)
     plan = X.plan_run(scn, cal, "C", scn.first_seed, path, cal_path, scenario_sha, settings=dict(opts.settings),
                       rho=opts.rho, timeline=opts.timeline, timer_limit_ms=opts.timer_limit_ms, pins=pins_of(opts))

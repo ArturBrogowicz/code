@@ -750,6 +750,43 @@ class StopTest(CampaignCase):
         self.assertIn("EnvironmentRefused", state["stopped"])
         self.assertEqual(self.run_campaign()["state"], "complete")
 
+    def test_a_resume_keeps_the_probes_of_a_refused_run_beside_the_run_it_makes_again(self):
+        """T-047 G-01: D-045's 'every probe is recorded' holds across a resume, which starts a new wait."""
+        for k in (1, 2):
+            with self.assertRaises(X.EnvironmentRefused):
+                self.run_campaign(host=self.host(timer_p99_ms=25.0 + k), wait_gate_min=1.0)
+        state = self.run_campaign()
+        self.assertEqual(state["gate"]["verdict"], "PASS", "what is kept beside a run judges nothing")
+        kind = GC.run_order(self.scn, 1, 1)[0]
+        for k in (1, 2):
+            env = self.json("b01_a1", f"{kind}.unfinished.{k}.environment.json")
+            self.assertEqual([(p["p99_ms"], p["passed"]) for p in env["timer_probes"]], [(25.0 + k, False)] * 3)
+            self.assertEqual(env["timer_refused_probes"], 3)
+            self.assertIn("none passed", env["refused"])
+            with open(self.path("b01_a1", f"{kind}.unfinished.{k}.executor.log"), encoding="utf-8") as fh:
+                self.assertEqual(fh.read().count("timer probe"), 3)
+        self.assertEqual(self.json("b01_a1", kind, "environment.json")["timer_refused_probes"], 0, "the run made again has its own")
+        self.assertTrue(any(f"its gate's record is kept as {kind}.unfinished.2.environment.json" in m for m in self.say), self.say)
+
+    def test_a_resume_keeps_the_probes_of_a_wait_that_was_interrupted(self):
+        host = self.host(timer_p99_ms=25.0)
+
+        def stop(_):
+            raise KeyboardInterrupt
+
+        host.on_sleep = stop
+        with self.assertRaises(KeyboardInterrupt):
+            self.run_campaign(host=host)
+        self.assertEqual(self.run_campaign()["state"], "complete")
+        env = self.json("b01_a1", f"{GC.run_order(self.scn, 1, 1)[0]}.unfinished.1.environment.json")
+        self.assertEqual((env["gate_unfinished"], len(env["timer_probes"])), (True, 1))
+
+    def test_a_resume_keeps_the_probes_of_a_refused_warm_up_too(self):
+        with self.assertRaises(X.EnvironmentRefused):
+            self.run_campaign(host=self.host(timer_p99_ms=25.0), wait_gate_min=0, warmup=True)
+        self.assertEqual(self.run_campaign(warmup=True)["state"], "complete")
+        self.assertEqual(self.json(GC.WARMUP, "C.unfinished.1.environment.json")["timer_refused_probes"], 1)
+
     def test_the_plan_of_a_campaign_states_the_wait(self):
         text = GC.describe(self.scn, self.CAL, SPEC_SHA, self.options(wait_gate_min=10.0))
         self.assertIn("timer gate   every run, on CPU 7: a refused probe is made again every 30 s, for up to 10 min from the run's first "
