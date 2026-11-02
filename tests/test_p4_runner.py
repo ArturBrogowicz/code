@@ -427,5 +427,15 @@ class ExecuteTest(unittest.TestCase):
         self.assertEqual([u["block"] for u in verdict["unhealthy_controls"]], [3107])
 
 
+    def test_a_generator_late_past_the_grace_makes_the_run_invalid(self):
+        """Why review T-047 P-01 blocked P4-S: this is what a slow uploader that outlives its duration did to every run."""
+        run = self.one_run("late")
+        slow = next(e["address"] for e in run["entities"] if e["kind_or_family"] == "slow_uploader")
+        res = R.execute_run(F.FakeHost(gen_late={slow: 30.0}), run)
+        self.assertTrue(any("was still running 10 s after its end" in r for r in res["reasons"]), res["reasons"])
+        ok = R.execute_run(F.FakeHost(gen_late={slow: 5.0}), self.one_run("in_time"))
+        self.assertEqual(ok["reasons"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

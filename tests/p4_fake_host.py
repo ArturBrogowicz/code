@@ -4,8 +4,8 @@ asks for them. Nothing here touches the machine: no namespace, no socket, no pro
 
 The model, as far as the runner's outputs need it:
   * the stack answers its readiness probe and stub_status;
-  * a generator (ml/l7_gen.py) exits 0 at the end of its duration (or `gen_code` for the entities named in
-    `gen_fails`). A benign plan-kind generator writes its client-side rows (ml/l7_gen.py --records) at its exit, from
+  * a generator (ml/l7_gen.py) exits 0 at the end of its duration, or `gen_late[its address]` seconds later (or `gen_code`
+    for the entities named in `gen_fails`). A benign plan-kind generator writes its client-side rows (ml/l7_gen.py --records) at its exit, from
     its own plan (ml/l7_benign.plan_client with its seed): each request answered 200 in 30 ms, except while the
     attack harms (`harm(arm, t)`, by default while any attack connection is held), when it fails with err "conn";
   * the world's sockets on :80/:443 as `ss -tinpH` prints them: one answered keep-alive connection per benign
@@ -77,14 +77,15 @@ class FakeHost(X.Host):
 
     def __init__(self, *, root=True, netns=(), kill_file=False, kill_appears_at=None, stack_ready=True,
                  nginx_fails=False, daemon_dies_at=None, daemon_startup_s=3.0, gen_fails=(), gen_code=3,
-                 poll_every_s=1.0, modelled_attackers=None, harm=None, fail_prim=None, limit_refuses=0.0):
+                 poll_every_s=1.0, modelled_attackers=None, harm=None, fail_prim=None, limit_refuses=0.0,
+                 gen_late=None):
         self.t = 0.0
         self.root, self.netns, self.stack_ready, self.nginx_fails = root, list(netns), stack_ready, nginx_fails
         self.kill_file, self.kill_appears_at = kill_file, kill_appears_at
         self.daemon_dies_at, self.daemon_startup_s = daemon_dies_at, daemon_startup_s
         self.gen_fails, self.gen_code, self.poll_every_s = set(gen_fails), gen_code, poll_every_s
         self.modelled_attackers, self.harm, self.fail_prim = modelled_attackers, harm, fail_prim
-        self.limit_refuses = limit_refuses
+        self.limit_refuses, self.gen_late = limit_refuses, dict(gen_late or {})
         self.pids, self.seq = itertools.count(100), itertools.count()
         self.events, self.commands, self.prims, self.procs = [], [], [], []
         self.reset_world()
@@ -200,7 +201,7 @@ class FakeHost(X.Host):
         else:
             self._open(p.ip, p.port, p.name)
         code = self.gen_code if p.ip in self.gen_fails else 0
-        self.at(self.t + p.dur + 0.5, lambda: self.end(p, code))
+        self.at(self.t + p.dur + 0.5 + self.gen_late.get(p.ip, 0.0), lambda: self.end(p, code))
 
     def _open(self, ip, sport, kind):
         port = next(self.ports)

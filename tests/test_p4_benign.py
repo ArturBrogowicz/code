@@ -2,10 +2,14 @@
 ml/l7_benign.py upload_plan, ml/l7_gen.py PacedBody / benign_uploader / benign_slow_uploader; docs/P4_SLOW_DESIGN.md
 §4.2). Offline: nothing is sent; the generator runs against a fake sender and a fake clock."""
 import collections
+import contextlib
 import ipaddress
 import os
 import random
+import socket
 import sys
+import threading
+import time
 import unittest
 from unittest import mock
 
@@ -78,6 +82,17 @@ class PacedBodyTest(unittest.TestCase):
         plain = requests.Request("POST", "http://10.0.0.1/upload", data=b"x" * 4321).prepare()
         self.assertEqual(sorted(prep.headers.items()), sorted(plain.headers.items()), "the same request head")
 
+    def test_it_stops_at_its_deadline(self):
+        c = Clock()
+        body = l7_gen.PacedBody(10_000, 2000, clock=c.now, sleep=c.sleep, deadline=c.t + 1.0, wall=c.now)
+        got = 0
+        with self.assertRaises(l7_gen.UploadDeadline):
+            while chunk := body.read(8192):
+                got += len(chunk)
+        self.assertAlmostEqual(c.t, 1001.0 - 1000.0 + 1000.0)                # at the deadline, not after it
+        self.assertLessEqual(got, 2000)
+        self.assertEqual(len(l7_gen.PacedBody(5, 2000, clock=c.now, sleep=c.sleep, deadline=c.t + 9, wall=c.now).read()), 5)
+
     def test_a_rate_is_required(self):
         with self.assertRaises(ValueError):
             l7_gen.PacedBody(10, 0)
@@ -113,9 +128,67 @@ class UploaderGeneratorTest(unittest.TestCase):
         self.assertEqual([len(d) for _m, _u, d, _k in posts], [b for b, _t in plan[:len(posts)]])
         self.assertEqual({k["timeout"] for _m, _u, _d, k in posts}, {15})
 
+    def test_a_think_time_ends_at_the_deadline(self):
+        c, spent = Clock(), []
+
+        def one_shot(method, url, data=None, **kw):
+            spent.append(c.t)
+
+        with mock.patch.object(l7_gen, "_one_shot", one_shot), mock.patch("time.time", c.now), \
+                mock.patch("time.sleep", c.sleep):
+            l7_gen.resolve("benign", "uploader")("10.0.0.1", 80, {"think_s": [500.0, 500.0], "body_bytes": [10, 10]},
+                                                 60.0, random.Random(5))
+        self.assertEqual((spent, c.t), ([1000.0], 1060.0))
+
     def test_a_slow_uploader_without_a_rate_is_refused(self):
         with self.assertRaises(SystemExit):
             self.run_kind("slow_uploader", dict(P._UPLOAD))
+
+
+class RealClockTest(unittest.TestCase):
+    """Review T-047 P-01, on the real generator, the real `requests` and the real clock, on the sandbox's loopback: a sink
+    that reads and never answers. Nearly every run of P4 would otherwise be invalid: the deadline bounded only the START of
+    an upload, and this 24 kB body took 12 s and then the 15-s read timeout on a 1.5-s generator."""
+
+    DUR = 1.5
+
+    def setUp(self):
+        self.closed = threading.Event()
+        self.srv = socket.socket()
+        self.addCleanup(self.srv.close)
+        self.srv.bind(("127.0.0.1", 0))
+        self.srv.listen(4)
+        self.conns = []
+        threading.Thread(target=self.sink, daemon=True).start()
+
+    def tearDown(self):
+        for conn in self.conns:
+            conn.close()
+
+    def sink(self):
+        with contextlib.suppress(OSError):
+            conn, _addr = self.srv.accept()
+            self.conns.append(conn)
+            while conn.recv(65536):
+                pass
+            self.closed.set()
+
+    def run_kind(self, kind, params):
+        t0 = time.monotonic()
+        l7_gen.resolve("benign", kind)("127.0.0.1", self.srv.getsockname()[1], params, self.DUR, random.Random(1))
+        return time.monotonic() - t0
+
+    def test_a_slow_upload_ends_at_the_deadline(self):
+        took = self.run_kind("slow_uploader", {"think_s": [4.0, 4.0], "path": "/upload", "body_bytes": [24_000, 24_000],
+                                               "rate_Bps": 2000})
+        self.assertGreaterEqual(took, self.DUR - 0.1)
+        self.assertLess(took, self.DUR + 2.5)
+        self.assertTrue(self.closed.wait(5.0), "the upload itself stopped: its connection was closed")
+
+    def test_an_upload_waiting_for_its_answer_ends_at_the_deadline(self):
+        took = self.run_kind("uploader", {"think_s": [4.0, 4.0], "path": "/upload", "body_bytes": [200, 200]})
+        self.assertLess(took, self.DUR + 2.5)
+        self.assertGreaterEqual(took, self.DUR - 0.1)
 
 
 class PopulationTest(unittest.TestCase):

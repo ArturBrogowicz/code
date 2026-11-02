@@ -225,17 +225,23 @@ def benign_downloader(host, port, params, dur, rng):
         time.sleep(rng.uniform(lo, hi))
 
 
+class UploadDeadline(Exception):
+    """A paced upload reached its generator's deadline: `requests` lets it through, and closes the connection."""
+
+
 class PacedBody:
     """An upload body of `n` bytes that leaves no faster than `rate` bytes/s: P4's slow_uploader, a client behind a
     16 kbit/s link (ml/l7_benign.py upload kinds). A file-like object with a length, so `requests` sends it with a
     Content-Length like any body of known size, and reads it a piece at a time; each read returns at most CHUNK bytes,
-    once the rate allows them."""
+    once the rate allows them. With a `deadline` (wall-clock seconds, the generator's end) a read that would have to wait
+    past it raises UploadDeadline at the deadline instead (review T-047 P-01)."""
     CHUNK = 512
 
-    def __init__(self, n, rate, clock=time.monotonic, sleep=time.sleep):
+    def __init__(self, n, rate, clock=time.monotonic, sleep=time.sleep, deadline=None, wall=time.time):
         if not rate > 0:
             raise ValueError(f"rate {rate!r}: a positive number of bytes per second")
         self.n, self.rate, self.clock, self.sleep = int(n), float(rate), clock, sleep
+        self.deadline, self.wall = deadline, wall
         self.sent, self.t0 = 0, None
 
     def __len__(self):
@@ -249,6 +255,9 @@ class PacedBody:
             self.t0 = self.clock()
         want = min(left, self.CHUNK if size is None or size < 0 else max(1, min(size, self.CHUNK)))
         wait = self.t0 + (self.sent + want) / self.rate - self.clock()
+        if self.deadline is not None and self.wall() + max(wait, 0.0) >= self.deadline:
+            self.sleep(max(0.0, self.deadline - self.wall()))
+            raise UploadDeadline
         if wait > 0:
             self.sleep(wait)
         self.sent += want
@@ -257,20 +266,31 @@ class PacedBody:
 
 def benign_uploader(host, port, params, dur, rng):
     """Post a body to /upload, think, repeat (ml/l7_benign.upload_plan; the P5 uploader's draws). With `rate_Bps` (P4's
-    slow_uploader) the body is paced at that rate (PacedBody); everything else is the same."""
+    slow_uploader) the body is paced at that rate (PacedBody); everything else is the same. The generator's deadline ends
+    everything (review T-047 P-01): a body of up to 2 MB at 16 kbit/s takes up to 1,000 s, and nothing on the server ends it
+    in time. So each upload runs in a daemon thread that the generator waits for only until the deadline: a paced body stops
+    there, any other upload in flight goes with the process, and a think time is cut at the deadline too."""
     import requests
     path = params.get("path", "/upload")
     rate = params.get("rate_Bps")
     end = _deadline(dur)
+
+    def post(body):
+        try:
+            _one_shot("post", _base(host, port) + path, data=body, verify=False, timeout=15)
+        except (requests.RequestException, UploadDeadline):
+            pass
+
     for size, think in l7_benign.upload_plan(params, dur, rng):
         if time.time() >= end:
             break
-        body = PacedBody(size, rate) if rate else b"x" * size
-        try:
-            _one_shot("post", _base(host, port) + path, data=body, verify=False, timeout=15)
-        except requests.RequestException:
-            pass
-        time.sleep(think)
+        body = PacedBody(size, rate, deadline=end) if rate else b"x" * size
+        worker = threading.Thread(target=post, args=(body,), daemon=True)
+        worker.start()
+        worker.join(max(0.0, end - time.time()))
+        if worker.is_alive():
+            break
+        time.sleep(max(0.0, min(think, end - time.time())))
 
 
 def benign_slow_uploader(host, port, params, dur, rng):
