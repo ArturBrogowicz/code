@@ -3,7 +3,7 @@ from a small model, processes live on a virtual clock, and the files a real run 
 asks for them. Nothing here touches the machine: no namespace, no socket, no process.
 
 The model, as far as the runner's outputs need it:
-  * the stack answers its readiness probe and stub_status;
+  * the stack answers its readiness probe and stub_status (except over `stub_fails`, seconds of the run: slots exhausted);
   * a generator (ml/l7_gen.py) exits 0 at the end of its duration, or `gen_late[its address]` seconds later (or `gen_code`
     for the entities named in `gen_fails`). A benign plan-kind generator writes its client-side rows (ml/l7_gen.py --records) at its exit, from
     its own plan (ml/l7_benign.plan_client with its seed): each request answered 200 in 30 ms, except while the
@@ -78,14 +78,14 @@ class FakeHost(X.Host):
     def __init__(self, *, root=True, netns=(), kill_file=False, kill_appears_at=None, stack_ready=True,
                  nginx_fails=False, daemon_dies_at=None, daemon_startup_s=3.0, gen_fails=(), gen_code=3,
                  poll_every_s=1.0, modelled_attackers=None, harm=None, fail_prim=None, limit_refuses=0.0,
-                 gen_late=None):
+                 gen_late=None, stub_fails=None):
         self.t = 0.0
         self.root, self.netns, self.stack_ready, self.nginx_fails = root, list(netns), stack_ready, nginx_fails
         self.kill_file, self.kill_appears_at = kill_file, kill_appears_at
         self.daemon_dies_at, self.daemon_startup_s = daemon_dies_at, daemon_startup_s
         self.gen_fails, self.gen_code, self.poll_every_s = set(gen_fails), gen_code, poll_every_s
         self.modelled_attackers, self.harm, self.fail_prim = modelled_attackers, harm, fail_prim
-        self.limit_refuses, self.gen_late = limit_refuses, dict(gen_late or {})
+        self.limit_refuses, self.gen_late, self.stub_fails = limit_refuses, dict(gen_late or {}), stub_fails
         self.pids, self.seq = itertools.count(100), itertools.count()
         self.events, self.commands, self.prims, self.procs = [], [], [], []
         self.reset_world()
@@ -143,6 +143,9 @@ class FakeHost(X.Host):
         if argv[:3] == ["ip", "netns", "list"]:
             return X.Result(0, "".join(f"{n}\n" for n in self.netns), "")
         if argv[0] == "curl" and argv[-1].endswith("/nginx_status"):
+            if self.stub_fails and self.run_t0 is not None and self.stub_fails[0] <= self.t - self.run_t0 < self.stub_fails[1]:
+                self.t += 1.0                      # curl's --max-time: the listener's slots are gone
+                return X.Result(28, "", "timed out")
             held = sum(1 for _ in self.socks)
             return X.Result(0, STUB.format(a=held, n=10 + int(self.t), r=30 + 3 * int(self.t), w=held), "")
         if argv[0] == "curl":

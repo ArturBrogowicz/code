@@ -437,5 +437,29 @@ class ExecuteTest(unittest.TestCase):
         self.assertEqual(ok["reasons"], [])
 
 
+    def test_stub_status_is_recorded_and_judges_nothing(self):
+        """D-050 (review T-047 P-02): exhausted slots are the harm, so a stub that stops answering is data, not invalidity."""
+        host = F.FakeHost(stub_fails=(30.0, 240.0), modelled_attackers=1)
+        run = self.one_run("stub", "campaign", 3106, "U_loris", thresholds=POINT)
+        res = R.execute_run(host, run)
+        self.assertEqual(res["reasons"], [])
+        with open(os.path.join(run["out"], "stub_status.jsonl"), encoding="utf-8") as fh:
+            rows = [json.loads(line) for line in fh]
+        self.assertGreater(sum(1 for r in rows if "error" in r), 100)
+        self.assertGreater(sum(1 for r in rows if "active" in r), 30)
+        self.assertFalse(hasattr(R, "STUB_STATUS_MIN_SHARE"))
+
+    def test_the_samples_keep_to_the_second_and_the_attack_to_its_time(self):
+        """A sample that takes a whole second must not stretch the timeline: still one a second, the attack on time."""
+        host = F.FakeHost(stub_fails=(0.0, 60.0), modelled_attackers=1)
+        run = self.one_run("drift", "campaign", 3106, "U_post", thresholds=POINT)
+        R.execute_run(host, run)
+        with open(os.path.join(run["out"], "stub_status.jsonl"), encoding="utf-8") as fh:
+            times = [json.loads(line)["t"] for line in fh]
+        self.assertEqual(times[:61], [float(k) for k in range(61)])
+        attack = next(p for p in host.procs if p.kind == "gen" and p.role == "attack")
+        self.assertEqual(attack.start - host.run_t0, 30.0)
+
+
 if __name__ == "__main__":
     unittest.main()

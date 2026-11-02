@@ -20,12 +20,13 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     file (SLOW_PC_KILL_FILE, /run/l7v2/kill) must be absent for an enforcing run, before and during it;
   * the timeline 30 + 210 + 30 s (eval/p4_outcome.TIMELINE): the benign generators (ml/l7_gen.py, one per entity,
     from its own address, the plan kinds writing their client-side records) from 0 s to 270 s, the attack's from
-    30 s to 240 s; nginx's stub_status sampled every second;
+    30 s to 240 s; nginx's stub_status sampled every second, recorded and never a validity rule (D-050, §8): its listener
+    shares the worker connections an attack exhausts, so judging it would make the harm itself invalid;
   * the per-run labels (p4_traffic.roles: attack, slow_uploader, cgnat, the kind) in manifest.json and in
     slow_pc_manifest.json, the input of eval/p4_validation.py;
   * checks: the stack answered, every generator started and ended cleanly, the daemon was ready before the traffic
-    and alive to the end with XDP attached, the record exists, the kill file stayed absent, stub_status answered in at
-    least 90 % of the seconds, and (D-035, V-08 of review T-039) in an M_pc or validation run the rule's slow_pc_poll
+    and alive to the end with XDP attached, the record exists, the kill file stayed absent, and (D-035, V-08 of review
+    T-039) in an M_pc or validation run the rule's slow_pc_poll
     events are never more than SLOW_PC_POLL_GAP_S = 10 s apart, from the traffic's start to the run's end. A run that
     fails one is invalid, with its reasons.
 
@@ -59,6 +60,7 @@ import datetime
 import hashlib
 import itertools
 import json
+import math
 import os
 import random
 import sys
@@ -95,7 +97,6 @@ DAEMON_READY_LINE = "Listening for Nginx logs"          # bench/executor.py DAEM
 XDP_ATTACHED_LINE = "Successfully attached XDP program"
 DAEMON_READY_TIMEOUT_S, STACK_READY_TIMEOUT_S = 60.0, 30.0
 STOP_GRACE_S = 10.0
-STUB_STATUS_MIN_SHARE = 0.9
 SLOW_PC_POLL_GAP_S = 10.0          # D-035 (V-08): the longest silence of the rule in an M_pc or validation run
 # every variable the daemon reads, set, so that nothing of the operator's environment reaches it (bench/executor.py
 # DAEMON_ENV); MITIGATION_BACKEND is XDP in every P4 arm
@@ -457,7 +458,8 @@ def execute_run(host, plan):
                 daemon = None
             if now >= total:
                 break
-            host.sleep(min(1.0, max(0.0, total - now)))
+            elapsed = host.time() - t0                                    # on the second, whatever the sample took
+            host.sleep(max(0.0, min(math.floor(now) + 1, total) - elapsed))
         return finish(host, plan, reasons, started, t0, procs, logs, stub, launched)
     except Exception as exc:  # noqa: BLE001 - whatever failed, the run is recorded and the teardown runs
         reasons.append(f"the runner failed: {type(exc).__name__}: {exc}")
@@ -499,7 +501,7 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
         if procs or t0 is not None:
             teardown(host, plan)
     ended = host.time()
-    reasons += checks(host, plan, t0, stub, launched)
+    reasons += checks(host, plan, t0, launched)
     if stub:
         with open(os.path.join(out, "stub_status.jsonl"), "w", encoding="utf-8") as fh:
             fh.writelines(json.dumps(s, sort_keys=True) + "\n" for s in stub)
@@ -520,15 +522,12 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
     return {"ok": ok, "reasons": reasons, "started": started, "ended": ended}
 
 
-def checks(host, plan, t0, stub, launched):
+def checks(host, plan, t0, launched):
     """The validity checks of a run that ran (see the module docstring)."""
     if t0 is None:
         return []
     reasons = []
     total = sum(plan["timeline"].values())
-    got = [s for s in stub if "error" not in s]
-    if len(got) < STUB_STATUS_MIN_SHARE * total:
-        reasons.append(f"stub_status answered {len(got)} times in {total} s")
     if len(launched) != len(plan["launches"]):
         reasons.append(f"{len(plan['launches']) - len(launched)} of {len(plan['launches'])} generators never started")
     d = plan["daemon"]
