@@ -29,7 +29,7 @@ def arm_event_kinds():
 
 class ContractTest(unittest.TestCase):
     def test_the_arms_event_kinds(self):
-        self.assertEqual(arm_event_kinds(), {"l7_enforce_arm", "l7_deny", "l7_deny_end", "l7_enforce_skip",
+        self.assertEqual(arm_event_kinds(), {"l7_enforce_arm", "l7_deny", "l7_deny_renew", "l7_deny_end", "l7_enforce_skip",
                                              "l7_enforce_miss", "l7_enforce_capped", "l7_reload", "l7_kill",
                                              "l7_enforce_poll"})
 
@@ -71,6 +71,17 @@ class ContractTest(unittest.TestCase):
         design = source(os.path.join("docs", "L7V2_DESIGN.md"))
         built = design[design.index("## As built: R*'s live path"):design.index("## References (T-012 ids")]
         for name in ("D-040", "D-043", "D-044", "RulePath", "post hoc", "`users_seen`", "NOT RUN"):
+            self.assertIn(name, built, name)
+
+    def test_the_renewal_is_documented_and_labelled_a_pre_data_change(self):
+        doc = source(os.path.join("docs", "EVALUATION.md"))
+        start = doc.index("## L7 v2: the enforcing arm")
+        section = doc[start:doc.index("\n## ", start + 1)]
+        for name in ("D-047", "`tests/test_l7_deny_renewal.py`", "`l7_deny_renew`"):
+            self.assertIn(name, section, name)
+        design = source(os.path.join("docs", "L7V2_DESIGN.md"))
+        built = design[design.index("## As built: R*'s live path"):design.index("## References (T-012 ids")]
+        for name in ("D-047", "pre-data change", "RENEW_RECENT_S"):
             self.assertIn(name, built, name)
 
     def test_every_attribute_the_daemon_takes_from_the_arms_modules_exists(self):

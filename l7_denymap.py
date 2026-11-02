@@ -48,7 +48,7 @@ the name of the rule (it is "unenforceable" at level 1). It is a bounded LRU, an
 anywhere but the deny map.
 
 The file is replaced atomically (a temporary file in the same directory, fsync, rename), so nginx never reads a half
-written map. TTL bookkeeping: an entry expires DENY_TTL_S after it was added (the daemon's BAN_TTL_SECONDS), and at most
+written map. TTL bookkeeping: an entry expires DENY_TTL_S after it was added or last renewed (the daemon's BAN_TTL_SECONDS; D-047: the arm renews a deny whose key keeps sending, in place, so its line never leaves the map), and at most
 MAX_DENIES entries are active.
 """
 import contextlib
@@ -140,13 +140,14 @@ def line(key):
 class Entry:
     """One active deny: the key's parts, its map key, when it was added and when a reload first published it."""
 
-    __slots__ = ("ip", "key", "sid", "t_added", "t_loaded", "ua")
+    __slots__ = ("ip", "key", "sid", "t_added", "t_loaded", "t_renewed", "ua")
 
     def __init__(self, ip, ua, sid, t_added, key_level=False):
         self.ip, self.ua, self.sid = ip, ua, sid
         self.key = key_map_key(ip, ua) if key_level else map_key(ip, ua, sid)
         self.t_added = t_added
         self.t_loaded = None
+        self.t_renewed = None
 
     @property
     def ident(self):
@@ -235,9 +236,19 @@ class DenyMap:
             self.dirty = True
         return gone
 
+    def due(self, now):
+        """The entries whose TTL has ended: added, or last renewed, more than `ttl` seconds ago (strictly, as the daemon's
+        TTL sweep)."""
+        return [e for e in self._entries.values()
+                if now - (e.t_added if e.t_renewed is None else e.t_renewed) > self.ttl]
+
+    def renew(self, entry, now):
+        """Start the entry's TTL again (D-047). Its line stays as it is, so the map is not changed and no reload is due."""
+        entry.t_renewed = now
+
     def expire(self, now):
-        """Remove and return the entries added more than `ttl` seconds ago (strictly, as the daemon's TTL sweep)."""
-        gone = [e for e in self._entries.values() if now - e.t_added > self.ttl]
+        """Remove and return the entries whose TTL has ended (due)."""
+        gone = self.due(now)
         for e in gone:
             del self._entries[e.ident]
         if gone:

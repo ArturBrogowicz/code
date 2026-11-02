@@ -482,7 +482,11 @@ the `l7_would_ban` events the shadow thread logs. No action on an allowlisted ad
   sent a request at least 30 s after its deny took effect (after the decision, for an unenforceable key) and the
   address had fewer than 3 UA hashes and fewer than 3 sids in the last 10 min. An address with more is never banned
   by the arm (the CGNAT guard; `l7_enforce_skip` reason `cgnat_guard`).
-* A deny ends 300 s after it was added.
+* A deny ends 300 s after it was added, unless it is renewed (D-047, a pre-data change, for every arm): when its TTL ends and its
+  key still sends (a request that started in the last 120 s) or its address is XDP-banned, the TTL starts again in place, with
+  no new would-ban, no reload and no new line (`l7_deny_renew`, with the arm and the level). A key that stopped sending lets its
+  deny expire. The kill switch ends every deny, and nothing renews one afterwards. When an XDP ban has ended, level 2 applies
+  again as the first time, its `ban` carrying `renewal`. `tests/test_l7_deny_renewal.py` covers it.
 
 **Safeguards.** The kill switch: while `L7_KILL_FILE` exists (read every step; by default `/run/l7v2/kill`, the same
 file as `SLOW_PC_KILL_FILE`) no action is taken, and when it appears the map is emptied with one reload, which keeps the
@@ -543,9 +547,6 @@ Known limits:
   `ml/l7_benign.UA_TABLE` contains, so no testbed browser key could have been denied at level 1. Inside nginx's
   double quotes `;` is an ordinary character; it is now written, and all 17 UA_TABLE entries pass the rules. `"`,
   `\`, `$`, `{`, `}`, other bytes and UAs over 256 bytes stay excluded.
-* A deny, or an XDP ban, ends after its TTL, and a key that keeps sending keeps its decision's run, so it is not decided
-  again until its run breaks: from the TTL's end it is served again, for every arm (`KnownLimitTest` pins it for R*; the
-  view engine fires the same way). [NOT RUN]
 * R*'s parity with the replay holds while `evicted` in `l7_shadow` is 0 (at most 65,536 keys and addresses are kept live).
 * `users_seen` counts sessions, not devices: one user can hold several. The run's manifest gives the devices.
 * The stop (T-042 E03): `Arm.stop` and the arm's steps hold one lock, and no step runs after the stop, so once the
@@ -618,13 +619,14 @@ at the run directory; standalone default `/var/log/ddos/ban_events.jsonl`; `""` 
 | `slow_pc_capped` | `what` (`close` or `ban`), `n`, `cap`, and for bans `ips` (at most 50): decisions held back by the caps of 500 closes per poll and 20 bans per minute |
 | `l7_enforce_arm` | `armed`, `reason` (why not), `arm`, `arm_kind`, `model`, `selection_sha256`, `valid_for_claims`, `level`, `threshold`, `consecutive`: the L7 v2 arm attached to the shadow thread's engine (`L7_ENFORCE=1` only, as every kind below). R* adds `rule_arm`, `stat_threshold`, `calibration_sha256`, and every decision event of R* (and its `ban`) adds `rule_arm`, `statistic`, `stat_threshold` and `users_seen` (the session ids seen under the key so far), with `sid_h` null |
 | `l7_deny` | `ip`, `ua_h`, `sid_h`, `arm`, `threshold`, `consecutive`, `p`, `t_poll`, `level` (1), `shared` (a case-insensitive twin's line covers it), `key_age_s`, `active`, `ttl_s`: a key denied at nginx |
+| `l7_deny_renew` | the key fields, `level` (1), `why` (`sending`, `xdp_banned`), `renewal` (the count), `denied` (false for a tracked miss), `last_request_s`, `ttl_s`, `active`: a deny's TTL started again (D-047) |
 | `l7_deny_end` | the key fields, `reason` (`ttl`, `kill`, `stop`, `cgnat_guard`: a sid-less line withdrawn when its address turned shared, D-040), `denied`, `effective`, `age_s` |
 | `l7_enforce_skip` | the key fields, `reason` (`not_armed`, `killed`, `ip_format` (not a canonical dotted-quad IPv4 address), `allowlist`, `already_denied`, `ip_banned`, `key_age` with `key_age_s` and `until`, `cgnat_guard` with `ua_keys` and `sid_keys`) |
 | `l7_enforce_miss` | the key fields, `rule` (the write rule the key fails, `no_raw`, `ambiguous`, `sid_less_shared`: a key without a session on a shared address, D-040): unenforceable at level 1 |
 | `l7_enforce_capped` | `what` (`deny`: the key fields, `cap`, `active`; `ban`: `n`, `cap`, `ips`, at most 50) |
 | `l7_reload` | `ok`, `entries`, `changes`, `detail` (nginx's error text with quoted strings blanked) |
 | `l7_kill` | `on`; when on, `denies` emptied and `bans_lifted` |
-| `l7_enforce_poll` | every 5 s: `armed`, `killed`, `active`, `waiting`, `tracked`, `raw_keys`, `raw_evicted`, `raw_ambiguous`, `ips`, the counters (`would_bans`, `denied`, `missed`, `level2`, `guarded`, `capped`, `reloads`, `reload_failed`, `ended`, `lifted`, `inbox_dropped`, `observe_errors`), `skips`, `first_error` |
+| `l7_enforce_poll` | every 5 s: `armed`, `killed`, `active`, `waiting`, `tracked`, `raw_keys`, `raw_evicted`, `raw_ambiguous`, `ips`, the counters (`would_bans`, `denied`, `renewed`, `missed`, `level2`, `guarded`, `capped`, `reloads`, `reload_failed`, `ended`, `lifted`, `inbox_dropped`, `observe_errors`), `skips`, `first_error` |
 | `slow_pc_poll` | every 5 s: `mode` (`shadow` or `enforce`), the counters since the last one (`polls`, `ss_failed`, `suspect`, `closes`, `capped_closes`, `bans`, `capped_bans`, `spared` by the shared-address guard, `skipped_lines`, `close_retries`, `close_failed`: connections given up after the last retry), `sockets`, `owned`, `tracked`, `bad_sample` (the first skipped line), `inbox_dropped`, `note_errors` |
 
 Engines: `l4_syn`, `l4_volumetric`, `l4_slowconn`, `l4_lowsyn`, `l7_rate`, `l7_rudy`,

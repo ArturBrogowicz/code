@@ -16,7 +16,7 @@ Every record has:
                       | "gru_suppressed" | "l7_shadow" | "l7_gru_poll" | "l7_would_ban"
                       | "daemon_error" | "slow_pc_close" | "slow_pc_would_ban"
                       | "slow_pc_capped" | "slow_pc_poll" | "slow_pc_close_retry"
-                      | "l7_enforce_arm" | "l7_deny" | "l7_deny_end" | "l7_enforce_skip"
+                      | "l7_enforce_arm" | "l7_deny" | "l7_deny_renew" | "l7_deny_end" | "l7_enforce_skip"
                       | "l7_enforce_miss" | "l7_enforce_capped" | "l7_reload"
                       | "l7_enforce_poll" | "l7_kill"
                       (the l7_* kinds are the L7 shadow engine's telemetry; a

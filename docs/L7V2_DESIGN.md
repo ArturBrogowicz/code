@@ -1070,10 +1070,22 @@ recording the daemon's own shadow thread wrote.
 - **Removed.** The view-window hook for rule arms (`l7_arms.RULES`, `"kind": "rule"`), empty since T-025c and against
   section 19, with its tests.
 
-**A limit of section 9, for every arm [FACT on fakes for R*, INFERENCE for the view engine, which fires the same way; NOT RUN].** A deny, or an XDP ban, ends after its 300 s TTL.
-A key decided once fires again only after its run breaks, and a key that keeps sending keeps its run, so its deny is not
-renewed: from the TTL's end it is served again until a row or window falls below the threshold. Section 9 is unchanged here;
-the question is open in T-025e's report, and it matters for an entity that outlives its deny by more than a poll or two.
+**D-047, a pre-data change (2026-11-02; the orchestrator's decision on T-025e's F5, labelled before any data).** A decision
+fires when a run reaches k, and a denied key's 429s keep its run, so a deny whose 300 s TTL ended was not decided again, and
+a long attack on a shared address was served again. In P1's 180-s runs the TTL never ends, so no run is affected. For every
+arm alike (view arms and R*):
+- **A deny whose key keeps sending is renewed** when its TTL ends: `RENEW_RECENT_S`, a request that started within the last
+  120 s (longer than a closed-loop client's longest think time, 70 s; a value set here). A key under an XDP ban counts as
+  sending, as the ban hides its requests. A key that stopped sending lets its deny expire as before.
+- **It needs no new would-ban event and adds no line:** the entry's TTL starts again in place, so nothing reaches nginx, no
+  reload is due, and the pacing and the 2,000 cap hold. The kill switch ends every deny, and nothing renews one afterwards.
+  Each renewal is an `l7_deny_renew` event with the arm and the level. A sid-less line on an address that turned shared is
+  still withdrawn (D-040).
+- **Level 2:** when an XDP ban has ended, level 2 applies again as it did the first time (30 s of sending, the CGNAT guard,
+  the 20-per-minute cap), and its `ban` carries `renewal`. A level-1 miss is tracked through its ban the same way, as it has
+  no line to fall back on.
+- **Tested** on fakes for both arm kinds and through the daemon's real ban path (`tests/test_l7_deny_renewal.py`). [NOT RUN]
+  on the testbed.
 
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.

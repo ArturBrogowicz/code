@@ -250,38 +250,5 @@ class DaemonEndToEndTest(RS.SelectionCase):
         self.assertIn(f"[BAN] {BOT} banned for 300s. Reason: L7 v2 arm R*", d.console())
 
 
-class KnownLimitTest(RS.SelectionCase):
-    def test_a_deny_that_ends_while_the_key_keeps_its_run_is_not_renewed(self):
-        # Pinned, not endorsed (the As-built section's limit of section 9; the view engine fires the same way): a decision
-        # is made when a run reaches k, the 429s keep the run over its threshold, so when the TTL ends nothing decides
-        # the key again until a row falls below the threshold.
-        det = self.detector(point=(["key:cost_60"], [100.0], 2))
-        eng = l7_engine.build_engine(scorer=det)
-        case = RS.Section9Case("run")
-        case.setUp()
-        self.addCleanup(case.doCleanups)
-        case.arm.attach(eng)
-        t = 1000.0
-        for n in range(400):
-            o = RS.obj(BOT, "/export", t + n, ua=UA)
-            case.arm.observe(o, I.normalise(o))
-            eng.on_record(I.normalise(o))
-            for ev in eng.poll(t + n + 0.5):
-                ev.pop("kind")
-                case.arm.submit(ev)
-            case.step(t + n + 0.6)
-        self.assertEqual(eng.totals["would_bans"], 1)
-        self.assertEqual([e["reason"] for e in case.f.read("l7_deny_end")], ["ttl"])
-        self.assertEqual(len(case.f.read("l7_deny")), 1)
-        self.assertEqual(case.arm.tracked, {})
-        o = RS.obj(BOT, "/page/1", t + 700.0, ua=UA)                     # a quiet row breaks the run
-        eng.on_record(I.normalise(o))
-        eng.poll(t + 700.5)
-        for n in range(2):
-            eng.on_record(I.normalise(RS.obj(BOT, "/export", t + 701.0 + n, ua=UA)))
-            eng.poll(t + 701.5 + n)
-        self.assertEqual(eng.totals["would_bans"], 2)
-
-
 if __name__ == "__main__":
     unittest.main()
