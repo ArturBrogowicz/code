@@ -14,7 +14,8 @@ recovery. Per family (loris, post):
     consecutive bins within T_mit of the attack's start, (b) Q(M_pc) over [attack start + T_mit, attack end] is
     >= 0.99 x C_M's level over that same window (D-046) as a mean over the blocks and in at least 9 of 10 of them, and
     (c) no benign address (CGNAT
-    pools and browser devices included) is banned in any M_pc run. Benign connections closed are reported. A block
+    pools and browser devices included) is banned in any M_pc run, and no CGNAT or browser identity in any attempt of
+    C_M (D-046: C_M_COLLATERAL_ROLES, for both families). Benign connections closed are reported. A block
     counts for the mitigation only with C, C_M and M_pc valid; C_M's validity is what C's is, the run's own checks,
     with no floor on its Q, since a low Q(C_M) is the cost it exists to show.
   * the status: "not harmful", "harmful but not mitigated", "mitigated with collateral" (a and b, not c), or
@@ -121,6 +122,9 @@ LEVEL_WINDOW_S = (TIMELINE["baseline_s"] + LEVEL_FROM_S,           # the same sp
                   TIMELINE["baseline_s"] + TIMELINE["attack_s"])   # `window` of run_metrics for q_level
 RUN_S = sum(TIMELINE.values())   # a record has one q_per_s bin per second of the run
 ATTACK = "attack"
+# D-046 (3), "a CGNAT or browser identity": the p4_role labels of ml/p4_traffic.py whose clients are browser devices (a
+# TPC-W device, a search user, the users of a CGNAT pool). A ban of another benign identity in C_M stays reported.
+C_M_COLLATERAL_ROLES = ("cgnat", "tpcw_browsing", "search_user")
 SCOPE = "profile R, {families} at this scale, this testbed"
 FAMILY_NAMES = {"loris": "Slowloris", "post": "slow POST"}
 
@@ -267,6 +271,8 @@ def mitigation(blocks, family, every=None):
                                >= LEVEL_RATIO * sum(b[PROTECTED]["q_level"] for b in valid))
     attempts = [r for arms in every.values() for r in arms.get(m, ())]
     collateral = sorted({(r["block"], ip, role) for r in attempts for ip, role in r["banned"].items() if role != ATTACK})
+    in_c_m = sorted({(r["block"], ip, role) for arms in every.values() for r in arms.get(PROTECTED, ())
+                     for ip, role in r["banned"].items() if role in C_M_COLLATERAL_ROLES})
     a = len(valid) >= MIN_VALID_BLOCKS and enough(in_time, len(valid))
     b_ = len(valid) >= MIN_VALID_BLOCKS and mean_ok and enough(level_ok, len(valid))
     pairs = [b for b in blocks.values() if _ok(b, CONTROL, m, f"M_def_{family}")]
@@ -274,7 +280,8 @@ def mitigation(blocks, family, every=None):
     return {"valid_blocks": len(valid), "recovery_s": rec, "recovery_onset_s": [x["onset_s"] for x in found],
             "recovered_in_time": in_time, "a": a,
             "level_blocks": level_ok, "level_mean_ok": mean_ok, "b": b_,
-            "benign_banned": [list(x) for x in collateral], "c": not collateral,
+            "benign_banned": [list(x) for x in collateral], "benign_banned_c_m": [list(x) for x in in_c_m],
+            "c": not collateral and not in_c_m,
             "benign_closed": sum(r.get("benign_closed", 0) for r in attempts), "attempts": len(attempts),
             "vs_m_def": {"n": len(d), "decision": RLS.decide(d)}}
 

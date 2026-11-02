@@ -365,10 +365,40 @@ class ProtectedControlTest(unittest.TestCase):
         self.assertEqual(res["families"]["loris"]["mitigation"]["valid_blocks"], 10)
         self.assertTrue(res["families"]["loris"]["mitigation"]["b"])
 
-    def test_a_benign_ban_in_c_m_is_reported_and_not_counted_in_c(self):
-        res = O.outcome(campaign({("C_M", 1): {"banned": {"10.0.4.1": "cgnat"}}}))
-        self.assertTrue(res["families"]["loris"]["mitigation"]["c"])
-        self.assertEqual(res["bans_by_arm"]["C_M"], {"cgnat": 1})
+    def test_a_cgnat_or_browser_ban_in_c_m_counts_against_c(self):
+        # D-046 (3) replaces D-041's "reported, not counted", which this test pinned: for both families, in C_M's arm alone.
+        for ip, role in (("10.0.4.1", "cgnat"), ("10.0.1.7", "tpcw_browsing"), ("10.0.1.8", "search_user")):
+            res = O.outcome(campaign({("C_M", 1): {"banned": {ip: role}}}))
+            for f in O.FAMILIES:
+                m = res["families"][f]["mitigation"]
+                self.assertEqual((m["c"], m["benign_banned"], m["benign_banned_c_m"], res["families"][f]["status"]),
+                                 (False, [], [[3102, ip, role]], "mitigated with collateral"), role)
+            self.assertEqual(res["M7"], "not supported")
+            self.assertEqual(res["bans_by_arm"]["C_M"], {role: 1})
+
+    def test_a_ban_in_any_attempt_of_c_m_counts(self):
+        runs = campaign()
+        k = next(i for i, r in enumerate(runs) if (r["block"], r["arm"]) == (3104, "C_M"))
+        runs[k] = dict(runs[k], attempt=2)
+        runs.append(rec(3104, "C_M", 99.5, valid=False, banned={"10.0.4.1": "cgnat"}, attempt=1))
+        m = O.outcome(runs)["families"]["loris"]["mitigation"]
+        self.assertEqual((m["c"], m["benign_banned_c_m"], m["valid_blocks"]), (False, [[3104, "10.0.4.1", "cgnat"]], 10))
+
+    def test_another_benign_identity_banned_in_c_m_stays_reported(self):
+        for role in ("api_bulk", "crawler_polite", "uploader", "slow_uploader"):
+            res = O.outcome(campaign({("C_M", 1): {"banned": {"10.0.4.9": role}}}))
+            m = res["families"]["loris"]["mitigation"]
+            self.assertEqual((m["c"], m["benign_banned_c_m"], res["M7"]), (True, [], BOTH), role)
+            self.assertEqual(res["bans_by_arm"]["C_M"], {role: 1})
+            self.assertEqual(res["limits_cost"]["blocks"][1]["benign_banned_C_M"], ["10.0.4.9"])
+
+    def test_the_roles_are_the_labels_of_the_population(self):
+        sys.path.insert(0, os.path.join(REPO, "ml"))
+        import p4_traffic as PT
+        labels = set(PT.roles(PT.build_plan(3101, "eval")["entities"]).values())
+        self.assertEqual(O.C_M_COLLATERAL_ROLES, ("cgnat", "tpcw_browsing", "search_user"))
+        self.assertEqual(labels - set(O.C_M_COLLATERAL_ROLES), {"api_bulk", "crawler_polite", "uploader", "slow_uploader"})
+        self.assertLessEqual(set(O.C_M_COLLATERAL_ROLES), labels)
 
 
 def refused_counts(cgnat12, cgnat24, others=0):
