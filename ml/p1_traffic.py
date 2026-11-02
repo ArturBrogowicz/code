@@ -362,6 +362,38 @@ def run_entities(block, cls=None):
     return rows
 
 
+def benign_load(block, rec):
+    """The benign plan's nominal load over the attack window against the record: req/s and CPU-s/s at the record's class costs, per
+    kind, beside rho in both units and the spare capacity S. The mix does not read the record: rho only sizes the attack, through S.
+    Nominal: no network or server time. A kind without a plan (the P5 kinds) has no nominal times, so it is listed, not counted; an
+    uncosted route (a crawler's /robots.txt) counts as a request without a class cost."""
+    import calibration as CAL
+    import l7_pools as LP
+
+    import l7_webapp
+    lo, hi = attack_window()
+    kinds, unplanned = {}, set()
+    for e in block["benign"]:
+        plan, kind = LP._plan_of(e), e["kind_or_family"]
+        if plan is None:
+            unplanned.add(kind)
+            continue
+        row = kinds.setdefault(kind, {"requests": 0, "cpu_ms": 0.0})
+        for user in plan["users"]:
+            for t, path in LP.nominal_requests(user):
+                if lo <= e["schedule"]["start_s"] + t < hi:
+                    row["requests"] += 1
+                    row["cpu_ms"] += rec["route_costs_ms"].get(l7_webapp.route_class("GET", path), 0.0)
+    span = hi - lo
+    rho = CAL.rho_rps(rec)
+    return {"req_s": round(sum(r["requests"] for r in kinds.values()) / span, 1),
+            "cpu_s_s": round(sum(r["cpu_ms"] for r in kinds.values()) / 1000.0 / span, 3),
+            "by_kind": {k: {"req_s": round(r["requests"] / span, 1), "cpu_s_s": round(r["cpu_ms"] / 1000.0 / span, 3)}
+                        for k, r in sorted(kinds.items())},
+            "without_a_plan": sorted(unplanned), "rho_req_s": rho, "rho_cpu_s_s": round(rho * CAL.mean_cost_ms(rec) / 1000.0, 3),
+            "spare_cpu_s": round(CAL.spare_capacity(rec), 3)}
+
+
 def age_report(block):
     """The frozen key-age check (ml/l7v2_prereg.json arrivals.age_check, l7_pools.age_check) per class, recorded per run and not
     applied on P1's one-slot timeline (D-049, ml/p1_prereg.json age_check; see the module docstring)."""

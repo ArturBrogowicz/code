@@ -183,6 +183,51 @@ class BlockTest(unittest.TestCase):
         self.assertTrue(all("ks" in r and "auc" in r and "pass" in r for r in rep.values()))
 
 
+class BenignLoadTest(unittest.TestCase):
+    """The plan's benign rate against the record's rho, on the path a campaign uses (D-049's check): a frozen record, build_block."""
+
+    def test_the_arithmetic_on_a_counted_plan(self):
+        one = dict(LP.POPULATIONS["l7v2"]["benign"][0], count=1)
+        plan = P.build_block(9001, "pilot", {}, record_path=RECORD, benign_specs=[one])
+        got = P.benign_load(plan, FROZEN)
+        e = plan["benign"][0]
+        reqs = [(t, p) for u in LP._plan_of(e)["users"] for t, p in LP.nominal_requests(u)
+                if 30.0 <= e["schedule"]["start_s"] + t < 150.0]
+        self.assertGreater(len(reqs), 0)
+        self.assertEqual(got["req_s"], round(len(reqs) / 120.0, 1))
+        self.assertEqual(set(got["by_kind"]), {one["kind"]})
+
+    def test_the_frozen_record_s_rho_and_the_full_mix(self):
+        got = P.benign_load(P.build_block(3001, "eval", LEVELS, record_path=RECORD, knees=KNEES), FROZEN)
+        self.assertEqual(got["rho_req_s"], CAL.rho_rps(FROZEN))
+        self.assertEqual(got["rho_req_s"], 90.0)
+        self.assertEqual(got["spare_cpu_s"], round(CAL.spare_capacity(FROZEN), 3))
+        self.assertGreater(got["req_s"], got["rho_req_s"], "more requests than rho, the fixture's numbers")
+        self.assertLess(got["cpu_s_s"], got["rho_cpu_s_s"], "and less CPU: the mix is cheaper than the record's")
+        self.assertEqual(got["without_a_plan"], ["api_poll", "curl_oneshot", "downloader", "http2", "keepalive", "nat_gateway",
+                                                 "uploader"])
+
+    def test_the_mix_does_not_read_the_record(self):
+        cal = calibration_fixtures.placeholder()
+        cal["capacity"].update(c_slo_rps=360.0, c_sat_rps=520.0)
+        other = calibration_fixtures.frozen(cal)
+        a = P.build_block(9001, "pilot", {}, record_path=RECORD)
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "other.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(other, fh)
+            b = P.build_block(9001, "pilot", {}, record_path=path)
+        self.assertEqual(a["benign"], b["benign"])
+        self.assertEqual(P.benign_load(a, other)["req_s"], P.benign_load(a, FROZEN)["req_s"])
+        self.assertEqual(P.benign_load(a, other)["rho_req_s"], 180.0)
+
+    def test_a_halving_lowers_it(self):
+        full = P.benign_load(P.build_block(9001, "pilot", {}, record_path=RECORD), FROZEN)
+        half = P.benign_load(P.build_block(9001, "pilot", {}, record_path=RECORD, halvings=1), FROZEN)
+        self.assertLess(half["req_s"], full["req_s"])
+        self.assertLess(half["cpu_s_s"], full["cpu_s_s"])
+
+
 class HalvingTest(unittest.TestCase):
     """The halving rule of ml/p1_prereg.json (D-049), as ml/p4_traffic.py's."""
 

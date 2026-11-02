@@ -396,6 +396,39 @@ class ExecuteTest(Base):
         self.assertEqual(index(self.root)[0]["label"], "C2_L1_r1")
 
 
+class SmokeReadsTest(Base):
+    """What a smoke reads (D-049, E-2, E-4): a level above the verified address limit, in a smoke only; the load against rho."""
+
+    def test_a_smoke_reads_above_the_limit_and_nothing_else_does(self):
+        kw = {"frozen": self.frozen, "levels": {"C3b": 300}, "runs": ["U_C3b"], "label": "aliases"}
+        with self.assertRaisesRegex(R.PlanError, "verified limit of 300"):
+            R.plan_block("smoke", 9001, self.root, **kw)
+        block = R.plan_block("smoke", 9001, self.root, address_limit=468, **kw)
+        run = block["runs"][0]
+        self.assertEqual(len({e["address"] for e in run["entities"]}), 138 - len(block["dropped"]) + 30 + 300)
+        self.assertEqual(sum(len(n["addresses"]) for n in run["namespaces"]), len(run["entities"]))
+        self.assertEqual(block["address_limit"], 468)
+        with self.assertRaisesRegex(R.PlanError, "only a smoke"):
+            R.plan_block("ladder", 9001, self.root, frozen=self.frozen, levels={"C3b": 300}, runs=["U_C3b"], address_limit=468)
+        with self.assertRaisesRegex(R.PlanError, "only a smoke"):
+            R.plan_block("health", 9001, self.root, frozen=self.frozen, address_limit=468)
+        with self.assertRaisesRegex(R.PlanError, "only a smoke"):
+            thin(self.frozen, self.root, address_limit=468)
+
+    def test_the_plan_shows_the_load_against_rho_and_the_block_keeps_it(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = R.main(["--phase", "health", "--seed", "9001", "--plan", "--calibration", self.frozen["calibration"],
+                           "--root", self.root])
+        self.assertEqual(code, 0)
+        self.assertRegex(out.getvalue(), r"benign nominal [\d.]+ req/s, [\d.]+ CPU-s/s .* rho 90 req/s, 0.552 CPU-s/s; S 0.552")
+        block = R.plan_block("health", 9001, self.root, frozen=self.frozen, benign_specs=F.thin_benign())
+        R.run_block(F.P1FakeHost(), block)
+        meta = read_json(os.path.join(block["dir"], "block.json"))
+        self.assertEqual(meta["benign_load"]["rho_req_s"], 90.0)
+        self.assertEqual(meta["address_limit"], 300)
+
+
 class AgeCheckTest(Base):
     """arrivals.age_check on P1's runs (D-049): recorded per run, not applied."""
 

@@ -367,11 +367,14 @@ def plan_run(pop, phase, arm, cls, out, frozen, *, python=PYTHON, age=None):
 
 
 def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", runs=None, cut=False, python=PYTHON,
-               benign_specs=None, max_sources=None, halvings=None):
+               benign_specs=None, max_sources=None, halvings=None, address_limit=None):
     """One block's runs, in their seeded order, as data. A campaign's levels are the knees, and its runs the live set; a health
-    step is the rule's two controls on its seed (ml/p1_prereg.json halving)."""
+    step is the rule's two controls on its seed (ml/p1_prereg.json halving). `address_limit` lets a smoke read a level above the
+    verified address limit (ml/p3_prereg.json pool.address_limit, E-2); nothing else moves that limit."""
     if phase not in PHASES:
         raise PlanError(f"unknown phase {phase!r}")
+    if address_limit is not None and phase != "smoke":
+        raise PlanError(f"only a smoke reads above the verified address limit, not a {phase}")
     role = "eval" if phase == "campaign" else "pilot"
     knees = load_knees(frozen.get("knees"))
     if phase == "campaign":
@@ -400,8 +403,12 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
                              benign_specs=benign_specs, max_sources=max_sources, halvings=factor)
     except PT.PlanError as exc:
         raise PlanError(str(exc)) from exc
+    if address_limit is not None:
+        pop["pool"]["address_limit"] = address_limit
     arms = {a for a, _c in pairs}
     sums = check_frozen(frozen, need_frozen_record=phase == "campaign", arms=arms)
+    import l7_backend
+    record = l7_backend.load_record(frozen["calibration"])[0]
     names = {run_name(a, c): (a, c) for a, c in pairs}
     order = block_order(phase, seed, names, label)
     name = f"b{seed}_a{attempt}" + (f"_{label}" if label else "")
@@ -416,7 +423,8 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
             "levels": levels, "halvings": factor, "sources": pop["sources"], "cut": bool(cut), "frozen": sums,
             "calibration": frozen["calibration"],
             "intensity": pop["intensity"], "flash": pop["flash"], "dropped": pop["dropped"],
-            "age_check": ages, "runs": planned}
+            "age_check": ages, "address_limit": pop["pool"]["address_limit"], "benign_load": PT.benign_load(pop, record),
+            "runs": planned}
 
 
 def vm_minutes(n_runs, setup_s=SETUP_S):
@@ -426,9 +434,13 @@ def vm_minutes(n_runs, setup_s=SETUP_S):
 
 def describe(block):
     """The text of --plan."""
+    load = block["benign_load"]
     lines = [f"P1 {block['phase']} block {block['seed']} attempt {block['attempt']}: {block['dir']}",
              f"order {block['order']}; levels {block['levels']}; sources {block['sources']}",
              f"benign halvings {block['halvings']}; record {block['intensity']['label']}",
+             (f"benign nominal {load['req_s']} req/s, {load['cpu_s_s']} CPU-s/s over the attack window, without "
+              f"{len(load['without_a_plan'])} kinds; the record's rho {load['rho_req_s']:g} req/s, {load['rho_cpu_s_s']} CPU-s/s; "
+              f"S {load['spare_cpu_s']} CPU-s/s"),
              f"VM time of this block: {vm_minutes(len(block['runs'])):.0f} min [ESTIMATE]"]
     for r in block["runs"]:
         d = r["daemon"]
@@ -681,7 +693,8 @@ def run_block(host, block):
                    "order": block["order"], "levels": block["levels"], "halvings": block["halvings"],
                    "sources": block["sources"], "cut": block["cut"],
                    "frozen": block["frozen"], "intensity": block["intensity"], "flash": block["flash"],
-                   "dropped": block["dropped"], "age_check": block["age_check"]})
+                   "dropped": block["dropped"], "age_check": block["age_check"], "address_limit": block["address_limit"],
+                   "benign_load": block["benign_load"]})
     results = []
     with open(os.path.join(block["root"], "index.jsonl"), "a", encoding="utf-8") as idx:
         for run in block["runs"]:
@@ -719,6 +732,7 @@ def main(argv=None, host=None):
     ap.add_argument("--knees", help="campaign: the frozen knees (JSON: status, record_sha256, benign_halvings, C2, C3a, C3b)")
     ap.add_argument("--halvings", type=int, help="smoke, health: how often the halving rule has fired (ml/p1_prereg.json)")
     ap.add_argument("--health", help="ladder, campaign: the rule's frozen factor (eval/p1_analysis.py --health)")
+    ap.add_argument("--address-limit", type=int, help="smoke: read a level above the verified address limit (E-2)")
     ap.add_argument("--selection")
     ap.add_argument("--selection-sha256")
     ap.add_argument("--rules")
@@ -738,7 +752,7 @@ def main(argv=None, host=None):
         label = label or f"{args.cls}_L{lv:g}_r{args.repeat}"
     try:
         block = plan_block(args.phase, args.seed, args.root, frozen=frozen, levels=levels, attempt=args.attempt, label=label,
-                           runs=runs, cut=args.cut, python=args.python, halvings=args.halvings)
+                           runs=runs, cut=args.cut, python=args.python, halvings=args.halvings, address_limit=args.address_limit)
     except PlanError as exc:
         print(f"[-] {exc}", file=sys.stderr)
         return 2
