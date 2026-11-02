@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.join(REPO, "ml"))
 import l7_tpcw
 import l7v2_prereg as P
 
-PREREG_SHA256 = "b29fd14a7fa1d0adeb170b6da785702ecb8914a9a5c6d14e11be07f251d008a0"
+PREREG_SHA256 = "60679b65785d0125b944c3fa64f45fc8d5753a0e715727557c4bf5535ebf1ba9"
 
 
 class FrozenFileTest(unittest.TestCase):
@@ -140,6 +140,15 @@ class FrozenFileTest(unittest.TestCase):
         self.assertTrue(a["label_v2"].startswith("extended 2026-10-31 under D-034, before any capture"))
         self.assertIn("held-out families included", a["rule_v2"])
         self.assertIn("each plan user of a benign entity (a session", a["key_units_v2"])
+
+    def test_the_report_only_readings_d040(self):
+        # T042-F01 and F03, registered 2026-10-31 under D-040: report-only, never a refusal
+        r = P.load()["arrivals"]["age_check"]["report_v3"]
+        self.assertTrue(r["label"].startswith("registered 2026-10-31 under D-040"))
+        self.assertIn("report-only, never a refusal", r["label"])
+        self.assertIn("first request of its address", r["address_and_ip_ua_age"])
+        self.assertIn("(IP, UA) key", r["address_and_ip_ua_age"])
+        self.assertIn("C3b@M1 and C3b@M2 pooled", r["small_families"])
 
     def test_harm(self):
         h = P.load()["harm"]

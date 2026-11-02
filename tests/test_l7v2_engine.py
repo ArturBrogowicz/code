@@ -235,6 +235,65 @@ class ParityTest(unittest.TestCase):
                             stub.threshold, stub.consecutive)
         self.assertIsNotNone(next(iter(every.values()))[1], "scoring every window would have fired")
 
+    @staticmethod
+    def split_of(objs):
+        recs = []
+        for i, o in enumerate(sorted(objs, key=lambda o: o["msec"])):
+            r = I.normalise(o)
+            r.update({"_seq": i, "_cls": "benign", "_family": None, "_held": False, "_kof": None, "_cap": "c",
+                      "_ent": "c|" + r["ip"]})
+            recs.append(r)
+        return V.Split([({"format": "x", "entities": []}, recs, "c")], request=False)
+
+    def test_the_parity_report_on_a_friendly_key(self):
+        split = self.split_of(browser(views=12))
+        rep = V.engine_parity(split)["c"]
+        self.assertEqual(set(rep), {"0.0", "0.5"}, "the live poll phase is arbitrary, so two are reported")
+        n = len(split.view)
+        self.assertGreater(n, 0)
+        for r in rep.values():
+            self.assertEqual((r["trainer_windows"], r["engine_windows"], r["same"]), (n, n, n))
+            self.assertEqual((r["built_differently"], r["trainer_only"], r["engine_only"], r["late_dropped"]), (0, 0, 0, 0))
+
+    def test_a_slow_asset_is_missing_from_the_engines_window(self):
+        # T-042 F06: an asset that completes after the next page's poll is absent from the engine's window only
+        objs = browser(views=12, gap=6.0)
+        for o in objs:
+            if "/static/" in o["uri"]:
+                o.update(rt=8.0, msec=o["msec"] - o["rt"] + 8.0)     # the same start, 8 s to complete
+        split = self.split_of(objs)
+        r = V.engine_parity(split)["c"]["0.0"]
+        expected = 0
+        for w in split.view:                                       # an independent reconstruction of the same windows
+            poll = (np.floor(w["t"]) + 1.0)
+            there = [x for x in w["recs"] if x["msec"] < poll]
+            expected += int(not np.array_equal(F.token_matrix(there, F.MAX_VIEWS), w["X"]))
+        self.assertGreater(expected, 0)
+        self.assertEqual(r["built_differently"], expected)
+        self.assertEqual(r["same"] + r["built_differently"] + r["trainer_only"], len(split.view))
+        built, _store = V.engine_replay(split.records["c"], 0.0)
+        w = split.view[0]
+        j = list(F.TOKEN_COLUMNS).index("log_n_req")
+        ours, theirs = w["X"], built[(w["key"], F.start_time(w["recs"][-1]))][0]
+        self.assertGreater(ours[:, j].sum(), theirs[:, j].sum(), "the evaluator counts the late assets, the engine not")
+
+    def test_the_report_counts_the_cap_and_agrees_with_the_rule(self):
+        offs = [k / 8.0 for k in range(8)]
+        objs = [obj(f"/search?q=w{sec}{k}", 10.0 + sec + o, "10.0.18.7", "f" * 32, "/page/search")
+                for sec in range(4) for k, o in enumerate(offs)]
+        split = self.split_of(objs)
+        r = V.engine_parity(split)["c"]["0.0"]
+        self.assertGreater(r["trainer_only"], 0)
+        self.assertEqual(r["engine_windows"], len(V.engine_scored(split.view)))
+        self.assertEqual((r["rule_not_engine"], r["engine_not_rule"], r["built_differently"]), (0, 0, 0))
+
+    def test_a_request_older_than_the_pruned_history_is_dropped_and_counted(self):
+        objs = [obj(f"/page/{k}", 1.0 + k, "10.0.16.8", "d" * 32) for k in range(60)]
+        objs.append(obj("/static/site6/p0/img0.png", 1.1, "10.0.16.8", "d" * 32, rt=55.0))
+        r = V.engine_parity(self.split_of(objs))["c"]["0.0"]
+        self.assertEqual(r["late_dropped"], 1)
+        self.assertGreater(r["built_differently"], 0)
+
     def test_replay_drives_the_view_engine(self):
         stub = RefStub()
         eng = engine(stub)

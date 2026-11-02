@@ -80,6 +80,34 @@ def _tag(windows, capture, meta):
     return windows
 
 
+def ip_ua_ages(recs, windows):
+    """Each request-level window's (IP, UA)-key age (ml/p3_prereg.json learning_curve.age_only_ip_ua, D-040, T042-F01):
+    its last request start minus the start of its (IP, UA) key's first request in the capture."""
+    import l7_ingest
+    first = {}
+    for r in recs:
+        k = l7_ingest.key_of(r)
+        first[k] = min(first.get(k, math.inf), F.start_time(r))
+    for w in windows:
+        w["age"] = w["t"] - first[l7_ingest.key_of(w["recs"][-1])]
+    return windows
+
+
+def age_only_ip_ua(train, val, rules):
+    """The request level's (IP, UA)-key age-only baseline on validation (D-040): the training benign windows' ages,
+    p = the share of them older than a window (train_l7v2.age_scores), its AUC pooled and per family, its reading
+    ('near chance' or 'age-assisted') and its operating point by the curves' own rule. Returns (ages, report)."""
+    import train_l7v2 as V
+    spec = rules["age_only_ip_ua"]
+    ref = sorted(float(w["age"]) for w in train if not w["y"])
+    pv = V.age_scores(ref, val)
+    rep = V.age_report(val, pv)
+    near = rep["auc"] is not None and abs(rep["auc"] - 0.5) <= spec["auc_band"] + 1e-12
+    op = T.operating_point(val, pv, rules["theta_grid"], rules["k_grid"], rules["benign_budget"])
+    return ref, {"val_auc": rep["auc"], "val_auc_by_family": rep["auc_by_family"],
+                 "reading": "near chance" if near else "age-assisted", "operating_point": op, "rule": spec["reading"]}
+
+
 def p3_sets(train_dirs, val_dirs, eval_dirs, cols, seq, stride):
     """Windows per split from P3 captures, keyed by entity id; windows know their capture and kind/family."""
     out = {}
@@ -88,8 +116,8 @@ def p3_sets(train_dirs, val_dirs, eval_dirs, cols, seq, stride):
         for d in dirs:
             m, recs = T.load_records(d)
             meta = _entity_meta(m)
-            got = _tag(T.group_windows(recs, seq, cols, stride, T.DEFAULT_MIN_EVENTS),
-                       m.get("capture_id", os.path.basename(d)), meta)
+            got = ip_ua_ages(recs, _tag(T.group_windows(recs, seq, cols, stride, T.DEFAULT_MIN_EVENTS),
+                                        m.get("capture_id", os.path.basename(d)), meta))
             for w in got:
                 w["ip"] = w["recs"][0]["_entity"]          # an address may serve other entities elsewhere
             ws += got
@@ -102,7 +130,7 @@ def legacy_sets(dataset_dir, cols, seq, stride, split_seed=0):
     the held-out benign kind to evaluation). The attack side is NOT entity-disjoint: mechanics only."""
     m, recs = T.load_records(dataset_dir)
     meta = _entity_meta(m)
-    windows = _tag(T.group_windows(recs, seq, cols, stride, T.DEFAULT_MIN_EVENTS), "legacy", meta)
+    windows = ip_ua_ages(recs, _tag(T.group_windows(recs, seq, cols, stride, T.DEFAULT_MIN_EVENTS), "legacy", meta))
     sets, _ = T.split(windows, split_seed)
     ev = sets["benign_test"] + sets["heldout"] + sets["trained_attack_test"] + sets["benign_heldout"]
     return {"train": sets["train"], "val": sets["val"], "eval": ev}
@@ -374,6 +402,14 @@ def select(sets, out_dir, *, fractions, draws, inits, full_inits, epochs, hidden
                       "epochs": epochs, "hidden": hidden, "layers": layers, "bootstrap_b": B, "threads": threads},
            "counts": {"train": len(sets["train"]), "val": len(val)}, "fits": fits,
            "select_wall_s": round(time.time() - t0, 1)}
+    ages, age = age_only_ip_ua(sets["train"], val, rules)         # D-040, T042-F01
+    with open(os.path.join(out_dir, "fits", "age_only_ip_ua.json"), "w", encoding="utf-8") as fh:
+        json.dump({"format": "p3-age-only-ip-ua/1", "benign_train_ages": ages}, fh)
+        fh.write("\n")
+    age.update(artifact="fits/age_only_ip_ua.json",
+               artifact_sha256=_sha_file(os.path.join(out_dir, "fits", "age_only_ip_ua.json")))
+    sel["age_only_ip_ua"] = age
+    sel["label"] = None if age["reading"] == "near chance" else "age-assisted"
     data = D.canonical_json(sel) + b"\n"
     with open(os.path.join(out_dir, "selection.json"), "wb") as fh:
         fh.write(data)
@@ -401,7 +437,10 @@ def load_selection(path, expected_sha256):
     if sel.get("format") != SEL_FORMAT:
         raise SelectionError(f"refusing to score: {path} is not a {SEL_FORMAT} file")
     base = os.path.dirname(os.path.abspath(path))
-    for art, sha in sorted({(f["artifact"], f["artifact_sha256"]) for f in sel["fits"]}):
+    arts = {(f["artifact"], f["artifact_sha256"]) for f in sel["fits"]}
+    if sel.get("age_only_ip_ua"):
+        arts.add((sel["age_only_ip_ua"]["artifact"], sel["age_only_ip_ua"]["artifact_sha256"]))
+    for art, sha in sorted(arts):
         p = os.path.normpath(os.path.join(base, art))
         if not p.startswith(base + os.sep) or not os.path.isfile(p) or _sha_file(p) != sha:
             raise SelectionError(f"refusing to score: artifact {art} is missing or altered")
@@ -477,10 +516,32 @@ def score(eval_windows, sel, sel_path, out_dir, *, threads, seed=0):
             row["ttd_median_s"] = round(times[len(times) // 2], 3) if times else None
             row["benign"] = benign_rate(ev, det)
         fits.append(row)
-    return _curve_result(fits, units, sel, sel_path, out_dir, rules, len(ev), t0, seed)
+    extra = None
+    if sel.get("age_only_ip_ua"):                                  # D-040: beside the curves, at its frozen point
+        import train_l7v2 as V
+        b = sel["age_only_ip_ua"]
+        with open(os.path.join(os.path.dirname(os.path.abspath(sel_path)), b["artifact"]), encoding="utf-8") as fh:
+            pe = V.age_scores(json.load(fh)["benign_train_ages"], ev)
+        caught = {}
+        if b["operating_point"] is not None:
+            det, _ttd = detections(ev, pe, b["operating_point"]["threshold"], b["operating_point"]["consecutive"])
+            caught = {e for e, hit in det.items() if hit}
+        by = {}
+        for u in units:
+            by.setdefault(str(u[2]), [0, 0])
+            by[str(u[2])][0] += int(u[0] in caught)
+            by[str(u[2])][1] += 1
+        extra = {"age_only_ip_ua": {"val_auc": b["val_auc"], "reading": b["reading"],
+                                    "operating_point": b["operating_point"],
+                                    "eval_recall": round(sum(u[0] in caught for u in units) / len(units), 4)
+                                    if units else None,
+                                    "eval_recall_by_family": {f: {"caught": c, "entities": n}
+                                                              for f, (c, n) in sorted(by.items())},
+                                    "eval_auc": V.age_report(ev, pe)["auc"]}}
+    return _curve_result(fits, units, sel, sel_path, out_dir, rules, len(ev), t0, seed, extra)
 
 
-def _curve_result(fits, units, sel, sel_path, out_dir, rules, n_eval, t0, seed):
+def _curve_result(fits, units, sel, sel_path, out_dir, rules, n_eval, t0, seed, extra=None):
     """The curves, the two-level bootstrap, the decision rules and the files (curve.json, summary.md) from the
     scored fits; shared by the request level and the view level."""
     design = sel["design"]
@@ -502,6 +563,10 @@ def _curve_result(fits, units, sel, sel_path, out_dir, rules, n_eval, t0, seed):
         per_family[fam] = {f"{m}@{f}": round(float(curves[(m, f)][:, idx].mean()), 4) if curves[(m, f)].size else None
                            for m in MODELS for f in fractions}
     verdict = decide(stats, MODELS, fractions, rules) if units else {"verdict": "no evaluation attack entities"}
+    if sel.get("label") == "age-assisted":                         # D-040, T042-F01
+        verdict["verdict"] = ("AGE-ASSISTED (the (IP, UA)-key age-only baseline's validation AUC is "
+                              f"{sel['age_only_ip_ua']['val_auc']}, outside 0.5 +- "
+                              f"{rules['age_only_ip_ua']['auc_band']}): " + verdict["verdict"])
     if not sel["valid_for_claims"]:
         verdict["verdict"] = "NOT A RESULT (mechanics only: " + sel["source"] + "): " + verdict["verdict"]
     res = {"format": FORMAT, "source": sel["source"], "valid_for_claims": sel["valid_for_claims"],
@@ -511,6 +576,7 @@ def _curve_result(fits, units, sel, sel_path, out_dir, rules, n_eval, t0, seed):
            "estimates": {f"{k[0]}@{k[1]}" if isinstance(k[0], str) else f"{k[0][0]}@{k[0][1]}-{k[1][0]}@{k[1][1]}":
                          [None if x is None else round(x, 4) for x in v] for k, v in stats.items()},
            "per_family_mean_recall": per_family, "decision": verdict, "fits": fits,
+           "label": sel.get("label"), **(extra or {}),
            "score_wall_s": round(time.time() - t0, 1)}
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, "curve.json"), "w", encoding="utf-8") as fh:
@@ -686,6 +752,10 @@ def summary_md(res):
             e = res["estimates"].get(f"{m}@{f}", [None, None, None])
             n = sum(1 for r in res["fits"] if r["model"] == m and r["fraction"] == f)
             lines.append(f"| {m} | {f} | {e[0]} | [{e[1]}, {e[2]}] | {n} |")
+    if res.get("age_only_ip_ua"):
+        a = res["age_only_ip_ua"]
+        lines += ["", (f"label: **{res.get('label') or 'none'}**; the (IP, UA)-key age-only baseline (D-040): validation "
+                       f"AUC {a['val_auc']} ({a['reading']}), evaluation recall at its point {a['eval_recall']}")]
     lines += ["", f"score wall {res['score_wall_s']} s"]
     return "\n".join(lines) + "\n"
 

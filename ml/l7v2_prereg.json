@@ -144,6 +144,11 @@
    "window_age_auc_band": 0.15,
    "family_min_units": 20,
    "held_out_lifetime_ks_max": 0.45,
+   "report_v3": {
+    "label": "registered 2026-10-31 under D-040 (T-042 findings F01 and F03), before any capture; report-only, never a refusal: the generators are unchanged in this round",
+    "address_and_ip_ua_age": "for every window of the window_rule, its age from the first request of its address (any entity's; a reused M3 address counts from its donor's first request) and from the first request of its (IP, UA) key; the AUC of each as a score for the attack role, pooled and per attack family, against the trained benign windows (a benign device keeps its address and UA for the whole capture, T042-F01)",
+    "small_families": "the window-age AUC of every attack family with fewer than family_min_units key units (C3b@M1), against the trained benign windows, and of C3b@M1 and C3b@M2 pooled (T042-F03)"
+   },
    "rule_v2": "an l7v2 plan is also refused unless (a) the lifetimes (the nominal start of a unit's last request minus that of its first) of the trained benign and the trained attack key units have a KS distance of at most lifetime_ks_max and an AUC, lifetime as a score for the attack role, within 0.5 +- lifetime_auc_band; (b) window age as a score for the attack role has an AUC within 0.5 +- window_age_auc_band for the trained attack windows pooled, and for the windows of every attack family with at least family_min_units key units (held-out families included), each against the trained benign windows; (c) when the plan holds held-out benign kinds, the KS distance of their lifetimes to the trained benign kinds' is at most held_out_lifetime_ks_max"
   }
  },

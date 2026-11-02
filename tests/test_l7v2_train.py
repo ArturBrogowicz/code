@@ -391,6 +391,10 @@ class SelectScoreTest(unittest.TestCase):
                 self.assertEqual(part["gap"]["benign_units_shuffled"], part["val_at_point"]["benign_units_flagged"])
                 self.assertIn("benign_units_view_gru", part["gap"])
 
+    def test_the_engine_parity_is_reported_per_validation_capture(self):
+        self.assertEqual(set(self.sel["engine_parity"]), {"v1"})
+        self.assertEqual(set(self.sel["engine_parity"]["v1"]), {"0.0", "0.5"})
+
     def test_every_arm_reports_the_load_split(self):
         for name, arm in [*self.sel["arms"].items(), *self.sel["baselines"].items()]:
             self.assertIn("load_split", arm, name)
@@ -457,6 +461,7 @@ class SelectScoreTest(unittest.TestCase):
         for arm in res["arms"].values():
             self.assertEqual(arm["attack_entities"], 4)
             self.assertEqual(set(arm["by_family"]), {"C3b@M1"})
+        self.assertEqual(set(res["engine_parity"]), {"e1"})
         self.assertIn("pin_first", res["arms"]["gru_shuffled"])
         self.assertIn("benign_units_flagged", res["arms"]["gru_shuffled"]["pin_first"])
         self.assertEqual(res["baselines"]["age_only"]["attack_entities"], 4)
