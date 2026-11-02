@@ -183,5 +183,112 @@ class BlockTest(unittest.TestCase):
         self.assertTrue(all("ks" in r and "auc" in r and "pass" in r for r in rep.values()))
 
 
+class HalvingTest(unittest.TestCase):
+    """The halving rule of ml/p1_prereg.json (D-049), as ml/p4_traffic.py's."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.plans = {h: P.build_block(3001, "eval", LEVELS, record_path=RECORD, knees=KNEES, halvings=h) for h in (0, 1, 2)}
+
+    def test_kept_entities(self):
+        self.assertEqual([P.kept_entities(52, h) for h in range(3)], [52, 26, 13])
+        self.assertEqual([P.kept_entities(5, h) for h in range(4)], [5, 2, 1, 1])
+        self.assertEqual([P.kept_entities(1, h) for h in range(4)], [1, 1, 1, 1])
+
+    def test_a_halved_plan_is_the_full_plan_without_the_dropped_entities(self):
+        full = {e["entity_id"]: e for e in self.plans[0]["benign"]}
+        for h in (1, 2):
+            rows = self.plans[h]["benign"]
+            self.assertLess(len(rows), len(full))
+            for e in rows:
+                self.assertEqual(e, full[e["entity_id"]])
+            self.assertEqual(self.plans[h]["attack"], self.plans[0]["attack"])
+            self.assertEqual(self.plans[h]["pool"], self.plans[0]["pool"])
+            self.assertEqual(self.plans[h]["flash"], self.plans[0]["flash"])
+
+    def test_the_dropped_are_the_last_of_each_kind(self):
+        full, half = self.plans[0]["benign"], self.plans[1]["benign"]
+        for kind in {e["kind_or_family"] for e in full}:
+            all_idx = [e["index"] for e in full if e["kind_or_family"] == kind]
+            kept = [e["index"] for e in half if e["kind_or_family"] == kind]
+            self.assertEqual(kept, all_idx[:len(kept)], kind)
+
+    def test_cgnat_pools_and_single_entities_are_never_removed(self):
+        multi = {s["kind"] for s in LP.POPULATIONS["l7v2"]["benign"] if s["count"] > 1}
+        full = sorted(e["entity_id"] for e in self.plans[0]["benign"] if e["kind_or_family"] not in multi)
+        self.assertEqual(sum(e["kind_or_family"] == "cgnat_browsers" for e in self.plans[0]["benign"]), 2)
+        for h in (1, 2):
+            self.assertEqual(sorted(e["entity_id"] for e in self.plans[h]["benign"] if e["kind_or_family"] not in multi), full)
+
+    def test_the_record_s_counts_and_its_disclosed_shares(self):
+        floor = P.prereg()["halving"]["floor"]
+        kinds = {}
+        for e in self.plans[2]["benign"]:
+            kinds[e["kind_or_family"]] = kinds.get(e["kind_or_family"], 0) + 1
+        self.assertEqual({k: kinds.get(k, 0) for k in floor["counts_at_the_floor"]}, floor["counts_at_the_floor"])
+        def users(rows):
+            return sum(len(e.get("users", [0])) for e in rows)
+
+        shares = []
+        for h in (0, 1, 2):
+            rows = self.plans[h]["benign"]
+            shares.append(users([e for e in rows if e["kind_or_family"] == "cgnat_browsers"]) / users(rows))
+            self.assertEqual(len({e["address"] for e in rows}), floor["addresses_by_halvings"][h] - len(self.plans[h]["dropped"]))
+        self.assertEqual([round(s, 1) for s in shares], [0.2, 0.3, 0.4])
+        self.assertLess(shares[2], 0.5)
+        self.assertEqual(self.plans[1]["halvings"], 1)
+
+    def test_past_the_floor_there_is_no_plan(self):
+        for bad in (3, -1, True, 1.0, "1"):
+            with self.subTest(bad=bad), self.assertRaisesRegex(P.PlanError, "rule's floor"):
+                P.build_block(3001, "eval", LEVELS, record_path=RECORD, knees=KNEES, halvings=bad)
+
+    def test_halve_judges_two_controls(self):
+        self.assertFalse(P.halve([[], []]))
+        self.assertTrue(P.halve([["Q(C) is 98.00 %"], []]))
+        self.assertTrue(P.halve([[], ["class C3"]]))
+        with self.assertRaisesRegex(P.PlanError, "two pilot controls"):
+            P.halve([[]])
+
+    @staticmethod
+    def step(h, *reasons, sound=True):
+        return {"halvings": h, "sound": sound, "reasons": list(reasons) if reasons else [[], []]}
+
+    def test_the_rule_stops_at_the_first_healthy_step(self):
+        sick = (["Q(C) is 98.00 %"], [])
+        self.assertEqual(P.next_step([])["next_halvings"], 0)
+        got = P.next_step([self.step(0)])
+        self.assertEqual((got["decision"], got["benign_halvings"]), ("frozen", 0))
+        got = P.next_step([self.step(0, *sick)])
+        self.assertEqual((got["decision"], got["next_halvings"]), ("run", 1))
+        got = P.next_step([self.step(0, *sick), self.step(1)])
+        self.assertEqual((got["decision"], got["benign_halvings"]), ("frozen", 1))
+        got = P.next_step([self.step(0, *sick), self.step(1, *sick), self.step(2)])
+        self.assertEqual((got["decision"], got["benign_halvings"]), ("frozen", 2))
+
+    def test_the_rule_refuses_at_the_floor_and_says_so(self):
+        sick = (["Q(C) is 98.00 %"], [])
+        got = P.next_step([self.step(0, *sick), self.step(1, *sick), self.step(2, *sick)])
+        self.assertEqual((got["decision"], got["benign_halvings"]), ("refused", None))
+        self.assertIn("does not reach health at the floor of 2 halvings", got["why"])
+        self.assertIn("Q(C) is 98.00 %", got["why"])
+
+    def test_no_step_runs_out_of_order_or_after_the_stop(self):
+        sick = (["class C3"], [])
+        for steps in ([self.step(1)], [self.step(0, *sick), self.step(2)], [self.step(0), self.step(0)],
+                      [self.step(0), self.step(1)]):
+            with self.subTest(steps=steps):
+                self.assertEqual(P.next_step(steps)["decision"], "refused")
+
+    def test_an_unsound_control_fires_nothing_and_is_re_run_within_a_limit(self):
+        unsound = self.step(0, sound=False)
+        got = P.next_step([unsound])
+        self.assertEqual((got["decision"], got["next_halvings"]), ("run", 0))
+        self.assertEqual(P.next_step([unsound, unsound, self.step(0)])["benign_halvings"], 0)
+        got = P.next_step([unsound, unsound, unsound])
+        self.assertEqual(got["decision"], "refused")
+        self.assertIn("no reading", got["why"])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -189,7 +189,7 @@ class PlanTest(Base):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             code = R.main(["--phase", "ladder", "--seed", "9001", "--class", "C3b", "--level", "50", "--plan",
-                           "--calibration", self.frozen["calibration"], "--root", self.root])
+                           "--calibration", self.frozen["calibration"], "--health", self.frozen["health"], "--root", self.root])
         self.assertEqual(code, 0)
         self.assertIn("run U_C3b", out.getvalue())
         self.assertFalse(os.path.exists(os.path.join(self.root, "ladder")))
@@ -389,11 +389,109 @@ class ExecuteTest(Base):
         with mock.patch.object(R.PT, "build_block", side_effect=thinned):
             out = io.StringIO()
             with contextlib.redirect_stdout(out):
-                code = R.main(["--phase", "ladder", "--seed", "9001", "--class", "C2", "--level", "1",
+                code = R.main(["--phase", "ladder", "--seed", "9001", "--class", "C2", "--level", "1", "--health", self.frozen["health"],
                                "--calibration", self.frozen["calibration"], "--root", self.root], host=F.P1FakeHost())
         self.assertEqual(code, 0, out.getvalue())
         self.assertEqual({x["run"] for x in index(self.root)}, {"C", "U_C2"})
         self.assertEqual(index(self.root)[0]["label"], "C2_L1_r1")
+
+
+class HalvingTest(Base):
+    """The halving rule of ml/p1_prereg.json in the runner (D-049): a health step's two controls, a factor frozen before the ladder."""
+
+    def health_file(self, **fields):
+        """A health file on the fixture's record, in a directory of its own."""
+        d = tempfile.mkdtemp(dir=self.tmp.name)
+        path = os.path.join(d, "health.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({**read_json(self.frozen["health"]), **fields}, fh)
+        return {**self.frozen, "health": path}
+
+    def ladder(self, frozen, **kw):
+        return R.plan_block("ladder", 9001, self.root, frozen=frozen, levels={"C2": 2.0}, runs=["C", "U_C2"], label="C2_L2_r1",
+                            benign_specs=F.thin_benign(), max_sources=3, **kw)
+
+    def test_a_health_step_is_the_rule_s_two_controls_on_its_seed(self):
+        block = R.plan_block("health", 9001, self.root, frozen=self.frozen, halvings=1, benign_specs=F.thin_benign())
+        self.assertEqual(sorted(block["order"]), ["C", "Cp"])
+        self.assertEqual((block["halvings"], block["levels"], block["label"]), (1, {}, "h1"))
+        self.assertTrue(all(not [x for x in r["launches"] if x["role"] == "attack"] for r in block["runs"]))
+        for bad in ({"seed": 9002}, {"seed": 3001}):
+            with self.subTest(bad=bad), self.assertRaisesRegex(R.PlanError, "pilot seed 9001"):
+                R.plan_block("health", bad["seed"], self.root, frozen=self.frozen, benign_specs=F.thin_benign())
+        with self.assertRaisesRegex(R.PlanError, "without attack"):
+            R.plan_block("health", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, benign_specs=F.thin_benign())
+        with self.assertRaisesRegex(R.PlanError, "rule's floor"):
+            R.plan_block("health", 9001, self.root, frozen=self.frozen, halvings=3, benign_specs=F.thin_benign())
+
+    def test_a_ladder_and_a_campaign_refuse_without_a_frozen_factor(self):
+        none = {**self.frozen, "health": None}
+        with self.assertRaisesRegex(R.PlanError, "frozen factor"):
+            self.ladder(none)
+        with self.assertRaisesRegex(R.PlanError, "frozen factor"):
+            thin(none, self.root)
+        with self.assertRaisesRegex(R.PlanError, "health file"):
+            self.ladder({**self.frozen, "health": os.path.join(self.root, "none.json")})
+
+    def test_a_refusal_says_why(self):
+        refused = self.health_file(decision="refused", benign_halvings=None, why="not at the floor of 2 halvings")
+        with self.assertRaisesRegex(R.PlanError, "not at the floor of 2 halvings"):
+            self.ladder(refused)
+        with self.assertRaisesRegex(R.PlanError, "not at the floor of 2 halvings"):
+            thin(refused, self.root)
+        pending = self.health_file(decision="run", benign_halvings=None, why="the next step runs at 1 halvings")
+        with self.assertRaisesRegex(R.PlanError, "the next step"):
+            self.ladder(pending)
+
+    def test_a_factor_read_on_another_record_or_past_the_floor_is_refused(self):
+        with self.assertRaisesRegex(R.PlanError, "calibration record"):
+            self.ladder(self.health_file(record_sha256="f" * 64))
+        with self.assertRaisesRegex(R.PlanError, "rule's floor"):
+            self.ladder(self.health_file(benign_halvings=3))
+        with self.assertRaisesRegex(R.PlanError, "not a p1-health/1 file"):
+            self.ladder(self.health_file(format="p1-health/0"))
+
+    def test_the_factor_applies_to_a_ladder_and_cannot_be_overridden(self):
+        full = self.ladder(self.frozen)
+        block = self.ladder(self.health_file(benign_halvings=1))
+        self.assertEqual((full["halvings"], block["halvings"]), (0, 1))
+        self.assertLess(*(len([e for e in b["runs"][0]["entities"] if e["role"] != "attack"]) for b in (block, full)))
+        with self.assertRaisesRegex(R.PlanError, "not at --halvings"):
+            self.ladder(self.frozen, halvings=1)
+
+    def test_a_campaign_s_knees_must_name_the_factor(self):
+        d = tempfile.mkdtemp(dir=self.tmp.name)
+        knees = read_json(self.frozen["knees"])
+        for name, value in (("a", None), ("b", 1)):
+            path = os.path.join(d, name + ".json")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump({**knees, "benign_halvings": value}, fh)
+            with self.subTest(value=value), self.assertRaisesRegex(R.PlanError, "halvings, the frozen factor is 0"):
+                thin({**self.frozen, "knees": path}, self.root)
+        frozen = self.health_file(benign_halvings=1)
+        with self.assertRaisesRegex(R.PlanError, "the frozen factor is 1"):
+            thin(frozen, self.root)
+
+    def test_the_factor_is_recorded_with_the_block_and_every_run(self):
+        frozen = self.health_file(benign_halvings=1)
+        block = self.ladder(frozen)
+        R.run_block(F.P1FakeHost(), block)
+        self.assertEqual(read_json(os.path.join(block["dir"], "block.json"))["halvings"], 1)
+        self.assertEqual(block["frozen"]["health"]["sha256"], R.sha256_file(frozen["health"]))
+        for run in block["runs"]:
+            self.assertEqual(read_json(os.path.join(run["out"], "run.json"))["halvings"], 1)
+            self.assertEqual(read_json(os.path.join(run["out"], l7_dataset.MANIFEST_FILE))["halvings"], 1)
+
+    def test_a_smoke_plans_within_the_floor_and_the_command_line_names_it(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = R.main(["--phase", "health", "--seed", "9001", "--halvings", "2", "--plan",
+                           "--calibration", self.frozen["calibration"], "--root", self.root])
+        self.assertEqual(code, 0)
+        self.assertIn("benign halvings 2", out.getvalue())
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(R.main(["--phase", "smoke", "--seed", "9001", "--halvings", "3", "--runs", "C", "--plan",
+                                     "--calibration", self.frozen["calibration"], "--root", self.root]), 2)
 
 
 if __name__ == "__main__":

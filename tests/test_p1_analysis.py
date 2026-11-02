@@ -1,6 +1,8 @@
 """The P1 analysis (eval/p1_analysis.py; docs/L7V2_DESIGN.md 5.3, 10, 11): fake campaigns of eval/p1_runner.py on the fake host,
 through eval/l7v2_harm.py, the replay and ml/l7v2_verdict.py, to one verdict per class. Each verdict is reached end to end on
 fake outputs: only the arms' decisions in the replay are stubs, behind the engine's real path. Offline."""
+import contextlib
+import io
 import json
 import os
 import re
@@ -288,6 +290,93 @@ class LadderTest(unittest.TestCase):
         self.assertEqual(A.main([root, "--calibration", frozen["calibration"], "--ladder", "--out", out]), 0)
         self.assertEqual(REC.read_json(out)["record_sha256"], calibration_fixtures.frozen()["sha256"])
         self.assertEqual(json.loads(json.dumps(REC.read_json(out)["knees"]["C2"]))["level"], 2.0)
+        self.assertEqual(REC.read_json(out)["benign_halvings"], 0)
+
+    def test_a_ladder_at_two_factors_is_refused(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        frozen = F.frozen_inputs(os.path.join(tmp.name, "frozen"))
+        other = dict(frozen, health=os.path.join(tmp.name, "h1.json"))
+        with open(other["health"], "w", encoding="utf-8") as fh:
+            json.dump({**REC.read_json(frozen["health"]), "benign_halvings": 1}, fh)
+        root = os.path.join(tmp.name, "runs")
+        for rep, inputs in ((1, frozen), (2, other)):
+            block = R.plan_block("ladder", 9001, root, frozen=inputs, levels={"C2": 1.0}, runs=["C", "U_C2"],
+                                 label=f"C2_L1_r{rep}", benign_specs=F.thin_benign(LEAN), max_sources=2)
+            R.run_block(F.P1FakeHost(), block)
+        with self.assertRaisesRegex(ValueError, "one factor"):
+            A.ladder_factor(root)
+
+
+class HealthTest(unittest.TestCase):
+    """The halving rule on fake runs: a control's real figures through eval/harm_gate.control_health, into the health file that the
+    ladder and the campaign take (ml/p1_prereg.json, D-049)."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = tmp.name
+        self.frozen = F.frozen_inputs(os.path.join(tmp.name, "frozen"))
+        self.cal = l7_backend.load_record(self.frozen["calibration"])[0]
+        self.root = os.path.join(tmp.name, "runs")
+
+    def step(self, halvings, attempt=1, **host):
+        block = R.plan_block("health", 9001, self.root, frozen=self.frozen, halvings=halvings, attempt=attempt,
+                             benign_specs=F.thin_benign(LEAN))
+        R.run_block(F.P1FakeHost(**host), block)
+
+    def result_file(self, code=0):
+        out = os.path.join(self.tmp, "health.json")
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(A.main([self.root, "--calibration", self.frozen["calibration"], "--health", "--out", out]), code)
+        return out
+
+    @staticmethod
+    def sick_until(h):
+        return lambda _run, block_dir, _t: 0.05 if int(re.search(r"_h(\d)", block_dir).group(1)) < h else 0.0
+
+    def test_healthy_at_once(self):
+        self.step(0)
+        got = A.health_result(self.root, self.cal)
+        self.assertEqual((got["decision"], got["benign_halvings"]), ("frozen", 0))
+        self.assertEqual(got["record_sha256"], self.cal["sha256"])
+        self.assertEqual(sorted(got["steps"][0]["controls"]), ["C", "Cp"])
+
+    def test_an_unhealthy_control_halves_and_a_healthy_step_freezes_the_factor(self):
+        self.step(0, fail_share=self.sick_until(1))
+        got = A.health_result(self.root, self.cal)
+        self.assertEqual((got["decision"], got["next_halvings"]), ("run", 1))
+        self.assertIn("below 99", got["steps"][0]["controls"]["C"]["reasons"][0])
+        self.step(1, fail_share=self.sick_until(1))
+        got = A.health_result(self.root, self.cal)
+        self.assertEqual((got["decision"], got["benign_halvings"]), ("frozen", 1))
+        health = self.result_file()
+        block = R.plan_block("ladder", 9001, self.root, frozen={**self.frozen, "health": health}, levels={"C2": 1.0},
+                             runs=["C", "U_C2"], label="C2_L1_r1", benign_specs=F.thin_benign(LEAN), max_sources=2)
+        self.assertEqual(block["halvings"], 1)
+
+    def test_one_unhealthy_control_is_enough(self):
+        self.step(0, fail_share=lambda run, _b, _t: 0.05 if run == "Cp" else 0.0)
+        self.assertEqual(A.health_result(self.root, self.cal)["next_halvings"], 1)
+
+    def test_unhealthy_at_the_floor_refuses_and_the_ladder_and_the_campaign_say_so(self):
+        for h in (0, 1, 2):
+            self.step(h, fail_share=self.sick_until(3))
+        health = self.result_file(code=1)
+        got = REC.read_json(health)
+        self.assertEqual((got["decision"], got["benign_halvings"]), ("refused", None))
+        frozen = {**self.frozen, "health": health}
+        with self.assertRaisesRegex(R.PlanError, "does not reach health at the floor of 2 halvings"):
+            R.plan_block("ladder", 9001, self.root, frozen=frozen, levels={"C2": 1.0}, runs=["C", "U_C2"],
+                         benign_specs=F.thin_benign(LEAN), max_sources=2)
+        with self.assertRaisesRegex(R.PlanError, "does not reach health at the floor of 2 halvings"):
+            R.plan_block("campaign", 3001, self.root, frozen=frozen, benign_specs=F.thin_benign(LEAN), max_sources=2)
+
+    def test_a_control_that_failed_its_checks_gives_no_reading(self):
+        self.step(0, quiet_from=30)
+        got = A.health_result(self.root, self.cal)
+        self.assertFalse(got["steps"][0]["sound"])
+        self.assertEqual((got["decision"], got["next_halvings"]), ("run", 0))
 
 
 if __name__ == "__main__":

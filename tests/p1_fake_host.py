@@ -180,8 +180,9 @@ def thin_benign(counts=None):
 
 
 def frozen_inputs(d, *, record_status="frozen", knees=None, valid=True):
-    """The frozen items of a campaign under directory `d`: {calibration, knees, selection, selection_sha256, rules,
-    rules_sha256}. The selections are well-formed (formats, artifacts, operating points); nothing is trained."""
+    """The frozen items of a campaign under directory `d`: {calibration, knees, health, selection, selection_sha256, rules,
+    rules_sha256}. The health file freezes no halving; the selections are well-formed (formats, artifacts, operating points);
+    nothing is trained."""
     import l7v2_rules as R
     import train_l7v2 as V
     os.makedirs(d, exist_ok=True)
@@ -191,7 +192,12 @@ def frozen_inputs(d, *, record_status="frozen", knees=None, valid=True):
         json.dump(rec, fh)
     knee_path = os.path.join(d, "knees.json")
     with open(knee_path, "w", encoding="utf-8") as fh:
-        json.dump(knees or {"status": "frozen", "record_sha256": rec["sha256"], "C2": 4.0, "C3a": 1.0, "C3b": 50}, fh)
+        json.dump({"benign_halvings": 0, **(knees or {"status": "frozen", "record_sha256": rec["sha256"], "C2": 4.0, "C3a": 1.0,
+                                                      "C3b": 50})}, fh)
+    health_path = os.path.join(d, "health.json")
+    with open(health_path, "w", encoding="utf-8") as fh:
+        json.dump({"format": "p1-health/1", "record_sha256": rec["sha256"], "decision": "frozen", "benign_halvings": 0,
+                   "why": "fixture", "steps": []}, fh)
     sel_dir, rule_dir = os.path.join(d, "sel"), os.path.join(d, "rules")
     os.makedirs(os.path.join(rule_dir, "rules"), exist_ok=True)
     os.makedirs(sel_dir, exist_ok=True)
@@ -227,5 +233,5 @@ def frozen_inputs(d, *, record_status="frozen", knees=None, valid=True):
     rules_path = os.path.join(rule_dir, "rules_selection.json")
     with open(rules_path, "w", encoding="utf-8") as fh:
         json.dump(rules, fh)
-    return {"calibration": cal, "knees": knee_path, "selection": sel_path, "selection_sha256": V._sha_file(sel_path),
+    return {"calibration": cal, "knees": knee_path, "health": health_path, "selection": sel_path, "selection_sha256": V._sha_file(sel_path),
             "rules": rules_path, "rules_sha256": V._sha_file(rules_path)}

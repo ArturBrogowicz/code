@@ -20,9 +20,13 @@ verdict (a dry run stops before judging, and says so).
 ladder_knees() reads a finished ladder (phase ladder) into the knees a campaign needs: per class the lowest level whose harm
 reaches the floor in both repeats (bench/calibration.knee, harm as bench/calibrate.harm against the session's control).
 
+health_result() reads the halving rule's steps (phase health, ml/p1_prereg.json) into the next step, the frozen factor or a refusal,
+in the file that the ladder and the campaign take (--health). Its exit code is 1 on a refusal.
+
     ./venv/bin/python eval/p1_analysis.py ROOT --calibration REC --selection SEL/selection.json --selection-sha256 H \\
         --rules RULES/rules_selection.json --rules-sha256 H --out p1_verdicts.json
     ./venv/bin/python eval/p1_analysis.py ROOT --calibration REC --ladder --out knees.json
+    ./venv/bin/python eval/p1_analysis.py ROOT --calibration REC --health --out health.json
 """
 import argparse
 import copy
@@ -37,12 +41,14 @@ for _p in (REPO, os.path.join(REPO, "ml"), HERE, os.path.join(REPO, "bench")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 import calibration as CAL
+import harm_gate as HG
 import l7v2_harm as LH
 import l7v2_replay as RP
 import l7v2_verdict as J
 import l7v2_verdict_prereg as VP
 import p1_records as REC
 import p1_runner as RUN
+import p1_traffic as PT
 import p4_runner as P4
 
 import l7_dataset as D
@@ -244,6 +250,50 @@ def ladder_knees(root, cal):
     return {cls: CAL.knee(sorted(levels.items()), 1.0, 2) for cls, levels in sorted(rows.items())}
 
 
+def ladder_factor(root):
+    """The one factor of a finished ladder. Several are refused: their knees would mix two benign mixes."""
+    factors = {REC.read_json(os.path.join(root, x["block_dir"], "block.json"))["halvings"]
+               for x in REC.index_lines(root) if x["phase"] == "ladder"}
+    if len(factors) != 1:
+        raise ValueError(f"the ladder's blocks ran at the halvings {sorted(factors)}: one factor, frozen before it, applies to all")
+    return factors.pop()
+
+
+# --- the halving rule --------------------------------------------------------------------------------
+
+def health_step(root, block_dir, cal):
+    """One step of the rule: its two controls' figures, whether both gave a reading and their control_health reasons. A control that
+    never ran, or whose run checks failed, gives no reading and fires nothing (ml/p1_prereg.json halving.unsound)."""
+    path = os.path.join(root, block_dir)
+    step = {"dir": block_dir, "halvings": REC.read_json(os.path.join(path, "block.json"))["halvings"], "sound": True,
+            "controls": {}, "reasons": []}
+    try:
+        runs = LH.assess_block(path, cal)["runs"]
+    except LH.HarmError as exc:
+        return {**step, "sound": False, "why": str(exc)}
+    for name in PT.prereg()["halving"]["controls"]:
+        run = runs.get(name)
+        if run is None or not run["checks"].get("ok"):
+            step["sound"] = False
+            step["controls"][name] = {"sound": False, "checks": run and run["checks"].get("reasons")}
+            continue
+        reasons = HG.control_health(run["metrics"], cal)
+        step["controls"][name] = {"sound": True, "Q": run["metrics"]["Q"], "reasons": reasons}
+        step["reasons"].append(reasons)
+    return step
+
+
+def health_result(root, cal):
+    """The rule over its steps in the order they ran (ROOT/index.jsonl): the health file."""
+    dirs = []
+    for x in REC.index_lines(root):
+        if x["phase"] == "health" and x["block_dir"] not in dirs:
+            dirs.append(x["block_dir"])
+    steps = [health_step(root, d, cal) for d in dirs]
+    return {"format": RUN.HEALTH_FORMAT, "record_sha256": cal.get("sha256"), "record_status": cal.get("status"),
+            "rule": "ml/p1_prereg.json halving", **PT.next_step(steps), "steps": steps}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("root")
@@ -255,13 +305,17 @@ def main(argv=None):
     ap.add_argument("--cut", action="store_true")
     ap.add_argument("--dry-run", action="store_true", help="a record that is not frozen: figures, no verdict")
     ap.add_argument("--ladder", action="store_true", help="the knees of a finished ladder")
+    ap.add_argument("--health", action="store_true", help="the halving rule's next step, frozen factor or refusal")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
     import l7_backend
     cal, _status, _tag = l7_backend.load_record(args.calibration)
-    if args.ladder:
+    if args.health:
+        res = health_result(args.root, cal)
+        print(f"the halving rule: {res['decision']}: {res['why']}")
+    elif args.ladder:
         res = {"format": "p1-ladder/1", "record_sha256": cal.get("sha256"), "record_status": cal.get("status"),
-               "knees": ladder_knees(args.root, cal)}
+               "benign_halvings": ladder_factor(args.root), "knees": ladder_knees(args.root, cal)}
     else:
         frozen = {"selection": args.selection, "selection_sha256": args.selection_sha256, "rules": args.rules,
                   "rules_sha256": args.rules_sha256}
@@ -270,7 +324,7 @@ def main(argv=None):
     with open(args.out, "w", encoding="utf-8") as fh:
         json.dump(res, fh, indent=1, sort_keys=True, default=str)
         fh.write("\n")
-    return 0
+    return 1 if args.health and res["decision"] == "refused" else 0
 
 
 if __name__ == "__main__":
