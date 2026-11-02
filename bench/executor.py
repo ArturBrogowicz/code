@@ -1210,6 +1210,7 @@ def environment(host, plan, gate="full", wait_gate_min=30.0, say=None, note=None
     else:
         seen = {"met": None, "uptime_s": up, "load1": load, "waited_s": 0.0}
     probe, timer = timer_gate(host, plan, wait_gate_min, say, note)
+    timer["load1_after_timer_gate"] = float(host.read_text("/proc/loadavg").split()[0])        # `seen` was read before the wait
     own = plan.pins.get("executor")
     timers = {"timer_executor": timer_probe(host, own), "timer_executor_cpus": own} if own is not None else {}
     stat = host.read_text("/proc/stat").splitlines()[0].split()

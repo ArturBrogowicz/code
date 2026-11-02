@@ -941,6 +941,19 @@ class TimerReprobeTest(RunCase):
         self.assertEqual((executor["timer_refused_probes"], executor["timer_waited_s"]), (2, 60.0))
         self.assertTrue(result.seconds >= 60.0, "a run's seconds have the wait in them; its record says how much")
 
+    def test_the_load_after_the_wait_is_recorded_beside_the_load_before_it_and_refuses_nothing(self):
+        """T-047 G-03: the recorded gate can be half an hour old when the run starts."""
+        host = F.SimHost(timer_p99_by_cpu={"7": [25.0, 6.0]})
+
+        def rise(h):
+            h.load1 = 1.7
+
+        host.on_sleep = rise
+        plan, _, result = self.go("C", host)
+        self.assertTrue(result.ok, result.reasons)
+        env = self.environment(plan)
+        self.assertEqual((env["gate"]["load1"], env["load1_after_timer_gate"]), (0.05, 1.7))
+
     def test_the_plan_says_what_the_gate_does_with_a_refused_probe(self):
         self.assertIn("; a refused probe is made again every 30 s, up to --wait-gate minutes from the first (0: one probe)\n",
                       X.describe(self.plan("C")))
