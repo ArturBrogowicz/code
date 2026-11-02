@@ -1,0 +1,78 @@
+{
+ "format": "p1-prereg-2/1",
+ "date": "2026-11-02",
+ "decisions": "D-052 and D-053 (the user: \"4 seeds + pilot check\", \"210 s + level window\"), D-054 (the orchestrator, T-048's T048-12 and T048-14)",
+ "status": "post hoc to docs/L7V2_DESIGN.md and to ml/p1_prereg.json, before any capture and any P1 data, and before the code it judges. It adds to ml/p1_prereg.json, which stands",
+ "timeline": {
+  "decision": "D-053",
+  "baseline_s": 30,
+  "attack_s": 210,
+  "recovery_s": 30,
+  "replaces": "section 14's 30 + 120 + 30 s, on P1's every phase",
+  "arrivals": "ml/l7v2_prereg.json arrivals, unchanged, on the longer slot: benign over [0, 180] s, attack over [30, 180] s, one lifetime capped at the attack's end. flash_gap_s now fits, so it is kept: the crowd's minute starts over [90, 120] s"
+ },
+ "harm_windows": {
+  "decision": "D-053",
+  "primary": "the verdict's harm contrasts read Q from the attack's start + 90 s to the attack's end, the never-sent guard on that window (ml/l7v2_verdict_prereg_v3.json level_window)",
+  "secondary": "Q over the whole attack window, reported beside it per arm",
+  "admission": "harm admission, the placebo and the ladder's knees read the whole attack window, as registered"
+ },
+ "reported_per_class": {
+  "decision": "D-053, T048-04",
+  "time_to_decision": "per arm and family, on the U replays: from an attack entity's first request to the arm's decision, over the caught entities, mean and median",
+  "attack_cost_left": {
+   "replay": "per arm, on the U replays: the share of the attack's cost, the record's class cost of each attack request, not removed by the arm's decisions; a request is removed when it starts at or after max(decision, the entity's first request + key_age_gate_s) + reload_s, the worst case of the enforcing path. A share of 1 means that nothing was removed",
+   "key_age_gate_s": 20.0,
+   "reload_s": 10.0,
+   "gate_source": "l7_enforce.py KEY_AGE_S and RELOAD_MIN_S",
+   "live": "per arm with M runs of the class: the class cost of the attack's 2xx requests in its M runs over the same in the U runs of the same blocks",
+   "judges": "nothing"
+  }
+ },
+ "validation": {
+  "decision": "D-052",
+  "p3_val": [
+   2001,
+   2002,
+   2003,
+   2004
+  ],
+  "replaces": "ml/p3_prereg.json seeds.p3_val [2001, 2002], for every arm's selection",
+  "plan_checks": "the plan's own checks on the new seeds, the frozen age limits among them, unchanged: a seed they refuse is reported, never redrawn"
+ },
+ "point_check": {
+  "decision": "D-052",
+  "when": "after the ladder, before the campaign's first run",
+  "traffic": "the pilot's benign traffic: one valid control C per pilot seed, of the phases health and ladder, at the frozen factor, replayed through each arm at its frozen operating point",
+  "seeds": [
+   9001,
+   9002,
+   9003,
+   9004,
+   9005,
+   9006,
+   9007,
+   9008
+  ],
+  "ladder_seeds": "the ladder's pairs of runs cycle through the eight pilot seeds, so that each seed has a control",
+  "stops": [
+   "R*",
+   "hgb",
+   "view_gru"
+  ],
+  "reported_only": "every other arm of the selections",
+  "budget": "benign units flagged in the replay, pooled over the seeds, at most floor(budget x the benign units pooled); budget from ml/l7v2_model_prereg.json selection",
+  "over_budget": "an arm in `stops` over the budget stops the campaign until a dated decision, named on the command line and recorded with every block",
+  "incomplete": "a pilot seed without a valid control leaves the check incomplete, and a campaign refuses it",
+  "no_retune": "the check reads the frozen points and changes nothing: nothing is re-tuned silently"
+ },
+ "run_validity": {
+  "decision": "D-054, T048-14",
+  "recorded": "per M run, in run.json and the run's record: the shadow's last evicted and late counts (the l7_shadow events) and every daemon_error event",
+  "invalid_when": "evicted > 0 on an arm's own rule path, or a restart of the shadow thread (daemon_error at thread:l7_shadow) in the attack window"
+ },
+ "bans_by_engine": {
+  "decision": "D-054",
+  "rule": "the bans of each run by engine, in run.json and the run's record"
+ }
+}

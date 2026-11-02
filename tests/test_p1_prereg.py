@@ -7,6 +7,8 @@ import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PATH = os.path.join(REPO, "ml", "p1_prereg.json")
+PATH_2 = os.path.join(REPO, "ml", "p1_prereg_2.json")
+PREREG_2_SHA256 = "0dd33f224f6a8d24b24913c23b5be21dc41aab0e9ca282ff4cfbc5628cf9ef99"
 PREREG_SHA256 = "2c256fedc2352c8004ccb619748244ac5ee0c4cd5f677a5668a0cee3004b01ac"
 
 
@@ -49,6 +51,51 @@ class FrozenFileTest(unittest.TestCase):
         self.assertEqual(sorted(rec["readings"]["assumptions"]), ["file_sink_silence_s", "side_bots"])
         for text in rec["readings"]["assumptions"].values():
             self.assertTrue(text.startswith("[ASSUMPTION]"))
+
+
+class SecondRecordTest(unittest.TestCase):
+    """ml/p1_prereg_2.json: D-052, D-053 and D-054, which add to the record above."""
+
+    @staticmethod
+    def load():
+        with open(PATH_2, encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_the_file_is_the_frozen_version(self):
+        with open(PATH_2, "rb") as fh:
+            self.assertEqual(hashlib.sha256(fh.read()).hexdigest(), PREREG_2_SHA256)
+        rec = self.load()
+        self.assertEqual((rec["format"], rec["date"]), ("p1-prereg-2/1", "2026-11-02"))
+        for decision in ("D-052", "D-053", "D-054"):
+            self.assertIn(decision, rec["decisions"])
+
+    def test_the_timeline_and_the_windows(self):
+        rec = self.load()
+        t = rec["timeline"]
+        self.assertEqual((t["baseline_s"], t["attack_s"], t["recovery_s"]), (30, 210, 30))
+        self.assertIn("flash_gap_s now fits", t["arrivals"])
+        self.assertIn("+ 90 s", rec["harm_windows"]["primary"])
+        self.assertIn("as registered", rec["harm_windows"]["admission"])
+
+    def test_the_cost_left_and_its_gate(self):
+        left = self.load()["reported_per_class"]["attack_cost_left"]
+        self.assertEqual((left["key_age_gate_s"], left["reload_s"]), (20.0, 10.0))
+        self.assertEqual(left["judges"], "nothing")
+
+    def test_the_validation_seeds_and_the_point_check(self):
+        rec = self.load()
+        self.assertEqual(rec["validation"]["p3_val"], [2001, 2002, 2003, 2004])
+        check = rec["point_check"]
+        self.assertEqual(check["seeds"], list(range(9001, 9009)))
+        self.assertEqual(check["stops"], ["R*", "hgb", "view_gru"])
+        self.assertIn("dated decision", check["over_budget"])
+        self.assertIn("nothing is re-tuned silently", check["no_retune"])
+
+    def test_the_run_validity(self):
+        rec = self.load()
+        self.assertIn("evicted > 0", rec["run_validity"]["invalid_when"])
+        self.assertIn("thread:l7_shadow", rec["run_validity"]["invalid_when"])
+        self.assertIn("by engine", rec["bans_by_engine"]["rule"])
 
 
 if __name__ == "__main__":
