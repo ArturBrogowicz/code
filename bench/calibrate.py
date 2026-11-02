@@ -330,7 +330,7 @@ def capacity_step(runner, cal, cal_path, out, levels=None, step_s=STEP_S, repeat
         costs.append(stack_cost(read_telemetry(os.path.join(plan.out, "server.csv")), steps, step_s,
                                 plan.settings["startup_delay_legit_s"]))
     result = {"step": "capacity", "created_utc": now(), "levels_rps": levels, "step_s": step_s, "window_s": list(Q_WINDOW),
-              "q_pct": q, "stack_cost": combine_stack_cost(costs), "smoke": smoke, "pins": plan.pins,
+              "q_pct": q, "stack_cost": combine_stack_cost(costs), "smoke": smoke, "pins": plan.pins, "waits": runner.take_waits(),
               "template_sha256": cal.get("sha256") or C.digest(cal)}
     path = os.path.join(out, "capacity", "capacity.json")
     try:
@@ -464,7 +464,7 @@ def ladder_step(runner, cal, cal_path, family, out, under, levels=None, timeline
         entries.append({"kind": kind, "level": level, "repeat": repeat, "run": label, "metrics": metrics})
     result = {"step": "ladder", "family": family, "created_utc": now(), "seed": seed, "sequence": [list(s) for s in sequence],
               "levels_run": usable, "levels_left_out": {str(k): v for k, v in left_out.items()},
-              "smoke": levels is not None or timeline is not None, "under": under, "pins": plan.pins}
+              "smoke": levels is not None or timeline is not None, "under": under, "pins": plan.pins, "waits": runner.take_waits()}
     result.update(analyse_ladder(entries, cal))
     say(f"ladder {family}: " + ("session valid" if result["valid"] else "session NOT valid: " + "; ".join(result["reasons"]))
         + f"; knee {result['knee']['level']}")
@@ -528,7 +528,8 @@ def reference_step(runner, draft, cal_path, knees, out, under, timeline=None, sa
     if any(m["Q"] is None or m["p95_s"] is None for m in legit) or any(a["Q"] is None or a["p95_s"] is None for a in attacks.values()):
         raise CalibrationStop("a reference probe had no judged request or no successful one: it cannot be a reference")
     result = {"step": "reference", "created_utc": now(), "legit": legit, "attacks": attacks, "smoke": timeline is not None,
-              "under": under, "pins": plan.pins, "reference": reference_of(C.rho_rps(draft), legit, attacks)}
+              "under": under, "pins": plan.pins, "waits": runner.take_waits(),
+              "reference": reference_of(C.rho_rps(draft), legit, attacks)}
     write_json(os.path.join(out, "reference", "reference.json"), result)
     return result
 
@@ -684,6 +685,7 @@ def drift_step(runner, cal, cal_path, out, families=None, timeline=None, say=pri
                            **attack_run(runner, cal, cal_path, family, ref["attack"][family]["level"], SEEDS["drift"] + 1 + i,
                                         os.path.join(out, "drift", f"attack_{family}"), timeline, say)}
     result = {"step": "drift", "created_utc": now(), "calibration_sha256": cal["sha256"], "legit": legit, "attacks": attacks,
+              "waits": runner.take_waits(),
               "smoke": timeline is not None, **drift_check(cal, legit, attacks)}
     say("drift: " + ("within the frozen reference" if result["ok"] else "OUT of it: " + "; ".join(result["reasons"])))
     write_json(os.path.join(out, "drift", "drift.json"), result)
@@ -723,6 +725,24 @@ class Runner:
         self.host, self.settings = host, dict(settings or {})
         self.allow_dirty, self.clean, self.wait_gate_min, self.tries = allow_dirty, clean, wait_gate_min, tries
         self.gate = "full"
+        self.waits = {}
+
+    def remember(self, plan, record):
+        """A finished run's wait for the step's summary, with what its earlier stops cost (kept beside it). Returns the record."""
+        parent, name = os.path.split(plan.out)
+        self.waits[os.sep.join(plan.out.split(os.sep)[-3:])] = {"refused_probes": record.get("timer_refused_probes") or 0,
+                                                                "waited_s": record.get("timer_waited_s") or 0.0,
+                                                                "earlier": H.earlier_waits(parent, name)}
+        return record
+
+    def take_waits(self):
+        """What the timer gate cost the runs since the last call, for a step's record: recorded, not judged (docs/HG1C_DESIGN.md
+        departure 32). The totals include the earlier stops; the runs that waited are named."""
+        waits, self.waits = self.waits, {}
+        every = [e for w in waits.values() for e in [w, *w["earlier"]]]
+        return {"runs": len(waits), "refused_probes": sum(e["refused_probes"] or 0 for e in every),
+                "waited_s": round(sum(e["waited_s"] or 0 for e in every), 1),
+                "waited": {k: w for k, w in waits.items() if w["refused_probes"] or w["earlier"]}}
 
     def quiet(self, say=print):
         """The full gate's uptime and load without a run (executor.quiet_gate, the code a campaign's first run takes it through):
@@ -737,7 +757,7 @@ class Runner:
             why = done_with_other_pins(plan)
             if why:
                 raise CalibrationStop(why)
-            return record
+            return self.remember(plan, record)
         reasons = []
         for attempt in range(1, self.tries + 1):
             if os.path.exists(plan.out):
@@ -758,7 +778,7 @@ class Runner:
                 if result.ok:
                     self.gate = "timer"
                     GC.mark_done(plan.out, GC.run_record(result))
-                    return GC.read_done(plan.out)
+                    return self.remember(plan, GC.read_done(plan.out))
                 reasons = result.reasons
             self.gate = "timer"
         raise CalibrationStop(f"{plan.out}: the run was not sound in {self.tries} attempts ({'; '.join(reasons)[:300]}); "

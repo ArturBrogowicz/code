@@ -424,6 +424,31 @@ def _diff(a, b):
 
 # --- blocks and the campaign -------------------------------------------------------------------
 
+def earlier_waits(parent, name):
+    """What the timer gate cost the earlier stops of a run, from the records kept beside it (bench/gate_campaign.py keep_unfinished):
+    a resume starts a new wait. A record that cannot be read says nothing, and stops nothing: this is reported, not judged."""
+    out = []
+    for f in sorted(os.listdir(parent)):
+        if f.startswith(name + UNFINISHED) and f.endswith(".environment.json"):
+            try:
+                kept = _json(os.path.join(parent, f))
+            except GateError:
+                kept = {}
+            out.append({"file": f, "refused_probes": kept.get("timer_refused_probes"), "waited_s": kept.get("timer_waited_s")})
+    return out
+
+
+def block_waits(block_dir, runs):
+    """What the timer gate cost each run of a block and how far apart the runs' zeros lie, so that drift between the arms can be seen
+    (docs/HG1C_DESIGN.md departures 30 and 32). No rule reads it. A run of before these records has None."""
+    zeros = [r["zero_epoch_s"] for r in runs.values() if r["zero_epoch_s"] is not None]
+    first = min(zeros) if zeros else None
+    return {"t0_span_s": round(max(zeros) - first, 1) if zeros else None,
+            "runs": {name: {"refused_probes": r["executor"].get("timer_refused_probes"), "waited_s": r["executor"].get("timer_waited_s"),
+                            "t0_after_first_s": None if r["zero_epoch_s"] is None else round(r["zero_epoch_s"] - first, 1),
+                            "earlier": earlier_waits(block_dir, name)} for name, r in runs.items()}}
+
+
 def assess_block(block_dir, cal, slo_scale=1.0):
     meta = read_block_meta(block_dir)
     runs, problems = {}, []
@@ -476,7 +501,8 @@ def assess_block(block_dir, cal, slo_scale=1.0):
             "dQ": _diff(control and control["Q"], u and u["Q"]),
             "dL": _log2_ratio(u and u["p95_s"], control and control["p95_s"]),
             "dQ_placebo": _diff(control and control["Q"], cp and cp["Q"]),
-            "dL_placebo": _log2_ratio(cp and cp["p95_s"], control and control["p95_s"])}
+            "dL_placebo": _log2_ratio(cp and cp["p95_s"], control and control["p95_s"]),
+            "waits": block_waits(block_dir, runs)}
 
 
 def protocol_problems(attempts, cal):
@@ -881,9 +907,45 @@ def to_markdown(r):
                     state = {True: "valid", False: "not valid", None: "no record of the run"}[b["run_valid"]]
                     out.append(f"  * {b['ip']} in block {b['block']} attempt {b['attempt']} ({b['file']}, {state})")
         out.append("")
+    out += waits_section(r)
     out.append("Limits: p95 is over successes (Q counts the failures and is the primary number); the pooled p95 weighs "
                "route classes by their share of the mix; the SLOs, floors and judged links are the calibration's.")
     return "\n".join(out) + "\n"
+
+
+def waited(waits):
+    """Whether any run of a block's `waits` had a refused timer probe, now or in an earlier stop."""
+    return bool(waits) and any(w["refused_probes"] or any(e["refused_probes"] for e in w["earlier"]) for w in waits["runs"].values())
+
+
+def waits_text(waits, order):
+    """The waits of a block's runs in the order they were made: refused probes / seconds waited, and the zero after the block's first."""
+    arms = []
+    for name in order:
+        w = waits["runs"].get(name)
+        if w is None:
+            continue
+        text = f"{name} " + ("not recorded" if w["refused_probes"] is None else f"{w['refused_probes']}/{_f(w['waited_s'], '.0f')} s")
+        if w["t0_after_first_s"] is not None:
+            text += f" at +{w['t0_after_first_s']:.0f} s"
+        if w["earlier"]:
+            text += (f" (+{sum(e['refused_probes'] or 0 for e in w['earlier'])} refused, {_f(sum(e['waited_s'] or 0 for e in w['earlier']), '.0f')} s "
+                     f"in {len(w['earlier'])} earlier stop{'s' if len(w['earlier']) > 1 else ''})")
+        arms.append(text)
+    return ", ".join(arms)
+
+
+def waits_section(r):
+    """The timer gate's waits per block for the report; nothing for a campaign of before these records."""
+    rows = sorted([*r["blocks"], *r["attempts"]], key=lambda a: (a["block"], a["attempt"]))
+    if not any(w["refused_probes"] is not None or w["earlier"] for a in rows for w in a.get("waits", {"runs": {}})["runs"].values()):
+        return []
+    out = ["## Timer waits (recorded, not judged)", "",
+           ("Refused probes / seconds waited before each run, in the order made, and its zero after the block's first. A pass after refusals "
+            "means less than a pass at the first probe (docs/HG1C_DESIGN.md departure 30), and a block's arms lie further apart."), "",
+           "| block | attempt | t0 span s | runs |", "|---|---|---|---|"]
+    out += [f"| {a['block']} | {a['attempt']} | {_f(a['waits']['t0_span_s'], '.0f')} | {waits_text(a['waits'], a['order'])} |" for a in rows if a.get("waits")]
+    return [*out, ""]
 
 
 def describe_block(a):

@@ -212,7 +212,8 @@ def save_state(out, state):
 
 def run_record(result):
     return {"ok": result.ok, "reasons": result.reasons, "seconds": round(result.seconds, 1),
-            "setup_retries": result.setup_retries}
+            "setup_retries": result.setup_retries, "timer_refused_probes": result.timer_refused_probes,
+            "timer_waited_s": result.timer_waited_s}
 
 
 def mark_done(run_path, record):
@@ -319,7 +320,7 @@ def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opt
 def attempt_row(a):
     return {"block": a["block"], "attempt": a["attempt"], "seed": a["seed"], "valid": a["valid"], "reasons": a["reasons"],
             "order": a["order"], "dQ": a["dQ"], "dL": a["dL"], "dQ_placebo": a["dQ_placebo"],
-            "valid_all": a["valid_all"], "arm_reasons": a["arm_reasons"]}
+            "valid_all": a["valid_all"], "arm_reasons": a["arm_reasons"], "waits": a.get("waits")}
 
 
 def warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate, say):
@@ -474,6 +475,8 @@ def status_text(out):
     for a in state["attempts"]:
         lines.append(f"  block {a['block']:>2} attempt {a['attempt']} seed {a['seed']}: " + ("valid" if a["valid"] else "NOT valid")
                      + f"  order {', '.join(a['order'])}" + ("" if a["valid"] else "  " + "; ".join(a["reasons"])[:160]))
+        if H.waited(a.get("waits")):
+            lines.append("    timer waits, recorded and not judged: " + H.waits_text(a["waits"], a["order"]))
     if state.get("gate"):
         g = state["gate"]
         lines.append(f"gate {g['verdict']}: {g.get('blocks_valid')} valid blocks of {g.get('blocks_total')}")

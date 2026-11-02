@@ -595,7 +595,8 @@ def describe(plan, python=None):
 # --- the run: the plan through a Host ------------------------------------------------------------
 
 Result = collections.namedtuple("Result", "code out err")
-RunResult = collections.namedtuple("RunResult", "ok reasons out setup_retries seconds")
+RunResult = collections.namedtuple("RunResult", "ok reasons out setup_retries seconds timer_refused_probes timer_waited_s",
+                                   defaults=(None, None))
 ENGINE_T0_OFFSET_S = 0.05            # bench/loadgen.py: the schedule's zero is 50 ms after its loop starts
 EARLY_SLACK_S = 2.0                  # a stream that exits with an error, or leaving no output, this much before its end has died
 DRAIN_S = 12.0                       # the engine waits for requests in flight for its timeout (10 s) plus 2 s
@@ -2079,9 +2080,11 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
             "daemon": None if daemon is None else {**daemon, "stop": stopped},
             "scenario": plan.scenario, "seed": plan.seed, "plan_sha256": plan.plan_sha256,
             "calibration_sha256": plan.calibration_sha256, "overrides": plan.overrides,
-            "executor": {**block, "setup_retries": retries}, "streams": rows})
+            "executor": {**block, "setup_retries": retries, "timer_refused_probes": env["timer_refused_probes"],
+                         "timer_waited_s": env["timer_waited_s"]}, "streams": rows})
         log("run.json written; the run is " + ("sound" if block["ok"] else "UNSOUND: " + "; ".join(block["reasons"])))
-        return RunResult(block["ok"], block["reasons"], out, retries, host.monotonic() - t_begin)
+        return RunResult(block["ok"], block["reasons"], out, retries, host.monotonic() - t_begin,
+                         env["timer_refused_probes"], env["timer_waited_s"])
     except BaseException as exc:
         log(f"failed: {exc!r}")
         _failed(out, exc)

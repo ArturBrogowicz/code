@@ -159,6 +159,29 @@ class StackCostTest(unittest.TestCase):
         self.assertEqual(out[0]["origin_ms_per_request"], 2.0)
         self.assertIsNone(out[1])
 
+    def test_a_steps_record_says_what_the_timer_gate_cost_its_runs(self):
+        """T-047 G-02; recorded, not judged. A resumed step counts the runs it finds done and the stops before them."""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        levels = [80.0, 160.0, 240.0, 320.0, 400.0, 480.0]
+
+        def host(**kw):
+            return S.SimHost(server=S.SyntheticServer(TEMPLATE, (30, 45, 30), capacity_cpu=1.1), **kw)
+
+        with self.assertRaises(X.EnvironmentRefused):
+            K.capacity_step(K.Runner(host(timer_p99_ms=25.0), wait_gate_min=0.5), TEMPLATE, C.PLACEHOLDER, tmp.name, levels, 10.0, 2,
+                            lambda m: None)
+        result = K.capacity_step(K.Runner(host(timer_p99_by_cpu={"7": [25.0, 1.0]})), TEMPLATE, C.PLACEHOLDER, tmp.name, levels, 10.0, 2,
+                                 lambda m: None)
+        waits = K.read_json(os.path.join(tmp.name, "capacity", "capacity.json"))["waits"]
+        self.assertEqual(waits, result["waits"])
+        self.assertEqual((waits["runs"], waits["refused_probes"], waits["waited_s"]), (2, 3, 60.0), "2 refused before the stop, 1 after it")
+        self.assertEqual(list(waits["waited"]), [os.sep.join(("capacity", "r1", "C"))])
+        self.assertEqual(waits["waited"]["capacity/r1/C"]["refused_probes"], 1)
+        self.assertEqual([e["refused_probes"] for e in waits["waited"]["capacity/r1/C"]["earlier"]], [2])
+        again = K.capacity_step(K.Runner(host()), TEMPLATE, C.PLACEHOLDER, tmp.name, levels, 10.0, 2, lambda m: None)
+        self.assertEqual(again["waits"], waits, "the runs found done still say what they cost")
+
     def test_the_capacity_step_records_it_next_to_the_capacity(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
