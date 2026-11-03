@@ -200,6 +200,38 @@ class PlanTest(Base):
         self.assertAlmostEqual(10 * R.vm_minutes(9) / 60.0, 7.875)
 
 
+FEEDS_ITS_SOCKET = {"C": False, "U_C3b": False, "M_default_rules_C3b": False, "M_hgb_C3b": True, "M_gru_C3b": True, "M_rstar_C3b": True}
+
+
+class WrittenConfTest(Base):
+    """T050-01: what execute_run writes, and nginx reads, not what the table's row renders. An enforcing arm's conf feeds its socket."""
+
+    def written(self):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C3b": 3}, runs=list(FEEDS_ITS_SOCKET), label="conf",
+                             benign_specs=F.thin_benign(), max_sources=2)
+        R.run_block(F.P1FakeHost(), block)
+        out = {}
+        for name in FEEDS_ITS_SOCKET:
+            with open(os.path.join(block["dir"], name, "nginx.conf"), encoding="utf-8") as fh:
+                out[name] = fh.read()
+        return out
+
+    def test_only_an_enforcing_arm_feeds_the_socket_and_every_daemon_feeds_the_heuristic(self):
+        for name, text in self.written().items():
+            with self.subTest(name):
+                sink = f"syslog:server=unix:{R.SOCKET_PATH}"
+                self.assertEqual(sink in text, FEEDS_ITS_SOCKET[name], "the socket sink")
+                self.assertEqual("/var/log/nginx/ddos_ml_access.log" in text, name.startswith("M_"), "the daemon's feed")
+
+    def test_the_written_conf_is_what_the_table_s_row_renders(self):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C3b": 3}, runs=["M_gru_C3b"], label="same",
+                             benign_specs=F.thin_benign(), max_sources=2)
+        R.run_block(F.P1FakeHost(), block)
+        run = block["runs"][0]
+        with open(run["nginx"]["conf_path"], encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), R.render_conf(R.ARM_TABLE["view_gru"], run["out"], run["nginx"]["deny_dir"]))
+
+
 class ConfTest(Base):
     def render(self, arm):
         return R.render_conf({**R.ARM_TABLE[arm]}, "/var/tmp/p1/run", "/var/tmp/p1/run/l7v2_deny")

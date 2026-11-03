@@ -195,7 +195,8 @@ def file_sink(text, path):
 
 
 def render_conf(spec, out, deny_dir):
-    """The run's own nginx conf, from the tracked files, which are only read (D-028)."""
+    """The run's own nginx conf, from the tracked files, which are only read (D-028). `spec` is the arm's row of ARM_TABLE, its daemon
+    the row's environment: the plan's daemon dict holds it one level down (T050-01), so execute_run passes the row."""
     if spec["conf"] == "unprotected":
         text = l7_conf.unprotected(l7_conf.read(l7_conf.UNPROTECTED_CONF))
     else:
@@ -570,7 +571,7 @@ def execute_run(host, plan, frozen_sums):
         if plan["nginx"]["deny_dir"]:               # nginx refuses an include of a missing file
             l7_denymap.prepare_run_dir(plan["nginx"]["deny_dir"], **(plan["spec"]["deny_kw"] if m_arms_pending() is None else {}))
         with open(plan["nginx"]["conf_path"], "w", encoding="utf-8") as fh:
-            fh.write(render_conf(plan["spec"] | {"daemon": plan["daemon"]}, out, plan["nginx"]["deny_dir"]))
+            fh.write(render_conf(ARM_TABLE[plan["arm"]], out, plan["nginx"]["deny_dir"]))
         procs.append(("topology", None))                # from here on the teardown runs, whatever happens
         P4.topology(host, plan)
         host.run(["mkdir", "-p", "/var/log/nginx", os.path.join(out, "feed_before")])
