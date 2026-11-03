@@ -8,8 +8,8 @@ nothing; the tests drive it with a fake host (tests/p4_fake_host.py), as bench/e
 One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATION_RUNS):
   * the population of the seed (ml/p4_traffic.py build_plan: the benign mix of §4.2 and the sources of the families at
     the level given), the run's entities being the benign ones and the sources of the arm's family;
-  * client namespaces grouped by netem profile (at most MAX_ALIASES addresses each, l7_pools's rule), the slow
-    uploaders on their own 16 kbit/s link (p4_traffic.NETEM_SLOW_ARGV);
+  * client namespaces grouped by netem profile (at most MAX_ALIASES addresses each, l7_pools's rule), each slow uploader
+    on a 16 kbit/s link of its own (p4_traffic.NETEM_SLOW_ARGV);
   * nginx with nginx_profile_r.conf (C, C', U and the validation runs) or nginx_profile_r_limits.conf (M arms, C_M), and
     gunicorn -c gunicorn_profile_r.py (the costed app with the streamed upload, L7_CALIBRATION the record in use), both
     in server_ns on CPUs 0-1; the sha256 of the three files and of the record in the provenance;
@@ -201,17 +201,20 @@ def sha256_file(path):
 
 
 def namespaces(entities):
-    """Client namespaces: the entities grouped by netem profile, at most MAX_ALIASES addresses each."""
+    """Client namespaces: the entities grouped by netem profile, at most MAX_ALIASES addresses each. A slow uploader has a
+    namespace of its own: netem belongs to an interface, and two on one 16 kbit/s qdisc would get about 908 B/s each, under the
+    grid's F = 1024 and not the link of §4.2 (review T-047 P-12)."""
     out, profiles = [], []
     for e in entities:
         if e["netem"] not in profiles:
             profiles.append(e["netem"])
     for prof in sorted(profiles):
         members = [e for e in entities if e["netem"] == prof]
-        for c in range(0, len(members), MAX_ALIASES):
+        size = 1 if prof == PT.NETEM_SLOW else MAX_ALIASES
+        for c in range(0, len(members), size):
             name = f"{NS_PREFIX}{len(out)}_{prof}"
-            out.append({"name": name, "profile": prof, "addresses": [e["address"] for e in members[c:c + MAX_ALIASES]]})
-            for e in members[c:c + MAX_ALIASES]:
+            out.append({"name": name, "profile": prof, "addresses": [e["address"] for e in members[c:c + size]]})
+            for e in members[c:c + size]:
                 e["namespace"] = name
     return out
 

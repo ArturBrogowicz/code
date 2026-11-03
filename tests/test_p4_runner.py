@@ -120,8 +120,8 @@ class PlanTest(unittest.TestCase):
                                                "crawler_polite")
             self.assertEqual("--records" in argv, recorded, e["kind_or_family"])
         slow = [n for n in loris["namespaces"] if n["profile"] == PT.NETEM_SLOW]
-        self.assertEqual(len(slow), 1)
-        self.assertEqual(len(slow[0]["addresses"]), 2)
+        self.assertEqual([len(n["addresses"]) for n in slow], [1, 1], "a qdisc per slow uploader (review T-047 P-12)")
+        self.assertEqual(len({n["name"][:12] for n in loris["namespaces"]}), len(loris["namespaces"]), "the host's veth names")
         self.assertTrue(all(len(n["addresses"]) <= R.MAX_ALIASES for n in loris["namespaces"]))
         self.assertEqual(sum(len(n["addresses"]) for n in loris["namespaces"]), 160)
 
@@ -363,6 +363,7 @@ class ExecuteTest(unittest.TestCase):
         self.assertIn(("mv", "-f", "/var/log/nginx/l7_capture.log", os.path.join(run, "access.log")), moved)
         slow_ns = [c for c in host.commands if c[1][:2] == ("tc", "qdisc")]
         self.assertTrue(slow_ns and all(c[1] == PT.NETEM_SLOW_ARGV for c in slow_ns))
+        self.assertEqual(len({c[0] for c in slow_ns}), 2, "one namespace each")
 
     def test_every_attempt_is_indexed_with_its_reasons(self):
         host = F.FakeHost(kill_file=True, modelled_attackers=1)

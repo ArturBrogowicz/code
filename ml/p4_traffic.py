@@ -12,8 +12,8 @@ The benign mix of §4.2, the L7 v2 runner's kinds on R:
   * the co-resident CGNAT pools CGNAT-12 and CGNAT-24 (cgnat_browsers on the browsing chain, :443), never removed;
   * 10 search users, api_bulk and a polite crawler (their L7 v2 parameters);
   * 4 uploaders, bodies up to 2 MB on /upload, and 2 slow_uploaders, the same client behind a 16 kbit/s link
-    (ml/l7_benign.py upload kinds; the runner shapes their namespace with netem at that rate, NETEM_SLOW, and the
-    generator paces the body at the same rate). They are the hard negative of the per-connection rule's byte-rate leg.
+    (ml/l7_benign.py upload kinds; the runner gives each a namespace of its own, shaped with netem at that rate, NETEM_SLOW,
+    and the generator paces the body at the same rate). They are the hard negative of the per-connection rule's byte-rate leg.
 Every benign entity runs for the whole run; the run is 30 s of baseline, 210 s of attack and 30 s of recovery
 (eval/p4_outcome.TIMELINE, re-registered 2026-10-31).
 
