@@ -731,6 +731,48 @@ class ExecuteTest(unittest.TestCase):
         self.assertTrue(any("did not enforce throughout" in r for r in res["reasons"]), res["reasons"])
 
 
+    def test_an_unreadable_ban_record_makes_the_run_invalid(self):
+        """Review T-047 P-17 (4): a garbled line could be a ban, and a missing file read as no bans in a judged attempt."""
+        for arm in ("M_pc_loris", "M_def_post", "C_M"):
+            run = self.one_run(f"garbled_{arm}", "campaign", 3106, arm, thresholds=POINT)
+            res = R.execute_run(F.FakeHost(garbled_bans=True, modelled_attackers=1), run)
+            self.assertTrue(any("2 lines of the ban events cannot be read" in r for r in res["reasons"]), res["reasons"])
+            run = self.one_run(f"gone_{arm}", "campaign", 3106, arm, thresholds=POINT)
+            res = R.execute_run(F.FakeHost(ban_file_lost=True, modelled_attackers=1), run)
+            self.assertTrue(any("ban events are gone" in r for r in res["reasons"]), res["reasons"])
+        run = self.one_run("no_daemon", "campaign", 3106, "U_loris", thresholds=POINT)
+        self.assertEqual(R.execute_run(F.FakeHost(garbled_bans=True, ban_file_lost=True, modelled_attackers=1), run)["reasons"], [])
+
+    def test_an_unreadable_ban_record_reaches_the_outcome(self):
+        with mock.patch.object(R, "check_attempt"):
+            R.run_block(F.FakeHost(garbled_bans=True, modelled_attackers=1), self.block("campaign", 3101, thresholds=POINT, arms=["C_M", "U_post"]))
+            R.run_block(F.FakeHost(ban_file_lost=True, modelled_attackers=1), self.block("campaign", 3102, thresholds=POINT, arms=["C", "M_pc_post"]))
+        out = os.path.join(self.root, "runs.jsonl")
+        R.summarize_root(self.root, R.PLACEHOLDER, out)
+        with open(out, encoding="utf-8") as fh:
+            by = {r["arm"]: r for r in map(json.loads, fh)}
+        self.assertEqual((by["C_M"]["ban_problem"], by["U_post"]["ban_problem"]), ("2 lines cannot be read", None))
+        self.assertEqual((by["M_pc_post"]["ban_problem"], by["C"]["ban_problem"]), ("the file is gone", None))
+        self.assertFalse(by["C_M"]["valid"] or by["M_pc_post"]["valid"])
+        m = OUT.outcome(list(by.values()))["families"]["post"]["mitigation"]
+        self.assertEqual(m["ban_records_unreadable"], [[3101, 1, "C_M", "2 lines cannot be read"], [3102, 1, "M_pc_post", "the file is gone"]])
+        self.assertFalse(m["c"])
+
+    def test_a_run_that_never_had_a_daemon_up_has_no_ban_problem(self):
+        block = self.block("campaign", 3108, thresholds=POINT, arms=["C_M", "M_pc_loris"])
+
+        def dies(_host, _plan):
+            raise KeyboardInterrupt
+
+        with mock.patch.object(R, "execute_run", dies), self.assertRaises(KeyboardInterrupt):
+            R.run_block(F.FakeHost(), block)
+        R.run_block(F.FakeHost(kill_file=True), self.block("campaign", 3109, thresholds=POINT, arms=["M_pc_loris"]))
+        out = os.path.join(self.root, "runs.jsonl")
+        R.summarize_root(self.root, R.PLACEHOLDER, out)
+        with open(out, encoding="utf-8") as fh:
+            records = list(map(json.loads, fh))
+        self.assertEqual({(r["block"], r["valid"], r["ban_problem"]) for r in records}, {(3108, False, None), (3109, False, None)})
+
     def test_an_attack_that_never_connected_makes_the_run_invalid(self):
         """Review T-047 P-06: such an M_pc would pass (a) and (b), and such a U would read "not harmful"."""
         for arm in ("U_loris", "M_pc_loris"):

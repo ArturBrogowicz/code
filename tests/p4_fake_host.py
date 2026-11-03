@@ -80,7 +80,8 @@ class FakeHost(X.Host):
     def __init__(self, *, root=True, netns=(), kill_file=False, kill_appears_at=None, stack_ready=True,
                  nginx_fails=False, daemon_dies_at=None, daemon_startup_s=3.0, gen_fails=(), gen_code=3,
                  poll_every_s=1.0, modelled_attackers=None, harm=None, fail_prim=None, limit_refuses=0.0,
-                 gen_late=None, stub_fails=None, ss_fails=None, attack_fails=False, attack_opened_share=1.0, no_socket_of=()):
+                 gen_late=None, stub_fails=None, ss_fails=None, attack_fails=False, attack_opened_share=1.0, no_socket_of=(),
+                 garbled_bans=False, ban_file_lost=False):
         self.t = 0.0
         self.root, self.netns, self.stack_ready, self.nginx_fails = root, list(netns), stack_ready, nginx_fails
         self.kill_file, self.kill_appears_at = kill_file, kill_appears_at
@@ -91,6 +92,7 @@ class FakeHost(X.Host):
         self.attack_fails, self.attack_opened_share = attack_fails, attack_opened_share   # share None: no stats at all
         self.ss_fails = ss_fails                # True: `ss` fails on every poll; (lo, hi): over those seconds of the run
         self.no_socket_of = set(no_socket_of)   # benign kinds whose generators hold no socket the rule can see
+        self.garbled_bans, self.ban_file_lost = garbled_bans, ban_file_lost     # the daemon's BAN_EVENTS, as a run leaves it
         self.pids, self.seq = itertools.count(100), itertools.count()
         self.events, self.commands, self.prims, self.procs = [], [], [], []
         self.reset_world()
@@ -189,6 +191,8 @@ class FakeHost(X.Host):
             proc.returncode, proc.exit_time = code, self.time()
             if proc.kind == "gen":
                 self._gen_exit(proc)
+            if proc.kind == "daemon" and self.ban_file_lost:
+                os.remove(proc.env["BAN_EVENTS"])
 
     # --- generators ------------------------------------------------------------------------------
     def _start_gen(self, p):
@@ -312,6 +316,9 @@ class FakeHost(X.Host):
                            "[*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log\n")
             p.stdout.flush()
             self._emit(p, "start", heuristic_profile=p.env.get("HEURISTIC_PROFILE"), slow_pc=p.env.get("SLOW_PC"))
+            if self.garbled_bans:
+                with open(p.env["BAN_EVENTS"], "a", encoding="utf-8") as fh:
+                    fh.write('{"kind": "ban", "ip": "10.0\n42\n')
             if p.env.get("SLOW_PC") == "1":
                 self.detector = slow_pc.Detector(int(p.env.get("SLOW_PC_T", "20")), int(p.env.get("SLOW_PC_F", "16")),
                                                  int(p.env.get("SLOW_PC_K", "6")))

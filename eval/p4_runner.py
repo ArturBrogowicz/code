@@ -382,6 +382,27 @@ def _events(path):
     return out
 
 
+def read_ban_events(path):
+    """(events, garbled lines) of a run's ban events, for what judges them (review T-047 P-17 (4)): a line that cannot be read could
+    be a ban, so it is counted, where _events, for what only waits on the file, skips it. (None, 0): there is no file."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            lines = fh.readlines()
+    except OSError:
+        return None, 0
+    events, garbled = [], 0
+    for line in lines:
+        try:
+            event = json.loads(line)
+        except ValueError:
+            event = None
+        if isinstance(event, dict):
+            events.append(event)
+        else:
+            garbled += 1
+    return events, garbled
+
+
 def _wait(host, cond, timeout_s, step=0.5):
     t_end = host.monotonic() + timeout_s
     while host.monotonic() < t_end:
@@ -605,12 +626,16 @@ def checks(host, plan, t0, launched):
         log = _text(host, d["log"])
         if XDP_ATTACHED_LINE not in log:
             reasons.append("the daemon's log does not show XDP attached")
+        events, garbled = read_ban_events(d["env"]["BAN_EVENTS"])
+        if events is None:
+            reasons.append("the daemon's ban events are gone: no ban can be excluded")
+        elif garbled:
+            reasons.append(f"{garbled} lines of the ban events cannot be read: each could be a ban")
         if d["mode"] in ("pc", "shadow"):
             rec = d["env"]["SLOW_PC_RECORD"]
             if not os.path.isfile(rec) or os.path.getsize(rec) == 0:
                 reasons.append("the per-connection rule's record is missing or empty")
-            polls = [e for e in _events(d["env"]["BAN_EVENTS"])
-                     if e.get("kind") == "slow_pc_poll" and t0 <= e["t_wall"] <= t0 + total]
+            polls = [e for e in events or () if e.get("kind") == "slow_pc_poll" and t0 <= e["t_wall"] <= t0 + total]
             edges = [t0, *sorted(e["t_wall"] for e in polls if e.get("polls", 0) > 0), t0 + total]
             gap = max(b - a for a, b in itertools.pairwise(edges))
             if gap > SLOW_PC_POLL_GAP_S:
@@ -836,7 +861,12 @@ def run_record(run_dir, cal, block=None, attempt=1):
             plan = json.load(fh)
         man, meta = {"seed": plan["seed"], "arm": plan["arm"], "roles": plan["roles"], "timeline": {}}, None
     t = man["timeline"]
-    events = _events(os.path.join(run_dir, "ban_events.jsonl"))
+    events, garbled = read_ban_events(os.path.join(run_dir, "ban_events.jsonl"))
+    ban_problem = f"{garbled} lines cannot be read" if garbled else None
+    if events is None:              # no daemon, or none that got as far as its start event, wrote no ban; else the file is gone
+        events = []
+        if t.get("t0_wall") is not None and meta["daemon"] is not None:
+            ban_problem = "the file is gone"
     closes = [e for e in events if e.get("kind") == "slow_pc_close" and e.get("enforced")]
     seed = man["seed"] if block is None else block
     with open(os.path.join(os.path.dirname(run_dir), "block.json"), encoding="utf-8") as fh:
@@ -844,7 +874,7 @@ def run_record(run_dir, cal, block=None, attempt=1):
     if t.get("t0_wall") is None:
         empty = {"Q": None, "p95_s": None, "q_per_s": [None] * OUT.RUN_S, "by_class": {}}
         return OUT.summarize(seed, man["arm"], False, empty, {"Q": None}, events, man["roles"], closes,
-                             level_window=OUT.LEVEL_WINDOW_S, attempt=attempt, cal=cal, settings=settings)
+                             level_window=OUT.LEVEL_WINDOW_S, attempt=attempt, cal=cal, settings=settings, ban_problem=ban_problem)
     total = sum(t[k] for k in ("baseline_s", "attack_s", "recovery_s"))
     attack = (t["baseline_s"], t["baseline_s"] + t["attack_s"])
     rows, t0, _cover = LH.run_rows(run_dir, man, attack)
@@ -855,7 +885,7 @@ def run_record(run_dir, cal, block=None, attempt=1):
     log = os.path.join(run_dir, "access.log")
     refused = refusals(log, man, attack) if os.path.isfile(log) else None
     return OUT.summarize(seed, man["arm"], meta["checks"]["ok"], m, level, events, man["roles"], closes,
-                         level_window=lw, attempt=attempt, refused=refused, cal=cal, settings=settings)
+                         level_window=lw, attempt=attempt, refused=refused, cal=cal, settings=settings, ban_problem=ban_problem)
 
 
 def summarize_root(root, calibration, out_path):

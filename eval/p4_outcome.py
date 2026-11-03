@@ -174,13 +174,13 @@ def control_health(metrics, cal):
 
 
 def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow_pc_closes=(), *, level_window,
-              attempt, refused=None, cal=None, settings=None):
+              attempt, refused=None, cal=None, settings=None, ban_problem=None):
     """One run record from the run's harm-gate metrics (eval/harm_gate.run_metrics: over the attack
     window, and with window=LEVEL_WINDOW_S for `level_metrics`; `level_window` is the window the caller
     took it over, and must be LEVEL_WINDOW_S), its ban events and the role of every client address.
     Every banned address, and every address with a closed connection, must have a role. A run of C also states
     its health (D-046): `cal` is the calibration record whose SLOs its classes were judged by. `settings` are its block's
-    (eval/p4_runner.py block_settings): the outcome refuses a mix."""
+    (eval/p4_runner.py block_settings): the outcome refuses a mix. `ban_problem` says why the bans given may not be all of them."""
     check_record_timeline(metrics["q_per_s"], level_window)
     banned = {}
     for ev in ban_events:
@@ -204,7 +204,7 @@ def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow
             "q_per_s": list(metrics["q_per_s"]), "q_level": level_metrics["Q"],
             "level_window": [float(x) for x in level_window], "banned": banned, "benign_closed": benign_closed,
             "refused": refused, "control_reasons": control_reasons, "control_small_classes": control_small,
-            "settings": settings}
+            "settings": settings, "ban_problem": ban_problem}
 
 
 def recovery(q_per_s, threshold, start=TIMELINE["baseline_s"]):
@@ -331,6 +331,8 @@ def mitigation(blocks, family, every=None):
     collateral = sorted({(r["block"], ip, role) for r in attempts for ip, role in r["banned"].items() if role != ATTACK})
     in_c_m = sorted({(r["block"], ip, role) for arms in every.values() for r in arms.get(PROTECTED, ())
                      for ip, role in r["banned"].items() if role in C_M_COLLATERAL_ROLES})
+    unknown = sorted({(r["block"], r["attempt"], r["arm"], r["ban_problem"]) for r in
+                      [*attempts, *(r for arms in every.values() for r in arms.get(PROTECTED, ()))] if r.get("ban_problem")})
     a = len(valid) >= MIN_VALID_BLOCKS and enough(in_time, len(valid))
     b_ = len(valid) >= MIN_VALID_BLOCKS and mean_ok and enough(level_ok, len(valid))
     pairs = [b for b in blocks.values() if _ok(b, CONTROL, m, f"M_def_{family}")]
@@ -339,7 +341,8 @@ def mitigation(blocks, family, every=None):
             "recovered_in_time": in_time, "a": a,
             "level_blocks": level_ok, "level_mean_ok": mean_ok, "b": b_,
             "benign_banned": [list(x) for x in collateral], "benign_banned_c_m": [list(x) for x in in_c_m],
-            "c": not collateral and not in_c_m,
+            "ban_records_unreadable": [list(x) for x in unknown],
+            "c": not collateral and not in_c_m and not unknown,
             "benign_closed": sum(r.get("benign_closed", 0) for r in attempts), "attempts": len(attempts),
             "vs_m_def": {"n": len(d), "decision": RLS.decide(d)}}
 
@@ -452,6 +455,9 @@ def main(argv=None):
     print(f"M7: {res['M7']}")
     for f, r in res["families"].items():
         print(f"  {FAMILY_NAMES[f]}: {r['status']}")
+    for f, r in res["families"].items():
+        for block, attempt, arm, why in r["mitigation"]["ban_records_unreadable"]:
+            print(f"  {FAMILY_NAMES[f]}: (c) cannot be met: the ban record of {arm}, block {block} attempt {attempt}: {why}")
     for s in res["superseded_attempts"]:
         print(f"  superseded: block {s['block']} attempt {s['attempt']}, invalid or missing {', '.join(s['invalid_or_missing'])}")
     for u in res["unhealthy_controls"]:

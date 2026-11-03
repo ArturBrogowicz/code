@@ -384,6 +384,41 @@ class AttemptsTest(unittest.TestCase):
         self.assertIn("superseded: block 3101 attempt 1, invalid or missing U_post", printed.getvalue())
 
 
+class UnreadableBanRecordTest(unittest.TestCase):
+    """Review T-047 P-17 (4): (c) counts over all attempts, invalid ones included, so a ban it cannot read must not read as none."""
+
+    def attempted(self, arm):
+        first = {"C": {"valid": False}, arm: {"valid": False, "ban_problem": "1 lines cannot be read"}}
+        return O.outcome(rerun(campaign(), 3101, first))
+
+    def test_an_invalid_attempt_of_m_pc_fails_c(self):
+        res = self.attempted("M_pc_loris")
+        self.assertEqual(res["families"]["loris"]["mitigation"]["ban_records_unreadable"],
+                         [[3101, 1, "M_pc_loris", "1 lines cannot be read"]])
+        self.assertEqual(res["families"]["loris"]["status"], "mitigated with collateral")
+        self.assertEqual(res["families"]["post"]["status"], "mitigated")
+
+    def test_an_invalid_attempt_of_c_m_fails_c_for_both(self):
+        res = self.attempted("C_M")
+        self.assertEqual({f: res["families"][f]["status"] for f in O.FAMILIES},
+                         dict.fromkeys(O.FAMILIES, "mitigated with collateral"))
+
+    def test_another_arms_record_does_not(self):
+        res = self.attempted("M_def_loris")
+        self.assertEqual(res["families"]["loris"]["status"], "mitigated")
+        self.assertEqual(res["families"]["loris"]["mitigation"]["ban_records_unreadable"], [])
+
+    def test_the_command_line_says_so(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "runs.jsonl")
+            first = {"M_pc_post": {"valid": False, "ban_problem": "the file is gone"}}
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.writelines(json.dumps(r) + "\n" for r in rerun(campaign(), 3102, first))
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                O.main([path])
+        self.assertIn("slow POST: (c) cannot be met: the ban record of M_pc_post, block 3102 attempt 1: the file is gone", out.getvalue())
+
+
 class ProtectedControlTest(unittest.TestCase):
     """D-041 and D-046: (b) is judged against C_M's level over the same window; (a) and the harm are what they were; C_M's
     validity rules are C's."""
@@ -651,7 +686,7 @@ class InputTest(unittest.TestCase):
         self.assertEqual(r, {"block": 3101, "arm": "M_pc_loris", "attempt": 1, "valid": True, "Q": 97.0, "p95_s": 0.2,
                              "q_per_s": q, "q_level": 98.0, "level_window": [120.0, 240.0],
                              "banned": {"10.0.3.1": "attack", "10.0.4.1": "cgnat"}, "benign_closed": 1,
-                             "refused": None, "control_reasons": None, "control_small_classes": None, "settings": None})
+                             "refused": None, "control_reasons": None, "control_small_classes": None, "settings": None, "ban_problem": None})
         with self.assertRaises(ValueError):
             O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [{"kind": "ban", "ip": "10.9.9.9"}], roles,
                         level_window=win, attempt=1)
