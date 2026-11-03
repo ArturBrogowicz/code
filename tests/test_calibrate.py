@@ -820,6 +820,9 @@ class RecordTest(unittest.TestCase):
         self.assertEqual(host["pins"], P.PIN_PLAN)
         C.freeze(copy.deepcopy(TEMPLATE), host=host, drift_reference=CF.SAMPLE_DRIFT)
 
+    def test_the_fixtures_host_has_the_current_pin_plan(self):
+        self.assertEqual(CF.SAMPLE_HOST["pins"], P.PIN_PLAN)
+
     def test_the_hosts_pins_are_the_ones_it_is_given_not_this_codes_plan(self):
         other = {**P.PIN_PLAN, "legit": "5"}
         self.assertEqual(K.host_of(ENV, other)["pins"], other)
