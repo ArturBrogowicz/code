@@ -18,7 +18,8 @@ class PinnedSeedsTest(unittest.TestCase):
     def test_seed_lists_are_the_approved_ones(self):
         s = self.pre["seeds"]
         self.assertEqual(s["p3_train"], [1001, 1002, 1003, 1004])
-        self.assertEqual(s["p3_val"], [2001, 2002])
+        self.assertEqual(s["p3_val"], [2001, 2002, 2003, 2004])
+        self.assertIn("D-052", self.pre["version_2"])
         self.assertEqual(s["p3_eval"], list(range(3201, 3211)))
         self.assertEqual(s["p1_live_eval"], list(range(3001, 3011)))
         self.assertEqual(s["p4_val"], [4001, 4002])
@@ -46,6 +47,7 @@ class PinnedSeedsTest(unittest.TestCase):
     def test_roles(self):
         self.assertEqual(P.seed_role(1003, self.pre), "train")
         self.assertEqual(P.seed_role(2002, self.pre), "val")
+        self.assertEqual(P.seed_role(2004, self.pre), "val")
         self.assertEqual(P.seed_role(3210, self.pre), "eval")
         self.assertEqual(P.seed_role(9201, self.pre), "pilot")
         self.assertIsNone(P.seed_role(3001, self.pre))           # P1's, not P3's
@@ -53,7 +55,7 @@ class PinnedSeedsTest(unittest.TestCase):
         P.check_seed(1001, "train", self.pre)
         with self.assertRaises(P.PreregError):
             P.check_seed(1001, "eval", self.pre)
-        self.assertEqual(P.seeds_for("val", self.pre), [2001, 2002])
+        self.assertEqual(P.seeds_for("val", self.pre), [2001, 2002, 2003, 2004])
 
     def test_server_configs_alternate_and_every_split_holds_both(self):
         self.assertEqual(P.server_config(1001, self.pre)[0], "A")

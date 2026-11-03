@@ -173,7 +173,7 @@ A test asserts that two rebuilds are byte-identical, and that a single flipped b
 | Role | Seeds | Used by |
 |---|---|---|
 | P3 training captures | 1001-1004 | P3 curves; P1 training |
-| P3 validation captures | 2001-2002 | P3 thresholds and selection; P1 tuning of every arm |
+| P3 validation captures | 2001-2004 (D-052, 2026-11-02, from 2001-2002, before any capture) | P3 thresholds and selection; P1 tuning of every arm |
 | P3 evaluation captures | 3201-3210 | P3 curves; P1 detection replays (not harm) |
 | P1 live evaluation | 3001-3010 | `docs/L7V2_DESIGN.md` §11 |
 | P4 validation and evaluation | 4001-4002, 3101-3110 | `docs/P4_SLOW_DESIGN.md` §6.4, §10 |
@@ -267,9 +267,9 @@ signal is rate-separable" (`S1:T-005/learning_curve_protocol.md`).
 | Item | Amount | Time |
 |---|---|---|
 | smoke capture (9201-9202; checks pools, netem, manifest, storage, rebuild) | 2 × 900 s | 0.6 VM h |
-| captures: 4 training + 2 validation + 10 evaluation | 6 × 900 s + 10 × 1,020 s, plus ~3 min of set-up each | 5.1 VM h |
+| captures: 4 training + 4 validation (D-052) + 10 evaluation | 8 × 900 s + 10 × 1,020 s, plus ~3 min of set-up each | 5.7 VM h |
 | re-capture allowance | 2 | 0.6 VM h |
-| **VM total** | | **~6.3 h** (5.7 h without the smoke) |
+| **VM total** | | **~6.9 h** (6.3 h without the smoke) |
 | GRU fits: 4 fractions × 15 | 60 fits at ~4 min on 2 threads (T-005's estimate at ~10× today's data, `S1:T-005/learning_curve_protocol.md` §5) | ~4 h CPU |
 | HGB, LR | 2 × 60 fits | minutes |
 | shuffled-GRU and evaluation scoring | ~30 s per fit over 10 captures | ~0.5 h CPU |

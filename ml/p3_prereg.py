@@ -10,7 +10,7 @@ import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PREREG_PATH = os.path.join(HERE, "p3_prereg.json")
-FORMAT = "p3-prereg/1"
+FORMAT = "p3-prereg/2"
 ROLES = ("train", "val", "eval", "pilot")
 
 
