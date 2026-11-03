@@ -712,6 +712,15 @@ class ExecuteTest(unittest.TestCase):
         self.assertTrue(silence("blind_15s", (100.0, 115.0)))
         self.assertFalse(silence("blind_5s", (100.0, 105.0)))
 
+    def test_a_validation_run_needs_a_socket_of_each_benign_role(self):
+        """Review T-047 P-09: invalid in the runner, so the seed can be re-run; the scorer alone would be a dead end, since a re-run
+        of a valid attempt is refused (D-050)."""
+        res = R.execute_run(F.FakeHost(no_socket_of={"crawler_polite"}), self.one_run("no_crawler"))
+        self.assertTrue(any("no socket of crawler_polite" in r for r in res["reasons"]), res["reasons"])
+        self.assertEqual(R.execute_run(F.FakeHost(), self.one_run("all_roles"))["reasons"], [])
+        smoke = self.one_run("smoke", "smoke", 9101, "C", label="s", sources={"loris": 0, "post": 0})
+        self.assertEqual(R.execute_run(F.FakeHost(no_socket_of={"crawler_polite"}), smoke)["reasons"], [], "a smoke run judges nothing")
+
     def test_a_validation_run_with_a_blind_rule_is_invalid_too(self):
         res = R.execute_run(F.FakeHost(ss_fails=True), self.one_run("blind_val"))
         self.assertTrue(any("no successful poll" in r for r in res["reasons"]), res["reasons"])

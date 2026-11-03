@@ -117,12 +117,29 @@ def settings_of(manifests):
     return seen[0]
 
 
+def roles_without_a_socket(polls, roles):
+    """The benign roles of a run's labels with no readable socket in any of its polls (review T-047 P-09): the constraints on such
+    a role would hold by construction. eval/p4_runner.py makes such a run invalid, so that it can be re-run."""
+    wanted = {r for r in roles.values() if r != ATTACK}
+    for p in polls:
+        if not wanted:
+            break
+        if p.get("ss") is not None:
+            wanted -= {roles.get(key[0]) for key in slow_pc.parse_ss(p["ss"])[1]}
+    return sorted(wanted)
+
+
 def check_runs(runs):
-    """The validation set must be exactly the frozen seeds x runs: no run missing, none extra."""
+    """The validation set must be exactly the frozen seeds x runs, no run missing and none extra, each with a socket of every
+    benign role."""
     have = sorted((r["seed"], r["arm"]) for r in runs)
     want = sorted((s, a) for s in slow_pc.VALIDATION_SEEDS for a in slow_pc.VALIDATION_RUNS)
     if have != want:
         raise ValueError(f"the validation runs must be exactly {want}, got {have}")
+    for r in runs:
+        missing = roles_without_a_socket(r["polls"], r["roles"])
+        if missing:
+            raise ValueError(f"seed {r['seed']} {r['arm']}: no socket of {missing}: the constraints on them would hold by construction")
 
 
 def score_run(polls, roles, grid=slow_pc.GRID, ttl_s=slow_pc.BAN_TTL_S):

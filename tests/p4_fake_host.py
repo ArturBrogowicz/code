@@ -80,7 +80,7 @@ class FakeHost(X.Host):
     def __init__(self, *, root=True, netns=(), kill_file=False, kill_appears_at=None, stack_ready=True,
                  nginx_fails=False, daemon_dies_at=None, daemon_startup_s=3.0, gen_fails=(), gen_code=3,
                  poll_every_s=1.0, modelled_attackers=None, harm=None, fail_prim=None, limit_refuses=0.0,
-                 gen_late=None, stub_fails=None, ss_fails=None, attack_fails=False, attack_opened_share=1.0):
+                 gen_late=None, stub_fails=None, ss_fails=None, attack_fails=False, attack_opened_share=1.0, no_socket_of=()):
         self.t = 0.0
         self.root, self.netns, self.stack_ready, self.nginx_fails = root, list(netns), stack_ready, nginx_fails
         self.kill_file, self.kill_appears_at = kill_file, kill_appears_at
@@ -90,6 +90,7 @@ class FakeHost(X.Host):
         self.limit_refuses, self.gen_late, self.stub_fails = limit_refuses, dict(gen_late or {}), stub_fails
         self.attack_fails, self.attack_opened_share = attack_fails, attack_opened_share   # share None: no stats at all
         self.ss_fails = ss_fails                # True: `ss` fails on every poll; (lo, hi): over those seconds of the run
+        self.no_socket_of = set(no_socket_of)   # benign kinds whose generators hold no socket the rule can see
         self.pids, self.seq = itertools.count(100), itertools.count()
         self.events, self.commands, self.prims, self.procs = [], [], [], []
         self.reset_world()
@@ -206,7 +207,7 @@ class FakeHost(X.Host):
             if self.modelled_attackers is None or n <= self.modelled_attackers:
                 for _ in range(p.params.get("conns", 1)):
                     self._open(p.ip, p.port, p.name)
-        elif p.role != "attack":
+        elif p.role != "attack" and p.name not in self.no_socket_of:
             self._open(p.ip, p.port, p.name)
         code = self.gen_code if p.ip in self.gen_fails else 0
         self.at(self.t + p.dur + 0.5 + self.gen_late.get(p.ip, 0.0), lambda: self.end(p, code))

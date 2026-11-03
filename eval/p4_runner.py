@@ -618,6 +618,12 @@ def checks(host, plan, t0, launched):
                                f"{SLOW_PC_POLL_GAP_S:g} s, D-035)")
             if d["mode"] == "pc" and any(e.get("mode") != "enforce" for e in polls):
                 reasons.append("the per-connection rule did not enforce throughout an enforcing run")
+            if plan["phase"] == "validation" and os.path.isfile(rec):
+                import p4_validation
+                missing = p4_validation.roles_without_a_socket(slow_pc.read_record(rec), plan["roles"])
+                if missing:
+                    reasons.append(f"no socket of {', '.join(missing)} in the rule's record: the constraints on them would hold "
+                                   "by construction (review T-047 P-09)")
     return reasons
 
 

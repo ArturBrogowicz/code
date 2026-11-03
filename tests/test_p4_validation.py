@@ -148,6 +148,19 @@ class InputTest(ValidationSetCase):
             with self.assertRaises(ValueError):
                 V.check_runs(runs)
 
+    def test_a_run_needs_a_socket_of_each_benign_role(self):
+        """Review T-047 P-09: no slow uploader in a run, and "no slow uploader was closed" holds by construction."""
+        self.assertEqual(V.roles_without_a_socket(self.runs[0]["polls"], ROLES), [])
+        silent = {**ROLES, "10.0.8.8": "crawler_polite"}
+        self.assertEqual(V.roles_without_a_socket(self.runs[0]["polls"], silent), ["crawler_polite"])
+        no_reads = [{**p, "ss": None} for p in self.runs[0]["polls"]]
+        self.assertEqual(V.roles_without_a_socket(no_reads, ROLES), ["browser", "cgnat", "slow_uploader"])
+        runs = [dict(r) for r in self.runs]
+        V.check_runs(runs)
+        runs[3]["roles"] = silent
+        with self.assertRaisesRegex(ValueError, "no socket of .*crawler_polite"):
+            V.check_runs(runs)
+
     def test_every_address_seen_needs_a_role(self):
         roles = {k: v for k, v in ROLES.items() if k != "10.0.6.2"}
         with tempfile.TemporaryDirectory() as tmp:
