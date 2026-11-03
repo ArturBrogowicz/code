@@ -441,6 +441,21 @@ campaign, as §10 cites the harm gate: an unhealthy control makes the block inva
 negative verdict; it judges C alone, and C_M keeps no floor; (3) a CGNAT or browser identity banned in C_M, in any
 attempt, counts against (c), for both families. The VM budget does not change.
 
+**Re-registration record (D-050).** 2026-11-02T08:48Z, the user's "Approve as recommended", before any data (review
+T-047). (1) P-03, P-04: the runner refuses `--attempt N` unless the index shows that attempt N-1 of the block had an invalid
+needed arm or an unhealthy C, and the campaign holds at most 2 re-run blocks; a block is judged on one attempt, the last with
+every arm a criterion needs valid, all arms from it; (c) and the benign closes count over all attempts, and superseded attempts
+are listed in the output. This replaces D-035's "last valid attempt of each (block, arm)". (2) P-02: stub_status is
+recorded, never a validity rule, as §8 says. (3) P-11: in P4's control health the class floor applies only to a class with at
+least 20 judged requests; smaller classes are reported, not judged; `harm_gate.control_health` itself is unchanged for the harm
+benchmark.
+
+**The budget as of 2026-11-02** [ESTIMATE, at ~5.5 min a run, the note's §11 method; review T-047 P-17]. The figures above count 3 smoke
+runs and the ladder's 3 levels. In full: the P4-S packet, 6 runs and hand steps, ~0.8 h; the ladder, 24 runs, 2.2 h; the validation,
+6 runs, 0.55 h; the campaign, 90 runs, 8.25 h; the re-runs, at most 18 runs, 1.65 h: **~13.5 h**, ~11.8 h without re-runs. Beyond
+that, the ladder's 4th level, up to 8 runs, +0.73 h, and each firing of the halving rule, which repeats the pilot: at least its 2
+controls, +0.18 h, at most the ladder's 24-32 runs, +2.2 to +2.9 h. The worst case with one halving is ~17.1 h.
+
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
 user's decision.

@@ -3,15 +3,17 @@ from a small model, processes live on a virtual clock, and the files a real run 
 asks for them. Nothing here touches the machine: no namespace, no socket, no process.
 
 The model, as far as the runner's outputs need it:
-  * the stack answers its readiness probe and stub_status;
-  * a generator (ml/l7_gen.py) exits 0 at the end of its duration (or `gen_code` for the entities named in
-    `gen_fails`). A benign plan-kind generator writes its client-side rows (ml/l7_gen.py --records) at its exit, from
+  * the stack answers its readiness probe and stub_status (except over `stub_fails`, seconds of the run: slots exhausted);
+  * a generator (ml/l7_gen.py) exits 0 at the end of its duration, or `gen_late[its address]` seconds later (or `gen_code`
+    for the entities named in `gen_fails`). A benign plan-kind generator writes its client-side rows (ml/l7_gen.py --records) at its exit, from
     its own plan (ml/l7_benign.plan_client with its seed): each request answered 200 in 30 ms, except while the
     attack harms (`harm(arm, t)`, by default while any attack connection is held), when it fails with err "conn";
   * the world's sockets on :80/:443 as `ss -tinpH` prints them: one answered keep-alive connection per benign
     generator, a slow uploader's connection unanswered at 2,000 B/s, and the connections of the first
     `modelled_attackers` attack sources, unanswered and dribbling (a line every 20 s); a connection the rule closes is
     re-opened 10 s later with a new port, and a banned address holds none;
+  * an attack generator writes its --stats at its exit (`attack_fails`: nothing opens, for a local reason;
+    `attack_opened_share`: the share that opens, the rest refused; None: no stats);
   * nginx's access log (l7json, written where the runner moves it): one line per answered request of a plan-kind
     generator and one per other benign generator; behind nginx_profile_r_limits.conf a share `limit_refuses` of a CGNAT
     pool's requests is refused with a 503, which its client also records;
@@ -77,14 +79,17 @@ class FakeHost(X.Host):
 
     def __init__(self, *, root=True, netns=(), kill_file=False, kill_appears_at=None, stack_ready=True,
                  nginx_fails=False, daemon_dies_at=None, daemon_startup_s=3.0, gen_fails=(), gen_code=3,
-                 poll_every_s=1.0, modelled_attackers=None, harm=None, fail_prim=None, limit_refuses=0.0):
+                 poll_every_s=1.0, modelled_attackers=None, harm=None, fail_prim=None, limit_refuses=0.0,
+                 gen_late=None, stub_fails=None, ss_fails=None, attack_fails=False, attack_opened_share=1.0):
         self.t = 0.0
         self.root, self.netns, self.stack_ready, self.nginx_fails = root, list(netns), stack_ready, nginx_fails
         self.kill_file, self.kill_appears_at = kill_file, kill_appears_at
         self.daemon_dies_at, self.daemon_startup_s = daemon_dies_at, daemon_startup_s
         self.gen_fails, self.gen_code, self.poll_every_s = set(gen_fails), gen_code, poll_every_s
         self.modelled_attackers, self.harm, self.fail_prim = modelled_attackers, harm, fail_prim
-        self.limit_refuses = limit_refuses
+        self.limit_refuses, self.gen_late, self.stub_fails = limit_refuses, dict(gen_late or {}), stub_fails
+        self.attack_fails, self.attack_opened_share = attack_fails, attack_opened_share   # share None: no stats at all
+        self.ss_fails = ss_fails                # True: `ss` fails on every poll; (lo, hi): over those seconds of the run
         self.pids, self.seq = itertools.count(100), itertools.count()
         self.events, self.commands, self.prims, self.procs = [], [], [], []
         self.reset_world()
@@ -142,6 +147,9 @@ class FakeHost(X.Host):
         if argv[:3] == ["ip", "netns", "list"]:
             return X.Result(0, "".join(f"{n}\n" for n in self.netns), "")
         if argv[0] == "curl" and argv[-1].endswith("/nginx_status"):
+            if self.stub_fails and self.run_t0 is not None and self.stub_fails[0] <= self.t - self.run_t0 < self.stub_fails[1]:
+                self.t += 1.0                      # curl's --max-time: the listener's slots are gone
+                return X.Result(28, "", "timed out")
             held = sum(1 for _ in self.socks)
             return X.Result(0, STUB.format(a=held, n=10 + int(self.t), r=30 + 3 * int(self.t), w=held), "")
         if argv[0] == "curl":
@@ -191,23 +199,33 @@ class FakeHost(X.Host):
         p.name = _opt(a, "--kind") or _opt(a, "--family")
         p.params, p.seed, p.dur = json.loads(_opt(a, "--params")), int(_opt(a, "--seed")), float(_opt(a, "--duration"))
         p.records, p.start, p.world = _opt(a, "--records"), self.t, self.world
-        if p.role == "attack":
+        p.stats = _opt(a, "--stats")
+        if p.role == "attack" and not self.attack_fails:
             n = len({q.ip for q in self.procs if q.kind == "gen" and getattr(q, "role", "") == "attack"
                      and q.world == self.world})
             if self.modelled_attackers is None or n <= self.modelled_attackers:
                 for _ in range(p.params.get("conns", 1)):
                     self._open(p.ip, p.port, p.name)
-        else:
+        elif p.role != "attack":
             self._open(p.ip, p.port, p.name)
         code = self.gen_code if p.ip in self.gen_fails else 0
-        self.at(self.t + p.dur + 0.5, lambda: self.end(p, code))
+        self.at(self.t + p.dur + 0.5 + self.gen_late.get(p.ip, 0.0), lambda: self.end(p, code))
 
     def _open(self, ip, sport, kind):
         port = next(self.ports)
         self.socks[(ip, port, "10.0.0.1", sport)] = {"ip": ip, "port": port, "sport": sport, "kind": kind,
                                                      "opened": self.t}
 
+    def _write_stats(self, p):
+        conns = p.params.get("conns", 1)
+        opened = 0 if self.attack_fails else round(self.attack_opened_share * conns)
+        with open(p.stats, "w", encoding="utf-8") as fh:
+            json.dump({"opened": opened, "reopened": 0, "failed_opens": conns - opened, "sent_bytes": 14 * opened,
+                       "local_errors": conns if self.attack_fails else 0}, fh)
+
     def _gen_exit(self, p):
+        if p.stats and self.attack_opened_share is not None:
+            self._write_stats(p)
         for key in [k for k, s in self.socks.items() if s["ip"] == p.ip]:
             del self.socks[key]
         if p.records:
@@ -308,10 +326,18 @@ class FakeHost(X.Host):
         if p.returncode is not None:
             return
         now, text = self.time(), self.ss_text()
+        fails = self.ss_fails
+        if fails is True or (fails and self.run_t0 is not None and fails[0] <= self.t - self.run_t0 < fails[1]):
+            text = None
         enforce = p.env.get("SLOW_PC_ENFORCE") == "1" and not self.exists("/run/l7v2/kill")
         banned = sorted(ip for ip, until in self.banned.items() if until > now)
         with open(p.env["SLOW_PC_RECORD"], "ab") as fh:
             fh.write(slow_pc.record_member(now, text, [], banned, enforce))
+        if text is None:
+            self.detector.skip(now, [])
+            self._emit(p, "slow_pc_poll", mode="enforce" if enforce else "shadow", polls=0, ss_failed=1, sockets=0)
+            self.at(self.t + self.poll_every_s, lambda: self._poll(p))
+            return
         res = self.detector.poll(now, text, [], banned)
         for c in res.closes:
             self._emit(p, "slow_pc_close", enforced=enforce, **c._asdict())
@@ -326,7 +352,7 @@ class FakeHost(X.Host):
                 self._emit(p, "ban", ip=b.ip, engine="l4_slowconn_pc", value=b.closes)
                 for key in [k for k, s in self.socks.items() if s["ip"] == b.ip]:
                     del self.socks[key]
-        self._emit(p, "slow_pc_poll", mode="enforce" if enforce else "shadow", sockets=len(self.socks))
+        self._emit(p, "slow_pc_poll", mode="enforce" if enforce else "shadow", polls=1, ss_failed=0, sockets=len(self.socks))
         self.at(self.t + self.poll_every_s, lambda: self._poll(p))
 
     def _reopen(self, s):

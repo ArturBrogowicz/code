@@ -2,10 +2,14 @@
 ml/l7_benign.py upload_plan, ml/l7_gen.py PacedBody / benign_uploader / benign_slow_uploader; docs/P4_SLOW_DESIGN.md
 §4.2). Offline: nothing is sent; the generator runs against a fake sender and a fake clock."""
 import collections
+import contextlib
 import ipaddress
 import os
 import random
+import socket
 import sys
+import threading
+import time
 import unittest
 from unittest import mock
 
@@ -78,6 +82,17 @@ class PacedBodyTest(unittest.TestCase):
         plain = requests.Request("POST", "http://10.0.0.1/upload", data=b"x" * 4321).prepare()
         self.assertEqual(sorted(prep.headers.items()), sorted(plain.headers.items()), "the same request head")
 
+    def test_it_stops_at_its_deadline(self):
+        c = Clock()
+        body = l7_gen.PacedBody(10_000, 2000, clock=c.now, sleep=c.sleep, deadline=c.t + 1.0, wall=c.now)
+        got = 0
+        with self.assertRaises(l7_gen.UploadDeadline):
+            while chunk := body.read(8192):
+                got += len(chunk)
+        self.assertAlmostEqual(c.t, 1001.0 - 1000.0 + 1000.0)                # at the deadline, not after it
+        self.assertLessEqual(got, 2000)
+        self.assertEqual(len(l7_gen.PacedBody(5, 2000, clock=c.now, sleep=c.sleep, deadline=c.t + 9, wall=c.now).read()), 5)
+
     def test_a_rate_is_required(self):
         with self.assertRaises(ValueError):
             l7_gen.PacedBody(10, 0)
@@ -113,9 +128,80 @@ class UploaderGeneratorTest(unittest.TestCase):
         self.assertEqual([len(d) for _m, _u, d, _k in posts], [b for b, _t in plan[:len(posts)]])
         self.assertEqual({k["timeout"] for _m, _u, _d, k in posts}, {15})
 
+    def test_a_think_time_ends_at_the_deadline(self):
+        c, spent = Clock(), []
+
+        def one_shot(method, url, data=None, **kw):
+            spent.append(c.t)
+
+        with mock.patch.object(l7_gen, "_one_shot", one_shot), mock.patch("time.time", c.now), \
+                mock.patch("time.sleep", c.sleep):
+            l7_gen.resolve("benign", "uploader")("10.0.0.1", 80, {"think_s": [500.0, 500.0], "body_bytes": [10, 10]},
+                                                 60.0, random.Random(5))
+        self.assertEqual((spent, c.t), ([1000.0], 1060.0))
+
     def test_a_slow_uploader_without_a_rate_is_refused(self):
         with self.assertRaises(SystemExit):
             self.run_kind("slow_uploader", dict(P._UPLOAD))
+
+
+class RealClockTest(unittest.TestCase):
+    """Review T-047 P-01, on the real generator and the real clock. Nearly every run of P4 would otherwise be invalid: the
+    deadline bounded only the START of an upload, and a 24 kB body took 12 s and then the 15-s read timeout on a 1.5-s generator.
+    These tests do not bound the call by wall time: a sleep in this very path has been measured returning 30 s late on this VM,
+    cause not established. What they show holds however late a wake-up is."""
+
+    DUR = 1.5
+    RATE = 2000
+    GUARD_S = 120.0
+
+    def setUp(self):
+        self.closed = threading.Event()
+        self.received = 0
+        self.srv = socket.socket()
+        self.addCleanup(self.srv.close)
+        self.srv.bind(("127.0.0.1", 0))
+        self.srv.listen(4)
+        self.conns = []
+        threading.Thread(target=self.sink, daemon=True).start()
+
+    def tearDown(self):
+        for conn in self.conns:
+            conn.close()
+
+    def sink(self):
+        with contextlib.suppress(OSError):
+            conn, _addr = self.srv.accept()
+            self.conns.append(conn)
+            while chunk := conn.recv(65536):
+                self.received += len(chunk)
+            self.closed.set()
+
+    def test_a_paced_body_stops_at_the_deadline_and_closes(self):
+        t0 = time.monotonic()
+        l7_gen.resolve("benign", "slow_uploader")("127.0.0.1", self.srv.getsockname()[1],
+                                                  {"think_s": [4.0, 4.0], "path": "/upload", "body_bytes": [24_000, 24_000],
+                                                   "rate_Bps": self.RATE}, self.DUR, random.Random(1))
+        self.assertGreaterEqual(time.monotonic() - t0, self.DUR - 0.1)
+        self.assertTrue(self.closed.wait(self.GUARD_S), "the upload itself stopped: its connection was closed")
+        head = 400                                          # the request head the sink counts too
+        self.assertLessEqual(self.received, self.RATE * self.DUR + l7_gen.PacedBody.CHUNK + head)
+
+    def test_an_upload_waiting_for_its_answer_does_not_hold_the_generator(self):
+        answered = threading.Event()
+        self.addCleanup(answered.set)
+
+        def never_answered(method, url, **kw):
+            answered.wait()
+
+        with mock.patch.object(l7_gen, "_one_shot", never_answered):
+            generator = threading.Thread(target=l7_gen.resolve("benign", "uploader"), daemon=True,
+                                         args=("127.0.0.1", 80, {"think_s": [4.0, 4.0], "body_bytes": [200, 200]},
+                                               self.DUR, random.Random(1)))
+            generator.start()
+            generator.join(self.GUARD_S)
+            self.assertFalse(generator.is_alive(), "the generator ended with the upload still in flight")
+            self.assertFalse(answered.is_set())
 
 
 class PopulationTest(unittest.TestCase):
@@ -207,6 +293,13 @@ class HalvingTest(unittest.TestCase):
         self.assertTrue(P.halve([HG.control_health(control(99.6, c0_q=94.0), cal), healthy]))
         with self.assertRaises(P.PlanError):
             P.halve([healthy])
+
+    def test_the_rule_does_not_fire_on_one_slow_export(self):
+        # D-050: P4's control health judges a class of at least 20 requests; this class holds one.
+        cal = {"gate": {"control_q_min": 99.0}, "slo_ms": {"C5": 3000}}
+        one = {"Q": 99.5, "by_class": {"C5": {"Q": 0.0, "ok": 0, "n": 1}}}
+        self.assertTrue(HG.control_health(one, cal))
+        self.assertFalse(P.halve([p4_outcome.control_health(one, cal)[0], []]))
 
 
 if __name__ == "__main__":

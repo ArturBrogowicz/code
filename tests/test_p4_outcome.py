@@ -18,6 +18,10 @@ import p4_outcome as O
 BOTH = "supported with scope: profile R, Slowloris and slow POST at this scale, this testbed"
 
 
+SETTINGS = {"sources": {"loris": 175, "post": 10}, "halvings": 0, "thresholds": [20, 64, 2], "calibration_sha256": "a" * 64,
+            "code_sha256": "b" * 64}
+
+
 def bins(base, dip=None, until=None, total=270, start=35):
     """1-s bins of a run: `base`, except `dip` from second `start` to `until` (run time)."""
     q = [base] * total
@@ -33,7 +37,20 @@ def rec(block, arm, q, p95=0.10, q_per_s=None, q_level=None, banned=None, valid=
             "q_per_s": q_per_s if q_per_s is not None else bins(q),
             "q_level": q if q_level is None else q_level, "level_window": list(O.LEVEL_WINDOW_S),
             "banned": banned or {}, "benign_closed": closed, "refused": refused,
-            "control_reasons": ([] if arm == "C" else None) if control_reasons is None else control_reasons}
+            "control_reasons": ([] if arm == "C" else None) if control_reasons is None else control_reasons,
+            "settings": SETTINGS}
+
+
+def rerun(runs, block, first=None):
+    """`block` made again: its records become attempt 2, and attempt 1 is a copy with the changes `first` holds per arm."""
+    out = []
+    for r in runs:
+        if r["block"] != block:
+            out.append(r)
+            continue
+        out.append(dict(r, attempt=2))
+        out.append({**r, **(first or {}).get(r["arm"], {}), "attempt": 1})
+    return out
 
 
 def campaign(over=None):
@@ -70,6 +87,7 @@ class PinnedConstantsTest(unittest.TestCase):
                                   "M_def_post", "M_pc_post"))           # C_M re-registered by D-041
         self.assertEqual(O.PROTECTED, "C_M")
         self.assertEqual((O.CONTROL_Q_MIN, O.HG.CONTROL_CLASS_Q_MIN), (99.0, 95.0))    # D-046
+        self.assertEqual(O.CONTROL_CLASS_MIN_N, 20)                                   # D-050
         self.assertEqual(O.TIMELINE, {"baseline_s": 30, "attack_s": 210, "recovery_s": 30})
         self.assertEqual(O.GATE, {"floor_pp": 10.0, "floor_log2_p95": 1.0, "ci_level": 0.95,
                                   "same_sign_share": 0.8})
@@ -240,18 +258,18 @@ class OutcomeTest(unittest.TestCase):
         self.assertEqual(res["M7"], "not supported")
 
     def test_fewer_than_10_valid_blocks_decide_nothing(self):
-        # Updated by D-035 (V-02): this test pinned "not harmful" for 9 valid blocks, a negative verdict made of
-        # missing data; it is now "invalid (9 of 10 valid)", and M7 names it next to the family that qualifies.
+        # Updated by D-035 (V-02): this test pinned "not harmful" for 9 valid blocks, a negative verdict made of missing
+        # data. Updated by D-050: a block is judged on one attempt with every needed arm valid, so an invalid arm of one
+        # family takes the block from both, and M7 is invalid instead of naming the family next to the other's claim.
         res = O.outcome(campaign({("U_post", 0): {"valid": False}}))
-        self.assertEqual(res["families"]["post"]["harm"]["valid_blocks"], 9)
-        self.assertEqual(res["families"]["post"]["status"], "invalid (9 of 10 valid)")
-        self.assertEqual(res["M7"], "supported with scope: profile R, Slowloris at this scale, this testbed; "
-                                    "slow POST: invalid (9 of 10 valid)")
+        for family in res["families"].values():
+            self.assertEqual(family["harm"]["valid_blocks"], 9)
+            self.assertEqual(family["status"], "invalid (9 of 10 valid)")
+        self.assertEqual(res["M7"], "invalid (9 of 10 valid)")
 
     def test_missing_data_is_never_a_negative_verdict(self):
         res = O.outcome(campaign({("U_post", 0): {"valid": False}, ("Cp", 4): {"valid": False}}))
-        self.assertEqual({f: r["status"] for f, r in res["families"].items()},
-                         {"loris": "invalid (9 of 10 valid)", "post": "invalid (8 of 10 valid)"})
+        self.assertEqual({r["status"] for r in res["families"].values()}, {"invalid (8 of 10 valid)"})
         self.assertEqual(res["M7"], "invalid (8 of 10 valid)")
         res = O.outcome(campaign({("M_pc_loris", 2): {"valid": False}}))
         self.assertEqual(res["families"]["loris"]["status"], "invalid (9 of 10 valid)")    # not "not mitigated"
@@ -261,7 +279,7 @@ class OutcomeTest(unittest.TestCase):
         over = {f"U_{f}": {"q": 98.5, "p95": 0.10, "q_per_s": bins(99.5)} for f in O.FAMILIES}
         over[("U_post", 0)] = {"valid": False}
         res = O.outcome(campaign(over))
-        self.assertEqual(res["M7"], "invalid (9 of 10 valid)")                             # loris not harmful
+        self.assertEqual(res["M7"], "invalid (9 of 10 valid)")                             # never "not harmful"
         self.assertEqual(O.invalid(7), "invalid (7 of 10 valid)")
         self.assertIn("Re-registration record (D-035, V-02", O.__doc__)
 
@@ -273,29 +291,76 @@ class OutcomeTest(unittest.TestCase):
 
 
 class AttemptsTest(unittest.TestCase):
-    """D-035 (V-03): every attempt of the run index; (a) and (b) on the last valid one, (c) over all."""
+    """D-050 (review T-047 P-03, P-04): a block is judged on one attempt, the last with every needed arm valid, all arms from
+    it; (c) and the benign closes count over all attempts; a re-run needs a reason and the budget holds 2."""
 
     def test_a_ban_in_an_invalid_attempt_is_not_hidden_by_the_re_run(self):
-        runs = campaign()
-        k = next(i for i, r in enumerate(runs) if (r["block"], r["arm"]) == (3104, "M_pc_loris"))
-        runs[k] = dict(runs[k], attempt=2)
-        runs.append(rec(3104, "M_pc_loris", 99.0, valid=False, banned={"10.0.4.1": "cgnat", "10.0.3.1": "attack"},
-                        closed=3, attempt=1))
-        loris = O.outcome(runs)["families"]["loris"]
+        runs = rerun(campaign(), 3104, {"M_pc_loris": {"valid": False, "benign_closed": 3,
+                                                       "banned": {"10.0.4.1": "cgnat", "10.0.3.1": "attack"}}})
+        res = O.outcome(runs)
+        loris = res["families"]["loris"]
         self.assertEqual(loris["status"], "mitigated with collateral")
         self.assertEqual(loris["mitigation"]["benign_banned"], [[3104, "10.0.4.1", "cgnat"]])
         self.assertEqual((loris["mitigation"]["benign_closed"], loris["mitigation"]["attempts"]), (3, 11))
         self.assertTrue(loris["mitigation"]["a"] and loris["mitigation"]["b"])
-        self.assertEqual(O.outcome(runs)["bans_by_arm"]["M_pc_loris"], {"attack": 11, "cgnat": 1})
+        self.assertEqual(res["bans_by_arm"]["M_pc_loris"], {"attack": 11, "cgnat": 1})
 
-    def test_the_last_valid_attempt_is_judged(self):
-        runs = campaign()
+    def test_the_judged_attempt_gives_every_arm_and_the_rest_are_listed(self):
+        # Attempt 1 lacks U_post; attempt 2 is complete, with another C and another M_pc. Nothing of attempt 1 is read.
         late = {"q_per_s": bins(99.5, 50.0, until=125), "q_level": 98.0}
-        runs.append(rec(3101, "M_pc_post", 99.0, attempt=2, **late))                       # a later valid attempt
-        runs.append(rec(3101, "M_pc_post", 99.0, attempt=3, valid=False))                  # then an invalid one
-        m = O.outcome(runs)["families"]["post"]["mitigation"]
-        self.assertEqual(max(m["recovery_s"]), 100)                                           # attempt 2 judged
-        self.assertEqual(m["valid_blocks"], 10)
+        runs = campaign({("U_post", 0): {"valid": False}, ("M_pc_loris", 0): late})
+        bad_first = rerun(runs, 3101, {"M_pc_loris": {"q_per_s": bins(99.5), "q_level": 99.6}})
+        for r in bad_first:
+            if r["block"] == 3101 and r["attempt"] == 2:
+                r["valid"] = True
+        res = O.outcome(bad_first)
+        self.assertEqual(res["judged_attempts"][3101], 2)
+        self.assertEqual(res["superseded_attempts"], [{"block": 3101, "attempt": 1, "invalid_or_missing": ["U_post"]}])
+        self.assertEqual(max(res["families"]["loris"]["mitigation"]["recovery_s"]), 100)            # attempt 2's M_pc
+        self.assertEqual(res["judged_attempts"][3102], 1)
+
+    def test_arms_are_never_mixed_across_attempts(self):
+        # Review T-047's F3: attempt 1 lacks U_post, and attempt 2's C is not healthy. Each attempt holds a good half; no
+        # attempt holds every needed arm, so the block is not judged and nothing is paired across attempts.
+        runs = campaign({("U_post", 0): {"valid": False}})
+        mixed = rerun(runs, 3101)
+        for r in mixed:
+            if r["block"] == 3101 and r["attempt"] == 2:
+                r["valid"] = True
+                if r["arm"] == "C":
+                    r["control_reasons"] = ["Q(C) is 98.00 %, below 99 %"]
+        res = O.outcome(mixed)
+        self.assertIsNone(res["judged_attempts"][3101])
+        self.assertEqual({r["harm"]["valid_blocks"] for r in res["families"].values()}, {9})
+        self.assertEqual(res["M7"], "invalid (9 of 10 valid)")
+        self.assertEqual([s["attempt"] for s in res["superseded_attempts"]], [1, 2])
+
+    def test_a_re_run_of_a_complete_attempt_is_refused(self):
+        # Review T-047's F2: a verdict must not be re-run into existence.
+        with self.assertRaisesRegex(ValueError, "whose every needed arm was valid"):
+            O.outcome(rerun(campaign(), 3101))
+
+    def test_an_invalid_m_def_is_no_reason_for_a_re_run(self):
+        self.assertNotIn("M_def_loris", O.NEEDED_ARMS)
+        self.assertNotIn("M_def_post", O.NEEDED_ARMS)
+        res = O.outcome(campaign({("M_def_loris", 2): {"valid": False}}))
+        self.assertEqual(res["M7"], BOTH)                                                 # it judges nothing
+        self.assertEqual(res["families"]["loris"]["mitigation"]["vs_m_def"]["n"], 9)
+        with self.assertRaisesRegex(ValueError, "whose every needed arm was valid"):
+            O.outcome(rerun(campaign(), 3103, {"M_def_loris": {"valid": False}}))
+
+    def test_at_most_two_re_runs(self):
+        first = {"U_post": {"valid": False}}
+        two = rerun(rerun(campaign(), 3101, first), 3102, first)
+        self.assertEqual(O.outcome(two)["M7"], BOTH)
+        with self.assertRaisesRegex(ValueError, "3 re-runs in the campaign, at most 2"):
+            O.outcome(rerun(two, 3103, first))
+        self.assertEqual(O.MAX_RERUNS, 2)
+
+    def test_attempt_numbers_are_1_2_and_so_on(self):
+        runs = [dict(r, attempt=2) if r["block"] == 3101 else r for r in campaign()]
+        with self.assertRaisesRegex(ValueError, "not 1, 2"):
+            O.outcome(runs)
 
     def test_every_record_names_its_attempt(self):
         runs = campaign()
@@ -307,6 +372,16 @@ class AttemptsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "two records"):
             O.outcome(runs)
         self.assertIn("Re-registration record (D-035, V-03", O.__doc__)
+
+    def test_the_command_line_lists_what_is_superseded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "runs.jsonl")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.writelines(json.dumps(r) + "\n" for r in rerun(campaign(), 3101, {"U_post": {"valid": False}}))
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                self.assertEqual(O.main([path]), 0)
+        self.assertIn("superseded: block 3101 attempt 1, invalid or missing U_post", printed.getvalue())
 
 
 class ProtectedControlTest(unittest.TestCase):
@@ -349,16 +424,16 @@ class ProtectedControlTest(unittest.TestCase):
         self.assertEqual(O.outcome(campaign({"C_M": {"q": 50.0}}))["families"]["loris"]["harm"],
                          O.outcome(campaign())["families"]["loris"]["harm"])
 
-    def test_c_ms_validity_counts_for_the_mitigation_only(self):
+    def test_c_ms_validity_counts_for_the_block(self):
+        # Since D-050 C_M is a needed arm: its block is judged on an attempt with C_M valid, or not at all.
         res = O.outcome(campaign({("C_M", 2): {"valid": False}}))
         self.assertEqual({r["status"] for r in res["families"].values()}, {"invalid (9 of 10 valid)"})
-        self.assertEqual({r["harm"]["valid_blocks"] for r in res["families"].values()}, {10})
+        self.assertEqual({r["harm"]["valid_blocks"] for r in res["families"].values()}, {9})
         self.assertEqual(res["M7"], "invalid (9 of 10 valid)")
         missing = [r for r in campaign() if not (r["arm"] == "C_M" and r["block"] == 3105)]
         self.assertEqual(O.outcome(missing)["families"]["post"]["mitigation"]["valid_blocks"], 9)
-        rerun = campaign({("C_M", 2): {"valid": False, "q": 10.0}})
-        rerun.append(rec(3103, "C_M", 99.5, attempt=2))                              # the last valid attempt is judged
-        self.assertEqual(O.outcome(rerun)["M7"], BOTH)
+        again = rerun(campaign(), 3103, {"C_M": {"valid": False, "Q": 10.0}})         # the attempt with every arm is judged
+        self.assertEqual(O.outcome(again)["M7"], BOTH)
 
     def test_c_m_has_no_floor_on_its_q(self):
         res = O.outcome(campaign({"C_M": {"q": 80.0}, "M_pc_loris": {"q_level": 79.5}}))
@@ -377,10 +452,7 @@ class ProtectedControlTest(unittest.TestCase):
             self.assertEqual(res["bans_by_arm"]["C_M"], {role: 1})
 
     def test_a_ban_in_any_attempt_of_c_m_counts(self):
-        runs = campaign()
-        k = next(i for i, r in enumerate(runs) if (r["block"], r["arm"]) == (3104, "C_M"))
-        runs[k] = dict(runs[k], attempt=2)
-        runs.append(rec(3104, "C_M", 99.5, valid=False, banned={"10.0.4.1": "cgnat"}, attempt=1))
+        runs = rerun(campaign(), 3104, {"C_M": {"valid": False, "banned": {"10.0.4.1": "cgnat"}}})
         m = O.outcome(runs)["families"]["loris"]["mitigation"]
         self.assertEqual((m["c"], m["benign_banned_c_m"], m["valid_blocks"]), (False, [[3104, "10.0.4.1", "cgnat"]], 10))
 
@@ -464,7 +536,7 @@ class LimitsCostTest(unittest.TestCase):
         self.assertIn("CGNAT-24", printed.getvalue())
 
 
-HEALTH_CAL = {"gate": {"control_q_min": 99.0}, "slo_ms": {"C0": 100, "C1": 300}}
+HEALTH_CAL = {"gate": {"control_q_min": 99.0}, "slo_ms": {"C0": 100, "C1": 300, "C5": 3000}}
 
 
 class ControlHealthTest(unittest.TestCase):
@@ -489,6 +561,31 @@ class ControlHealthTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "D-046"):
             self.summarize("C", self.metrics(99.5), cal=None)
 
+    def test_the_class_floor_needs_20_judged_requests(self):
+        # D-050 (review T-047 P-11): one slow export must not decide a block.
+        def with_class(n, ok):
+            return {"Q": 99.5, "p95_s": 0.1, "q_per_s": [99.5] * 270,
+                    "by_class": {"C1": {"n": 100, "ok": 100, "Q": 100.0}, "C5": {"n": n, "ok": ok, "Q": 100.0 * ok / n}}}
+        small = self.summarize("C", with_class(19, 0))
+        self.assertEqual(small["control_reasons"], [])
+        self.assertEqual(small["control_small_classes"], {"C5": {"n": 19, "ok": 0, "Q": 0.0}})
+        self.assertIn("class C5", self.summarize("C", with_class(20, 18))["control_reasons"][0])
+        self.assertEqual(self.summarize("C", with_class(20, 19))["control_reasons"], [])
+        self.assertEqual(self.summarize("C", with_class(20, 19))["control_small_classes"], {})
+        low_q = {**with_class(5, 5), "Q": 98.9}                                    # Q(C) stays on every request
+        self.assertIn("below 99 %", self.summarize("C", low_q)["control_reasons"][0])
+
+    def test_harm_gates_function_is_unchanged_for_the_harm_benchmark(self):
+        m = {"Q": 99.5, "by_class": {"C5": {"n": 2, "ok": 0, "Q": 0.0}}}
+        self.assertIn("class C5", O.HG.control_health(m, {**HEALTH_CAL, "slo_ms": {"C5": 3000}})[0])
+
+    def test_small_classes_are_reported_in_the_output(self):
+        small = {"C5": {"n": 2, "ok": 2, "Q": 100.0}}
+        runs = campaign()
+        k = next(i for i, r in enumerate(runs) if r["arm"] == "C" and r["block"] == 3104)
+        runs[k] = dict(runs[k], control_small_classes=small)
+        self.assertEqual(O.outcome(runs)["small_control_classes"], [{"block": 3104, "attempt": 1, "classes": small}])
+
     def test_an_unhealthy_control_makes_the_block_invalid_never_a_negative_verdict(self):
         why = ["Q(C) is 98.00 %, below 99 %"]
         res = O.outcome(campaign({("C", 2): {"control_reasons": why}}))
@@ -507,9 +604,7 @@ class ControlHealthTest(unittest.TestCase):
         self.assertEqual({r["status"] for r in res["families"].values()}, {"invalid (9 of 10 valid)"})   # not "not harmful"
 
     def test_a_re_run_with_a_healthy_control_counts_and_the_first_stays_reported(self):
-        runs = campaign({("C", 2): {"control_reasons": ["x"]}})
-        runs.append(rec(3103, "C", 99.5, attempt=2))
-        res = O.outcome(runs)
+        res = O.outcome(rerun(campaign(), 3103, {"C": {"control_reasons": ["x"]}}))
         self.assertEqual(res["M7"], BOTH)
         self.assertEqual(res["unhealthy_controls"], [{"block": 3103, "attempt": 1, "reasons": ["x"]}])
 
@@ -556,7 +651,7 @@ class InputTest(unittest.TestCase):
         self.assertEqual(r, {"block": 3101, "arm": "M_pc_loris", "attempt": 1, "valid": True, "Q": 97.0, "p95_s": 0.2,
                              "q_per_s": q, "q_level": 98.0, "level_window": [120.0, 240.0],
                              "banned": {"10.0.3.1": "attack", "10.0.4.1": "cgnat"}, "benign_closed": 1,
-                             "refused": None, "control_reasons": None})
+                             "refused": None, "control_reasons": None, "control_small_classes": None, "settings": None})
         with self.assertRaises(ValueError):
             O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [{"kind": "ban", "ip": "10.9.9.9"}], roles,
                         level_window=win, attempt=1)
@@ -586,6 +681,19 @@ class InputTest(unittest.TestCase):
             O.outcome(runs)
         runs[7].pop("level_window")
         with self.assertRaises(ValueError):
+            O.outcome(runs)
+
+    def test_a_mix_of_settings_is_refused(self):
+        # Review T-047 P-08: a block at another scale, T, F, K, calibration or code must not be judged with the others.
+        for field, value in (("sources", {"loris": 300, "post": 10}), ("thresholds", [5, 256, 2]), ("halvings", 1),
+                             ("calibration_sha256", "c" * 64), ("code_sha256", "d" * 64)):
+            runs = campaign()
+            runs[20] = dict(runs[20], settings={**SETTINGS, field: value})
+            with self.assertRaisesRegex(ValueError, "2 different settings"):
+                O.outcome(runs)
+        runs = campaign()
+        runs[3] = dict(runs[3], settings=None)
+        with self.assertRaisesRegex(ValueError, "names its block's settings"):
             O.outcome(runs)
 
     def test_the_command_line(self):

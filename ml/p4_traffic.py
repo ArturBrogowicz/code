@@ -12,13 +12,13 @@ The benign mix of §4.2, the L7 v2 runner's kinds on R:
   * the co-resident CGNAT pools CGNAT-12 and CGNAT-24 (cgnat_browsers on the browsing chain, :443), never removed;
   * 10 search users, api_bulk and a polite crawler (their L7 v2 parameters);
   * 4 uploaders, bodies up to 2 MB on /upload, and 2 slow_uploaders, the same client behind a 16 kbit/s link
-    (ml/l7_benign.py upload kinds; the runner shapes their namespace with netem at that rate, NETEM_SLOW, and the
-    generator paces the body at the same rate). They are the hard negative of the per-connection rule's byte-rate leg.
+    (ml/l7_benign.py upload kinds; the runner gives each a namespace of its own, shaped with netem at that rate, NETEM_SLOW,
+    and the generator paces the body at the same rate). They are the hard negative of the per-connection rule's byte-rate leg.
 Every benign entity runs for the whole run; the run is 30 s of baseline, 210 s of attack and 30 s of recovery
 (eval/p4_outcome.TIMELINE, re-registered 2026-10-31).
 
 The halving rule, frozen before the pilot (§4.2): if either of the two pilot controls is unhealthy (Q(C) < 99 % or a
-route class below 95 %, eval/harm_gate.control_health), the browser devices are halved and the pilot is repeated;
+route class of at least 20 judged requests below 95 %, eval/p4_outcome.control_health, D-050), the browser devices are halved and the pilot is repeated;
 CGNAT-12 and CGNAT-24 are never removed. A plan carries how many times the rule has fired (`halvings`): 40, 20, 10...
 browser devices. The devices dropped are the last ones of the list, and an entity keeps its index, sub-seed, address
 and parameters whatever the halvings, so a halved plan is the full plan without those devices.
@@ -108,7 +108,8 @@ def browser_devices(halvings):
 
 def halve(control_reasons):
     """The frozen rule of §4.2 over the two pilot controls: `control_reasons` holds, for each, the reasons it is
-    unhealthy (eval/harm_gate.control_health: Q(C) < 99 %, a route class below 95 %), empty when it is healthy.
+    unhealthy (eval/p4_outcome.control_health: Q(C) < 99 %, a route class of 20 requests or more below 95 %), empty when
+    it is healthy.
     True iff either is unhealthy: then the browser devices are halved and the pilot is repeated."""
     control_reasons = list(control_reasons)
     if len(control_reasons) != 2:

@@ -10,6 +10,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -22,10 +23,8 @@ import p4_runner as R
 import p4_traffic as PT
 import p4_validation as V
 
-import l7_backend
 import slow_pc
 
-CAL = l7_backend.load_record()[0]
 KNEE = {"loris": 100, "post": 5}
 POINT = (5, 256, 2)
 
@@ -36,8 +35,7 @@ def sha(path):
 
 
 def index(root):
-    with open(os.path.join(root, "index.jsonl"), encoding="utf-8") as fh:
-        return [json.loads(line) for line in fh]
+    return R.read_index(root)
 
 
 class PlanTest(unittest.TestCase):
@@ -122,8 +120,8 @@ class PlanTest(unittest.TestCase):
                                                "crawler_polite")
             self.assertEqual("--records" in argv, recorded, e["kind_or_family"])
         slow = [n for n in loris["namespaces"] if n["profile"] == PT.NETEM_SLOW]
-        self.assertEqual(len(slow), 1)
-        self.assertEqual(len(slow[0]["addresses"]), 2)
+        self.assertEqual([len(n["addresses"]) for n in slow], [1, 1], "a qdisc per slow uploader (review T-047 P-12)")
+        self.assertEqual(len({n["name"][:12] for n in loris["namespaces"]}), len(loris["namespaces"]), "the host's veth names")
         self.assertTrue(all(len(n["addresses"]) <= R.MAX_ALIASES for n in loris["namespaces"]))
         self.assertEqual(sum(len(n["addresses"]) for n in loris["namespaces"]), 160)
 
@@ -202,6 +200,102 @@ class PlanTest(unittest.TestCase):
         self.assertIsNone(R.parse_stub_status("502 Bad Gateway"))
 
 
+class ArmOrderTest(unittest.TestCase):
+    """Review T-047 P-13: the arm order is fixed by phase and seed; a label must not change it."""
+
+    def test_a_label_is_refused_in_the_campaign_and_the_validation(self):
+        with self.assertRaisesRegex(R.PlanError, "no --label"):
+            R.plan_block("campaign", 3101, "/r", sources=KNEE, thresholds=POINT, label="x")
+        with self.assertRaisesRegex(R.PlanError, "no --label"):
+            R.plan_block("validation", 4001, "/r", sources=KNEE, label="x")
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--thresholds",
+                                     "5,256,2", "--label", "x", "--plan"]), 2)
+        self.assertEqual(R.plan_block("smoke", 9101, "/r", label="s1", arms=["C"])["dir"], "/r/smoke/b9101_a1_s1")
+        first = R.plan_block("campaign", 3101, "/r", sources=KNEE, thresholds=POINT)["order"]
+        self.assertEqual(R.plan_block("campaign", 3101, "/r", sources=KNEE, thresholds=POINT, attempt=2)["order"], first)
+
+    def test_summarize_refuses_another_order(self):
+        with tempfile.TemporaryDirectory() as root:
+            R.run_block(F.FakeHost(modelled_attackers=1),
+                        R.plan_block("campaign", 3101, root, sources=KNEE, thresholds=POINT, arms=["C", "Cp", "U_post"]))
+            path = os.path.join(root, "campaign", "b3101_a1", "block.json")
+            with open(path, encoding="utf-8") as fh:
+                meta = json.load(fh)
+            meta["order"] = list(reversed(meta["order"]))
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(meta, fh)
+            with self.assertRaisesRegex(ValueError, "seeded order"):
+                R.summarize_root(root, R.PLACEHOLDER, os.path.join(root, "runs.jsonl"))
+
+
+class AttemptRuleTest(unittest.TestCase):
+    """D-050 (review T-047 P-03): --attempt N needs a reason in the index, and the campaign holds 2 re-runs."""
+
+    def row(self, arm, attempt=1, valid=True, block=3101, phase="campaign", label=""):
+        return {"phase": phase, "block": block, "attempt": attempt, "label": label, "arm": arm, "valid": valid,
+                "dir": f"{phase}/b{block}_a{attempt}/{arm}"}
+
+    def full(self, attempt=1, block=3101, invalid=()):
+        return [self.row(arm, attempt, arm not in invalid, block) for arm in OUT.ARMS]
+
+    def check(self, rows, attempt=2, phase="campaign", seed=3101, reasons=(), **kw):
+        kw = {"sources": KNEE, "thresholds": POINT, **kw} if phase == "campaign" else {"sources": KNEE, **kw}
+        block = R.plan_block(phase, seed, "/nonexistent/root", attempt=attempt, **kw)
+        with mock.patch.object(R, "read_index", return_value=rows), \
+                mock.patch.object(R, "run_record", return_value={"control_reasons": list(reasons)}):
+            R.check_attempt(block)
+
+    def test_the_first_attempt_is_always_free_and_must_be_the_first(self):
+        self.check([], attempt=1)
+        with self.assertRaisesRegex(R.PlanError, "the next is 1"):
+            self.check([], attempt=2)
+        with self.assertRaisesRegex(R.PlanError, "the next is 2"):
+            self.check(self.full(invalid=("C",)), attempt=3)
+        self.check(self.full(block=3102), attempt=1)                              # another block's attempts are its own
+
+    def test_a_complete_attempt_cannot_be_made_again(self):
+        with self.assertRaisesRegex(R.PlanError, "allows no re-run"):
+            self.check(self.full())
+
+    def test_an_invalid_m_def_is_no_reason(self):
+        with self.assertRaisesRegex(R.PlanError, "allows no re-run"):
+            self.check(self.full(invalid=("M_def_loris", "M_def_post")))
+
+    def test_an_invalid_or_missing_needed_arm_is_a_reason(self):
+        for arm in OUT.NEEDED_ARMS:
+            self.check(self.full(invalid=(arm,)))
+        self.check([x for x in self.full() if x["arm"] != "U_post"])              # the runner died before it
+
+    def test_an_unhealthy_c_is_a_reason(self):
+        self.check(self.full(), reasons=["Q(C) is 98.00 %, below 99 %"])
+
+    def test_the_campaign_holds_two_re_runs(self):
+        two = self.full(block=3102) + self.full(2, 3102, ("C",)) + self.full(3, 3102)
+        with self.assertRaisesRegex(R.PlanError, "already holds 2 re-runs"):
+            self.check(two + self.full(invalid=("C",)))
+        one = self.full(invalid=("C",), block=3103) + self.full(2, 3103)
+        self.check(one + self.full(invalid=("C",)))
+
+    def test_the_validation_needs_a_reason_too_and_the_smoke_does_not(self):
+        rows = [self.row(arm, phase="validation", block=4001) for arm in slow_pc.VALIDATION_RUNS]
+        with self.assertRaisesRegex(R.PlanError, "allows no re-run"):
+            self.check(rows, phase="validation", seed=4001)
+        rows[0] = dict(rows[0], valid=False)
+        self.check(rows, phase="validation", seed=4001)
+        block = R.plan_block("smoke", 9101, "/nonexistent/root", attempt=2, label="s1", arms=["C"])
+        with mock.patch.object(R, "read_index", return_value=[self.row("C", phase="smoke", block=9101, label="s1")]):
+            R.check_attempt(block)
+
+    def test_the_command_line_says_no(self):
+        with tempfile.TemporaryDirectory() as root, contextlib.redirect_stderr(io.StringIO()) as err, \
+                contextlib.redirect_stdout(io.StringIO()):
+            rc = R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--thresholds", "5,256,2",
+                         "--attempt", "2", "--root", root], host=F.FakeHost())
+        self.assertEqual(rc, 2)
+        self.assertIn("the next is 1", err.getvalue())
+
+
 class ExecuteTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -226,11 +320,12 @@ class ExecuteTest(unittest.TestCase):
                                                                            "SLOW_PC": "1", "SLOW_PC_ENFORCE": "0"}))
         out = os.path.join(self.root, "selection.json")
         with contextlib.redirect_stdout(io.StringIO()):
-            rc = V.main([*manifests, "--json", out])
+            rc = V.main([self.root, "--json", out])
         with open(out, encoding="utf-8") as fh:
             sel = json.load(fh)
         self.assertIn(rc, (0, 2))
         self.assertEqual(len(sel["outcomes"]), len(slow_pc.GRID))
+        self.assertEqual({a["judged"] for a in sel["attempts"]}, {1})
         self.assertEqual(sorted((r["seed"], r["arm"]) for r in sel["runs"]),
                          sorted((s, a) for s in slow_pc.VALIDATION_SEEDS for a in slow_pc.VALIDATION_RUNS))
         point = next(o for o in sel["outcomes"] if (o["T"], o["F"], o["K"]) == POINT)
@@ -245,7 +340,7 @@ class ExecuteTest(unittest.TestCase):
                                                             thresholds=POINT)["order"])
         self.assertTrue(all(r["ok"] for _a, r in res), [(a, r["reasons"]) for a, r in res if not r["ok"]])
         runs_path = os.path.join(self.root, "runs.jsonl")
-        R.summarize_root(self.root, CAL, runs_path)
+        R.summarize_root(self.root, R.PLACEHOLDER, runs_path)
         with open(runs_path, encoding="utf-8") as fh:
             records = [json.loads(line) for line in fh]
         by = {r["arm"]: r for r in records}
@@ -297,6 +392,7 @@ class ExecuteTest(unittest.TestCase):
         self.assertIn(("mv", "-f", "/var/log/nginx/l7_capture.log", os.path.join(run, "access.log")), moved)
         slow_ns = [c for c in host.commands if c[1][:2] == ("tc", "qdisc")]
         self.assertTrue(slow_ns and all(c[1] == PT.NETEM_SLOW_ARGV for c in slow_ns))
+        self.assertEqual(len({c[0] for c in slow_ns}), 2, "one namespace each")
 
     def test_every_attempt_is_indexed_with_its_reasons(self):
         host = F.FakeHost(kill_file=True, modelled_attackers=1)
@@ -307,13 +403,13 @@ class ExecuteTest(unittest.TestCase):
         idx = index(self.root)
         self.assertEqual(len(idx), 9)
         self.assertEqual({x["arm"] for x in idx if not x["valid"]}, {"M_pc_loris", "M_pc_post", "C_M"})
-        with self.assertRaises(R.PlanError):
+        with self.assertRaisesRegex(R.PlanError, "the next is 2"):
             R.run_block(F.FakeHost(), self.block("campaign", 3103, thresholds=POINT))
         R.run_block(F.FakeHost(modelled_attackers=1), self.block("campaign", 3103, thresholds=POINT, attempt=2))
         self.assertEqual(len(index(self.root)), 18)
         self.assertEqual({x["attempt"] for x in index(self.root)}, {1, 2})
         out = os.path.join(self.root, "runs.jsonl")
-        R.summarize_root(self.root, CAL, out)                       # D-035 (V-03): every attempt, valid or not
+        R.summarize_root(self.root, R.PLACEHOLDER, out)                       # D-035 (V-03): every attempt, valid or not
         with open(out, encoding="utf-8") as fh:
             records = [json.loads(line) for line in fh]
         self.assertEqual(sorted((r["attempt"], r["arm"]) for r in records),
@@ -358,14 +454,14 @@ class ExecuteTest(unittest.TestCase):
         for every, ok in ((5.0, True), (9.5, True), (10.5, False), (15.0, False)):
             run = self.one_run(f"poll_{every}", "campaign", 3105, "M_pc_post", thresholds=POINT)
             res = R.execute_run(F.FakeHost(poll_every_s=every, modelled_attackers=1), run)
-            silent = [r for r in res["reasons"] if "logged no poll" in r]
+            silent = [r for r in res["reasons"] if "no successful poll" in r]
             self.assertEqual(not silent, ok, (every, res["reasons"]))
         res = R.execute_run(F.FakeHost(daemon_dies_at=150.0, modelled_attackers=1),
                             self.one_run("dies", "validation", 4001, "C"))
-        self.assertTrue(any("logged no poll" in r for r in res["reasons"]), res["reasons"])
+        self.assertTrue(any("no successful poll" in r for r in res["reasons"]), res["reasons"])
         res = R.execute_run(F.FakeHost(poll_every_s=30.0), self.one_run("no_rule", "campaign", 3105, "M_def_post",
                                                                         thresholds=POINT))
-        self.assertFalse(any("logged no poll" in r for r in res["reasons"]), "M_def runs no rule")
+        self.assertFalse(any("no successful poll" in r for r in res["reasons"]), "M_def runs no rule")
 
 
     def test_the_limits_own_cost_comes_from_the_access_log(self):
@@ -373,7 +469,7 @@ class ExecuteTest(unittest.TestCase):
         res = R.run_block(host, self.block("campaign", 3106, thresholds=POINT))
         self.assertTrue(all(r["ok"] for _a, r in res), [(a, r["reasons"]) for a, r in res if not r["ok"]])
         out = os.path.join(self.root, "runs.jsonl")
-        R.summarize_root(self.root, CAL, out)
+        R.summarize_root(self.root, R.PLACEHOLDER, out)
         with open(out, encoding="utf-8") as fh:
             by = {r["arm"]: r for r in map(json.loads, fh)}
         self.assertEqual(sum(c["refused"] for c in by["C"]["refused"]["by_role"].values()), 0)
@@ -416,7 +512,7 @@ class ExecuteTest(unittest.TestCase):
                                self.block("campaign", 3107, thresholds=POINT)))
         self.assertTrue(res["C"]["ok"], res["C"]["reasons"])
         out = os.path.join(self.root, "runs.jsonl")
-        R.summarize_root(self.root, CAL, out)
+        R.summarize_root(self.root, R.PLACEHOLDER, out)
         with open(out, encoding="utf-8") as fh:
             by = {r["arm"]: r for r in map(json.loads, fh)}
         self.assertTrue(by["C"]["valid"])
@@ -425,6 +521,180 @@ class ExecuteTest(unittest.TestCase):
         self.assertEqual(verdict["families"]["loris"]["harm"]["valid_blocks"], 0)
         self.assertEqual(verdict["M7"], "invalid (0 of 10 valid)")
         self.assertEqual([u["block"] for u in verdict["unhealthy_controls"]], [3107])
+
+
+    def test_a_generator_late_past_the_grace_makes_the_run_invalid(self):
+        """Why review T-047 P-01 blocked P4-S: this is what a slow uploader that outlives its duration did to every run."""
+        run = self.one_run("late")
+        slow = next(e["address"] for e in run["entities"] if e["kind_or_family"] == "slow_uploader")
+        res = R.execute_run(F.FakeHost(gen_late={slow: 30.0}), run)
+        self.assertTrue(any("was still running 10 s after its end" in r for r in res["reasons"]), res["reasons"])
+        ok = R.execute_run(F.FakeHost(gen_late={slow: 5.0}), self.one_run("in_time"))
+        self.assertEqual(ok["reasons"], [])
+
+
+    def test_stub_status_is_recorded_and_judges_nothing(self):
+        """D-050 (review T-047 P-02): exhausted slots are the harm, so a stub that stops answering is data, not invalidity."""
+        host = F.FakeHost(stub_fails=(30.0, 240.0), modelled_attackers=1)
+        run = self.one_run("stub", "campaign", 3106, "U_loris", thresholds=POINT)
+        res = R.execute_run(host, run)
+        self.assertEqual(res["reasons"], [])
+        with open(os.path.join(run["out"], "stub_status.jsonl"), encoding="utf-8") as fh:
+            rows = [json.loads(line) for line in fh]
+        self.assertGreater(sum(1 for r in rows if "error" in r), 100)
+        self.assertGreater(sum(1 for r in rows if "active" in r), 30)
+        self.assertFalse(hasattr(R, "STUB_STATUS_MIN_SHARE"))
+
+    def test_the_samples_keep_to_the_second_and_the_attack_to_its_time(self):
+        """A sample that takes a whole second must not stretch the timeline: still one a second, the attack on time."""
+        host = F.FakeHost(stub_fails=(0.0, 60.0), modelled_attackers=1)
+        run = self.one_run("drift", "campaign", 3106, "U_post", thresholds=POINT)
+        R.execute_run(host, run)
+        with open(os.path.join(run["out"], "stub_status.jsonl"), encoding="utf-8") as fh:
+            times = [json.loads(line)["t"] for line in fh]
+        self.assertEqual(times[:61], [float(k) for k in range(61)])
+        attack = next(p for p in host.procs if p.kind == "gen" and p.role == "attack")
+        self.assertEqual(attack.start - host.run_t0, 30.0)
+
+
+    def test_a_run_whose_runner_dies_still_counts(self):
+        """Review T-047 P-07: the index line comes before the run, so a ban in a run that died cannot be hidden by a re-run."""
+        block = self.block("campaign", 3108, thresholds=POINT, arms=["M_pc_loris"])
+        cgnat = next(e["address"] for e in block["runs"][0]["entities"] if e["kind_or_family"] == "cgnat_browsers")
+
+        def dies(_host, plan):
+            self.assertTrue(os.path.isfile(os.path.join(plan["out"], "plan.json")))
+            self.assertEqual(index(self.root)[-1]["arm"], "M_pc_loris")        # already there
+            with open(plan["daemon"]["env"]["BAN_EVENTS"], "w", encoding="utf-8") as fh:
+                fh.write(json.dumps({"kind": "ban", "ip": cgnat, "t_wall": 1.0}) + "\n")
+            raise KeyboardInterrupt
+
+        with mock.patch.object(R, "execute_run", dies), self.assertRaises(KeyboardInterrupt):
+            R.run_block(F.FakeHost(), block)
+        [row] = index(self.root)
+        self.assertEqual((row["ended"], row["valid"]), (False, False))
+        self.assertIn("the runner died", row["reasons"][0])
+        out = os.path.join(self.root, "runs.jsonl")
+        R.summarize_root(self.root, R.PLACEHOLDER, out)
+        with open(out, encoding="utf-8") as fh:
+            [rec] = [json.loads(line) for line in fh]
+        self.assertEqual((rec["valid"], rec["Q"], rec["banned"]), (False, None, {cgnat: "cgnat"}))
+        m = OUT.outcome([rec])["families"]["loris"]["mitigation"]
+        self.assertEqual(m["benign_banned"], [[3108, cgnat, "cgnat"]])
+
+    def test_a_run_the_index_does_not_hold_is_refused(self):
+        os.makedirs(os.path.join(self.root, "campaign", "b3108_a1", "M_pc_loris"))
+        with self.assertRaisesRegex(ValueError, "the index does not hold"):
+            R.summarize_root(self.root, R.PLACEHOLDER, os.path.join(self.root, "runs.jsonl"))
+
+    def test_the_index_reads_a_cut_last_line_and_refuses_any_other(self):
+        started = {"event": "started", "phase": "campaign", "block": 3108, "attempt": 1, "label": "", "arm": "C", "dir": "d"}
+        path = os.path.join(self.root, "index.jsonl")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(started) + '\n{"event": "ended", "pha')
+        self.assertEqual([x["ended"] for x in R.read_index(self.root)], [False])
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write('{"event": "cut\n' + json.dumps(started) + "\n")
+        with self.assertRaisesRegex(ValueError, "cannot be read"):
+            R.read_index(self.root)
+
+
+    def test_a_rule_that_never_reads_is_not_alive(self):
+        """Review T-047 P-05: an `ss` that always fails still logs its reports. Such a run must not read as the rule's verdict."""
+        def silence(name, fails):
+            run = self.one_run(name, "campaign", 3105, "M_pc_post", thresholds=POINT)
+            res = R.execute_run(F.FakeHost(ss_fails=fails, modelled_attackers=1), run)
+            return [r for r in res["reasons"] if "no successful poll" in r]
+        self.assertTrue(silence("blind", True))
+        self.assertTrue(silence("blind_15s", (100.0, 115.0)))
+        self.assertFalse(silence("blind_5s", (100.0, 105.0)))
+
+    def test_a_validation_run_with_a_blind_rule_is_invalid_too(self):
+        res = R.execute_run(F.FakeHost(ss_fails=True), self.one_run("blind_val"))
+        self.assertTrue(any("no successful poll" in r for r in res["reasons"]), res["reasons"])
+
+    def test_an_enforcing_run_must_have_enforced(self):
+        run = self.one_run("shadow", "campaign", 3105, "M_pc_loris", thresholds=POINT)
+        res = R.execute_run(F.FakeHost(kill_appears_at=100.0, modelled_attackers=1), run)
+        self.assertTrue(any("did not enforce throughout" in r for r in res["reasons"]), res["reasons"])
+
+
+    def test_an_attack_that_never_connected_makes_the_run_invalid(self):
+        """Review T-047 P-06: such an M_pc would pass (a) and (b), and such a U would read "not harmful"."""
+        for arm in ("U_loris", "M_pc_loris"):
+            run = self.one_run(f"no_attack_{arm}", "campaign", 3106, arm, thresholds=POINT)
+            res = R.execute_run(F.FakeHost(attack_fails=True, modelled_attackers=1), run)
+            self.assertTrue(any("could not open connections on this machine" in r for r in res["reasons"]), res["reasons"])
+            self.assertTrue(any("the attack opened 0 of its 600 connections" in r for r in res["reasons"]), res["reasons"])
+
+    def test_connections_the_server_refuses_are_the_harm_not_invalidity(self):
+        run = self.one_run("refused", "campaign", 3106, "U_loris", thresholds=POINT)
+        self.assertEqual(R.execute_run(F.FakeHost(attack_opened_share=0.6, modelled_attackers=1), run)["reasons"], [])
+        with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+            attack = json.load(fh)["attack"]
+        self.assertEqual((attack["planned"], attack["opened"], attack["failed_opens"]), (600, 400, 200))
+        run = self.one_run("too_few", "campaign", 3106, "U_loris", thresholds=POINT)
+        res = R.execute_run(F.FakeHost(attack_opened_share=0.4, modelled_attackers=1), run)
+        self.assertTrue(any("the attack opened 200 of its 600" in r for r in res["reasons"]), res["reasons"])
+
+    def test_an_attack_generator_without_stats_is_a_reason(self):
+        run = self.one_run("no_stats", "campaign", 3106, "U_post", thresholds=POINT)
+        res = R.execute_run(F.FakeHost(attack_opened_share=None, modelled_attackers=1), run)
+        self.assertTrue(any("attack generators left no stats" in r for r in res["reasons"]), res["reasons"])
+        run = self.one_run("no_attack_arm")
+        self.assertEqual(R.execute_run(F.FakeHost(attack_fails=True), run)["reasons"], [])
+
+    def test_the_attack_generators_are_told_where_to_write(self):
+        run = self.one_run("argv", "campaign", 3106, "U_post", thresholds=POINT)
+        for x in run["launches"]:
+            self.assertEqual("--stats" in x["argv"], x["role"] == "attack")
+
+
+    def test_a_block_at_other_settings_is_refused(self):
+        """Review T-047 P-08: another scale, T, F, K or calibration in one campaign, or in one block's next attempt."""
+        host = F.FakeHost(modelled_attackers=1)
+        R.run_block(host, self.block("campaign", 3101, thresholds=POINT, arms=["C"]))
+        other = os.path.join(self.root, "other.json")
+        with open(R.PLACEHOLDER, encoding="utf-8") as fh, open(other, "w", encoding="utf-8") as out:
+            out.write(fh.read() + "\n")
+        for kw, what in (({"sources": {"loris": 175, "post": 5}}, "sources"), ({"thresholds": (20, 16, 6)}, "thresholds"),
+                         ({"halvings": 1}, "halvings"), ({"calibration": other}, "calibration_sha256")):
+            block = self.block("campaign", 3102, **{"thresholds": POINT, "arms": ["C"], **kw})
+            with self.assertRaisesRegex(R.PlanError, what):
+                R.run_block(host, block)
+        self.assertEqual(sorted(os.listdir(os.path.join(self.root, "campaign"))), ["b3101_a1"])
+        R.run_block(host, self.block("campaign", 3102, thresholds=POINT, arms=["C"]))
+
+    def test_summarize_refuses_another_calibration(self):
+        R.run_block(F.FakeHost(), self.block("campaign", 3101, thresholds=POINT, arms=["C"]))
+        other = os.path.join(self.root, "other.json")
+        with open(R.PLACEHOLDER, encoding="utf-8") as fh, open(other, "w", encoding="utf-8") as out:
+            out.write(fh.read() + "\n")
+        out_path = os.path.join(self.root, "runs.jsonl")
+        with self.assertRaisesRegex(ValueError, "ran under calibration"):
+            R.summarize_root(self.root, other, out_path)
+        R.summarize_root(self.root, R.PLACEHOLDER, out_path)
+        with open(out_path, encoding="utf-8") as fh:
+            [rec] = [json.loads(line) for line in fh]
+        self.assertEqual(rec["settings"]["sources"], KNEE)
+
+    def test_the_daemon_under_test_is_hashed(self):
+        run = self.one_run("hash", "campaign", 3101, "M_pc_post", thresholds=POINT)
+        code = run["provenance"]["code_sha256"]
+        self.assertEqual(code["control_plane.py"], sha(os.path.join(REPO, "control_plane.py")))
+        self.assertEqual(sorted(code), sorted(R.CODE_FILES))
+        R.execute_run(F.FakeHost(modelled_attackers=1), run)
+        with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+            meta = json.load(fh)
+        self.assertTrue(meta["daemon_provenance"]["h01"]["has_fix"])
+        self.assertIn("control_plane.py", meta["daemon_provenance"]["files"])
+        self.assertIn("git", meta)
+
+    def test_a_daemon_without_the_h01_fix_makes_the_run_invalid(self):
+        run = self.one_run("no_fix", "campaign", 3101, "M_pc_post", thresholds=POINT)
+        with mock.patch("executor.daemon_provenance", return_value={"files": {}, "h01": {"has_fix": False}}):
+            res = R.execute_run(F.FakeHost(modelled_attackers=1), run)
+        self.assertTrue(any("H-01 fix" in r for r in res["reasons"]), res["reasons"])
 
 
 if __name__ == "__main__":

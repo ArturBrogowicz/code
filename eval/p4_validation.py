@@ -8,6 +8,11 @@ pass per run with one detector per point, counts what each point would have done
 per point (the definitions are frozen with Outcome), sums the counts over the runs and lets
 slow_pc.select_thresholds() choose T, F and K. Pure and offline: it reads files and writes a JSON record.
 
+The runs come from the run index, not from the command line (review T-047 P-09): per validation seed the last attempt with
+every run valid, whose run directories hold the manifests; a seed without such an attempt, and a manifest whose run.json says the
+run was invalid, are refused; the attempts each seed superseded are listed in the record. eval/p4_runner.py refuses a re-run
+of a seed whose runs were all valid.
+
 One manifest per run (JSON), written by the runner:
 
     {"seed": 4001, "arm": "U_loris", "record": "slow_pc.jsonl.gz",
@@ -29,7 +34,7 @@ address would drop its sockets unjudged at every grid point and make the benign 
 The share of attacking addresses banned within SECONDARY_DEADLINE_S of their first connection, the T_mit
 of the design note before its re-registration, is reported next to each point; it is not used.
 
-    ./venv/bin/python eval/p4_validation.py MANIFEST [MANIFEST ...] [--json OUT]
+    ./venv/bin/python eval/p4_validation.py ROOT [--json OUT]       # ROOT holds index.jsonl and the runs
 """
 import argparse
 import json
@@ -58,9 +63,36 @@ def load_run(manifest_path):
     if m.get("daemon") != VALIDATION_DAEMON:
         raise ValueError(f"{manifest_path}: a validation run runs the daemon as {VALIDATION_DAEMON} (D-035), "
                          f"the manifest says {m.get('daemon')!r}")
-    record = os.path.join(os.path.dirname(os.path.abspath(manifest_path)), m["record"])
+    where = os.path.dirname(os.path.abspath(manifest_path))
+    try:
+        with open(os.path.join(where, "run.json"), encoding="utf-8") as fh:
+            checks = json.load(fh)["checks"]
+    except (OSError, ValueError, KeyError) as exc:
+        raise ValueError(f"{manifest_path}: no run.json with the run's checks beside it: {exc}") from None
+    if not checks.get("ok"):
+        raise ValueError(f"{manifest_path}: an invalid run is not scored: {checks.get('reasons')}")
+    record = os.path.join(where, m["record"])
     return {"seed": m["seed"], "arm": m["arm"], "roles": dict(roles),
             "polls": slow_pc.read_record(record), "manifest": manifest_path, "record": record}
+
+
+def runs_from_index(root):
+    """(manifests, attempts) of the validation: per seed, the last attempt of ROOT/index.jsonl with every run of
+    slow_pc.VALIDATION_RUNS valid; `attempts` says, per seed, which was judged and which it superseded."""
+    sys.path.insert(0, os.path.join(REPO, "eval"))
+    import p4_runner
+    rows = [x for x in p4_runner.read_index(root) if x["phase"] == "validation"]
+    manifests, attempts = [], []
+    for seed in slow_pc.VALIDATION_SEEDS:
+        mine = [x for x in rows if x["block"] == seed]
+        numbers = sorted({x["attempt"] for x in mine})
+        good = [a for a in numbers if {x["arm"] for x in mine if x["attempt"] == a and x["valid"]} >= set(slow_pc.VALIDATION_RUNS)]
+        if not good:
+            raise ValueError(f"seed {seed}: no attempt in {root} has every validation run valid")
+        attempts.append({"seed": seed, "judged": good[-1], "superseded": [a for a in numbers if a != good[-1]]})
+        manifests += [os.path.join(root, x["dir"], "slow_pc_manifest.json") for x in mine
+                      if x["attempt"] == good[-1] and x["arm"] in slow_pc.VALIDATION_RUNS]
+    return manifests, attempts
 
 
 def check_runs(runs):
@@ -139,11 +171,16 @@ def score(runs, grid=slow_pc.GRID):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("manifests", nargs="+")
+    ap.add_argument("root", help="the runner's root: index.jsonl and the runs")
     ap.add_argument("--json", help="write the per-point outcomes and the selection here")
     args = ap.parse_args(argv)
-    runs = [load_run(m) for m in args.manifests]
-    check_runs(runs)
+    try:
+        manifests, attempts = runs_from_index(args.root)
+        runs = [load_run(m) for m in manifests]
+        check_runs(runs)
+    except ValueError as exc:
+        print(f"[-] {exc}", file=sys.stderr)
+        return 2
     outcomes, secondary = score(runs)
     sel = slow_pc.select_thresholds(outcomes)
     if sel.point is None:
@@ -158,7 +195,7 @@ def main(argv=None):
         record = {
             "selection": {"point": sel.point, "share": None if sel.share is None else str(sel.share),
                           "feasible": sel.feasible},
-            "deadline_s": slow_pc.DEADLINE_S, "secondary_deadline_s": SECONDARY_DEADLINE_S,
+            "deadline_s": slow_pc.DEADLINE_S, "secondary_deadline_s": SECONDARY_DEADLINE_S, "attempts": attempts,
             "outcomes": [{"T": t, "F": f, "K": k, **o._asdict(),
                           "secondary_banned": secondary[(t, f, k)]}
                          for (t, f, k), o in sorted(outcomes.items())],
