@@ -195,14 +195,14 @@ def class_report(root, cal, cls, blocks, live, per_arm):
                 live_cost[a] += REC.attacker_cost_ms(log, man, (lo, lo + float(timeline["attack_s"])), cal["route_costs_ms"])
     measured = {a: (round(live_cost[a] / live_cost["U"], 4) if live_cost["U"] else None) for a in live if a != "U"}
     return {"note": "descriptive (D-053): the verdict does not read it. A share of 1 means that the arm removed none of the attack's cost",
-            "whole_window_q": {a: [b["runs"][RUN.run_name(a, cls)]["metrics"]["Q"] for b in blocks] for a in live},
+            "whole_window_q": {a: {b["block"]: b["runs"][RUN.run_name(a, cls)]["metrics"]["Q"] for b in blocks} for a in live},
             "time_to_decision": ttd, "attack_cost_left": {"replay": replay, "live": measured}}
 
 
 def class_inputs(root, cal, cls, blocks, live, frozen, arms_factory, on="Q"):
     """l7v2_verdict.judge's inputs for a class over its judged blocks (see the module doc), and the replay's summary."""
     enforcing = [a for a in live if a != "U"]
-    harm = {a: [level_q(root, b, RUN.run_name(a, cls), cal) for b in blocks] for a in live}
+    harm = {a: {b["block"]: level_q(root, b, RUN.run_name(a, cls), cal) for b in blocks} for a in live}
     budget = {"live": {a: [0, 0] for a in enforcing}, "replay": {a: [0, 0] for a in enforcing}}
     det = {"blocks": [], "families": [], "caught": {a: [] for a in DETECTION_ARMS}}
     per_arm, structured = {}, bool(blocks)

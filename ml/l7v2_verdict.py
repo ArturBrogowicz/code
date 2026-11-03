@@ -132,8 +132,10 @@ def _check(cls, inputs, pre):
         missing = {GRU, HGB, SHUF, RSTAR} - set(caught)
         if missing:
             raise VerdictError(f"{cls}: every GRU contrast is reported, and the replay lacks {sorted(missing)}")
-    if len({len(v) for v in harm.values()}) > 1:
-        raise VerdictError(f"{cls}: every arm needs Q for the same blocks")
+    if not all(isinstance(v, dict) for v in harm.values()):
+        raise VerdictError(f"{cls}: harm is keyed by block, {{arm: {{block: Q}}}} (D-054, T048-12)")
+    if len({frozenset(v) for v in harm.values()}) > 1:
+        raise VerdictError(f"{cls}: every arm needs Q for the same blocks, got " + str({a: sorted(v) for a, v in sorted(harm.items())}))
     if inputs.get("detection") is not None:
         ent = pre["detection_entities"]["per_class"][cls]
         unknown = set(inputs["detection"]["families"]) - set(ent["primary"]) - set(ent["reported_separately"])
@@ -154,7 +156,7 @@ def _best_learned(option, live, harm, val_recall):
     if len(learned) == 1 or option == "gru":
         return GRU
     if option == "eval_q":
-        score = {a: float(np.mean(harm[a])) for a in learned}
+        score = {a: float(np.mean(list(harm[a].values()))) for a in learned}
     else:
         if set(learned) - set(val_recall):
             raise VerdictError("the best learned arm needs the validation recall of every live learned arm")
@@ -175,7 +177,8 @@ def _ladder(cls, live, inputs, opts, pre, memo):
 
     def harm_c(a, b):
         if (a, b) not in memo:
-            memo[(a, b)] = harm_contrast(harm[a], harm[b], pre)
+            blocks = sorted(harm[a])
+            memo[(a, b)] = harm_contrast([harm[a][x] for x in blocks], [harm[b][x] for x in blocks], pre)
         return memo[(a, b)]
 
     def det_c(a, b):
@@ -278,7 +281,7 @@ def judge(cls, inputs, pre=None):
       frozen               {"selection_sha256", "rules_selection_sha256"} of the frozen selections
       admitted             the harm admission of U_k (the harm gate's result, with its placebo)
       admitted_on          what admitted it when admitted: 'Q' if the Q criterion passed, 'latency' on the p95 criterion alone
-      harm                 {arm: [Q in percent per block]} for every live arm of the class (U, R*, ...), same blocks
+      harm                 {arm: {block: Q in percent}} for every live arm of the class (U, R*, ...); different key sets are refused
       budget               {"live": {arm: (benign users wrongly acted on, benign users)} pooled over the arm's own M runs,
                            "replay": the same from the replays of the U runs, reported beside it} for every enforcing arm
       detection            {"blocks": [block of each attack entity], "families": [its family],

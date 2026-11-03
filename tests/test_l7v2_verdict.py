@@ -30,7 +30,7 @@ def fixture(cls="C3b", q=None, recall=None, *, admitted=True, budget=None, age_a
     harm = {}
     for i, a in enumerate(live):
         rng = np.random.default_rng(100 + i)
-        harm[a] = list(q.get(a, 50.0) + rng.normal(0.0, noise, BLOCKS))
+        harm[a] = dict(enumerate((q.get(a, 50.0) + rng.normal(0.0, noise, BLOCKS)).tolist()))
     recall = {"view_gru": 0.9, "hgb": 0.6, "gru_shuffled": 0.6, "R*": 0.5, "age_only": 0.3, **(recall or {})}
     other = {**recall, **(other_recall or {})}
     ent = pre["detection_entities"]["per_class"][cls]
@@ -144,8 +144,8 @@ class LadderTest(unittest.TestCase):
     # V-D
     def test_v_d_reachable_three_ways(self):
         no_mitigation = fixture("C3a")
-        no_mitigation["harm"]["R*"] = list(no_mitigation["harm"]["U"])
-        no_mitigation["harm"]["view_gru"] = list(no_mitigation["harm"]["U"])
+        no_mitigation["harm"]["R*"] = dict(no_mitigation["harm"]["U"])
+        no_mitigation["harm"]["view_gru"] = dict(no_mitigation["harm"]["U"])
         none = over_budget(live=("R*", "view_gru"), arms=("R*", "view_gru"))
         for why, inputs in (("no admission", fixture("C3a", q={"R*": 70.0, "view_gru": 90.0}, admitted=False)),
                             ("no budget", fixture("C3a", q={"R*": 70.0, "view_gru": 90.0}, budget=none)),
@@ -306,6 +306,33 @@ class ReviewFixesTest(unittest.TestCase):
         del inputs["detection"]["caught"]["hgb"]
         with self.assertRaisesRegex(J.VerdictError, "the replay lacks"):
             J.judge("C2", inputs)
+
+
+class HarmKeysTest(unittest.TestCase):
+    """D-054, T048-12: harm lists keyed by block, so a mispairing cannot pass."""
+
+    def test_the_order_of_the_blocks_does_not_matter(self):
+        inputs = fixture("C2", q={"R*": 70.0, "view_gru": 90.0})
+        base = J.judge("C2", inputs)
+        inputs["harm"]["R*"] = dict(reversed(list(inputs["harm"]["R*"].items())))
+        got = J.judge("C2", inputs)
+        self.assertEqual(got["contrasts"]["harm view_gru vs R*"], base["contrasts"]["harm view_gru vs R*"])
+        self.assertEqual(got["verdict"], base["verdict"])
+
+    def test_the_reviewer_s_reversed_list_is_refused(self):
+        inputs = fixture("C2", q={"R*": 70.0, "view_gru": 90.0})
+        inputs["harm"]["R*"] = list(inputs["harm"]["R*"].values())[::-1]
+        with self.assertRaisesRegex(J.VerdictError, "keyed by block"):
+            J.judge("C2", inputs)
+
+    def test_different_key_sets_are_refused(self):
+        for change in ("drop", "rename"):
+            inputs = fixture("C2", q={"R*": 70.0, "view_gru": 90.0})
+            q = inputs["harm"]["R*"].pop(0)
+            if change == "rename":
+                inputs["harm"]["R*"][99] = q
+            with self.subTest(change), self.assertRaisesRegex(J.VerdictError, "the same blocks"):
+                J.judge("C2", inputs)
 
 
 class DetectionEntitiesTest(unittest.TestCase):

@@ -375,10 +375,10 @@ class LevelWindowTest(unittest.TestCase):
         cls.tmp.cleanup()
 
     def test_the_contrast_reads_the_level_window(self):
-        self.assertEqual(self.inputs["harm"]["U"], [100.0])
+        self.assertEqual(self.inputs["harm"]["U"], {SEEDS[0]: 100.0})
 
     def test_the_whole_window_q_is_secondary_and_admission_reads_it(self):
-        whole = self.report["whole_window_q"]["U"][0]
+        whole = self.report["whole_window_q"]["U"][SEEDS[0]]
         self.assertEqual(whole, self.block["runs"]["U_C2"]["metrics"]["Q"])
         self.assertLess(whole, 90.0)
         self.assertGreater(self.block["classes"]["C2"]["dQ"], 10.0)
