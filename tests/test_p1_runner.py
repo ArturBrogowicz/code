@@ -396,6 +396,51 @@ class ExecuteTest(Base):
         self.assertEqual(index(self.root)[0]["label"], "C2_L1_r1")
 
 
+class PointsTest(Base):
+    """D-052: a campaign takes the pilot's check of the frozen points, bound to what it runs, and an arm over the budget stops it."""
+
+    def points(self, **fields):
+        path = os.path.join(tempfile.mkdtemp(dir=self.tmp.name), "points.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({**read_json(self.frozen["points"]), **fields}, fh)
+        return {**self.frozen, "points": path}
+
+    def test_a_campaign_refuses_without_it(self):
+        with self.assertRaisesRegex(R.PlanError, "pilot's check of the frozen operating points"):
+            thin({**self.frozen, "points": None}, self.root)
+        with self.assertRaisesRegex(R.PlanError, "the point check"):
+            thin({**self.frozen, "points": os.path.join(self.root, "none.json")}, self.root)
+        with self.assertRaisesRegex(R.PlanError, "not a p1-points/1 file"):
+            thin(self.points(format="p1-points/0"), self.root)
+
+    def test_a_check_on_other_frozen_items_is_refused(self):
+        for field, value in (("record_sha256", "f" * 64), ("selection_sha256", "f" * 64), ("rules_sha256", "f" * 64), ("benign_halvings", 1)):
+            with self.subTest(field=field), self.assertRaisesRegex(R.PlanError, field):
+                thin(self.points(**{field: value}), self.root)
+
+    def test_an_arm_over_the_budget_stops_it_until_a_dated_decision(self):
+        over = self.points(status="over_budget", over_budget=["R*"])
+        with self.assertRaisesRegex(R.PlanError, r"\['R\*'\] over the budget .* until a dated decision"):
+            thin(over, self.root)
+        with self.assertRaisesRegex(R.PlanError, "must name a dated decision"):
+            thin({**over, "points_decision": "the user said so"}, self.root)
+        frozen = {**over, "points_decision": "D-099, 2026-11-05: R* stays at its frozen point"}
+        block = thin(frozen, self.root)
+        got = block["frozen"]["points"]
+        self.assertEqual((got["status"], got["over_budget"], got["decision"]), ("over_budget", ["R*"], frozen["points_decision"]))
+        self.assertEqual(got["sha256"], R.sha256_file(frozen["points"]))
+
+    def test_an_incomplete_check_is_refused_whatever_is_named(self):
+        frozen = {**self.points(status="incomplete", missing_seeds=[9008]), "points_decision": "D-099, 2026-11-05"}
+        with self.assertRaisesRegex(R.PlanError, r"incomplete.*\[9008\]"):
+            thin(frozen, self.root)
+
+    def test_a_pilot_block_needs_none(self):
+        block = R.plan_block("ladder", 9001, self.root, frozen={**self.frozen, "points": None}, levels={"C2": 2.0}, runs=["C", "U_C2"], label="x",
+                             benign_specs=F.thin_benign(), max_sources=3)
+        self.assertNotIn("points", block["frozen"])
+
+
 class SmokeReadsTest(Base):
     """What a smoke reads (D-049, E-2, E-4): a level above the verified address limit, in a smoke only; the load against rho."""
 

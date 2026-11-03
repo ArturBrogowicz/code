@@ -15,6 +15,11 @@ The halving rule (ml/p1_prereg.json, D-049), before the ladder: phase `health` r
 `--halvings`; eval/p1_analysis.py --health reads them into the next step, the frozen factor or a refusal, in a file bound to the
 record. A ladder and a campaign refuse without a frozen factor in that file (--health), say why, and run every block at it.
 
+The check of the frozen operating points (ml/p1_prereg_2.json point_check, D-052), after the ladder: eval/p1_analysis.py --points
+replays one control per pilot seed through each arm. A campaign refuses without its file (--points), bound to the record, the two
+selections and the factor; with an arm over the budget it stays refused until a dated decision is named (--points-decision), which goes
+with every block. It changes no point.
+
 What each arm runs is one table, ARM_TABLE, and nothing else decides it:
   * C, C' and U: no daemon, l7_conf.unprotected(nginx_unprotected.conf), with the file sink;
   * every M arm: l7_conf.protected(nginx.conf, key_map=True) and a deny directory with both maps (T-025e's report F8: one
@@ -40,7 +45,7 @@ its l7_enforce_arm event names the arm, the selection's sha256 and R*'s rule; th
 fails one is invalid, with its reasons. CPU per core is sampled every second (cpu.jsonl).
 
     sudo ./venv/bin/python eval/p1_runner.py --phase campaign --seed 3001 --calibration REC --knees KNEES \\
-        --health HEALTH --selection SEL/selection.json --selection-sha256 H --rules RULES/rules_selection.json --rules-sha256 H
+        --health HEALTH --points POINTS --selection SEL/selection.json --selection-sha256 H --rules RULES/rules_selection.json --rules-sha256 H
     ./venv/bin/python eval/p1_runner.py --phase health --seed 9001 --halvings 0 --plan
     ./venv/bin/python eval/p1_runner.py --phase ladder --seed 9001 --class C2 --level 2 --repeat 1 --health HEALTH --plan
     ./venv/bin/python eval/p1_runner.py --phase smoke --seed 9001 --levels C3b=50 --runs C,U_C3b --plan
@@ -78,6 +83,7 @@ import l7_ingest
 FORMAT = "p1-run/1"
 PHASES = ("smoke", "health", "ladder", "campaign")
 HEALTH_FORMAT = "p1-health/1"
+POINTS_FORMAT = "p1-points/1"
 PINS = dict(POP.PIN_PLAN_DAEMON)           # the harm benchmark's plan with a daemon, in every run of a block
 NS_PREFIX = "p1n"
 SERVER_NS, SERVER_IP = P4.SERVER_NS, P4.SERVER_IP
@@ -265,6 +271,37 @@ def plan_halvings(phase, frozen, knees, halvings):
     return factor
 
 
+def check_points(frozen, factor, sums):
+    """The pilot's check of the frozen operating points (D-052) that a campaign needs, bound to its record, its selections and its
+    factor: what the block records of it, or a refusal. An arm over the budget stops the campaign until a dated decision."""
+    path = frozen.get("points")
+    if not path:
+        raise PlanError("a campaign needs the pilot's check of the frozen operating points (--points, from eval/p1_analysis.py --points; "
+                        "ml/p1_prereg_2.json point_check)")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            points = json.load(fh)
+    except (OSError, ValueError) as exc:
+        raise PlanError(f"the point check {path}: {exc}") from exc
+    if points.get("format") != POINTS_FORMAT:
+        raise PlanError(f"{path} is not a {POINTS_FORMAT} file")
+    bound = {"record_sha256": sums["calibration"]["digest"], "selection_sha256": sums["selection"]["sha256"],
+             "rules_sha256": sums["rules"]["sha256"], "benign_halvings": factor}
+    wrong = sorted(k for k, v in bound.items() if points.get(k) != v)
+    if wrong:
+        raise PlanError(f"the point check was read on other frozen items: {wrong}")
+    status, decision = points.get("status"), frozen.get("points_decision")
+    if status == "over_budget":
+        if not decision:
+            raise PlanError(f"{points.get('over_budget')} over the budget on the pilot's benign traffic: the campaign stops until a dated "
+                            "decision (--points-decision; ml/p1_prereg_2.json point_check)")
+        if not re.search(r"\d{4}-\d{2}-\d{2}", decision):
+            raise PlanError(f"--points-decision must name a dated decision, got {decision!r}")
+    elif status != "pass":
+        raise PlanError(f"the point check is {status}: pilot seeds without a valid control: {points.get('missing_seeds')}")
+    return {"path": path, "sha256": sha256_file(path), "status": status, "over_budget": points.get("over_budget"), "decision": decision}
+
+
 def check_frozen(frozen, *, need_frozen_record, arms):
     """What must be frozen before a run judges anything, each checked by its sha256: the record, the knees and the selections
     that the block's arms read. Returns their sha256s, or raises PlanError."""
@@ -407,6 +444,8 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
         pop["pool"]["address_limit"] = address_limit
     arms = {a for a, _c in pairs}
     sums = check_frozen(frozen, need_frozen_record=phase == "campaign", arms=arms)
+    if phase == "campaign":
+        sums["points"] = check_points(frozen, factor, sums)
     import l7_backend
     record = l7_backend.load_record(frozen["calibration"])[0]
     names = {run_name(a, c): (a, c) for a, c in pairs}
@@ -733,6 +772,8 @@ def main(argv=None, host=None):
     ap.add_argument("--halvings", type=int, help="smoke, health: how often the halving rule has fired (ml/p1_prereg.json)")
     ap.add_argument("--health", help="ladder, campaign: the rule's frozen factor (eval/p1_analysis.py --health)")
     ap.add_argument("--address-limit", type=int, help="smoke: read a level above the verified address limit (E-2)")
+    ap.add_argument("--points", help="campaign: the pilot's check of the frozen points (eval/p1_analysis.py --points)")
+    ap.add_argument("--points-decision", help="campaign: the dated decision that lets it run with an arm over the budget there")
     ap.add_argument("--selection")
     ap.add_argument("--selection-sha256")
     ap.add_argument("--rules")
@@ -741,7 +782,8 @@ def main(argv=None, host=None):
     ap.add_argument("--python", default=PYTHON)
     ap.add_argument("--plan", action="store_true", help="print the plan and exit (offline)")
     args = ap.parse_args(argv)
-    frozen = {"calibration": args.calibration, "knees": args.knees, "health": args.health, "selection": args.selection,
+    frozen = {"calibration": args.calibration, "knees": args.knees, "health": args.health, "points": args.points,
+              "points_decision": args.points_decision, "selection": args.selection,
               "selection_sha256": args.selection_sha256, "rules": args.rules, "rules_sha256": args.rules_sha256}
     label, runs, levels = args.label, args.runs.split(",") if args.runs else None, _levels(args.levels)
     if args.phase == "ladder":

@@ -233,5 +233,11 @@ def frozen_inputs(d, *, record_status="frozen", knees=None, valid=True):
     rules_path = os.path.join(rule_dir, "rules_selection.json")
     with open(rules_path, "w", encoding="utf-8") as fh:
         json.dump(rules, fh)
-    return {"calibration": cal, "knees": knee_path, "health": health_path, "selection": sel_path, "selection_sha256": V._sha_file(sel_path),
+    points_path = os.path.join(d, "points.json")
+    with open(points_path, "w", encoding="utf-8") as fh:
+        json.dump({"format": "p1-points/1", "record_sha256": rec["sha256"], "selection_sha256": V._sha_file(sel_path),
+                   "rules_sha256": V._sha_file(rules_path), "benign_halvings": 0, "status": "pass", "over_budget": [],
+                   "missing_seeds": []}, fh)
+    return {"calibration": cal, "knees": knee_path, "health": health_path, "points": points_path, "selection": sel_path,
+            "selection_sha256": V._sha_file(sel_path),
             "rules": rules_path, "rules_sha256": V._sha_file(rules_path)}

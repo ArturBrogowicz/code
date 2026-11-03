@@ -27,10 +27,16 @@ reaches the floor in both repeats (bench/calibration.knee, harm as bench/calibra
 health_result() reads the halving rule's steps (phase health, ml/p1_prereg.json) into the next step, the frozen factor or a refusal,
 in the file that the ladder and the campaign take (--health). Its exit code is 1 on a refusal.
 
+point_check() replays the pilot's benign traffic through each arm at its frozen point, before the campaign (ml/p1_prereg_2.json
+point_check, D-052), into the file the campaign takes (--points): one valid control per pilot seed at the frozen factor. An arm that may
+stop the campaign and is over the budget there is named, the exit code is then 1, and nothing is re-tuned.
+
     ./venv/bin/python eval/p1_analysis.py ROOT --calibration REC --selection SEL/selection.json --selection-sha256 H \\
         --rules RULES/rules_selection.json --rules-sha256 H --out p1_verdicts.json
     ./venv/bin/python eval/p1_analysis.py ROOT --calibration REC --ladder --out knees.json
     ./venv/bin/python eval/p1_analysis.py ROOT --calibration REC --health --out health.json
+    ./venv/bin/python eval/p1_analysis.py ROOT --calibration REC --points --selection SEL/selection.json --selection-sha256 H \\
+        --rules RULES/rules_selection.json --rules-sha256 H --out points.json
 """
 import argparse
 import copy
@@ -347,6 +353,45 @@ def health_result(root, cal):
             "rule": "ml/p1_prereg.json halving", **PT.next_step(steps), "steps": steps}
 
 
+# --- the frozen operating points on the pilot's benign traffic -----------------------------------------
+
+def pilot_controls(root, factor):
+    """One valid control C per pilot seed at the factor, the first of the index, of the phases health and ladder: {seed: its run dir}."""
+    out = {}
+    for x in REC.index_lines(root):
+        if (x["phase"] in ("health", "ladder") and x["run"] == "C" and x["valid"] and x["block"] not in out
+                and REC.read_json(os.path.join(root, x["block_dir"], "block.json"))["halvings"] == factor):
+            out[x["block"]] = os.path.join(root, x["dir"])
+    return out
+
+
+def point_check(root, cal, frozen, factor, arms_factory=None):
+    """The file of the check (D-052): per arm the benign units flagged at its frozen point, pooled over the pilot's seeds, against the
+    budget; the arms that stop the campaign; the seeds missing. It reads the points and changes none."""
+    rule = PT.prereg_2()["point_check"]
+    arms_factory = arms_factory or default_factory(frozen)
+    controls = pilot_controls(root, factor)
+    rows, per_seed, units = {}, [], 0
+    for seed, run_dir in sorted(controls.items()):
+        man = REC.read_json(os.path.join(run_dir, D.MANIFEST_FILE))
+        res = RP.replay(REC.recording(run_dir), arms_factory(run_dir, man), RP.RunLabels(man))
+        units += res["benign_units"]
+        per_seed.append({"seed": seed, "benign_units": res["benign_units"],
+                         "flagged": {a: v.get("benign_units_flagged", 0) for a, v in res["arms"].items()}})
+        for name, arm in res["arms"].items():
+            row = rows.setdefault(name, {"flagged": 0, "by_kind": {}, "note": arm.get("note")})
+            row["flagged"] += arm.get("benign_units_flagged", 0)
+            for kind, n in (arm.get("benign_units_flagged_by_kind") or {}).items():
+                row["by_kind"][kind] = row["by_kind"].get(kind, 0) + n
+    arms = {a: {**r, "units": units, "meets": J._meets((r["flagged"], units))} for a, r in sorted(rows.items())}
+    over = [a for a in rule["stops"] if a in arms and not arms[a]["meets"]]
+    missing = [s for s in rule["seeds"] if s not in controls]
+    return {"format": RUN.POINTS_FORMAT, "record_sha256": cal.get("sha256"), "selection_sha256": frozen.get("selection_sha256"),
+            "rules_sha256": frozen.get("rules_sha256"), "benign_halvings": factor, "rule": "ml/p1_prereg_2.json point_check",
+            "status": "incomplete" if missing else ("over_budget" if over else "pass"), "over_budget": over,
+            "missing_seeds": missing, "stops": rule["stops"], "arms": arms, "per_seed": per_seed}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("root")
@@ -359,13 +404,26 @@ def main(argv=None):
     ap.add_argument("--dry-run", action="store_true", help="a record that is not frozen: figures, no verdict")
     ap.add_argument("--ladder", action="store_true", help="the knees of a finished ladder")
     ap.add_argument("--health", action="store_true", help="the halving rule's next step, frozen factor or refusal")
+    ap.add_argument("--points", action="store_true", help="the frozen operating points on the pilot's benign traffic")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
     import l7_backend
     cal, _status, _tag = l7_backend.load_record(args.calibration)
+    failed = False
     if args.health:
         res = health_result(args.root, cal)
+        failed = res["decision"] == "refused"
         print(f"the halving rule: {res['decision']}: {res['why']}")
+    elif args.points:
+        health = health_result(args.root, cal)
+        if health["decision"] != "frozen":
+            print(f"no point check without a frozen factor: {health['decision']}: {health['why']}", file=sys.stderr)
+            return 1
+        res = point_check(args.root, cal, {"selection": args.selection, "selection_sha256": args.selection_sha256,
+                                           "rules": args.rules, "rules_sha256": args.rules_sha256}, health["benign_halvings"])
+        failed = res["status"] != "pass"
+        print(f"the frozen points on the pilot's benign traffic: {res['status']}; over the budget: {res['over_budget']}; "
+              f"seeds missing: {res['missing_seeds']}")
     elif args.ladder:
         res = {"format": "p1-ladder/1", "record_sha256": cal.get("sha256"), "record_status": cal.get("status"),
                "benign_halvings": ladder_factor(args.root), "knees": ladder_knees(args.root, cal)}
@@ -377,7 +435,7 @@ def main(argv=None):
     with open(args.out, "w", encoding="utf-8") as fh:
         json.dump(res, fh, indent=1, sort_keys=True, default=str)
         fh.write("\n")
-    return 1 if args.health and res["decision"] == "refused" else 0
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

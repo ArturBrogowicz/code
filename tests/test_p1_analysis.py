@@ -387,6 +387,91 @@ class AgeReadingTest(unittest.TestCase):
         self.assertEqual(got["C3b@M1: detection view_gru vs R*"]["age_only_on_U"], {"C3b@M1": {"auc": 0.6}})
 
 
+class PointCheckTest(unittest.TestCase):
+    """The frozen points on the pilot's benign traffic (D-052), through the replay's real accounting; only the arms' decisions are stubs."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.frozen = F.frozen_inputs(os.path.join(cls.tmp.name, "frozen"))
+        cls.cal = l7_backend.load_record(cls.frozen["calibration"])[0]
+        cls.root = os.path.join(cls.tmp.name, "runs")
+        block = R.plan_block("health", 9001, cls.root, frozen=cls.frozen, benign_specs=F.thin_benign(LEAN))
+        R.run_block(F.P1FakeHost(), block)
+        cls.pair(cls.root, 9002, 9009, quiet=None)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    @classmethod
+    def pair(cls, root, lo, hi, quiet):
+        for seed in range(lo, hi):
+            block = R.plan_block("ladder", seed, root, frozen=cls.frozen, levels={"C2": 1.0}, runs=["C", "U_C2"], label="C2_L1_r1",
+                                 benign_specs=F.thin_benign(LEAN), max_sources=2)
+            R.run_block(F.P1FakeHost(quiet_from=quiet), block)
+
+    @staticmethod
+    def flagging(arms):
+        """arms_factory: each named arm flags that many benign addresses of the run, the others none."""
+        def build(_run_dir, man):
+            benign = [e["address"] for e in man["entities"] if e["role"] == "benign"]
+            return {a: StubPath(set(benign[:arms.get(a, 0)])) for a in ARMS}
+        return build
+
+    def check(self, arms=None, root=None):
+        return A.point_check(root or self.root, self.cal, self.frozen, 0, arms_factory=self.flagging(arms or {}))
+
+    def test_clean_points_pass_over_every_pilot_seed(self):
+        got = self.check()
+        self.assertEqual(got["status"], "pass")
+        self.assertEqual(([x["seed"] for x in got["per_seed"]], got["missing_seeds"], got["over_budget"]), (list(range(9001, 9009)), [], []))
+        self.assertEqual(got["record_sha256"], self.cal["sha256"])
+        self.assertEqual(got["selection_sha256"], self.frozen["selection_sha256"])
+        units = sum(x["benign_units"] for x in got["per_seed"])
+        self.assertGreater(units, 0)
+        self.assertEqual(got["arms"]["R*"], {"flagged": 0, "by_kind": {}, "note": None, "units": units, "meets": True})
+
+    def test_a_contender_over_the_budget_is_named(self):
+        got = self.check({"R*": 3})
+        self.assertEqual((got["status"], got["over_budget"]), ("over_budget", ["R*"]))
+        self.assertFalse(got["arms"]["R*"]["meets"])
+        self.assertGreater(got["arms"]["R*"]["flagged"], 0)
+        self.assertTrue(got["arms"]["R*"]["by_kind"])
+
+    def test_an_arm_that_does_not_stop_it_is_only_reported(self):
+        got = self.check({"default_rules": 3, "age_only": 3, "gru_shuffled": 3})
+        self.assertEqual(got["status"], "pass")
+        self.assertFalse(got["arms"]["default_rules"]["meets"])
+
+    def test_a_seed_without_a_valid_control_leaves_it_incomplete(self):
+        root = os.path.join(self.tmp.name, "seven")
+        block = R.plan_block("health", 9001, root, frozen=self.frozen, benign_specs=F.thin_benign(LEAN))
+        R.run_block(F.P1FakeHost(), block)
+        self.pair(root, 9002, 9008, quiet=None)
+        self.pair(root, 9008, 9009, quiet=30)
+        got = self.check(root=root)
+        self.assertEqual((got["status"], got["missing_seeds"]), ("incomplete", [9008]))
+
+    def test_a_control_at_another_factor_does_not_count(self):
+        got = A.point_check(self.root, self.cal, self.frozen, 1, arms_factory=self.flagging({}))
+        self.assertEqual((got["status"], len(got["missing_seeds"]), got["benign_halvings"]), ("incomplete", 8, 1))
+
+    def test_the_command_line_writes_the_file_a_campaign_takes(self):
+        out = os.path.join(self.tmp.name, "points.json")
+        argv = [self.root, "--calibration", self.frozen["calibration"], "--points", "--selection", self.frozen["selection"],
+                "--selection-sha256", self.frozen["selection_sha256"], "--rules", self.frozen["rules"], "--rules-sha256",
+                self.frozen["rules_sha256"], "--out", out]
+        with mock.patch.object(A, "default_factory", return_value=self.flagging({})), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(A.main(argv), 0)
+        block = R.plan_block("campaign", 3001, self.root, frozen={**self.frozen, "points": out}, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        self.assertEqual(block["frozen"]["points"]["status"], "pass")
+        with mock.patch.object(A, "default_factory", return_value=self.flagging({"view_gru": 3})), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(A.main(argv), 1)
+        with self.assertRaisesRegex(R.PlanError, "view_gru"):
+            R.plan_block("campaign", 3001, self.root, frozen={**self.frozen, "points": out}, benign_specs=F.thin_benign(LEAN), max_sources=2)
+
+
 class HealthTest(unittest.TestCase):
     """The halving rule on fake runs: a control's real figures through eval/harm_gate.control_health, into the health file that the
     ladder and the campaign take (ml/p1_prereg.json, D-049)."""
