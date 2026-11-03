@@ -902,9 +902,29 @@ class TimerReprobeTest(RunCase):
             raise KeyboardInterrupt
 
         host.on_sleep = stop
+        plan = self.plan("C")
         with self.assertRaises(KeyboardInterrupt):
-            X.execute(self.plan("C"), host)
+            X.execute(plan, host)
         self.assertEqual((host.sleeps, host.prims), ([30.0], []))
+        env = self.environment(plan)
+        self.assertEqual((env["gate_unfinished"], env["gate_mode"], env["timer_refused_probes"]), (True, "full", 1), "its probes stay")
+        self.assertEqual([p["p99_ms"] for p in env["timer_probes"]], [25.0])
+
+    def test_the_probes_are_on_disk_through_the_wait_and_the_full_record_replaces_them(self):
+        plan = self.plan("C")
+        host, seen = F.SimHost(timer_p99_by_cpu={"7": [25.0, 11.5, 6.0]}), []
+
+        def look(_):
+            if len(seen) < 2:
+                seen.append(len(self.environment(plan)["timer_probes"]))
+
+        host.on_sleep = look
+        self.assertTrue(X.execute(plan, host).ok)
+        self.assertEqual(seen, [1, 2])
+        env = self.environment(plan)
+        self.assertNotIn("gate_unfinished", env)
+        self.assertEqual((len(env["timer_probes"]), env["gate_mode"]), (3, "full"))
+        self.assertIn("facts", env)
 
     def test_the_executors_own_probe_is_taken_once_after_the_pass_and_stays_out_of_the_gates_record(self):
         daemon = X.pins_for(["M_xdp"])
@@ -913,6 +933,26 @@ class TimerReprobeTest(RunCase):
         self.assertEqual(self.probes(host), ["7", "7", "6"])
         env = self.environment(plan)
         self.assertEqual((len(env["timer_probes"]), env["timer_executor"]["p99_ms"], env["timer_executor_cpus"]), (2, 40.0, "6"))
+
+    def test_the_runs_own_record_says_what_the_gate_cost_it(self):
+        plan, _, result = self.go("C", F.SimHost(timer_p99_by_cpu={"7": [25.0, 11.5, 6.0]}))
+        self.assertEqual((result.timer_refused_probes, result.timer_waited_s), (2, 60.0))
+        executor = self.run_json(plan)["executor"]
+        self.assertEqual((executor["timer_refused_probes"], executor["timer_waited_s"]), (2, 60.0))
+        self.assertTrue(result.seconds >= 60.0, "a run's seconds have the wait in them; its record says how much")
+
+    def test_the_load_after_the_wait_is_recorded_beside_the_load_before_it_and_refuses_nothing(self):
+        """T-047 G-03: the recorded gate can be half an hour old when the run starts."""
+        host = F.SimHost(timer_p99_by_cpu={"7": [25.0, 6.0]})
+
+        def rise(h):
+            h.load1 = 1.7
+
+        host.on_sleep = rise
+        plan, _, result = self.go("C", host)
+        self.assertTrue(result.ok, result.reasons)
+        env = self.environment(plan)
+        self.assertEqual((env["gate"]["load1"], env["load1_after_timer_gate"]), (0.05, 1.7))
 
     def test_the_plan_says_what_the_gate_does_with_a_refused_probe(self):
         self.assertIn("; a refused probe is made again every 30 s, up to --wait-gate minutes from the first (0: one probe)\n",

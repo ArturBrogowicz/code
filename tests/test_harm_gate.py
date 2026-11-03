@@ -623,6 +623,22 @@ class JudgedLinksTest(WithCopies):
                 self.assertGreater(row["dQ"], 0.0)               # the attack hurts them too, and that is reported
         self.assertTrue(any(row["share"] for row in table.values() if not row["judged"]))
 
+    def test_a_campaign_of_before_the_gates_records_says_so_and_has_no_section_on_the_waits(self):
+        r = self.analyse(BASE["pass"])
+        self.assertEqual({w["refused_probes"] for w in r["blocks"][0]["waits"]["runs"].values()}, {None})
+        self.assertNotIn("Timer waits", H.to_markdown(r))
+        self.assertFalse(H.waited(r["blocks"][0]["waits"]))
+        self.assertFalse(H.waited(None))
+
+    def test_a_kept_record_that_cannot_be_read_says_nothing_and_stops_nothing(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        with open(os.path.join(tmp.name, "C.unfinished.1.environment.json"), "w", encoding="utf-8") as fh:
+            fh.write("{ not json")
+        self.assertEqual(H.earlier_waits(tmp.name, "C"),
+                         [{"file": "C.unfinished.1.environment.json", "refused_probes": None, "waited_s": None}])
+        self.assertEqual(H.earlier_waits(tmp.name, "Cp"), [])
+
     def test_the_report_shows_every_link_profile(self):
         md = H.to_markdown(self.analyse(BASE["pass"]))
         self.assertIn("## Per link profile", md)

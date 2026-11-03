@@ -740,7 +740,34 @@ class StopTest(CampaignCase):
                 with open(os.path.join(self.tmp.name, "waited", d, kind, "environment.json"), encoding="utf-8") as fh:
                     self.assertEqual(json.load(fh)["timer_refused_probes"], 1, (d, kind))
         self.assertEqual(waited["gate"], plain["gate"])
-        self.assertEqual(waited["attempts"], plain["attempts"])
+        without = [[{k: v for k, v in a.items() if k != "waits"} for a in s["attempts"]] for s in (waited, plain)]
+        self.assertEqual(without[0], without[1], "the waits are the only difference, and they judge nothing")
+
+    def test_a_blocks_waits_are_in_its_record_the_campaigns_summary_the_status_and_the_report(self):
+        """T-047 G-02: drift between the arms of a block can be seen."""
+        order = GC.run_order(self.scn, 1, 1)
+        with self.assertRaises(X.EnvironmentRefused):
+            self.run_campaign(host=self.host(timer_p99_ms=25.0), wait_gate_min=1.0, blocks=1)
+        host = self.host(timer_p99_by_cpu={"7": [25.0, 25.0, 1.0]})
+        state = self.run_campaign(host=host, blocks=1)
+        meta = self.json("b01_a1", "block.json")
+        self.assertEqual((meta["runs"][order[0]]["timer_refused_probes"], meta["runs"][order[0]]["timer_waited_s"]), (2, 60.0))
+        self.assertEqual(self.json("b01_a1", order[1], GC.DONE)["timer_refused_probes"], 0)
+        waits = state["attempts"][0]["waits"]
+        first = waits["runs"][order[0]]
+        self.assertEqual((first["refused_probes"], first["waited_s"], first["t0_after_first_s"]), (2, 60.0, 0.0))
+        self.assertEqual([(e["refused_probes"], e["waited_s"]) for e in first["earlier"]], [(3, 60.0)], "before the resume")
+        self.assertGreater(waits["t0_span_s"], 0.0)
+        self.assertEqual(waits["runs"][order[1]]["earlier"], [])
+        with open(self.path("gate.md"), encoding="utf-8") as fh:
+            report = fh.read()
+        self.assertIn("## Timer waits (recorded, not judged)", report)
+        self.assertRegex(report, rf"\| 1 \| 1 \| \d+ \| {order[0]} 2/60 s at \+0 s \(\+3 refused, 60 s in 1 earlier stop\), {order[1]} 0/0 s at \+\d+ s")
+        self.assertEqual(self.json("gate.json")["blocks"][0]["waits"], waits)
+        self.assertIn(f"timer waits, recorded and not judged: {order[0]} 2/60 s", GC.status_text(self.path()))
+        plain = self.run_campaign(out="plain", blocks=1)
+        self.assertEqual(plain["attempts"][0]["waits"]["runs"][order[0]]["refused_probes"], 0)
+        self.assertNotIn("timer waits", GC.status_text(os.path.join(self.tmp.name, "plain")), "the status says so only when a run waited")
 
     def test_a_last_refused_probe_still_stops_the_campaign_and_the_same_command_resumes_it(self):
         with self.assertRaisesRegex(X.EnvironmentRefused, "3 probes over 60 s"):
@@ -749,6 +776,43 @@ class StopTest(CampaignCase):
         self.assertEqual(state["state"], "stopped")
         self.assertIn("EnvironmentRefused", state["stopped"])
         self.assertEqual(self.run_campaign()["state"], "complete")
+
+    def test_a_resume_keeps_the_probes_of_a_refused_run_beside_the_run_it_makes_again(self):
+        """T-047 G-01: D-045's 'every probe is recorded' holds across a resume, which starts a new wait."""
+        for k in (1, 2):
+            with self.assertRaises(X.EnvironmentRefused):
+                self.run_campaign(host=self.host(timer_p99_ms=25.0 + k), wait_gate_min=1.0)
+        state = self.run_campaign()
+        self.assertEqual(state["gate"]["verdict"], "PASS", "what is kept beside a run judges nothing")
+        kind = GC.run_order(self.scn, 1, 1)[0]
+        for k in (1, 2):
+            env = self.json("b01_a1", f"{kind}.unfinished.{k}.environment.json")
+            self.assertEqual([(p["p99_ms"], p["passed"]) for p in env["timer_probes"]], [(25.0 + k, False)] * 3)
+            self.assertEqual(env["timer_refused_probes"], 3)
+            self.assertIn("none passed", env["refused"])
+            with open(self.path("b01_a1", f"{kind}.unfinished.{k}.executor.log"), encoding="utf-8") as fh:
+                self.assertEqual(fh.read().count("timer probe"), 3)
+        self.assertEqual(self.json("b01_a1", kind, "environment.json")["timer_refused_probes"], 0, "the run made again has its own")
+        self.assertTrue(any(f"its gate's record is kept as {kind}.unfinished.2.environment.json" in m for m in self.say), self.say)
+
+    def test_a_resume_keeps_the_probes_of_a_wait_that_was_interrupted(self):
+        host = self.host(timer_p99_ms=25.0)
+
+        def stop(_):
+            raise KeyboardInterrupt
+
+        host.on_sleep = stop
+        with self.assertRaises(KeyboardInterrupt):
+            self.run_campaign(host=host)
+        self.assertEqual(self.run_campaign()["state"], "complete")
+        env = self.json("b01_a1", f"{GC.run_order(self.scn, 1, 1)[0]}.unfinished.1.environment.json")
+        self.assertEqual((env["gate_unfinished"], len(env["timer_probes"])), (True, 1))
+
+    def test_a_resume_keeps_the_probes_of_a_refused_warm_up_too(self):
+        with self.assertRaises(X.EnvironmentRefused):
+            self.run_campaign(host=self.host(timer_p99_ms=25.0), wait_gate_min=0, warmup=True)
+        self.assertEqual(self.run_campaign(warmup=True)["state"], "complete")
+        self.assertEqual(self.json(GC.WARMUP, "C.unfinished.1.environment.json")["timer_refused_probes"], 1)
 
     def test_the_plan_of_a_campaign_states_the_wait(self):
         text = GC.describe(self.scn, self.CAL, SPEC_SHA, self.options(wait_gate_min=10.0))

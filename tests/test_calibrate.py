@@ -159,6 +159,29 @@ class StackCostTest(unittest.TestCase):
         self.assertEqual(out[0]["origin_ms_per_request"], 2.0)
         self.assertIsNone(out[1])
 
+    def test_a_steps_record_says_what_the_timer_gate_cost_its_runs(self):
+        """T-047 G-02; recorded, not judged. A resumed step counts the runs it finds done and the stops before them."""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        levels = [80.0, 160.0, 240.0, 320.0, 400.0, 480.0]
+
+        def host(**kw):
+            return S.SimHost(server=S.SyntheticServer(TEMPLATE, (30, 45, 30), capacity_cpu=1.1), **kw)
+
+        with self.assertRaises(X.EnvironmentRefused):
+            K.capacity_step(K.Runner(host(timer_p99_ms=25.0), wait_gate_min=0.5), TEMPLATE, C.PLACEHOLDER, tmp.name, levels, 10.0, 2,
+                            lambda m: None)
+        result = K.capacity_step(K.Runner(host(timer_p99_by_cpu={"7": [25.0, 1.0]})), TEMPLATE, C.PLACEHOLDER, tmp.name, levels, 10.0, 2,
+                                 lambda m: None)
+        waits = K.read_json(os.path.join(tmp.name, "capacity", "capacity.json"))["waits"]
+        self.assertEqual(waits, result["waits"])
+        self.assertEqual((waits["runs"], waits["refused_probes"], waits["waited_s"]), (2, 3, 60.0), "2 refused before the stop, 1 after it")
+        self.assertEqual(list(waits["waited"]), [os.sep.join(("capacity", "r1", "C"))])
+        self.assertEqual(waits["waited"]["capacity/r1/C"]["refused_probes"], 1)
+        self.assertEqual([e["refused_probes"] for e in waits["waited"]["capacity/r1/C"]["earlier"]], [2])
+        again = K.capacity_step(K.Runner(host()), TEMPLATE, C.PLACEHOLDER, tmp.name, levels, 10.0, 2, lambda m: None)
+        self.assertEqual(again["waits"], waits, "the runs found done still say what they cost")
+
     def test_the_capacity_step_records_it_next_to_the_capacity(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -797,6 +820,9 @@ class RecordTest(unittest.TestCase):
         self.assertEqual(host["pins"], P.PIN_PLAN)
         C.freeze(copy.deepcopy(TEMPLATE), host=host, drift_reference=CF.SAMPLE_DRIFT)
 
+    def test_the_fixtures_host_has_the_current_pin_plan(self):
+        self.assertEqual(CF.SAMPLE_HOST["pins"], P.PIN_PLAN)
+
     def test_the_hosts_pins_are_the_ones_it_is_given_not_this_codes_plan(self):
         other = {**P.PIN_PLAN, "legit": "5"}
         self.assertEqual(K.host_of(ENV, other)["pins"], other)
@@ -859,6 +885,20 @@ class RunnerTest(unittest.TestCase):
         with mock.patch.object(K.X, "execute") as execute:
             self.assertEqual(K.Runner(S.SimHost()).run(plan, lambda m: None), record)
         execute.assert_not_called()
+
+    def test_a_resume_keeps_the_probes_of_a_refused_run_beside_the_run_it_makes_again(self):
+        """T-047 G-01: as gate_campaign does, for a step that a last refusal stopped."""
+        plan = self.plan()
+        with self.assertRaises(X.EnvironmentRefused):
+            K.Runner(S.SimHost(timer_p99_ms=25.0), wait_gate_min=0.5).run(plan, lambda m: None)
+        said = []
+        self.assertTrue(K.Runner(S.SimHost()).run(plan, said.append)["ok"])
+        env = K.read_json(plan.out + ".unfinished.1.environment.json")
+        self.assertEqual([(p["p99_ms"], p["passed"]) for p in env["timer_probes"]], [(25.0, False)] * 2)
+        with open(plan.out + ".unfinished.1.executor.log", encoding="utf-8") as fh:
+            self.assertEqual(fh.read().count("timer probe"), 2)
+        self.assertEqual(K.read_json(os.path.join(plan.out, "environment.json"))["timer_refused_probes"], 0)
+        self.assertTrue(any("its gate's record is kept as C.unfinished.1.environment.json" in m for m in said), said)
 
     def test_a_finished_run_from_another_pin_plan_is_refused_and_kept(self):
         """T-039 V-22's follow-up, docs/HG1C_DESIGN.md departure 31: a step resumes from what is done, but not across two layouts."""

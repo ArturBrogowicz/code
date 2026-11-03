@@ -14,7 +14,7 @@ import calibration as C
 SAMPLE_HOST = {
     "uname": "Linux testbed 7.0.0-38-generic x86_64", "cpus": 8, "mem_mib": 9426, "origin_seed": 1,
     "origin_sha256": "a" * 64, "loadgen_sha256": "b" * 64,
-    "pins": {"server": "0-1", "daemon": "2", "legit": "6", "attack": "3-5,7"},
+    "pins": {"server": "0-1", "daemon": "2", "legit": "7", "attack": "3-6"},
     "gunicorn": {"version": "26.2.0", "workers": 2, "threads": 8, "nofile": 524288},
     "nginx": {"version": "1.28.3", "conf_sha256": "c" * 64},
 }

@@ -597,7 +597,8 @@ def describe(plan, python=None):
 # --- the run: the plan through a Host ------------------------------------------------------------
 
 Result = collections.namedtuple("Result", "code out err")
-RunResult = collections.namedtuple("RunResult", "ok reasons out setup_retries seconds")
+RunResult = collections.namedtuple("RunResult", "ok reasons out setup_retries seconds timer_refused_probes timer_waited_s",
+                                   defaults=(None, None))
 ENGINE_T0_OFFSET_S = 0.05            # bench/loadgen.py: the schedule's zero is 50 ms after its loop starts
 EARLY_SLACK_S = 2.0                  # a stream that exits with an error, or leaving no output, this much before its end has died
 DRAIN_S = 12.0                       # the engine waits for requests in flight for its timeout (10 s) plus 2 s
@@ -1159,13 +1160,13 @@ def timer_wait_text(wait_gate_min):
     return f"a refused probe is made again every {TIMER_REPROBE_S:g} s, for up to {wait_gate_min:g} min from the run's first probe"
 
 
-def timer_gate(host, plan, wait_gate_min=30.0, say=None):
+def timer_gate(host, plan, wait_gate_min=30.0, say=None, note=None):
     """The timer of the legit streams' CPU, which every run takes (docs/HG1C_DESIGN.md departure 30, D-045): a probe must have p99
     below the plan's `timer_limit_ms`. After a refused probe it waits TIMER_REPROBE_S and probes again, until a probe passes or
     `wait_gate_min` minutes have passed since the first, so that 0 is one probe; a probe that cannot be read is a refused one. The
     limit does not move. Returns the passing probe and the record of every probe; EnvironmentRefused, with the same record and the
-    last reading, after the last."""
-    say = say or (lambda m: None)
+    last reading, after the last. `note` is given the record after each probe, so that a stop during the wait leaves the probes."""
+    say, note = say or (lambda m: None), note or (lambda r: None)
     cpus, limit, raised = plan.pins["legit"], plan.timer_limit_ms, "timer_limit_ms" in plan.overrides
     first, probes = host.monotonic(), []
     while True:
@@ -1180,6 +1181,7 @@ def timer_gate(host, plan, wait_gate_min=30.0, say=None):
         said = "unreadable" if probe is None else f"p50 {probe['p50_ms']:g}, p99 {probe['p99_ms']:g}, max {probe['max_ms']:g} ms"
         verdict = "passed" if passed else f"refused, limit {limit:g} ms"
         say(f"timer probe {len(probes)} on CPU {cpus} at {utc}: {said}: {verdict}")
+        note(record)
         if passed:
             return probe, record
         if waited >= wait_gate_min * 60:
@@ -1193,7 +1195,7 @@ def timer_gate(host, plan, wait_gate_min=30.0, say=None):
         host.sleep(TIMER_REPROBE_S)
 
 
-def environment(host, plan, gate="full", wait_gate_min=30.0, say=None):
+def environment(host, plan, gate="full", wait_gate_min=30.0, say=None, note=None):
     """The environment gate (docs/HG1B_MINIMAL_DESIGN.md 7.2 step 0). The timer on the legit CPU must wake on time, always:
     p99 below the plan's `timer_limit_ms`, which is the calibration's validity.timer_p99_ms unless a smoke test set it (the
     limit used, and whether it was set, are recorded), within the wait of `timer_gate`, which every run may use in full. Uptime and
@@ -1209,7 +1211,8 @@ def environment(host, plan, gate="full", wait_gate_min=30.0, say=None):
         seen = quiet_gate(host, wait_gate_min, say)
     else:
         seen = {"met": None, "uptime_s": up, "load1": load, "waited_s": 0.0}
-    probe, timer = timer_gate(host, plan, wait_gate_min, say)
+    probe, timer = timer_gate(host, plan, wait_gate_min, say, note)
+    timer["load1_after_timer_gate"] = float(host.read_text("/proc/loadavg").split()[0])        # `seen` was read before the wait
     own = plan.pins.get("executor")
     timers = {"timer_executor": timer_probe(host, own), "timer_executor_cpus": own} if own is not None else {}
     stat = host.read_text("/proc/stat").splitlines()[0].split()
@@ -2012,9 +2015,13 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
     os.makedirs(out, exist_ok=True)
     log = EventLog(f"{out}/executor.log", host, say)
     t_begin = host.monotonic()
+
+    def gate_so_far(timer):                  # on disk through the wait: a stop during it leaves the probes (D-045, T-047 G-01)
+        write_json(f"{out}/environment.json", {"gate_unfinished": True, "gate_mode": gate, **timer})
+
     try:
         pre = preflight(host, plan, allow_dirty, clean)
-        env = environment(host, plan, gate, wait_gate_min, log)
+        env = environment(host, plan, gate, wait_gate_min, log, gate_so_far)
     except RunFailed as exc:
         log(f"refused: {exc}")
         _failed(out, exc)
@@ -2076,9 +2083,11 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
             "daemon": None if daemon is None else {**daemon, "stop": stopped},
             "scenario": plan.scenario, "seed": plan.seed, "plan_sha256": plan.plan_sha256,
             "calibration_sha256": plan.calibration_sha256, "overrides": plan.overrides,
-            "executor": {**block, "setup_retries": retries}, "streams": rows})
+            "executor": {**block, "setup_retries": retries, "timer_refused_probes": env["timer_refused_probes"],
+                         "timer_waited_s": env["timer_waited_s"]}, "streams": rows})
         log("run.json written; the run is " + ("sound" if block["ok"] else "UNSOUND: " + "; ".join(block["reasons"])))
-        return RunResult(block["ok"], block["reasons"], out, retries, host.monotonic() - t_begin)
+        return RunResult(block["ok"], block["reasons"], out, retries, host.monotonic() - t_begin,
+                         env["timer_refused_probes"], env["timer_waited_s"])
     except BaseException as exc:
         log(f"failed: {exc!r}")
         _failed(out, exc)
