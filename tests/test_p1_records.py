@@ -74,6 +74,8 @@ class HarmTest(Base):
         self.assertIn("server", rec["cpu"])
         self.assertEqual(sorted(rec["cpu"]), ["attack", "legit", "server"])
         self.assertEqual(rec["addresses"]["silent"], [])
+        self.assertIn("shadow", rec)
+        self.assertIn("bans_by_engine", rec)
         self.assertIsNotNone(rec["attacker_served"])
         self.assertEqual(rec["addresses"]["seen"], rec["addresses"]["planned"])
         self.assertAlmostEqual(rec["server_q"], rec["Q"], delta=2.0)

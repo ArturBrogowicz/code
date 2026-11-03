@@ -196,7 +196,8 @@ def run_record(run_dir, cal, block=None, attempt=1):
     man, meta = read_json(os.path.join(run_dir, D.MANIFEST_FILE)), read_json(os.path.join(run_dir, "run.json"))
     base = {"format": "p1-run-record/1", "block": man["seed"] if block is None else block, "attempt": attempt, "run": man["run"],
             "arm": man["arm"], "class": man["class"], "levels": man["levels"], "valid": meta["checks"]["ok"],
-            "reasons": meta["checks"]["reasons"], "age_check": meta.get("age_check")}
+            "reasons": meta["checks"]["reasons"], "age_check": meta.get("age_check"), "shadow": meta.get("shadow"),
+            "bans_by_engine": meta.get("bans_by_engine")}
     if D.time_origin(man) is None:
         return {**base, "Q": None, "p95_s": None, "acted_on": None}
     t = man["timeline"]

@@ -397,6 +397,60 @@ class ExecuteTest(Base):
         self.assertEqual(index(self.root)[0]["label"], "C2_L1_r1")
 
 
+class ShadowValidityTest(Base):
+    """D-054, T048-14: the conditions the parity claim names, per M run; what makes a run invalid, and what is only recorded."""
+
+    def run_with(self, acts):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=["M_rstar_C2"], label=f"s{len(os.listdir(self.root))}",
+                             benign_specs=F.thin_benign(), max_sources=3, attempt=1)
+        res = dict(R.run_block(F.P1FakeHost(acts=lambda _r, _b: acts), block))["M_rstar_C2"]
+        return res, read_json(os.path.join(block["dir"], "M_rstar_C2", "run.json"))
+
+    def test_a_clean_run_records_zeros(self):
+        res, meta = self.run_with([(60.0, {"kind": "l7_shadow", "evicted": 0, "late": 0, "active_keys": 3})])
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertEqual(meta["shadow"], {"reports": 1, "evicted": 0, "late": 0, "daemon_errors": [], "shadow_restarts_in_attack": 0})
+        self.assertEqual(meta["bans_by_engine"], {})
+
+    def test_an_eviction_makes_it_invalid_and_late_is_only_recorded(self):
+        res, meta = self.run_with([(60.0, {"kind": "l7_shadow", "evicted": 0, "late": 7}), (70.0, {"kind": "l7_shadow", "evicted": 3, "late": 2})])
+        self.assertFalse(res["ok"])
+        self.assertTrue(any("evicted 3 addresses" in r for r in res["reasons"]), res["reasons"])
+        self.assertEqual((meta["shadow"]["evicted"], meta["shadow"]["late"]), (3, 7))
+        res, meta = self.run_with([(60.0, {"kind": "l7_shadow", "evicted": 0, "late": 7})])
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertEqual(meta["shadow"]["late"], 7)
+
+    def test_a_view_store_s_late_count_is_read_too(self):
+        _res, meta = self.run_with([(60.0, {"kind": "l7_shadow", "late_dropped": 4})])
+        self.assertEqual((meta["shadow"]["late"], meta["shadow"]["evicted"]), (4, 0))
+
+    def test_a_shadow_restart_in_the_attack_window_makes_it_invalid(self):
+        err = {"kind": "daemon_error", "where": "thread:l7_shadow", "error": "ZeroDivisionError", "action": "restarted in 5 s"}
+        res, meta = self.run_with([(100.0, err)])
+        self.assertFalse(res["ok"])
+        self.assertTrue(any("shadow thread stopped or restarted 1 times" in r for r in res["reasons"]), res["reasons"])
+        self.assertEqual(meta["shadow"]["daemon_errors"][0]["where"], "thread:l7_shadow")
+
+    def test_a_restart_before_the_attack_and_another_thread_s_error_are_only_recorded(self):
+        res, meta = self.run_with([(0.5, {"kind": "daemon_error", "where": "thread:l7_shadow", "error": "x", "action": "y"}),
+                                   (100.0, {"kind": "daemon_error", "where": "telemetry", "error": "x", "action": "y"})])
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertEqual(len(meta["shadow"]["daemon_errors"]), 2)
+        self.assertEqual(meta["shadow"]["shadow_restarts_in_attack"], 0)
+
+    def test_bans_are_reported_by_engine_per_run(self):
+        _res, meta = self.run_with([(60.0, {"kind": "ban", "engine": "l7v2", "ip": "10.0.0.1"}), (61.0, {"kind": "ban", "engine": "l7_rate", "ip": "10.0.0.2"}),
+                                    (62.0, {"kind": "ban", "engine": "l7_rate", "ip": "10.0.0.3"})])
+        self.assertEqual(meta["bans_by_engine"], {"l7_rate": 2, "l7v2": 1})
+
+    def test_a_run_without_a_daemon_has_no_shadow_report(self):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, runs=["C"], label="c", benign_specs=F.thin_benign())
+        R.run_block(F.P1FakeHost(), block)
+        meta = read_json(os.path.join(block["dir"], "C", "run.json"))
+        self.assertEqual((meta["shadow"], meta["bans_by_engine"]), (None, {}))
+
+
 class PointsTest(Base):
     """D-052: a campaign takes the pilot's check of the frozen points, bound to what it runs, and an arm over the budget stops it."""
 

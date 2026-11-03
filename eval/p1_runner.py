@@ -41,7 +41,7 @@ are bound to it (L7V2-08) and the block runs at them, and both selections are th
 
 Checks of a run (design 5.4): the stack answered; every planned client started and ended cleanly; in an M run the daemon was
 ready before the traffic, alive to the end, with XDP attached, its start event says what the table says and the arm armed;
-its l7_enforce_arm event names the arm, the selection's sha256 and R*'s rule; the kill file stayed absent; the file sink has no silence longer than LOG_GAP_MAX_S [ASSUMPTION] over the run. A run that
+its l7_enforce_arm event names the arm, the selection's sha256 and R*'s rule; its shadow evicted nothing and did not restart in the attack window (D-054); the kill file stayed absent; the file sink has no silence longer than LOG_GAP_MAX_S [ASSUMPTION] over the run. A run that
 fails one is invalid, with its reasons. CPU per core is sampled every second (cpu.jsonl).
 
     sudo ./venv/bin/python eval/p1_runner.py --phase campaign --seed 3001 --calibration REC --knees KNEES \\
@@ -94,6 +94,7 @@ HOST_LOGS = ("/var/log/nginx/ddos_ml_access.log", "/var/log/nginx/error.log")   
 READY_URL = f"http://{SERVER_IP}/"
 DAEMON_READY_TIMEOUT_S, STACK_READY_TIMEOUT_S = 90.0, 30.0
 LOG_GAP_MAX_S = 10.0                       # [ASSUMPTION] design 5.4's "the file-sink log has no gaps"
+SHADOW_THREAD = "thread:l7_shadow"          # control_plane.supervise's `where` of the shadow thread
 SETUP_S = 45                               # [ESTIMATE] design 14: a run's set-up and teardown
 GUNICORN = {"backend": "costed", "gunicorn_workers": 2, "gunicorn_threads": 8}     # design 4.3
 PROVENANCE_FILES = ("nginx.conf", "nginx_unprotected.conf", "control_plane.py", "l7_enforce.py", "l7_arms.py", "l7_conf.py",
@@ -659,12 +660,15 @@ def finish(host, plan, reasons, ctx):
         with open(os.path.join(out, "cpu.jsonl"), "w", encoding="utf-8") as fh:
             fh.writelines(json.dumps(c, sort_keys=True) + "\n" for c in ctx["cpu"])
     ok = not reasons
+    events = P4._events(plan["daemon"]["env"]["BAN_EVENTS"]) if plan["daemon"] else []
     meta = {"format": FORMAT, "role": plan["role"], "class": plan["class"], "arm": plan["arm"], "phase": plan["phase"],
             "seed": plan["seed"], "levels": plan["levels"], "halvings": plan["halvings"], "age_check": plan["age_check"],
             "budget": plan["budget"],
             "checks": {"ok": ok, "reasons": reasons},
             "started_utc": P4._utc(ctx["started"]), "ended_utc": P4._utc(ended),
             "daemon": None if plan["daemon"] is None else {"env": plan["daemon"]["env"]},
+            "shadow": shadow_report(events, plan, t0) if plan["daemon"] and t0 is not None else None,
+            "bans_by_engine": {engine: len(rows) for engine, rows in sorted(run_bans(events).items())},
             "provenance": provenance(plan, ctx["sums"])}
     P4.write_json(os.path.join(out, "run.json"), meta)
     P4.write_json(os.path.join(out, l7_dataset.MANIFEST_FILE), manifest(plan, t0))
@@ -690,8 +694,34 @@ def checks(host, plan, t0, launched, frozen_sums=None):
     if d:
         if P4.XDP_ATTACHED_LINE not in P4._text(host, d["log"]):
             reasons.append("the daemon's log does not show XDP attached")
-        reasons += start_problems(plan, P4._events(d["env"]["BAN_EVENTS"]), frozen_sums)
+        events = P4._events(d["env"]["BAN_EVENTS"])
+        reasons += start_problems(plan, events, frozen_sums)
+        reasons += shadow_problems(shadow_report(events, plan, t0))
     return reasons
+
+
+def shadow_report(events, plan, t0):
+    """What an M run's event log says of its shadow (D-054, ml/p1_prereg_2.json run_validity): the largest evicted and late counts of its
+    l7_shadow reports (a restarted engine counts from 0; `evicted` is R*'s path's alone, a view store reports late_dropped), every
+    daemon_error, and how many of those are the shadow thread's in the attack window."""
+    reports = [e for e in events if e.get("kind") == "l7_shadow"]
+    errors = [e for e in events if e.get("kind") == "daemon_error"]
+    lo = t0 + plan["timeline"]["baseline_s"]
+    hi = lo + plan["timeline"]["attack_s"]
+    return {"reports": len(reports), "evicted": max((e.get("evicted", 0) for e in reports), default=0),
+            "late": max((max(e.get("late", 0), e.get("late_dropped", 0)) for e in reports), default=0),
+            "daemon_errors": [{k: e.get(k) for k in ("t_wall", "where", "error", "action")} for e in errors],
+            "shadow_restarts_in_attack": sum(1 for e in errors if e.get("where") == SHADOW_THREAD and lo <= e.get("t_wall", 0.0) < hi)}
+
+
+def shadow_problems(report):
+    """What makes an M run invalid in its shadow report (D-054): the parity claim's condition, and a shadow that lost its windows."""
+    out = []
+    if report["evicted"] > 0:
+        out.append(f"the rule path evicted {report['evicted']} addresses: R*'s parity with the replay holds only at 0")
+    if report["shadow_restarts_in_attack"]:
+        out.append(f"the shadow thread stopped or restarted {report['shadow_restarts_in_attack']} times in the attack window")
+    return out
 
 
 def manifest(plan, t0):
