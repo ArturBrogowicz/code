@@ -1095,6 +1095,9 @@ arm alike (view arms and R*):
   rate branch still counts every request: a key above the rule's rate is banned, denied or not, as it was before its deny.
   The arm's `l7_enforce_poll` reports `bans_by_engine`, with a last one at the stop, and `ban_events.bans_by_engine` reads
   the same from any run's event log.
+- **T048-09, hostile numbers.** `l7_ingest.normalise` drops a record with a non-finite numeric field (`1e999`, `10**400`,
+  `"nan"`, which only a forged datagram can carry); they raised there or in the rules' statistics, and restarted the shadow
+  thread with a fresh engine. Records nginx writes normalise as before; `l7_engine.py` is unchanged.
 
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.

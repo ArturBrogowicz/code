@@ -297,6 +297,22 @@ class SelectionTest(SelectionCase):
         self.assertIn("valid_for_claims", d.events("daemon_error")[0]["error"])
 
 
+class HostileNumbersTest(SelectionCase):
+    """T048-09 on R*'s path: {"msec": 1e999} raised ZeroDivisionError in RuleStats and restarted the thread and its 60-s windows."""
+
+    def test_r_stars_path_keeps_its_windows_through_them(self):
+        det = self.detector()
+        items = [it for it in stream(11) if it[0] != "poll" or it[1] < 1100.0]
+        for n, bad in enumerate((1e999, -1e999, 10**400, float("nan"), "inf") * 4):
+            for field in ("msec", "rt"):
+                items.insert(5 + 40 * n, ("record", {**obj(BOT, "/export", 1000.0 + n), field: bad}))
+        got, eng = live_decisions(items, det)
+        self.assertEqual(got, RP.RulePath(det.rule).run(items)[0])
+        self.assertTrue(got)
+        self.assertEqual(eng.rule_stats.late, RP.RulePath(det.rule).run(items)[1]["late"])
+        self.assertTrue(all(isinstance(r[0], str) for r in eng.rule_stats._key))
+
+
 class RuleEngineFake:
     """What Arm.attach reads of R*'s engine."""
 

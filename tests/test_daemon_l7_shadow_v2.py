@@ -166,5 +166,53 @@ class HostileFieldTypesTest(unittest.TestCase):
         self.assertEqual({type(k[0]) for k in engine.store._recs}, {str})
 
 
+class HostileNumbersTest(unittest.TestCase):
+    """T048-09: {"msec": 1e999} gave inf and a ZeroDivisionError in the rules' statistics; {"msec": 10**400} an OverflowError in
+    l7_ingest._num for every arm. Each restarted the shadow thread with a fresh engine."""
+
+    NUMBERS = (1e999, -1e999, 10**400, -(10**400), float("nan"), "nan", "inf", "1e999")
+
+    def test_normalise_drops_a_record_with_a_non_finite_number_in_any_numeric_field(self):
+        good = rec(BOT, "/page/1", 1000.0)
+        base = l7_ingest.normalise(good)
+        for field in ("msec", "rt", "status", "conn", "creq", "uct", "urt", "rlen", "bsent"):
+            for bad in self.NUMBERS:
+                with self.subTest(field=field, bad=str(bad)[:12]):
+                    self.assertIsNone(l7_ingest.normalise({**good, field: bad}))
+        self.assertEqual(l7_ingest.normalise(dict(good)), base)
+        self.assertEqual(l7_ingest.normalise({**good, "urt": "-", "uct": "0.1, 0.2"})["uct"], 0.1 + 0.2)   # as before
+
+    def hostile(self, bot_at=1000.0):
+        out = []
+        for n, bad in enumerate(self.NUMBERS * 3):
+            for field in ("msec", "rt"):
+                r = {**rec(BOT, "/export", bot_at + 2 * n), field: bad}
+                out.append({**r, "msec": bot_at + 2 * n} if field == "rt" else r)
+        return out
+
+    def daemon(self):
+        d = H.Daemon({"L7_SHADOW": "1"})
+        self.addCleanup(d.close)
+        d.clock.now = 999.0
+        return d
+
+    def test_the_view_engine_keeps_its_state_through_them(self):
+        d = self.daemon()
+        reader = FakeReader(d, bot() + browser(), 1060.0)
+        for r in self.hostile():
+            reader.items.append((r["msec"] if isinstance(r["msec"], float) and r["msec"] == r["msec"] and abs(r["msec"]) < 1e9
+                                 else 1000.0, json.dumps(r).encode()))
+        reader.items.sort(key=lambda x: x[0])
+        engine = l7_engine.L7ViewEngine(l7_ingest.L7KeyStore(max_views=8), scorer=RefStub())
+        ingest = types.SimpleNamespace(**{k: getattr(l7_ingest, k) for k in dir(l7_ingest) if not k.startswith("__")})
+        ingest.SyslogDatagramReader = lambda _path, **_kw: reader
+        d.ns["l7_ingest"] = ingest
+        d.ns["l7_engine"] = types.SimpleNamespace(build_engine=lambda *_a, **_k: engine, EngineRecorder=l7_engine.EngineRecorder)
+        d.call("l7_shadow_monitor", "/run/ddos_l7.sock")               # it would raise through here before the fix
+        [wb] = d.events("l7_would_ban")
+        self.assertEqual((wb["ip"], engine.totals["would_bans"]), (BOT, 1))
+        self.assertEqual(d.events("daemon_error"), [])
+
+
 if __name__ == "__main__":
     unittest.main()

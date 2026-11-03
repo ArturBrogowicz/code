@@ -551,9 +551,10 @@ Known limits:
 * `users_seen` counts sessions, not devices: one user can hold several. The run's manifest gives the devices.
 * The stop (T-042 E03): `Arm.stop` and the arm's steps hold one lock, and no step runs after the stop, so once the
   stop returns `deny.map` is empty and nginx was told to reload it.
-* Hostile field types (T-042 E07): a log record whose text field (ip, ua, uri, sid, ...) holds another JSON type than a
-  string, which only a forged datagram can produce, is dropped at ingest (`l7_ingest.normalise`); it used to raise and
-  restart the shadow thread with a fresh engine. Numeric fields are coerced as before.
+* Hostile field types (T-042 E07, T048-09): a log record whose text field (ip, ua, uri, sid, ...) holds another JSON type than
+  a string, or whose numeric field is not a finite number, which only a forged datagram can produce, is dropped at ingest
+  (`l7_ingest.normalise`); it used to raise and restart the shadow thread with a fresh engine. Other numeric fields are coerced
+  as before.
 * The rate branch of the access-log rule (`l7_rate`) still counts a denied key's requests, so a key above its rate is banned there
   with no CGNAT guard, denied or not, as before its deny; the error branch does not count the arm's 429s (D-054, T048-07).
 * D-040 (T-042 E02): a key without a session is written as `ip|ua|`, which nginx matches for every cookie-less request
