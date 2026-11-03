@@ -148,7 +148,12 @@ def selection_inputs(frozen):
     return recall, (sel.get("baselines", {}).get(AGE) or {}).get("val_auc")
 
 
-def class_inputs(root, cal, cls, blocks, live, frozen, arms_factory):
+def admitted_on(adm):
+    """What admitted a class: 'Q' if the Q criterion passed, else 'latency', the p95 criterion alone (D-051)."""
+    return "Q" if adm["criteria"]["Q"]["passed"] else "latency"
+
+
+def class_inputs(root, cal, cls, blocks, live, frozen, arms_factory, on="Q"):
     """l7v2_verdict.judge's inputs for a class over its judged blocks (see the module doc), and the replay's summary."""
     enforcing = [a for a in live if a != "U"]
     harm = {a: [b["runs"][RUN.run_name(a, cls)]["metrics"]["Q"] for b in blocks] for a in live}
@@ -186,7 +191,7 @@ def class_inputs(root, cal, cls, blocks, live, frozen, arms_factory):
     recall, auc = selection_inputs(frozen)
     inputs = {"record_status": cal.get("status"),
               "frozen": {"selection_sha256": frozen["selection_sha256"], "rules_selection_sha256": frozen["rules_sha256"]},
-              "admitted": True, "harm": harm, "budget": {k: {a: tuple(v) for a, v in d.items()} for k, d in budget.items()},
+              "admitted": True, "admitted_on": on, "harm": harm, "budget": {k: {a: tuple(v) for a, v in d.items()} for k, d in budget.items()},
               "detection": det, "validation_recall": recall, "age_only_val_auc": auc,
               "structured_benign_model": structured}
     return inputs, per_arm
@@ -255,7 +260,7 @@ def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, p
             continue
         blocks, excluded = judged_blocks(final, cls, live)
         row["excluded"] = excluded
-        inputs, per_arm = class_inputs(root, cal, cls, blocks, live, frozen, arms_factory)
+        inputs, per_arm = class_inputs(root, cal, cls, blocks, live, frozen, arms_factory, admitted_on(adm))
         row["replay"] = per_arm
         row["blocks_judged"] = [b["block"] for b in blocks]
         row["age_only_on_U"] = age_only_on_u(root, blocks, cls, per_arm)

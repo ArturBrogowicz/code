@@ -1,4 +1,4 @@
-"""The P1 verdict code (ml/l7v2_verdict.py; docs/L7V2_DESIGN.md section 11, ml/l7v2_verdict_prereg_v2.json): synthetic
+"""The P1 verdict code (ml/l7v2_verdict.py; docs/L7V2_DESIGN.md section 11, ml/l7v2_verdict_prereg_v3.json): synthetic
 fixtures for V-A, V-B, V-C, V-D and inconclusive, each reachable and each made unreachable by one change, the contrasts
 (the GRU vs R*, vs the HGB, vs the shuffled-GRU, vs the age-only arm), the settled choices of D-044, C3b's primary
 detection family of D-043, and the refusals. Offline and pure; no evaluation data exists."""
@@ -20,7 +20,7 @@ ARMS = ("view_gru", "hgb", "gru_shuffled", "R*", "age_only")
 
 
 def fixture(cls="C3b", q=None, recall=None, *, admitted=True, budget=None, age_auc=0.52, structured=True,
-            noise=0.8, record="frozen", val_recall=None, other_recall=None):
+            noise=0.8, record="frozen", val_recall=None, other_recall=None, admitted_on="Q"):
     """One class's inputs: Q per block around the given means (seeded noise), nested caught sets per arm at the given
     recalls over the same attack entities of the class's primary family (and, for C3b, of the families reported
     separately, at `other_recall`), every budget met unless given."""
@@ -47,7 +47,7 @@ def fixture(cls="C3b", q=None, recall=None, *, admitted=True, budget=None, age_a
                     caught[a].append(int(x < rates[a]))
     ok = {a: (0, 1200) for a in live if a != "U"}
     return {"record_status": record, "frozen": {"selection_sha256": "a" * 64, "rules_selection_sha256": "b" * 64},
-            "admitted": admitted, "harm": harm, "budget": budget or {"replay": dict(ok), "live": dict(ok)},
+            "admitted": admitted, "admitted_on": admitted_on if admitted else None, "harm": harm, "budget": budget or {"replay": dict(ok), "live": dict(ok)},
             "detection": {"blocks": blocks, "families": families, "caught": caught},
             "validation_recall": val_recall or {"view_gru": recall["view_gru"], "hgb": recall["hgb"]},
             "age_only_val_auc": age_auc, "structured_benign_model": structured}
@@ -176,19 +176,19 @@ class SettledChoicesTest(unittest.TestCase):
         # the HGB leads on evaluation Q, the GRU on validation: the GRU is judged, and it is equivalent to R*
         r = J.judge("C3b", fixture(q=q, recall=rec, val_recall={"view_gru": 0.9, "hgb": 0.5}))
         self.assertEqual(r["verdict"], "V-C")
-        self.assertIn("view_gru", r["steps"][2][1])
+        self.assertIn("view_gru", dict(r["steps"])["best_learned_vs_rstar"])
         r = J.judge("C3b", fixture(q=q, recall=rec, val_recall={"view_gru": 0.5, "hgb": 0.9}))
         self.assertEqual(r["verdict"], "V-B")
-        self.assertIn("hgb", r["steps"][2][1])
+        self.assertIn("hgb", dict(r["steps"])["best_learned_vs_rstar"])
         # ties go to the GRU
         r = J.judge("C3b", fixture(q=q, recall=rec, val_recall={"view_gru": 0.7, "hgb": 0.7}))
-        self.assertIn("view_gru", r["steps"][2][1])
+        self.assertIn("view_gru", dict(r["steps"])["best_learned_vs_rstar"])
         pre = with_resolution("OC-1", "eval_q")
         r = J.judge("C3b", fixture(q=q, recall=rec, val_recall={"view_gru": 0.9, "hgb": 0.5}), pre)
-        self.assertIn("hgb", r["steps"][2][1])
+        self.assertIn("hgb", dict(r["steps"])["best_learned_vs_rstar"])
 
     def test_oc1_needs_both_validation_recalls(self):
-        inputs = fixture(q=Q_A)
+        inputs = fixture(q=Q_A, recall={"gru_shuffled": 0.9})
         inputs["validation_recall"] = {"view_gru": 0.9}
         with self.assertRaises(J.VerdictError):
             J.judge("C3b", inputs)
@@ -218,6 +218,94 @@ class SettledChoicesTest(unittest.TestCase):
         pre = copy.deepcopy(P.load())
         pre["effect_sizes"]["harm_beats_pp"] = 25.0
         self.assertNotEqual(J.judge("C3b", fixture(q=Q_A), pre)["verdict"], "V-A")
+
+
+class ReviewFixesTest(unittest.TestCase):
+    """D-051: the reviewer's probes of T048-01, T048-02 and T048-13 (tasks/T-048/artifacts/probes/p3_verdict.py), and what they now give."""
+
+    def test_t048_01_every_v_a_condition_holds_and_the_hgb_led_validation(self):
+        r = J.judge("C3b", fixture(q={"default_rules": 45.0, "R*": 70.0, "hgb": 71.0, "view_gru": 92.0},
+                                   recall={"view_gru": 0.95, "hgb": 0.4, "gru_shuffled": 0.4},
+                                   val_recall={"view_gru": 0.800, "hgb": 0.803}))
+        self.assertEqual(r["verdict"], "V-A")
+        self.assertEqual([s for s, _o in r["steps"]], ["harm_admission", "budget", "mitigation", "v_a"])
+        self.assertEqual(r["contrasts"]["harm view_gru vs R*"]["outcome"], "beats")
+
+    def test_oc1_is_used_for_v_b_and_v_c_only(self):
+        """The same HGB lead, and the GRU's V-A broken on detection: V-C is read on the HGB, as OC-1 says."""
+        r = J.judge("C3b", fixture(q={"default_rules": 45.0, "R*": 70.0, "hgb": 71.0, "view_gru": 92.0},
+                                   recall={"view_gru": 0.6, "hgb": 0.6, "gru_shuffled": 0.6},
+                                   val_recall={"view_gru": 0.800, "hgb": 0.803}))
+        self.assertEqual(r["verdict"], "V-C")
+        self.assertIn(("best_learned_vs_rstar", "hgb: equivalent"), r["steps"])
+
+    def test_every_gru_contrast_is_reported_whatever_the_verdict(self):
+        over = over_budget(live=("R*", "hgb", "view_gru"), replay=("R*", "hgb", "view_gru"))
+        cases = {"V-A": fixture(q=Q_A),
+                 "V-B": fixture(q={"default_rules": 60.0, "R*": 70.0, "hgb": 85.0, "view_gru": 86.0}, recall={"view_gru": 0.8, "hgb": 0.8}),
+                 "V-C": fixture(q={"default_rules": 60.0, "R*": 84.0, "hgb": 85.0, "view_gru": 86.0}, recall={"view_gru": 0.8, "hgb": 0.8}),
+                 "V-D": fixture(q=Q_A, budget=over),
+                 "inconclusive": fixture(q=Q_A, age_auc=0.80)}
+        for verdict, inputs in cases.items():
+            r = J.judge("C3b", inputs)
+            with self.subTest(verdict):
+                self.assertEqual(r["verdict"], verdict)
+                for name in ("harm view_gru vs U", "harm view_gru vs default_rules", "harm view_gru vs R*", "harm view_gru vs hgb",
+                             "detection view_gru vs hgb", "detection view_gru vs gru_shuffled", "detection view_gru vs R*",
+                             "detection view_gru vs age_only (descriptive)"):
+                    self.assertIn(name, r["contrasts"])
+        r = J.judge("C3b", fixture(q=Q_A, admitted=False))
+        self.assertEqual((r["verdict"], r["steps"]), ("V-D", [("harm_admission", "fails")]))
+
+    def test_t048_02_r_star_over_the_budget_cannot_carry_v_c(self):
+        b = {k: {"R*": (65, 1200), "view_gru": (0, 1200)} for k in ("live", "replay")}
+        for q in ({"R*": 90.0, "view_gru": 70.0}, {"R*": 80.0, "view_gru": 80.5}):
+            r = J.judge("C2", fixture("C2", q=q, budget=b))
+            with self.subTest(q=q):
+                self.assertEqual(r["verdict"], "inconclusive")
+                self.assertTrue(any("V-C not claimed: R* is over the budget" in n for n in r["notes"]), r["notes"])
+
+    def test_t048_02_the_gru_over_the_budget_cannot_carry_v_b(self):
+        b = {k: {"R*": (0, 1200), "view_gru": (120, 1200)} for k in ("live", "replay")}
+        r = J.judge("C2", fixture("C2", q={"R*": 70.0, "view_gru": 90.0}, recall={"view_gru": 0.6, "hgb": 0.6}, budget=b))
+        self.assertEqual(r["verdict"], "inconclusive")
+        self.assertEqual(r["notes"], ["V-B not claimed: view_gru is over the budget"])
+
+    def test_t048_02_the_budget_step_counts_the_contenders_only(self):
+        b = {k: {"default_rules": (0, 1200), "R*": (50, 1200), "hgb": (50, 1200), "view_gru": (50, 1200)} for k in ("live", "replay")}
+        for q in ({"default_rules": 45.0, "R*": 90.0, "hgb": 70.0, "view_gru": 71.0},
+                  {"default_rules": 45.0, "R*": 70.0, "hgb": 90.0, "view_gru": 91.0}):
+            r = J.judge("C3b", fixture(q=q, budget=b))
+            with self.subTest(q=q):
+                self.assertEqual(r["verdict"], "V-D")
+                self.assertIn("no contender", r["notes"][0])
+
+    def test_a_carrier_within_the_budget_keeps_its_verdict(self):
+        """The HGB carries V-B while the GRU is over; R* carries V-C while the learned arm is over."""
+        b = {k: {"default_rules": (0, 1200), "R*": (0, 1200), "hgb": (0, 1200), "view_gru": (50, 1200)} for k in ("live", "replay")}
+        r = J.judge("C3b", fixture(q={"default_rules": 45.0, "R*": 70.0, "hgb": 90.0, "view_gru": 91.0},
+                                   recall={"view_gru": 0.6, "hgb": 0.6}, val_recall={"view_gru": 0.6, "hgb": 0.7}, budget=b))
+        self.assertEqual(r["verdict"], "V-B")
+        b = {k: {"R*": (0, 1200), "view_gru": (50, 1200)} for k in ("live", "replay")}
+        self.assertEqual(J.judge("C2", fixture("C2", q={"R*": 80.0, "view_gru": 81.0}, budget=b))["verdict"], "V-C")
+
+    def test_t048_13_a_class_admitted_on_latency_alone(self):
+        healthy = {"U": 99.0, "R*": 99.2, "view_gru": 99.1}
+        r = J.judge("C2", fixture("C2", q=healthy, noise=0.2, admitted_on="latency"))
+        self.assertEqual(r["verdict"], "V-D")
+        self.assertIn("latency alone", r["notes"][0])
+        self.assertEqual(r["steps"][-1], ("mitigation", "fails"))
+        self.assertEqual(J.judge("C2", fixture("C2", q=healthy, noise=0.2))["verdict"], "V-C", "admitted on Q, the path is as before")
+        gain = J.judge("C2", fixture("C2", q={"U": 80.0, "R*": 90.0, "view_gru": 90.5}, noise=0.2, admitted_on="latency"))
+        self.assertEqual(gain["verdict"], "V-C")
+
+    def test_refusals_of_the_new_inputs(self):
+        with self.assertRaisesRegex(J.VerdictError, "what admitted it"):
+            J.judge("C2", {**fixture("C2"), "admitted_on": None})
+        inputs = fixture("C2")
+        del inputs["detection"]["caught"]["hgb"]
+        with self.assertRaisesRegex(J.VerdictError, "the replay lacks"):
+            J.judge("C2", inputs)
 
 
 class DetectionEntitiesTest(unittest.TestCase):

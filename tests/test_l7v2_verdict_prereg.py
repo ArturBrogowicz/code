@@ -1,5 +1,5 @@
 """The verdict pre-registration's loader (ml/l7v2_verdict_prereg.py) on its settled version: the consistency checks and
-the resolutions the verdict code judges under. tests/test_l7v2_verdict_prereg_v2.py pins every value. Offline and pure."""
+the resolutions the verdict code judges under. tests/test_l7v2_verdict_prereg_v3.py pins every value. Offline and pure."""
 import copy
 import json
 import os
@@ -23,9 +23,10 @@ class LoaderTest(unittest.TestCase):
             return P.load(path)
 
     def test_the_settled_version_loads(self):
-        self.assertEqual(P.PREREG_PATH, os.path.join(REPO, "ml", "l7v2_verdict_prereg_v2.json"))
-        self.assertEqual(P.load()["format"], "l7v2-verdict-prereg/2")
-        self.assertFalse(os.path.exists(os.path.join(REPO, "ml", "l7v2_verdict_prereg.json")), "format 1 is replaced")
+        self.assertEqual(P.PREREG_PATH, os.path.join(REPO, "ml", "l7v2_verdict_prereg_v3.json"))
+        self.assertEqual(P.load()["format"], "l7v2-verdict-prereg/3")
+        for old in ("l7v2_verdict_prereg.json", "l7v2_verdict_prereg_v2.json"):
+            self.assertFalse(os.path.exists(os.path.join(REPO, "ml", old)), f"{old} is replaced")
         self.assertEqual(P.resolutions(), {"OC-1": "validation", "OC-2": "live", "OC-3": "with_u", "OC-4": "v_c"})
 
     def test_refuses_inconsistent_files(self):
@@ -53,7 +54,13 @@ class LoaderTest(unittest.TestCase):
         def no_primary(p):
             p["detection_entities"]["per_class"]["C3b"]["primary"] = []
 
-        for mutate in (reorder, drop_gru, runs, steps, unresolved, unknown, blocks, no_primary):
+        def default_rules_contend(p):
+            p["arms"]["contenders"].append("default_rules")
+
+        def no_gain(p):
+            p["latency_alone"]["min_mean_gain_pp"] = 0.0
+
+        for mutate in (reorder, drop_gru, runs, steps, unresolved, unknown, blocks, no_primary, default_rules_contend, no_gain):
             with self.subTest(mutate.__name__), self.assertRaises(P.PreregError):
                 self._load(mutate)
 

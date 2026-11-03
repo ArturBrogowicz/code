@@ -348,6 +348,13 @@ class LadderTest(unittest.TestCase):
             A.ladder_factor(root)
 
 
+class AdmittedOnTest(unittest.TestCase):
+    def test_what_admitted_a_class(self):
+        self.assertEqual(A.admitted_on({"criteria": {"Q": {"passed": True}, "p95": {"passed": True}}}), "Q")
+        self.assertEqual(A.admitted_on({"criteria": {"Q": {"passed": True}, "p95": {"passed": False}}}), "Q")
+        self.assertEqual(A.admitted_on({"criteria": {"Q": {"passed": False}, "p95": {"passed": True}}}), "latency")
+
+
 class AgeReadingTest(unittest.TestCase):
     """The age-only reading on the U replays (D-049): beside every view-level contrast, and read by nothing that judges."""
 

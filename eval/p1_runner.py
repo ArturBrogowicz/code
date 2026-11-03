@@ -6,7 +6,7 @@ generators, as root. Run it only with the user's approval of a VM step. `--plan`
 nothing; the tests drive it with a fake host (tests/p1_fake_host.py), as eval/p4_runner.py's tests do.
 
 A block is one seed (ml/p1_traffic.py build_block): its pool, role map, parameters, netem and schedules are the same in
-every run. Its runs, in a seeded order, are the live set of ml/l7v2_verdict_prereg_v2.json: C, C' and, per class, U and
+every run. Its runs, in a seeded order, are the live set of ml/l7v2_verdict_prereg_v3.json: C, C' and, per class, U and
 its live arms (13 runs; `--cut` is section 14's minimum cut, 9 runs). Every attempt, valid or not, is a line of
 ROOT/index.jsonl with its reasons (section 13 row 6); an attempt is a directory ROOT/<phase>/b<seed>_a<attempt>[_<label>]/
 <run>/ beside block.json, the run contract of eval/l7v2_harm.py.
@@ -93,7 +93,7 @@ GUNICORN = {"backend": "costed", "gunicorn_workers": 2, "gunicorn_threads": 8}  
 PROVENANCE_FILES = ("nginx.conf", "nginx_unprotected.conf", "control_plane.py", "l7_enforce.py", "l7_arms.py", "l7_conf.py",
                     "l7_denymap.py", "l7_engine.py", "l7_backend.py", "l7_webapp.py", "ml/l7_gen.py", "ml/l7_bots.py",
                     "ml/l7_benign.py", "ml/l7_pools.py", "ml/p1_traffic.py", "ml/l7v2_prereg.json",
-                    "ml/l7v2_verdict_prereg_v2.json", "eval/p1_runner.py")
+                    "ml/l7v2_verdict_prereg_v3.json", "eval/p1_runner.py")
 BAN_ENGINES = (*ban_events.ENGINES, ban_events.L7V2_ENGINE)     # D-037: the arm's engine sits outside ENGINES
 
 # The one table: what each arm runs (T-025e's report, "Env per arm for the P1 runner", feat/l7v2-rstar c6028ce). Everything an

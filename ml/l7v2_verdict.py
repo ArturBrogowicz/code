@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The P1 verdict per class (docs/L7V2_DESIGN.md section 11; constants from ml/l7v2_verdict_prereg_v2.json, frozen first).
+"""The P1 verdict per class (docs/L7V2_DESIGN.md section 11; constants from ml/l7v2_verdict_prereg_v3.json, frozen first).
 
 judge(cls, inputs) applies the ladder to one class's evaluation results and claims one verdict:
   * harm contrasts: Q in percent per block and arm, paired by block, judged by eval/run_level_stats (decide,
@@ -9,13 +9,18 @@ judge(cls, inputs) applies the ladder to one class's evaluation results and clai
     families (D-043: C3b@M2 for C3b; M1, M3 and M2exp get their own descriptive contrasts), with the two-stage cluster
     bootstrap over (block, entity), B 2000, percentile 95 % (beats >= 10 pp with the interval excluding 0; equivalent
     when it lies strictly inside +-10 pp);
-  * the fixed testing order: harm admission, budget, best learned vs R*, GRU vs HGB, GRU vs shuffled-GRU; a step is
-    tested only when the earlier ones passed;
+  * the testing order (D-051): harm admission, budget, mitigation, then V-A's conditions jointly, an intersection-union test
+    with no gate on the best learned arm; only when they do not hold, best learned vs R*, GRU vs HGB, GRU vs shuffled-GRU for
+    V-B and V-C. Every GRU contrast of an admitted class is computed and reported, whatever the verdict;
+  * the budget (D-051): its step counts the contenders R*, the HGB and the GRU only, and an arm over the budget cannot carry
+    a verdict: V-B's carrier is the best learned arm, V-C's is R*, and the class is then inconclusive with the arm named;
+  * a class admitted on latency alone gets V-D unless some live M's mean gain in Q reaches 5 pp (D-051): Q is the only harm
+    outcome the ladder reads;
   * the rungs V-D, V-A, V-B, V-C, inconclusive, the first that holds; V-A is blocked (inconclusive, the block named) on
     an age-confounded validation set, a structureless benign model, and never given on a non-frozen record;
   * the settled choices (D-044): the best learned arm has the higher validation recall at the budget, frozen in the
-    selection (ties: the GRU); the budget on evaluation is the live reading, with the replay's reported beside it;
-    V-A's live baselines include U; when R* beats the best learned arm on harm the verdict is V-C.
+    selection (ties: the GRU), for V-B and V-C only; the budget on evaluation is the live reading, with the replay's reported
+    beside it; V-A's live baselines include U; when R* beats the best learned arm on harm the verdict is V-C.
 
 Pure (numpy and eval/run_level_stats); it reads no capture. The inputs come from the P1 runner, after the selections
 were frozen; judge() refuses without their sha256s and without a frozen calibration record.
@@ -120,6 +125,13 @@ def _check(cls, inputs, pre):
     harm = inputs.get("harm") or {}
     if inputs.get("admitted") and set(live) - set(harm):
         raise VerdictError(f"{cls}: harm per block is missing for {sorted(set(live) - set(harm))}")
+    if inputs.get("admitted"):
+        if inputs.get("admitted_on") not in ("Q", "latency"):
+            raise VerdictError(f"{cls}: an admitted class must say what admitted it, 'Q' or 'latency' (D-051)")
+        caught = (inputs.get("detection") or {}).get("caught") or {}
+        missing = {GRU, HGB, SHUF, RSTAR} - set(caught)
+        if missing:
+            raise VerdictError(f"{cls}: every GRU contrast is reported, and the replay lacks {sorted(missing)}")
     if len({len(v) for v in harm.values()}) > 1:
         raise VerdictError(f"{cls}: every arm needs Q for the same blocks")
     if inputs.get("detection") is not None:
@@ -160,10 +172,6 @@ def _ladder(cls, live, inputs, opts, pre, memo):
     harm, budget = inputs["harm"], inputs["budget"][opts["OC-2"]]
     enforcing = [a for a in live if a != U]
     meets = {a: _meets(budget[a]) for a in enforcing}
-    if not any(meets.values()):
-        steps.append(("budget", "fails"))
-        return "V-D", steps, ["no enforcing arm meets the budget on the evaluation seeds"]
-    steps.append(("budget", "passes"))
 
     def harm_c(a, b):
         if (a, b) not in memo:
@@ -177,39 +185,78 @@ def _ladder(cls, live, inputs, opts, pre, memo):
             memo[key] = detection_contrast(det["blocks"], det["caught"][a], det["caught"][b], pre)
         return memo[key]
 
-    if not any(harm_c(m, U)["decision"] == "supported (+)" for m in enforcing):
+    # Every GRU contrast of an admitted class, whatever the verdict (D-051).
+    gru_harm = {a: harm_c(GRU, a) for a in live if a != GRU}
+    gru_det = {a: det_c(GRU, a) for a in (HGB, SHUF, RSTAR)}
+
+    contenders = [a for a in enforcing if a in pre["arms"]["contenders"]]
+    if not any(meets[a] for a in contenders):
+        steps.append(("budget", "fails"))
+        return "V-D", steps, ["no contender (R*, HGB, GRU) meets the budget on the evaluation seeds"]
+    steps.append(("budget", "passes"))
+
+    gains = {m: harm_c(m, U) for m in enforcing}
+    if not any(c["decision"] == "supported (+)" for c in gains.values()):
+        steps.append(("mitigation", "fails"))
         return "V-D", steps, ["no arm mitigates: Q(M) - Q(U) is not supported for any live M"]
+    least = pre["latency_alone"]["min_mean_gain_pp"]
+    if inputs["admitted_on"] == "latency" and not any(c["mean_pp"] >= least for c in gains.values()):
+        steps.append(("mitigation", "fails"))
+        return "V-D", steps, [f"admitted on latency alone, and no live M's mean gain in Q reaches {least:g} pp"]
+    steps.append(("mitigation", "passes"))
+
+    # V-A first: an intersection-union test of all its conditions, with no gate on the best learned arm (R-3).
+    baselines = [a for a in live if a != GRU and (opts["OC-3"] == "with_u" or a != U)]
+    unmet = []
+    if not meets[GRU]:
+        unmet.append("the GRU misses the budget")
+    if not all(gru_harm[a]["outcome"] == "beats" for a in baselines):
+        unmet.append("the GRU does not beat every live baseline")
+    if gru_det[HGB]["outcome"] != "beats":
+        unmet.append(f"GRU vs HGB on detection: {gru_det[HGB]['outcome']}")
+    if gru_det[SHUF]["outcome"] != "beats":
+        unmet.append(f"GRU vs shuffled-GRU on detection: {gru_det[SHUF]['outcome']}")
+    if not unmet:
+        steps.append(("v_a", "holds"))
+        blocks = v_a_blocks(inputs, pre)
+        if blocks:
+            return "inconclusive", steps, [f"V-A blocked: {b}" for b in blocks]
+        return "V-A", steps, notes
+    steps.append(("v_a", "; ".join(unmet)))
+
+    # V-B and V-C: the best learned arm (OC-1), and each verdict's carrier within the budget (D-051).
     best = _best_learned(opts["OC-1"], live, harm, inputs.get("validation_recall") or {})
+
+    def v_b():
+        if not meets[best]:
+            return "inconclusive", steps, [f"V-B not claimed: {best} is over the budget"]
+        return "V-B", steps, notes
+
     s3 = harm_c(best, RSTAR)["outcome"]
     steps.append(("best_learned_vs_rstar", f"{best}: {s3}"))
-    if s3 == "equivalent":
+    if s3 in ("equivalent", "loses"):
+        if s3 == "loses":
+            notes.append("R* beats the best learned arm on harm (OC-4)")
+            if opts["OC-4"] != "v_c":
+                return "inconclusive", steps, notes
+        if not meets[RSTAR]:
+            return "inconclusive", steps, [*notes, "V-C not claimed: R* is over the budget"]
         return "V-C", steps, notes
-    if s3 == "loses":
-        notes.append("R* beats the best learned arm on harm (OC-4)")
-        return ("V-C" if opts["OC-4"] == "v_c" else "inconclusive"), steps, notes
     if s3 != "beats":
         return "inconclusive", steps, ["best learned vs R* not shown"]
-    s4 = det_c(GRU, HGB)["outcome"]
+    s4 = gru_det[HGB]["outcome"]
     steps.append(("gru_vs_hgb", s4))
     if s4 in ("equivalent", "loses"):
-        return "V-B", steps, notes
+        return v_b()
     if s4 != "beats":
         return "inconclusive", steps, ["GRU vs HGB on detection not shown"]
-    s5 = det_c(GRU, SHUF)["outcome"]
+    s5 = gru_det[SHUF]["outcome"]
     steps.append(("gru_vs_shuffled", s5))
     if s5 in ("equivalent", "loses"):
-        return "V-B", steps, notes
+        return v_b()
     if s5 != "beats":
         return "inconclusive", steps, ["GRU vs shuffled-GRU on detection not shown"]
-    baselines = [a for a in live if a != GRU and (opts["OC-3"] == "with_u" or a != U)]
-    va = meets.get(GRU, False) and all(harm_c(GRU, a)["outcome"] == "beats" for a in baselines)
-    if not va:
-        why = "the GRU misses the budget" if not meets.get(GRU, False) else "the GRU does not beat every live baseline"
-        return "inconclusive", steps, [f"V-A not met: {why}"]
-    blocks = v_a_blocks(inputs, pre)
-    if blocks:
-        return "inconclusive", steps, [f"V-A blocked: {b}" for b in blocks]
-    return "V-A", steps, notes
+    return "inconclusive", steps, [f"V-A not met: {'; '.join(unmet)}"]
 
 
 def v_a_blocks(inputs, pre=None):
@@ -230,6 +277,7 @@ def judge(cls, inputs, pre=None):
       record_status        the calibration record's status ('frozen' or refused)
       frozen               {"selection_sha256", "rules_selection_sha256"} of the frozen selections
       admitted             the harm admission of U_k (the harm gate's result, with its placebo)
+      admitted_on          what admitted it when admitted: 'Q' if the Q criterion passed, 'latency' on the p95 criterion alone
       harm                 {arm: [Q in percent per block]} for every live arm of the class (U, R*, ...), same blocks
       budget               {"live": {arm: (benign users wrongly acted on, benign users)} pooled over the arm's own M runs,
                            "replay": the same from the replays of the U runs, reported beside it} for every enforcing arm
