@@ -67,7 +67,7 @@ def world(arm, t):
     return "".join(out)
 
 
-def write_run(tmp, seed, arm, roles=ROLES, polls=60, failed=()):
+def write_run(tmp, seed, arm, roles=ROLES, polls=60, failed=(), valid=True):
     """A run directory as the runner will write it: the record and the manifest."""
     d = os.path.join(tmp, f"{seed}_{arm}")
     os.makedirs(d)
@@ -77,10 +77,22 @@ def write_run(tmp, seed, arm, roles=ROLES, polls=60, failed=()):
             t = float(k)
             text = None if k in failed else world(arm, t)
             fh.write(P.record_member(t, text, items if k == 1 else [], [], False))
-    with open(os.path.join(d, "run.json"), "w", encoding="utf-8") as fh:
+    with open(os.path.join(d, "slow_pc_manifest.json"), "w", encoding="utf-8") as fh:
         json.dump({"seed": seed, "arm": arm, "record": "slow_pc.jsonl.gz", "roles": roles,
                    "daemon": V.VALIDATION_DAEMON}, fh)
-    return os.path.join(d, "run.json")
+    with open(os.path.join(d, "run.json"), "w", encoding="utf-8") as fh:
+        json.dump({"checks": {"ok": valid, "reasons": [] if valid else ["the daemon exited at 47 s (code 1)"]}}, fh)
+    return os.path.join(d, "slow_pc_manifest.json")
+
+
+def index_rows(rows):
+    """ROOT/index.jsonl's two lines for each (seed, attempt, arm, dir, valid)."""
+    out = []
+    for seed, attempt, arm, where, valid in rows:
+        row = {"phase": "validation", "block": seed, "attempt": attempt, "label": "", "arm": arm, "dir": where}
+        out.append(json.dumps({"event": "started", **row}))
+        out.append(json.dumps({"event": "ended", **row, "valid": valid, "reasons": [], "ended_utc": "t"}))
+    return "\n".join(out) + "\n"
 
 
 class ValidationSetCase(unittest.TestCase):
@@ -146,9 +158,11 @@ class InputTest(ValidationSetCase):
 
     def test_the_command_line_writes_the_record(self):
         out = os.path.join(self.tmp.name, "selection.json")
+        with open(os.path.join(self.tmp.name, "index.jsonl"), "w", encoding="utf-8") as fh:
+            fh.write(index_rows([(s, 1, a, f"{s}_{a}", True) for s in P.VALIDATION_SEEDS for a in P.VALIDATION_RUNS]))
         printed = io.StringIO()
         with contextlib.redirect_stdout(printed):
-            rc = V.main([*self.manifests, "--json", out])
+            rc = V.main([self.tmp.name, "--json", out])
         self.assertIn("chosen T=20 s, F=64 B/s, K=2: 8/8 attacking addresses banned within 90 s "
                       "(8 within 30 s); 48 of 64 points meet the constraints", printed.getvalue())
         with open(out, encoding="utf-8") as fh:
@@ -159,7 +173,55 @@ class InputTest(ValidationSetCase):
         self.assertEqual((rec["deadline_s"], rec["secondary_deadline_s"]), (90.0, 30.0))
         self.assertEqual(len(rec["runs"]), 6)
         self.assertEqual(len(rec["slow_pc_sha256"]), 64)
+        self.assertEqual(rec["attempts"], [{"seed": s, "judged": 1, "superseded": []} for s in P.VALIDATION_SEEDS])
 
+
+
+class WhichRunsTest(unittest.TestCase):
+    """Review T-047 P-09: the scorer judges valid runs only, and the index, not the command line, says which attempt."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = self.tmp.name
+
+    def attempt(self, seed, attempt, invalid=()):
+        rows = []
+        for arm in P.VALIDATION_RUNS:
+            where = f"a{attempt}"
+            os.makedirs(os.path.join(self.root, where), exist_ok=True)
+            write_run(os.path.join(self.root, where), seed, arm, polls=2, valid=arm not in invalid)
+            rows.append((seed, attempt, arm, os.path.join(where, f"{seed}_{arm}"), arm not in invalid))
+        return rows
+
+    def write_index(self, rows):
+        with open(os.path.join(self.root, "index.jsonl"), "w", encoding="utf-8") as fh:
+            fh.write(index_rows(rows))
+
+    def test_an_invalid_run_is_not_scored(self):
+        path = write_run(self.root, 4001, "C", polls=2, valid=False)
+        with self.assertRaisesRegex(ValueError, "an invalid run is not scored"):
+            V.load_run(path)
+        os.remove(os.path.join(self.root, "4001_C", "run.json"))
+        with self.assertRaisesRegex(ValueError, "no run.json"):
+            V.load_run(path)
+
+    def test_the_last_attempt_with_every_run_valid_is_judged_and_the_rest_are_listed(self):
+        self.write_index(self.attempt(4001, 1, invalid=("U_post",)) + self.attempt(4001, 2) + self.attempt(4002, 3))
+        manifests, attempts = V.runs_from_index(self.root)
+        self.assertEqual(attempts, [{"seed": 4001, "judged": 2, "superseded": [1]},
+                                    {"seed": 4002, "judged": 3, "superseded": []}])
+        self.assertEqual(len(manifests), 6)
+        self.assertTrue(all(f"{os.sep}a2{os.sep}" in m for m in manifests[:3]))
+
+    def test_a_seed_without_a_complete_attempt_is_refused(self):
+        self.write_index(self.attempt(4001, 1) + self.attempt(4002, 1, invalid=("C",)))
+        with self.assertRaisesRegex(ValueError, "seed 4002: no attempt"):
+            V.runs_from_index(self.root)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(V.main([self.root]), 2)
+        self.assertIn("seed 4002", err.getvalue())
 
 
 class ValidationDaemonTest(unittest.TestCase):

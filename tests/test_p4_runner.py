@@ -291,11 +291,12 @@ class ExecuteTest(unittest.TestCase):
                                                                            "SLOW_PC": "1", "SLOW_PC_ENFORCE": "0"}))
         out = os.path.join(self.root, "selection.json")
         with contextlib.redirect_stdout(io.StringIO()):
-            rc = V.main([*manifests, "--json", out])
+            rc = V.main([self.root, "--json", out])
         with open(out, encoding="utf-8") as fh:
             sel = json.load(fh)
         self.assertIn(rc, (0, 2))
         self.assertEqual(len(sel["outcomes"]), len(slow_pc.GRID))
+        self.assertEqual({a["judged"] for a in sel["attempts"]}, {1})
         self.assertEqual(sorted((r["seed"], r["arm"]) for r in sel["runs"]),
                          sorted((s, a) for s in slow_pc.VALIDATION_SEEDS for a in slow_pc.VALIDATION_RUNS))
         point = next(o for o in sel["outcomes"] if (o["T"], o["F"], o["K"]) == POINT)
