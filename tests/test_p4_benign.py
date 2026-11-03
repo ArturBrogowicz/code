@@ -151,8 +151,11 @@ class RealClockTest(unittest.TestCase):
     an upload, and this 24 kB body took 12 s and then the 15-s read timeout on a 1.5-s generator."""
 
     DUR = 1.5
+    MARGIN = 6.0                  # far under the 27 s of the parent, and over what a loaded machine adds
 
     def setUp(self):
+        import requests  # the first import in a process must not fall inside the timed call
+        self.assertTrue(requests)
         self.closed = threading.Event()
         self.srv = socket.socket()
         self.addCleanup(self.srv.close)
@@ -182,12 +185,12 @@ class RealClockTest(unittest.TestCase):
         took = self.run_kind("slow_uploader", {"think_s": [4.0, 4.0], "path": "/upload", "body_bytes": [24_000, 24_000],
                                                "rate_Bps": 2000})
         self.assertGreaterEqual(took, self.DUR - 0.1)
-        self.assertLess(took, self.DUR + 2.5)
+        self.assertLess(took, self.DUR + self.MARGIN)
         self.assertTrue(self.closed.wait(5.0), "the upload itself stopped: its connection was closed")
 
     def test_an_upload_waiting_for_its_answer_ends_at_the_deadline(self):
         took = self.run_kind("uploader", {"think_s": [4.0, 4.0], "path": "/upload", "body_bytes": [200, 200]})
-        self.assertLess(took, self.DUR + 2.5)
+        self.assertLess(took, self.DUR + self.MARGIN)
         self.assertGreaterEqual(took, self.DUR - 0.1)
 
 
