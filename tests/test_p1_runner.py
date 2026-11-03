@@ -464,6 +464,124 @@ class ExecuteTest(Base):
         self.assertEqual(index(self.root)[0]["label"], "C2_L1_r1")
 
 
+class ArmCouldActTest(Base):
+    """T050-07: no M run with an empty feed, failing reloads or a failing step passes as valid."""
+
+    def run_with(self, acts=(), **host):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=["M_gru_C2"], label=f"a{len(os.listdir(self.root))}",
+                             benign_specs=F.thin_benign(), max_sources=3)
+        res = dict(R.run_block(F.P1FakeHost(acts=lambda _r, _b: list(acts), **host), block))["M_gru_C2"]
+        return res, read_json(os.path.join(block["dir"], "M_gru_C2", "run.json"))
+
+    def test_a_healthy_feed_passes_and_its_loss_is_reported(self):
+        res, meta = self.run_with()
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertEqual(meta["shadow"]["parsed"], meta["sink"]["lines"])
+        self.assertEqual(meta["shadow"]["socket_loss"], 0.0)
+        res, meta = self.run_with(parsed_share=0.8)
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertAlmostEqual(meta["shadow"]["socket_loss"], 0.2, delta=0.01)
+
+    def test_a_conf_without_the_socket_sink_invalidates_the_run(self):
+        """T050-01's failure itself: armed, sha256s right, no error anywhere, and nothing received."""
+        real = R.render_conf
+        with mock.patch.object(R, "render_conf", lambda spec, out, deny: real({**spec, "daemon": {"L7_SHADOW": "0"}}, out, deny)):
+            res, meta = self.run_with()
+        self.assertFalse(res["ok"])
+        self.assertTrue(any("the arm's feed is empty" in r for r in res["reasons"]), res["reasons"])
+        self.assertEqual(meta["shadow"]["parsed"], 0)
+
+    def test_a_feed_that_loses_most_of_the_sink_invalidates_the_run(self):
+        res, _meta = self.run_with(parsed_share=0.4)
+        self.assertFalse(res["ok"])
+        self.assertTrue(any("of the file sink's" in r and "at least 0.5" in r for r in res["reasons"]), res["reasons"])
+
+    def test_denies_whose_reload_fails_invalidate_the_run(self):
+        deny = {"kind": "l7_deny", "level": 1, "ip": "10.0.0.9"}
+        res, _m = self.run_with([(60.0, deny), (65.0, {"kind": "l7_reload", "ok": False}), (75.0, {"kind": "l7_reload", "ok": False})])
+        self.assertFalse(res["ok"])
+        self.assertTrue(any("no reload took effect within 30 s" in r for r in res["reasons"]), res["reasons"])
+        self.assertTrue(any("the last reload of the run failed" in r for r in res["reasons"]), res["reasons"])
+
+    def test_a_retried_reload_is_recorded_and_passes(self):
+        deny = {"kind": "l7_deny", "level": 1, "ip": "10.0.0.9"}
+        res, meta = self.run_with([(60.0, deny), (65.0, {"kind": "l7_reload", "ok": False}), (75.0, {"kind": "l7_reload", "ok": True})])
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertEqual((meta["shadow"]["denies"], meta["shadow"]["reloads"], meta["shadow"]["reloads_failed"]), (1, 2, 1))
+
+    def test_a_late_reload_invalidates_it(self):
+        deny = {"kind": "l7_deny", "level": 1, "ip": "10.0.0.9"}
+        res, _m = self.run_with([(60.0, deny), (95.0, {"kind": "l7_reload", "ok": True})])
+        self.assertTrue(any("no reload took effect within 30 s" in r for r in res["reasons"]), res["reasons"])
+
+    def test_the_arm_s_step_error_in_the_attack_window_invalidates_it(self):
+        err = {"kind": "daemon_error", "where": "l7_enforce", "error": "x", "action": "step skipped"}
+        res, meta = self.run_with([(100.0, err)])
+        self.assertFalse(res["ok"])
+        self.assertTrue(any("the arm's step failed 1 times" in r for r in res["reasons"]), res["reasons"])
+        self.assertEqual(meta["shadow"]["arm_step_errors_in_attack"], 1)
+
+    def test_the_default_rules_arm_has_no_feed_to_read(self):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C3b": 3}, runs=["M_default_rules_C3b"], label="def",
+                             benign_specs=F.thin_benign(), max_sources=2)
+        res = dict(R.run_block(F.P1FakeHost(), block))["M_default_rules_C3b"]
+        self.assertTrue(res["ok"], res["reasons"])
+
+
+class AttackRanTest(Base):
+    """T050-08: a U whose bots send nothing is not 'no harm', an M whose bots send nothing is not 'mitigated'."""
+
+    def run_with(self, silent_count, sources=10):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=["U_C2"], label=f"b{silent_count}",
+                             benign_specs=F.thin_benign(), max_sources=sources)
+        addresses = [e["address"] for e in block["runs"][0]["entities"] if e["role"] == "attack"]
+        res = dict(R.run_block(F.P1FakeHost(silent=addresses[:silent_count]), block))["U_C2"]
+        return res, read_json(os.path.join(block["dir"], "U_C2", "run.json")), len(addresses)
+
+    def test_an_attack_that_reached_the_server_passes(self):
+        res, meta, n = self.run_with(0)
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertEqual((meta["sink"]["attack_planned"], meta["sink"]["attack_seen"]), (n, n))
+
+    def test_one_source_of_ten_is_within_the_share(self):
+        res, meta, n = self.run_with(1)
+        self.assertEqual(meta["sink"]["attack_seen"], n - 1)
+        self.assertTrue(res["ok"], res["reasons"])
+
+    def test_an_attack_that_did_not_is_invalid(self):
+        res, _m, n = self.run_with(10)
+        self.assertFalse(res["ok"])
+        self.assertTrue(any(f"from 0 of its {n} addresses" in r for r in res["reasons"]), res["reasons"])
+
+
+class BenignSilenceTest(Base):
+    """T050-11: an attack's lines must not hide a silent benign side."""
+
+    def test_a_silence_of_the_benign_addresses_under_an_attack_s_lines(self):
+        sink = os.path.join(self.root, "access.log")
+        plan = {"timeline": {"baseline_s": 30, "attack_s": 210, "recovery_s": 30},
+                "entities": [{"address": "10.0.1.1", "role": "benign"}, {"address": "10.0.2.1", "role": "attack"}]}
+        def line(ip, t):
+            return json.dumps({"msec": 1000.0 + t, "rt": 0.01, "ip": ip, "uri": "/", "status": 200, "ua": "u", "method": "GET"}) + "\n"
+        with open(sink, "w", encoding="utf-8") as fh:
+            fh.writelines(line("10.0.2.1", t) for t in range(35, 240))
+            fh.writelines(line("10.0.1.1", t) for t in range(5, 270, 4) if not 100 <= t < 130)
+        got = R.sink_reading(sink, plan, 1000.0)
+        self.assertGreater(got["benign_gap_s"], 25.0)
+        self.assertEqual(got["attack_seen"], 1)
+        self.assertTrue(any("on the benign addresses" in r for r in R.sink_problems(got)))
+
+    def test_before_the_attack_a_natural_silence_judges_nothing(self):
+        sink = os.path.join(self.root, "access2.log")
+        plan = {"timeline": {"baseline_s": 30, "attack_s": 210, "recovery_s": 30}, "entities": [{"address": "10.0.1.1", "role": "benign"}]}
+        with open(sink, "w", encoding="utf-8") as fh:
+            fh.writelines(json.dumps({"msec": 1000.0 + t, "rt": 0.01, "ip": "10.0.1.1", "uri": "/", "status": 200, "ua": "u", "method": "GET"}) + "\n"
+                          for t in range(28, 270, 4))
+        got = R.sink_reading(sink, plan, 1000.0)
+        self.assertLessEqual(got["benign_gap_s"], 4.0)
+        self.assertEqual(R.sink_problems(got), [])
+
+
 class ShadowValidityTest(Base):
     """D-054, T048-14: the conditions the parity claim names, per M run; what makes a run invalid, and what is only recorded."""
 
@@ -476,7 +594,8 @@ class ShadowValidityTest(Base):
     def test_a_clean_run_records_zeros(self):
         res, meta = self.run_with([(60.0, {"kind": "l7_shadow", "evicted": 0, "late": 0, "active_keys": 3})])
         self.assertTrue(res["ok"], res["reasons"])
-        self.assertEqual(meta["shadow"], {"reports": 1, "evicted": 0, "late": 0, "daemon_errors": [], "shadow_restarts_in_attack": 0})
+        self.assertEqual({k: meta["shadow"][k] for k in ("reports", "evicted", "late", "daemon_errors", "shadow_restarts_in_attack")},
+                         {"reports": 2, "evicted": 0, "late": 0, "daemon_errors": [], "shadow_restarts_in_attack": 0})
         self.assertEqual(meta["bans_by_engine"], {})
 
     def test_an_eviction_makes_it_invalid_and_late_is_only_recorded(self):

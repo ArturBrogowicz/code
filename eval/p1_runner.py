@@ -41,7 +41,7 @@ are bound to it (L7V2-08) and the block runs at them, and both selections are th
 
 Checks of a run (design 5.4): the stack answered; every planned client started and ended cleanly; in an M run the daemon was
 ready before the traffic, alive to the end, with XDP attached, its start event says what the table says and the arm armed;
-its l7_enforce_arm event names the arm, the selection's sha256 and R*'s rule; its shadow evicted nothing and did not restart in the attack window (D-054); the kill file stayed absent; the file sink has no silence longer than LOG_GAP_MAX_S [ASSUMPTION] over the run. A run that
+its l7_enforce_arm event names the arm, the selection's sha256 and R*'s rule; its shadow evicted nothing and did not restart in the attack window (D-054); an enforcing arm parsed its feed against the file sink, its reloads took effect and its step did not fail in the attack window; an attack reached the server (ml/p1_prereg_3.json run_validity); the kill file stayed absent; the file sink has no silence longer than LOG_GAP_MAX_S [ASSUMPTION] over the run. A run that
 fails one is invalid, with its reasons. CPU per core is sampled every second (cpu.jsonl).
 
     sudo ./venv/bin/python eval/p1_runner.py --phase campaign --seed 3001 --calibration REC --knees KNEES \\
@@ -95,6 +95,7 @@ READY_URL = f"http://{SERVER_IP}/"
 DAEMON_READY_TIMEOUT_S, STACK_READY_TIMEOUT_S = 90.0, 30.0
 LOG_GAP_MAX_S = 10.0                       # [ASSUMPTION] design 5.4's "the file-sink log has no gaps"
 SHADOW_THREAD = "thread:l7_shadow"          # control_plane.supervise's `where` of the shadow thread
+ARM_STEP = "l7_enforce"                     # control_plane's `where` of a failed step of the enforcing arm
 SETUP_S = 45                               # [ESTIMATE] design 14: a run's set-up and teardown
 GUNICORN = {"backend": "costed", "gunicorn_workers": 2, "gunicorn_threads": 8}     # design 4.3
 PROVENANCE_FILES = ("nginx.conf", "nginx_unprotected.conf", "control_plane.py", "l7_enforce.py", "l7_arms.py", "l7_conf.py",
@@ -536,18 +537,42 @@ def start_problems(plan, events, frozen_sums=None):
     return out
 
 
-def log_gap(path, t0, total):
-    """The longest silence of the file sink over [t0, t0 + total] (design 5.4), from its $msec."""
-    times = [t0, t0 + total]
+def sink_reading(path, plan, t0):
+    """One pass over a run's file sink (ml/p1_prereg_3.json run_validity): its lines; the longest silence of the benign addresses from the
+    attack's start to the run's end, from its $msec (an attack's lines must not hide a stalled benign CPU, T050-11); the attack's addresses
+    seen by the attack's end (T050-08)."""
+    t = plan["timeline"]
+    lo = t0 + t["baseline_s"]
+    hi, end = lo + t["attack_s"], lo + t["attack_s"] + t["recovery_s"]
+    benign = {e["address"] for e in plan["entities"] if e["role"] == "benign"}
+    attack = {e["address"] for e in plan["entities"] if e["role"] == "attack"}
+    lines, times, seen = 0, [lo, end], set()
     with l7_dataset.open_log(path) as fh:
-        for line in fh:
-            obj = l7_ingest.parse_l7_line(line)
-            if obj is not None:
-                msec = l7_ingest._num(obj.get("msec"))
-                if t0 <= msec <= t0 + total:
-                    times.append(msec)
+        for raw in fh:
+            obj = l7_ingest.parse_l7_line(raw)
+            if obj is None:
+                continue
+            lines += 1
+            msec, ip = l7_ingest._num(obj.get("msec")), obj.get("ip")
+            if ip in benign and lo <= msec <= end:
+                times.append(msec)
+            elif ip in attack and msec <= hi:
+                seen.add(ip)
     times.sort()
-    return max(b - a for a, b in itertools.pairwise(times))
+    return {"lines": lines, "benign_gap_s": round(max(b - a for a, b in itertools.pairwise(times)), 3), "attack_planned": len(attack),
+            "attack_seen": len(seen)}
+
+
+def sink_problems(sink):
+    """What makes a run invalid in its file sink: a silent benign side (design 5.4), an attack that did not reach the server."""
+    out = []
+    if sink["benign_gap_s"] > LOG_GAP_MAX_S:
+        out.append(f"the file sink has a silence of {sink['benign_gap_s']:.1f} s on the benign addresses (more than {LOG_GAP_MAX_S:g} s, design 5.4)")
+    share = PT.prereg_3()["run_validity"]["attack"]["attack_seen_min_share"]
+    if sink["attack_planned"] and sink["attack_seen"] < share * sink["attack_planned"]:
+        out.append(f"the attack reached the server from {sink['attack_seen']} of its {sink['attack_planned']} addresses by the attack's end "
+                   f"(at least {share:g} of them, T050-08)")
+    return out
 
 
 def execute_run(host, plan, frozen_sums):
@@ -652,8 +677,9 @@ def finish(host, plan, reasons, ctx):
         if procs:
             P4.teardown(host, plan)
     ended = host.time()
-    reasons += checks(host, plan, t0, launched, ctx["sums"])
     log = os.path.join(out, l7_dataset.ACCESS_LOG)
+    sink = sink_reading(log, plan, t0) if t0 is not None and os.path.isfile(log) else None
+    reasons += checks(host, plan, t0, launched, ctx["sums"], sink)
     if os.path.isfile(log):                               # a run's sink is tens of MB; the readers take either form
         with open(log, "rb") as src, gzip.open(log + ".gz", "wb") as dst:
             shutil.copyfileobj(src, dst)
@@ -669,7 +695,8 @@ def finish(host, plan, reasons, ctx):
             "checks": {"ok": ok, "reasons": reasons},
             "started_utc": P4._utc(ctx["started"]), "ended_utc": P4._utc(ended),
             "daemon": None if plan["daemon"] is None else {"env": plan["daemon"]["env"]},
-            "shadow": shadow_report(events, plan, t0) if plan["daemon"] and t0 is not None else None,
+            "sink": sink,
+            "shadow": shadow_report(events, plan, t0, sink) if plan["daemon"] and t0 is not None else None,
             "bans_by_engine": {engine: len(rows) for engine, rows in sorted(run_bans(events).items())},
             "provenance": provenance(plan, ctx["sums"])}
     P4.write_json(os.path.join(out, "run.json"), meta)
@@ -677,41 +704,46 @@ def finish(host, plan, reasons, ctx):
     return {"ok": ok, "reasons": reasons, "started": ctx["started"], "ended": ended}
 
 
-def checks(host, plan, t0, launched, frozen_sums=None):
-    """The validity checks of a run that ran (design 5.4)."""
+def checks(host, plan, t0, launched, frozen_sums=None, sink=None):
+    """The validity checks of a run that ran (design 5.4, ml/p1_prereg_3.json run_validity)."""
     if t0 is None:
         return []
     reasons = []
-    total = PT.run_seconds()
     if len(launched) != len(plan["launches"]):
         reasons.append(f"{len(plan['launches']) - len(launched)} of {len(plan['launches'])} generators never started")
-    log = os.path.join(plan["out"], l7_dataset.ACCESS_LOG)
-    if not os.path.isfile(log):
-        reasons.append("the file sink is missing")
-    else:
-        gap = log_gap(log, t0, total)
-        if gap > LOG_GAP_MAX_S:
-            reasons.append(f"the file sink has a silence of {gap:.1f} s (more than {LOG_GAP_MAX_S:g} s, design 5.4)")
+    reasons += sink_problems(sink) if sink else ["the file sink is missing"]
     d = plan["daemon"]
     if d:
         if P4.XDP_ATTACHED_LINE not in P4._text(host, d["log"]):
             reasons.append("the daemon's log does not show XDP attached")
         events = P4._events(d["env"]["BAN_EVENTS"])
         reasons += start_problems(plan, events, frozen_sums)
-        reasons += shadow_problems(shadow_report(events, plan, t0))
+        report = shadow_report(events, plan, t0, sink)
+        reasons += shadow_problems(report)
+        if plan["enforcing"]:
+            reasons += arm_problems(report, events, plan, t0)
     return reasons
 
 
-def shadow_report(events, plan, t0):
+def shadow_report(events, plan, t0, sink=None):
     """What an M run's event log says of its shadow (D-054, ml/p1_prereg_2.json run_validity): the largest evicted and late counts of its
     l7_shadow reports (a restarted engine counts from 0; `evicted` is R*'s path's alone, a view store reports late_dropped), every
-    daemon_error, and how many of those are the shadow thread's in the attack window."""
+    daemon_error, and how many of those are the shadow thread's in the attack window. And (T050-07, ml/p1_prereg_3.json) what the arm
+    received and parsed against the file sink's lines, its reloads and denies, and the arm's own step errors in the attack window."""
     reports = [e for e in events if e.get("kind") == "l7_shadow"]
     errors = [e for e in events if e.get("kind") == "daemon_error"]
     lo = t0 + plan["timeline"]["baseline_s"]
     hi = lo + plan["timeline"]["attack_s"]
+    parsed = max((e.get("parsed", 0) for e in reports), default=0)
+    lines = sink["lines"] if sink else None
+    reloads = [e for e in events if e.get("kind") == "l7_reload"]
     return {"reports": len(reports), "evicted": max((e.get("evicted", 0) for e in reports), default=0),
             "late": max((max(e.get("late", 0), e.get("late_dropped", 0)) for e in reports), default=0),
+            "received": max((e.get("received", 0) for e in reports), default=0), "parsed": parsed, "sink_lines": lines,
+            "socket_loss": round(1.0 - parsed / lines, 4) if lines else None,
+            "denies": sum(1 for e in events if e.get("kind") == "l7_deny"), "reloads": len(reloads),
+            "reloads_failed": sum(1 for e in reloads if not e.get("ok")),
+            "arm_step_errors_in_attack": sum(1 for e in errors if e.get("where") == ARM_STEP and lo <= e.get("t_wall", 0.0) < hi),
             "daemon_errors": [{k: e.get(k) for k in ("t_wall", "where", "error", "action")} for e in errors],
             "shadow_restarts_in_attack": sum(1 for e in errors if e.get("where") == SHADOW_THREAD and lo <= e.get("t_wall", 0.0) < hi)}
 
@@ -723,6 +755,31 @@ def shadow_problems(report):
         out.append(f"the rule path evicted {report['evicted']} addresses: R*'s parity with the replay holds only at 0")
     if report["shadow_restarts_in_attack"]:
         out.append(f"the shadow thread stopped or restarted {report['shadow_restarts_in_attack']} times in the attack window")
+    return out
+
+
+def arm_problems(report, events, plan, t0):
+    """What says an enforcing arm could act (T050-07, ml/p1_prereg_3.json run_validity.enforcing). A daemon that binds its socket and receives
+    nothing is armed, decides nothing and writes no error; a deny whose reload fails never takes effect, and the budget still charges it."""
+    rule = PT.prereg_3()["run_validity"]["enforcing"]
+    out = []
+    lines, parsed = report["sink_lines"], report["parsed"]
+    if parsed <= 0:
+        out.append(f"the arm's feed is empty: it parsed nothing of the file sink's {lines} lines")
+    elif lines and parsed < rule["parsed_min_share"] * lines:
+        out.append(f"the arm parsed {parsed} of the file sink's {lines} lines (at least {rule['parsed_min_share']:g} of them)")
+    end = t0 + sum(plan["timeline"].values())
+    within = rule["reload_within_s"]
+    first = min((e["t_wall"] for e in events if e.get("kind") == "l7_deny"), default=None)
+    reloads = sorted((e for e in events if e.get("kind") == "l7_reload"), key=lambda e: e["t_wall"])
+    if first is not None and first + within <= end \
+            and not any(e.get("ok") and first <= e["t_wall"] <= first + within for e in reloads):
+        out.append(f"no reload took effect within {within:g} s of the first deny: the arm's denies did not act")
+    running = [e for e in reloads if e["t_wall"] <= end]
+    if running and not running[-1].get("ok"):
+        out.append("the last reload of the run failed: the arm's last denies did not act")
+    if report["arm_step_errors_in_attack"]:
+        out.append(f"the arm's step failed {report['arm_step_errors_in_attack']} times in the attack window")
     return out
 
 

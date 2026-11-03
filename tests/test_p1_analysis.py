@@ -105,7 +105,7 @@ def deny_first_benign(names):
             return []
         plan = REC.read_json(os.path.join(block_dir, run, "plan.json"))
         ip = next(e["address"] for e in plan["entities"] if e["role"] == "benign")
-        return [(1.0, {"kind": "l7_deny", "level": 1, "ip": ip, "ua_h": 1, "sid_h": 2})]
+        return [(1.0, {"kind": "l7_deny", "level": 1, "ip": ip, "ua_h": 1, "sid_h": 2}), (2.0, {"kind": "l7_reload", "ok": True})]
     return acts
 
 

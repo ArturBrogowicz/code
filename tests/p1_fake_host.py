@@ -1,8 +1,9 @@
 """A fake host for eval/p1_runner.py, on tests/p4_fake_host.py's clock and processes. Nothing here touches the machine.
 
 What it models, as far as the runner's and the analysis's inputs need it:
-  * nginx: the run's own conf is read for its file sink; every generator's requests, and a monitoring line each second, go to
-    that sink, in completion order, when nginx stops (`quiet_from` silences the monitoring and the clients from then on);
+  * nginx: the run's own conf is read for its file sink and its socket sink (T050-01); every generator's requests, and each second a
+    monitoring line and one from the plan's first benign address, go to that sink, in completion order, when nginx stops (`quiet_from`
+    silences the monitoring and the clients from then on);
   * a generator exits 0 at the end of its duration (`gen_code` for the addresses in `gen_fails`), and 1, as the real one does, if it
     cannot write its --stats file (T050-02). A benign plan kind writes
     its client-side rows and its requests from its own plan (ml/l7_benign.plan_client with its seed); an attack family its
@@ -10,7 +11,9 @@ What it models, as far as the runner's and the analysis's inputs need it:
     `fail_share(run, block_dir, t)` of the benign ones, which fail (nginx logs a 503, so the server-side Q agrees);
   * the daemon: `daemon_startup_s` after its start it prints its ready line and XDP's and writes its start event from its
     environment (`start_overrides` to make it lie), with L7_ENFORCE=1 an l7_enforce_arm event (`arm_overrides`), and then the events
-    `acts(run, block_dir)` gives as (seconds after its start, event).
+    `acts(run, block_dir)` gives as (seconds after its start, event). When it stops, with L7_SHADOW=1, an l7_shadow report: what it received
+    and parsed is what the socket sink carried, every line if nginx's conf has the sink, `parsed_share` of them, and nothing if it has none;
+  * an address in `silent` sends nothing, whatever its generator says (T050-08).
 frozen_inputs() writes the frozen items a campaign checks: a frozen record with the placeholder's numbers, knees bound to it,
 and small but well-formed selections. They are fixtures, not results.
 """
@@ -36,6 +39,7 @@ import p4_fake_host as F
 import l7_webapp
 
 SINK = re.compile(r"access_log\s+(\S+)\s+l7json;")
+SOCKET_SINK = "syslog:server=unix:"
 MONITOR = "10.0.0.1"
 
 
@@ -45,12 +49,13 @@ def _sid(seed, user):
 
 class P1FakeHost(F.FakeHost):
     def __init__(self, *, fail_share=None, acts=None, quiet_from=None, armed=True, start_overrides=None, arm_overrides=None,
-                 rule_arm="cost_budget", **kw):
+                 rule_arm="cost_budget", parsed_share=1.0, silent=(), **kw):
         super().__init__(**kw)
         self.fail_share = fail_share or (lambda _run, _block, _t: 0.0)
         self.acts, self.quiet_from = acts or (lambda _run, _block: []), quiet_from
         self.armed, self.start_overrides, self.arm_overrides = armed, dict(start_overrides or {}), dict(arm_overrides or {})
-        self.rule_arm = rule_arm
+        self.rule_arm, self.parsed_share, self.silent = rule_arm, parsed_share, set(silent)
+        self.socket_sink, self.heartbeat = False, None
         self.sink, self.lines, self.run_name, self.block_dir, self.n_request = None, [], None, None, 0
 
     def run(self, argv, ns="", stdin="", env=None, timeout=None):
@@ -58,9 +63,14 @@ class P1FakeHost(F.FakeHost):
         if "nginx" in argv and "-s" not in argv:
             conf = argv[argv.index("nginx") + 2]
             with open(conf, encoding="utf-8") as fh:
-                found = SINK.findall(fh.read())
+                text = fh.read()
+            found = SINK.findall(text)
             self.sink = found[0] if found else None
+            self.socket_sink = SOCKET_SINK in text
             self.run_name, self.block_dir = os.path.basename(os.path.dirname(conf)), os.path.dirname(os.path.dirname(conf))
+            with open(os.path.join(os.path.dirname(conf), "plan.json"), encoding="utf-8") as fh:
+                benign = [e["address"] for e in json.load(fh)["entities"] if e["role"] == "benign"]
+            self.heartbeat = benign[0] if benign else None
             self.lines, self.n_request = [], 0
             res = super().run(argv, ns, stdin, env, timeout)
             self.stack_t0 = self.t
@@ -81,6 +91,8 @@ class P1FakeHost(F.FakeHost):
             return
         if not self._quiet(self.t):
             self._line(MONITOR, "curl", "/", F.BASE_EPOCH + self.t, 200, None)
+            if self.heartbeat:
+                self._line(self.heartbeat, "curl", "/", F.BASE_EPOCH + self.t, 200, None)
         self.at(self.t + 1.0, lambda: self._monitor(world))
 
     def _line(self, ip, ua, path, sent, status, sid, ref=None):
@@ -112,7 +124,15 @@ class P1FakeHost(F.FakeHost):
             json.dump({}, fh)
         return code
 
+    def end(self, proc, code):
+        if proc.kind == "daemon" and proc.returncode is None and proc.env.get("L7_SHADOW") == "1":
+            n = round(len(self.lines) * self.parsed_share) if self.socket_sink else 0
+            self._emit(proc, "l7_shadow", received=n, parsed=n, active_keys=1, distinct_ips=1)
+        super().end(proc, code)
+
     def _gen_exit(self, p):
+        if p.ip in self.silent:
+            return
         if p.role == "attack":
             self._requests(p, l7_bots.plan_bot(p.name, p.params, p.dur, random.Random(p.seed)), None)
         elif p.records:
