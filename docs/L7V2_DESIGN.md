@@ -1242,6 +1242,24 @@ at level 1 only, since level 2 needs 168 sources against its bound of 100), 1.75
 (two additive parameters), `ml/l7v2_replay.py` (`with_poll_ticks`), tests and this note. `control_plane.py`, `l7_engine.py`, `l7_enforce.py`,
 `bench/`, `server/` and the tracked nginx confs are untouched.
 
+**After review T-048 (the orchestrator's decision D-054; pre-data changes, every arm alike), each its own commit:**
+- **T048-07, the arm's 429s and the access-log rule.** The daemon's `l7_rate` rule has an error branch: more than 80 % errors
+  at more than 10 requests/s bans the address, with no CGNAT guard, no 30-s wait, no rate cap and no kill-switch lift. It
+  counted the arm's own 429s as errors, so a level-1 deny could end in such a ban (the review's port: 2.2 % of denied (IP, UA)
+  keys on CGNAT addresses, a whole pool). With `L7_ENFORCE=1` it no longer counts status 429. Without it nothing changes. The
+  rate branch still counts every request: a key above the rule's rate is banned, denied or not, as it was before its deny.
+  The arm's `l7_enforce_poll` reports `bans_by_engine`, with a last one at the stop, and `ban_events.bans_by_engine` reads
+  the same from any run's event log.
+- **T048-09, hostile numbers.** `l7_ingest.normalise` drops a record with a non-finite numeric field (`1e999`, `10**400`,
+  `"nan"`, which only a forged datagram can carry); they raised there or in the rules' statistics, and restarted the shadow
+  thread with a fresh engine. Records nginx writes normalise as before; `l7_engine.py` is unchanged.
+- **T048-10, the seen table.** `RuleStats`' per-address table of keys holds at most `SEEN_MAX` = 4,096 keys, the least recently
+  seen going first, in O(1); it was rebuilt on every request above that while all were inside the lookback, so a client
+  rotating its cookie made each request O(n). A key evicted from it and back within 300 s counts as new again, which only the
+  population detector reads, and only for an address above 4,096 keys in 300 s. Replay and live share the code.
+- **T048-08 and T048-11, documented, not changed** (`docs/EVALUATION.md`, Known limits): no recovery while any user behind R*'s
+  key sends, and a sid-less line hides the evidence that would withdraw it. Neither is reachable in P1's runs.
+
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.
 - G1-02 Kadel et al., BOTracle, ESORICS Workshops 2024.

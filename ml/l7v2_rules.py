@@ -62,6 +62,7 @@ JOINT = ("multiscale_rate", "population")
 FIXED = ("default_rules", "tolerant_rules", "nginx_limits")
 ARMS = TUNED + FIXED
 POP_WINDOW_S = 60.0
+SEEN_MAX = 4096                    # the (IP, UA, sid) keys one address's new-key count remembers (T048-10)
 
 
 class RuleError(ValueError):
@@ -213,7 +214,7 @@ class RuleStats:
         st = self._ip.get(ip)
         if st is None:
             st = self._ip[ip] = {"last": None, "t0": T, "ng": [0.0, None], "pop": collections.deque(), "n_new": 0,
-                                 "n_cl": 0, "seen": {},
+                                 "n_cl": 0, "seen": collections.OrderedDict(),
                                  "d": {p: {"q": collections.deque(), "err": 0, "until": -math.inf}
                                        for p in ("default", "tolerant")}}
         if st["last"] is not None:
@@ -244,8 +245,9 @@ class RuleStats:
         seen = st["seen"]                                  # population: new keys and the cookie-less share in 60 s
         new = v2 not in seen or T - seen[v2] > self.lookback
         seen[v2] = T
-        if len(seen) > 4096:
-            st["seen"] = {k: v for k, v in seen.items() if T - v <= self.lookback}
+        seen.move_to_end(v2)                               # ordered by last seen: T does not fall for one address
+        if len(seen) > SEEN_MAX:                           # bounded, in O(1) (T048-10: a rebuild on every request was O(n))
+            seen.popitem(last=False)                       # an entry past the lookback changes nothing: it reads as new anyway
         cl = v2[2] == I.NO_SID
         pop = st["pop"]
         pop.append((T, new, cl))

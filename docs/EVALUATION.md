@@ -559,7 +559,7 @@ port of nginx's tokenizer), `tests/test_l7_rawkeys.py`, `tests/test_l7_enforce.p
 `tests/test_l7_safeguards.py`, `tests/test_l7_arms.py`, `tests/test_l7_conf.py`, `tests/test_daemon_l7_enforce.py`
 and `tests/test_daemon_l7_shadow_v2.py` (the daemon's real L7 shadow thread and the arm's steps on the harness's
 fakes), and for R* `tests/test_l7_rstar.py` (its parity with the replay), `tests/test_l7_rstar_map.py` and
-`tests/test_l7_rstar_events.py`.
+`tests/test_l7_rstar_events.py`; `tests/test_daemon_l7_rate_429.py` for the access-log rule beside the arm.
 
 [NOT RUN] on the testbed: R*'s path and its map; `nginx -t` of the rendered copies with a full map, a reload under load, a deny answered
 429, the reload's cost and the lingering of old workers (9.2's fallback, `auth_request`, is not built).
@@ -570,13 +570,24 @@ Known limits:
   `ml/l7_benign.UA_TABLE` contains, so no testbed browser key could have been denied at level 1. Inside nginx's
   double quotes `;` is an ordinary character; it is now written, and all 17 UA_TABLE entries pass the rules. `"`,
   `\`, `$`, `{`, `}`, other bytes and UAs over 256 bytes stay excluded.
+* The rules' per-address table of keys holds at most 4,096 (T048-10): above that a returning key counts as new, for the
+  population detector only.
+* No recovery while any user behind R*'s key sends (T048-08): any session of the (IP, UA) key renews its deny, so on a shared
+  address benign users answering 429 keep the line alive after the attacker has left (a view arm's deny ends with its session;
+  P1's 180-s runs never reach the 300 s TTL, and no deny outlives its daemon).
+* A sid-less line answers 429 to the first requests of browsers with the same UA on its address, which then never get a cookie, so
+  only another UA or an earlier cookie can still withdraw it (T048-11; not reachable in P1, where no attack entity shares an
+  address with benign users).
 * R*'s parity with the replay holds while `evicted` in `l7_shadow` is 0 (at most 65,536 keys and addresses are kept live).
 * `users_seen` counts sessions, not devices: one user can hold several. The run's manifest gives the devices.
 * The stop (T-042 E03): `Arm.stop` and the arm's steps hold one lock, and no step runs after the stop, so once the
   stop returns `deny.map` is empty and nginx was told to reload it.
-* Hostile field types (T-042 E07): a log record whose text field (ip, ua, uri, sid, ...) holds another JSON type than a
-  string, which only a forged datagram can produce, is dropped at ingest (`l7_ingest.normalise`); it used to raise and
-  restart the shadow thread with a fresh engine. Numeric fields are coerced as before.
+* Hostile field types (T-042 E07, T048-09): a log record whose text field (ip, ua, uri, sid, ...) holds another JSON type than
+  a string, or whose numeric field is not a finite number, which only a forged datagram can produce, is dropped at ingest
+  (`l7_ingest.normalise`); it used to raise and restart the shadow thread with a fresh engine. Other numeric fields are coerced
+  as before.
+* The rate branch of the access-log rule (`l7_rate`) still counts a denied key's requests, so a key above its rate is banned there
+  with no CGNAT guard, denied or not, as before its deny; the error branch does not count the arm's 429s (D-054, T048-07).
 * D-040 (T-042 E02): a key without a session is written as `ip|ua|`, which nginx matches for every cookie-less request
   from that address with that UA (in any case), including the first request of another user's session (a 429 means
   the server never sets that user's sid). So such a key is denied at level 1 only while its address is single-key
@@ -649,7 +660,7 @@ at the run directory; standalone default `/var/log/ddos/ban_events.jsonl`; `""` 
 | `l7_enforce_capped` | `what` (`deny`: the key fields, `cap`, `active`; `ban`: `n`, `cap`, `ips`, at most 50) |
 | `l7_reload` | `ok`, `entries`, `changes`, `detail` (nginx's error text with quoted strings blanked) |
 | `l7_kill` | `on`; when on, `denies` emptied and `bans_lifted` |
-| `l7_enforce_poll` | every 5 s: `armed`, `killed`, `active`, `waiting`, `tracked`, `raw_keys`, `raw_evicted`, `raw_ambiguous`, `ips`, the counters (`would_bans`, `denied`, `renewed`, `missed`, `level2`, `guarded`, `capped`, `reloads`, `reload_failed`, `ended`, `lifted`, `inbox_dropped`, `observe_errors`), `skips`, `first_error` |
+| `l7_enforce_poll` | every 5 s: `armed`, `killed`, `active`, `waiting`, `tracked`, `raw_keys`, `raw_evicted`, `raw_ambiguous`, `ips`, `bans_by_engine` (the daemon's bans so far, per engine; a last report comes at the stop; `ban_events.bans_by_engine` reads the same from any run's log), the counters (`would_bans`, `denied`, `renewed`, `missed`, `level2`, `guarded`, `capped`, `reloads`, `reload_failed`, `ended`, `lifted`, `inbox_dropped`, `observe_errors`), `skips`, `first_error` |
 | `slow_pc_poll` | every 5 s: `mode` (`shadow` or `enforce`), the counters since the last one (`polls`, `ss_failed`, `suspect`, `closes`, `capped_closes`, `bans`, `capped_bans`, `spared` by the shared-address guard, `skipped_lines`, `close_retries`, `close_failed`: connections given up after the last retry), `sockets`, `owned`, `tracked`, `bad_sample` (the first skipped line), `inbox_dropped`, `note_errors` |
 
 Engines: `l4_syn`, `l4_volumetric`, `l4_slowconn`, `l4_lowsyn`, `l7_rate`, `l7_rudy`,

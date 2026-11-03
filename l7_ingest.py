@@ -29,6 +29,7 @@ sid is a key component only, never a feature. key_of() stays the P5 key (IP, ua_
 
 import hashlib
 import json
+import math
 import os
 import socket
 import stat
@@ -105,7 +106,10 @@ def _num(val):
     if val is None:
         return 0.0
     if isinstance(val, (int, float)):
-        return float(val)
+        try:
+            return float(val)
+        except OverflowError:          # an int beyond a float's range: normalise drops the record
+            return math.inf
     total = 0.0
     for part in str(val).replace(":", ",").split(","):
         part = part.strip()
@@ -180,8 +184,9 @@ def normalise(obj):
     numeric fields coerced, URI and UA replaced by 32-bit hashes, raw strings
     dropped. L7 v2: the Referer's path (ref_h, None when absent) and the session id
     (sid_h, NO_SID when absent) are hashed too, and the raw URI's route class is kept
-    (rc). Returns None if there is no client IP to key on, or if a text field holds
-    another JSON type than a string (TEXT_FIELDS)."""
+    (rc). Returns None if there is no client IP to key on, if a text field holds
+    another JSON type than a string (TEXT_FIELDS), or if a numeric field is not a finite
+    number (1e999, 10**400, "nan"), which used to raise here or in the rules' statistics."""
     if any(obj.get(k) is not None and not isinstance(obj[k], str) for k in TEXT_FIELDS):
         return None
     ip = obj.get("ip") or obj.get("client_ip")
@@ -201,6 +206,8 @@ def normalise(obj):
            "sid_h": sid_hash(obj), "rc": route_class(method, uri)}
     for key, names in _NUMERIC.items():
         rec[key] = _num(next((obj[n] for n in names if n in obj), None))
+        if not math.isfinite(rec[key]):
+            return None                # only a forged datagram can carry one: nginx writes numbers (T048-09)
     return rec
 
 
