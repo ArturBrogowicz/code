@@ -73,6 +73,15 @@ class ContractTest(unittest.TestCase):
         for name in ("D-040", "D-043", "D-044", "RulePath", "post hoc", "`users_seen`", "NOT RUN"):
             self.assertIn(name, built, name)
 
+    def test_the_reviews_two_limits_are_listed(self):
+        doc = source(os.path.join("docs", "EVALUATION.md"))
+        start = doc.index("## L7 v2: the enforcing arm")
+        section = doc[start:doc.index("\n## ", start + 1)]
+        limits = section[section.index("Known limits:"):]
+        for name in ("No recovery while any user behind R*'s key sends (T048-08)", "A sid-less line answers 429 to the first requests",
+                     "(T048-11;"):
+            self.assertIn(name, limits, name)
+
     def test_the_renewal_is_documented_and_labelled_a_pre_data_change(self):
         doc = source(os.path.join("docs", "EVALUATION.md"))
         start = doc.index("## L7 v2: the enforcing arm")

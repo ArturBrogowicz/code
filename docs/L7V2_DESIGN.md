@@ -1102,6 +1102,8 @@ arm alike (view arms and R*):
   seen going first, in O(1); it was rebuilt on every request above that while all were inside the lookback, so a client
   rotating its cookie made each request O(n). A key evicted from it and back within 300 s counts as new again, which only the
   population detector reads, and only for an address above 4,096 keys in 300 s. Replay and live share the code.
+- **T048-08 and T048-11, documented, not changed** (`docs/EVALUATION.md`, Known limits): no recovery while any user behind R*'s
+  key sends, and a sid-less line hides the evidence that would withdraw it. Neither is reachable in P1's runs.
 
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.

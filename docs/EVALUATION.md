@@ -549,6 +549,12 @@ Known limits:
   `\`, `$`, `{`, `}`, other bytes and UAs over 256 bytes stay excluded.
 * The rules' per-address table of keys holds at most 4,096 (T048-10): above that a returning key counts as new, for the
   population detector only.
+* No recovery while any user behind R*'s key sends (T048-08): any session of the (IP, UA) key renews its deny, so on a shared
+  address benign users answering 429 keep the line alive after the attacker has left (a view arm's deny ends with its session;
+  P1's 180-s runs never reach the 300 s TTL, and no deny outlives its daemon).
+* A sid-less line answers 429 to the first requests of browsers with the same UA on its address, which then never get a cookie, so
+  only another UA or an earlier cookie can still withdraw it (T048-11; not reachable in P1, where no attack entity shares an
+  address with benign users).
 * R*'s parity with the replay holds while `evicted` in `l7_shadow` is 0 (at most 65,536 keys and addresses are kept live).
 * `users_seen` counts sessions, not devices: one user can hold several. The run's manifest gives the devices.
 * The stop (T-042 E03): `Arm.stop` and the arm's steps hold one lock, and no step runs after the stop, so once the
