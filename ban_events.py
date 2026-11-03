@@ -154,6 +154,16 @@ def first_bans(events, ips=None, since=None, until=None):
     return first
 
 
+def bans_by_engine(events, since=None, until=None):
+    """{engine: "ban" events} with since <= t_wall <= until: a run's bans per engine, for every arm, from its event log."""
+    out = {}
+    for ev in events:
+        if ev.get("kind") != "ban" or (since is not None and ev["t_wall"] < since) or (until is not None and ev["t_wall"] > until):
+            continue
+        out[ev.get("engine", "unknown")] = out.get(ev.get("engine", "unknown"), 0) + 1
+    return out
+
+
 def engine_from_reason(reason):
     """Engine id for the free-text reason of a "[BAN] ... Reason: ..." log line, for
     daemon logs written before ban events existed. Order matters: the R.U.D.Y.

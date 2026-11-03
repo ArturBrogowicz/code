@@ -67,6 +67,10 @@ L7_SELECTION = os.environ.get("L7_SELECTION", "")
 L7_SELECTION_SHA256 = os.environ.get("L7_SELECTION_SHA256", "")
 L7_ARM = os.environ.get("L7_ARM", "")
 L7_ENFORCE_POLL_INTERVAL = 1.0
+# The status of the arm's level-1 deny (l7_conf.DENY_STATUS). With L7_ENFORCE=1 the access-log rule's error branch does not
+# count it (D-054, T-042's follow-up T048-07): a denied key's 429s would read as a client error, and the branch's XDP
+# ban has no CGNAT guard, no 30-s wait, no rate cap and no kill-switch lift, so a deny could end in a ban of a shared address.
+L7_DENY_STATUS = 429
 if L7_ENFORCE and not (L7_SHADOW and L7_NGINX_CONF and L7_SELECTION and L7_SELECTION_SHA256 and L7_ARM):
     raise SystemExit("[-] L7_ENFORCE=1 needs L7_SHADOW=1 (the arm acts on the L7 engine's decisions), L7_NGINX_CONF "
                      "(the configuration of the nginx it reloads) and L7_SELECTION, L7_SELECTION_SHA256, L7_ARM "
@@ -284,6 +288,9 @@ last_established_seen = {}
 # Track ban timestamps for TTL-based expiry
 ban_timestamps = {}
 
+# Bans of this daemon per engine, ban_ip's count, for the enforcing arm's l7_enforce_poll (D-054)
+bans_by_engine = defaultdict(int)
+
 # Track per-IP request metadata for rate/error heuristic (from Nginx logs)
 request_tracker = defaultdict(deque)
 
@@ -381,6 +388,7 @@ def ban_ip(ip_str, reason="unknown", engine="unknown", **detail):
     with banned_ips_lock:
         banned_ips.add(ip_str)
         ban_timestamps[ip_str] = banned_at = time.time()
+        bans_by_engine[engine] += 1
     print(f"[BAN] {ip_str} banned for {BAN_TTL_SECONDS}s. Reason: {reason}")
     EVENTS.emit("ban", ip=ip_str, engine=engine, reason=reason, backend=backend,
                 enforced=enforced, ttl_s=BAN_TTL_SECONDS, **detail)
@@ -695,6 +703,11 @@ def l7_lift_bans(bans):
     return [ip_str for ip_str, _age in lifted]
 
 
+def l7_ban_counts():
+    with banned_ips_lock:
+        return dict(bans_by_engine)
+
+
 def l7_killed():
     return os.path.exists(L7_KILL_FILE)
 
@@ -730,7 +743,7 @@ def l7_enforce_init():
         raise SystemExit(f"[-] L7_ENFORCE=1: {e}") from e
     l7_arm = l7_enforce.Arm(l7_denymap.DenyMap(L7_ENFORCE_DIR, key_level=key_level), reload=l7_nginx_reload, ban=ban_ip,
                             close=kill_zombie_connections, banned=l7_ip_banned, events=EVENTS, lift=l7_lift_bans,
-                            killed=l7_killed, allow=allow, clock=time.time)
+                            killed=l7_killed, allow=allow, clock=time.time, ban_counts=l7_ban_counts)
     l7_arm.start(time.time())
     print(f"[*] L7 v2 enforcing arm: deny map {l7_arm.denies.path}, reloads nginx -c {L7_NGINX_CONF}, "
           f"kill switch {L7_KILL_FILE}.")
@@ -1488,6 +1501,8 @@ try:
                     status = int(log_data.get("status", 200))
                     # 503 is the backend saying it's overloaded, so we don't count that as an attack from the client
                     is_error = status >= 400 and status != 503
+                    if L7_ENFORCE and status == L7_DENY_STATUS:
+                        is_error = False    # the arm's own deny, not the client's error (D-054)
 
                     # request_tracker is shared with the telemetry thread's eviction, so
                     # every read/write happens under state_lock. We only DECIDE here; the

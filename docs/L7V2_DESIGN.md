@@ -1087,6 +1087,15 @@ arm alike (view arms and R*):
 - **Tested** on fakes for both arm kinds and through the daemon's real ban path (`tests/test_l7_deny_renewal.py`). [NOT RUN]
   on the testbed.
 
+**After review T-048 (the orchestrator's decision D-054; pre-data changes, every arm alike), each its own commit:**
+- **T048-07, the arm's 429s and the access-log rule.** The daemon's `l7_rate` rule has an error branch: more than 80 % errors
+  at more than 10 requests/s bans the address, with no CGNAT guard, no 30-s wait, no rate cap and no kill-switch lift. It
+  counted the arm's own 429s as errors, so a level-1 deny could end in such a ban (the review's port: 2.2 % of denied (IP, UA)
+  keys on CGNAT addresses, a whole pool). With `L7_ENFORCE=1` it no longer counts status 429. Without it nothing changes. The
+  rate branch still counts every request: a key above the rule's rate is banned, denied or not, as it was before its deny.
+  The arm's `l7_enforce_poll` reports `bans_by_engine`, with a last one at the stop, and `ban_events.bans_by_engine` reads
+  the same from any run's event log.
+
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.
 - G1-02 Kadel et al., BOTracle, ESORICS Workshops 2024.

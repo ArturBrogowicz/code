@@ -166,11 +166,12 @@ class Arm:
     the shared tables are guarded by one lock, which is never held across a callback (reload, ban, close, events)."""
 
     def __init__(self, deny_map, *, reload, ban, close, banned, events, lift=None, killed=None, allow=(),
-                 clock=time.time):
+                 clock=time.time, ban_counts=None):
         self.denies = deny_map
         self.reload, self.ban, self.close, self.banned, self.events = reload, ban, close, banned, events
         self.lift = lift or (lambda _bans: [])
         self.killed = killed or (lambda: False)
+        self.ban_counts = ban_counts           # the daemon's bans per engine, for l7_enforce_poll (D-054)
         self.kill_on = False
         self.xdp_bans = {}             # ip -> the time ban_ip recorded for this arm's level-2 ban (for the kill switch)
         self.level2_times = []         # times of the level-2 bans in the last 60 s
@@ -298,6 +299,7 @@ class Arm:
             now = self.clock() if now is None else now
             self._end(self.denies.clear(), now, "stop")
             self._publish(now, force=True)
+            self._report(now, force=True)         # the run's last summary
 
     def step(self, now=None):
         """One step: the kill switch, the new decisions, the key-age gate, the deny TTL, the batched map write and
@@ -588,13 +590,15 @@ class Arm:
             self.events.emit("l7_enforce_capped", what="ban", n=len(capped), cap=MAX_LEVEL2_PER_MIN, level=2,
                              arm=self.info.get("arm"), ips=sorted(set(capped))[:50])
 
-    def _report(self, now):
-        if self.last_report is not None and now - self.last_report < REPORT_INTERVAL_S:
+    def _report(self, now, force=False):
+        if not force and self.last_report is not None and now - self.last_report < REPORT_INTERVAL_S:
             return
         self.last_report = now
         with self.lock:
             sizes = {"raw_keys": len(self.raw), "raw_evicted": self.raw.evicted, "raw_ambiguous": self.raw.ambiguous,
                      "ips": len(self.ips), "tracked": len(self.tracked)}
+        if self.ban_counts is not None:
+            sizes["bans_by_engine"] = self.ban_counts()
         self.events.emit("l7_enforce_poll", armed=self.armed, killed=self.kill_on, active=len(self.denies),
                          waiting=len(self.waiting),
                          **sizes, **self.counts, skips=dict(self.skips), first_error=self.first_error)
