@@ -78,7 +78,7 @@ class FakeHost(X.Host):
     def __init__(self, *, root=True, netns=(), kill_file=False, kill_appears_at=None, stack_ready=True,
                  nginx_fails=False, daemon_dies_at=None, daemon_startup_s=3.0, gen_fails=(), gen_code=3,
                  poll_every_s=1.0, modelled_attackers=None, harm=None, fail_prim=None, limit_refuses=0.0,
-                 gen_late=None, stub_fails=None):
+                 gen_late=None, stub_fails=None, ss_fails=None):
         self.t = 0.0
         self.root, self.netns, self.stack_ready, self.nginx_fails = root, list(netns), stack_ready, nginx_fails
         self.kill_file, self.kill_appears_at = kill_file, kill_appears_at
@@ -86,6 +86,7 @@ class FakeHost(X.Host):
         self.gen_fails, self.gen_code, self.poll_every_s = set(gen_fails), gen_code, poll_every_s
         self.modelled_attackers, self.harm, self.fail_prim = modelled_attackers, harm, fail_prim
         self.limit_refuses, self.gen_late, self.stub_fails = limit_refuses, dict(gen_late or {}), stub_fails
+        self.ss_fails = ss_fails                # True: `ss` fails on every poll; (lo, hi): over those seconds of the run
         self.pids, self.seq = itertools.count(100), itertools.count()
         self.events, self.commands, self.prims, self.procs = [], [], [], []
         self.reset_world()
@@ -312,10 +313,18 @@ class FakeHost(X.Host):
         if p.returncode is not None:
             return
         now, text = self.time(), self.ss_text()
+        fails = self.ss_fails
+        if fails is True or (fails and self.run_t0 is not None and fails[0] <= self.t - self.run_t0 < fails[1]):
+            text = None
         enforce = p.env.get("SLOW_PC_ENFORCE") == "1" and not self.exists("/run/l7v2/kill")
         banned = sorted(ip for ip, until in self.banned.items() if until > now)
         with open(p.env["SLOW_PC_RECORD"], "ab") as fh:
             fh.write(slow_pc.record_member(now, text, [], banned, enforce))
+        if text is None:
+            self.detector.skip(now, [])
+            self._emit(p, "slow_pc_poll", mode="enforce" if enforce else "shadow", polls=0, ss_failed=1, sockets=0)
+            self.at(self.t + self.poll_every_s, lambda: self._poll(p))
+            return
         res = self.detector.poll(now, text, [], banned)
         for c in res.closes:
             self._emit(p, "slow_pc_close", enforced=enforce, **c._asdict())
@@ -330,7 +339,7 @@ class FakeHost(X.Host):
                 self._emit(p, "ban", ip=b.ip, engine="l4_slowconn_pc", value=b.closes)
                 for key in [k for k, s in self.socks.items() if s["ip"] == b.ip]:
                     del self.socks[key]
-        self._emit(p, "slow_pc_poll", mode="enforce" if enforce else "shadow", sockets=len(self.socks))
+        self._emit(p, "slow_pc_poll", mode="enforce" if enforce else "shadow", polls=1, ss_failed=0, sockets=len(self.socks))
         self.at(self.t + self.poll_every_s, lambda: self._poll(p))
 
     def _reopen(self, s):

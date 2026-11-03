@@ -425,14 +425,14 @@ class ExecuteTest(unittest.TestCase):
         for every, ok in ((5.0, True), (9.5, True), (10.5, False), (15.0, False)):
             run = self.one_run(f"poll_{every}", "campaign", 3105, "M_pc_post", thresholds=POINT)
             res = R.execute_run(F.FakeHost(poll_every_s=every, modelled_attackers=1), run)
-            silent = [r for r in res["reasons"] if "logged no poll" in r]
+            silent = [r for r in res["reasons"] if "no successful poll" in r]
             self.assertEqual(not silent, ok, (every, res["reasons"]))
         res = R.execute_run(F.FakeHost(daemon_dies_at=150.0, modelled_attackers=1),
                             self.one_run("dies", "validation", 4001, "C"))
-        self.assertTrue(any("logged no poll" in r for r in res["reasons"]), res["reasons"])
+        self.assertTrue(any("no successful poll" in r for r in res["reasons"]), res["reasons"])
         res = R.execute_run(F.FakeHost(poll_every_s=30.0), self.one_run("no_rule", "campaign", 3105, "M_def_post",
                                                                         thresholds=POINT))
-        self.assertFalse(any("logged no poll" in r for r in res["reasons"]), "M_def runs no rule")
+        self.assertFalse(any("no successful poll" in r for r in res["reasons"]), "M_def runs no rule")
 
 
     def test_the_limits_own_cost_comes_from_the_access_log(self):
@@ -568,6 +568,26 @@ class ExecuteTest(unittest.TestCase):
             fh.write('{"event": "cut\n' + json.dumps(started) + "\n")
         with self.assertRaisesRegex(ValueError, "cannot be read"):
             R.read_index(self.root)
+
+
+    def test_a_rule_that_never_reads_is_not_alive(self):
+        """Review T-047 P-05: an `ss` that always fails still logs its reports. Such a run must not read as the rule's verdict."""
+        def silence(name, fails):
+            run = self.one_run(name, "campaign", 3105, "M_pc_post", thresholds=POINT)
+            res = R.execute_run(F.FakeHost(ss_fails=fails, modelled_attackers=1), run)
+            return [r for r in res["reasons"] if "no successful poll" in r]
+        self.assertTrue(silence("blind", True))
+        self.assertTrue(silence("blind_15s", (100.0, 115.0)))
+        self.assertFalse(silence("blind_5s", (100.0, 105.0)))
+
+    def test_a_validation_run_with_a_blind_rule_is_invalid_too(self):
+        res = R.execute_run(F.FakeHost(ss_fails=True), self.one_run("blind_val"))
+        self.assertTrue(any("no successful poll" in r for r in res["reasons"]), res["reasons"])
+
+    def test_an_enforcing_run_must_have_enforced(self):
+        run = self.one_run("shadow", "campaign", 3105, "M_pc_loris", thresholds=POINT)
+        res = R.execute_run(F.FakeHost(kill_appears_at=100.0, modelled_attackers=1), run)
+        self.assertTrue(any("did not enforce throughout" in r for r in res["reasons"]), res["reasons"])
 
 
 if __name__ == "__main__":

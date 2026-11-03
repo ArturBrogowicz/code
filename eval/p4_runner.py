@@ -27,7 +27,9 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
   * checks: the stack answered, every generator started and ended cleanly, the daemon was ready before the traffic
     and alive to the end with XDP attached, the record exists, the kill file stayed absent, and (D-035, V-08 of review
     T-039) in an M_pc or validation run the rule's slow_pc_poll
-    events are never more than SLOW_PC_POLL_GAP_S = 10 s apart, from the traffic's start to the run's end. A run that
+    events that report a successful read are never more than SLOW_PC_POLL_GAP_S = 10 s apart, from the traffic's start to
+    the run's end, and in an M_pc run they all say it enforced (review T-047 P-05: the daemon logs the event with polls 0
+    and ss_failed N when every read fails, so counting events would call a blind rule alive). A run that
     fails one is invalid, with its reasons.
 
 Re-registration record (D-050, 2026-11-02T08:48Z, the user's "Approve as recommended", before any data; review T-047),
@@ -541,12 +543,15 @@ def checks(host, plan, t0, launched):
             rec = d["env"]["SLOW_PC_RECORD"]
             if not os.path.isfile(rec) or os.path.getsize(rec) == 0:
                 reasons.append("the per-connection rule's record is missing or empty")
-            polls = sorted(e["t_wall"] for e in _events(d["env"]["BAN_EVENTS"]) if e.get("kind") == "slow_pc_poll")
-            edges = [t0] + [p for p in polls if t0 <= p <= t0 + total] + [t0 + total]
+            polls = [e for e in _events(d["env"]["BAN_EVENTS"])
+                     if e.get("kind") == "slow_pc_poll" and t0 <= e["t_wall"] <= t0 + total]
+            edges = [t0, *sorted(e["t_wall"] for e in polls if e.get("polls", 0) > 0), t0 + total]
             gap = max(b - a for a, b in itertools.pairwise(edges))
             if gap > SLOW_PC_POLL_GAP_S:
-                reasons.append(f"the per-connection rule logged no poll for {gap:.1f} s (more than "
+                reasons.append(f"the per-connection rule logged no successful poll for {gap:.1f} s (more than "
                                f"{SLOW_PC_POLL_GAP_S:g} s, D-035)")
+            if d["mode"] == "pc" and any(e.get("mode") != "enforce" for e in polls):
+                reasons.append("the per-connection rule did not enforce throughout an enforcing run")
     return reasons
 
 
