@@ -10,6 +10,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -36,8 +37,7 @@ def sha(path):
 
 
 def index(root):
-    with open(os.path.join(root, "index.jsonl"), encoding="utf-8") as fh:
-        return [json.loads(line) for line in fh]
+    return R.read_index(root)
 
 
 class PlanTest(unittest.TestCase):
@@ -459,6 +459,48 @@ class ExecuteTest(unittest.TestCase):
         self.assertEqual(times[:61], [float(k) for k in range(61)])
         attack = next(p for p in host.procs if p.kind == "gen" and p.role == "attack")
         self.assertEqual(attack.start - host.run_t0, 30.0)
+
+
+    def test_a_run_whose_runner_dies_still_counts(self):
+        """Review T-047 P-07: the index line comes before the run, so a ban in a run that died cannot be hidden by a re-run."""
+        block = self.block("campaign", 3108, thresholds=POINT, arms=["M_pc_loris"])
+        cgnat = next(e["address"] for e in block["runs"][0]["entities"] if e["kind_or_family"] == "cgnat_browsers")
+
+        def dies(_host, plan):
+            self.assertTrue(os.path.isfile(os.path.join(plan["out"], "plan.json")))
+            self.assertEqual(index(self.root)[-1]["arm"], "M_pc_loris")        # already there
+            with open(plan["daemon"]["env"]["BAN_EVENTS"], "w", encoding="utf-8") as fh:
+                fh.write(json.dumps({"kind": "ban", "ip": cgnat, "t_wall": 1.0}) + "\n")
+            raise KeyboardInterrupt
+
+        with mock.patch.object(R, "execute_run", dies), self.assertRaises(KeyboardInterrupt):
+            R.run_block(F.FakeHost(), block)
+        [row] = index(self.root)
+        self.assertEqual((row["ended"], row["valid"]), (False, False))
+        self.assertIn("the runner died", row["reasons"][0])
+        out = os.path.join(self.root, "runs.jsonl")
+        R.summarize_root(self.root, CAL, out)
+        with open(out, encoding="utf-8") as fh:
+            [rec] = [json.loads(line) for line in fh]
+        self.assertEqual((rec["valid"], rec["Q"], rec["banned"]), (False, None, {cgnat: "cgnat"}))
+        m = OUT.outcome([rec])["families"]["loris"]["mitigation"]
+        self.assertEqual(m["benign_banned"], [[3108, cgnat, "cgnat"]])
+
+    def test_a_run_the_index_does_not_hold_is_refused(self):
+        os.makedirs(os.path.join(self.root, "campaign", "b3108_a1", "M_pc_loris"))
+        with self.assertRaisesRegex(ValueError, "the index does not hold"):
+            R.summarize_root(self.root, CAL, os.path.join(self.root, "runs.jsonl"))
+
+    def test_the_index_reads_a_cut_last_line_and_refuses_any_other(self):
+        started = {"event": "started", "phase": "campaign", "block": 3108, "attempt": 1, "label": "", "arm": "C", "dir": "d"}
+        path = os.path.join(self.root, "index.jsonl")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(started) + '\n{"event": "ended", "pha')
+        self.assertEqual([x["ended"] for x in R.read_index(self.root)], [False])
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write('{"event": "cut\n' + json.dumps(started) + "\n")
+        with self.assertRaisesRegex(ValueError, "cannot be read"):
+            R.read_index(self.root)
 
 
 if __name__ == "__main__":

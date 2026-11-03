@@ -43,7 +43,9 @@ applies the same bound to the validation runs, whose record the rule writes in t
 accepted, D-041, 2026-10-31T16:06Z, as "seeded order" = each block's runs in a seeded order).
 A block is one seed's runs in a seeded order: the 9 arms of an evaluation block (seeds 3101-3110), the 3 runs of a
 validation seed (4001-4002), (C, U) at one ladder level of a pilot seed (9101-9106), or the runs a smoke test names.
-Every attempt, valid or not, is a line of ROOT/index.jsonl with its reasons (§13 row 6); an attempt is a directory
+Every attempt, valid or not, is in ROOT/index.jsonl with its reasons (§13 row 6), by two lines: one written and synced before
+the run begins, one when it ends (review T-047 P-07), so that a run whose runner died still counts, with its bans. An attempt
+is a directory
 ROOT/<phase>/b<seed>_a<attempt>[_<label>]/<arm>/, with block.json beside its runs.
 
 What the runs write feeds eval/p4_validation.py (slow_pc_manifest.json, slow_pc.jsonl.gz) and eval/p4_outcome.py
@@ -559,15 +561,46 @@ def manifest(plan, t0):
             "provenance": plan["provenance"]}
 
 
-def index_line(block, run, res, attempt_dir):
-    return {"phase": block["phase"], "block": block["seed"], "attempt": block["attempt"], "label": block["label"],
-            "arm": run["arm"], "dir": os.path.relpath(run["out"], block["root"]), "valid": res["ok"],
-            "reasons": res["reasons"], "started_utc": _utc(res["started"]), "ended_utc": _utc(res["ended"]),
-            "block_dir": os.path.relpath(attempt_dir, block["root"])}
+def index_line(block, run, event, **fields):
+    return {"event": event, "phase": block["phase"], "block": block["seed"], "attempt": block["attempt"],
+            "label": block["label"], "arm": run["arm"], "dir": os.path.relpath(run["out"], block["root"]),
+            "block_dir": os.path.relpath(block["dir"], block["root"]), **fields}
+
+
+def _append(fh, line):
+    fh.write(json.dumps(line, sort_keys=True) + "\n")
+    fh.flush()
+    os.fsync(fh.fileno())
+
+
+def read_index(root):
+    """Every run of ROOT/index.jsonl, one dict each, in the order they began: a run with no "ended" line is an invalid
+    run whose runner died ("ended": False). A last line cut in the middle is what such a death leaves; any other line that
+    cannot be read is refused."""
+    path = os.path.join(root, "index.jsonl")
+    if not os.path.isfile(path):
+        return []
+    with open(path, encoding="utf-8") as fh:
+        lines = fh.readlines()
+    rows, by = [], {}
+    for k, raw in enumerate(lines):
+        try:
+            x = json.loads(raw)
+        except ValueError:
+            if k == len(lines) - 1:
+                break
+            raise ValueError(f"{path}: line {k + 1} cannot be read") from None
+        key = (x["phase"], x["block"], x["attempt"], x["label"], x["arm"])
+        if x["event"] == "started":
+            by[key] = {**x, "ended": False, "valid": False, "reasons": ["the index holds no end of this run: the runner died"]}
+            rows.append(by[key])
+        else:
+            by[key].update(ended=True, valid=x["valid"], reasons=x["reasons"], ended_utc=x["ended_utc"])
+    return rows
 
 
 def run_block(host, block):
-    """Every run of a block in its order; each attempt appended to ROOT/index.jsonl, valid or not."""
+    """Every run of a block in its order; each in ROOT/index.jsonl before it begins and when it ends, valid or not."""
     if os.path.exists(block["dir"]):
         raise PlanError(f"{block['dir']} exists: an attempt is never overwritten (use the next --attempt)")
     os.makedirs(block["dir"])
@@ -579,9 +612,11 @@ def run_block(host, block):
     results = []
     with open(os.path.join(block["root"], "index.jsonl"), "a", encoding="utf-8") as idx:
         for run in block["runs"]:
+            write_json(os.path.join(run["out"], "plan.json"), run)
+            _append(idx, index_line(block, run, "started", started_utc=_utc(host.time())))
             res = execute_run(host, run)
-            idx.write(json.dumps(index_line(block, run, res, block["dir"]), sort_keys=True) + "\n")
-            idx.flush()
+            _append(idx, index_line(block, run, "ended", valid=res["ok"], reasons=res["reasons"],
+                                    ended_utc=_utc(res["ended"])))
             results.append((run["arm"], res))
     return results
 
@@ -622,13 +657,18 @@ def run_record(run_dir, cal, block=None, attempt=1):
     """eval/p4_outcome.summarize of one run directory: the client-side figures of eval/l7v2_harm.py over the attack
     window and over LEVEL_WINDOW_S, the ban events, the closes the rule enforced, the run's labels and its attempt; a
     run of C also its health under `cal` (D-046), which the run index does not know: `--summarize`, and the outcome, say
-    which attempts it invalidates. A run that never started (refused before its traffic) is an invalid record without
-    figures."""
+    which attempts it invalidates. A run that never started (refused before its traffic), or whose runner died in it
+    (no manifest, P-07), is an invalid record without figures, with whatever bans and closes its daemon had logged."""
     import l7v2_harm as LH
-    with open(os.path.join(run_dir, "manifest.json"), encoding="utf-8") as fh:
-        man = json.load(fh)
-    with open(os.path.join(run_dir, "run.json"), encoding="utf-8") as fh:
-        meta = json.load(fh)
+    if os.path.isfile(os.path.join(run_dir, "manifest.json")):
+        with open(os.path.join(run_dir, "manifest.json"), encoding="utf-8") as fh:
+            man = json.load(fh)
+        with open(os.path.join(run_dir, "run.json"), encoding="utf-8") as fh:
+            meta = json.load(fh)
+    else:
+        with open(os.path.join(run_dir, "plan.json"), encoding="utf-8") as fh:
+            plan = json.load(fh)
+        man, meta = {"seed": plan["seed"], "arm": plan["arm"], "roles": plan["roles"], "timeline": {}}, None
     t = man["timeline"]
     events = _events(os.path.join(run_dir, "ban_events.jsonl"))
     closes = [e for e in events if e.get("kind") == "slow_pc_close" and e.get("enforced")]
@@ -651,15 +691,18 @@ def run_record(run_dir, cal, block=None, attempt=1):
 
 
 def summarize_root(root, cal, out_path):
-    """The run records of EVERY evaluation attempt of ROOT/index.jsonl, valid or not (D-035, V-03): eval/p4_outcome.py
-    judges the last valid attempt of each (block, arm) and counts the bans and closes of all of them."""
-    with open(os.path.join(root, "index.jsonl"), encoding="utf-8") as fh:
-        lines = [json.loads(x) for x in fh if x.strip()]
+    """The run records of EVERY evaluation attempt of ROOT/index.jsonl, valid or not, a run whose runner died included
+    (D-035, V-03; P-07). A run directory the index does not hold is refused: it could hide a ban."""
+    rows = [x for x in read_index(root) if x["phase"] == "campaign"]
+    known = {x["dir"] for x in rows}
+    base = os.path.join(root, "campaign")
+    tree = [os.path.join("campaign", b, a) for b in (sorted(os.listdir(base)) if os.path.isdir(base) else ())
+            for a in sorted(os.listdir(os.path.join(base, b))) if os.path.isdir(os.path.join(base, b, a))]
+    strays = [d for d in tree if d not in known]
+    if strays:
+        raise ValueError(f"runs the index does not hold: {strays[:5]}")
     with open(out_path, "w", encoding="utf-8") as fh:
-        for x in lines:
-            if x["phase"] == "campaign":
-                rec = run_record(os.path.join(root, x["dir"]), cal, x["block"], x["attempt"])
-                fh.write(json.dumps(rec) + "\n")
+        fh.writelines(json.dumps(run_record(os.path.join(root, x["dir"]), cal, x["block"], x["attempt"])) + "\n" for x in rows)
 
 
 # --- the command line --------------------------------------------------------------------------------
