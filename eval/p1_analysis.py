@@ -7,7 +7,8 @@ moves here. For each class:
     campaign the admission finds INVALID (too few valid blocks, too many re-runs) gets no verdict, with its reasons, which is
     not the same as V-D "no harm";
   * the blocks it judges: the final attempts whose class is valid and whose live M runs are sound; the others are listed;
-  * harm per block: Q of every live arm (eval/l7v2_harm.py's figures);
+  * harm per block: Q of every live arm in the level window, from the attack's start + 90 s to its end (D-053, eval/l7v2_harm.py's
+    figures); the whole attack window's Q is secondary, and admission reads that window, as registered;
   * the budget, pooled over those blocks: live (D-044 OC-2), the benign users wrongly acted on in the arm's own M runs
     (eval/p1_records.acted_on), and, reported beside it, the replay's benign units on the U runs;
   * detection per entity: each U run's recording through every arm (ml/l7v2_replay.py), the caught flags of the GRU, the HGB, the
@@ -17,7 +18,8 @@ moves here. For each class:
 and then ml/l7v2_verdict.judge, with the minimum cut's live set when the campaign ran it. A record that is not frozen gets no
 verdict (a dry run stops before judging, and says so).
 
-Beside the judge, nothing reading it (D-049, ml/p1_prereg.json age_check): each class's age_only_on_U, the window-age AUC of its U
+Beside the judge, nothing reading it: each class's reported, the whole-window Q, time to decision and attack cost left (D-053,
+ml/p1_prereg_2.json reported_per_class); and (D-049, ml/p1_prereg.json age_check) each class's age_only_on_U, the window-age AUC of its U
 replays, per block and per family, and the age-only arm's recall at its frozen point, with each U run's recorded age check; and
 view_level_contrasts, every contrast of the judge's output naming a view-level arm with that reading beside it.
 
@@ -44,6 +46,8 @@ import json
 import os
 import re
 import sys
+
+import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -127,14 +131,20 @@ def judged_blocks(final, cls, live):
     return good, excluded
 
 
-def replay_block(root, block, cls, arms_factory):
-    """One U run through every arm: (the replay's result, {attack entity: family}, its manifest), on its recording and the
-    manifest's labels."""
+def replay_block(root, block, cls, arms_factory, cal):
+    """One U run through every arm: (the replay's result, with each arm's attack cost left, {attack entity: family}, its manifest), on
+    its recording and the manifest's labels."""
     run_dir = os.path.join(root, "campaign", block["dir"], f"U_{cls}")
     man = REC.read_json(os.path.join(run_dir, D.MANIFEST_FILE))
     items, labels = REC.recording(run_dir), RP.RunLabels(man)
     _keys, ent, attack, _units = RP.ground_truth(items, labels)
-    return RP.replay(items, arms_factory(run_dir, man), labels), {e: ent[e]["family"] for e in attack}, man
+    res = RP.replay(items, arms_factory(run_dir, man), labels)
+    rule = PT.prereg_2()["reported_per_class"]["attack_cost_left"]
+    requests = RP.attack_requests(items, labels)
+    first = {e: ent[e]["first"] for e in attack}
+    for arm in res["arms"].values():
+        arm["attack_cost"] = RP.cost_left(requests, first, arm.get("ttd_s") or {}, cal["route_costs_ms"], rule["key_age_gate_s"], rule["reload_s"])
+    return res, {e: ent[e]["family"] for e in attack}, man
 
 
 def default_factory(frozen):
@@ -159,10 +169,40 @@ def admitted_on(adm):
     return "Q" if adm["criteria"]["Q"]["passed"] else "latency"
 
 
+def level_q(root, block, run, cal):
+    """A run's Q in the level window (D-053), which the verdict's harm contrasts read."""
+    timeline = REC.read_json(os.path.join(root, "campaign", block["dir"], "block.json"))["timeline"]
+    return LH.window_figures(os.path.join(root, "campaign", block["dir"], run), cal, timeline, PT.level_window(timeline))["Q"]
+
+
+def class_report(root, cal, cls, blocks, live, per_arm):
+    """What is reported per class beside the verdict, and judges nothing (D-053, ml/p1_prereg_2.json reported_per_class): the whole attack
+    window's Q; time to decision per arm and family; the attack cost left, by the replay's worst case and, for an arm with M runs, measured."""
+    ttd = {}
+    for name, per in per_arm.items():
+        ttd[name] = {fam: {"caught": len(v), "mean_s": round(float(np.mean(v)), 3), "median_s": round(float(np.median(v)), 3)}
+                     for fam, v in sorted(per["ttd_s"].items())}
+    replay = {name: (round(per["attack_cost"][0] / per["attack_cost"][1], 4) if per["attack_cost"][1] else None)
+              for name, per in per_arm.items()}
+    live_cost = {a: 0.0 for a in live}
+    for b in blocks:
+        timeline = REC.read_json(os.path.join(root, "campaign", b["dir"], "block.json"))["timeline"]
+        lo = float(timeline["baseline_s"])
+        for a in live:
+            run_dir = os.path.join(root, "campaign", b["dir"], RUN.run_name(a, cls))
+            log, man = REC.access_log(run_dir), REC.read_json(os.path.join(run_dir, D.MANIFEST_FILE))
+            if log:
+                live_cost[a] += REC.attacker_cost_ms(log, man, (lo, lo + float(timeline["attack_s"])), cal["route_costs_ms"])
+    measured = {a: (round(live_cost[a] / live_cost["U"], 4) if live_cost["U"] else None) for a in live if a != "U"}
+    return {"note": "descriptive (D-053): the verdict does not read it. A share of 1 means that the arm removed none of the attack's cost",
+            "whole_window_q": {a: [b["runs"][RUN.run_name(a, cls)]["metrics"]["Q"] for b in blocks] for a in live},
+            "time_to_decision": ttd, "attack_cost_left": {"replay": replay, "live": measured}}
+
+
 def class_inputs(root, cal, cls, blocks, live, frozen, arms_factory, on="Q"):
     """l7v2_verdict.judge's inputs for a class over its judged blocks (see the module doc), and the replay's summary."""
     enforcing = [a for a in live if a != "U"]
-    harm = {a: [b["runs"][RUN.run_name(a, cls)]["metrics"]["Q"] for b in blocks] for a in live}
+    harm = {a: [level_q(root, b, RUN.run_name(a, cls), cal) for b in blocks] for a in live}
     budget = {"live": {a: [0, 0] for a in enforcing}, "replay": {a: [0, 0] for a in enforcing}}
     det = {"blocks": [], "families": [], "caught": {a: [] for a in DETECTION_ARMS}}
     per_arm, structured = {}, bool(blocks)
@@ -174,14 +214,19 @@ def class_inputs(root, cal, cls, blocks, live, frozen, arms_factory, on="Q"):
                                REC.read_json(os.path.join(run_dir, "run.json")).get("budget"))
             budget["live"][a][0] += rec["benign_users"]
             budget["live"][a][1] += rec["benign_users_total"]
-        res, families, man = replay_block(root, b, cls, arms_factory)
+        res, families, man = replay_block(root, b, cls, arms_factory, cal)
         structured = structured and any(e["kind_or_family"] == STRUCTURED_KIND for e in man["entities"])
         for a in enforcing:
             arm = res["arms"].get(a) or {}
             budget["replay"][a][0] += arm.get("benign_units_flagged", 0)
             budget["replay"][a][1] += res["benign_units"]
         for name, arm in res["arms"].items():
-            per = per_arm.setdefault(name, {"caught": 0, "attack_entities": 0, "benign_units_flagged": 0, "by_family": {}})
+            per = per_arm.setdefault(name, {"caught": 0, "attack_entities": 0, "benign_units_flagged": 0, "by_family": {},
+                                            "ttd_s": {}, "attack_cost": [0.0, 0.0]})
+            for e, t in (arm.get("ttd_s") or {}).items():
+                per["ttd_s"].setdefault(str(families.get(e)), []).append(t)
+            for i, x in enumerate(arm.get("attack_cost") or (0.0, 0.0)):
+                per["attack_cost"][i] += x
             per["caught"] += arm.get("caught", 0)
             per["attack_entities"] += res["attack_entities"]
             per["benign_units_flagged"] += arm.get("benign_units_flagged", 0)
@@ -270,6 +315,7 @@ def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, p
         row["replay"] = per_arm
         row["blocks_judged"] = [b["block"] for b in blocks]
         row["age_only_on_U"] = age_only_on_u(root, blocks, cls, per_arm)
+        row["reported"] = class_report(root, cal, cls, blocks, live, per_arm)
         if dry_run:
             row["why_no_verdict"] = [f"a dry run on a {cal.get('status')} record gives no verdict"]
             continue

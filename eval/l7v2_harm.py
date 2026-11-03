@@ -285,6 +285,15 @@ def assess_run(run_dir, cal, timeline):
             "server": server_q(log, manifest, cal, window, set(cover["recorded"])) if log else None, "checks": checks}
 
 
+def window_figures(run_dir, cal, timeline, window_rel):
+    """One run's client-side figures over a window of its own, in seconds from its start (P1's level window, D-053): the rows, the never-sent
+    guard and the definitions of assess_run, which reads the attack window."""
+    manifest = _json(os.path.join(run_dir, l7_dataset.MANIFEST_FILE))
+    total = sum(float(timeline[k]) for k in ("baseline_s", "attack_s", "recovery_s"))
+    rows, t0, _cover = run_rows(run_dir, manifest, window_rel)
+    return metrics(rows, cal, (t0 + window_rel[0], t0 + window_rel[1]), t0, total)
+
+
 def assess_block(block_dir, cal):
     """Every class's block-level figures: dQ, dL against C and the placebo, validity and its reasons."""
     meta = _json(os.path.join(block_dir, "block.json"))

@@ -477,9 +477,10 @@ def describe(block):
     lines = [f"P1 {block['phase']} block {block['seed']} attempt {block['attempt']}: {block['dir']}",
              f"order {block['order']}; levels {block['levels']}; sources {block['sources']}",
              f"benign halvings {block['halvings']}; record {block['intensity']['label']}",
-             (f"benign nominal {load['req_s']} req/s, {load['cpu_s_s']} CPU-s/s over the attack window, without "
-              f"{len(load['without_a_plan'])} kinds; the record's rho {load['rho_req_s']:g} req/s, {load['rho_cpu_s_s']} CPU-s/s; "
-              f"S {load['spare_cpu_s']} CPU-s/s"),
+             (f"benign nominal {load['req_s']} req/s, {load['cpu_s_s']} CPU-s/s over the attack window, {load['level_req_s']} req/s over "
+              f"the level window, peak {load['peak_20s_req_s']} req/s over 20 s, without {len(load['without_a_plan'])} kinds; the record's "
+              f"rho {load['rho_req_s']:g} req/s, {load['rho_cpu_s_s']} CPU-s/s; C_slo {load['c_slo_req_s']:g} req/s, "
+              f"{load['c_slo_cpu_s_s']} CPU-s/s; S {load['spare_cpu_s']} CPU-s/s"),
              f"VM time of this block: {vm_minutes(len(block['runs'])):.0f} min [ESTIMATE]"]
     for r in block["runs"]:
         d = r["daemon"]

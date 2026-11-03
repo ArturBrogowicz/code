@@ -109,6 +109,22 @@ def attacker_served(access_log, manifest, window_rel):
     return n
 
 
+def attacker_cost_ms(access_log, manifest, window_rel, costs):
+    """The record's class cost of the attack entities' requests answered 2xx that started in the window, by nginx's log."""
+    label, t0 = D.labeler(manifest), D.time_origin(manifest)
+    total = 0.0
+    with D.open_log(access_log) as fh:
+        for line in fh:
+            obj = l7_ingest.parse_l7_line(line)
+            if obj is None or not obj.get("ip"):
+                continue
+            t_rel = l7_ingest._num(obj.get("msec")) - l7_ingest._num(obj.get("rt")) - t0
+            if window_rel[0] <= t_rel < window_rel[1] and label(obj["ip"], t_rel)[0] == D.ATTACK \
+                    and 200 <= int(l7_ingest._num(obj.get("status"))) < 300:
+                total += costs.get(l7_ingest.route_class("GET", obj.get("uri", "")), 0.0)
+    return total
+
+
 def addresses_seen(access_log, manifest):
     """The plan's addresses against those nginx logged a request from: {"planned", "seen", "silent": the first ten without one}."""
     seen = set()

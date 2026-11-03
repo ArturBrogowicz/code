@@ -38,8 +38,11 @@ def block(seed=3001):
 
 class BlockTest(unittest.TestCase):
     def test_the_frozen_constants(self):
-        self.assertEqual(P.TIMELINE, {"baseline_s": 30, "attack_s": 120, "recovery_s": 30})
-        self.assertEqual(P.run_seconds(), 180)
+        self.assertEqual(P.TIMELINE, {"baseline_s": 30, "attack_s": 210, "recovery_s": 30})
+        self.assertEqual({k: P.prereg_2()["timeline"][k] for k in P.TIMELINE}, P.TIMELINE)
+        self.assertEqual(P.run_seconds(), 270)
+        self.assertEqual(P.level_window(), (120.0, 240.0))
+        self.assertEqual(P.level_window({"baseline_s": 10, "attack_s": 100, "recovery_s": 0}), (100.0, 110.0))
         self.assertEqual(sorted(P.PRIMARY), sorted(VP.load()["classes"]))
         self.assertEqual(P.PRIMARY["C3b"], VP.load()["detection_entities"]["per_class"]["C3b"]["primary"][0])
         self.assertEqual(set(P.SIDE_FAMILIES["C3b"]),
@@ -183,6 +186,29 @@ class BlockTest(unittest.TestCase):
         self.assertTrue(all("ks" in r and "auc" in r and "pass" in r for r in rep.values()))
 
 
+class ArrivalsAt210Test(unittest.TestCase):
+    """D-053's slot: the frozen arrival rules on 30 + 210 + 30 s, flash_gap_s now kept."""
+
+    def test_arrivals_and_stops(self):
+        for seed in (3001, 3002):
+            b = block(seed)
+            for e in b["benign"]:
+                if e["kind_or_family"] not in ("cgnat_browsers",):
+                    self.assertLessEqual(e["schedule"]["start_s"], 180.0)
+                self.assertLessEqual(e["schedule"]["stop_s"], 270.0)
+            for rows in b["attack"].values():
+                for e in rows:
+                    self.assertTrue(30.0 <= e["schedule"]["start_s"] <= 180.0, e["schedule"])
+                    self.assertLessEqual(e["schedule"]["stop_s"], 240.0)
+                    self.assertGreaterEqual(e["schedule"]["stop_s"] - e["schedule"]["start_s"], 60.0)
+
+    def test_the_flash_gap_is_kept(self):
+        for seed in p3_prereg.load()["seeds"]["p1_live_eval"][:4]:
+            flash = P.build_block(seed, "eval", LEVELS, record_path=RECORD, knees=KNEES)["flash"]
+            self.assertTrue(flash["gap_kept"])
+            self.assertTrue(90.0 <= flash["start_s"] <= 120.0, flash)
+
+
 class BenignLoadTest(unittest.TestCase):
     """The plan's benign rate against the record's rho, on the path a campaign uses (D-049's check): a frozen record, build_block."""
 
@@ -192,15 +218,18 @@ class BenignLoadTest(unittest.TestCase):
         got = P.benign_load(plan, FROZEN)
         e = plan["benign"][0]
         reqs = [(t, p) for u in LP._plan_of(e)["users"] for t, p in LP.nominal_requests(u)
-                if 30.0 <= e["schedule"]["start_s"] + t < 150.0]
+                if 30.0 <= e["schedule"]["start_s"] + t < 240.0]
         self.assertGreater(len(reqs), 0)
-        self.assertEqual(got["req_s"], round(len(reqs) / 120.0, 1))
+        self.assertEqual(got["req_s"], round(len(reqs) / 210.0, 1))
         self.assertEqual(set(got["by_kind"]), {one["kind"]})
 
     def test_the_frozen_record_s_rho_and_the_full_mix(self):
         got = P.benign_load(P.build_block(3001, "eval", LEVELS, record_path=RECORD, knees=KNEES), FROZEN)
         self.assertEqual(got["rho_req_s"], CAL.rho_rps(FROZEN))
         self.assertEqual(got["rho_req_s"], 90.0)
+        self.assertEqual((got["c_slo_req_s"], got["c_slo_cpu_s_s"]), (180.0, round(180.0 * CAL.mean_cost_ms(FROZEN) / 1000.0, 3)))
+        self.assertGreater(got["peak_20s_req_s"], got["req_s"])
+        self.assertGreater(got["level_req_s"], got["req_s"], "benign arrivals run to 180 s, so the level window carries the most")
         self.assertEqual(got["spare_cpu_s"], round(CAL.spare_capacity(FROZEN), 3))
         self.assertGreater(got["req_s"], got["rho_req_s"], "more requests than rho, the fixture's numbers")
         self.assertLess(got["cpu_s_s"], got["rho_cpu_s_s"], "and less CPU: the mix is cheaper than the record's")

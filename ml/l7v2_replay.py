@@ -328,7 +328,33 @@ def score_arm(items, scorer, truth):
             "median_ttd_s": round(ttds[len(ttds) // 2], 3) if ttds else None,
             "by_family": {f: {"caught": c, "entities": n} for f, (c, n) in sorted(fam.items())},
             "benign_units_flagged_by_kind": dict(sorted(kinds.items())),
-            "caught_entities": sorted(caught), "decisions": len(decided), **counts}
+            "caught_entities": sorted(caught), "ttd_s": {e: round(t, 3) for e, t in sorted(caught.items())},
+            "decisions": len(decided), **counts}
+
+
+def attack_requests(items, labels):
+    """(entity, request start, route class) of every attack request of a recording."""
+    out = []
+    for it in items:
+        rec = I.normalise(it[1]) if it[0] == "record" else None
+        if rec is not None:
+            cls, _fam, _held, e, _kof = labels.of(rec)
+            if cls == D.ATTACK:
+                out.append((e, F.start_time(rec), rec.get("rc")))
+    return out
+
+
+def cost_left(requests, first, ttd, costs, gate_s, reload_s):
+    """(the attack's cost left, the attack's cost sent), in ms, by the worst case of the enforcing path (ml/p1_prereg_2.json
+    reported_per_class): an entity's request is removed when it starts at or after max(its decision, its first request + gate_s) +
+    reload_s; an entity with no decision (`ttd`, from its first request) keeps all its cost."""
+    left = sent = 0.0
+    for e, t, rc in requests:
+        c = costs.get(rc, 0.0)
+        sent += c
+        if e not in ttd or t < first[e] + max(ttd[e], gate_s) + reload_s:
+            left += c
+    return left, sent
 
 
 class _AgeProbe(_Tapped):

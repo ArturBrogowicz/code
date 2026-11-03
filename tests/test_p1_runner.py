@@ -195,8 +195,9 @@ class PlanTest(Base):
         self.assertFalse(os.path.exists(os.path.join(self.root, "ladder")))
 
     def test_vm_time_as_built(self):
-        self.assertAlmostEqual(R.vm_minutes(13), 13 * 3.75)
-        self.assertAlmostEqual(10 * R.vm_minutes(13) / 60.0, 8.125)
+        self.assertAlmostEqual(R.vm_minutes(13), 13 * 5.25)
+        self.assertAlmostEqual(10 * R.vm_minutes(13) / 60.0, 11.375)
+        self.assertAlmostEqual(10 * R.vm_minutes(9) / 60.0, 7.875)
 
 
 class ConfTest(Base):
@@ -274,7 +275,7 @@ class ExecuteTest(Base):
         meta = read_json(os.path.join(block["dir"], "block.json"))
         for key in ("block", "attempt", "seed", "calibration_sha256", "timeline", "order", "frozen"):
             self.assertIn(key, meta)
-        self.assertEqual(meta["timeline"], {"baseline_s": 30, "attack_s": 120, "recovery_s": 30})
+        self.assertEqual(meta["timeline"], {"baseline_s": 30, "attack_s": 210, "recovery_s": 30})
         lines = index(self.root)
         self.assertEqual([x["run"] for x in lines], block["order"])
         for run in block["runs"]:
@@ -466,7 +467,8 @@ class SmokeReadsTest(Base):
             code = R.main(["--phase", "health", "--seed", "9001", "--plan", "--calibration", self.frozen["calibration"],
                            "--root", self.root])
         self.assertEqual(code, 0)
-        self.assertRegex(out.getvalue(), r"benign nominal [\d.]+ req/s, [\d.]+ CPU-s/s .* rho 90 req/s, 0.552 CPU-s/s; S 0.552")
+        self.assertRegex(out.getvalue(), r"benign nominal [\d.]+ req/s, [\d.]+ CPU-s/s .* rho 90 req/s, 0.552 CPU-s/s; C_slo 180 req/s, "
+                                         r"1.105 CPU-s/s; S 0.552")
         block = R.plan_block("health", 9001, self.root, frozen=self.frozen, benign_specs=F.thin_benign())
         R.run_block(F.P1FakeHost(), block)
         meta = read_json(os.path.join(block["dir"], "block.json"))

@@ -19,6 +19,7 @@ for _p in (HERE, REPO, os.path.join(REPO, "eval"), os.path.join(REPO, "ml"), os.
     if _p not in sys.path:
         sys.path.insert(0, _p)
 import calibration_fixtures
+import l7v2_harm as LH
 import l7v2_replay as RP
 import l7v2_verdict_prereg as VP
 import p1_analysis as A
@@ -346,6 +347,61 @@ class LadderTest(unittest.TestCase):
             R.run_block(F.P1FakeHost(), block)
         with self.assertRaisesRegex(ValueError, "one factor"):
             A.ladder_factor(root)
+
+
+class LevelWindowTest(unittest.TestCase):
+    """D-053: the harm contrasts read the level window, admission and the whole-window Q the attack window."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.frozen = F.frozen_inputs(os.path.join(cls.tmp.name, "frozen"))
+        cls.cal = l7_backend.load_record(cls.frozen["calibration"])[0]
+        cls.root = os.path.join(cls.tmp.name, "runs")
+        # U fails only in the attack's first 80 s, well before the level window: a harm the level window does not read.
+        def fail(run, _b, t):
+            return 0.5 if run == "U_C2" and 30.0 <= t < 110.0 else 0.0
+
+        block = R.plan_block("campaign", SEEDS[0], cls.root, frozen=cls.frozen, cut=True, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        R.run_block(F.P1FakeHost(fail_share=fail), block)
+        cls.block = LH.assess_block(block["dir"], cls.cal)
+        cls.block["dir"] = os.path.basename(block["dir"])
+        live = ["U", "R*", "view_gru"]
+        cls.inputs, cls.per_arm = A.class_inputs(cls.root, cls.cal, "C2", [cls.block], live, cls.frozen, factory({"C2": {"view_gru": 1.0, "R*": 0.5}}))
+        cls.report = A.class_report(cls.root, cls.cal, "C2", [cls.block], live, cls.per_arm)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_the_contrast_reads_the_level_window(self):
+        self.assertEqual(self.inputs["harm"]["U"], [100.0])
+
+    def test_the_whole_window_q_is_secondary_and_admission_reads_it(self):
+        whole = self.report["whole_window_q"]["U"][0]
+        self.assertEqual(whole, self.block["runs"]["U_C2"]["metrics"]["Q"])
+        self.assertLess(whole, 90.0)
+        self.assertGreater(self.block["classes"]["C2"]["dQ"], 10.0)
+
+    def test_time_to_decision_and_cost_left_are_reported_per_arm(self):
+        got = self.report["time_to_decision"]["view_gru"]["C2"]
+        self.assertEqual(got["caught"], 2)
+        self.assertGreaterEqual(got["mean_s"], 0.0)
+        left = self.report["attack_cost_left"]
+        self.assertLess(left["replay"]["view_gru"], 1.0)
+        self.assertGreater(left["replay"]["R*"], left["replay"]["view_gru"])
+        self.assertEqual(left["replay"]["hgb"], 1.0, "an arm that decides nothing removes nothing")
+        self.assertEqual(sorted(left["live"]), ["R*", "view_gru"])
+        self.assertEqual(left["live"]["view_gru"], 1.0, "the fake's M run serves its bots: nothing acted on them")
+
+    def test_the_cost_left_by_hand(self):
+        requests = [("a", 100.0, "C3"), ("a", 110.0, "C3"), ("a", 131.0, "C3"), ("b", 100.0, "C1"), ("c", 100.0, "C5")]
+        first = {"a": 100.0, "b": 100.0, "c": 100.0}
+        # a is decided 5 s after its first request: the gate gives 20 s, the reload 10 s, so its deny acts at 130 s
+        left, sent = RP.cost_left(requests, first, {"a": 5.0}, {"C3": 30.0, "C1": 3.0}, 20.0, 10.0)
+        self.assertEqual((left, sent), (63.0, 93.0))
+        # a decision after the gate rules: at 140 s + 10 s the same request is still served
+        self.assertEqual(RP.cost_left(requests, first, {"a": 40.0}, {"C3": 30.0, "C1": 3.0}, 20.0, 10.0)[0], 93.0)
 
 
 class AdmittedOnTest(unittest.TestCase):

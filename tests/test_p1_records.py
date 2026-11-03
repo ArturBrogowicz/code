@@ -74,6 +74,7 @@ class HarmTest(Base):
         self.assertIn("server", rec["cpu"])
         self.assertEqual(sorted(rec["cpu"]), ["attack", "legit", "server"])
         self.assertEqual(rec["addresses"]["silent"], [])
+        self.assertIsNotNone(rec["attacker_served"])
         self.assertEqual(rec["addresses"]["seen"], rec["addresses"]["planned"])
         self.assertAlmostEqual(rec["server_q"], rec["Q"], delta=2.0)
         self.assertIsNone(rec["time_to_mitigate_s"], "a U run that keeps failing never recovers")
