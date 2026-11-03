@@ -6,7 +6,9 @@ soon as the smoke run (P4-S, T3, NOT RUN) commits them under tests/fixtures/p4_s
     Slowloris socket, read by the parser of slow_pc.py as the rule needs it (F-S3);
   * ss_before_kill.txt + ss_after_kill.txt + kill_filter.txt: the daemon's per-connection `ss -K` filter closed
     exactly the one socket it named."""
+import contextlib
 import gzip
+import io
 import json
 import os
 import random
@@ -109,6 +111,58 @@ class KillFilterTest(DS.SlowPcCase):
         self.assertTrue(S.kill_problems(before, after, two))                        # two named
         with self.assertRaises(ValueError):
             S.kill_filter_keys("dst 10.0.18.3")                                     # an address filter is refused
+
+
+class SmokeReadingsTest(unittest.TestCase):
+    """Review T-047 P-10, P-14: the worker kills of a control, and who ended which connections."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.run_dir = self.tmp.name
+
+    def write(self, name, text):
+        with open(os.path.join(self.run_dir, name), "w", encoding="utf-8") as fh:
+            fh.write(text)
+
+    def test_worker_kills_and_nginxs_errors_are_counted(self):
+        self.write("gunicorn.log", "[1] [CRITICAL] WORKER TIMEOUT (pid:7)\n[2] [INFO] Booting worker\n[3] [CRITICAL] WORKER TIMEOUT (pid:8)\n")
+        self.write("error.log", "x client timed out (110) while reading\ny upstream prematurely closed connection while\n"
+                                "z client timed out (110) while reading\n")
+        got = S.worker_kills(self.run_dir)
+        self.assertEqual((got["worker_kills"], got["error_log"]["client timed out"],
+                          got["error_log"]["upstream prematurely closed"]), (2, 2, 1))
+        self.assertEqual(S.worker_kills(os.path.join(self.run_dir, "absent"))["worker_kills"], 0)
+
+    def test_who_ended_which_connection(self):
+        ents = [{"address": "10.0.18.3", "role": "attack", "kind_or_family": "slowpost", "p4_role": "attack"},
+                {"address": "10.0.16.5", "role": "benign", "kind_or_family": "cgnat_browsers", "p4_role": "cgnat"}]
+        self.write("manifest.json", json.dumps({"entities": ents}))
+        early = line("10.0.18.3", 41000, bytes_acked=1) + line("10.0.18.3", 41001, bytes_acked=1) + \
+            line("10.0.18.3", 41002, bytes_acked=1) + line("10.0.18.3", 41003, bytes_acked=1) + \
+            line("10.0.16.5", 40001, bytes_acked=5000)
+        later = line("10.0.18.3", 41000, bytes_acked=250) + line("10.0.18.3", 41001, bytes_acked=1) + \
+            line("10.0.18.3", 41002, bytes_acked=1) + line("10.0.16.5", 40001, bytes_acked=5000)
+        last = line("10.0.18.3", 41002, bytes_acked=1) + line("10.0.16.5", 40001, bytes_acked=5000)
+        polls = [(1.0, early), (11.0, later), (21.0, last), (31.0, None), (41.0, last)]
+        with open(os.path.join(self.run_dir, "slow_pc.jsonl.gz"), "wb") as fh:
+            fh.writelines(slow_pc.record_member(t, text, [], [], True) for t, text in polls)
+        self.write("ban_events.jsonl", json.dumps({"kind": "slow_pc_close", "enforced": True, "ip": "10.0.18.3", "port": 41001,
+                                                   "sport": 80}) + "\n" + "not json\n")
+        got = S.connection_summary(self.run_dir)
+        post = got["slowpost"]
+        self.assertEqual((post["connections"], post["answered_above_64_B"]), (4, 1))
+        self.assertEqual(post["ended_by"], {"rule": 1, "held to the end": 1, "answered": 1, "unanswered": 1})
+        self.assertEqual(post["lifetime_s"]["max"], 40.0)
+        self.assertEqual(got["cgnat"]["ended_by"]["held to the end"], 1)
+        self.assertEqual(got["cgnat"]["answered_above_64_B"], 1)
+
+    def test_the_command_line(self):
+        self.write("gunicorn.log", "WORKER TIMEOUT\n")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(S.main(["workers", self.run_dir]), 0)
+        self.assertEqual(json.loads(out.getvalue())["worker_kills"], 1)
 
 
 class RecordedFixtureTest(unittest.TestCase):

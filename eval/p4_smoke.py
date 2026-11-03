@@ -14,11 +14,18 @@ committed (tests/test_p4_smoke_fixtures.py; tests/fixtures/p4_smoke/):
     finds the sockets of a snapshot it names, and kill_problems() checks a recorded before / after pair
     (ss_before_kill.txt, ss_after_kill.txt, kill_filter.txt): exactly one socket gone, and it is the one named.
 
+Two more readings the smoke hands to the user before the ladder (review T-047 P-10, P-14), from what a run leaves:
+worker_kills() counts gunicorn's WORKER TIMEOUT lines (do the benign uploads alone hold R's five workers in a control?), and
+connection_summary() gives, per family and benign label, the connections a shadow run's record saw: their lifetimes, who ended
+them and how many had been answered (bytes_acked above 64 B): do the server's own timeouts cut them before the rule's floor?
+
 `fixture_from_record` cuts the parser fixture out of a shadow run's SLOW_PC_RECORD (eval/p4_runner.py), using the run's
 roles: the first poll that holds every kind of socket.
 
     ./venv/bin/python eval/p4_smoke.py fixture RUN_DIR OUT_DIR      # writes ss_tinpH.txt and labels.json
     ./venv/bin/python eval/p4_smoke.py check FIXTURE_DIR             # the checks of the tests, printed
+    ./venv/bin/python eval/p4_smoke.py workers RUN_DIR               # worker kills and nginx's upstream errors
+    ./venv/bin/python eval/p4_smoke.py connections RUN_DIR           # per family: lifetimes, who ended them, bytes_acked
 """
 import argparse
 import json
@@ -130,6 +137,70 @@ def fixture_from_record(record_path, roles):
     return None
 
 
+WORKER_KILL = "WORKER TIMEOUT"       # gunicorn's arbiter, for a sync worker silent for its 30 s
+ERROR_CAUSES = ("client timed out", "upstream prematurely closed", "upstream timed out", "Connection reset by peer")
+
+
+def _read(path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            return fh.read()
+    except OSError:
+        return ""
+
+
+def worker_kills(run_dir):
+    """{"worker_kills", "error_log"}: gunicorn's worker kills in a run, and nginx's error log lines by cause."""
+    log = _read(os.path.join(run_dir, "error.log"))
+    return {"worker_kills": _read(os.path.join(run_dir, "gunicorn.log")).count(WORKER_KILL),
+            "error_log": {cause: log.count(cause) for cause in ERROR_CAUSES}}
+
+
+def _quantile(values, q):
+    values = sorted(values)
+    return values[min(len(values) - 1, int(q * len(values)))] if values else None
+
+
+def connection_summary(run_dir):
+    """Per label (an attack family, or a benign p4_role), from a run's SLOW_PC_RECORD: how many connections the snapshots saw,
+    their lifetimes (first to last sighting) and who ended them: "rule" (an enforced close), "held to the end" (still there at
+    the last snapshot), "answered" (gone with bytes_acked above 64 B: a 502, a 408), "unanswered" (gone with no answer: a client
+    or a silent close). A lifetime is at the polls' resolution, and nginx's error log says more (worker_kills)."""
+    with open(os.path.join(run_dir, "manifest.json"), encoding="utf-8") as fh:
+        man = json.load(fh)
+    labels = {e["address"]: e["kind_or_family"] if e["role"] == "attack" else e["p4_role"] for e in man["entities"]}
+    conns = {}
+    polls = [p for p in slow_pc.read_record(os.path.join(run_dir, "slow_pc.jsonl.gz")) if p.get("ss") is not None]
+    for p in polls:
+        for s in slow_pc.parse_ss(p["ss"])[0]:
+            c = conns.setdefault((s.ip, s.port, s.sport), {"first": p["t"], "acked": 0})
+            c["last"], c["acked"] = p["t"], max(c["acked"], s.info["bytes_acked"])
+    closed = set()
+    for line in _read(os.path.join(run_dir, "ban_events.jsonl")).splitlines():
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            continue
+        if ev.get("kind") == "slow_pc_close" and ev.get("enforced"):
+            closed.add((ev["ip"], ev["port"], ev["sport"]))
+    end = polls[-1]["t"] if polls else 0.0
+    out = {}
+    for key, c in conns.items():
+        row = out.setdefault(labels.get(key[0], "unlabelled"), {"connections": 0, "lifetimes_s": [], "answered_above_64_B": 0,
+                                                                "ended_by": dict.fromkeys(("rule", "held to the end", "answered",
+                                                                                           "unanswered"), 0)})
+        answered = c["acked"] > slow_pc.ANSWERED_MAX_BYTES_80
+        row["connections"] += 1
+        row["lifetimes_s"].append(c["last"] - c["first"])
+        row["answered_above_64_B"] += answered
+        who = "rule" if key in closed else "held to the end" if c["last"] >= end - 1.5 else "answered" if answered else "unanswered"
+        row["ended_by"][who] += 1
+    for row in out.values():
+        lives = row.pop("lifetimes_s")
+        row["lifetime_s"] = {"median": _quantile(lives, 0.5), "p90": _quantile(lives, 0.9), "max": max(lives)}
+    return out
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -138,7 +209,13 @@ def main(argv=None):
     f.add_argument("out_dir")
     c = sub.add_parser("check")
     c.add_argument("fixture_dir")
+    for name, helper in (("workers", "worker kills and nginx's errors"), ("connections", "per family: lifetimes, who ended them")):
+        sub.add_parser(name, help=helper).add_argument("run_dir")
     args = ap.parse_args(argv)
+    if args.cmd in ("workers", "connections"):
+        print(json.dumps(worker_kills(args.run_dir) if args.cmd == "workers" else connection_summary(args.run_dir),
+                         indent=1, sort_keys=True))
+        return 0
     if args.cmd == "fixture":
         with open(os.path.join(args.run_dir, "manifest.json"), encoding="utf-8") as fh:
             roles = json.load(fh)["roles"]
