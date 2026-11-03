@@ -874,7 +874,8 @@ def run_record(run_dir, cal, block=None, attempt=1):
     if t.get("t0_wall") is None:
         empty = {"Q": None, "p95_s": None, "q_per_s": [None] * OUT.RUN_S, "by_class": {}}
         return OUT.summarize(seed, man["arm"], False, empty, {"Q": None}, events, man["roles"], closes,
-                             level_window=OUT.LEVEL_WINDOW_S, attempt=attempt, cal=cal, settings=settings, ban_problem=ban_problem)
+                             level_window=OUT.LEVEL_WINDOW_S, attempt=attempt, cal=cal, settings=settings, ban_problem=ban_problem,
+                             reasons=meta["checks"]["reasons"] if meta else ["the runner died in this run"])
     total = sum(t[k] for k in ("baseline_s", "attack_s", "recovery_s"))
     attack = (t["baseline_s"], t["baseline_s"] + t["attack_s"])
     rows, t0, _cover = LH.run_rows(run_dir, man, attack)
@@ -885,7 +886,8 @@ def run_record(run_dir, cal, block=None, attempt=1):
     log = os.path.join(run_dir, "access.log")
     refused = refusals(log, man, attack) if os.path.isfile(log) else None
     return OUT.summarize(seed, man["arm"], meta["checks"]["ok"], m, level, events, man["roles"], closes,
-                         level_window=lw, attempt=attempt, refused=refused, cal=cal, settings=settings, ban_problem=ban_problem)
+                         level_window=lw, attempt=attempt, refused=refused, cal=cal, settings=settings, ban_problem=ban_problem,
+                         reasons=meta["checks"]["reasons"])
 
 
 def summarize_root(root, calibration, out_path):

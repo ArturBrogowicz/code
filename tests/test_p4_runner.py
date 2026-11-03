@@ -626,6 +626,19 @@ class ExecuteTest(unittest.TestCase):
         self.assertEqual([u["block"] for u in verdict["unhealthy_controls"]], [3107])
 
 
+    def test_a_run_record_says_why_it_is_invalid(self):
+        """Review T-050 T050-16: the outcome names what emptied the comparison with M_def."""
+        block = self.block("campaign", 3101, thresholds=POINT, arms=["C", "M_def_loris"])
+        pool = next(e["address"] for e in block["runs"][0]["entities"] if e["kind_or_family"] == "cgnat_browsers")
+        R.run_block(F.FakeHost(gen_late={pool: 30.0}, modelled_attackers=1), block)
+        out = os.path.join(self.root, "runs.jsonl")
+        R.summarize_root(self.root, R.PLACEHOLDER, out)
+        with open(out, encoding="utf-8") as fh:
+            by = {r["arm"]: r for r in map(json.loads, fh)}
+        self.assertFalse(by["M_def_loris"]["valid"])
+        self.assertIn("was still running 10 s after its end", by["M_def_loris"]["reasons"][0])
+        self.assertIn("was still running 10 s after its end", OUT.outcome(list(by.values()))["invalid_runs"][0]["reasons"][0])
+
     def test_a_generator_late_past_the_grace_makes_the_run_invalid(self):
         """Why review T-047 P-01 blocked P4-S: this is what a slow uploader that outlives its duration did to every run."""
         run = self.one_run("late")

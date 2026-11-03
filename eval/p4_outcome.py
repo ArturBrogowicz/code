@@ -174,13 +174,13 @@ def control_health(metrics, cal):
 
 
 def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow_pc_closes=(), *, level_window,
-              attempt, refused=None, cal=None, settings=None, ban_problem=None):
+              attempt, refused=None, cal=None, settings=None, ban_problem=None, reasons=()):
     """One run record from the run's harm-gate metrics (eval/harm_gate.run_metrics: over the attack
     window, and with window=LEVEL_WINDOW_S for `level_metrics`; `level_window` is the window the caller
     took it over, and must be LEVEL_WINDOW_S), its ban events and the role of every client address.
     Every banned address, and every address with a closed connection, must have a role. A run of C also states
     its health (D-046): `cal` is the calibration record whose SLOs its classes were judged by. `settings` are its block's
-    (eval/p4_runner.py block_settings): the outcome refuses a mix. `ban_problem` says why the bans given may not be all of them."""
+    (eval/p4_runner.py block_settings): the outcome refuses a mix. `ban_problem` says why the bans given may not be all of them; `reasons` why the run is invalid."""
     check_record_timeline(metrics["q_per_s"], level_window)
     banned = {}
     for ev in ban_events:
@@ -204,7 +204,7 @@ def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow
             "q_per_s": list(metrics["q_per_s"]), "q_level": level_metrics["Q"],
             "level_window": [float(x) for x in level_window], "banned": banned, "benign_closed": benign_closed,
             "refused": refused, "control_reasons": control_reasons, "control_small_classes": control_small,
-            "settings": settings, "ban_problem": ban_problem}
+            "settings": settings, "ban_problem": ban_problem, "reasons": list(reasons)}
 
 
 def recovery(q_per_s, threshold, start=TIMELINE["baseline_s"]):
@@ -315,6 +315,22 @@ def harm(blocks, family):
                                                           and enough(each, len(valid)))}
 
 
+def left_out_of_m_def(blocks, family):
+    """Why each block is not in the comparison with M_def (review T-050 T050-16): the comparison judges nothing, and without this
+    "too few blocks" would not say whether M_def failed or the comparison was never run."""
+    name = f"M_def_{family}"
+    out = []
+    for block in sorted(blocks):
+        b = blocks[block]
+        if not b:
+            out.append({"block": block, "why": ["no attempt of the block has every needed arm valid and a healthy C"]})
+        elif name not in b:
+            out.append({"block": block, "why": [f"the judged attempt has no run of {name}"]})
+        elif not b[name]["valid"]:
+            out.append({"block": block, "why": b[name].get("reasons") or ["invalid, no reason recorded"]})
+    return out
+
+
 def mitigation(blocks, family, every=None):
     """(a) recovery, (b) level and (c) collateral of M_pc for one family, and the M_def comparison. `blocks` holds the
     attempt judged per (block, arm); `every` all the attempts, over which (c) and the benign closes are counted."""
@@ -344,7 +360,7 @@ def mitigation(blocks, family, every=None):
             "ban_records_unreadable": [list(x) for x in unknown],
             "c": not collateral and not in_c_m and not unknown,
             "benign_closed": sum(r.get("benign_closed", 0) for r in attempts), "attempts": len(attempts),
-            "vs_m_def": {"n": len(d), "decision": RLS.decide(d)}}
+            "vs_m_def": {"n": len(d), "decision": RLS.decide(d), "left_out": left_out_of_m_def(blocks, family)}}
 
 
 def bans_by_arm(runs):
@@ -406,6 +422,13 @@ def small_control_classes(every):
             for block in sorted(every) for r in every[block].get(CONTROL, ()) if r.get("control_small_classes")]
 
 
+def invalid_runs(every):
+    """Every run that was not sound, in any attempt, with its reasons: what made an arm or a block count for nothing (T050-16). An
+    unhealthy control ran soundly: it is in unhealthy_controls()."""
+    return [{"block": r["block"], "attempt": r["attempt"], "arm": r["arm"], "reasons": r.get("reasons") or []}
+            for block in sorted(every) for arm in ARMS for r in every[block].get(arm, ()) if not r.get("run_valid", r["valid"])]
+
+
 def invalid(k):
     """The status of a family, or of M7, with fewer than MIN_VALID_BLOCKS valid blocks (D-035, V-02)."""
     return f"invalid ({k} of {len(BLOCK_SEEDS)} valid)"
@@ -441,7 +464,7 @@ def outcome(runs):
     return {"M7": m7, "families": fam, "bans_by_arm": bans_by_arm(runs), "t_mit_s": T_MIT_S,
             "limits_cost": limits_cost(blocks), "unhealthy_controls": unhealthy_controls(every),
             "small_control_classes": small_control_classes(every),
-            "judged_attempts": picks, "superseded_attempts": superseded}
+            "judged_attempts": picks, "superseded_attempts": superseded, "invalid_runs": invalid_runs(every)}
 
 
 def main(argv=None):
@@ -458,6 +481,13 @@ def main(argv=None):
     for f, r in res["families"].items():
         for block, attempt, arm, why in r["mitigation"]["ban_records_unreadable"]:
             print(f"  {FAMILY_NAMES[f]}: (c) cannot be met: the ban record of {arm}, block {block} attempt {attempt}: {why}")
+    for f, r in res["families"].items():
+        versus = r["mitigation"]["vs_m_def"]
+        print(f"  {FAMILY_NAMES[f]}: M_pc against M_def over {versus['n']} blocks: {versus['decision']}")
+        for x in versus["left_out"]:
+            print(f"    left out, block {x['block']}: {'; '.join(x['why'])}")
+    for x in res["invalid_runs"]:
+        print(f"  invalid: block {x['block']} attempt {x['attempt']} {x['arm']}: {'; '.join(x['reasons'])}")
     for s in res["superseded_attempts"]:
         print(f"  superseded: block {s['block']} attempt {s['attempt']}, invalid or missing {', '.join(s['invalid_or_missing'])}")
     for u in res["unhealthy_controls"]:

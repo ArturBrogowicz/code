@@ -32,8 +32,8 @@ def bins(base, dip=None, until=None, total=270, start=35):
 
 
 def rec(block, arm, q, p95=0.10, q_per_s=None, q_level=None, banned=None, valid=True, closed=0, attempt=1,
-        refused=None, control_reasons=None):
-    return {"block": block, "arm": arm, "attempt": attempt, "valid": valid, "Q": q, "p95_s": p95,
+        refused=None, control_reasons=None, **extra):
+    return {**extra, "block": block, "arm": arm, "attempt": attempt, "valid": valid, "Q": q, "p95_s": p95,
             "q_per_s": q_per_s if q_per_s is not None else bins(q),
             "q_level": q if q_level is None else q_level, "level_window": list(O.LEVEL_WINDOW_S),
             "banned": banned or {}, "benign_closed": closed, "refused": refused,
@@ -384,6 +384,57 @@ class AttemptsTest(unittest.TestCase):
         self.assertIn("superseded: block 3101 attempt 1, invalid or missing U_post", printed.getvalue())
 
 
+class WhyInvalidTest(unittest.TestCase):
+    """Review T-050 T050-16: M_def is expected to ban the CGNAT pools; until their generators end on time that makes it invalid, and
+    a comparison that empties must say why. Conservative, and it judges nothing, so the families' status does not move."""
+
+    LATE = "cgnat_browsers:3 was still running 10 s after its end: stopped"
+
+    def test_a_valid_m_def_that_bans_a_pool_is_compared(self):
+        res = O.outcome(campaign())
+        for f in O.FAMILIES:
+            versus = res["families"][f]["mitigation"]["vs_m_def"]
+            self.assertEqual((versus["n"], versus["left_out"]), (10, []))
+        self.assertEqual(res["bans_by_arm"]["M_def_loris"], {"cgnat": 10})
+
+    def test_an_invalid_m_def_is_left_out_with_its_reason_and_still_counted_in_the_bans(self):
+        over = {("M_def_loris", i): {"valid": False, "reasons": [self.LATE]} for i in range(9)}
+        res = O.outcome(campaign(over))
+        loris = res["families"]["loris"]
+        self.assertEqual(loris["status"], "mitigated")
+        self.assertEqual(loris["mitigation"]["vs_m_def"]["n"], 1)
+        self.assertEqual(loris["mitigation"]["vs_m_def"]["decision"], O.RLS.decide([1.0]))
+        self.assertEqual(loris["mitigation"]["vs_m_def"]["left_out"][0], {"block": 3101, "why": [self.LATE]})
+        self.assertEqual(len(loris["mitigation"]["vs_m_def"]["left_out"]), 9)
+        self.assertEqual(res["families"]["post"]["mitigation"]["vs_m_def"]["left_out"], [])
+        self.assertEqual(res["bans_by_arm"]["M_def_loris"], {"cgnat": 10})
+        self.assertEqual(res["invalid_runs"][0], {"block": 3101, "attempt": 1, "arm": "M_def_loris", "reasons": [self.LATE]})
+
+    def test_a_needed_arm_invalid_for_the_same_cause_names_it(self):
+        """An M_pc that bans a browser: "invalid (9 of 10 valid)" until the generators end on time, and the output says why."""
+        res = O.outcome(campaign({("M_pc_post", 0): {"valid": False, "reasons": [self.LATE]}}))
+        self.assertEqual(res["families"]["post"]["status"], O.invalid(9))
+        self.assertEqual(res["invalid_runs"], [{"block": 3101, "attempt": 1, "arm": "M_pc_post", "reasons": [self.LATE]}])
+        self.assertEqual(res["families"]["post"]["mitigation"]["vs_m_def"]["left_out"][0]["block"], 3101)
+        self.assertIn("no attempt of the block", res["families"]["post"]["mitigation"]["vs_m_def"]["left_out"][0]["why"][0])
+
+    def test_an_unhealthy_control_is_not_an_invalid_run(self):
+        res = O.outcome(campaign({("C", 0): {"control_reasons": ["Q(C) is 98.00 %, below 99 %"]}}))
+        self.assertEqual(res["invalid_runs"], [])
+        self.assertEqual([u["block"] for u in res["unhealthy_controls"]], [3101])
+
+    def test_the_command_line_says_so(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "runs.jsonl")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.writelines(json.dumps(r) + "\n" for r in campaign({("M_def_post", 2): {"valid": False, "reasons": [self.LATE]}}))
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                O.main([path])
+        self.assertIn(f"slow POST: M_pc against M_def over 9 blocks: {O.RLS.decide([1.0] * 9)}", out.getvalue())
+        self.assertIn(f"left out, block 3103: {self.LATE}", out.getvalue())
+        self.assertIn(f"invalid: block 3103 attempt 1 M_def_post: {self.LATE}", out.getvalue())
+
+
 class UnreadableBanRecordTest(unittest.TestCase):
     """Review T-047 P-17 (4): (c) counts over all attempts, invalid ones included, so a ban it cannot read must not read as none."""
 
@@ -686,7 +737,7 @@ class InputTest(unittest.TestCase):
         self.assertEqual(r, {"block": 3101, "arm": "M_pc_loris", "attempt": 1, "valid": True, "Q": 97.0, "p95_s": 0.2,
                              "q_per_s": q, "q_level": 98.0, "level_window": [120.0, 240.0],
                              "banned": {"10.0.3.1": "attack", "10.0.4.1": "cgnat"}, "benign_closed": 1,
-                             "refused": None, "control_reasons": None, "control_small_classes": None, "settings": None, "ban_problem": None})
+                             "refused": None, "control_reasons": None, "control_small_classes": None, "settings": None, "ban_problem": None, "reasons": []})
         with self.assertRaises(ValueError):
             O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [{"kind": "ban", "ip": "10.9.9.9"}], roles,
                         level_window=win, attempt=1)
