@@ -3,7 +3,8 @@
 (eval/p1_analysis.py). Pure analysis over what a run wrote; it starts nothing and sends nothing.
 
   * run_record(): the harm figures through eval/l7v2_harm.py (assess_run, unchanged), and the secondary outcomes: attacker
-    requests served, server CPU, the legit CPU's load, the bans and denies, and the benign users wrongly acted on;
+    requests served, server CPU, the legit and attack CPUs' load, the addresses the server saw against the plan's, the bans and
+    denies, and the benign users wrongly acted on;
   * acted_on(): the primary outcome "benign users wrongly acted on, at level 1 or level 2, per run, attributed from the
     manifest", in the budget's units. An XDP ban, of any engine (D-037: the arm's L7V2_ENGINE counts, though it sits
     outside ban_events.ENGINES), costs everyone behind the address: the entity's units. A deny costs per the run's arm: a
@@ -108,8 +109,37 @@ def attacker_served(access_log, manifest, window_rel):
     return n
 
 
+def attacker_cost_ms(access_log, manifest, window_rel, costs):
+    """The record's class cost of the attack entities' requests answered 2xx that started in the window, by nginx's log."""
+    label, t0 = D.labeler(manifest), D.time_origin(manifest)
+    total = 0.0
+    with D.open_log(access_log) as fh:
+        for line in fh:
+            obj = l7_ingest.parse_l7_line(line)
+            if obj is None or not obj.get("ip"):
+                continue
+            t_rel = l7_ingest._num(obj.get("msec")) - l7_ingest._num(obj.get("rt")) - t0
+            if window_rel[0] <= t_rel < window_rel[1] and label(obj["ip"], t_rel)[0] == D.ATTACK \
+                    and 200 <= int(l7_ingest._num(obj.get("status"))) < 300:
+                total += costs.get(l7_ingest.route_class("GET", obj.get("uri", "")), 0.0)
+    return total
+
+
+def addresses_seen(access_log, manifest):
+    """The plan's addresses against those nginx logged a request from: {"planned", "seen", "silent": the first ten without one}."""
+    seen = set()
+    with D.open_log(access_log) as fh:
+        for line in fh:
+            obj = l7_ingest.parse_l7_line(line)
+            if obj is not None and obj.get("ip"):
+                seen.add(obj["ip"])
+    planned = {e["address"] for e in manifest["entities"]}
+    return {"planned": len(planned), "seen": len(planned & seen), "silent": sorted(planned - seen)[:10]}
+
+
 def cpu_load(run_dir, window_rel):
-    """The busy share of the server CPUs and of the legit CPU over the window, from the run's 1-s samples; None without them."""
+    """The busy share of the server CPUs, of the legit CPU and of the attack CPUs over the window, from the run's 1-s samples; None
+    without them."""
     path = os.path.join(run_dir, "cpu.jsonl")
     if not os.path.isfile(path):
         return None
@@ -127,7 +157,8 @@ def cpu_load(run_dir, window_rel):
                 total += rows[-1]["cpu"][c][1] - rows[0]["cpu"][c][1]
         return round(busy / total, 4) if total else None
 
-    return {"server": share(_cpus(RUN.PINS["server"])), "legit": share(_cpus(RUN.PINS["legit"]))}
+    return {"server": share(_cpus(RUN.PINS["server"])), "legit": share(_cpus(RUN.PINS["legit"])),
+            "attack": share(_cpus(RUN.PINS["attack"]))}
 
 
 def _cpus(text):
@@ -165,7 +196,8 @@ def run_record(run_dir, cal, block=None, attempt=1):
     man, meta = read_json(os.path.join(run_dir, D.MANIFEST_FILE)), read_json(os.path.join(run_dir, "run.json"))
     base = {"format": "p1-run-record/1", "block": man["seed"] if block is None else block, "attempt": attempt, "run": man["run"],
             "arm": man["arm"], "class": man["class"], "levels": man["levels"], "valid": meta["checks"]["ok"],
-            "reasons": meta["checks"]["reasons"]}
+            "reasons": meta["checks"]["reasons"], "age_check": meta.get("age_check"), "shadow": meta.get("shadow"),
+            "bans_by_engine": meta.get("bans_by_engine")}
     if D.time_origin(man) is None:
         return {**base, "Q": None, "p95_s": None, "acted_on": None}
     t = man["timeline"]
@@ -179,6 +211,7 @@ def run_record(run_dir, cal, block=None, attempt=1):
             "time_to_mitigate_s": time_to_mitigate(m.get("q_per_s"), window[0]),
             "server_q": a["server"] and a["server"]["Q"], "unrecorded": m.get("unrecorded"),
             "attacker_served": attacker_served(log, man, window) if log else None, "cpu": cpu_load(run_dir, window),
+            "addresses": addresses_seen(log, man) if log else None,
             "acted_on": acted_on(man, events, meta.get("budget"))}
 
 

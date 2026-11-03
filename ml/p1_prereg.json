@@ -1,0 +1,48 @@
+{
+ "format": "p1-prereg/1",
+ "date": "2026-11-02",
+ "decision": "D-049 (the user: \"Approve as recommended\"), on T-025f's escalations E-1, E-3 and E-5",
+ "status": "post hoc to docs/L7V2_DESIGN.md and to the earlier pre-registrations, before any P1 data and before the code it judges",
+ "halving": {
+  "modelled_on": "ml/p4_traffic.py halve and browser_devices, docs/P4_SLOW_DESIGN.md's rule",
+  "when": "before the harm ladder, on a pilot seed only, never on an evaluation seed",
+  "seed": 9001,
+  "controls": ["C", "Cp"],
+  "health": {
+   "judge": "eval/harm_gate.py control_health on each of the two controls",
+   "q_min": 99.0,
+   "class_q_min": 95.0,
+   "q_min_source": "the record's gate.control_q_min, and CONTROL_CLASS_Q_MIN, both unchanged"
+  },
+  "fires": "either control unhealthy",
+  "step": "halvings + 1, both controls again on the same seed, so that only the mix moves",
+  "stop": "the first step counting up from 0 whose two controls are sound and healthy: its halvings is the factor. No step runs after it",
+  "unsound": "a control whose run checks fail gives no reading and fires nothing: the step is repeated at the same halvings, at most max_reruns times, the record's gate.max_reruns; past that the rule refuses",
+  "max_reruns": 2,
+  "halved": "every benign spec of count > 1 keeps max(1, count >> halvings) entities, the first of its list; the others are dropped from every run",
+  "never_removed": "a spec of count 1: both CGNAT pools, the NAT gateway and each single-entity kind, so that FP per benign kind keeps every kind",
+  "entity_stability": "an entity keeps its index, sub-seed, address and parameters whatever the halvings: a halved plan is the full plan without the dropped entities, and the attack's addresses do not move",
+  "floor": {
+   "max_halvings": 2,
+   "counts_at_the_floor": {"tpcw_browsing": 13, "search_user": 5, "exporter": 1, "tpcw_shopping": 2, "zipf_browser": 2, "flash_crowd": 7},
+   "addresses_by_halvings": [138, 74, 41, 25],
+   "why": "my choice, under D-049. At 2 halvings the two CGNAT pools hold 36 of about 81 benign users and the flash crowd has 7 devices; at 3 they would hold 36 of about 65, a majority, the crowd would have 3 and the mix would no longer be a mix of mostly single-user clients",
+   "disclosed": "a halving raises the share of users behind the pools, 20 % at the full mix, 32 % at 1, 44 % at 2, so a flagged pool costs a larger share of the budget's users (D-043). The factor is reported with every result"
+  },
+  "at_the_floor": "still unhealthy at max_halvings: there is no factor. The ladder and the campaign refuse and say so; going on is a new decision, not a further step of this rule",
+  "frozen_with": "the factor is written in a record-bound health file; the ladder and the campaign read it from there, the knees must name the same factor, and it applies to every block of both. A smoke run may plan any halvings up to the floor and judges nothing"
+ },
+ "age_check": {
+  "p3": "arrivals.age_check (ml/l7v2_prereg.json) stays enforced on P3's training, validation and held-out captures, unchanged",
+  "p1": "on P1's one-slot runs it is recorded per run and not applied: it refuses nothing and invalidates nothing",
+  "reading": "the age-only reading on the U replays stands beside every view-level contrast of the analysis output: the window-age AUC of the U runs and the age-only arm's recall at its frozen point. It is descriptive: the verdict's inputs and its ladder do not read it"
+ },
+ "readings": {
+  "accepted": "T-025f's readings stand, labelled in docs/L7V2_DESIGN.md's As-built section",
+  "profiles": "the tolerant profile under HGB, GRU and R*; the default profile only in the default rules arm",
+  "assumptions": {
+   "side_bots": "[ASSUMPTION] 10 side bots each at M1, M3 and M2exp in every C3b run; they judge nothing",
+   "file_sink_silence_s": "[ASSUMPTION] 10 s: a run whose file sink is silent for longer is invalid"
+  }
+ }
+}

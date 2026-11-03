@@ -1,7 +1,7 @@
 {
- "format": "l7v2-verdict-prereg/2",
- "source": "docs/L7V2_DESIGN.md section 10 (the live set and R*), section 11 (outcomes, the verdict ladder, units, statistics, effect sizes, the testing order) and section 13 item 4, approved 2026-10-30 as recommended (D-021); ml/l7v2_model_prereg.json baselines.age_only (D-034); the user's decisions D-043 (E-3) and D-044 (OC-1..OC-4)",
- "rule": "Section 13 item 4, re-registered 2026-11-01 under the user's decisions D-044 ('Settle as recommended') and D-043 (E-3), post hoc but before any capture and before the code that reads it: it replaces ml/l7v2_verdict_prereg.json (format 1, commit 2b8b949), whose open choices it settles; every other value restates section 11 or 10 unchanged. The verdict code claims one verdict under these resolutions. A change is a new file version, labelled post hoc in the design's As-built section; tests/test_l7v2_verdict_prereg_v2.py pins the sha256 and every value.",
+ "format": "l7v2-verdict-prereg/3",
+ "source": "docs/L7V2_DESIGN.md section 10 (the live set and R*), section 11 (outcomes, the verdict ladder, units, statistics, effect sizes, the testing order) and section 13 item 4, approved 2026-10-30 as recommended (D-021); ml/l7v2_model_prereg.json baselines.age_only (D-034); the user's decisions D-043 (E-3) and D-044 (OC-1..OC-4); the user's decisions D-051 and D-053, the orchestrator's D-054 (T-048's findings T048-01, -02, -04, -12, -13)",
+ "rule": "Section 13 item 4, re-registered 2026-11-02 under the user's decisions D-051 ('Fix as recommended') and D-053 ('210 s + level window') and the orchestrator's D-054 (T048-12), post hoc but before any capture and before the code that reads it: it replaces ml/l7v2_verdict_prereg_v2.json (format 2), which T-048's review found could judge V-C with every V-A condition holding, and let an arm over the budget carry V-B or V-C. The verdict code claims one verdict under these resolutions. A change is a new file version, labelled post hoc in the design's As-built section; tests pin every value.",
  "classes": [
   "C3b",
   "C2",
@@ -21,6 +21,11 @@
   ],
   "enforcing": [
    "default_rules",
+   "R*",
+   "hgb",
+   "view_gru"
+  ],
+  "contenders": [
    "R*",
    "hgb",
    "view_gru"
@@ -91,15 +96,17 @@
  },
  "outcomes": {
   "primary": {
-   "harm": "Q in the attack window on judged links (design 5.2), in percent",
+   "harm": "Q in the level window on judged links (design 5.2), in percent: from the attack's start + level_window.from_attack_start_s to the attack's end (D-053)",
    "benign_acted_on": "benign users wrongly acted on at level 1 or level 2, per run, attributed from the manifest"
   },
   "secondary": [
+   "Q over the whole attack window",
    "p95 and dL",
    "time to mitigate: attack start to the first 5 consecutive 1-s bins with Q >= 99 %",
    "time to decision per attack entity",
    "attacker requests served",
-   "server CPU"
+   "server CPU",
+   "attack cost left, per class and arm (ml/p1_prereg_2.json)"
   ],
   "detection": {
    "source": "the replay of each U run's recording through every arm at its frozen operating point (the same traffic for every arm)",
@@ -130,7 +137,7 @@
  },
  "statistics": {
   "harm": {
-   "pairing": "by block",
+   "pairing": "by block, keyed by block: lists with different key sets are refused (D-054, T048-12)",
    "tool": "eval/run_level_stats.py",
    "interval": "t",
    "level": 0.95,
@@ -172,17 +179,19 @@
  "testing_order": [
   "harm_admission",
   "budget",
+  "mitigation",
+  "v_a",
   "best_learned_vs_rstar",
   "gru_vs_hgb",
   "gru_vs_shuffled"
  ],
- "testing_order_rule": "fixed sequence at family-wise alpha 0.05: a step is tested only when every earlier step passed; harm_admission passes when the class is admitted, budget when at least one enforcing arm meets the budget, best_learned_vs_rstar when the best learned arm beats R* on harm, gru_vs_hgb when the GRU beats the HGB on detection; gru_vs_shuffled is the last",
+ "testing_order_rule": "harm_admission passes when the class is admitted; budget when at least one contender (R*, HGB, GRU) meets the budget; mitigation when some live M has Q(M) - Q(U) supported and, for a class admitted on latency alone, some live M's mean gain is >= latency_alone.min_mean_gain_pp. v_a is then an intersection-union test of all V-A's conditions (R-3), with no gate on the best learned arm. Only when it does not hold, the fixed sequence best_learned_vs_rstar, gru_vs_hgb, gru_vs_shuffled decides V-B, V-C or inconclusive, at alpha 0.05 for each step (R-9).",
  "family_wise_alpha": 0.05,
  "ladder": [
   {
    "verdict": "V-D",
    "name": "no advantage, or no harm",
-   "when": "U fails harm admission; or no enforcing arm meets the budget on the evaluation seeds; or no arm mitigates (Q(M) - Q(U) not supported in M's favour for any live M of the class)"
+   "when": "U fails harm admission; or no contender (R*, HGB, GRU) meets the budget on the evaluation seeds; or no arm mitigates (Q(M) - Q(U) not supported in M's favour for any live M of the class); or the class was admitted on latency alone and no live M's mean gain Q(M) - Q(U) is >= 5 pp"
   },
   {
    "verdict": "V-A",
@@ -192,17 +201,17 @@
   {
    "verdict": "V-B",
    "name": "learning helps, sequence does not",
-   "when": "the best learned arm beats R* on harm, and the GRU is not V-A because it is equivalent to the HGB or to the shuffled-GRU on detection, or loses to one of them"
+   "when": "the best learned arm beats R* on harm and meets the budget, and the GRU is not V-A because it is equivalent to the HGB or to the shuffled-GRU on detection, or loses to one of them"
   },
   {
    "verdict": "V-C",
    "name": "rules suffice",
-   "when": "the best learned arm is equivalent to R* on harm, or R* beats it on harm (OC-4: 'rules suffice or win')"
+   "when": "the best learned arm is equivalent to R* on harm, or R* beats it on harm (OC-4: 'rules suffice or win'), and R* meets the budget"
   },
   {
    "verdict": "inconclusive",
    "name": "none of the above",
-   "when": "no rung above holds: reported with the power calculation, no verdict claimed"
+   "when": "no rung above holds: reported with the power calculation, no verdict claimed; a V-B or V-C whose carrier is over the budget is inconclusive with the arm named (D-051)"
   }
  ],
  "ladder_rule": "per class, the first rung that holds, in the order listed (V-D, V-A, V-B, V-C, inconclusive)",
@@ -229,7 +238,7 @@
   },
   {
    "id": "R-3",
-   "text": "V-A's harm contrasts against the live baselines other than R* (for C3b the default rules and the HGB) are taken jointly with step best_learned_vs_rstar as an intersection-union test, each at alpha 0.05, all of which must be 'beats'; an intersection-union test needs no multiplicity adjustment [INFERENCE: Berger 1982]."
+   "text": "V-A's conditions are tested first and jointly, as an intersection-union test: the GRU beats every live arm of the class on harm, and the HGB and the shuffled-GRU on detection, each contrast at alpha 0.05 and all 'beats'; an intersection-union test needs no multiplicity adjustment and no gate on the HGB [INFERENCE: Berger 1982]. OC-1's best learned arm is used for V-B and V-C only (D-051)."
   },
   {
    "id": "R-4",
@@ -250,9 +259,13 @@
   {
    "id": "R-8",
    "text": "The detection bootstrap's seed is fixed here for reproducibility; it judges nothing."
+  },
+  {
+   "id": "R-9",
+   "text": "[INFERENCE, disclosed] With V-A tested before the fixed sequence, the family-wise bound is no longer 0.05 in every case. Where the best learned arm is the GRU, V-A's and V-B's harm claims need the same contrast, so the bound stays 0.05. Where the HGB leads validation (C3b only), V-A rests on GRU vs R* and V-B on HGB vs R*: with both nulls true a false claim of either has probability at most 0.10 by the union bound. A verdict is one rung, each rung's own claim is at 0.05."
   }
  ],
- "label": "re-registered 2026-11-01 under D-043 and D-044, post hoc but before any capture",
+ "label": "re-registered 2026-11-02 under D-051, D-053 and D-054, post hoc but before any capture",
  "detection_entities": {
   "label": "D-043, E-3",
   "per_class": {
@@ -284,7 +297,7 @@
  "choices": [
   {
    "id": "OC-1",
-   "question": "Which arm is 'the best learned arm' of V-B and V-C (it matters for C3b only, where the GRU and the HGB both run live)?",
+   "question": "Which arm is 'the best learned arm' of V-B and V-C (it matters for C3b only, where the GRU and the HGB both run live)? V-A does not use it (D-051).",
    "options": {
     "eval_q": "the live learned arm with the higher mean Q over the evaluation blocks (ties: the GRU)",
     "validation": "the live learned arm with the higher validation recall at the budget, frozen in the selection before evaluation (ties: the GRU)",
@@ -295,7 +308,7 @@
   },
   {
    "id": "OC-2",
-   "question": "On which measure does an arm 'meet the budget on the evaluation seeds' (V-A, V-D)?",
+   "question": "On which measure does an arm 'meet the budget on the evaluation seeds' (V-A, V-B's and V-C's carriers, V-D)?",
    "options": {
     "replay": "its benign units flagged in the replay of the U runs at its frozen operating point, pooled over the evaluation blocks, <= floor(0.01 x the benign units pooled)",
     "live": "the benign users wrongly acted on (level 1 or 2) in its own M runs, pooled over the evaluation blocks, <= floor(0.01 x the benign users pooled)"
@@ -324,5 +337,30 @@
    "resolution": "v_c",
    "decision": "D-044"
   }
- ]
+ ],
+ "level_window": {
+  "decision": "D-053",
+  "from_attack_start_s": 90.0,
+  "to": "the attack's end",
+  "admission": "harm admission stays as registered: dQ and dL over the whole attack window (ml/l7v2_prereg.json harm); the level window is read by the verdict's harm contrasts only"
+ },
+ "carriers": {
+  "decision": "D-051",
+  "V-B": "the best learned arm",
+  "V-C": "R*",
+  "rule": "an arm over the budget cannot carry V-B or V-C: the class is inconclusive, the arm named"
+ },
+ "budget_step": {
+  "decision": "D-051",
+  "counts": "the contenders R*, HGB and GRU only; the default rules are the status quo and are reported, never counted"
+ },
+ "latency_alone": {
+  "decision": "D-051",
+  "min_mean_gain_pp": 5.0,
+  "rule": "a class whose admission passed on the p95 criterion and not on the Q criterion gets V-D unless some live M's mean gain Q(M) - Q(U) over the blocks is >= 5 pp: Q is the only harm outcome the ladder reads"
+ },
+ "always_reported": {
+  "decision": "D-051",
+  "rule": "for an admitted class every GRU contrast is computed and reported whatever the verdict: on harm against every live arm of the class, on detection against the HGB, the shuffled-GRU, R* and, descriptively, the age-only arm"
+ }
 }

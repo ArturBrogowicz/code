@@ -1,4 +1,4 @@
-"""P1 traffic (docs/L7V2_DESIGN.md 5.3, 6, 7, 12, 14): one block's population, as data, for eval/p1_runner.py.
+"""P1 traffic (docs/L7V2_DESIGN.md 5.3, 6, 7, 12, 14; ml/p1_prereg_2.json): one block's population, as data, for eval/p1_runner.py.
 
 Pure and seeded; nothing here touches the system. A block is one seed: build_block() draws its address pool, role map,
 per-entity parameters, netem profiles and schedules, and every run of the block uses them unchanged, its entities being
@@ -16,23 +16,26 @@ What a block holds:
     which only the ladder's level does not move. All of ml/l7_bots.FAMILIES' C3b levels run here: M2exp is in the frozen
     class table (ml/l7v2_prereg.json mimicry, design 12.4), so it has its entity labels here, and l7_pools's P3 population
     stays without it;
-  * the timeline of design 14: 30 s of baseline, 120 s of attack, 30 s of recovery.
+  * D-053's timeline: 30 s of baseline, 210 s of attack, 30 s of recovery; level_window() is what the verdict's harm contrasts read, from
+    the attack's start + 90 s to its end;
+  * the halving rule of ml/p1_prereg.json (D-049): `halvings` is how often it has fired. Every benign spec of count > 1 keeps
+    count >> halvings entities, at least 1, the first of its list; a spec of count 1, the CGNAT pools among them, is never
+    removed. An entity keeps its index, sub-seed, address and parameters whatever the halvings, so a halved plan is the full
+    plan without the dropped entities. next_step() is the rule over its steps, up to the frozen factor or a refusal.
 
 Arrivals and lifetimes follow ml/l7v2_prereg.json arrivals on one slot, the attack window (readings, labelled in the
 design's As-built section):
-  * a benign entity arrives at a uniform time over [0, the attack's end - min_active_s] and runs to the run's end; a CGNAT
+  * a benign entity arrives at a uniform time over [0, the attack's end - min_active_s], [0, 180] s, and runs to the run's end; a CGNAT
     pool runs from 0 and each user arrives over that span; a browser-like kind runs sessions, a machine client one lifetime;
-  * an attack entity arrives at a uniform time over [the attack's start, its end - min_active_s] and runs one lifetime,
+  * an attack entity arrives at a uniform time over [the attack's start, its end - min_active_s], [30, 180] s, and runs one lifetime,
     capped at the attack's end: the recovery is attack-free, so the run's time to mitigate means what it says;
-  * the flash crowd's minute starts at a uniform time over the benign arrival span. flash_gap_s cannot be kept on one
-    slot (no start is 60 s from a slot that begins at 30 s, within a span of 90 s), and the plan says so;
-  * arrivals.age_check is computed and recorded per class (age_report), not enforced: with a baseline, benign arrivals
-    begin 30 s before the attack's, so its first-seen KS is 0.33 against a limit of 0.30 by construction. See the design's
-    As-built section.
+  * the flash crowd's minute starts at a uniform time over the benign arrival span, at least flash_gap_s from the attack's start: [90, 120] s;
+  * arrivals.age_check is computed and recorded per class (age_report), not applied (D-049). See the design's As-built section.
 
 This module stays light: no numpy, no eval/ imports.
 """
 import copy
+import json
 import math
 import os
 import random
@@ -45,7 +48,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 
 VERSION = "2026-11-p1"           # the stream name under which l7_pools draws a P1 plan's pool and sub-seeds
 PLAN_FORMAT = "p1-plan/1"
-TIMELINE = {"baseline_s": 30, "attack_s": 120, "recovery_s": 30}     # design 14
+TIMELINE = {"baseline_s": 30, "attack_s": 210, "recovery_s": 30}     # D-053, ml/p1_prereg_2.json timeline
 ROLES = {"eval": "p1_live_eval", "pilot": "p1_pilot"}               # ml/p3_prereg.json seeds
 PRIMARY = {"C2": "C2", "C3a": "C3a", "C3b": "C3b@M2"}
 SIDE_FAMILIES = {"C3b": {"C3b@M1": 10, "C3b@M3": 10, "C3b@M2exp": 10}}   # [ASSUMPTION] reported separately, judge nothing
@@ -65,12 +68,94 @@ def check_seed(seed, seed_role):
         raise PlanError(f"seed {seed} is not pre-registered as {ROLES[seed_role]}")
 
 
+def prereg():
+    """ml/p1_prereg.json, the dated record of D-049."""
+    with open(os.path.join(HERE, "p1_prereg.json"), encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def prereg_2():
+    """ml/p1_prereg_2.json, the dated record of D-052, D-053 and D-054."""
+    with open(os.path.join(HERE, "p1_prereg_2.json"), encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def check_halvings(halvings):
+    """`halvings` if it is an int from 0 up to the rule's floor, or a refusal: past the floor there is no plan."""
+    floor = prereg()["halving"]["floor"]["max_halvings"]
+    if not (isinstance(halvings, int) and not isinstance(halvings, bool) and 0 <= halvings <= floor):
+        raise PlanError(f"halvings must be an int in 0..{floor}, the rule's floor (ml/p1_prereg.json), got {halvings!r}")
+    return halvings
+
+
+def kept_entities(count, halvings):
+    """How many of a benign spec's `count` entities a plan keeps: count >> halvings, at least 1; a single entity is never removed."""
+    return count if count <= 1 else max(1, count >> halvings)
+
+
+def _kept_indices(specs, halvings):
+    """The entity indices a plan keeps: each spec's first kept_entities, by index over the full mix."""
+    kept, base = set(), 0
+    for spec in specs:
+        kept.update(range(base, base + kept_entities(spec["count"], halvings)))
+        base += spec["count"]
+    return kept
+
+
+def halve(control_reasons):
+    """The frozen rule over the two pilot controls, as ml/p4_traffic.halve: `control_reasons` holds, for each, the reasons it is
+    unhealthy (eval/harm_gate.control_health), empty when it is healthy. True iff either is unhealthy."""
+    control_reasons = list(control_reasons)
+    if len(control_reasons) != 2:
+        raise PlanError(f"the rule judges the two pilot controls, got {len(control_reasons)}")
+    return any(bool(r) for r in control_reasons)
+
+
+def next_step(steps):
+    """The rule of ml/p1_prereg.json over its steps in the order they ran, each {"halvings", "sound", "reasons": [C's, C''s]}:
+    {"decision", "benign_halvings", "next_halvings", "why"}, the decision one of "run" (the next step's halvings), "frozen" (the
+    factor) and "refused" (there is no factor, and the ladder and the campaign refuse)."""
+    rule = prereg()["halving"]
+    floor, max_reruns = rule["floor"]["max_halvings"], rule["max_reruns"]
+
+    def refused(why):
+        return {"decision": "refused", "benign_halvings": None, "next_halvings": None, "why": why}
+
+    h, reruns = 0, 0
+    for i, step in enumerate(steps):
+        if step["halvings"] != h:
+            return refused(f"step {i + 1} ran at {step['halvings']} halvings while the rule stood at {h}")
+        if not step["sound"]:
+            reruns += 1
+            if reruns > max_reruns:
+                return refused(f"the controls at {h} halvings gave no reading in {reruns} attempts (at most {max_reruns} re-runs)")
+            continue
+        if not halve(step["reasons"]):
+            if i != len(steps) - 1:
+                return refused(f"a step ran after the rule stopped at {h} halvings")
+            return {"decision": "frozen", "benign_halvings": h, "next_halvings": None,
+                    "why": f"both controls healthy at {h} halvings"}
+        if h == floor:
+            return refused(f"the benign mix does not reach health at the floor of {floor} halvings "
+                           f"(ml/p1_prereg.json): {step['reasons']}")
+        h, reruns = h + 1, 0
+    return {"decision": "run", "benign_halvings": None, "next_halvings": h, "why": f"the next step runs at {h} halvings"}
+
+
 def run_seconds():
     return sum(TIMELINE.values())
 
 
 def attack_window():
     return float(TIMELINE["baseline_s"]), float(TIMELINE["baseline_s"] + TIMELINE["attack_s"])
+
+
+def level_window(timeline=None):
+    """What the verdict's harm contrasts read (D-053, ml/l7v2_verdict_prereg_v3.json level_window), seconds from the run's start."""
+    import l7v2_verdict_prereg
+    t = timeline or TIMELINE
+    lo = float(t["baseline_s"])
+    return lo + l7v2_verdict_prereg.load()["level_window"]["from_attack_start_s"], lo + float(t["attack_s"])
 
 
 def ladder_levels(cls):
@@ -187,10 +272,11 @@ def _netem(LP, seed, group, name):
 
 
 def build_block(seed, seed_role, levels, *, record_path=None, knees=None, check_role=True, heuristics="tolerant",
-                gate_seeds=(0, 1), benign_specs=None, max_sources=None):
+                gate_seeds=(0, 1), benign_specs=None, max_sources=None, halvings=0):
     """One block's population as data. `levels` {class: level}: C2's and C3a's a level of S, C3b's a number of bots; a class
     left out has no sources. An evaluation block needs frozen knees bound to a frozen record (l7_pools._knees, L7V2-08),
-    and its levels must be the knees. `benign_specs` and `max_sources` thin a plan for tests, never the rates."""
+    and its levels must be the knees. `halvings` is how often the halving rule has fired (ml/p1_prereg.json). `benign_specs` and
+    `max_sources` thin a plan for tests, never the rates."""
     import calibration as CAL
     import l7_pools as LP
     import l7v2_prereg
@@ -199,6 +285,7 @@ def build_block(seed, seed_role, levels, *, record_path=None, knees=None, check_
     import l7_dataset
     if check_role:
         check_seed(seed, seed_role)
+    check_halvings(halvings)
     rec, status, tag = l7_backend.load_record(record_path)
     if status == "measured":
         rec = l7_backend.arithmetic_record(rec, l7_backend.load_record()[0])
@@ -214,7 +301,8 @@ def build_block(seed, seed_role, levels, *, record_path=None, knees=None, check_
     rule = pre["arrivals"]
     span = attack_window()[1] - rule["min_active_s"]
     within = pre["benign_kinds"]["flash_crowd"]["arrive_within_s"]
-    flash = round(random.Random(LP.subseed(VERSION, seed, "flash")).uniform(0.0, span - within), 3)
+    earliest = attack_window()[0] + rule["flash_gap_s"]
+    flash = round(random.Random(LP.subseed(VERSION, seed, "flash")).uniform(earliest, span - within), 3)
     specs = LP.POPULATIONS["l7v2"]["benign"] if benign_specs is None else benign_specs
     benign, dropped = _benign(LP, seed, specs, span, flash, heuristics, gate_seeds)
     n_full = sum(s["count"] for s in specs)
@@ -249,6 +337,8 @@ def build_block(seed, seed_role, levels, *, record_path=None, knees=None, check_
             rows += group
         attack[cls] = rows
     _netem(LP, seed, benign, "benign")
+    kept = _kept_indices(specs, halvings)                 # after the draws over the full mix, so that the halvings move no entity
+    benign, dropped = [e for e in benign if e["index"] in kept], [d for d in dropped if d["entity_index"] in kept]
     addresses = LP.draw_pool(VERSION, seed, pool_size)
     for row in benign + [r for rows in attack.values() for r in rows]:
         row["address"] = addresses[row["index"]]
@@ -256,11 +346,11 @@ def build_block(seed, seed_role, levels, *, record_path=None, knees=None, check_
         if l7_dataset.pool_users(row):
             row["users"] = l7_dataset.pool_users(row)
     return {"format": PLAN_FORMAT, "version": VERSION, "seed": seed, "seed_role": seed_role, "levels": dict(levels),
-            "sources": sources, "timeline": dict(TIMELINE), "duration_s": float(run_seconds()), "benign": benign,
+            "halvings": halvings, "sources": sources, "timeline": dict(TIMELINE), "duration_s": float(run_seconds()), "benign": benign,
             "attack": attack, "dropped": dropped, "heuristics": heuristics,
             "intensity": {"record_status": rec["status"], "record_tag": tag, "label": l7_backend.label(rec),
                           "record_sha256": rec.get("sha256"), "spare_cpu_s": spare, "knees": bound},
-            "flash": {"start_s": flash, "gap_kept": False, "why": "flash_gap_s cannot be kept on one slot"},
+            "flash": {"start_s": flash, "gap_kept": True},
             "pool": {"range": str(LP.POOL_NET), "size": pool_size,
                      "permutation_seed": LP.subseed(VERSION, seed, "pool"), "address_limit": _address_limit()}}
 
@@ -285,9 +375,50 @@ def run_entities(block, cls=None):
     return rows
 
 
+def benign_load(block, rec):
+    """The benign plan's nominal load against the record: req/s and CPU-s/s at the record's class costs over the attack window, per
+    kind; req/s over the level window and the peak over 20 s, the capacity step's length; beside rho and C_slo in both units and the
+    spare capacity S. The mix does not read the record: rho only sizes the attack, through S.
+    Nominal: no network or server time. A kind without a plan (the P5 kinds) has no nominal times, so it is listed, not counted; an
+    uncosted route (a crawler's /robots.txt) counts as a request without a class cost."""
+    import calibration as CAL
+    import l7_pools as LP
+
+    import l7_webapp
+    lo, hi = attack_window()
+    kinds, unplanned, per_s = {}, set(), [0] * (run_seconds() + 1)
+    for e in block["benign"]:
+        plan, kind = LP._plan_of(e), e["kind_or_family"]
+        if plan is None:
+            unplanned.add(kind)
+            continue
+        row = kinds.setdefault(kind, {"requests": 0, "cpu_ms": 0.0})
+        for user in plan["users"]:
+            for t, path in LP.nominal_requests(user):
+                at = e["schedule"]["start_s"] + t
+                if at < run_seconds():
+                    per_s[int(at)] += 1
+                if lo <= at < hi:
+                    row["requests"] += 1
+                    row["cpu_ms"] += rec["route_costs_ms"].get(l7_webapp.route_class("GET", path), 0.0)
+    span = hi - lo
+    rho, c_slo = CAL.rho_rps(rec), rec["capacity"]["c_slo_rps"]
+    mean_cost = CAL.mean_cost_ms(rec) / 1000.0
+    level = level_window()
+    return {"req_s": round(sum(r["requests"] for r in kinds.values()) / span, 1),
+            "cpu_s_s": round(sum(r["cpu_ms"] for r in kinds.values()) / 1000.0 / span, 3),
+            "level_req_s": round(sum(per_s[int(level[0]):int(level[1])]) / (level[1] - level[0]), 1),
+            "peak_20s_req_s": round(max(sum(per_s[i:i + 20]) for i in range(int(lo), int(hi) - 19)) / 20.0, 1),
+            "by_kind": {k: {"req_s": round(r["requests"] / span, 1), "cpu_s_s": round(r["cpu_ms"] / 1000.0 / span, 3)}
+                        for k, r in sorted(kinds.items())},
+            "without_a_plan": sorted(unplanned), "rho_req_s": rho, "rho_cpu_s_s": round(rho * mean_cost, 3),
+            "c_slo_req_s": c_slo, "c_slo_cpu_s_s": round(c_slo * mean_cost, 3),
+            "spare_cpu_s": round(CAL.spare_capacity(rec), 3)}
+
+
 def age_report(block):
-    """The frozen key-age check (ml/l7v2_prereg.json arrivals.age_check, l7_pools.age_check) per class, recorded and not
-    enforced on P1's one-slot timeline (see the module docstring)."""
+    """The frozen key-age check (ml/l7v2_prereg.json arrivals.age_check, l7_pools.age_check) per class, recorded per run and not
+    applied on P1's one-slot timeline (D-049, ml/p1_prereg.json age_check; see the module docstring)."""
     import l7_pools as LP
     import l7v2_prereg
     rule = l7v2_prereg.load()["arrivals"]["age_check"]

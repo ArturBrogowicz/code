@@ -1,4 +1,4 @@
-"""The verdict pre-registration settled by D-043 and D-044 (ml/l7v2_verdict_prereg_v2.json, before any capture): every
+"""The verdict pre-registration re-registered by D-051, D-053 and D-054 (ml/l7v2_verdict_prereg_v3.json, before any capture): every
 value is pinned here, so a change shows up as a failing test and must become a new file version. Offline and pure."""
 import hashlib
 import json
@@ -13,8 +13,8 @@ import l7v2_model_prereg
 import p3_prereg
 import run_level_stats
 
-PATH = os.path.join(REPO, "ml", "l7v2_verdict_prereg_v2.json")
-SHA256 = "42fc03162d6a924922e5936c41c0016a74dc4151397b31b6a223696ed2645bd5"
+PATH = os.path.join(REPO, "ml", "l7v2_verdict_prereg_v3.json")
+SHA256 = "96cdd2c287859649a3712c9ce59b5a86ce0580ed3430197647de83ef8a5f9989"
 
 
 def pre():
@@ -27,8 +27,8 @@ class FrozenFileTest(unittest.TestCase):
         with open(PATH, "rb") as fh:
             self.assertEqual(hashlib.sha256(fh.read()).hexdigest(), SHA256)
         p = pre()
-        self.assertEqual(p["format"], "l7v2-verdict-prereg/2")
-        self.assertTrue(p["label"].startswith("re-registered 2026-11-01 under D-043 and D-044"))
+        self.assertEqual(p["format"], "l7v2-verdict-prereg/3")
+        self.assertTrue(p["label"].startswith("re-registered 2026-11-02 under D-051, D-053 and D-054"))
         self.assertIn("before any capture", p["label"])
 
     def test_d044_settles_every_choice(self):
@@ -53,13 +53,17 @@ class FrozenFileTest(unittest.TestCase):
         self.assertEqual([r["verdict"] for r in p["ladder"]], ["V-D", "V-A", "V-B", "V-C", "inconclusive"])
         rungs = {r["verdict"]: r for r in p["ladder"]}
         self.assertIn("U fails harm admission", rungs["V-D"]["when"])
-        self.assertIn("no enforcing arm meets the budget on the evaluation seeds", rungs["V-D"]["when"])
+        self.assertIn("no contender (R*, HGB, GRU) meets the budget on the evaluation seeds", rungs["V-D"]["when"])
+        self.assertIn("admitted on latency alone and no live M's mean gain", rungs["V-D"]["when"])
+        self.assertIn("meets the budget", rungs["V-B"]["when"])
+        self.assertIn("and R* meets the budget", rungs["V-C"]["when"])
+        self.assertIn("inconclusive with the arm named (D-051)", rungs["inconclusive"]["when"])
         self.assertIn("beats every live baseline arm of the class on harm", rungs["V-A"]["when"])
         self.assertIn("the HGB and the shuffled-GRU on detection by >= 10 pp", rungs["V-A"]["when"])
         self.assertIn("the best learned arm beats R* on harm", rungs["V-B"]["when"])
         self.assertIn("or R* beats it on harm (OC-4: 'rules suffice or win')", rungs["V-C"]["when"])
-        self.assertEqual(p["testing_order"], ["harm_admission", "budget", "best_learned_vs_rstar", "gru_vs_hgb",
-                                              "gru_vs_shuffled"])
+        self.assertEqual(p["testing_order"], ["harm_admission", "budget", "mitigation", "v_a", "best_learned_vs_rstar",
+                                              "gru_vs_hgb", "gru_vs_shuffled"])
         self.assertEqual(p["family_wise_alpha"], 0.05)
 
     def test_effect_sizes_live_set_and_r_star_are_unchanged(self):
@@ -83,6 +87,23 @@ class FrozenFileTest(unittest.TestCase):
         self.assertEqual((s["detection"]["B"], s["detection"]["level"], s["detection"]["seed"]), (2000, 0.95, 20261031))
         self.assertEqual(p["blocks_on_v_a"]["age_only"]["band"],
                          l7v2_model_prereg.load()["baselines"]["age_only"]["auc_band"])
+
+    def test_d051_the_new_rules(self):
+        p = pre()
+        self.assertEqual(p["arms"]["contenders"], ["R*", "hgb", "view_gru"])
+        self.assertEqual((p["carriers"]["V-B"], p["carriers"]["V-C"]), ("the best learned arm", "R*"))
+        self.assertEqual(p["latency_alone"]["min_mean_gain_pp"], 5.0)
+        self.assertIn("every GRU contrast is computed and reported whatever the verdict", p["always_reported"]["rule"])
+        readings = {r["id"]: r["text"] for r in p["readings"]}
+        self.assertIn("no gate on the HGB", readings["R-3"])
+        self.assertIn("at most 0.10 by the union bound", readings["R-9"])
+
+    def test_d053_and_d054_the_harm_contrast(self):
+        p = pre()
+        self.assertEqual(p["level_window"]["from_attack_start_s"], 90.0)
+        self.assertIn("level window", p["outcomes"]["primary"]["harm"])
+        self.assertIn("Q over the whole attack window", p["outcomes"]["secondary"])
+        self.assertIn("keyed by block", p["statistics"]["harm"]["pairing"])
 
 
 if __name__ == "__main__":

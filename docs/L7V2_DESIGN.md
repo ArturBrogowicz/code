@@ -463,6 +463,8 @@ That makes 13 runs per block. R* is the rule arm with the best validation recall
 
 ## 11. Outcomes, the verdict ladder, units and statistics
 
+**Re-registered 2026-11-02, before any capture (D-051, D-053, D-054; `ml/l7v2_verdict_prereg_v3.json`).** The testing order, the budget step, what carries V-B and V-C, the latency-alone rule and the harm window below are superseded as section "As built: the P1 runner" says.
+
 **Primary outcomes.**
 - Q in the attack window, on judged links (5.2).
 - Benign users wrongly acted on, at level 1 or level 2, per run, attributed from the manifest.
@@ -563,22 +565,24 @@ A departure is labelled post hoc in this note's "As built" section, as `docs/HG1
 runner; the pools and the manifest; the new benign kinds and the bot module; the log fields; the view tokens; engine v2 with
 enforcement and safeguards; and the verdict code. Every piece gets fake-based tests in the style of `tests/test_daemon_rules.py`.
 
-**VM time** [ESTIMATE]. One run is 180 s of traffic (30 s baseline, 120 s attack, 30 s recovery) plus ~45 s of set-up, about
-3.75 min.
+**VM time** [ESTIMATE, re-computed 2026-11-02 under D-053]. One run is 270 s of traffic (30 s baseline, 210 s attack, 30 s recovery) plus
+~45 s of set-up, about 5.25 min. The ladder's runs are what its levels can reach (section "As built: the P1 runner").
 
 | Step | Runs | VM h |
 |---|---|---|
-| smoke: one run per mode | ~8 | 0.5 |
-| harm ladder, 3 classes × 4 levels × 2 repeats × (C, U) | 48 | 3.0 |
-| evaluation: 10 blocks × 13 runs | 130 | 8.1 |
-| re-runs (≤ 2 blocks) | 26 | 1.6 |
-| **total** | | **~13 h** (11.6 without re-runs) |
+| smoke: part A, the alias reads, part B | 10 | 0.9 |
+| the halving rule (D-049): 2 runs per step, 1-3 steps | 2-6 | 0.2-0.5 |
+| harm ladder, the reachable levels × 2 repeats × (C, U) | 28-32 | 2.5-2.8 |
+| evaluation: 10 blocks × 13 runs | 130 | 11.4 |
+| re-runs (≤ 2 blocks) | 26 | 2.3 |
+| **total** | | **~18 h** (about 15.5 without re-runs) |
 
 **Notes on the budget:**
 - **Minimum cut:** C3b and C2 only. The block is C, C', C3b (U, R*, HGB, GRU) and C2 (U, R*, GRU): 9 runs, so the
-  campaign takes 5.6 h. With a 3-level ladder (1.5 h) and the smoke (0.5 h) that is ~7.6 h, or ~8.7 h with re-runs.
+  campaign takes 7.9 h. With the same smoke, rule and ladder that is ~12 h, or ~13.7 h with 18 re-run runs.
 - **The optional classes:** C4 and C1 add ~3.5 h each, including their ladders.
-- **P3's captures are budgeted in the P3 note.** They supply training and validation data, not evaluation blocks.
+- **P3's captures are budgeted in the P3 note.** They supply training and validation data, not evaluation blocks. D-052's two more validation
+  seeds add 0.6 VM h there.
 - **Prerequisites:** D-ROB (daemon robustness), and the HG2 frozen record before any verdict run.
 
 **Out of scope:** see section 2. In addition, no claim about real headless-browser bots goes beyond "a request-level
@@ -967,6 +971,12 @@ within the budget. The cost budget can, because it reads what a request costs an
 reaches the best any threshold reaches (255 over 60 s), so it is not starved. These numbers are synthetic and on placeholder costs; the
 real validation captures decide.
 
+**Correction (T-048, T048-03 and T048-04, 2026-11-02).** "255 of 320 at 0 benign users" holds on the validation plans only, and it is no reading of P1's harm.
+[FACT, synthetic, T-048's own replay.] At that point, on evaluation plans of seeds 3001-3010, R* charges 69 of 1778 benign users against a budget of 17, nearly all of them
+behind CGNAT pools (59) and api_bulk (10), a held-out kind; other stream labels draw other points, and all those measured stay over the budget. On P1's blocks at the former 120-s attack it decided late, and
+83 % of C3b's cost, 91 % of C3a's and 38 % of C2's stayed served by the worst case of the enforcing path. "The best any threshold reaches" holds for the v1 label
+only. D-051, D-052 and D-053 answer this; section "As built: the P1 runner" has them, and the figures at 210 s.
+
 **The (IP, UA) age-only arm reads "age-confounded"** (AUC 0.750, address 0.787), as T042-F01 found, yet catches nothing
 at the budget. No rule arm reads a key's age, so R*'s recall does not come from it; a model keyed (IP, UA) would be
 exposed to it.
@@ -1193,38 +1203,111 @@ arm alike (view arms and R*):
 
 Built offline and tested on a fake host (`tests/p1_fake_host.py`); nothing ran on the VM. `eval/p1_runner.py` is a T3 script,
 `ml/p1_traffic.py` a block's population, `eval/p1_records.py` a run's records and `eval/p1_analysis.py` a campaign's verdicts. Every
-item below is a reading or an addition, labelled post hoc, before any data.
+item below is a reading or an addition, labelled post hoc, before any data. D-049 (2026-11-02, the user: "Approve as recommended",
+dated record `ml/p1_prereg.json`) accepted the readings, kept the two assumptions as assumptions, and settled the age check and the halving rule. D-051, D-052 and D-053 (the
+user) and D-054 (the orchestrator), all 2026-11-02 after T-048's review, before any capture, re-registered the verdict (`ml/l7v2_verdict_prereg_v3.json`), the validation seeds and
+the timeline (`ml/p1_prereg_2.json`).
 
 **The population (sections 5.3, 6, 7).**
-- **Timeline.** Section 14's 30 s + 120 s + 30 s. Attack sources stop at the attack's end, so the recovery is attack-free.
-- **Benign.** `l7_pools`'s frozen mix unchanged, held-out kinds included: 138 addresses, about 176-179 users.
-- **C3b's side bots** [ASSUMPTION]. Besides the level's bots at M2, every C3b run of a block carries 10 bots each at M1, M3 and
+- **Timeline (D-053).** 30 s + 210 s + 30 s, 120 s of attack until T-048 found that most of the slow classes' cost was served before a decision. Attack sources stop at the attack's end, so the
+  recovery is attack-free.
+- **Benign.** `l7_pools`'s frozen mix, held-out kinds included: 138 addresses, about 176-179 users, unless the halving rule fires.
+- **C3b's side bots** [ASSUMPTION, kept as one by D-049]. Besides the level's bots at M2, every C3b run of a block carries 10 bots each at M1, M3 and
   M2exp, so that D-043's separate reports have entities. They run in U and in every M arm, are constant across the ladder, and
   judge nothing. M2exp is in the frozen class table (`ml/l7v2_prereg.json` mimicry), so it has its entity labels here; `l7_pools`'s P3
   population stays without it. An M3 bot needs no reused address here, since one class runs at a time.
-- **Arrivals on one slot.** `arrivals` is applied with the attack window as the only slot: benign over [0, 90] s, attack over
-  [30, 90] s.
+- **Arrivals on one slot.** `arrivals`, unchanged, with the attack window as the only slot: benign over [0, 180] s, attack over
+  [30, 180] s, at least 60 s of life, capped at the attack's end.
+- **What the longer slot does to the attack [FACT, plans at nominal times, 10 blocks, `S3:T-025f/artifacts/p1_plan_at_210s_hg2.json`].** About 80 % of the bots reach the cap (78-89 % by family), the median bot
+  is active about 120 s, the longest 210 s. Since arrivals stretch with the slot, the share of a family's sources active is 59 % at 120 s, when the level window opens, 77 % at 150 s, 93 % at 180 s and 87 % at 210 s: the
+  level window does not sit on a plateau, and its load is about 80 % of the level's nominal one [INFERENCE from those shares].
 
-**Two frozen rules do not fit one slot.** Neither is applied as written; the user should decide.
-- `arrivals.age_check` is computed per class and recorded in `block.json`, not enforced. Benign arrivals begin 30 s before the
-  attack's and benign keys run into the recovery, so it fails by construction. On all ten blocks and three classes it fails: first-seen KS 0.27-0.46
-  (limit 0.30) and AUC 0.62-0.74, lifetime KS 0.41-0.63, window-age AUC 0.25-0.38 (attack windows are younger; band 0.35-0.65).
+**The age check on one slot.** One of the two rules that did not fit 120 s.
+- `arrivals.age_check` stays enforced on P3's training, validation and held-out captures. On P1's runs it is recorded per run (`run.json`
+  `age_check`: `applied` false, the plan's report for the run's class, none for a control) and not applied: it refuses nothing and
+  invalidates nothing (D-049). At 120 s it failed on all 30 pairs of block and class, first-seen KS 0.27-0.46. At 210 s [FACT, plans, 10 blocks]: passes on 17 of 30 (C2 3, C3a 8, C3b 6), first-seen KS
+  0.13-0.31 (limit 0.30), AUC 0.51-0.67, lifetime KS 0.13-0.35, window-age AUC 0.32-0.46 (attack windows younger; band 0.35-0.65).
   The learned arms are trained on P3's age-matched captures and the rules read no age, so this is a shift at scoring, not a
-  leak in training [INFERENCE]. Any view-level contrast in P1 is read with it in view.
-- `flash_gap_s` cannot be kept: no start lies 60 s from a slot that opens at 30 s within a span of 90 s. The flash crowd's minute
-  starts at a uniform time in [0, 30] s, and the plan says so.
+  leak in training [INFERENCE]. So the analysis puts the age-only reading on the U replays beside every view-level contrast
+  (`age_only_on_U`: the window-age AUC per block, per family and pooled, in the age-only arm's sense, AUC above 0.5 meaning younger attack
+  windows; the age-only arm's recall at its frozen point; each U run's recorded check. `view_level_contrasts`: every contrast of the
+  judge's output naming the GRU, the HGB or the shuffled GRU, with that reading beside it). It is descriptive: `judge`'s inputs do not read it,
+  and a test shows the verdict's output unchanged without it.
+- `flash_gap_s`, which 120 s could not keep, now holds: the flash crowd's minute starts at a uniform time in [90, 120] s, at least 60 s from the attack's start, so part of it falls in the level window.
 
 **The address limit bounds C3b's ladder.** A run over `ml/p3_prereg.json` `pool.address_limit` (300) is refused. With the benign
-138 and 30 side bots, C3b reaches 132 bots: the ladder's 50 and 100 are reachable, 200 and 300 are not.
+138 and 30 side bots, C3b reaches 132 bots: the ladder's 50 and 100 are reachable, 200 and 300 are not. C3b's addresses per level and halvings:
+
+| Halvings | 100 bots | 200 bots | 300 bots |
+|---|---|---|---|
+| 0 | 268 | 368 | 468 |
+| 1 | 204 | 304 | 404 |
+| 2 | 171 | 271 | 371 |
+
+Only a smoke may read above the limit (`--address-limit`, E-2), and nothing else moves it. A ladder or a campaign above 300 addresses needs a new
+dated decision after that read.
+
+**C3a's ladder on HG2's numbers [FACT, arithmetic, `S3:T-025f/artifacts/p1_plan_at_210s_hg2.json`].** With C_slo 84.5 req/s, rho 42.25 and S 0.263 CPU-s/s, C3a needs 40 sources at level 1, 79 at level 2 and 158 at level 4,
+against its bound of 50-100: only level 2 is reachable, where the placeholder reached only level 1. If level 2 does not reach the floor, C3a has no knee. C2 reaches all four levels; C3b 50 and 100 bots, and 200 at 2 halvings.
+
+**The halving rule (D-049, `ml/p1_prereg.json` `halving`, modelled on `ml/p4_traffic.py`'s).**
+- **Where.** Before the harm ladder, on pilot seed 9001. Phase `health` runs C and C' at `--halvings`; `eval/p1_analysis.py --health` reads
+  both through `eval/harm_gate.control_health` (Q(C) >= 99 %, each route class >= 95 %).
+- **Steps.** Either control unhealthy: one more halving, both controls again. The first step counting up from 0 with both healthy
+  gives the factor, and no step runs after it. A control whose run checks failed gives no reading and fires nothing; it is re-run at most twice.
+- **What is halved.** Every benign spec of count > 1 keeps its first `count >> halvings` entities, at least 1. A spec of count 1 stays: both CGNAT
+  pools, the NAT gateway, each single-entity kind. The draws run over the full mix, so an entity keeps its index, sub-seed, address, parameters
+  and netem profile whatever the halvings, and the attack's addresses do not move.
+- **The floor, my choice: 2 halvings.** 138, 74 and 41 addresses. At 2 the pools hold 36 of about 81 users and the flash crowd has 7 devices;
+  at 3 they would hold 36 of about 65, a majority, and the crowd 3. A halving raises the share of users behind the pools (20 %, 32 %, 44 %), so
+  a flagged pool costs a larger share of the budget's users (D-043): the factor is recorded with every run and must be reported with every result.
+- **Frozen.** The factor is in a health file bound to the record's digest. A ladder and a campaign take it from there (`--health`), a campaign's
+  knees must name the same factor, and each block, run and manifest records it. A ladder at two factors is refused.
+- **At the floor.** Still unhealthy at 2 halvings: no factor, and the ladder and the campaign refuse and say why. Going on is a new decision.
+
+**The benign rate against C_slo and rho.** [FACT, arithmetic on plans at nominal times, without the seven kinds that have no plan (about 10 req/s by their parameters [INFERENCE]); HG2's measured capacity and route costs of
+2026-11-03 and 2026-10-30 in a frozen fixture; `S3:T-025f/artifacts/p1_plan_at_210s_hg2.json`; NOT RUN.] C_slo 84.5 req/s, first unhealthy 109.9, C_sat 241.3; rho 42.25; seeds 3001-3005 at 30 + 210 + 30 s:
+
+| Halvings | Addresses, users | Attack window req/s (x C_slo) | Level window req/s (x C_slo) | Peak over 20 s req/s (x C_slo) | CPU-s/s at class costs (x C_slo's 0.525) |
+|---|---|---|---|---|---|
+| 0 | 138, 175-179 | 120-135 (1.42-1.59) | 141-147 (1.67-1.74) | 180-198 (2.13-2.34) | 0.127-0.149 (0.24-0.28) |
+| 1 | 74, 111-115 | 73-86 (0.86-1.02) | 85-94 (1.00-1.11) | 119-130 (1.40-1.54) | 0.087-0.102 (0.17-0.19) |
+| 2 | 41, 78-82 | 52-61 (0.61-0.72) | 56-70 (0.66-0.83) | 85-93 (1.01-1.10) | 0.063-0.080 (0.12-0.15) |
+
+The two units disagree, and the rule, not this table, decides. In requests the full mix is above C_slo in every window; in the capacity's own CPU terms it is about a quarter, since its mean cost at class costs is about 1 ms per request against the record's
+6.2 ms: about 80 % of its requests are static assets and under 2 % search, where the record's mix has 33 % and 11 %. HG2's stack cost adds about 2.2 ms per request [FACT: origin 7.7-8.0 ms against 6.2 ms at class costs, nginx 0.5 ms], which puts the
+full mix at about 0.5 CPU-s/s over the level window and 0.6 at its peak, against 0.71 at C_slo [INFERENCE]. So a server-side limit alone need not fire the rule at 0 halvings; CPU 7 and the 20-s peak are the likelier causes, which is what the smoke reads.
+Rho only sizes the attack, through S, and the mix does not read the record: S's assumption of 0.263 CPU-s/s of benign work is about twice what this mix costs at class costs, which the ladder's knee absorbs [INFERENCE]. `--plan` prints these figures on the record in use, and `block.json` keeps them.
+
+**The verdict (D-051, `ml/l7v2_verdict_prereg_v3.json`; T048-01, -02, -13).**
+- **Order.** After admission: the budget step, which counts R*, the HGB and the GRU only; mitigation; then V-A's conditions jointly. Only when they do not hold does OC-1's best learned arm enter, for V-B and V-C.
+- **Reported.** Every GRU contrast of an admitted class, whatever the verdict: harm against every live arm, detection against the HGB, the shuffled GRU, R* and the age-only arm.
+- **Carriers.** An arm over the budget cannot carry a verdict: V-B's carrier is the best learned arm, V-C's is R*, and the class is then inconclusive with the arm named.
+- **Latency alone.** A class admitted on the p95 criterion alone gets V-D unless some live arm's mean gain in Q reaches 5 pp.
+- **Disclosed [INFERENCE, R-9].** The family-wise bound stays 0.05 where the best learned arm is the GRU. Where the HGB leads validation (C3b only), V-A rests on GRU vs R* and V-B on HGB vs R*, so with both nulls true a false claim of either is at most 0.10 by the union bound.
+- **Keyed (D-054, T048-12).** Harm is `{arm: {block: Q}}`, and different key sets are refused.
+
+**The harm window (D-053).** The verdict's contrasts read Q from the attack's start + 90 s to its end, with the never-sent guard on that window (`eval/l7v2_harm.py window_figures`). The whole window's Q is reported beside it; admission, the placebo and the ladder's knees read the whole
+attack window, as registered. Each class's `reported` also holds, descriptively, time to decision per arm and family and the attack cost left: by the replay's worst case (a request is removed from max(decision, first + 20 s) + 10 s), and, for an arm with M runs, measured as its attack 2xx cost over U's.
+T-048's probe re-run at 210 s, same point and levels, placeholder costs [FACT, synthetic, `S3:T-025f/artifacts/t048_p4_probe_at_210s.out`]: C2 27.5 % of the cost left (was 38 %), C3a 75 % (91 %), C3b 64 % (83 %); C3b@M2 caught 751 of 1000 (586), at a mean of 74 s. Longer attacks help R* too, as they do every arm.
+
+**The validation seeds and the frozen points (D-052; T048-03).**
+- `p3_val` is 2001-2004 for every arm's selection. Seeds 2003 and 2004 pass the plan's own checks on stream 2026-11-v1 with the frozen age limits [FACT, a frozen fixture, `S3:T-025f/artifacts/p3_val_plans_2001_2004.json`]. Capture time: +0.6 VM h.
+- **The pilot's check, before the campaign.** `eval/p1_analysis.py --points` replays one valid control per pilot seed at the frozen factor through each arm at its frozen point: benign units flagged, pooled over all eight seeds, against the budget. The ladder's pairs must cycle through the eight seeds for that.
+- **Its stop.** R*, the HGB or the GRU over the budget there stops the campaign until a dated decision is named (`--points-decision`), recorded with every block. A seed without a valid control leaves the check incomplete, and a campaign refuses it. The file is bound to the record, both selections and the factor. Nothing is re-tuned.
+- **What four seeds do to R*, and what the check is likely to read [FACT, synthetic: plans at nominal times, placeholder costs; `S3:T-025f/artifacts/rstar_val4_synthetic.out`, `S3:T-025f/artifacts/rstar_pilot_check_synthetic.out`].** Tuned on 2001-2004 the cost rule moves to tau 1.0, above 621 ms over 60 s, k 1: 395 of 640 at 0 benign users (on two seeds, 254 of 320). On evaluation plans it charges 37 of 1778 users against a budget of 17 (two seeds: 69), and catches C3b@M2 269 of 500 (460) and C3a 250 of 500 (335). On P1's control plans of the eight pilot seeds it charges 38 units at every halving, against budgets of 14, 9 and 6: the pools and api_bulk are never removed, so a halving shrinks the budget and not this charge. If real traffic reads alike, the check stops the campaign for R*, and a dated decision is needed first [INFERENCE].
+
+**An M run's shadow (D-054, T048-14).** `run.json` and the run's record hold the largest `evicted` and `late` of its `l7_shadow` reports and every `daemon_error`. `evicted` above 0 on R*'s path, or the shadow thread's error in the attack window, makes the run invalid; `late` and other threads' errors are recorded only. `bans_by_engine` is
+reported per run, so a branch like T048-07's is visible.
 
 **The arms (one table, `ARM_TABLE`, on T-025e's env per arm).**
-- **Heuristics [reading].** HGB, GRU and R* run the tolerant profile and its nginx limits, the default rules arm the default
+- **Heuristics [reading, accepted by D-049].** HGB, GRU and R* run the tolerant profile and its nginx limits, the default rules arm the default
   profile and limits. Section 10 names the default rules as the status quo; with the default profile underneath them, every arm
   would inherit the benign flags that P5c.2 was made to remove.
 - **One conf for every M arm** (T-025e's F8): `l7_conf.protected(..., key_map=True)`, both maps empty until the arm writes.
 - **Pins.** The harm benchmark's daemon plan in every run (`bench/population.PIN_PLAN_DAEMON`), so U and M differ only by the table.
-- **Validity (5.4).** Also the daemon's start and arm events against the table, and a limit of 10 s [ASSUMPTION] on the file sink's
-  silence.
+- **Validity (5.4).** Also the daemon's start and arm events against the table, and a limit of 10 s [ASSUMPTION, kept as one by D-049] on
+  the file sink's silence.
 
 **The analysis (sections 11, 13).**
 - **The U run's recording.** A U run has no daemon. Its engine input is the file sink, lossless where the socket is not (section
@@ -1234,12 +1317,11 @@ item below is a reading or an addition, labelled post hoc, before any data.
 - **A campaign the admission finds INVALID gets no verdict**, with its reasons: too few valid blocks are not V-D "no harm".
 - **Blocks a class judges** are the final attempts where the class is valid and every live run is sound; the others are listed.
 
-**VM time as built** [ESTIMATE, section 14's 45 s of set-up]: 3.75 min per run, 48.75 min per block, 8.1 h for 10 blocks (5.6 h for the
-minimum cut). The ladder, on the placeholder's numbers, has 14 reachable pairs of runs (C2 at 4 levels and C3b at 2, 2 repeats each; C3a
-at level 1 only, since level 2 needs 168 sources against its bound of 100), 1.75 h instead of section 14's 3 h. Re-runs add up to 1.6 h.
+**VM time as built** [ESTIMATE, section 14's 45 s of set-up, D-053's timeline]: 5.25 min per run, 68.25 min per block, 11.4 h for 10 blocks (7.9 h for the minimum cut). The ladder, on HG2's numbers, has 14 reachable pairs of runs (C2 at 4 levels, C3b at 2, C3a at 1, 2 repeats each), 2.45 h, or 16 pairs
+and 2.8 h at 2 halvings, where C3b reaches 200 bots. Re-runs add up to 2.3 h. The halving rule adds 10.5 min per step, 31.5 min at most without re-runs. The smoke's own runs are 10, 0.9 h. In all about 18 h at most, plus P3's +0.6 h.
 
 **Files touched in this round:** `ml/p1_traffic.py`, `eval/p1_runner.py`, `eval/p1_records.py`, `eval/p1_analysis.py`, `eval/p4_runner.py`
-(two additive parameters), `ml/l7v2_replay.py` (`with_poll_ticks`), tests and this note. `control_plane.py`, `l7_engine.py`, `l7_enforce.py`,
+(two additive parameters), `eval/l7v2_harm.py` (`window_figures`), `ml/l7v2_replay.py` (`with_poll_ticks`, `age_windows`, `age_auc`, `attack_requests`, `cost_left`), `ml/l7v2_verdict.py`, `ml/l7v2_verdict_prereg.py` and its `_v3.json`, `ml/p1_prereg.json`, `ml/p1_prereg_2.json`, `ml/p3_prereg.json`, tests and this note. `control_plane.py`, `l7_engine.py`, `l7_enforce.py`,
 `bench/`, `server/` and the tracked nginx confs are untouched.
 
 **After review T-048 (the orchestrator's decision D-054; pre-data changes, every arm alike), each its own commit:**

@@ -1,10 +1,11 @@
 {
- "format": "p3-prereg/1",
+ "format": "p3-prereg/2",
  "source": "docs/P3_DATASET_DESIGN.md sections 5, 6 and 8 (approved 2026-10-30, D-D2, D-D3, D-D4, D-D5); docs/L7V2_DESIGN.md section 13 item 3",
  "rule": "Frozen before the first training capture (P3 note section 8 item 3). A change is a new file version, labelled post hoc; tests/test_p3_prereg.py pins every value.",
+ "version_2": "2026-11-02, under the user's D-052 ('4 seeds + pilot check'), post hoc but before any capture (ml/p1_prereg_2.json validation): seeds.p3_val goes from [2001, 2002] to [2001, 2002, 2003, 2004], for every arm's selection, after T-048 found the operating points of two seeds over the budget on evaluation plans (T048-03). Every other value is unchanged.",
  "seeds": {
   "p3_train": [1001, 1002, 1003, 1004],
-  "p3_val": [2001, 2002],
+  "p3_val": [2001, 2002, 2003, 2004],
   "p3_eval": [3201, 3202, 3203, 3204, 3205, 3206, 3207, 3208, 3209, 3210],
   "p1_live_eval": [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009, 3010],
   "p4_val": [4001, 4002],

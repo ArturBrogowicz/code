@@ -1,6 +1,6 @@
 """The L7 v2 verdict pre-registration (docs/L7V2_DESIGN.md section 11 and section 13 item 4): the verdict ladder, the
 effect sizes, the fixed testing order, the live set per block, R*'s definition, the statistics, the judging choices the
-user settled (D-044) and each class's detection entities (D-043), read from the committed l7v2_verdict_prereg_v2.json.
+user settled (D-044) and each class's detection entities (D-043), read from the committed l7v2_verdict_prereg_v3.json.
 
 Pure and standard library only. load() checks the file's format and its internal consistency; tests pin every value,
 and the verdict code (ml/l7v2_verdict.py) reads its constants from here, so code and pre-registration cannot drift.
@@ -9,10 +9,10 @@ import json
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PREREG_PATH = os.path.join(HERE, "l7v2_verdict_prereg_v2.json")
-FORMAT = "l7v2-verdict-prereg/2"
+PREREG_PATH = os.path.join(HERE, "l7v2_verdict_prereg_v3.json")
+FORMAT = "l7v2-verdict-prereg/3"
 VERDICTS = ("V-D", "V-A", "V-B", "V-C", "inconclusive")
-STEPS = ("harm_admission", "budget", "best_learned_vs_rstar", "gru_vs_hgb", "gru_vs_shuffled")
+STEPS = ("harm_admission", "budget", "mitigation", "v_a", "best_learned_vs_rstar", "gru_vs_hgb", "gru_vs_shuffled")
 
 
 class PreregError(ValueError):
@@ -35,6 +35,10 @@ def load(path=PREREG_PATH):
     if tuple(pre["testing_order"]) != STEPS:
         raise PreregError(f"the testing order must be {STEPS}")
     live, arms = pre["live_set"], pre["arms"]
+    if not set(arms["contenders"]) <= set(arms["enforcing"]) or arms["default_rules"] in arms["contenders"]:
+        raise PreregError("the contenders are enforcing arms, and the default rules are not one")
+    if not pre["latency_alone"]["min_mean_gain_pp"] > 0:
+        raise PreregError("the latency-alone gain is positive pp")
     if set(live["per_class"]) != set(pre["classes"]):
         raise PreregError("every class needs a live set, and only the classes have one")
     for cls, members in live["per_class"].items():

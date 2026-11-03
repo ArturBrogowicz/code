@@ -6,10 +6,19 @@ generators, as root. Run it only with the user's approval of a VM step. `--plan`
 nothing; the tests drive it with a fake host (tests/p1_fake_host.py), as eval/p4_runner.py's tests do.
 
 A block is one seed (ml/p1_traffic.py build_block): its pool, role map, parameters, netem and schedules are the same in
-every run. Its runs, in a seeded order, are the live set of ml/l7v2_verdict_prereg_v2.json: C, C' and, per class, U and
+every run. Its runs, in a seeded order, are the live set of ml/l7v2_verdict_prereg_v3.json: C, C' and, per class, U and
 its live arms (13 runs; `--cut` is section 14's minimum cut, 9 runs). Every attempt, valid or not, is a line of
 ROOT/index.jsonl with its reasons (section 13 row 6); an attempt is a directory ROOT/<phase>/b<seed>_a<attempt>[_<label>]/
 <run>/ beside block.json, the run contract of eval/l7v2_harm.py.
+
+The halving rule (ml/p1_prereg.json, D-049), before the ladder: phase `health` runs C and C' on the rule's pilot seed at
+`--halvings`; eval/p1_analysis.py --health reads them into the next step, the frozen factor or a refusal, in a file bound to the
+record. A ladder and a campaign refuse without a frozen factor in that file (--health), say why, and run every block at it.
+
+The check of the frozen operating points (ml/p1_prereg_2.json point_check, D-052), after the ladder: eval/p1_analysis.py --points
+replays one control per pilot seed through each arm. A campaign refuses without its file (--points), bound to the record, the two
+selections and the factor; with an arm over the budget it stays refused until a dated decision is named (--points-decision), which goes
+with every block. It changes no point.
 
 What each arm runs is one table, ARM_TABLE, and nothing else decides it:
   * C, C' and U: no daemon, l7_conf.unprotected(nginx_unprotected.conf), with the file sink;
@@ -32,12 +41,13 @@ are bound to it (L7V2-08) and the block runs at them, and both selections are th
 
 Checks of a run (design 5.4): the stack answered; every planned client started and ended cleanly; in an M run the daemon was
 ready before the traffic, alive to the end, with XDP attached, its start event says what the table says and the arm armed;
-its l7_enforce_arm event names the arm, the selection's sha256 and R*'s rule; the kill file stayed absent; the file sink has no silence longer than LOG_GAP_MAX_S [ASSUMPTION] over the run. A run that
+its l7_enforce_arm event names the arm, the selection's sha256 and R*'s rule; its shadow evicted nothing and did not restart in the attack window (D-054); the kill file stayed absent; the file sink has no silence longer than LOG_GAP_MAX_S [ASSUMPTION] over the run. A run that
 fails one is invalid, with its reasons. CPU per core is sampled every second (cpu.jsonl).
 
     sudo ./venv/bin/python eval/p1_runner.py --phase campaign --seed 3001 --calibration REC --knees KNEES \\
-        --selection SEL/selection.json --selection-sha256 H --rules RULES/rules_selection.json --rules-sha256 H
-    ./venv/bin/python eval/p1_runner.py --phase ladder --seed 9001 --class C2 --level 2 --repeat 1 --plan
+        --health HEALTH --points POINTS --selection SEL/selection.json --selection-sha256 H --rules RULES/rules_selection.json --rules-sha256 H
+    ./venv/bin/python eval/p1_runner.py --phase health --seed 9001 --halvings 0 --plan
+    ./venv/bin/python eval/p1_runner.py --phase ladder --seed 9001 --class C2 --level 2 --repeat 1 --health HEALTH --plan
     ./venv/bin/python eval/p1_runner.py --phase smoke --seed 9001 --levels C3b=50 --runs C,U_C3b --plan
 """
 import argparse
@@ -71,7 +81,9 @@ import l7_denymap
 import l7_ingest
 
 FORMAT = "p1-run/1"
-PHASES = ("smoke", "ladder", "campaign")
+PHASES = ("smoke", "health", "ladder", "campaign")
+HEALTH_FORMAT = "p1-health/1"
+POINTS_FORMAT = "p1-points/1"
 PINS = dict(POP.PIN_PLAN_DAEMON)           # the harm benchmark's plan with a daemon, in every run of a block
 NS_PREFIX = "p1n"
 SERVER_NS, SERVER_IP = P4.SERVER_NS, P4.SERVER_IP
@@ -82,12 +94,13 @@ HOST_LOGS = ("/var/log/nginx/ddos_ml_access.log", "/var/log/nginx/error.log")   
 READY_URL = f"http://{SERVER_IP}/"
 DAEMON_READY_TIMEOUT_S, STACK_READY_TIMEOUT_S = 90.0, 30.0
 LOG_GAP_MAX_S = 10.0                       # [ASSUMPTION] design 5.4's "the file-sink log has no gaps"
+SHADOW_THREAD = "thread:l7_shadow"          # control_plane.supervise's `where` of the shadow thread
 SETUP_S = 45                               # [ESTIMATE] design 14: a run's set-up and teardown
 GUNICORN = {"backend": "costed", "gunicorn_workers": 2, "gunicorn_threads": 8}     # design 4.3
 PROVENANCE_FILES = ("nginx.conf", "nginx_unprotected.conf", "control_plane.py", "l7_enforce.py", "l7_arms.py", "l7_conf.py",
                     "l7_denymap.py", "l7_engine.py", "l7_backend.py", "l7_webapp.py", "ml/l7_gen.py", "ml/l7_bots.py",
                     "ml/l7_benign.py", "ml/l7_pools.py", "ml/p1_traffic.py", "ml/l7v2_prereg.json",
-                    "ml/l7v2_verdict_prereg_v2.json", "eval/p1_runner.py")
+                    "ml/l7v2_verdict_prereg_v3.json", "eval/p1_runner.py")
 BAN_ENGINES = (*ban_events.ENGINES, ban_events.L7V2_ENGINE)     # D-037: the arm's engine sits outside ENGINES
 
 # The one table: what each arm runs (T-025e's report, "Env per arm for the P1 runner", feat/l7v2-rstar c6028ce). Everything an
@@ -222,6 +235,74 @@ def load_knees(path):
         return json.load(fh)
 
 
+def load_factor(frozen):
+    """The frozen factor of the halving rule, from the health file (eval/p1_analysis.py --health), bound to the record in use; a
+    file without a factor is refused, and the refusal says why (ml/p1_prereg.json halving.at_the_floor)."""
+    import l7_backend
+    path = frozen.get("health")
+    if not path:
+        raise PlanError("a ladder or a campaign needs the halving rule's frozen factor (--health, from eval/p1_analysis.py --health; "
+                        "ml/p1_prereg.json halving)")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            health = json.load(fh)
+    except (OSError, ValueError) as exc:
+        raise PlanError(f"the health file {path}: {exc}") from exc
+    if health.get("format") != HEALTH_FORMAT:
+        raise PlanError(f"{path} is not a {HEALTH_FORMAT} file")
+    rec = l7_backend.load_record(frozen["calibration"])[0]
+    if health.get("record_sha256") != rec.get("sha256"):
+        raise PlanError(f"the health file was read on the calibration record {str(health.get('record_sha256'))[:12]}..., not on "
+                        f"the record in use ({str(rec.get('sha256'))[:12]}...)")
+    if health.get("decision") != "frozen":
+        raise PlanError(f"the benign mix has no frozen factor ({health.get('decision')}): {health.get('why')}")
+    return PT.check_halvings(health["benign_halvings"])
+
+
+def plan_halvings(phase, frozen, knees, halvings):
+    """A block's halvings: a smoke's or a health step's own; a ladder's and a campaign's the frozen factor, which a campaign's knees
+    must name too, since they were measured at it."""
+    if phase in ("smoke", "health"):
+        return halvings or 0
+    if halvings is not None:
+        raise PlanError(f"a {phase} runs at the frozen factor (--health), not at --halvings")
+    factor = load_factor(frozen)
+    if phase == "campaign" and knees.get("benign_halvings") != factor:
+        raise PlanError(f"the knees were measured at {knees.get('benign_halvings')} halvings, the frozen factor is {factor}")
+    return factor
+
+
+def check_points(frozen, factor, sums):
+    """The pilot's check of the frozen operating points (D-052) that a campaign needs, bound to its record, its selections and its
+    factor: what the block records of it, or a refusal. An arm over the budget stops the campaign until a dated decision."""
+    path = frozen.get("points")
+    if not path:
+        raise PlanError("a campaign needs the pilot's check of the frozen operating points (--points, from eval/p1_analysis.py --points; "
+                        "ml/p1_prereg_2.json point_check)")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            points = json.load(fh)
+    except (OSError, ValueError) as exc:
+        raise PlanError(f"the point check {path}: {exc}") from exc
+    if points.get("format") != POINTS_FORMAT:
+        raise PlanError(f"{path} is not a {POINTS_FORMAT} file")
+    bound = {"record_sha256": sums["calibration"]["digest"], "selection_sha256": sums["selection"]["sha256"],
+             "rules_sha256": sums["rules"]["sha256"], "benign_halvings": factor}
+    wrong = sorted(k for k, v in bound.items() if points.get(k) != v)
+    if wrong:
+        raise PlanError(f"the point check was read on other frozen items: {wrong}")
+    status, decision = points.get("status"), frozen.get("points_decision")
+    if status == "over_budget":
+        if not decision:
+            raise PlanError(f"{points.get('over_budget')} over the budget on the pilot's benign traffic: the campaign stops until a dated "
+                            "decision (--points-decision; ml/p1_prereg_2.json point_check)")
+        if not re.search(r"\d{4}-\d{2}-\d{2}", decision):
+            raise PlanError(f"--points-decision must name a dated decision, got {decision!r}")
+    elif status != "pass":
+        raise PlanError(f"the point check is {status}: pilot seeds without a valid control: {points.get('missing_seeds')}")
+    return {"path": path, "sha256": sha256_file(path), "status": status, "over_budget": points.get("over_budget"), "decision": decision}
+
+
 def check_frozen(frozen, *, need_frozen_record, arms):
     """What must be frozen before a run judges anything, each checked by its sha256: the record, the knees and the selections
     that the block's arms read. Returns their sha256s, or raises PlanError."""
@@ -241,6 +322,8 @@ def check_frozen(frozen, *, need_frozen_record, arms):
                         "(ml/l7v2_prereg.json harm.verdict_record)")
     if frozen.get("knees"):
         out["knees"] = {"path": frozen["knees"], "sha256": sha256_file(frozen["knees"])}
+    if frozen.get("health"):
+        out["health"] = {"path": frozen["health"], "sha256": sha256_file(frozen["health"])}
     selections = {ARM_TABLE[a].get("selection") for a in arms} - {None}
     if "learned" in selections:
         try:
@@ -284,7 +367,13 @@ def daemon_env(spec, out, deny_dir, conf_path, frozen):
     return env
 
 
-def plan_run(pop, phase, arm, cls, out, frozen, *, python=PYTHON):
+def run_age_check(report):
+    """What a run records of arrivals.age_check: the plan's report for its class, or none without an attack (D-049: recorded per run,
+    not applied, so it refuses nothing and invalidates nothing)."""
+    return {"applied": False, "rule": "ml/p1_prereg.json age_check", "report": report}
+
+
+def plan_run(pop, phase, arm, cls, out, frozen, *, python=PYTHON, age=None):
     """One run as data: everything execute_run() does, and nothing it does not."""
     spec = ARM_TABLE[arm]
     name = run_name(arm, cls)
@@ -303,6 +392,7 @@ def plan_run(pop, phase, arm, cls, out, frozen, *, python=PYTHON):
     return {
         "format": FORMAT, "phase": phase, "seed": pop["seed"], "seed_role": pop["seed_role"], "name": name, "arm": arm,
         "class": cls, "role": role, "out": out, "timeline": dict(PT.TIMELINE), "levels": dict(pop["levels"]),
+        "halvings": pop["halvings"], "age_check": run_age_check(age),
         "budget": spec.get("budget"), "spec": {k: v for k, v in spec.items() if k != "daemon"},
         "pending": m_arms_pending() if spec["conf"] == "protected" else None,
         "nginx": {"conf_path": conf_path, "deny_dir": deny_dir,
@@ -315,10 +405,14 @@ def plan_run(pop, phase, arm, cls, out, frozen, *, python=PYTHON):
 
 
 def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", runs=None, cut=False, python=PYTHON,
-               benign_specs=None, max_sources=None):
-    """One block's runs, in their seeded order, as data. A campaign's levels are the knees, and its runs the live set."""
+               benign_specs=None, max_sources=None, halvings=None, address_limit=None):
+    """One block's runs, in their seeded order, as data. A campaign's levels are the knees, and its runs the live set; a health
+    step is the rule's two controls on its seed (ml/p1_prereg.json halving). `address_limit` lets a smoke read a level above the
+    verified address limit (ml/p3_prereg.json pool.address_limit, E-2); nothing else moves that limit."""
     if phase not in PHASES:
         raise PlanError(f"unknown phase {phase!r}")
+    if address_limit is not None and phase != "smoke":
+        raise PlanError(f"only a smoke reads above the verified address limit, not a {phase}")
     role = "eval" if phase == "campaign" else "pilot"
     knees = load_knees(frozen.get("knees"))
     if phase == "campaign":
@@ -328,30 +422,49 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
             raise PlanError("a campaign runs the live set")
         pairs = live_runs(cut)
         levels = {c: knees.get(c) for c in sorted({c for _a, c in pairs} - {None})}
+    elif phase == "health":
+        rule = PT.prereg()["halving"]
+        if runs is not None or levels:
+            raise PlanError("a health step runs the rule's two controls, without attack")
+        if seed != rule["seed"]:
+            raise PlanError(f"a health step runs on the rule's pilot seed {rule['seed']}, not on {seed} (ml/p1_prereg.json)")
+        pairs, levels = [parse_run(n) for n in rule["controls"]], {}
+        label = label or f"h{halvings or 0}"
     else:
         if runs is None:
             raise PlanError(f"{phase}: name the runs")
         pairs = [parse_run(n) for n in runs]
         levels = dict(levels or {})
     try:
+        factor = plan_halvings(phase, frozen, knees, halvings)
         pop = PT.build_block(seed, role, levels, record_path=frozen["calibration"], knees=knees if phase == "campaign" else None,
-                             benign_specs=benign_specs, max_sources=max_sources)
+                             benign_specs=benign_specs, max_sources=max_sources, halvings=factor)
     except PT.PlanError as exc:
         raise PlanError(str(exc)) from exc
+    if address_limit is not None:
+        pop["pool"]["address_limit"] = address_limit
     arms = {a for a, _c in pairs}
     sums = check_frozen(frozen, need_frozen_record=phase == "campaign", arms=arms)
+    if phase == "campaign":
+        sums["points"] = check_points(frozen, factor, sums)
+    import l7_backend
+    record = l7_backend.load_record(frozen["calibration"])[0]
     names = {run_name(a, c): (a, c) for a, c in pairs}
     order = block_order(phase, seed, names, label)
     name = f"b{seed}_a{attempt}" + (f"_{label}" if label else "")
     bdir = os.path.join(root, phase, name)
     try:
-        planned = [plan_run(pop, phase, *names[n], os.path.join(bdir, n), frozen, python=python) for n in order]
+        ages = PT.age_report(pop)
+        planned = [plan_run(pop, phase, *names[n], os.path.join(bdir, n), frozen, python=python, age=ages.get(names[n][1]))
+                   for n in order]
     except PT.PlanError as exc:
         raise PlanError(str(exc)) from exc
     return {"phase": phase, "seed": seed, "attempt": attempt, "label": label, "dir": bdir, "root": root, "order": order,
-            "levels": levels, "sources": pop["sources"], "cut": bool(cut), "frozen": sums, "calibration": frozen["calibration"],
+            "levels": levels, "halvings": factor, "sources": pop["sources"], "cut": bool(cut), "frozen": sums,
+            "calibration": frozen["calibration"],
             "intensity": pop["intensity"], "flash": pop["flash"], "dropped": pop["dropped"],
-            "age_check": PT.age_report(pop) if phase == "campaign" else None, "runs": planned}
+            "age_check": ages, "address_limit": pop["pool"]["address_limit"], "benign_load": PT.benign_load(pop, record),
+            "runs": planned}
 
 
 def vm_minutes(n_runs, setup_s=SETUP_S):
@@ -361,8 +474,14 @@ def vm_minutes(n_runs, setup_s=SETUP_S):
 
 def describe(block):
     """The text of --plan."""
+    load = block["benign_load"]
     lines = [f"P1 {block['phase']} block {block['seed']} attempt {block['attempt']}: {block['dir']}",
-             f"order {block['order']}; levels {block['levels']}; sources {block['sources']}; record {block['intensity']['label']}",
+             f"order {block['order']}; levels {block['levels']}; sources {block['sources']}",
+             f"benign halvings {block['halvings']}; record {block['intensity']['label']}",
+             (f"benign nominal {load['req_s']} req/s, {load['cpu_s_s']} CPU-s/s over the attack window, {load['level_req_s']} req/s over "
+              f"the level window, peak {load['peak_20s_req_s']} req/s over 20 s, without {len(load['without_a_plan'])} kinds; the record's "
+              f"rho {load['rho_req_s']:g} req/s, {load['rho_cpu_s_s']} CPU-s/s; C_slo {load['c_slo_req_s']:g} req/s, "
+              f"{load['c_slo_cpu_s_s']} CPU-s/s; S {load['spare_cpu_s']} CPU-s/s"),
              f"VM time of this block: {vm_minutes(len(block['runs'])):.0f} min [ESTIMATE]"]
     for r in block["runs"]:
         d = r["daemon"]
@@ -541,10 +660,15 @@ def finish(host, plan, reasons, ctx):
         with open(os.path.join(out, "cpu.jsonl"), "w", encoding="utf-8") as fh:
             fh.writelines(json.dumps(c, sort_keys=True) + "\n" for c in ctx["cpu"])
     ok = not reasons
+    events = P4._events(plan["daemon"]["env"]["BAN_EVENTS"]) if plan["daemon"] else []
     meta = {"format": FORMAT, "role": plan["role"], "class": plan["class"], "arm": plan["arm"], "phase": plan["phase"],
-            "seed": plan["seed"], "levels": plan["levels"], "budget": plan["budget"], "checks": {"ok": ok, "reasons": reasons},
+            "seed": plan["seed"], "levels": plan["levels"], "halvings": plan["halvings"], "age_check": plan["age_check"],
+            "budget": plan["budget"],
+            "checks": {"ok": ok, "reasons": reasons},
             "started_utc": P4._utc(ctx["started"]), "ended_utc": P4._utc(ended),
             "daemon": None if plan["daemon"] is None else {"env": plan["daemon"]["env"]},
+            "shadow": shadow_report(events, plan, t0) if plan["daemon"] and t0 is not None else None,
+            "bans_by_engine": {engine: len(rows) for engine, rows in sorted(run_bans(events).items())},
             "provenance": provenance(plan, ctx["sums"])}
     P4.write_json(os.path.join(out, "run.json"), meta)
     P4.write_json(os.path.join(out, l7_dataset.MANIFEST_FILE), manifest(plan, t0))
@@ -570,8 +694,34 @@ def checks(host, plan, t0, launched, frozen_sums=None):
     if d:
         if P4.XDP_ATTACHED_LINE not in P4._text(host, d["log"]):
             reasons.append("the daemon's log does not show XDP attached")
-        reasons += start_problems(plan, P4._events(d["env"]["BAN_EVENTS"]), frozen_sums)
+        events = P4._events(d["env"]["BAN_EVENTS"])
+        reasons += start_problems(plan, events, frozen_sums)
+        reasons += shadow_problems(shadow_report(events, plan, t0))
     return reasons
+
+
+def shadow_report(events, plan, t0):
+    """What an M run's event log says of its shadow (D-054, ml/p1_prereg_2.json run_validity): the largest evicted and late counts of its
+    l7_shadow reports (a restarted engine counts from 0; `evicted` is R*'s path's alone, a view store reports late_dropped), every
+    daemon_error, and how many of those are the shadow thread's in the attack window."""
+    reports = [e for e in events if e.get("kind") == "l7_shadow"]
+    errors = [e for e in events if e.get("kind") == "daemon_error"]
+    lo = t0 + plan["timeline"]["baseline_s"]
+    hi = lo + plan["timeline"]["attack_s"]
+    return {"reports": len(reports), "evicted": max((e.get("evicted", 0) for e in reports), default=0),
+            "late": max((max(e.get("late", 0), e.get("late_dropped", 0)) for e in reports), default=0),
+            "daemon_errors": [{k: e.get(k) for k in ("t_wall", "where", "error", "action")} for e in errors],
+            "shadow_restarts_in_attack": sum(1 for e in errors if e.get("where") == SHADOW_THREAD and lo <= e.get("t_wall", 0.0) < hi)}
+
+
+def shadow_problems(report):
+    """What makes an M run invalid in its shadow report (D-054): the parity claim's condition, and a shadow that lost its windows."""
+    out = []
+    if report["evicted"] > 0:
+        out.append(f"the rule path evicted {report['evicted']} addresses: R*'s parity with the replay holds only at 0")
+    if report["shadow_restarts_in_attack"]:
+        out.append(f"the shadow thread stopped or restarted {report['shadow_restarts_in_attack']} times in the attack window")
+    return out
 
 
 def manifest(plan, t0):
@@ -579,7 +729,8 @@ def manifest(plan, t0):
     their plans' fields, the time origin, the ip_map and the address map."""
     return {"format": l7_dataset.DATASET_FORMAT_V3, "run_format": FORMAT, "phase": plan["phase"], "seed": plan["seed"],
             "seed_role": plan["seed_role"], "run": plan["name"], "arm": plan["arm"], "class": plan["class"],
-            "levels": plan["levels"], "timeline": {**plan["timeline"], "t0_wall": t0}, "entities": plan["entities"],
+            "levels": plan["levels"], "halvings": plan["halvings"], "timeline": {**plan["timeline"], "t0_wall": t0},
+            "entities": plan["entities"],
             "ip_map": l7_dataset.ip_map_from_entities(plan["entities"]),
             "address_map": l7_dataset.address_map_from_entities(plan["entities"]), "namespaces": plan["namespaces"]}
 
@@ -609,9 +760,11 @@ def run_block(host, block):
     P4.write_json(os.path.join(block["dir"], "block.json"),
                   {"block": block["seed"], "attempt": block["attempt"], "seed": block["seed"], "phase": block["phase"],
                    "calibration_sha256": block["frozen"]["calibration"]["digest"], "timeline": dict(PT.TIMELINE),
-                   "order": block["order"], "levels": block["levels"], "sources": block["sources"], "cut": block["cut"],
+                   "order": block["order"], "levels": block["levels"], "halvings": block["halvings"],
+                   "sources": block["sources"], "cut": block["cut"],
                    "frozen": block["frozen"], "intensity": block["intensity"], "flash": block["flash"],
-                   "dropped": block["dropped"], "age_check": block["age_check"]})
+                   "dropped": block["dropped"], "age_check": block["age_check"], "address_limit": block["address_limit"],
+                   "benign_load": block["benign_load"]})
     results = []
     with open(os.path.join(block["root"], "index.jsonl"), "a", encoding="utf-8") as idx:
         for run in block["runs"]:
@@ -646,7 +799,12 @@ def main(argv=None, host=None):
     ap.add_argument("--label", default="")
     ap.add_argument("--cut", action="store_true", help="campaign: section 14's minimum cut")
     ap.add_argument("--calibration", default=P4.PLACEHOLDER)
-    ap.add_argument("--knees", help="campaign: the frozen knees (JSON: status, record_sha256, C2, C3a, C3b)")
+    ap.add_argument("--knees", help="campaign: the frozen knees (JSON: status, record_sha256, benign_halvings, C2, C3a, C3b)")
+    ap.add_argument("--halvings", type=int, help="smoke, health: how often the halving rule has fired (ml/p1_prereg.json)")
+    ap.add_argument("--health", help="ladder, campaign: the rule's frozen factor (eval/p1_analysis.py --health)")
+    ap.add_argument("--address-limit", type=int, help="smoke: read a level above the verified address limit (E-2)")
+    ap.add_argument("--points", help="campaign: the pilot's check of the frozen points (eval/p1_analysis.py --points)")
+    ap.add_argument("--points-decision", help="campaign: the dated decision that lets it run with an arm over the budget there")
     ap.add_argument("--selection")
     ap.add_argument("--selection-sha256")
     ap.add_argument("--rules")
@@ -655,7 +813,8 @@ def main(argv=None, host=None):
     ap.add_argument("--python", default=PYTHON)
     ap.add_argument("--plan", action="store_true", help="print the plan and exit (offline)")
     args = ap.parse_args(argv)
-    frozen = {"calibration": args.calibration, "knees": args.knees, "selection": args.selection,
+    frozen = {"calibration": args.calibration, "knees": args.knees, "health": args.health, "points": args.points,
+              "points_decision": args.points_decision, "selection": args.selection,
               "selection_sha256": args.selection_sha256, "rules": args.rules, "rules_sha256": args.rules_sha256}
     label, runs, levels = args.label, args.runs.split(",") if args.runs else None, _levels(args.levels)
     if args.phase == "ladder":
@@ -666,7 +825,7 @@ def main(argv=None, host=None):
         label = label or f"{args.cls}_L{lv:g}_r{args.repeat}"
     try:
         block = plan_block(args.phase, args.seed, args.root, frozen=frozen, levels=levels, attempt=args.attempt, label=label,
-                           runs=runs, cut=args.cut, python=args.python)
+                           runs=runs, cut=args.cut, python=args.python, halvings=args.halvings, address_limit=args.address_limit)
     except PlanError as exc:
         print(f"[-] {exc}", file=sys.stderr)
         return 2

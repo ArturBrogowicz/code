@@ -328,7 +328,72 @@ def score_arm(items, scorer, truth):
             "median_ttd_s": round(ttds[len(ttds) // 2], 3) if ttds else None,
             "by_family": {f: {"caught": c, "entities": n} for f, (c, n) in sorted(fam.items())},
             "benign_units_flagged_by_kind": dict(sorted(kinds.items())),
-            "caught_entities": sorted(caught), "decisions": len(decided), **counts}
+            "caught_entities": sorted(caught), "ttd_s": {e: round(t, 3) for e, t in sorted(caught.items())},
+            "decisions": len(decided), **counts}
+
+
+def attack_requests(items, labels):
+    """(entity, request start, route class) of every attack request of a recording."""
+    out = []
+    for it in items:
+        rec = I.normalise(it[1]) if it[0] == "record" else None
+        if rec is not None:
+            cls, _fam, _held, e, _kof = labels.of(rec)
+            if cls == D.ATTACK:
+                out.append((e, F.start_time(rec), rec.get("rc")))
+    return out
+
+
+def cost_left(requests, first, ttd, costs, gate_s, reload_s):
+    """(the attack's cost left, the attack's cost sent), in ms, by the worst case of the enforcing path (ml/p1_prereg_2.json
+    reported_per_class): an entity's request is removed when it starts at or after max(its decision, its first request + gate_s) +
+    reload_s; an entity with no decision (`ttd`, from its first request) keeps all its cost."""
+    left = sent = 0.0
+    for e, t, rc in requests:
+        c = costs.get(rc, 0.0)
+        sent += c
+        if e not in ttd or t < first[e] + max(ttd[e], gate_s) + reload_s:
+            left += c
+    return left, sent
+
+
+class _AgeProbe(_Tapped):
+    """Every view window's age as AgeArm sees it, and no decision: p = 0 against a threshold no p reaches."""
+
+    def __init__(self):
+        super().__init__(1.0, 1, None)
+        self.seen = []
+
+    def rows(self, ctx):
+        self.seen += [(key, s - s0) for key, _t, s0, s in ctx]
+        return np.zeros(len(ctx), dtype=np.float64)
+
+    def p(self, rows):
+        return rows
+
+
+def age_windows(items, labels):
+    """The windows of a recording as the age-only arm sees them, on the engine's real path: [{"age", "y", "family"}], the windows of
+    the run's labelled keys. Pooled over runs on one timeline, age_auc reads them."""
+    probe = _AgeProbe()
+    replay_l7.replay(items, make_engine(probe))
+    keys, ent, _attack, _units = ground_truth(items, labels)
+    out = []
+    for key, age in probe.seen:
+        e = keys["view"].get(key)
+        if e is not None:
+            out.append({"age": float(age), "y": int(ent[e]["cls"] == D.ATTACK), "family": ent[e]["family"]})
+    return out
+
+
+def age_auc(windows):
+    """The window-age AUC of a recording, in the age-only arm's sense (train_l7v2.age_scores, age_report, age_reading): a younger
+    window scores higher, against the benign windows given, so AUC > 0.5 means that the attack's windows are younger. P1 reads it
+    descriptively (D-049): its verdict does not."""
+    scores = V.age_scores([w["age"] for w in windows if not w["y"]], windows)
+    report = V.age_report(windows, scores)
+    return {**report, "reading": V.age_reading(report["auc"]), "windows_benign": sum(1 for w in windows if not w["y"]),
+            "windows_attack": sum(1 for w in windows if w["y"])}
 
 
 def replay(items, arms, labels):

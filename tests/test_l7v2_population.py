@@ -37,6 +37,17 @@ def plan(seed, role, knees=FROZEN_KNEES, record_path=FROZEN_PATH, **kw):
 _PLANS = {}
 
 
+class ValidationSeedsTest(unittest.TestCase):
+    """D-052: the new validation seeds pass the plan's own checks, the frozen age limits among them (a refused seed is reported, never redrawn)."""
+
+    def test_2003_and_2004_are_val_seeds_and_their_plans_pass(self):
+        for seed in (2003, 2004):
+            p = LP.build_plan("2026-11-v1", seed, "val", "l7v2", knees=FROZEN_KNEES, gate_seeds=GATE, record_path=FROZEN_PATH)
+            with self.subTest(seed=seed):
+                self.assertTrue(p["age_check"]["pass"], p["age_check"])
+                self.assertEqual(p["seed_role"], "val")
+
+
 class Cache:
     @staticmethod
     def get(seed, role):

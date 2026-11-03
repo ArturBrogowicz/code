@@ -1,6 +1,8 @@
 """The P1 analysis (eval/p1_analysis.py; docs/L7V2_DESIGN.md 5.3, 10, 11): fake campaigns of eval/p1_runner.py on the fake host,
 through eval/l7v2_harm.py, the replay and ml/l7v2_verdict.py, to one verdict per class. Each verdict is reached end to end on
 fake outputs: only the arms' decisions in the replay are stubs, behind the engine's real path. Offline."""
+import contextlib
+import io
 import json
 import os
 import re
@@ -17,6 +19,7 @@ for _p in (HERE, REPO, os.path.join(REPO, "eval"), os.path.join(REPO, "ml"), os.
     if _p not in sys.path:
         sys.path.insert(0, _p)
 import calibration_fixtures
+import l7v2_harm as LH
 import l7v2_replay as RP
 import l7v2_verdict_prereg as VP
 import p1_analysis as A
@@ -189,6 +192,46 @@ class CampaignA(Campaign):
         self.assertEqual(res["format"], "p1-verdicts/1")
         self.assertEqual({k: v["verdict"] for k, v in res["classes"].items()}, {"C3b": "V-A", "C2": "V-C", "C3a": "V-D"})
 
+    def judged(self):
+        return {c: r for c, r in self.res.items() if r.get("replay")}
+
+    def test_each_admitted_class_has_the_age_only_reading_with_its_blocks(self):
+        self.assertTrue(self.judged())
+        for cls, row in self.judged().items():
+            with self.subTest(cls=cls):
+                got = row["age_only_on_U"]
+                self.assertEqual([b["block"] for b in got["per_block"]], row["blocks_judged"])
+                self.assertGreater(got["windows_benign"], 0)
+                self.assertGreater(got["windows_attack"], 0)
+                self.assertIsNotNone(got["auc"])
+                self.assertIn("descriptive", got["note"])
+                self.assertIn(got["reading"], ("near chance", "age-confounded"))
+                self.assertEqual(got["attack_entities"], row["replay"]["age_only"]["attack_entities"])
+                self.assertIn(got["per_block"][0]["age_check_pass"], (True, False))
+
+    def test_every_view_level_contrast_of_the_judge_has_the_reading_beside_it(self):
+        for cls, row in self.judged().items():
+            names = [n for n in row["judge"]["contrasts"] if A.VIEW_ARMS & set(n.split())]
+            with self.subTest(cls=cls):
+                self.assertTrue(names)
+                self.assertTrue(set(names) <= set(row["view_level_contrasts"]))
+                for name in names:
+                    self.assertTrue(all(row["view_level_contrasts"][name]["age_only_on_U"].values()), name)
+
+    def test_nothing_that_judges_reads_the_age_only_reading(self):
+        junk = {"by_family": {}, "note": "junk"}
+        with mock.patch.object(A, "age_only_on_u", return_value=junk):
+            other = A.analyse(self.root, self.cal, self.frozen, arms_factory=factory(self.SHARES), cut=self.CUT)
+        for cls, row in self.judged().items():
+            self.assertEqual(json.dumps(other[cls]["judge"], sort_keys=True, default=str),
+                             json.dumps(row["judge"], sort_keys=True, default=str), cls)
+
+    def test_a_dry_run_keeps_the_reading_without_a_contrast(self):
+        res = A.analyse(self.root, self.cal, self.frozen, arms_factory=factory(self.SHARES), cut=self.CUT, dry_run=True)
+        for cls in self.judged():
+            self.assertIn("age_only_on_U", res[cls])
+            self.assertNotIn("view_level_contrasts", res[cls])
+
 
 class CampaignB(Campaign):
     """C3b V-B, C2 inconclusive, C3a V-D (no enforcing arm within the budget, on the live reading)."""
@@ -288,6 +331,272 @@ class LadderTest(unittest.TestCase):
         self.assertEqual(A.main([root, "--calibration", frozen["calibration"], "--ladder", "--out", out]), 0)
         self.assertEqual(REC.read_json(out)["record_sha256"], calibration_fixtures.frozen()["sha256"])
         self.assertEqual(json.loads(json.dumps(REC.read_json(out)["knees"]["C2"]))["level"], 2.0)
+        self.assertEqual(REC.read_json(out)["benign_halvings"], 0)
+
+    def test_a_ladder_at_two_factors_is_refused(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        frozen = F.frozen_inputs(os.path.join(tmp.name, "frozen"))
+        other = dict(frozen, health=os.path.join(tmp.name, "h1.json"))
+        with open(other["health"], "w", encoding="utf-8") as fh:
+            json.dump({**REC.read_json(frozen["health"]), "benign_halvings": 1}, fh)
+        root = os.path.join(tmp.name, "runs")
+        for rep, inputs in ((1, frozen), (2, other)):
+            block = R.plan_block("ladder", 9001, root, frozen=inputs, levels={"C2": 1.0}, runs=["C", "U_C2"],
+                                 label=f"C2_L1_r{rep}", benign_specs=F.thin_benign(LEAN), max_sources=2)
+            R.run_block(F.P1FakeHost(), block)
+        with self.assertRaisesRegex(ValueError, "one factor"):
+            A.ladder_factor(root)
+
+
+class LevelWindowTest(unittest.TestCase):
+    """D-053: the harm contrasts read the level window, admission and the whole-window Q the attack window."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.frozen = F.frozen_inputs(os.path.join(cls.tmp.name, "frozen"))
+        cls.cal = l7_backend.load_record(cls.frozen["calibration"])[0]
+        cls.root = os.path.join(cls.tmp.name, "runs")
+        # U fails only in the attack's first 80 s, well before the level window: a harm the level window does not read.
+        def fail(run, _b, t):
+            return 0.5 if run == "U_C2" and 30.0 <= t < 110.0 else 0.0
+
+        block = R.plan_block("campaign", SEEDS[0], cls.root, frozen=cls.frozen, cut=True, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        R.run_block(F.P1FakeHost(fail_share=fail), block)
+        cls.block = LH.assess_block(block["dir"], cls.cal)
+        cls.block["dir"] = os.path.basename(block["dir"])
+        live = ["U", "R*", "view_gru"]
+        cls.inputs, cls.per_arm = A.class_inputs(cls.root, cls.cal, "C2", [cls.block], live, cls.frozen, factory({"C2": {"view_gru": 1.0, "R*": 0.5}}))
+        cls.report = A.class_report(cls.root, cls.cal, "C2", [cls.block], live, cls.per_arm)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_the_contrast_reads_the_level_window(self):
+        self.assertEqual(self.inputs["harm"]["U"], {SEEDS[0]: 100.0})
+
+    def test_the_whole_window_q_is_secondary_and_admission_reads_it(self):
+        whole = self.report["whole_window_q"]["U"][SEEDS[0]]
+        self.assertEqual(whole, self.block["runs"]["U_C2"]["metrics"]["Q"])
+        self.assertLess(whole, 90.0)
+        self.assertGreater(self.block["classes"]["C2"]["dQ"], 10.0)
+
+    def test_time_to_decision_and_cost_left_are_reported_per_arm(self):
+        got = self.report["time_to_decision"]["view_gru"]["C2"]
+        self.assertEqual(got["caught"], 2)
+        self.assertGreaterEqual(got["mean_s"], 0.0)
+        left = self.report["attack_cost_left"]
+        self.assertLess(left["replay"]["view_gru"], 1.0)
+        self.assertGreater(left["replay"]["R*"], left["replay"]["view_gru"])
+        self.assertEqual(left["replay"]["hgb"], 1.0, "an arm that decides nothing removes nothing")
+        self.assertEqual(sorted(left["live"]), ["R*", "view_gru"])
+        self.assertEqual(left["live"]["view_gru"], 1.0, "the fake's M run serves its bots: nothing acted on them")
+
+    def test_the_cost_left_by_hand(self):
+        requests = [("a", 100.0, "C3"), ("a", 110.0, "C3"), ("a", 131.0, "C3"), ("b", 100.0, "C1"), ("c", 100.0, "C5")]
+        first = {"a": 100.0, "b": 100.0, "c": 100.0}
+        # a is decided 5 s after its first request: the gate gives 20 s, the reload 10 s, so its deny acts at 130 s
+        left, sent = RP.cost_left(requests, first, {"a": 5.0}, {"C3": 30.0, "C1": 3.0}, 20.0, 10.0)
+        self.assertEqual((left, sent), (63.0, 93.0))
+        # a decision after the gate rules: at 140 s + 10 s the same request is still served
+        self.assertEqual(RP.cost_left(requests, first, {"a": 40.0}, {"C3": 30.0, "C1": 3.0}, 20.0, 10.0)[0], 93.0)
+
+
+class AdmittedOnTest(unittest.TestCase):
+    def test_what_admitted_a_class(self):
+        self.assertEqual(A.admitted_on({"criteria": {"Q": {"passed": True}, "p95": {"passed": True}}}), "Q")
+        self.assertEqual(A.admitted_on({"criteria": {"Q": {"passed": True}, "p95": {"passed": False}}}), "Q")
+        self.assertEqual(A.admitted_on({"criteria": {"Q": {"passed": False}, "p95": {"passed": True}}}), "latency")
+
+
+class AgeReadingTest(unittest.TestCase):
+    """The age-only reading on the U replays (D-049): beside every view-level contrast, and read by nothing that judges."""
+
+    def test_the_auc_s_sign_and_reading(self):
+        young = [{"age": a, "y": 1, "family": "C2"} for a in (1.0, 2.0)] + [{"age": a, "y": 0, "family": None} for a in (10.0, 20.0, 30.0)]
+        got = RP.age_auc(young)
+        self.assertEqual((got["auc"], got["reading"]), (1.0, "age-confounded"))
+        self.assertEqual((got["windows_benign"], got["windows_attack"], got["auc_by_family"]), (3, 2, {"C2": 1.0}))
+        same = [{"age": a, "y": y, "family": "C2"} for a in (1.0, 2.0) for y in (0, 1)]
+        self.assertEqual(RP.age_auc(same)["reading"], "near chance")
+        self.assertEqual(RP.age_auc([{"age": 1.0, "y": 0, "family": None}])["auc"], None)
+
+    def test_the_probe_decides_nothing_and_sees_the_arm_s_windows(self):
+        rows = [(("a", "u", "s"), 1.0, 5.0, 8.0), (("b", "u", "s"), 2.0, 5.0, 5.0)]
+        probe = RP._AgeProbe()
+        got = probe.rows(rows)
+        self.assertEqual(probe.seen, [(("a", "u", "s"), 3.0), (("b", "u", "s"), 0.0)])
+        self.assertEqual(list(got), [0.0, 0.0])
+        self.assertFalse((probe.p(got) > probe.threshold).any())
+
+    def test_every_view_level_contrast_has_the_reading_beside_it(self):
+        reading = {"by_family": {"C3b@M2": {"auc": 0.7}, "C3b@M1": {"auc": 0.6}}}
+        judged = {"contrasts": {"detection view_gru vs hgb": {"d": 1}, "detection view_gru vs age_only (descriptive)": {"d": 2},
+                                "harm hgb vs R*": {"d": 3}, "harm R* vs U": {"d": 4}},
+                  "reported_separately": {"C3b@M1": {"entities": 10, "detection view_gru vs R*": {"d": 5}}}}
+        got = A.view_level_contrasts(judged, reading, ["C3b@M2"])
+        self.assertEqual(sorted(got), ["C3b@M1: detection view_gru vs R*", "detection view_gru vs age_only (descriptive)",
+                                       "detection view_gru vs hgb", "harm hgb vs R*"])
+        self.assertEqual(got["detection view_gru vs hgb"], {"contrast": {"d": 1}, "age_only_on_U": {"C3b@M2": {"auc": 0.7}}})
+        self.assertEqual(got["C3b@M1: detection view_gru vs R*"]["age_only_on_U"], {"C3b@M1": {"auc": 0.6}})
+
+
+class PointCheckTest(unittest.TestCase):
+    """The frozen points on the pilot's benign traffic (D-052), through the replay's real accounting; only the arms' decisions are stubs."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.frozen = F.frozen_inputs(os.path.join(cls.tmp.name, "frozen"))
+        cls.cal = l7_backend.load_record(cls.frozen["calibration"])[0]
+        cls.root = os.path.join(cls.tmp.name, "runs")
+        block = R.plan_block("health", 9001, cls.root, frozen=cls.frozen, benign_specs=F.thin_benign(LEAN))
+        R.run_block(F.P1FakeHost(), block)
+        cls.pair(cls.root, 9002, 9009, quiet=None)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    @classmethod
+    def pair(cls, root, lo, hi, quiet):
+        for seed in range(lo, hi):
+            block = R.plan_block("ladder", seed, root, frozen=cls.frozen, levels={"C2": 1.0}, runs=["C", "U_C2"], label="C2_L1_r1",
+                                 benign_specs=F.thin_benign(LEAN), max_sources=2)
+            R.run_block(F.P1FakeHost(quiet_from=quiet), block)
+
+    @staticmethod
+    def flagging(arms):
+        """arms_factory: each named arm flags that many benign addresses of the run, the others none."""
+        def build(_run_dir, man):
+            benign = [e["address"] for e in man["entities"] if e["role"] == "benign"]
+            return {a: StubPath(set(benign[:arms.get(a, 0)])) for a in ARMS}
+        return build
+
+    def check(self, arms=None, root=None):
+        return A.point_check(root or self.root, self.cal, self.frozen, 0, arms_factory=self.flagging(arms or {}))
+
+    def test_clean_points_pass_over_every_pilot_seed(self):
+        got = self.check()
+        self.assertEqual(got["status"], "pass")
+        self.assertEqual(([x["seed"] for x in got["per_seed"]], got["missing_seeds"], got["over_budget"]), (list(range(9001, 9009)), [], []))
+        self.assertEqual(got["record_sha256"], self.cal["sha256"])
+        self.assertEqual(got["selection_sha256"], self.frozen["selection_sha256"])
+        units = sum(x["benign_units"] for x in got["per_seed"])
+        self.assertGreater(units, 0)
+        self.assertEqual(got["arms"]["R*"], {"flagged": 0, "by_kind": {}, "note": None, "units": units, "meets": True})
+
+    def test_a_contender_over_the_budget_is_named(self):
+        got = self.check({"R*": 3})
+        self.assertEqual((got["status"], got["over_budget"]), ("over_budget", ["R*"]))
+        self.assertFalse(got["arms"]["R*"]["meets"])
+        self.assertGreater(got["arms"]["R*"]["flagged"], 0)
+        self.assertTrue(got["arms"]["R*"]["by_kind"])
+
+    def test_an_arm_that_does_not_stop_it_is_only_reported(self):
+        got = self.check({"default_rules": 3, "age_only": 3, "gru_shuffled": 3})
+        self.assertEqual(got["status"], "pass")
+        self.assertFalse(got["arms"]["default_rules"]["meets"])
+
+    def test_a_seed_without_a_valid_control_leaves_it_incomplete(self):
+        root = os.path.join(self.tmp.name, "seven")
+        block = R.plan_block("health", 9001, root, frozen=self.frozen, benign_specs=F.thin_benign(LEAN))
+        R.run_block(F.P1FakeHost(), block)
+        self.pair(root, 9002, 9008, quiet=None)
+        self.pair(root, 9008, 9009, quiet=30)
+        got = self.check(root=root)
+        self.assertEqual((got["status"], got["missing_seeds"]), ("incomplete", [9008]))
+
+    def test_a_control_at_another_factor_does_not_count(self):
+        got = A.point_check(self.root, self.cal, self.frozen, 1, arms_factory=self.flagging({}))
+        self.assertEqual((got["status"], len(got["missing_seeds"]), got["benign_halvings"]), ("incomplete", 8, 1))
+
+    def test_the_command_line_writes_the_file_a_campaign_takes(self):
+        out = os.path.join(self.tmp.name, "points.json")
+        argv = [self.root, "--calibration", self.frozen["calibration"], "--points", "--selection", self.frozen["selection"],
+                "--selection-sha256", self.frozen["selection_sha256"], "--rules", self.frozen["rules"], "--rules-sha256",
+                self.frozen["rules_sha256"], "--out", out]
+        with mock.patch.object(A, "default_factory", return_value=self.flagging({})), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(A.main(argv), 0)
+        block = R.plan_block("campaign", 3001, self.root, frozen={**self.frozen, "points": out}, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        self.assertEqual(block["frozen"]["points"]["status"], "pass")
+        with mock.patch.object(A, "default_factory", return_value=self.flagging({"view_gru": 3})), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(A.main(argv), 1)
+        with self.assertRaisesRegex(R.PlanError, "view_gru"):
+            R.plan_block("campaign", 3001, self.root, frozen={**self.frozen, "points": out}, benign_specs=F.thin_benign(LEAN), max_sources=2)
+
+
+class HealthTest(unittest.TestCase):
+    """The halving rule on fake runs: a control's real figures through eval/harm_gate.control_health, into the health file that the
+    ladder and the campaign take (ml/p1_prereg.json, D-049)."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = tmp.name
+        self.frozen = F.frozen_inputs(os.path.join(tmp.name, "frozen"))
+        self.cal = l7_backend.load_record(self.frozen["calibration"])[0]
+        self.root = os.path.join(tmp.name, "runs")
+
+    def step(self, halvings, attempt=1, **host):
+        block = R.plan_block("health", 9001, self.root, frozen=self.frozen, halvings=halvings, attempt=attempt,
+                             benign_specs=F.thin_benign(LEAN))
+        R.run_block(F.P1FakeHost(**host), block)
+
+    def result_file(self, code=0):
+        out = os.path.join(self.tmp, "health.json")
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(A.main([self.root, "--calibration", self.frozen["calibration"], "--health", "--out", out]), code)
+        return out
+
+    @staticmethod
+    def sick_until(h):
+        return lambda _run, block_dir, _t: 0.05 if int(re.search(r"_h(\d)", block_dir).group(1)) < h else 0.0
+
+    def test_healthy_at_once(self):
+        self.step(0)
+        got = A.health_result(self.root, self.cal)
+        self.assertEqual((got["decision"], got["benign_halvings"]), ("frozen", 0))
+        self.assertEqual(got["record_sha256"], self.cal["sha256"])
+        self.assertEqual(sorted(got["steps"][0]["controls"]), ["C", "Cp"])
+
+    def test_an_unhealthy_control_halves_and_a_healthy_step_freezes_the_factor(self):
+        self.step(0, fail_share=self.sick_until(1))
+        got = A.health_result(self.root, self.cal)
+        self.assertEqual((got["decision"], got["next_halvings"]), ("run", 1))
+        self.assertIn("below 99", got["steps"][0]["controls"]["C"]["reasons"][0])
+        self.step(1, fail_share=self.sick_until(1))
+        got = A.health_result(self.root, self.cal)
+        self.assertEqual((got["decision"], got["benign_halvings"]), ("frozen", 1))
+        health = self.result_file()
+        block = R.plan_block("ladder", 9001, self.root, frozen={**self.frozen, "health": health}, levels={"C2": 1.0},
+                             runs=["C", "U_C2"], label="C2_L1_r1", benign_specs=F.thin_benign(LEAN), max_sources=2)
+        self.assertEqual(block["halvings"], 1)
+
+    def test_one_unhealthy_control_is_enough(self):
+        self.step(0, fail_share=lambda run, _b, _t: 0.05 if run == "Cp" else 0.0)
+        self.assertEqual(A.health_result(self.root, self.cal)["next_halvings"], 1)
+
+    def test_unhealthy_at_the_floor_refuses_and_the_ladder_and_the_campaign_say_so(self):
+        for h in (0, 1, 2):
+            self.step(h, fail_share=self.sick_until(3))
+        health = self.result_file(code=1)
+        got = REC.read_json(health)
+        self.assertEqual((got["decision"], got["benign_halvings"]), ("refused", None))
+        frozen = {**self.frozen, "health": health}
+        with self.assertRaisesRegex(R.PlanError, "does not reach health at the floor of 2 halvings"):
+            R.plan_block("ladder", 9001, self.root, frozen=frozen, levels={"C2": 1.0}, runs=["C", "U_C2"],
+                         benign_specs=F.thin_benign(LEAN), max_sources=2)
+        with self.assertRaisesRegex(R.PlanError, "does not reach health at the floor of 2 halvings"):
+            R.plan_block("campaign", 3001, self.root, frozen=frozen, benign_specs=F.thin_benign(LEAN), max_sources=2)
+
+    def test_a_control_that_failed_its_checks_gives_no_reading(self):
+        self.step(0, quiet_from=30)
+        got = A.health_result(self.root, self.cal)
+        self.assertFalse(got["steps"][0]["sound"])
+        self.assertEqual((got["decision"], got["next_halvings"]), ("run", 0))
 
 
 if __name__ == "__main__":
