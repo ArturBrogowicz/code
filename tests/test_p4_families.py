@@ -3,12 +3,14 @@
 Offline: no socket is opened; the generator runs against fake connections on a fake clock."""
 import collections
 import contextlib
+import errno
 import io
 import itertools
 import json
 import os
 import random
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -52,7 +54,7 @@ class FakeNet:
     def __init__(self, clock):
         self.clock, self.t0, self.socks, self.fail_next, self.refuse = clock, clock.t, [], set(), 0
 
-    def open(self, host, port, n, head):
+    def open(self, host, port, n, head, errors=None):
         if self.refuse:
             self.refuse -= 1
             return []
@@ -191,8 +193,8 @@ class GeneratorTest(unittest.TestCase):
         def arm(n):
             orig = n.open
 
-            def open_and_mark(host, port, k, head):
-                got = orig(host, port, k, head)
+            def open_and_mark(host, port, k, head, errors=None):
+                got = orig(host, port, k, head, errors)
                 if not first and got:
                     first["s"] = got[0]
                     n.fail_next.add(got[0])                   # the first connection's first line finds it closed
@@ -238,6 +240,27 @@ class GeneratorTest(unittest.TestCase):
         self.assertEqual([len(d) for _t, d in net.socks[0].sent], [16, 4])
         self.assertIn(b"Content-Length: 30", net.socks[1].head)
         self.assertEqual([len(d) for _t, d in net.socks[1].sent], [16])
+
+    def test_the_generator_states_what_it_opened(self):
+        # The real generator, in the sandbox: its source address is not on this machine, so every open fails for a local
+        # reason, and that must reach the runner (review T-047 P-06: the stats were dropped).
+        params = dict(P.FAMILIES["loris"]["params"], conns=2, port=80)
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(l7_gen, "SOURCE", None):
+            path = os.path.join(tmp, "stats.json")
+            rc = l7_gen.main(["--role", "attack", "--family", "slowloris", "--host", "10.0.0.1", "--duration", "0.2",
+                              "--seed", "7", "--params", json.dumps(params), "--source", "10.0.16.5", "--stats", path])
+            with open(path, encoding="utf-8") as fh:
+                stats = json.load(fh)
+        self.assertEqual((rc, stats["opened"], stats["failed_opens"], stats["local_errors"]), (0, 0, 2, 2))
+
+    def test_a_refused_open_is_not_a_local_error(self):
+        def refused(_host, _port, _n, _head, errors=None):
+            errors.append(ConnectionRefusedError(errno.ECONNREFUSED, "refused"))
+            return []
+        sched = {"family": "slowloris", "head": "GET / HTTP/1.1\r\n", "slots": [{"lines": []}]}
+        with mock.patch.object(l7_gen, "_open_sockets", refused):
+            stats = l7_gen.run_slow_schedule("10.0.0.1", 80, sched, 0.1)
+        self.assertEqual((stats["failed_opens"], stats["local_errors"]), (1, 0))
 
     def test_the_attack_functions_take_the_p4_pacing(self):
         calls = []

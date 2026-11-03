@@ -25,7 +25,8 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
   * the per-run labels (p4_traffic.roles: attack, slow_uploader, cgnat, the kind) in manifest.json and in
     slow_pc_manifest.json, the input of eval/p4_validation.py;
   * checks: the stack answered, every generator started and ended cleanly, the daemon was ready before the traffic
-    and alive to the end with XDP attached, the record exists, the kill file stayed absent, and (D-035, V-08 of review
+    and alive to the end with XDP attached, the attack ran (review T-047 P-06: its generators' stats, attack_summary()), the
+    record exists, the kill file stayed absent, and (D-035, V-08 of review
     T-039) in an M_pc or validation run the rule's slow_pc_poll
     events that report a successful read are never more than SLOW_PC_POLL_GAP_S = 10 s apart, from the traffic's start to
     the run's end, and in an M_pc run they all say it enforced (review T-047 P-05: the daemon logs the event with polls 0
@@ -101,6 +102,10 @@ DAEMON_READY_LINE = "Listening for Nginx logs"          # bench/executor.py DAEM
 XDP_ATTACHED_LINE = "Successfully attached XDP program"
 DAEMON_READY_TIMEOUT_S, STACK_READY_TIMEOUT_S = 60.0, 30.0
 STOP_GRACE_S = 10.0
+# The attack ran: no open failed for a local reason, and at least this share of its connections was opened at least once. Not
+# 90 %: slots run out as the attack harms (at the ladder's top ~1,800 connections meet ~1,065 free slots and a backlog of 511),
+# so a higher floor would call the harm itself invalid, the trap of stub_status (D-050, P-02).
+ATTACK_MIN_OPENED_SHARE = 0.5
 SLOW_PC_POLL_GAP_S = 10.0          # D-035 (V-08): the longest silence of the rule in an M_pc or validation run
 # every variable the daemon reads, set, so that nothing of the operator's environment reaches it (bench/executor.py
 # DAEMON_ENV); MITIGATION_BACKEND is XDP in every P4 arm
@@ -213,6 +218,11 @@ def records_path(out, entity):
     return os.path.join(out, "records", entity["entity_id"].replace(":", "_") + ".csv")
 
 
+def stats_path(out, entity):
+    """Where an attack generator writes what it did (ml/l7_gen.py --stats)."""
+    return os.path.join(out, "attack_stats", entity["entity_id"].replace(":", "_") + ".json")
+
+
 def gen_argv(entity, out, python):
     role = "benign" if entity["role"] == "benign" else "attack"
     dur = entity["schedule"]["stop_s"] - entity["schedule"]["start_s"]
@@ -222,6 +232,8 @@ def gen_argv(entity, out, python):
     argv += ["--kind" if role == "benign" else "--family", entity["kind_or_family"]]
     if role == "benign" and entity["kind_or_family"] in _recorded_kinds():
         argv += ["--records", records_path(out, entity)]
+    if role == "attack":
+        argv += ["--stats", stats_path(out, entity)]
     return argv
 
 
@@ -401,6 +413,7 @@ def execute_run(host, plan):
     out, t = plan["out"], plan["timeline"]
     reasons, procs, launched = [], [], []
     os.makedirs(os.path.join(out, "records"), exist_ok=True)
+    os.makedirs(os.path.join(out, "attack_stats"), exist_ok=True)
     started = host.time()
     write_json(os.path.join(out, "plan.json"), plan)
     if not host.is_root():
@@ -516,7 +529,8 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
             "checks": {"ok": ok, "reasons": reasons}, "started_utc": _utc(started), "ended_utc": _utc(ended),
             "daemon": None if plan["daemon"] is None else {"mode": plan["daemon"]["mode"],
                                                            "env": plan["daemon"]["env"]},
-            "thresholds": plan["thresholds"], "provenance": plan["provenance"]}
+            "thresholds": plan["thresholds"], "provenance": plan["provenance"],
+            "attack": attack_summary(plan) if t0 is not None else None}
     write_json(os.path.join(out, "run.json"), meta)
     write_json(os.path.join(out, "manifest.json"), manifest(plan, t0))
     if plan["daemon"] and plan["daemon"]["mode"] in ("pc", "shadow"):
@@ -524,6 +538,25 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
                    {"seed": plan["seed"], "arm": plan["arm"], "record": "slow_pc.jsonl.gz", "roles": plan["roles"],
                     "daemon": {k: plan["daemon"]["env"][k] for k in DAEMON_MODE_KEYS}})
     return {"ok": ok, "reasons": reasons, "started": started, "ended": ended}
+
+
+def attack_summary(plan):
+    """What the attack generators of a run did (their --stats), or None for a run without an attack."""
+    entities = [e for e in plan["entities"] if e["role"] == "attack"]
+    if not entities:
+        return None
+    out = {"planned": sum(e["params"]["conns"] for e in entities), "generators": len(entities), "no_stats": 0, "opened": 0,
+           "reopened": 0, "failed_opens": 0, "local_errors": 0, "sent_bytes": 0}
+    for e in entities:
+        try:
+            with open(stats_path(plan["out"], e), encoding="utf-8") as fh:
+                stats = json.load(fh)
+        except (OSError, ValueError):
+            out["no_stats"] += 1
+            continue
+        for key in ("opened", "reopened", "failed_opens", "local_errors", "sent_bytes"):
+            out[key] += stats.get(key, 0)
+    return out
 
 
 def checks(host, plan, t0, launched):
@@ -534,6 +567,14 @@ def checks(host, plan, t0, launched):
     total = sum(plan["timeline"].values())
     if len(launched) != len(plan["launches"]):
         reasons.append(f"{len(plan['launches']) - len(launched)} of {len(plan['launches'])} generators never started")
+    attack = attack_summary(plan)
+    if attack:
+        if attack["no_stats"]:
+            reasons.append(f"{attack['no_stats']} of {attack['generators']} attack generators left no stats")
+        if attack["local_errors"]:
+            reasons.append(f"the attack could not open connections on this machine: {attack['local_errors']} local errors")
+        if attack["opened"] < ATTACK_MIN_OPENED_SHARE * attack["planned"]:
+            reasons.append(f"the attack opened {attack['opened']} of its {attack['planned']} connections")
     d = plan["daemon"]
     if d:
         log = _text(host, d["log"])

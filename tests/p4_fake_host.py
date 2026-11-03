@@ -12,6 +12,8 @@ The model, as far as the runner's outputs need it:
     generator, a slow uploader's connection unanswered at 2,000 B/s, and the connections of the first
     `modelled_attackers` attack sources, unanswered and dribbling (a line every 20 s); a connection the rule closes is
     re-opened 10 s later with a new port, and a banned address holds none;
+  * an attack generator writes its --stats at its exit (`attack_fails`: nothing opens, for a local reason;
+    `attack_opened_share`: the share that opens, the rest refused; None: no stats);
   * nginx's access log (l7json, written where the runner moves it): one line per answered request of a plan-kind
     generator and one per other benign generator; behind nginx_profile_r_limits.conf a share `limit_refuses` of a CGNAT
     pool's requests is refused with a 503, which its client also records;
@@ -78,7 +80,7 @@ class FakeHost(X.Host):
     def __init__(self, *, root=True, netns=(), kill_file=False, kill_appears_at=None, stack_ready=True,
                  nginx_fails=False, daemon_dies_at=None, daemon_startup_s=3.0, gen_fails=(), gen_code=3,
                  poll_every_s=1.0, modelled_attackers=None, harm=None, fail_prim=None, limit_refuses=0.0,
-                 gen_late=None, stub_fails=None, ss_fails=None):
+                 gen_late=None, stub_fails=None, ss_fails=None, attack_fails=False, attack_opened_share=1.0):
         self.t = 0.0
         self.root, self.netns, self.stack_ready, self.nginx_fails = root, list(netns), stack_ready, nginx_fails
         self.kill_file, self.kill_appears_at = kill_file, kill_appears_at
@@ -86,6 +88,7 @@ class FakeHost(X.Host):
         self.gen_fails, self.gen_code, self.poll_every_s = set(gen_fails), gen_code, poll_every_s
         self.modelled_attackers, self.harm, self.fail_prim = modelled_attackers, harm, fail_prim
         self.limit_refuses, self.gen_late, self.stub_fails = limit_refuses, dict(gen_late or {}), stub_fails
+        self.attack_fails, self.attack_opened_share = attack_fails, attack_opened_share   # share None: no stats at all
         self.ss_fails = ss_fails                # True: `ss` fails on every poll; (lo, hi): over those seconds of the run
         self.pids, self.seq = itertools.count(100), itertools.count()
         self.events, self.commands, self.prims, self.procs = [], [], [], []
@@ -196,13 +199,14 @@ class FakeHost(X.Host):
         p.name = _opt(a, "--kind") or _opt(a, "--family")
         p.params, p.seed, p.dur = json.loads(_opt(a, "--params")), int(_opt(a, "--seed")), float(_opt(a, "--duration"))
         p.records, p.start, p.world = _opt(a, "--records"), self.t, self.world
-        if p.role == "attack":
+        p.stats = _opt(a, "--stats")
+        if p.role == "attack" and not self.attack_fails:
             n = len({q.ip for q in self.procs if q.kind == "gen" and getattr(q, "role", "") == "attack"
                      and q.world == self.world})
             if self.modelled_attackers is None or n <= self.modelled_attackers:
                 for _ in range(p.params.get("conns", 1)):
                     self._open(p.ip, p.port, p.name)
-        else:
+        elif p.role != "attack":
             self._open(p.ip, p.port, p.name)
         code = self.gen_code if p.ip in self.gen_fails else 0
         self.at(self.t + p.dur + 0.5 + self.gen_late.get(p.ip, 0.0), lambda: self.end(p, code))
@@ -212,7 +216,16 @@ class FakeHost(X.Host):
         self.socks[(ip, port, "10.0.0.1", sport)] = {"ip": ip, "port": port, "sport": sport, "kind": kind,
                                                      "opened": self.t}
 
+    def _write_stats(self, p):
+        conns = p.params.get("conns", 1)
+        opened = 0 if self.attack_fails else round(self.attack_opened_share * conns)
+        with open(p.stats, "w", encoding="utf-8") as fh:
+            json.dump({"opened": opened, "reopened": 0, "failed_opens": conns - opened, "sent_bytes": 14 * opened,
+                       "local_errors": conns if self.attack_fails else 0}, fh)
+
     def _gen_exit(self, p):
+        if p.stats and self.attack_opened_share is not None:
+            self._write_stats(p)
         for key in [k for k, s in self.socks.items() if s["ip"] == p.ip]:
             del self.socks[key]
         if p.records:

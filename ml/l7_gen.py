@@ -27,6 +27,10 @@ slowpost with `byte_every_s` given as a range, run the frozen P4 pacing from a s
 loris_schedule, post_schedule): every connection has its own gaps, a closed connection is re-opened at once and carries
 on with its slot's schedule, and --plan prints the schedule. With a number there, they run exactly as before.
 
+--stats PATH (P4, review T-047 P-06): a generator of the P4 pacing writes what it did at its exit: the connections it opened,
+re-opened and failed to open, those that failed for a local reason (no such source address, no descriptors: not the
+server's doing), and the bytes it sent.
+
 --records PATH (L7 v2, docs/L7V2_DESIGN.md §5.1; benign plan kinds): one CSV row per request as it
 completes (eval/l7v2_harm.RECORD_COLUMNS): t_intended = t_sent (a closed-loop client has no schedule
 within a view), t_done, status, err, the route class (l7_webapp's site map), the plan's user, view and
@@ -35,6 +39,7 @@ recomputes the plan to count the views that were due and never started. Without 
 """
 import argparse
 import csv
+import errno
 import ipaddress
 import json
 import os
@@ -508,7 +513,11 @@ def attack_credstuff(host, port, params, dur, rng):
             _rate_sleep(rps, rng)
 
 
-def _open_sockets(host, port, n, send_head):
+LOCAL_ERRNOS = {errno.EADDRNOTAVAIL, errno.EADDRINUSE, errno.EMFILE, errno.ENFILE, errno.ENOBUFS, errno.ENOMEM,
+                errno.ENETUNREACH}       # an open that failed for a reason of this machine, not the server's answer
+
+
+def _open_sockets(host, port, n, send_head, errors=None):
     socks = []
     for _ in range(n):
         try:
@@ -522,8 +531,9 @@ def _open_sockets(host, port, n, send_head):
                 s = ctx.wrap_socket(s, server_hostname="localhost")
             s.sendall(send_head)
             socks.append(s)
-        except OSError:
-            pass
+        except OSError as exc:
+            if errors is not None:
+                errors.append(exc)
     return socks
 
 
@@ -553,12 +563,12 @@ def run_slow_schedule(host, port, sched, dur):
     times from the start, one thread for all. A slot whose send fails (its connection was closed) is re-opened at once,
     as attack_slowpost re-opens, and one that could not be opened is tried again at its next event. A slow-POST
     connection declares its slot's next Content-Length and is closed and re-opened once its body is complete. Returns
-    {"opened", "reopened", "sent_bytes", "failed_opens"}."""
+    {"opened" (slots opened at least once), "reopened", "sent_bytes", "failed_opens", "local_errors"}."""
     import heapq
     post = sched["family"] == "slowpost"
     slots = sched["slots"]
     events = [s["chunks"] if post else s["lines"] for s in slots]
-    stats = {"opened": 0, "reopened": 0, "sent_bytes": 0, "failed_opens": 0}
+    stats = {"opened": 0, "reopened": 0, "sent_bytes": 0, "failed_opens": 0, "local_errors": 0}
     conns, opens, body = [None] * len(slots), [0] * len(slots), [0] * len(slots)
 
     def head(i):
@@ -568,9 +578,11 @@ def run_slow_schedule(host, port, sched, dur):
         return sched["head"].format(n=lengths[opens[i] % len(lengths)]).encode()
 
     def open_slot(i):
-        got = _open_sockets(host, port, 1, head(i))
+        errors = []
+        got = _open_sockets(host, port, 1, head(i), errors)
         if not got:
             stats["failed_opens"] += 1
+            stats["local_errors"] += sum(1 for e in errors if e.errno in LOCAL_ERRNOS)
             return None
         stats["opened" if opens[i] == 0 else "reopened"] += 1
         opens[i] += 1
@@ -624,8 +636,7 @@ def attack_slowloris(host, port, params, dur, rng):
     header_every_s (< the 5 s header timeout), never completing the request. With P4's
     pacing (a range of gaps) the seeded schedule of slow_schedule() runs instead."""
     if paced("slowloris", params):
-        run_slow_schedule(host, 80, slow_schedule("slowloris", host, params, dur, rng), dur)
-        return
+        return run_slow_schedule(host, 80, slow_schedule("slowloris", host, params, dur, rng), dur)
     conns = params["conns"]
     every = params["header_every_s"]
     head = (f"GET /?r={rng.randrange(10**6)} HTTP/1.1\r\nHost: {host}\r\n"
@@ -648,8 +659,7 @@ def attack_slowpost(host, port, params, dur, rng):
     every byte_every_s (< the 5 s body timeout, so no RUDY ban), looping. With P4's
     pacing (a range of gaps) the seeded schedule of slow_schedule() runs instead."""
     if paced("slowpost", params):
-        run_slow_schedule(host, 80, slow_schedule("slowpost", host, params, dur, rng), dur)
-        return
+        return run_slow_schedule(host, 80, slow_schedule("slowpost", host, params, dur, rng), dur)
     conns = params["conns"]
     every = params["byte_every_s"]
     n = min(params.get("body_bytes", 60000), 65536)
@@ -746,6 +756,7 @@ def main(argv=None):
     ap.add_argument("--plan", action="store_true", help="print the plan and exit (no sending)")
     ap.add_argument("--source", help="send from this address (an alias of the namespace; P3)")
     ap.add_argument("--records", help="write the client-side harm records here (L7 v2; benign plan kinds)")
+    ap.add_argument("--stats", help="write what a generator of the P4 pacing did here, at its exit")
     args = ap.parse_args(argv)
 
     name = args.kind if args.role == "benign" else args.family
@@ -779,10 +790,13 @@ def main(argv=None):
     if args.records is not None:
         RECORDER = Recorder(args.records)
     try:
-        fn(args.host, args.port, params, args.duration, random.Random(args.seed))
+        stats = fn(args.host, args.port, params, args.duration, random.Random(args.seed))
     finally:
         if RECORDER is not None:
             RECORDER.close()
+    if args.stats:
+        with open(args.stats, "w", encoding="utf-8") as fh:
+            json.dump(stats or {}, fh)
     return 0
 
 

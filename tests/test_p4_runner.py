@@ -590,5 +590,36 @@ class ExecuteTest(unittest.TestCase):
         self.assertTrue(any("did not enforce throughout" in r for r in res["reasons"]), res["reasons"])
 
 
+    def test_an_attack_that_never_connected_makes_the_run_invalid(self):
+        """Review T-047 P-06: such an M_pc would pass (a) and (b), and such a U would read "not harmful"."""
+        for arm in ("U_loris", "M_pc_loris"):
+            run = self.one_run(f"no_attack_{arm}", "campaign", 3106, arm, thresholds=POINT)
+            res = R.execute_run(F.FakeHost(attack_fails=True, modelled_attackers=1), run)
+            self.assertTrue(any("could not open connections on this machine" in r for r in res["reasons"]), res["reasons"])
+            self.assertTrue(any("the attack opened 0 of its 600 connections" in r for r in res["reasons"]), res["reasons"])
+
+    def test_connections_the_server_refuses_are_the_harm_not_invalidity(self):
+        run = self.one_run("refused", "campaign", 3106, "U_loris", thresholds=POINT)
+        self.assertEqual(R.execute_run(F.FakeHost(attack_opened_share=0.6, modelled_attackers=1), run)["reasons"], [])
+        with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+            attack = json.load(fh)["attack"]
+        self.assertEqual((attack["planned"], attack["opened"], attack["failed_opens"]), (600, 400, 200))
+        run = self.one_run("too_few", "campaign", 3106, "U_loris", thresholds=POINT)
+        res = R.execute_run(F.FakeHost(attack_opened_share=0.4, modelled_attackers=1), run)
+        self.assertTrue(any("the attack opened 200 of its 600" in r for r in res["reasons"]), res["reasons"])
+
+    def test_an_attack_generator_without_stats_is_a_reason(self):
+        run = self.one_run("no_stats", "campaign", 3106, "U_post", thresholds=POINT)
+        res = R.execute_run(F.FakeHost(attack_opened_share=None, modelled_attackers=1), run)
+        self.assertTrue(any("attack generators left no stats" in r for r in res["reasons"]), res["reasons"])
+        run = self.one_run("no_attack_arm")
+        self.assertEqual(R.execute_run(F.FakeHost(attack_fails=True), run)["reasons"], [])
+
+    def test_the_attack_generators_are_told_where_to_write(self):
+        run = self.one_run("argv", "campaign", 3106, "U_post", thresholds=POINT)
+        for x in run["launches"]:
+            self.assertEqual("--stats" in x["argv"], x["role"] == "attack")
+
+
 if __name__ == "__main__":
     unittest.main()
