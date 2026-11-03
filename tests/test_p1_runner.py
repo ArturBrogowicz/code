@@ -5,6 +5,8 @@ import copy
 import io
 import json
 import os
+import socket
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -201,6 +203,39 @@ class PlanTest(Base):
 
 
 FEEDS_ITS_SOCKET = {"C": False, "U_C3b": False, "M_default_rules_C3b": False, "M_hgb_C3b": True, "M_gru_C3b": True, "M_rstar_C3b": True}
+
+
+class AttackGeneratorTest(Base):
+    """T050-02: P1's attack generators, on the fake and on the real ml/l7_gen.py with P1's own argv, on a loopback sink."""
+
+    def block(self):
+        return R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=["U_C2"], label="stats",
+                            benign_specs=F.thin_benign({"exporter": 1}), max_sources=2)
+
+    def test_a_u_run_is_valid_and_its_generators_left_their_stats(self):
+        block = self.block()
+        res = dict(R.run_block(F.P1FakeHost(), block))["U_C2"]
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertEqual(len(os.listdir(os.path.join(block["dir"], "U_C2", "attack_stats"))), 2)
+
+    def test_the_real_generator_with_p1_s_argv_exits_0_and_writes_its_stats(self):
+        block = self.block()
+        R.run_block(F.P1FakeHost(), block)
+        run = block["runs"][0]
+        x = next(x for x in run["launches"] if x["role"] == "attack")
+        stats = x["argv"][x["argv"].index("--stats") + 1]
+        os.remove(stats)
+        argv = list(x["argv"][x["argv"].index(R.P4.GEN) + 1:])
+        with socket.create_server(("127.0.0.1", 0)) as srv:
+            argv[argv.index("--host") + 1] = "127.0.0.1"
+            argv[argv.index("--port") + 1] = str(srv.getsockname()[1])
+            argv[argv.index("--source") + 1] = "127.0.0.1"
+            argv[argv.index("--duration") + 1] = "0.5"
+            driver = ("import sys, ipaddress; sys.path.insert(0, 'ml'); import l7_gen; "
+                      "l7_gen.TESTBED_NET = ipaddress.ip_network('127.0.0.0/8'); sys.exit(l7_gen.main(sys.argv[1:]))")
+            got = subprocess.run([sys.executable, "-c", driver, *argv], cwd=REPO, capture_output=True, text=True, timeout=60, check=False)
+        self.assertEqual(got.returncode, 0, got.stderr[-500:])
+        self.assertTrue(os.path.isfile(stats))
 
 
 class WrittenConfTest(Base):

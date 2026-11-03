@@ -555,6 +555,7 @@ def execute_run(host, plan, frozen_sums):
     out = plan["out"]
     reasons, procs, launched, logs, cpu = [], [], [], {}, []
     os.makedirs(os.path.join(out, "records"), exist_ok=True)
+    os.makedirs(os.path.join(out, "attack_stats"), exist_ok=True)       # P4.gen_argv's --stats (T050-02): a generator writes there at its exit
     started = host.time()
     P4.write_json(os.path.join(out, "plan.json"), plan)
     ctx = {"started": started, "t0": None, "procs": procs, "logs": logs, "launched": launched, "cpu": cpu, "sums": frozen_sums}

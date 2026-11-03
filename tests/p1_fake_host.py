@@ -3,7 +3,8 @@
 What it models, as far as the runner's and the analysis's inputs need it:
   * nginx: the run's own conf is read for its file sink; every generator's requests, and a monitoring line each second, go to
     that sink, in completion order, when nginx stops (`quiet_from` silences the monitoring and the clients from then on);
-  * a generator exits 0 at the end of its duration (`gen_code` for the addresses in `gen_fails`). A benign plan kind writes
+  * a generator exits 0 at the end of its duration (`gen_code` for the addresses in `gen_fails`), and 1, as the real one does, if it
+    cannot write its --stats file (T050-02). A benign plan kind writes
     its client-side rows and its requests from its own plan (ml/l7_benign.plan_client with its seed); an attack family its
     requests (ml/l7_bots.plan_bot); a kind without a plan one line. A request is answered 200 in 30 ms, except a share
     `fail_share(run, block_dir, t)` of the benign ones, which fail (nginx logs a 503, so the server-side Q agrees);
@@ -97,7 +98,19 @@ class P1FakeHost(F.FakeHost):
         p.params, p.seed, p.dur = json.loads(F._opt(a, "--params")), int(F._opt(a, "--seed")), float(F._opt(a, "--duration"))
         p.records, p.start, p.world = F._opt(a, "--records"), self.t, self.world
         code = self.gen_code if p.ip in self.gen_fails else 0
-        self.at(self.t + p.dur + 0.5, lambda: self.end(p, code))
+        self.at(self.t + p.dur + 0.5, lambda: self.end(p, self._stats_code(a, code)))
+
+    @staticmethod
+    def _stats_code(argv, code):
+        """The real generator writes --stats at its exit: FileNotFoundError, exit 1, when the runner made no directory for it."""
+        path = F._opt(argv, "--stats") if "--stats" in argv else None
+        if path is None:
+            return code
+        if not os.path.isdir(os.path.dirname(path)):
+            return 1
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({}, fh)
+        return code
 
     def _gen_exit(self, p):
         if p.role == "attack":
