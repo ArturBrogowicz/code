@@ -70,6 +70,7 @@ class PinnedConstantsTest(unittest.TestCase):
                                   "M_def_post", "M_pc_post"))           # C_M re-registered by D-041
         self.assertEqual(O.PROTECTED, "C_M")
         self.assertEqual((O.CONTROL_Q_MIN, O.HG.CONTROL_CLASS_Q_MIN), (99.0, 95.0))    # D-046
+        self.assertEqual(O.CONTROL_CLASS_MIN_N, 20)                                   # D-050
         self.assertEqual(O.TIMELINE, {"baseline_s": 30, "attack_s": 210, "recovery_s": 30})
         self.assertEqual(O.GATE, {"floor_pp": 10.0, "floor_log2_p95": 1.0, "ci_level": 0.95,
                                   "same_sign_share": 0.8})
@@ -464,7 +465,7 @@ class LimitsCostTest(unittest.TestCase):
         self.assertIn("CGNAT-24", printed.getvalue())
 
 
-HEALTH_CAL = {"gate": {"control_q_min": 99.0}, "slo_ms": {"C0": 100, "C1": 300}}
+HEALTH_CAL = {"gate": {"control_q_min": 99.0}, "slo_ms": {"C0": 100, "C1": 300, "C5": 3000}}
 
 
 class ControlHealthTest(unittest.TestCase):
@@ -488,6 +489,31 @@ class ControlHealthTest(unittest.TestCase):
             self.assertIsNone(self.summarize(arm, self.metrics(80.0))["control_reasons"])
         with self.assertRaisesRegex(ValueError, "D-046"):
             self.summarize("C", self.metrics(99.5), cal=None)
+
+    def test_the_class_floor_needs_20_judged_requests(self):
+        # D-050 (review T-047 P-11): one slow export must not decide a block.
+        def with_class(n, ok):
+            return {"Q": 99.5, "p95_s": 0.1, "q_per_s": [99.5] * 270,
+                    "by_class": {"C1": {"n": 100, "ok": 100, "Q": 100.0}, "C5": {"n": n, "ok": ok, "Q": 100.0 * ok / n}}}
+        small = self.summarize("C", with_class(19, 0))
+        self.assertEqual(small["control_reasons"], [])
+        self.assertEqual(small["control_small_classes"], {"C5": {"n": 19, "ok": 0, "Q": 0.0}})
+        self.assertIn("class C5", self.summarize("C", with_class(20, 18))["control_reasons"][0])
+        self.assertEqual(self.summarize("C", with_class(20, 19))["control_reasons"], [])
+        self.assertEqual(self.summarize("C", with_class(20, 19))["control_small_classes"], {})
+        low_q = {**with_class(5, 5), "Q": 98.9}                                    # Q(C) stays on every request
+        self.assertIn("below 99 %", self.summarize("C", low_q)["control_reasons"][0])
+
+    def test_harm_gates_function_is_unchanged_for_the_harm_benchmark(self):
+        m = {"Q": 99.5, "by_class": {"C5": {"n": 2, "ok": 0, "Q": 0.0}}}
+        self.assertIn("class C5", O.HG.control_health(m, {**HEALTH_CAL, "slo_ms": {"C5": 3000}})[0])
+
+    def test_small_classes_are_reported_in_the_output(self):
+        small = {"C5": {"n": 2, "ok": 2, "Q": 100.0}}
+        runs = campaign()
+        k = next(i for i, r in enumerate(runs) if r["arm"] == "C" and r["block"] == 3104)
+        runs[k] = dict(runs[k], control_small_classes=small)
+        self.assertEqual(O.outcome(runs)["small_control_classes"], [{"block": 3104, "attempt": 1, "classes": small}])
 
     def test_an_unhealthy_control_makes_the_block_invalid_never_a_negative_verdict(self):
         why = ["Q(C) is 98.00 %, below 99 %"]
@@ -556,7 +582,7 @@ class InputTest(unittest.TestCase):
         self.assertEqual(r, {"block": 3101, "arm": "M_pc_loris", "attempt": 1, "valid": True, "Q": 97.0, "p95_s": 0.2,
                              "q_per_s": q, "q_level": 98.0, "level_window": [120.0, 240.0],
                              "banned": {"10.0.3.1": "attack", "10.0.4.1": "cgnat"}, "benign_closed": 1,
-                             "refused": None, "control_reasons": None})
+                             "refused": None, "control_reasons": None, "control_small_classes": None})
         with self.assertRaises(ValueError):
             O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [{"kind": "ban", "ip": "10.9.9.9"}], roles,
                         level_window=win, attempt=1)

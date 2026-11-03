@@ -20,8 +20,9 @@ recovery. Per family (loris, post):
     with no floor on its Q, since a low Q(C_M) is the cost it exists to show.
   * the status: "not harmful", "harmful but not mitigated", "mitigated with collateral" (a and b, not c), or
     "mitigated"; "invalid (k of 10 valid)" when fewer than 10 blocks are valid for the harm or, for a harmful
-    family, for the mitigation (D-035, below). A control that is not healthy (eval/harm_gate.control_health: Q(C) >= 99 %,
-    each route class >= 95 %) makes its attempt of C invalid, and without a valid C a block counts for nothing (D-046). M7 is "supported with scope" for the families that are harmful and
+    family, for the mitigation (D-035, below). A control that is not healthy (control_health(): Q(C) >= 99 %, each route
+    class of at least 20 judged requests >= 95 %) makes its attempt of C invalid, and without a valid C a block counts for
+    nothing (D-046, D-050). M7 is "supported with scope" for the families that are harmful and
     mitigated (profile R, these families at this scale, this testbed), naming next to it any family that is
     invalid; "invalid (k of 10 valid)" when no family qualifies and one is invalid; else "not supported".
   * reported next to it: Q(M_pc) - Q(M_def) per block with eval/run_level_stats.decide, the bans per arm by role,
@@ -125,6 +126,7 @@ T_MIT_S = slow_pc.DEADLINE_S     # 90 s since the re-registration of 2026-10-30
 RECOVERY_RATIO, RECOVERY_BINS = 0.99, 5
 LEVEL_RATIO = 0.99
 CONTROL_Q_MIN = 99.0             # D-046, with HG.CONTROL_CLASS_Q_MIN = 95 %; pinned here, whatever a record's gate says
+CONTROL_CLASS_MIN_N = 20         # D-050: the class floor judges a class with at least this many judged requests
 LEVEL_FROM_S = T_MIT_S           # (b): [attack start + T_mit, attack end]
 LEVEL_WINDOW_S = (TIMELINE["baseline_s"] + LEVEL_FROM_S,           # the same span in run time: the
                   TIMELINE["baseline_s"] + TIMELINE["attack_s"])   # `window` of run_metrics for q_level
@@ -144,6 +146,19 @@ def check_record_timeline(q_per_s, level_window):
         raise ValueError(f"{len(q_per_s)} one-second bins, not {RUN_S} (the run of {TIMELINE})")
     if level_window is None or [float(x) for x in level_window] != [float(x) for x in LEVEL_WINDOW_S]:
         raise ValueError(f"q_level taken over {level_window!r}, not LEVEL_WINDOW_S {list(LEVEL_WINDOW_S)}")
+
+
+def control_health(metrics, cal):
+    """P4's control health (D-046, D-050): (reasons, small classes). eval/harm_gate.control_health, unchanged, on Q(C) at
+    CONTROL_Q_MIN and on the route classes with at least CONTROL_CLASS_MIN_N judged requests; a smaller class, where one slow
+    export would decide the block (review T-047 P-11: C5 holds 1-5 requests in 8 of 10 seeds), is reported, not judged. The
+    pilot's halving rule reads this too (ml/p4_traffic.py halve)."""
+    classes = metrics["by_class"]
+    judged = {k: c for k, c in classes.items() if c["n"] >= CONTROL_CLASS_MIN_N}
+    small = {k: {f: c[f] for f in ("n", "ok", "Q")} for k, c in classes.items() if c["n"] < CONTROL_CLASS_MIN_N}
+    reasons = HG.control_health({**metrics, "by_class": judged},
+                                {**cal, "gate": {**cal["gate"], "control_q_min": CONTROL_Q_MIN}})
+    return reasons, small
 
 
 def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow_pc_closes=(), *, level_window,
@@ -166,16 +181,16 @@ def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow
     if unlabelled:                                  # fail closed, as for a ban (review T-039 V-06)
         raise ValueError(f"closed connections of addresses without a role: {unlabelled[:5]}")
     benign_closed = len({(c["ip"], c["port"], c["sport"]) for c in slow_pc_closes if roles[c["ip"]] != ATTACK})
-    control_reasons = None
+    control_reasons, control_small = None, None
     if arm == CONTROL:
         if cal is None:
             raise ValueError("a record of C needs the calibration its health is judged under (D-046)")
-        control_reasons = HG.control_health(metrics, {**cal, "gate": {**cal["gate"], "control_q_min": CONTROL_Q_MIN}})
+        control_reasons, control_small = control_health(metrics, cal)
     return {"block": block, "arm": arm, "attempt": attempt, "valid": bool(valid), "Q": metrics["Q"],
             "p95_s": metrics["p95_s"],
             "q_per_s": list(metrics["q_per_s"]), "q_level": level_metrics["Q"],
             "level_window": [float(x) for x in level_window], "banned": banned, "benign_closed": benign_closed,
-            "refused": refused, "control_reasons": control_reasons}
+            "refused": refused, "control_reasons": control_reasons, "control_small_classes": control_small}
 
 
 def recovery(q_per_s, threshold, start=TIMELINE["baseline_s"]):
@@ -347,6 +362,12 @@ def unhealthy_controls(every):
             if r["run_valid"] and r["control_reasons"]]
 
 
+def small_control_classes(every):
+    """Per attempt of C, the route classes too small for the class floor, reported and not judged (D-050)."""
+    return [{"block": r["block"], "attempt": r["attempt"], "classes": r["control_small_classes"]}
+            for block in sorted(every) for r in every[block].get(CONTROL, ()) if r.get("control_small_classes")]
+
+
 def invalid(k):
     """The status of a family, or of M7, with fewer than MIN_VALID_BLOCKS valid blocks (D-035, V-02)."""
     return f"invalid ({k} of {len(BLOCK_SEEDS)} valid)"
@@ -381,7 +402,8 @@ def outcome(runs):
     else:
         m7 = "not supported"
     return {"M7": m7, "families": fam, "bans_by_arm": bans_by_arm(runs), "t_mit_s": T_MIT_S,
-            "limits_cost": limits_cost(blocks), "unhealthy_controls": unhealthy_controls(every)}
+            "limits_cost": limits_cost(blocks), "unhealthy_controls": unhealthy_controls(every),
+            "small_control_classes": small_control_classes(every)}
 
 
 def main(argv=None):

@@ -281,6 +281,13 @@ class HalvingTest(unittest.TestCase):
         with self.assertRaises(P.PlanError):
             P.halve([healthy])
 
+    def test_the_rule_does_not_fire_on_one_slow_export(self):
+        # D-050: P4's control health judges a class of at least 20 requests; this class holds one.
+        cal = {"gate": {"control_q_min": 99.0}, "slo_ms": {"C5": 3000}}
+        one = {"Q": 99.5, "by_class": {"C5": {"Q": 0.0, "ok": 0, "n": 1}}}
+        self.assertTrue(HG.control_health(one, cal))
+        self.assertFalse(P.halve([p4_outcome.control_health(one, cal)[0], []]))
+
 
 if __name__ == "__main__":
     unittest.main()
