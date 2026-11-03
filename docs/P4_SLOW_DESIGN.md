@@ -1,6 +1,7 @@
 # P4: slow-connection attacks that harm a realistic server, mitigated per connection without CGNAT collateral (design note, written before the code)
 
-**Status (2026-10-30): a design for approval. Nothing in it is built or run.** It is on `design/priority-p1-p4`, branched from
+**Status (2026-11-02): approved, and built offline on `feat/p4-runner`; nothing has run on the VM. The text below is the design as
+approved, with its dated re-registrations.** **Status (2026-10-30): a design for approval. Nothing in it is built or run.** It is on `design/priority-p1-p4`, branched from
 `feat/hg1c` at e413a34, and changes no code. It details priority P4 of the approved direction
 (`/home/artur/agent_workspace/final/PRIORITY_PLAN.md` §4). It uses the L7 v2 runner as its harm vehicle
 (`docs/L7V2_DESIGN.md` §5, §6). The tags and the citation forms are those of `docs/L7V2_DESIGN.md` (header):
@@ -375,6 +376,12 @@ of traffic, ~5.5 min a run, ~11.8 h in all (10.4 h without re-runs), D-030; with
 | **total** | | **~8.6 h (7.5 h without re-runs)** |
 
 **The cut**, Slowloris only (C, C', U, M_def, M_pc): ~5 h with re-runs.
+
+**The budget as of 2026-11-02** [ESTIMATE, at ~5.5 min a run, §11's method; review T-047 P-17]. The figures above count 3 smoke
+runs and the ladder's 3 levels. In full: the P4-S packet, 6 runs and hand steps, ~0.8 h; the ladder, 24 runs, 2.2 h; the validation,
+6 runs, 0.55 h; the campaign, 90 runs, 8.25 h; the re-runs, at most 18 runs, 1.65 h: **~13.5 h**, ~11.8 h without re-runs. Beyond
+that, the ladder's 4th level, up to 8 runs, +0.73 h, and each firing of the halving rule, which repeats the pilot: at least its 2
+controls, +0.18 h, at most the ladder's 24-32 runs, +2.2 to +2.9 h. The worst case with one halving is ~17.1 h.
 
 **Phasing** (`final/PRIORITY_PLAN.md` §8):
 - **offline, F2:** profile R files, the reader and parser, the detector, enforcement, fakes and the replica;

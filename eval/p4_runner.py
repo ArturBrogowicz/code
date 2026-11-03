@@ -13,7 +13,7 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
   * nginx with nginx_profile_r.conf (C, C', U and the validation runs) or nginx_profile_r_limits.conf (M arms, C_M), and
     gunicorn -c gunicorn_profile_r.py (the costed app with the streamed upload, L7_CALIBRATION the record in use), both
     in server_ns on CPUs 0-1; the sha256 of the three files and of the record in the provenance;
-  * the daemon (control_plane.py, in server_ns on CPU 2, every variable it reads set) per arm: M_def the default
+  * the daemon (control_plane.py, in server_ns on CPU 2, the variables that select its mode set) per arm: M_def the default
     profile without the per-connection rule; M_pc the tolerant profile with SLOW_PC=1 SLOW_PC_ENFORCE=1, the
     committed T, F, K and SLOW_PC_RECORD; C_M (D-041) M_pc's configuration, with no attack; the validation runs (and the smoke runs) the tolerant profile with the rule
     in shadow (SLOW_PC=1, SLOW_PC_RECORD), as M_pc without enforcement. C, C' and U run without a daemon. The kill
@@ -110,7 +110,7 @@ STOP_GRACE_S = 10.0
 # so a higher floor would call the harm itself invalid, the trap of stub_status (D-050, P-02).
 ATTACK_MIN_OPENED_SHARE = 0.5
 SLOW_PC_POLL_GAP_S = 10.0          # D-035 (V-08): the longest silence of the rule in an M_pc or validation run
-# every variable the daemon reads, set, so that nothing of the operator's environment reaches it (bench/executor.py
+# the variables that select the daemon's mode, set, so that the operator's environment cannot change it (bench/executor.py
 # DAEMON_ENV); MITIGATION_BACKEND is XDP in every P4 arm
 DAEMON_BASE_ENV = {"XDP_GRU": "0", "GRU_ONLY": "0", "L7_SHADOW": "0", "L7_MODEL": "", "L7_RECORD": "",
                    "MITIGATION_BACKEND": "xdp", "SLOW_PC_KILL_FILE": KILL_FILE}

@@ -450,6 +450,12 @@ recorded, never a validity rule, as §8 says. (3) P-11: in P4's control health t
 least 20 judged requests; smaller classes are reported, not judged; `harm_gate.control_health` itself is unchanged for the harm
 benchmark.
 
+**The budget as of 2026-11-02** [ESTIMATE, at ~5.5 min a run, the note's §11 method; review T-047 P-17]. The figures above count 3 smoke
+runs and the ladder's 3 levels. In full: the P4-S packet, 6 runs and hand steps, ~0.8 h; the ladder, 24 runs, 2.2 h; the validation,
+6 runs, 0.55 h; the campaign, 90 runs, 8.25 h; the re-runs, at most 18 runs, 1.65 h: **~13.5 h**, ~11.8 h without re-runs. Beyond
+that, the ladder's 4th level, up to 8 runs, +0.73 h, and each firing of the halving rule, which repeats the pilot: at least its 2
+controls, +0.18 h, at most the ladder's 24-32 runs, +2.2 to +2.9 h. The worst case with one halving is ~17.1 h.
+
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
 user's decision.

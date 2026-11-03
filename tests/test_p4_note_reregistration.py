@@ -94,6 +94,23 @@ class ReRegistrationTest(unittest.TestCase):
         with open(os.path.join(REPO, "eval", "p4_runner.py"), encoding="utf-8") as fh:
             self.assertIn("Re-registration record (D-050, 2026-11-02T08:48Z", fh.read())
 
+    def test_the_budget_counts_what_it_left_out(self):
+        # Review T-047 P-17: the packet, the ladder's 4th level and each halving's repeat.
+        run_h = 5.5 / 60
+        packet, ladder, validation, campaign, reruns = 0.8, 24 * run_h, 6 * run_h, 90 * run_h, 18 * run_h
+        total = packet + ladder + validation + campaign + reruns
+        self.assertEqual((f"{total:.1f}", f"{total - reruns:.1f}"), ("13.5", "11.8"))
+        self.assertEqual((f"{8 * run_h:.2f}", f"{2 * run_h:.2f}", f"{32 * run_h:.1f}"), ("0.73", "0.18", "2.9"))
+        self.assertEqual(f"{total + 8 * run_h + 32 * run_h:.1f}", "17.1")
+        with open(os.path.join(REPO, "docs", "EVALUATION.md"), encoding="utf-8") as fh:
+            evaluation = fh.read()
+        for text in (note(), evaluation):
+            flat = " ".join(text.split())
+            self.assertIn("**~13.5 h**, ~11.8 h without re-runs", flat)
+            self.assertIn("The worst case with one halving is ~17.1 h", flat)
+        self.assertTrue(note().startswith("# P4:"))
+        self.assertIn("**Status (2026-11-02): approved, and built offline", note())
+
     def test_the_vm_budget_of_d041_is_section_11s_arithmetic(self):
         minutes = 5.5                                  # 270 s of traffic plus about 60 s of set-up, §11's method
         smoke, ladder, validation = 3, 24, 6
