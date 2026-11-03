@@ -146,17 +146,18 @@ class UploaderGeneratorTest(unittest.TestCase):
 
 
 class RealClockTest(unittest.TestCase):
-    """Review T-047 P-01, on the real generator, the real `requests` and the real clock, on the sandbox's loopback: a sink
-    that reads and never answers. Nearly every run of P4 would otherwise be invalid: the deadline bounded only the START of
-    an upload, and this 24 kB body took 12 s and then the 15-s read timeout on a 1.5-s generator."""
+    """Review T-047 P-01, on the real generator and the real clock. Nearly every run of P4 would otherwise be invalid: the
+    deadline bounded only the START of an upload, and a 24 kB body took 12 s and then the 15-s read timeout on a 1.5-s generator.
+    These tests do not bound the call by wall time: a sleep in this very path has been measured returning 30 s late on this VM,
+    cause not established. What they show holds however late a wake-up is."""
 
     DUR = 1.5
-    MARGIN = 6.0                  # far under the 27 s of the parent, and over what a loaded machine adds
+    RATE = 2000
+    GUARD_S = 120.0
 
     def setUp(self):
-        import requests  # the first import in a process must not fall inside the timed call
-        self.assertTrue(requests)
         self.closed = threading.Event()
+        self.received = 0
         self.srv = socket.socket()
         self.addCleanup(self.srv.close)
         self.srv.bind(("127.0.0.1", 0))
@@ -172,26 +173,35 @@ class RealClockTest(unittest.TestCase):
         with contextlib.suppress(OSError):
             conn, _addr = self.srv.accept()
             self.conns.append(conn)
-            while conn.recv(65536):
-                pass
+            while chunk := conn.recv(65536):
+                self.received += len(chunk)
             self.closed.set()
 
-    def run_kind(self, kind, params):
+    def test_a_paced_body_stops_at_the_deadline_and_closes(self):
         t0 = time.monotonic()
-        l7_gen.resolve("benign", kind)("127.0.0.1", self.srv.getsockname()[1], params, self.DUR, random.Random(1))
-        return time.monotonic() - t0
+        l7_gen.resolve("benign", "slow_uploader")("127.0.0.1", self.srv.getsockname()[1],
+                                                  {"think_s": [4.0, 4.0], "path": "/upload", "body_bytes": [24_000, 24_000],
+                                                   "rate_Bps": self.RATE}, self.DUR, random.Random(1))
+        self.assertGreaterEqual(time.monotonic() - t0, self.DUR - 0.1)
+        self.assertTrue(self.closed.wait(self.GUARD_S), "the upload itself stopped: its connection was closed")
+        head = 400                                          # the request head the sink counts too
+        self.assertLessEqual(self.received, self.RATE * self.DUR + l7_gen.PacedBody.CHUNK + head)
 
-    def test_a_slow_upload_ends_at_the_deadline(self):
-        took = self.run_kind("slow_uploader", {"think_s": [4.0, 4.0], "path": "/upload", "body_bytes": [24_000, 24_000],
-                                               "rate_Bps": 2000})
-        self.assertGreaterEqual(took, self.DUR - 0.1)
-        self.assertLess(took, self.DUR + self.MARGIN)
-        self.assertTrue(self.closed.wait(5.0), "the upload itself stopped: its connection was closed")
+    def test_an_upload_waiting_for_its_answer_does_not_hold_the_generator(self):
+        answered = threading.Event()
+        self.addCleanup(answered.set)
 
-    def test_an_upload_waiting_for_its_answer_ends_at_the_deadline(self):
-        took = self.run_kind("uploader", {"think_s": [4.0, 4.0], "path": "/upload", "body_bytes": [200, 200]})
-        self.assertLess(took, self.DUR + self.MARGIN)
-        self.assertGreaterEqual(took, self.DUR - 0.1)
+        def never_answered(method, url, **kw):
+            answered.wait()
+
+        with mock.patch.object(l7_gen, "_one_shot", never_answered):
+            generator = threading.Thread(target=l7_gen.resolve("benign", "uploader"), daemon=True,
+                                         args=("127.0.0.1", 80, {"think_s": [4.0, 4.0], "body_bytes": [200, 200]},
+                                               self.DUR, random.Random(1)))
+            generator.start()
+            generator.join(self.GUARD_S)
+            self.assertFalse(generator.is_alive(), "the generator ended with the upload still in flight")
+            self.assertFalse(answered.is_set())
 
 
 class PopulationTest(unittest.TestCase):
