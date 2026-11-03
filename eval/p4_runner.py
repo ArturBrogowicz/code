@@ -89,6 +89,9 @@ CONF_R = "nginx_profile_r.conf"
 CONF_LIMITS = "nginx_profile_r_limits.conf"
 GUNICORN_CONF = "gunicorn_profile_r.py"
 PROFILE_FILES = (CONF_R, CONF_LIMITS, GUNICORN_CONF)
+# What a verdict's runs depend on, hashed in every run's provenance (review T-047 P-08): the daemon under test included.
+CODE_FILES = ("control_plane.py", "slow_pc.py", "ban_events.py", "xdp_ddos_filter.c", "l7_backend.py", "l7_webapp.py",
+              "bench/origin.py", "ml/l7_benign.py", "ml/l7_gen.py", "ml/p4_traffic.py")
 GEN = os.path.join(REPO, "ml", "l7_gen.py")
 DAEMON = os.path.join(REPO, "control_plane.py")
 PYTHON = os.path.join(REPO, "venv", "bin", "python")
@@ -279,7 +282,8 @@ def plan_run(pop, phase, arm, out, *, thresholds=None, calibration=PLACEHOLDER, 
                                                               "sha256": sha256_file(calibration)},
                        "slow_pc_sha256": sha256_file(os.path.join(REPO, "slow_pc.py")),
                        "p4_traffic_sha256": sha256_file(os.path.join(REPO, "ml", "p4_traffic.py")),
-                       "l7_gen_sha256": sha256_file(GEN), "pins": dict(PINS), "population": pop["version"]},
+                       "l7_gen_sha256": sha256_file(GEN), "pins": dict(PINS), "population": pop["version"],
+                       "code_sha256": {name: sha256_file(os.path.join(REPO, name)) for name in CODE_FILES}},
     }
 
 
@@ -519,6 +523,10 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
             teardown(host, plan)
     ended = host.time()
     reasons += checks(host, plan, t0, launched)
+    import executor
+    daemon_prov = executor.daemon_provenance(host) if plan["daemon"] else None
+    if daemon_prov and t0 is not None and not daemon_prov["h01"]["has_fix"]:
+        reasons.append("the daemon lacks the H-01 fix, the prerequisite of every daemon arm (§4.3)")
     if stub:
         with open(os.path.join(out, "stub_status.jsonl"), "w", encoding="utf-8") as fh:
             fh.writelines(json.dumps(s, sort_keys=True) + "\n" for s in stub)
@@ -530,7 +538,8 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
             "daemon": None if plan["daemon"] is None else {"mode": plan["daemon"]["mode"],
                                                            "env": plan["daemon"]["env"]},
             "thresholds": plan["thresholds"], "provenance": plan["provenance"],
-            "attack": attack_summary(plan) if t0 is not None else None}
+            "attack": attack_summary(plan) if t0 is not None else None, "daemon_provenance": daemon_prov,
+            "git": executor.git_state(host)}
     write_json(os.path.join(out, "run.json"), meta)
     write_json(os.path.join(out, "manifest.json"), manifest(plan, t0))
     if plan["daemon"] and plan["daemon"]["mode"] in ("pc", "shadow"):
@@ -645,6 +654,33 @@ def read_index(root):
     return rows
 
 
+def block_settings(block):
+    """What every block of a campaign, and every attempt of a block, must share (review T-047 P-08): the scale, the halvings,
+    the thresholds, the calibration record and the code."""
+    prov = block["runs"][0]["provenance"]
+    code = hashlib.sha256(json.dumps([prov["files_sha256"], prov["code_sha256"]], sort_keys=True).encode()).hexdigest()
+    return {"sources": block["sources"], "halvings": block["halvings"],
+            "thresholds": list(block["thresholds"]) if block["thresholds"] else None,
+            "calibration_sha256": sha256_file(block["calibration"]), "code_sha256": code}
+
+
+def check_settings(block):
+    """A campaign, or a validation, at one setting: refuse a block whose settings differ from an earlier one's."""
+    if block["phase"] not in ("campaign", "validation"):
+        return
+    base = os.path.join(block["root"], block["phase"])
+    mine = block_settings(block)
+    for name in sorted(os.listdir(base)) if os.path.isdir(base) else ():
+        path = os.path.join(base, name, "block.json")
+        if not os.path.isfile(path):
+            continue
+        with open(path, encoding="utf-8") as fh:
+            theirs = json.load(fh)["settings"]
+        differ = sorted(k for k in mine if mine[k] != theirs.get(k))
+        if differ:
+            raise PlanError(f"{block['phase']} block {block['seed']}: {', '.join(differ)} differ from {name}'s")
+
+
 def check_attempt(block):
     """D-050 (review T-047 P-03): the attempt must be the next one the index shows, and a re-run needs a reason: attempt N-1 of
     the block had an invalid or missing needed arm (a run whose runner died is invalid), or, in the campaign, an unhealthy
@@ -678,6 +714,7 @@ def check_attempt(block):
 def run_block(host, block):
     """Every run of a block in its order; each in ROOT/index.jsonl before it begins and when it ends, valid or not."""
     check_attempt(block)
+    check_settings(block)
     if os.path.exists(block["dir"]):
         raise PlanError(f"{block['dir']} exists: an attempt is never overwritten (use the next --attempt)")
     os.makedirs(block["dir"])
@@ -685,7 +722,8 @@ def run_block(host, block):
     write_json(os.path.join(block["dir"], "block.json"),
                {"block": block["seed"], "attempt": block["attempt"], "seed": block["seed"], "phase": block["phase"],
                 "calibration_sha256": sha256_file(cal), "timeline": dict(PT.TIMELINE), "order": block["order"],
-                "sources": block["sources"], "halvings": block["halvings"], "thresholds": block["thresholds"]})
+                "sources": block["sources"], "halvings": block["halvings"], "thresholds": block["thresholds"],
+                "settings": block_settings(block)})
     results = []
     with open(os.path.join(block["root"], "index.jsonl"), "a", encoding="utf-8") as idx:
         for run in block["runs"]:
@@ -733,7 +771,8 @@ def refusals(path, man, window):
 def run_record(run_dir, cal, block=None, attempt=1):
     """eval/p4_outcome.summarize of one run directory: the client-side figures of eval/l7v2_harm.py over the attack
     window and over LEVEL_WINDOW_S, the ban events, the closes the rule enforced, the run's labels and its attempt; a
-    run of C also its health under `cal` (D-046), which the run index does not know: `--summarize`, and the outcome, say
+    run of C also its health under `cal` (D-046), which the run index does not know, and every run the settings of its
+    block (block.json, review T-047 P-08), which the outcome compares: `--summarize`, and the outcome, say
     which attempts it invalidates. A run that never started (refused before its traffic), or whose runner died in it
     (no manifest, P-07), is an invalid record without figures, with whatever bans and closes its daemon had logged."""
     import l7v2_harm as LH
@@ -750,10 +789,12 @@ def run_record(run_dir, cal, block=None, attempt=1):
     events = _events(os.path.join(run_dir, "ban_events.jsonl"))
     closes = [e for e in events if e.get("kind") == "slow_pc_close" and e.get("enforced")]
     seed = man["seed"] if block is None else block
+    with open(os.path.join(os.path.dirname(run_dir), "block.json"), encoding="utf-8") as fh:
+        settings = json.load(fh)["settings"]
     if t.get("t0_wall") is None:
         empty = {"Q": None, "p95_s": None, "q_per_s": [None] * OUT.RUN_S, "by_class": {}}
         return OUT.summarize(seed, man["arm"], False, empty, {"Q": None}, events, man["roles"], closes,
-                             level_window=OUT.LEVEL_WINDOW_S, attempt=attempt, cal=cal)
+                             level_window=OUT.LEVEL_WINDOW_S, attempt=attempt, cal=cal, settings=settings)
     total = sum(t[k] for k in ("baseline_s", "attack_s", "recovery_s"))
     attack = (t["baseline_s"], t["baseline_s"] + t["attack_s"])
     rows, t0, _cover = LH.run_rows(run_dir, man, attack)
@@ -764,12 +805,16 @@ def run_record(run_dir, cal, block=None, attempt=1):
     log = os.path.join(run_dir, "access.log")
     refused = refusals(log, man, attack) if os.path.isfile(log) else None
     return OUT.summarize(seed, man["arm"], meta["checks"]["ok"], m, level, events, man["roles"], closes,
-                         level_window=lw, attempt=attempt, refused=refused, cal=cal)
+                         level_window=lw, attempt=attempt, refused=refused, cal=cal, settings=settings)
 
 
-def summarize_root(root, cal, out_path):
+def summarize_root(root, calibration, out_path):
     """The run records of EVERY evaluation attempt of ROOT/index.jsonl, valid or not, a run whose runner died included
-    (D-035, V-03; P-07). A run directory the index does not hold is refused: it could hide a ban."""
+    (D-035, V-03; P-07), under the calibration record `calibration` (a path), which must be the one the blocks name (P-08).
+    A run directory the index does not hold is refused: it could hide a ban."""
+    import l7_backend
+    cal = l7_backend.load_record(calibration)[0]
+    named = sha256_file(calibration)
     rows = [x for x in read_index(root) if x["phase"] == "campaign"]
     known = {x["dir"] for x in rows}
     base = os.path.join(root, "campaign")
@@ -778,6 +823,11 @@ def summarize_root(root, cal, out_path):
     strays = [d for d in tree if d not in known]
     if strays:
         raise ValueError(f"runs the index does not hold: {strays[:5]}")
+    for block_dir in sorted({x["block_dir"] for x in rows}):
+        with open(os.path.join(root, block_dir, "block.json"), encoding="utf-8") as fh:
+            meta = json.load(fh)
+        if meta["calibration_sha256"] != named:
+            raise ValueError(f"{block_dir} ran under calibration {meta['calibration_sha256'][:8]}, not {calibration}")
     with open(out_path, "w", encoding="utf-8") as fh:
         fh.writelines(json.dumps(run_record(os.path.join(root, x["dir"]), cal, x["block"], x["attempt"])) + "\n" for x in rows)
 
@@ -812,9 +862,11 @@ def main(argv=None, host=None):
     ap.add_argument("--summarize", nargs=2, metavar=("ROOT", "OUT_JSONL"))
     args = ap.parse_args(argv)
     if args.summarize:
-        import l7_backend
-        cal, _status, _tag = l7_backend.load_record(args.calibration)
-        summarize_root(args.summarize[0], cal, args.summarize[1])
+        try:
+            summarize_root(args.summarize[0], args.calibration, args.summarize[1])
+        except ValueError as exc:
+            print(f"[-] {exc}", file=sys.stderr)
+            return 2
         return 0
     if args.phase is None or args.seed is None:
         ap.error("--phase and --seed are required")

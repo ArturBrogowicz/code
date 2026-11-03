@@ -18,6 +18,10 @@ import p4_outcome as O
 BOTH = "supported with scope: profile R, Slowloris and slow POST at this scale, this testbed"
 
 
+SETTINGS = {"sources": {"loris": 175, "post": 10}, "halvings": 0, "thresholds": [20, 64, 2], "calibration_sha256": "a" * 64,
+            "code_sha256": "b" * 64}
+
+
 def bins(base, dip=None, until=None, total=270, start=35):
     """1-s bins of a run: `base`, except `dip` from second `start` to `until` (run time)."""
     q = [base] * total
@@ -33,7 +37,8 @@ def rec(block, arm, q, p95=0.10, q_per_s=None, q_level=None, banned=None, valid=
             "q_per_s": q_per_s if q_per_s is not None else bins(q),
             "q_level": q if q_level is None else q_level, "level_window": list(O.LEVEL_WINDOW_S),
             "banned": banned or {}, "benign_closed": closed, "refused": refused,
-            "control_reasons": ([] if arm == "C" else None) if control_reasons is None else control_reasons}
+            "control_reasons": ([] if arm == "C" else None) if control_reasons is None else control_reasons,
+            "settings": SETTINGS}
 
 
 def rerun(runs, block, first=None):
@@ -646,7 +651,7 @@ class InputTest(unittest.TestCase):
         self.assertEqual(r, {"block": 3101, "arm": "M_pc_loris", "attempt": 1, "valid": True, "Q": 97.0, "p95_s": 0.2,
                              "q_per_s": q, "q_level": 98.0, "level_window": [120.0, 240.0],
                              "banned": {"10.0.3.1": "attack", "10.0.4.1": "cgnat"}, "benign_closed": 1,
-                             "refused": None, "control_reasons": None, "control_small_classes": None})
+                             "refused": None, "control_reasons": None, "control_small_classes": None, "settings": None})
         with self.assertRaises(ValueError):
             O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [{"kind": "ban", "ip": "10.9.9.9"}], roles,
                         level_window=win, attempt=1)
@@ -676,6 +681,19 @@ class InputTest(unittest.TestCase):
             O.outcome(runs)
         runs[7].pop("level_window")
         with self.assertRaises(ValueError):
+            O.outcome(runs)
+
+    def test_a_mix_of_settings_is_refused(self):
+        # Review T-047 P-08: a block at another scale, T, F, K, calibration or code must not be judged with the others.
+        for field, value in (("sources", {"loris": 300, "post": 10}), ("thresholds", [5, 256, 2]), ("halvings", 1),
+                             ("calibration_sha256", "c" * 64), ("code_sha256", "d" * 64)):
+            runs = campaign()
+            runs[20] = dict(runs[20], settings={**SETTINGS, field: value})
+            with self.assertRaisesRegex(ValueError, "2 different settings"):
+                O.outcome(runs)
+        runs = campaign()
+        runs[3] = dict(runs[3], settings=None)
+        with self.assertRaisesRegex(ValueError, "names its block's settings"):
             O.outcome(runs)
 
     def test_the_command_line(self):

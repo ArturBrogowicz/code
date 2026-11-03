@@ -170,12 +170,13 @@ def control_health(metrics, cal):
 
 
 def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow_pc_closes=(), *, level_window,
-              attempt, refused=None, cal=None):
+              attempt, refused=None, cal=None, settings=None):
     """One run record from the run's harm-gate metrics (eval/harm_gate.run_metrics: over the attack
     window, and with window=LEVEL_WINDOW_S for `level_metrics`; `level_window` is the window the caller
     took it over, and must be LEVEL_WINDOW_S), its ban events and the role of every client address.
     Every banned address, and every address with a closed connection, must have a role. A run of C also states
-    its health (D-046): `cal` is the calibration record whose SLOs its classes were judged by."""
+    its health (D-046): `cal` is the calibration record whose SLOs its classes were judged by. `settings` are its block's
+    (eval/p4_runner.py block_settings): the outcome refuses a mix."""
     check_record_timeline(metrics["q_per_s"], level_window)
     banned = {}
     for ev in ban_events:
@@ -198,7 +199,8 @@ def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow
             "p95_s": metrics["p95_s"],
             "q_per_s": list(metrics["q_per_s"]), "q_level": level_metrics["Q"],
             "level_window": [float(x) for x in level_window], "banned": banned, "benign_closed": benign_closed,
-            "refused": refused, "control_reasons": control_reasons, "control_small_classes": control_small}
+            "refused": refused, "control_reasons": control_reasons, "control_small_classes": control_small,
+            "settings": settings}
 
 
 def recovery(q_per_s, threshold, start=TIMELINE["baseline_s"]):
@@ -231,6 +233,12 @@ def enough(count, n):
 
 def _blocks(runs):
     by = {}
+    kinds = {json.dumps(r.get("settings"), sort_keys=True) for r in runs}
+    if "null" in kinds:
+        raise ValueError("a record names its block's settings (scale, halvings, T, F, K, calibration, code)")
+    if len(kinds) > 1:
+        raise ValueError(f"the records hold {len(kinds)} different settings of scale, halvings, T, F, K, calibration or "
+                         "code: a campaign holds one (review T-047 P-08)")
     for r in runs:
         if r["arm"] not in ARMS:
             raise ValueError(f"unknown arm {r['arm']!r}")
