@@ -33,6 +33,12 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     and ss_failed N when every read fails, so counting events would call a blind rule alive). A run that
     fails one is invalid, with its reasons.
 
+Re-registration record (T-052, 2026-11-03T15:01Z, the orchestrator's brief, before any data; reviews T-047 and T-050; labelled,
+not a decision of the user), committed before the code it judges: a campaign block needs --selection, the validation's record, and its T, F and K (P-08); a
+validation run needs a readable socket of each benign role (P-09); a ban-event line that cannot be read, or a daemon run whose ban
+file is gone, is a reason (P-17 (4)); a benign device's view more than STALL_BOUND_S = 10 s after its intended start, or a generator
+launched more than that late, is a reason, and run.json's `stall` always holds the readings (T-050).
+
 Re-registration record (D-050, 2026-11-02T08:48Z, the user's "Approve as recommended", before any data; review T-047),
 committed before the code it judges: this runner refuses --attempt N unless the index shows that attempt N-1 of the block had
 an invalid needed arm or an unhealthy C, and the campaign holds at most 2 re-run blocks; stub_status is recorded, never a

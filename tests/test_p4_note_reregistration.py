@@ -35,6 +35,21 @@ class ReRegistrationTest(unittest.TestCase):
         self.assertEqual(O.LEVEL_WINDOW_S, (120, 240))
         self.assertIn("[120 s, 240 s] of the run (`LEVEL_WINDOW_S`)", block)
 
+    def test_t052_is_dated_everywhere_before_the_code_it_judges(self):
+        text = note()
+        block = text[text.index("**Re-registrations, dated, all before any P4 data**"):text.index("Two further forms")]
+        self.assertIn("| D-057 | 2026-11-03T14:09Z |", block)
+        for n in range(1, 6):
+            self.assertIn(f"| T-052 ({n}) | 2026-11-03T15:01Z |", block)
+        for needle in ("`--selection`", "no readable socket of a benign role", "ban file is gone", "more than 10 s after its intended start",
+                       "why each block is left out of the comparison with M_def"):
+            self.assertIn(needle, block)
+        with open(os.path.join(REPO, "docs", "EVALUATION.md"), encoding="utf-8") as fh:
+            self.assertIn("**Re-registration record (T-052).** 2026-11-03T15:01Z", fh.read())
+        for path in ("eval/p4_runner.py", "eval/p4_outcome.py", "eval/p4_validation.py"):
+            with open(os.path.join(REPO, path), encoding="utf-8") as fh:
+                self.assertIn("Re-registration record (T-052, 2026-11-03T15:01Z", fh.read(), path)
+
     def test_every_superseded_statement_carries_its_marker(self):
         text = note()
         for old in ("T_mit = 30 s, as in the plan", "banned within 30 s of their first connection",

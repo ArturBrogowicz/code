@@ -89,6 +89,10 @@ every needed arm valid and a healthy C is refused, and so are more than 2 re-run
 health the class floor (>= 95 %) applies only to a class with at least 20 judged requests; smaller classes are reported,
 not judged; eval/harm_gate.control_health itself is unchanged.
 
+Re-registration record (T-052, 2026-11-03T15:01Z, the orchestrator's brief, before any data; reviews T-047 and T-050; labelled,
+not a decision of the user), committed before the code it judges: (c) cannot be met over an attempt of M_pc or C_M whose ban record is unreadable. The output
+lists every invalid run with its reasons and, per family, why each block is left out of the comparison with M_def; these judge nothing.
+
 A run of C states its health in its record: "control_reasons" is control_health's list, empty when it is healthy. A
 record of C without it is refused, and C's "valid" stays what the run's own checks said, the outcome adding the health.
 

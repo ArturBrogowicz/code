@@ -31,6 +31,11 @@ under "daemon" (eval/p4_runner.py writes it), and the scorer refuses a manifest 
 enforced, and a poll whose `banned` set holds an address that is not an attacker's: another engine's ban of a benign
 address would drop its sockets unjudged at every grid point and make the benign constraints hold by construction.
 
+Re-registration record (T-052, 2026-11-03T15:01Z, the orchestrator's brief, before any data; reviews T-047 and T-050; labelled,
+not a decision of the user), committed before the code it judges: a run with no readable socket of a benign role is refused: the constraints on that role would
+hold by construction. The record also holds the settings of the validation's blocks, which eval/p4_runner.py compares with the
+campaign's.
+
 The share of attacking addresses banned within SECONDARY_DEADLINE_S of their first connection, the T_mit
 of the design note before its re-registration, is reported next to each point; it is not used.
 

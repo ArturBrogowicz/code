@@ -456,6 +456,16 @@ runs and the ladder's 3 levels. In full: the P4-S packet, 6 runs and hand steps,
 that, the ladder's 4th level, up to 8 runs, +0.73 h, and each firing of the halving rule, which repeats the pilot: at least its 2
 controls, +0.18 h, at most the ladder's 24-32 runs, +2.2 to +2.9 h. The worst case with one halving is ~17.1 h.
 
+**Re-registration record (T-052).** 2026-11-03T15:01Z, the orchestrator's brief T-052, before any data (reviews T-047 and
+T-050; labelled, not a decision of the user). (1) The campaign's T, F and K must be the validation's selection, named by
+`--selection`, under the same detector, scale, halving count and calibration. (2) A validation run with no readable socket of a
+benign role is invalid, and the scorer refuses it. (3) A ban-event line that cannot be read, or a daemon run whose ban file is
+gone, invalidates the run, and (c) cannot be met over an attempt of M_pc or C_M with an unreadable ban record. (4) A mid-life
+stall leaves a reason in `run.json`: a benign device's view more than 10 s after its intended start on its own closed-loop
+schedule, or a generator launched more than 10 s late. (5) The outcome reports every invalid run with its reasons and why each
+block is left out of the comparison with M_def; the runner sits on the clients' CPUs.
+
+
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
 user's decision.
