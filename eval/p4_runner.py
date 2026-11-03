@@ -62,7 +62,8 @@ What the runs write feeds eval/p4_validation.py (slow_pc_manifest.json, slow_pc.
 the closes, and nginx's refusals by role from the access log, for the limits' own cost of D-041) unchanged; `--summarize ROOT OUT.jsonl` writes the run records of every evaluation attempt of the
 run index, valid or not (D-035, V-03).
 
-    sudo ./venv/bin/python eval/p4_runner.py --phase campaign --seed 3101 --loris 175 --post 10 --thresholds 20,64,2
+    ./venv/bin/python eval/p4_validation.py ROOT --json selection.json
+    sudo ./venv/bin/python eval/p4_runner.py --phase campaign --seed 3101 --loris 175 --post 10 --thresholds 20,64,2 --selection selection.json
     ./venv/bin/python eval/p4_runner.py --phase validation --seed 4001 --loris 175 --post 10 --plan
     ./venv/bin/python eval/p4_runner.py --summarize ROOT runs.jsonl --calibration bench/calibration/placeholder.json
 """
@@ -297,11 +298,14 @@ def plan_run(pop, phase, arm, out, *, thresholds=None, calibration=PLACEHOLDER, 
 
 
 def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresholds=None, family=None,
-               arms=None, label="", calibration=PLACEHOLDER, python=PYTHON):
-    """One block's runs, in their seeded order, as data."""
+               arms=None, label="", calibration=PLACEHOLDER, python=PYTHON, selection=None):
+    """One block's runs, in their seeded order, as data. `selection`: the campaign's record of the validation, which run_block
+    checks (check_selection); a plan can be printed without it."""
     sources = {"loris": 0, "post": 0, **(sources or {})}
     if phase not in PHASES:
         raise PlanError(f"unknown phase {phase!r}")
+    if selection and phase != "campaign":
+        raise PlanError(f"{phase}: --selection is the campaign's: the validation's choice of T, F and K")
     if label and phase in ("campaign", "validation"):
         raise PlanError(f"{phase}: no --label: it would give another arm order in another directory (review T-047 P-13)")
     role = check_phase(phase, seed, sources, thresholds, family) if phase != "smoke" else "pilot"
@@ -320,14 +324,15 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresh
                      python=python) for arm in order]
     return {"phase": phase, "seed": seed, "attempt": attempt, "label": label, "dir": bdir, "root": root,
             "order": order, "sources": sources, "halvings": halvings, "thresholds": thresholds,
-            "calibration": calibration, "runs": runs}
+            "calibration": calibration, "selection": selection, "runs": runs}
 
 
 def describe(block):
     """The text of --plan."""
     lines = [f"P4 {block['phase']} block {block['seed']} attempt {block['attempt']}: {block['dir']}",
              (f"order {block['order']}; sources {block['sources']}; halvings {block['halvings']}; "
-              f"thresholds {block['thresholds']}; calibration {block['calibration']}")]
+              f"thresholds {block['thresholds']}; calibration {block['calibration']}"
+              + (f"; selection {block['selection']}" if block["phase"] == "campaign" else ""))]
     for r in block["runs"]:
         d = r["daemon"]
         lines.append(f"  run {r['arm']}: nginx {r['nginx']['conf']}, daemon "
@@ -667,12 +672,39 @@ def read_index(root):
 
 def block_settings(block):
     """What every block of a campaign, and every attempt of a block, must share (review T-047 P-08): the scale, the halvings,
-    the thresholds, the calibration record and the code."""
+    the thresholds, the calibration record, the validation's record and the code."""
     prov = block["runs"][0]["provenance"]
     code = hashlib.sha256(json.dumps([prov["files_sha256"], prov["code_sha256"]], sort_keys=True).encode()).hexdigest()
     return {"sources": block["sources"], "halvings": block["halvings"],
             "thresholds": list(block["thresholds"]) if block["thresholds"] else None,
-            "calibration_sha256": sha256_file(block["calibration"]), "code_sha256": code}
+            "calibration_sha256": sha256_file(block["calibration"]), "code_sha256": code,
+            "selection_sha256": sha256_file(block["selection"]) if block.get("selection") else None}
+
+
+def check_selection(block):
+    """§13 row 4 (review T-047 P-08): a campaign's T, F and K are what the validation chose, under the detector it scored, at its
+    scale and halvings and under its calibration record. The record is what eval/p4_validation.py --json wrote."""
+    if block["phase"] != "campaign":
+        return
+    path = block["selection"]
+    if not path:
+        raise PlanError("campaign: --selection must name the validation's record (eval/p4_validation.py --json, §13 row 4)")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            sel = json.load(fh)
+        point, detector, theirs = sel["selection"]["point"], sel["slow_pc_sha256"], sel["settings"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise PlanError(f"{path} is not a record of eval/p4_validation.py --json: {exc!r}") from None
+    if point is None:
+        raise PlanError(f"{path}: the validation chose no point: the rule fails its budget (§6.4), and no campaign follows")
+    if tuple(point) != tuple(block["thresholds"]):
+        raise PlanError(f"campaign: --thresholds {tuple(block['thresholds'])} are not the validation's selection {tuple(point)}")
+    if detector != sha256_file(os.path.join(REPO, "slow_pc.py")):
+        raise PlanError(f"{path}: the validation scored another slow_pc.py (§13 row 3)")
+    mine = block_settings(block)
+    differ = sorted(k for k in ("sources", "halvings", "calibration_sha256") if mine[k] != theirs.get(k))
+    if differ:
+        raise PlanError(f"campaign: {', '.join(differ)} differ from the validation's ({path})")
 
 
 def check_settings(block):
@@ -725,6 +757,7 @@ def check_attempt(block):
 def run_block(host, block):
     """Every run of a block in its order; each in ROOT/index.jsonl before it begins and when it ends, valid or not."""
     check_attempt(block)
+    check_selection(block)
     check_settings(block)
     if os.path.exists(block["dir"]):
         raise PlanError(f"{block['dir']} exists: an attempt is never overwritten (use the next --attempt)")
@@ -868,6 +901,7 @@ def main(argv=None, host=None):
     ap.add_argument("--arms", help="smoke only: the runs, comma-separated (C, U_loris, U_post, C_M)")
     ap.add_argument("--halvings", type=int, default=0, help="how often the halving rule of §4.2 has fired")
     ap.add_argument("--thresholds", type=_thresholds, help="campaign: the committed T,F,K; a smoke C_M: a grid point")
+    ap.add_argument("--selection", help="campaign: the validation's record (eval/p4_validation.py --json)")
     ap.add_argument("--calibration", default=PLACEHOLDER)
     ap.add_argument("--root", default="/var/tmp/p4_runs")
     ap.add_argument("--python", default=PYTHON)
@@ -890,7 +924,7 @@ def main(argv=None, host=None):
                            sources={"loris": args.loris, "post": args.post}, halvings=args.halvings,
                            thresholds=args.thresholds, family=args.family,
                            arms=args.arms.split(",") if args.arms else None, label=args.label,
-                           calibration=args.calibration, python=args.python)
+                           calibration=args.calibration, python=args.python, selection=args.selection)
     except (PlanError, PT.PlanError) as exc:
         print(f"[-] {exc}", file=sys.stderr)
         return 2

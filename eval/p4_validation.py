@@ -100,6 +100,23 @@ def runs_from_index(root):
     return manifests, attempts
 
 
+def settings_of(manifests):
+    """The settings of the validation's blocks (eval/p4_runner.py block_settings, in block.json beside each attempt's runs): one
+    setting, which the campaign's must match (review T-047 P-08)."""
+    seen = []
+    for path in manifests:
+        try:
+            with open(os.path.join(os.path.dirname(os.path.dirname(path)), "block.json"), encoding="utf-8") as fh:
+                settings = json.load(fh)["settings"]
+        except (OSError, ValueError, KeyError) as exc:
+            raise ValueError(f"{path}: no block.json with the block's settings beside its attempt: {exc}") from None
+        if settings not in seen:
+            seen.append(settings)
+    if len(seen) != 1:
+        raise ValueError(f"the validation's blocks hold {len(seen)} different settings")
+    return seen[0]
+
+
 def check_runs(runs):
     """The validation set must be exactly the frozen seeds x runs: no run missing, none extra."""
     have = sorted((r["seed"], r["arm"]) for r in runs)
@@ -183,6 +200,7 @@ def main(argv=None):
         manifests, attempts = runs_from_index(args.root)
         runs = [load_run(m) for m in manifests]
         check_runs(runs)
+        settings = settings_of(manifests)
     except ValueError as exc:
         print(f"[-] {exc}", file=sys.stderr)
         return 2
@@ -201,6 +219,7 @@ def main(argv=None):
             "selection": {"point": sel.point, "share": None if sel.share is None else str(sel.share),
                           "feasible": sel.feasible},
             "deadline_s": slow_pc.DEADLINE_S, "secondary_deadline_s": SECONDARY_DEADLINE_S, "attempts": attempts,
+            "settings": settings,
             "outcomes": [{"T": t, "F": f, "K": k, **o._asdict(),
                           "secondary_banned": secondary[(t, f, k)]}
                          for (t, f, k), o in sorted(outcomes.items())],

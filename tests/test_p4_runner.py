@@ -38,6 +38,16 @@ def index(root):
     return R.read_index(root)
 
 
+def selection_file(where, point=POINT, sources=None, halvings=0, calibration=None):
+    """The validation's record, as far as the runner reads it (eval/p4_validation.py --json)."""
+    path = os.path.join(where, "selection.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({"selection": {"point": list(point) if point else None}, "slow_pc_sha256": sha(os.path.join(REPO, "slow_pc.py")),
+                   "settings": {"sources": {"loris": 0, "post": 0, **KNEE, **(sources or {})}, "halvings": halvings,
+                                "calibration_sha256": sha(calibration or R.PLACEHOLDER)}}, fh)
+    return path
+
+
 class PlanTest(unittest.TestCase):
     def setUp(self):
         self.block = R.plan_block("campaign", 3101, "/r", sources=KNEE, thresholds=POINT)
@@ -218,7 +228,8 @@ class ArmOrderTest(unittest.TestCase):
     def test_summarize_refuses_another_order(self):
         with tempfile.TemporaryDirectory() as root:
             R.run_block(F.FakeHost(modelled_attackers=1),
-                        R.plan_block("campaign", 3101, root, sources=KNEE, thresholds=POINT, arms=["C", "Cp", "U_post"]))
+                        R.plan_block("campaign", 3101, root, sources=KNEE, thresholds=POINT, arms=["C", "Cp", "U_post"],
+                                     selection=selection_file(root)))
             path = os.path.join(root, "campaign", "b3101_a1", "block.json")
             with open(path, encoding="utf-8") as fh:
                 meta = json.load(fh)
@@ -296,6 +307,86 @@ class AttemptRuleTest(unittest.TestCase):
         self.assertIn("the next is 1", err.getvalue())
 
 
+class SelectionTest(unittest.TestCase):
+    """§13 row 4 (review T-047 P-08): the campaign runs what the validation chose, and nothing else that is on the grid."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = self.tmp.name
+
+    def refused(self, why, **kw):
+        kw = {"sources": KNEE, "thresholds": POINT, "arms": ["C"], **kw}
+        with self.assertRaisesRegex(R.PlanError, why):
+            R.run_block(F.FakeHost(), R.plan_block("campaign", 3101, self.root, **kw))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "campaign")), "nothing was started")
+
+    def test_a_campaign_needs_it_and_a_plan_does_not(self):
+        self.refused("--selection must name")
+        self.assertIn("order", R.plan_block("campaign", 3101, self.root, sources=KNEE, thresholds=POINT))
+
+    def test_only_the_campaign_takes_it(self):
+        with self.assertRaisesRegex(R.PlanError, "the campaign's"):
+            R.plan_block("validation", 4001, self.root, sources=KNEE, selection="x.json")
+
+    def test_another_point_of_the_grid_is_refused(self):
+        self.refused("are not the validation's selection", selection=selection_file(self.root, (20, 16, 6)))
+
+    def test_a_validation_that_chose_nothing_ends_it(self):
+        path = selection_file(self.root)
+        with open(path, encoding="utf-8") as fh:
+            sel = json.load(fh)
+        sel["selection"]["point"] = None
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(sel, fh)
+        self.refused("chose no point", selection=path)
+
+    def test_another_detector_is_refused(self):
+        path = selection_file(self.root)
+        with open(path, encoding="utf-8") as fh:
+            sel = json.load(fh)
+        sel["slow_pc_sha256"] = "0" * 64
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(sel, fh)
+        self.refused("another slow_pc.py", selection=path)
+
+    def test_another_scale_halving_count_or_calibration_is_refused(self):
+        self.refused("sources differ", selection=selection_file(self.root, sources={"loris": 175}))
+        self.refused("halvings differ", selection=selection_file(self.root, halvings=1))
+        other = os.path.join(self.root, "other.json")
+        with open(R.PLACEHOLDER, encoding="utf-8") as fh, open(other, "w", encoding="utf-8") as out:
+            out.write(fh.read() + "\n")
+        self.refused("calibration_sha256 differ", selection=selection_file(self.root, calibration=other))
+
+    def test_an_unreadable_record_is_refused(self):
+        self.refused("is not a record", selection=os.path.join(self.root, "absent.json"))
+        path = os.path.join(self.root, "garbled.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("{}")
+        self.refused("is not a record", selection=path)
+
+    def test_the_block_names_it_so_a_campaign_holds_one(self):
+        host = F.FakeHost()
+        path = selection_file(self.root)
+        R.run_block(host, R.plan_block("campaign", 3101, self.root, sources=KNEE, thresholds=POINT, arms=["C"], selection=path))
+        with open(os.path.join(self.root, "campaign", "b3101_a1", "block.json"), encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh)["settings"]["selection_sha256"], sha(path))
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write("\n")
+        with self.assertRaisesRegex(R.PlanError, "selection_sha256"):
+            R.run_block(host, R.plan_block("campaign", 3102, self.root, sources=KNEE, thresholds=POINT, arms=["C"], selection=path))
+
+    def test_the_command_line_carries_it(self):
+        base = ["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--thresholds", "5,256,2", "--root", self.root]
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(R.main(base, host=F.FakeHost()), 2)
+        self.assertIn("--selection must name", err.getvalue())
+        path = selection_file(self.root, sources={"loris": 100, "post": 5})
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(R.main([*base, "--selection", path, "--plan"], host=F.FakeHost()), 0)
+        self.assertIn(f"selection {path}", out.getvalue())
+
+
 class ExecuteTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -304,6 +395,9 @@ class ExecuteTest(unittest.TestCase):
 
     def block(self, phase, seed, **kw):
         kw.setdefault("sources", KNEE)
+        if phase == "campaign":
+            kw.setdefault("selection", selection_file(self.root, kw.get("thresholds"), kw["sources"], kw.get("halvings", 0),
+                                                      kw.get("calibration")))
         return R.plan_block(phase, seed, self.root, **kw)
 
     def test_validation_runs_feed_p4_validation_unchanged(self):
@@ -326,12 +420,21 @@ class ExecuteTest(unittest.TestCase):
         self.assertIn(rc, (0, 2))
         self.assertEqual(len(sel["outcomes"]), len(slow_pc.GRID))
         self.assertEqual({a["judged"] for a in sel["attempts"]}, {1})
+        self.assertEqual(sel["settings"]["sources"], {"loris": 100, "post": 5})
         self.assertEqual(sorted((r["seed"], r["arm"]) for r in sel["runs"]),
                          sorted((s, a) for s in slow_pc.VALIDATION_SEEDS for a in slow_pc.VALIDATION_RUNS))
         point = next(o for o in sel["outcomes"] if (o["T"], o["F"], o["K"]) == POINT)
         self.assertEqual(point["attack_addresses"], 2 * (4 + 4))       # 4 modelled sources per family and seed
         self.assertEqual(point["slow_uploader_closed"], 0)
         self.assertGreater(point["benign_connections"], 0)
+        chosen = tuple(sel["selection"]["point"])                       # the validation's own record opens the campaign
+        self.assertNotEqual(chosen, POINT)
+        res = R.run_block(F.FakeHost(), R.plan_block("campaign", 3101, self.root, sources=KNEE, thresholds=chosen, arms=["C"],
+                                                     selection=out))
+        self.assertTrue(res[0][1]["ok"], res)
+        with self.assertRaisesRegex(R.PlanError, "are not the validation's selection"):
+            R.run_block(F.FakeHost(), R.plan_block("campaign", 3102, self.root, sources=KNEE, thresholds=POINT, arms=["C"],
+                                                   selection=out))
 
     def test_a_campaign_block_feeds_p4_outcome_unchanged(self):
         host = F.FakeHost(modelled_attackers=6)
@@ -657,7 +760,7 @@ class ExecuteTest(unittest.TestCase):
         other = os.path.join(self.root, "other.json")
         with open(R.PLACEHOLDER, encoding="utf-8") as fh, open(other, "w", encoding="utf-8") as out:
             out.write(fh.read() + "\n")
-        for kw, what in (({"sources": {"loris": 175, "post": 5}}, "sources"), ({"thresholds": (20, 16, 6)}, "thresholds"),
+        for kw, what in (({"sources": {"loris": 175, "post": 5}}, "sources"), ({"thresholds": (20, 16, 6)}, "thresholds"),   # each with a record that matches it
                          ({"halvings": 1}, "halvings"), ({"calibration": other}, "calibration_sha256")):
             block = self.block("campaign", 3102, **{"thresholds": POINT, "arms": ["C"], **kw})
             with self.assertRaisesRegex(R.PlanError, what):
