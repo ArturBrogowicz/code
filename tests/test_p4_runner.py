@@ -200,6 +200,35 @@ class PlanTest(unittest.TestCase):
         self.assertIsNone(R.parse_stub_status("502 Bad Gateway"))
 
 
+class ArmOrderTest(unittest.TestCase):
+    """Review T-047 P-13: the arm order is fixed by phase and seed; a label must not change it."""
+
+    def test_a_label_is_refused_in_the_campaign_and_the_validation(self):
+        with self.assertRaisesRegex(R.PlanError, "no --label"):
+            R.plan_block("campaign", 3101, "/r", sources=KNEE, thresholds=POINT, label="x")
+        with self.assertRaisesRegex(R.PlanError, "no --label"):
+            R.plan_block("validation", 4001, "/r", sources=KNEE, label="x")
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--thresholds",
+                                     "5,256,2", "--label", "x", "--plan"]), 2)
+        self.assertEqual(R.plan_block("smoke", 9101, "/r", label="s1", arms=["C"])["dir"], "/r/smoke/b9101_a1_s1")
+        first = R.plan_block("campaign", 3101, "/r", sources=KNEE, thresholds=POINT)["order"]
+        self.assertEqual(R.plan_block("campaign", 3101, "/r", sources=KNEE, thresholds=POINT, attempt=2)["order"], first)
+
+    def test_summarize_refuses_another_order(self):
+        with tempfile.TemporaryDirectory() as root:
+            R.run_block(F.FakeHost(modelled_attackers=1),
+                        R.plan_block("campaign", 3101, root, sources=KNEE, thresholds=POINT, arms=["C", "Cp", "U_post"]))
+            path = os.path.join(root, "campaign", "b3101_a1", "block.json")
+            with open(path, encoding="utf-8") as fh:
+                meta = json.load(fh)
+            meta["order"] = list(reversed(meta["order"]))
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(meta, fh)
+            with self.assertRaisesRegex(ValueError, "seeded order"):
+                R.summarize_root(root, R.PLACEHOLDER, os.path.join(root, "runs.jsonl"))
+
+
 class AttemptRuleTest(unittest.TestCase):
     """D-050 (review T-047 P-03): --attempt N needs a reason in the index, and the campaign holds 2 re-runs."""
 

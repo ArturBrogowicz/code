@@ -296,6 +296,8 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresh
     sources = {"loris": 0, "post": 0, **(sources or {})}
     if phase not in PHASES:
         raise PlanError(f"unknown phase {phase!r}")
+    if label and phase in ("campaign", "validation"):
+        raise PlanError(f"{phase}: no --label: it would give another arm order in another directory (review T-047 P-13)")
     role = check_phase(phase, seed, sources, thresholds, family) if phase != "smoke" else "pilot"
     if phase == "smoke":
         PT.check_seed(seed, "pilot")
@@ -831,6 +833,8 @@ def summarize_root(root, calibration, out_path):
             meta = json.load(fh)
         if meta["calibration_sha256"] != named:
             raise ValueError(f"{block_dir} ran under calibration {meta['calibration_sha256'][:8]}, not {calibration}")
+        if meta["order"] != block_order("campaign", meta["block"], [a for a in OUT.ARMS if a in meta["order"]]):
+            raise ValueError(f"{block_dir}: the runs are not in the block's seeded order")
     with open(out_path, "w", encoding="utf-8") as fh:
         fh.writelines(json.dumps(run_record(os.path.join(root, x["dir"]), cal, x["block"], x["attempt"])) + "\n" for x in rows)
 
@@ -854,7 +858,7 @@ def main(argv=None, host=None):
     ap.add_argument("--loris", type=int, default=0, help="Slowloris sources (a ladder level; the knee)")
     ap.add_argument("--post", type=int, default=0, help="slow-POST sources (a ladder level; the knee)")
     ap.add_argument("--family", choices=OUT.FAMILIES, help="the ladder's family")
-    ap.add_argument("--label", default="", help="a ladder's level and repeat, a smoke run's name")
+    ap.add_argument("--label", default="", help="a ladder's level and repeat, a smoke run's name; refused elsewhere")
     ap.add_argument("--arms", help="smoke only: the runs, comma-separated (C, U_loris, U_post, C_M)")
     ap.add_argument("--halvings", type=int, default=0, help="how often the halving rule of §4.2 has fired")
     ap.add_argument("--thresholds", type=_thresholds, help="campaign: the committed T,F,K; a smoke C_M: a grid point")
