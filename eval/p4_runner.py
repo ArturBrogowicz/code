@@ -599,8 +599,39 @@ def read_index(root):
     return rows
 
 
+def check_attempt(block):
+    """D-050 (review T-047 P-03): the attempt must be the next one the index shows, and a re-run needs a reason: attempt N-1 of
+    the block had an invalid or missing needed arm (a run whose runner died is invalid), or, in the campaign, an unhealthy
+    C. The campaign holds at most OUT.MAX_RERUNS re-runs. Smoke runs judge nothing and need no reason."""
+    phase, seed = block["phase"], block["seed"]
+    rows = read_index(block["root"])
+    mine = [x for x in rows if (x["phase"], x["block"], x["label"]) == (phase, seed, block["label"])]
+    next_attempt = max((x["attempt"] for x in mine), default=0) + 1
+    if block["attempt"] != next_attempt:
+        raise PlanError(f"{phase} block {seed}: attempt {block['attempt']}, and the index says the next is {next_attempt}")
+    if next_attempt == 1 or phase == "smoke":
+        return
+    last = {x["arm"]: x for x in mine if x["attempt"] == next_attempt - 1}
+    needed = OUT.NEEDED_ARMS if phase == "campaign" else block["order"]
+    why = [arm for arm in needed if arm not in last or not last[arm]["valid"]]
+    if phase == "campaign" and not why:
+        import l7_backend
+        cal = l7_backend.load_record(block["calibration"])[0]
+        control = last[OUT.CONTROL]
+        if run_record(os.path.join(block["root"], control["dir"]), cal, seed, control["attempt"])["control_reasons"]:
+            why = ["an unhealthy C"]
+    if not why:
+        raise PlanError(f"{phase} block {seed}: attempt {next_attempt - 1} had every needed arm valid and a healthy C, and "
+                        "D-050 allows no re-run of it")
+    if phase == "campaign":
+        reruns = {(x["block"], x["attempt"]) for x in rows if x["phase"] == "campaign" and x["attempt"] > 1}
+        if len(reruns) >= OUT.MAX_RERUNS:
+            raise PlanError(f"the campaign already holds {len(reruns)} re-runs, at most {OUT.MAX_RERUNS} (D-050)")
+
+
 def run_block(host, block):
     """Every run of a block in its order; each in ROOT/index.jsonl before it begins and when it ends, valid or not."""
+    check_attempt(block)
     if os.path.exists(block["dir"]):
         raise PlanError(f"{block['dir']} exists: an attempt is never overwritten (use the next --attempt)")
     os.makedirs(block["dir"])
@@ -758,7 +789,11 @@ def main(argv=None, host=None):
     if host is None:
         import executor
         host = executor.RealHost()
-    results = run_block(host, block)
+    try:
+        results = run_block(host, block)
+    except PlanError as exc:
+        print(f"[-] {exc}", file=sys.stderr)
+        return 2
     for arm, res in results:
         print(f"  {arm}: {'valid' if res['ok'] else 'INVALID: ' + '; '.join(res['reasons'])}")
     return 0 if all(res["ok"] for _a, res in results) else 1

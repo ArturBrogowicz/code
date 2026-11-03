@@ -202,6 +202,73 @@ class PlanTest(unittest.TestCase):
         self.assertIsNone(R.parse_stub_status("502 Bad Gateway"))
 
 
+class AttemptRuleTest(unittest.TestCase):
+    """D-050 (review T-047 P-03): --attempt N needs a reason in the index, and the campaign holds 2 re-runs."""
+
+    def row(self, arm, attempt=1, valid=True, block=3101, phase="campaign", label=""):
+        return {"phase": phase, "block": block, "attempt": attempt, "label": label, "arm": arm, "valid": valid,
+                "dir": f"{phase}/b{block}_a{attempt}/{arm}"}
+
+    def full(self, attempt=1, block=3101, invalid=()):
+        return [self.row(arm, attempt, arm not in invalid, block) for arm in OUT.ARMS]
+
+    def check(self, rows, attempt=2, phase="campaign", seed=3101, reasons=(), **kw):
+        kw = {"sources": KNEE, "thresholds": POINT, **kw} if phase == "campaign" else {"sources": KNEE, **kw}
+        block = R.plan_block(phase, seed, "/nonexistent/root", attempt=attempt, **kw)
+        with mock.patch.object(R, "read_index", return_value=rows), \
+                mock.patch.object(R, "run_record", return_value={"control_reasons": list(reasons)}):
+            R.check_attempt(block)
+
+    def test_the_first_attempt_is_always_free_and_must_be_the_first(self):
+        self.check([], attempt=1)
+        with self.assertRaisesRegex(R.PlanError, "the next is 1"):
+            self.check([], attempt=2)
+        with self.assertRaisesRegex(R.PlanError, "the next is 2"):
+            self.check(self.full(invalid=("C",)), attempt=3)
+        self.check(self.full(block=3102), attempt=1)                              # another block's attempts are its own
+
+    def test_a_complete_attempt_cannot_be_made_again(self):
+        with self.assertRaisesRegex(R.PlanError, "allows no re-run"):
+            self.check(self.full())
+
+    def test_an_invalid_m_def_is_no_reason(self):
+        with self.assertRaisesRegex(R.PlanError, "allows no re-run"):
+            self.check(self.full(invalid=("M_def_loris", "M_def_post")))
+
+    def test_an_invalid_or_missing_needed_arm_is_a_reason(self):
+        for arm in OUT.NEEDED_ARMS:
+            self.check(self.full(invalid=(arm,)))
+        self.check([x for x in self.full() if x["arm"] != "U_post"])              # the runner died before it
+
+    def test_an_unhealthy_c_is_a_reason(self):
+        self.check(self.full(), reasons=["Q(C) is 98.00 %, below 99 %"])
+
+    def test_the_campaign_holds_two_re_runs(self):
+        two = self.full(block=3102) + self.full(2, 3102, ("C",)) + self.full(3, 3102)
+        with self.assertRaisesRegex(R.PlanError, "already holds 2 re-runs"):
+            self.check(two + self.full(invalid=("C",)))
+        one = self.full(invalid=("C",), block=3103) + self.full(2, 3103)
+        self.check(one + self.full(invalid=("C",)))
+
+    def test_the_validation_needs_a_reason_too_and_the_smoke_does_not(self):
+        rows = [self.row(arm, phase="validation", block=4001) for arm in slow_pc.VALIDATION_RUNS]
+        with self.assertRaisesRegex(R.PlanError, "allows no re-run"):
+            self.check(rows, phase="validation", seed=4001)
+        rows[0] = dict(rows[0], valid=False)
+        self.check(rows, phase="validation", seed=4001)
+        block = R.plan_block("smoke", 9101, "/nonexistent/root", attempt=2, label="s1", arms=["C"])
+        with mock.patch.object(R, "read_index", return_value=[self.row("C", phase="smoke", block=9101, label="s1")]):
+            R.check_attempt(block)
+
+    def test_the_command_line_says_no(self):
+        with tempfile.TemporaryDirectory() as root, contextlib.redirect_stderr(io.StringIO()) as err, \
+                contextlib.redirect_stdout(io.StringIO()):
+            rc = R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--thresholds", "5,256,2",
+                         "--attempt", "2", "--root", root], host=F.FakeHost())
+        self.assertEqual(rc, 2)
+        self.assertIn("the next is 1", err.getvalue())
+
+
 class ExecuteTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -307,7 +374,7 @@ class ExecuteTest(unittest.TestCase):
         idx = index(self.root)
         self.assertEqual(len(idx), 9)
         self.assertEqual({x["arm"] for x in idx if not x["valid"]}, {"M_pc_loris", "M_pc_post", "C_M"})
-        with self.assertRaises(R.PlanError):
+        with self.assertRaisesRegex(R.PlanError, "the next is 2"):
             R.run_block(F.FakeHost(), self.block("campaign", 3103, thresholds=POINT))
         R.run_block(F.FakeHost(modelled_attackers=1), self.block("campaign", 3103, thresholds=POINT, attempt=2))
         self.assertEqual(len(index(self.root)), 18)
