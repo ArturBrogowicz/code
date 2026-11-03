@@ -20,11 +20,17 @@ recovery. Per family (loris, post):
     with no floor on its Q, since a low Q(C_M) is the cost it exists to show.
   * the status: "not harmful", "harmful but not mitigated", "mitigated with collateral" (a and b, not c), or
     "mitigated"; "invalid (k of 10 valid)" when fewer than 10 blocks are valid for the harm or, for a harmful
-    family, for the mitigation (D-035, below). A control that is not healthy (control_health(): Q(C) >= 99 %, each route
+    family, for the mitigation (D-035, below); both families are judged on the same attempts (D-050), so they are
+    invalid together. A control that is not healthy (control_health(): Q(C) >= 99 %, each route
     class of at least 20 judged requests >= 95 %) makes its attempt of C invalid, and without a valid C a block counts for
     nothing (D-046, D-050). M7 is "supported with scope" for the families that are harmful and
-    mitigated (profile R, these families at this scale, this testbed), naming next to it any family that is
-    invalid; "invalid (k of 10 valid)" when no family qualifies and one is invalid; else "not supported".
+    mitigated (profile R, these families at this scale, this testbed); "invalid (k of 10 valid)" when fewer than 10
+    blocks are judged; else "not supported". D-041's reading, that M7 names a family invalid next to one that qualifies,
+    cannot arise since D-050.
+  * a block is judged on one attempt, the last with every arm of NEEDED_ARMS valid (and C healthy), all arms from it
+    (D-050). M_def is not needed: no criterion reads it. The attempts it supersedes, and which attempt was judged, are in
+    the output. A later attempt after a complete one, attempt numbers other than 1, 2, ..., and more than MAX_RERUNS
+    re-runs in the campaign are refused.
   * reported next to it: Q(M_pc) - Q(M_def) per block with eval/run_level_stats.decide, the bans per arm by role,
     and, as a finding of its own that judges nothing, the deployed limits' own cost (D-041, limits_cost()): Q(C_M)
     against Q(C) per block, what nginx refused in C_M by role with the CGNAT pools named, and the per-connection
@@ -117,6 +123,8 @@ import slow_pc
 BLOCK_SEEDS = tuple(range(3101, 3111))
 CONTROL, PLACEBO, PROTECTED = "C", "Cp", "C_M"   # C_M: attack-free, R + the deployed limits + M_pc's daemon (D-041)
 FAMILIES = ("loris", "post")
+NEEDED_ARMS = (CONTROL, PLACEBO, PROTECTED, "U_loris", "U_post", "M_pc_loris", "M_pc_post")   # the arms a criterion reads
+MAX_RERUNS = 2                   # D-050: at most 2 re-run blocks, counted as harm_gate counts them: each extra attempt is one
 ARMS = (CONTROL, PLACEBO, PROTECTED, "U_loris", "U_post", "M_def_loris", "M_pc_loris", "M_def_post", "M_pc_post")
 TIMELINE = {"baseline_s": 30, "attack_s": 210, "recovery_s": 30}   # attack 120 -> 210 s, 2026-10-31
 GATE = {"floor_pp": 10.0, "floor_log2_p95": 1.0, "ci_level": 0.95, "same_sign_share": 0.8}
@@ -242,9 +250,24 @@ def _blocks(runs):
                 raise ValueError(f"block {r['block']} attempt {att}: a record of C states its health (control_reasons)")
             r = {**r, "run_valid": r["valid"], "valid": r["valid"] and not r["control_reasons"]}
         by[r["block"]][r["arm"]].append(r)
-    chosen = {b: {arm: max((x for x in rs if x["valid"]), key=lambda x: x["attempt"], default=None)
-                  or max(rs, key=lambda x: x["attempt"]) for arm, rs in arms.items()} for b, arms in by.items()}
-    return chosen, by
+    judged, picks, superseded, reruns = {}, {}, [], 0
+    for block, arms in by.items():
+        attempts = sorted({r["attempt"] for rs in arms.values() for r in rs})
+        if attempts != list(range(1, len(attempts) + 1)):
+            raise ValueError(f"block {block}: attempts {attempts}, not 1, 2, ... (D-050)")
+        at = {a: {r["arm"]: r for rs in arms.values() for r in rs if r["attempt"] == a} for a in attempts}
+        lacking = {a: [arm for arm in NEEDED_ARMS if not (arm in at[a] and at[a][arm]["valid"])] for a in attempts}
+        complete = [a for a in attempts if not lacking[a]]
+        if any(a != attempts[-1] for a in complete):
+            raise ValueError(f"block {block}: attempt {complete[0] + 1} follows attempt {complete[0]}, whose every needed "
+                             "arm was valid and whose C was healthy (D-050)")
+        reruns += len(attempts) - 1
+        picks[block] = complete[-1] if complete else None
+        judged[block] = at[picks[block]] if complete else {}
+        superseded += [{"block": block, "attempt": a, "invalid_or_missing": lacking[a]} for a in attempts if a != picks[block]]
+    if reruns > MAX_RERUNS:
+        raise ValueError(f"{reruns} re-runs in the campaign, at most {MAX_RERUNS} (D-050)")
+    return judged, by, picks, sorted(superseded, key=lambda x: (x["block"], x["attempt"]))
 
 
 def _ok(block, *arms):
@@ -375,7 +398,7 @@ def invalid(k):
 
 def outcome(runs):
     """The verdict of §10 over a list of run records."""
-    blocks, every = _blocks(runs)
+    blocks, every, picks, superseded = _blocks(runs)
     fam = {}
     for f in FAMILIES:
         h, m = harm(blocks, f), mitigation(blocks, f, every)
@@ -396,14 +419,14 @@ def outcome(runs):
     if qualified:
         m7 = "supported with scope: " + SCOPE.format(
             families=" and ".join(FAMILY_NAMES[f] for f in qualified))
-        m7 += "".join(f"; {FAMILY_NAMES[f]}: {fam[f]['status']}" for f in lacking)
     elif lacking:
         m7 = invalid(min(fam[f]["valid_blocks_if_invalid"] for f in lacking))
     else:
         m7 = "not supported"
     return {"M7": m7, "families": fam, "bans_by_arm": bans_by_arm(runs), "t_mit_s": T_MIT_S,
             "limits_cost": limits_cost(blocks), "unhealthy_controls": unhealthy_controls(every),
-            "small_control_classes": small_control_classes(every)}
+            "small_control_classes": small_control_classes(every),
+            "judged_attempts": picks, "superseded_attempts": superseded}
 
 
 def main(argv=None):
@@ -417,6 +440,8 @@ def main(argv=None):
     print(f"M7: {res['M7']}")
     for f, r in res["families"].items():
         print(f"  {FAMILY_NAMES[f]}: {r['status']}")
+    for s in res["superseded_attempts"]:
+        print(f"  superseded: block {s['block']} attempt {s['attempt']}, invalid or missing {', '.join(s['invalid_or_missing'])}")
     for u in res["unhealthy_controls"]:
         print(f"  unhealthy control, block {u['block']} attempt {u['attempt']}: {'; '.join(u['reasons'])}")
     cost = res["limits_cost"]
