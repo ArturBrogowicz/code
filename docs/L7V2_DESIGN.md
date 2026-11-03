@@ -1098,6 +1098,10 @@ arm alike (view arms and R*):
 - **T048-09, hostile numbers.** `l7_ingest.normalise` drops a record with a non-finite numeric field (`1e999`, `10**400`,
   `"nan"`, which only a forged datagram can carry); they raised there or in the rules' statistics, and restarted the shadow
   thread with a fresh engine. Records nginx writes normalise as before; `l7_engine.py` is unchanged.
+- **T048-10, the seen table.** `RuleStats`' per-address table of keys holds at most `SEEN_MAX` = 4,096 keys, the least recently
+  seen going first, in O(1); it was rebuilt on every request above that while all were inside the lookback, so a client
+  rotating its cookie made each request O(n). A key evicted from it and back within 300 s counts as new again, which only the
+  population detector reads, and only for an address above 4,096 keys in 300 s. Replay and live share the code.
 
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.

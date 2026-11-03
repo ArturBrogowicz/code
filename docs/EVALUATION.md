@@ -547,6 +547,8 @@ Known limits:
   `ml/l7_benign.UA_TABLE` contains, so no testbed browser key could have been denied at level 1. Inside nginx's
   double quotes `;` is an ordinary character; it is now written, and all 17 UA_TABLE entries pass the rules. `"`,
   `\`, `$`, `{`, `}`, other bytes and UAs over 256 bytes stay excluded.
+* The rules' per-address table of keys holds at most 4,096 (T048-10): above that a returning key counts as new, for the
+  population detector only.
 * R*'s parity with the replay holds while `evicted` in `l7_shadow` is 0 (at most 65,536 keys and addresses are kept live).
 * `users_seen` counts sessions, not devices: one user can hold several. The run's manifest gives the devices.
 * The stop (T-042 E03): `Arm.stop` and the arm's steps hold one lock, and no step runs after the stop, so once the
