@@ -80,6 +80,12 @@ def prereg_2():
         return json.load(fh)
 
 
+def prereg_3():
+    """ml/p1_prereg_3.json, the dated record of T-051's fix round on T-050."""
+    with open(os.path.join(HERE, "p1_prereg_3.json"), encoding="utf-8") as fh:
+        return json.load(fh)
+
+
 def check_halvings(halvings):
     """`halvings` if it is an int from 0 up to the rule's floor, or a refusal: past the floor there is no plan."""
     floor = prereg()["halving"]["floor"]["max_halvings"]
