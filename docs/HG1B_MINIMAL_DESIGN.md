@@ -98,7 +98,8 @@ A JSON object with: `schema` (1), `status` (`placeholder` or `frozen`), `created
 The hash is that of the canonical JSON (sorted keys, no whitespace) without the `sha256` key. Derived, never stored: `rho = 0.5 c_slo`, the mean
 cost of the mix, and the spare capacity `S = (c_slo - rho) x mean cost` in CPU-seconds per second. The knee rule is the design's (7.2 step 4): the lowest
 level whose harm reaches the floor in both repeats; none means "cannot harm this server within the generator limit". The drift check
-reproduces `Q` within 2 pp and p95 within 25 % (7.2 step 7).
+reproduces `Q` within 2 pp and p95 within 25 % (7.2 step 7); an attack run, since 2026-11-04, within the gate's floors, 10 pp and a factor of 2 (D-062; HG1C
+departure 33).
 
 ### 5.3 Populations (`bench/population.py`)
 

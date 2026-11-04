@@ -1526,6 +1526,15 @@ class RulesPinnedTest(unittest.TestCase):
         self.assertEqual(K.analyse_ladder(entries({1: 0.999, 2: 1.0}), cal)["knee"]["level"], 2.0)
         self.assertIsNone(K.analyse_ladder(entries({1: 0.999}), cal)["knee"]["level"])
 
+    def test_the_departure_dates_the_attack_runs_tolerance(self):
+        """D-062: post hoc, from 6 runs, before any campaign data, in the user's words, with what it costs."""
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "HG1C_DESIGN.md"), encoding="utf-8") as fh:
+            rows = [line for line in fh if line.startswith("| 33 |")]
+        self.assertEqual(len(rows), 1)
+        for phrase in ("D-062", '"Yes, widen it"', "post hoc", "from 6 runs", "before any campaign data", "`gate.floor_pp` (10)",
+                       "`gate.floor_log2_p95` (1.0, a factor of 2)", "`DRIFT_Q_PP` 2.0", "`DRIFT_P95` 0.25", "no longer detects"):
+            self.assertIn(phrase, rows[0])
+
     def test_the_drift_tolerances_are_2_points_of_q_and_25_percent_of_p95(self):
         self.assertEqual((C.DRIFT_Q_PP, C.DRIFT_P95), (2.0, 0.25))
         self.assertTrue(C.drift_ok(99.0, 0.10, 97.0, 0.125)[0])
