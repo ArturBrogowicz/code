@@ -20,6 +20,7 @@ for _p in (HERE, REPO, os.path.join(REPO, "eval"), os.path.join(REPO, "ml"), os.
     if _p not in sys.path:
         sys.path.insert(0, _p)
 import calibration_fixtures
+import harm_gate as HG
 import l7v2_harm as LH
 import l7v2_replay as RP
 import l7v2_verdict_prereg as VP
@@ -27,6 +28,7 @@ import p1_analysis as A
 import p1_fake_host as F
 import p1_records as REC
 import p1_runner as R
+import p1_traffic as PT
 
 import l7_backend
 import l7_ingest as I
@@ -810,6 +812,42 @@ class HealthTest(unittest.TestCase):
     @staticmethod
     def sick_until(h):
         return lambda _run, block_dir, _t: 0.05 if int(re.search(r"_h(\d)", block_dir).group(1)) < h else 0.0
+
+    def test_a_client_side_failure_stops_the_rule_and_the_ladder_says_so(self):
+        """D-058, T050-09: unhealthy on the client, with nginx's own Q at 100 %."""
+        self.step(0, fail_share=self.sick_until(1), client_side=True)
+        got = A.health_result(self.root, self.cal)
+        self.assertEqual(got["decision"], "stopped")
+        self.assertEqual(got["steps"][0]["server_q"], [100.0, 100.0])
+        self.assertEqual(got["stopped_step"], got["steps"][0]["dir"])
+        health = self.result_file(code=1)
+        with self.assertRaisesRegex(R.PlanError, "stopped.*waits for a dated decision"):
+            R.plan_block("ladder", 9001, self.root, frozen={**self.frozen, "health": health}, levels={"C2": 1.0}, runs=["C", "U_C2"],
+                         benign_specs=F.thin_benign(LEAN), max_sources=2)
+        out = os.path.join(self.tmp, "h2.json")
+        step = got["stopped_step"]
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(A.main([self.root, "--calibration", self.frozen["calibration"], "--health", "--out", out,
+                                     "--health-decision", f"{step}=fire:D-999, 2026-11-05: the client's limit, halve anyway"]), 0)
+        self.assertEqual((REC.read_json(out)["decision"], REC.read_json(out)["next_halvings"]), ("run", 1))
+        self.assertIn(step, REC.read_json(out)["decisions"])
+
+    def test_an_undated_decision_is_refused(self):
+        for text in ("d=fire:the user said so", "d=later:D-1, 2026-11-05", "d:2026-11-05"):
+            with self.subTest(text), self.assertRaisesRegex(ValueError, "dated decision"):
+                A.parse_health_decision(text)
+
+    def test_the_class_floor_reads_from_20_judged_requests(self):
+        """D-058, T050-10: one slow export of five decides nothing; harm_gate.control_health itself is unchanged."""
+        cal = self.cal
+        def m(n, ok):
+            return {"Q": 99.5, "by_class": {"C5": {"n": n, "ok": ok, "Q": 100.0 * ok / n, "p95_s": 0.1}}}
+        reasons, small = LH.control_health(m(5, 4), cal)
+        self.assertEqual((reasons, small), ([], {"C5": {"n": 5, "ok": 4, "Q": 80.0}}))
+        reasons, small = LH.control_health(m(20, 18), cal)
+        self.assertEqual((len(reasons), small), (1, {}))
+        self.assertTrue(HG.control_health(m(5, 4), cal), "the harm benchmark's own stays as it was")
+        self.assertEqual(LH.CONTROL_CLASS_MIN_N, PT.prereg_4()["control_health"]["class_floor_from_n"])
 
     def test_the_file_records_each_control_s_server_q_cpu_and_slip(self):
         """T050-09's recording: a client-side firing can be told from a server-side one; the rule itself does not read them."""

@@ -348,6 +348,25 @@ class HalvingTest(unittest.TestCase):
         self.assertIn("does not reach health at the floor of 2 halvings", got["why"])
         self.assertIn("Q(C) is 98.00 %", got["why"])
 
+    def test_a_client_side_limit_stops_the_rule_for_a_dated_decision(self):
+        """D-058, T050-09."""
+        sick = {"dir": "health/h0", "halvings": 0, "sound": True, "reasons": [["Q(C) is 98.00 %"], []], "server_q": [99.5, 100.0]}
+        got = P.next_step([sick])
+        self.assertEqual((got["decision"], got["benign_halvings"], got["stopped_step"]), ("stopped", None, "health/h0"))
+        self.assertIn("server-side Q of 99.50 %", got["why"])
+        fire = P.next_step([sick], {"health/h0": {"action": "fire", "text": "D-1, 2026-11-05"}})
+        self.assertEqual((fire["decision"], fire["next_halvings"]), ("run", 1))
+        repeat = P.next_step([sick], {"health/h0": {"action": "repeat", "text": "D-1, 2026-11-05"}})
+        self.assertEqual((repeat["decision"], repeat["next_halvings"]), ("run", 0))
+        self.assertEqual(P.next_step([sick, self.step(0)], {"health/h0": {"action": "repeat", "text": "x"}})["benign_halvings"], 0)
+
+    def test_a_server_side_limit_fires_the_rule_as_before(self):
+        sick = {"dir": "d", "halvings": 0, "sound": True, "reasons": [["Q(C) is 90.00 %"], []], "server_q": [90.0, 100.0]}
+        self.assertEqual(P.next_step([sick])["next_halvings"], 1)
+        self.assertEqual(P.prereg_4()["halving"]["server_q_min"], 99.0)
+        healthy_side = {"dir": "d", "halvings": 0, "sound": True, "reasons": [["Q(C) is 90.00 %"], []], "server_q": [90.0, 99.9]}
+        self.assertEqual(P.next_step([healthy_side])["next_halvings"], 1, "the unhealthy control's own server-side Q decides")
+
     def test_no_step_runs_out_of_order_or_after_the_stop(self):
         sick = (["class C3"], [])
         for steps in ([self.step(1)], [self.step(0, *sick), self.step(2)], [self.step(0), self.step(0)],

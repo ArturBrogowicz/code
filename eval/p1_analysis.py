@@ -29,7 +29,8 @@ reaches the floor in both repeats (bench/calibration.knee, harm as bench/calibra
 last sound attempt. --ladder writes the file a campaign takes (--knees).
 
 health_result() reads the halving rule's steps (phase health, ml/p1_prereg.json) into the next step, the frozen factor or a refusal,
-in the file that the ladder and the campaign take (--health). Its exit code is 1 on a refusal.
+in the file that the ladder and the campaign take (--health). Its exit code is 1 on a refusal, and on a stop: a control unhealthy with a
+server-side Q of at least 99 % waits for a dated decision (--health-decision, D-058).
 
 point_check() replays the pilot's benign traffic through each arm at its frozen point, before the campaign (ml/p1_prereg_2.json
 point_check, D-052), into the file the campaign takes (--points): one valid control per pilot seed at the frozen factor. An arm that may
@@ -57,7 +58,6 @@ for _p in (REPO, os.path.join(REPO, "ml"), HERE, os.path.join(REPO, "bench")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 import calibration as CAL
-import harm_gate as HG
 import l7v2_harm as LH
 import l7v2_replay as RP
 import l7v2_verdict as J
@@ -462,7 +462,7 @@ def health_step(root, block_dir, cal):
     never ran, or whose run checks failed, gives no reading and fires nothing (ml/p1_prereg.json halving.unsound)."""
     path = os.path.join(root, block_dir)
     step = {"dir": block_dir, "halvings": REC.read_json(os.path.join(path, "block.json"))["halvings"], "sound": True,
-            "controls": {}, "reasons": []}
+            "controls": {}, "reasons": [], "server_q": []}
     try:
         runs = LH.assess_block(path, cal)["runs"]
     except LH.HarmError as exc:
@@ -473,18 +473,28 @@ def health_step(root, block_dir, cal):
             step["sound"] = False
             step["controls"][name] = {"sound": False, "checks": run and run["checks"].get("reasons")}
             continue
-        reasons = HG.control_health(run["metrics"], cal)
+        reasons, small = LH.control_health(run["metrics"], cal)
         timeline = REC.read_json(os.path.join(path, "block.json"))["timeline"]
         lo = float(timeline["baseline_s"])
         step["controls"][name] = {"sound": True, "Q": run["metrics"]["Q"], "reasons": reasons,
                                   "server_q": (run["server"] or {}).get("Q"),
                                   "cpu": REC.cpu_load(os.path.join(path, name), (lo, lo + float(timeline["attack_s"]))),
-                                  "view_slip": run["metrics"].get("view_slip")}
+                                  "view_slip": run["metrics"].get("view_slip"), "small_classes": small}
         step["reasons"].append(reasons)
+        step["server_q"].append((run["server"] or {}).get("Q"))
     return step
 
 
-def health_result(root, cal):
+def parse_health_decision(text):
+    """{step's dir: {"action", "text"}} of one --health-decision DIR=ACTION:TEXT; the text must name a date (D-058)."""
+    head, _colon, words = text.partition(":")
+    step, _eq, action = head.partition("=")
+    if action not in ("fire", "repeat") or not re.search(r"\d{4}-\d{2}-\d{2}", words):
+        raise ValueError(f"--health-decision takes DIR=fire:TEXT or DIR=repeat:TEXT, and TEXT names a dated decision; got {text!r}")
+    return {step: {"action": action, "text": words.strip()}}
+
+
+def health_result(root, cal, decisions=None):
     """The rule over its steps in the order they ran (ROOT/index.jsonl): the health file."""
     dirs = []
     for x in REC.index_lines(root):
@@ -492,7 +502,7 @@ def health_result(root, cal):
             dirs.append(x["block_dir"])
     steps = [health_step(root, d, cal) for d in dirs]
     return {"format": RUN.HEALTH_FORMAT, "record_sha256": cal.get("sha256"), "record_status": cal.get("status"),
-            "rule": "ml/p1_prereg.json halving", **PT.next_step(steps), "steps": steps}
+            "rule": "ml/p1_prereg.json halving", **PT.next_step(steps, decisions), "decisions": decisions or {}, "steps": steps}
 
 
 # --- the frozen operating points on the pilot's benign traffic -----------------------------------------
@@ -547,17 +557,22 @@ def main(argv=None):
     ap.add_argument("--ladder", action="store_true", help="the knees of a finished ladder")
     ap.add_argument("--health", action="store_true", help="the halving rule's next step, frozen factor or refusal")
     ap.add_argument("--points", action="store_true", help="the frozen operating points on the pilot's benign traffic")
+    ap.add_argument("--health-decision", action="append", default=[], metavar="DIR=ACTION:TEXT",
+                    help="a step the rule stopped at: fire or repeat it, by a dated decision (D-058)")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
     import l7_backend
     cal, _status, _tag = l7_backend.load_record(args.calibration)
     failed = False
+    decisions = {}
+    for text in args.health_decision:
+        decisions.update(parse_health_decision(text))
     if args.health:
-        res = health_result(args.root, cal)
-        failed = res["decision"] == "refused"
+        res = health_result(args.root, cal, decisions)
+        failed = res["decision"] in ("refused", "stopped")
         print(f"the halving rule: {res['decision']}: {res['why']}")
     elif args.points:
-        health = health_result(args.root, cal)
+        health = health_result(args.root, cal, decisions)
         if health["decision"] != "frozen":
             print(f"no point check without a frozen factor: {health['decision']}: {health['why']}", file=sys.stderr)
             return 1

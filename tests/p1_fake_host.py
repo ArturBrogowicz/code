@@ -8,7 +8,7 @@ What it models, as far as the runner's and the analysis's inputs need it:
     cannot write its --stats file (T050-02). A benign plan kind writes
     its client-side rows and its requests from its own plan (ml/l7_benign.plan_client with its seed); an attack family its
     requests (ml/l7_bots.plan_bot); a kind without a plan one line. A request is answered 200 in 30 ms, except a share
-    `fail_share(run, block_dir, t)` of the benign ones, which fail (nginx logs a 503, so the server-side Q agrees);
+    `fail_share(run, block_dir, t)` of the benign ones, which fail (nginx logs a 503, so the server-side Q agrees, or, with `client_side`, a 200);
   * the daemon: `daemon_startup_s` after its start it prints its ready line and XDP's and writes its start event from its
     environment (`start_overrides` to make it lie), with L7_ENFORCE=1 an l7_enforce_arm event (`arm_overrides`), and then the events
     `acts(run, block_dir)` gives as (seconds after its start, event). When it stops, with L7_SHADOW=1, an l7_shadow report: what it received
@@ -50,13 +50,13 @@ def _sid(seed, user):
 
 class P1FakeHost(F.FakeHost):
     def __init__(self, *, fail_share=None, acts=None, quiet_from=None, armed=True, start_overrides=None, arm_overrides=None,
-                 rule_arm="cost_budget", parsed_share=1.0, silent=(), timer_p99=2.0, **kw):
+                 rule_arm="cost_budget", parsed_share=1.0, silent=(), timer_p99=2.0, client_side=False, **kw):
         super().__init__(**kw)
         self.fail_share = fail_share or (lambda _run, _block, _t: 0.0)
         self.acts, self.quiet_from = acts or (lambda _run, _block: []), quiet_from
         self.armed, self.start_overrides, self.arm_overrides = armed, dict(start_overrides or {}), dict(arm_overrides or {})
         self.rule_arm, self.parsed_share, self.silent = rule_arm, parsed_share, set(silent)
-        self.socket_sink, self.heartbeat = False, None
+        self.socket_sink, self.heartbeat, self.client_side = False, None, client_side
         self.timer_p99 = list(timer_p99) if isinstance(timer_p99, (list, tuple)) else [timer_p99]
         self.sink, self.lines, self.run_name, self.block_dir, self.n_request = None, [], None, None, 0
 
@@ -175,7 +175,7 @@ class P1FakeHost(F.FakeHost):
                 sent = origin + t_nom
                 klass = l7_webapp.route_class("GET", path)
                 paged = paged or klass == "C1"
-                self._line(p.ip, user["ua"], path, sent, 503 if bad else 200, sid if paged else None, ref)
+                self._line(p.ip, user["ua"], path, sent, 503 if bad and not self.client_side else 200, sid if paged else None, ref)
                 if writer:
                     writer.writerow([f"{sent:.6f}", f"{sent:.6f}", f"{sent + (0.1 if bad else 0.03):.6f}",
                                      "nan" if bad else 200, "conn" if bad else "", klass or "", u, vi, wi,

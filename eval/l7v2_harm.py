@@ -70,6 +70,9 @@ class HarmError(ValueError):
     """The run or block does not follow the contract above."""
 
 
+CONTROL_CLASS_MIN_N = 20        # D-058: the class floor of a control applies from this many judged requests (ml/p1_prereg_4.json)
+
+
 def _rule():
     return l7v2_prereg.load()["harm"]
 
@@ -304,6 +307,16 @@ def window_figures(run_dir, cal, timeline, window_rel):
     return metrics(rows, cal, (t0 + window_rel[0], t0 + window_rel[1]), t0, total)
 
 
+def control_health(metrics, cal):
+    """P1's control health (D-058, T050-10; ml/p1_prereg_4.json control_health): (reasons, small classes). eval/harm_gate.control_health,
+    unchanged, on Q(C) and on the route classes with at least CONTROL_CLASS_MIN_N judged requests; a smaller class, where one slow export would
+    decide the block (C5 holds 1-8 judged requests in a control), is reported, not judged."""
+    classes = metrics["by_class"]
+    judged = {k: c for k, c in classes.items() if c["n"] >= CONTROL_CLASS_MIN_N}
+    small = {k: {f: c[f] for f in ("n", "ok", "Q")} for k, c in classes.items() if c["n"] < CONTROL_CLASS_MIN_N}
+    return HG.control_health({**metrics, "by_class": judged}, cal), small
+
+
 def assess_block(block_dir, cal):
     """Every class's block-level figures: dQ, dL against C and the placebo, validity and its reasons."""
     meta = _json(os.path.join(block_dir, "block.json"))
@@ -314,7 +327,7 @@ def assess_block(block_dir, cal):
             if os.path.isfile(os.path.join(block_dir, n, "run.json"))}
     shared = [f"run {n} is missing" for n in (CONTROL, PLACEBO) if n not in runs]
     if CONTROL in runs:
-        shared += [f"control: {r}" for r in HG.control_health(runs[CONTROL]["metrics"], cal)]
+        shared += [f"control: {r}" for r in control_health(runs[CONTROL]["metrics"], cal)[0]]
     for n in (CONTROL, PLACEBO):
         if n in runs and not runs[n]["checks"].get("ok"):
             shared += [f"{n}: {r}" for r in runs[n]["checks"].get("reasons", [])] or [f"{n}: not sound"]
