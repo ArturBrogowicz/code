@@ -69,9 +69,9 @@ the closes, and nginx's refusals by role from the access log, for the limits' ow
 run index, valid or not (D-035, V-03).
 
     ./venv/bin/python eval/p4_validation.py ROOT --json selection.json
-    sudo ./venv/bin/python eval/p4_runner.py --phase campaign --seed 3101 --loris 175 --post 10 --thresholds 20,64,2 --selection selection.json
+    sudo ./venv/bin/python eval/p4_runner.py --phase campaign --seed 3101 --loris 175 --post 10 --thresholds 20,64,2 --selection selection.json --calibration FROZEN.json
     ./venv/bin/python eval/p4_runner.py --phase validation --seed 4001 --loris 175 --post 10 --plan
-    ./venv/bin/python eval/p4_runner.py --summarize ROOT runs.jsonl --calibration bench/calibration/placeholder.json
+    ./venv/bin/python eval/p4_runner.py --summarize ROOT runs.jsonl --calibration FROZEN.json    # --dry-run: a simulated campaign
 """
 import argparse
 import datetime
@@ -306,6 +306,15 @@ def plan_run(pop, phase, arm, out, *, thresholds=None, calibration=PLACEHOLDER, 
     }
 
 
+def record_status(path):
+    """The status of a calibration record, its schema and hash checked (l7_backend.load_record), or PlanError."""
+    import l7_backend
+    try:
+        return l7_backend.load_record(path)[1]
+    except (OSError, ValueError) as exc:
+        raise PlanError(f"the calibration record {path}: {exc}") from None
+
+
 def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresholds=None, family=None,
                arms=None, label="", calibration=PLACEHOLDER, python=PYTHON, selection=None):
     """One block's runs, in their seeded order, as data. `selection`: the campaign's record of the validation, which run_block
@@ -315,6 +324,7 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresh
         raise PlanError(f"unknown phase {phase!r}")
     if selection and phase != "campaign":
         raise PlanError(f"{phase}: --selection is the campaign's: the validation's choice of T, F and K")
+    status = record_status(calibration)
     if label and phase in ("campaign", "validation"):
         raise PlanError(f"{phase}: no --label: it would give another arm order in another directory (review T-047 P-13)")
     role = check_phase(phase, seed, sources, thresholds, family) if phase != "smoke" else "pilot"
@@ -333,15 +343,18 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresh
                      python=python) for arm in order]
     return {"phase": phase, "seed": seed, "attempt": attempt, "label": label, "dir": bdir, "root": root,
             "order": order, "sources": sources, "halvings": halvings, "thresholds": thresholds,
-            "calibration": calibration, "selection": selection, "runs": runs}
+            "calibration": calibration, "calibration_status": status, "selection": selection, "runs": runs}
 
 
 def describe(block):
     """The text of --plan."""
     lines = [f"P4 {block['phase']} block {block['seed']} attempt {block['attempt']}: {block['dir']}",
              (f"order {block['order']}; sources {block['sources']}; halvings {block['halvings']}; "
-              f"thresholds {block['thresholds']}; calibration {block['calibration']}"
+              f"thresholds {block['thresholds']}; calibration {block['calibration']} ({block['calibration_status']})"
               + (f"; selection {block['selection']}" if block["phase"] == "campaign" else ""))]
+    if block["calibration_status"] != "frozen" and block["phase"] in ("validation", "campaign"):
+        lines.append(f"  NOT FROZEN: {'a real host refuses this campaign' if block['phase'] == 'campaign' else 'no campaign can follow this validation'}"
+                     " (T-052b; the campaign must name the validation's record, and a frozen one)")
     for r in block["runs"]:
         d = r["daemon"]
         lines.append(f"  run {r['arm']}: nginx {r['nginx']['conf']}, daemon "
@@ -790,8 +803,22 @@ def block_settings(block):
     code = hashlib.sha256(json.dumps([prov["files_sha256"], prov["code_sha256"]], sort_keys=True).encode()).hexdigest()
     return {"sources": block["sources"], "halvings": block["halvings"],
             "thresholds": list(block["thresholds"]) if block["thresholds"] else None,
-            "calibration_sha256": sha256_file(block["calibration"]), "code_sha256": code,
+            "calibration_sha256": sha256_file(block["calibration"]), "calibration_status": block["calibration_status"],
+            "code_sha256": code,
             "selection_sha256": sha256_file(block["selection"]) if block.get("selection") else None}
+
+
+def check_frozen(block, host):
+    """T-052b, the rule of eval/harm_gate.py and eval/l7v2_harm.py: no campaign on a calibration record that is not frozen. Only a
+    host that measures nothing is exempt (executor.Host.simulated: the tests, a simulated campaign); smoke, ladder and validation
+    runs may name any record, and block.json says which."""
+    if block["phase"] != "campaign" or getattr(host, "simulated", False):
+        return
+    import l7_backend
+    try:
+        l7_backend.require_frozen(l7_backend.load_record(block["calibration"])[0])
+    except (OSError, ValueError) as exc:
+        raise PlanError(f"campaign: {block['calibration']}: {exc}") from None
 
 
 def check_selection(block):
@@ -869,6 +896,7 @@ def check_attempt(block):
 
 def run_block(host, block):
     """Every run of a block in its order; each in ROOT/index.jsonl before it begins and when it ends, valid or not."""
+    check_frozen(block, host)
     check_attempt(block)
     check_selection(block)
     check_settings(block)
@@ -974,12 +1002,14 @@ def run_record(run_dir, cal, block=None, attempt=1):
                          reasons=meta["checks"]["reasons"], view_slip_s=slip)
 
 
-def summarize_root(root, calibration, out_path):
+def summarize_root(root, calibration, out_path, dry_run=False):
     """The run records of EVERY evaluation attempt of ROOT/index.jsonl, valid or not, a run whose runner died included
-    (D-035, V-03; P-07), under the calibration record `calibration` (a path), which must be the one the blocks name (P-08).
-    A run directory the index does not hold is refused: it could hide a ban."""
+    (D-035, V-03; P-07), under the calibration record `calibration` (a path), which must be the one the blocks name (P-08), and
+    frozen unless `dry_run` (T-052b). A run directory the index does not hold is refused: it could hide a ban."""
     import l7_backend
     cal = l7_backend.load_record(calibration)[0]
+    if not dry_run:
+        l7_backend.require_frozen(cal)
     named = sha256_file(calibration)
     rows = [x for x in read_index(root) if x["phase"] == "campaign"]
     known = {x["dir"] for x in rows}
@@ -1029,10 +1059,13 @@ def main(argv=None, host=None):
     ap.add_argument("--python", default=PYTHON)
     ap.add_argument("--plan", action="store_true", help="print the plan and exit (offline)")
     ap.add_argument("--summarize", nargs=2, metavar=("ROOT", "OUT_JSONL"))
+    ap.add_argument("--dry-run", action="store_true", help="--summarize only: allow a record that is not frozen, for a simulated campaign")
     args = ap.parse_args(argv)
+    if args.dry_run and not args.summarize:
+        ap.error("--dry-run is for --summarize: a real campaign has no exemption, and a simulated host needs none")
     if args.summarize:
         try:
-            summarize_root(args.summarize[0], args.calibration, args.summarize[1])
+            summarize_root(args.summarize[0], args.calibration, args.summarize[1], dry_run=args.dry_run)
         except ValueError as exc:
             print(f"[-] {exc}", file=sys.stderr)
             return 2

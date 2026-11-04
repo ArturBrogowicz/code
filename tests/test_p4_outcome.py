@@ -19,6 +19,7 @@ BOTH = "supported with scope: profile R, Slowloris and slow POST at this scale, 
 
 
 SETTINGS = {"sources": {"loris": 175, "post": 10}, "halvings": 0, "thresholds": [20, 64, 2], "calibration_sha256": "a" * 64,
+            "calibration_status": "frozen",
             "code_sha256": "b" * 64}
 
 
@@ -382,6 +383,47 @@ class AttemptsTest(unittest.TestCase):
             with contextlib.redirect_stdout(printed):
                 self.assertEqual(O.main([path]), 0)
         self.assertIn("superseded: block 3101 attempt 1, invalid or missing U_post", printed.getvalue())
+
+
+class FrozenRecordTest(unittest.TestCase):
+    """T-052b: no verdict on records whose block ran under a record that is not frozen, the rule of eval/harm_gate.analyse."""
+
+    def under(self, status):
+        return [{**r, "settings": {**SETTINGS, "calibration_status": status}} for r in campaign()]
+
+    def test_a_verdict_needs_a_frozen_record(self):
+        for status in ("placeholder", "measured", None):
+            with self.assertRaisesRegex(ValueError, "no verdict is given on it"):
+                O.outcome(self.under(status))
+        res = O.outcome(campaign())
+        self.assertEqual((res["dry_run"], res["calibration"]), (False, {"status": "frozen", "sha256": "a" * 64}))
+
+    def test_a_dry_run_is_given_and_labelled_and_its_figures_do_not_move(self):
+        res = O.outcome(self.under("placeholder"), dry_run=True)
+        self.assertTrue(res["dry_run"])
+        self.assertEqual(res["calibration"]["status"], "placeholder")
+        self.assertEqual(res["M7"], O.outcome(campaign())["M7"])
+        self.assertFalse(O.outcome(campaign(), dry_run=True)["dry_run"], "a frozen record is no dry run, flag or not")
+
+    def test_a_mix_of_records_is_refused_even_in_a_dry_run(self):
+        runs = campaign()
+        runs[0] = {**runs[0], "settings": {**SETTINGS, "calibration_status": "placeholder"}}
+        with self.assertRaisesRegex(ValueError, "different settings"):
+            O.outcome(runs, dry_run=True)
+
+    def test_the_command_line(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "runs.jsonl")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.writelines(json.dumps(r) + "\n" for r in self.under("placeholder"))
+            with contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()) as err:
+                self.assertEqual(O.main([path]), 2)
+            self.assertIn("no verdict is given on it", err.getvalue())
+            self.assertNotIn("M7", out.getvalue())
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(O.main([path, "--dry-run"]), 0)
+            self.assertIn("DRY RUN: the calibration record is placeholder: figures, not a result", out.getvalue())
+            self.assertIn("(dry run)", out.getvalue())
 
 
 class LargestViewSlipTest(unittest.TestCase):

@@ -237,7 +237,7 @@ class ArmOrderTest(unittest.TestCase):
             with open(path, "w", encoding="utf-8") as fh:
                 json.dump(meta, fh)
             with self.assertRaisesRegex(ValueError, "seeded order"):
-                R.summarize_root(root, R.PLACEHOLDER, os.path.join(root, "runs.jsonl"))
+                R.summarize_root(root, R.PLACEHOLDER, os.path.join(root, "runs.jsonl"), dry_run=True)
 
 
 class AttemptRuleTest(unittest.TestCase):
@@ -305,6 +305,127 @@ class AttemptRuleTest(unittest.TestCase):
                          "--attempt", "2", "--root", root], host=F.FakeHost())
         self.assertEqual(rc, 2)
         self.assertIn("the next is 1", err.getvalue())
+
+
+class HostThatMeasures(F.FakeHost):
+    """The fake's model under a host that says it measures: what the frozen rule sees of a real one."""
+    simulated = False
+
+
+def frozen_record(where, name="frozen.json"):
+    """A synthetic frozen record (tests/calibration_fixtures.py); the real one is not this branch's to commit (D-061)."""
+    import calibration as CAL
+    import calibration_fixtures
+    path = os.path.join(where, name)
+    CAL.dump(calibration_fixtures.frozen(), path)
+    return path
+
+
+class FrozenRecordTest(unittest.TestCase):
+    """T-052b, the rule of eval/harm_gate.py and eval/l7v2_harm.py: no campaign and no verdict on a record that is not frozen."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = self.tmp.name
+        self.frozen = frozen_record(self.root)
+
+    def campaign(self, seed=3101, arms=("C", "U_post"), **kw):
+        kw.setdefault("calibration", self.frozen)
+        if "selection" not in kw:
+            kw["selection"] = selection_file(self.root, calibration=kw["calibration"])
+        return R.plan_block("campaign", seed, self.root, sources=KNEE, thresholds=POINT, arms=list(arms), **kw)
+
+    def test_a_campaign_on_a_host_that_measures_refuses_the_placeholder_before_anything_runs(self):
+        host = HostThatMeasures()
+        with self.assertRaisesRegex(R.PlanError, "no verdict is given on it"):
+            R.run_block(host, self.campaign(calibration=R.PLACEHOLDER))
+        self.assertEqual((host.commands, host.prims, host.procs), ([], [], []))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "campaign")))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "index.jsonl")))
+
+    def test_a_measured_record_is_refused_as_well(self):
+        import l7_backend
+        with mock.patch.object(l7_backend, "load_record", return_value=({"status": "measured"}, "measured", "measured:x")), \
+                self.assertRaisesRegex(R.PlanError, "no verdict is given on it"):
+            R.check_frozen({"phase": "campaign", "calibration": "m.json"}, HostThatMeasures())
+
+    def test_the_command_line_refuses_the_default_record(self):
+        with contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()) as err:
+            rc = R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--thresholds", "5,256,2",
+                         "--selection", selection_file(self.root), "--root", self.root], host=HostThatMeasures())
+        self.assertEqual(rc, 2)
+        self.assertIn("no verdict is given on it", err.getvalue())
+        self.assertIn("NOT FROZEN: a real host refuses this campaign", out.getvalue())
+
+    def test_a_frozen_record_runs_and_its_verdict_is_given(self):
+        res = R.run_block(HostThatMeasures(modelled_attackers=1), self.campaign())
+        self.assertTrue(all(r["ok"] for _a, r in res), res)
+        out = os.path.join(self.root, "runs.jsonl")
+        R.summarize_root(self.root, self.frozen, out)
+        with open(out, encoding="utf-8") as fh:
+            records = [json.loads(line) for line in fh]
+        self.assertEqual({r["settings"]["calibration_status"] for r in records}, {"frozen"})
+        verdict = OUT.outcome(records)
+        self.assertEqual((verdict["dry_run"], verdict["calibration"]["status"]), (False, "frozen"))
+        self.assertEqual(verdict["calibration"]["sha256"], sha(self.frozen))
+
+    def test_a_simulated_campaign_needs_no_frozen_record_and_is_labelled(self):
+        R.run_block(F.FakeHost(modelled_attackers=1), self.campaign(calibration=R.PLACEHOLDER))
+        out = os.path.join(self.root, "runs.jsonl")
+        with self.assertRaisesRegex(ValueError, "no verdict is given on it"):
+            R.summarize_root(self.root, R.PLACEHOLDER, out)
+        R.summarize_root(self.root, R.PLACEHOLDER, out, dry_run=True)
+        with open(out, encoding="utf-8") as fh:
+            records = [json.loads(line) for line in fh]
+        with self.assertRaisesRegex(ValueError, "no verdict is given on it"):
+            OUT.outcome(records)
+        self.assertTrue(OUT.outcome(records, dry_run=True)["dry_run"])
+
+    def test_summarize_on_the_command_line(self):
+        R.run_block(F.FakeHost(modelled_attackers=1), self.campaign(calibration=R.PLACEHOLDER))
+        out = os.path.join(self.root, "runs.jsonl")
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(R.main(["--summarize", self.root, out]), 2)
+        self.assertIn("no verdict is given on it", err.getvalue())
+        self.assertEqual(R.main(["--summarize", self.root, out, "--dry-run"]), 0)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            R.main(["--phase", "campaign", "--seed", "3101", "--dry-run"])
+
+    def test_smoke_ladder_and_validation_may_name_any_record_and_say_which(self):
+        for phase, seed, kw in (("smoke", 9101, {"arms": ["C"], "label": "s"}), ("validation", 4001, {"sources": KNEE}),
+                                ("ladder", 9102, {"sources": {"post": 20}, "family": "post", "label": "l"})):
+            for path, status in ((R.PLACEHOLDER, "placeholder"), (self.frozen, "frozen")):
+                root = os.path.join(self.root, f"{phase}_{status}")
+                os.makedirs(root)
+                host = HostThatMeasures(modelled_attackers=1)
+                block = R.plan_block(phase, seed, root, calibration=path, **kw)
+                R.run_block(host, block)
+                with open(os.path.join(block["dir"], "block.json"), encoding="utf-8") as fh:
+                    settings = json.load(fh)["settings"]
+                self.assertEqual((settings["calibration_status"], settings["calibration_sha256"]), (status, sha(path)), phase)
+                with open(os.path.join(block["runs"][0]["out"], "run.json"), encoding="utf-8") as fh:
+                    self.assertEqual(json.load(fh)["provenance"]["calibration"]["sha256"], sha(path))
+                self.assertTrue(host.procs, "it ran")
+
+    def test_a_validation_under_another_record_cannot_feed_the_campaign(self):
+        """T-052 (1)'s check holds this already: the frozen rule makes it a dead end, so the plan says so before the VM hours."""
+        block = self.campaign(selection=selection_file(self.root, calibration=R.PLACEHOLDER))
+        with self.assertRaisesRegex(R.PlanError, "calibration_sha256 differ"):
+            R.run_block(HostThatMeasures(), block)
+        text = R.describe(R.plan_block("validation", 4001, self.root, sources=KNEE))
+        self.assertIn("(placeholder)", text)
+        self.assertIn("NOT FROZEN: no campaign can follow this validation", text)
+        self.assertNotIn("NOT FROZEN", R.describe(R.plan_block("validation", 4001, self.root, sources=KNEE, calibration=self.frozen)))
+        self.assertNotIn("NOT FROZEN", R.describe(R.plan_block("smoke", 9101, self.root, arms=["C"])))
+
+    def test_a_record_that_cannot_be_read_is_refused_at_the_plan(self):
+        with self.assertRaisesRegex(R.PlanError, "the calibration record"):
+            R.plan_block("smoke", 9101, self.root, arms=["C"], calibration=os.path.join(self.root, "absent.json"))
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
+            rc = R.main(["--phase", "smoke", "--seed", "9101", "--arms", "C", "--calibration", os.path.join(self.root, "absent.json"), "--plan"])
+        self.assertEqual(rc, 2)
+        self.assertIn("the calibration record", err.getvalue())
 
 
 class SelectionTest(unittest.TestCase):
@@ -484,7 +605,7 @@ class ExecuteTest(unittest.TestCase):
                                                             thresholds=POINT)["order"])
         self.assertTrue(all(r["ok"] for _a, r in res), [(a, r["reasons"]) for a, r in res if not r["ok"]])
         runs_path = os.path.join(self.root, "runs.jsonl")
-        R.summarize_root(self.root, R.PLACEHOLDER, runs_path)
+        R.summarize_root(self.root, R.PLACEHOLDER, runs_path, dry_run=True)
         with open(runs_path, encoding="utf-8") as fh:
             records = [json.loads(line) for line in fh]
         by = {r["arm"]: r for r in records}
@@ -497,7 +618,7 @@ class ExecuteTest(unittest.TestCase):
         self.assertGreater(by["M_pc_loris"]["q_level"], by["U_loris"]["q_level"])
         out = os.path.join(self.root, "verdict.json")
         with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(OUT.main([runs_path, "--json", out]), 0)
+            self.assertEqual(OUT.main([runs_path, "--json", out, "--dry-run"]), 0)
         with open(out, encoding="utf-8") as fh:
             verdict = json.load(fh)
         self.assertEqual(verdict["M7"], "invalid (1 of 10 valid)")    # one block of the ten (D-035, V-02)
@@ -562,14 +683,14 @@ class ExecuteTest(unittest.TestCase):
         self.assertEqual(len(index(self.root)), 18)
         self.assertEqual({x["attempt"] for x in index(self.root)}, {1, 2})
         out = os.path.join(self.root, "runs.jsonl")
-        R.summarize_root(self.root, R.PLACEHOLDER, out)                       # D-035 (V-03): every attempt, valid or not
+        R.summarize_root(self.root, R.PLACEHOLDER, out, dry_run=True)                       # D-035 (V-03): every attempt, valid or not
         with open(out, encoding="utf-8") as fh:
             records = [json.loads(line) for line in fh]
         self.assertEqual(sorted((r["attempt"], r["arm"]) for r in records),
                          sorted((a, arm) for a in (1, 2) for arm in OUT.ARMS))
         refused = [r for r in records if r["attempt"] == 1 and r["arm"].startswith("M_pc_")]
         self.assertTrue(all(not r["valid"] and r["Q"] is None for r in refused))
-        verdict = OUT.outcome(records)
+        verdict = OUT.outcome(records, dry_run=True)
         self.assertEqual(verdict["families"]["loris"]["mitigation"]["attempts"], 2)
 
     def one_run(self, name, phase="validation", seed=4002, arm="C", **kw):
@@ -622,7 +743,7 @@ class ExecuteTest(unittest.TestCase):
         res = R.run_block(host, self.block("campaign", 3106, thresholds=POINT))
         self.assertTrue(all(r["ok"] for _a, r in res), [(a, r["reasons"]) for a, r in res if not r["ok"]])
         out = os.path.join(self.root, "runs.jsonl")
-        R.summarize_root(self.root, R.PLACEHOLDER, out)
+        R.summarize_root(self.root, R.PLACEHOLDER, out, dry_run=True)
         with open(out, encoding="utf-8") as fh:
             by = {r["arm"]: r for r in map(json.loads, fh)}
         self.assertEqual(sum(c["refused"] for c in by["C"]["refused"]["by_role"].values()), 0)
@@ -633,7 +754,7 @@ class ExecuteTest(unittest.TestCase):
         self.assertEqual(sorted(refused["cgnat"]), ["CGNAT-12", "CGNAT-24"])
         self.assertTrue(all(c["refused"] > 0 for c in refused["cgnat"].values()))
         self.assertLessEqual(by["C_M"]["Q"], by["C"]["Q"])
-        cost = OUT.outcome(list(by.values()))["limits_cost"]
+        cost = OUT.outcome(list(by.values()), dry_run=True)["limits_cost"]
         self.assertEqual([r["block"] for r in cost["blocks"]], [3106])
         self.assertEqual(cost["blocks"][0]["refused_C"], 0)
         self.assertEqual(cost["refused_cgnat"].keys(), {"CGNAT-12", "CGNAT-24"})
@@ -665,12 +786,12 @@ class ExecuteTest(unittest.TestCase):
                                self.block("campaign", 3107, thresholds=POINT)))
         self.assertTrue(res["C"]["ok"], res["C"]["reasons"])
         out = os.path.join(self.root, "runs.jsonl")
-        R.summarize_root(self.root, R.PLACEHOLDER, out)
+        R.summarize_root(self.root, R.PLACEHOLDER, out, dry_run=True)
         with open(out, encoding="utf-8") as fh:
             by = {r["arm"]: r for r in map(json.loads, fh)}
         self.assertTrue(by["C"]["valid"])
         self.assertIn("below 99 %", by["C"]["control_reasons"][0])
-        verdict = OUT.outcome(list(by.values()))
+        verdict = OUT.outcome(list(by.values()), dry_run=True)
         self.assertEqual(verdict["families"]["loris"]["harm"]["valid_blocks"], 0)
         self.assertEqual(verdict["M7"], "invalid (0 of 10 valid)")
         self.assertEqual([u["block"] for u in verdict["unhealthy_controls"]], [3107])
@@ -752,11 +873,11 @@ class ExecuteTest(unittest.TestCase):
     def test_the_slip_reaches_the_record_and_the_outcome(self):
         R.run_block(F.FakeHost(modelled_attackers=1), self.block("campaign", 3101, thresholds=POINT, arms=["C", "U_post"]))
         out = os.path.join(self.root, "runs.jsonl")
-        R.summarize_root(self.root, R.PLACEHOLDER, out)
+        R.summarize_root(self.root, R.PLACEHOLDER, out, dry_run=True)
         with open(out, encoding="utf-8") as fh:
             records = list(map(json.loads, fh))
         self.assertTrue(all(r["view_slip_s"] is not None for r in records))
-        self.assertEqual(OUT.outcome(records)["largest_view_slip"]["view_slip_s"], max(r["view_slip_s"] for r in records))
+        self.assertEqual(OUT.outcome(records, dry_run=True)["largest_view_slip"]["view_slip_s"], max(r["view_slip_s"] for r in records))
 
     def test_a_run_record_says_why_it_is_invalid(self):
         """Review T-050 T050-16: the outcome names what emptied the comparison with M_def."""
@@ -764,12 +885,12 @@ class ExecuteTest(unittest.TestCase):
         pool = next(e["address"] for e in block["runs"][0]["entities"] if e["kind_or_family"] == "cgnat_browsers")
         R.run_block(F.FakeHost(gen_late={pool: 30.0}, modelled_attackers=1), block)
         out = os.path.join(self.root, "runs.jsonl")
-        R.summarize_root(self.root, R.PLACEHOLDER, out)
+        R.summarize_root(self.root, R.PLACEHOLDER, out, dry_run=True)
         with open(out, encoding="utf-8") as fh:
             by = {r["arm"]: r for r in map(json.loads, fh)}
         self.assertFalse(by["M_def_loris"]["valid"])
         self.assertIn("was still running 10 s after its end", by["M_def_loris"]["reasons"][0])
-        self.assertIn("was still running 10 s after its end", OUT.outcome(list(by.values()))["invalid_runs"][0]["reasons"][0])
+        self.assertIn("was still running 10 s after its end", OUT.outcome(list(by.values()), dry_run=True)["invalid_runs"][0]["reasons"][0])
 
     def test_a_generator_late_past_the_grace_makes_the_run_invalid(self):
         """Why review T-047 P-01 blocked P4-S: this is what a slow uploader that outlives its duration did to every run."""
@@ -823,17 +944,17 @@ class ExecuteTest(unittest.TestCase):
         self.assertEqual((row["ended"], row["valid"]), (False, False))
         self.assertIn("the runner died", row["reasons"][0])
         out = os.path.join(self.root, "runs.jsonl")
-        R.summarize_root(self.root, R.PLACEHOLDER, out)
+        R.summarize_root(self.root, R.PLACEHOLDER, out, dry_run=True)
         with open(out, encoding="utf-8") as fh:
             [rec] = [json.loads(line) for line in fh]
         self.assertEqual((rec["valid"], rec["Q"], rec["banned"]), (False, None, {cgnat: "cgnat"}))
-        m = OUT.outcome([rec])["families"]["loris"]["mitigation"]
+        m = OUT.outcome([rec], dry_run=True)["families"]["loris"]["mitigation"]
         self.assertEqual(m["benign_banned"], [[3108, cgnat, "cgnat"]])
 
     def test_a_run_the_index_does_not_hold_is_refused(self):
         os.makedirs(os.path.join(self.root, "campaign", "b3108_a1", "M_pc_loris"))
         with self.assertRaisesRegex(ValueError, "the index does not hold"):
-            R.summarize_root(self.root, R.PLACEHOLDER, os.path.join(self.root, "runs.jsonl"))
+            R.summarize_root(self.root, R.PLACEHOLDER, os.path.join(self.root, "runs.jsonl"), dry_run=True)
 
     def test_the_index_reads_a_cut_last_line_and_refuses_any_other(self):
         started = {"event": "started", "phase": "campaign", "block": 3108, "attempt": 1, "label": "", "arm": "C", "dir": "d"}
@@ -893,13 +1014,13 @@ class ExecuteTest(unittest.TestCase):
             R.run_block(F.FakeHost(garbled_bans=True, modelled_attackers=1), self.block("campaign", 3101, thresholds=POINT, arms=["C_M", "U_post"]))
             R.run_block(F.FakeHost(ban_file_lost=True, modelled_attackers=1), self.block("campaign", 3102, thresholds=POINT, arms=["C", "M_pc_post"]))
         out = os.path.join(self.root, "runs.jsonl")
-        R.summarize_root(self.root, R.PLACEHOLDER, out)
+        R.summarize_root(self.root, R.PLACEHOLDER, out, dry_run=True)
         with open(out, encoding="utf-8") as fh:
             by = {r["arm"]: r for r in map(json.loads, fh)}
         self.assertEqual((by["C_M"]["ban_problem"], by["U_post"]["ban_problem"]), ("2 lines cannot be read", None))
         self.assertEqual((by["M_pc_post"]["ban_problem"], by["C"]["ban_problem"]), ("the file is gone", None))
         self.assertFalse(by["C_M"]["valid"] or by["M_pc_post"]["valid"])
-        m = OUT.outcome(list(by.values()))["families"]["post"]["mitigation"]
+        m = OUT.outcome(list(by.values()), dry_run=True)["families"]["post"]["mitigation"]
         self.assertEqual(m["ban_records_unreadable"], [[3101, 1, "C_M", "2 lines cannot be read"], [3102, 1, "M_pc_post", "the file is gone"]])
         self.assertFalse(m["c"])
 
@@ -913,7 +1034,7 @@ class ExecuteTest(unittest.TestCase):
             R.run_block(F.FakeHost(), block)
         R.run_block(F.FakeHost(kill_file=True), self.block("campaign", 3109, thresholds=POINT, arms=["M_pc_loris"]))
         out = os.path.join(self.root, "runs.jsonl")
-        R.summarize_root(self.root, R.PLACEHOLDER, out)
+        R.summarize_root(self.root, R.PLACEHOLDER, out, dry_run=True)
         with open(out, encoding="utf-8") as fh:
             records = list(map(json.loads, fh))
         self.assertEqual({(r["block"], r["valid"], r["ban_problem"]) for r in records}, {(3108, False, None), (3109, False, None)})
@@ -971,8 +1092,8 @@ class ExecuteTest(unittest.TestCase):
             out.write(fh.read() + "\n")
         out_path = os.path.join(self.root, "runs.jsonl")
         with self.assertRaisesRegex(ValueError, "ran under calibration"):
-            R.summarize_root(self.root, other, out_path)
-        R.summarize_root(self.root, R.PLACEHOLDER, out_path)
+            R.summarize_root(self.root, other, out_path, dry_run=True)
+        R.summarize_root(self.root, R.PLACEHOLDER, out_path, dry_run=True)
         with open(out_path, encoding="utf-8") as fh:
             [rec] = [json.loads(line) for line in fh]
         self.assertEqual(rec["settings"]["sources"], KNEE)

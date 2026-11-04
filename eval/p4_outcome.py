@@ -125,6 +125,7 @@ sys.path.insert(0, os.path.join(REPO, "eval"))
 import harm_gate as HG
 import run_level_stats as RLS
 
+import l7_backend
 import slow_pc
 
 # ── pinned against docs/P4_SLOW_DESIGN.md §10 (tests/test_p4_outcome.py) ──
@@ -449,9 +450,13 @@ def invalid(k):
     return f"invalid ({k} of {len(BLOCK_SEEDS)} valid)"
 
 
-def outcome(runs):
-    """The verdict of §10 over a list of run records."""
+def outcome(runs, dry_run=False):
+    """The verdict of §10 over a list of run records, whose block ran under a frozen calibration record unless `dry_run`, which
+    labels the result (T-052b, as eval/harm_gate.analyse)."""
     blocks, every, picks, superseded = _blocks(runs)
+    settings = runs[0]["settings"] if runs else {}
+    if runs and not dry_run:
+        l7_backend.require_frozen({"status": settings.get("calibration_status")})
     fam = {}
     for f in FAMILIES:
         h, m = harm(blocks, f), mitigation(blocks, f, every)
@@ -476,7 +481,8 @@ def outcome(runs):
         m7 = invalid(min(fam[f]["valid_blocks_if_invalid"] for f in lacking))
     else:
         m7 = "not supported"
-    return {"M7": m7, "families": fam, "bans_by_arm": bans_by_arm(runs), "t_mit_s": T_MIT_S,
+    return {"M7": m7, "dry_run": settings.get("calibration_status") != "frozen",
+            "calibration": {k: settings.get(f"calibration_{k}") for k in ("status", "sha256")}, "families": fam, "bans_by_arm": bans_by_arm(runs), "t_mit_s": T_MIT_S,
             "limits_cost": limits_cost(blocks), "unhealthy_controls": unhealthy_controls(every),
             "small_control_classes": small_control_classes(every),
             "judged_attempts": picks, "superseded_attempts": superseded, "invalid_runs": invalid_runs(every),
@@ -487,11 +493,18 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("runs", help="JSON Lines, one run record per line")
     ap.add_argument("--json", help="write the full verdict here")
+    ap.add_argument("--dry-run", action="store_true", help="allow records under a calibration that is not frozen; labelled")
     args = ap.parse_args(argv)
     with open(args.runs, encoding="utf-8") as fh:
         runs = [json.loads(line) for line in fh if line.strip()]
-    res = outcome(runs)
-    print(f"M7: {res['M7']}")
+    try:
+        res = outcome(runs, dry_run=args.dry_run)
+    except l7_backend.RecordError as exc:
+        print(f"[-] {exc}", file=sys.stderr)
+        return 2
+    if res["dry_run"]:
+        print(f"DRY RUN: the calibration record is {res['calibration']['status']}: figures, not a result")
+    print(f"M7: {res['M7']}" + (" (dry run)" if res["dry_run"] else ""))
     for f, r in res["families"].items():
         print(f"  {FAMILY_NAMES[f]}: {r['status']}")
     for f, r in res["families"].items():
