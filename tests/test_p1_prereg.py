@@ -7,6 +7,8 @@ import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PATH = os.path.join(REPO, "ml", "p1_prereg.json")
+PATH_4 = os.path.join(REPO, "ml", "p1_prereg_4.json")
+PREREG_4_SHA256 = "e3a39613818313d69c32062a35d52499e36f46bf98bcac7517bdd059c84c3862"
 PATH_3 = os.path.join(REPO, "ml", "p1_prereg_3.json")
 PREREG_3_SHA256 = "d29c2689c440f2e74c63aa9282435fb2fc899883d7e27d8ba05325d7fe1385b6"
 PATH_2 = os.path.join(REPO, "ml", "p1_prereg_2.json")
@@ -132,6 +134,31 @@ class ThirdRecordTest(unittest.TestCase):
         rec = self.load()
         self.assertIn("last attempt's with both runs sound", rec["ladder"]["rule"])
         self.assertEqual(rec["reported"]["late_window"]["from_attack_start_s"], 180.0)
+
+
+class FourthRecordTest(unittest.TestCase):
+    """ml/p1_prereg_4.json: the user's D-058."""
+
+    @staticmethod
+    def load():
+        with open(PATH_4, encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_the_file_is_the_frozen_version(self):
+        with open(PATH_4, "rb") as fh:
+            self.assertEqual(hashlib.sha256(fh.read()).hexdigest(), PREREG_4_SHA256)
+        rec = self.load()
+        self.assertEqual((rec["format"], rec["date"]), ("p1-prereg-4/1", "2026-11-03"))
+        self.assertIn("D-058", rec["decision"])
+
+    def test_its_numbers(self):
+        rec = self.load()
+        self.assertEqual((rec["reruns"]["max_per_block"], rec["reruns"]["max_per_campaign"]), (1, 2))
+        self.assertEqual(rec["halving"]["server_q_min"], 99.0)
+        self.assertEqual(rec["control_health"]["class_floor_from_n"], 20)
+        self.assertIn("invalid (k of 10)", rec["judged_blocks"]["rule"])
+        self.assertIn("superseded and excluded ones too", rec["over_all_attempts"]["rule"])
+        self.assertIn("control_health stays unchanged", rec["control_health"]["rule"])
 
 
 if __name__ == "__main__":

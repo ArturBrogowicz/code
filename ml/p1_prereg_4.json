@@ -1,0 +1,32 @@
+{
+ "format": "p1-prereg-4/1",
+ "date": "2026-11-03",
+ "decision": "D-058 (the user: \"Approve as recommended\"), on T-050's T050-05, -06, -09, -10 and -14",
+ "status": "post hoc to docs/L7V2_DESIGN.md and to the earlier records, which stand except where this says; before any P1 data and before the code it judges",
+ "judged_blocks": {
+  "finding": "T050-05",
+  "rule": "a class admitted with fewer judged blocks than the verdict's min_blocks (10) gets no verdict: its status is 'invalid (k of 10)', with the excluded blocks' reasons. It is not V-D: one invalid M run must not read as 'no arm mitigates'"
+ },
+ "reruns": {
+  "finding": "T050-06",
+  "reason": "a block's re-run needs a block-level reason, valid_all: its attempt had a run invalid or missing, a class invalid or an unhealthy C. A re-run for one run makes no other class of the block INVALID",
+  "max_per_block": 1,
+  "max_per_campaign": 2,
+  "runner": "the runner checks it before a block starts, as eval/p4_runner.py check_attempt: the next attempt the index shows, its reason, the two limits"
+ },
+ "over_all_attempts": {
+  "finding": "T050-04's second half, T050-06",
+  "rule": "an arm's bans, and the benign users it wrongly acted on, count over all attempts of all blocks, superseded and excluded ones too, so that an arm's worst run cannot vanish from the budget by being invalid. Q and the contrasts read the judged blocks' final attempts"
+ },
+ "halving": {
+  "findings": "T050-09, T050-10",
+  "records": "the health file holds each control's server-side Q and legit CPU share",
+  "stop": "a control unhealthy with a server-side Q of at least server_q_min stops the rule for a dated decision instead of firing it: the limit is the client's or a timer's, and a halving would shrink the budget for it. The decision, named when the file is read again, either fires the rule at that step or repeats the step",
+  "server_q_min": 99.0
+ },
+ "control_health": {
+  "finding": "T050-10",
+  "class_floor_from_n": 20,
+  "rule": "in P1's control health the 95 % class floor applies to a route class with at least class_floor_from_n judged requests; a smaller class, where one slow export would decide, is reported, not judged. eval/harm_gate.py control_health stays unchanged, and Q(C) >= 99 % stands. It holds for the rule's steps and for every block"
+ }
+}
