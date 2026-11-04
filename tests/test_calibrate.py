@@ -762,12 +762,59 @@ class ReferenceTest(unittest.TestCase):
         self.assertEqual(r, {"ok": True, "reasons": []})
 
     def test_beyond_them_it_is_and_the_reason_names_the_probe(self):
+        """The attack run's tolerance is the gate's floors since D-062 (departure 33): 72.1 and 0.2501 are within it now."""
         cal = self.frozen()
-        r = K.drift_check(cal, {"Q": 97.9, "p95_s": 0.0626}, {"costly_search_flood": {"Q": 72.1, "p95_s": 0.2501}})
+        r = K.drift_check(cal, {"Q": 97.9, "p95_s": 0.0626}, {"costly_search_flood": {"Q": 80.1, "p95_s": 0.2 * 2.01}})
         self.assertFalse(r["ok"])
         self.assertEqual(len(r["reasons"]), 4)
         self.assertTrue(r["reasons"][0].startswith("legit probe: Q 97.9"))
-        self.assertTrue(any(x.startswith("costly_search_flood: p95") for x in r["reasons"]))
+        self.assertTrue(any(x.startswith("costly_search_flood: p95") and "floor_log2_p95" in x for x in r["reasons"]))
+        self.assertTrue(any(x.startswith("costly_search_flood: Q") and "floor_pp" in x for x in r["reasons"]))
+
+    def test_a_legit_probe_at_2_1_points_or_26_percent_still_fails_with_an_attack_run_inside_the_floors(self):
+        cal = self.frozen()
+        inside = {"costly_search_flood": {"Q": 79.0, "p95_s": 0.39}}
+        self.assertEqual(K.drift_check(cal, {"Q": 98.0, "p95_s": 0.0625}, inside), {"ok": True, "reasons": []})
+        for legit, said in (({"Q": 97.9, "p95_s": 0.05}, "legit probe: Q 97.9"), ({"Q": 100.0, "p95_s": 0.063}, "legit probe: p95 0.063")):
+            r = K.drift_check(cal, legit, inside)
+            self.assertFalse(r["ok"])
+            self.assertEqual(len(r["reasons"]), 1, r["reasons"])
+            self.assertTrue(r["reasons"][0].startswith(said), r["reasons"])
+
+    def test_the_tolerance_of_the_check_follows_the_records_gate_block(self):
+        cal = self.frozen()
+        attack = {"costly_search_flood": {"Q": 75.0, "p95_s": 0.2}}
+        self.assertTrue(K.drift_check(cal, {"Q": 100.0, "p95_s": 0.05}, attack)["ok"])
+        tight = copy.deepcopy(cal)
+        tight["gate"]["floor_pp"] = 4.0
+        r = K.drift_check(tight, {"Q": 100.0, "p95_s": 0.05}, attack)
+        self.assertEqual(len(r["reasons"]), 1, r["reasons"])
+        self.assertIn("floor_pp, 4 pp", r["reasons"][0])
+
+    def test_the_repeats_of_c_085_all_pass_the_attack_rule_and_one_of_six_passed_the_old_one(self):
+        """The ladder repeats at the knees against the frozen reference of hg2_3 (ddos-mitigation-2026-11-04.json), exact values read from
+        ladder.json and the record on 2026-11-04. The old rule is the legit probe's, so its result stays on record here."""
+        reference = {"cheap_static_flood": (95.80888516345348, 0.20570220000000097),
+                     "costly_export_flood": (75.3211009174312, 0.25194199999999967),
+                     "costly_search_flood": (63.36996336996337, 0.6308129999999972)}
+        repeats = {"cheap_static_flood": ((89.50617283950618, 0.2036669999999949), (92.04946996466431, 0.17855809999999434)),
+                   "costly_export_flood": ((70.77625570776256, 0.2720831999999958), (74.22053231939164, 0.28067324999999954)),
+                   "costly_search_flood": ((69.75455265241489, 0.3432430000000011), (61.98412698412698, 0.41934499999999986))}
+        deviations = [round(q - reference[f][0], 1) for f, pair in sorted(repeats.items()) for q, _ in pair]
+        self.assertEqual(deviations, [-6.3, -3.8, -4.5, -1.1, 6.4, -1.4], "C-085")
+        self.assertEqual([round(100 * (p / reference["costly_search_flood"][1] - 1)) for _, p in repeats["costly_search_flood"]], [-46, -34])
+        cal = self.frozen()
+        cal["drift_reference"] = {"rho_rps": 90.0, "q_pct": 100.0, "p95_s": 0.05,
+                                  "attack": {f: {"level": 2.0, "q_pct": q, "p95_s": p} for f, (q, p) in reference.items()}}
+        self.assertEqual((cal["gate"]["floor_pp"], cal["gate"]["floor_log2_p95"]), (10.0, 1.0))
+        passed_old = []
+        for family, pair in sorted(repeats.items()):
+            for i, (q, p) in enumerate(pair, 1):
+                with self.subTest(family=family, repeat=i):
+                    self.assertEqual(K.drift_check(cal, {"Q": 100.0, "p95_s": 0.05}, {family: {"Q": q, "p95_s": p}}), {"ok": True, "reasons": []})
+                if C.drift_ok(*reference[family], q, p)[0]:
+                    passed_old.append((family, i))
+        self.assertEqual(passed_old, [("costly_export_flood", 2)], "1 of 6 within the old tolerance: what D-062 changed")
 
 
 ORIGIN = {"route_costs_ms": {"C0": 0.06, "C1": 3.3, "C2": 2.2, "C3": 31.0, "C5": 155.0}, "template_sha256": TEMPLATE["sha256"]}
@@ -936,6 +983,10 @@ class RunnerTest(unittest.TestCase):
         with self.assertRaisesRegex(X.EnvironmentRefused, "2 probes over 30 s"):
             K.Runner(host, wait_gate_min=0.5).run(self.plan("stops"), lambda m: None)
         self.assertEqual(sum("timer-probe" in argv for _, _, argv in host.commands), 2, "one attempt: no retry of a refusal")
+
+    def test_the_plan_states_both_drift_tolerances(self):
+        self.assertIn("a legit probe within 2 pp and 25 % of the reference, and an attack run within the gate's floors, 10 pp and a factor of 2",
+                      K.plan_text(TEMPLATE))
 
     def test_the_plan_states_the_wait(self):
         self.assertIn("a refused probe is made again every 30 s, up to --wait-gate minutes from the run's first probe (0: one probe)",
@@ -1198,6 +1249,25 @@ class SimulatedCalibrationTest(unittest.TestCase):
         self.assertEqual(made.call_count, 2, "a new runner for the second attempt, which waits for the full gate again")
         self.assertFalse(K.read_json(os.path.join(self.tmp.name, "c3", "drift", "drift.json"))["ok"])
         self.assertTrue(K.read_json(os.path.join(self.tmp.name, "c3.second", "drift", "drift.json"))["ok"])
+
+    def test_a_drift_step_whose_attack_run_fails_twice_stops_and_one_inside_the_floors_passes(self):
+        """D-062 moves the tolerance only: a failure is made once more and twice stops. 9 pp off passes; 10.1 pp off does not."""
+        path = os.path.join(self.tmp.name, "cli_cal3.json")
+        C.dump(self.frozen, path)
+        family = min(self.frozen["drift_reference"]["attack"])
+        ref = self.frozen["drift_reference"]["attack"][family]
+        far, near = {"Q": ref["q_pct"] - 10.1, "p95_s": ref["p95_s"]}, {"Q": ref["q_pct"] - 9.0, "p95_s": ref["p95_s"]}
+        args = ("drift", "--calibration", path, "--simulate", "--sim-capacity-cpu", str(CAPACITY_CPU))
+        with mock.patch.object(K, "attack_run", side_effect=[far, near]) as made:
+            code, out, _ = self.cli(*args, "--out", os.path.join(self.tmp.name, "c5"))
+        self.assertEqual((code, made.call_count), (K.EXIT_OK, 2), out)
+        self.assertIn("drift check 1 of 2 failed; making it once more", out)
+        with mock.patch.object(K, "attack_run", side_effect=[far, far]) as made:
+            code, out, _ = self.cli(*args, "--out", os.path.join(self.tmp.name, "c6"))
+        self.assertEqual((code, made.call_count), (K.EXIT_INVALID, 2), out)
+        self.assertIn("floor_pp", out)
+        self.assertIn("drift check 2 of 2 failed; it stops here", out)
+        self.assertFalse(K.read_json(os.path.join(self.tmp.name, "c6.second", "drift", "drift.json"))["ok"])
 
     def test_a_screening_whose_controls_are_unhealthy_is_invalid_and_exits_three(self):
         dest = self.copy_session()                      # not the session itself: this overwrites a screening
@@ -1540,6 +1610,13 @@ class RulesPinnedTest(unittest.TestCase):
         self.assertTrue(C.drift_ok(99.0, 0.10, 97.0, 0.125)[0])
         self.assertFalse(C.drift_ok(99.0, 0.10, 96.9, 0.10)[0])
         self.assertFalse(C.drift_ok(99.0, 0.10, 99.0, 0.126)[0])
+
+    def test_an_attack_runs_drift_tolerance_is_the_gates_floors_of_10_points_and_a_factor_of_2(self):
+        gate = C.load(C.PLACEHOLDER)["gate"]
+        self.assertEqual((gate["floor_pp"], gate["floor_log2_p95"]), (10.0, 1.0))
+        self.assertTrue(C.drift_attack_ok(gate, 70.0, 0.10, 60.0, 0.20)[0])
+        self.assertFalse(C.drift_attack_ok(gate, 70.0, 0.10, 59.9, 0.10)[0])
+        self.assertFalse(C.drift_attack_ok(gate, 70.0, 0.10, 70.0, 0.201)[0])
 
     def test_the_ladders_of_the_three_families_and_the_generator_s_model(self):
         for family, spec in sorted(K.FAMILY_SPECS.items()):

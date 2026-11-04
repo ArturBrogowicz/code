@@ -658,11 +658,12 @@ def freeze_step(directory, template, env, created_utc=None):
 # --- step 7: drift ----------------------------------------------------------------------------------
 
 def drift_check(cal, legit, attacks):
-    """The drift of a new probe against the frozen reference (calibration.drift_ok): the legit probe and each attack run."""
+    """The drift of a new probe against the frozen reference: the legit probe by calibration.drift_ok, each attack run by
+    calibration.drift_attack_ok with the record's own floors (docs/HG1C_DESIGN.md departure 33, D-062)."""
     ref = cal["drift_reference"]
     reasons = [f"legit probe: {r}" for r in C.drift_ok(ref["q_pct"], ref["p95_s"], legit["Q"], legit["p95_s"])[1]]
     for family, m in sorted(attacks.items()):
-        why = C.drift_ok(ref["attack"][family]["q_pct"], ref["attack"][family]["p95_s"], m["Q"], m["p95_s"])[1]
+        why = C.drift_attack_ok(cal["gate"], ref["attack"][family]["q_pct"], ref["attack"][family]["p95_s"], m["Q"], m["p95_s"])[1]
         reasons += [f"{family}: {r}" for r in why]
     return {"ok": not reasons, "reasons": reasons}
 
@@ -810,7 +811,8 @@ def plan_text(template):
     out.append(f"step 5  reference  {REFERENCE_PROBES} legit probes of {PROBE_S:g} s at rho and one attack run per family at its knee; "
                "their medians are the drift reference")
     out.append("        freeze     reads the directories, never the VM; refuses smoke tests, invalid screenings and mixed sessions")
-    out.append("step 7  drift      a legit probe and an attack run against the reference, within 2 pp and 25 %; before a later campaign")
+    out.append(f"step 7  drift      a legit probe within {C.DRIFT_Q_PP:g} pp and {100 * C.DRIFT_P95:g} % of the reference, and an attack run within the gate's "
+               f"floors, {template['gate']['floor_pp']:g} pp and a factor of {2 ** template['gate']['floor_log2_p95']:g}; before a later campaign")
     out.append("")
     total = sum(runs.values())
     out.append(f"runs    {runs['capacity']} capacity + {runs['screening']} screening + {runs['reference']} reference = {total}; at about "
