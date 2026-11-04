@@ -126,6 +126,9 @@ class FakeHost(X.Host):
         self.t = end
 
     # --- the host's face -------------------------------------------------------------------------
+    def pin(self, cpus):
+        self.commands.append(("", ("pin", cpus), ""))
+
     def is_root(self):
         return self.root
 

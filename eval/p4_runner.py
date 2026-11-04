@@ -91,7 +91,9 @@ FORMAT = "p4-run/1"
 PHASES = ("smoke", "ladder", "validation", "campaign")
 SERVER_NS, SERVER_IP, BRIDGE, SERVER_VETH_HOST_END = "server_ns", "10.0.0.1", "ddos_br0", "veth_srv_br"
 NS_PREFIX, MAX_ALIASES, SUBNET_MASK = "p4n", 80, "/16"
-PINS = {"server": "0-1", "daemon": "2", "clients": "3-7"}
+# The runner too (review T-050 T050-17): its popen, curl and reads, and the ip and curl processes it starts, keep off the CPUs of the
+# server and the daemon, as bench/population.PIN_PLAN_DAEMON's executor CPU does. P4's plan has no CPU to spare, so it shares the clients'.
+PINS = {"server": "0-1", "daemon": "2", "clients": "3-7", "runner": "3-7"}
 CONF_R = "nginx_profile_r.conf"
 CONF_LIMITS = "nginx_profile_r_limits.conf"
 GUNICORN_CONF = "gunicorn_profile_r.py"
@@ -793,6 +795,7 @@ def run_block(host, block):
     if os.path.exists(block["dir"]):
         raise PlanError(f"{block['dir']} exists: an attempt is never overwritten (use the next --attempt)")
     os.makedirs(block["dir"])
+    host.pin(PINS["runner"])
     cal = block["calibration"]
     write_json(os.path.join(block["dir"], "block.json"),
                {"block": block["seed"], "attempt": block["attempt"], "seed": block["seed"], "phase": block["phase"],

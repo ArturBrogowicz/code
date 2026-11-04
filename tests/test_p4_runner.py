@@ -465,6 +465,15 @@ class ExecuteTest(unittest.TestCase):
         idx = index(self.root)
         self.assertEqual([(x["arm"], x["valid"]) for x in idx], [(a, True) for a, _r in res])
 
+    def test_the_runner_keeps_off_the_servers_and_the_daemons_cpus(self):
+        """Review T-050 T050-17: pinned before it starts anything, and recorded."""
+        host = F.FakeHost()
+        block = self.block("smoke", 9101, arms=["C"], label="pin", sources={"loris": 0, "post": 0})
+        R.run_block(host, block)
+        self.assertEqual(host.commands[0], ("", ("pin", "3-7"), ""))
+        self.assertEqual(block["runs"][0]["provenance"]["pins"]["runner"], "3-7")
+        self.assertEqual((R.PINS["runner"], R.PINS["clients"], R.PINS["server"], R.PINS["daemon"]), ("3-7", "3-7", "0-1", "2"))
+
     def test_what_a_run_writes(self):
         host = F.FakeHost(modelled_attackers=2)
         R.run_block(host, self.block("campaign", 3102, thresholds=POINT, arms=None))
