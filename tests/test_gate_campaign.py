@@ -727,6 +727,16 @@ class StopTest(CampaignCase):
         self.assertEqual((resumed["state"], resumed["gate"]["verdict"]), ("complete", "PASS"))
         self.assertIsNone(self.state()["stopped"])
 
+    def test_an_origin_that_exits_during_a_run_ends_the_attempt_and_the_campaign_has_no_verdict_on_it(self):
+        """HG1C departure 34: unsound, not harm."""
+        state = self.run_campaign(host=self.host(origin_exit=(12.0, 3, "[ERROR] Worker failed to boot.\n")), blocks=1)
+        first = self.json("b01_a1", "block.json")
+        kind = first["planned_order"][0]
+        self.assertEqual((first["aborted"], first["runs"][kind]["ok"]), (kind, False))
+        self.assertTrue(any(r.startswith("the origin exited with 3") and r.endswith("Worker failed to boot.") for r in first["runs"][kind]["reasons"]),
+                        first["runs"][kind]["reasons"])
+        self.assertEqual(state["gate"]["verdict"], "INVALID")
+
     def test_a_probe_refused_before_every_run_waits_and_moves_nothing_the_campaign_is_judged_on(self):
         """HG1C departure 30: the wait comes before a run's own clock, so that no clock rule of a block can see it."""
         plain = self.run_campaign(out="plain")

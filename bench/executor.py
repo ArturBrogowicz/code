@@ -1766,6 +1766,33 @@ def stop_daemon(host, procs, log):
     return record
 
 
+ORIGIN_EXIT_CAUSES = ("CalibrationError", "Worker failed to boot")     # what gunicorn.log says when the origin refuses or cannot boot
+
+
+def origin_log_says(path):
+    """The line of gunicorn.log that says why the origin ended, if there is one: a calibration refusal before a failed boot."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            lines = [x.strip() for x in fh]
+    except OSError:
+        return ""
+    found = [[x for x in lines if cause in x][-1:] for cause in ORIGIN_EXIT_CAUSES]
+    return next((f"; gunicorn.log says: {hit[0][:200]}" for hit in found if hit), "")
+
+
+def origin_validity(plan, procs, t_launch):
+    """Why a run whose origin did not last the timeline is not sound (docs/HG1C_DESIGN.md departure 34, D-063), looked at when the
+    timeline is over and before the teardown stops it, as the daemon is: once gunicorn has stopped, Nginx answers 502, and that would
+    read as harm. It looks at gunicorn's master only, so a worker that was replaced is no exit. `t_launch` is when the legit streams
+    were launched."""
+    proc = procs.get("origin")
+    if proc is not None and proc.poll() is None:
+        return []
+    when = "" if proc is None or proc.exit_time is None else f" at T+{proc.exit_time - t_launch:.1f} s after the launch"
+    return [f"the origin exited with {None if proc is None else proc.poll()}{when}, before the end of the run"
+            + origin_log_says(f"{plan.out}/gunicorn.log")]
+
+
 def daemon_validity(host, plan, procs, daemon, sampler, t_launch):
     """Why a protected run with a daemon is not sound (G11), looked at when the timeline is over and before the daemon is stopped,
     and what was seen. The daemon was ready before the first stream was launched, so before the attack; it must still be alive. With
@@ -2061,6 +2088,7 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
                 _reset(out)
                 log(f"retrying the setup ({retries} of {MAX_SETUP_RETRIES})")
         launched, problems = run_timeline(host, plan, log, procs, sampler)
+        problems += origin_validity(plan, procs, launched.get("legit", host.time()))
         if daemon is not None:
             unsound, seen = daemon_validity(host, plan, procs, daemon, sampler, launched.get("legit", host.time()))
             problems += unsound
