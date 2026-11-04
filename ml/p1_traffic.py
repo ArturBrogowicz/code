@@ -164,6 +164,14 @@ def level_window(timeline=None):
     return lo + l7v2_verdict_prereg.load()["level_window"]["from_attack_start_s"], lo + float(t["attack_s"])
 
 
+def late_window(timeline=None):
+    """The descriptive window of ml/p1_prereg_3.json reported.late_window, seconds from the run's start: arrivals have ended and no source is
+    younger than 30 s, so that a speed effect can be told from a removal effect (T050-15)."""
+    t = timeline or TIMELINE
+    lo = float(t["baseline_s"])
+    return lo + prereg_3()["reported"]["late_window"]["from_attack_start_s"], lo + float(t["attack_s"])
+
+
 def ladder_levels(cls):
     """A class's ladder (ml/l7v2_prereg.json harm.ladder.levels; C3b's is its number of bots)."""
     import l7v2_prereg

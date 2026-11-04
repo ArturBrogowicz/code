@@ -197,7 +197,7 @@ def run_record(run_dir, cal, block=None, attempt=1):
     base = {"format": "p1-run-record/1", "block": man["seed"] if block is None else block, "attempt": attempt, "run": man["run"],
             "arm": man["arm"], "class": man["class"], "levels": man["levels"], "valid": meta["checks"]["ok"],
             "reasons": meta["checks"]["reasons"], "age_check": meta.get("age_check"), "shadow": meta.get("shadow"),
-            "bans_by_engine": meta.get("bans_by_engine")}
+            "bans_by_engine": meta.get("bans_by_engine"), "sink": meta.get("sink"), "runner": meta.get("runner")}
     if D.time_origin(man) is None:
         return {**base, "Q": None, "p95_s": None, "acted_on": None}
     t = man["timeline"]
@@ -206,7 +206,7 @@ def run_record(run_dir, cal, block=None, attempt=1):
     m = a["metrics"]
     events = P4._events(os.path.join(run_dir, "ban_events.jsonl"))
     log = access_log(run_dir)
-    return {**base, "Q": m["Q"], "p95_s": m["p95_s"], "requests": m["requests"], "failures": m["failures"],
+    return {**base, "Q": m["Q"], "p95_s": m["p95_s"], "requests": m["requests"], "failures": m["failures"], "view_slip": m.get("view_slip"),
             "by_class": m["by_class"], "by_profile": m["by_profile"], "time_resolved": {k: m.get(k) for k in TIME_KEYS},
             "time_to_mitigate_s": time_to_mitigate(m.get("q_per_s"), window[0]),
             "server_q": a["server"] and a["server"]["Q"], "unrecorded": m.get("unrecorded"),

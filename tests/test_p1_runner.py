@@ -463,6 +463,20 @@ class ExecuteTest(Base):
         self.assertEqual(index(self.root)[0]["label"], "C2_L1_r1")
 
 
+class RunnerReportTest(Base):
+    def test_the_runner_s_lateness_is_reported(self):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, runs=["C"], label="r", benign_specs=F.thin_benign())
+        R.run_block(F.P1FakeHost(), block)
+        got = read_json(os.path.join(block["dir"], "C", "run.json"))["runner"]
+        self.assertGreaterEqual(got["largest_launch_lag_s"], 0.0)
+        self.assertLess(got["largest_launch_lag_s"], 2.0)
+        self.assertLessEqual(got["largest_loop_gap_s"], 1.5)
+
+    def test_a_loop_that_stalled_shows(self):
+        got = R.runner_report({"cpu": [{"t": 0.0}, {"t": 1.0}, {"t": 32.0}, {"t": 33.0}], "lags": [0.0, 31.0]})
+        self.assertEqual(got, {"largest_launch_lag_s": 31.0, "largest_loop_gap_s": 31.0})
+
+
 class OneSettingTest(Base):
     """T050-12, -17: a campaign at one setting; the order; the index before and after a run; the executor's CPU."""
 

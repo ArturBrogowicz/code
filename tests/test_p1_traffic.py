@@ -42,6 +42,7 @@ class BlockTest(unittest.TestCase):
         self.assertEqual({k: P.prereg_2()["timeline"][k] for k in P.TIMELINE}, P.TIMELINE)
         self.assertEqual(P.run_seconds(), 270)
         self.assertEqual(P.level_window(), (120.0, 240.0))
+        self.assertEqual(P.late_window(), (210.0, 240.0))
         self.assertEqual(P.level_window({"baseline_s": 10, "attack_s": 100, "recovery_s": 0}), (100.0, 110.0))
         self.assertEqual(sorted(P.PRIMARY), sorted(VP.load()["classes"]))
         self.assertEqual(P.PRIMARY["C3b"], VP.load()["detection_entities"]["per_class"]["C3b"]["primary"][0])

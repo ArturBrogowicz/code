@@ -582,12 +582,12 @@ def sink_problems(sink):
 def execute_run(host, plan, frozen_sums):
     """Run one planned run on `host` and write its directory. Returns {"ok", "reasons", "started", "ended"}."""
     out = plan["out"]
-    reasons, procs, launched, logs, cpu = [], [], [], {}, []
+    reasons, procs, launched, logs, cpu, lags = [], [], [], {}, [], [0.0]
     os.makedirs(os.path.join(out, "records"), exist_ok=True)
     os.makedirs(os.path.join(out, "attack_stats"), exist_ok=True)       # P4.gen_argv's --stats (T050-02): a generator writes there at its exit
     started = host.time()
     P4.write_json(os.path.join(out, "plan.json"), plan)
-    ctx = {"started": started, "t0": None, "procs": procs, "logs": logs, "launched": launched, "cpu": cpu, "sums": frozen_sums}
+    ctx = {"started": started, "t0": None, "procs": procs, "logs": logs, "launched": launched, "cpu": cpu, "lags": lags, "sums": frozen_sums}
     if not host.is_root():
         return finish(host, plan, ["not root: nothing was started"], ctx)
     if plan.get("pending") and not host.simulated:
@@ -636,6 +636,7 @@ def execute_run(host, plan, frozen_sums):
             now = host.time() - t0
             while pending and pending[0]["start_s"] <= now:
                 x = pending.pop(0)
+                lags.append(now - x["start_s"])
                 try:
                     launched.append((x, host.popen(x["argv"], ns=x["ns"], cwd=REPO)))
                 except OSError as exc:
@@ -699,7 +700,7 @@ def finish(host, plan, reasons, ctx):
             "checks": {"ok": ok, "reasons": reasons},
             "started_utc": P4._utc(ctx["started"]), "ended_utc": P4._utc(ended),
             "daemon": None if plan["daemon"] is None else {"env": plan["daemon"]["env"]},
-            "sink": sink,
+            "sink": sink, "runner": runner_report(ctx),
             "shadow": shadow_report(events, plan, t0, sink) if plan["daemon"] and t0 is not None else None,
             "bans_by_engine": {engine: len(rows) for engine, rows in sorted(run_bans(events).items())},
             "provenance": provenance(plan, ctx["sums"])}
@@ -750,6 +751,13 @@ def shadow_report(events, plan, t0, sink=None):
             "arm_step_errors_in_attack": sum(1 for e in errors if e.get("where") == ARM_STEP and lo <= e.get("t_wall", 0.0) < hi),
             "daemon_errors": [{k: e.get(k) for k in ("t_wall", "where", "error", "action")} for e in errors],
             "shadow_restarts_in_attack": sum(1 for e in errors if e.get("where") == SHADOW_THREAD and lo <= e.get("t_wall", 0.0) < hi)}
+
+
+def runner_report(ctx):
+    """The runner's own lateness in a run, judging nothing (T050-11): its largest launch lag and the largest gap of its loop, from cpu.jsonl's clock."""
+    times = [c["t"] for c in ctx["cpu"]]
+    return {"largest_launch_lag_s": round(max(ctx["lags"]), 3),
+            "largest_loop_gap_s": round(max((b - a for a, b in itertools.pairwise(times)), default=0.0), 3)}
 
 
 def shadow_problems(report):

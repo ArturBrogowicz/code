@@ -122,6 +122,15 @@ class NeverSentTest(unittest.TestCase):
         self.assertEqual([(r["view"], r["err"]) for r in out if r["view"] == 2], [(2, H.NEVER_SENT)] * 2)
         self.assertEqual(never(out), [(2, "C0", 1020.02), (2, "C3", 1020.02)])
 
+    def test_a_stall_in_mid_life_shows_as_a_view_slip(self):
+        """T050-11: a generator's sleep of 31 s loses views, with no reason in run.json; its slip names it."""
+        rows = [row(0, 1000.0, "C1"), row(0, 1000.0, "C0"), row(1, 1010.01), row(2, 1051.5, "C3"), row(2, 1051.6, "C0")]
+        slips = []
+        H.with_never_sent(rows, PLANNED, 1000.0, (1015.0, 1025.0), after_s=10.0, slips=slips)
+        self.assertEqual(len(slips), 3)
+        self.assertAlmostEqual(max(s for s, _t in slips), 31.48, delta=0.1)
+        self.assertAlmostEqual(max(slips)[1], 1020.02, delta=0.1)
+
     def test_a_started_view_with_a_missing_request(self):
         out = H.with_never_sent([row(0, 1000.0, "C1")], PLANNED, 1000.0, (995.0, 1005.0), after_s=10.0)
         self.assertEqual(never(out), [(0, "C0", 1000.0)])

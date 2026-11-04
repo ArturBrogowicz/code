@@ -176,9 +176,16 @@ def level_q(root, block, run, cal):
     return LH.window_figures(os.path.join(root, "campaign", block["dir"], run), cal, timeline, PT.level_window(timeline))["Q"]
 
 
+def window_q(root, block, run, cal, window_of):
+    """A run's Q in another window of its timeline (`window_of(timeline)`), by the figures of the level window."""
+    timeline = REC.read_json(os.path.join(root, "campaign", block["dir"], "block.json"))["timeline"]
+    return LH.window_figures(os.path.join(root, "campaign", block["dir"], run), cal, timeline, window_of(timeline))["Q"]
+
+
 def class_report(root, cal, cls, blocks, live, per_arm):
-    """What is reported per class beside the verdict, and judges nothing (D-053, ml/p1_prereg_2.json reported_per_class): the whole attack
-    window's Q; time to decision per arm and family; the attack cost left, by the replay's worst case and, for an arm with M runs, measured."""
+    """What is reported per class beside the verdict, and judges nothing (D-053, ml/p1_prereg_2.json reported_per_class; T050-11, T050-15,
+    ml/p1_prereg_3.json reported): the whole attack window's Q; the server-side Q; the late window's Q; each run's largest view slip; time to
+    decision per arm and family; the attack cost left, by the replay's worst case and, for an arm with M runs, measured."""
     ttd = {}
     for name, per in per_arm.items():
         ttd[name] = {fam: {"caught": len(v), "mean_s": round(float(np.mean(v)), 3), "median_s": round(float(np.median(v)), 3)}
@@ -195,8 +202,14 @@ def class_report(root, cal, cls, blocks, live, per_arm):
             if log:
                 live_cost[a] += REC.attacker_cost_ms(log, man, (lo, lo + float(timeline["attack_s"])), cal["route_costs_ms"])
     measured = {a: (round(live_cost[a] / live_cost["U"], 4) if live_cost["U"] else None) for a in live if a != "U"}
+    def per_block(read):
+        return {a: {b["block"]: read(b, RUN.run_name(a, cls)) for b in blocks} for a in live}
+
     return {"note": "descriptive (D-053): the verdict does not read it. A share of 1 means that the arm removed none of the attack's cost",
-            "whole_window_q": {a: {b["block"]: b["runs"][RUN.run_name(a, cls)]["metrics"]["Q"] for b in blocks} for a in live},
+            "whole_window_q": per_block(lambda b, run: b["runs"][run]["metrics"]["Q"]),
+            "server_q": per_block(lambda b, run: (b["runs"][run]["server"] or {}).get("Q")),
+            "late_window_q": per_block(lambda b, run: window_q(root, b, run, cal, PT.late_window)),
+            "largest_view_slip_s": per_block(lambda b, run: (b["runs"][run]["metrics"].get("view_slip") or {}).get("largest_s")),
             "time_to_decision": ttd, "attack_cost_left": {"replay": replay, "live": measured}}
 
 
@@ -426,7 +439,12 @@ def health_step(root, block_dir, cal):
             step["controls"][name] = {"sound": False, "checks": run and run["checks"].get("reasons")}
             continue
         reasons = HG.control_health(run["metrics"], cal)
-        step["controls"][name] = {"sound": True, "Q": run["metrics"]["Q"], "reasons": reasons}
+        timeline = REC.read_json(os.path.join(path, "block.json"))["timeline"]
+        lo = float(timeline["baseline_s"])
+        step["controls"][name] = {"sound": True, "Q": run["metrics"]["Q"], "reasons": reasons,
+                                  "server_q": (run["server"] or {}).get("Q"),
+                                  "cpu": REC.cpu_load(os.path.join(path, name), (lo, lo + float(timeline["attack_s"]))),
+                                  "view_slip": run["metrics"].get("view_slip")}
         step["reasons"].append(reasons)
     return step
 

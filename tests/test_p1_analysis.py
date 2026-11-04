@@ -385,6 +385,13 @@ class LevelWindowTest(unittest.TestCase):
         self.assertLess(whole, 90.0)
         self.assertGreater(self.block["classes"]["C2"]["dQ"], 10.0)
 
+    def test_the_server_side_q_and_the_late_window_are_reported_for_every_live_arm(self):
+        for name in ("server_q", "late_window_q", "largest_view_slip_s"):
+            self.assertEqual(sorted(self.report[name]), ["R*", "U", "view_gru"], name)
+        self.assertEqual(self.report["late_window_q"]["U"][SEEDS[0]], 100.0, "U failed only before it")
+        self.assertLess(self.report["server_q"]["U"][SEEDS[0]], 90.0, "the 503s of its first 80 s")
+        self.assertGreater(self.report["server_q"]["view_gru"][SEEDS[0]], 99.0)
+
     def test_time_to_decision_and_cost_left_are_reported_per_arm(self):
         got = self.report["time_to_decision"]["view_gru"]["C2"]
         self.assertEqual(got["caught"], 2)
@@ -669,6 +676,14 @@ class HealthTest(unittest.TestCase):
     @staticmethod
     def sick_until(h):
         return lambda _run, block_dir, _t: 0.05 if int(re.search(r"_h(\d)", block_dir).group(1)) < h else 0.0
+
+    def test_the_file_records_each_control_s_server_q_cpu_and_slip(self):
+        """T050-09's recording: a client-side firing can be told from a server-side one; the rule itself does not read them."""
+        self.step(0)
+        got = A.health_result(self.root, self.cal)["steps"][0]["controls"]["C"]
+        self.assertEqual(got["server_q"], 100.0)
+        self.assertEqual(sorted(got["cpu"]), ["attack", "legit", "server"])
+        self.assertLess(got["view_slip"]["largest_s"], 2.0)
 
     def test_healthy_at_once(self):
         self.step(0)
