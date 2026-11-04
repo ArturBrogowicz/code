@@ -495,6 +495,90 @@ def one_invalid(run, seed):
     return acts
 
 
+class ReRunTest(unittest.TestCase):
+    """D-058, T050-06: a re-run for one invalid run costs no class, the runner holds its limits, and an arm's bans count over all attempts."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.frozen = F.frozen_inputs(os.path.join(cls.tmp.name, "frozen"))
+        cls.cal = l7_backend.load_record(cls.frozen["calibration"])[0]
+        cls.root = os.path.join(cls.tmp.name, "runs")
+        fail = fail_from(TABLE_A)
+
+        def acts(name, block_dir):
+            ban = [(60.0, {"kind": "ban", "engine": "l7v2", "ip": "10.9.9.9"})] if name == "M_gru_C3b" else []
+            return ban + one_invalid("M_gru_C3b", SEEDS[3])(name, block_dir)
+
+        run_campaign_any(cls.root, cls.frozen, fail, acts, cut=True)
+        cls.block(SEEDS[3], 2, fail)
+        cls.res = A.analyse(cls.root, cls.cal, cls.frozen, arms_factory=factory(SHARES_A), cut=True)
+
+    @classmethod
+    def block(cls, seed, attempt, fail=None, acts=None):
+        block = R.plan_block("campaign", seed, cls.root, frozen=cls.frozen, cut=True, benign_specs=F.thin_benign(LEAN), max_sources=3, attempt=attempt)
+        return R.run_block(F.P1FakeHost(fail_share=fail, acts=acts), block)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_the_reviewer_s_s2_a_re_run_for_an_m_run_keeps_every_class(self):
+        for cls in ("C3b", "C2"):
+            with self.subTest(cls):
+                self.assertTrue(self.res[cls]["admission"]["admitted"], self.res[cls]["admission"]["reasons"])
+                self.assertEqual(self.res[cls]["blocks_judged"], SEEDS)
+                self.assertIsNotNone(self.res[cls]["verdict"])
+        self.assertEqual(self.res["C3b"]["admission"]["reruns"], 1)
+
+    def test_an_arm_s_bans_and_budget_count_the_superseded_attempt(self):
+        self.assertEqual(self.res["C3b"]["reported"]["bans_over_attempts"]["view_gru"], {"l7v2": 10}, "10 blocks; the block re-run was clean of this fixture's ban")
+        flagged, users = A.live_budget(self.root, "view_gru", "C3b")
+        self.assertEqual(len(A.arm_runs(self.root, "view_gru", "C3b")), 11)
+        self.assertGreater(users, 0)
+        self.assertGreaterEqual(flagged, 0)
+
+    def test_the_runner_refuses_a_re_run_without_a_reason(self):
+        with self.assertRaisesRegex(R.PlanError, "allows no re-run"):
+            self.block(SEEDS[0], 2)
+        self.assertFalse(os.path.exists(os.path.join(self.root, "campaign", f"b{SEEDS[0]}_a2")))
+
+    def test_the_runner_refuses_a_second_re_run_of_a_block_and_a_gap(self):
+        with self.assertRaisesRegex(R.PlanError, "the next is 3"):
+            self.block(SEEDS[3], 4)
+        with self.assertRaisesRegex(R.PlanError, "the next is 2"):
+            self.block(SEEDS[1], 3)
+
+    def test_a_block_valid_in_itself_is_valid_all(self):
+        got = LH.assess_block(os.path.join(self.root, "campaign", f"b{SEEDS[0]}_a1"), self.cal)
+        self.assertTrue(got["valid_all"])
+        got = LH.assess_block(os.path.join(self.root, "campaign", f"b{SEEDS[3]}_a1"), self.cal)
+        self.assertFalse(got["valid_all"])
+
+
+class ReRunLimitTest(unittest.TestCase):
+    def test_one_per_block_and_two_per_campaign(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        frozen = F.frozen_inputs(os.path.join(tmp.name, "frozen"))
+        root = os.path.join(tmp.name, "runs")
+
+        def block(seed, attempt, invalid=False):
+            plan = R.plan_block("campaign", seed, root, frozen=frozen, cut=True, benign_specs=F.thin_benign({"exporter": 1}), max_sources=1, attempt=attempt)
+            acts = one_invalid("M_gru_C2", seed) if invalid else None
+            acts2 = (lambda n, d: acts(n, d.replace(f"_a{attempt}", "_a1"))) if invalid else None
+            R.run_block(F.P1FakeHost(acts=acts2), plan)
+
+        for seed in SEEDS[:3]:
+            block(seed, 1, invalid=True)
+        block(SEEDS[0], 2, invalid=True)
+        block(SEEDS[1], 2)
+        with self.assertRaisesRegex(R.PlanError, "2 re-run blocks, at most 2"):
+            block(SEEDS[2], 2)
+        with self.assertRaisesRegex(R.PlanError, "1 re-runs already, at most 1 per block"):
+            block(SEEDS[0], 3)
+
+
 class TooFewJudgedBlocksTest(unittest.TestCase):
     """D-058, T050-05: the reviewer's S1, on a whole fake campaign: one invalid M run, and the GRU's gain over U of 30 pp must not read V-D."""
 

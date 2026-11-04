@@ -340,8 +340,11 @@ def assess_block(block_dir, cal):
                       "dQ_placebo": HG._diff(c and c["Q"], cp and cp["Q"]),
                       "dL_placebo": HG._log2_ratio(cp and cp["p95_s"], c and c["p95_s"]),
                       "server_Q_U": server and server["Q"]}
+    missing = sorted(set(meta.get("order") or ()) - set(runs))
+    valid_all = not shared and not missing and all(r["checks"].get("ok") for r in runs.values()) and all(c["valid"] for c in classes.values())
     return {"dir": os.path.basename(block_dir), "block": meta["block"], "attempt": meta["attempt"],
-            "seed": meta["seed"], "calibration_sha256": meta["calibration_sha256"], "runs": runs, "classes": classes}
+            "seed": meta["seed"], "calibration_sha256": meta["calibration_sha256"], "runs": runs, "classes": classes,
+            "valid_all": valid_all, "shared_reasons": shared}
 
 
 def admission(blocks, cal, klass, dry_run=False):
@@ -353,7 +356,7 @@ def admission(blocks, cal, klass, dry_run=False):
     reasons = []
     attempts = [{"scenario": f"l7v2-{klass}", "seed_namespace": "p1_live_eval", "block": b["block"],
                  "attempt": b["attempt"], "seed": b["seed"], "calibration_sha256": b["calibration_sha256"],
-                 "valid": b["classes"].get(klass, {}).get("valid", False)} for b in blocks]
+                 "valid": b["classes"].get(klass, {}).get("valid", False), "valid_all": b.get("valid_all", False)} for b in blocks]
     problems, reruns = HG.protocol_problems(attempts, cal)
     reasons += problems
     final = {}

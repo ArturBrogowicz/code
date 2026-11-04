@@ -887,15 +887,42 @@ def block_settings(block):
 
 
 def check_attempt(block):
-    """A ladder's re-run needs a reason (T050-13): its attempt is the next one the index shows, and the one before had an invalid run."""
-    if block["phase"] != "ladder":
+    """A re-run needs a reason (T050-13, D-058, as eval/p4_runner.py check_attempt): a ladder's or a campaign's attempt is the next one the index
+    shows, and the one before had an invalid run; a campaign's also a run missing, a class invalid or an unhealthy C (the block-level valid_all
+    of eval/l7v2_harm.py). A campaign holds one re-run per block and two in all (ml/p1_prereg_4.json reruns)."""
+    phase = block["phase"]
+    if phase not in ("ladder", "campaign"):
         return
-    mine = [x for x in read_index(block["root"]) if (x["phase"], x["block"], x["label"]) == ("ladder", block["seed"], block["label"])]
+    rows = read_index(block["root"])
+    mine = [x for x in rows if (x["phase"], x["block"]) == (phase, block["seed"]) and (phase == "campaign" or x["label"] == block["label"])]
     following = max((x["attempt"] for x in mine), default=0) + 1
     if block["attempt"] != following:
-        raise PlanError(f"ladder {block['label']} on seed {block['seed']}: attempt {block['attempt']}, and the index says the next is {following}")
-    if following > 1 and all(x["valid"] for x in mine if x["attempt"] == following - 1):
-        raise PlanError(f"ladder {block['label']} on seed {block['seed']}: attempt {following - 1} was valid, so nothing gives a re-run its reason")
+        raise PlanError(f"{phase} {block['label']} on seed {block['seed']}: attempt {block['attempt']}, and the index says the next is {following}")
+    if following == 1:
+        return
+    last = [x for x in mine if x["attempt"] == following - 1]
+    why = [x["run"] for x in last if not x["valid"]]
+    if phase == "ladder":
+        if not why:
+            raise PlanError(f"ladder {block['label']} on seed {block['seed']}: attempt {following - 1} was valid, so nothing gives a re-run its reason")
+        return
+    import l7v2_harm as LH
+
+    import l7_backend
+    rule = PT.prereg_4()["reruns"]
+    if following - 1 > rule["max_per_block"]:
+        raise PlanError(f"campaign block {block['seed']}: {following - 2} re-runs already, at most {rule['max_per_block']} per block (D-058)")
+    if not why:
+        cal = l7_backend.load_record(block["calibration"])[0]
+        try:
+            sound = LH.assess_block(os.path.join(block["root"], last[0]["block_dir"]), cal)["valid_all"]
+        except LH.HarmError:
+            sound = False
+        if sound:
+            raise PlanError(f"campaign block {block['seed']}: attempt {following - 1} had every run valid and a healthy C, and D-058 allows no re-run of it")
+    reruns = {x["block"] for x in rows if x["phase"] == "campaign" and x["attempt"] > 1}
+    if len(reruns - {block["seed"]}) >= rule["max_per_campaign"]:
+        raise PlanError(f"the campaign already holds {len(reruns)} re-run blocks, at most {rule['max_per_campaign']} (D-058)")
 
 
 def check_settings(block):

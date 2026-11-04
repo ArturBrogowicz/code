@@ -10,8 +10,8 @@ moves here. For each class:
     10 give no verdict, 'invalid (k of 10)' with their reasons (D-058, T050-05), which is not V-D either;
   * harm per block: Q of every live arm in the level window, from the attack's start + 90 s to its end (D-053, eval/l7v2_harm.py's
     figures); the whole attack window's Q is secondary, and admission reads that window, as registered;
-  * the budget, pooled over those blocks: live (D-044 OC-2), the benign users wrongly acted on in the arm's own M runs
-    (eval/p1_records.acted_on), and, reported beside it, the replay's benign units on the U runs;
+  * the budget: live (D-044 OC-2), the benign users wrongly acted on in the arm's own M runs (eval/p1_records.acted_on), pooled over all
+    attempts of all blocks, superseded and excluded ones too (D-058); and, reported beside it, the replay's benign units on the judged U runs;
   * detection per entity: each U run's recording through every arm (ml/l7v2_replay.py), the caught flags of the GRU, the HGB, the
     shuffled-GRU, R* and the age-only arm over the class's attack entities, with their block and family; l7v2_verdict reads the
     primary families (D-043) and reports the others;
@@ -183,6 +183,39 @@ def window_q(root, block, run, cal, window_of):
     return LH.window_figures(os.path.join(root, "campaign", block["dir"], run), cal, timeline, window_of(timeline))["Q"]
 
 
+def arm_runs(root, arm, cls):
+    """Every run of `arm` in the class over all attempts of the campaign, superseded and excluded ones too: the dirs that hold a manifest."""
+    name = RUN.run_name(arm, cls)
+    seen = []
+    for x in REC.index_lines(root):
+        if x["phase"] == "campaign" and x["run"] == name and x["dir"] not in seen:
+            seen.append(x["dir"])
+    return [os.path.join(root, d) for d in seen if os.path.isfile(os.path.join(root, d, D.MANIFEST_FILE))]
+
+
+def live_budget(root, arm, cls):
+    """(benign users wrongly acted on, benign users) of an arm in a class, pooled over all attempts (D-058, ml/p1_prereg_4.json over_all_attempts): an
+    arm's worst run does not vanish from the budget by being invalid. A run that never started has acted on nobody."""
+    flagged = users = 0
+    for run_dir in arm_runs(root, arm, cls):
+        man = REC.read_json(os.path.join(run_dir, D.MANIFEST_FILE))
+        if D.time_origin(man) is None:
+            continue
+        rec = REC.acted_on(man, P4._events(os.path.join(run_dir, "ban_events.jsonl")), REC.read_json(os.path.join(run_dir, "run.json")).get("budget"))
+        flagged += rec["benign_users"]
+        users += rec["benign_users_total"]
+    return flagged, users
+
+
+def bans_over_attempts(root, arm, cls):
+    """An arm's bans by engine in a class, over all attempts (D-058): {engine: count}."""
+    out = {}
+    for run_dir in arm_runs(root, arm, cls):
+        for engine, n in (REC.read_json(os.path.join(run_dir, "run.json")).get("bans_by_engine") or {}).items():
+            out[engine] = out.get(engine, 0) + n
+    return out
+
+
 def class_report(root, cal, cls, blocks, live, per_arm):
     """What is reported per class beside the verdict, and judges nothing (D-053, ml/p1_prereg_2.json reported_per_class; T050-11, T050-15,
     ml/p1_prereg_3.json reported): the whole attack window's Q; the server-side Q; the late window's Q; each run's largest view slip; time to
@@ -211,6 +244,7 @@ def class_report(root, cal, cls, blocks, live, per_arm):
             "server_q": per_block(lambda b, run: (b["runs"][run]["server"] or {}).get("Q")),
             "late_window_q": per_block(lambda b, run: window_q(root, b, run, cal, PT.late_window)),
             "largest_view_slip_s": per_block(lambda b, run: (b["runs"][run]["metrics"].get("view_slip") or {}).get("largest_s")),
+            "bans_over_attempts": {a: bans_over_attempts(root, a, cls) for a in live if a != "U"},
             "time_to_decision": ttd, "attack_cost_left": {"replay": replay, "live": measured}}
 
 
@@ -221,14 +255,9 @@ def class_inputs(root, cal, cls, blocks, live, frozen, arms_factory, on="Q"):
     budget = {"live": {a: [0, 0] for a in enforcing}, "replay": {a: [0, 0] for a in enforcing}}
     det = {"blocks": [], "families": [], "caught": {a: [] for a in DETECTION_ARMS}}
     per_arm, structured = {}, bool(blocks)
+    for a in enforcing:
+        budget["live"][a] = list(live_budget(root, a, cls))
     for b in blocks:
-        for a in enforcing:
-            run_dir = os.path.join(root, "campaign", b["dir"], RUN.run_name(a, cls))
-            rec = REC.acted_on(REC.read_json(os.path.join(run_dir, D.MANIFEST_FILE)),
-                               P4._events(os.path.join(run_dir, "ban_events.jsonl")),
-                               REC.read_json(os.path.join(run_dir, "run.json")).get("budget"))
-            budget["live"][a][0] += rec["benign_users"]
-            budget["live"][a][1] += rec["benign_users_total"]
         res, families, man = replay_block(root, b, cls, arms_factory, cal)
         structured = structured and any(e["kind_or_family"] == STRUCTURED_KIND for e in man["entities"])
         for a in enforcing:
