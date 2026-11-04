@@ -425,6 +425,9 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
             raise PlanError("a campaign runs the live set")
         pairs = live_runs(cut)
         levels = {c: knees.get(c) for c in sorted({c for _a, c in pairs} - {None})}
+        none = sorted(c for c, level in levels.items() if level is None)
+        if none:
+            raise PlanError(f"{', '.join(none)} has no knee at its reachable levels, and this campaign needs it (ml/p1_prereg_3.json ladder)")
     elif phase == "health":
         rule = PT.prereg()["halving"]
         if runs is not None or levels:
@@ -856,6 +859,18 @@ def block_settings(block):
             "code_sha256": hashlib.sha256(json.dumps(code, sort_keys=True).encode()).hexdigest()}
 
 
+def check_attempt(block):
+    """A ladder's re-run needs a reason (T050-13): its attempt is the next one the index shows, and the one before had an invalid run."""
+    if block["phase"] != "ladder":
+        return
+    mine = [x for x in read_index(block["root"]) if (x["phase"], x["block"], x["label"]) == ("ladder", block["seed"], block["label"])]
+    following = max((x["attempt"] for x in mine), default=0) + 1
+    if block["attempt"] != following:
+        raise PlanError(f"ladder {block['label']} on seed {block['seed']}: attempt {block['attempt']}, and the index says the next is {following}")
+    if following > 1 and all(x["valid"] for x in mine if x["attempt"] == following - 1):
+        raise PlanError(f"ladder {block['label']} on seed {block['seed']}: attempt {following - 1} was valid, so nothing gives a re-run its reason")
+
+
 def check_settings(block):
     """A campaign at one setting: refuse a block whose settings differ from an earlier block's."""
     if block["phase"] != "campaign":
@@ -874,6 +889,7 @@ def check_settings(block):
 
 def run_block(host, block):
     """Every run of a block in its order; each in ROOT/index.jsonl before it begins and when it ends, valid or not."""
+    check_attempt(block)
     check_settings(block)
     if os.path.exists(block["dir"]):
         raise PlanError(f"{block['dir']} exists: an attempt is never overwritten (use the next --attempt)")
@@ -920,7 +936,7 @@ def main(argv=None, host=None):
     ap.add_argument("--label", default="")
     ap.add_argument("--cut", action="store_true", help="campaign: section 14's minimum cut")
     ap.add_argument("--calibration", default=P4.PLACEHOLDER)
-    ap.add_argument("--knees", help="campaign: the frozen knees (JSON: status, record_sha256, benign_halvings, C2, C3a, C3b)")
+    ap.add_argument("--knees", help="campaign: the frozen knees, what eval/p1_analysis.py --ladder writes")
     ap.add_argument("--halvings", type=int, help="smoke, health: how often the halving rule has fired (ml/p1_prereg.json)")
     ap.add_argument("--health", help="ladder, campaign: the rule's frozen factor (eval/p1_analysis.py --health)")
     ap.add_argument("--address-limit", type=int, help="smoke: read a level above the verified address limit (E-2)")

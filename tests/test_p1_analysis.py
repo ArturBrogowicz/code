@@ -332,6 +332,7 @@ class LadderTest(unittest.TestCase):
         self.assertEqual(A.main([root, "--calibration", frozen["calibration"], "--ladder", "--out", out]), 0)
         self.assertEqual(REC.read_json(out)["record_sha256"], calibration_fixtures.frozen()["sha256"])
         self.assertEqual(json.loads(json.dumps(REC.read_json(out)["knees"]["C2"]))["level"], 2.0)
+        self.assertEqual(REC.read_json(out)["C2"], 2.0)
         self.assertEqual(REC.read_json(out)["benign_halvings"], 0)
 
     def test_a_ladder_at_two_factors_is_refused(self):
@@ -403,6 +404,72 @@ class LevelWindowTest(unittest.TestCase):
         self.assertEqual((left, sent), (63.0, 93.0))
         # a decision after the gate rules: at 140 s + 10 s the same request is still served
         self.assertEqual(RP.cost_left(requests, first, {"a": 40.0}, {"C3": 30.0, "C1": 3.0}, 20.0, 10.0)[0], 93.0)
+
+
+class LadderAttemptsTest(unittest.TestCase):
+    """T050-13: one invalid run does not sink its level for good; a re-run needs a reason; --ladder's file is what a campaign takes."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = tmp.name
+        self.frozen = F.frozen_inputs(os.path.join(tmp.name, "frozen"))
+        self.cal = l7_backend.load_record(self.frozen["calibration"])[0]
+        self.root = os.path.join(tmp.name, "runs")
+
+    def pair(self, cls, level, rep, seed=9001, attempt=1, share=0.30, **host):
+        def fail(run, _b, _t, s=share, name=f"U_{cls}"):
+            return s if run == name else 0.0
+        block = R.plan_block("ladder", seed, self.root, frozen=self.frozen, levels={cls: level}, runs=["C", f"U_{cls}"],
+                             label=f"{cls}_L{level:g}_r{rep}", attempt=attempt, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        return R.run_block(F.P1FakeHost(fail_share=fail, **host), block)
+
+    def test_a_clean_re_run_restores_its_level(self):
+        self.pair("C2", 1.0, 1, quiet_from=60.0)
+        self.pair("C2", 1.0, 2, seed=9002)
+        self.assertIsNone(A.ladder_knees(self.root, self.cal)["C2"]["level"], "repeat 1's only attempt is invalid: no harm")
+        self.pair("C2", 1.0, 1, attempt=2)
+        self.assertEqual(A.ladder_knees(self.root, self.cal)["C2"]["level"], 1.0)
+
+    def test_the_last_sound_attempt_counts_and_an_invalid_later_one_does_not_erase_it(self):
+        self.pair("C2", 1.0, 1, quiet_from=60.0)
+        self.pair("C2", 1.0, 1, attempt=2)
+        self.pair("C2", 1.0, 2, seed=9002)
+        self.assertEqual(A.ladder_knees(self.root, self.cal)["C2"]["level"], 1.0)
+
+    def test_a_re_run_needs_a_reason(self):
+        self.pair("C2", 1.0, 1)
+        with self.assertRaisesRegex(R.PlanError, "attempt 1 was valid"):
+            self.pair("C2", 1.0, 1, attempt=2)
+        with self.assertRaisesRegex(R.PlanError, "the next is 2"):
+            self.pair("C2", 1.0, 1, attempt=3)
+
+    def test_the_file_is_the_one_a_campaign_takes(self):
+        for cls, level in (("C2", 1.0), ("C3a", 1.0), ("C3b", 50)):
+            self.pair(cls, level, 1)
+            self.pair(cls, level, 2, seed=9002)
+        out = os.path.join(self.tmp, "knees.json")
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(A.main([self.root, "--calibration", self.frozen["calibration"], "--ladder", "--out", out]), 0)
+        got = REC.read_json(out)
+        self.assertEqual((got["C2"], got["C3a"], got["C3b"], got["no_knee"], got["status"]), (1.0, 1.0, 50, [], "frozen"))
+        self.assertEqual((got["record_sha256"], got["benign_halvings"]), (self.cal["sha256"], 0))
+        block = R.plan_block("campaign", SEEDS[0], self.root, frozen={**self.frozen, "knees": out}, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        self.assertEqual(block["levels"], {"C2": 1.0, "C3a": 1.0, "C3b": 50})
+
+    def test_a_class_without_a_knee_is_named_and_refused_when_needed(self):
+        for cls, level, share in (("C2", 1.0, 0.30), ("C3a", 1.0, 0.0), ("C3b", 50, 0.30)):
+            self.pair(cls, level, 1, share=share)
+            self.pair(cls, level, 2, seed=9002, share=share)
+        got = A.knees_file(self.root, self.cal)
+        self.assertEqual((got["C3a"], got["no_knee"]), (None, ["C3a"]))
+        path = os.path.join(self.tmp, "knees.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(got, fh)
+        with self.assertRaisesRegex(R.PlanError, "C3a has no knee"):
+            R.plan_block("campaign", SEEDS[0], self.root, frozen={**self.frozen, "knees": path}, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        block = R.plan_block("campaign", SEEDS[0], self.root, frozen={**self.frozen, "knees": path}, cut=True, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        self.assertEqual(sorted(block["levels"]), ["C2", "C3b"])
 
 
 class CampaignSettingsTest(unittest.TestCase):

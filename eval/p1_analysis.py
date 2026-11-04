@@ -24,7 +24,8 @@ replays, per block and per family, and the age-only arm's recall at its frozen p
 view_level_contrasts, every contrast of the judge's output naming a view-level arm with that reading beside it.
 
 ladder_knees() reads a finished ladder (phase ladder) into the knees a campaign needs: per class the lowest level whose harm
-reaches the floor in both repeats (bench/calibration.knee, harm as bench/calibrate.harm against the session's control).
+reaches the floor in both repeats (bench/calibration.knee, harm as bench/calibrate.harm against the session's control), each repeat by its
+last sound attempt. --ladder writes the file a campaign takes (--knees).
 
 health_result() reads the halving rule's steps (phase health, ml/p1_prereg.json) into the next step, the frozen factor or a refusal,
 in the file that the ladder and the campaign take (--health). Its exit code is 1 on a refusal.
@@ -355,30 +356,46 @@ def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, p
 # --- the ladder --------------------------------------------------------------------------------------
 
 def ladder_knees(root, cal):
-    """The knees of a finished ladder: {class: bench/calibration.knee's result}, harm as bench/calibrate.harm against the attempt's
-    own control. A level with an invalid run, or that the plan refused, counts as no harm: never as passing."""
+    """The knees of a finished ladder: {class: bench/calibration.knee's result}, harm as bench/calibrate.harm against the attempt's own
+    control. Per (class, level, repeat) the last attempt with both runs sound counts (T050-13, ml/p1_prereg_3.json ladder): a clean re-run
+    restores a level, and one with no sound attempt, or that the plan refused, counts as no harm: never as passing."""
     import calibrate as K
     gate = cal["gate"]
-    rows = {}
+    attempts = {}
     for x in REC.index_lines(root):
-        if x["phase"] != "ladder" or not x["label"]:
-            continue
-        m = LADDER_LABEL.match(x["label"])
-        if m is None or x["run"] == "C":
-            continue
-        bdir = os.path.join(root, x["block_dir"])
-        try:
-            b = LH.assess_block(bdir, cal)
-        except LH.HarmError:
-            b = {"runs": {}, "classes": {}}
-        control, attack = b["runs"].get("C"), b["runs"].get(x["run"])
+        m = LADDER_LABEL.match(x["label"] or "") if x["phase"] == "ladder" else None
+        if m is not None and x["run"] != "C":
+            key = (m.group("cls"), float(m.group("level")), int(m.group("repeat")))
+            attempts.setdefault(key, []).append((x["attempt"], x["block_dir"], x["run"]))
+    rows = {}
+    for (cls, level, _repeat), tries in sorted(attempts.items()):
         harm = 0.0
-        if control and attack and control["checks"].get("ok") and attack["checks"].get("ok"):
-            h, _parts = K.harm([control["metrics"]], attack["metrics"], gate["floor_pp"], gate["floor_log2_p95"])
-            harm = h or 0.0
-        cls, level = m.group("cls"), float(m.group("level"))
+        for _attempt, block_dir, run in sorted(tries, reverse=True):
+            try:
+                b = LH.assess_block(os.path.join(root, block_dir), cal)
+            except LH.HarmError:
+                continue
+            control, attack = b["runs"].get("C"), b["runs"].get(run)
+            if control and attack and control["checks"].get("ok") and attack["checks"].get("ok"):
+                h, _parts = K.harm([control["metrics"]], attack["metrics"], gate["floor_pp"], gate["floor_log2_p95"])
+                harm = h or 0.0
+                break
         rows.setdefault(cls, {}).setdefault(level, []).append(harm)
     return {cls: CAL.knee(sorted(levels.items()), 1.0, 2) for cls, levels in sorted(rows.items())}
+
+
+def knees_file(root, cal):
+    """What --ladder writes and --knees takes (T050-13): each class's level at the top of the file, null and named under no_knee for a class
+    without one, bound to the record and the factor. A campaign that needs a class without a knee refuses."""
+    knees = ladder_knees(root, cal)
+    levels, none = {}, []
+    for cls in sorted(PT.PRIMARY):
+        level = (knees.get(cls) or {}).get("level")
+        levels[cls] = None if level is None else (int(level) if cls == "C3b" else float(level))
+        if level is None:
+            none.append(cls)
+    return {"format": "p1-knees/1", "status": cal.get("status"), "record_sha256": cal.get("sha256"), "record_status": cal.get("status"),
+            "benign_halvings": ladder_factor(root), **levels, "no_knee": none, "knees": knees}
 
 
 def ladder_factor(root):
@@ -497,8 +514,8 @@ def main(argv=None):
         print(f"the frozen points on the pilot's benign traffic: {res['status']}; over the budget: {res['over_budget']}; "
               f"seeds missing: {res['missing_seeds']}")
     elif args.ladder:
-        res = {"format": "p1-ladder/1", "record_sha256": cal.get("sha256"), "record_status": cal.get("status"),
-               "benign_halvings": ladder_factor(args.root), "knees": ladder_knees(args.root, cal)}
+        res = knees_file(args.root, cal)
+        print(f"the knees: { {c: res[c] for c in sorted(PT.PRIMARY)} }; no knee: {res['no_knee']}")
     else:
         frozen = {"selection": args.selection, "selection_sha256": args.selection_sha256, "rules": args.rules,
                   "rules_sha256": args.rules_sha256}
