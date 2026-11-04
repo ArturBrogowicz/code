@@ -61,6 +61,7 @@ import random
 import re
 import shutil
 import sys
+import types
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -96,6 +97,7 @@ DAEMON_READY_TIMEOUT_S, STACK_READY_TIMEOUT_S = 90.0, 30.0
 LOG_GAP_MAX_S = 10.0                       # [ASSUMPTION] design 5.4's "the file-sink log has no gaps"
 SHADOW_THREAD = "thread:l7_shadow"          # control_plane.supervise's `where` of the shadow thread
 ARM_STEP = "l7_enforce"                     # control_plane's `where` of a failed step of the enforcing arm
+TIMER_WAIT_MIN = 30.0                       # bench/executor.py timer_gate's default wait: every run may use it in full
 SETUP_S = 45                               # [ESTIMATE] design 14: a run's set-up and teardown
 GUNICORN = {"backend": "costed", "gunicorn_workers": 2, "gunicorn_threads": 8}     # design 4.3
 PROVENANCE_FILES = ("nginx.conf", "nginx_unprotected.conf", "control_plane.py", "l7_enforce.py", "l7_arms.py", "l7_conf.py",
@@ -463,6 +465,8 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
         ages = PT.age_report(pop)
         planned = [plan_run(pop, phase, *names[n], os.path.join(bdir, n), frozen, python=python, age=ages.get(names[n][1]))
                    for n in order]
+        for run in planned:
+            run["timer_limit_ms"] = record["validity"]["timer_p99_ms"]
     except PT.PlanError as exc:
         raise PlanError(str(exc)) from exc
     return {"phase": phase, "seed": seed, "attempt": attempt, "label": label, "dir": bdir, "root": root, "order": order,
@@ -476,6 +480,18 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
 def vm_minutes(n_runs, setup_s=SETUP_S):
     """The VM time of `n_runs` runs [ESTIMATE of the set-up, design 14]."""
     return n_runs * (PT.run_seconds() + setup_s) / 60.0
+
+
+def timer_gate(host, plan, ctx):
+    """The harm benchmark's gate before a run (T050-11, ml/p1_prereg_3.json run_validity): the legit CPU's timer, at the record's limit, with its
+    wait. HG2's record was measured under it. Its probes go into run.json. Returns the refusal's text, or None."""
+    gate = types.SimpleNamespace(pins={"legit": PINS["legit"]}, timer_limit_ms=plan["timer_limit_ms"], overrides={})
+    try:
+        ctx["timer"] = X.timer_gate(host, gate, TIMER_WAIT_MIN)[1]
+    except X.EnvironmentRefused as exc:
+        ctx["timer"] = getattr(exc, "record", None)
+        return f"the timer gate refused the run: {exc}"
+    return None
 
 
 def describe(block):
@@ -597,6 +613,9 @@ def execute_run(host, plan, frozen_sums):
         return finish(host, plan, [f"leftover namespaces {left}: nothing was started"], ctx)
     if plan["enforcing"] and host.exists(plan["kill_file"]):
         return finish(host, plan, [f"the kill file {plan['kill_file']} exists: nothing was started"], ctx)
+    refused = timer_gate(host, plan, ctx)
+    if refused:
+        return finish(host, plan, [f"{refused}: nothing was started"], ctx)
     try:
         if plan["nginx"]["deny_dir"]:               # nginx refuses an include of a missing file
             l7_denymap.prepare_run_dir(plan["nginx"]["deny_dir"], **(plan["spec"]["deny_kw"] if m_arms_pending() is None else {}))
@@ -700,7 +719,7 @@ def finish(host, plan, reasons, ctx):
             "checks": {"ok": ok, "reasons": reasons},
             "started_utc": P4._utc(ctx["started"]), "ended_utc": P4._utc(ended),
             "daemon": None if plan["daemon"] is None else {"env": plan["daemon"]["env"]},
-            "sink": sink, "runner": runner_report(ctx),
+            "sink": sink, "runner": runner_report(ctx), "timer": ctx.get("timer"),
             "shadow": shadow_report(events, plan, t0, sink) if plan["daemon"] and t0 is not None else None,
             "bans_by_engine": {engine: len(rows) for engine, rows in sorted(run_bans(events).items())},
             "provenance": provenance(plan, ctx["sums"])}

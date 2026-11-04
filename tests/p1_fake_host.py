@@ -13,7 +13,8 @@ What it models, as far as the runner's and the analysis's inputs need it:
     environment (`start_overrides` to make it lie), with L7_ENFORCE=1 an l7_enforce_arm event (`arm_overrides`), and then the events
     `acts(run, block_dir)` gives as (seconds after its start, event). When it stops, with L7_SHADOW=1, an l7_shadow report: what it received
     and parsed is what the socket sink carried, every line if nginx's conf has the sink, `parsed_share` of them, and nothing if it has none;
-  * an address in `silent` sends nothing, whatever its generator says (T050-08).
+  * an address in `silent` sends nothing, whatever its generator says (T050-08);
+  * the timer probe of bench/executor.py answers with `timer_p99`, a value or a list taken in turn, the last one repeating.
 frozen_inputs() writes the frozen items a campaign checks: a frozen record with the placeholder's numbers, knees bound to it,
 and small but well-formed selections. They are fixtures, not results.
 """
@@ -49,17 +50,21 @@ def _sid(seed, user):
 
 class P1FakeHost(F.FakeHost):
     def __init__(self, *, fail_share=None, acts=None, quiet_from=None, armed=True, start_overrides=None, arm_overrides=None,
-                 rule_arm="cost_budget", parsed_share=1.0, silent=(), **kw):
+                 rule_arm="cost_budget", parsed_share=1.0, silent=(), timer_p99=2.0, **kw):
         super().__init__(**kw)
         self.fail_share = fail_share or (lambda _run, _block, _t: 0.0)
         self.acts, self.quiet_from = acts or (lambda _run, _block: []), quiet_from
         self.armed, self.start_overrides, self.arm_overrides = armed, dict(start_overrides or {}), dict(arm_overrides or {})
         self.rule_arm, self.parsed_share, self.silent = rule_arm, parsed_share, set(silent)
         self.socket_sink, self.heartbeat = False, None
+        self.timer_p99 = list(timer_p99) if isinstance(timer_p99, (list, tuple)) else [timer_p99]
         self.sink, self.lines, self.run_name, self.block_dir, self.n_request = None, [], None, None, 0
 
     def run(self, argv, ns="", stdin="", env=None, timeout=None):
         argv = list(argv)
+        if "timer-probe" in argv:
+            p99 = self.timer_p99.pop(0) if len(self.timer_p99) > 1 else self.timer_p99[0]
+            return F.X.Result(0, "" if p99 is None else json.dumps({"p50_ms": 1.0, "p99_ms": p99, "max_ms": p99 + 1.0}), "")
         if "nginx" in argv and "-s" not in argv:
             conf = argv[argv.index("nginx") + 2]
             with open(conf, encoding="utf-8") as fh:

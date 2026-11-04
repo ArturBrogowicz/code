@@ -463,6 +463,43 @@ class ExecuteTest(Base):
         self.assertEqual(index(self.root)[0]["label"], "C2_L1_r1")
 
 
+class TimerGateTest(Base):
+    """T050-11: the harm benchmark's gate before a run, at the record's limit, with its probes in run.json."""
+
+    def run_with(self, p99):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, runs=["C"], label=f"t{len(os.listdir(self.root))}", benign_specs=F.thin_benign())
+        host = F.P1FakeHost(timer_p99=p99)
+        res = dict(R.run_block(host, block))["C"]
+        return res, read_json(os.path.join(block["dir"], "C", "run.json")), host
+
+    def test_the_limit_is_the_record_s(self):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, runs=["C"], label="l", benign_specs=F.thin_benign())
+        self.assertEqual(block["runs"][0]["timer_limit_ms"], 10.0)
+
+    def test_a_quiet_timer_passes_and_its_probe_is_recorded(self):
+        res, meta, _h = self.run_with(2.0)
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertEqual((meta["timer"]["timer_limit_ms"], meta["timer"]["timer_refused_probes"], meta["timer"]["timer_probes"][0]["p99_ms"]), (10.0, 0, 2.0))
+
+    def test_a_refused_probe_waits_and_passes_with_its_wait_recorded(self):
+        res, meta, _h = self.run_with([50.0, 12.0, 3.0])
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertEqual((len(meta["timer"]["timer_probes"]), meta["timer"]["timer_refused_probes"]), (3, 2))
+        self.assertGreaterEqual(meta["timer"]["timer_waited_s"], 60.0)
+
+    def test_a_timer_that_never_passes_starts_nothing(self):
+        res, meta, host = self.run_with(50.0)
+        self.assertFalse(res["ok"])
+        self.assertTrue(any("the timer gate refused the run" in r and "nothing was started" in r for r in res["reasons"]), res["reasons"])
+        self.assertGreater(meta["timer"]["timer_refused_probes"], 10)
+        self.assertEqual([c for c in host.commands if c[2] == "popen"], [], "no process was started")
+
+    def test_an_unreadable_probe_is_a_refused_one(self):
+        res, meta, _h = self.run_with([None, 2.0])
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertEqual(meta["timer"]["timer_refused_probes"], 1)
+
+
 class RunnerReportTest(Base):
     def test_the_runner_s_lateness_is_reported(self):
         block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, runs=["C"], label="r", benign_specs=F.thin_benign())
