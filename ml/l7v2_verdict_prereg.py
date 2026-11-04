@@ -1,6 +1,6 @@
 """The L7 v2 verdict pre-registration (docs/L7V2_DESIGN.md section 11 and section 13 item 4): the verdict ladder, the
 effect sizes, the fixed testing order, the live set per block, R*'s definition, the statistics, the judging choices the
-user settled (D-044) and each class's detection entities (D-043), read from the committed l7v2_verdict_prereg_v3.json.
+user settled (D-044) and each class's detection entities (D-043), read from the committed l7v2_verdict_prereg_v4.json.
 
 Pure and standard library only. load() checks the file's format and its internal consistency; tests pin every value,
 and the verdict code (ml/l7v2_verdict.py) reads its constants from here, so code and pre-registration cannot drift.
@@ -9,8 +9,8 @@ import json
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PREREG_PATH = os.path.join(HERE, "l7v2_verdict_prereg_v3.json")
-FORMAT = "l7v2-verdict-prereg/3"
+PREREG_PATH = os.path.join(HERE, "l7v2_verdict_prereg_v4.json")
+FORMAT = "l7v2-verdict-prereg/4"
 VERDICTS = ("V-D", "V-A", "V-B", "V-C", "inconclusive")
 STEPS = ("harm_admission", "budget", "mitigation", "v_a", "best_learned_vs_rstar", "gru_vs_hgb", "gru_vs_shuffled")
 
