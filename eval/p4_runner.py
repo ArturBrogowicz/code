@@ -24,7 +24,8 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     shares the worker connections an attack exhausts, so judging it would make the harm itself invalid;
   * the per-run labels (p4_traffic.roles: attack, slow_uploader, cgnat, the kind) in manifest.json and in
     slow_pc_manifest.json, the input of eval/p4_validation.py;
-  * checks: the stack answered, every generator started and ended cleanly, the daemon was ready before the traffic
+  * checks: the stack answered, every generator started on time and ended cleanly, no client stalled in mid-life (stall_reading()),
+    the daemon was ready before the traffic
     and alive to the end with XDP attached, the attack ran (review T-047 P-06: its generators' stats, attack_summary()), the
     record exists, the kill file stayed absent, and (D-035, V-08 of review
     T-039) in an M_pc or validation run the rule's slow_pc_poll
@@ -119,6 +120,7 @@ STOP_GRACE_S = 10.0
 # so a higher floor would call the harm itself invalid, the trap of stub_status (D-050, P-02).
 ATTACK_MIN_OPENED_SHARE = 0.5
 SLOW_PC_POLL_GAP_S = 10.0          # D-035 (V-08): the longest silence of the rule in an M_pc or validation run
+STALL_BOUND_S = 10.0               # T-052: never_sent_after_s (ml/l7v2_prereg.json), past which a late view fails in Q; and STOP_GRACE_S
 # the variables that select the daemon's mode, set, so that the operator's environment cannot change it (bench/executor.py
 # DAEMON_ENV); MITIGATION_BACKEND is XDP in every P4 arm
 DAEMON_BASE_ENV = {"XDP_GRU": "0", "GRU_ONLY": "0", "L7_SHADOW": "0", "L7_MODEL": "", "L7_RECORD": "",
@@ -505,7 +507,7 @@ def execute_run(host, plan):
             while pending and pending[0]["start_s"] <= now:
                 x = pending.pop(0)
                 try:
-                    launched.append((x, host.popen(x["argv"], ns=x["ns"], cwd=REPO)))
+                    launched.append(({**x, "lag_s": host.time() - t0 - x["start_s"]}, host.popen(x["argv"], ns=x["ns"], cwd=REPO)))
                 except OSError as exc:
                     reasons.append(f"{x['entity_id']} did not start: {exc}")
             r = host.run(["curl", "-s", "--max-time", "1", STUB_STATUS_URL], ns=SERVER_NS)
@@ -562,6 +564,8 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
             teardown(host, plan)
     ended = host.time()
     reasons += checks(host, plan, t0, launched)
+    stall = stall_reading(plan, t0, launched, stub) if t0 is not None else None
+    reasons += stall_reasons(stall) if stall else []
     import executor
     daemon_prov = executor.daemon_provenance(host) if plan["daemon"] else None
     if daemon_prov and t0 is not None and not daemon_prov["h01"]["has_fix"]:
@@ -577,7 +581,7 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
             "daemon": None if plan["daemon"] is None else {"mode": plan["daemon"]["mode"],
                                                            "env": plan["daemon"]["env"]},
             "thresholds": plan["thresholds"], "provenance": plan["provenance"],
-            "attack": attack_summary(plan) if t0 is not None else None, "daemon_provenance": daemon_prov,
+            "attack": attack_summary(plan) if t0 is not None else None, "stall": stall, "daemon_provenance": daemon_prov,
             "git": executor.git_state(host)}
     write_json(os.path.join(out, "run.json"), meta)
     write_json(os.path.join(out, "manifest.json"), manifest(plan, t0))
@@ -605,6 +609,77 @@ def attack_summary(plan):
         for key in ("opened", "reopened", "failed_opens", "local_errors", "sent_bytes"):
             out[key] += stats.get(key, 0)
     return out
+
+
+def view_slips(rows, planned, origin, end):
+    """{(user, view): seconds late} of one generator's views against each device's own closed-loop schedule, the intended start of
+    eval/l7v2_harm.with_never_sent: the completion of the device's previous view plus that one's pause (the first view's is its
+    nominal start). A slow or refusing server moves that completion, so it does not raise a slip: only the client's own lateness
+    does. A view that never started and was due before the generator's end is late by at least what was left of it. A view that
+    never completed leaves nothing to read the device's later views against: it was still busy with that view, as one hanging on
+    a banned address is at its generator's end, and that must not read as a stall (review T-050 T050-16)."""
+    sent = {}
+    for r in rows:
+        if not math.isnan(r["t_sent"]):
+            sent.setdefault((r["user"], r["view"]), []).append(r)
+    slips = {}
+    for user in sorted({u for u, _v in planned}):
+        intended = None
+        for key in sorted(k for k in planned if k[0] == user):
+            t_rel, classes, pause = planned[key]
+            intended = origin + t_rel if intended is None else intended
+            if intended >= end:
+                break
+            got = sent.get(key, [])
+            slips[key] = (min(r["t_sent"] for r in got) if got else end) - intended
+            done = [r["t_done"] for r in got if not math.isnan(r["t_done"])]
+            if classes and len(done) < len(classes):
+                break
+            intended = (max(done) if classes else intended) + pause
+    return slips
+
+
+def stall_reading(plan, t0, launched, stub):
+    """What a stall in mid-life leaves (review T-050, post-verdict): over the generators whose rows are in Q (an uploader writes none
+    and is in no Q), the largest view slip and how many views passed STALL_BOUND_S; the largest launch lag; and the largest gap of
+    the runner's own loop, which judges nothing: the stack's samples are never a validity rule (D-050), and a runner that stalled after
+    its launches changed no client's traffic."""
+    import l7v2_harm as LH
+    out = {"bound_s": STALL_BOUND_S, "largest_view_slip_s": None, "entity": None, "view": None, "views": 0, "views_over_bound": 0,
+           "no_records": [], "largest_launch_lag_s": max((x["lag_s"] for x, _p in launched), default=None), "late_launch": None,
+           "largest_loop_gap_s": max((b["t"] - a["t"] for a, b in itertools.pairwise(stub)), default=None)}
+    if launched:
+        out["late_launch"] = max(launched, key=lambda item: item[0]["lag_s"])[0]["entity_id"]
+    for e in plan["entities"]:
+        if e["role"] != "benign" or e["kind_or_family"] not in _recorded_kinds():
+            continue
+        try:
+            rows = LH.read_client_records(records_path(plan["out"], e))
+        except (OSError, ValueError, TypeError):
+            out["no_records"].append(e["entity_id"])
+            continue
+        dur = e["schedule"]["stop_s"] - e["schedule"]["start_s"]
+        origin = rows[0]["t_origin"] if rows else t0 + e["schedule"]["start_s"]
+        slips = view_slips(rows, LH.planned_views(e, dur), origin, origin + dur)
+        out["views"] += len(slips)
+        out["views_over_bound"] += sum(1 for s in slips.values() if s > STALL_BOUND_S)
+        for key, slip in slips.items():
+            if out["largest_view_slip_s"] is None or slip > out["largest_view_slip_s"]:
+                out.update(largest_view_slip_s=slip, entity=e["entity_id"], view=list(key))
+    return out
+
+
+def stall_reasons(stall):
+    """What of stall_reading() makes a run invalid: a loss in Q that nothing else would name."""
+    reasons = []
+    if stall["views_over_bound"]:
+        reasons.append(f"a client stalled: {stall['views_over_bound']} views more than {STALL_BOUND_S:g} s late, the latest "
+                       f"{stall['largest_view_slip_s']:.1f} s ({stall['entity']}, user {stall['view'][0]} view {stall['view'][1]})")
+    if stall["no_records"]:
+        reasons.append(f"{len(stall['no_records'])} benign generators left no readable records, the first {stall['no_records'][0]}")
+    if (stall["largest_launch_lag_s"] or 0) > STALL_BOUND_S:
+        reasons.append(f"{stall['late_launch']} was launched {stall['largest_launch_lag_s']:.1f} s late (more than {STALL_BOUND_S:g} s)")
+    return reasons
 
 
 def checks(host, plan, t0, launched):
@@ -871,6 +946,7 @@ def run_record(run_dir, cal, block=None, attempt=1):
         if t.get("t0_wall") is not None and meta["daemon"] is not None:
             ban_problem = "the file is gone"
     closes = [e for e in events if e.get("kind") == "slow_pc_close" and e.get("enforced")]
+    slip = ((meta or {}).get("stall") or {}).get("largest_view_slip_s")
     seed = man["seed"] if block is None else block
     with open(os.path.join(os.path.dirname(run_dir), "block.json"), encoding="utf-8") as fh:
         settings = json.load(fh)["settings"]
@@ -878,7 +954,7 @@ def run_record(run_dir, cal, block=None, attempt=1):
         empty = {"Q": None, "p95_s": None, "q_per_s": [None] * OUT.RUN_S, "by_class": {}}
         return OUT.summarize(seed, man["arm"], False, empty, {"Q": None}, events, man["roles"], closes,
                              level_window=OUT.LEVEL_WINDOW_S, attempt=attempt, cal=cal, settings=settings, ban_problem=ban_problem,
-                             reasons=meta["checks"]["reasons"] if meta else ["the runner died in this run"])
+                             reasons=meta["checks"]["reasons"] if meta else ["the runner died in this run"], view_slip_s=slip)
     total = sum(t[k] for k in ("baseline_s", "attack_s", "recovery_s"))
     attack = (t["baseline_s"], t["baseline_s"] + t["attack_s"])
     rows, t0, _cover = LH.run_rows(run_dir, man, attack)
@@ -890,7 +966,7 @@ def run_record(run_dir, cal, block=None, attempt=1):
     refused = refusals(log, man, attack) if os.path.isfile(log) else None
     return OUT.summarize(seed, man["arm"], meta["checks"]["ok"], m, level, events, man["roles"], closes,
                          level_window=lw, attempt=attempt, refused=refused, cal=cal, settings=settings, ban_problem=ban_problem,
-                         reasons=meta["checks"]["reasons"])
+                         reasons=meta["checks"]["reasons"], view_slip_s=slip)
 
 
 def summarize_root(root, calibration, out_path):

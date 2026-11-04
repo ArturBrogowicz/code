@@ -81,7 +81,7 @@ class FakeHost(X.Host):
                  nginx_fails=False, daemon_dies_at=None, daemon_startup_s=3.0, gen_fails=(), gen_code=3,
                  poll_every_s=1.0, modelled_attackers=None, harm=None, fail_prim=None, limit_refuses=0.0,
                  gen_late=None, stub_fails=None, ss_fails=None, attack_fails=False, attack_opened_share=1.0, no_socket_of=(),
-                 garbled_bans=False, ban_file_lost=False):
+                 garbled_bans=False, ban_file_lost=False, gen_stall=None, runner_stall=None):
         self.t = 0.0
         self.root, self.netns, self.stack_ready, self.nginx_fails = root, list(netns), stack_ready, nginx_fails
         self.kill_file, self.kill_appears_at = kill_file, kill_appears_at
@@ -93,6 +93,8 @@ class FakeHost(X.Host):
         self.ss_fails = ss_fails                # True: `ss` fails on every poll; (lo, hi): over those seconds of the run
         self.no_socket_of = set(no_socket_of)   # benign kinds whose generators hold no socket the rule can see
         self.garbled_bans, self.ban_file_lost = garbled_bans, ban_file_lost     # the daemon's BAN_EVENTS, as a run leaves it
+        self.gen_stall = dict(gen_stall or {})  # address -> (seconds after the generator's start, seconds it stalls): its views slip
+        self.runner_stall = runner_stall        # (seconds of the run, seconds): one of the runner's own sleeps overruns by that
         self.pids, self.seq = itertools.count(100), itertools.count()
         self.events, self.commands, self.prims, self.procs = [], [], [], []
         self.reset_world()
@@ -118,6 +120,9 @@ class FakeHost(X.Host):
         heapq.heappush(self.events, (t, next(self.seq), fn))
 
     def sleep(self, seconds):
+        if self.runner_stall and self.run_t0 is not None and self.t - self.run_t0 >= self.runner_stall[0]:
+            seconds += self.runner_stall[1]
+            self.runner_stall = None
         end = self.t + seconds
         while self.events and self.events[0][0] <= end:
             t, _s, fn = heapq.heappop(self.events)
@@ -277,6 +282,8 @@ class FakeHost(X.Host):
                 every = round(1 / self.limit_refuses) if self.limits and self.limit_refuses \
                     and p.name == "cgnat_browsers" else 0
                 for k, (t_nom, vi, wi, path) in enumerate(items):
+                    stall_at, stall_s = self.gen_stall.get(p.ip, (p.dur, 0.0))
+                    t_nom += stall_s if t_nom >= stall_at else 0.0
                     if t_nom >= p.dur:
                         continue
                     sent = origin + t_nom

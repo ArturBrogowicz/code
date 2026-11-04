@@ -174,13 +174,14 @@ def control_health(metrics, cal):
 
 
 def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow_pc_closes=(), *, level_window,
-              attempt, refused=None, cal=None, settings=None, ban_problem=None, reasons=()):
+              attempt, refused=None, cal=None, settings=None, ban_problem=None, reasons=(), view_slip_s=None):
     """One run record from the run's harm-gate metrics (eval/harm_gate.run_metrics: over the attack
     window, and with window=LEVEL_WINDOW_S for `level_metrics`; `level_window` is the window the caller
     took it over, and must be LEVEL_WINDOW_S), its ban events and the role of every client address.
     Every banned address, and every address with a closed connection, must have a role. A run of C also states
     its health (D-046): `cal` is the calibration record whose SLOs its classes were judged by. `settings` are its block's
-    (eval/p4_runner.py block_settings): the outcome refuses a mix. `ban_problem` says why the bans given may not be all of them; `reasons` why the run is invalid."""
+    (eval/p4_runner.py block_settings): the outcome refuses a mix. `ban_problem` says why the bans given may not be all of them; `reasons` why the run is invalid; `view_slip_s` is the largest
+    lateness of a client against its own schedule (eval/p4_runner.py stall_reading)."""
     check_record_timeline(metrics["q_per_s"], level_window)
     banned = {}
     for ev in ban_events:
@@ -204,7 +205,7 @@ def summarize(block, arm, valid, metrics, level_metrics, ban_events, roles, slow
             "q_per_s": list(metrics["q_per_s"]), "q_level": level_metrics["Q"],
             "level_window": [float(x) for x in level_window], "banned": banned, "benign_closed": benign_closed,
             "refused": refused, "control_reasons": control_reasons, "control_small_classes": control_small,
-            "settings": settings, "ban_problem": ban_problem, "reasons": list(reasons)}
+            "settings": settings, "ban_problem": ban_problem, "reasons": list(reasons), "view_slip_s": view_slip_s}
 
 
 def recovery(q_per_s, threshold, start=TIMELINE["baseline_s"]):
@@ -429,6 +430,16 @@ def invalid_runs(every):
             for block in sorted(every) for arm in ARMS for r in every[block].get(arm, ()) if not r.get("run_valid", r["valid"])]
 
 
+def largest_view_slip(runs):
+    """The run whose client was latest against its own schedule, beside Q: it judges nothing (T-052); past STALL_BOUND_S the runner
+    has made the run invalid."""
+    late = [r for r in runs if r.get("view_slip_s") is not None]
+    if not late:
+        return None
+    r = max(late, key=lambda x: x["view_slip_s"])
+    return {"view_slip_s": r["view_slip_s"], "block": r["block"], "attempt": r["attempt"], "arm": r["arm"], "Q": r["Q"]}
+
+
 def invalid(k):
     """The status of a family, or of M7, with fewer than MIN_VALID_BLOCKS valid blocks (D-035, V-02)."""
     return f"invalid ({k} of {len(BLOCK_SEEDS)} valid)"
@@ -464,7 +475,8 @@ def outcome(runs):
     return {"M7": m7, "families": fam, "bans_by_arm": bans_by_arm(runs), "t_mit_s": T_MIT_S,
             "limits_cost": limits_cost(blocks), "unhealthy_controls": unhealthy_controls(every),
             "small_control_classes": small_control_classes(every),
-            "judged_attempts": picks, "superseded_attempts": superseded, "invalid_runs": invalid_runs(every)}
+            "judged_attempts": picks, "superseded_attempts": superseded, "invalid_runs": invalid_runs(every),
+            "largest_view_slip": largest_view_slip(runs)}
 
 
 def main(argv=None):
@@ -488,6 +500,9 @@ def main(argv=None):
             print(f"    left out, block {x['block']}: {'; '.join(x['why'])}")
     for x in res["invalid_runs"]:
         print(f"  invalid: block {x['block']} attempt {x['attempt']} {x['arm']}: {'; '.join(x['reasons'])}")
+    if res["largest_view_slip"]:
+        x = res["largest_view_slip"]
+        print(f"  largest view slip {x['view_slip_s']:.2f} s: block {x['block']} attempt {x['attempt']} {x['arm']}, Q {x['Q']}")
     for s in res["superseded_attempts"]:
         print(f"  superseded: block {s['block']} attempt {s['attempt']}, invalid or missing {', '.join(s['invalid_or_missing'])}")
     for u in res["unhealthy_controls"]:

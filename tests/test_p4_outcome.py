@@ -384,6 +384,24 @@ class AttemptsTest(unittest.TestCase):
         self.assertIn("superseded: block 3101 attempt 1, invalid or missing U_post", printed.getvalue())
 
 
+class LargestViewSlipTest(unittest.TestCase):
+    def test_it_is_reported_beside_q_and_judges_nothing(self):
+        runs = campaign()
+        self.assertIsNone(O.outcome(runs)["largest_view_slip"])
+        res = O.outcome(campaign({("U_post", 3): {"view_slip_s": 7.5}, ("C", 1): {"view_slip_s": 0.2}}))
+        self.assertEqual(res["largest_view_slip"], {"view_slip_s": 7.5, "block": 3104, "attempt": 1, "arm": "U_post", "Q": 63.0})
+        self.assertEqual(res["M7"], O.outcome(runs)["M7"])
+
+    def test_the_command_line_says_so(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "runs.jsonl")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.writelines(json.dumps(r) + "\n" for r in campaign({("U_post", 3): {"view_slip_s": 7.5}}))
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                O.main([path])
+        self.assertIn("largest view slip 7.50 s: block 3104 attempt 1 U_post, Q 63.0", out.getvalue())
+
+
 class WhyInvalidTest(unittest.TestCase):
     """Review T-050 T050-16: M_def is expected to ban the CGNAT pools; until their generators end on time that makes it invalid, and
     a comparison that empties must say why. Conservative, and it judges nothing, so the families' status does not move."""
@@ -737,7 +755,7 @@ class InputTest(unittest.TestCase):
         self.assertEqual(r, {"block": 3101, "arm": "M_pc_loris", "attempt": 1, "valid": True, "Q": 97.0, "p95_s": 0.2,
                              "q_per_s": q, "q_level": 98.0, "level_window": [120.0, 240.0],
                              "banned": {"10.0.3.1": "attack", "10.0.4.1": "cgnat"}, "benign_closed": 1,
-                             "refused": None, "control_reasons": None, "control_small_classes": None, "settings": None, "ban_problem": None, "reasons": []})
+                             "refused": None, "control_reasons": None, "control_small_classes": None, "settings": None, "ban_problem": None, "reasons": [], "view_slip_s": None})
         with self.assertRaises(ValueError):
             O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [{"kind": "ban", "ip": "10.9.9.9"}], roles,
                         level_window=win, attempt=1)

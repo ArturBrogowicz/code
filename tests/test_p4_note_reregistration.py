@@ -39,6 +39,7 @@ class ReRegistrationTest(unittest.TestCase):
         text = note()
         block = text[text.index("**Re-registrations, dated, all before any P4 data**"):text.index("Two further forms")]
         self.assertIn("| D-057 | 2026-11-03T14:09Z |", block)
+        self.assertIn("| D-060 | 2026-11-04T11:32Z |", block)
         for n in range(1, 6):
             self.assertIn(f"| T-052 ({n}) | 2026-11-03T15:01Z |", block)
         for needle in ("`--selection`", "no readable socket of a benign role", "ban file is gone", "more than 10 s after its intended start",

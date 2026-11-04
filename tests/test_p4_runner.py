@@ -387,6 +387,47 @@ class SelectionTest(unittest.TestCase):
         self.assertIn(f"selection {path}", out.getvalue())
 
 
+class ViewSlipTest(unittest.TestCase):
+    """Review T-050, post-verdict: the slip reads the client's own lateness and not the server's slowness, or a reason on it would
+    make the harm itself invalid, the trap of stub_status (D-050)."""
+
+    def setUp(self):
+        self.planned = {(0, 0): (0.0, ["C0"], 5.0), (0, 1): (5.0, ["C0"], 5.0), (0, 2): (10.0, ["C0"], 5.0)}
+
+    def row(self, view, sent, done):
+        return {"user": 0, "view": view, "t_sent": sent, "t_done": done}
+
+    def test_a_device_on_its_schedule(self):
+        rows = [self.row(0, 100.0, 100.1), self.row(1, 105.1, 105.2), self.row(2, 110.2, 110.3)]
+        slips = R.view_slips(rows, self.planned, 100.0, 370.0)
+        self.assertEqual(sorted(slips), [(0, 0), (0, 1), (0, 2)])
+        self.assertAlmostEqual(max(slips.values()), 0.0, places=6)
+
+    def test_a_slow_or_refusing_server_is_no_slip(self):
+        rows = [self.row(0, 100.0, 140.0), self.row(1, 145.0, 145.1), self.row(2, 150.1, 150.2)]    # 40 s to answer the first view
+        self.assertAlmostEqual(max(R.view_slips(rows, self.planned, 100.0, 370.0).values()), 0.0, places=6)
+
+    def test_a_stall_slips_the_view_after_it_and_no_other(self):
+        rows = [self.row(0, 100.0, 100.1), self.row(1, 136.3, 136.4), self.row(2, 141.4, 141.5)]    # its 5-s sleep took 36.2 s
+        slips = R.view_slips(rows, self.planned, 100.0, 370.0)
+        self.assertAlmostEqual(slips[(0, 1)], 31.2, places=6)
+        self.assertAlmostEqual(slips[(0, 2)], 0.0, places=6)
+
+    def test_a_stall_to_the_end_is_late_by_what_was_left(self):
+        slips = R.view_slips([self.row(0, 100.0, 100.1)], self.planned, 100.0, 130.0)
+        self.assertAlmostEqual(slips[(0, 1)], 24.9, places=6)
+
+    def test_a_view_left_unfinished_at_the_end_is_no_stall(self):
+        """A banned device hangs in a view until its generator ends: the views after it were never due, or T050-16 returns by this door."""
+        planned = {(0, 0): (0.0, ["C0", "C1"], 5.0), (0, 1): (5.0, ["C0"], 5.0), (0, 2): (10.0, ["C0"], 5.0)}
+        slips = R.view_slips([self.row(0, 100.0, 110.0)], planned, 100.0, 170.0)
+        self.assertEqual(sorted(slips), [(0, 0)])
+        self.assertLess(slips[(0, 0)], R.STALL_BOUND_S)
+
+    def test_a_view_due_after_the_end_is_not_late(self):
+        self.assertEqual(sorted(R.view_slips([self.row(0, 100.0, 100.1)], self.planned, 100.0, 104.0)), [(0, 0)])
+
+
 class ExecuteTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -634,6 +675,88 @@ class ExecuteTest(unittest.TestCase):
         self.assertEqual(verdict["M7"], "invalid (0 of 10 valid)")
         self.assertEqual([u["block"] for u in verdict["unhealthy_controls"]], [3107])
 
+
+    def test_a_mid_life_stall_leaves_a_reason_in_run_json(self):
+        """Review T-050, post-verdict: a generator's end is absolute, so a stall at 100 s only lost views, booked in Q with no reason."""
+        run = self.one_run("stall", "campaign", 3106, "C", thresholds=POINT)
+        device = next(e for e in run["entities"] if e["kind_or_family"] == "tpcw_browsing")
+        res = R.execute_run(F.FakeHost(gen_stall={device["address"]: (100.0, 31.2)}), run)
+        self.assertFalse(res["ok"])
+        self.assertTrue(any("a client stalled" in r and device["entity_id"] in r for r in res["reasons"]), res["reasons"])
+        with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+            meta = json.load(fh)
+        self.assertEqual(meta["checks"]["reasons"], res["reasons"])
+        self.assertGreater(meta["stall"]["largest_view_slip_s"], 20.0)
+        self.assertGreaterEqual(meta["stall"]["views_over_bound"], 1)
+        self.assertEqual(meta["stall"]["entity"], device["entity_id"])
+
+    def test_a_short_stall_is_read_and_is_no_reason(self):
+        run = self.one_run("short", "campaign", 3106, "C", thresholds=POINT)
+        device = next(e for e in run["entities"] if e["kind_or_family"] == "tpcw_browsing")
+        res = R.execute_run(F.FakeHost(gen_stall={device["address"]: (100.0, 3.0)}), run)
+        self.assertEqual(res["reasons"], [])
+        with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+            stall = json.load(fh)["stall"]
+        self.assertGreater(stall["largest_view_slip_s"], 1.0)
+        self.assertEqual(stall["views_over_bound"], 0)
+
+    def test_a_healthy_run_reads_no_slip_and_the_harm_is_no_stall(self):
+        for harm in (None, lambda _t: True):
+            run = self.one_run(f"healthy_{harm is None}", "campaign", 3106, "U_loris", thresholds=POINT)
+            self.assertEqual(R.execute_run(F.FakeHost(harm=harm, modelled_attackers=1), run)["reasons"], [])
+            with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+                stall = json.load(fh)["stall"]
+            self.assertLess(stall["largest_view_slip_s"], 1.0)
+            self.assertGreater(stall["views"], 1000)
+            self.assertEqual(stall["no_records"], [])
+
+    def test_the_bound_is_the_never_sent_rule_and_the_grace(self):
+        import l7v2_harm
+        self.assertEqual(R.STALL_BOUND_S, l7v2_harm._rule()["never_sent_after_s"])
+        self.assertEqual(R.STALL_BOUND_S, R.STOP_GRACE_S)
+
+    def test_a_generator_with_no_records_is_a_reason(self):
+        run = self.one_run("no_records", "campaign", 3106, "C", thresholds=POINT)
+        device = next(e for e in run["entities"] if e["kind_or_family"] == "search_user")
+        host = F.FakeHost()
+        real = host._write_records
+        host._write_records = lambda p: None if p.ip == device["address"] else real(p)
+        res = R.execute_run(host, run)
+        self.assertTrue(any(f"1 benign generators left no readable records, the first {device['entity_id']}" in r
+                            for r in res["reasons"]), res["reasons"])
+
+    def test_a_runner_stall_before_the_attack_launches_it_late(self):
+        run = self.one_run("late_launch", "campaign", 3106, "U_post", thresholds=POINT)
+        res = R.execute_run(F.FakeHost(runner_stall=(20.0, 31.0), modelled_attackers=1), run)
+        self.assertTrue(any("s late (more than 10 s)" in r and "launched" in r for r in res["reasons"]), res["reasons"])
+        with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+            stall = json.load(fh)["stall"]
+        self.assertGreater(stall["largest_launch_lag_s"], 10.0)
+        self.assertGreater(stall["largest_loop_gap_s"], 30.0)
+
+    def test_a_runner_stall_after_its_launches_is_read_and_changes_nothing(self):
+        run = self.one_run("late_loop", "campaign", 3106, "U_post", thresholds=POINT)
+        res = R.execute_run(F.FakeHost(runner_stall=(100.0, 31.0), modelled_attackers=1), run)
+        self.assertEqual(res["reasons"], [])
+        with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+            stall = json.load(fh)["stall"]
+        self.assertLess(stall["largest_launch_lag_s"], 1.5)
+        self.assertGreater(stall["largest_loop_gap_s"], 30.0)
+
+    def test_a_run_that_never_began_has_no_stall_to_read(self):
+        run = self.one_run("not_root")
+        R.execute_run(F.FakeHost(root=False), run)
+        with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+            self.assertIsNone(json.load(fh)["stall"])
+
+    def test_the_slip_reaches_the_record_and_the_outcome(self):
+        R.run_block(F.FakeHost(modelled_attackers=1), self.block("campaign", 3101, thresholds=POINT, arms=["C", "U_post"]))
+        out = os.path.join(self.root, "runs.jsonl")
+        R.summarize_root(self.root, R.PLACEHOLDER, out)
+        with open(out, encoding="utf-8") as fh:
+            records = list(map(json.loads, fh))
+        self.assertTrue(all(r["view_slip_s"] is not None for r in records))
+        self.assertEqual(OUT.outcome(records)["largest_view_slip"]["view_slip_s"], max(r["view_slip_s"] for r in records))
 
     def test_a_run_record_says_why_it_is_invalid(self):
         """Review T-050 T050-16: the outcome names what emptied the comparison with M_def."""
