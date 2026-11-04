@@ -51,6 +51,18 @@ class ReRegistrationTest(unittest.TestCase):
             with open(os.path.join(REPO, path), encoding="utf-8") as fh:
                 self.assertIn("Re-registration record (T-052, 2026-11-03T15:01Z", fh.read(), path)
 
+    def test_t052b_is_dated_everywhere_before_the_code_it_judges(self):
+        text = note()
+        block = text[text.index("**Re-registrations, dated, all before any P4 data**"):text.index("Two further forms")]
+        self.assertIn("| T-052b | 2026-11-04T12:16Z |", block)
+        for needle in ("`--phase campaign` before anything runs", "`l7_backend.require_frozen`", "No threshold, SLO or arm changes"):
+            self.assertIn(needle, block)
+        with open(os.path.join(REPO, "docs", "EVALUATION.md"), encoding="utf-8") as fh:
+            self.assertIn("**Re-registration record (T-052b).** 2026-11-04T12:16Z", fh.read())
+        for path in ("eval/p4_runner.py", "eval/p4_outcome.py"):
+            with open(os.path.join(REPO, path), encoding="utf-8") as fh:
+                self.assertIn("Re-registration record (T-052b, 2026-11-04T12:16Z", fh.read(), path)
+
     def test_every_superseded_statement_carries_its_marker(self):
         text = note()
         for old in ("T_mit = 30 s, as in the plan", "banned within 30 s of their first connection",

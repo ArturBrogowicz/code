@@ -466,6 +466,14 @@ schedule, or a generator launched more than 10 s late. (5) The outcome reports e
 block is left out of the comparison with M_def; the runner sits on the clients' CPUs.
 
 
+**Re-registration record (T-052b).** 2026-11-04T12:16Z, the orchestrator's brief, before any data: a P4 campaign and its verdict
+refuse a calibration record that is not frozen, the rule of `eval/harm_gate.py` and `eval/l7v2_harm.py`. `--phase campaign` refuses
+one before anything runs, and `--summarize` and `eval/p4_outcome.py` refuse one too; a simulated campaign and the tests are exempt, as
+with `harm_gate`'s `--dry-run`, and labelled. Smoke, ladder and validation may name any record, and each attempt records which. Since T-052
+(1) binds the campaign to the validation's record, a validation that is to feed a campaign must name the frozen one. No threshold,
+SLO or arm changes.
+
+
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
 user's decision.

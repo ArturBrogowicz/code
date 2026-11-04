@@ -34,6 +34,11 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     and ss_failed N when every read fails, so counting events would call a blind rule alive). A run that
     fails one is invalid, with its reasons.
 
+Re-registration record (T-052b, 2026-11-04T12:16Z, the orchestrator's brief, before any data; the rule of eval/harm_gate.py and
+eval/l7v2_harm.py), committed before the code it judges: a campaign block refuses a calibration record that is not frozen before anything runs,
+and so does --summarize; only a simulated host, or --dry-run on --summarize, is exempt, and labelled. Smoke, ladder and validation may
+name any record, and each block.json says which.
+
 Re-registration record (T-052, 2026-11-03T15:01Z, the orchestrator's brief, before any data; reviews T-047 and T-050; labelled,
 not a decision of the user), committed before the code it judges: a campaign block needs --selection, the validation's record, and its T, F and K (P-08); a
 validation run needs a readable socket of each benign role (P-09); a ban-event line that cannot be read, or a daemon run whose ban
