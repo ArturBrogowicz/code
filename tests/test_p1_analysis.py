@@ -6,6 +6,7 @@ import io
 import json
 import os
 import re
+import shutil
 import sys
 import tempfile
 import unittest
@@ -402,6 +403,53 @@ class LevelWindowTest(unittest.TestCase):
         self.assertEqual((left, sent), (63.0, 93.0))
         # a decision after the gate rules: at 140 s + 10 s the same request is still served
         self.assertEqual(RP.cost_left(requests, first, {"a": 40.0}, {"C3": 30.0, "C1": 3.0}, 20.0, 10.0)[0], 93.0)
+
+
+class CampaignSettingsTest(unittest.TestCase):
+    """T050-12: the analysis refuses blocks at two settings, and a record or selection other than the campaign's."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.frozen = F.frozen_inputs(os.path.join(cls.tmp.name, "frozen"))
+        cls.cal = l7_backend.load_record(cls.frozen["calibration"])[0]
+        cls.root = os.path.join(cls.tmp.name, "runs")
+        for seed in SEEDS[:2]:
+            block = R.plan_block("campaign", seed, cls.root, frozen=cls.frozen, cut=True, benign_specs=F.thin_benign(LEAN), max_sources=2)
+            R.run_block(F.P1FakeHost(), block)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_one_setting_passes(self):
+        A.check_campaign(self.root, self.cal, self.frozen)
+
+    def test_an_analysis_with_another_selection_is_refused(self):
+        with self.assertRaisesRegex(A.SettingsError, "selection_sha256"):
+            A.analyse(self.root, self.cal, {**self.frozen, "selection_sha256": "f" * 64}, arms_factory=factory({}), cut=True)
+        with self.assertRaisesRegex(A.SettingsError, "rules_sha256"):
+            A.check_campaign(self.root, self.cal, {**self.frozen, "rules_sha256": "f" * 64})
+        with self.assertRaisesRegex(A.SettingsError, "record_digest"):
+            A.check_campaign(self.root, {**self.cal, "sha256": "f" * 64}, self.frozen)
+
+    def test_blocks_at_two_settings_are_refused_and_the_command_line_says_so(self):
+        root = os.path.join(self.tmp.name, "two")
+        shutil.copytree(self.root, root)
+        path = os.path.join(root, "campaign", f"b{SEEDS[1]}_a1", "block.json")
+        meta = REC.read_json(path)
+        meta["settings"]["knees_sha256"] = "f" * 64
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(meta, fh)
+        with self.assertRaisesRegex(A.SettingsError, "knees_sha256"):
+            A.check_campaign(root, self.cal, self.frozen)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code = A.main([root, "--calibration", self.frozen["calibration"], "--selection", self.frozen["selection"], "--selection-sha256",
+                           self.frozen["selection_sha256"], "--rules", self.frozen["rules"], "--rules-sha256", self.frozen["rules_sha256"],
+                           "--cut", "--dry-run", "--out", os.path.join(self.tmp.name, "v.json")])
+        self.assertEqual(code, 1)
+        self.assertIn("knees_sha256", err.getvalue())
 
 
 class AdmittedOnTest(unittest.TestCase):

@@ -101,7 +101,8 @@ GUNICORN = {"backend": "costed", "gunicorn_workers": 2, "gunicorn_threads": 8}  
 PROVENANCE_FILES = ("nginx.conf", "nginx_unprotected.conf", "control_plane.py", "l7_enforce.py", "l7_arms.py", "l7_conf.py",
                     "l7_denymap.py", "l7_engine.py", "l7_backend.py", "l7_webapp.py", "ml/l7_gen.py", "ml/l7_bots.py",
                     "ml/l7_benign.py", "ml/l7_pools.py", "ml/p1_traffic.py", "ml/l7v2_prereg.json",
-                    "ml/l7v2_verdict_prereg_v3.json", "eval/p1_runner.py")
+                    "ml/l7v2_verdict_prereg_v3.json", "eval/p1_runner.py", "l7_rule_engine.py", "l7_ingest.py", "l7_features.py",
+                    "l7_scorer.py", "ml/l7v2_rules.py", "ml/p1_prereg.json", "ml/p1_prereg_2.json", "ml/p1_prereg_3.json")
 BAN_ENGINES = (*ban_events.ENGINES, ban_events.L7V2_ENGINE)     # D-037: the arm's engine sits outside ENGINES
 
 # The one table: what each arm runs (T-025e's report, "Env per arm for the P1 runner", feat/l7v2-rstar c6028ce). Everything an
@@ -167,9 +168,9 @@ def live_runs(cut=False, pre=None):
 
 
 def block_order(phase, seed, names, label=""):
-    """The block's runs in a seeded random order (design 5.3); a re-run keeps it."""
+    """The block's runs in a seeded random order (design 5.3); a re-run keeps it, and a campaign's does not read a free label (T050-17)."""
     order = list(names)
-    random.Random(f"p1-order|{phase}|{seed}|{label}").shuffle(order)
+    random.Random(f"p1-order|{phase}|{seed}|{'' if phase == 'campaign' else label}").shuffle(order)
     return order
 
 
@@ -804,15 +805,76 @@ def run_bans(events):
     return out
 
 
-def index_line(block, run, res):
-    return {"phase": block["phase"], "block": block["seed"], "attempt": block["attempt"], "label": block["label"],
+def index_line(block, run, event, **fields):
+    return {"event": event, "phase": block["phase"], "block": block["seed"], "attempt": block["attempt"], "label": block["label"],
             "run": run["name"], "arm": run["arm"], "class": run["class"], "dir": os.path.relpath(run["out"], block["root"]),
-            "valid": res["ok"], "reasons": res["reasons"], "started_utc": P4._utc(res["started"]),
-            "ended_utc": P4._utc(res["ended"]), "block_dir": os.path.relpath(block["dir"], block["root"])}
+            "block_dir": os.path.relpath(block["dir"], block["root"]), **fields}
+
+
+def _append(fh, line):
+    fh.write(json.dumps(line, sort_keys=True) + "\n")
+    fh.flush()
+    os.fsync(fh.fileno())
+
+
+def read_index(root):
+    """Every run of ROOT/index.jsonl, one dict each, in the order they began (T050-17, as P4's): a run with no "ended" line is an invalid
+    run whose runner died. A last line cut in the middle is what such a death leaves; any other line that cannot be read is refused."""
+    path = os.path.join(root, "index.jsonl")
+    if not os.path.isfile(path):
+        return []
+    with open(path, encoding="utf-8") as fh:
+        lines = fh.readlines()
+    rows, by = [], {}
+    for k, raw in enumerate(lines):
+        try:
+            x = json.loads(raw)
+        except ValueError:
+            if k == len(lines) - 1:
+                break
+            raise ValueError(f"{path}: line {k + 1} cannot be read") from None
+        key = (x["phase"], x["block"], x["attempt"], x["label"], x["run"])
+        if x["event"] == "started":
+            by[key] = {**x, "ended": False, "valid": False, "reasons": ["the index holds no end of this run: the runner died"]}
+            rows.append(by[key])
+        else:
+            by[key].update(ended=True, valid=x["valid"], reasons=x["reasons"], ended_utc=x["ended_utc"])
+    return rows
+
+
+def block_settings(block):
+    """What every block of a campaign must share (T050-12, ml/p1_prereg_3.json one_setting): the frozen items, the factor, the levels and the
+    code. A path may differ, a hash may not."""
+    f = block["frozen"]
+    code = {name: sha256_file(os.path.join(REPO, name)) for name in PROVENANCE_FILES}
+    points = f.get("points") or {}
+    return {"record_digest": f["calibration"]["digest"], "knees_sha256": (f.get("knees") or {}).get("sha256"),
+            "health_sha256": (f.get("health") or {}).get("sha256"), "points_sha256": points.get("sha256"),
+            "points_decision": points.get("decision"), "selection_sha256": (f.get("selection") or {}).get("sha256"),
+            "rules_sha256": (f.get("rules") or {}).get("sha256"), "halvings": block["halvings"], "levels": block["levels"],
+            "sources": block["sources"], "cut": block["cut"],
+            "code_sha256": hashlib.sha256(json.dumps(code, sort_keys=True).encode()).hexdigest()}
+
+
+def check_settings(block):
+    """A campaign at one setting: refuse a block whose settings differ from an earlier block's."""
+    if block["phase"] != "campaign":
+        return
+    base = os.path.join(block["root"], "campaign")
+    mine = block_settings(block)
+    for name in sorted(os.listdir(base)) if os.path.isdir(base) else ():
+        path = os.path.join(base, name, "block.json")
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8") as fh:
+                theirs = json.load(fh).get("settings") or {}
+            differ = sorted(k for k in mine if mine[k] != theirs.get(k))
+            if differ:
+                raise PlanError(f"campaign block {block['seed']}: {', '.join(differ)} differ from {name}'s (ml/p1_prereg_3.json one_setting)")
 
 
 def run_block(host, block):
-    """Every run of a block in its order; each attempt appended to ROOT/index.jsonl, valid or not."""
+    """Every run of a block in its order; each in ROOT/index.jsonl before it begins and when it ends, valid or not."""
+    check_settings(block)
     if os.path.exists(block["dir"]):
         raise PlanError(f"{block['dir']} exists: an attempt is never overwritten (use the next --attempt)")
     os.makedirs(block["dir"])
@@ -823,13 +885,13 @@ def run_block(host, block):
                    "sources": block["sources"], "cut": block["cut"],
                    "frozen": block["frozen"], "intensity": block["intensity"], "flash": block["flash"],
                    "dropped": block["dropped"], "age_check": block["age_check"], "address_limit": block["address_limit"],
-                   "benign_load": block["benign_load"]})
+                   "benign_load": block["benign_load"], "settings": block_settings(block)})
     results = []
     with open(os.path.join(block["root"], "index.jsonl"), "a", encoding="utf-8") as idx:
         for run in block["runs"]:
+            _append(idx, index_line(block, run, "started", started_utc=P4._utc(host.time())))
             res = execute_run(host, run, block["frozen"])
-            idx.write(json.dumps(index_line(block, run, res), sort_keys=True) + "\n")
-            idx.flush()
+            _append(idx, index_line(block, run, "ended", valid=res["ok"], reasons=res["reasons"], ended_utc=P4._utc(res["ended"])))
             results.append((run["name"], res))
     return results
 
@@ -893,6 +955,7 @@ def main(argv=None, host=None):
         return 0
     if host is None:
         host = X.RealHost()
+    host.pin(PINS["executor"])              # the runner's popen, curl and /proc reads keep off the legit CPU and the server's (T050-17)
     results = run_block(host, block)
     for name, res in results:
         print(f"  {name}: {'valid' if res['ok'] else 'INVALID: ' + '; '.join(res['reasons'])}")

@@ -219,8 +219,7 @@ TIME_KEYS = ("degraded_s", "degraded_in_attack_s", "first_degraded_s", "recovery
 
 
 def index_lines(root):
-    with open(os.path.join(root, "index.jsonl"), encoding="utf-8") as fh:
-        return [json.loads(x) for x in fh if x.strip()]
+    return RUN.read_index(root)
 
 
 def summarize_root(root, cal, out_path, phase="campaign"):

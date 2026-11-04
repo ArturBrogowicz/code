@@ -83,6 +83,9 @@ class P1FakeHost(F.FakeHost):
             return F.X.Result(0, "", "")
         return super().run(argv, ns, stdin, env, timeout)
 
+    def pin(self, cpus):
+        self.pinned = cpus
+
     def _quiet(self, t):
         return self.quiet_from is not None and t - self.stack_t0 >= self.quiet_from
 

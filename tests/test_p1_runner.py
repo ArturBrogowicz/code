@@ -41,8 +41,7 @@ def read_json(path):
 
 
 def index(root):
-    with open(os.path.join(root, "index.jsonl"), encoding="utf-8") as fh:
-        return [json.loads(x) for x in fh]
+    return R.read_index(root)
 
 
 class Base(unittest.TestCase):
@@ -462,6 +461,81 @@ class ExecuteTest(Base):
         self.assertEqual(code, 0, out.getvalue())
         self.assertEqual({x["run"] for x in index(self.root)}, {"C", "U_C2"})
         self.assertEqual(index(self.root)[0]["label"], "C2_L1_r1")
+
+
+class OneSettingTest(Base):
+    """T050-12, -17: a campaign at one setting; the order; the index before and after a run; the executor's CPU."""
+
+    def knees(self, **fields):
+        path = os.path.join(tempfile.mkdtemp(dir=self.tmp.name), "knees.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({**read_json(self.frozen["knees"]), **fields}, fh)
+        return {**self.frozen, "knees": path}
+
+    def test_a_block_at_other_knees_is_refused(self):
+        R.run_block(F.P1FakeHost(), thin(self.frozen, self.root, cut=True))
+        with self.assertRaisesRegex(R.PlanError, "knees_sha256.*differ from b3001_a1"):
+            R.run_block(F.P1FakeHost(), thin(self.knees(C3b=40), self.root, seed=3002, cut=True))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "campaign", "b3002_a1")), "nothing was started")
+        R.run_block(F.P1FakeHost(), thin(self.frozen, self.root, seed=3002, cut=True))
+
+    def test_a_block_on_other_code_is_refused(self):
+        R.run_block(F.P1FakeHost(), thin(self.frozen, self.root, cut=True))
+        block = thin(self.frozen, self.root, seed=3002, cut=True)
+        real = R.sha256_file
+        with mock.patch.object(R, "sha256_file", lambda p: "f" * 64 if p.endswith("l7_rule_engine.py") else real(p)), \
+                self.assertRaisesRegex(R.PlanError, "code_sha256"):
+            R.run_block(F.P1FakeHost(), block)
+
+    def test_a_pilot_block_is_not_bound(self):
+        for label, frozen in (("a", self.frozen), ("b", self.knees(C3b=40))):
+            block = R.plan_block("smoke", 9001, self.root, frozen=frozen, runs=["C"], label=label, benign_specs=F.thin_benign())
+            R.run_block(F.P1FakeHost(), block)
+
+    def test_the_settings_are_in_block_json_and_provenance_holds_the_record_s_files(self):
+        block = thin(self.frozen, self.root, cut=True)
+        R.run_block(F.P1FakeHost(), block)
+        got = read_json(os.path.join(block["dir"], "block.json"))["settings"]
+        self.assertEqual(got["selection_sha256"], self.frozen["selection_sha256"])
+        self.assertEqual(got["record_digest"], block["frozen"]["calibration"]["digest"])
+        self.assertTrue(set(R.PT.prereg_3()["one_setting"]["provenance_adds"]) <= set(R.PROVENANCE_FILES))
+        for name in R.PROVENANCE_FILES:
+            self.assertTrue(os.path.isfile(os.path.join(REPO, name)), name)
+
+    def test_a_campaign_s_order_does_not_read_a_label(self):
+        self.assertEqual(R.block_order("campaign", 3001, RUN_NAMES, "x"), R.block_order("campaign", 3001, RUN_NAMES))
+        self.assertNotEqual(R.block_order("smoke", 9001, RUN_NAMES, "x"), R.block_order("smoke", 9001, RUN_NAMES, "y"))
+
+    def test_a_runner_s_death_leaves_an_invalid_line(self):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=["C", "U_C2"], label="dead",
+                             benign_specs=F.thin_benign(), max_sources=2)
+        real = R.execute_run
+
+        def dies(host, run, sums):
+            if run["name"] == block["order"][1]:
+                raise KeyboardInterrupt
+            return real(host, run, sums)
+
+        with mock.patch.object(R, "execute_run", dies), self.assertRaises(KeyboardInterrupt):
+            R.run_block(F.P1FakeHost(), block)
+        rows = index(self.root)
+        self.assertEqual([x["run"] for x in rows], block["order"])
+        self.assertTrue(rows[0]["valid"])
+        self.assertFalse(rows[1]["valid"])
+        self.assertIn("the runner died", rows[1]["reasons"][0])
+        with open(os.path.join(self.root, "index.jsonl"), "a", encoding="utf-8") as fh:
+            fh.write('{"cut in the mid')
+        self.assertEqual(len(index(self.root)), 2)
+
+    def test_the_runner_keeps_to_the_executor_s_cpu(self):
+        host = F.P1FakeHost()
+        orig = R.PT.build_block
+
+        def thinned(*a, **kw):
+            return orig(*a, **{**kw, "benign_specs": F.thin_benign()})
+        with mock.patch.object(R.PT, "build_block", side_effect=thinned), contextlib.redirect_stdout(io.StringIO()):
+            R.main(["--phase", "smoke", "--seed", "9001", "--runs", "C", "--calibration", self.frozen["calibration"], "--root", self.root], host=host)
+        self.assertEqual(host.pinned, "6")
 
 
 class ArmCouldActTest(Base):

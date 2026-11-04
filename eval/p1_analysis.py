@@ -287,8 +287,34 @@ def view_level_contrasts(judged, reading, primary):
     return out
 
 
+class SettingsError(ValueError):
+    """The campaign's blocks did not run one setting, or the analysis was not given what they ran (T050-12)."""
+
+
+def check_campaign(root, cal, frozen):
+    """One setting across the blocks, and the record and selections the analysis judges with are the ones they ran under (T050-12,
+    ml/p1_prereg_3.json one_setting): an arm replayed at X beside M runs made under Y is not a contrast."""
+    settings = {}
+    for x in REC.index_lines(root):
+        if x["phase"] == "campaign" and x["block_dir"] not in settings:
+            settings[x["block_dir"]] = REC.read_json(os.path.join(root, x["block_dir"], "block.json")).get("settings") or {}
+    names = sorted(settings)
+    for name in names[1:]:
+        differ = sorted(k for k in set(settings[name]) | set(settings[names[0]]) if settings[name].get(k) != settings[names[0]].get(k))
+        if differ:
+            raise SettingsError(f"{', '.join(differ)} differ between {names[0]} and {name}")
+    if names:
+        ran = settings[names[0]]
+        given = {"record_digest": cal.get("sha256"), "selection_sha256": frozen.get("selection_sha256"), "rules_sha256": frozen.get("rules_sha256")}
+        differ = sorted(k for k, v in given.items() if ran.get(k) != v)
+        if differ:
+            raise SettingsError(f"the analysis was given another {', '.join(differ)} than the campaign ran")
+
+
 def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, pre=None):
-    """Every class's admission, inputs and verdict: {class: {"verdict", "admission", "judge", "excluded", "replay"}}."""
+    """Every class's admission, inputs and verdict: {class: {"verdict", "admission", "judge", "excluded", "replay"}}. Blocks that did not run
+    one setting, or a record or selection other than theirs, are refused (SettingsError)."""
+    check_campaign(root, cal, frozen)
     pre = live_set(pre or VP.load(), cut)
     arms_factory = arms_factory or default_factory(frozen)
     classes = sorted(pre["live_set"]["per_class"])
@@ -476,8 +502,12 @@ def main(argv=None):
     else:
         frozen = {"selection": args.selection, "selection_sha256": args.selection_sha256, "rules": args.rules,
                   "rules_sha256": args.rules_sha256}
-        res = {"format": "p1-verdicts/1", "record_sha256": cal.get("sha256"), "cut": args.cut, "dry_run": args.dry_run,
-               "classes": analyse(args.root, cal, frozen, cut=args.cut, dry_run=args.dry_run)}
+        try:
+            classes = analyse(args.root, cal, frozen, cut=args.cut, dry_run=args.dry_run)
+        except SettingsError as exc:
+            print(f"refused: {exc}", file=sys.stderr)
+            return 1
+        res = {"format": "p1-verdicts/1", "record_sha256": cal.get("sha256"), "cut": args.cut, "dry_run": args.dry_run, "classes": classes}
     with open(args.out, "w", encoding="utf-8") as fh:
         json.dump(res, fh, indent=1, sort_keys=True, default=str)
         fh.write("\n")
