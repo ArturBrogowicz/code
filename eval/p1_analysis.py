@@ -6,7 +6,8 @@ moves here. For each class:
   * harm admission through eval/l7v2_harm.py (assess_block, admission), over every attempt, the last of each block counting; a
     campaign the admission finds INVALID (too few valid blocks, too many re-runs) gets no verdict, with its reasons, which is
     not the same as V-D "no harm";
-  * the blocks it judges: the final attempts whose class is valid and whose live M runs are sound; the others are listed;
+  * the blocks it judges: the final attempts whose class is valid and whose live M runs are sound; the others are listed, and fewer than
+    10 give no verdict, 'invalid (k of 10)' with their reasons (D-058, T050-05), which is not V-D either;
   * harm per block: Q of every live arm in the level window, from the attack's start + 90 s to its end (D-053, eval/l7v2_harm.py's
     figures); the whole attack window's Q is secondary, and admission reads that window, as registered;
   * the budget, pooled over those blocks: live (D-044 OC-2), the benign users wrongly acted on in the arm's own M runs
@@ -351,9 +352,14 @@ def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, p
             continue
         blocks, excluded = judged_blocks(final, cls, live)
         row["excluded"] = excluded
+        row["blocks_judged"] = [b["block"] for b in blocks]
+        least = pre["units"]["min_blocks"]
+        if len(blocks) < least:                # D-058, T050-05: too few blocks are no verdict, and never V-D "no arm mitigates"
+            row["status"] = f"invalid ({len(blocks)} of {least})"
+            row["why_no_verdict"] = [f"{len(blocks)} judged blocks, fewer than {least}"] + [f"block {b}: {r}" for b, why in sorted(excluded.items()) for r in why]
+            continue
         inputs, per_arm = class_inputs(root, cal, cls, blocks, live, frozen, arms_factory, admitted_on(adm))
         row["replay"] = per_arm
-        row["blocks_judged"] = [b["block"] for b in blocks]
         row["age_only_on_U"] = age_only_on_u(root, blocks, cls, per_arm)
         row["reported"] = class_report(root, cal, cls, blocks, live, per_arm)
         if dry_run:

@@ -99,6 +99,13 @@ def run_campaign(root, frozen, fail, acts=None, cut=False, seeds=SEEDS):
         assert all(x["ok"] for _n, x in res), res
 
 
+def run_campaign_any(root, frozen, fail, acts=None, cut=False, seeds=SEEDS):
+    """run_campaign that lets a run be invalid."""
+    for seed in seeds:
+        block = R.plan_block("campaign", seed, root, frozen=frozen, cut=cut, benign_specs=F.thin_benign(LEAN), max_sources=3)
+        R.run_block(F.P1FakeHost(fail_share=fail, acts=acts), block)
+
+
 def deny_first_benign(names):
     """acts: in the named runs the daemon denies one view-level key of the run's first benign entity."""
     def acts(run, block_dir):
@@ -477,6 +484,49 @@ class LadderAttemptsTest(unittest.TestCase):
             R.plan_block("campaign", SEEDS[0], self.root, frozen={**self.frozen, "knees": path}, benign_specs=F.thin_benign(LEAN), max_sources=2)
         block = R.plan_block("campaign", SEEDS[0], self.root, frozen={**self.frozen, "knees": path}, cut=True, benign_specs=F.thin_benign(LEAN), max_sources=2)
         self.assertEqual(sorted(block["levels"]), ["C2", "C3b"])
+
+
+def one_invalid(run, seed):
+    """acts: `run` of block `seed` has the arm's step fail in the attack window, so that run alone is invalid."""
+    def acts(name, block_dir):
+        if name == run and f"b{seed}_a1" in block_dir:
+            return [(100.0, {"kind": "daemon_error", "where": "l7_enforce", "error": "x", "action": "step skipped"})]
+        return []
+    return acts
+
+
+class TooFewJudgedBlocksTest(unittest.TestCase):
+    """D-058, T050-05: the reviewer's S1, on a whole fake campaign: one invalid M run, and the GRU's gain over U of 30 pp must not read V-D."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.frozen = F.frozen_inputs(os.path.join(cls.tmp.name, "frozen"))
+        cls.cal = l7_backend.load_record(cls.frozen["calibration"])[0]
+        cls.root = os.path.join(cls.tmp.name, "runs")
+        run_campaign_any(cls.root, cls.frozen, fail_from(TABLE_A), one_invalid("M_gru_C3b", SEEDS[3]), cut=True)
+        cls.res = A.analyse(cls.root, cls.cal, cls.frozen, arms_factory=factory(SHARES_A), cut=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_the_class_with_the_invalid_run_has_no_verdict(self):
+        r = self.res["C3b"]
+        self.assertIsNone(r["verdict"])
+        self.assertEqual(r["status"], "invalid (9 of 10)")
+        self.assertEqual(r["blocks_judged"], [s for s in SEEDS if s != SEEDS[3]])
+        self.assertTrue(any("the arm's step failed" in w for w in r["why_no_verdict"]), r["why_no_verdict"])
+        self.assertNotIn("judge", r)
+
+    def test_the_other_class_is_judged(self):
+        self.assertEqual(self.res["C2"]["blocks_judged"], SEEDS)
+        self.assertIsNotNone(self.res["C2"]["verdict"])
+        self.assertNotIn("status", self.res["C2"])
+
+    def test_zero_judged_blocks_do_not_raise(self):
+        got = A.judged_blocks([], "C3b", ["U", "R*", "view_gru"])
+        self.assertEqual(got, ([], {}))
 
 
 class CampaignSettingsTest(unittest.TestCase):
