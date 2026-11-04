@@ -474,6 +474,13 @@ with `harm_gate`'s `--dry-run`, and labelled. Smoke, ladder and validation may n
 SLO or arm changes.
 
 
+**Re-registration record (D-063).** 2026-11-04T13:04Z, the orchestrator's decision, before any data; the user may overrule. (1) A
+gunicorn that exits during a run makes the run invalid, and the reason names a calibration refusal or a failed worker boot when
+`gunicorn.log` shows one; nginx not running at the run's end does too. (2) Profile R runs the frozen record's self-check once per
+server start, in gunicorn's master before it listens; replacement workers do not measure. The 25 %, the estimator and the clock stay,
+and P1's and HG's paths do not change.
+
+
 The R.U.D.Y. error-log rule (`l7_rudy`) is unchanged, but it cannot fire on this testbed (see H-26 above):
 on profile R the per-connection rule is the only slow-POST detector. Retiring or re-sourcing `l7_rudy` is the
 user's decision.

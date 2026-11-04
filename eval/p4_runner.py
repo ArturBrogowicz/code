@@ -34,6 +34,10 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     and ss_failed N when every read fails, so counting events would call a blind rule alive). A run that
     fails one is invalid, with its reasons.
 
+Re-registration record (D-063, 2026-11-04T13:04Z, the orchestrator's decision, before any data; the user may overrule), committed
+before the code it judges: gunicorn exiting during a run is a reason, named as a calibration refusal or a failed worker boot when
+gunicorn.log shows one, and so is nginx not running at the run's end.
+
 Re-registration record (T-052b, 2026-11-04T12:16Z, the orchestrator's brief, before any data; the rule of eval/harm_gate.py and
 eval/l7v2_harm.py), committed before the code it judges: a campaign block refuses a calibration record that is not frozen before anything runs,
 and so does --summarize; only a simulated host, or --dry-run on --summarize, is exempt, and labelled. Smoke, ladder and validation may

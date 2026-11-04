@@ -63,6 +63,19 @@ class ReRegistrationTest(unittest.TestCase):
             with open(os.path.join(REPO, path), encoding="utf-8") as fh:
                 self.assertIn("Re-registration record (T-052b, 2026-11-04T12:16Z", fh.read(), path)
 
+    def test_d063_is_dated_everywhere_before_the_code_it_judges(self):
+        text = note()
+        block = text[text.index("**Re-registrations, dated, all before any P4 data**"):text.index("Two further forms")]
+        for row in ("| D-063 (1) | 2026-11-04T13:04Z |", "| D-063 (2) | 2026-11-04T13:04Z |"):
+            self.assertIn(row, block)
+        for needle in ("a dead backend read as harm", "once per server start", "The 25 %, the estimator and the clock stay"):
+            self.assertIn(needle, block)
+        with open(os.path.join(REPO, "docs", "EVALUATION.md"), encoding="utf-8") as fh:
+            self.assertIn("**Re-registration record (D-063).** 2026-11-04T13:04Z", fh.read())
+        for path in ("eval/p4_runner.py", "gunicorn_profile_r.py"):
+            with open(os.path.join(REPO, path), encoding="utf-8") as fh:
+                self.assertIn("Re-registration record (D-063, 2026-11-04T13:04Z", fh.read(), path)
+
     def test_every_superseded_statement_carries_its_marker(self):
         text = note()
         for old in ("T_mit = 30 s, as in the plan", "banned within 30 s of their first connection",

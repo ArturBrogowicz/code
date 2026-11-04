@@ -14,6 +14,9 @@ before the workers load `wsgi_app`, so POST /upload reads its body as it arrives
 holds a worker (P4 part 2b). The calibration record is the runner's (L7_CALIBRATION, the
 placeholder by default), and so is the CPU set.
 
+Re-registration record (D-063, 2026-11-04T13:04Z, the orchestrator's decision, before any data; the user may overrule), committed
+before the code it judges: the frozen record's self-check runs once per server start, in the master, not in each worker.
+
 Usage: gunicorn -c gunicorn_profile_r.py           (the runner sets L7_CALIBRATION and the CPU set)
 """
 bind = "127.0.0.1:8080"
