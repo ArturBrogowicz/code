@@ -13,6 +13,8 @@
  \usepackage{amsmath}
  \usepackage{xcolor}
 \usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,backgrounds,shapes.geometric,calc}
 \geometry{
  a4paper,
  total={170mm,257mm},
@@ -59,6 +61,13 @@
     morestring=[b]',
     morekeywords={server, listen, server_name, root, index, location} % przykładowe słowa kluczowe (np. Nginx)
 }
+
+% --- ZNACZNIK MIEJSC DO UZUPEŁNIENIA (wyniki trwających eksperymentów) ---
+\newcommand{\doUzupelnienia}[1]{\textcolor{red!70!black}{\textbf{[Do uzupełnienia:} #1\textbf{]}}}
+% Kolumny wyrównane do lewej w wąskich tabelach (bez rozciągania odstępów)
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\setlength{\emergencystretch}{3em}
 
 \title{Badanie skuteczności i implementacja rozwiązań w obronie przed różnymi technikami ataków DDoS - PDI 1}
 \author{Artur Brogowicz }
@@ -393,7 +402,7 @@ Druga grupa problemów dotyczy uogólniania. W badaniu Cantone i in. modele tren
 Goldschmidt i Chudá w przeglądzie 89 zbiorów danych wskazują, że jedynie co piąty zbiór zawiera rzeczywisty ruch sieciowy, a łączenie zbiorów pochodzących z różnych sieci i okresów jest błędne z założenia, ponieważ wprowadza obciążenie wynikające z odmiennych wzorców ruchu. Zalecają podział danych zgodny z czasem (dane treningowe sprzed danych ewaluacyjnych), ewaluację na wielu zbiorach i w wielu powtórzeniach oraz stosowanie testów istotności statystycznej \cite{goldschmidt2025network}.
 
 Większość badań opiera się przy tym na środowiskach laboratoryjnych: w przeglądzie zastosowań eBPF w bezpieczeństwie od 81,4\% do 87\% prac (autorzy podają obie wartości) ewaluowano wyłącznie w środowisku testowym, z wykorzystaniem syntetycznych generatorów ruchu zamiast obciążeń produkcyjnych \cite{kostopoulos2026ebpf}. Wzorcem są prace łączące środowisko laboratoryjne z ewaluacją na działającym serwerze, jak w przypadku metody Tripathiego \cite{tripathi2024delays} oraz systemu SlowTrack, ocenianego m.in. w 48-godzinnym eksperymencie na serwerze uczelnianym z atakującym umieszczonym w chmurze obliczeniowej \cite{sood2023slowtrack}. Do generowania ruchu wykorzystuje się wyspecjalizowane narzędzia: generator powolnych ataków Sikory i in. \cite{sikora2021generator} oraz, dla ruchu o dużej przepływności, generator MoonGen, osiągający 14,88 mln pakietów na sekundę na jednym rdzeniu \cite{emmerich2015moongen}. Przykładem znaczenia opisanych zaleceń jest praca, w której hybrydowy model GRU-NTM uczony na połączeniu dwóch różnych zbiorów danych (ruch normalny z jednego, ataki z drugiego) nie popełnił ani jednego błędu klasyfikacji, przy braku testów w czasie rzeczywistym \cite{panggabean2024intelligent}; tak uzyskany wynik świadczy o rozdzielności zbiorów danych, a nie o skuteczności w rzeczywistym ruchu.
-\section{Wnioski z przeanalizowanych przykładów}
+\section{Wnioski z przeanalizowanych przykładów}\label{sec:wnioski_przeglad}
 Z przeglądu stanu wiedzy wynikają następujące wnioski, stanowiące punkt wyjścia dla projektowanego rozwiązania:
 \begin{enumerate}
     \item Filtrowanie pakietów w punkcie XDP jest dojrzałą i zmierzoną metodą obrony na poziomie hosta, istotnie wydajniejszą od zapór opartych na Netfilter. Jej ograniczeniami są ataki odbiciowe, w których adresy źródłowe należą do reflektorów, oraz ataki wysycające łącze dostępowe, którym pojedynczy host nie może przeciwdziałać.
@@ -402,577 +411,976 @@ Z przeglądu stanu wiedzy wynikają następujące wnioski, stanowiące punkt wyj
     \item Wiarygodna ewaluacja wymaga prostych punktów odniesienia, kontrolowanego generowania danych w jednym środowisku, wielokrotnych powtórzeń z testami istotności oraz, w miarę możliwości, weryfikacji na rzeczywistym ruchu.
     \item W konsekwencji proponowane rozwiązanie łączy egzekwowanie blokad w punkcie XDP z deterministycznymi heurystykami w płaszczyźnie sterowania oraz eksperymentalnym modelem sekwencyjnym GRU, ocenianym względem tych heurystyk zgodnie z powyższymi zasadami.
 \end{enumerate}
-\section{Koncepcja rozwiązania problemu wykrycia i mitygacji ataków DDoS}
-Proponowane rozwiązanie opiera się na hybrydowej architekturze dzielącej system ochrony na dwie ściśle współpracujące płaszczyzny: płaszczyznę sterowania (\textit{Control Plane}) działającą w przestrzeni użytkownika (\textit{User Space}) oraz płaszczyznę danych (\textit{Data Path}) osadzoną bezpośrednio w przestrzeni jądra systemu operacyjnego (\textit{Kernel Space}). Podział ten pozwala na elastyczną realizację zaawansowanej analityki behawioralnej przy jednoczesnym zachowaniu maksymalnej wydajności podczas niskopoziomowej filtracji pakietów.
+\section{Architektura proponowanego rozwiązania}\label{sec:architektura}
+Niniejszy rozdział przekłada wnioski z przeglądu stanu wiedzy (rozdział~\ref{sec:wnioski_przeglad}) na wymagania projektowe oraz opisuje architekturę systemu wykrywania i mitygacji ataków DDoS na poziomie hosta. Opis odpowiada stanowi kodu źródłowego w repozytorium projektu w chwili przygotowania tej wersji pracy (listopad 2026~r.). System pozostaje w fazie aktywnego rozwoju, dlatego rozdział rozróżnia komponenty zaimplementowane i objęte pomiarami od komponentów eksperymentalnych, których ewaluacja trwa. Miejsca, które zostaną uzupełnione po kolejnych kampaniach pomiarowych, oznaczono w tekście znacznikiem \doUzupelnienia{opis brakującego elementu}.
 
-Płaszczyzna sterowania odpowiada za wykrywanie anomalii w ruchu sieciowym w warstwie aplikacji L7. Przychodzący ruch jest w pierwszej kolejności kierowany przez serwer reverse proxy Nginx, który pośredniczy w dostępie do aplikacji www oraz odpowiada za zakańczanie połączeń szyfrowanych (\textit{TLS Offloading}). Serwer proxy generuje logi dostępowe w formacie JSON, które są na bieżąco strumieniowane do skryptu integracyjnego w języku Python. Skrypt realizuje mechanizm przesuwnego okna czasowego, wyodrębnia kluczowe metryki żądań i przekazuje je do predykcyjnej sieci neuronowej GRU (\textit{Gated Recurrent Unit}) zaimplementowanej w środowisku PyTorch. Model uczenia maszynowego analizuje sekwencje zdarzeń w celu identyfikacji korelacji czasowych, charakterystycznych dla ataków typu \textit{low-and-slow}.
+\subsection{Wymagania wynikające z przeglądu stanu wiedzy}\label{sec:wymagania}
+Tabela~\ref{tab:wymagania} zestawia wymagania przyjęte dla projektowanego systemu wraz z ich uzasadnieniem w przeglądzie literatury oraz miejscem realizacji w implementacji. Wymagania te stanowią również oś oceny w rozdziale~\ref{sec:wnioski}.
 
-W momencie wykrycia anomalii płaszczyzna sterowania uruchamia procedurę mitygacyjną. W przestrzeni użytkownika demon Python wysyła sygnał przerwania aktywnych połączeń sieciowych w ramach sesji TCP, które obciążają serwer. Równolegle złośliwt adres IP jest dynamicznie wstrzykiwany przy użyciu biblioteki \textit{bcc} do współdzielonej mapy eBPF o strukturze \textit{BPF\_MAP\_TYPE\_HASH}, która jest łącznikiem z płaszczyzną danych. Niskopoziomowy program XDP uruchomiony na poziomie sterownika wirtualnej karty sieciowej weryfikuje każdy napływający pakiet IPv4 pod kątem obecności na czarnej liście w stałym czasie $O(1)$. Ruch pochodzący ze zidentyfikowanych adresów botnetu jest natychmiast odrzucany przy użyciu akcji \textit{XDP\_DROP}. Dzięki temu eliminacja złośliwych pakietów następuje na samym brzegu systemu operacyjnego, całkowicie pomijając kosztowny proces alokacji struktur \textit{sk\_buff} w jądrze, co minimalizuje narzut na procesor i skutecznie zapobiega wyczerpaniu zasobów serwera.
-%\subsection{Sposób działania systemu}
-\subsection{Architektura}
-Proof of Concept (PoC) w środowisku zwirtualizowanym, z wykorzystaniem wirtualnej maszyny z systemem Linux Ubuntu oraz wirtualnych interfejsów sieciowych veth. System detekcji oraz mitygacji można podzielić ze względu na dwie płaszczyzny:
-\begin{itemize}
-    \item Płaszczyzna Danych - Główny silnik filtrujący oparty na mapach eBPF i XDP, który operuje bezpośrednio na sterowniku karty sieciowej.   
-    \begin{itemize}
-        \item Ekstrakcja cech: Program XDP czyta surowe nagłówki pakietu np. z krotki 5-tuple: źródłowe/docelowe IP, porty, protokół, natychmiast po jego odebraniu w karcie sieciowej, pomijając kosztowny w zasoby proces alokacji struktur \textit{sk\_buff} w systemie operacyjnym.
-        \item Struktury Map: Zoptymalizowane struktury tablic przechowujące zablokowane adresy IP węzłów botentu, takie jak \textit{BPF\_MAP\_TYPE\_HASH}, współdzielone z przestrzenią użytkownika. Gwarantuje to stały czas operacyjny wyszukiwania na poziomie $O(1)$.
-        \item Decyzja na poziomie sprzętu: Po sprawdzeniu mapy, kod XDP zgłasza jeden z wyników wyjścia dla pakietu: \textit{XDP\_DROP} - odrzucenie złośliwego pakietu na samym brzegu karty sieciowej bez obciążenia CPU, lub \textit{XDP\_PASS} - przepuszczenie pakietu do standardowego stosu TCP/IP jądra Linuksa. 
-        \item Zbieranie telemetrii: Kod inkrementuje liczniki odrzuconych pakietów bezpośrednio w mapach eBPF, umożliwiając bezinwazyjny odczyt statystyk w czasie rzeczywistym przez systemy nadrzędne.
-    \end{itemize}
-    \item Płaszczyzna Sterowania - Odpowiedzialna za detekcję ataków DDoS. Gdy nastąpi detekcja nowych złośliwych adresów, informacja jest dynamicznie przekazywana do płaszczyzny danych.
-    \begin{itemize}
-        \item Reverse Proxy: Izoluje bezpośredni dostęp do serwera aplikacyjnego i odpowiada za zakańczanie połączeń TLS (SSL Offloading), co zdejmuje obciążenie kryptograficzne z serwera plikacyjnego. Generuje ustrukturyzowane logi dostępowe w formacie JSON, które są na bieżąco strumieniowane do modułu ML.
-        \item Model uczenia maszynowego: Predykcyjna sieć neuronowa oparta na architekturze GRU (ang. Gated Recurrent Unit). Analizuje zrekonstruowane sekwencje logów aplikacyjnych w przesuwnych oknach czasowych. Jej celem jest odnalezienie ukrytych korelacji czasowych, charakterystycznych dla ataków wyczerpujących zasoby w warstwie aplikacji.
-        \item Demon integrujący: Aplikacja Python pośrednicząca i stanowiąca most między płaszczyznami. W przypadku wykrycia złośliwego IP przez model GRU, demon wykonuje dwie równoległe akcje mitygacyjne: dynamicznie wstrzykuje adres do mapy eBPF, co skutkuje natychmiastowym odrzucaniem nowych żądań przez XDP oraz wysyła sygnał przerwania w celu zniszczenia aktywnych, wiszących sesji TCP obciążających serwer aplikacyjny.
-    \end{itemize}
-\end{itemize}
-\includepdf[pages=1, landscape=true]{images/Architektura-DDoS-mitigation.pdf}
-\subsection{Komponenty zastosowane w projekcie}
-\begin{itemize}
-    \item Środowisko sieciowe i generator ruchu: Dwie odizolowane logicznie przestrzenie nazw sieciowych (\textit{attacker\_ns} oraz \textit{server\_ns}) połączone parą wirtualnych interfejsów (\textit{veth\_attacker} i \textit{veth\_server}). Przestrzeń atakującego pozwala na generowanie sekwencji żądań HTTP o niskiej częstotliwości, symulujących zachowanie botnetu w atakach typu low-and-slow.
-    
-    \item Filtr płaszczyzny danych XDP/eBPF: Program niskopoziomowy w języku C \textit{xdp\_ddos\_filter.c} uruchamiany bezpośrednio na poziomie sterownika wirtualnej karty sieciowej. Odpowiada za natychmiastową ekstrakcję źródłowego adresu IP z nagłówków pakietów IPv4, weryfikację jego obecności w mapie blokad oraz wykonywanie akcji \textit{XDP\_DROP} - odrzucenie przed alokacją struktur jądra \textit{sk\_buff}, lub \textit{XDP\_PASS} - przepuszczenie pakietu do stosu TCP/IP hosta.
-    
-    \item Współdzielona struktura tablic eBPF Map: Zoptymalizowana mapa typu \\\textit{BPF\_MAP\_TYPE\_HASH} o nazwie \textit{blacklist\_map}, stanowiąca most pamięciowy pomiędzy przestrzenią jądra a przestrzenią użytkownika. Przechowuje zablokowane adresy IP oraz liczniki telemetrii odrzuconego ruchu, gwarantując czas wyszukiwania na poziomie $O(1)$.
-    
-    \item Serwer odwrotnego proxy Nginx: Komponent odpowiedzialny za zakańczanie połączeń szyfrowanych  oraz izolację właściwego serwera aplikacyjnego. Konfiguracja serwera wymusza generowanie ustrukturyzowanych logów dostępowych w formacie JSON, zawierających kluczowe metryki czasowo-rozmiarowe żądań dla modelu uczenia maszynowego.
-    
-    \item Model uczenia maszynowego GRU: Predykcyjna, głęboka sieć rekurencyjna zaimplementowana w bibliotece PyTorch. Model analizuje sekwencje logów sieciowych w przesuwnych oknach czasowych na podstawie trzech wyekstrahowanych cech: czasu trwania żądania, rozmiaru nagłówków oraz liczby przesłanych bajtów, klasyfikując sesje jako anomalie lub ruch prawidłowy.
-    
-    \item Demon integrujący w przestrzeni użytkownika: Skrypt zarządzający \textit{control\_plane.py} napisany w języku Python z wykorzystaniem biblioteki \textit{bcc}. Odpowiada za dynamiczną kompilację i załadowanie kodu XDP, asynchroniczne strumieniowanie logów z serwera Nginx, podawanie cech na wejście modelu GRU oraz realizację dwutorowej mitygacji (wstrzykiwanie IP do mapy eBPF oraz natychmiastowe zrywanie sesji TCP za pomocą narzędzia \textit{ss}).
-\end{itemize}
+\begin{table}[H]
+\centering
+\small
+\caption{Wymagania projektowe i ich źródła}\label{tab:wymagania}
+\begin{tabularx}{\linewidth}{@{}L{0.6cm}YL{3.3cm}L{2.6cm}@{}}
+\toprule
+ID & Wymaganie & Uzasadnienie & Realizacja \\
+\midrule
+W1 & Odrzucanie ruchu z zablokowanych źródeł przed alokacją struktury \textit{sk\_buff}, ze stałym kosztem wyszukiwania na pakiet & wniosek 1; \cite{scholz2018performance, hadisalim2021acl, fabre2018l4drop} & sekcja~\ref{sec:impl_xdp} \\
+W2 & Wykrywanie ataków \textit{low-and-slow} na podstawie stanu połączeń i sygnałów serwera, a nie wyłącznie wolumenu ruchu & wniosek 2; \cite{sikora2021generator, sood2023slowtrack, tripathi2024delays} & sekcje~\ref{sec:impl_l4} i~\ref{sec:impl_l7} \\
+W3 & Deterministyczne, jawnie sparametryzowane reguły jako podstawowa ścieżka decyzyjna i punkt odniesienia dla modeli uczonych & wnioski 3 i 4; \cite{arp2022dos} & sekcja~\ref{sec:impl_daemon} \\
+W4 & Model sekwencyjny jako komponent eksperymentalny, włączany jawnie i oceniany względem reguł w trybie izolacji lub cienia & wnioski 3 i 5; \cite{cho2014learning, cantone2024machine} & sekcja~\ref{sec:impl_gru} \\
+W5 & Kontrolowane, powtarzalne środowisko z ruchem prawowitym, sparowanymi powtórzeniami i testami istotności & wniosek 4; \cite{goldschmidt2025network, arp2022dos} & rozdział~\ref{sec:testbed} \\
+W6 & Rozliczalność decyzji: każda blokada rejestrowana z silnikiem, zmierzoną wartością i progiem & wymaganie inżynierskie (audyt wyników) & sekcja~\ref{sec:impl_events} \\
+W7 & Działanie na pojedynczym hoście, bez współpracy operatora sieci; ograniczenia tego umiejscowienia wskazane jawnie & wniosek 1; sekcja~\ref{sec:umiejscowienie} & sekcja~\ref{sec:ograniczenia} \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
-\subsection{Szczegóły implementacji}
-\begin{lstlisting}[language=Python, caption=control\_plane.py ]
-from bcc import BPF
-import time
-import socket
-import struct
-import json
-import os
-import subprocess
-from collections import defaultdict, deque
-import torch
-import joblib
-import numpy as np
-from GRU_ML_model import GRUDDoSClassifier
+Wymaganie W7 ma charakter ograniczający: obrona umieszczona na hoście nie przeciwdziała wysyceniu łącza dostępowego ani atakom odbiciowym, w których adresy źródłowe należą do reflektorów (sekcja~\ref{sec:umiejscowienie}). Zakres badań obejmuje więc ataki, których skutki można ograniczyć w punkcie odbioru ruchu przez serwer.
 
-INTERFACE = "veth_server"
-BPF_SOURCE_FILE = "xdp_ddos_filter.c"
-NGINX_LOG_FILE = "/var/log/nginx/ddos_ml_access.log"
-MODEL_PATH = "training_results/gru_ddos_model.pth"
-SCALER_PATH = "training_results/scaler.save"
+\subsection{Koncepcja wyjściowa i kierunki jej rozwoju}\label{sec:koncepcja_wyjsciowa}
+Punktem wyjścia projektu był prototyp typu \textit{Proof of Concept} (rys.~\ref{fig:koncepcja_wyjsciowa}), uruchamiany skryptem \texttt{setup.sh}. Składał się on z dwóch przestrzeni nazw sieciowych, \texttt{attacker\_ns} (10.0.0.2) i \texttt{server\_ns} (10.0.0.1), połączonych parą interfejsów \texttt{veth}. Decyzję o blokadzie podejmował w nim model GRU analizujący logi dostępowe serwera Nginx, a demon w przestrzeni użytkownika wpisywał wskazane adresy do mapy eBPF odczytywanej przez program XDP.
 
-SEQUENCE_LENGTH = 15
-PREDICTION_THRESHOLD = 0.85
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{images/Architektura-DDoS-mitigation.png}
+    \caption{Koncepcja wyjściowa systemu (prototyp PoC): dwie przestrzenie nazw, model GRU jako źródło decyzji o blokadzie, egzekwowanie blokady w punkcie XDP}
+    \label{fig:koncepcja_wyjsciowa}
+\end{figure}
 
-print(f"[*] Compiling and loading eBPF code from file: {BPF_SOURCE_FILE}...")
-bpf = BPF(src_file=BPF_SOURCE_FILE)
-bpf_function = bpf.load_func("xdp_ddos_mitigation", BPF.XDP)
-bpf.attach_xdp(INTERFACE, bpf_function, 0)
-print(f"[+] Successfully attached XDP program to interface {INTERFACE}.")
+W toku prac koncepcja ta została rozwinięta w trzech kierunkach, wynikających bezpośrednio z wymagań z tabeli~\ref{tab:wymagania}:
+\begin{enumerate}
+    \item \textbf{Ścieżka decyzyjna.} Podstawową ścieżkę decyzyjną przejęły deterministyczne reguły warstw L3/L4 i L7 (wymaganie W3). Model GRU stał się opcjonalnym silnikiem eksperymentalnym, który jest domyślnie wyłączony, a jego ewaluacja odbywa się w wydzielonych trybach pracy (wymaganie W4, sekcja~\ref{sec:tryby}).
+    \item \textbf{Źródło danych modelu.} Model jest rozwijany w dwóch potokach: zasilanym cechami przepływów zbieranymi w punkcie XDP (\textit{Tier-1}) oraz zasilanym rozszerzonym logiem żądań serwera Nginx (potok L7), działającym wyłącznie w trybie cienia (sekcja~\ref{sec:impl_gru}).
+    \item \textbf{Środowisko testowe.} Pojedynczą przestrzeń atakującego zastąpiło środowisko z mostem programowym, dwudziestoma klientami prawowitymi o zróżnicowanej jakości łącza i konfigurowalną liczbą botów (wymaganie W5, rozdział~\ref{sec:testbed}).
+\end{enumerate}
 
-blacklist_map = bpf.get_table("blacklist_map")
+\subsection{Płaszczyzna danych i płaszczyzna sterowania}\label{sec:plaszczyzny}
+Architektura systemu (rys.~\ref{fig:architektura}) dzieli odpowiedzialność między dwie płaszczyzny. \textbf{Płaszczyzna danych} to program XDP dołączony do interfejsu \texttt{veth\_server} w przestrzeni nazw serwera. Dla każdego odebranego pakietu sprawdza ona obecność adresu źródłowego na czarnej liście i zbiera telemetrię, zanim jądro zaalokuje strukturę \textit{sk\_buff} \cite{scholz2018performance}. \textbf{Płaszczyzna sterowania} to demon \texttt{control\_plane.py} działający w przestrzeni użytkownika. Odczytuje on telemetrię z map eBPF, tablicę gniazd jądra oraz logi serwera Nginx, ocenia reguły detekcji i wpisuje decyzje o blokadzie z powrotem do płaszczyzny danych.
 
-INPUT_SIZE = 3
-HIDDEN_SIZE = 64
-NUM_LAYERS = 2
+Podział ten odpowiada wzorcowi stosowanemu w systemach przemysłowych, w których analiza ruchu i decyzja o regule zapadają poza ścieżką pakietu, a egzekwowanie odbywa się w punkcie XDP \cite{majkowski2017gatebot, fabre2018l4drop}. Jedynym kanałem komunikacji między płaszczyznami są współdzielone mapy eBPF. Ścieżka pakietu nie zawiera więc wywołań do przestrzeni użytkownika, a koszt analizy nie obciąża przetwarzania pojedynczego pakietu. Opóźnienie reakcji jest natomiast ograniczone od dołu okresem odczytu telemetrii (1~s) i czasem przetwarzania logów (sekcja~\ref{sec:wyniki_ttm}).
 
-print("[*] Loading data scaler...")
-scaler = joblib.load(SCALER_PATH)
-
-print("[*] Loading trained GRU model...")
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-gru_model = GRUDDoSClassifier(input_size=INPUT_SIZE, hidden_size=HIDDEN_SIZE, num_layers=NUM_LAYERS)
-
-gru_model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
-gru_model.to(device)
-gru_model.eval()
-
-def ip_to_network_bytes(ip_str):
-    return struct.unpack("=I", socket.inet_aton(ip_str))[0]
-
-
-def block_ip_in_xdp(ip_str):
-    ip_int = ip_to_network_bytes(ip_str)
-    blacklist_map[blacklist_map.Key(ip_int)] = blacklist_map.Leaf(0)
-    print(f"[XDP] BLOCKED IP: {ip_str}. Rule is active on hardware.")
-
-
-def kill_zombie_connections(ip_str):
-    try:
-        subprocess.run(["ss", "-K", "dst", ip_str], check=True, capture_output=True)
-        print(f"[OS] Killed hanging TCP sessions for address {ip_str}.")
-    except subprocess.CalledProcessError as e:
-        print(f"[-] Error while killing sessions for {ip_str}: {e.stderr.decode().strip()}")
-    except FileNotFoundError:
-        print("[-] The 'ss' tool is not installed (iproute2 package).")
-
-
-def tail_nginx_logs(file_path):
-    with open(file_path, 'r') as f:
-        f.seek(0, os.SEEK_END)
-        while True:
-            line = f.readline()
-            if not line:
-                time.sleep(0.05)
-                continue
-            yield line
-
-
-client_sequences = defaultdict(lambda: deque(maxlen=SEQUENCE_LENGTH))
-banned_ips = set()
-
-try:
-    print("[*] Starting Nginx -> GRU -> XDP integration...")
-    print(f"[*] Listening for logs in file: {NGINX_LOG_FILE}")
-
-    for log_line in tail_nginx_logs(NGINX_LOG_FILE):
-        try:
-            log_data = json.loads(log_line)
-            client_ip = log_data.get("client_ip")
-
-            if client_ip in banned_ips:
-                continue
-
-            features = [
-                float(log_data.get("request_time", 0.0)) * 1000000,
-                float(log_data.get("request_length", 0)),
-                float(log_data.get("bytes_sent", 0))
-            ]
-
-            client_sequences[client_ip].append(features)
-
-            if len(client_sequences[client_ip]) == SEQUENCE_LENGTH:
-                raw_sequence = np.array(list(client_sequences[client_ip]))
-                scaled_sequence = scaler.transform(raw_sequence)
-                tensor_seq = torch.tensor([scaled_sequence], dtype=torch.float32).to(device)
-
-                with torch.no_grad():
-                    logits = gru_model(tensor_seq)
-                    probability = torch.sigmoid(logits).item()
-
-                if probability > PREDICTION_THRESHOLD:
-                    print(f"\n[GRU] DETECTED L7 ATTACK (Slowloris/DoS) - IP: {client_ip} | Confidence: {probability * 100:.1f}%")
-                    block_ip_in_xdp(client_ip)
-                    kill_zombie_connections(client_ip)
-                    banned_ips.add(client_ip)
-                    del client_sequences[client_ip]
-
-        except json.JSONDecodeError:
-            continue
-        except Exception as e:
-            print(f"[-] Loop error: {e}")
-
-except KeyboardInterrupt:
-    print("\n[*] Execution interrupted by user. Cleaning up environment...")
-finally:
-    bpf.remove_xdp(INTERFACE, 0)
-    print(f"[+] XDP program detached from {INTERFACE}. Finished.")
-\end{lstlisting}
-\begin{lstlisting}[language=Python, caption=GRU\_ML\_model.py]
-import torch
-import torch.nn as nn
-
-
-class GRUDDoSClassifier(nn.Module):
-    """
-    Gated Recurrent Unit (GRU) classifier designed for DDoS attack detection.
-    
-    """
-
-    def __init__(self, input_size, hidden_size, num_layers, output_size=1, dropout_rate=0.2):
-        """
-        Initializes the GRUDDoSClassifier model.
-
-        Parameters:
-        -----------
-        input_size : int
-            The number of expected features in the input x (e.g., request time, length, bytes sent).
-        hidden_size : int
-            The number of features in the hidden state h of the GRU layer.
-        num_layers : int
-            Number of recurrent layers stacked on top of each other (Deep RNN).
-        output_size : int, optional
-            The number of output units. Defaults to 1 for binary classification.
-        dropout_rate : float, optional
-            The dropout probability for regularization between GRU layers. Defaults to 0.2.
-        """
-        super(GRUDDoSClassifier, self).__init__()
-
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-
-        self.gru = nn.GRU(
-            input_size=input_size,
-            hidden_size=hidden_size,
-            num_layers=num_layers,
-            batch_first=True,
-            dropout=dropout_rate if num_layers > 1 else 0
-        )
-
-        self.dropout = nn.Dropout(dropout_rate)
-        self.fc = nn.Linear(hidden_size, output_size)
-
-    def forward(self, x):
-        """
-        Performs the forward pass of the model.
-
-        Parameters:
-        -----------
-        x : torch.Tensor
-            Input tensor of shape (batch_size, sequence_length, input_size).
-
-        Returns:
-        --------
-        torch.Tensor
-            Output logits of shape (batch_size, output_size).
-        """
-        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
-
-        out, _hidden = self.gru(x, h0)
-        out = out[:, -1, :]
-        out = self.dropout(out)
-        out = self.fc(out)
-
-        return out
-\end{lstlisting}
-\begin{lstlisting}[language=Python, caption=GRU\_ML\_init.py]
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import pandas as pd
-import numpy as np
-import joblib
-from sklearn.preprocessing import StandardScaler
-from torch.utils.data import Dataset, DataLoader
-from GRU_ML_model import GRUDDoSClassifier
-
-DATA_PATH = "training_data/DoS1-Thursday-15-02-2018_TrafficForML_CICFlowMeter.parquet"
-MODEL_SAVE_PATH = "training_results/gru_ddos_model.pth"
-SCALER_SAVE_PATH = "training_results/scaler.save"
-
-SEQUENCE_LENGTH = 15
-BATCH_SIZE = 64
-EPOCHS = 5
-HIDDEN_SIZE = 64
-NUM_LAYERS = 2
-
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print(f"[*] Using device: {device}")
-
-print("[*] Loading .parquet data...")
-df = pd.read_parquet(DATA_PATH)
-
-df = df.iloc[:len(df)//2].reset_index(drop=True)
-print(f"[*] Dataset reduced to: {len(df)} rows (chronological order preserved).")
-
-df.replace([np.inf, -np.inf], np.nan, inplace=True)
-df.dropna(inplace=True)
-
-ip_col = 'Src IP' if 'Src IP' in df.columns else 'Source IP' if 'Source IP' in df.columns else None
-time_col = 'Timestamp' if 'Timestamp' in df.columns else None
-
-if ip_col:
-    print(f"[*] Sorting data by {ip_col} to group sequences per client...")
-    sort_cols = [ip_col]
-    
-    if time_col:
-        sort_cols.append(time_col)
-        # Przekształcamy Timestamp dla pewności poprawnego sortowania czasu
-        df[time_col] = pd.to_datetime(df[time_col], errors='ignore')
-    
-    # Sortowanie zapewnia, że wszystkie pakiety z jednego IP leżą obok siebie w pamięci
-    df = df.sort_values(by=sort_cols).reset_index(drop=True)
-else:
-    print("[-] Warning: Client IP column not found in dataset. Sequences might cross IPs!")
-
-if 'Label' in df.columns:
-    labels = np.where(df['Label'] == 'Benign', 0, 1)
-else:
-    raise ValueError("Missing 'Label' column in dataset!")
-
-selected_features = [
-    'Flow Duration',
-    'Fwd Packets Length Total',
-    'Bwd Packets Length Total'
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    font=\scriptsize,
+    box/.style={draw, rounded corners=2pt, align=center, inner sep=3pt, fill=white, minimum height=7mm},
+    mapn/.style={draw, cylinder, shape border rotate=90, aspect=0.15, align=center, inner sep=2pt, fill=yellow!10, minimum width=25mm, minimum height=8mm},
+    pkt/.style={-{Stealth[length=1.8mm]}, thick},
+    tel/.style={-{Stealth[length=1.8mm]}, thick, blue!60!black, densely dashed},
+    telnh/.style={thick, blue!60!black, densely dashed},
+    dec/.style={-{Stealth[length=1.8mm]}, thick, red!70!black},
+    lbl/.style={font=\tiny, fill=white, inner sep=1pt}
 ]
-features = df[selected_features]
-INPUT_SIZE = features.shape[1]
-print(f"[*] Detected features (INPUT_SIZE): {INPUT_SIZE}")
+% --- klienci ---
+\node[box, fill=green!8, text width=22mm] (legit) at (0,3.2) {klienci prawowici\\ \texttt{legit\_1}--\texttt{legit\_20}};
+\node[box, fill=red!8, text width=20mm] (bots) at (0,1.6) {boty\\ \texttt{bot\_1}--\texttt{bot\_N}};
+\node[box, text width=20mm] (br) at (0,0) {most \texttt{ddos\_br0}};
+% --- jądro ---
+\node[box, fill=blue!6, text width=22mm] (xdp) at (3.7,0) {\texttt{veth\_server}\\ program XDP};
+\node[box, text width=19mm] (stack) at (7.0,0) {stos TCP/IP\\ (Netfilter)};
+\node[box, text width=17mm] (sock) at (14.0,0.1) {tablica gniazd};
+\node[mapn] (bl) at (10.2,-1.2) {\texttt{blacklist\_map}};
+\node[mapn] (tm) at (10.2,-2.4) {\texttt{telemetry\_map}};
+\node[mapn] (fm) at (10.2,-3.6) {\texttt{flow\_map}};
+\node[box, draw=gray, text=gray, text width=17mm] (drop) at (2.6,-1.6) {odrzucenie\\ (\texttt{XDP\_DROP})};
+% --- przestrzeń użytkownika ---
+\node[box, fill=orange!8, text width=19mm] (nginx) at (7.0,2.5) {Nginx\\ :80, :443};
+\node[box, fill=orange!8, text width=19mm] (guni) at (7.0,4.3) {Gunicorn\\ 127.0.0.1:8080};
+\node[box, fill=violet!6, text width=34mm, align=left] (cp) at (13.2,3.1) {\textbf{\texttt{control\_plane.py}}\\ -- telemetria L3/L4 (1 s)\\ -- reguła \texttt{l7\_rate}\\ -- detektor \texttt{l7\_rudy}\\ -- GRU \textit{Tier-1} (opcja)\\ -- GRU L7, cień (opcja)};
+\node[box, text width=24mm] (ev) at (13.2,5.4) {\texttt{ban\_events.jsonl}};
+% --- obszary ---
+\begin{scope}[on background layer]
+  \node[draw=blue!50, fill=blue!3, rounded corners, inner sep=5pt, fit=(xdp)(stack)(sock)(bl)(tm)(fm)(drop)] (kern) {};
+  \node[draw=violet!50, fill=violet!3, rounded corners, inner sep=5pt, fit=(nginx)(guni)(cp)(ev)] (usr) {};
+\end{scope}
+\node[anchor=south west, font=\scriptsize\bfseries, text=blue!60!black, inner sep=1pt] at ([yshift=1pt]kern.north west) {jądro (\texttt{server\_ns})};
+\node[anchor=north west, font=\scriptsize\bfseries, text=violet!70!black, inner sep=2pt] at (usr.north west) {przestrzeń użytkownika};
+% --- ścieżka pakietu ---
+\draw[pkt] (legit.west) -- ++(-0.35,0) |- (br.west);
+\draw[pkt] (bots) -- (br);
+\draw[pkt] (br) -- (xdp);
+\draw[pkt] (xdp) -- node[lbl, above]{\texttt{XDP\_PASS}} (stack);
+\draw[pkt] (stack) -- node[lbl, right]{TCP} (nginx);
+\draw[pkt] (nginx) -- node[lbl, right]{\textit{proxy\_pass}} (guni);
+\draw[pkt, gray] ([xshift=-11mm]xdp.south) -- ([xshift=-11mm]xdp.south |- drop.north);
+% --- XDP i mapy ---
+\draw[pkt] (bl.west) -| node[lbl, pos=0.3, above]{wyszukanie źródła} ([xshift=9mm]xdp.south);
+\draw[tel] ([xshift=2mm]xdp.south) |- node[lbl, pos=0.75, above]{liczniki per źródło} (tm.west);
+\draw[tel] ([xshift=2mm]xdp.south) |- node[lbl, pos=0.75, above]{cechy przepływów} (fm.west);
+% --- odczyty płaszczyzny sterowania ---
+\coordinate (cpx) at ([xshift=-6mm]cp.south);
+\coordinate (cpr) at ([xshift=-12mm]cp.south);
+\coordinate (cps) at ([xshift=4mm]cp.south);
+\coordinate (cpk) at ([xshift=12mm]cp.south);
+\draw[telnh] (tm.east) -- (cpx |- tm.east);
+\draw[tel] (fm.east) -| node[lbl, pos=0.62, right, align=left]{odczyt\\ co 1 s} (cpx);
+\draw[tel] (cps |- sock.north) -- node[lbl, pos=0.5, left]{\texttt{ss -tan}} (cps);
+\draw[tel] (nginx.east) -- node[lbl, above]{logi} (nginx.east -| cp.west);
+% --- decyzje ---
+\draw[dec] (cpr) |- node[lbl, pos=0.3, left]{wpis blokady} (bl.east);
+\draw[dec] (cpk) -- node[lbl, pos=0.5, right]{\texttt{ss -K}} (cpk |- sock.north);
+\draw[dec] (cp.north) -- node[lbl, right]{zdarzenia} (ev.south);
+\end{tikzpicture}
+\caption{Architektura logiczna systemu: ścieżka pakietu (czarne strzałki), przepływ telemetrii i logów do płaszczyzny sterowania (niebieskie, przerywane) oraz decyzje (czerwone). Wpis do \texttt{blacklist\_map} (lub reguła iptables w trybie porównawczym) i zerwanie połączeń poleceniem \texttt{ss -K} opisano w sekcji~\ref{sec:impl_ban}}
+\label{fig:architektura}
+\end{figure}
 
-print("[*] Normalizing data...")
-scaler = StandardScaler()
-features_scaled = scaler.fit_transform(features)
+Między płaszczyznami przebiega pięć przepływów danych:
+\begin{enumerate}
+    \item \textbf{Ścieżka pakietu:} most \texttt{ddos\_br0} $\rightarrow$ \texttt{veth\_server} (XDP) $\rightarrow$ stos TCP/IP $\rightarrow$ Nginx $\rightarrow$ Gunicorn. Pakiet ze źródła zablokowanego kończy ścieżkę akcją \texttt{XDP\_DROP}.
+    \item \textbf{Telemetria jądro $\rightarrow$ użytkownik:} program XDP aktualizuje liczniki w mapach \texttt{telemetry\_map} i \texttt{flow\_map}, a demon odczytuje je co 1~s.
+    \item \textbf{Stan połączeń i logi:} demon odczytuje tablicę gniazd jądra (\texttt{ss -tan state established}), log dostępowy Nginx w formacie JSON oraz log błędów Nginx.
+    \item \textbf{Decyzja użytkownik $\rightarrow$ jądro:} wpis adresu do \texttt{blacklist\_map}, a w trybie porównawczym reguła \texttt{DROP} zapory iptables \cite{iptables_ext}. Globalnie demon może także wymusić ciasteczka SYN (\texttt{sysctl}).
+    \item \textbf{Zrywanie połączeń:} po blokadzie demon usuwa istniejące gniazda TCP zablokowanego adresu poleceniem \texttt{ss -K}, ponieważ filtr na wejściu nie usuwa połączeń już nawiązanych.
+\end{enumerate}
 
-joblib.dump(scaler, SCALER_SAVE_PATH)
+\subsection{Silniki detekcji}\label{sec:silniki}
+Płaszczyzna sterowania realizuje zestaw niezależnych silników detekcji, zestawionych w tabeli~\ref{tab:silniki}. Każdy silnik ma jawnie określone źródło sygnału, warunek i wymaganą liczbę kolejnych potwierdzeń. Zakresy wartości progowych są zapisywane w zdarzeniu startowym demona (sekcja~\ref{sec:impl_events}). Nazwy silników w pierwszej kolumnie są identyczne z wartościami pola \texttt{engine} w rejestrze zdarzeń, co pozwala przypisać każdą blokadę z kampanii pomiarowych do reguły, która ją nałożyła.
 
-print("[*] Generating time sequences...")
+\begin{table}[H]
+\centering
+\scriptsize
+\caption{Silniki detekcji płaszczyzny sterowania (profil progów \texttt{default}; w nawiasach wartości profilu \texttt{tolerant})}\label{tab:silniki}
+\begin{tabularx}{\linewidth}{@{}L{2.0cm}L{2.1cm}Y L{1.65cm}L{1.9cm}@{}}
+\toprule
+Silnik & Źródło sygnału & Warunek (na jeden odczyt lub zdarzenie) & Trwałość & Akcja \\
+\midrule
+\texttt{l4\_syn} & \texttt{telemetry\_map} & przyrost liczby SYN z adresu $>200$ na interwał & 1 odczyt & blokada \\
+\texttt{l4\_volumetric} & \texttt{telemetry\_map} & przyrost liczby pakietów innych niż SYN $>5000$ na interwał & 1 odczyt & blokada \\
+\texttt{l4\_slowconn} & \texttt{ss}, \texttt{telemetry\_map} & $\geq 8$ (180) połączeń ESTABLISHED do portów 80/443 i $<250$~B na interwał & 3 kolejne & blokada, \texttt{ss -K} \\
+\texttt{l4\_lowsyn} & \texttt{telemetry\_map}, \texttt{ss} & $\geq 3$ SYN na interwał, 0 połączeń ESTABLISHED, brak uzgodnienia od 15~s & 4 kolejne & blokada \\
+\texttt{l7\_rate} & log dostępowy & okno 10~s, $\geq 5$ żądań; $r > 50$ (108)~żądań/s lub udział błędów $>0{,}8$ przy $r>10$ & natychmiast & blokada, \texttt{ss -K} \\
+\texttt{l7\_rudy} & log błędów & $\geq 3$ przekroczenia czasu odczytu ciała żądania w oknie 60~s & natychmiast & blokada, \texttt{ss -K} \\
+(globalny SYN) & suma po adresach & łączny przyrost SYN $>5000$ na interwał & 1 odczyt & \texttt{tcp\_\allowbreak syncookies=1} \\
+\texttt{gru} (\textit{Tier-1}) & \texttt{flow\_map} & $p>0{,}95$ dla sekwencji 15 migawek przepływów & 3 kolejne & blokada (tylko \texttt{XDP\_GRU=1}) \\
+GRU L7 & log \texttt{l7json} & $p>0{,}95$ dla okna 20 żądań klucza (IP, UA) & 3 kolejne & zdarzenie \texttt{l7\_would\_ban}, bez blokady \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
+Wartość mierzona przez silniki warstwy L4 to liczba zdarzeń w jednym interwale odczytu (1~s powiększona o czas pracy pętli), a nie częstotliwość znormalizowana czasem. Progi silników wolumetrycznych należy więc interpretować jako liczby pakietów na odczyt.
 
-class DynamicDDoSDataset(Dataset):
-    """
-    Dataset class for dynamically generating time-series sequences from network traffic data.
-    """
-    def __init__(self, data, labels, seq_length):
-        """
-        Initializes the dynamic dataset.
+\subsection{Tryby pracy i konfiguracje porównawcze}\label{sec:tryby}
+Zachowanie systemu jest sterowane zmiennymi środowiskowymi (tab.~\ref{tab:tryby}). Wartości domyślne odpowiadają konfiguracji produkcyjnej, w której blokady nakładają wyłącznie reguły deterministyczne, a są egzekwowane w punkcie XDP. Pozostałe ustawienia tworzą konfiguracje porównawcze wykorzystywane w eksperymentach (sekcja~\ref{sec:tryby_porownawcze}).
 
-        Parameters:
-        -----------
-        data : numpy.ndarray
-            The scaled feature array.
-        labels : numpy.ndarray
-            The binary target labels.
-        seq_length : int
-            The number of time steps in each sequence.
-        """
-        self.data = data
-        self.labels = labels
-        self.seq_length = seq_length
+\begin{table}[H]
+\centering
+\small
+\caption{Zmienne sterujące trybem pracy systemu}\label{tab:tryby}
+\begin{tabularx}{\linewidth}{@{}L{3.6cm}L{2.2cm}Y@{}}
+\toprule
+Zmienna & Domyślnie & Znaczenie \\
+\midrule
+\texttt{MITIGATION\_BACKEND} & \texttt{xdp} & mechanizm egzekwowania blokad: mapa XDP lub reguła iptables w \texttt{server\_ns} (telemetria XDP jest zbierana w obu przypadkach) \\
+\texttt{MITIGATION\_MODE} & -- & \texttt{none}: środowisko bez demona (konfiguracje odniesienia) \\
+\texttt{NGINX\_PROTECTED} & 0 & 1: przy braku demona używany jest \texttt{nginx.conf} z limitami \texttt{limit\_req}/\texttt{limit\_conn} zamiast \texttt{nginx\_unprotected.conf} \\
+\texttt{HEURISTIC\_PROFILE} & \texttt{default} & \texttt{tolerant}: złagodzone progi reguł \texttt{l7\_rate} (108 żądań/s) i \texttt{l4\_slowconn} (180 połączeń) \\
+\texttt{XDP\_GRU} & 0 & 1: włączenie potoku GRU zasilanego z \texttt{flow\_map} \\
+\texttt{GRU\_ONLY} & 0 & 1: tryb izolacji, w którym blokować może wyłącznie GRU (implikuje \texttt{XDP\_GRU=1}) \\
+\texttt{L7\_SHADOW}, \texttt{L7\_MODEL} & 0, -- & silnik GRU L7 w trybie cienia i ścieżka pakietu modelu \\
+\texttt{L7\_RECORD} & -- & zapis wejścia silnika L7 do deterministycznego odtworzenia \\
+\texttt{BAN\_EVENTS} & ścieżka pliku & lokalizacja rejestru zdarzeń; pusta wartość wyłącza rejestr \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
-    def __len__(self):
-        """
-        Returns the total number of available sequences.
-        """
-        return len(self.data) - self.seq_length
+\section{Implementacja systemu}\label{sec:implementacja}
+Rozdział opisuje implementację komponentów przedstawionych w rozdziale~\ref{sec:architektura}: programu XDP (plik \texttt{xdp\_ddos\_filter.c}), demona płaszczyzny sterowania (\texttt{control\_plane.py}), serwera Nginx z aplikacją zaplecza, eksperymentalnych potoków modelu GRU oraz rejestru zdarzeń. Fragmenty kodu przytoczono w postaci z repozytorium; w niektórych pominięto lub skrócono komentarze, co zaznaczono w podpisach listingów.
 
-    def __getitem__(self, idx):
-        """
-        Generates one sequence slice and its corresponding label on the fly.
-        """
-        x_seq = self.data[idx : (idx + self.seq_length)]
-        y_label = self.labels[idx + self.seq_length - 1]
-        return torch.tensor(x_seq, dtype=torch.float32), torch.tensor([y_label], dtype=torch.float32)
+\subsection{Program XDP w płaszczyźnie danych}\label{sec:impl_xdp}
+Program XDP jest napisany w ograniczonym podzbiorze języka C i kompilowany w chwili uruchomienia demona przez bibliotekę BCC. Demon ładuje funkcję \texttt{xdp\_ddos\_mitigation} jako program typu \texttt{BPF.XDP} i dołącza ją do interfejsu \texttt{veth\_server} wywołaniem \texttt{attach\_\allowbreak xdp(INTERFACE, fn, 0)}; przy zakończeniu pracy program jest odłączany (\texttt{remove\_xdp}). Program korzysta z trzech map eBPF (tab.~\ref{tab:mapy}, listing~\ref{lst:xdp_mapy}).
 
+\begin{table}[H]
+\centering
+\footnotesize
+\caption{Mapy eBPF programu XDP}\label{tab:mapy}
+\begin{tabularx}{\linewidth}{@{}L{2.7cm}L{2.6cm}L{2.6cm}L{1.7cm}Y@{}}
+\toprule
+Mapa & Typ & Klucz $\rightarrow$ wartość & Pojemność & Rola \\
+\midrule
+\texttt{blacklist\_map} & \texttt{BPF\_HASH} & adres IPv4 $\rightarrow$ licznik odrzuceń (u64) & 100\,000 & czarna lista zapisywana przez demon; licznik odrzuconych pakietów \\
+\texttt{telemetry\_map} & \texttt{lru\_percpu\_\allowbreak hash} & adres IPv4 $\rightarrow$ \texttt{telemetry\_\allowbreak data} & 100\,000 & skumulowane liczniki pakietów, SYN i bajtów per źródło, osobno dla każdego procesora \\
+\texttt{flow\_map} & \texttt{lru\_hash} & 5-krotka $\rightarrow$ \texttt{flow\_feat} & 262\,144 & cechy przepływu w kierunku klient $\rightarrow$ serwer dla potoku GRU \textit{Tier-1} \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
-print("[*] Generating dynamic loader...")
-dataset = DynamicDDoSDataset(features_scaled, labels, SEQUENCE_LENGTH)
-dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
-
-model = GRUDDoSClassifier(input_size=INPUT_SIZE, hidden_size=HIDDEN_SIZE, num_layers=NUM_LAYERS).to(device)
-criterion = nn.BCEWithLogitsLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
-
-print("[*] Starting training process...")
-for _epoch in range(EPOCHS):
-    model.train()
-    total_loss = 0
-    for batch_X, batch_y in dataloader:
-        batch_X, batch_y = batch_X.to(device), batch_y.to(device)
-
-        optimizer.zero_grad()
-        outputs = model(batch_X)
-        loss = criterion(outputs, batch_y)
-        loss.backward()
-        optimizer.step()
-
-        total_loss += loss.item()
-
-    avg_loss = total_loss / len(dataloader)
-    print(f"Epoch [{_epoch + 1}/{EPOCHS}], Loss: {avg_loss:.4f}")
-
-torch.save(model.state_dict(), MODEL_SAVE_PATH)
-print(f"[+] Model successfully saved to {MODEL_SAVE_PATH}")
-print(f"[+] Scaler successfully saved to {SCALER_SAVE_PATH}")
-\end{lstlisting}
-\begin{lstlisting}[language=Bash, caption=setup.sh]
-#!/bin/bash
-
-PROJECT_DIR="/home/artur/DDoS-mitigation"
-NGINX_CONF="${PROJECT_DIR}/nginx.conf"
-CONTROL_PLANE="${PROJECT_DIR}/control_plane.py"
-PYTHON_VENV="${PROJECT_DIR}/.venv/bin/python"
-
-if [ "$EUID" -ne 0 ]; then
-  echo "[-] Please run this script with root privileges (sudo bash setup_lab.sh)"
-  exit
-fi
-
-echo "[*] Starting the construction of the automated PoC environment..."
-
-echo "[*] Checking dependencies (Nginx)..."
-if ! command -v nginx &> /dev/null; then
-    echo "[*] Installing Nginx server..."
-    apt-get update && apt-get install -y nginx
-fi
-
-systemctl stop nginx 2>/dev/null
-systemctl disable nginx 2>/dev/null
-
-echo "[*] Killing old processes from previous sessions..."
-pkill -f "nginx: master process" 2>/dev/null
-pkill -f "control_plane.py" 2>/dev/null
-pkill -f "gunicorn" 2>/dev/null # <-- Dodane: Czyszczenie Gunicorna
-
-ip netns del attacker_ns 2>/dev/null
-ip netns del server_ns 2>/dev/null
-
-echo "[*] Creating Network Namespaces and veth interfaces..."
-ip netns add attacker_ns
-ip netns add server_ns
-
-ip link add veth_server type veth peer name veth_attacker
-
-ip link set veth_server netns server_ns
-ip link set veth_attacker netns attacker_ns
-
-ip netns exec server_ns ip addr add 10.0.0.1/24 dev veth_server
-ip netns exec server_ns ip link set veth_server up
-ip netns exec server_ns ip link set lo up
-
-ip netns exec attacker_ns ip addr add 10.0.0.2/24 dev veth_attacker
-ip netns exec attacker_ns ip link set veth_attacker up
-ip netns exec attacker_ns ip link set lo up
-
-ip netns exec server_ns ethtool -K veth_server tx off rx off
-
-echo "[+] Built network environment: [10.0.0.1 Server] <- veth -> [10.0.0.2 Attacker]"
-
-echo "[*] Preparing logs and SSL certificates for Proxy..."
-
-if [ ! -f /etc/ssl/certs/nginx-selfsigned.crt ]; then
-    openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-        -keyout /etc/ssl/private/nginx-selfsigned.key \
-        -out /etc/ssl/certs/nginx-selfsigned.crt \
-        -subj "/C=PL/ST=Masovian/L=Warsaw/O=PoC/CN=twojadomena.pl" 2>/dev/null
-fi
-
-mkdir -p /var/log/nginx
-touch /var/log/nginx/ddos_ml_access.log
-chmod 644 /var/log/nginx/ddos_ml_access.log
-> /var/log/nginx/ddos_ml_access.log
-
-echo "[*] Creating a robust dummy backend app..."
-cat << 'EOF' > ${PROJECT_DIR}/dummy_app.py
-def app(environ, start_response):
-    data = b"Backend is running flawlessly!\n"
-    start_response("200 OK", [
-        ("Content-Type", "text/plain"),
-        ("Content-Length", str(len(data)))
-    ])
-    return iter([data])
-EOF
-
-echo "[*] Installing Gunicorn inside venv..."
-${PYTHON_VENV} -m pip install gunicorn >/dev/null 2>&1
-
-echo "[*] Starting multi-worker Gunicorn backend on port 8080..."
-ip netns exec server_ns nohup ${PYTHON_VENV} -m gunicorn --chdir ${PROJECT_DIR} --workers 4 --threads 10 -b 0.0.0.0:8080 dummy_app:app >/dev/null 2>&1 &
-
-echo "[*] Starting Nginx in isolated namespace..."
-ip netns exec server_ns nginx -c ${NGINX_CONF}
-
-echo "------------------------------------------------------------"
-echo "[+] Infrastructure ready! Starting Mitigation Daemon."
-echo "------------------------------------------------------------"
-
-ip netns exec server_ns ${PYTHON_VENV} ${CONTROL_PLANE}
-\end{lstlisting}
-\begin{lstlisting}[language=C, caption=xdp\_ddos\_filter.c]
-#include <uapi/linux/bpf.h>
-#include <uapi/linux/if_ether.h>
-#include <uapi/linux/ip.h>
-#include <uapi/linux/in.h>
+\begin{lstlisting}[language=C, caption={Struktury danych i deklaracje map eBPF (\texttt{xdp\_ddos\_filter.c}, wiersze 9--53; pominięto komentarze blokowe)}, label=lst:xdp_mapy]
+struct telemetry_data {
+    u64 packet_count;    // fwd packets this IP
+    u64 syn_count;       // SYN flags
+    u64 byte_count;      // IP tot_len bytes (volumetric heuristic)
+    u64 first_seen_ns;   // for aggregate rate/duration
+};
+struct flow_key {
+    u32 src_ip;
+    u32 dst_ip;
+    u16 src_port;
+    u16 dst_port;
+    u8  proto;
+};
+struct flow_feat {
+    u64 first_seen_ns;
+    u64 last_seen_ns;
+    u64 iat_max_ns;
+    u64 fwd_packets;
+    u64 fwd_payload_bytes;
+    u64 fwd_hdr_bytes;
+    u32 fwd_pkt_len_max;
+    u32 init_win;
+};
 
 BPF_HASH(blacklist_map, u32, u64, 100000);
+BPF_TABLE("lru_percpu_hash", u32, struct telemetry_data, telemetry_map, 100000);
+// LRU so the flow table self-bounds under floods (oldest flows evicted first).
+BPF_TABLE("lru_hash", struct flow_key, struct flow_feat, flow_map, 262144);
+\end{lstlisting}
 
+Wybór typów map wynika z zachowania pod obciążeniem. Mapy z wypieraniem najdawniej używanych wpisów (LRU) ograniczają zużycie pamięci przy zalewaniu z losowymi adresami źródłowymi: po zapełnieniu jądro usuwa najstarszy wpis zamiast odmawiać utworzenia nowego, co w przeciwnym razie zaniżałoby liczbę obserwowanych pakietów SYN właśnie w szczycie ataku. Wariant \textit{per-CPU} mapy telemetrii eliminuje rywalizację rdzeni o wspólny licznik. Ceną jest konieczność sumowania wartości ze wszystkich procesorów w przestrzeni użytkownika (sekcja~\ref{sec:impl_telemetria}).
+
+Listing~\ref{lst:xdp_blacklist} przedstawia początek programu. Każdy dostęp do nagłówka jest poprzedzony sprawdzeniem granic bufora (\texttt{data\_end}), którego wymaga weryfikator eBPF. Pakiety inne niż IPv4 są przepuszczane bez analizy. Wyszukanie adresu źródłowego w czarnej liście następuje bezpośrednio po odczytaniu nagłówka IP, przed walidacją pola IHL. Dzięki tej kolejności zablokowane źródło nie może ominąć blokady pakietem ze zmanipulowaną długością nagłówka. Licznik odrzuceń jest zwiększany atomowo (\texttt{lock\_xadd}), a pakiet kończy przetwarzanie akcją \texttt{XDP\_DROP}, zanim jądro przydzieli strukturę \textit{sk\_buff} \cite{scholz2018performance, hadisalim2021acl}.
+
+\begin{lstlisting}[language=C, caption={Sprawdzenie czarnej listy na początku programu XDP (\texttt{xdp\_ddos\_filter.c}, wiersze 55--81; skrócono komentarz)}, label=lst:xdp_blacklist]
 int xdp_ddos_mitigation(struct xdp_md *ctx) {
     void *data_end = (void *)(long)ctx->data_end;
     void *data     = (void *)(long)ctx->data;
 
     struct ethhdr *eth = data;
-
-    if ((void *)(eth + 1) > data_end) {
+    if ((void *)(eth + 1) > data_end)
         return XDP_PASS;
-    }
-
-    if (eth->h_proto != bpf_htons(ETH_P_IP)) {
+    if (eth->h_proto != bpf_htons(ETH_P_IP))
         return XDP_PASS;
-    }
 
     struct iphdr *ip = data + sizeof(*eth);
-
-    if ((void *)(ip + 1) > data_end) {
+    if ((void *)(ip + 1) > data_end)
         return XDP_PASS;
-    }
 
     u32 src_ip = ip->saddr;
-
     u64 *drop_counter = blacklist_map.lookup(&src_ip);
-
     if (drop_counter) {
         lock_xadd(drop_counter, 1);
-        return XDP_DROP;
+        return XDP_DROP;                // banned IP: drop before anything else
     }
 
-    return XDP_PASS;
-}
+    // Reject malformed IPv4 (IHL < 5 words / 20 bytes). Done AFTER the
+    // blacklist drop so a banned source cannot evade the block with a crafted IHL.
+    if (ip->ihl < 5)
+        return XDP_PASS;
 \end{lstlisting}
-\begin{lstlisting}[language=conf, caption=nginx.conf]
-worker_processes auto;
-worker_rlimit_nofile 65535;
-events {
-    worker_connections 16384;
-    use epoll;
-    multi_accept on;
-}
-http {
-    limit_req_zone $binary_remote_addr zone=mylimit:10m rate=20r/s;
-    log_format json_ml_format escape=json
-    '{'
-        '"timestamp":"$time_iso8601",'
-        '"client_ip":"$remote_addr",'
-        '"request_method":"$request_method",'
-        '"request_uri":"$request_uri",'
-        '"status":$status,'
-        '"request_time":$request_time,'
-        '"request_length":$request_length,'
-        '"bytes_sent":$bytes_sent,'
-        '"user_agent":"$http_user_agent"'
-    '}';
 
-    access_log /var/log/nginx/ddos_ml_access.log json_ml_format;
-    error_log /var/log/nginx/error.log warn;
+Dla pakietów przepuszczonych program analizuje nagłówek TCP lub UDP, ponownie ze sprawdzeniem granic, i aktualizuje dwie mapy telemetryczne. Do mapy \texttt{telemetry\_map} trafiają liczniki pakietów, bajtów (pole \texttt{tot\_len}) i segmentów SYN bez flagi ACK oraz czas pierwszej obserwacji źródła. Do mapy \texttt{flow\_map}, dla przepływów TCP i UDP, trafiają czasy pierwszego i ostatniego pakietu, największy odstęp między pakietami, liczba pakietów, łączna długość ładunku warstwy L4 i nagłówków L4, największa długość ładunku oraz początkowy rozmiar okna TCP. Semantyka tych pól odpowiada cechom kierunku \textit{forward} w nazewnictwie narzędzia CICFlowMeter, stosowanym w zbiorze CIC-IDS2017 \cite{cantone2024machine}. Program obserwuje wyłącznie ruch przychodzący do serwera, czyli dokładnie kierunek, którego dotyczą te cechy. Wszystkie pakiety niezablokowane kończą przetwarzanie akcją \texttt{XDP\_PASS}. Program nie modyfikuje pakietów i nie przekierowuje ich.
 
-    client_body_timeout 10s;
-    client_header_timeout 10s;
-    keepalive_timeout 15s;
-    send_timeout 10s;
+\paragraph{Znane ograniczenia programu.} W bieżącej wersji program nie analizuje ruchu IPv6 ani ramek z tagiem 802.1Q (są przepuszczane bez telemetrii), nie waliduje pól \texttt{doff} nagłówka TCP i \texttt{tot\_len} nagłówka IP względem rzeczywistej długości pakietu oraz nie traktuje w szczególny sposób fragmentów IP. Kontrole te są ujęte w planie prac (tab.~\ref{tab:plan}). Czarna lista blokuje pojedyncze adresy IPv4, a nie prefiksy.
 
-    client_max_body_size 2M;
-    large_client_header_buffers 2 1k;
+\subsection{Demon płaszczyzny sterowania}\label{sec:impl_daemon}
+Demon \texttt{control\_plane.py} jest procesem języka Python uruchamianym w przestrzeni nazw serwera. Dzięki temu narzędzie \texttt{ss} widzi gniazda połączeń między klientami a serwerem Nginx. Pracę demona dzieli się na wątki o rozłącznych odpowiedzialnościach (tab.~\ref{tab:watki}).
 
-    server {
-        listen 80;
-        listen 443 ssl http2;
-        server_name twojadomena.pl localhost;
+\begin{table}[H]
+\centering
+\small
+\caption{Wątki demona płaszczyzny sterowania}\label{tab:watki}
+\begin{tabularx}{\linewidth}{@{}L{3.9cm}L{2.6cm}Y@{}}
+\toprule
+Wątek (funkcja) & Wyzwalacz & Zadania \\
+\midrule
+\texttt{l3\_l4\_\allowbreak telemetry\_\allowbreak monitor} & co 1~s & wygaszanie blokad po TTL, odczyt \texttt{telemetry\_map} i tablicy gniazd, reguły L3/L4, ciasteczka SYN, wstrzymywanie GRU, zasilanie potoku \textit{Tier-1} \\
+\texttt{inference\_worker} & kolejka sekwencji & inferencja modelu GRU \textit{Tier-1} (aktywny przy \texttt{XDP\_GRU=1}) \\
+\texttt{tail\_nginx\_\allowbreak error\_logs} & nowe wiersze logu & detektor R.U.D.Y. (silnik \texttt{l7\_rudy}) \\
+\texttt{l7\_shadow\_monitor} & datagramy \textit{syslog} & silnik GRU L7 w trybie cienia (tylko \texttt{L7\_SHADOW=1}) \\
+wątek główny (\texttt{tail\_nginx\_logs}) & nowe wiersze logu & reguła \texttt{l7\_rate} na podstawie logu dostępowego JSON \\
+\bottomrule
+\end{tabularx}
+\end{table}
 
-        ssl_certificate /etc/ssl/certs/nginx-selfsigned.crt;
-        ssl_certificate_key /etc/ssl/private/nginx-selfsigned.key;
+Współdzielony stan chronią dwie blokady: \texttt{state\_lock} (struktury śledzenia klientów) oraz \texttt{banned\_ips\_lock} (zbiór blokad i ich znaczniki czasu). Przyjęto dwie zasady: blokady nie są nigdy zagnieżdżane, a żadna z nich nie jest utrzymywana podczas wywołań procesów zewnętrznych ani operacji na mapach BPF. Decyzja zapada pod blokadą, natomiast jej wykonanie (wpis do mapy, \texttt{iptables}, \texttt{ss -K}) następuje po jej zwolnieniu. Zasady te eliminują zakleszczenia między wątkami i ograniczają czas, w którym wątek logów czeka na wątek telemetrii.
 
-        ssl_protocols TLSv1.2 TLSv1.3;
-        ssl_prefer_server_ciphers on;
+\subsubsection{Odczyt telemetrii metodą odczytu i podmiany}\label{sec:impl_telemetria}
+Liczniki w mapie \texttt{telemetry\_map} mają charakter skumulowany i nie są zerowane przez demona. W każdym odczycie demon sumuje wartości ze wszystkich procesorów i oblicza przyrosty względem migawki z poprzedniego odczytu (listing~\ref{lst:telemetria}). Wartość mniejsza od poprzedniej migawki oznacza, że wpis został wyparty i utworzony ponownie; skumulowana wartość jest wówczas traktowana jako przyrost. Nieaktywne wpisy usuwa osobna procedura wygaszania klientów, a nie pętla odczytu, dlatego pakiet zliczony przez XDP między odczytem a usunięciem wpisu nie ginie.
 
-        location / {
-            limit_req zone=mylimit burst=100 nodelay;
-            proxy_pass http://127.0.0.1:8080;
+\begin{lstlisting}[language=Python, caption={Obliczanie przyrostów telemetrii na jeden interwał (\texttt{control\_plane.py}, funkcja \texttt{l3\_l4\_telemetry\_monitor}; pominięto komentarz blokowy)}, label=lst:telemetria]
+for key, per_cpu_values in telemetry_map.items():
+    ip_str = network_bytes_to_ip(key.value)
 
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
+    # Cumulative per-CPU aggregation
+    cum_pkts = sum(cpu.packet_count for cpu in per_cpu_values)
+    cum_syn = sum(cpu.syn_count for cpu in per_cpu_values)
+    cum_bytes = sum(cpu.byte_count for cpu in per_cpu_values)
 
-            proxy_connect_timeout 5s;
-            proxy_send_timeout 10s;
-            proxy_read_timeout 10s;
-        }
+    # Per-interval deltas vs the previous snapshot. A value below the
+    # previous snapshot means the key was evicted and re-created (IP
+    # reuse / counter reset) -> treat the cumulative value as the delta.
+    prev = prev_telemetry.get(ip_str)
+    if prev is None or cum_pkts < prev[0]:
+        d_pkts, d_syn, d_bytes = cum_pkts, cum_syn, cum_bytes
+    else:
+        d_pkts = cum_pkts - prev[0]
+        d_syn = cum_syn - prev[1]
+        d_bytes = cum_bytes - prev[2]
+    prev_telemetry[ip_str] = (cum_pkts, cum_syn, cum_bytes)
+\end{lstlisting}
+
+\subsubsection{Reguły warstw L3 i L4}\label{sec:impl_l4}
+Na podstawie przyrostów $\Delta_{\mathrm{SYN}}$ i $\Delta_{\mathrm{pkt}}$ dla danego adresu demon ocenia kolejno reguły z tabeli~\ref{tab:silniki}. Reguła \texttt{l4\_syn} blokuje źródło, które w jednym interwale wysłało ponad 200 segmentów SYN. Reguła \texttt{l4\_volumetric} blokuje źródło, które wysłało ponad 5000 pakietów innych niż SYN, co obejmuje zalewanie UDP, segmentami ACK i fragmentami IP.
+
+Reguła \texttt{l4\_slowconn} (listing~\ref{lst:slowconn}) odpowiada na ataki utrzymujące połączenia, takie jak Slowloris i R.U.D.Y. Łączy ona trzy warunki: liczba jednoczesnych połączeń w stanie ESTABLISHED do portów publicznych (80 i 443) wynosi co najmniej 8, ruch od źródła w interwale jest mniejszy niż 250~B, a oba warunki utrzymują się przez 3 kolejne odczyty. Liczbę połączeń odczytuje się z tablicy gniazd jądra (\texttt{ss -tan state established}), a nie z licznika utrzymywanego w programie XDP. Dzięki temu wartość nie dryfuje, gdy pakiet zamykający połączenie zostanie utracony lub nie zostanie zaobserwowany. Odwołanie do stanu połączeń, a nie do wolumenu, realizuje wymaganie W2 i odpowiada sygnałom stosowanym w literaturze do wykrywania ataków \textit{low-and-slow} \cite{sood2023slowtrack, tripathi2024delays}. Jak wskazano w rozdziale~\ref{sec:wnioski_przeglad}, próg liczby połączeń można ominąć, utrzymując mniej połączeń z większej liczby adresów; konsekwencje tego ograniczenia omówiono w sekcji~\ref{sec:wyniki_slow}.
+
+\begin{lstlisting}[language=Python, caption={Reguła \texttt{l4\_slowconn} (\texttt{control\_plane.py}, funkcja \texttt{l3\_l4\_telemetry\_monitor}; pominięto komentarz blokowy)}, label=lst:slowconn]
+conns = established_by_ip.get(ip_str, 0)
+if conns >= SLOWCONN_CONN_THRESHOLD and d_bytes < SLOWCONN_IDLE_BYTES and not GRU_ONLY:
+    slowconn_counts[ip_str] += 1
+    if slowconn_counts[ip_str] >= SLOWCONN_CONSECUTIVE:
+        print(f"\n[L4-DETECT] SLOW CONNECTION ABUSE - IP: {ip_str} | "
+              f"Est. conns: {conns} | Bytes/interval: {d_bytes}")
+        ban_ip(ip_str, reason=f"Slow connection abuse ({conns} conns)",
+               engine="l4_slowconn", value=conns,
+               threshold=SLOWCONN_CONN_THRESHOLD, bytes=d_bytes)
+        kill_zombie_connections(ip_str)
+        slowconn_counts.pop(ip_str, None)
+        continue
+else:
+    slowconn_counts.pop(ip_str, None)
+\end{lstlisting}
+
+Reguła \texttt{l4\_lowsyn} jest przeznaczona dla rozproszonego zalewania SYN, utrzymywanego poniżej progów \texttt{l4\_syn} i progu globalnego. Wykorzystuje ona fakt, że źródło takiego ataku wysyła segmenty SYN, ale nie kończy uzgodnienia trójetapowego \cite{rfc9293}. Źródło jest blokowane, gdy w 4 kolejnych interwałach wysyła co najmniej 3 segmenty SYN, nie ma żadnego połączenia w stanie ESTABLISHED i nie zakończyło uzgodnienia w ciągu ostatnich 15~s. Ostatni warunek chroni klientów na łączach stratnych, których ponowne próby połączeń są uzupełniane udanymi uzgodnieniami.
+
+Niezależnie od reguł per adres demon sumuje przyrosty SYN wszystkich źródeł. Gdy suma przekracza 5000 w interwale, co odpowiada zalewaniu z wielu, potencjalnie fałszywych adresów, demon ustawia parametr \texttt{net.ipv4.tcp\_syncookies=1}. W tym trybie jądro odpowiada ciasteczkami SYN po przepełnieniu kolejki połączeń półotwartych \cite{rfc4987, linux_syncookies, kernel_ipsysctl}. Gdy suma spadnie poniżej połowy progu, demon resetuje wyłącznie swoją wewnętrzną flagę, a ustawienie jądra pozostaje bez zmian. Wartość 1 jest w jądrze Linux wartością domyślną \cite{kernel_ipsysctl}, więc mechanizm ten zabezpiecza przede wszystkim przed konfiguracją, w której ciasteczka wyłączono.
+
+Ten sam sumaryczny sygnał wykorzystuje mechanizm \textbf{wstrzymywania modelu GRU} podczas ataków wolumetrycznych. Gdy łączny przyrost SYN przekracza 5000 lub łączny przyrost pakietów przekracza 50\,000 w interwale, potok GRU jest wstrzymywany na 15~s, a zgromadzone sekwencje są czyszczone. Po ustaniu ataku model ocenia wyłącznie przepływy rozpoczęte później (bramka wieku przepływu). Mechanizm ten wynika z obserwacji, że w trakcie ataku wolumetrycznego przepływy klientów prawowitych ulegają zatorom i retransmisjom i upodabniają się do ataków \textit{low-and-slow}. Bez wstrzymania atakujący mógłby wykorzystać zalewanie do wywołania fałszywych blokad. Zmiany stanu wstrzymania są rejestrowane jako zdarzenia \texttt{suppress\_on} i \texttt{suppress\_off}.
+
+\subsubsection{Reguły warstwy L7}\label{sec:impl_l7}
+Wątek główny analizuje kolejne wiersze logu dostępowego w formacie JSON (listing~\ref{lst:l7rate}). Dla każdego adresu utrzymywane jest okno przesuwne o długości 10~s, zawierające czasy żądań i informację o błędzie. Błędem jest odpowiedź o kodzie co najmniej 400, z wyjątkiem 503, który sygnalizuje przeciążenie serwera, a nie zachowanie klienta. Po zgromadzeniu co najmniej 5 żądań obliczana jest częstotliwość
+\begin{equation}
+r = \frac{n}{\max(t_{\mathrm{ost}} - t_{\mathrm{pierw}},\ 1\,\mathrm{s})},
+\end{equation}
+gdzie $n$ to liczba żądań w oknie. Dolne ograniczenie mianownika do 1~s zapobiega sztucznie wysokiej częstotliwości przy krótkiej serii żądań, np. 5 żądań w ciągu 50~ms. Źródło jest blokowane, gdy $r > 50$ żądań/s albo gdy udział błędów przekracza 0,8 przy $r > 10$ żądań/s.
+
+\begin{lstlisting}[language=Python, caption={Reguła \texttt{l7\_rate}: decyzja pod blokadą \texttt{state\_lock} (\texttt{control\_plane.py}, pętla główna; pominięto komentarze)}, label=lst:l7rate]
+with state_lock:
+    request_tracker[client_ip].append((now, is_error))
+
+    # Evict entries outside the sliding window
+    while (request_tracker[client_ip] and
+           now - request_tracker[client_ip][0][0] > HEURISTIC_WINDOW):
+        request_tracker[client_ip].popleft()
+
+    entries = request_tracker[client_ip]
+    if len(entries) >= HEURISTIC_MIN_REQUESTS:
+        window_duration = now - entries[0][0]
+        if window_duration > 0:
+            rps = len(entries) / max(window_duration, 1.0)
+            error_count = sum(1 for _, err in entries if err)
+            error_ratio = error_count / len(entries)
+            if rps > HEURISTIC_MAX_RPS or (error_ratio > HEURISTIC_ERROR_RATIO and rps > 10):
+                should_ban = True
+                ban_rps = rps
+                ban_err = error_ratio
+\end{lstlisting}
+
+Atak R.U.D.Y. nie pozostawia w logu dostępowym wpisu do chwili zakończenia żądania, dlatego wykrywa go osobny wątek analizujący log błędów Nginx. Wątek ten zlicza dla każdego adresu komunikaty \textit{client timed out \ldots{} while reading client request body}, generowane po przekroczeniu limitu \texttt{client\_body\_timeout}. Blokada następuje po 3 takich zdarzeniach w oknie 60~s (silnik \texttt{l7\_rudy}). Detektor ten korzysta zatem z sygnału stanu serwera, a nie z cech ruchu sieciowego, zgodnie z wnioskiem 2 przeglądu \cite{tripathi2024delays}.
+
+Profil \texttt{tolerant} (\texttt{HEURISTIC\_PROFILE=tolerant}) podnosi próg reguły \texttt{l7\_rate} do 108 żądań/s, a próg reguły \texttt{l4\_slowconn} do 180 połączeń. Wartości te wyznaczono jako 1,3-krotność najgorszego przypadku symulowanego ruchu prawowitego: przeglądarki pobierającej stronę z 60 zasobami oraz bramy NAT operatora (CGNAT) z pulą połączeń \textit{keep-alive}. Profil nie zmienia progów reguł wolumetrycznych ani warunku udziału błędów.
+
+\subsubsection{Ścieżka blokady}\label{sec:impl_ban}
+Wszystkie silniki nakładają blokadę przez jedną funkcję \texttt{ban\_ip} (listing~\ref{lst:banip}). W konfiguracji domyślnej adres jest wpisywany do mapy \texttt{blacklist\_map} przez interfejs BCC, co jest pojedynczą aktualizacją mapy bez uruchamiania procesu zewnętrznego. W trybie porównawczym (\texttt{MITIGATION\_BACKEND=iptables}) funkcja dodaje regułę \texttt{DROP} w łańcuchu \texttt{INPUT} zapory iptables w przestrzeni nazw serwera \cite{iptables_ext}. Taki pakiet jest odrzucany dopiero po przejściu przez warstwę IP stosu sieciowego, czyli po alokacji \textit{sk\_buff}. Blokady wygasają po 300~s (\texttt{BAN\_TTL\_SECONDS}). Po blokadzie nałożonej przez reguły \texttt{l4\_slowconn}, \texttt{l7\_rate} i \texttt{l7\_rudy} demon dodatkowo usuwa istniejące gniazda TCP zablokowanego adresu poleceniem \texttt{ss -K dst <adres>}. Zablokowanie nowych pakietów nie zwalnia bowiem zasobów połączeń już nawiązanych, na których opierają się ataki powolne.
+
+\begin{lstlisting}[language=Python, caption={Funkcja \texttt{ban\_ip} (\texttt{control\_plane.py}, wiersze 286--312; pominięto docstring)}, label=lst:banip]
+def ban_ip(ip_str, reason="unknown", engine="unknown", **detail):
+    backend = os.environ.get("MITIGATION_BACKEND", "xdp")
+    enforced = True
+    if backend == "iptables":
+        try:
+            subprocess.run(["ip", "netns", "exec", "server_ns", "iptables", "-A", "INPUT", "-s", ip_str, "-j", "DROP"], check=True)
+            print(f"[IPTABLES] BLOCKED IP: {ip_str}. Rule is active on software firewall.")
+        except Exception as e:
+            enforced = False
+            print(f"[-] Failed to block {ip_str} via iptables: {e}")
+    else:
+        block_ip_in_xdp(ip_str)
+
+    with banned_ips_lock:
+        banned_ips.add(ip_str)
+        ban_timestamps[ip_str] = time.time()
+    print(f"[BAN] {ip_str} banned for {BAN_TTL_SECONDS}s. Reason: {reason}")
+    EVENTS.emit("ban", ip=ip_str, engine=engine, reason=reason, backend=backend,
+                enforced=enforced, ttl_s=BAN_TTL_SECONDS, **detail)
+\end{lstlisting}
+
+\subsection{Serwer Nginx i aplikacja zaplecza}\label{sec:impl_nginx}
+Serwer Nginx pełni funkcję odwrotnego proxy przed aplikacją zaplecza i jest jednocześnie źródłem sygnałów warstwy L7 \cite{nginx_core, nginx_proxy}. Nasłuchuje na porcie 80 (HTTP/1.1) oraz na porcie 443 z TLS~1.2/1.3 i włączonym protokołem HTTP/2 \cite{rfc9113}. Ruch scenariuszy testowych korzysta obecnie z portu 80 (sekcja~\ref{sec:ograniczenia}). Listing~\ref{lst:nginx} przedstawia ustawienia istotne dla obrony.
+
+\begin{lstlisting}[language=conf, caption={Limity czasu, rozmiarów i częstotliwości w konfiguracji Nginx (\texttt{nginx.conf}, fragment)}, label=lst:nginx]
+limit_req_zone $binary_remote_addr zone=mylimit:10m rate=30r/s;
+limit_conn_zone $binary_remote_addr zone=connlimit:10m;
+
+client_body_timeout 5s;
+client_header_timeout 5s;
+keepalive_timeout 15s;
+send_timeout 10s;
+
+client_max_body_size 64k;
+large_client_header_buffers 2 1k;
+
+server {
+    listen 80;
+    listen 443 ssl;
+    http2 on;
+    location / {
+        limit_req zone=mylimit burst=100 nodelay;
+        limit_conn connlimit 50;
+        proxy_pass http://127.0.0.1:8080;
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 10s;
+        proxy_read_timeout 10s;
     }
 }
 \end{lstlisting}
-\section{Przeprowadzenie testów opracowanego systemu}
-\section{Ocena uzyskanych wyników}
-\section{Wnioski}
+
+Krótkie limity czasu odczytu nagłówków i ciała żądania (5~s) ograniczają czas, przez który pojedyncze połączenie ataku powolnego może zajmować zasoby serwera. Limity \texttt{limit\_req} (30 żądań/s na adres, z buforem 100 żądań) i \texttt{limit\_conn} (50 połączeń na adres) stanowią mechanizm ochrony warstwy aplikacji niezależny od demona. Konfiguracja \texttt{nginx\_unprotected.conf} jest identyczna z wyjątkiem tych dwóch limitów i służy jako konfiguracja odniesienia bez ochrony.
+
+Serwer zapisuje dwa formaty logów. Format \texttt{json\_ml\_format} trafia do pliku logu dostępowego odczytywanego przez regułę \texttt{l7\_rate}. Rozszerzony format \texttt{l7json} zawiera m.in. czasy obsługi żądania i odpowiedzi zaplecza, status limitów \texttt{limit\_req}/\texttt{limit\_conn}, numer połączenia i liczbę żądań w połączeniu. Jest on przesyłany przez \textit{syslog} do gniazda datagramowego domeny uniksowej silnika GRU L7, a ujście to jest dodawane do konfiguracji wyłącznie wtedy, gdy silnik L7 działa. Aplikacją zaplecza jest minimalna aplikacja WSGI (\texttt{dummy\_app.py}), zwracająca stałą odpowiedź tekstową, uruchamiana na serwerze Gunicorn pod adresem 127.0.0.1:8080. Liczba procesów i wątków serwera Gunicorn jest parametrem punktu pracy środowiska (sekcja~\ref{sec:tryby_porownawcze}).
+
+\subsection{Eksperymentalne potoki modelu sekwencyjnego GRU}\label{sec:impl_gru}
+Zgodnie z wymaganiem W4 model sekwencyjny jest komponentem eksperymentalnym, ocenianym względem reguł deterministycznych. Rozwijany jest w dwóch potokach o wspólnej architekturze modelu, które różnią się źródłem danych i trybem działania.
+
+\subsubsection{Architektura modelu}\label{sec:gru_model}
+Klasyfikator \texttt{GRUDDoSClassifier} (plik \texttt{GRU\_ML\_model.py}, biblioteka PyTorch) składa się z dwóch warstw rekurencyjnych GRU o 64 jednostkach, warstwy \textit{dropout} ($p=0{,}2$) i warstwy liniowej o jednym wyjściu. Dla wektora wejściowego $x_t$ i stanu $h_{t-1}$ komórka GRU w sformułowaniu Cho i in. \cite{cho2014learning} wyznacza (z pominięciem wyrazów wolnych):
+\begin{align}
+z_t &= \sigma\left(W_z x_t + U_z h_{t-1}\right), \\
+r_t &= \sigma\left(W_r x_t + U_r h_{t-1}\right), \\
+\tilde{h}_t &= \tanh\left(W x_t + U\left(r_t \odot h_{t-1}\right)\right), \\
+h_t &= z_t \odot h_{t-1} + \left(1 - z_t\right) \odot \tilde{h}_t ,
+\end{align}
+gdzie $z_t$ jest bramką aktualizacji, $r_t$ bramką resetu, a $\odot$ oznacza iloczyn Hadamarda. Implementacja PyTorch stosuje bramkę resetu po przekształceniu liniowym stanu, tj. $r_t \odot (U h_{t-1})$, co jest wariantem tego samego modelu. W porównaniu z komórką LSTM \cite{hochreiter1997long} komórka GRU ma dwie bramki zamiast trzech i nie ma odrębnego stanu pamięci. Klasyfikator odczytuje wyjście ostatniego kroku sekwencji, a prawdopodobieństwo ataku $p$ otrzymuje się funkcją sigmoidalną z wyjścia warstwy liniowej. W obu potokach decyzja wymaga, by $p > 0{,}95$ dla tego samego klucza w trzech kolejnych ocenach.
+
+\subsubsection{Potok \textit{Tier-1}: cechy przepływów z punktu XDP}\label{sec:gru_tier1}
+W potoku \textit{Tier-1} wejściem modelu jest sekwencja 15 migawek przepływów TCP danego adresu źródłowego, a każda migawka zawiera 8 cech kierunku \textit{forward} (tab.~\ref{tab:cechy_tier1}). W każdym odczycie (co 1~s) demon przegląda mapę \texttt{flow\_map}, uwzględniając co najwyżej 2000 przepływów, i dla każdego przepływu TCP, który od poprzedniego odczytu otrzymał nowe pakiety, dopisuje wektor cech do sekwencji adresu. Pełna sekwencja jest normalizowana (\textit{StandardScaler}) i przekazywana do wątku inferencji. Funkcja wyznaczająca cechy (listing~\ref{lst:flowfeat}) jest identyczna z funkcją narzędzia przechwytującego dane treningowe (\texttt{capture\_testbed\_dataset.py}). Wyklucza to rozbieżność przetwarzania między treningiem a inferencją (ang. \textit{train/serve skew}).
+
+\begin{table}[H]
+\centering
+\small
+\caption{Cechy wejściowe potoku \textit{Tier-1} (nazwy zgodne z CICFlowMeter)}\label{tab:cechy_tier1}
+\begin{tabularx}{\linewidth}{@{}L{5.2cm}Y@{}}
+\toprule
+Cecha & Definicja na podstawie \texttt{flow\_feat} \\
+\midrule
+\texttt{Init\_Win\_bytes\_forward} & rozmiar okna TCP w pierwszym pakiecie przepływu \\
+\texttt{Fwd IAT Total} & czas między pierwszym a ostatnim pakietem [$\mu$s] \\
+\texttt{Fwd Header Length} & suma długości nagłówków L4 \\
+\texttt{Fwd IAT Max} & największy odstęp między kolejnymi pakietami [$\mu$s] \\
+\texttt{Fwd Packet Length Max} & największa długość ładunku L4 \\
+\texttt{Fwd IAT Mean} & czas trwania podzielony przez liczbę odstępów [$\mu$s] \\
+\texttt{Fwd Packets/s} & liczba pakietów podzielona przez czas trwania \\
+\texttt{Total Length of Fwd Packets} & suma długości ładunku L4 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{lstlisting}[language=Python, caption={Wyznaczanie cech przepływu dla potoku \textit{Tier-1} (\texttt{control\_plane.py}, wiersze 259--278; skrócono docstring, jednostkę w komentarzach zapisano jako \texttt{us})}, label=lst:flowfeat]
+def flow_features(ff):
+    """Build the 8 forward features (in training order) from a flow_feat record."""
+    dur_ns = ff.last_seen_ns - ff.first_seen_ns
+    pk = ff.fwd_packets
+    dur_us = dur_ns / 1000.0
+    return [
+        float(ff.init_win),                                   # Init_Win_bytes_forward
+        dur_us,                                               # Fwd IAT Total (us)
+        float(ff.fwd_hdr_bytes),                              # Fwd Header Length
+        ff.iat_max_ns / 1000.0,                               # Fwd IAT Max (us)
+        float(ff.fwd_pkt_len_max),                            # Fwd Packet Length Max
+        (dur_us / (pk - 1)) if pk > 1 else 0.0,               # Fwd IAT Mean (us)
+        (pk / (dur_ns / 1e9)) if dur_ns > 0 else 0.0,         # Fwd Packets/s
+        float(ff.fwd_payload_bytes),                          # Total Length of Fwd Packets
+    ]
+\end{lstlisting}
+
+Model jest uczony skryptem \texttt{train\_testbed\_gru.py} na przepływach przechwyconych w środowisku testowym, a nie na publicznym zbiorze danych. Takie podejście wynika z wyników Cantone i in. dotyczących przenoszalności modeli między zbiorami \cite{cantone2024machine} oraz z zalecenia Goldschmidta i Chudej, by nie łączyć zbiorów pochodzących z różnych sieci \cite{goldschmidt2025network}. Podział danych jest rozłączny względem adresów IP i uwzględnia rodzinę ataku. Zbiór treningowy obejmuje jedną intensywność każdej rodziny, a zbiór testowy inną, niewidzianą w treningu intensywność ataków Slowloris (30 gniazd zamiast 8) i R.U.D.Y. (20 gniazd zamiast 10). Potok jest domyślnie wyłączony (\texttt{XDP\_GRU=0}) i włączany jawnie, a tryb \texttt{GRU\_ONLY=1} pozwala ocenić go w izolacji od reguł. Stan jego ewaluacji przedstawiono w sekcji~\ref{sec:wyniki_gru}.
+
+\subsubsection{Potok L7: sekwencje żądań z logu Nginx w trybie cienia}\label{sec:gru_l7}
+Drugi potok przenosi model na poziom żądań HTTP. Rekordy formatu \texttt{l7json} trafiają do demona przez gniazdo datagramowe domeny uniksowej (\texttt{/run/ddos\_l7.sock}) i są grupowane według klucza (adres IP, skrót nagłówka \textit{User-Agent}). Dla każdego klucza przechowywane jest okno ostatnich 20 żądań, wygaszane po 60~s bezczynności. Okno jest kodowane jako macierz o 20 wierszach, a krótsze okna są uzupełniane z lewej strony wierszami zerowymi, tak by ostatnie rzeczywiste żądanie znajdowało się w ostatnim kroku czasowym, odczytywanym przez klasyfikator. Kolumny macierzy tworzą grupy cech zestawione w tabeli~\ref{tab:cechy_l7}.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Grupy cech potoku L7 (\texttt{l7\_features.py})}\label{tab:cechy_l7}
+\begin{tabularx}{\linewidth}{@{}L{2.6cm}L{4.6cm}Y@{}}
+\toprule
+Grupa & Cechy & Uwagi \\
+\midrule
+\textit{timing} & logarytm odstępu między początkami żądań & strona klienta \\
+\textit{server\_timing} & logarytm czasu obsługi i czasu odpowiedzi zaplecza & koduje także obciążenie serwera \\
+\textit{completion} & żądanie niekompletne; kod przekroczenia czasu (408, 444, 499) & \\
+\textit{status} & klasy kodów 2xx, 3xx, 4xx, 5xx & \\
+\textit{method} & GET, POST, inne & \\
+\textit{size} & logarytm długości żądania i wysłanych bajtów, ich stosunek & osobna grupa, możliwa do wyłączenia \\
+\textit{connection} & logarytm liczby żądań w połączeniu, nowe połączenie & \\
+\textit{uri} & powtórzenie ścieżki w oknie & tylko flaga, bez treści URI \\
+\textit{ratelimit} & żądanie opóźnione lub odrzucone przez \texttt{limit\_req} & \\
+\textit{protocol} & HTTP/2, TLS, wznowienie sesji TLS & domyślnie wyłączona \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Dobór cech podlega zasadzie przeciwdziałania uczeniu się odcisków narzędzi (ang. \textit{anti-fingerprint discipline}). Nagłówek \textit{User-Agent} wyznacza klucz okna, ale nie jest cechą. Ścieżka URI wchodzi do modelu wyłącznie jako flaga powtórzenia, więc zmiana nazw zasobów przy zachowaniu wzorca dostępu nie zmienia cech. Cechy protokołu, opisujące stos klienta, a nie jego zachowanie, są domyślnie wyłączone. Jedna implementacja kodowania i skalowania cech jest współdzielona przez demona, skrypt treningowy, model odniesienia i narzędzia odtwarzania, co wyklucza rozbieżność przetwarzania między treningiem a inferencją.
+
+Silnik L7 (\texttt{L7ShadowEngine}) działa wyłącznie w trybie cienia (\texttt{L7\_SHADOW=1}). Okno jest oceniane po zgromadzeniu co najmniej 5 żądań, a decyzja wymaga $p>0{,}95$ w trzech kolejnych ocenach. Silnik nie nakłada blokad, lecz emituje zdarzenie \texttt{l7\_would\_ban}, które pozwala porównać jego hipotetyczne decyzje z blokadami reguł. Podczas ataków wolumetrycznych ocena jest wstrzymywana, a po ich ustaniu pomijane są okna, w których ponad połowa żądań rozpoczęła się przed końcem ataku. Zmienna \texttt{L7\_RECORD} włącza zapis strumienia wejściowego, który narzędzie \texttt{ml/replay\_l7.py} odtwarza deterministycznie. Pozwala to ocenić kolejne wersje modelu na identycznym ruchu.
+
+Model L7 jest uczony skryptem \texttt{ml/train\_l7.py} (okno 20 żądań, krok 3 żądania między kolejnymi oknami treningowymi, 2 warstwy po 64 jednostki, 25 epok). Podział danych jest rozłączny względem rodzin ataków: rodziny oznaczone jako wstrzymane (ang. \textit{held-out}) nie są używane ani w treningu, ani przy wyborze modelu. Analogicznie wydzielony jest jeden rodzaj ruchu prawowitego. Pakiet modelu zawiera listę kolumn, parametry skalowania, próg i sumy kontrolne SHA-256 plików, a moduł oceniający odmawia załadowania pakietu o niezgodnych kolumnach. Ewaluacja obejmuje porównanie z regułami deterministycznymi i tabelarycznym modelem odniesienia HGB (\textit{histogram-based gradient boosting}), sondy niezmienniczości oraz ablację kolejności żądań. Reguła werdyktu jest ustalana i zapisywana w repozytorium przed zebraniem danych, których dotyczy (sekcja~\ref{sec:higiena}).
+
+\subsection{Rejestr zdarzeń i odtwarzalność}\label{sec:impl_events}
+Każda decyzja demona jest zapisywana w rejestrze zdarzeń \texttt{ban\_events.jsonl} (moduł \texttt{ban\_events.py}): jeden obiekt JSON na wiersz, zapisywany natychmiast i nigdy nienadpisywany. Każde zdarzenie zawiera czas ścienny, czas monotoniczny (\texttt{CLOCK\_MONOTONIC}, ns) oraz rodzaj (tab.~\ref{tab:zdarzenia}). Rejestr realizuje wymaganie W6. Dokładny czas mitygacji wyznacza się z niego bez polegania na odpytywaniu logu, a każdą blokadę można przypisać do reguły, zmierzonej wartości i progu.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Rodzaje zdarzeń w rejestrze \texttt{ban\_events.jsonl}}\label{tab:zdarzenia}
+\begin{tabularx}{\linewidth}{@{}L{3.4cm}Y@{}}
+\toprule
+Rodzaj & Zawartość \\
+\midrule
+\texttt{start} & PID, mechanizm egzekwowania, tryby GRU, interfejs, ścieżka modelu, sumy SHA-256 modelu, skalera i źródła programu XDP, komplet progów \\
+\texttt{ban} & adres, silnik, przyczyna, mechanizm, potwierdzenie egzekwowania, TTL, zmierzona wartość, próg; dodatkowo bajty (\texttt{l4\_slowconn}), udział błędów (\texttt{l7\_rate}) \\
+\texttt{unban} & adres, mechanizm, wiek blokady \\
+\texttt{suppress\_on}, \texttt{suppress\_off} & sumaryczne przyrosty SYN i pakietów przy zmianie stanu wstrzymania GRU \\
+\texttt{gru\_suppressed} & detekcja GRU pominięta z powodu wstrzymania (adres, prawdopodobieństwo) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Odtwarzalność wyników zapewniają mechanizmy środowiska testowego. Każdy przebieg zapisuje plik \texttt{provenance.json}, zawierający m.in. zatwierdzenie (\textit{commit}) i stan repozytorium, ustawienia, plan profili klientów, opis hosta oraz sumy SHA-256 skryptów, programu XDP, konfiguracji Nginx i modelu. Kampanie opublikowane w katalogu \texttt{results/} zawierają pliki \texttt{SHA256SUMS}, a narzędzia analizy w katalogu \texttt{eval/} odtwarzają raporty bajt w bajt. Zachowanie środowiska i narzędzi analizy jest ponadto sprawdzane testami jednostkowymi w katalogu \texttt{tests/}.
+
+\section{Środowisko testowe i metodyka badań}\label{sec:testbed}
+Rozdział opisuje środowisko testowe zrealizowane w skrypcie \texttt{test\_distributed\_suite.py}, scenariusze ataków, konfiguracje porównawcze, definicje metryk oraz procedurę statystyczną. Kampanie pomiarowe uruchamia skrypt \texttt{eval/run\_campaign.py}, a analizują je narzędzia z katalogu \texttt{eval/}. Opisana metodyka odpowiada wymaganiu W5 i zaleceniom przytoczonym w sekcji~\ref{sec:metodyka}.
+
+\subsection{Topologia sieci}\label{sec:topologia}
+Środowisko działa na jednej maszynie wirtualnej z systemem Linux. Każdy węzeł jest osobną przestrzenią nazw sieciowych, połączoną parą interfejsów \texttt{veth} z mostem programowym \texttt{ddos\_br0} w domyślnej przestrzeni nazw (rys.~\ref{fig:topologia}). Serwer (\texttt{server\_ns}) ma adres 10.0.0.1/16, klienci prawowici \texttt{legit\_1}--\texttt{legit\_20} adresy 10.0.1.1--10.0.1.20, a boty \texttt{bot\_1}--\texttt{bot\_N} adresy z puli 10.0.2.0/24. Domyślna liczba botów to $N=5$, a w punkcie pracy \textit{knee} $N=10$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    font=\scriptsize,
+    ns/.style={draw, rounded corners=2pt, align=center, inner sep=3pt, text width=33mm, minimum height=8mm},
+    link/.style={thick}
+]
+\node[ns, fill=green!8] (l1) at (0,3.0) {\texttt{legit\_1}: 10.0.1.1\\ MAC 02:00:0a:00:01:01};
+\node (ld) at (0,2.15) {$\vdots$};
+\node[ns, fill=green!8] (l20) at (0,1.3) {\texttt{legit\_20}: 10.0.1.20\\ \textit{netem} wg planu \texttt{PROFILE\_SEED}};
+\node[ns, fill=red!8] (b1) at (0,-0.5) {\texttt{bot\_1}: 10.0.2.1};
+\node (bd) at (0,-1.2) {$\vdots$};
+\node[ns, fill=red!8] (bn) at (0,-1.9) {\texttt{bot\_N}: 10.0.2.$N$\\ $N=5$ (\textit{default}) lub 10 (\textit{knee})};
+\node[draw, fill=gray!10, minimum width=11mm, minimum height=58mm] (br) at (4.4,0.55) {};
+\node[rotate=90, font=\scriptsize] at (br.center) {most \texttt{ddos\_br0} (domyślna przestrzeń nazw)};
+\node[ns, fill=blue!6, text width=46mm] (vs) at (9.6,0.0) {\texttt{veth\_server}: 10.0.0.1/16\\ 8 kolejek RX/TX, program XDP\\ \texttt{ethtool -K veth\_server tx off rx off}};
+\node[ns, fill=orange!8, text width=46mm] (ng) at (9.6,1.9) {Nginx :80/:443 $\rightarrow$ Gunicorn :8080\\ demon \texttt{control\_plane.py}};
+\node[draw=blue!50, rounded corners, inner sep=6pt, fit=(vs)(ng), label={[font=\scriptsize\bfseries]above:\texttt{server\_ns}}] (sns) {};
+\node[font=\tiny, align=center, text width=44mm] at (9.4,-1.6) {punkt \textit{knee}: Nginx i Gunicorn na CPU0,\\ procesy botów na CPU1--7 (\texttt{taskset})};
+\foreach \n in {l1,l20,b1,bn} \draw[link] (\n.east) -- (\n.east -| br.west);
+\draw[link] (vs.west) -- node[above, font=\tiny]{\texttt{veth\_srv\_br}} (vs.west -| br.east);
+\node[font=\tiny, above] at ($(l1.east)!0.5!(l1.east -| br.west)$) {para \texttt{veth}};
+\end{tikzpicture}
+\caption{Topologia środowiska testowego: przestrzenie nazw klientów i botów połączone mostem programowym z przestrzenią nazw serwera; cały ruch do serwera przechodzi przez interfejs \texttt{veth\_server}, na którym działa program XDP}
+\label{fig:topologia}
+\end{figure}
+
+Cały ruch klientów i botów wchodzi do przestrzeni nazw serwera przez jeden interfejs, \texttt{veth\_server}, więc program XDP obserwuje każdy pakiet przychodzący (listing~\ref{lst:server_ns}). Pary \texttt{veth} są tworzone z ośmioma kolejkami odbiorczymi i nadawczymi, co pozwala rozkładać przetwarzanie pakietów na wiele rdzeni. Na interfejsie serwera wyłączono odciążanie obliczania sum kontrolnych, co jest warunkiem poprawnej pracy programu XDP na interfejsie \texttt{veth} w tej konfiguracji. Każdy interfejs klienta otrzymuje jawnie przypisany, deterministyczny adres MAC postaci \texttt{02:00:<oktety adresu IP>}. Wcześniej usługa \textit{udev} z polityką \texttt{MACAddressPolicy=persistent} wyprowadzała adres MAC z nazwy interfejsu, przez co wszystkie interfejsy klientów (o tej samej nazwie \texttt{veth\_in}) otrzymywały identyczny adres, co powodowało kolizje w tablicy przekazywania mostu. Kampania zarejestrowana przed tą poprawką została oznaczona jako zastąpiona (\texttt{results/2026-10-11\_superseded-dup-mac}) i nie jest podstawą żadnego wyniku.
+
+\begin{lstlisting}[language=Python, caption={Tworzenie przestrzeni nazw serwera (\texttt{test\_distributed\_suite.py}, funkcja \texttt{create\_server\_ns}; skrócono komentarze)}, label=lst:server_ns]
+# Create multi-queue veth pair
+subprocess.run([
+    "ip", "link", "add", "veth_server",
+    "numrxqueues", "8", "numtxqueues", "8",
+    "type", "veth", "peer", "name", "veth_srv_br",
+    "numrxqueues", "8", "numtxqueues", "8"
+], capture_output=True)
+
+# Move server end into server_ns
+subprocess.run(["ip", "link", "set", "veth_server", "netns", SERVER_NS],
+               capture_output=True)
+
+# Attach host end to the bridge
+subprocess.run(["ip", "link", "set", "veth_srv_br", "master", BRIDGE_NAME],
+               capture_output=True)
+subprocess.run(["ip", "link", "set", "veth_srv_br", "up"],
+               capture_output=True)
+
+# Configure server_ns
+run(f"ip addr add {SERVER_IP}{SUBNET_MASK} dev veth_server", ns=SERVER_NS)
+run("ip link set veth_server up", ns=SERVER_NS)
+run("ip link set lo up", ns=SERVER_NS)
+
+# Disable checksum offloading (required for XDP on veth)
+run("ethtool -K veth_server tx off rx off", ns=SERVER_NS)
+\end{lstlisting}
+
+\subsection{Profile sieciowe i ruch prawowity}\label{sec:ruch_prawowity}
+Jakość łącza klientów prawowitych jest różnicowana dyscypliną kolejkowania \textit{netem} na interfejsie klienta, w kierunku klient $\rightarrow$ serwer, z normalnym rozkładem opóźnienia (tab.~\ref{tab:profile}). Przydział profili wynika z planu losowanego z wagami 0,30/0,35/0,25/0,10 przy ziarnie \texttt{PROFILE\_SEED}. Ten sam plan obowiązuje we wszystkich konfiguracjach porównawczych danego bloku pomiarowego. Dla \texttt{PROFILE\_SEED=0} plan obejmuje 3 klientów \texttt{perfect}, 8 \texttt{broadband}, 5 \texttt{mobile\_3g} i 4 \texttt{mobile\_bad}.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Profile sieciowe klientów prawowitych}\label{tab:profile}
+\begin{tabularx}{\linewidth}{@{}lYlllr@{}}
+\toprule
+Profil & Opóźnienie (rozkład normalny) & Straty & Uszkodzenia & Waga & Bazowy odstęp żądań \\
+\midrule
+\texttt{perfect} & -- & -- & -- & 0,30 & 1,5~s \\
+\texttt{broadband} & 20~ms $\pm$ 2~ms & -- & -- & 0,35 & 2,0~s \\
+\texttt{mobile\_3g} & 150~ms $\pm$ 40~ms & 2\% & -- & 0,25 & 3,0~s \\
+\texttt{mobile\_bad} & 300~ms $\pm$ 80~ms & 5\% & 1\% & 0,10 & 5,0~s \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Każdy klient prawowity w osobnym wątku wysyła żądania \texttt{curl} do \texttt{http://10.0.0.1/} z limitem czasu 10~s (\texttt{-{}-max-time 10}). Odstęp między żądaniami jest równy bazowemu odstępowi profilu powiększonemu o składnik losowy z rozkładu jednostajnego na przedziale $[-0{,}5;\ 1{,}0]$~s, nie mniej jednak niż 0,5~s. Każde żądanie jest przypisywane do okresu (przed atakiem, w trakcie, po ataku), w którym się \emph{rozpoczęło}. Żądanie wysłane w trakcie ataku jest więc liczone do okresu ataku także wtedy, gdy zakończy się po nim. Ruch prawowity w tym zestawie ma postać pojedynczych żądań bez utrzymywania połączeń i bez pobierania zasobów strony. Ogranicza to ocenę fałszywych alarmów (sekcja~\ref{sec:ograniczenia}). Bogatszy ruch prawowity, obejmujący m.in. przeglądarkę z 60 zasobami na stronę i bramy CGNAT, jest generowany w torze ewaluacji potoku L7 (\texttt{ml/l7\_traffic.py}, \texttt{ml/l7\_benign.py}).
+
+\subsection{Scenariusze ataków}\label{sec:scenariusze}
+Zestaw obejmuje dziesięć scenariuszy (tab.~\ref{tab:scenariusze}), odpowiadających klasom ataków z taksonomii w sekcji~\ref{sec:taksonomia}. Ataki wolumetryczne i protokołowe generuje narzędzie \texttt{hping3}, zalewanie HTTP generator \texttt{wrk} (model zamkniętej pętli: każde połączenie wysyła kolejne żądanie po otrzymaniu odpowiedzi), a ataki powolne skrypty w języku Python operujące bezpośrednio na gniazdach TCP. W eksperymencie EXP-C zalewanie HTTP generowano także modelem otwartej pętli, ze stałą częstotliwością żądań na bota, generatorem \texttt{bench/loadgen.py}. Generator ten został wcześniej zweryfikowany, a jego suma kontrolna jest przypięta w manifeście \texttt{bench/loadtools.json}. Procesy botów są uruchamiane w ich przestrzeniach nazw równolegle, a w punkcie pracy \textit{knee} przypinane do rdzeni 1--7.
+
+\begin{table}[H]
+\centering
+\scriptsize
+\caption{Scenariusze ataków zestawu testowego (parametry na jednego bota)}\label{tab:scenariusze}
+\begin{tabularx}{\linewidth}{@{}rL{3.3cm}YL{2.3cm}@{}}
+\toprule
+Nr & Scenariusz & Generator i parametry & Klasa (sekcja~\ref{sec:taksonomia}) \\
+\midrule
+1 & SYN flood & \texttt{hping3 -S -p 80 -i u1000} (ok. 1000 SYN/s) & L4, protokołowy \\
+2 & Low \& Slow SYN & \texttt{hping3 -S -p 80 -i u100000} (ok. 10 SYN/s) & L4, poniżej progu \\
+3 & UDP flood & \texttt{hping3 -{}-udp -p 80 -{}-flood} & L3/L4, wolumetryczny \\
+4 & HTTP flood & \texttt{wrk -t2 -c50} (\textit{default}) lub \texttt{-c400} (\textit{knee}); EXP-C: \texttt{loadgen}, 125/250/500 żądań/s & L7, wolumetryczny \\
+5 & ACK flood & \texttt{hping3 -A -p 80 -{}-flood} & L4, protokołowy \\
+6 & Fragmentacja IP & \texttt{hping3 -S -p 80 -f -{}-fragoff 20 -{}-flood} & L3 \\
+7 & Slowloris & skrypt Python: 8 gniazd, niekompletne nagłówki, kolejny nagłówek co 5~s & L7, \textit{low-and-slow} \\
+8 & R.U.D.Y. & skrypt Python: 10 gniazd, \texttt{POST} z \texttt{Content-Length: 1000000}, 1~B ciała co 7~s & L7, \textit{low-and-slow} \\
+9 & Yo-Yo (pulsujący) & pętla: \texttt{wrk} przez 2~s, przerwa 6~s & L7, pulsujący \\
+10 & Wielowektorowy & boty podzielone między SYN flood, HTTP flood i UDP flood & mieszany \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Listing~\ref{lst:slowloris} przedstawia generator ataku Slowloris w postaci uruchamianej w przestrzeni nazw bota (skrypt jest generowany przez zestaw testowy z podstawionymi parametrami). Generator R.U.D.Y. ma analogiczną budowę. Wysyła on nagłówki żądania \texttt{POST} z deklarowaną długością ciała 1\,000\,000~B, a następnie co 7~s jeden bajt ciała. Odstęp 7~s przekracza limit \texttt{client\_body\_timeout} (5~s), a deklarowana długość przekracza limit \texttt{client\_max\_body\_size} (64~kB). Wpływ obu limitów na skuteczność scenariusza bez ochrony omówiono w sekcji~\ref{sec:wyniki_slow}. W porównaniu z wyspecjalizowanymi generatorami ataków powolnych \cite{sikora2021generator} skrypty te realizują po jednym, stałym wariancie każdego ataku.
+
+\begin{lstlisting}[language=Python, caption={Generator ataku Slowloris po podstawieniu parametrów (\texttt{test\_distributed\_suite.py}, funkcja \texttt{scenario\_slowloris})}, label=lst:slowloris]
+import socket, random, time
+TARGET = "10.0.0.1"; PORT = 80; N = 8; SLEEP = 5; socks = []
+def mk():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(4); s.connect((TARGET, PORT))
+        s.send(f"GET /?r={random.randint(0,9999)} HTTP/1.1\r\n".encode())
+        s.send(f"Host: {TARGET}\r\n".encode())
+        s.send("User-Agent: SL\r\nAccept-language: en\r\n".encode())
+        return s
+    except: return None
+for _ in range(N):
+    s = mk()
+    if s: socks.append(s)
+while True:
+    for s in list(socks):
+        try: s.send(f"X-a: {random.randint(1,9999)}\r\n".encode())
+        except: socks.remove(s)
+    for _ in range(N - len(socks)):
+        s = mk()
+        if s: socks.append(s)
+    time.sleep(SLEEP)
+\end{lstlisting}
+
+Każdy scenariusz przebiega według stałego schematu. Najpierw następuje pomiar bazowy i okres 3~s ruchu prawowitego przed atakiem. Następnie uruchamiany jest atak, z pomiarami w fazie przed mitygacją i po niej. Zestaw oczekuje na blokady wszystkich botów z limitem czasu zależnym od scenariusza, a przy ustawionym \texttt{ATTACK\_DURATION} atak trwa dokładnie zadany czas w każdej konfiguracji (równa ekspozycja). Po zatrzymaniu ataku następuje 10-sekundowe okno powrotu, a przed kolejnym scenariuszem stan środowiska jest przywracany do wyjściowego.
+
+\subsection{Konfiguracje porównawcze i punkty pracy}\label{sec:tryby_porownawcze}
+Każdy scenariusz można uruchomić w jednej z czterech konfiguracji (tab.~\ref{tab:konfiguracje}). Konfiguracje \texttt{xdp} i \texttt{iptables} różnią się wyłącznie mechanizmem egzekwowania blokad, więc porównanie między nimi izoluje wpływ miejsca odrzucania pakietów. Konfiguracja \texttt{nginxlimits} pozwala ocenić, czy wbudowane limity serwera aplikacji wystarczają bez demona. Konfiguracja \texttt{unprotected} stanowi odniesienie.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Konfiguracje porównawcze}\label{tab:konfiguracje}
+\begin{tabularx}{\linewidth}{@{}L{2.3cm}L{5.4cm}Y@{}}
+\toprule
+Konfiguracja & Ustawienia & Ochrona \\
+\midrule
+\texttt{xdp} & domyślne & demon; blokady w \texttt{blacklist\_map}; \texttt{nginx.conf} \\
+\texttt{iptables} & \texttt{MITIGATION\_BACKEND=iptables} & demon; blokady jako reguły \texttt{DROP}; \texttt{nginx.conf} \\
+\texttt{nginxlimits} & \texttt{MITIGATION\_MODE=none NGINX\_PROTECTED=1} & bez demona; \texttt{limit\_req} i \texttt{limit\_conn} \\
+\texttt{unprotected} & \texttt{MITIGATION\_MODE=none} & bez demona; \texttt{nginx\_unprotected.conf} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Pojemność serwera określa punkt pracy (tab.~\ref{tab:punkty_pracy}). W punkcie \textit{default} serwer jest nadmiarowy: żaden atak zestawu nie obniża dostępności, nawet bez ochrony. Dostępność nie różnicuje więc wtedy konfiguracji, a ocena dotyczy skuteczności i czasu blokad. Punkt \textit{knee} to pierwsza konfiguracja z przeglądu kalibracyjnego (kampania EXP-1d), w której serwer bez ochrony traci dostępność pod zalewaniem HTTP. Punkt ten skalibrowano wyłącznie dla scenariusza 4. Punkty pracy dla scenariuszy wolumetrycznych wymagają odrębnej kalibracji \doUzupelnienia{punkty pracy dla scenariuszy 1, 3, 5, 6 i 10 po kalibracji}.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Punkty pracy środowiska}\label{tab:punkty_pracy}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Parametr & \textit{default} & \textit{knee} \\
+\midrule
+procesy $\times$ wątki serwera Gunicorn & $8 \times 4$ & $1 \times 1$ \\
+rdzenie serwera / botów & -- / -- & 0 / 1--7 \\
+połączenia \texttt{wrk} na bota & 50 & 400 \\
+liczba botów & 5 & 10 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Metryki}\label{sec:metryki}
+\paragraph{Dostępność.} Dla okresu $T$ (przed atakiem, w trakcie, po ataku) dostępność usługi dla klientów prawowitych definiuje się jako
+\begin{equation}
+A_T = \frac{\left|\{\, q \in Q_T : \mathrm{kod}(q) = 200 \,\}\right|}{|Q_T|},
+\end{equation}
+gdzie $Q_T$ jest zbiorem żądań prawowitych rozpoczętych w okresie $T$, a żądanie bez odpowiedzi w ciągu 10~s liczy się jako nieudane. Dodatkowo raportowana jest dostępność w oknie równej ekspozycji: obejmuje ono żądania rozpoczęte w ciągu pierwszych 10~s od początku ataku i jest identyczne we wszystkich konfiguracjach, niezależnie od dalszego przebiegu scenariusza.
+
+\paragraph{Czas do mitygacji (TTM).} Dla bota $b$
+\begin{equation}
+\mathrm{TTM}_b = t_{\mathrm{ban}}(b) - t_{\mathrm{start}},
+\end{equation}
+gdzie $t_{\mathrm{ban}}(b)$ jest czasem pierwszego zdarzenia \texttt{ban} dla adresu bota w rejestrze zdarzeń, a $t_{\mathrm{start}}$ czasem zarejestrowanym przez zestaw tuż przed uruchomieniem ataku. Starsza miara, oparta na odpytywaniu logu demona co 0,5~s, zawyża wynik o około 0,5~s i jest zachowana wyłącznie do porównań z wcześniejszymi kampaniami.
+
+\paragraph{Fałszywe blokady.} Fałszywą blokadą jest zdarzenie \texttt{ban} dla adresu klienta prawowitego (10.0.1.0/24) od początku scenariusza. Konfiguracje bez demona nie nakładają blokad.
+
+\paragraph{Obciążenie serwera.} W każdej fazie scenariusza, w jednym wyrównanym oknie 1~s, mierzone są:
+\begin{itemize}
+    \item obciążenie poszczególnych rdzeni (\texttt{/proc/stat}) i przerwania programowe \texttt{NET\_RX} (\texttt{/proc/softirqs});
+    \item liczba pakietów odebranych przez interfejs \texttt{veth\_server} ($\mathrm{PPS}_{\mathrm{Rx}}$) i liczba pakietów przyjętych przez warstwę IP w przestrzeni nazw serwera ($\mathrm{IP}_{\mathrm{InReceives}}$, \texttt{/proc/net/snmp});
+    \item zużycie procesora i pamięci przez demona i procesy Nginx;
+    \item liczby gniazd TCP w stanach ESTABLISHED, TIME-WAIT i SYN-RECV.
+\end{itemize}
+Liczbę pakietów odrzuconych przed stosem sieciowym szacuje się jako
+\begin{equation}
+\mathrm{PreStack}_{\mathrm{Dropped}} = \max\left(0,\ \mathrm{PPS}_{\mathrm{Rx}} - \mathrm{IP}_{\mathrm{InReceives}}\right).
+\end{equation}
+Pakiet odrzucony w punkcie XDP nie jest zliczany w $\mathrm{IP}_{\mathrm{InReceives}}$, natomiast pakiet odrzucony regułą iptables jest. Miara ta pozwala więc bezpośrednio odróżnić oba mechanizmy egzekwowania.
+
+\paragraph{Opóźnienie.} Raportowane są mediana i 95.~percentyl czasu obsługi żądań zakończonych sukcesem, osobno dla klientów o profilu \texttt{perfect} (bez wpływu \textit{netem}) i dla wszystkich klientów.
+
+\subsection{Analiza statystyczna i reguła decyzyjna}\label{sec:statystyka}
+Jednostką analizy jest przebieg, a nie pojedyncze żądanie, ponieważ żądania jednego przebiegu nie są niezależne. Przebiegi różnych konfiguracji z tym samym ziarnem \texttt{PROFILE\_SEED} tworzą blok. Kolejność konfiguracji w bloku jest losowana, a wszystkie konfiguracje bloku mają ten sam plan profili klientów. Dla bloku $i$ i konfiguracji $m$ różnica względem konfiguracji odniesienia wynosi $d_i = A_i^{(m)} - A_i^{(\mathrm{ref})}$, a dla $n$ bloków
+\begin{equation}
+\bar{d} = \frac{1}{n}\sum_{i=1}^{n} d_i, \qquad
+\mathrm{CI}_{95\%} = \bar{d} \pm t_{0{,}975;\,n-1}\,\frac{s_d}{\sqrt{n}},
+\end{equation}
+gdzie $s_d$ jest odchyleniem standardowym różnic. Uzupełnieniem jest dokładny test permutacyjny zmiany znaków (ang. \textit{sign-flip}):
+\begin{equation}
+p = \frac{1}{2^n}\sum_{\varepsilon \in \{-1,1\}^n} \mathbf{1}\!\left[\,\Big|\sum_{i=1}^{n} \varepsilon_i d_i\Big| \geq \Big|\sum_{i=1}^{n} d_i\Big|\,\right],
+\end{equation}
+którego najmniejsza osiągalna wartość wynosi $2/2^n$, czyli 0,25 dla trzech bloków i około 0,002 dla dziesięciu.
+
+Reguła decyzyjna została zapisana w narzędziu \texttt{eval/run\_level\_stats.py} przed zebraniem danych z dziesięciu bloków. Kontrast uznaje się za \textbf{potwierdzony}, jeśli jednocześnie: (i) liczba bloków wynosi co najmniej 10, (ii) przedział $\mathrm{CI}_{95\%}$ nie zawiera zera, (iii) co najmniej 80\% bloków ma znak zgodny ze znakiem $\bar{d}$. W przeciwnym razie kontrast jest \textbf{niewykazany}, co nie stanowi dowodu braku efektu. Komórkę eksperymentu, w której średnia dostępność konfiguracji bez ochrony wynosi co najmniej 90\%, uznaje się za \textbf{nieobciążoną}: nie ma w niej szkody, przed którą mitygacja mogłaby chronić. Przedziały z bootstrapu po przebiegach i test Fishera na zagregowanych żądaniach są raportowane pomocniczo. Przy mniej niż dziesięciu blokach mają one wyłącznie charakter opisowy.
+
+\subsection{Zasady higieny ewaluacji}\label{sec:higiena}
+Tabela~\ref{tab:higiena} zestawia pułapki metodyczne opisane przez Arpa i in. \cite{arp2022dos} ze środkami zastosowanymi w projekcie. Uzupełnieniem są zalecenia Goldschmidta i Chudej \cite{goldschmidt2025network}: bez łączenia zbiorów danych z różnych źródeł, wiele powtórzeń, testy istotności. W tabeli wskazano również pułapki, którym środowisko testowe nie zapobiega; są one ograniczeniami wyników.
+
+\begin{table}[H]
+\centering
+\scriptsize
+\caption{Pułapki metodyczne według Arpa i in. \cite{arp2022dos} i środki zaradcze w projekcie}\label{tab:higiena}
+\begin{tabularx}{\linewidth}{@{}L{3.3cm}Y@{}}
+\toprule
+Pułapka & Środek zaradczy lub status \\
+\midrule
+P1: stronniczość próby & dane uczące i testowe z tego samego środowiska; zróżnicowany ruch prawowity (profile \textit{netem}; w torze L7 przeglądarka i CGNAT); ruch syntetyczny pozostaje ograniczeniem \\
+P2: niedokładne etykiety & etykiety wynikają z planu przechwytywania, w którym rola każdego adresu jest znana z góry \\
+P3: podglądanie danych testowych & podział rozłączny względem adresów IP i rodzin ataków; rodziny i rodzaj ruchu prawowitego wstrzymane z treningu i wyboru modelu; reguły werdyktu zapisane przed zebraniem danych \\
+P4: korelacje pozorne & zasada przeciwdziałania odciskom narzędzi (sekcja~\ref{sec:gru_l7}); sondy niezmienniczości; kontrfaktyczna zmiana pojedynczych cech \\
+P5: stronniczy dobór parametrów & próg $0{,}95$ i liczba potwierdzeń ustalone przed ewaluacją; wybór modelu na zbiorze walidacyjnym \\
+P6: niewłaściwy punkt odniesienia & reguły deterministyczne oraz tabelaryczny model HGB, uczony i oceniany na tych samych danych co GRU \\
+P7: niewłaściwe miary & dostępność usługi i TTM zamiast samej dokładności klasyfikacji; czułość przy ustalonym budżecie fałszywych alarmów \\
+P8: zaniedbanie częstości bazowej & fałszywe alarmy raportowane na adres prawowity i na godzinę pracy klienta, a nie na okno \\
+P9: ewaluacja wyłącznie laboratoryjna & nieusunięte; ograniczenie wskazane w sekcji~\ref{sec:ograniczenia} \cite{kostopoulos2026ebpf} \\
+P10: niewłaściwy model zagrożeń & zakres zagrożeń wynika z wymagania W7; atakujący nieadaptacyjny; ograniczenie wskazane w sekcji~\ref{sec:ograniczenia} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Ewaluacja potoku L7 była prowadzona iteracyjnie (etapy P5, P5b i P5c). Po werdykcie negatywnym zmieniano test, a reguła werdyktu każdej iteracji była zapisywana w repozytorium przed zebraniem jej danych. Iteracje te, wraz z kierunkiem możliwego obciążenia wyników, są udokumentowane w dokumentacji projektu. Rejestrację przed zebraniem danych należy więc rozumieć jako rejestrację w obrębie każdej iteracji.
+
+\subsection{Ograniczenia środowiska testowego}\label{sec:ograniczenia}
+Wyniki uzyskane w opisanym środowisku mają następujące ograniczenia:
+\begin{enumerate}
+    \item \textbf{Interfejsy wirtualne.} Program XDP działa na interfejsie \texttt{veth}, a nie na sterowniku fizycznej karty sieciowej. Wartości bezwzględne przepustowości, np. 7,2~mln pakietów/s na rdzeń w pomiarach Scholza i in. na karcie 10~GbE \cite{scholz2018performance}, nie przenoszą się na to środowisko i odwrotnie. Porównania względne (XDP wobec iptables w tym samym środowisku) są obarczone tym ograniczeniem w mniejszym stopniu.
+    \item \textbf{Jeden host.} Boty, klienci i serwer współdzielą procesory jednej maszyny wirtualnej. W punkcie \textit{knee} rozdzielono je przypinaniem do rdzeni, a w punkcie \textit{default} rywalizacja o procesor może wpływać na wyniki, np. na czas blokady w scenariuszu wielowektorowym. Narzędzia \texttt{hping3} i \texttt{wrk} nie zapewniają precyzji generatorów sprzętowo wspomaganych \cite{emmerich2015moongen}.
+    \item \textbf{Ruch syntetyczny.} Ruch prawowity zestawu to pojedyncze żądania \texttt{curl}. Wynik ,,brak fałszywych blokad'' dotyczy więc tej mieszanki ruchu, a nie ruchu rzeczywistego \cite{kostopoulos2026ebpf}.
+    \item \textbf{Model atakującego.} Atakujący jest nieadaptacyjny, a częstotliwości ataków przekraczają progi reguł per adres (w EXP-C co najmniej 2,5-krotnie). Ataki wielu źródeł poniżej progów per adres nie są objęte badaniami.
+    \item \textbf{Zakres wektorów.} Środowisko nie obejmuje ataków odbiciowych i wzmacniających ani wysycenia łącza, którym obrona na hoście nie przeciwdziała (W7). Scenariusze korzystają z HTTP/1.1 na porcie 80, dlatego ataki specyficzne dla HTTP/2, np. HTTP/2 Rapid Reset \cite{pardue2023rapidreset, nvd2023cve44487}, oraz ataki na warstwę TLS nie są testowane. Nie wykonano dotąd testu zalewania z losowymi adresami źródłowymi przy działającym demonie.
+    \item \textbf{Protokół IP.} System i środowisko obsługują wyłącznie IPv4.
+\end{enumerate}
+
+\section{Wyniki wstępne i plan dalszych badań}\label{sec:wyniki}
+Rozdział przedstawia wyniki kampanii pomiarowych opublikowanych w katalogu \texttt{results/} repozytorium (stan na 23~października 2026~r.). Wszystkie liczby pochodzą z plików tych kampanii, zweryfikowanych sumami kontrolnymi, a przy każdym wyniku wskazano jego źródło. Wyniki mają charakter \textbf{wstępny}. Ustalają one punkty odniesienia dla trwających i planowanych eksperymentów, a ich interpretacja zostanie dokończona po kampaniach wymienionych w sekcji~\ref{sec:plan}. Zakres obowiązywania każdego wyniku (scenariusz, punkt pracy, model atakującego) podano wprost.
+
+\subsection{Skuteczność reguł deterministycznych}\label{sec:wyniki_reguly}
+W punkcie pracy \textit{default}, z 5 botami na scenariusz, reguły demona zablokowały wszystkie 5 botów w każdym z 10 scenariuszy w każdym z czterech pełnych przebiegów zestawu. Żaden klient prawowity nie został zablokowany\footnote{\raggedright Kampanie \texttt{2026-10-13\_regression-default-full-suite}, \texttt{2026-10-13\_regression-default-full-suite-replicate}, \texttt{2026-10-19\_baseline-before-audit-defaults}, \texttt{2026-10-20\_regression-after-audit-defaults}.}. Tabela~\ref{tab:wyniki_silniki} przedstawia podział 200 blokad między silniki. Żadnej z tych blokad nie nałożył model GRU.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Pierwsze blokady botów według silnika (4 pełne przebiegi, punkt \textit{default})}\label{tab:wyniki_silniki}
+\begin{tabular}{@{}lr@{}}
+\toprule
+Silnik & Liczba blokad \\
+\midrule
+\texttt{l4\_volumetric} & 72 \\
+\texttt{l7\_rate} & 44 \\
+\texttt{l4\_slowconn} & 40 \\
+\texttt{l4\_syn} & 24 \\
+\texttt{l4\_lowsyn} & 20 \\
+\midrule
+razem & 200 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+W tym punkcie pracy każda konfiguracja, łącznie z konfiguracją bez ochrony, obsłużyła praktycznie wszystkie żądania prawowite rozpoczęte w trakcie ataków (17\,363 żądania, jedno nieudane)\footnote{\raggedright Kampania \texttt{2026-10-12\_exp1-default-4modes\_prototype}.}. Wynik ten potwierdza więc, że reguły \emph{blokują} wszystkie zastosowane warianty ataków. Nie pokazuje natomiast, że \emph{chronią} dostępność, ponieważ w tym punkcie pracy nie było szkody do zapobieżenia. Ochronę dostępności zbadano w punkcie \textit{knee} (sekcja~\ref{sec:wyniki_dostepnosc}).
+
+\subsection{Czas do mitygacji}\label{sec:wyniki_ttm}
+Tabela~\ref{tab:wyniki_ttm} przedstawia zakresy czasu do mitygacji dla poszczególnych silników z siedmiu pełnych przebiegów: czterech w profilu \texttt{default} i trzech w profilu \texttt{tolerant}. Zakresy różnią się między silnikami o rząd wielkości, dlatego wynik raportuje się jako ograniczenia dla poszczególnych reguł, a nie jako jedną wartość. Dla reguł \texttt{l4\_slowconn} i \texttt{l4\_lowsyn} czas wynika głównie z wymaganej liczby kolejnych odczytów (3 i 4) i z położenia początku ataku względem cyklu odczytu.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Czas do mitygacji według silnika (7 pełnych przebiegów; dla \texttt{l4\_slowconn} tylko 4 przebiegi profilu \texttt{default})}\label{tab:wyniki_ttm}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Silnik & Liczba botów & TTM [s] \\
+\midrule
+\texttt{l7\_rate} & 77 & 0,06--1,13 \\
+\texttt{l4\_volumetric} & 126 & 0,41--1,25 \\
+\texttt{l4\_syn} & 42 & 0,50--3,82 \\
+\texttt{l4\_slowconn} & 40 & 3,52--4,66 \\
+\texttt{l4\_lowsyn} & 35 & 3,46--3,99 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Wartość 3,82~s dla reguły \texttt{l4\_syn} dotyczy jednego bota scenariusza wielowektorowego w jednym przebiegu profilu \texttt{tolerant}. Pozostałe boty tego przebiegu zablokowano w 0,13--0,41~s. Mediana tego samego scenariusza wolumetrycznego różni się między przebiegami do 3,1 razy. Wyznaczenie rozkładu czasu do mitygacji wymaga co najmniej dziesięciu przebiegów (tab.~\ref{tab:plan}, P1) \doUzupelnienia{rozkład TTM z $\geq 10$ przebiegów w punkcie \textit{default}}.
+
+\subsection{Dostępność usługi pod zalewaniem HTTP}\label{sec:wyniki_dostepnosc}
+Eksperyment EXP-A\footnote{\raggedright Kampania \texttt{2026-10-20\_expa-knee-10-blocks}: punkt \textit{knee}, scenariusz 4, atak 30~s, 10 bloków sparowanych (\texttt{PROFILE\_SEED} 101--110), 4 konfiguracje.} jest pierwszą kampanią spełniającą regułę decyzyjną z sekcji~\ref{sec:statystyka}. Rysunek~\ref{fig:expa_dostepnosc} i tabela~\ref{tab:expa} przedstawiają dostępność usługi dla klientów prawowitych w trakcie ataku.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{images/expa_availability_http_flood.png}
+    \caption{EXP-A: dostępność usługi dla klientów prawowitych w trakcie zalewania HTTP w punkcie \textit{knee} (słupki: wartość zagregowana, punkty: poszczególne przebiegi) oraz mediana opóźnienia obsłużonych żądań klientów \texttt{perfect} w funkcji czasu od początku ataku (rysunek wygenerowany przez \texttt{eval/plot\_campaign.py})}
+    \label{fig:expa_dostepnosc}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\small
+\caption{EXP-A: dostępność w trakcie ataku i kontrasty względem konfiguracji bez ochrony (10 bloków)}\label{tab:expa}
+\begin{tabularx}{\linewidth}{@{}lrYrl@{}}
+\toprule
+Konfiguracja & Dostępność & Kontrast (średnia różnica bloków, 95\% CI) & Znak & Decyzja \\
+\midrule
+\texttt{xdp} & 100,0\% & +33,2 pp [+26,1; +40,2] & 10/10 & potwierdzony (+) \\
+\texttt{iptables} & 100,0\% & +33,2 pp [+26,1; +40,2] & 10/10 & potwierdzony (+) \\
+\texttt{nginxlimits} & 44,4\% & $-$22,5 pp [$-$32,0; $-$13,1] & 10/10 & potwierdzony ($-$) \\
+\texttt{unprotected} & 67,3\% & odniesienie & -- & -- \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Z demonem (XDP lub iptables) dostępność wyniosła 100\% w każdym z 10 bloków. Bez ochrony wynosiła od 50\% do 81\% w poszczególnych blokach, a z samymi limitami Nginx od 32\% do 67\%. Mediana opóźnienia obsłużonych żądań klientów \texttt{perfect} wyniosła 1~ms z demonem, 883~ms bez ochrony i 7317~ms z samymi limitami Nginx. Wynik ujemny konfiguracji \texttt{nginxlimits} zależy od modelu atakującego. W eksperymencie EXP-C\footnote{\raggedright Kampania \texttt{2026-10-23\_expc-open-vs-closed-loop}: te same ziarna i punkt pracy, 120 przebiegów, generator otwartej pętli \texttt{bench/loadgen.py}.} przy ataku w modelu zamkniętej pętli (\texttt{wrk}) kontrast limitów względem braku ochrony był ponownie ujemny ($-$34,3~pp [$-$45,4; $-$23,2]), a kontrast demona dodatni (+22,5~pp [+16,0; +29,0]). Przy ataku w modelu otwartej pętli, z częstotliwością 250 i 500 żądań/s na bota, obie konfiguracje ochronne utrzymały dostępność 100\% w każdym bloku, wobec 42,1\% i 11,4\% bez ochrony. Przy 125 żądaniach/s na bota komórka była nieobciążona, ponieważ serwer bez ochrony również obsłużył 100\% żądań. Atakujący w modelu zamkniętej pętli kierował do limitu \texttt{limit\_req} około 29,6~tys. żądań/s, niemal w całości odrzucanych kodem 503, wobec około 1,6~tys. żądań/s bez limitów.
+
+Wyniki te obowiązują dla jednego scenariusza (zalewanie HTTP), jednego punktu pracy i atakującego nieadaptacyjnego o częstotliwościach przekraczających próg reguły \texttt{l7\_rate}. \doUzupelnienia{dostępność w punktach pracy skalibrowanych dla pozostałych scenariuszy; ataki z wielu źródeł poniżej progów per adres}
+
+\subsection{Porównanie mechanizmów egzekwowania: XDP i iptables}\label{sec:wyniki_xdp}
+W EXP-A obie konfiguracje z demonem utrzymały dostępność 100\%, więc pod względem dostępności nie różnią się. Różnią się czasem do mitygacji (rys.~\ref{fig:expa_ttm}). Średnia z median blokowych wyniosła 0,215~s dla XDP i 0,290~s dla iptables, przy czym XDP był szybszy w 8 z 10 bloków. Średnia różnica wyniosła 0,075~s [0,030; 0,120]. Porównanie to jest analizą \textit{post hoc}, ponieważ zarejestrowana reguła decyzyjna dotyczy wyłącznie dostępności. W trzech wcześniejszych kampaniach w punkcie \textit{knee} mediany wynosiły odpowiednio 0,217/0,311~s, 0,198/0,336~s i 0,188/0,357~s. Poza zalewaniem HTTP, w pełnym zestawie z trzema niesparowanymi przebiegami na konfigurację, żaden mechanizm nie był konsekwentnie szybszy: niższą medianę miał XDP w 5 scenariuszach, a iptables w pozostałych 5, z różnicami 0,04--0,74~s. Przyczyna różnicy w zalewaniu HTTP nie została ustalona. Hipotezą wymagającą weryfikacji jest koszt sekwencyjnych wywołań procesu \texttt{iptables} w porównaniu z pojedynczą aktualizacją mapy \doUzupelnienia{pomiar kosztu ścieżki blokady w obu mechanizmach}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.62\linewidth]{images/expa_ttm.png}
+    \caption{EXP-A: czas do mitygacji dla poszczególnych botów (pierwsze zdarzenie \texttt{ban} minus początek ataku) przy egzekwowaniu blokad w XDP i w iptables; pozioma kreska oznacza medianę (rysunek wygenerowany przez \texttt{eval/plot\_campaign.py})}
+    \label{fig:expa_ttm}
+\end{figure}
+
+W scenariuszach wolumetrycznych (UDP, ACK, fragmentacja, wielowektorowy) do interfejsu serwera docierało 0,84--1,66~mln pakietów/s. W fazach po nałożeniu blokad w XDP do warstwy IP trafiało nie więcej niż 227 pakietów/s, a $\mathrm{PreStack}_{\mathrm{Dropped}}$ różniło się od $\mathrm{PPS}_{\mathrm{Rx}}$ o nie więcej niż 0,02\%\footnote{\raggedright Kampania \texttt{2026-10-13\_regression-default-full-suite}, plik \texttt{metrics.csv}.}. W pomiarach wcześniejszą wersją zestawu testowego iptables i konfiguracja bez ochrony przekazywały w tych scenariuszach do warstwy IP 1,07--1,44~mln pakietów/s, a XDP 147--169 pakietów/s w fazach ustalonych\footnote{\raggedright Kampania \texttt{2026-10-12\_exp1-default-4modes\_prototype}, porównanie w \texttt{2026-10-21\_prototype-claims-check}.}. Jest to zgodne z miejscem odrzucania pakietów w obu mechanizmach (sekcja~\ref{sec:metryki}) i z wynikami literatury \cite{scholz2018performance, hadisalim2021acl}. Pomiar pochodzi jednak z interfejsu \texttt{veth} i ze starszej wersji zestawu testowego. Powtórzenie go bieżącym narzędziem kampanii i na fizycznej karcie sieciowej jest ujęte w planie prac.
+
+\subsection{Ataki powolne i dobór progów}\label{sec:wyniki_slow}
+Reguła \texttt{l4\_slowconn} przy domyślnym progu 8 połączeń blokuje Slowloris (8 gniazd na bota) i R.U.D.Y. (10 gniazd na bota) w 3,5--4,7~s. Atak Slowloris otwiera przy tym dokładnie progową liczbę połączeń, więc scenariusz ten pokazuje detekcję na granicy progu. W profilu \texttt{tolerant} (próg 180) reguła nie zablokowała żadnego z 15 botów w żadnym z dwóch scenariuszy w trzech przebiegach, przy niezmienionej skuteczności w pozostałych ośmiu scenariuszach\footnote{\raggedright Kampania \texttt{2026-10-20\_expb-tolerant-profile-suite} (EXP-B).}. W tych przebiegach ataki powolne nie obniżyły dostępności dla klientów prawowitych mimo braku blokad (odpowiednio 1019 i 1000 żądań, wszystkie obsłużone). Jest to zgodne z obserwacją z dokumentacji projektu, że limity czasu i rozmiaru ciała żądania serwera Nginx neutralizują oba warianty ataku także bez ochrony. Obserwacja ta nie została jeszcze zweryfikowana osobnym eksperymentem. W torze ewaluacji potoku L7 rodziny ataków powolnych utrzymujące 6 gniazd nie zostały wykryte przez żaden silnik.
+
+Po stronie ruchu prawowitego w 52 rejestrach zdarzeń (710 blokad) odnotowano 4 blokady klientów prawowitych. Regułę \texttt{l7\_rate} wyzwoliła przeglądarka pobierająca stronę z 60 zasobami, regułę \texttt{l4\_slowconn} dwie bramy CGNAT, a czwartą blokadę nałożył model GRU \textit{Tier-1}. Rejestry nie zawierają informacji o łącznej ekspozycji ruchu prawowitego, dlatego nie można z nich wyznaczyć odsetka fałszywych alarmów. Dane te ilustrują dylemat progów per adres opisany w rozdziale~\ref{sec:wnioski_przeglad}: podniesienie progu \texttt{l4\_slowconn} z 8 do 180 usuwa fałszywe blokady bram CGNAT, ale jednocześnie usuwa detekcję obu ataków powolnych zestawu. Reguły oparte na kluczu (IP, \textit{User-Agent}) i częstotliwości utrzymywanej, oceniane w torze L7, wykryły wszystkich atakujących przy 2 oznaczonych adresach prawowitych na 100. \doUzupelnienia{wyniki ataków powolnych wokół i poniżej progu \texttt{l4\_slowconn} przy domyślnych limitach Nginx}
+
+\subsection{Ewaluacja modelu sekwencyjnego GRU}\label{sec:wyniki_gru}
+Ewaluacja modelu GRU ma ustalić, czy model wnosi wartość detekcyjną ponad reguły deterministyczne. Służy temu pięć pytań:
+\begin{enumerate}
+    \item[G1.] Czy model wykrywa ataki, których reguły nie wykrywają lub wykrywają później?
+    \item[G2.] Jaka jest czułość modelu przy ustalonym budżecie fałszywych alarmów (odsetek oznaczonych adresów prawowitych, fałszywe alarmy na godzinę pracy klienta)?
+    \item[G3.] Czy skuteczność utrzymuje się dla rodzin i intensywności ataków wstrzymanych z treningu?
+    \item[G4.] Czy decyzje są niezmiennicze względem cech opisujących narzędzie, a nie zachowanie (\textit{User-Agent}, nazwy zasobów, rozmiar żądania)?
+    \item[G5.] Czy decyzje zależą od kolejności zdarzeń, tzn. czy model sekwencyjny wykorzystuje informację niedostępną modelowi tabelarycznemu?
+\end{enumerate}
+
+Stan odpowiedzi na te pytania (październik 2026~r.) jest następujący.
+
+\paragraph{Potok \textit{Tier-1}.} W 37 rejestrach zdarzeń z przebiegów z włączonym potokiem (spośród 52 rejestrów i 710 blokad łącznie) model nie nałożył żadnej trafnej blokady. Jedyna jego blokada dotyczyła klienta prawowitego ($p = 0{,}999$). Model nigdy nie podejmował decyzji przed regułą deterministyczną blokującą ten sam adres, a adresy już zablokowane nie są oceniane. Zestaw testowy w obecnej postaci nie pozwala więc zmierzyć wartości krańcowej modelu (G1), ponieważ każdy z jego ataków wcześniej wyzwala regułę. W ocenie offline model osiągnął na zbiorze testowym miarę F1 równą 0,996, ale podobny wynik (F1 = 0,994) daje pojedyncza cecha: największa długość ładunku żądania. W eksperymencie kontrfaktycznym model uczony bez rodziny R.U.D.Y. wykrywał 19--29\% okien tej rodziny (3 ziarna). Zmiana wyłącznie rozmiaru żądania na wartość typową dla Slowloris zwiększała ten odsetek do 100\%, a na wartość typową dla \texttt{curl} obniżała go do 2--6\%. Model rozróżniał więc klasy głównie według rozmiaru żądania, czyli cechy opisującej narzędzie, a nie zachowanie (G3, G4). Odpowiada to pułapce P4 \cite{arp2022dos}. Po usunięciu dwóch cech rozmiaru żądania wykrywalność wstrzymanej rodziny wyniosła na tych samych danych 94--97\% bez fałszywych alarmów, co wskazuje kierunek kolejnej iteracji doboru cech. Od 19~października 2026~r. potok jest domyślnie wyłączony i rozwijany w trybie izolacji (\texttt{GRU\_ONLY})\footnote{\raggedright Rejestry zdarzeń: \texttt{2026-10-20\_audit-derived/events\_census.md}; eksperymenty kontrfaktyczne: \texttt{docs/ML\_INVESTIGATION.md}, sekcja~3.}.
+
+\paragraph{Potok L7.} W zarejestrowanej z góry ewaluacji P5c.4 (pięć ziaren i przebieg długotrwały; 20 adresów atakujących, czyli 4 role w 5 ziarnach, oraz 100 adresów prawowitych, czyli 20 ról w 5 ziarnach) model GRU wykrył 20 z 20 atakujących i oznaczył 9 ze 100 adresów prawowitych. Reguły oparte na kluczu (IP, \textit{User-Agent}) i częstotliwości utrzymywanej oraz model HGB, dostrojone na tych samych przebiegach, wykryły 20 z 20 atakujących przy 2 oznaczonych adresach prawowitych. Model HGB z progiem stosowanym w demonie ($0{,}95 \times 3$) oznaczył 3 adresy prawowite. Model GRU nie spełnił kryteriów użyteczności (G2): oznaczył 9\% adresów prawowitych przy budżecie 5\% i generował 1,8 fałszywego alarmu na godzinę pracy klienta przy budżecie 1,0. Zarejestrowany werdykt brzmi ,,brak przewagi''. Losowe przemieszanie kolejności żądań w ocenianych oknach zmieniło 60 z 29\,171 decyzji na poziomie okna (0,21\%) i żadnej decyzji na poziomie adresu (G5). Atakujący w tej ewaluacji nie obniżali jakości obsługi klientów prawowitych, więc wynik dotyczy klasyfikacji oznaczonych klientów, a nie mitygacji\footnote{\raggedright Kampanie \texttt{2026-10-16\_l7-p5c4-eval} i \texttt{2026-10-20\_audit-derived}.}.
+
+W klasach zagrożeń obecnych dotąd w środowisku testowym zebrane dane nie wskazują na przewagę detekcyjną modelu GRU nad regułami deterministycznymi. Wyniki te stanowią punkt odniesienia dla kolejnych iteracji modelu. Zgodnie z przyjętą regułą dopuszczenia kolejne iteracje wymagają klasy zagrożeń, w której reguły oparte na kluczu i częstotliwości utrzymywanej zawodzą, a szkoda dla klientów prawowitych jest mierzalna. Tabela~\ref{tab:gru_iteracje} służy do zestawiania wyników kolejnych iteracji według tych samych kryteriów.
+
+\begin{table}[H]
+\centering
+\scriptsize
+\caption{Zestawienie iteracji ewaluacji modelu GRU (kryteria G1--G5)}\label{tab:gru_iteracje}
+\begin{tabularx}{\linewidth}{@{}L{1.9cm}L{2.3cm}L{2.4cm}YL{2.1cm}@{}}
+\toprule
+Iteracja & Dane i cechy & Klasa zagrożeń & Wynik względem odniesienia & Werdykt \\
+\midrule
+\textit{Tier-1} (do 2026-10) & przepływy XDP, 8 cech, sekwencja 15 & ataki zestawu (sekcja~\ref{sec:scenariusze}) & 0 trafnych blokad, 1 fałszywa; reguły zawsze wcześniej; cechy rozmiaru jako odcisk narzędzia & G1 niemierzalne w zestawie; domyślnie wyłączony \\
+L7, P5c.4 & log \texttt{l7json}, okno 20 żądań & 4 role atakujących, 20 ról prawowitych & 20/20 atakujących, 9/100 prawowitych wobec 20/20 i 2/100 & brak przewagi (zarejestrowany) \\
+\doUzupelnienia{iteracja} & \doUzupelnienia{dane} & \doUzupelnienia{klasa spełniająca regułę dopuszczenia} & \doUzupelnienia{czułość przy budżecie FP; G3--G5} & \doUzupelnienia{werdykt} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Plan dalszych badań}\label{sec:plan}
+Tabela~\ref{tab:plan} zestawia otwarte zagadnienia, eksperymenty potrzebne do ich rozstrzygnięcia oraz sekcje, które zostaną uzupełnione ich wynikami.
+
+\begin{table}[H]
+\centering
+\scriptsize
+\caption{Otwarte zagadnienia i planowane eksperymenty}\label{tab:plan}
+\begin{tabularx}{\linewidth}{@{}L{0.6cm}L{4.0cm}YL{1.7cm}@{}}
+\toprule
+ID & Zagadnienie & Wymagany eksperyment lub prace & Sekcja \\
+\midrule
+P1 & rozkład czasu do mitygacji & $\geq 10$ pełnych przebiegów zestawu w punkcie \textit{default} & \ref{sec:wyniki_ttm} \\
+P2 & ataki powolne a próg \texttt{l4\_slowconn} & warianty Slowloris i R.U.D.Y. wokół i poniżej progu, przy domyślnych limitach Nginx; weryfikacja wpływu \texttt{client\_body\_timeout} i \texttt{client\_max\_body\_size} bez ochrony & \ref{sec:wyniki_slow} \\
+P3 & zalewanie z losowymi adresami źródłowymi & \texttt{hping3 -{}-rand-source} przy działającym demonie; zachowanie map LRU i ciasteczek SYN & \ref{sec:impl_l4} \\
+P4 & kompletność analizy nagłówków w XDP & kontrole \texttt{doff}, \texttt{tot\_len}, fragmentów IP, IPv6 i 802.1Q & \ref{sec:impl_xdp} \\
+P5 & punkty pracy dla scenariuszy wolumetrycznych & kalibracja punktu przegięcia dla scenariuszy 1, 3, 5, 6, 10 & \ref{sec:tryby_porownawcze} \\
+P6 & przenoszalność na fizyczną kartę sieciową & powtórzenie pomiarów odrzucania przed stosem i TTM na sterowniku z natywnym XDP & \ref{sec:wyniki_xdp} \\
+P7 & atakujący adaptacyjny, wiele źródeł & ataki poniżej progów per adres z wielu źródeł; atakujący reagujący na odrzucenia & \ref{sec:wyniki_dostepnosc} \\
+P8 & kolejna iteracja modelu GRU & klasa zagrożeń spełniająca regułę dopuszczenia; kryteria G1--G5 & \ref{sec:wyniki_gru} \\
+P9 & wektory specyficzne dla HTTP/2 & scenariusze na porcie 443 (np. Rapid Reset) & \ref{sec:ograniczenia} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Wnioski}\label{sec:wnioski}
+\doUzupelnienia{Rozdział zostanie opracowany po zakończeniu kampanii pomiarowych z tabeli~\ref{tab:plan}. Wnioski zostaną sformułowane jako ocena spełnienia wymagań W1--W7 z tabeli~\ref{tab:wymagania}, na podstawie wyników z rozdziału~\ref{sec:wyniki} i z zachowaniem podanych tam zakresów obowiązywania.}
+
+\begin{table}[H]
+\centering
+\small
+\caption{Szablon oceny spełnienia wymagań projektowych}\label{tab:ocena_wymagan}
+\begin{tabularx}{\linewidth}{@{}L{0.8cm}YL{6.2cm}@{}}
+\toprule
+ID & Podstawa oceny & Ocena \\
+\midrule
+W1 & sekcja~\ref{sec:wyniki_xdp} & \doUzupelnienia{ocena} \\
+W2 & sekcja~\ref{sec:wyniki_slow} & \doUzupelnienia{ocena} \\
+W3 & sekcje~\ref{sec:wyniki_reguly}--\ref{sec:wyniki_dostepnosc} & \doUzupelnienia{ocena} \\
+W4 & sekcja~\ref{sec:wyniki_gru} & \doUzupelnienia{ocena} \\
+W5 & rozdział~\ref{sec:testbed} & \doUzupelnienia{ocena} \\
+W6 & sekcja~\ref{sec:impl_events} & \doUzupelnienia{ocena} \\
+W7 & sekcja~\ref{sec:ograniczenia} & \doUzupelnienia{ocena} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
 \begin{thebibliography}{99}
 % Styl IEEE: numeracja według kolejności pierwszego cytowania w tekście.
 % Źródła nierecenzowane oznaczono typem: Industry technical report, Vulnerability record,
