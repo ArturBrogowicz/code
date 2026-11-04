@@ -81,7 +81,8 @@ class FakeHost(X.Host):
                  nginx_fails=False, daemon_dies_at=None, daemon_startup_s=3.0, gen_fails=(), gen_code=3,
                  poll_every_s=1.0, modelled_attackers=None, harm=None, fail_prim=None, limit_refuses=0.0,
                  gen_late=None, stub_fails=None, ss_fails=None, attack_fails=False, attack_opened_share=1.0, no_socket_of=(),
-                 garbled_bans=False, ban_file_lost=False, gen_stall=None, runner_stall=None):
+                 garbled_bans=False, ban_file_lost=False, gen_stall=None, runner_stall=None, gunicorn_refuses=None,
+                 gunicorn_dies=None, nginx_gone=False):
         self.t = 0.0
         self.root, self.netns, self.stack_ready, self.nginx_fails = root, list(netns), stack_ready, nginx_fails
         self.kill_file, self.kill_appears_at = kill_file, kill_appears_at
@@ -95,6 +96,9 @@ class FakeHost(X.Host):
         self.garbled_bans, self.ban_file_lost = garbled_bans, ban_file_lost     # the daemon's BAN_EVENTS, as a run leaves it
         self.gen_stall = dict(gen_stall or {})  # address -> (seconds after the generator's start, seconds it stalls): its views slip
         self.runner_stall = runner_stall        # (seconds of the run, seconds): one of the runner's own sleeps overruns by that
+        self.gunicorn_refuses = gunicorn_refuses  # text: gunicorn's master writes it to its log and exits 1 at once, before it serves
+        self.gunicorn_dies = gunicorn_dies      # (seconds of the run, its exit code, what its log says then)
+        self.nginx_gone, self.gunicorn = nginx_gone, None   # nginx_gone: its -s quit fails, as for a master that has died
         self.pids, self.seq = itertools.count(100), itertools.count()
         self.events, self.commands, self.prims, self.procs = [], [], [], []
         self.reset_world()
@@ -164,7 +168,10 @@ class FakeHost(X.Host):
             held = sum(1 for _ in self.socks)
             return X.Result(0, STUB.format(a=held, n=10 + int(self.t), r=30 + 3 * int(self.t), w=held), "")
         if argv[0] == "curl":
-            return X.Result(0, "200" if self.stack_ready else "502", "")
+            dead = self.gunicorn is not None and self.gunicorn.returncode is not None
+            return X.Result(0, "200" if self.stack_ready and not dead else "502", "")
+        if "nginx" in argv and "-s" in argv and self.nginx_gone:
+            return X.Result(1, "", "nginx: [error] kill() failed (3: No such process)")
         if argv[:3] == ["mv", "-f", "/var/log/nginx/l7_capture.log"] and self.access:
             with open(argv[3], "w", encoding="utf-8") as fh:
                 fh.writelines(json.dumps(x) + "\n" for x in self.access)
@@ -192,7 +199,16 @@ class FakeHost(X.Host):
             return p
         p = Proc(self, "server", argv, env, stdout)
         self.procs.append(p)
+        if "gunicorn" in text:
+            self.gunicorn = p
+            if self.gunicorn_refuses:
+                self._gunicorn_stops(p, 1, self.gunicorn_refuses)
         return p
+
+    def _gunicorn_stops(self, p, code, text):
+        p.stdout.write(text)
+        p.stdout.flush()
+        self.end(p, code)
 
     def end(self, proc, code):
         if proc.returncode is None:
@@ -207,6 +223,9 @@ class FakeHost(X.Host):
         if self.run_t0 is None:
             self.run_t0 = self.t
             self._tick(self.world)
+            if self.gunicorn_dies:
+                at, code, text = self.gunicorn_dies
+                self.at(self.t + at, lambda g=self.gunicorn, c=code, s=text: self._gunicorn_stops(g, c, s))
         a = p.argv
         p.role, p.ip, p.port = _opt(a, "--role"), _opt(a, "--source"), int(_opt(a, "--port"))
         p.name = _opt(a, "--kind") or _opt(a, "--family")

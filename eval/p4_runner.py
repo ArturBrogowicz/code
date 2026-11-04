@@ -24,7 +24,7 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     shares the worker connections an attack exhausts, so judging it would make the harm itself invalid;
   * the per-run labels (p4_traffic.roles: attack, slow_uploader, cgnat, the kind) in manifest.json and in
     slow_pc_manifest.json, the input of eval/p4_validation.py;
-  * checks: the stack answered, every generator started on time and ended cleanly, no client stalled in mid-life (stall_reading()),
+  * checks: the stack answered and stayed up (D-063: gunicorn alive to the run's end, nginx there to be told to quit), every generator started on time and ended cleanly, no client stalled in mid-life (stall_reading()),
     the daemon was ready before the traffic
     and alive to the end with XDP attached, the attack ran (review T-047 P-06: its generators' stats, attack_summary()), the
     record exists, the kill file stayed absent, and (D-035, V-08 of review
@@ -128,6 +128,8 @@ STOP_GRACE_S = 10.0
 # 90 %: slots run out as the attack harms (at the ladder's top ~1,800 connections meet ~1,065 free slots and a backlog of 511),
 # so a higher floor would call the harm itself invalid, the trap of stub_status (D-050, P-02).
 ATTACK_MIN_OPENED_SHARE = 0.5
+# What gunicorn.log names when gunicorn stops by itself (D-063): the first found goes in the reason.
+GUNICORN_REFUSALS = (("CalibrationError", "the origin refused its calibration record"), ("Worker failed to boot", "a worker failed to boot"))
 SLOW_PC_POLL_GAP_S = 10.0          # D-035 (V-08): the longest silence of the rule in an M_pc or validation run
 STALL_BOUND_S = 10.0               # T-052: never_sent_after_s (ml/l7v2_prereg.json), past which a late view fails in Q; and STOP_GRACE_S
 # the variables that select the daemon's mode, set, so that the operator's environment cannot change it (bench/executor.py
@@ -499,13 +501,17 @@ def execute_run(host, plan):
         for name, path in NGINX_LOGS.items():          # nginx starts its logs afresh; nothing of the host's is lost
             host.run(["mv", "-f", path, os.path.join(out, "feed_before", name)])
         logs["gunicorn"] = open(plan["gunicorn"]["log"], "w", encoding="utf-8")       # noqa: SIM115 (closed in finish)
-        procs.append(("gunicorn", host.popen(plan["gunicorn"]["argv"], ns=SERVER_NS, env=plan["gunicorn"]["env"],
-                                             stdout=logs["gunicorn"], stderr=logs["gunicorn"], cwd=REPO)))
+        gunicorn = host.popen(plan["gunicorn"]["argv"], ns=SERVER_NS, env=plan["gunicorn"]["env"],
+                              stdout=logs["gunicorn"], stderr=logs["gunicorn"], cwd=REPO)
+        procs.append(("gunicorn", gunicorn))
         if host.run(plan["nginx"]["start"], ns=SERVER_NS).code != 0:
             reasons.append("nginx did not start")
-        ready = _wait(host, lambda: host.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "2",
-                                              READY_URL], ns=SERVER_NS).out.strip() == "200", STACK_READY_TIMEOUT_S)
-        if not ready:
+        ready = _wait(host, lambda: gunicorn.poll() is not None
+                      or host.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "2",
+                                   READY_URL], ns=SERVER_NS).out.strip() == "200", STACK_READY_TIMEOUT_S)
+        if gunicorn.poll() is not None:
+            reasons.append(gunicorn_gone(host, plan, gunicorn, "before the traffic"))
+        elif not ready:
             reasons.append(f"the stack did not answer {READY_URL} with 200 within {STACK_READY_TIMEOUT_S:g} s")
         daemon = None
         if plan["daemon"] and not reasons:
@@ -540,6 +546,9 @@ def execute_run(host, plan):
             if daemon is not None and daemon.poll() is not None:
                 reasons.append(f"the daemon exited at {now:.0f} s (code {daemon.poll()})")
                 daemon = None
+            if gunicorn is not None and gunicorn.poll() is not None:
+                reasons.append(gunicorn_gone(host, plan, gunicorn, f"at {now:.0f} s"))
+                gunicorn = None
             if now >= total:
                 break
             elapsed = host.time() - t0                                    # on the second, whatever the sample took
@@ -548,6 +557,13 @@ def execute_run(host, plan):
     except Exception as exc:  # noqa: BLE001 - whatever failed, the run is recorded and the teardown runs
         reasons.append(f"the runner failed: {type(exc).__name__}: {exc}")
         return finish(host, plan, reasons, started, t0, procs, logs, stub, launched)
+
+
+def gunicorn_gone(host, plan, proc, when):
+    """The reason a run gives for a gunicorn that exited by itself (D-063): a dead backend must not read as harm."""
+    log = _text(host, plan["gunicorn"]["log"])
+    named = next((f": {what} (gunicorn.log)" for line, what in GUNICORN_REFUSALS if line in log), "")
+    return f"gunicorn exited {when} (code {proc.poll()}){named}"
 
 
 def _stop(host, proc, grace=STOP_GRACE_S, interrupt=False):
@@ -569,10 +585,14 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
             elif proc.poll() != 0:
                 reasons.append(f"{x['entity_id']} exited with code {proc.poll()}")
         for name, proc in procs:
+            if name == "gunicorn" and t0 is not None and proc.poll() is not None and not any(r.startswith("gunicorn exited") for r in reasons):
+                reasons.append(gunicorn_gone(host, plan, proc, f"at {host.time() - t0:.0f} s"))    # after the loop's last look
             if name == "daemon":
                 _stop(host, proc, interrupt=True)          # SIGINT runs its finally, which detaches XDP
         if any(name == "gunicorn" for name, _p in procs):
-            host.run(plan["nginx"]["stop"], ns=SERVER_NS)
+            quit_code = host.run(plan["nginx"]["stop"], ns=SERVER_NS).code
+            if quit_code != 0 and t0 is not None:          # stub_status judges nothing (D-050), so only this says it had gone
+                reasons.append(f"nginx was not running at the run's end: its quit exited {quit_code}")
         for name, proc in procs:
             if name == "gunicorn":
                 _stop(host, proc)

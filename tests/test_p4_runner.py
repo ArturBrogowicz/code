@@ -836,6 +836,54 @@ class ExecuteTest(unittest.TestCase):
         self.assertEqual(R.STALL_BOUND_S, l7v2_harm._rule()["never_sent_after_s"])
         self.assertEqual(R.STALL_BOUND_S, R.STOP_GRACE_S)
 
+    def test_gunicorn_dying_in_mid_run_makes_the_run_invalid(self):
+        """D-063: a dead backend read as harm: the run went on, every request failed, and run.json said nothing."""
+        for arm in ("U_post", "C"):
+            run = self.one_run(f"dies_{arm}", "campaign", 3106, arm, thresholds=POINT)
+            res = R.execute_run(F.FakeHost(gunicorn_dies=(100.0, 1, ""), modelled_attackers=1), run)
+            self.assertFalse(res["ok"])
+            self.assertEqual([r for r in res["reasons"] if "gunicorn" in r], ["gunicorn exited at 100 s (code 1)"])
+            with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+                self.assertEqual(json.load(fh)["checks"]["reasons"], res["reasons"])
+
+    def test_the_reason_names_what_the_log_shows(self):
+        boot = "[ERROR] Worker (pid:7) exited with code 3.\n[ERROR] Reason: Worker failed to boot.\n"
+        refusal = "origin.CalibrationError: C0: 0.005 ms against 0.05 ms frozen\n" + boot
+        for name, text, want in (("boot", boot, "gunicorn exited at 150 s (code 3): a worker failed to boot (gunicorn.log)"),
+                                 ("refusal", refusal, "gunicorn exited at 150 s (code 3): the origin refused its calibration record (gunicorn.log)")):
+            run = self.one_run(name, "campaign", 3106, "U_post", thresholds=POINT)
+            res = R.execute_run(F.FakeHost(gunicorn_dies=(150.0, 3, text), modelled_attackers=1), run)
+            self.assertIn(want, res["reasons"])
+
+    def test_gunicorn_dying_after_the_loops_last_look_is_seen_once(self):
+        run = self.one_run("late", "campaign", 3106, "C", thresholds=POINT)
+        res = R.execute_run(F.FakeHost(gunicorn_dies=(270.2, 1, "")), run)
+        self.assertEqual(res["reasons"], ["gunicorn exited at 270 s (code 1)"])
+
+    def test_the_runner_stopping_gunicorn_is_no_reason(self):
+        run = self.one_run("healthy", "campaign", 3106, "C", thresholds=POINT)
+        self.assertEqual(R.execute_run(F.FakeHost(), run)["reasons"], [])
+
+    def test_a_refused_master_never_serves(self):
+        """D-063 (2): the record refused in gunicorn's master: named at once, with no traffic, no daemon and no 30-s wait."""
+        run = self.one_run("refused", "campaign", 3106, "M_pc_post", thresholds=POINT)
+        host = F.FakeHost(gunicorn_refuses="[INFO] Starting gunicorn 26.2.0\nCalibrationError: C0: 0.005 ms against 0.05 ms frozen\n")
+        res = R.execute_run(host, run)
+        self.assertEqual(res["reasons"], ["gunicorn exited before the traffic (code 1): the origin refused its calibration record (gunicorn.log)"])
+        self.assertEqual({p.kind for p in host.procs}, {"server"})
+        self.assertLess(host.t, 5.0)
+        self.assertTrue(host.ran("ip", "netns", "del", "server_ns"))
+        self.assertFalse(os.path.exists(os.path.join(run["out"], "stub_status.jsonl")))
+
+    def test_nginx_gone_at_the_runs_end_makes_the_run_invalid(self):
+        """stub_status records its errors and judges nothing (D-050), so a dead nginx said nothing either."""
+        run = self.one_run("nginx", "campaign", 3106, "U_post", thresholds=POINT)
+        res = R.execute_run(F.FakeHost(nginx_gone=True, modelled_attackers=1), run)
+        self.assertEqual(res["reasons"], ["nginx was not running at the run's end: its quit exited 1"])
+        run = self.one_run("never_began", "campaign", 3106, "C", thresholds=POINT)
+        res = R.execute_run(F.FakeHost(nginx_gone=True, stack_ready=False), run)
+        self.assertEqual(len(res["reasons"]), 1, "a run that never began has no end to speak of")
+
     def test_a_generator_with_no_records_is_a_reason(self):
         run = self.one_run("no_records", "campaign", 3106, "C", thresholds=POINT)
         device = next(e for e in run["entities"] if e["kind_or_family"] == "search_user")
