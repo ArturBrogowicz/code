@@ -145,7 +145,7 @@ class SimHost(X.Host):
                  fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,), wall_late_s=None, silent=None, nonzero=None,
                  ping_drops=None, daemon_holds_pipes=True, run_cost_s=None, daemon_startup_s=DAEMON_STARTUP_S,
                  daemon_ban_rps=DAEMON_BAN_RPS, daemon_ban_delay_s=DAEMON_BAN_DELAY_S, h01_fix_in_history=False,
-                 max_inflight=None, host_feed=None, timer_p99_by_cpu=None):
+                 max_inflight=None, host_feed=None, timer_p99_by_cpu=None, origin_exit=None):
         self.t = 0.0
         self.inodes = itertools.count(7000)
         self.max_inflight = max_inflight      # a lower in-flight cap for the engines than their --max-inflight (a test of F-02)
@@ -169,6 +169,7 @@ class SimHost(X.Host):
         self.commands, self.prims, self.sleeps = [], [], []
         self.root, self.dirty, self.nofile = root, dirty, nofile
         self.uptime_s, self.load1, self.timer_p99_ms = uptime_s, load1, timer_p99_ms
+        self.origin_exit = origin_exit                             # (seconds after its start, exit code, what gunicorn.log then says)
         self.timer_p99_by_cpu = dict(timer_p99_by_cpu or {})       # the CPU list taskset is given -> p99 or [p99, ...]; else timer_p99_ms
         self.exit_delay_s, self.exit_delay_per_request_s = exit_delay_s, exit_delay_per_request_s
         self.startup_s = startup_s or (lambda sid, index, kind: (LEGIT_STARTUP_S if kind == "legit" else ATTACK_STARTUP_S) + 0.002 * index)
@@ -284,8 +285,17 @@ class SimHost(X.Host):
         proc.ignores_term = self.fault("stubborn_origin")
         if self.fault("origin_dies"):
             self.schedule(self.t + 0.5, lambda: self.end(proc, 1))
+        if self.origin_exit:
+            after, code, said = self.origin_exit
+            self.schedule(self.t + after, lambda: self._origin_exits(proc, code, said, getattr(stderr, "name", None)))
         self.origin_ready_at = self.t + 1.5
         return proc
+
+    def _origin_exits(self, proc, code, said, path):
+        if said and path:
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(said)
+        self.end(proc, code)
 
     def _start_stream(self, argv, ns, stderr):
         opts = {a: argv[i + 1] for i, a in enumerate(argv)

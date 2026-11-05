@@ -961,6 +961,44 @@ class TimerReprobeTest(RunCase):
         self.assertEqual(X.timer_wait_text(0), "one probe (--wait-gate 0)")
 
 
+class OriginDuringTheRunTest(RunCase):
+    """docs/HG1C_DESIGN.md departure 34 (D-063): an origin that exits during the run makes the run unsound; Nginx would answer 502, which
+    would read as harm."""
+
+    def test_an_origin_that_exits_during_the_run_makes_it_unsound_and_says_when(self):
+        for kind, args in (("C", {}), ("U", {}), ("M_xdp", {"pins": X.pins_for(["M_xdp"])})):
+            with self.subTest(kind=kind):
+                plan, _, result = self.go(kind, F.SimHost(origin_exit=(20.0, 1, "")), plan_args=args)
+                self.assertFalse(result.ok)
+                said = [r for r in result.reasons if r.startswith("the origin exited")]
+                self.assertEqual(len(said), 1, result.reasons)
+                self.assertRegex(said[0], r"^the origin exited with 1 at T\+\d+\.\d s after the launch, before the end of the run$")
+                self.assertIn(said[0], self.run_json(plan)["executor"]["reasons"])
+                self.assertFalse(self.run_json(plan)["executor"]["ok"])
+
+    def test_the_reason_names_a_calibration_refusal_or_a_worker_that_failed_to_boot(self):
+        refused = "origin.CalibrationError: C3 is 31 % off its frozen cost\n[ERROR] Worker failed to boot.\n"
+        for i, (text, said) in enumerate(((refused, "; gunicorn.log says: origin.CalibrationError: C3 is 31 % off its frozen cost"),
+                                          ("[ERROR] Worker failed to boot.\n", "; gunicorn.log says: [ERROR] Worker failed to boot."))):
+            with self.subTest(said=said):
+                _, _, result = self.go("U", F.SimHost(origin_exit=(20.0, 3, text)), plan_args={"name": f"cause{i}/U"})
+                self.assertFalse(result.ok)
+                reason = next(r for r in result.reasons if r.startswith("the origin exited with 3"))
+                self.assertTrue(reason.endswith("before the end of the run" + said), reason)
+
+    def test_a_healthy_run_is_unaffected(self):
+        plan, _, result = self.go("C")
+        self.assertTrue(result.ok, result.reasons)
+        self.assertFalse([r for r in self.run_json(plan)["executor"]["reasons"] if "origin" in r])
+        self.assertEqual(X.origin_validity(plan, {"origin": mock.Mock(poll=lambda: None)}, 0.0), [], "alive when the timeline is over")
+
+    def test_no_origin_on_record_is_no_origin(self):
+        self.assertEqual(X.origin_validity(self.plan("C"), {}, 0.0), ["the origin exited with None, before the end of the run"])
+
+    def test_a_log_that_cannot_be_read_says_nothing_and_changes_nothing(self):
+        self.assertEqual(X.origin_log_says(os.path.join(self.tmp.name, "no_such_gunicorn.log")), "")
+
+
 class SetupTest(RunCase):
     def build(self, faults, expect=X.SetupFailed, **kw):
         host = F.SimHost(faults=faults)
