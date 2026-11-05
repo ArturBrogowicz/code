@@ -58,6 +58,7 @@ import origin as O
 ENV_BACKEND = "L7_BACKEND"
 ENV_RECORD = "L7_CALIBRATION"
 ENV_UPLOAD = "L7_UPLOAD"
+ENV_CHECKED = "L7_RECORD_CHECKED"       # the sha256 of the frozen record a server's master has checked (check_at_server_start)
 BACKENDS = ("legacy", "costed")
 UPLOADS = ("legacy", "streamed")          # POST /upload: l7_webapp's answer, or read as it arrives (profile R)
 UPLOAD_PATH, UPLOAD_CLASS, UPLOAD_WORK_CLASS = "/upload", "C6", "C2"
@@ -141,6 +142,19 @@ def arithmetic_record(costs_rec, base_rec):
     return out
 
 
+def check_at_server_start(environ=None):
+    """Profile R's master (gunicorn_profile_r.py, D-063): the frozen record's self-check, once per server start and exactly as a worker
+    would run it, or origin.CalibrationError; then the marker its workers inherit, bound to the record's hash, so that they keep
+    the tag and do not measure. An earlier server's marker counts for nothing. A record that is not frozen has no check. Without
+    the marker (P1, the harm benchmark) a CostedApp checks itself as before."""
+    environ = os.environ if environ is None else environ
+    environ.pop(ENV_CHECKED, None)
+    rec, status, _tag = load_record(environ.get(ENV_RECORD) or None)
+    if status == "frozen":
+        CostedApp.from_env(environ).origin.close()
+        environ[ENV_CHECKED] = rec["sha256"]
+
+
 # --- the costed WSGI app ---------------------------------------------------------------------------------------------
 
 def _ident(text):
@@ -166,7 +180,7 @@ class CostedApp:
     (tests use small data sets); `sid_factory` makes session ids (tests make them deterministic)."""
 
     def __init__(self, record_path=None, *, knobs=None, data_seed=1, clock=time.process_time, sid_factory=None,
-                 upload="legacy"):
+                 upload="legacy", checked=None):
         if upload not in UPLOADS:
             raise ValueError(f"{ENV_UPLOAD}={upload!r}: {' or '.join(UPLOADS)}")
         self.upload = upload
@@ -176,7 +190,7 @@ class CostedApp:
         fields = {f.name for f in dataclasses.fields(O.CostKnobs)}
         merged = {k: v for k, v in self.record["knobs"].items() if k in fields}
         merged.update(knobs or {})
-        frozen = self.record["route_costs_ms"] if self.status == "frozen" else None
+        frozen = self.record["route_costs_ms"] if self.status == "frozen" and checked != self.record["sha256"] else None
         self.origin = O.make_app(O.CostKnobs(**merged), data_seed, frozen, self.tag, clock)
         self.knobs = self.origin.knobs
         self.data_seed = data_seed
@@ -186,7 +200,7 @@ class CostedApp:
     def from_env(cls, environ=None):
         environ = os.environ if environ is None else environ
         return cls(environ.get(ENV_RECORD) or None, data_seed=int(environ.get("ORIGIN_SEED", "1")),
-                   upload=environ.get(ENV_UPLOAD) or "legacy")
+                   upload=environ.get(ENV_UPLOAD) or "legacy", checked=environ.get(ENV_CHECKED))
 
     def _reply(self, start_response, status, ctype, body, *, klass=None, work=None, cache=None, cookie=None,
                head=False):

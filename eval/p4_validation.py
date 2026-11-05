@@ -31,6 +31,11 @@ under "daemon" (eval/p4_runner.py writes it), and the scorer refuses a manifest 
 enforced, and a poll whose `banned` set holds an address that is not an attacker's: another engine's ban of a benign
 address would drop its sockets unjudged at every grid point and make the benign constraints hold by construction.
 
+Re-registration record (T-052, 2026-11-03T15:01Z, the orchestrator's brief, before any data; reviews T-047 and T-050; labelled,
+not a decision of the user), committed before the code it judges: a run with no readable socket of a benign role is refused: the constraints on that role would
+hold by construction. The record also holds the settings of the validation's blocks, which eval/p4_runner.py compares with the
+campaign's.
+
 The share of attacking addresses banned within SECONDARY_DEADLINE_S of their first connection, the T_mit
 of the design note before its re-registration, is reported next to each point; it is not used.
 
@@ -95,12 +100,46 @@ def runs_from_index(root):
     return manifests, attempts
 
 
+def settings_of(manifests):
+    """The settings of the validation's blocks (eval/p4_runner.py block_settings, in block.json beside each attempt's runs): one
+    setting, which the campaign's must match (review T-047 P-08)."""
+    seen = []
+    for path in manifests:
+        try:
+            with open(os.path.join(os.path.dirname(os.path.dirname(path)), "block.json"), encoding="utf-8") as fh:
+                settings = json.load(fh)["settings"]
+        except (OSError, ValueError, KeyError) as exc:
+            raise ValueError(f"{path}: no block.json with the block's settings beside its attempt: {exc}") from None
+        if settings not in seen:
+            seen.append(settings)
+    if len(seen) != 1:
+        raise ValueError(f"the validation's blocks hold {len(seen)} different settings")
+    return seen[0]
+
+
+def roles_without_a_socket(polls, roles):
+    """The benign roles of a run's labels with no readable socket in any of its polls (review T-047 P-09): the constraints on such
+    a role would hold by construction. eval/p4_runner.py makes such a run invalid, so that it can be re-run."""
+    wanted = {r for r in roles.values() if r != ATTACK}
+    for p in polls:
+        if not wanted:
+            break
+        if p.get("ss") is not None:
+            wanted -= {roles.get(key[0]) for key in slow_pc.parse_ss(p["ss"])[1]}
+    return sorted(wanted)
+
+
 def check_runs(runs):
-    """The validation set must be exactly the frozen seeds x runs: no run missing, none extra."""
+    """The validation set must be exactly the frozen seeds x runs, no run missing and none extra, each with a socket of every
+    benign role."""
     have = sorted((r["seed"], r["arm"]) for r in runs)
     want = sorted((s, a) for s in slow_pc.VALIDATION_SEEDS for a in slow_pc.VALIDATION_RUNS)
     if have != want:
         raise ValueError(f"the validation runs must be exactly {want}, got {have}")
+    for r in runs:
+        missing = roles_without_a_socket(r["polls"], r["roles"])
+        if missing:
+            raise ValueError(f"seed {r['seed']} {r['arm']}: no socket of {missing}: the constraints on them would hold by construction")
 
 
 def score_run(polls, roles, grid=slow_pc.GRID, ttl_s=slow_pc.BAN_TTL_S):
@@ -178,6 +217,7 @@ def main(argv=None):
         manifests, attempts = runs_from_index(args.root)
         runs = [load_run(m) for m in manifests]
         check_runs(runs)
+        settings = settings_of(manifests)
     except ValueError as exc:
         print(f"[-] {exc}", file=sys.stderr)
         return 2
@@ -196,6 +236,7 @@ def main(argv=None):
             "selection": {"point": sel.point, "share": None if sel.share is None else str(sel.share),
                           "feasible": sel.feasible},
             "deadline_s": slow_pc.DEADLINE_S, "secondary_deadline_s": SECONDARY_DEADLINE_S, "attempts": attempts,
+            "settings": settings,
             "outcomes": [{"T": t, "F": f, "K": k, **o._asdict(),
                           "secondary_banned": secondary[(t, f, k)]}
                          for (t, f, k), o in sorted(outcomes.items())],

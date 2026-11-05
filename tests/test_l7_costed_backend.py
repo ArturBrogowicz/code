@@ -1,9 +1,12 @@
 """The costed backend of the L7 app (l7_backend.py, l7_webapp.route_class; docs/L7V2_DESIGN.md section 4, D-V1).
 Offline: the WSGI app is called in-process with small knobs; no server is started."""
 import hashlib
+import importlib.util
+import inspect
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -16,6 +19,7 @@ sys.path.insert(0, os.path.join(REPO, "bench"))
 import calibration as CAL
 import calibration_fixtures as CF
 import origin as O
+from gunicorn.arbiter import Arbiter
 
 import l7_backend as B
 import l7_webapp
@@ -202,6 +206,103 @@ class RecordTest(unittest.TestCase):
             ticks = iter(range(10**6))
             with self.assertRaises(O.CalibrationError):          # 1 ms per call against 0.05-150 ms frozen
                 B.CostedApp(path, knobs=SMALL, clock=lambda: next(ticks) / 1000.0)
+
+    def test_a_worker_after_the_masters_check_does_not_measure_and_keeps_the_tag(self):
+        """D-063 (2): a replacement worker neither costs the attack's window its CPU nor can stop the server in mid-run."""
+        frozen = CF.frozen()
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(O, "measure_unloaded", side_effect=AssertionError("measured")) as measure:
+            path = os.path.join(d, "f.json")
+            CAL.dump(frozen, path)
+            app = B.CostedApp(path, knobs=SMALL, checked=frozen["sha256"])
+            self.addCleanup(app.origin.close)
+            self.assertEqual((app.status, app.tag), ("frozen", "frozen:" + frozen["sha256"][:8]))
+            measure.assert_not_called()
+            with self.assertRaises(AssertionError):                       # another record's word is no word
+                B.CostedApp(path, knobs=SMALL, checked="0" * 64)
+            with self.assertRaises(AssertionError):                       # no marker: as before, for P1 and HG
+                B.CostedApp(path, knobs=SMALL)
+
+    def test_the_environment_carries_the_marker_to_a_worker(self):
+        frozen = CF.frozen()
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(O, "measure_unloaded", side_effect=AssertionError("measured")):
+            path = os.path.join(d, "f.json")
+            CAL.dump(frozen, path)
+            env = {B.ENV_RECORD: path, B.ENV_CHECKED: frozen["sha256"]}
+            app = B.CostedApp.from_env(env)
+            self.addCleanup(app.origin.close)
+            self.assertEqual(app.tag, "frozen:" + frozen["sha256"][:8])
+
+    def test_the_master_checks_once_and_marks(self):
+        frozen = CF.frozen()
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "f.json")
+            CAL.dump(frozen, path)
+            env = {B.ENV_RECORD: path, B.ENV_CHECKED: "an earlier server's"}
+            with mock.patch.object(O, "measure_unloaded", return_value=dict(frozen["route_costs_ms"])) as measure:
+                B.check_at_server_start(env)
+            measure.assert_called_once()
+            self.assertEqual(env[B.ENV_CHECKED], frozen["sha256"])
+            env = {B.ENV_RECORD: path, B.ENV_CHECKED: frozen["sha256"]}
+            off = {k: v * 2 for k, v in frozen["route_costs_ms"].items()}
+            with mock.patch.object(O, "measure_unloaded", return_value=off), self.assertRaises(O.CalibrationError):
+                B.check_at_server_start(env)
+            self.assertNotIn(B.ENV_CHECKED, env, "a refused master leaves no marker")
+
+    def test_a_record_that_is_not_frozen_has_nothing_to_check(self):
+        env = {}
+        with mock.patch.object(O, "measure_unloaded", side_effect=AssertionError("measured")), \
+                mock.patch.object(B.CostedApp, "from_env", side_effect=AssertionError("built")):
+            B.check_at_server_start(env)
+        self.assertEqual(env, {})
+
+    def on_starting(self):
+        spec = importlib.util.spec_from_file_location("gunicorn_profile_r", os.path.join(REPO, "gunicorn_profile_r.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.on_starting
+
+    def test_a_refused_master_ends_before_it_listens(self):
+        """D-063 (2), without starting gunicorn: the hook's refusal ends the process, with the line the runner reads; and in the installed
+        gunicorn the hook comes before the sockets and outside what its main loop catches."""
+        hook = self.on_starting()
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "f.json")
+            CAL.dump(CF.frozen(), path)
+            with mock.patch.dict(os.environ, {"L7_CALIBRATION": path}), self.assertRaises(SystemExit) as ended:
+                hook(None)
+            self.assertIn("CalibrationError: C0:", str(ended.exception.code))
+            self.assertNotIn("L7_RECORD_CHECKED", os.environ)
+        start = inspect.getsource(Arbiter.start)
+        self.assertLess(start.index("on_starting"), start.index("create_sockets"))
+        run = inspect.getsource(Arbiter.run)
+        self.assertLess(run.index("self.start()"), run.index("try:"))
+
+    def test_a_good_master_marks_what_its_workers_inherit(self):
+        hook = self.on_starting()
+        frozen = CF.frozen()
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ):
+            path = os.path.join(d, "f.json")
+            CAL.dump(frozen, path)
+            os.environ["L7_CALIBRATION"] = path
+            with mock.patch.object(O, "measure_unloaded", return_value=dict(frozen["route_costs_ms"])):
+                hook(None)
+            self.assertEqual(os.environ["L7_RECORD_CHECKED"], frozen["sha256"])
+
+    def test_the_import_a_worker_does(self):
+        """In a subprocess, as a gunicorn worker's load_wsgi imports the app (no gunicorn, no socket): without the marker a refusal at
+        import, which gunicorn turns into stopping the whole server; with it, the app and its tag."""
+        frozen = CF.frozen()
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "f.json")
+            CAL.dump(frozen, path)
+            env = {"PATH": os.environ.get("PATH", ""), "HOME": d, "PYTHONPATH": REPO, "L7_BACKEND": "costed", B.ENV_RECORD: path}
+            code = "import l7_webapp; print(l7_webapp._BACKEND[0].tag)"
+            bare = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, check=False, cwd=d)
+            self.assertNotEqual(bare.returncode, 0)
+            self.assertIn("CalibrationError", bare.stderr)
+            marked = subprocess.run([sys.executable, "-c", code], env={**env, B.ENV_CHECKED: frozen["sha256"]}, capture_output=True,
+                                    text=True, check=False, cwd=d)
+            self.assertEqual((marked.returncode, marked.stdout.strip()), (0, "frozen:" + frozen["sha256"][:8]), marked.stderr)
 
     def test_arithmetic_takes_the_weaker_status(self):
         measured, _, _ = B.load_record(MEASURED)

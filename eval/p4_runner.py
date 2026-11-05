@@ -24,7 +24,8 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     shares the worker connections an attack exhausts, so judging it would make the harm itself invalid;
   * the per-run labels (p4_traffic.roles: attack, slow_uploader, cgnat, the kind) in manifest.json and in
     slow_pc_manifest.json, the input of eval/p4_validation.py;
-  * checks: the stack answered, every generator started and ended cleanly, the daemon was ready before the traffic
+  * checks: the stack answered and stayed up (D-063: gunicorn alive to the run's end, nginx there to be told to quit), every generator started on time and ended cleanly, no client stalled in mid-life (stall_reading()),
+    the daemon was ready before the traffic
     and alive to the end with XDP attached, the attack ran (review T-047 P-06: its generators' stats, attack_summary()), the
     record exists, the kill file stayed absent, and (D-035, V-08 of review
     T-039) in an M_pc or validation run the rule's slow_pc_poll
@@ -32,6 +33,21 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     the run's end, and in an M_pc run they all say it enforced (review T-047 P-05: the daemon logs the event with polls 0
     and ss_failed N when every read fails, so counting events would call a blind rule alive). A run that
     fails one is invalid, with its reasons.
+
+Re-registration record (D-063, 2026-11-04T13:04Z, the orchestrator's decision, before any data; the user may overrule), committed
+before the code it judges: gunicorn exiting during a run is a reason, named as a calibration refusal or a failed worker boot when
+gunicorn.log shows one, and so is nginx not running at the run's end.
+
+Re-registration record (T-052b, 2026-11-04T12:16Z, the orchestrator's brief, before any data; the rule of eval/harm_gate.py and
+eval/l7v2_harm.py), committed before the code it judges: a campaign block refuses a calibration record that is not frozen before anything runs,
+and so does --summarize; only a simulated host, or --dry-run on --summarize, is exempt, and labelled. Smoke, ladder and validation may
+name any record, and each block.json says which.
+
+Re-registration record (T-052, 2026-11-03T15:01Z, the orchestrator's brief, before any data; reviews T-047 and T-050; labelled,
+not a decision of the user), committed before the code it judges: a campaign block needs --selection, the validation's record, and its T, F and K (P-08); a
+validation run needs a readable socket of each benign role (P-09); a ban-event line that cannot be read, or a daemon run whose ban
+file is gone, is a reason (P-17 (4)); a benign device's view more than STALL_BOUND_S = 10 s after its intended start, or a generator
+launched more than that late, is a reason, and run.json's `stall` always holds the readings (T-050).
 
 Re-registration record (D-050, 2026-11-02T08:48Z, the user's "Approve as recommended", before any data; review T-047),
 committed before the code it judges: this runner refuses --attempt N unless the index shows that attempt N-1 of the block had
@@ -56,9 +72,10 @@ What the runs write feeds eval/p4_validation.py (slow_pc_manifest.json, slow_pc.
 the closes, and nginx's refusals by role from the access log, for the limits' own cost of D-041) unchanged; `--summarize ROOT OUT.jsonl` writes the run records of every evaluation attempt of the
 run index, valid or not (D-035, V-03).
 
-    sudo ./venv/bin/python eval/p4_runner.py --phase campaign --seed 3101 --loris 175 --post 10 --thresholds 20,64,2
+    ./venv/bin/python eval/p4_validation.py ROOT --json selection.json
+    sudo ./venv/bin/python eval/p4_runner.py --phase campaign --seed 3101 --loris 175 --post 10 --thresholds 20,64,2 --selection selection.json --calibration FROZEN.json
     ./venv/bin/python eval/p4_runner.py --phase validation --seed 4001 --loris 175 --post 10 --plan
-    ./venv/bin/python eval/p4_runner.py --summarize ROOT runs.jsonl --calibration bench/calibration/placeholder.json
+    ./venv/bin/python eval/p4_runner.py --summarize ROOT runs.jsonl --calibration FROZEN.json    # --dry-run: a simulated campaign
 """
 import argparse
 import datetime
@@ -84,7 +101,9 @@ FORMAT = "p4-run/1"
 PHASES = ("smoke", "ladder", "validation", "campaign")
 SERVER_NS, SERVER_IP, BRIDGE, SERVER_VETH_HOST_END = "server_ns", "10.0.0.1", "ddos_br0", "veth_srv_br"
 NS_PREFIX, MAX_ALIASES, SUBNET_MASK = "p4n", 80, "/16"
-PINS = {"server": "0-1", "daemon": "2", "clients": "3-7"}
+# The runner too (review T-050 T050-17): its popen, curl and reads, and the ip and curl processes it starts, keep off the CPUs of the
+# server and the daemon, as bench/population.PIN_PLAN_DAEMON's executor CPU does. P4's plan has no CPU to spare, so it shares the clients'.
+PINS = {"server": "0-1", "daemon": "2", "clients": "3-7", "runner": "3-7"}
 CONF_R = "nginx_profile_r.conf"
 CONF_LIMITS = "nginx_profile_r_limits.conf"
 GUNICORN_CONF = "gunicorn_profile_r.py"
@@ -109,7 +128,10 @@ STOP_GRACE_S = 10.0
 # 90 %: slots run out as the attack harms (at the ladder's top ~1,800 connections meet ~1,065 free slots and a backlog of 511),
 # so a higher floor would call the harm itself invalid, the trap of stub_status (D-050, P-02).
 ATTACK_MIN_OPENED_SHARE = 0.5
+# What gunicorn.log names when gunicorn stops by itself (D-063): the first found goes in the reason.
+GUNICORN_REFUSALS = (("CalibrationError", "the origin refused its calibration record"), ("Worker failed to boot", "a worker failed to boot"))
 SLOW_PC_POLL_GAP_S = 10.0          # D-035 (V-08): the longest silence of the rule in an M_pc or validation run
+STALL_BOUND_S = 10.0               # T-052: never_sent_after_s (ml/l7v2_prereg.json), past which a late view fails in Q; and STOP_GRACE_S
 # the variables that select the daemon's mode, set, so that the operator's environment cannot change it (bench/executor.py
 # DAEMON_ENV); MITIGATION_BACKEND is XDP in every P4 arm
 DAEMON_BASE_ENV = {"XDP_GRU": "0", "GRU_ONLY": "0", "L7_SHADOW": "0", "L7_MODEL": "", "L7_RECORD": "",
@@ -290,12 +312,25 @@ def plan_run(pop, phase, arm, out, *, thresholds=None, calibration=PLACEHOLDER, 
     }
 
 
+def record_status(path):
+    """The status of a calibration record, its schema and hash checked (l7_backend.load_record), or PlanError."""
+    import l7_backend
+    try:
+        return l7_backend.load_record(path)[1]
+    except (OSError, ValueError) as exc:
+        raise PlanError(f"the calibration record {path}: {exc}") from None
+
+
 def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresholds=None, family=None,
-               arms=None, label="", calibration=PLACEHOLDER, python=PYTHON):
-    """One block's runs, in their seeded order, as data."""
+               arms=None, label="", calibration=PLACEHOLDER, python=PYTHON, selection=None):
+    """One block's runs, in their seeded order, as data. `selection`: the campaign's record of the validation, which run_block
+    checks (check_selection); a plan can be printed without it."""
     sources = {"loris": 0, "post": 0, **(sources or {})}
     if phase not in PHASES:
         raise PlanError(f"unknown phase {phase!r}")
+    if selection and phase != "campaign":
+        raise PlanError(f"{phase}: --selection is the campaign's: the validation's choice of T, F and K")
+    status = record_status(calibration)
     if label and phase in ("campaign", "validation"):
         raise PlanError(f"{phase}: no --label: it would give another arm order in another directory (review T-047 P-13)")
     role = check_phase(phase, seed, sources, thresholds, family) if phase != "smoke" else "pilot"
@@ -314,14 +349,18 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresh
                      python=python) for arm in order]
     return {"phase": phase, "seed": seed, "attempt": attempt, "label": label, "dir": bdir, "root": root,
             "order": order, "sources": sources, "halvings": halvings, "thresholds": thresholds,
-            "calibration": calibration, "runs": runs}
+            "calibration": calibration, "calibration_status": status, "selection": selection, "runs": runs}
 
 
 def describe(block):
     """The text of --plan."""
     lines = [f"P4 {block['phase']} block {block['seed']} attempt {block['attempt']}: {block['dir']}",
              (f"order {block['order']}; sources {block['sources']}; halvings {block['halvings']}; "
-              f"thresholds {block['thresholds']}; calibration {block['calibration']}")]
+              f"thresholds {block['thresholds']}; calibration {block['calibration']} ({block['calibration_status']})"
+              + (f"; selection {block['selection']}" if block["phase"] == "campaign" else ""))]
+    if block["calibration_status"] != "frozen" and block["phase"] in ("validation", "campaign"):
+        lines.append(f"  NOT FROZEN: {'a real host refuses this campaign' if block['phase'] == 'campaign' else 'no campaign can follow this validation'}"
+                     " (T-052b; the campaign must name the validation's record, and a frozen one)")
     for r in block["runs"]:
         d = r["daemon"]
         lines.append(f"  run {r['arm']}: nginx {r['nginx']['conf']}, daemon "
@@ -369,6 +408,27 @@ def _events(path):
     except OSError:
         pass
     return out
+
+
+def read_ban_events(path):
+    """(events, garbled lines) of a run's ban events, for what judges them (review T-047 P-17 (4)): a line that cannot be read could
+    be a ban, so it is counted, where _events, for what only waits on the file, skips it. (None, 0): there is no file."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            lines = fh.readlines()
+    except OSError:
+        return None, 0
+    events, garbled = [], 0
+    for line in lines:
+        try:
+            event = json.loads(line)
+        except ValueError:
+            event = None
+        if isinstance(event, dict):
+            events.append(event)
+        else:
+            garbled += 1
+    return events, garbled
 
 
 def _wait(host, cond, timeout_s, step=0.5):
@@ -441,13 +501,17 @@ def execute_run(host, plan):
         for name, path in NGINX_LOGS.items():          # nginx starts its logs afresh; nothing of the host's is lost
             host.run(["mv", "-f", path, os.path.join(out, "feed_before", name)])
         logs["gunicorn"] = open(plan["gunicorn"]["log"], "w", encoding="utf-8")       # noqa: SIM115 (closed in finish)
-        procs.append(("gunicorn", host.popen(plan["gunicorn"]["argv"], ns=SERVER_NS, env=plan["gunicorn"]["env"],
-                                             stdout=logs["gunicorn"], stderr=logs["gunicorn"], cwd=REPO)))
+        gunicorn = host.popen(plan["gunicorn"]["argv"], ns=SERVER_NS, env=plan["gunicorn"]["env"],
+                              stdout=logs["gunicorn"], stderr=logs["gunicorn"], cwd=REPO)
+        procs.append(("gunicorn", gunicorn))
         if host.run(plan["nginx"]["start"], ns=SERVER_NS).code != 0:
             reasons.append("nginx did not start")
-        ready = _wait(host, lambda: host.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "2",
-                                              READY_URL], ns=SERVER_NS).out.strip() == "200", STACK_READY_TIMEOUT_S)
-        if not ready:
+        ready = _wait(host, lambda: gunicorn.poll() is not None
+                      or host.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "2",
+                                   READY_URL], ns=SERVER_NS).out.strip() == "200", STACK_READY_TIMEOUT_S)
+        if gunicorn.poll() is not None:
+            reasons.append(gunicorn_gone(host, plan, gunicorn, "before the traffic"))
+        elif not ready:
             reasons.append(f"the stack did not answer {READY_URL} with 200 within {STACK_READY_TIMEOUT_S:g} s")
         daemon = None
         if plan["daemon"] and not reasons:
@@ -471,7 +535,7 @@ def execute_run(host, plan):
             while pending and pending[0]["start_s"] <= now:
                 x = pending.pop(0)
                 try:
-                    launched.append((x, host.popen(x["argv"], ns=x["ns"], cwd=REPO)))
+                    launched.append(({**x, "lag_s": host.time() - t0 - x["start_s"]}, host.popen(x["argv"], ns=x["ns"], cwd=REPO)))
                 except OSError as exc:
                     reasons.append(f"{x['entity_id']} did not start: {exc}")
             r = host.run(["curl", "-s", "--max-time", "1", STUB_STATUS_URL], ns=SERVER_NS)
@@ -482,6 +546,9 @@ def execute_run(host, plan):
             if daemon is not None and daemon.poll() is not None:
                 reasons.append(f"the daemon exited at {now:.0f} s (code {daemon.poll()})")
                 daemon = None
+            if gunicorn is not None and gunicorn.poll() is not None:
+                reasons.append(gunicorn_gone(host, plan, gunicorn, f"at {now:.0f} s"))
+                gunicorn = None
             if now >= total:
                 break
             elapsed = host.time() - t0                                    # on the second, whatever the sample took
@@ -490,6 +557,13 @@ def execute_run(host, plan):
     except Exception as exc:  # noqa: BLE001 - whatever failed, the run is recorded and the teardown runs
         reasons.append(f"the runner failed: {type(exc).__name__}: {exc}")
         return finish(host, plan, reasons, started, t0, procs, logs, stub, launched)
+
+
+def gunicorn_gone(host, plan, proc, when):
+    """The reason a run gives for a gunicorn that exited by itself (D-063): a dead backend must not read as harm."""
+    log = _text(host, plan["gunicorn"]["log"])
+    named = next((f": {what} (gunicorn.log)" for line, what in GUNICORN_REFUSALS if line in log), "")
+    return f"gunicorn exited {when} (code {proc.poll()}){named}"
 
 
 def _stop(host, proc, grace=STOP_GRACE_S, interrupt=False):
@@ -511,10 +585,14 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
             elif proc.poll() != 0:
                 reasons.append(f"{x['entity_id']} exited with code {proc.poll()}")
         for name, proc in procs:
+            if name == "gunicorn" and t0 is not None and proc.poll() is not None and not any(r.startswith("gunicorn exited") for r in reasons):
+                reasons.append(gunicorn_gone(host, plan, proc, f"at {host.time() - t0:.0f} s"))    # after the loop's last look
             if name == "daemon":
                 _stop(host, proc, interrupt=True)          # SIGINT runs its finally, which detaches XDP
         if any(name == "gunicorn" for name, _p in procs):
-            host.run(plan["nginx"]["stop"], ns=SERVER_NS)
+            quit_code = host.run(plan["nginx"]["stop"], ns=SERVER_NS).code
+            if quit_code != 0 and t0 is not None:          # stub_status judges nothing (D-050), so only this says it had gone
+                reasons.append(f"nginx was not running at the run's end: its quit exited {quit_code}")
         for name, proc in procs:
             if name == "gunicorn":
                 _stop(host, proc)
@@ -528,6 +606,8 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
             teardown(host, plan)
     ended = host.time()
     reasons += checks(host, plan, t0, launched)
+    stall = stall_reading(plan, t0, launched, stub) if t0 is not None else None
+    reasons += stall_reasons(stall) if stall else []
     import executor
     daemon_prov = executor.daemon_provenance(host) if plan["daemon"] else None
     if daemon_prov and t0 is not None and not daemon_prov["h01"]["has_fix"]:
@@ -543,7 +623,7 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
             "daemon": None if plan["daemon"] is None else {"mode": plan["daemon"]["mode"],
                                                            "env": plan["daemon"]["env"]},
             "thresholds": plan["thresholds"], "provenance": plan["provenance"],
-            "attack": attack_summary(plan) if t0 is not None else None, "daemon_provenance": daemon_prov,
+            "attack": attack_summary(plan) if t0 is not None else None, "stall": stall, "daemon_provenance": daemon_prov,
             "git": executor.git_state(host)}
     write_json(os.path.join(out, "run.json"), meta)
     write_json(os.path.join(out, "manifest.json"), manifest(plan, t0))
@@ -573,6 +653,77 @@ def attack_summary(plan):
     return out
 
 
+def view_slips(rows, planned, origin, end):
+    """{(user, view): seconds late} of one generator's views against each device's own closed-loop schedule, the intended start of
+    eval/l7v2_harm.with_never_sent: the completion of the device's previous view plus that one's pause (the first view's is its
+    nominal start). A slow or refusing server moves that completion, so it does not raise a slip: only the client's own lateness
+    does. A view that never started and was due before the generator's end is late by at least what was left of it. A view that
+    never completed leaves nothing to read the device's later views against: it was still busy with that view, as one hanging on
+    a banned address is at its generator's end, and that must not read as a stall (review T-050 T050-16)."""
+    sent = {}
+    for r in rows:
+        if not math.isnan(r["t_sent"]):
+            sent.setdefault((r["user"], r["view"]), []).append(r)
+    slips = {}
+    for user in sorted({u for u, _v in planned}):
+        intended = None
+        for key in sorted(k for k in planned if k[0] == user):
+            t_rel, classes, pause = planned[key]
+            intended = origin + t_rel if intended is None else intended
+            if intended >= end:
+                break
+            got = sent.get(key, [])
+            slips[key] = (min(r["t_sent"] for r in got) if got else end) - intended
+            done = [r["t_done"] for r in got if not math.isnan(r["t_done"])]
+            if classes and len(done) < len(classes):
+                break
+            intended = (max(done) if classes else intended) + pause
+    return slips
+
+
+def stall_reading(plan, t0, launched, stub):
+    """What a stall in mid-life leaves (review T-050, post-verdict): over the generators whose rows are in Q (an uploader writes none
+    and is in no Q), the largest view slip and how many views passed STALL_BOUND_S; the largest launch lag; and the largest gap of
+    the runner's own loop, which judges nothing: the stack's samples are never a validity rule (D-050), and a runner that stalled after
+    its launches changed no client's traffic."""
+    import l7v2_harm as LH
+    out = {"bound_s": STALL_BOUND_S, "largest_view_slip_s": None, "entity": None, "view": None, "views": 0, "views_over_bound": 0,
+           "no_records": [], "largest_launch_lag_s": max((x["lag_s"] for x, _p in launched), default=None), "late_launch": None,
+           "largest_loop_gap_s": max((b["t"] - a["t"] for a, b in itertools.pairwise(stub)), default=None)}
+    if launched:
+        out["late_launch"] = max(launched, key=lambda item: item[0]["lag_s"])[0]["entity_id"]
+    for e in plan["entities"]:
+        if e["role"] != "benign" or e["kind_or_family"] not in _recorded_kinds():
+            continue
+        try:
+            rows = LH.read_client_records(records_path(plan["out"], e))
+        except (OSError, ValueError, TypeError):
+            out["no_records"].append(e["entity_id"])
+            continue
+        dur = e["schedule"]["stop_s"] - e["schedule"]["start_s"]
+        origin = rows[0]["t_origin"] if rows else t0 + e["schedule"]["start_s"]
+        slips = view_slips(rows, LH.planned_views(e, dur), origin, origin + dur)
+        out["views"] += len(slips)
+        out["views_over_bound"] += sum(1 for s in slips.values() if s > STALL_BOUND_S)
+        for key, slip in slips.items():
+            if out["largest_view_slip_s"] is None or slip > out["largest_view_slip_s"]:
+                out.update(largest_view_slip_s=slip, entity=e["entity_id"], view=list(key))
+    return out
+
+
+def stall_reasons(stall):
+    """What of stall_reading() makes a run invalid: a loss in Q that nothing else would name."""
+    reasons = []
+    if stall["views_over_bound"]:
+        reasons.append(f"a client stalled: {stall['views_over_bound']} views more than {STALL_BOUND_S:g} s late, the latest "
+                       f"{stall['largest_view_slip_s']:.1f} s ({stall['entity']}, user {stall['view'][0]} view {stall['view'][1]})")
+    if stall["no_records"]:
+        reasons.append(f"{len(stall['no_records'])} benign generators left no readable records, the first {stall['no_records'][0]}")
+    if (stall["largest_launch_lag_s"] or 0) > STALL_BOUND_S:
+        reasons.append(f"{stall['late_launch']} was launched {stall['largest_launch_lag_s']:.1f} s late (more than {STALL_BOUND_S:g} s)")
+    return reasons
+
+
 def checks(host, plan, t0, launched):
     """The validity checks of a run that ran (see the module docstring)."""
     if t0 is None:
@@ -594,12 +745,16 @@ def checks(host, plan, t0, launched):
         log = _text(host, d["log"])
         if XDP_ATTACHED_LINE not in log:
             reasons.append("the daemon's log does not show XDP attached")
+        events, garbled = read_ban_events(d["env"]["BAN_EVENTS"])
+        if events is None:
+            reasons.append("the daemon's ban events are gone: no ban can be excluded")
+        elif garbled:
+            reasons.append(f"{garbled} lines of the ban events cannot be read: each could be a ban")
         if d["mode"] in ("pc", "shadow"):
             rec = d["env"]["SLOW_PC_RECORD"]
             if not os.path.isfile(rec) or os.path.getsize(rec) == 0:
                 reasons.append("the per-connection rule's record is missing or empty")
-            polls = [e for e in _events(d["env"]["BAN_EVENTS"])
-                     if e.get("kind") == "slow_pc_poll" and t0 <= e["t_wall"] <= t0 + total]
+            polls = [e for e in events or () if e.get("kind") == "slow_pc_poll" and t0 <= e["t_wall"] <= t0 + total]
             edges = [t0, *sorted(e["t_wall"] for e in polls if e.get("polls", 0) > 0), t0 + total]
             gap = max(b - a for a, b in itertools.pairwise(edges))
             if gap > SLOW_PC_POLL_GAP_S:
@@ -607,6 +762,12 @@ def checks(host, plan, t0, launched):
                                f"{SLOW_PC_POLL_GAP_S:g} s, D-035)")
             if d["mode"] == "pc" and any(e.get("mode") != "enforce" for e in polls):
                 reasons.append("the per-connection rule did not enforce throughout an enforcing run")
+            if plan["phase"] == "validation" and os.path.isfile(rec):
+                import p4_validation
+                missing = p4_validation.roles_without_a_socket(slow_pc.read_record(rec), plan["roles"])
+                if missing:
+                    reasons.append(f"no socket of {', '.join(missing)} in the rule's record: the constraints on them would hold "
+                                   "by construction (review T-047 P-09)")
     return reasons
 
 
@@ -661,12 +822,53 @@ def read_index(root):
 
 def block_settings(block):
     """What every block of a campaign, and every attempt of a block, must share (review T-047 P-08): the scale, the halvings,
-    the thresholds, the calibration record and the code."""
+    the thresholds, the calibration record, the validation's record and the code."""
     prov = block["runs"][0]["provenance"]
     code = hashlib.sha256(json.dumps([prov["files_sha256"], prov["code_sha256"]], sort_keys=True).encode()).hexdigest()
     return {"sources": block["sources"], "halvings": block["halvings"],
             "thresholds": list(block["thresholds"]) if block["thresholds"] else None,
-            "calibration_sha256": sha256_file(block["calibration"]), "code_sha256": code}
+            "calibration_sha256": sha256_file(block["calibration"]), "calibration_status": block["calibration_status"],
+            "code_sha256": code,
+            "selection_sha256": sha256_file(block["selection"]) if block.get("selection") else None}
+
+
+def check_frozen(block, host):
+    """T-052b, the rule of eval/harm_gate.py and eval/l7v2_harm.py: no campaign on a calibration record that is not frozen. Only a
+    host that measures nothing is exempt (executor.Host.simulated: the tests, a simulated campaign); smoke, ladder and validation
+    runs may name any record, and block.json says which."""
+    if block["phase"] != "campaign" or getattr(host, "simulated", False):
+        return
+    import l7_backend
+    try:
+        l7_backend.require_frozen(l7_backend.load_record(block["calibration"])[0])
+    except (OSError, ValueError) as exc:
+        raise PlanError(f"campaign: {block['calibration']}: {exc}") from None
+
+
+def check_selection(block):
+    """§13 row 4 (review T-047 P-08): a campaign's T, F and K are what the validation chose, under the detector it scored, at its
+    scale and halvings and under its calibration record. The record is what eval/p4_validation.py --json wrote."""
+    if block["phase"] != "campaign":
+        return
+    path = block["selection"]
+    if not path:
+        raise PlanError("campaign: --selection must name the validation's record (eval/p4_validation.py --json, §13 row 4)")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            sel = json.load(fh)
+        point, detector, theirs = sel["selection"]["point"], sel["slow_pc_sha256"], sel["settings"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise PlanError(f"{path} is not a record of eval/p4_validation.py --json: {exc!r}") from None
+    if point is None:
+        raise PlanError(f"{path}: the validation chose no point: the rule fails its budget (§6.4), and no campaign follows")
+    if tuple(point) != tuple(block["thresholds"]):
+        raise PlanError(f"campaign: --thresholds {tuple(block['thresholds'])} are not the validation's selection {tuple(point)}")
+    if detector != sha256_file(os.path.join(REPO, "slow_pc.py")):
+        raise PlanError(f"{path}: the validation scored another slow_pc.py (§13 row 3)")
+    mine = block_settings(block)
+    differ = sorted(k for k in ("sources", "halvings", "calibration_sha256") if mine[k] != theirs.get(k))
+    if differ:
+        raise PlanError(f"campaign: {', '.join(differ)} differ from the validation's ({path})")
 
 
 def check_settings(block):
@@ -718,11 +920,14 @@ def check_attempt(block):
 
 def run_block(host, block):
     """Every run of a block in its order; each in ROOT/index.jsonl before it begins and when it ends, valid or not."""
+    check_frozen(block, host)
     check_attempt(block)
+    check_selection(block)
     check_settings(block)
     if os.path.exists(block["dir"]):
         raise PlanError(f"{block['dir']} exists: an attempt is never overwritten (use the next --attempt)")
     os.makedirs(block["dir"])
+    host.pin(PINS["runner"])
     cal = block["calibration"]
     write_json(os.path.join(block["dir"], "block.json"),
                {"block": block["seed"], "attempt": block["attempt"], "seed": block["seed"], "phase": block["phase"],
@@ -791,15 +996,22 @@ def run_record(run_dir, cal, block=None, attempt=1):
             plan = json.load(fh)
         man, meta = {"seed": plan["seed"], "arm": plan["arm"], "roles": plan["roles"], "timeline": {}}, None
     t = man["timeline"]
-    events = _events(os.path.join(run_dir, "ban_events.jsonl"))
+    events, garbled = read_ban_events(os.path.join(run_dir, "ban_events.jsonl"))
+    ban_problem = f"{garbled} lines cannot be read" if garbled else None
+    if events is None:              # no daemon, or none that got as far as its start event, wrote no ban; else the file is gone
+        events = []
+        if t.get("t0_wall") is not None and meta["daemon"] is not None:
+            ban_problem = "the file is gone"
     closes = [e for e in events if e.get("kind") == "slow_pc_close" and e.get("enforced")]
+    slip = ((meta or {}).get("stall") or {}).get("largest_view_slip_s")
     seed = man["seed"] if block is None else block
     with open(os.path.join(os.path.dirname(run_dir), "block.json"), encoding="utf-8") as fh:
         settings = json.load(fh)["settings"]
     if t.get("t0_wall") is None:
         empty = {"Q": None, "p95_s": None, "q_per_s": [None] * OUT.RUN_S, "by_class": {}}
         return OUT.summarize(seed, man["arm"], False, empty, {"Q": None}, events, man["roles"], closes,
-                             level_window=OUT.LEVEL_WINDOW_S, attempt=attempt, cal=cal, settings=settings)
+                             level_window=OUT.LEVEL_WINDOW_S, attempt=attempt, cal=cal, settings=settings, ban_problem=ban_problem,
+                             reasons=meta["checks"]["reasons"] if meta else ["the runner died in this run"], view_slip_s=slip)
     total = sum(t[k] for k in ("baseline_s", "attack_s", "recovery_s"))
     attack = (t["baseline_s"], t["baseline_s"] + t["attack_s"])
     rows, t0, _cover = LH.run_rows(run_dir, man, attack)
@@ -810,15 +1022,18 @@ def run_record(run_dir, cal, block=None, attempt=1):
     log = os.path.join(run_dir, "access.log")
     refused = refusals(log, man, attack) if os.path.isfile(log) else None
     return OUT.summarize(seed, man["arm"], meta["checks"]["ok"], m, level, events, man["roles"], closes,
-                         level_window=lw, attempt=attempt, refused=refused, cal=cal, settings=settings)
+                         level_window=lw, attempt=attempt, refused=refused, cal=cal, settings=settings, ban_problem=ban_problem,
+                         reasons=meta["checks"]["reasons"], view_slip_s=slip)
 
 
-def summarize_root(root, calibration, out_path):
+def summarize_root(root, calibration, out_path, dry_run=False):
     """The run records of EVERY evaluation attempt of ROOT/index.jsonl, valid or not, a run whose runner died included
-    (D-035, V-03; P-07), under the calibration record `calibration` (a path), which must be the one the blocks name (P-08).
-    A run directory the index does not hold is refused: it could hide a ban."""
+    (D-035, V-03; P-07), under the calibration record `calibration` (a path), which must be the one the blocks name (P-08), and
+    frozen unless `dry_run` (T-052b). A run directory the index does not hold is refused: it could hide a ban."""
     import l7_backend
     cal = l7_backend.load_record(calibration)[0]
+    if not dry_run:
+        l7_backend.require_frozen(cal)
     named = sha256_file(calibration)
     rows = [x for x in read_index(root) if x["phase"] == "campaign"]
     known = {x["dir"] for x in rows}
@@ -862,15 +1077,19 @@ def main(argv=None, host=None):
     ap.add_argument("--arms", help="smoke only: the runs, comma-separated (C, U_loris, U_post, C_M)")
     ap.add_argument("--halvings", type=int, default=0, help="how often the halving rule of §4.2 has fired")
     ap.add_argument("--thresholds", type=_thresholds, help="campaign: the committed T,F,K; a smoke C_M: a grid point")
+    ap.add_argument("--selection", help="campaign: the validation's record (eval/p4_validation.py --json)")
     ap.add_argument("--calibration", default=PLACEHOLDER)
     ap.add_argument("--root", default="/var/tmp/p4_runs")
     ap.add_argument("--python", default=PYTHON)
     ap.add_argument("--plan", action="store_true", help="print the plan and exit (offline)")
     ap.add_argument("--summarize", nargs=2, metavar=("ROOT", "OUT_JSONL"))
+    ap.add_argument("--dry-run", action="store_true", help="--summarize only: allow a record that is not frozen, for a simulated campaign")
     args = ap.parse_args(argv)
+    if args.dry_run and not args.summarize:
+        ap.error("--dry-run is for --summarize: a real campaign has no exemption, and a simulated host needs none")
     if args.summarize:
         try:
-            summarize_root(args.summarize[0], args.calibration, args.summarize[1])
+            summarize_root(args.summarize[0], args.calibration, args.summarize[1], dry_run=args.dry_run)
         except ValueError as exc:
             print(f"[-] {exc}", file=sys.stderr)
             return 2
@@ -884,7 +1103,7 @@ def main(argv=None, host=None):
                            sources={"loris": args.loris, "post": args.post}, halvings=args.halvings,
                            thresholds=args.thresholds, family=args.family,
                            arms=args.arms.split(",") if args.arms else None, label=args.label,
-                           calibration=args.calibration, python=args.python)
+                           calibration=args.calibration, python=args.python, selection=args.selection)
     except (PlanError, PT.PlanError) as exc:
         print(f"[-] {exc}", file=sys.stderr)
         return 2

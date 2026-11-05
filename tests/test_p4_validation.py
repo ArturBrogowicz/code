@@ -31,6 +31,7 @@ import p4_validation as V
 import slow_pc as P
 
 NGINX = 'users:(("nginx",pid=4242,fd=17))'
+SETTINGS = {"sources": {"loris": 100, "post": 5}, "halvings": 0, "calibration_sha256": "c" * 64}
 ROLES = {"10.0.1.1": "browser", "10.0.4.1": "cgnat", "10.0.1.9": "browser",
          "10.0.5.1": "slow_uploader", "10.0.5.2": "slow_uploader",
          "10.0.3.1": "attack", "10.0.3.2": "attack", "10.0.6.1": "attack", "10.0.6.2": "attack"}
@@ -82,6 +83,8 @@ def write_run(tmp, seed, arm, roles=ROLES, polls=60, failed=(), valid=True):
                    "daemon": V.VALIDATION_DAEMON}, fh)
     with open(os.path.join(d, "run.json"), "w", encoding="utf-8") as fh:
         json.dump({"checks": {"ok": valid, "reasons": [] if valid else ["the daemon exited at 47 s (code 1)"]}}, fh)
+    with open(os.path.join(tmp, "block.json"), "w", encoding="utf-8") as fh:
+        json.dump({"settings": SETTINGS}, fh)
     return os.path.join(d, "slow_pc_manifest.json")
 
 
@@ -145,6 +148,19 @@ class InputTest(ValidationSetCase):
             with self.assertRaises(ValueError):
                 V.check_runs(runs)
 
+    def test_a_run_needs_a_socket_of_each_benign_role(self):
+        """Review T-047 P-09: no slow uploader in a run, and "no slow uploader was closed" holds by construction."""
+        self.assertEqual(V.roles_without_a_socket(self.runs[0]["polls"], ROLES), [])
+        silent = {**ROLES, "10.0.8.8": "crawler_polite"}
+        self.assertEqual(V.roles_without_a_socket(self.runs[0]["polls"], silent), ["crawler_polite"])
+        no_reads = [{**p, "ss": None} for p in self.runs[0]["polls"]]
+        self.assertEqual(V.roles_without_a_socket(no_reads, ROLES), ["browser", "cgnat", "slow_uploader"])
+        runs = [dict(r) for r in self.runs]
+        V.check_runs(runs)
+        runs[3]["roles"] = silent
+        with self.assertRaisesRegex(ValueError, "no socket of .*crawler_polite"):
+            V.check_runs(runs)
+
     def test_every_address_seen_needs_a_role(self):
         roles = {k: v for k, v in ROLES.items() if k != "10.0.6.2"}
         with tempfile.TemporaryDirectory() as tmp:
@@ -174,6 +190,7 @@ class InputTest(ValidationSetCase):
         self.assertEqual(len(rec["runs"]), 6)
         self.assertEqual(len(rec["slow_pc_sha256"]), 64)
         self.assertEqual(rec["attempts"], [{"seed": s, "judged": 1, "superseded": []} for s in P.VALIDATION_SEEDS])
+        self.assertEqual(rec["settings"], SETTINGS)
 
 
 
@@ -213,6 +230,23 @@ class WhichRunsTest(unittest.TestCase):
                                     {"seed": 4002, "judged": 3, "superseded": []}])
         self.assertEqual(len(manifests), 6)
         self.assertTrue(all(f"{os.sep}a2{os.sep}" in m for m in manifests[:3]))
+
+    def test_the_record_needs_one_setting_of_its_blocks(self):
+        """Review T-047 P-08: the campaign compares them, so a record must not hide two."""
+        rows = self.attempt(P.VALIDATION_SEEDS[0], 1)
+        self.write_index(rows)
+        manifests = [os.path.join(self.root, where, "slow_pc_manifest.json") for _s, _a, _r, where, _v in rows]
+        self.assertEqual(V.settings_of(manifests), SETTINGS)
+        rows = self.attempt(P.VALIDATION_SEEDS[1], 2)
+        other = os.path.join(self.root, "a2", "block.json")
+        with open(other, "w", encoding="utf-8") as fh:
+            json.dump({"settings": {**SETTINGS, "halvings": 1}}, fh)
+        more = [os.path.join(self.root, where, "slow_pc_manifest.json") for _s, _a, _r, where, _v in rows]
+        with self.assertRaisesRegex(ValueError, "2 different settings"):
+            V.settings_of(manifests + more)
+        os.remove(other)
+        with self.assertRaisesRegex(ValueError, "no block.json"):
+            V.settings_of(more)
 
     def test_a_seed_without_a_complete_attempt_is_refused(self):
         self.write_index(self.attempt(4001, 1) + self.attempt(4002, 1, invalid=("C",)))

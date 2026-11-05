@@ -19,6 +19,7 @@ BOTH = "supported with scope: profile R, Slowloris and slow POST at this scale, 
 
 
 SETTINGS = {"sources": {"loris": 175, "post": 10}, "halvings": 0, "thresholds": [20, 64, 2], "calibration_sha256": "a" * 64,
+            "calibration_status": "frozen",
             "code_sha256": "b" * 64}
 
 
@@ -32,8 +33,8 @@ def bins(base, dip=None, until=None, total=270, start=35):
 
 
 def rec(block, arm, q, p95=0.10, q_per_s=None, q_level=None, banned=None, valid=True, closed=0, attempt=1,
-        refused=None, control_reasons=None):
-    return {"block": block, "arm": arm, "attempt": attempt, "valid": valid, "Q": q, "p95_s": p95,
+        refused=None, control_reasons=None, **extra):
+    return {**extra, "block": block, "arm": arm, "attempt": attempt, "valid": valid, "Q": q, "p95_s": p95,
             "q_per_s": q_per_s if q_per_s is not None else bins(q),
             "q_level": q if q_level is None else q_level, "level_window": list(O.LEVEL_WINDOW_S),
             "banned": banned or {}, "benign_closed": closed, "refused": refused,
@@ -384,6 +385,151 @@ class AttemptsTest(unittest.TestCase):
         self.assertIn("superseded: block 3101 attempt 1, invalid or missing U_post", printed.getvalue())
 
 
+class FrozenRecordTest(unittest.TestCase):
+    """T-052b: no verdict on records whose block ran under a record that is not frozen, the rule of eval/harm_gate.analyse."""
+
+    def under(self, status):
+        return [{**r, "settings": {**SETTINGS, "calibration_status": status}} for r in campaign()]
+
+    def test_a_verdict_needs_a_frozen_record(self):
+        for status in ("placeholder", "measured", None):
+            with self.assertRaisesRegex(ValueError, "no verdict is given on it"):
+                O.outcome(self.under(status))
+        res = O.outcome(campaign())
+        self.assertEqual((res["dry_run"], res["calibration"]), (False, {"status": "frozen", "sha256": "a" * 64}))
+
+    def test_a_dry_run_is_given_and_labelled_and_its_figures_do_not_move(self):
+        res = O.outcome(self.under("placeholder"), dry_run=True)
+        self.assertTrue(res["dry_run"])
+        self.assertEqual(res["calibration"]["status"], "placeholder")
+        self.assertEqual(res["M7"], O.outcome(campaign())["M7"])
+        self.assertFalse(O.outcome(campaign(), dry_run=True)["dry_run"], "a frozen record is no dry run, flag or not")
+
+    def test_a_mix_of_records_is_refused_even_in_a_dry_run(self):
+        runs = campaign()
+        runs[0] = {**runs[0], "settings": {**SETTINGS, "calibration_status": "placeholder"}}
+        with self.assertRaisesRegex(ValueError, "different settings"):
+            O.outcome(runs, dry_run=True)
+
+    def test_the_command_line(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "runs.jsonl")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.writelines(json.dumps(r) + "\n" for r in self.under("placeholder"))
+            with contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()) as err:
+                self.assertEqual(O.main([path]), 2)
+            self.assertIn("no verdict is given on it", err.getvalue())
+            self.assertNotIn("M7", out.getvalue())
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(O.main([path, "--dry-run"]), 0)
+            self.assertIn("DRY RUN: the calibration record is placeholder: figures, not a result", out.getvalue())
+            self.assertIn("(dry run)", out.getvalue())
+
+
+class LargestViewSlipTest(unittest.TestCase):
+    def test_it_is_reported_beside_q_and_judges_nothing(self):
+        runs = campaign()
+        self.assertIsNone(O.outcome(runs)["largest_view_slip"])
+        res = O.outcome(campaign({("U_post", 3): {"view_slip_s": 7.5}, ("C", 1): {"view_slip_s": 0.2}}))
+        self.assertEqual(res["largest_view_slip"], {"view_slip_s": 7.5, "block": 3104, "attempt": 1, "arm": "U_post", "Q": 63.0})
+        self.assertEqual(res["M7"], O.outcome(runs)["M7"])
+
+    def test_the_command_line_says_so(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "runs.jsonl")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.writelines(json.dumps(r) + "\n" for r in campaign({("U_post", 3): {"view_slip_s": 7.5}}))
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                O.main([path])
+        self.assertIn("largest view slip 7.50 s: block 3104 attempt 1 U_post, Q 63.0", out.getvalue())
+
+
+class WhyInvalidTest(unittest.TestCase):
+    """Review T-050 T050-16: M_def is expected to ban the CGNAT pools; until their generators end on time that makes it invalid, and
+    a comparison that empties must say why. Conservative, and it judges nothing, so the families' status does not move."""
+
+    LATE = "cgnat_browsers:3 was still running 10 s after its end: stopped"
+
+    def test_a_valid_m_def_that_bans_a_pool_is_compared(self):
+        res = O.outcome(campaign())
+        for f in O.FAMILIES:
+            versus = res["families"][f]["mitigation"]["vs_m_def"]
+            self.assertEqual((versus["n"], versus["left_out"]), (10, []))
+        self.assertEqual(res["bans_by_arm"]["M_def_loris"], {"cgnat": 10})
+
+    def test_an_invalid_m_def_is_left_out_with_its_reason_and_still_counted_in_the_bans(self):
+        over = {("M_def_loris", i): {"valid": False, "reasons": [self.LATE]} for i in range(9)}
+        res = O.outcome(campaign(over))
+        loris = res["families"]["loris"]
+        self.assertEqual(loris["status"], "mitigated")
+        self.assertEqual(loris["mitigation"]["vs_m_def"]["n"], 1)
+        self.assertEqual(loris["mitigation"]["vs_m_def"]["decision"], O.RLS.decide([1.0]))
+        self.assertEqual(loris["mitigation"]["vs_m_def"]["left_out"][0], {"block": 3101, "why": [self.LATE]})
+        self.assertEqual(len(loris["mitigation"]["vs_m_def"]["left_out"]), 9)
+        self.assertEqual(res["families"]["post"]["mitigation"]["vs_m_def"]["left_out"], [])
+        self.assertEqual(res["bans_by_arm"]["M_def_loris"], {"cgnat": 10})
+        self.assertEqual(res["invalid_runs"][0], {"block": 3101, "attempt": 1, "arm": "M_def_loris", "reasons": [self.LATE]})
+
+    def test_a_needed_arm_invalid_for_the_same_cause_names_it(self):
+        """An M_pc that bans a browser: "invalid (9 of 10 valid)" until the generators end on time, and the output says why."""
+        res = O.outcome(campaign({("M_pc_post", 0): {"valid": False, "reasons": [self.LATE]}}))
+        self.assertEqual(res["families"]["post"]["status"], O.invalid(9))
+        self.assertEqual(res["invalid_runs"], [{"block": 3101, "attempt": 1, "arm": "M_pc_post", "reasons": [self.LATE]}])
+        self.assertEqual(res["families"]["post"]["mitigation"]["vs_m_def"]["left_out"][0]["block"], 3101)
+        self.assertIn("no attempt of the block", res["families"]["post"]["mitigation"]["vs_m_def"]["left_out"][0]["why"][0])
+
+    def test_an_unhealthy_control_is_not_an_invalid_run(self):
+        res = O.outcome(campaign({("C", 0): {"control_reasons": ["Q(C) is 98.00 %, below 99 %"]}}))
+        self.assertEqual(res["invalid_runs"], [])
+        self.assertEqual([u["block"] for u in res["unhealthy_controls"]], [3101])
+
+    def test_the_command_line_says_so(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "runs.jsonl")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.writelines(json.dumps(r) + "\n" for r in campaign({("M_def_post", 2): {"valid": False, "reasons": [self.LATE]}}))
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                O.main([path])
+        self.assertIn(f"slow POST: M_pc against M_def over 9 blocks: {O.RLS.decide([1.0] * 9)}", out.getvalue())
+        self.assertIn(f"left out, block 3103: {self.LATE}", out.getvalue())
+        self.assertIn(f"invalid: block 3103 attempt 1 M_def_post: {self.LATE}", out.getvalue())
+
+
+class UnreadableBanRecordTest(unittest.TestCase):
+    """Review T-047 P-17 (4): (c) counts over all attempts, invalid ones included, so a ban it cannot read must not read as none."""
+
+    def attempted(self, arm):
+        first = {"C": {"valid": False}, arm: {"valid": False, "ban_problem": "1 lines cannot be read"}}
+        return O.outcome(rerun(campaign(), 3101, first))
+
+    def test_an_invalid_attempt_of_m_pc_fails_c(self):
+        res = self.attempted("M_pc_loris")
+        self.assertEqual(res["families"]["loris"]["mitigation"]["ban_records_unreadable"],
+                         [[3101, 1, "M_pc_loris", "1 lines cannot be read"]])
+        self.assertEqual(res["families"]["loris"]["status"], "mitigated with collateral")
+        self.assertEqual(res["families"]["post"]["status"], "mitigated")
+
+    def test_an_invalid_attempt_of_c_m_fails_c_for_both(self):
+        res = self.attempted("C_M")
+        self.assertEqual({f: res["families"][f]["status"] for f in O.FAMILIES},
+                         dict.fromkeys(O.FAMILIES, "mitigated with collateral"))
+
+    def test_another_arms_record_does_not(self):
+        res = self.attempted("M_def_loris")
+        self.assertEqual(res["families"]["loris"]["status"], "mitigated")
+        self.assertEqual(res["families"]["loris"]["mitigation"]["ban_records_unreadable"], [])
+
+    def test_the_command_line_says_so(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "runs.jsonl")
+            first = {"M_pc_post": {"valid": False, "ban_problem": "the file is gone"}}
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.writelines(json.dumps(r) + "\n" for r in rerun(campaign(), 3102, first))
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                O.main([path])
+        self.assertIn("slow POST: (c) cannot be met: the ban record of M_pc_post, block 3102 attempt 1: the file is gone", out.getvalue())
+
+
 class ProtectedControlTest(unittest.TestCase):
     """D-041 and D-046: (b) is judged against C_M's level over the same window; (a) and the harm are what they were; C_M's
     validity rules are C's."""
@@ -651,7 +797,7 @@ class InputTest(unittest.TestCase):
         self.assertEqual(r, {"block": 3101, "arm": "M_pc_loris", "attempt": 1, "valid": True, "Q": 97.0, "p95_s": 0.2,
                              "q_per_s": q, "q_level": 98.0, "level_window": [120.0, 240.0],
                              "banned": {"10.0.3.1": "attack", "10.0.4.1": "cgnat"}, "benign_closed": 1,
-                             "refused": None, "control_reasons": None, "control_small_classes": None, "settings": None})
+                             "refused": None, "control_reasons": None, "control_small_classes": None, "settings": None, "ban_problem": None, "reasons": [], "view_slip_s": None})
         with self.assertRaises(ValueError):
             O.summarize(3101, "C", True, metrics, {"Q": 98.0}, [{"kind": "ban", "ip": "10.9.9.9"}], roles,
                         level_window=win, attempt=1)
