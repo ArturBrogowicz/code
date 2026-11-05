@@ -335,14 +335,18 @@ class SettingsError(ValueError):
     """The campaign's blocks did not run one setting, or the analysis was not given what they ran (T050-12)."""
 
 
-def check_campaign(root, cal, frozen):
-    """One setting across the blocks, and the record and selections the analysis judges with are the ones they ran under (T050-12,
-    ml/p1_prereg_3.json one_setting): an arm replayed at X beside M runs made under Y is not a contrast."""
+def check_campaign(root, cal, frozen, cut=False):
+    """One setting across the blocks, and the record, the selections and the live set the analysis judges with are the ones they ran under
+    (T050-12, ml/p1_prereg_3.json one_setting): an arm replayed at X beside M runs made under Y is not a contrast. `cut` decides which
+    baselines V-A has to beat, so a full campaign read with --cut would drop default_rules in the GRU's favour (T057-02)."""
     settings = {}
     for x in REC.index_lines(root):
         if x["phase"] == "campaign" and x["block_dir"] not in settings:
             settings[x["block_dir"]] = REC.read_json(os.path.join(root, x["block_dir"], "block.json")).get("settings") or {}
     names = sorted(settings)
+    unsaid = [name for name in names if "cut" not in settings[name]]
+    if unsaid:
+        raise SettingsError(f"{', '.join(unsaid)} do not record whether they ran the cut, so --cut cannot be checked against them")
     for name in names[1:]:
         differ = sorted(k for k in set(settings[name]) | set(settings[names[0]]) if settings[name].get(k) != settings[names[0]].get(k))
         if differ:
@@ -353,12 +357,15 @@ def check_campaign(root, cal, frozen):
         differ = sorted(k for k, v in given.items() if ran.get(k) != v)
         if differ:
             raise SettingsError(f"the analysis was given another {', '.join(differ)} than the campaign ran")
+        if ran["cut"] != bool(cut):
+            ran_what, asked = ("the cut", "the full live set") if ran["cut"] else ("the full live set", "the cut (--cut)")
+            raise SettingsError(f"the campaign ran {ran_what}, and the analysis was asked to read {asked}")
 
 
 def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, pre=None):
     """Every class's admission, inputs and verdict: {class: {"verdict", "admission", "judge", "excluded", "replay"}}. Blocks that did not run
     one setting, or a record or selection other than theirs, are refused (SettingsError)."""
-    check_campaign(root, cal, frozen)
+    check_campaign(root, cal, frozen, cut)
     pre = live_set(pre or VP.load(), cut)
     arms_factory = arms_factory or default_factory(frozen)
     classes = sorted(pre["live_set"]["per_class"])
