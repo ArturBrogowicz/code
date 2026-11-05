@@ -426,7 +426,7 @@ Tabela~\ref{tab:wymagania} zestawia wymagania przyjęte dla projektowanego syste
 ID & Wymaganie & Uzasadnienie & Realizacja \\
 \midrule
 W1 & Odrzucanie ruchu z zablokowanych źródeł przed alokacją struktury \textit{sk\_buff}, ze stałym kosztem wyszukiwania na pakiet & wniosek 1; \cite{scholz2018performance, hadisalim2021acl, fabre2018l4drop} & sekcja~\ref{sec:impl_xdp} \\
-W2 & Wykrywanie ataków \textit{low-and-slow} na podstawie stanu połączeń i sygnałów serwera, a nie wyłącznie wolumenu ruchu & wniosek 2; \cite{sikora2021generator, sood2023slowtrack, tripathi2024delays} & sekcje~\ref{sec:impl_l4} i~\ref{sec:impl_l7} \\
+W2 & Wykrywanie ataków \textit{low-and-slow} na podstawie stanu połączeń i sygnałów serwera, a nie wyłącznie wolumenu ruchu & wniosek 2; \cite{sikora2021generator, sood2023slowtrack, tripathi2024delays} & sekcje~\ref{sec:impl_l4}, \ref{sec:impl_l7} i~\ref{sec:impl_slowpc} \\
 W3 & Deterministyczne, jawnie sparametryzowane reguły jako podstawowa ścieżka decyzyjna i punkt odniesienia dla modeli uczonych & wnioski 3 i 4; \cite{arp2022dos} & sekcja~\ref{sec:impl_daemon} \\
 W4 & Model sekwencyjny jako komponent eksperymentalny, włączany jawnie i oceniany względem reguł w trybie izolacji lub cienia & wnioski 3 i 5; \cite{cho2014learning, cantone2024machine} & sekcja~\ref{sec:impl_gru} \\
 W5 & Kontrolowane, powtarzalne środowisko z ruchem prawowitym, sparowanymi powtórzeniami i testami istotności & wniosek 4; \cite{goldschmidt2025network, arp2022dos} & rozdział~\ref{sec:testbed} \\
@@ -453,6 +453,7 @@ W toku prac koncepcja ta została rozwinięta w trzech kierunkach, wynikających
     \item \textbf{Ścieżka decyzyjna.} Podstawową ścieżkę decyzyjną przejęły deterministyczne reguły warstw L3/L4 i L7 (wymaganie W3). Model GRU stał się opcjonalnym silnikiem eksperymentalnym, który jest domyślnie wyłączony, a jego ewaluacja odbywa się w wydzielonych trybach pracy (wymaganie W4, sekcja~\ref{sec:tryby}).
     \item \textbf{Źródło danych modelu.} Model jest rozwijany w dwóch potokach: zasilanym cechami przepływów zbieranymi w punkcie XDP (\textit{Tier-1}) oraz zasilanym rozszerzonym logiem żądań serwera Nginx (potok L7), działającym wyłącznie w trybie cienia (sekcja~\ref{sec:impl_gru}).
     \item \textbf{Środowisko testowe.} Pojedynczą przestrzeń atakującego zastąpiło środowisko z mostem programowym, dwudziestoma klientami prawowitymi o zróżnicowanej jakości łącza i konfigurowalną liczbą botów (wymaganie W5, rozdział~\ref{sec:testbed}).
+    \item \textbf{Mechanizmy uzupełniające.} Demon otrzymał dwa mechanizmy przeznaczone dla zagrożeń, których nie obejmują reguły per adres. Pierwszy to reguła per połączenie dla ataków powolnych, utrzymujących mniej połączeń niż próg reguły \texttt{l4\_slowconn} (sekcja~\ref{sec:impl_slowpc}). Drugi to dwupoziomowe egzekwowanie decyzji warstwy L7: w serwerze Nginx oraz w punkcie XDP (sekcja~\ref{sec:impl_l7v2}). Oba mechanizmy są domyślnie wyłączone. Ich ocenę zaplanowano w eksperymentach z regułami werdyktu zapisanymi przed zebraniem danych (sekcja~\ref{sec:eksperymenty_prereg}).
 \end{enumerate}
 
 \subsection{Płaszczyzna danych i płaszczyzna sterowania}\label{sec:plaszczyzny}
@@ -487,8 +488,8 @@ Podział ten odpowiada wzorcowi stosowanemu w systemach przemysłowych, w który
 % --- przestrzeń użytkownika ---
 \node[box, fill=orange!8, text width=19mm] (nginx) at (7.0,2.5) {Nginx\\ :80, :443};
 \node[box, fill=orange!8, text width=19mm] (guni) at (7.0,4.3) {Gunicorn\\ 127.0.0.1:8080};
-\node[box, fill=violet!6, text width=34mm, align=left] (cp) at (13.2,3.1) {\textbf{\texttt{control\_plane.py}}\\ -- telemetria L3/L4 (1 s)\\ -- reguła \texttt{l7\_rate}\\ -- detektor \texttt{l7\_rudy}\\ -- GRU \textit{Tier-1} (opcja)\\ -- GRU L7, cień (opcja)};
-\node[box, text width=24mm] (ev) at (13.2,5.4) {\texttt{ban\_events.jsonl}};
+\node[box, fill=violet!6, text width=37mm, align=left] (cp) at (13.1,3.6) {\textbf{\texttt{control\_plane.py}}\\ -- telemetria L3/L4 (1 s)\\ -- reguły \texttt{l7\_rate}, \texttt{l7\_rudy}\\ \textit{opcjonalnie:}\\ -- GRU \textit{Tier-1}, GRU L7 (cień)\\ -- reguła per połączenie\\ -- egzekwowanie L7 v2};
+\node[box, text width=24mm] (ev) at (13.1,6.2) {\texttt{ban\_events.jsonl}};
 % --- obszary ---
 \begin{scope}[on background layer]
   \node[draw=blue!50, fill=blue!3, rounded corners, inner sep=5pt, fit=(xdp)(stack)(sock)(bl)(tm)(fm)(drop)] (kern) {};
@@ -516,13 +517,14 @@ Podział ten odpowiada wzorcowi stosowanemu w systemach przemysłowych, w który
 \draw[telnh] (tm.east) -- (cpx |- tm.east);
 \draw[tel] (fm.east) -| node[lbl, pos=0.62, right, align=left]{odczyt\\ co 1 s} (cpx);
 \draw[tel] (cps |- sock.north) -- node[lbl, pos=0.5, left]{\texttt{ss -tan}} (cps);
-\draw[tel] (nginx.east) -- node[lbl, above]{logi} (nginx.east -| cp.west);
+\draw[tel] ([yshift=-1.6mm]nginx.east) -- node[lbl, below]{logi} ([yshift=-1.6mm]nginx.east -| cp.west);
+\draw[dec, densely dotted] ([yshift=1.6mm]nginx.east -| cp.west) -- node[lbl, above]{mapa odmów (L7 v2)} ([yshift=1.6mm]nginx.east);
 % --- decyzje ---
 \draw[dec] (cpr) |- node[lbl, pos=0.3, left]{wpis blokady} (bl.east);
 \draw[dec] (cpk) -- node[lbl, pos=0.5, right]{\texttt{ss -K}} (cpk |- sock.north);
 \draw[dec] (cp.north) -- node[lbl, right]{zdarzenia} (ev.south);
 \end{tikzpicture}
-\caption{Architektura logiczna systemu: ścieżka pakietu (czarne strzałki), przepływ telemetrii i logów do płaszczyzny sterowania (niebieskie, przerywane) oraz decyzje (czerwone). Wpis do \texttt{blacklist\_map} (lub reguła iptables w trybie porównawczym) i zerwanie połączeń poleceniem \texttt{ss -K} opisano w sekcji~\ref{sec:impl_ban}}
+\caption{Architektura logiczna systemu: ścieżka pakietu (czarne strzałki), przepływ telemetrii i logów do płaszczyzny sterowania (niebieskie, przerywane) oraz decyzje (czerwone; kropkowana: opcjonalna mapa odmów modułu L7 v2). Wpis do \texttt{blacklist\_map} (lub reguła iptables w trybie porównawczym) i zerwanie połączeń poleceniem \texttt{ss -K} opisano w sekcji~\ref{sec:impl_ban}}
 \label{fig:architektura}
 \end{figure}
 
@@ -531,8 +533,8 @@ Między płaszczyznami przebiega pięć przepływów danych:
     \item \textbf{Ścieżka pakietu:} most \texttt{ddos\_br0} $\rightarrow$ \texttt{veth\_server} (XDP) $\rightarrow$ stos TCP/IP $\rightarrow$ Nginx $\rightarrow$ Gunicorn. Pakiet ze źródła zablokowanego kończy ścieżkę akcją \texttt{XDP\_DROP}.
     \item \textbf{Telemetria jądro $\rightarrow$ użytkownik:} program XDP aktualizuje liczniki w mapach \texttt{telemetry\_map} i \texttt{flow\_map}, a demon odczytuje je co 1~s.
     \item \textbf{Stan połączeń i logi:} demon odczytuje tablicę gniazd jądra (\texttt{ss -tan state established}), log dostępowy Nginx w formacie JSON oraz log błędów Nginx.
-    \item \textbf{Decyzja użytkownik $\rightarrow$ jądro:} wpis adresu do \texttt{blacklist\_map}, a w trybie porównawczym reguła \texttt{DROP} zapory iptables \cite{iptables_ext}. Globalnie demon może także wymusić ciasteczka SYN (\texttt{sysctl}).
-    \item \textbf{Zrywanie połączeń:} po blokadzie demon usuwa istniejące gniazda TCP zablokowanego adresu poleceniem \texttt{ss -K}, ponieważ filtr na wejściu nie usuwa połączeń już nawiązanych.
+    \item \textbf{Decyzja użytkownik $\rightarrow$ jądro:} wpis adresu do \texttt{blacklist\_map}, a w trybie porównawczym reguła \texttt{DROP} zapory iptables \cite{iptables_ext}. Globalnie demon może także wymusić ciasteczka SYN (\texttt{sysctl}). Opcjonalny moduł L7 v2 wpisuje ponadto klucze (adres IP, \textit{User-Agent}, identyfikator sesji) do mapy odmów serwera Nginx i przeładowuje jego konfigurację (sekcja~\ref{sec:impl_l7v2}).
+    \item \textbf{Zrywanie połączeń:} po blokadzie demon usuwa istniejące gniazda TCP zablokowanego adresu poleceniem \texttt{ss -K}, ponieważ filtr na wejściu nie usuwa połączeń już nawiązanych. Reguła per połączenie zamyka natomiast pojedyncze połączenia, wskazane adresem, portem klienta i portem serwera.
 \end{enumerate}
 
 \subsection{Silniki detekcji}\label{sec:silniki}
@@ -554,7 +556,9 @@ Silnik & Źródło sygnału & Warunek (na jeden odczyt lub zdarzenie) & Trwało�
 \texttt{l7\_rudy} & log błędów & $\geq 3$ przekroczenia czasu odczytu ciała żądania w oknie 60~s & natychmiast & blokada, \texttt{ss -K} \\
 (globalny SYN) & suma po adresach & łączny przyrost SYN $>5000$ na interwał & 1 odczyt & \texttt{tcp\_\allowbreak syncookies=1} \\
 \texttt{gru} (\textit{Tier-1}) & \texttt{flow\_map} & $p>0{,}95$ dla sekwencji 15 migawek przepływów & 3 kolejne & blokada (tylko \texttt{XDP\_GRU=1}) \\
-GRU L7 & log \texttt{l7json} & $p>0{,}95$ dla okna 20 żądań klucza (IP, UA) & 3 kolejne & zdarzenie \texttt{l7\_would\_ban}, bez blokady \\
+GRU L7 & log \texttt{l7json} & $p>0{,}95$ dla okna 20 żądań klucza (IP, UA) & 3 kolejne & zdarzenie \texttt{l7\_would\_ban} \\
+\texttt{l4\_slowconn\_\allowbreak pc} & \texttt{ss -tinpH}, log dostępowy & połączenie Nginx starsze niż $T$, bez odpowiedzi, $<F$~B/s, $\geq 2$ nowe segmenty danych; adres: $\geq K$ zamknięć w 60~s i $<3$ klucze UA & 3 kolejne (zamknięcie) & zamknięcie połączenia, blokada (tylko \texttt{SLOW\_PC\_\allowbreak ENFORCE=1}) \\
+\texttt{l7v2} & decyzje silnika L7 & poziom 1: klucz (IP, UA, sesja) w mapie odmów; poziom 2: klucz wysyła $\geq 30$~s po odmowie, adres jednokluczowy & -- & kod 429 w Nginx, blokada XDP (tylko \texttt{L7\_\allowbreak ENFORCE=1}) \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -581,6 +585,10 @@ Zmienna & Domyślnie & Znaczenie \\
 \texttt{L7\_SHADOW}, \texttt{L7\_MODEL} & 0, -- & silnik GRU L7 w trybie cienia i ścieżka pakietu modelu \\
 \texttt{L7\_RECORD} & -- & zapis wejścia silnika L7 do deterministycznego odtworzenia \\
 \texttt{BAN\_EVENTS} & ścieżka pliku & lokalizacja rejestru zdarzeń; pusta wartość wyłącza rejestr \\
+\texttt{SLOW\_PC}, \texttt{SLOW\_PC\_ENFORCE} & 0, 0 & reguła per połączenie: tryb cienia (rejestracja decyzji) lub egzekwowanie \\
+\texttt{SLOW\_PC\_T}, \texttt{\_F}, \texttt{\_K} & 20, 16, 6 & parametry reguły per połączenie; dozwolone wyłącznie punkty siatki zamrożonej przed zebraniem danych \\
+\texttt{L7\_ENFORCE}, \texttt{L7\_ARM}, \texttt{L7\_SELECTION} & 0, --, -- & egzekwowanie decyzji L7 v2: wybrany detektor (ramię) i zamrożony punkt pracy weryfikowany sumą SHA-256 \\
+\texttt{SLOW\_PC\_KILL\_FILE}, \texttt{L7\_KILL\_FILE} & \texttt{/run/\allowbreak l7v2/\allowbreak kill} & wyłącznik: istnienie pliku przywraca tryb cienia; moduł L7 v2 opróżnia wówczas mapę odmów i znosi własne blokady \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -688,12 +696,16 @@ Wątek (funkcja) & Wyzwalacz & Zadania \\
 \texttt{inference\_worker} & kolejka sekwencji & inferencja modelu GRU \textit{Tier-1} (aktywny przy \texttt{XDP\_GRU=1}) \\
 \texttt{tail\_nginx\_\allowbreak error\_logs} & nowe wiersze logu & detektor R.U.D.Y. (silnik \texttt{l7\_rudy}) \\
 \texttt{l7\_shadow\_monitor} & datagramy \textit{syslog} & silnik GRU L7 w trybie cienia (tylko \texttt{L7\_SHADOW=1}) \\
+\texttt{slow\_pc\_monitor} & co 1~s & reguła per połączenie (aktywny przy \texttt{SLOW\_PC=1}) \\
+\texttt{l7\_enforce\_monitor} & co 1~s & egzekwowanie decyzji L7 v2 (aktywny przy \texttt{L7\_ENFORCE=1}) \\
 wątek główny (\texttt{tail\_nginx\_logs}) & nowe wiersze logu & reguła \texttt{l7\_rate} na podstawie logu dostępowego JSON \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 Współdzielony stan chronią dwie blokady: \texttt{state\_lock} (struktury śledzenia klientów) oraz \texttt{banned\_ips\_lock} (zbiór blokad i ich znaczniki czasu). Przyjęto dwie zasady: blokady nie są nigdy zagnieżdżane, a żadna z nich nie jest utrzymywana podczas wywołań procesów zewnętrznych ani operacji na mapach BPF. Decyzja zapada pod blokadą, natomiast jej wykonanie (wpis do mapy, \texttt{iptables}, \texttt{ss -K}) następuje po jej zwolnieniu. Zasady te eliminują zakleszczenia między wątkami i ograniczają czas, w którym wątek logów czeka na wątek telemetrii.
+
+\paragraph{Odporność na błędy.} Każdy wątek roboczy działa pod nadzorem funkcji \texttt{supervise}. Wyjątek zgłoszony przez wątek jest rejestrowany jako zdarzenie \texttt{daemon\_error}, a wątek jest uruchamiany ponownie po 1~s, dzięki czemu silnik detekcji nie może przestać działać niezauważony. Sygnał SIGTERM jest obsługiwany jak zamierzone zatrzymanie: pętle kończą pracę, a demon odłącza program XDP, co znosi wszystkie blokady. Dalsze sygnały SIGTERM są wtedy ignorowane, aby ponowne wejście w procedurę zatrzymania nie doprowadziło do zakleszczenia. Bajty logu, które nie stanowią poprawnego UTF-8, są zastępowane znakiem zastępczym zamiast przerywać pracę demona, a każde wywołanie \texttt{ss -K} ma limit czasu 2~s.
 
 \subsubsection{Odczyt telemetrii metodą odczytu i podmiany}\label{sec:impl_telemetria}
 Liczniki w mapie \texttt{telemetry\_map} mają charakter skumulowany i nie są zerowane przez demona. W każdym odczycie demon sumuje wartości ze wszystkich procesorów i oblicza przyrosty względem migawki z poprzedniego odczytu (listing~\ref{lst:telemetria}). Wartość mniejsza od poprzedniej migawki oznacza, że wpis został wyparty i utworzony ponownie; skumulowana wartość jest wówczas traktowana jako przyrost. Nieaktywne wpisy usuwa osobna procedura wygaszania klientów, a nie pętla odczytu, dlatego pakiet zliczony przez XDP między odczytem a usunięciem wpisu nie ginie.
@@ -781,6 +793,53 @@ Atak R.U.D.Y. nie pozostawia w logu dostępowym wpisu do chwili zakończenia ż�
 
 Profil \texttt{tolerant} (\texttt{HEURISTIC\_PROFILE=tolerant}) podnosi próg reguły \texttt{l7\_rate} do 108 żądań/s, a próg reguły \texttt{l4\_slowconn} do 180 połączeń. Wartości te wyznaczono jako 1,3-krotność najgorszego przypadku symulowanego ruchu prawowitego: przeglądarki pobierającej stronę z 60 zasobami oraz bramy NAT operatora (CGNAT) z pulą połączeń \textit{keep-alive}. Profil nie zmienia progów reguł wolumetrycznych ani warunku udziału błędów.
 
+\subsubsection{Reguła per połączenie dla ataków powolnych}\label{sec:impl_slowpc}
+Reguła \texttt{l4\_slowconn} ocenia adres na podstawie liczby jego połączeń, dlatego ma dwa udokumentowane ograniczenia (sekcja~\ref{sec:wyniki_slow}). Atak utrzymujący z jednego adresu mniej połączeń niż próg pozostaje niewykryty, a podniesienie progu w celu ochrony bram CGNAT usuwa detekcję obu ataków powolnych zestawu. Reguła per połączenie (moduł \texttt{slow\_pc.py}, silnik \texttt{l4\_slowconn\_pc}) przenosi ocenę na poziom pojedynczego połączenia, zgodnie ze wskazaniem literatury, że ataki powolne najlepiej opisują sygnały stanu połączenia \cite{sood2023slowtrack, tripathi2024delays}.
+
+Źródłem sygnału są liczniki TCP jądra, odczytywane co 1~s poleceniem \texttt{ss -tinpH state established} dla portów 80 i 443. Wykorzystywane są pola \texttt{bytes\_acked}, \texttt{bytes\_received} i \texttt{data\_segs\_in} oraz informacja o procesie będącym właścicielem gniazda. Log dostępowy dostarcza dwóch informacji pomocniczych: liczby kluczy \textit{User-Agent} danego adresu (ochrona adresów współdzielonych) oraz, dla portu 443, czy połączenie otrzymało odpowiedź. Połączenie jest podejrzane, gdy spełnia jednocześnie pięć warunków (listing~\ref{lst:slowpc}):
+\begin{enumerate}
+    \item gniazdo należy do procesu Nginx;
+    \item wiek połączenia, liczony od pierwszego odczytu, w którym je zaobserwowano, przekracza $T$;
+    \item połączenie nie otrzymało odpowiedzi; na porcie 80 oznacza to \texttt{bytes\_acked} $\leq 64$~B;
+    \item liczba odebranych bajtów jest mniejsza niż $F$ pomnożone przez wiek połączenia;
+    \item od pierwszego odczytu nadeszły co najmniej 2 segmenty danych.
+\end{enumerate}
+Ostatni warunek odróżnia atak, który dosyła niewielkie porcje danych, od połączenia bezczynnego.
+
+\begin{lstlisting}[language=Python, caption={Warunek podejrzenia połączenia w regule per połączenie (\texttt{slow\_pc.py}, wiersze 428--441; pominięto docstring)}, label=lst:slowpc]
+def _suspect(self, s, c, now):
+    if s.sport == 443 and not c.answered:
+        t = self.answered.get((s.ip, s.port))
+        c.answered = t is not None and t >= c.first_seen - ANSWERED_SLACK_S
+    age = now - c.first_seen
+    unanswered = (s.info["bytes_acked"] <= ANSWERED_MAX_BYTES_80 if s.sport == 80
+                  else self.ports_seen and not c.answered)
+    return (s.owned and age > self.t_s and unanswered
+            and s.info["bytes_received"] < self.f_bps * age
+            and s.info["data_segs_in"] - c.segs0 >= DRIBBLE_MIN_SEGS)
+\end{lstlisting}
+
+Połączenie podejrzane w 3 kolejnych odczytach jest zamykane. Adres jest blokowany, gdy w ciągu 60~s zamknięto co najmniej $K$ jego połączeń, a w ostatnich 10 minutach użył mniej niż 3 kluczy \textit{User-Agent}. Adres o większej liczbie kluczy, np. brama CGNAT, nie jest blokowany. Liczbę zamknięć ograniczono do 500 na odczyt, a liczbę blokad do 20 na minutę. Blokada trwa 300~s, jak w pozostałych silnikach.
+
+Parametry $T$, $F$ i $K$ mogą przyjmować wyłącznie wartości z siatki zamrożonej przed zebraniem danych (tab.~\ref{tab:slowpc_siatka}); inny punkt zatrzymuje demona przy starcie. Wartości domyślne (20~s, 16~B/s, 6) są najbardziej zachowawczym punktem siatki i pełnią rolę tymczasową. Docelowy punkt ma wybrać procedura walidacyjna na osobnych ziarnach (4001--4002), w której reguła działa w trybie cienia. Wybierany jest punkt, który w ciągu 90~s blokuje największy odsetek adresów atakujących, przy trzech ograniczeniach: brak blokad adresów prawowitych, zamknięcie co najwyżej 0,1\% połączeń prawowitych i żadnego połączenia klienta wolno przesyłającego dane. Jeżeli żaden punkt nie spełnia ograniczeń, reguła nie mieści się w budżecie fałszywych alarmów, a siatka nie jest rozszerzana. \doUzupelnienia{punkt $(T, F, K)$ wybrany w walidacji}
+
+\begin{table}[H]
+\centering
+\small
+\caption{Siatka parametrów reguły per połączenie (\texttt{slow\_pc.py}, zamrożona 30~października 2026~r.)}\label{tab:slowpc_siatka}
+\begin{tabular}{@{}llll@{}}
+\toprule
+Parametr & Znaczenie & Wartości & Domyślnie \\
+\midrule
+$T$ & minimalny wiek podejrzanego połączenia [s] & 5, 10, 15, 20 & 20 \\
+$F$ & maksymalna średnia szybkość odbioru [B/s] & 16, 64, 256, 1024 & 16 \\
+$K$ & liczba zamknięć adresu w 60~s wymagana do blokady & 2, 3, 4, 6 & 6 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Reguła działa w jednym z trzech trybów: wyłączona (domyślnie), w trybie cienia (\texttt{SLOW\_PC=1}), w którym rejestruje jedynie zdarzenia \texttt{slow\_pc\_close} i \texttt{slow\_pc\_would\_ban}, oraz w trybie egzekwowania (\texttt{SLOW\_PC\_ENFORCE=1}). W trybie egzekwowania połączenia są zamykane poleceniem \texttt{ss -K} z filtrem obejmującym adres i port klienta oraz port serwera, z ponowieniem w kolejnym odczycie, a blokada adresu przechodzi przez funkcję \texttt{ban\_ip}. Reguła ma własny wątek, więc powolne wywołanie \texttt{ss} nie opóźnia reguł L3/L4 ani wygaszania blokad. Reguła nie zastępuje reguły \texttt{l4\_slowconn}, lecz ją uzupełnia. Na stan obecny reguła jest zaimplementowana i przetestowana offline, natomiast nie była jeszcze uruchamiana w środowisku testowym (sekcja~\ref{sec:eksperymenty_prereg}).
+
 \subsubsection{Ścieżka blokady}\label{sec:impl_ban}
 Wszystkie silniki nakładają blokadę przez jedną funkcję \texttt{ban\_ip} (listing~\ref{lst:banip}). W konfiguracji domyślnej adres jest wpisywany do mapy \texttt{blacklist\_map} przez interfejs BCC, co jest pojedynczą aktualizacją mapy bez uruchamiania procesu zewnętrznego. W trybie porównawczym (\texttt{MITIGATION\_BACKEND=iptables}) funkcja dodaje regułę \texttt{DROP} w łańcuchu \texttt{INPUT} zapory iptables w przestrzeni nazw serwera \cite{iptables_ext}. Taki pakiet jest odrzucany dopiero po przejściu przez warstwę IP stosu sieciowego, czyli po alokacji \textit{sk\_buff}. Blokady wygasają po 300~s (\texttt{BAN\_TTL\_SECONDS}). Po blokadzie nałożonej przez reguły \texttt{l4\_slowconn}, \texttt{l7\_rate} i \texttt{l7\_rudy} demon dodatkowo usuwa istniejące gniazda TCP zablokowanego adresu poleceniem \texttt{ss -K dst <adres>}. Zablokowanie nowych pakietów nie zwalnia bowiem zasobów połączeń już nawiązanych, na których opierają się ataki powolne.
 
@@ -840,10 +899,10 @@ server {
 
 Krótkie limity czasu odczytu nagłówków i ciała żądania (5~s) ograniczają czas, przez który pojedyncze połączenie ataku powolnego może zajmować zasoby serwera. Limity \texttt{limit\_req} (30 żądań/s na adres, z buforem 100 żądań) i \texttt{limit\_conn} (50 połączeń na adres) stanowią mechanizm ochrony warstwy aplikacji niezależny od demona. Konfiguracja \texttt{nginx\_unprotected.conf} jest identyczna z wyjątkiem tych dwóch limitów i służy jako konfiguracja odniesienia bez ochrony.
 
-Serwer zapisuje dwa formaty logów. Format \texttt{json\_ml\_format} trafia do pliku logu dostępowego odczytywanego przez regułę \texttt{l7\_rate}. Rozszerzony format \texttt{l7json} zawiera m.in. czasy obsługi żądania i odpowiedzi zaplecza, status limitów \texttt{limit\_req}/\texttt{limit\_conn}, numer połączenia i liczbę żądań w połączeniu. Jest on przesyłany przez \textit{syslog} do gniazda datagramowego domeny uniksowej silnika GRU L7, a ujście to jest dodawane do konfiguracji wyłącznie wtedy, gdy silnik L7 działa. Aplikacją zaplecza jest minimalna aplikacja WSGI (\texttt{dummy\_app.py}), zwracająca stałą odpowiedź tekstową, uruchamiana na serwerze Gunicorn pod adresem 127.0.0.1:8080. Liczba procesów i wątków serwera Gunicorn jest parametrem punktu pracy środowiska (sekcja~\ref{sec:tryby_porownawcze}).
+Serwer zapisuje dwa formaty logów. Format \texttt{json\_ml\_format} trafia do pliku logu dostępowego odczytywanego przez regułę \texttt{l7\_rate}. Rozszerzony format \texttt{l7json} zawiera m.in. czasy obsługi żądania i odpowiedzi zaplecza, status limitów \texttt{limit\_req}/\texttt{limit\_conn}, numer połączenia, liczbę żądań w połączeniu, nagłówek \textit{Referer} oraz identyfikator sesji z ciasteczka \texttt{sid}. Jest on przesyłany przez \textit{syslog} do gniazda datagramowego domeny uniksowej silnika GRU L7, a ujście to jest dodawane do konfiguracji wyłącznie wtedy, gdy silnik L7 działa. Moduł L7 v2 dodaje do konfiguracji mapę odmów (sekcja~\ref{sec:impl_l7v2}). Aplikacją zaplecza jest minimalna aplikacja WSGI (\texttt{dummy\_app.py}), zwracająca stałą odpowiedź tekstową, uruchamiana na serwerze Gunicorn pod adresem 127.0.0.1:8080. Liczba procesów i wątków serwera Gunicorn jest parametrem punktu pracy środowiska (sekcja~\ref{sec:tryby_porownawcze}).
 
 \subsection{Eksperymentalne potoki modelu sekwencyjnego GRU}\label{sec:impl_gru}
-Zgodnie z wymaganiem W4 model sekwencyjny jest komponentem eksperymentalnym, ocenianym względem reguł deterministycznych. Rozwijany jest w dwóch potokach o wspólnej architekturze modelu, które różnią się źródłem danych i trybem działania.
+Zgodnie z wymaganiem W4 model sekwencyjny jest komponentem eksperymentalnym, ocenianym względem reguł deterministycznych. Rozwijany jest w trzech wariantach: w dwóch potokach o wspólnej architekturze modelu, różniących się źródłem danych i trybem działania, oraz jako model sekwencji odsłon strony, jedno z ramion modułu L7 v2 (sekcja~\ref{sec:gru_l7v2}).
 
 \subsubsection{Architektura modelu}\label{sec:gru_model}
 Klasyfikator \texttt{GRUDDoSClassifier} (plik \texttt{GRU\_ML\_model.py}, biblioteka PyTorch) składa się z dwóch warstw rekurencyjnych GRU o 64 jednostkach, warstwy \textit{dropout} ($p=0{,}2$) i warstwy liniowej o jednym wyjściu. Dla wektora wejściowego $x_t$ i stanu $h_{t-1}$ komórka GRU w sformułowaniu Cho i in. \cite{cho2014learning} wyznacza (z pominięciem wyrazów wolnych):
@@ -929,8 +988,44 @@ Silnik L7 (\texttt{L7ShadowEngine}) działa wyłącznie w trybie cienia (\texttt
 
 Model L7 jest uczony skryptem \texttt{ml/train\_l7.py} (okno 20 żądań, krok 3 żądania między kolejnymi oknami treningowymi, 2 warstwy po 64 jednostki, 25 epok). Podział danych jest rozłączny względem rodzin ataków: rodziny oznaczone jako wstrzymane (ang. \textit{held-out}) nie są używane ani w treningu, ani przy wyborze modelu. Analogicznie wydzielony jest jeden rodzaj ruchu prawowitego. Pakiet modelu zawiera listę kolumn, parametry skalowania, próg i sumy kontrolne SHA-256 plików, a moduł oceniający odmawia załadowania pakietu o niezgodnych kolumnach. Ewaluacja obejmuje porównanie z regułami deterministycznymi i tabelarycznym modelem odniesienia HGB (\textit{histogram-based gradient boosting}), sondy niezmienniczości oraz ablację kolejności żądań. Reguła werdyktu jest ustalana i zapisywana w repozytorium przed zebraniem danych, których dotyczy (sekcja~\ref{sec:higiena}).
 
+\subsubsection{Model sekwencji odsłon strony (L7 v2)}\label{sec:gru_l7v2}
+Trzeci wariant modelu (\texttt{l7\_view\_model.py}) zmienia jednostkę sekwencji z pojedynczego żądania na odsłonę strony. Odsłonę otwiera żądanie strony, a należą do niej kolejne żądania tego samego klucza aż do następnej strony. Kluczem jest trójka (adres IP, skrót \textit{User-Agent}, skrót identyfikatora sesji). Surowe wartości URI, \textit{User-Agent}, \textit{Referer} i ciasteczek są usuwane po obliczeniu skrótu. Każda odsłona jest opisana wektorem cech nawigacyjnych, m.in. czasem przebywania, liczbą żądań, udziałem zasobów statycznych, liczbą żądań kosztownych dla zaplecza, powrotami do odwiedzonych stron i obecnością nagłówka \textit{Referer}. Model składa się z kodera (jedna warstwa liniowa z funkcją ReLU, 32 jednostki), wspólnego dla wszystkich kroków, oraz sieci GRU (2 warstwy po 64 jednostki) działającej na co najwyżej 32 ostatnich odsłonach (co najmniej 4). Modele HGB i regresji logistycznej otrzymują podsumowania tych samych wektorów odsłon. Ewentualna przewaga modelu GRU musiałaby więc wynikać z kolejności odsłon, co dodatkowo sprawdza wariant GRU uczony na losowo przemieszanych sekwencjach (używany wyłącznie w odtwarzaniu).
+
+Konfiguracja modelu, cechy, sondy niezmienniczości (zamiana \textit{User-Agent}, permutacja URI w obrębie klasy trasy, zamiana sesji, przesunięcie czasu, obciążenie serwera) oraz procedura wyboru punktu pracy zostały zapisane w repozytorium przed jakimkolwiek przechwyceniem danych tego toru (\texttt{ml/l7v2\_model\_prereg.json}). Punkt pracy każdego ramienia wybiera się wyłącznie na danych walidacyjnych, przy tym samym budżecie: 1\% oznaczonych użytkowników prawowitych. W odróżnieniu od potoku z sekcji~\ref{sec:gru_l7} model ten może, jako wybrane ramię, egzekwować decyzje przez moduł opisany w kolejnej sekcji. Moduł ten nie był jednak jeszcze uruchamiany w środowisku testowym, a model nie ma wyników pomiarowych.
+
+\subsection{Dwupoziomowe egzekwowanie decyzji warstwy L7 (L7 v2)}\label{sec:impl_l7v2}
+Potok GRU L7 z sekcji~\ref{sec:gru_l7} jedynie rejestruje hipotetyczne decyzje. Moduł L7 v2 (\texttt{l7\_enforce.py}, \texttt{l7\_denymap.py}, \texttt{l7\_conf.py}, \texttt{l7\_arms.py}) pozwala wykonywać decyzje wybranego detektora warstwy L7. Detektor jest jednym z porównywanych \emph{ramion}: zestawem reguł R* (kluczowanym parą adres IP i \textit{User-Agent}), modelem HGB, regresją logistyczną albo modelem GRU operującym na sekwencji odsłon strony (sekcja~\ref{sec:gru_l7v2}). Moduł jest domyślnie wyłączony. Włączenie (\texttt{L7\_ENFORCE=1}) wymaga trybu cienia silnika L7, wskazania ramienia oraz zamrożonego punktu pracy, którego suma SHA-256 jest weryfikowana przy starcie. Moduł odrzuca także punkt pracy nieoznaczony jako dopuszczony do wniosków.
+
+Egzekwowanie jest dwupoziomowe. Na \textbf{poziomie 1} decyzja dotyczy klucza (adres IP, \textit{User-Agent}, identyfikator sesji). Demon dopisuje klucz atomowo do pliku mapy odmów, a następnie wykonuje łagodne przeładowanie serwera Nginx (\texttt{nginx -s reload}), nie częściej niż raz na 10~s. Żądania pasujące do klucza otrzymują odpowiedź 429, zanim dotrą do limitów i lokalizacji (listing~\ref{lst:denymap}). Poziom ten nie odcina pozostałych użytkowników współdzielonego adresu. Na \textbf{poziomie 2} adres jest blokowany w punkcie XDP (silnik \texttt{l7v2}), jeśli spełnione są dwa warunki. Klucz musi wysyłać żądania co najmniej 30~s po wejściu odmowy w życie, a adres musi być jednokluczowy, tzn. w ostatnich 10 minutach mieć mniej niż 3 różne skróty \textit{User-Agent} i mniej niż 3 identyfikatory sesji. Drugi warunek pełni funkcję ochrony bram CGNAT.
+
+\begin{lstlisting}[language=conf, caption={Mapa odmów dodawana do konfiguracji Nginx przez moduł L7 v2 (wynik funkcji \texttt{l7\_conf.protected} dla \texttt{nginx.conf}; katalog przebiegu oznaczono \texttt{RUN})}, label=lst:denymap]
+# w bloku http:
+map_hash_bucket_size 1024;
+map_hash_max_size 8192;
+map "$remote_addr|$http_user_agent|$cookie_sid" $l7_deny {
+    default 0;
+    include /run/l7v2/RUN/deny.map;
+}
+
+# w bloku server, przed lokalizacjami i limitami:
+if ($l7_deny) {
+    return 429;
+}
+\end{lstlisting}
+
+Działanie modułu ograniczają następujące zabezpieczenia:
+\begin{itemize}
+    \item brak działań wobec klucza obserwowanego krócej niż 20~s;
+    \item lista adresów wyłączonych z działań, obejmująca zawsze adresy samego serwera;
+    \item wygaśnięcie odmowy po 300~s, z odnowieniem tylko wtedy, gdy klucz wysłał żądanie w ciągu ostatnich 120~s;
+    \item limity: 2000 aktywnych odmów i 20 blokad poziomu 2 na minutę.
+\end{itemize}
+Pojawienie się pliku wyłącznika wstrzymuje nowe działania, opróżnia mapę odmów (z przeładowaniem) i znosi wyłącznie blokady nałożone przez ten moduł. Mapa jest opróżniana także przy starcie i zatrzymaniu demona. Każde działanie jest rejestrowane w rejestrze zdarzeń (tab.~\ref{tab:zdarzenia}).
+
+Na stan obecny moduł, ramiona i reguły werdyktu są zaimplementowane i przetestowane offline, na symulowanym hoście i z generatorami ruchu działającymi przez interfejs pętli zwrotnej. Moduł nie był jeszcze uruchamiany w środowisku testowym, a dokumentacja projektu przewiduje przed tym etapem ponowny przegląd kodu. Plan ewaluacji opisano w sekcji~\ref{sec:eksperymenty_prereg}.
+
 \subsection{Rejestr zdarzeń i odtwarzalność}\label{sec:impl_events}
-Każda decyzja demona jest zapisywana w rejestrze zdarzeń \texttt{ban\_events.jsonl} (moduł \texttt{ban\_events.py}): jeden obiekt JSON na wiersz, zapisywany natychmiast i nigdy nienadpisywany. Każde zdarzenie zawiera czas ścienny, czas monotoniczny (\texttt{CLOCK\_MONOTONIC}, ns) oraz rodzaj (tab.~\ref{tab:zdarzenia}). Rejestr realizuje wymaganie W6. Dokładny czas mitygacji wyznacza się z niego bez polegania na odpytywaniu logu, a każdą blokadę można przypisać do reguły, zmierzonej wartości i progu.
+Każda decyzja demona jest zapisywana w rejestrze zdarzeń \texttt{ban\_events.jsonl} (moduł \texttt{ban\_events.py}): jeden obiekt JSON na wiersz, zapisywany natychmiast i nigdy nienadpisywany. Każde zdarzenie zawiera czas ścienny, czas monotoniczny (\texttt{CLOCK\_MONOTONIC}, ns) oraz rodzaj (tab.~\ref{tab:zdarzenia}). Zbiór silników w zdarzeniach \texttt{ban} obejmuje, poza silnikami z tabeli~\ref{tab:silniki}, regułę per połączenie (\texttt{l4\_slowconn\_pc}) i poziom 2 modułu L7 v2 (\texttt{l7v2}). Rejestr realizuje wymaganie W6. Dokładny czas mitygacji wyznacza się z niego bez polegania na odpytywaniu logu, a każdą blokadę można przypisać do reguły, zmierzonej wartości i progu.
 
 \begin{table}[H]
 \centering
@@ -945,6 +1040,9 @@ Rodzaj & Zawartość \\
 \texttt{unban} & adres, mechanizm, wiek blokady \\
 \texttt{suppress\_on}, \texttt{suppress\_off} & sumaryczne przyrosty SYN i pakietów przy zmianie stanu wstrzymania GRU \\
 \texttt{gru\_suppressed} & detekcja GRU pominięta z powodu wstrzymania (adres, prawdopodobieństwo) \\
+\texttt{daemon\_error} & błąd, po którym demon kontynuuje pracę (miejsce, opis, podjęte działanie) \\
+\texttt{slow\_pc\_close}, \texttt{slow\_pc\_\allowbreak would\_ban}, \ldots & decyzje reguły per połączenie: zamknięcia, blokady w trybie cienia, ponowienia, przekroczenia limitów \\
+\texttt{l7\_deny}, \texttt{l7\_reload}, \texttt{l7\_kill}, \ldots & działania modułu L7 v2: odmowy, ich odnowienia i wygaśnięcia, przeładowania Nginx, użycie wyłącznika \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -1179,37 +1277,134 @@ Tabela~\ref{tab:higiena} zestawia pułapki metodyczne opisane przez Arpa i in. \
 \caption{Pułapki metodyczne według Arpa i in. \cite{arp2022dos} i środki zaradcze w projekcie}\label{tab:higiena}
 \begin{tabularx}{\linewidth}{@{}L{3.3cm}Y@{}}
 \toprule
-Pułapka & Środek zaradczy lub status \\
+Pułapka (nr wg \cite{arp2022dos}) & Środek zaradczy lub status \\
 \midrule
-P1: stronniczość próby & dane uczące i testowe z tego samego środowiska; zróżnicowany ruch prawowity (profile \textit{netem}; w torze L7 przeglądarka i CGNAT); ruch syntetyczny pozostaje ograniczeniem \\
-P2: niedokładne etykiety & etykiety wynikają z planu przechwytywania, w którym rola każdego adresu jest znana z góry \\
-P3: podglądanie danych testowych & podział rozłączny względem adresów IP i rodzin ataków; rodziny i rodzaj ruchu prawowitego wstrzymane z treningu i wyboru modelu; reguły werdyktu zapisane przed zebraniem danych \\
-P4: korelacje pozorne & zasada przeciwdziałania odciskom narzędzi (sekcja~\ref{sec:gru_l7}); sondy niezmienniczości; kontrfaktyczna zmiana pojedynczych cech \\
-P5: stronniczy dobór parametrów & próg $0{,}95$ i liczba potwierdzeń ustalone przed ewaluacją; wybór modelu na zbiorze walidacyjnym \\
-P6: niewłaściwy punkt odniesienia & reguły deterministyczne oraz tabelaryczny model HGB, uczony i oceniany na tych samych danych co GRU \\
-P7: niewłaściwe miary & dostępność usługi i TTM zamiast samej dokładności klasyfikacji; czułość przy ustalonym budżecie fałszywych alarmów \\
-P8: zaniedbanie częstości bazowej & fałszywe alarmy raportowane na adres prawowity i na godzinę pracy klienta, a nie na okno \\
-P9: ewaluacja wyłącznie laboratoryjna & nieusunięte; ograniczenie wskazane w sekcji~\ref{sec:ograniczenia} \cite{kostopoulos2026ebpf} \\
-P10: niewłaściwy model zagrożeń & zakres zagrożeń wynika z wymagania W7; atakujący nieadaptacyjny; ograniczenie wskazane w sekcji~\ref{sec:ograniczenia} \\
+1. stronniczość próby & dane uczące i testowe z tego samego środowiska; zróżnicowany ruch prawowity (profile \textit{netem}; w torze L7 przeglądarka i CGNAT); ruch syntetyczny pozostaje ograniczeniem \\
+2. niedokładne etykiety & etykiety wynikają z planu przechwytywania, w którym rola każdego adresu jest znana z góry \\
+3. podglądanie danych testowych & podział rozłączny względem adresów IP i rodzin ataków; rodziny i rodzaj ruchu prawowitego wstrzymane z treningu i wyboru modelu; reguły werdyktu zapisane przed zebraniem danych \\
+4. korelacje pozorne & zasada przeciwdziałania odciskom narzędzi (sekcja~\ref{sec:gru_l7}); sondy niezmienniczości; kontrfaktyczna zmiana pojedynczych cech \\
+5. stronniczy dobór parametrów & próg $0{,}95$ i liczba potwierdzeń ustalone przed ewaluacją; wybór modelu na zbiorze walidacyjnym \\
+6. niewłaściwy punkt odniesienia & reguły deterministyczne oraz tabelaryczny model HGB, uczony i oceniany na tych samych danych co GRU \\
+7. niewłaściwe miary & dostępność usługi i TTM zamiast samej dokładności klasyfikacji; czułość przy ustalonym budżecie fałszywych alarmów \\
+8. zaniedbanie częstości bazowej & fałszywe alarmy raportowane na adres prawowity i na godzinę pracy klienta, a nie na okno \\
+9. ewaluacja wyłącznie laboratoryjna & nieusunięte; ograniczenie wskazane w sekcji~\ref{sec:ograniczenia} \cite{kostopoulos2026ebpf} \\
+10. niewłaściwy model zagrożeń & zakres zagrożeń wynika z wymagania W7; atakujący nieadaptacyjny; ograniczenie wskazane w sekcji~\ref{sec:ograniczenia} \\
 \bottomrule
 \end{tabularx}
 \end{table}
 
 Ewaluacja potoku L7 była prowadzona iteracyjnie (etapy P5, P5b i P5c). Po werdykcie negatywnym zmieniano test, a reguła werdyktu każdej iteracji była zapisywana w repozytorium przed zebraniem jej danych. Iteracje te, wraz z kierunkiem możliwego obciążenia wyników, są udokumentowane w dokumentacji projektu. Rejestrację przed zebraniem danych należy więc rozumieć jako rejestrację w obrębie każdej iteracji.
 
+\subsection{Eksperymenty z regułami werdyktu zapisanymi przed zebraniem danych}\label{sec:eksperymenty_prereg}
+Zestaw testowy opisany w sekcjach~\ref{sec:topologia}--\ref{sec:statystyka} ma dwa ograniczenia, które uniemożliwiają ocenę nowych mechanizmów. Aplikacja zaplecza zwraca stałą odpowiedź o długości 31~B, która nie obciąża serwera, a ruch prawowity składa się z pojedynczych żądań. Dlatego na potrzeby ocen, których wyniki nie zostały jeszcze zebrane, zaimplementowano trzy rozszerzenia metodyki: benchmark szkody z kalibracją punktu pracy, eksperyment P4 (ataki powolne a reguła per połączenie) oraz eksperyment P1 (ramiona detekcji modułu L7 v2). We wszystkich trzech reguły werdyktu, siatki parametrów i ziarna zapisano w repozytorium przed zebraniem danych, których dotyczą. Późniejsze zmiany są w dokumentacji projektu oznaczane jako odstępstwa \textit{post hoc}. Przykładem jest tolerancja kontroli dryfu dla przebiegów z atakiem, ustalona 4~listopada 2026~r. po obejrzeniu sześciu powtórzeń.
+
+\subsubsection{Benchmark szkody i kalibracja punktu pracy}\label{sec:benchmark_szkody}
+Benchmark szkody (katalog \texttt{bench/}) zastępuje stałą aplikację zaplecza serwerem o skalibrowanym koszcie obsługi (\texttt{bench/origin.py}). Serwer wykonuje rzeczywistą pracę procesora na pięciu klasach tras: C0 (zasób statyczny, bez pracy), C1 (strona generowana z 300 wierszy), C2 (wyszukanie rekordu w API), C3 (wyszukiwanie z przeglądaniem 50\,000 wierszy) i C5 (eksport do pliku CSV z 6000 wierszy). Ruch prawowity generują strumienie w modelu otwartej pętli, rejestrujące każde żądanie, a nie pojedyncze wywołania \texttt{curl}.
+
+Miarą jakości obsługi jest $Q$: odsetek żądań prawowitych, których planowany czas wysłania przypada na okno ataku, a które zakończyły się kodem 2xx w czasie nieprzekraczającym docelowego czasu obsługi (SLO) swojej klasy trasy. SLO wynoszą 100~ms dla C0, 300~ms dla C1 i C2, 1~s dla C3 i 3~s dla C5. Żądanie niewysłane, odrzucone lub przerwane liczy się jako nieudane. Oceniani są wyłącznie klienci o profilach \texttt{perfect} i \texttt{broadband}, ponieważ opóźnienia profili mobilnych same przekraczają SLO. Jednostką jest blok trzech przebiegów w losowej kolejności: kontrolnego $C$, placebo $C'$ i z atakiem $U$, z tą samą populacją klientów i tym samym przebiegiem czasowym. Szkodę w bloku opisują dwie wielkości:
+\begin{equation}
+\Delta Q = Q(C) - Q(U), \qquad \Delta L = \log_2 \frac{p_{95}(U)}{p_{95}(C)},
+\end{equation}
+gdzie $p_{95}$ jest 95.~percentylem czasu obsługi żądań udanych. Bramka szkody uznaje atak za szkodliwy, gdy średnia $\Delta Q$ wynosi co najmniej 10~pp lub średnia $\Delta L$ co najmniej 1 (dwukrotny wzrost $p_{95}$). Dodatkowe warunki są takie jak w regule decyzyjnej z sekcji~\ref{sec:statystyka}: 95\% przedział ufności nie zawiera zera, co najmniej 80\% bloków ma zgodny znak, a bloków ważnych jest co najmniej 10. Ponadto placebo nie może przejść bramki, a przebieg kontrolny musi mieć $Q \geq 99\%$.
+
+Kalibracja (\texttt{bench/calibrate.py}) wyznacza punkt pracy w pięciu krokach:
+\begin{enumerate}
+    \item \textbf{Koszt tras:} 3 sesje po 21 powtórzeń na jednym rdzeniu. Krok jest przerywany, jeśli sesje różnią się o więcej niż 10\%.
+    \item \textbf{Pojemność:} poziomy obciążenia $50 \cdot 1{,}3^k$ żądań/s (od 50 do 530), po 3 powtórzenia. $C_{\mathrm{SLO}}$ to ostatni poziom przed spadkiem $Q$ któregokolwiek powtórzenia poniżej 99\%, a $C_{\mathrm{sat}}$ pierwszy poziom, na którym co najmniej 2 powtórzenia mają $Q < 50\%$.
+    \item \textbf{Drabina ataków:} dla każdej rodziny ataku obciążenie jest wyrażane w wielokrotnościach wolnej pojemności $S = (C_{\mathrm{SLO}} - \rho)\,\bar{c}$, gdzie $\rho = 0{,}5\,C_{\mathrm{SLO}}$ jest natężeniem ruchu prawowitego, a $\bar{c}$ średnim kosztem żądania. Poziomy drabiny należą do zbioru $\{0{,}125, \ldots, 8\}$. \textbf{Punktem przegięcia} rodziny jest najniższy poziom, na którym znormalizowana szkoda $\max(\Delta Q/10\,\mathrm{pp},\ \Delta L/1)$ wynosi co najmniej 1 w obu powtórzeniach.
+    \item \textbf{Zamrożenie} wyników w rekordzie z sumą kontrolną SHA-256. Kampania i jej werdykt odrzucają rekord niezamrożony.
+    \item \textbf{Kontrola dryfu} przed każdą kampanią. Przebieg z ruchem prawowitym musi odtworzyć $Q$ z dokładnością do 2~pp i $p_{95}$ z dokładnością do 25\%, a przebieg z atakiem $Q$ z dokładnością do 10~pp i $p_{95}$ z dokładnością do czynnika 2.
+\end{enumerate}
+Wyniki zamrożonego rekordu kalibracji przedstawiono w sekcji~\ref{sec:wyniki_kalibracja}.
+
+\subsubsection{Eksperyment P4: ataki powolne a reguła per połączenie}\label{sec:exp_p4}
+Eksperyment P4 ma rozstrzygnąć, czy reguła per połączenie (sekcja~\ref{sec:impl_slowpc}) łagodzi ataki powolne, których nie wykrywa reguła \texttt{l4\_slowconn}. W EXP-B ataki powolne nie szkodziły serwerowi z limitami z \texttt{nginx.conf} nawet bez blokad (sekcja~\ref{sec:wyniki_slow}), dlatego eksperyment używa celowo niezahartowanej konfiguracji serwera, nazwanej \textbf{profilem R} (tab.~\ref{tab:profil_r}). Wyniki uzyskane w profilu R nie przenoszą się na konfigurację zahartowaną, i odwrotnie. Atakujący utrzymują po 6 połączeń z adresu, czyli mniej niż próg reguły \texttt{l4\_slowconn}, w dwóch rodzinach: Slowloris i powolny POST.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Konfiguracja serwera w profilu R w porównaniu z \texttt{nginx.conf}}\label{tab:profil_r}
+\begin{tabularx}{\linewidth}{@{}L{6.4cm}L{3.4cm}Y@{}}
+\toprule
+Ustawienie & \texttt{nginx.conf} & profil R \\
+\midrule
+procesy robocze / połączenia na proces & \texttt{auto} / 16\,384 & 2 / 768 \\
+limity odczytu nagłówków i ciała & 5~s & 60~s \\
+\texttt{keepalive\_timeout} / \texttt{send\_timeout} & 15~s / 10~s & 75~s / 60~s \\
+\texttt{client\_max\_body\_size} & 64~kB & 1~MB (10~MB dla \texttt{/upload}) \\
+bufory długich nagłówków & 2 $\times$ 1~kB & 4 $\times$ 8~kB \\
+limity czasu proxy (połączenie/wysyłanie/odczyt) & 5/10/10~s & 60/60/60~s \\
+\texttt{limit\_req} / \texttt{limit\_conn} & tak & nie \\
+serwer Gunicorn & wg punktu pracy & 5 procesów synchronicznych, 1 wątek \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Blokiem jest jedno ziarno ewaluacyjne (3101--3110, 10 bloków), a przebieg trwa 30~s bez ataku, 210~s z atakiem i 30~s po ataku. Każdy blok obejmuje dziewięć przebiegów: $C$, $C'$, $C_M$ (bez ataku, z ochroną: profil R z limitami serwera i demonem z regułą per połączenie), $U$ (atak bez ochrony) oraz $M_{\mathrm{def}}$ (demon z regułami domyślnymi) i $M_{\mathrm{pc}}$ (demon z regułą per połączenie i profilem \texttt{tolerant} reguł per adres) dla każdej z dwóch rodzin ataku. Werdykt dla rodziny ma dwa etapy:
+\begin{itemize}
+    \item \textbf{szkodliwość}: bramka szkody przechodzi dla $U$ względem $C$, a co najmniej 9 z 10 bloków jest szkodliwych samodzielnie;
+    \item \textbf{łagodzenie} przez $M_{\mathrm{pc}}$: (a) w co najmniej 9 z 10 bloków $Q(M_{\mathrm{pc}})$ wraca w ciągu 90~s od początku ataku do poziomu co najmniej $0{,}99\,Q(C)$ przez 5 kolejnych sekund; (b) średnie $Q(M_{\mathrm{pc}})$ w oknie od 90~s po rozpoczęciu ataku do jego końca wynosi co najmniej $0{,}99$ poziomu $C_M$; (c) w żadnym przebiegu $M_{\mathrm{pc}}$ nie zablokowano adresu prawowitego, w tym bram CGNAT i urządzeń przeglądarkowych.
+\end{itemize}
+Spełnienie warunków (a) i (b) bez (c) daje werdykt ,,złagodzony z uszkodzeniami ubocznymi''. Mniej niż 10 ważnych bloków daje werdykt ,,nieważny'', a nie negatywny. Eksperyment ma rozstrzygnąć otwartą kwestię skuteczności wobec ataków powolnych (sekcja~\ref{sec:wyniki_slow}) w zakresie: profil R, te rodziny ataków w tej skali, to środowisko.
+
+\subsubsection{Eksperyment P1: ramiona detekcji warstwy L7}\label{sec:exp_p1}
+Eksperyment P1 porównuje ramiona modułu L7 v2 (sekcja~\ref{sec:impl_l7v2}) w trzech klasach ataków warstwy aplikacji: C2 (nadużycie tras kosztownych dla zaplecza), C3a (boty oparte na bibliotekach HTTP) i C3b (emulacja przeglądarki bezgłowej na trzech poziomach zaawansowania). Ruch prawowity tworzą sesje nawigacyjne generowane z tablic przejść specyfikacji TPC-W v1.8. Mieszanka \textit{Browsing} służy do uczenia, a mieszanka \textit{Shopping} i rozkład Zipfa są wstrzymane jako dane testowe. Ramiona są dostrajane na ziarnach walidacyjnych do tego samego budżetu: 1\% oznaczonych użytkowników prawowitych. Blok (ziarna 3001--3010) obejmuje wspólne przebiegi kontrolne $C$ i $C'$ oraz 11 przebiegów ramion:
+\begin{itemize}
+    \item klasa C3b: brak ochrony, reguły domyślne, reguły R*, HGB, GRU;
+    \item klasy C2 i C3a: brak ochrony, R*, GRU.
+\end{itemize}
+Szkodę odczytuje się w oknie od 90~s po rozpoczęciu ataku do jego końca. Werdykt dla klasy wyznacza drabina reguł sprawdzanych kolejno (tab.~\ref{tab:p1_werdykty}), przy minimalnych efektach 5~pp dla szkody i 10~pp dla detekcji.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Drabina werdyktów eksperymentu P1 (\texttt{ml/l7v2\_verdict\_prereg\_v4.json}), sprawdzana w kolejności V-D, V-A, V-B, V-C}\label{tab:p1_werdykty}
+\begin{tabularx}{\linewidth}{@{}L{1.0cm}L{4.0cm}Y@{}}
+\toprule
+Kod & Znaczenie & Warunek (skrótowo) \\
+\midrule
+V-D & brak przewagi lub brak szkody & klasa nie przechodzi bramki szkody, żadne ramię nie mieści się w budżecie albo żadne nie łagodzi ataku \\
+V-A & GRU lepszy od wszystkich & GRU w budżecie, lepszy od każdego ramienia pod względem szkody oraz od HGB i GRU na przemieszanych sekwencjach o $\geq 10$~pp w detekcji \\
+V-B & uczenie pomaga, sekwencja nie & najlepsze ramię uczone lepsze od R*, ale GRU nie spełnia V-A \\
+V-C & reguły wystarczają & najlepsze ramię uczone równoważne R* ($\pm 5$~pp) lub gorsze; wykluczone, gdy prowadzi HGB, a GRU jest lepszy od R* \\
+-- & nierozstrzygnięty & żaden z powyższych warunków; mniej niż 10 ocenionych bloków daje werdykt nieważny \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Pliki rejestracji (z 30~października -- 4~listopada 2026~r.) są w dokumentacji projektu oznaczone jako ,,\textit{post hoc}, lecz przed jakimkolwiek przechwyceniem''. Projekt toru L7 v2 powstał bowiem po negatywnym werdykcie wcześniejszego toru L7 (sekcja~\ref{sec:wyniki_gru}), ale przed zebraniem jakichkolwiek danych do jego oceny.
+
+\subsubsection{Stan eksperymentów}\label{sec:stan_eksperymentow}
+Tabela~\ref{tab:stan_eksperymentow} zestawia stan realizacji trzech rozszerzeń metodyki. Kod wszystkich trzech jest zaimplementowany i objęty testami offline. Eksperymenty P1 i P4 nie były jeszcze uruchamiane w środowisku testowym, a dla toru L7 v2 dokumentacja projektu wymaga przed tym etapem ponownego przeglądu kodu, ponieważ ostatnie zmiany dotyczą ścieżki wykonywanej na żywo.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Stan eksperymentów z rejestracją przed zebraniem danych (5~listopada 2026~r.)}\label{tab:stan_eksperymentow}
+\begin{tabularx}{\linewidth}{@{}L{3.3cm}L{3.3cm}YL{2.5cm}@{}}
+\toprule
+Eksperyment & Kod & Przebiegi w środowisku testowym & Werdykt \\
+\midrule
+benchmark szkody, kalibracja & zaimplementowany & sesja kalibracyjna; rekord zamrożony 4~listopada 2026~r. & nie dotyczy \\
+P4 (reguła per połączenie) & zaimplementowany, testy offline & brak; szacunkowo ok. 13,5~h maszyny wirtualnej & brak \doUzupelnienia{werdykt P4} \\
+P1 (ramiona L7 v2) & zaimplementowany, testy offline & brak przechwyceń danych i kampanii; szacunkowo ok. 18~h & brak \doUzupelnienia{werdykty P1} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
 \subsection{Ograniczenia środowiska testowego}\label{sec:ograniczenia}
 Wyniki uzyskane w opisanym środowisku mają następujące ograniczenia:
 \begin{enumerate}
     \item \textbf{Interfejsy wirtualne.} Program XDP działa na interfejsie \texttt{veth}, a nie na sterowniku fizycznej karty sieciowej. Wartości bezwzględne przepustowości, np. 7,2~mln pakietów/s na rdzeń w pomiarach Scholza i in. na karcie 10~GbE \cite{scholz2018performance}, nie przenoszą się na to środowisko i odwrotnie. Porównania względne (XDP wobec iptables w tym samym środowisku) są obarczone tym ograniczeniem w mniejszym stopniu.
     \item \textbf{Jeden host.} Boty, klienci i serwer współdzielą procesory jednej maszyny wirtualnej. W punkcie \textit{knee} rozdzielono je przypinaniem do rdzeni, a w punkcie \textit{default} rywalizacja o procesor może wpływać na wyniki, np. na czas blokady w scenariuszu wielowektorowym. Narzędzia \texttt{hping3} i \texttt{wrk} nie zapewniają precyzji generatorów sprzętowo wspomaganych \cite{emmerich2015moongen}.
-    \item \textbf{Ruch syntetyczny.} Ruch prawowity zestawu to pojedyncze żądania \texttt{curl}. Wynik ,,brak fałszywych blokad'' dotyczy więc tej mieszanki ruchu, a nie ruchu rzeczywistego \cite{kostopoulos2026ebpf}.
+    \item \textbf{Ruch syntetyczny.} Ruch prawowity zestawu to pojedyncze żądania \texttt{curl}. Wynik ,,brak fałszywych blokad'' dotyczy więc tej mieszanki ruchu, a nie ruchu rzeczywistego \cite{kostopoulos2026ebpf}. Benchmark szkody i eksperyment P1 wykorzystują bogatszy ruch prawowity (sesje nawigacyjne TPC-W, bramy CGNAT, przeglądarki), który jednak również jest syntetyczny.
     \item \textbf{Model atakującego.} Atakujący jest nieadaptacyjny, a częstotliwości ataków przekraczają progi reguł per adres (w EXP-C co najmniej 2,5-krotnie). Ataki wielu źródeł poniżej progów per adres nie są objęte badaniami.
     \item \textbf{Zakres wektorów.} Środowisko nie obejmuje ataków odbiciowych i wzmacniających ani wysycenia łącza, którym obrona na hoście nie przeciwdziała (W7). Scenariusze korzystają z HTTP/1.1 na porcie 80, dlatego ataki specyficzne dla HTTP/2, np. HTTP/2 Rapid Reset \cite{pardue2023rapidreset, nvd2023cve44487}, oraz ataki na warstwę TLS nie są testowane. Nie wykonano dotąd testu zalewania z losowymi adresami źródłowymi przy działającym demonie.
     \item \textbf{Protokół IP.} System i środowisko obsługują wyłącznie IPv4.
 \end{enumerate}
 
 \section{Wyniki wstępne i plan dalszych badań}\label{sec:wyniki}
-Rozdział przedstawia wyniki kampanii pomiarowych opublikowanych w katalogu \texttt{results/} repozytorium (stan na 23~października 2026~r.). Wszystkie liczby pochodzą z plików tych kampanii, zweryfikowanych sumami kontrolnymi, a przy każdym wyniku wskazano jego źródło. Wyniki mają charakter \textbf{wstępny}. Ustalają one punkty odniesienia dla trwających i planowanych eksperymentów, a ich interpretacja zostanie dokończona po kampaniach wymienionych w sekcji~\ref{sec:plan}. Zakres obowiązywania każdego wyniku (scenariusz, punkt pracy, model atakującego) podano wprost.
+Rozdział przedstawia wyniki kampanii pomiarowych opublikowanych w katalogu \texttt{results/} repozytorium oraz rekordu kalibracji benchmarku szkody (stan na 5~listopada 2026~r.). Po 23~października 2026~r. nie opublikowano nowych kampanii. Jedynymi nowymi danymi pomiarowymi są zamrożony rekord kalibracji i pomiar kosztu tras zaplecza (sekcja~\ref{sec:wyniki_kalibracja}). Wszystkie liczby pochodzą z plików tych kampanii, zweryfikowanych sumami kontrolnymi, a przy każdym wyniku wskazano jego źródło. Wyniki mają charakter \textbf{wstępny}. Ustalają one punkty odniesienia dla trwających i planowanych eksperymentów, a ich interpretacja zostanie dokończona po kampaniach wymienionych w sekcji~\ref{sec:plan}. Zakres obowiązywania każdego wyniku (scenariusz, punkt pracy, model atakującego) podano wprost.
 
 \subsection{Skuteczność reguł deterministycznych}\label{sec:wyniki_reguly}
 W punkcie pracy \textit{default}, z 5 botami na scenariusz, reguły demona zablokowały wszystkie 5 botów w każdym z 10 scenariuszy w każdym z czterech pełnych przebiegów zestawu. Żaden klient prawowity nie został zablokowany\footnote{\raggedright Kampanie \texttt{2026-10-13\_regression-default-full-suite}, \texttt{2026-10-13\_regression-default-full-suite-replicate}, \texttt{2026-10-19\_baseline-before-audit-defaults}, \texttt{2026-10-20\_regression-after-audit-defaults}.}. Tabela~\ref{tab:wyniki_silniki} przedstawia podział 200 blokad między silniki. Żadnej z tych blokad nie nałożył model GRU.
@@ -1255,7 +1450,7 @@ Silnik & Liczba botów & TTM [s] \\
 \end{tabular}
 \end{table}
 
-Wartość 3,82~s dla reguły \texttt{l4\_syn} dotyczy jednego bota scenariusza wielowektorowego w jednym przebiegu profilu \texttt{tolerant}. Pozostałe boty tego przebiegu zablokowano w 0,13--0,41~s. Mediana tego samego scenariusza wolumetrycznego różni się między przebiegami do 3,1 razy. Wyznaczenie rozkładu czasu do mitygacji wymaga co najmniej dziesięciu przebiegów (tab.~\ref{tab:plan}, P1) \doUzupelnienia{rozkład TTM z $\geq 10$ przebiegów w punkcie \textit{default}}.
+Wartość 3,82~s dla reguły \texttt{l4\_syn} dotyczy jednego bota scenariusza wielowektorowego w jednym przebiegu profilu \texttt{tolerant}. Pozostałe boty tego przebiegu zablokowano w 0,13--0,41~s. Mediana tego samego scenariusza wolumetrycznego różni się między przebiegami do 3,1 razy. Wyznaczenie rozkładu czasu do mitygacji wymaga co najmniej dziesięciu przebiegów (tab.~\ref{tab:plan}, Z1) \doUzupelnienia{rozkład TTM z $\geq 10$ przebiegów w punkcie \textit{default}}.
 
 \subsection{Dostępność usługi pod zalewaniem HTTP}\label{sec:wyniki_dostepnosc}
 Eksperyment EXP-A\footnote{\raggedright Kampania \texttt{2026-10-20\_expa-knee-10-blocks}: punkt \textit{knee}, scenariusz 4, atak 30~s, 10 bloków sparowanych (\texttt{PROFILE\_SEED} 101--110), 4 konfiguracje.} jest pierwszą kampanią spełniającą regułę decyzyjną z sekcji~\ref{sec:statystyka}. Rysunek~\ref{fig:expa_dostepnosc} i tabela~\ref{tab:expa} przedstawiają dostępność usługi dla klientów prawowitych w trakcie ataku.
@@ -1299,10 +1494,57 @@ W EXP-A obie konfiguracje z demonem utrzymały dostępność 100\%, więc pod wz
 
 W scenariuszach wolumetrycznych (UDP, ACK, fragmentacja, wielowektorowy) do interfejsu serwera docierało 0,84--1,66~mln pakietów/s. W fazach po nałożeniu blokad w XDP do warstwy IP trafiało nie więcej niż 227 pakietów/s, a $\mathrm{PreStack}_{\mathrm{Dropped}}$ różniło się od $\mathrm{PPS}_{\mathrm{Rx}}$ o nie więcej niż 0,02\%\footnote{\raggedright Kampania \texttt{2026-10-13\_regression-default-full-suite}, plik \texttt{metrics.csv}.}. W pomiarach wcześniejszą wersją zestawu testowego iptables i konfiguracja bez ochrony przekazywały w tych scenariuszach do warstwy IP 1,07--1,44~mln pakietów/s, a XDP 147--169 pakietów/s w fazach ustalonych\footnote{\raggedright Kampania \texttt{2026-10-12\_exp1-default-4modes\_prototype}, porównanie w \texttt{2026-10-21\_prototype-claims-check}.}. Jest to zgodne z miejscem odrzucania pakietów w obu mechanizmach (sekcja~\ref{sec:metryki}) i z wynikami literatury \cite{scholz2018performance, hadisalim2021acl}. Pomiar pochodzi jednak z interfejsu \texttt{veth} i ze starszej wersji zestawu testowego. Powtórzenie go bieżącym narzędziem kampanii i na fizycznej karcie sieciowej jest ujęte w planie prac.
 
+\subsection{Narzut zasobów i odrzucanie pakietów przed stosem}\label{sec:wyniki_narzut}
+Tabela~\ref{tab:wyniki_narzut} przedstawia, dla konfiguracji \texttt{xdp}, ruch odebrany przez interfejs serwera, ruch przyjęty przez warstwę IP oraz obciążenie procesora w fazach scenariuszy wolumetrycznych następujących po nałożeniu blokad. Dane pochodzą z ostatniego pełnego przebiegu zestawu na bieżących ustawieniach domyślnych\footnote{\raggedright Kampania \texttt{2026-10-20\_regression-after-audit-defaults}, plik \texttt{xdp/run1/metrics.csv}; po 4 pomiary 1-sekundowe na scenariusz (fazy 2A i 3).}.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Odrzucanie przed stosem i obciążenie w fazach po nałożeniu blokad (konfiguracja \texttt{xdp}, punkt \textit{default})}\label{tab:wyniki_narzut}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+Scenariusz & $\mathrm{PPS}_{\mathrm{Rx}}$ [mln/s] & $\mathrm{IP}_{\mathrm{InRec.}}$ [1/s] & Odrzucone [\%] & CPU łącznie [\%] & CPU demona [\%] \\
+\midrule
+UDP flood & 1,35--1,45 & 90--176 & 99,988--99,994 & 67,6--68,5 & 0,0 \\
+ACK flood & 1,39--1,49 & 112--164 & 99,989--99,992 & 55,0--63,3 & 0,9--1,9 \\
+fragmentacja IP & 1,53--1,81 & 145--214 & 99,988--99,991 & 57,6--60,2 & 0,0--1,7 \\
+wielowektorowy & 0,85--0,89 & 74--165 & 99,981--99,992 & 42,5--44,4 & 0,0--0,9 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Przy 0,85--1,81~mln pakietów/s na interfejsie do warstwy IP trafiało nie więcej niż 214 pakietów/s, a odsetek pakietów odrzuconych przed stosem przekraczał 99,98\%. Obciążenie procesora (średnia z rdzeni; 1,8--11,8\% w fazach bazowych) wynikało w tych fazach głównie z przetwarzania pakietów przed odrzuceniem, a nie z pracy demona. Demon zużywał 0--2,7\% czasu jednego rdzenia we wszystkich 42 pomiarach przebiegu. Jego pamięć rezydentna wynosiła 459,9--461,0~MB i nie zależała od obciążenia. W EXP-A (punkt \textit{knee}, zalewanie HTTP) średnie zużycie procesora przez procesy Nginx w fazach ataku wynosiło 11\% z demonem i XDP, 16\% z demonem i iptables, 33\% bez ochrony i 96\% z samymi limitami Nginx, a przez demona 3\%. Wartości bezwzględne są ograniczone do interfejsu \texttt{veth} i jednego hosta (sekcja~\ref{sec:ograniczenia}). Nie należy ich porównywać bezpośrednio z przepustowością XDP na fizycznej karcie sieciowej, np. 7,2~mln pakietów/s na rdzeń w pomiarach Scholza i in. \cite{scholz2018performance}.
+
+Koszt potoku L7 zmierzono osobnym benchmarkiem na jednym rdzeniu (\texttt{bench/\allowbreak l7\_ingest\_\allowbreak bench.py}). Analiza wiersza logu JSON z oknem reguły \texttt{l7\_rate} trwała 3,9~$\mu$s (ok. 254~tys. wierszy/s), a z wyznaczeniem cech sekwencji 5,0~$\mu$s (ok. 199~tys. wierszy/s). Inferencja modelu GRU kosztowała 538~$\mu$s na okno przy ocenie pojedynczej i ok. 30~$\mu$s na okno przy ocenie w partiach po 64--256 okien. \doUzupelnienia{narzut reguły per połączenie (koszt odczytu \texttt{ss -tinpH}) i modułu L7 v2 po pierwszych przebiegach}
+
+\subsection{Charakterystyka zaplecza w benchmarku szkody}\label{sec:wyniki_kalibracja}
+Rekord kalibracji \texttt{bench/calibration/ddos-mitigation-2026-11-04.json} (status: zamrożony) opisuje punkt pracy benchmarku szkody na maszynie wirtualnej z 8 rdzeniami i 9,2~GiB pamięci. Konfiguracja obejmowała Nginx 1.28.3 i Gunicorn z 2 procesami po 8 wątków. Rdzenie przydzielono następująco: serwer 0--1, demon 2, ataki 3--6, ruch prawowity 7. Tabela~\ref{tab:kalibracja} zestawia zmierzone wielkości.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Zamrożony rekord kalibracji benchmarku szkody (4~listopada 2026~r.)}\label{tab:kalibracja}
+\begin{tabularx}{\linewidth}{@{}L{6.2cm}Y@{}}
+\toprule
+Wielkość & Wartość \\
+\midrule
+koszt tras (czas procesora, mediana) [ms] & C0: 0,0054; C1: 3,41; C2: 1,77; C3: 29,84; C5: 159,70 \\
+pojemność $C_{\mathrm{SLO}}$ / $C_{\mathrm{sat}}$ [żądań/s] & 84,5 / 241,3 \\
+odniesienie bez ataku ($\rho = 42{,}25$~żądań/s) & $Q = 100\%$, $p_{95} = 79$~ms \\
+zalewanie zasobami statycznymi, punkt przegięcia & poziom 2; w odniesieniu: $Q = 95{,}8\%$, $p_{95} = 206$~ms \\
+zalewanie eksportem (C5), punkt przegięcia & poziom 4; w odniesieniu: $Q = 75{,}3\%$, $p_{95} = 252$~ms \\
+zalewanie wyszukiwaniem (C3), punkt przegięcia & poziom 4; w odniesieniu: $Q = 63{,}4\%$, $p_{95} = 631$~ms \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Koszt tras różni się między klasami o ponad cztery rzędy wielkości: od ok. 5~$\mu$s dla zasobu statycznego do ok. 160~ms dla eksportu. Pokazuje to, dlaczego reguły oparte wyłącznie na liczbie żądań nie opisują obciążenia zaplecza, a ataki na trasy kosztowne mogą być szkodliwe przy częstotliwościach znacznie poniżej progów reguły \texttt{l7\_rate}. Rekord zawiera wyłącznie wielkości kalibracyjne, bez wyników mitygacji. Surowe dane sesji kalibracyjnej nie są przechowywane w repozytorium, dlatego wyznaczenia pojemności nie można z niego odtworzyć. Kontrola dryfu względem rekordu przed pierwszą kampanią nie została jeszcze wykonana. Według dokumentacji projektu jądro maszyny wirtualnej zostało w tym czasie zaktualizowane. \doUzupelnienia{wynik kontroli dryfu i punkty przegięcia klas ataków eksperymentu P1}
+
 \subsection{Ataki powolne i dobór progów}\label{sec:wyniki_slow}
 Reguła \texttt{l4\_slowconn} przy domyślnym progu 8 połączeń blokuje Slowloris (8 gniazd na bota) i R.U.D.Y. (10 gniazd na bota) w 3,5--4,7~s. Atak Slowloris otwiera przy tym dokładnie progową liczbę połączeń, więc scenariusz ten pokazuje detekcję na granicy progu. W profilu \texttt{tolerant} (próg 180) reguła nie zablokowała żadnego z 15 botów w żadnym z dwóch scenariuszy w trzech przebiegach, przy niezmienionej skuteczności w pozostałych ośmiu scenariuszach\footnote{\raggedright Kampania \texttt{2026-10-20\_expb-tolerant-profile-suite} (EXP-B).}. W tych przebiegach ataki powolne nie obniżyły dostępności dla klientów prawowitych mimo braku blokad (odpowiednio 1019 i 1000 żądań, wszystkie obsłużone). Jest to zgodne z obserwacją z dokumentacji projektu, że limity czasu i rozmiaru ciała żądania serwera Nginx neutralizują oba warianty ataku także bez ochrony. Obserwacja ta nie została jeszcze zweryfikowana osobnym eksperymentem. W torze ewaluacji potoku L7 rodziny ataków powolnych utrzymujące 6 gniazd nie zostały wykryte przez żaden silnik.
 
-Po stronie ruchu prawowitego w 52 rejestrach zdarzeń (710 blokad) odnotowano 4 blokady klientów prawowitych. Regułę \texttt{l7\_rate} wyzwoliła przeglądarka pobierająca stronę z 60 zasobami, regułę \texttt{l4\_slowconn} dwie bramy CGNAT, a czwartą blokadę nałożył model GRU \textit{Tier-1}. Rejestry nie zawierają informacji o łącznej ekspozycji ruchu prawowitego, dlatego nie można z nich wyznaczyć odsetka fałszywych alarmów. Dane te ilustrują dylemat progów per adres opisany w rozdziale~\ref{sec:wnioski_przeglad}: podniesienie progu \texttt{l4\_slowconn} z 8 do 180 usuwa fałszywe blokady bram CGNAT, ale jednocześnie usuwa detekcję obu ataków powolnych zestawu. Reguły oparte na kluczu (IP, \textit{User-Agent}) i częstotliwości utrzymywanej, oceniane w torze L7, wykryły wszystkich atakujących przy 2 oznaczonych adresach prawowitych na 100. \doUzupelnienia{wyniki ataków powolnych wokół i poniżej progu \texttt{l4\_slowconn} przy domyślnych limitach Nginx}
+Po stronie ruchu prawowitego w 52 rejestrach zdarzeń (710 blokad) odnotowano 4 blokady klientów prawowitych. Regułę \texttt{l7\_rate} wyzwoliła przeglądarka pobierająca stronę z 60 zasobami, regułę \texttt{l4\_slowconn} dwie bramy CGNAT, a czwartą blokadę nałożył model GRU \textit{Tier-1}. Rejestry nie zawierają informacji o łącznej ekspozycji ruchu prawowitego, dlatego nie można z nich wyznaczyć odsetka fałszywych alarmów. Dane te ilustrują dylemat progów per adres opisany w rozdziale~\ref{sec:wnioski_przeglad}: podniesienie progu \texttt{l4\_slowconn} z 8 do 180 usuwa fałszywe blokady bram CGNAT, ale jednocześnie usuwa detekcję obu ataków powolnych zestawu. Reguły oparte na kluczu (IP, \textit{User-Agent}) i częstotliwości utrzymywanej, oceniane w torze L7, wykryły wszystkich atakujących przy 2 oznaczonych adresach prawowitych na 100. Obie obserwacje, czyli omijanie progu przez ataki o mniejszej liczbie połączeń oraz fałszywe blokady bram CGNAT, były bezpośrednią motywacją reguły per połączenie (sekcja~\ref{sec:impl_slowpc}) i eksperymentu P4 (sekcja~\ref{sec:exp_p4}), w którym atakujący utrzymują po 6 połączeń. Wyniki eksperymentu nie są jeszcze dostępne. \doUzupelnienia{werdykt P4 dla rodzin Slowloris i powolny POST: szkodliwość, łagodzenie, uszkodzenia uboczne; wybrany punkt $(T, F, K)$}
 
 \subsection{Ewaluacja modelu sekwencyjnego GRU}\label{sec:wyniki_gru}
 Ewaluacja modelu GRU ma ustalić, czy model wnosi wartość detekcyjną ponad reguły deterministyczne. Służy temu pięć pytań:
@@ -1316,9 +1558,11 @@ Ewaluacja modelu GRU ma ustalić, czy model wnosi wartość detekcyjną ponad re
 
 Stan odpowiedzi na te pytania (październik 2026~r.) jest następujący.
 
-\paragraph{Potok \textit{Tier-1}.} W 37 rejestrach zdarzeń z przebiegów z włączonym potokiem (spośród 52 rejestrów i 710 blokad łącznie) model nie nałożył żadnej trafnej blokady. Jedyna jego blokada dotyczyła klienta prawowitego ($p = 0{,}999$). Model nigdy nie podejmował decyzji przed regułą deterministyczną blokującą ten sam adres, a adresy już zablokowane nie są oceniane. Zestaw testowy w obecnej postaci nie pozwala więc zmierzyć wartości krańcowej modelu (G1), ponieważ każdy z jego ataków wcześniej wyzwala regułę. W ocenie offline model osiągnął na zbiorze testowym miarę F1 równą 0,996, ale podobny wynik (F1 = 0,994) daje pojedyncza cecha: największa długość ładunku żądania. W eksperymencie kontrfaktycznym model uczony bez rodziny R.U.D.Y. wykrywał 19--29\% okien tej rodziny (3 ziarna). Zmiana wyłącznie rozmiaru żądania na wartość typową dla Slowloris zwiększała ten odsetek do 100\%, a na wartość typową dla \texttt{curl} obniżała go do 2--6\%. Model rozróżniał więc klasy głównie według rozmiaru żądania, czyli cechy opisującej narzędzie, a nie zachowanie (G3, G4). Odpowiada to pułapce P4 \cite{arp2022dos}. Po usunięciu dwóch cech rozmiaru żądania wykrywalność wstrzymanej rodziny wyniosła na tych samych danych 94--97\% bez fałszywych alarmów, co wskazuje kierunek kolejnej iteracji doboru cech. Od 19~października 2026~r. potok jest domyślnie wyłączony i rozwijany w trybie izolacji (\texttt{GRU\_ONLY})\footnote{\raggedright Rejestry zdarzeń: \texttt{2026-10-20\_audit-derived/events\_census.md}; eksperymenty kontrfaktyczne: \texttt{docs/ML\_INVESTIGATION.md}, sekcja~3.}.
+\paragraph{Potok \textit{Tier-1}.} W 37 rejestrach zdarzeń z przebiegów z włączonym potokiem (spośród 52 rejestrów i 710 blokad łącznie) model nie nałożył żadnej trafnej blokady. Jedyna jego blokada dotyczyła klienta prawowitego ($p = 0{,}999$). Model nigdy nie podejmował decyzji przed regułą deterministyczną blokującą ten sam adres, a adresy już zablokowane nie są oceniane. Zestaw testowy w obecnej postaci nie pozwala więc zmierzyć wartości krańcowej modelu (G1), ponieważ każdy z jego ataków wcześniej wyzwala regułę. W ocenie offline model osiągnął na zbiorze testowym miarę F1 równą 0,996, ale podobny wynik (F1 = 0,994) daje pojedyncza cecha: największa długość ładunku żądania. W eksperymencie kontrfaktycznym model uczony bez rodziny R.U.D.Y. wykrywał 19--29\% okien tej rodziny (3 ziarna). Zmiana wyłącznie rozmiaru żądania na wartość typową dla Slowloris zwiększała ten odsetek do 100\%, a na wartość typową dla \texttt{curl} obniżała go do 2--6\%. Model rozróżniał więc klasy głównie według rozmiaru żądania, czyli cechy opisującej narzędzie, a nie zachowanie (G3, G4). Odpowiada to pułapce nr 4 (korelacje pozorne) w klasyfikacji Arpa i in. \cite{arp2022dos}. Po usunięciu dwóch cech rozmiaru żądania wykrywalność wstrzymanej rodziny wyniosła na tych samych danych 94--97\% bez fałszywych alarmów, co wskazuje kierunek kolejnej iteracji doboru cech. Od 19~października 2026~r. potok jest domyślnie wyłączony i rozwijany w trybie izolacji (\texttt{GRU\_ONLY})\footnote{\raggedright Rejestry zdarzeń: \texttt{2026-10-20\_audit-derived/events\_census.md}; eksperymenty kontrfaktyczne: \texttt{docs/ML\_INVESTIGATION.md}, sekcja~3.}.
 
 \paragraph{Potok L7.} W zarejestrowanej z góry ewaluacji P5c.4 (pięć ziaren i przebieg długotrwały; 20 adresów atakujących, czyli 4 role w 5 ziarnach, oraz 100 adresów prawowitych, czyli 20 ról w 5 ziarnach) model GRU wykrył 20 z 20 atakujących i oznaczył 9 ze 100 adresów prawowitych. Reguły oparte na kluczu (IP, \textit{User-Agent}) i częstotliwości utrzymywanej oraz model HGB, dostrojone na tych samych przebiegach, wykryły 20 z 20 atakujących przy 2 oznaczonych adresach prawowitych. Model HGB z progiem stosowanym w demonie ($0{,}95 \times 3$) oznaczył 3 adresy prawowite. Model GRU nie spełnił kryteriów użyteczności (G2): oznaczył 9\% adresów prawowitych przy budżecie 5\% i generował 1,8 fałszywego alarmu na godzinę pracy klienta przy budżecie 1,0. Zarejestrowany werdykt brzmi ,,brak przewagi''. Losowe przemieszanie kolejności żądań w ocenianych oknach zmieniło 60 z 29\,171 decyzji na poziomie okna (0,21\%) i żadnej decyzji na poziomie adresu (G5). Atakujący w tej ewaluacji nie obniżali jakości obsługi klientów prawowitych, więc wynik dotyczy klasyfikacji oznaczonych klientów, a nie mitygacji\footnote{\raggedright Kampanie \texttt{2026-10-16\_l7-p5c4-eval} i \texttt{2026-10-20\_audit-derived}.}.
+
+\paragraph{Tor L7 v2.} Kolejna iteracja (sekcje~\ref{sec:gru_l7v2} i~\ref{sec:exp_p1}) zmienia jednostkę modelu na odsłonę strony, dodaje identyfikator sesji do klucza oraz obejmuje klasy ataków, w których żądania pojedynczego źródła mogą pozostawać poniżej progów częstotliwości, a szkodę powoduje koszt tras. Na stan obecny tor nie ma danych pomiarowych z detekcji: nie przechwycono jeszcze danych uczących, walidacyjnych ani ewaluacyjnych. \doUzupelnienia{wyniki eksperymentu P1: werdykty V-A--V-D dla klas C2, C3a i C3b}
 
 W klasach zagrożeń obecnych dotąd w środowisku testowym zebrane dane nie wskazują na przewagę detekcyjną modelu GRU nad regułami deterministycznymi. Wyniki te stanowią punkt odniesienia dla kolejnych iteracji modelu. Zgodnie z przyjętą regułą dopuszczenia kolejne iteracje wymagają klasy zagrożeń, w której reguły oparte na kluczu i częstotliwości utrzymywanej zawodzą, a szkoda dla klientów prawowitych jest mierzalna. Tabela~\ref{tab:gru_iteracje} służy do zestawiania wyników kolejnych iteracji według tych samych kryteriów.
 
@@ -1332,7 +1576,7 @@ Iteracja & Dane i cechy & Klasa zagrożeń & Wynik względem odniesienia & Werdy
 \midrule
 \textit{Tier-1} (do 2026-10) & przepływy XDP, 8 cech, sekwencja 15 & ataki zestawu (sekcja~\ref{sec:scenariusze}) & 0 trafnych blokad, 1 fałszywa; reguły zawsze wcześniej; cechy rozmiaru jako odcisk narzędzia & G1 niemierzalne w zestawie; domyślnie wyłączony \\
 L7, P5c.4 & log \texttt{l7json}, okno 20 żądań & 4 role atakujących, 20 ról prawowitych & 20/20 atakujących, 9/100 prawowitych wobec 20/20 i 2/100 & brak przewagi (zarejestrowany) \\
-\doUzupelnienia{iteracja} & \doUzupelnienia{dane} & \doUzupelnienia{klasa spełniająca regułę dopuszczenia} & \doUzupelnienia{czułość przy budżecie FP; G3--G5} & \doUzupelnienia{werdykt} \\
+L7 v2 (P1) & sekwencje odsłon, klucz (IP, UA, sesja) & C2, C3a, C3b; benign: TPC-W & \doUzupelnienia{szkoda i detekcja przy budżecie 1\%; G3--G5} & \doUzupelnienia{werdykt V-A--V-D} \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -1348,16 +1592,17 @@ Tabela~\ref{tab:plan} zestawia otwarte zagadnienia, eksperymenty potrzebne do ic
 \toprule
 ID & Zagadnienie & Wymagany eksperyment lub prace & Sekcja \\
 \midrule
-P1 & rozkład czasu do mitygacji & $\geq 10$ pełnych przebiegów zestawu w punkcie \textit{default} & \ref{sec:wyniki_ttm} \\
-P2 & ataki powolne a próg \texttt{l4\_slowconn} & warianty Slowloris i R.U.D.Y. wokół i poniżej progu, przy domyślnych limitach Nginx; weryfikacja wpływu \texttt{client\_body\_timeout} i \texttt{client\_max\_body\_size} bez ochrony & \ref{sec:wyniki_slow} \\
-P3 & zalewanie z losowymi adresami źródłowymi & \texttt{hping3 -{}-rand-source} przy działającym demonie; zachowanie map LRU i ciasteczek SYN & \ref{sec:impl_l4} \\
-P4 & kompletność analizy nagłówków w XDP & kontrole \texttt{doff}, \texttt{tot\_len}, fragmentów IP, IPv6 i 802.1Q & \ref{sec:impl_xdp} \\
-P5 & punkty pracy dla scenariuszy wolumetrycznych & kalibracja punktu przegięcia dla scenariuszy 1, 3, 5, 6, 10 & \ref{sec:tryby_porownawcze} \\
-P6 & przenoszalność na fizyczną kartę sieciową & powtórzenie pomiarów odrzucania przed stosem i TTM na sterowniku z natywnym XDP & \ref{sec:wyniki_xdp} \\
-P7 & atakujący adaptacyjny, wiele źródeł & ataki poniżej progów per adres z wielu źródeł; atakujący reagujący na odrzucenia & \ref{sec:wyniki_dostepnosc} \\
-P8 & kolejna iteracja modelu GRU & klasa zagrożeń spełniająca regułę dopuszczenia; kryteria G1--G5 & \ref{sec:wyniki_gru} \\
-P9 & wektory specyficzne dla HTTP/2 & scenariusze na porcie 443 (np. Rapid Reset) & \ref{sec:ograniczenia} \\
-\bottomrule
+Z1 & rozkład czasu do mitygacji & $\geq 10$ pełnych przebiegów zestawu w punkcie \textit{default} & \ref{sec:wyniki_ttm} \\
+Z2 & ataki powolne poniżej progu \texttt{l4\_slowconn} & eksperyment P4: wybór punktu $(T, F, K)$ na ziarnach walidacyjnych i kampania 10 bloków w profilu R & \ref{sec:exp_p4} \\
+Z3 & wpływ limitów Nginx na ataki powolne bez ochrony & weryfikacja roli \texttt{client\_body\_timeout} i \texttt{client\_max\_body\_size} w konfiguracji zahartowanej & \ref{sec:wyniki_slow} \\
+Z4 & zalewanie z losowymi adresami źródłowymi & \texttt{hping3 -{}-rand-source} przy działającym demonie; zachowanie map LRU i ciasteczek SYN & \ref{sec:impl_l4} \\
+Z5 & kompletność analizy nagłówków w XDP & kontrole \texttt{doff}, \texttt{tot\_len}, fragmentów IP, IPv6 i 802.1Q & \ref{sec:impl_xdp} \\
+Z6 & punkty pracy dla scenariuszy wolumetrycznych & kalibracja punktu przegięcia dla scenariuszy 1, 3, 5, 6, 10 & \ref{sec:tryby_porownawcze} \\
+Z7 & przenoszalność na fizyczną kartę sieciową & powtórzenie pomiarów odrzucania przed stosem i TTM na sterowniku z natywnym XDP & \ref{sec:wyniki_narzut} \\
+Z8 & ataki z wielu źródeł, atakujący adaptacyjny & ataki poniżej progów per adres z wielu źródeł; atakujący reagujący na odrzucenia (klasy C2 i C3b eksperymentu P1 obejmują część tego zakresu) & \ref{sec:wyniki_dostepnosc} \\
+Z9 & kolejna iteracja modelu GRU & eksperyment P1: przechwycenie danych, wybór punktów pracy ramion, kampania 10 bloków; kryteria G1--G5 & \ref{sec:exp_p1} \\
+Z10 & kontrola dryfu punktu pracy & porównanie z zamrożonym rekordem kalibracji po aktualizacji jądra maszyny wirtualnej & \ref{sec:wyniki_kalibracja} \\
+Z11 & wektory specyficzne dla HTTP/2 & scenariusze na porcie 443 (np. Rapid Reset) & \ref{sec:ograniczenia} \\
 \end{tabularx}
 \end{table}
 
