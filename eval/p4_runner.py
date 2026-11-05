@@ -566,6 +566,11 @@ def gunicorn_gone(host, plan, proc, when):
     return f"gunicorn exited {when} (code {proc.poll()}){named}"
 
 
+def nginx_gone(code):
+    """The reason a run gives when `nginx -s quit` fails at its end (D-063). That a master that has died gives a non-zero exit is [CLAIMED], NOT RUN."""
+    return f"nginx was not running at the run's end: its quit exited {code}"
+
+
 def _stop(host, proc, grace=STOP_GRACE_S, interrupt=False):
     if proc.poll() is None:
         (proc.interrupt if interrupt else proc.terminate)()
@@ -592,7 +597,7 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
         if any(name == "gunicorn" for name, _p in procs):
             quit_code = host.run(plan["nginx"]["stop"], ns=SERVER_NS).code
             if quit_code != 0 and t0 is not None:          # stub_status judges nothing (D-050), so only this says it had gone
-                reasons.append(f"nginx was not running at the run's end: its quit exited {quit_code}")
+                reasons.append(nginx_gone(quit_code))
         for name, proc in procs:
             if name == "gunicorn":
                 _stop(host, proc)
