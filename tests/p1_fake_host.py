@@ -14,6 +14,8 @@ What it models, as far as the runner's and the analysis's inputs need it:
     `acts(run, block_dir)` gives as (seconds after its start, event). When it stops, with L7_SHADOW=1, an l7_shadow report: what it received
     and parsed is what the socket sink carried, every line if nginx's conf has the sink, `parsed_share` of them, and nothing if it has none;
   * an address in `silent` sends nothing, whatever its generator says (T050-08);
+  * gunicorn (D-063): `gunicorn_refuses` and `gunicorn_dies` are tests/p4_fake_host.py's, here in the run named by `gunicorn_dies_in`, or in every
+    run without it. From its death on, every request is answered 502, in the sink and in the client's rows: what a dead backend looks like in Q;
   * the timer probe of bench/executor.py answers with `timer_p99`, a value or a list taken in turn, the last one repeating.
 frozen_inputs() writes the frozen items a campaign checks: a frozen record with the placeholder's numbers, knees bound to it,
 and small but well-formed selections. They are fixtures, not results.
@@ -50,13 +52,14 @@ def _sid(seed, user):
 
 class P1FakeHost(F.FakeHost):
     def __init__(self, *, fail_share=None, acts=None, quiet_from=None, armed=True, start_overrides=None, arm_overrides=None,
-                 rule_arm="cost_budget", parsed_share=1.0, silent=(), timer_p99=2.0, client_side=False, **kw):
+                 rule_arm="cost_budget", parsed_share=1.0, silent=(), timer_p99=2.0, client_side=False, gunicorn_dies_in=None, **kw):
         super().__init__(**kw)
         self.fail_share = fail_share or (lambda _run, _block, _t: 0.0)
         self.acts, self.quiet_from = acts or (lambda _run, _block: []), quiet_from
         self.armed, self.start_overrides, self.arm_overrides = armed, dict(start_overrides or {}), dict(arm_overrides or {})
         self.rule_arm, self.parsed_share, self.silent = rule_arm, parsed_share, set(silent)
         self.socket_sink, self.heartbeat, self.client_side = False, None, client_side
+        self.gunicorn_dies_in, self.dead_at = gunicorn_dies_in, None
         self.timer_p99 = list(timer_p99) if isinstance(timer_p99, (list, tuple)) else [timer_p99]
         self.sink, self.lines, self.run_name, self.block_dir, self.n_request = None, [], None, None, 0
 
@@ -76,7 +79,7 @@ class P1FakeHost(F.FakeHost):
             with open(os.path.join(os.path.dirname(conf), "plan.json"), encoding="utf-8") as fh:
                 benign = [e["address"] for e in json.load(fh)["entities"] if e["role"] == "benign"]
             self.heartbeat = benign[0] if benign else None
-            self.lines, self.n_request = [], 0
+            self.lines, self.n_request, self.dead_at = [], 0, None
             res = super().run(argv, ns, stdin, env, timeout)
             self.stack_t0 = self.t
             self._monitor(self.world)
@@ -112,6 +115,10 @@ class P1FakeHost(F.FakeHost):
     def _start_gen(self, p):
         if self.run_t0 is None:
             self.run_t0 = self.t
+            if self.gunicorn_dies and (self.gunicorn_dies_in is None or self.run_name in self.gunicorn_dies_in):
+                at, code, text = self.gunicorn_dies
+                self.dead_at = self.t + at
+                self.at(self.t + at, lambda g=self.gunicorn, c=code, s=text: self._gunicorn_stops(g, c, s))
         a = p.argv
         p.role, p.ip, p.port = F._opt(a, "--role"), F._opt(a, "--source"), int(F._opt(a, "--port"))
         p.name = F._opt(a, "--kind") or F._opt(a, "--family")
@@ -175,10 +182,11 @@ class P1FakeHost(F.FakeHost):
                 sent = origin + t_nom
                 klass = l7_webapp.route_class("GET", path)
                 paged = paged or klass == "C1"
-                self._line(p.ip, user["ua"], path, sent, 503 if bad and not self.client_side else 200, sid if paged else None, ref)
+                dead = self.dead_at is not None and p.start + t_nom >= self.dead_at
+                self._line(p.ip, user["ua"], path, sent, 502 if dead else (503 if bad and not self.client_side else 200), sid if paged else None, ref)
                 if writer:
                     writer.writerow([f"{sent:.6f}", f"{sent:.6f}", f"{sent + (0.1 if bad else 0.03):.6f}",
-                                     "nan" if bad else 200, "conn" if bad else "", klass or "", u, vi, wi,
+                                     "nan" if bad else (502 if dead else 200), "conn" if bad else "", klass or "", u, vi, wi,
                                      f"{sent:.6f}", f"{origin:.6f}"])
 
     # --- the daemon ------------------------------------------------------------------------------

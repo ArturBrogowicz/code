@@ -39,7 +39,7 @@ only by what the table says. A campaign checks the frozen items before its first
 are bound to it (L7V2-08) and the block runs at them, and both selections are the recorded ones and valid for claims
 (train_l7v2.load_selection, l7v2_replay.load_rules); their sha256s go into block.json and every run's provenance.
 
-Checks of a run (design 5.4): the stack answered; every planned client started and ended cleanly; in an M run the daemon was
+Checks of a run (design 5.4): the stack answered and stayed up (D-063: gunicorn alive to the run's end, eval/p4_runner.py gunicorn_gone's reason); every planned client started and ended cleanly; in an M run the daemon was
 ready before the traffic, alive to the end, with XDP attached, its start event says what the table says and the arm armed;
 its l7_enforce_arm event names the arm, the selection's sha256 and R*'s rule; its shadow evicted nothing and did not restart in the attack window (D-054); an enforcing arm parsed its feed against the file sink, its reloads took effect and its step did not fail in the attack window; an attack reached the server (ml/p1_prereg_3.json run_validity); the kill file stayed absent; the file sink has no silence longer than LOG_GAP_MAX_S [ASSUMPTION] over the run. A run that
 fails one is invalid, with its reasons. CPU per core is sampled every second (cpu.jsonl).
@@ -627,13 +627,16 @@ def execute_run(host, plan, frozen_sums):
         for path in HOST_LOGS:                          # the daemon tails the host's log: nothing of an earlier run reaches it
             host.run(["mv", "-f", path, os.path.join(out, "feed_before", os.path.basename(path))])
         logs["gunicorn"] = open(plan["gunicorn"]["log"], "w", encoding="utf-8")       # noqa: SIM115 (closed in finish)
-        procs.append(("gunicorn", host.popen(plan["gunicorn"]["argv"], ns=SERVER_NS, stdout=logs["gunicorn"],
-                                             stderr=logs["gunicorn"], cwd=REPO)))
+        gunicorn = host.popen(plan["gunicorn"]["argv"], ns=SERVER_NS, stdout=logs["gunicorn"], stderr=logs["gunicorn"], cwd=REPO)
+        procs.append(("gunicorn", gunicorn))
         if host.run(plan["nginx"]["start"], ns=SERVER_NS).code != 0:
             reasons.append("nginx did not start")
-        ready = P4._wait(host, lambda: host.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "2",
-                                                 READY_URL], ns=SERVER_NS).out.strip() == "200", STACK_READY_TIMEOUT_S)
-        if not ready:
+        ready = P4._wait(host, lambda: gunicorn.poll() is not None
+                         or host.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "2",
+                                      READY_URL], ns=SERVER_NS).out.strip() == "200", STACK_READY_TIMEOUT_S)
+        if gunicorn.poll() is not None:
+            reasons.append(P4.gunicorn_gone(host, plan, gunicorn, "before the traffic"))
+        elif not ready:
             reasons.append(f"the stack did not answer {READY_URL} with 200 within {STACK_READY_TIMEOUT_S:g} s")
         daemon = None
         if plan["daemon"] and not reasons:
@@ -667,6 +670,9 @@ def execute_run(host, plan, frozen_sums):
             if daemon is not None and daemon.poll() is not None:
                 reasons.append(f"the daemon exited at {now:.0f} s (code {daemon.poll()})")
                 daemon = None
+            if gunicorn is not None and gunicorn.poll() is not None:     # D-063: a dead backend must not read as harm
+                reasons.append(P4.gunicorn_gone(host, plan, gunicorn, f"at {now:.0f} s"))
+                gunicorn = None
             if now >= total:
                 break
             host.sleep(min(1.0, max(0.0, total - now)))
@@ -688,6 +694,8 @@ def finish(host, plan, reasons, ctx):
             elif proc.poll() != 0:
                 reasons.append(f"{x['entity_id']} exited with code {proc.poll()}")
         for name, proc in procs:
+            if name == "gunicorn" and t0 is not None and proc.poll() is not None and not any(r.startswith("gunicorn exited") for r in reasons):
+                reasons.append(P4.gunicorn_gone(host, plan, proc, f"at {host.time() - t0:.0f} s"))    # after the loop's last look
             if name == "daemon":
                 P4._stop(host, proc, interrupt=True)       # SIGINT runs its finally, which detaches XDP and empties the map
         if any(name == "gunicorn" for name, _p in procs):

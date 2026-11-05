@@ -2,6 +2,7 @@
 on the fake host of tests/p1_fake_host.py. Nothing touches the machine."""
 import contextlib
 import copy
+import inspect
 import io
 import json
 import os
@@ -18,12 +19,14 @@ for _p in (HERE, REPO, os.path.join(REPO, "eval"), os.path.join(REPO, "ml"), os.
     if _p not in sys.path:
         sys.path.insert(0, _p)
 import executor as X
+import l7v2_harm as LH
 import l7v2_verdict_prereg as VP
 import p1_fake_host as F
 import p1_runner as R
 import population as POP
 
 import ban_events
+import l7_backend
 import l7_conf
 import l7_dataset
 
@@ -461,6 +464,73 @@ class ExecuteTest(Base):
         self.assertEqual(code, 0, out.getvalue())
         self.assertEqual({x["run"] for x in index(self.root)}, {"C", "U_C2"})
         self.assertEqual(index(self.root)[0]["label"], "C2_L1_r1")
+
+
+class BackendExitTest(Base):
+    """D-063: a gunicorn that exits by itself. On the fake's real path through execute_run; its requests get 502s from its death on."""
+
+    BOOT = "[ERROR] Worker (pid:7) exited with code 3.\n[ERROR] Reason: Worker failed to boot.\n"
+
+    def block(self, *runs, **kw):
+        self.made = getattr(self, "made", 0) + 1
+        return R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=list(runs), label=f"g{self.made}",
+                            benign_specs=F.thin_benign(), max_sources=3, **kw)
+
+    def run_one(self, name, **host):
+        block = self.block(name)
+        res = dict(R.run_block(F.P1FakeHost(**host), block))[name]
+        return res, read_json(os.path.join(block["dir"], name, "run.json"))
+
+    def test_gunicorn_dying_in_mid_run_makes_the_run_invalid(self):
+        for name in ("U_C2", "C", "M_gru_C2"):
+            res, meta = self.run_one(name, gunicorn_dies=(100.0, 1, ""))
+            with self.subTest(name):
+                self.assertFalse(res["ok"])
+                self.assertEqual([r for r in res["reasons"] if "gunicorn" in r], ["gunicorn exited at 100 s (code 1)"])
+                self.assertEqual(meta["checks"]["reasons"], res["reasons"])
+
+    def test_the_reason_names_what_the_log_shows_in_p4_s_words(self):
+        refusal = "origin.CalibrationError: C0: 0.005 ms against 0.05 ms frozen\n" + self.BOOT
+        for text, want in ((self.BOOT, "gunicorn exited at 150 s (code 3): a worker failed to boot (gunicorn.log)"),
+                           (refusal, "gunicorn exited at 150 s (code 3): the origin refused its calibration record (gunicorn.log)")):
+            res, _meta = self.run_one("C", gunicorn_dies=(150.0, 3, text))
+            self.assertIn(want, res["reasons"])
+
+    def test_a_dead_backend_does_not_read_as_harm(self):
+        """The failure itself: Q falls in U, by every reading, client and server, and the class would be harmed. The block must say why not."""
+        block = self.block("C", "Cp", "U_C2")
+        R.run_block(F.P1FakeHost(gunicorn_dies=(60.0, 1, ""), gunicorn_dies_in={"U_C2"}), block)
+        got = LH.assess_block(block["dir"], l7_backend.load_record(self.frozen["calibration"])[0])
+        self.assertLess(got["runs"]["U_C2"]["metrics"]["Q"], 50.0, "the 502s are in Q")
+        self.assertGreater(got["classes"]["C2"]["dQ"], 10.0)
+        self.assertFalse(got["classes"]["C2"]["valid"])
+        self.assertIn("U_C2: gunicorn exited at 60 s (code 1)", got["classes"]["C2"]["reasons"])
+        self.assertFalse(got["valid_all"])
+
+    def test_gunicorn_dying_after_the_loop_s_last_look_is_seen_once(self):
+        res, _meta = self.run_one("C", gunicorn_dies=(270.2, 1, ""))
+        self.assertEqual(len([r for r in res["reasons"] if r.startswith("gunicorn exited at 27")]), 1, res["reasons"])
+
+    def test_the_runner_stopping_gunicorn_is_no_reason(self):
+        res, _meta = self.run_one("C")
+        self.assertEqual(res["reasons"], [])
+
+    def test_a_refused_master_never_serves(self):
+        """Named at once, with no traffic, no daemon and no 30-s wait; nginx is stopped and the testbed torn down."""
+        block = self.block("M_gru_C2")
+        host = F.P1FakeHost(gunicorn_refuses="[INFO] Starting gunicorn 26.2.0\nCalibrationError: C0: 0.005 ms against 0.05 ms frozen\n")
+        res = dict(R.run_block(host, block))["M_gru_C2"]
+        self.assertEqual(res["reasons"], ["gunicorn exited before the traffic (code 1): the origin refused its calibration record (gunicorn.log)"])
+        self.assertEqual({p.kind for p in host.procs}, {"server"})
+        self.assertLess(host.t, 5.0)
+        self.assertTrue(host.ran("ip", "netns", "del", "server_ns"))
+        self.assertFalse(os.path.exists(os.path.join(block["dir"], "M_gru_C2", "cpu.jsonl")))
+
+    def test_the_helper_is_p4_s_and_not_a_copy(self):
+        source = inspect.getsource(R)
+        self.assertIn("P4.gunicorn_gone", source)
+        self.assertNotIn("GUNICORN_REFUSALS", source)
+        self.assertFalse(hasattr(R, "gunicorn_gone"))
 
 
 class TimerGateTest(Base):
