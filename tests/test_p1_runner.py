@@ -860,11 +860,26 @@ class ArmCouldActTest(Base):
     def test_a_healthy_feed_passes_and_its_loss_is_reported(self):
         res, meta = self.run_with()
         self.assertTrue(res["ok"], res["reasons"])
-        self.assertEqual(meta["shadow"]["parsed"], meta["sink"]["lines"])
-        self.assertEqual(meta["shadow"]["socket_loss"], 0.0)
+        self.assertLess(meta["shadow"]["parsed"], meta["sink"]["lines"], "nothing reports the lines after the daemon's last 5-s report (T057-10)")
+        self.assertGreater(meta["shadow"]["socket_loss"], 0.0)
+        self.assertLess(meta["shadow"]["socket_loss"], 0.05)
+        last_s = meta["shadow"]["socket_loss"]
         res, meta = self.run_with(parsed_share=0.8)
         self.assertTrue(res["ok"], res["reasons"])
-        self.assertAlmostEqual(meta["shadow"]["socket_loss"], 0.2, delta=0.01)
+        self.assertAlmostEqual(meta["shadow"]["socket_loss"], 1.0 - 0.8 * (1.0 - last_s), delta=0.005)
+
+    def test_the_fake_reports_as_the_real_daemon_does(self):
+        """T057-10: control_plane.py reports l7_shadow every 5 s, and at its end only l7_gru_poll. No report comes at the daemon's stop."""
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=["M_gru_C2"], label="reports",
+                             benign_specs=F.thin_benign(), max_sources=3)
+        host = F.P1FakeHost()
+        R.run_block(host, block)
+        daemon = next(p for p in host.procs if p.kind == "daemon")
+        times = [e["t_wall"] for e in ban_events.read_events(daemon.env["BAN_EVENTS"]) if e.get("kind") == "l7_shadow"]
+        self.assertEqual(sorted(times), times)
+        self.assertEqual({round(times[k + 1] - times[k], 6) for k in range(len(times) - 1)}, {5.0})
+        self.assertLessEqual(daemon.exit_time - times[-1], 5.0)
+        self.assertGreater(daemon.exit_time, times[-1], "the last one comes before the stop, not at it")
 
     def test_a_conf_without_the_socket_sink_invalidates_the_run(self):
         """T050-01's failure itself: armed, sha256s right, no error anywhere, and nothing received."""
@@ -978,8 +993,9 @@ class ShadowValidityTest(Base):
     def test_a_clean_run_records_zeros(self):
         res, meta = self.run_with([(60.0, {"kind": "l7_shadow", "evicted": 0, "late": 0, "active_keys": 3})])
         self.assertTrue(res["ok"], res["reasons"])
-        self.assertEqual({k: meta["shadow"][k] for k in ("reports", "evicted", "late", "daemon_errors", "shadow_restarts_in_attack")},
-                         {"reports": 2, "evicted": 0, "late": 0, "daemon_errors": [], "shadow_restarts_in_attack": 0})
+        self.assertEqual({k: meta["shadow"][k] for k in ("evicted", "late", "daemon_errors", "shadow_restarts_in_attack")},
+                         {"evicted": 0, "late": 0, "daemon_errors": [], "shadow_restarts_in_attack": 0})
+        self.assertGreater(meta["shadow"]["reports"], 50, "every 5 s of the run, and the one the test added")
         self.assertEqual(meta["bans_by_engine"], {})
 
     def test_an_eviction_makes_it_invalid_and_late_is_only_recorded(self):
