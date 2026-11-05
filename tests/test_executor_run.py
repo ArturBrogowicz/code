@@ -1017,7 +1017,7 @@ class NginxAtTheRunsEndTest(RunCase):
     def test_the_words_are_p4s_and_any_other_exit_is_a_failed_quit(self):
         with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "eval", "p4_runner.py"), encoding="utf-8") as fh:
             source = fh.read()
-        words = re.search(r'f"(nginx was not running at the run\'s end: its quit exited )\{quit_code\}"', source)
+        words = re.search(r'f"(nginx was not running at the run\'s end: its quit exited )\{code\}"', source)
         self.assertIsNotNone(words, "the wording of eval/p4_runner.py")
         host = mock.Mock()
         for code in (1, 2, -1):
