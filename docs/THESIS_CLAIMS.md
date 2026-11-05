@@ -19,6 +19,10 @@ Q1 loses its first limit. No verdict changes; M2's enforcement-latency half is s
 The ban-event census of the audit-derived directory includes the prototype campaigns since the same
 day: 52 distinct logs and 710 bans, still one GRU ban (L1, M5).
 
+**Updated 2026-10-23** with EXP-C, the open-loop attacker (`results/2026-10-23_expc-open-vs-closed-loop/`,
+120 runs). M4 is now scoped to the closed-loop attacker: against an open-loop one, at the rates tried, the
+evidence points the other way. M3's advantage of the daemon holds against both attackers. No other verdict changes.
+
 **Tags.** **[FACT]** recomputed from files in this repository (paths given). **[INFERENCE]**
 reasoned from code or design, not measured. **[CLAIMED]** stated in an earlier document with no
 data in `results/`. **[NOT RUN]** needs a VM workload and explicit approval.
@@ -32,7 +36,7 @@ setting. *Partly supported*: one half holds. *Inconclusive*: the data cannot dec
 | M1 | The rules ban all 10 testbed attack types, and XDP enforces the bans | Supported with scope |
 | M2 | XDP outperforms iptables | Partly supported |
 | M3 | The daemon preserves availability under an HTTP flood | Supported with scope |
-| M4 | Rate limiting alone is harmful | Supported with scope |
+| M4 | Rate limiting alone is harmful | Supported with scope (closed-loop attacker only) |
 | M5 | Zero false positives | Contradicted as a general claim |
 | M6 | Time to mitigate is X seconds | Supported as bounds per rule |
 | M7 | Slow attacks are mitigated | Not supported |
@@ -140,7 +144,7 @@ the IP stack."
 
 ### M3. The daemon preserves availability under an HTTP flood
 
-**Verdict: supported with scope** (one scenario, one operating point, one closed-loop attacker).
+**Verdict: supported with scope** (one scenario, one operating point; a closed-loop and an open-loop attacker).
 
 **Wording.** "At the HTTP-flood knee, legitimate success during the attack was 100 % with the
 daemon (XDP or iptables) in all 19 runs of four campaigns, and between 50 % and 93 % unprotected.
@@ -166,35 +170,61 @@ rule of `eval/run_level_stats.py`, which was committed (8d26335) six hours befor
 scenario and this attacker. The three-block campaigns are consistent with it and do not decide.
 Nine of the earlier runs are not nine independent blocks (R3 and R4 reuse the same three
 `PROFILE_SEED`s, EXP-2a was unseeded), so the review draft's sign test over them ("p = 0.002")
-stays withdrawn; the ten blocks of EXP-A are independent. Nothing here covers other scenarios, other
-operating points or an open-loop attacker.
+stays withdrawn; the ten blocks of EXP-A are independent.
+
+**EXP-C [FACT]** (`2026-10-23_expc-open-vs-closed-loop`, same server, same ten `PROFILE_SEED`s, 10 paired
+blocks): against an open-loop attacker at 250 and 500 requests/s per bot, where the unprotected server served
+42.1 % and 11.4 %, the daemon served 100 % in every block, +57.9 pp [+52.6, +63.2] and +88.6 pp [+84.7, +92.5]
+("supported (+)", 10 of 10 blocks each); at 125 per bot the unprotected server was not harmed (100 %), so
+there was nothing to show. In the closed-loop cell of that campaign the daemon was +22.5 pp [+16.0, +29.0].
+Nothing here covers other scenarios, other operating points, an adaptive attacker, or rates below the
+per-source rules (EXP-C's lowest rate is 2.5 times the daemon's 50 rps rule).
 
 **Would settle the rest.** Other attack scenarios at their own calibrated knees (the knee is
-calibrated for the HTTP flood only) and an open-loop generator (EXP-C, not run).
+calibrated for the HTTP flood only), rates below the per-source thresholds from more sources, and an
+adaptive attacker.
 
 ### M4. Rate limiting alone is harmful
 
-**Verdict: supported with scope** (one scenario, one operating point, a closed-loop attacker).
-It was inconclusive until EXP-A.
+**Verdict: supported with scope (a closed-loop attacker only); contradicted for an open-loop attacker at the
+rates tried.** It was inconclusive until EXP-A, and EXP-C (2026-10-23) showed where the harm comes from.
 
-**Wording.** "With Nginx `limit_req` and `limit_conn` alone (no daemon), legitimate success during
-the knee flood was 22.5 pp below no protection at all (44.4 % against 66.8 % on average; 95 %
-interval [-32.0, -13.1], the same sign in 10 of 10 blocks of EXP-A). The requests it answered were
-far slower (all-client median 6.6 s against 1.0 s) and its Nginx CPU was 96 % against 33 %."
+**Wording.** "Against a closed-loop attacker (`wrk`, 400 connections per bot), Nginx `limit_req` and `limit_conn`
+alone left legitimate success during the knee flood 22.5 pp below no protection at all in EXP-A (44.4 % against
+66.8 % on average; 95 % interval [-32.0, -13.1], the same sign in 10 of 10 blocks) and 34.3 pp below in EXP-C
+[-45.4, -23.2]. Against an open-loop attacker at 125, 250 and 500 requests/s per bot the same limits served 100 % in
+every block, 57.9 pp (250) and 88.6 pp (500) more than no protection where the unprotected server was harmed. The
+penalty belongs to the closed-loop attacker, which sent 29.6 k requests/s into `limit_req`, almost all rejected with
+503, against 1.6 k/s without it."
 
 **Evidence [FACT].** The table in M3; `analysis/summary.md` and `run_level_*.md` of
 `2026-10-20_expa-knee-10-blocks`: limits only against unprotected -22.5 pp [-32.0, -13.1],
 "supported (-)"; daemon against limits only +55.7 pp [+47.5, +63.9]. The three-run campaigns before
 it (-37.6 pp unpaired, -6.4 [-33.8, +21.0] in R3, -34.9 [-85.4, +15.7] in R4) disagreed on the
 size and did not decide; ten blocks put it at about -22 pp. The report's estimate of 26 blocks
-came from R3's small effect; at -22.5 pp the power calculation gives 5.
+came from R3's small effect; at -22.5 pp the power calculation gives 5. The requests it answered in
+EXP-A were far slower (all-client median 6.6 s against 1.0 s) and its Nginx CPU was 96 % against 33 %.
 
-**It does not show** a harm that survives an open-loop attacker. The attacker in these campaigns is
-closed-loop (`wrk`): its offered rate falls when the server answers slowly, so limits that reject
-quickly can raise it [INFERENCE]. Nor does it show that limits without a daemon are harmful at
-other operating points.
+EXP-C (`2026-10-23_expc-open-vs-closed-loop`, same server and legit profiles, 10 paired blocks), limits only
+against unprotected: closed loop (`wrk`) -34.3 pp [-45.4, -23.2], "supported (-)", unprotected arm 77.5 % (EXP-A:
+66.8 %); open loop 125 per bot 0.0 pp, "not shown" (nothing to harm: unprotected 100 %); 250 per bot +57.9 pp
+[+52.6, +63.2] and 500 per bot +88.6 pp [+84.7, +92.5], "supported (+)", 10 of 10 blocks each. At the server, request
+lines per second logged by Nginx (by arrival): limits only under `wrk` 29,638 (29,585 of them 503) with `PPS_Rx`
+34,688, unprotected 1,605 and 4,540 (EXP-A: `PPS_Rx` 33,440 against 3,303); under the open-loop attacker 1,214, 2,446
+and 4,859, 97 % of the nominal rates, with `PPS_Rx` 1,441, 2,951 and 6,263. `limit_req` admits about 330 requests/s
+from ten sources (30 r/s each plus a burst of 100); Nginx answered 283-325 per second with 200 and rejected the rest.
+The rejections are not free: Nginx CPU 82 % at 500 per bot and a median of 642 ms for the perfect clients, against
+0 % and 1 ms under the daemon.
 
-**Would settle the rest.** EXP-C, an open-loop generator (not run), and other operating points.
+**It does not show** that limits alone are safe in general. The open-loop attacker does not adapt, and all three
+rates are 4.2 to 16.7 times the `limit_req` rate, so rates below 30 r/s per source, many more sources, and a botnet
+that speeds up when rejected are not covered. Whether `wrk` or a constant-rate generator is the better model of a real
+botnet is a choice for the thesis, not something measured here. Nor does it show that limits and the daemon are
+equal: both served 100 % in every open-loop block (a ceiling), and they differ in latency and Nginx load. Other
+operating points are untested.
+
+**Would settle the rest.** Sub-threshold rates from many more sources (`docs/BENCHMARK_HARM_DESIGN.md` section 9),
+other operating points, and an adaptive attacker.
 
 ### M5. Zero false positives
 
@@ -420,7 +450,6 @@ effects of a suite run"), one after another, from the audit worktree at commit 6
 | EXP-A, knee with 10 paired blocks | `sudo python3 eval/run_campaign.py --operating-point knee --scenarios 4 --runs 10 --attack-duration 30 --seed-base 100` | 62 min | `2026-10-20_expa-knee-10-blocks`: three contrasts supported (M2, M3, M4) |
 
 Still open [NOT RUN], each needing a VM workload and your approval, or offline work:
-* EXP-C, an open-loop attacker that does not wait for responses (M3, M4).
 * A distribution of the time to mitigate over at least 10 default-profile runs (M6).
 * Slow attacks around and below the SlowConn threshold (M7).
 * A live `hping3 --rand-source` flood with the daemon polling, and the remaining G-17 checks
@@ -428,3 +457,9 @@ Still open [NOT RUN], each needing a VM workload and your approval, or offline w
 
 Done offline on 2026-10-21, no VM workload: the prototype campaigns of 2026-10-12 are published
 (M1, M2, Q1) and compared with the addendum (`results/2026-10-21_prototype-claims-check/`).
+
+Run on 2026-10-22 and 23 with your approval: the open-loop probe and its refinement
+(`2026-10-22_expc-r50-probe`, `2026-10-23_expc-r50-refinement`) and EXP-C, 120 runs in 3.85 h:
+`sudo timeout -s INT 28800 python3 eval/run_campaign.py --operating-point knee --scenarios 4 --attack-duration 30
+--modes unprotected,nginxlimits,xdp --runs 10 --seed-base 100 --loads wrk,loadgen:125,loadgen:250,loadgen:500`,
+published as `2026-10-23_expc-open-vs-closed-loop` (M3, M4; protocol `docs/EXPC_PROTOCOL.md`).

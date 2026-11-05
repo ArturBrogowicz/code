@@ -1,0 +1,19 @@
+{
+ "schema": 1,
+ "id": "cheap_static_flood",
+ "description": "The control where the rules win: a plain flood of the cheap dynamic route from 5 sources, each far above the per-source rules.",
+ "family": "cheap_static_flood",
+ "class": "F",
+ "grounding": "assumed",
+ "resource": "app_cpu",
+ "routes": {"C1": 1.0},
+ "intensity": {"unit": "cost_rate_S", "ladder": [0.125, 0.25, 0.5, 1, 2, 4, 8], "level": 4},
+ "sources": 5,
+ "arrival": {"process": "poisson", "loop": "open"},
+ "benign": {"identities": 200, "per_profile": 1},
+ "netem": "suite_mix",
+ "timeline": {"baseline_s": 30, "attack_s": 45, "recovery_s": 30},
+ "seed_namespace": "calib",
+ "gate": {"blocks": 10, "metrics": ["Q", "p95"]},
+ "controls": {"control": "benign_control", "placebo": "repeat"}
+}

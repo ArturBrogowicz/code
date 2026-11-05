@@ -1,0 +1,19 @@
+{
+ "schema": 1,
+ "id": "costly_export_sub_threshold",
+ "description": "Requests to the export route spread over 100 sources: the total cost rate is the level, each source's rate is far below every per-source rule.",
+ "family": "costly_export_flood",
+ "class": "B",
+ "grounding": "OWASP API4:2023 unrestricted resource consumption",
+ "resource": "app_cpu",
+ "routes": {"C5": 1.0},
+ "intensity": {"unit": "cost_rate_S", "ladder": [0.125, 0.25, 0.5, 1, 2, 4, 8], "level": 2},
+ "sources": 100,
+ "arrival": {"process": "poisson", "loop": "open"},
+ "benign": {"identities": 200, "per_profile": 1},
+ "netem": "suite_mix",
+ "timeline": {"baseline_s": 30, "attack_s": 45, "recovery_s": 30},
+ "seed_namespace": "calib",
+ "gate": {"blocks": 10, "metrics": ["Q", "p95"]},
+ "controls": {"control": "benign_control", "placebo": "repeat"}
+}

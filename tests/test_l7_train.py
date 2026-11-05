@@ -134,8 +134,9 @@ class VariantGateTest(unittest.TestCase):
             self.assertIn("server_load", v["probes"])
             self.assertIn("probe_gate_pass", v)
         eligible = report["selection"]["eligible"]
+        # rule "val" (the default) also needs an operating point within the benign budget
         self.assertEqual(eligible, [n for n, v in report["variants"].items()
-                                    if v["probe_gate_pass"]])
+                                    if v["probe_gate_pass"] and v.get("operating_point", True)])
         if report["selection"]["chosen"] is not None:
             self.assertIn(report["selection"]["chosen"], eligible)
             self.assertEqual(report["probe_gate_pass"],
@@ -205,7 +206,8 @@ class RunTest(unittest.TestCase):
         out = tempfile.mkdtemp(prefix="l7pkg_")
         self.addCleanup(shutil.rmtree, out, True)
         report, _best = T.run(d, out, seed=1, epochs=1, hidden=8, layers=1,
-                             variants=("default", "no_server_timing"), do_baseline=True)
+                             variants=("default", "no_server_timing"), do_baseline=True,
+                             selection="p5c")                  # the published rule and policy
         # the strict load probe rejects the variant that reads server timing (R17)
         self.assertFalse(report["variants"]["default"]["probe_gate_pass"])
         self.assertEqual(report["selection"]["chosen"], "no_server_timing")
@@ -231,7 +233,8 @@ class RunTest(unittest.TestCase):
         out = tempfile.mkdtemp(prefix="l7pkg_")
         self.addCleanup(shutil.rmtree, out, True)
         report, _ = T.run(d, out, seed=1, epochs=1, hidden=8, layers=1,
-                          variants=("no_size_no_server_timing",), do_baseline=True)
+                          variants=("no_size_no_server_timing",), do_baseline=True,
+                          selection="p5c")      # this fixture has no benign validation entity
         g = report["variants"]["no_size_no_server_timing"]["gru"]
         self.assertEqual(g["benign_heldout"]["n_groups"], 1)
         self.assertIn("fp_per_client_hour", g["benign_heldout_fp"])

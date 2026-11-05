@@ -1,0 +1,91 @@
+{
+ "schema": 1,
+ "tool": "k6",
+ "tool_info": {
+  "version": "v2.3.0",
+  "sha256": "e001bbf39ba67424a85c9c8516440ba5c73ecf7a6021be96c76194380c15f260",
+  "status": "smoke-tested",
+  "path": "/home/artur/loadtools/k6-2.3.0/k6"
+ },
+ "proxy_vars_removed": [],
+ "spec": {
+  "url": "http://127.0.0.1:18081/",
+  "rate": 5000,
+  "duration": 20,
+  "method": "GET",
+  "headers": [],
+  "timeout": 10.0,
+  "connections": 1500,
+  "workers": 1500,
+  "max_workers": 5000,
+  "threads": 2,
+  "local_addr": "",
+  "cpus": "4-7",
+  "allow_loopback": true,
+  "name": "V2"
+ },
+ "started_utc": "2026-10-22T14:03:59Z",
+ "steps": [
+  {
+   "label": "run",
+   "argv": [
+    "taskset",
+    "-c",
+    "4-7",
+    "/home/artur/loadtools/k6-2.3.0/k6",
+    "run",
+    "--quiet",
+    "--no-usage-report",
+    "--no-color",
+    "--no-thresholds",
+    "-e",
+    "URL=http://127.0.0.1:18081/",
+    "-e",
+    "METHOD=GET",
+    "-e",
+    "HEADERS={}",
+    "-e",
+    "RATE=5000",
+    "-e",
+    "TIME_UNIT=1s",
+    "-e",
+    "DURATION=20s",
+    "-e",
+    "TIMEOUT=10s",
+    "-e",
+    "PRE_VUS=1500",
+    "-e",
+    "MAX_VUS=5000",
+    "-e",
+    "OUT=/var/tmp/loadtool_validation/20261022_loadtool-validation-c2/V2/k6/r5000_0/k6.summary.json",
+    "/var/tmp/loadtool_validation/20261022_loadtool-validation-c2/V2/k6/r5000_0/k6.js"
+   ],
+   "env": {
+    "K6_NO_USAGE_REPORT": "true"
+   },
+   "returncode": 0,
+   "seconds": 20.95,
+   "cpu_s": {
+    "user": 14.35,
+    "system": 21.498
+   }
+  }
+ ],
+ "script_sha256": "7833c2ac97b92227d1ab840c6cc4d30c93b4f5bfe4f647275365d6f8855adad1",
+ "manifest_sha256": "f93b9aa94c9371c7bcab78a18ae9e60466975641d2f33654196e8d9e6f711283",
+ "ok": true,
+ "children_cpu_s": {
+  "user": 14.35,
+  "system": 21.498
+ },
+ "git": {
+  "commit": "58412df35cd78a333fb04ca810f2fb15a734273b",
+  "dirty": false
+ },
+ "host": {
+  "uname": "Linux ddos-mitigation 7.0.0-38-generic #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:10:14 UTC 2026 x86_64 ",
+  "cpus": 8,
+  "python": "3.14.4"
+ },
+ "finished_utc": "2026-10-22T14:04:20Z"
+}

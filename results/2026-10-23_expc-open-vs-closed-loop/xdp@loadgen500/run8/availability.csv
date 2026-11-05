@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-23T10:33:51.027207,Distributed HTTP Flood,before,ALL,active,xdp,39,39,100.0,0,0,0,0.0,1.6,795.6,832.0,122.6,832.0
+2026-10-23T10:33:51.027207,Distributed HTTP Flood,before,broadband,active,xdp,8,8,100.0,0,0,0,0.0,62.5,312.7,312.7,119.1,312.7
+2026-10-23T10:33:51.027207,Distributed HTTP Flood,before,mobile_3g,active,xdp,4,4,100.0,0,0,0,0.0,331.2,491.4,491.4,378.5,491.4
+2026-10-23T10:33:51.027207,Distributed HTTP Flood,before,mobile_bad,active,xdp,3,3,100.0,0,0,0,0.0,795.6,832.0,832.0,757.8,832.0
+2026-10-23T10:33:51.027207,Distributed HTTP Flood,before,perfect,active,xdp,24,24,100.0,0,0,0,0.0,1.3,3.3,9.5,1.7,9.5
+2026-10-23T10:33:51.027207,Distributed HTTP Flood,during,ALL,active,xdp,273,273,100.0,0,0,0,0.0,1.6,570.0,1398.5,100.7,1639.2
+2026-10-23T10:33:51.027207,Distributed HTTP Flood,during,broadband,active,xdp,55,55,100.0,0,0,0,0.0,43.3,57.2,427.6,57.5,427.6
+2026-10-23T10:33:51.027207,Distributed HTTP Flood,during,mobile_3g,active,xdp,35,35,100.0,0,0,0,0.0,294.2,1128.7,1398.5,362.9,1398.5
+2026-10-23T10:33:51.027207,Distributed HTTP Flood,during,mobile_bad,active,xdp,15,15,100.0,0,0,0,0.0,610.4,1639.2,1639.2,744.0,1639.2
+2026-10-23T10:33:51.027207,Distributed HTTP Flood,during,perfect,active,xdp,168,168,100.0,0,0,0,0.0,1.1,2.4,40.6,2.7,202.1
+2026-10-23T10:33:51.027207,Distributed HTTP Flood,after,ALL,active,xdp,81,81,100.0,0,0,0,0.0,1.5,928.5,1197.8,173.8,1197.8
+2026-10-23T10:33:51.027207,Distributed HTTP Flood,after,broadband,active,xdp,17,17,100.0,0,0,0,0.0,59.8,708.6,708.6,129.1,708.6
+2026-10-23T10:33:51.027207,Distributed HTTP Flood,after,mobile_3g,active,xdp,11,11,100.0,0,0,0,0.0,548.8,1197.8,1197.8,679.4,1197.8
+2026-10-23T10:33:51.027207,Distributed HTTP Flood,after,mobile_bad,active,xdp,5,5,100.0,0,0,0,0.0,913.8,1057.3,1057.3,870.3,1057.3
+2026-10-23T10:33:51.027207,Distributed HTTP Flood,after,perfect,active,xdp,48,48,100.0,0,0,0,0.0,1.1,2.0,6.1,1.3,6.1

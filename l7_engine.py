@@ -24,6 +24,17 @@ Determinism: windows are scored in sorted key order, and eviction runs inside
 poll(), so the same stream of records and poll ticks gives the same events. The
 recording format below captures exactly that stream (records, plus poll ticks
 with the flood state and the banned IPs), and ml/replay_l7.py replays it.
+
+L7 v2 (docs/L7V2_DESIGN.md 8.1, 8.3, 9.1; ml/l7v2_model_prereg.json "engine"):
+L7ViewEngine is the same observe-only engine at the view level. Keys are
+(IP, ua_hash, sid_hash) (l7_ingest.L7KeyStore). Every view token a key completes
+gives one window (the last max_views complete tokens, l7_features.token_matrix),
+once the key has >= min_views complete tokens; all windows of a poll are scored in
+ONE batch. Flood suppression, the age gate, the eviction cadence and the decision
+policy (p > threshold in `consecutive` successive windows of a key) are unchanged.
+It still never bans: it returns `l7_would_ban` events with the v2 key and
+"level": "view"; the enforcing arm is a separate build (T-025c). build_engine()
+picks it for a "view" model package (or level="view" without a model).
 """
 import json
 
@@ -37,6 +48,8 @@ DEFAULT_THRESHOLD = 0.95
 DEFAULT_CONSECUTIVE = 3
 DEFAULT_EVICT_EVERY = 5.0      # s of poll clock
 CONTAMINATION_MAX = 0.5        # age gate: skip windows with more pre-trust requests than this
+DEFAULT_MIN_VIEWS = 4          # L7 v2: a key is scored once it has this many complete view tokens
+MAX_NEW_WINDOWS = 4            # L7 v2: windows one key may complete per poll; older ones are skipped (counted)
 
 
 class L7ShadowEngine:
@@ -181,6 +194,168 @@ class L7ShadowEngine:
         return agg
 
 
+class L7ViewEngine:
+    """L7 v2, observe-only: the shadow engine over view tokens of (IP, ua_hash, sid_hash) keys."""
+
+    level = "view"
+
+    def __init__(self, store, scorer=None, cols=None, max_views=None, min_views=DEFAULT_MIN_VIEWS,
+                 threshold=None, consecutive=None, top_k=5, evict_every=DEFAULT_EVICT_EVERY,
+                 window_hook=None, max_new_windows=MAX_NEW_WINDOWS, min_events=None):
+        # min_events is accepted for the request engine's callers (replay_l7) and not used: views decide.
+        self.store = store
+        self.scorer = scorer
+        self.window_hook = window_hook
+        if scorer is not None:
+            if getattr(scorer, "level", "request") != "view":
+                raise ValueError("the view engine needs a view-level model package")
+            self.cols = list(scorer.cols)
+            self.max_views = int(scorer.max_views)
+            default_thr, default_cons = scorer.threshold, scorer.consecutive
+        else:
+            self.cols = list(cols) if cols else list(F.TOKEN_COLUMNS)
+            self.max_views = int(max_views or F.MAX_VIEWS)
+            default_thr, default_cons = DEFAULT_THRESHOLD, DEFAULT_CONSECUTIVE
+        self.seq_len = self.max_views
+        self.threshold = default_thr if threshold is None else float(threshold)
+        self.consecutive = default_cons if consecutive is None else int(consecutive)
+        self.min_views = int(min_views)
+        self.top_k = top_k
+        self.evict_every = evict_every
+        self.max_new_windows = int(max_new_windows)
+        self.dirty = set()
+        self.hits = {}
+        self.done = {}                 # key -> start of the request that completed its last scored window
+        self.trust_after = 0.0
+        self.was_suppressing = False
+        self._last_evict = None
+        self._agg = self._new_agg()
+        self.totals = {"polls": 0, "windows": 0, "would_bans": 0}
+
+    @staticmethod
+    def _new_agg():
+        agg = L7ShadowEngine._new_agg()
+        agg["skipped"] = 0
+        return agg
+
+    def on_record(self, rec, now=None):
+        """Add a normalised record (l7_ingest.normalise); mark its key for scoring."""
+        key = self.store.add(rec, now=now)
+        self.dirty.add(key)
+        return key
+
+    def contaminated_share(self, records):
+        """Share of a window's requests that started before the last flood ended."""
+        if not self.trust_after:
+            return 0.0
+        return sum(1 for r in records if F.start_time(r) < self.trust_after) / len(records)
+
+    def _windows(self, key, agg):
+        """The windows `key` completed since its last scored one: [(key, n complete tokens, records)]."""
+        recs = F.ordered(self.store.records(key))
+        opens = F.token_starts(recs)
+        if len(opens) - 1 < self.min_views:
+            agg["too_short"] += 1
+            return []
+        last = self.done.get(key)
+        new = [j for j in range(self.min_views, len(opens))
+               if last is None or F.start_time(recs[opens[j]]) > last]
+        if not new:
+            return []
+        if len(new) > self.max_new_windows:
+            agg["skipped"] += len(new) - self.max_new_windows
+            new = new[-self.max_new_windows:]
+        self.done[key] = F.start_time(recs[opens[new[-1]]])
+        out = []
+        for j in new:
+            window = recs[opens[max(0, j - self.max_views)]:opens[j] + 1]
+            if self.contaminated_share(window) > CONTAMINATION_MAX:
+                agg["gated_age"] += 1
+                continue
+            out.append((key, j, window))
+        # keep only what the next windows need: the last max_views complete tokens and the open one
+        self.store.prune_before(key, F.start_time(recs[opens[max(0, len(opens) - 1 - self.max_views)]]))
+        return out
+
+    def poll(self, now, suppressing=False, banned=()):
+        """One decision step at wall time `now`; the same contract as L7ShadowEngine.poll."""
+        agg = self._agg
+        agg["polls"] += 1
+        agg["t_last_poll"] = now
+        self.totals["polls"] += 1
+        if self._last_evict is None:
+            self._last_evict = now
+        elif now - self._last_evict >= self.evict_every:
+            for key in self.store.evict_keys(now):
+                self.hits.pop(key, None)
+                self.done.pop(key, None)
+                self.dirty.discard(key)
+                agg["evicted"] += 1
+            self._last_evict = now
+        if suppressing:
+            if not self.was_suppressing:
+                self.hits.clear()
+            self.was_suppressing = True
+            agg["suppressed_polls"] += 1
+            self.dirty.clear()
+            return []
+        if self.was_suppressing:
+            self.trust_after = now
+            self.was_suppressing = False
+
+        ready = []
+        for key in sorted(self.dirty):        # sorted: deterministic batch composition
+            ready += self._windows(key, agg)
+        self.dirty.clear()
+        if not ready:
+            return []
+        batch = np.stack([F.token_matrix(w, self.max_views, self.cols) for _, _, w in ready])
+        agg["windows"] += len(ready)
+        self.totals["windows"] += len(ready)
+        if self.scorer is None:
+            if self.window_hook is not None:
+                for key, _j, recs in ready:
+                    self.window_hook(now, key, recs, None)
+            return []
+        events = []
+        banned = set(banned)
+        for (key, j, recs), p in zip(ready, self.scorer.score(batch), strict=True):
+            p = float(p)
+            if self.window_hook is not None:
+                self.window_hook(now, key, recs, p)
+            over = p > self.threshold
+            hits = self.hits.get(key, 0) + 1 if over else 0
+            self.hits[key] = hits
+            agg["over"] += over
+            if agg["max_p"] is None or p > agg["max_p"]:
+                agg["max_p"] = p
+            best = agg["_top"].get(key)
+            if best is None or p > best[0]:
+                agg["_top"][key] = (p, hits, min(j, self.max_views))
+            if hits == self.consecutive:
+                ip, ua, sid = key
+                agg["would_bans"] += 1
+                self.totals["would_bans"] += 1
+                events.append({"kind": "l7_would_ban", "level": "view", "ip": ip, "ua_h": ua, "sid_h": sid,
+                               "p": round(p, 6), "hits": hits, "n_views": min(j, self.max_views),
+                               "ip_banned": ip in banned, "threshold": self.threshold,
+                               "consecutive": self.consecutive, "t_poll": now})
+        return events
+
+    def take_summary(self):
+        """Return and reset the aggregate since the last call (the periodic `l7_gru_poll` event)."""
+        agg, self._agg = self._agg, self._new_agg()
+        top = sorted(agg.pop("_top").items(), key=lambda kv: -kv[1][0])[:self.top_k]
+        agg["top"] = [{"ip": k[0], "ua_h": k[1], "sid_h": k[2], "p": round(v[0], 6), "hits": v[1], "n_views": v[2]}
+                      for k, v in top]
+        if agg["max_p"] is not None:
+            agg["max_p"] = round(agg["max_p"], 6)
+        agg["model"] = (self.scorer.sha256 or "unknown") if self.scorer is not None else None
+        agg["level"] = "view"
+        agg["trust_after"] = self.trust_after or None
+        return agg
+
+
 # ───────────────────────── recording format (engine input) ─────────────────────────
 # One JSON object per line:
 #   {"rx": <wall s>, "obj": {...parsed log object...}}          a request record
@@ -208,14 +383,32 @@ class EngineRecorder:
         self._fh.close()
 
 
-def build_engine(model_path=None, window=None, idle_timeout=None, **kwargs):
+def build_engine(model_path=None, window=None, idle_timeout=None, level=None, scorer=None, **kwargs):
     """Build the window store and engine the same way for the daemon and the
     replay tool. With a model package, the store's window length is the package's
-    seq_len (the model was trained on windows of that length)."""
-    scorer = None
+    seq_len (the model was trained on windows of that length). A "view" package (or
+    level="view" without one) gets the L7 v2 view engine and its (IP, UA, sid) store.
+    `scorer`, a detector already loaded (l7_arms.load: any L7 v2 arm behind
+    score(batch) -> p, with its own threshold and consecutive), is used as it is;
+    a rule detector (R*, level "rule") gets its own (IP, UA) path (l7_rule_engine)."""
+    if scorer is not None and model_path:
+        raise ValueError("give a model package or a loaded scorer, not both")
+    if scorer is not None and getattr(scorer, "level", None) == "rule":
+        import l7_rule_engine
+        return l7_rule_engine.L7RuleEngine(scorer)
     if model_path:
-        from l7_scorer import L7Scorer  # torch is imported only when a model is used
+        import l7_scorer  # torch is imported only when a model is used
+        L7Scorer, PACKAGE_FORMAT_V2 = l7_scorer.L7Scorer, l7_scorer.PACKAGE_FORMAT_V2
         scorer = L7Scorer.load(model_path)
+        if scorer.level == "request" and scorer.cfg.get("format") == PACKAGE_FORMAT_V2:
+            # The L7 v2 per-request GRU is the offline ablation, trained on (IP, UA, sid) keys; the request engine
+            # keys by (IP, UA), so it would score windows the model never saw. Score it with ml/train_l7v2.py.
+            raise ValueError("a format-2 request package is the offline seq-64 ablation (keyed by (IP, UA, sid)); "
+                             "score it with ml/train_l7v2.py, not the engine")
+    if (scorer is not None and getattr(scorer, "level", "request") == "view") or (scorer is None and level == "view"):
+        store = l7_ingest.L7KeyStore(idle_timeout=idle_timeout or l7_ingest.V2_IDLE_TIMEOUT,
+                                     max_views=scorer.max_views if scorer else (window or F.MAX_VIEWS))
+        return L7ViewEngine(store, scorer=scorer, max_views=None if scorer else window, **kwargs)
     maxlen = scorer.seq_len if scorer else (window or l7_ingest.DEFAULT_WINDOW)
     store = l7_ingest.L7WindowStore(
         maxlen=maxlen, idle_timeout=idle_timeout or l7_ingest.DEFAULT_IDLE_TIMEOUT)

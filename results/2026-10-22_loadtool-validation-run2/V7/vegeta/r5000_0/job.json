@@ -1,0 +1,17 @@
+{
+ "cpus": "4",
+ "duration": 10,
+ "key": "V7/vegeta/r5000_0",
+ "limits": {
+  "connections": 1500,
+  "max_workers": 5000,
+  "workers": 1500
+ },
+ "origin": "s1",
+ "rate": 5000,
+ "repeat": 0,
+ "role": "subject",
+ "s2": {},
+ "test": "V7",
+ "tool": "vegeta"
+}

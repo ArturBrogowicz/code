@@ -1,0 +1,9 @@
+cell,scenario,mode,reference,delta_pp,ci_lo,ci_hi,method,fisher_p
+,Distributed HTTP Flood,xdp,unprotected,22.041,16.902,27.281,paired by PROFILE_SEED (10 blocks),0.000
+,Distributed HTTP Flood,nginxlimits,unprotected,-34.546,-43.635,-24.832,paired by PROFILE_SEED (10 blocks),0.000
+loadgen125,Distributed HTTP Flood,xdp@loadgen125,unprotected@loadgen125,-0.038,-0.117,0.000,paired by PROFILE_SEED (10 blocks),1.000
+loadgen125,Distributed HTTP Flood,nginxlimits@loadgen125,unprotected@loadgen125,0.000,0.000,0.000,paired by PROFILE_SEED (10 blocks),1.000
+loadgen250,Distributed HTTP Flood,xdp@loadgen250,unprotected@loadgen250,57.888,53.341,62.233,paired by PROFILE_SEED (10 blocks),0.000
+loadgen250,Distributed HTTP Flood,nginxlimits@loadgen250,unprotected@loadgen250,57.888,53.341,62.233,paired by PROFILE_SEED (10 blocks),0.000
+loadgen500,Distributed HTTP Flood,xdp@loadgen500,unprotected@loadgen500,88.626,85.161,91.759,paired by PROFILE_SEED (10 blocks),0.000
+loadgen500,Distributed HTTP Flood,nginxlimits@loadgen500,unprotected@loadgen500,88.626,85.161,91.759,paired by PROFILE_SEED (10 blocks),0.000

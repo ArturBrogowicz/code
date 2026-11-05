@@ -1,0 +1,12 @@
+{
+ "cpus": "4",
+ "duration": 10,
+ "key": "V7/loadgen/r2000_0",
+ "origin": "s1",
+ "rate": 2000,
+ "repeat": 0,
+ "role": "subject",
+ "s2": {},
+ "test": "V7",
+ "tool": "loadgen"
+}

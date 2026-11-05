@@ -1,0 +1,90 @@
+{
+ "schema": 1,
+ "campaign_id": "20261023T070019Z_knee_s4",
+ "created_utc": "2026-10-23T07:00:19+00:00",
+ "command": [
+  "eval/run_campaign.py",
+  "--operating-point",
+  "knee",
+  "--scenarios",
+  "4",
+  "--attack-duration",
+  "30",
+  "--modes",
+  "unprotected",
+  "--runs",
+  "1",
+  "--seed-base",
+  "100",
+  "--loads",
+  "loadgen:190,loadgen:230,loadgen:270"
+ ],
+ "python": "/usr/bin/python3",
+ "settings": {
+  "modes": [
+   "unprotected"
+  ],
+  "runs": 1,
+  "scenarios": "4",
+  "operating_point": "knee",
+  "attack_duration": 30.0,
+  "seed_base": 100,
+  "order_seed": 0,
+  "set": {},
+  "loads": [
+   "loadgen:190",
+   "loadgen:230",
+   "loadgen:270"
+  ]
+ },
+ "plan": [
+  {
+   "block": 1,
+   "mode": "unprotected",
+   "load": "loadgen:190",
+   "profile_seed": 101,
+   "dir": "unprotected@loadgen190/run1"
+  },
+  {
+   "block": 1,
+   "mode": "unprotected",
+   "load": "loadgen:270",
+   "profile_seed": 101,
+   "dir": "unprotected@loadgen270/run1"
+  },
+  {
+   "block": 1,
+   "mode": "unprotected",
+   "load": "loadgen:230",
+   "profile_seed": 101,
+   "dir": "unprotected@loadgen230/run1"
+  }
+ ],
+ "runs": {
+  "unprotected@loadgen190/run1": {
+   "exit_code": 0,
+   "seconds": 98.7,
+   "finished_utc": "2026-10-23T07:01:58+00:00",
+   "leftovers": []
+  },
+  "unprotected@loadgen270/run1": {
+   "exit_code": 0,
+   "seconds": 112.9,
+   "finished_utc": "2026-10-23T07:03:50+00:00",
+   "leftovers": []
+  },
+  "unprotected@loadgen230/run1": {
+   "exit_code": 0,
+   "seconds": 101.5,
+   "finished_utc": "2026-10-23T07:05:32+00:00",
+   "leftovers": []
+  }
+ },
+ "status": "completed",
+ "updated_utc": "2026-10-23T07:05:32+00:00",
+ "git": {
+  "commit": "cdf56067bb074454068620a58ef265ab67b41599",
+  "branch": "feat/expc-attacker-setting",
+  "dirty": false
+ }
+}

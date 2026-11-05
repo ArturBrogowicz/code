@@ -1,0 +1,16 @@
+{
+ "cpus": "4-7",
+ "duration": 20,
+ "key": "V6/vegeta/r500_0",
+ "origin": "s2",
+ "rate": 500,
+ "repeat": 0,
+ "role": "subject",
+ "s2": {
+  "error_every": 10,
+  "jitter_ms": 5.0,
+  "service_ms": 5.0
+ },
+ "test": "V6",
+ "tool": "vegeta"
+}

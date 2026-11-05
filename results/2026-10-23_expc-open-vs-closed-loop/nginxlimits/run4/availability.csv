@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-23T09:04:35.835787,Distributed HTTP Flood,before,ALL,none,xdp,28,28,100.0,0,0,0,0.0,45.2,642.4,929.5,158.7,929.5
+2026-10-23T09:04:35.835787,Distributed HTTP Flood,before,broadband,none,xdp,12,12,100.0,0,0,0,0.0,45.2,265.7,265.7,65.7,265.7
+2026-10-23T09:04:35.835787,Distributed HTTP Flood,before,mobile_3g,none,xdp,7,7,100.0,0,0,0,0.0,361.3,642.4,642.4,388.2,642.4
+2026-10-23T09:04:35.835787,Distributed HTTP Flood,before,mobile_bad,none,xdp,1,1,100.0,0,0,0,0.0,929.5,929.5,929.5,929.5,929.5
+2026-10-23T09:04:35.835787,Distributed HTTP Flood,before,perfect,none,xdp,8,8,100.0,0,0,0,0.0,1.0,2.1,2.1,1.2,2.1
+2026-10-23T09:04:35.835787,Distributed HTTP Flood,during,ALL,none,xdp,59,27,45.8,0,32,0,54.2,6741.5,9947.2,9981.6,6359.4,9981.6
+2026-10-23T09:04:35.835787,Distributed HTTP Flood,during,broadband,none,xdp,24,9,37.5,0,15,0,62.5,5821.4,9947.2,9947.2,6362.0,9947.2
+2026-10-23T09:04:35.835787,Distributed HTTP Flood,during,mobile_3g,none,xdp,21,14,66.7,0,7,0,33.3,3401.4,9981.6,9981.6,6037.9,9981.6
+2026-10-23T09:04:35.835787,Distributed HTTP Flood,during,mobile_bad,none,xdp,2,0,0.0,0,2,0,100.0,0.0,0.0,0.0,0.0,0.0
+2026-10-23T09:04:35.835787,Distributed HTTP Flood,during,perfect,none,xdp,12,4,33.3,0,8,0,66.7,6976.2,8553.1,8553.1,7478.5,8553.1
+2026-10-23T09:04:35.835787,Distributed HTTP Flood,after,ALL,none,xdp,67,67,100.0,0,0,0,0.0,45.7,545.9,1190.0,151.0,1190.0
+2026-10-23T09:04:35.835787,Distributed HTTP Flood,after,broadband,none,xdp,30,30,100.0,0,0,0,0.0,48.4,234.5,621.0,84.0,621.0
+2026-10-23T09:04:35.835787,Distributed HTTP Flood,after,mobile_3g,none,xdp,15,15,100.0,0,0,0,0.0,413.5,708.9,708.9,425.1,708.9
+2026-10-23T09:04:35.835787,Distributed HTTP Flood,after,mobile_bad,none,xdp,1,1,100.0,0,0,0,0.0,1190.0,1190.0,1190.0,1190.0,1190.0
+2026-10-23T09:04:35.835787,Distributed HTTP Flood,after,perfect,none,xdp,21,21,100.0,0,0,0,0.0,1.0,4.5,5.3,1.5,5.3

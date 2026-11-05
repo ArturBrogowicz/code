@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-23T07:46:33.640927,Distributed HTTP Flood,before,ALL,active,xdp,35,35,100.0,0,0,0,0.0,1.7,826.4,937.5,125.7,937.5
+2026-10-23T07:46:33.640927,Distributed HTTP Flood,before,broadband,active,xdp,10,10,100.0,0,0,0,0.0,52.2,109.5,109.5,61.5,109.5
+2026-10-23T07:46:33.640927,Distributed HTTP Flood,before,mobile_3g,active,xdp,3,3,100.0,0,0,0,0.0,384.8,508.4,508.4,409.1,508.4
+2026-10-23T07:46:33.640927,Distributed HTTP Flood,before,mobile_bad,active,xdp,3,3,100.0,0,0,0,0.0,826.4,937.5,937.5,844.6,937.5
+2026-10-23T07:46:33.640927,Distributed HTTP Flood,before,perfect,active,xdp,19,19,100.0,0,0,0,0.0,1.1,4.5,4.5,1.3,4.5
+2026-10-23T07:46:33.640927,Distributed HTTP Flood,during,ALL,active,xdp,266,266,100.0,0,0,0,0.0,1.4,605.5,715.2,90.5,1038.9
+2026-10-23T07:46:33.640927,Distributed HTTP Flood,during,broadband,active,xdp,82,82,100.0,0,0,0,0.0,43.8,54.1,105.9,45.6,105.9
+2026-10-23T07:46:33.640927,Distributed HTTP Flood,during,mobile_3g,active,xdp,27,27,100.0,0,0,0,0.0,324.4,715.2,1038.9,371.3,1038.9
+2026-10-23T07:46:33.640927,Distributed HTTP Flood,during,mobile_bad,active,xdp,15,15,100.0,0,0,0,0.0,655.7,780.7,780.7,656.8,780.7
+2026-10-23T07:46:33.640927,Distributed HTTP Flood,during,perfect,active,xdp,142,142,100.0,0,0,0,0.0,1.1,1.5,2.0,3.1,289.2
+2026-10-23T07:46:33.640927,Distributed HTTP Flood,after,ALL,active,xdp,83,83,100.0,0,0,0,0.0,1.6,561.9,744.8,97.2,744.8
+2026-10-23T07:46:33.640927,Distributed HTTP Flood,after,broadband,active,xdp,24,24,100.0,0,0,0,0.0,43.9,62.0,70.4,46.5,70.4
+2026-10-23T07:46:33.640927,Distributed HTTP Flood,after,mobile_3g,active,xdp,9,9,100.0,0,0,0,0.0,333.9,451.3,451.3,360.4,451.3
+2026-10-23T07:46:33.640927,Distributed HTTP Flood,after,mobile_bad,active,xdp,6,6,100.0,0,0,0,0.0,566.5,744.8,744.8,609.7,744.8
+2026-10-23T07:46:33.640927,Distributed HTTP Flood,after,perfect,active,xdp,44,44,100.0,0,0,0,0.0,1.0,1.6,2.6,1.1,2.6

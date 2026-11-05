@@ -1,0 +1,33 @@
+{
+ "dropped": 0,
+ "duration": 40.1,
+ "errors": 0,
+ "extra": {
+  "children_cpu_s": {
+   "system": 3.782,
+   "user": 0.474
+  },
+  "closed_loop": true,
+  "note": "wrk counts 3xx as ok; ok2xx here is requests minus Non-2xx or 3xx",
+  "p75": 0.011810000000000001,
+  "rate": 4533.89
+ },
+ "latency": {
+  "max": 3.05,
+  "mean": 0.11575,
+  "min": null,
+  "p50": 0.00992,
+  "p90": 0.01948,
+  "p95": null,
+  "p99": 2.61
+ },
+ "non2xx": 0,
+ "ok2xx": 181804,
+ "quantiles": "wrk-histogram",
+ "requests": 181804,
+ "responses": 181804,
+ "status": {
+  "non-2xx-3xx": 0
+ },
+ "tool": "wrk"
+}

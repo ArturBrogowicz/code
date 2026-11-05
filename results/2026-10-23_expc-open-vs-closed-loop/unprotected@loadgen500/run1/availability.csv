@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-23T07:53:41.691801,Distributed HTTP Flood,before,ALL,none,xdp,36,36,100.0,0,0,0,0.0,1.8,812.5,1525.8,148.3,1525.8
+2026-10-23T07:53:41.691801,Distributed HTTP Flood,before,broadband,none,xdp,12,12,100.0,0,0,0,0.0,50.9,179.0,179.0,61.3,179.0
+2026-10-23T07:53:41.691801,Distributed HTTP Flood,before,mobile_3g,none,xdp,3,3,100.0,0,0,0,0.0,469.0,1525.8,1525.8,801.4,1525.8
+2026-10-23T07:53:41.691801,Distributed HTTP Flood,before,mobile_bad,none,xdp,3,3,100.0,0,0,0,0.0,715.8,812.5,812.5,727.4,812.5
+2026-10-23T07:53:41.691801,Distributed HTTP Flood,before,perfect,none,xdp,18,18,100.0,0,0,0,0.0,1.0,1.8,1.8,1.0,1.8
+2026-10-23T07:53:41.691801,Distributed HTTP Flood,during,ALL,none,xdp,62,3,4.8,0,45,14,72.6,561.8,2584.6,2584.6,1056.3,2584.6
+2026-10-23T07:53:41.691801,Distributed HTTP Flood,during,broadband,none,xdp,20,2,10.0,0,13,5,65.0,561.8,2584.6,2584.6,1573.2,2584.6
+2026-10-23T07:53:41.691801,Distributed HTTP Flood,during,mobile_3g,none,xdp,9,0,0.0,0,6,3,66.7,0.0,0.0,0.0,0.0,0.0
+2026-10-23T07:53:41.691801,Distributed HTTP Flood,during,mobile_bad,none,xdp,8,0,0.0,0,4,4,50.0,0.0,0.0,0.0,0.0,0.0
+2026-10-23T07:53:41.691801,Distributed HTTP Flood,during,perfect,none,xdp,25,1,4.0,0,22,2,88.0,22.5,22.5,22.5,22.5,22.5
+2026-10-23T07:53:41.691801,Distributed HTTP Flood,after,ALL,none,xdp,22,9,40.9,0,0,13,0.0,654.1,3310.4,3310.4,933.8,3310.4
+2026-10-23T07:53:41.691801,Distributed HTTP Flood,after,broadband,none,xdp,7,3,42.9,0,0,4,0.0,680.9,3310.4,3310.4,1345.2,3310.4
+2026-10-23T07:53:41.691801,Distributed HTTP Flood,after,mobile_3g,none,xdp,3,3,100.0,0,0,0,0.0,655.9,2744.3,2744.3,1351.5,2744.3
+2026-10-23T07:53:41.691801,Distributed HTTP Flood,after,mobile_bad,none,xdp,1,0,0.0,0,0,1,0.0,0.0,0.0,0.0,0.0,0.0
+2026-10-23T07:53:41.691801,Distributed HTTP Flood,after,perfect,none,xdp,11,3,27.3,0,0,8,0.0,94.6,138.3,138.3,104.8,138.3

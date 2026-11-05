@@ -1,0 +1,119 @@
+[12:30:55] search: 18 queries x 5 sources (arxiv, crossref, europepmc, openalex, semanticscholar), 1 seeds, years 2019-2026, max 25 per query; log docs/sota/corpus_l7/logs/search_20261028T123055Z.log
+[12:30:56] [L7] 'Slowloris' | arxiv: 9 records
+[12:30:57] [L7] 'Slowloris' | crossref: 23 records
+[12:30:58] [L7] 'Slowloris' | openalex: FAILED api.openalex.org: HTTP 429, rate budget exhausted for 41342 s
+[12:30:58]     api.semanticscholar.org: HTTP 429; retry 1/3 in 2 s
+[12:31:00]     api.semanticscholar.org: HTTP 429; retry 2/3 in 4 s
+[12:31:04]     api.semanticscholar.org: HTTP 429; retry 3/3 in 8 s
+[12:31:12] [L7] 'Slowloris' | semanticscholar: FAILED api.semanticscholar.org: HTTP 429 after retries
+[12:31:13] [L7] 'Slowloris' | europepmc: 0 records
+[12:31:16] [L7] 'slow denial of service' | arxiv: 13 records
+[12:31:17] [L7] 'slow denial of service' | crossref: 25 records
+[12:31:17] [L7] 'slow denial of service' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 41342 s)
+[12:31:17] [L7] 'slow denial of service' | semanticscholar: 25 records
+[12:31:18] [L7] 'slow denial of service' | europepmc: 6 records
+[12:31:21] [L7] 'slow DoS HTTP' | arxiv: 17 records
+[12:31:22] [L7] 'slow DoS HTTP' | crossref: 25 records
+[12:31:22] [L7] 'slow DoS HTTP' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 41342 s)
+[12:31:22]     api.semanticscholar.org: HTTP 429; retry 1/3 in 2 s
+[12:31:24]     api.semanticscholar.org: HTTP 429; retry 2/3 in 4 s
+[12:31:28]     api.semanticscholar.org: HTTP 429; retry 3/3 in 8 s
+[12:31:37] [L7] 'slow DoS HTTP' | semanticscholar: FAILED api.semanticscholar.org: HTTP 429 after retries
+[12:31:37] [L7] 'slow DoS HTTP' | europepmc: 1 records
+[12:31:38] [L7] 'slow HTTP' | arxiv: 1 records
+[12:31:40] [L7] 'slow HTTP' | crossref: 25 records
+[12:31:40] [L7] 'slow HTTP' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 41342 s)
+[12:31:40]     api.semanticscholar.org: HTTP 429; retry 1/3 in 2 s
+[12:31:42]     api.semanticscholar.org: HTTP 429; retry 2/3 in 4 s
+[12:31:46]     api.semanticscholar.org: HTTP 429; retry 3/3 in 8 s
+[12:31:55] [L7] 'slow HTTP' | semanticscholar: FAILED api.semanticscholar.org: HTTP 429 after retries
+[12:31:56] [L7] 'slow HTTP' | europepmc: 0 records
+[12:31:56] [L7] 'slow POST' | arxiv: 0 records
+[12:31:57] [L7] 'slow POST' | crossref: 25 records
+[12:31:57] [L7] 'slow POST' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 41342 s)
+[12:31:57]     api.semanticscholar.org: HTTP 429; retry 1/3 in 2 s
+[12:31:59]     api.semanticscholar.org: HTTP 429; retry 2/3 in 4 s
+[12:32:03]     api.semanticscholar.org: HTTP 429; retry 3/3 in 8 s
+[12:32:11] [L7] 'slow POST' | semanticscholar: FAILED api.semanticscholar.org: HTTP 429 after retries, 3 requests in a row
+[12:32:12] [L7] 'slow POST' | europepmc: 8 records
+[12:32:13] [L7] 'slow read' | arxiv: 0 records
+[12:32:13] [L7] 'slow read' | crossref: 25 records
+[12:32:13] [L7] 'slow read' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 41342 s)
+[12:32:13] [L7] 'slow read' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[12:32:14] [L7] 'slow read' | europepmc: 1 records
+[12:32:16] [L7] 'low-rate application layer' | arxiv: 1 records
+[12:32:18] [L7] 'low-rate application layer' | crossref: 25 records
+[12:32:18] [L7] 'low-rate application layer' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 41342 s)
+[12:32:18] [L7] 'low-rate application layer' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[12:32:18] [L7] 'low-rate application layer' | europepmc: 0 records
+[12:32:19] [L7] 'application layer DDoS detection' | arxiv: 4 records
+[12:32:19]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[12:32:22] [L7] 'application layer DDoS detection' | crossref: 25 records
+[12:32:22] [L7] 'application layer DDoS detection' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 41342 s)
+[12:32:22] [L7] 'application layer DDoS detection' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[12:32:23] [L7] 'application layer DDoS detection' | europepmc: 5 records
+[12:32:24] [SEQ] 'LSTM application layer DDoS' | arxiv: 0 records
+[12:32:25] [SEQ] 'LSTM application layer DDoS' | crossref: 25 records
+[12:32:25] [SEQ] 'LSTM application layer DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 41342 s)
+[12:32:25] [SEQ] 'LSTM application layer DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[12:32:25] [SEQ] 'LSTM application layer DDoS' | europepmc: 0 records
+[12:32:27] [SEQ] 'recurrent neural network DDoS' | arxiv: 9 records
+[12:32:28] [SEQ] 'recurrent neural network DDoS' | crossref: 25 records
+[12:32:28] [SEQ] 'recurrent neural network DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 41342 s)
+[12:32:28] [SEQ] 'recurrent neural network DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[12:32:29] [SEQ] 'recurrent neural network DDoS' | europepmc: 4 records
+[12:32:30] [SEQ] 'GRU DDoS detection' | arxiv: 5 records
+[12:32:31] [SEQ] 'GRU DDoS detection' | crossref: 25 records
+[12:32:31] [SEQ] 'GRU DDoS detection' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 41342 s)
+[12:32:31] [SEQ] 'GRU DDoS detection' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[12:32:33] [SEQ] 'GRU DDoS detection' | europepmc: 12 records
+[12:32:34] [SEQ] 'LSTM slow DoS' | arxiv: 4 records
+[12:32:35] [SEQ] 'LSTM slow DoS' | crossref: 25 records
+[12:32:35] [SEQ] 'LSTM slow DoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 41342 s)
+[12:32:35] [SEQ] 'LSTM slow DoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[12:32:36] [SEQ] 'LSTM slow DoS' | europepmc: 0 records
+[12:32:37] [SEQ] 'deep learning HTTP DDoS' | arxiv: 0 records
+[12:32:39] [SEQ] 'deep learning HTTP DDoS' | crossref: 25 records
+[12:32:39] [SEQ] 'deep learning HTTP DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 41342 s)
+[12:32:39] [SEQ] 'deep learning HTTP DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[12:32:40] [SEQ] 'deep learning HTTP DDoS' | europepmc: 2 records
+[12:32:40] [HYB] 'eBPF DDoS' | arxiv: 6 records
+[12:32:42] [HYB] 'eBPF DDoS' | crossref: 25 records
+[12:32:42] [HYB] 'eBPF DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 41342 s)
+[12:32:42] [HYB] 'eBPF DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[12:32:42] [HYB] 'eBPF DDoS' | europepmc: 0 records
+[12:32:43] [HYB] 'XDP DDoS' | arxiv: 3 records
+[12:32:44] [HYB] 'XDP DDoS' | crossref: 25 records
+[12:32:44] [HYB] 'XDP DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 41342 s)
+[12:32:44] [HYB] 'XDP DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[12:32:45] [HYB] 'XDP DDoS' | europepmc: 0 records
+[12:32:46] [HYB] 'eBPF HTTP' | arxiv: 4 records
+[12:32:46]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[12:32:50] [HYB] 'eBPF HTTP' | crossref: 25 records
+[12:32:50] [HYB] 'eBPF HTTP' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 41342 s)
+[12:32:50] [HYB] 'eBPF HTTP' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[12:32:50] [HYB] 'eBPF HTTP' | europepmc: 0 records
+[12:32:51] [HYB] 'eBPF machine learning intrusion detection' | arxiv: 3 records
+[12:32:51]     api.crossref.org: HTTP 429; retry 1/3 in 2 s
+[12:32:53] [HYB] 'eBPF machine learning intrusion detection' | crossref: 25 records
+[12:32:53] [HYB] 'eBPF machine learning intrusion detection' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 41342 s)
+[12:32:53] [HYB] 'eBPF machine learning intrusion detection' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[12:32:54] [HYB] 'eBPF machine learning intrusion detection' | europepmc: 0 records
+[12:32:54] [HYB] 'kernel application layer DDoS' | arxiv: 0 records
+[12:32:55] [HYB] 'kernel application layer DDoS' | crossref: 25 records
+[12:32:55] [HYB] 'kernel application layer DDoS' | openalex: FAILED api.openalex.org skipped (blocked earlier: HTTP 429, rate budget exhausted for 41342 s)
+[12:32:55] [HYB] 'kernel application layer DDoS' | semanticscholar: FAILED api.semanticscholar.org skipped (blocked earlier: HTTP 429 after retries, 3 requests in a row)
+[12:32:55] [HYB] 'kernel application layer DDoS' | europepmc: 0 records
+[12:32:57] [seed L7] resolved 'Generator of Slow Denial-of-Service Cyber Attacks' -> crossref: Sensors (2021)
+[12:32:57] ---- summary
+[12:32:57] host api.crossref.org: 19 ok, 0 failed, reachable
+[12:32:57] host api.openalex.org: 0 ok, 1 failed, BLOCKED (HTTP 429, rate budget exhausted for 41342 s)
+[12:32:57] host api.semanticscholar.org: 1 ok, 4 failed, BLOCKED (HTTP 429 after retries, 3 requests in a row)
+[12:32:57] host export.arxiv.org: 19 ok, 0 failed, reachable
+[12:32:57] host www.ebi.ac.uk: 18 ok, 0 failed, reachable
+[12:32:57] records per source (before merging): {'arxiv': 79, 'crossref': 448, 'europepmc': 39, 'semanticscholar': 25, 'seed': 1}
+[12:32:57] seeds resolved: 1/1
+[12:32:57] 458 unique records -> docs/sota/corpus_l7/candidates.json
+[12:32:57] == L7 Application-layer low-and-slow attacks and their detection: 231 records, top 0 by score
+[12:32:57] == SEQ Sequential (RNN/GRU/LSTM) models for application-layer DoS detection: 151 records, top 0 by score
+[12:32:57] == HYB Kernel (eBPF/XDP) filtering coupled with application-layer intelligence: 114 records, top 0 by score

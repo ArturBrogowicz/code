@@ -1,0 +1,22 @@
+{
+ "cpus": "4-7",
+ "duration": 40,
+ "key": "V4/k6/r500_0",
+ "limits": {
+  "connections": 1600,
+  "max_workers": 5000,
+  "workers": 1600
+ },
+ "origin": "s2",
+ "rate": 500,
+ "repeat": 0,
+ "role": "subject",
+ "s2": {
+  "jitter_ms": 5.0,
+  "service_ms": 5.0,
+  "stall_after": 15.0,
+  "stall_for": 3.0
+ },
+ "test": "V4",
+ "tool": "k6"
+}

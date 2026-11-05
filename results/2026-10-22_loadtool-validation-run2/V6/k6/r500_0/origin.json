@@ -1,0 +1,58 @@
+{
+ "arrivals": 10001,
+ "arrivals_in_stall": null,
+ "arrivals_per_s": [
+  502,
+  499,
+  501,
+  500,
+  499,
+  500,
+  500,
+  501,
+  500,
+  500,
+  500,
+  500,
+  499,
+  500,
+  501,
+  500,
+  500,
+  500,
+  500,
+  499
+ ],
+ "first_arrival_s": 0.0,
+ "kind": "s2",
+ "last_arrival_s": 19.998332,
+ "params": {
+  "capacity": 0,
+  "error_every": 10,
+  "jitter_ms": 5.0,
+  "seed": 1,
+  "service_ms": 5.0,
+  "stall_after": null,
+  "stall_for": 0.0
+ },
+ "responses": 10001,
+ "service_s": {
+  "max": 0.11939999999999884,
+  "p50": 0.008567000000000213,
+  "p90": 0.010860999999998455,
+  "p95": 0.011873000000001355,
+  "p99": 0.01655400000000018
+ },
+ "sockets": {
+  "limit": 5000,
+  "settled": true,
+  "tw_end": 217,
+  "tw_first": 66,
+  "tw_start": 66,
+  "waited_s": 0.0
+ },
+ "status": {
+  "200": 9001,
+  "503": 1000
+ }
+}

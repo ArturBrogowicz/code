@@ -34,6 +34,7 @@ from collections import defaultdict, deque
 
 import ban_events
 import l7_ingest
+import slow_pc
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCE = os.path.join(REPO, "control_plane.py")
@@ -41,7 +42,7 @@ SOURCE = os.path.join(REPO, "control_plane.py")
 SAFE_CALLS = {"set", "dict", "list", "tuple", "int", "float", "str", "bool", "defaultdict",
               "deque", "os.environ.get", "threading.Lock", "threading.Event", "queue.Queue",
               "SystemExit"}
-SAFE_ROOTS = {"os", "ban_events", "l7_ingest", "threading", "queue"}
+SAFE_ROOTS = {"os", "ban_events", "l7_ingest", "threading", "queue", "slow_pc"}
 
 
 def _dotted(node):
@@ -106,8 +107,9 @@ class FakeClock:
 
 class FakeSubprocess:
     """The daemon's `subprocess`: records every argv and answers `ss -tan state established`
-    from `ss_established`. `failures` maps an argv prefix to an exception to raise or to a
-    non-zero return code (which raises CalledProcessError when the call has check=True)."""
+    from `ss_established` and the P4 rule's `ss -tinpH ...` from `ss_info`. `failures` maps an
+    argv prefix to an exception to raise or to a non-zero return code (which raises
+    CalledProcessError when the call has check=True)."""
 
     CalledProcessError = subprocess.CalledProcessError
     SubprocessError = subprocess.SubprocessError
@@ -117,6 +119,7 @@ class FakeSubprocess:
         self.calls = []
         self.checks = []                # the check= flag of each call, parallel to calls
         self.ss_established = ""
+        self.ss_info = ""
         self.failures = {}
 
     def run(self, argv, check=False, capture_output=False, text=False, timeout=None):
@@ -132,7 +135,12 @@ class FakeSubprocess:
                                                         stderr=b"simulated failure")
                 return types.SimpleNamespace(returncode=effect, stdout="" if text else b"",
                                              stderr="" if text else b"simulated failure")
-        out = self.ss_established if argv[:3] == ["ss", "-tan", "state"] else ""
+        if argv[:3] == ["ss", "-tan", "state"]:
+            out = self.ss_established
+        elif argv[:2] == ["ss", "-tinpH"]:
+            out = self.ss_info
+        else:
+            out = ""
         return types.SimpleNamespace(returncode=0, stdout=out if text else out.encode(),
                                      stderr="" if text else b"")
 
@@ -255,6 +263,7 @@ class Daemon:
             "subprocess": self.proc, "socket": socket, "struct": struct, "json": json,
             "threading": threading, "queue": queue, "defaultdict": defaultdict,
             "deque": deque, "ban_events": ban_events, "l7_ingest": l7_ingest,
+            "slow_pc": slow_pc,
             "EVENTS": self.events_log, "blacklist_map": self.blacklist,
             "telemetry_map": self.telemetry, "flow_map": EmptyFlowMap(),
             "_gru_cfg": gru_cfg, "open": self._open,
@@ -333,6 +342,26 @@ class Daemon:
         self.clock.on_sleep = on_sleep
         try:
             self.call("l3_l4_telemetry_monitor")
+        finally:
+            self.clock.on_sleep = None
+            self.ns["stop_event"].clear()
+
+    def run_loop(self, name, n=1, setup=None):
+        """Run n intervals of another of the daemon's real sleep-then-work loops, `name` (the P4
+        rule's slow_pc_monitor, say), as poll() does for the telemetry loop: setup(k) runs at the
+        start of interval k, after the fake sleep."""
+        self.ns["stop_event"].clear()
+
+        def on_sleep(k):
+            if setup:
+                setup(k)
+            if k >= n:
+                self.ns["stop_event"].set()
+
+        self.clock.sleeps = 0
+        self.clock.on_sleep = on_sleep
+        try:
+            self.call(name)
         finally:
             self.clock.on_sleep = None
             self.ns["stop_event"].clear()

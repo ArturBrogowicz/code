@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-23T08:26:55.213320,Distributed HTTP Flood,before,ALL,active,xdp,32,32,100.0,0,0,0,0.0,1.2,822.0,893.8,136.3,893.8
+2026-10-23T08:26:55.213320,Distributed HTTP Flood,before,broadband,active,xdp,6,6,100.0,0,0,0,0.0,65.3,822.0,822.0,214.5,822.0
+2026-10-23T08:26:55.213320,Distributed HTTP Flood,before,mobile_3g,active,xdp,5,5,100.0,0,0,0,0.0,367.2,893.8,893.8,477.3,893.8
+2026-10-23T08:26:55.213320,Distributed HTTP Flood,before,mobile_bad,active,xdp,1,1,100.0,0,0,0,0.0,666.9,666.9,666.9,666.9,666.9
+2026-10-23T08:26:55.213320,Distributed HTTP Flood,before,perfect,active,xdp,20,20,100.0,0,0,0,0.0,1.1,1.3,2.4,1.1,2.4
+2026-10-23T08:26:55.213320,Distributed HTTP Flood,during,ALL,active,xdp,277,277,100.0,0,0,0,0.0,1.2,414.6,1321.2,98.9,2767.0
+2026-10-23T08:26:55.213320,Distributed HTTP Flood,during,broadband,active,xdp,54,54,100.0,0,0,0,0.0,47.0,83.2,345.7,58.5,345.7
+2026-10-23T08:26:55.213320,Distributed HTTP Flood,during,mobile_3g,active,xdp,42,42,100.0,0,0,0,0.0,358.6,1260.1,1323.2,434.2,1323.2
+2026-10-23T08:26:55.213320,Distributed HTTP Flood,during,mobile_bad,active,xdp,5,5,100.0,0,0,0,0.0,646.0,2767.0,2767.0,1054.4,2767.0
+2026-10-23T08:26:55.213320,Distributed HTTP Flood,during,perfect,active,xdp,176,176,100.0,0,0,0,0.0,1.0,2.3,200.9,4.1,304.2
+2026-10-23T08:26:55.213320,Distributed HTTP Flood,after,ALL,active,xdp,84,84,100.0,0,0,0,0.0,1.2,340.3,806.8,75.3,806.8
+2026-10-23T08:26:55.213320,Distributed HTTP Flood,after,broadband,active,xdp,17,17,100.0,0,0,0,0.0,51.0,213.6,213.6,61.0,213.6
+2026-10-23T08:26:55.213320,Distributed HTTP Flood,after,mobile_3g,active,xdp,12,12,100.0,0,0,0,0.0,321.6,573.1,573.1,368.3,573.1
+2026-10-23T08:26:55.213320,Distributed HTTP Flood,after,mobile_bad,active,xdp,1,1,100.0,0,0,0,0.0,806.8,806.8,806.8,806.8,806.8
+2026-10-23T08:26:55.213320,Distributed HTTP Flood,after,perfect,active,xdp,54,54,100.0,0,0,0,0.0,1.0,1.8,3.6,1.1,3.6

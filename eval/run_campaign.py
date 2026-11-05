@@ -8,6 +8,11 @@ interleaved in seeded random blocks, each run in its own results directory.
 Block b runs every mode once, in a random order drawn from --order-seed, with
 PROFILE_SEED = --seed-base + b, so the runs of a block share their client-profile plan
 and can be compared pairwise. Each run's console goes to <run>/console.log.
+
+--loads wrk,loadgen:50,loadgen:100 makes the HTTP flood's load model a factor of the block
+(EXP-C): every (mode, load) pair runs once per block, in a random order, as <mode>@<tool><rate>
+(requests/s per bot; a cell is `wrk`, the closed-loop default, or a verified open-loop tool and
+its rate). Without it the plan is exactly what it always was.
 Re-running the same command resumes the campaign: runs with a DONE file are skipped.
 
 Evaluation variables inherited from the environment are cleared, so every setting is
@@ -38,9 +43,11 @@ MODE_ENV = {
 EVAL_VARS = ("MITIGATION_MODE", "MITIGATION_BACKEND", "NGINX_PROTECTED", "OPERATING_POINT",
              "GUNICORN_WORKERS", "GUNICORN_THREADS", "WRK_CONNS", "WRK_THREADS",
              "BOTNET_COUNT", "SERVER_CPUS", "ATTACK_CPUS", "ATTACK_DURATION", "PROFILE_SEED",
-             "RESULTS_DIR", "RESULTS_ROOT", "ONLY_SCENARIOS", "GRU_ONLY", "BAN_EVENTS")
+             "FLOOD_TOOL", "FLOOD_RATE", "RESULTS_DIR", "RESULTS_ROOT", "ONLY_SCENARIOS", "GRU_ONLY",
+             "BAN_EVENTS")
 SETTABLE = ("GUNICORN_WORKERS", "GUNICORN_THREADS", "WRK_CONNS", "WRK_THREADS",
-            "BOTNET_COUNT", "SERVER_CPUS", "ATTACK_CPUS", "GRU_ONLY")
+            "BOTNET_COUNT", "SERVER_CPUS", "ATTACK_CPUS", "GRU_ONLY", "FLOOD_TOOL", "FLOOD_RATE")
+LOAD_TOOLS = ("wrk", "loadgen", "k6")     # the suite's FLOOD_TOOLS (a test pins that they agree)
 
 
 def utc_now():
@@ -63,11 +70,13 @@ def leftovers():
     r = subprocess.run(["ip", "netns", "list"], capture_output=True, text=True, check=False)
     found += [f"netns {ln.split()[0]}" for ln in r.stdout.splitlines()
               if ln.strip() and re.match(r"(server_ns|legit_|bot_)", ln)]
-    for pattern in ("nginx: (master|worker) process", "control_plane.py", "hping3"):
+    for pattern in ("nginx: (master|worker) process", "control_plane.py", "hping3",
+                    "bench/loadgen.py"):
         r = subprocess.run(["pgrep", "-f", pattern], capture_output=True, text=True, check=False)
         found += [f"process '{pattern}' pid {p}" for p in r.stdout.split()]
-    r = subprocess.run(["pgrep", "-x", "wrk"], capture_output=True, text=True, check=False)
-    found += [f"process wrk pid {p}" for p in r.stdout.split()]
+    for name in ("wrk", "k6"):
+        r = subprocess.run(["pgrep", "-x", name], capture_output=True, text=True, check=False)
+        found += [f"process {name} pid {p}" for p in r.stdout.split()]
     return found
 
 
@@ -84,15 +93,81 @@ def chown_tree(path):
                 pass
 
 
-def build_plan(modes, runs, order_seed, seed_base):
+def parse_loads(text):
+    """The load-model cells of --loads: [{"spec", "tool", "rate", "suffix"}]. A cell is `wrk` (the
+    closed-loop default, no rate) or `<tool>:<requests/s per bot>` for an open-loop tool; the
+    suffix is what the suite adds to the mode label (test_distributed_suite._flood_suffix)."""
+    cells = []
+    for item in (x.strip() for x in text.split(",") if x.strip()):
+        tool, _, raw = item.partition(":")
+        tool, raw = tool.strip(), raw.strip()
+        if tool not in LOAD_TOOLS:
+            raise ValueError(f"--loads {item!r}: unknown tool (known: {', '.join(LOAD_TOOLS)})")
+        if tool == "wrk":
+            if raw:
+                raise ValueError(f"--loads {item!r}: wrk is closed-loop and takes no rate")
+            cells.append({"spec": "wrk", "tool": "wrk", "rate": 0.0, "suffix": ""})
+            continue
+        try:
+            rate = float(raw)
+        except ValueError:
+            rate = 0.0
+        if not 0 < rate < float("inf"):
+            raise ValueError(f"--loads {item!r}: {tool} needs a rate, requests/s per bot")
+        cells.append({"spec": f"{tool}:{rate:g}", "tool": tool, "rate": rate,
+                      "suffix": f"@{tool}{rate:g}"})
+    if not cells:
+        raise ValueError("--loads: no cell")
+    if len({c["spec"] for c in cells}) != len(cells):
+        raise ValueError(f"--loads {text!r}: a cell is listed twice")
+    return cells
+
+
+def check_loads(loads):
+    """Exit unless every open-loop tool of the cells is `verified` in bench/loadtools.json and its
+    binary is the pinned one: the rule the suite applies before it starts."""
+    tools = sorted({c["tool"] for c in loads if c["tool"] != "wrk"})
+    if not tools:
+        return
+    sys.path.insert(0, os.path.join(REPO, "bench"))
+    import loadtools
+    try:
+        manifest = loadtools.load_manifest()
+        for tool in tools:
+            loadtools.resolve_tool(manifest, tool)
+    except (loadtools.ToolError, OSError, ValueError) as exc:
+        sys.exit(f"--loads: {exc}")
+
+
+def build_plan(modes, runs, order_seed, seed_base, loads=None):
+    """The runs of the campaign. With `loads` (parse_loads cells) every block runs every
+    (mode, load) pair once; without, every mode once, exactly as before."""
     rng = random.Random(order_seed)
     plan = []
     for block in range(1, runs + 1):
-        order = list(modes)
-        rng.shuffle(order)
-        plan += [{"block": block, "mode": m, "profile_seed": seed_base + block,
-                  "dir": f"{m}/run{block}"} for m in order]
+        if loads is None:
+            order = list(modes)
+            rng.shuffle(order)
+            plan += [{"block": block, "mode": m, "profile_seed": seed_base + block,
+                      "dir": f"{m}/run{block}"} for m in order]
+            continue
+        cells = [(m, c) for m in modes for c in loads]
+        rng.shuffle(cells)
+        plan += [{"block": block, "mode": m, "load": c["spec"], "profile_seed": seed_base + block,
+                  "dir": f"{m}{c['suffix']}/run{block}"} for m, c in cells]
     return plan
+
+
+def make_settings(args, overrides, loads=None):
+    """The campaign's settings as recorded in campaign.json (a resume must match them). `loads`
+    is recorded only when it is not the default, so earlier campaigns still resume."""
+    settings = {"modes": [m.strip() for m in args.modes.split(",") if m.strip()], "runs": args.runs,
+                "scenarios": args.scenarios, "operating_point": args.operating_point,
+                "attack_duration": args.attack_duration, "seed_base": args.seed_base,
+                "order_seed": args.order_seed, "set": overrides}
+    if loads is not None:
+        settings["loads"] = [c["spec"] for c in loads]
+    return settings
 
 
 def run_env(args, overrides, item, run_dir):
@@ -101,6 +176,11 @@ def run_env(args, overrides, item, run_dir):
     env.update({"OPERATING_POINT": args.operating_point,
                 "PROFILE_SEED": str(item["profile_seed"]),
                 "RESULTS_DIR": run_dir})
+    if item.get("load"):
+        cell = parse_loads(item["load"])[0]
+        env["FLOOD_TOOL"] = cell["tool"]
+        if cell["rate"]:
+            env["FLOOD_RATE"] = f"{cell['rate']:g}"
     if args.scenarios:
         env["ONLY_SCENARIOS"] = args.scenarios
     if args.attack_duration:
@@ -130,6 +210,9 @@ def main():
     ap.add_argument("--order-seed", type=int, default=0, help="seed of the mode order per block")
     ap.add_argument("--set", action="append", default=[], metavar="NAME=VALUE",
                     help="override a setting for every run: " + ", ".join(SETTABLE))
+    ap.add_argument("--loads", default="", metavar="CELLS",
+                    help="load models of the HTTP flood, as cells of the block: wrk (closed-loop, "
+                         "the default) and TOOL:RATE per bot, e.g. wrk,loadgen:50,loadgen:100")
     ap.add_argument("--out", help="campaign directory (default /var/tmp/ddos_campaigns/<UTC>_...)")
     ap.add_argument("--allow-dirty", action="store_true",
                     help="run despite uncommitted changes to tracked files (recorded)")
@@ -146,10 +229,27 @@ def main():
         if not sep or name not in SETTABLE:
             sys.exit(f"--set {item!r}: expected NAME=VALUE with NAME in {', '.join(SETTABLE)}")
         overrides[name] = value
-    plan = build_plan(modes, args.runs, args.order_seed, args.seed_base)
-    settings = {"modes": modes, "runs": args.runs, "scenarios": args.scenarios,
-                "operating_point": args.operating_point, "attack_duration": args.attack_duration,
-                "seed_base": args.seed_base, "order_seed": args.order_seed, "set": overrides}
+    loads = None
+    if args.loads:
+        try:
+            loads = parse_loads(args.loads)
+        except ValueError as exc:
+            sys.exit(str(exc))
+        if {"FLOOD_TOOL", "FLOOD_RATE"} & set(overrides):
+            sys.exit("--loads sets the flood of every run; do not combine it with --set FLOOD_*")
+        if [c["spec"] for c in loads] == ["wrk"]:
+            loads = None                     # the default cell: the plan stays what it always was
+        else:
+            check_loads(loads)
+    plan = build_plan(modes, args.runs, args.order_seed, args.seed_base, loads)
+    settings = make_settings(args, overrides, loads)
+    if {"FLOOD_TOOL", "FLOOD_RATE"} & set(overrides):    # one load model for every run
+        tool, rate = overrides.get("FLOOD_TOOL", "wrk"), overrides.get("FLOOD_RATE", "").strip()
+        try:
+            cell = parse_loads(tool if tool == "wrk" and rate in ("", "0") else f"{tool}:{rate}")
+        except ValueError as exc:
+            sys.exit(f"--set FLOOD_TOOL/FLOOD_RATE: {exc}")
+        check_loads(cell)
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     label = f"{args.operating_point}_s{(args.scenarios or 'all').replace(',', '-')}"
     out = os.path.abspath(args.out or os.path.join("/var/tmp/ddos_campaigns", f"{stamp}_{label}"))
@@ -159,7 +259,7 @@ def main():
         for it in plan:
             env = run_env(args, overrides, it, os.path.join(out, it["dir"]))
             shown = {k: env[k] for k in EVAL_VARS if k in env}
-            print(f"  block {it['block']:>2} {it['mode']:<12} {shown}")
+            print(f"  block {it['block']:>2} {it['dir'].split('/')[0]:<12} {shown}")
         return
 
     if os.geteuid() != 0:

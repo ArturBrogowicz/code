@@ -1,0 +1,5 @@
+# Publisher PDFs, Europe PMC XML and their extracted text stay local: manifest.json keeps
+# each source URL and SHA-256, so `fetch_sota.py fetch` can re-download and re-verify them.
+pdf/
+xml/
+fulltext/

@@ -1,0 +1,13 @@
+scenario,mode,runs,bots,banned,ttm_median_s,ttm_min_s,ttm_max_s,engines,gru_bans,fp_count,fp_ips,fp_source,exposure_mean_s
+Distributed HTTP Flood,xdp,10,100,100,0.229,0.061,0.587,l7_rate:100,0,0,,ban events,31.113
+Distributed HTTP Flood,nginxlimits,10,100,0,,,,,0,0,,no daemon,31.160
+Distributed HTTP Flood,unprotected,10,100,0,,,,,0,0,,no daemon,31.156
+Distributed HTTP Flood,xdp@loadgen125,10,100,100,0.654,0.559,0.886,l7_rate:100,0,0,,ban events,31.116
+Distributed HTTP Flood,nginxlimits@loadgen125,10,100,0,,,,,0,0,,no daemon,31.148
+Distributed HTTP Flood,unprotected@loadgen125,10,100,0,,,,,0,0,,no daemon,31.151
+Distributed HTTP Flood,xdp@loadgen250,10,100,100,0.645,0.473,0.881,l7_rate:100,0,0,,ban events,31.145
+Distributed HTTP Flood,nginxlimits@loadgen250,10,100,0,,,,,0,0,,no daemon,31.224
+Distributed HTTP Flood,unprotected@loadgen250,10,100,0,,,,,0,0,,no daemon,31.737
+Distributed HTTP Flood,xdp@loadgen500,10,100,100,0.483,0.298,0.675,l7_rate:100,0,0,,ban events,31.152
+Distributed HTTP Flood,nginxlimits@loadgen500,10,100,0,,,,,0,0,,no daemon,31.249
+Distributed HTTP Flood,unprotected@loadgen500,10,100,0,,,,,0,0,,no daemon,31.865

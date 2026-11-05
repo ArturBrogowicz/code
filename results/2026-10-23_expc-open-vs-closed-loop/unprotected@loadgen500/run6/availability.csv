@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-23T09:38:59.096310,Distributed HTTP Flood,before,ALL,none,xdp,34,34,100.0,0,0,0,0.0,37.0,588.0,930.9,168.6,930.9
+2026-10-23T09:38:59.096310,Distributed HTTP Flood,before,broadband,none,xdp,8,8,100.0,0,0,0,0.0,51.3,67.2,67.2,51.7,67.2
+2026-10-23T09:38:59.096310,Distributed HTTP Flood,before,mobile_3g,none,xdp,7,7,100.0,0,0,0,0.0,436.0,588.0,588.0,470.6,588.0
+2026-10-23T09:38:59.096310,Distributed HTTP Flood,before,mobile_bad,none,xdp,3,3,100.0,0,0,0,0.0,558.6,930.9,930.9,668.4,930.9
+2026-10-23T09:38:59.096310,Distributed HTTP Flood,before,perfect,none,xdp,16,16,100.0,0,0,0,0.0,1.1,1.6,1.6,1.1,1.6
+2026-10-23T09:38:59.096310,Distributed HTTP Flood,during,ALL,none,xdp,64,12,18.8,0,43,9,67.2,3184.4,9855.6,9855.6,4036.8,9855.6
+2026-10-23T09:38:59.096310,Distributed HTTP Flood,during,broadband,none,xdp,13,2,15.4,0,8,3,61.5,1946.9,9855.6,9855.6,5901.2,9855.6
+2026-10-23T09:38:59.096310,Distributed HTTP Flood,during,mobile_3g,none,xdp,21,4,19.0,0,14,3,66.7,5682.0,8157.5,8157.5,6062.7,8157.5
+2026-10-23T09:38:59.096310,Distributed HTTP Flood,during,mobile_bad,none,xdp,8,2,25.0,0,6,0,75.0,2315.1,3184.4,3184.4,2749.8,3184.4
+2026-10-23T09:38:59.096310,Distributed HTTP Flood,during,perfect,none,xdp,22,4,18.2,0,15,3,68.2,1481.7,3566.8,3566.8,1722.2,3566.8
+2026-10-23T09:38:59.096310,Distributed HTTP Flood,after,ALL,none,xdp,19,7,36.8,0,0,12,0.0,641.8,1568.6,1568.6,772.1,1568.6
+2026-10-23T09:38:59.096310,Distributed HTTP Flood,after,broadband,none,xdp,7,3,42.9,0,0,4,0.0,641.8,1568.6,1568.6,752.9,1568.6
+2026-10-23T09:38:59.096310,Distributed HTTP Flood,after,mobile_3g,none,xdp,3,0,0.0,0,0,3,0.0,0.0,0.0,0.0,0.0,0.0
+2026-10-23T09:38:59.096310,Distributed HTTP Flood,after,mobile_bad,none,xdp,1,1,100.0,0,0,0,0.0,1196.1,1196.1,1196.1,1196.1,1196.1
+2026-10-23T09:38:59.096310,Distributed HTTP Flood,after,perfect,none,xdp,8,3,37.5,0,0,5,0.0,266.8,1543.1,1543.1,650.1,1543.1

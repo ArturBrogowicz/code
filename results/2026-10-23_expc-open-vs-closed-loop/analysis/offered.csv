@@ -1,0 +1,13 @@
+scenario,mode,runs,window_s,offered_per_s,offered_median_per_s,status_200_per_s,status_503_per_s,status_499_per_s,other_status_per_s
+Distributed HTTP Flood,xdp,10,30,306.830,0.000,0.033,289.430,17.367,0.000
+Distributed HTTP Flood,nginxlimits,10,30,29638.050,30110.300,8.610,29584.577,12.173,32.690
+Distributed HTTP Flood,unprotected,10,30,1604.707,1763.500,1358.993,0.000,74.190,171.523
+Distributed HTTP Flood,xdp@loadgen125,10,30,19.210,0.000,19.210,0.000,0.000,0.000
+Distributed HTTP Flood,nginxlimits@loadgen125,10,30,1213.560,1250.000,324.573,888.987,0.000,0.000
+Distributed HTTP Flood,unprotected@loadgen125,10,30,1224.893,1249.900,1224.893,0.000,0.000,0.000
+Distributed HTTP Flood,xdp@loadgen250,10,30,37.207,0.000,18.960,4.717,13.530,0.000
+Distributed HTTP Flood,nginxlimits@loadgen250,10,30,2446.400,2500.000,322.987,2123.413,0.000,0.000
+Distributed HTTP Flood,unprotected@loadgen250,10,30,1633.573,1662.700,481.183,0.000,266.280,886.110
+Distributed HTTP Flood,xdp@loadgen500,10,30,46.667,0.000,7.593,24.400,14.673,0.000
+Distributed HTTP Flood,nginxlimits@loadgen500,10,30,4858.980,5002.200,283.443,4573.503,2.033,0.000
+Distributed HTTP Flood,unprotected@loadgen500,10,30,1601.357,769.300,43.027,0.000,271.720,1286.610

@@ -1,0 +1,1833 @@
+{
+ "criteria": {
+  "v1_rate": 0.02,
+  "v2_rate": 0.01,
+  "v3_abs_s": 0.001,
+  "v3_rel": 0.1,
+  "v4_control": 0.1,
+  "v4_rel": 0.15,
+  "v4_stall_arrivals": 0.1,
+  "v5_rate": 0.02,
+  "v6_abs": 2,
+  "v6_rel": 0.01,
+  "v7_rate": 0.01
+ },
+ "environment": {
+  "cpus": 8,
+  "created_utc": "2026-10-22T12:32:21Z",
+  "git_commit": "210399ce4bf755adc2e9f0ab6a1db091b624ef2b",
+  "git_dirty": false,
+  "python": "3.14.4",
+  "timer": {
+   "interval_s": 0.01,
+   "max_ms": 22.14510499992684,
+   "p50_ms": 5.5736350000097445,
+   "p99_ms": 19.016648750091456,
+   "samples": 200
+  },
+  "timer_after": {
+   "interval_s": 0.01,
+   "max_ms": 14.035119000018312,
+   "p50_ms": 2.3059400000329333,
+   "p99_ms": 9.073433150028897,
+   "samples": 200
+  },
+  "uname": "Linux ddos-mitigation 7.0.0-38-generic #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:10:14 UTC 2026 x86_64 "
+ },
+ "jobs": [
+  {
+   "checks": [
+    {
+     "expected": 0,
+     "name": "the tool reports no errors",
+     "observed": 0,
+     "pass": true,
+     "tolerance": null
+    },
+    {
+     "expected": 1000,
+     "name": "requests the tool sent",
+     "observed": 1001,
+     "pass": true,
+     "tolerance": 0.02
+    },
+    {
+     "expected": 1000,
+     "name": "requests the origin counted",
+     "observed": 1001,
+     "pass": true,
+     "tolerance": 0.02
+    }
+   ],
+   "key": "V1/k6/r100_0",
+   "metrics": {
+    "cpu_per_1000": 1.9980019980019983
+   },
+   "notes": [],
+   "pass": true,
+   "rate": 100,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V1",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 0,
+     "name": "the tool reports no errors",
+     "observed": 0,
+     "pass": true,
+     "tolerance": null
+    },
+    {
+     "expected": 1000,
+     "name": "requests the tool sent",
+     "observed": 1000,
+     "pass": true,
+     "tolerance": 0.02
+    },
+    {
+     "expected": 1000,
+     "name": "requests the origin counted",
+     "observed": 1000,
+     "pass": true,
+     "tolerance": 0.02
+    }
+   ],
+   "key": "V1/loadgen/r100_0",
+   "metrics": {
+    "cpu_per_1000": 0.515
+   },
+   "notes": [],
+   "pass": true,
+   "rate": 100,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V1",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 0,
+     "name": "the tool reports no errors",
+     "observed": 0,
+     "pass": true,
+     "tolerance": null
+    },
+    {
+     "expected": 1000,
+     "name": "requests the tool sent",
+     "observed": 1000,
+     "pass": true,
+     "tolerance": 0.02
+    },
+    {
+     "expected": 1000,
+     "name": "requests the origin counted",
+     "observed": 1000,
+     "pass": true,
+     "tolerance": 0.02
+    }
+   ],
+   "key": "V1/vegeta/r100_0",
+   "metrics": {
+    "cpu_per_1000": 1.3239999999999998
+   },
+   "notes": [],
+   "pass": true,
+   "rate": 100,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V1",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 4000,
+     "name": "requests the origin counted",
+     "observed": 4001,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/k6/r200_0",
+   "metrics": {
+    "cpu_per_1000": 1.4598850287428142
+   },
+   "notes": [
+    "the tool counted 4001 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 200,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V2",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 4000,
+     "name": "requests the origin counted",
+     "observed": 4001,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/k6/r200_1",
+   "metrics": {
+    "cpu_per_1000": 1.4958760309922516
+   },
+   "notes": [
+    "the tool counted 4001 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 200,
+   "repeat": 1,
+   "role": "subject",
+   "test": "V2",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 4000,
+     "name": "requests the origin counted",
+     "observed": 4001,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/k6/r200_2",
+   "metrics": {
+    "cpu_per_1000": 1.5503624093976502
+   },
+   "notes": [
+    "the tool counted 4001 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 200,
+   "repeat": 2,
+   "role": "subject",
+   "test": "V2",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 20000,
+     "name": "requests the origin counted",
+     "observed": 19106,
+     "pass": false,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/k6/r1000_0",
+   "metrics": {
+    "cpu_per_1000": 0.7894902124986914
+   },
+   "notes": [
+    "the tool counted 19106 and reported 0 errors"
+   ],
+   "pass": false,
+   "rate": 1000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V2",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 20000,
+     "name": "requests the origin counted",
+     "observed": 19972,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/k6/r1000_1",
+   "metrics": {
+    "cpu_per_1000": 0.7195573803324654
+   },
+   "notes": [
+    "the tool counted 19972 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 1000,
+   "repeat": 1,
+   "role": "subject",
+   "test": "V2",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 20000,
+     "name": "requests the origin counted",
+     "observed": 20002,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/k6/r1000_2",
+   "metrics": {
+    "cpu_per_1000": 0.7156784321567844
+   },
+   "notes": [
+    "the tool counted 20002 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 1000,
+   "repeat": 2,
+   "role": "subject",
+   "test": "V2",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 100000,
+     "name": "requests the origin counted",
+     "observed": 99844,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/k6/r5000_0",
+   "metrics": {
+    "cpu_per_1000": 0.2981451063659309
+   },
+   "notes": [
+    "the tool counted 99844 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 5000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V2",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 100000,
+     "name": "requests the origin counted",
+     "observed": 96347,
+     "pass": false,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/k6/r5000_1",
+   "metrics": {
+    "cpu_per_1000": 0.3067869264222031
+   },
+   "notes": [
+    "the tool counted 96347 and reported 0 errors"
+   ],
+   "pass": false,
+   "rate": 5000,
+   "repeat": 1,
+   "role": "subject",
+   "test": "V2",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 100000,
+     "name": "requests the origin counted",
+     "observed": 99550,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/k6/r5000_2",
+   "metrics": {
+    "cpu_per_1000": 0.30223003515821195
+   },
+   "notes": [
+    "the tool counted 99550 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 5000,
+   "repeat": 2,
+   "role": "subject",
+   "test": "V2",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 4000,
+     "name": "requests the origin counted",
+     "observed": 4000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/loadgen/r200_0",
+   "metrics": {
+    "cpu_per_1000": 0.3285
+   },
+   "notes": [
+    "the tool counted 4000 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 200,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V2",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 4000,
+     "name": "requests the origin counted",
+     "observed": 4000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/loadgen/r200_1",
+   "metrics": {
+    "cpu_per_1000": 0.34175
+   },
+   "notes": [
+    "the tool counted 4000 and reported 0 errors",
+    "the tool's own validity flags: slip"
+   ],
+   "pass": true,
+   "rate": 200,
+   "repeat": 1,
+   "role": "subject",
+   "test": "V2",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 4000,
+     "name": "requests the origin counted",
+     "observed": 4000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/loadgen/r200_2",
+   "metrics": {
+    "cpu_per_1000": 0.44375000000000003
+   },
+   "notes": [
+    "the tool counted 4000 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 200,
+   "repeat": 2,
+   "role": "subject",
+   "test": "V2",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 20000,
+     "name": "requests the origin counted",
+     "observed": 20000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/loadgen/r1000_0",
+   "metrics": {
+    "cpu_per_1000": 0.17475000000000002
+   },
+   "notes": [
+    "the tool counted 20000 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 1000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V2",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 20000,
+     "name": "requests the origin counted",
+     "observed": 20000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/loadgen/r1000_1",
+   "metrics": {
+    "cpu_per_1000": 0.18295
+   },
+   "notes": [
+    "the tool counted 20000 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 1000,
+   "repeat": 1,
+   "role": "subject",
+   "test": "V2",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 20000,
+     "name": "requests the origin counted",
+     "observed": 20000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/loadgen/r1000_2",
+   "metrics": {
+    "cpu_per_1000": 0.17385
+   },
+   "notes": [
+    "the tool counted 20000 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 1000,
+   "repeat": 2,
+   "role": "subject",
+   "test": "V2",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 100000,
+     "name": "requests the origin counted",
+     "observed": 100000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/loadgen/r5000_0",
+   "metrics": {
+    "cpu_per_1000": 0.12905
+   },
+   "notes": [
+    "the tool counted 100000 and reported 0 errors",
+    "the tool's own validity flags: slip"
+   ],
+   "pass": true,
+   "rate": 5000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V2",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 100000,
+     "name": "requests the origin counted",
+     "observed": 100000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/loadgen/r5000_1",
+   "metrics": {
+    "cpu_per_1000": 0.12722999999999998
+   },
+   "notes": [
+    "the tool counted 100000 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 5000,
+   "repeat": 1,
+   "role": "subject",
+   "test": "V2",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 100000,
+     "name": "requests the origin counted",
+     "observed": 100000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/loadgen/r5000_2",
+   "metrics": {
+    "cpu_per_1000": 0.12606
+   },
+   "notes": [
+    "the tool counted 100000 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 5000,
+   "repeat": 2,
+   "role": "subject",
+   "test": "V2",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 4000,
+     "name": "requests the origin counted",
+     "observed": 4000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/vegeta/r200_0",
+   "metrics": {
+    "cpu_per_1000": 1.17425
+   },
+   "notes": [
+    "the tool counted 4000 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 200,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V2",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 4000,
+     "name": "requests the origin counted",
+     "observed": 4000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/vegeta/r200_1",
+   "metrics": {
+    "cpu_per_1000": 1.217
+   },
+   "notes": [
+    "the tool counted 4000 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 200,
+   "repeat": 1,
+   "role": "subject",
+   "test": "V2",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 4000,
+     "name": "requests the origin counted",
+     "observed": 4000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/vegeta/r200_2",
+   "metrics": {
+    "cpu_per_1000": 1.23
+   },
+   "notes": [
+    "the tool counted 4000 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 200,
+   "repeat": 2,
+   "role": "subject",
+   "test": "V2",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 20000,
+     "name": "requests the origin counted",
+     "observed": 19999,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/vegeta/r1000_0",
+   "metrics": {
+    "cpu_per_1000": 0.6898844942247112
+   },
+   "notes": [
+    "the tool counted 19999 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 1000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V2",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 20000,
+     "name": "requests the origin counted",
+     "observed": 20000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/vegeta/r1000_1",
+   "metrics": {
+    "cpu_per_1000": 0.7382500000000001
+   },
+   "notes": [
+    "the tool counted 20000 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 1000,
+   "repeat": 1,
+   "role": "subject",
+   "test": "V2",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 20000,
+     "name": "requests the origin counted",
+     "observed": 20000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/vegeta/r1000_2",
+   "metrics": {
+    "cpu_per_1000": 0.7237
+   },
+   "notes": [
+    "the tool counted 20000 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 1000,
+   "repeat": 2,
+   "role": "subject",
+   "test": "V2",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 100000,
+     "name": "requests the origin counted",
+     "observed": 100000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/vegeta/r5000_0",
+   "metrics": {
+    "cpu_per_1000": 0.24099
+   },
+   "notes": [
+    "the tool counted 100000 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 5000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V2",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 100000,
+     "name": "requests the origin counted",
+     "observed": 100000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/vegeta/r5000_1",
+   "metrics": {
+    "cpu_per_1000": 0.24678
+   },
+   "notes": [
+    "the tool counted 100000 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 5000,
+   "repeat": 1,
+   "role": "subject",
+   "test": "V2",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 100000,
+     "name": "requests the origin counted",
+     "observed": 100000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V2/vegeta/r5000_2",
+   "metrics": {
+    "cpu_per_1000": 0.24205000000000002
+   },
+   "notes": [
+    "the tool counted 100000 and reported 0 errors"
+   ],
+   "pass": true,
+   "rate": 5000,
+   "repeat": 2,
+   "role": "subject",
+   "test": "V2",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 0.008530999999999622,
+     "name": "reported p50 against the origin's own",
+     "observed": 0.0091130985,
+     "pass": true,
+     "tolerance": 0.001
+    },
+    {
+     "expected": 0.016257370000001294,
+     "name": "reported p99 against the origin's own",
+     "observed": 0.016832873990000007,
+     "pass": true,
+     "tolerance": 0.0016257370000001296
+    }
+   ],
+   "key": "V3/k6/r500_0",
+   "metrics": {
+    "cpu_per_1000": 1.0640666666666667
+   },
+   "notes": [
+    "percentiles from: k6-trend"
+   ],
+   "pass": true,
+   "rate": 500,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V3",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 0.009045999999999665,
+     "name": "reported p50 against the origin's own",
+     "observed": 0.010853630500021305,
+     "pass": false,
+     "tolerance": 0.001
+    },
+    {
+     "expected": 0.015158120000000424,
+     "name": "reported p99 against the origin's own",
+     "observed": 0.02018094763980652,
+     "pass": false,
+     "tolerance": 0.0015158120000000426
+    }
+   ],
+   "key": "V3/loadgen/r500_0",
+   "metrics": {
+    "cpu_per_1000": 0.26193333333333335
+   },
+   "notes": [
+    "percentiles from: exact-intended-time"
+   ],
+   "pass": false,
+   "rate": 500,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V3",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 0.008639999999999759,
+     "name": "reported p50 against the origin's own",
+     "observed": 0.009263554,
+     "pass": true,
+     "tolerance": 0.001
+    },
+    {
+     "expected": 0.017808029999999624,
+     "name": "reported p99 against the origin's own",
+     "observed": 0.02488623778000003,
+     "pass": false,
+     "tolerance": 0.0017808029999999626
+    }
+   ],
+   "key": "V3/vegeta/r500_0",
+   "metrics": {
+    "cpu_per_1000": 0.8851333333333333
+   },
+   "notes": [
+    "percentiles from: exact"
+   ],
+   "pass": false,
+   "rate": 500,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V3",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 2.6074999999999995,
+     "name": "reported p99 against the analytic value",
+     "observed": 2.384616912,
+     "pass": true,
+     "tolerance": 0.3911249999999999
+    },
+    {
+     "expected": 1500.0,
+     "name": "arrivals during the stall (the tool kept sending)",
+     "observed": 621,
+     "pass": false,
+     "tolerance": 0.1
+    }
+   ],
+   "key": "V4/k6/r500_0",
+   "metrics": {
+    "cpu_per_1000": 1.0402175618429998
+   },
+   "notes": [
+    "percentiles from: k6-trend"
+   ],
+   "pass": false,
+   "rate": 500,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V4",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 2.6074999999999995,
+     "name": "reported p99 against the analytic value",
+     "observed": 2.6674955847997746,
+     "pass": true,
+     "tolerance": 0.3911249999999999
+    },
+    {
+     "expected": 1500.0,
+     "name": "arrivals during the stall (the tool kept sending)",
+     "observed": 1500,
+     "pass": true,
+     "tolerance": 0.1
+    }
+   ],
+   "key": "V4/loadgen/r500_0",
+   "metrics": {
+    "cpu_per_1000": 0.1912
+   },
+   "notes": [
+    "percentiles from: exact-intended-time"
+   ],
+   "pass": true,
+   "rate": 500,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V4",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 2.6074999999999995,
+     "name": "reported p99 against the analytic value",
+     "observed": 2.6326441737399984,
+     "pass": true,
+     "tolerance": 0.3911249999999999
+    },
+    {
+     "expected": 1500.0,
+     "name": "arrivals during the stall (the tool kept sending)",
+     "observed": 1499,
+     "pass": true,
+     "tolerance": 0.1
+    }
+   ],
+   "key": "V4/vegeta/r500_0",
+   "metrics": {
+    "cpu_per_1000": 0.8624499999999999
+   },
+   "notes": [
+    "percentiles from: exact"
+   ],
+   "pass": true,
+   "rate": 500,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V4",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 2.6074999999999995,
+     "name": "the closed-loop control reports far below the analytic p99",
+     "observed": 2.61,
+     "pass": false,
+     "tolerance": 0.26075
+    }
+   ],
+   "key": "V4/wrk/r500_0",
+   "metrics": {
+    "cpu_per_1000": 0.023409825966425383
+   },
+   "notes": [
+    "percentiles from: wrk-histogram",
+    "pass means the control behaved as a closed-loop tool does, so the test can tell"
+   ],
+   "pass": false,
+   "rate": 500,
+   "repeat": 0,
+   "role": "control",
+   "test": "V4",
+   "tool": "wrk"
+  },
+  {
+   "checks": [
+    {
+     "expected": 40000,
+     "name": "arrivals follow the intended rate, or the tool reports the difference",
+     "observed": 23558,
+     "pass": true,
+     "tolerance": 0.02
+    }
+   ],
+   "key": "V5/k6/r2000_0",
+   "metrics": {
+    "cpu_per_1000": 0.8577128788521946
+   },
+   "notes": [
+    "tool-reported drops: 16445",
+    "silent shortfall: 0",
+    "tool errors: 0"
+   ],
+   "pass": true,
+   "rate": 2000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V5",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 40000,
+     "name": "arrivals follow the intended rate, or the tool reports the difference",
+     "observed": 23400,
+     "pass": true,
+     "tolerance": 0.02
+    }
+   ],
+   "key": "V5/loadgen/r2000_0",
+   "metrics": {
+    "cpu_per_1000": 0.18487179487179486
+   },
+   "notes": [
+    "tool-reported drops: 16600",
+    "silent shortfall: 0",
+    "tool errors: 0",
+    "the tool's own validity flags: dropped, sent_short"
+   ],
+   "pass": true,
+   "rate": 2000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V5",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 40000,
+     "name": "arrivals follow the intended rate, or the tool reports the difference",
+     "observed": 19711,
+     "pass": false,
+     "tolerance": 0.02
+    }
+   ],
+   "key": "V5/vegeta/r2000_0",
+   "metrics": {
+    "cpu_per_1000": 0.26853026229009186
+   },
+   "notes": [
+    "tool-reported drops: 0",
+    "silent shortfall: 20289",
+    "tool errors: 0"
+   ],
+   "pass": false,
+   "rate": 2000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V5",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 1000,
+     "name": "non-2xx the tool counted against the 503s the origin sent",
+     "observed": 1000,
+     "pass": true,
+     "tolerance": 10.0
+    },
+    {
+     "expected": 10000,
+     "name": "requests the tool counted against the origin's arrivals",
+     "observed": 10000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V6/k6/r500_0",
+   "metrics": {
+    "cpu_per_1000": 1.0925
+   },
+   "notes": [],
+   "pass": true,
+   "rate": 500,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V6",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 1000,
+     "name": "non-2xx the tool counted against the 503s the origin sent",
+     "observed": 1000,
+     "pass": true,
+     "tolerance": 10.0
+    },
+    {
+     "expected": 10000,
+     "name": "requests the tool counted against the origin's arrivals",
+     "observed": 10000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V6/loadgen/r500_0",
+   "metrics": {
+    "cpu_per_1000": 0.1786
+   },
+   "notes": [],
+   "pass": true,
+   "rate": 500,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V6",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 1000,
+     "name": "non-2xx the tool counted against the 503s the origin sent",
+     "observed": 1000,
+     "pass": true,
+     "tolerance": 10.0
+    },
+    {
+     "expected": 10000,
+     "name": "requests the tool counted against the origin's arrivals",
+     "observed": 10000,
+     "pass": true,
+     "tolerance": 0.01
+    }
+   ],
+   "key": "V6/vegeta/r500_0",
+   "metrics": {
+    "cpu_per_1000": 0.8216000000000001
+   },
+   "notes": [],
+   "pass": true,
+   "rate": 500,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V6",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 10000,
+     "name": "requests the origin counted",
+     "observed": 10002,
+     "pass": true,
+     "tolerance": 0.01
+    },
+    {
+     "expected": 0,
+     "name": "no tool errors and no non-2xx",
+     "observed": 0,
+     "pass": true,
+     "tolerance": null
+    }
+   ],
+   "key": "V7/k6/r1000_0",
+   "metrics": {
+    "cpu_per_1000": 0.2645470905818836
+   },
+   "notes": [
+    "CPU per 1000 requests: 0.265 s"
+   ],
+   "pass": true,
+   "rate": 1000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V7",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 20000,
+     "name": "requests the origin counted",
+     "observed": 20001,
+     "pass": true,
+     "tolerance": 0.01
+    },
+    {
+     "expected": 0,
+     "name": "no tool errors and no non-2xx",
+     "observed": 0,
+     "pass": true,
+     "tolerance": null
+    }
+   ],
+   "key": "V7/k6/r2000_0",
+   "metrics": {
+    "cpu_per_1000": 0.20073996300184993
+   },
+   "notes": [
+    "CPU per 1000 requests: 0.201 s"
+   ],
+   "pass": true,
+   "rate": 2000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V7",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 50000,
+     "name": "requests the origin counted",
+     "observed": 45210,
+     "pass": false,
+     "tolerance": 0.01
+    },
+    {
+     "expected": 0,
+     "name": "no tool errors and no non-2xx",
+     "observed": 0,
+     "pass": true,
+     "tolerance": null
+    }
+   ],
+   "key": "V7/k6/r5000_0",
+   "metrics": {
+    "cpu_per_1000": 0.1650519796505198
+   },
+   "notes": [
+    "CPU per 1000 requests: 0.165 s"
+   ],
+   "pass": false,
+   "rate": 5000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V7",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 100000,
+     "name": "requests the origin counted",
+     "observed": 60380,
+     "pass": false,
+     "tolerance": 0.01
+    },
+    {
+     "expected": 0,
+     "name": "no tool errors and no non-2xx",
+     "observed": 0,
+     "pass": true,
+     "tolerance": null
+    }
+   ],
+   "key": "V7/k6/r10000_0",
+   "metrics": {
+    "cpu_per_1000": 0.16805233521033455
+   },
+   "notes": [
+    "CPU per 1000 requests: 0.168 s"
+   ],
+   "pass": false,
+   "rate": 10000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V7",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 200000,
+     "name": "requests the origin counted",
+     "observed": 55851,
+     "pass": false,
+     "tolerance": 0.01
+    },
+    {
+     "expected": 0,
+     "name": "no tool errors and no non-2xx",
+     "observed": 0,
+     "pass": true,
+     "tolerance": null
+    }
+   ],
+   "key": "V7/k6/r20000_0",
+   "metrics": {
+    "cpu_per_1000": 0.18033696800415389
+   },
+   "notes": [
+    "CPU per 1000 requests: 0.180 s"
+   ],
+   "pass": false,
+   "rate": 20000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V7",
+   "tool": "k6"
+  },
+  {
+   "checks": [
+    {
+     "expected": 10000,
+     "name": "requests the origin counted",
+     "observed": 10000,
+     "pass": true,
+     "tolerance": 0.01
+    },
+    {
+     "expected": 0,
+     "name": "no tool errors and no non-2xx",
+     "observed": 0,
+     "pass": true,
+     "tolerance": null
+    }
+   ],
+   "key": "V7/loadgen/r1000_0",
+   "metrics": {
+    "cpu_per_1000": 0.16509999999999997
+   },
+   "notes": [
+    "CPU per 1000 requests: 0.165 s"
+   ],
+   "pass": true,
+   "rate": 1000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V7",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 20000,
+     "name": "requests the origin counted",
+     "observed": 20000,
+     "pass": true,
+     "tolerance": 0.01
+    },
+    {
+     "expected": 0,
+     "name": "no tool errors and no non-2xx",
+     "observed": 0,
+     "pass": true,
+     "tolerance": null
+    }
+   ],
+   "key": "V7/loadgen/r2000_0",
+   "metrics": {
+    "cpu_per_1000": 0.16909999999999997
+   },
+   "notes": [
+    "CPU per 1000 requests: 0.169 s"
+   ],
+   "pass": true,
+   "rate": 2000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V7",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 50000,
+     "name": "requests the origin counted",
+     "observed": 50000,
+     "pass": true,
+     "tolerance": 0.01
+    },
+    {
+     "expected": 0,
+     "name": "no tool errors and no non-2xx",
+     "observed": 0,
+     "pass": true,
+     "tolerance": null
+    }
+   ],
+   "key": "V7/loadgen/r5000_0",
+   "metrics": {
+    "cpu_per_1000": 0.13034
+   },
+   "notes": [
+    "CPU per 1000 requests: 0.130 s"
+   ],
+   "pass": true,
+   "rate": 5000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V7",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 100000,
+     "name": "requests the origin counted",
+     "observed": 100000,
+     "pass": true,
+     "tolerance": 0.01
+    },
+    {
+     "expected": 0,
+     "name": "no tool errors and no non-2xx",
+     "observed": 0,
+     "pass": true,
+     "tolerance": null
+    }
+   ],
+   "key": "V7/loadgen/r10000_0",
+   "metrics": {
+    "cpu_per_1000": 0.10659
+   },
+   "notes": [
+    "CPU per 1000 requests: 0.107 s",
+    "the tool's own validity flags: cpu"
+   ],
+   "pass": true,
+   "rate": 10000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V7",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 200000,
+     "name": "requests the origin counted",
+     "observed": 200000,
+     "pass": true,
+     "tolerance": 0.01
+    },
+    {
+     "expected": 0,
+     "name": "no tool errors and no non-2xx",
+     "observed": 0,
+     "pass": true,
+     "tolerance": null
+    }
+   ],
+   "key": "V7/loadgen/r20000_0",
+   "metrics": {
+    "cpu_per_1000": 0.074145
+   },
+   "notes": [
+    "CPU per 1000 requests: 0.074 s",
+    "the tool's own validity flags: cpu, slip"
+   ],
+   "pass": true,
+   "rate": 20000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V7",
+   "tool": "loadgen"
+  },
+  {
+   "checks": [
+    {
+     "expected": 10000,
+     "name": "requests the origin counted",
+     "observed": 9999,
+     "pass": true,
+     "tolerance": 0.01
+    },
+    {
+     "expected": 0,
+     "name": "no tool errors and no non-2xx",
+     "observed": 0,
+     "pass": true,
+     "tolerance": null
+    }
+   ],
+   "key": "V7/vegeta/r1000_0",
+   "metrics": {
+    "cpu_per_1000": 0.21652165216521652
+   },
+   "notes": [
+    "CPU per 1000 requests: 0.217 s"
+   ],
+   "pass": true,
+   "rate": 1000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V7",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 20000,
+     "name": "requests the origin counted",
+     "observed": 19996,
+     "pass": true,
+     "tolerance": 0.01
+    },
+    {
+     "expected": 0,
+     "name": "no tool errors and no non-2xx",
+     "observed": 0,
+     "pass": true,
+     "tolerance": null
+    }
+   ],
+   "key": "V7/vegeta/r2000_0",
+   "metrics": {
+    "cpu_per_1000": 0.15833166633326667
+   },
+   "notes": [
+    "CPU per 1000 requests: 0.158 s"
+   ],
+   "pass": true,
+   "rate": 2000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V7",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 50000,
+     "name": "requests the origin counted",
+     "observed": 32140,
+     "pass": false,
+     "tolerance": 0.01
+    },
+    {
+     "expected": 0,
+     "name": "no tool errors and no non-2xx",
+     "observed": 1780,
+     "pass": false,
+     "tolerance": null
+    }
+   ],
+   "key": "V7/vegeta/r5000_0",
+   "metrics": {
+    "cpu_per_1000": 0.5046650494495242
+   },
+   "notes": [
+    "CPU per 1000 requests: 0.505 s"
+   ],
+   "pass": false,
+   "rate": 5000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V7",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 100000,
+     "name": "requests the origin counted",
+     "observed": 3739,
+     "pass": false,
+     "tolerance": 0.01
+    },
+    {
+     "expected": 0,
+     "name": "no tool errors and no non-2xx",
+     "observed": 7,
+     "pass": false,
+     "tolerance": null
+    }
+   ],
+   "key": "V7/vegeta/r10000_0",
+   "metrics": {
+    "cpu_per_1000": 2.7921904252473926
+   },
+   "notes": [
+    "CPU per 1000 requests: 2.792 s"
+   ],
+   "pass": false,
+   "rate": 10000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V7",
+   "tool": "vegeta"
+  },
+  {
+   "checks": [
+    {
+     "expected": 200000,
+     "name": "requests the origin counted",
+     "observed": 3723,
+     "pass": false,
+     "tolerance": 0.01
+    },
+    {
+     "expected": 0,
+     "name": "no tool errors and no non-2xx",
+     "observed": 5,
+     "pass": false,
+     "tolerance": null
+    }
+   ],
+   "key": "V7/vegeta/r20000_0",
+   "metrics": {
+    "cpu_per_1000": 2.8251410153102334
+   },
+   "notes": [
+    "CPU per 1000 requests: 2.825 s"
+   ],
+   "pass": false,
+   "rate": 20000,
+   "repeat": 0,
+   "role": "subject",
+   "test": "V7",
+   "tool": "vegeta"
+  }
+ ],
+ "schema": 1,
+ "summary": {
+  "k6": {
+   "restrictions": [
+    "no latency claims under stalls"
+   ],
+   "suggested_status": "unfit",
+   "tests": {
+    "V1": {
+     "jobs": 1,
+     "verdict": "pass"
+    },
+    "V2": {
+     "jobs": 9,
+     "verdict": "fail"
+    },
+    "V3": {
+     "jobs": 1,
+     "verdict": "pass"
+    },
+    "V4": {
+     "jobs": 1,
+     "verdict": "fail"
+    },
+    "V5": {
+     "jobs": 1,
+     "verdict": "pass"
+    },
+    "V6": {
+     "jobs": 1,
+     "verdict": "pass"
+    },
+    "V7": {
+     "ceiling": 2000,
+     "cpu_per_1000": {
+      "1000": 0.2645470905818836,
+      "10000": 0.16805233521033455,
+      "2000": 0.20073996300184993,
+      "20000": 0.18033696800415389,
+      "5000": 0.1650519796505198
+     },
+     "jobs": 5,
+     "verdict": "measured"
+    }
+   },
+   "v0_ok": true,
+   "why": "failed V1 or V2"
+  },
+  "loadgen": {
+   "restrictions": [
+    "no latency claims"
+   ],
+   "suggested_status": "verified",
+   "tests": {
+    "V1": {
+     "jobs": 1,
+     "verdict": "pass"
+    },
+    "V2": {
+     "jobs": 9,
+     "verdict": "pass"
+    },
+    "V3": {
+     "jobs": 1,
+     "verdict": "fail"
+    },
+    "V4": {
+     "jobs": 1,
+     "verdict": "pass"
+    },
+    "V5": {
+     "jobs": 1,
+     "verdict": "pass"
+    },
+    "V6": {
+     "jobs": 1,
+     "verdict": "pass"
+    },
+    "V7": {
+     "ceiling": 20000,
+     "cpu_per_1000": {
+      "1000": 0.16509999999999997,
+      "10000": 0.10659,
+      "2000": 0.16909999999999997,
+      "20000": 0.074145,
+      "5000": 0.13034
+     },
+     "jobs": 5,
+     "verdict": "measured"
+    }
+   },
+   "v0_ok": true,
+   "why": ""
+  },
+  "vegeta": {
+   "restrictions": [
+    "no latency claims",
+    "no overload claims"
+   ],
+   "suggested_status": "verified",
+   "tests": {
+    "V1": {
+     "jobs": 1,
+     "verdict": "pass"
+    },
+    "V2": {
+     "jobs": 9,
+     "verdict": "pass"
+    },
+    "V3": {
+     "jobs": 1,
+     "verdict": "fail"
+    },
+    "V4": {
+     "jobs": 1,
+     "verdict": "pass"
+    },
+    "V5": {
+     "jobs": 1,
+     "verdict": "fail"
+    },
+    "V6": {
+     "jobs": 1,
+     "verdict": "pass"
+    },
+    "V7": {
+     "ceiling": 2000,
+     "cpu_per_1000": {
+      "1000": 0.21652165216521652,
+      "10000": 2.7921904252473926,
+      "2000": 0.15833166633326667,
+      "20000": 2.8251410153102334,
+      "5000": 0.5046650494495242
+     },
+     "jobs": 5,
+     "verdict": "measured"
+    }
+   },
+   "v0_ok": true,
+   "why": ""
+  },
+  "wrk": {
+   "restrictions": [],
+   "suggested_status": "control",
+   "tests": {
+    "V4": {
+     "jobs": 1,
+     "verdict": "control NOT as expected"
+    }
+   },
+   "v0_ok": true,
+   "why": "closed-loop negative control"
+  }
+ },
+ "tools": {
+  "k6": {
+   "hash_ok": true,
+   "pinned_version": "v2.3.0",
+   "sha256": "e001bbf39ba67424a85c9c8516440ba5c73ecf7a6021be96c76194380c15f260",
+   "status": "smoke-tested",
+   "v0_ok": true,
+   "version_ok": true,
+   "version_output": "k6 v2.3.0 (commit/e088784614, go1.26.8, linux/amd64)"
+  },
+  "loadgen": {
+   "hash_ok": true,
+   "pinned_version": "1",
+   "sha256": "91aab0837ce688982c30cc2f8b9e867482f830d5ff49b9ec703888ac80ba92a1",
+   "status": "installed",
+   "v0_ok": true,
+   "version_ok": true,
+   "version_output": "loadgen 1"
+  },
+  "vegeta": {
+   "hash_ok": true,
+   "pinned_version": "v12.13.0",
+   "sha256": "c54d905541485153542dfcb850f9ab8ef801e7ab1a652d2cfc69cafdd4a5363f",
+   "status": "smoke-tested",
+   "v0_ok": true,
+   "version_ok": true,
+   "version_output": "Version: v12.13.0\nCommit: 507c4f028fbad80168f3b734dab9530d3aabfefa\nRuntime: go1.22.12 linux/amd64\nDate: 2025-10-31T11:31:52Z+0000"
+  },
+  "wrk": {
+   "hash_ok": true,
+   "pinned_version": "debian/4.1.0-4build3",
+   "sha256": "f6536e3f9479584fa2b4a97d12c56671487be9f1011f309dc7a3b1bb0f6ea06c",
+   "status": "installed",
+   "v0_ok": true,
+   "version_ok": true,
+   "version_output": "wrk debian/4.1.0-4build3 [epoll] Copyright (C) 2012 Will Glozer\nUsage: wrk <options> <url>                            \n  Options:                                            \n    -c, --connections <N>  Connections to keep open   \n    -d, --duration    <T>  Duration of test           \n    -t, --threads     <N>  Number of threads to use   \n                                                      \n    -s, --script      <S>  Load Lua script file       \n    -H, --header      <H>  Add header to request      \n        --latency          Print latency statistics   \n        --timeout     <T>  Socket/request timeout     \n    -v, --version          Print version details      \n                                                      \n  Numeric arguments may include a SI unit (1k, 1M, 1G)\n  Time arguments may include a time unit (2s, 2m, 2h)"
+  }
+ }
+}

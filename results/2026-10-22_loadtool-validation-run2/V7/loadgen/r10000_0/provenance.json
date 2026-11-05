@@ -1,0 +1,83 @@
+{
+ "schema": 1,
+ "tool": "loadgen",
+ "tool_info": {
+  "version": "1",
+  "sha256": "91aab0837ce688982c30cc2f8b9e867482f830d5ff49b9ec703888ac80ba92a1",
+  "status": "installed",
+  "path": "/home/artur/DDoS-mitigation/code/.claude/worktrees/audit-must-do-2-5/bench/loadgen.py"
+ },
+ "proxy_vars_removed": [],
+ "spec": {
+  "url": "http://127.0.0.1:18081/",
+  "rate": 10000,
+  "duration": 10,
+  "method": "GET",
+  "headers": [],
+  "timeout": 10.0,
+  "connections": 2000,
+  "workers": 2000,
+  "max_workers": 5000,
+  "threads": 2,
+  "local_addr": "",
+  "cpus": "4",
+  "allow_loopback": true,
+  "name": "V7"
+ },
+ "started_utc": "2026-10-22T14:23:28Z",
+ "steps": [
+  {
+   "label": "run",
+   "argv": [
+    "taskset",
+    "-c",
+    "4",
+    "/home/artur/DDoS-mitigation/code/.claude/worktrees/audit-must-do-2-5/venv/bin/python",
+    "/home/artur/DDoS-mitigation/code/.claude/worktrees/audit-must-do-2-5/bench/loadgen.py",
+    "--url",
+    "http://127.0.0.1:18081/",
+    "--rate",
+    "10000",
+    "--duration",
+    "10",
+    "--timeout",
+    "10",
+    "--max-inflight",
+    "5000",
+    "--pool",
+    "2000",
+    "--method",
+    "GET",
+    "--summary",
+    "/var/tmp/loadtool_validation/20261022_loadtool-validation-c2/V7/loadgen/r10000_0/loadgen.summary.json",
+    "--records",
+    "/var/tmp/loadtool_validation/20261022_loadtool-validation-c2/V7/loadgen/r10000_0/loadgen.records.csv.gz",
+    "--allow-loopback"
+   ],
+   "env": {},
+   "returncode": 0,
+   "seconds": 11.761,
+   "cpu_s": {
+    "user": 6.726,
+    "system": 4.392
+   }
+  }
+ ],
+ "script_sha256": null,
+ "manifest_sha256": "f93b9aa94c9371c7bcab78a18ae9e60466975641d2f33654196e8d9e6f711283",
+ "ok": true,
+ "children_cpu_s": {
+  "user": 6.726,
+  "system": 4.392
+ },
+ "git": {
+  "commit": "58412df35cd78a333fb04ca810f2fb15a734273b",
+  "dirty": false
+ },
+ "host": {
+  "uname": "Linux ddos-mitigation 7.0.0-38-generic #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:10:14 UTC 2026 x86_64 ",
+  "cpus": 8,
+  "python": "3.14.4"
+ },
+ "finished_utc": "2026-10-22T14:23:39Z"
+}

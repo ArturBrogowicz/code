@@ -1,0 +1,9 @@
+cell,scenario,mode,reference,period,design,blocks,mean_diff_pp,ci_lo,ci_hi,t_p,perm_p,same_sign,decision,blocks_for_80pct_power,reference_mean_pp,harmed
+,Distributed HTTP Flood,xdp,unprotected,during,paired by PROFILE_SEED (10 blocks),10,22.4888,16.0252,28.9524,0.0000,0.0020,1.0000,supported (+),4.0000,77.4718,True
+,Distributed HTTP Flood,nginxlimits,unprotected,during,paired by PROFILE_SEED (10 blocks),10,-34.2958,-45.3605,-23.2312,0.0001,0.0020,1.0000,supported (-),4.0000,77.4718,True
+loadgen125,Distributed HTTP Flood,xdp@loadgen125,unprotected@loadgen125,during,paired by PROFILE_SEED (10 blocks),10,-0.0408,-0.1331,0.0515,0.3434,1.0000,0.1000,not shown,81.0000,100.0000,False
+loadgen125,Distributed HTTP Flood,nginxlimits@loadgen125,unprotected@loadgen125,during,paired by PROFILE_SEED (10 blocks),10,0.0000,0.0000,0.0000,1.0000,1.0000,0.0000,not shown,,100.0000,False
+loadgen250,Distributed HTTP Flood,xdp@loadgen250,unprotected@loadgen250,during,paired by PROFILE_SEED (10 blocks),10,57.9304,52.6275,63.2332,0.0000,0.0020,1.0000,supported (+),3.0000,42.0696,True
+loadgen250,Distributed HTTP Flood,nginxlimits@loadgen250,unprotected@loadgen250,during,paired by PROFILE_SEED (10 blocks),10,57.9304,52.6275,63.2332,0.0000,0.0020,1.0000,supported (+),3.0000,42.0696,True
+loadgen500,Distributed HTTP Flood,xdp@loadgen500,unprotected@loadgen500,during,paired by PROFILE_SEED (10 blocks),10,88.5650,84.6705,92.4596,0.0000,0.0020,1.0000,supported (+),4.0000,11.4350,True
+loadgen500,Distributed HTTP Flood,nginxlimits@loadgen500,unprotected@loadgen500,during,paired by PROFILE_SEED (10 blocks),10,88.5650,84.6705,92.4596,0.0000,0.0020,1.0000,supported (+),4.0000,11.4350,True

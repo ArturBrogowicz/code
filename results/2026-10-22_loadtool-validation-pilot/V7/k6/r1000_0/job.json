@@ -1,0 +1,12 @@
+{
+ "cpus": "4",
+ "duration": 10,
+ "key": "V7/k6/r1000_0",
+ "origin": "s1",
+ "rate": 1000,
+ "repeat": 0,
+ "role": "subject",
+ "s2": {},
+ "test": "V7",
+ "tool": "k6"
+}

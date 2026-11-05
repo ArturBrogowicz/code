@@ -1,0 +1,13 @@
+scenario,mode,CPU_Nginx_Pct,CPU_Total_Pct,CPU_Daemon_Pct,PPS_Rx,IP_InReceives,PreStack_Dropped,TCP_Estab,TCP_SynRecv
+Distributed HTTP Flood,xdp,12.345,5.565,2.730,7874.250,9225.700,51.050,0.300,0.200
+Distributed HTTP Flood,nginxlimits,97.270,19.540,0.000,34687.500,38622.050,0.000,5026.400,0.550
+Distributed HTTP Flood,unprotected,34.380,11.665,0.000,4539.550,34656.150,0.000,8618.650,666.700
+Distributed HTTP Flood,xdp@loadgen125,0.225,8.330,0.635,6026.800,157.150,5869.650,0.500,0.250
+Distributed HTTP Flood,nginxlimits@loadgen125,24.090,13.160,0.000,1440.650,5440.100,0.000,120.200,0.150
+Distributed HTTP Flood,unprotected@loadgen125,30.345,17.715,0.000,1444.900,17601.900,0.000,127.350,0.650
+Distributed HTTP Flood,xdp@loadgen250,0.410,12.725,0.635,12185.850,148.700,12037.150,0.450,0.350
+Distributed HTTP Flood,nginxlimits@loadgen250,47.595,25.145,0.000,2951.450,7298.950,0.000,525.200,0.400
+Distributed HTTP Flood,unprotected@loadgen250,72.435,31.815,0.000,13488.750,31306.100,0.000,11337.000,1244.200
+Distributed HTTP Flood,xdp@loadgen500,0.315,20.290,0.725,24466.250,154.850,24311.400,0.650,0.550
+Distributed HTTP Flood,nginxlimits@loadgen500,81.980,41.780,0.000,6263.000,10499.800,0.000,1627.700,0.300
+Distributed HTTP Flood,unprotected@loadgen500,83.210,45.795,0.000,36357.950,61123.300,0.000,17426.500,1971.650

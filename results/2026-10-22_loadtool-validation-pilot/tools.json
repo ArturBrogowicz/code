@@ -1,0 +1,38 @@
+{
+ "k6": {
+  "hash_ok": true,
+  "pinned_version": "v2.3.0",
+  "sha256": "e001bbf39ba67424a85c9c8516440ba5c73ecf7a6021be96c76194380c15f260",
+  "status": "smoke-tested",
+  "v0_ok": true,
+  "version_ok": true,
+  "version_output": "k6 v2.3.0 (commit/e088784614, go1.26.8, linux/amd64)"
+ },
+ "loadgen": {
+  "hash_ok": true,
+  "pinned_version": "1",
+  "sha256": "91aab0837ce688982c30cc2f8b9e867482f830d5ff49b9ec703888ac80ba92a1",
+  "status": "installed",
+  "v0_ok": true,
+  "version_ok": true,
+  "version_output": "loadgen 1"
+ },
+ "vegeta": {
+  "hash_ok": true,
+  "pinned_version": "v12.13.0",
+  "sha256": "c54d905541485153542dfcb850f9ab8ef801e7ab1a652d2cfc69cafdd4a5363f",
+  "status": "smoke-tested",
+  "v0_ok": true,
+  "version_ok": true,
+  "version_output": "Version: v12.13.0\nCommit: 507c4f028fbad80168f3b734dab9530d3aabfefa\nRuntime: go1.22.12 linux/amd64\nDate: 2025-10-31T11:31:52Z+0000"
+ },
+ "wrk": {
+  "hash_ok": true,
+  "pinned_version": "debian/4.1.0-4build3",
+  "sha256": "f6536e3f9479584fa2b4a97d12c56671487be9f1011f309dc7a3b1bb0f6ea06c",
+  "status": "installed",
+  "v0_ok": true,
+  "version_ok": true,
+  "version_output": "wrk debian/4.1.0-4build3 [epoll] Copyright (C) 2012 Will Glozer\nUsage: wrk <options> <url>                            \n  Options:                                            \n    -c, --connections <N>  Connections to keep open   \n    -d, --duration    <T>  Duration of test           \n    -t, --threads     <N>  Number of threads to use   \n                                                      \n    -s, --script      <S>  Load Lua script file       \n    -H, --header      <H>  Add header to request      \n        --latency          Print latency statistics   \n        --timeout     <T>  Socket/request timeout     \n    -v, --version          Print version details      \n                                                      \n  Numeric arguments may include a SI unit (1k, 1M, 1G)\n  Time arguments may include a time unit (2s, 2m, 2h)"
+ }
+}

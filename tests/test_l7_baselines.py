@@ -93,7 +93,7 @@ class HgbReplayTest(unittest.TestCase):
             self.addCleanup(shutil.rmtree, d, True)
         TT.synth_dataset(ds)
         T.run(ds, pkg, seed=1, epochs=1, hidden=8, layers=1,
-              variants=("no_size_no_server_timing",))
+              variants=("no_size_no_server_timing",), selection="p5c")    # B4 at the 0.95 x 3 policy
         with open(os.path.join(ds, "access.log"), encoding="utf-8") as fh:
             objs = [json.loads(line) for line in fh]
         # The synthetic attackers send 40 requests in 2 s: too few 1 s polls for the

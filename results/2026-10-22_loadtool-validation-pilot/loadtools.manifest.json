@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "recorded": "2026-10-22",
+  "recorded_by": "Stage 1 of the harm-benchmark design (docs/BENCHMARK_HARM_DESIGN.md, Appendix E.3)",
+  "root": "~/loadtools",
+  "tools": {
+    "vegeta": {
+      "kind": "external",
+      "role": "open-loop constant-rate driver",
+      "version": "v12.13.0",
+      "commit": "507c4f028fbad80168f3b734dab9530d3aabfefa",
+      "path": "vegeta-12.13.0/vegeta",
+      "sha256": "c54d905541485153542dfcb850f9ab8ef801e7ab1a652d2cfc69cafdd4a5363f",
+      "source": "https://github.com/tsenart/vegeta/releases/tag/v12.13.0",
+      "archive": "vegeta_12.13.0_linux_amd64.tar.gz",
+      "archive_sha256": "e8759ce45c14e18374bdccd3ba6068197bc3a9f9b7e484db3837f701b9d12e61",
+      "signature": {
+        "of": "vegeta_12.13.0_checksums.txt",
+        "key_fingerprint": "9D94 22EC BBE6 237A 4EC6  D3BC D0B7 33D0 7608 C86C",
+        "signed": "2025-10-31",
+        "key_expired": "2026-07-10",
+        "note": "good signature by a key that expired after signing; the key ships in the same release, so this shows consistency, not independent authenticity"
+      },
+      "status": "smoke-tested",
+      "notes": [
+        "Stage 1 smoke 2026-10-22: 100 requests/s for 10 s on loopback, origin counted 1000 of 1000",
+        "latency percentiles in its JSON report come from a t-digest; the CSV encoding gives exact ones"
+      ]
+    },
+    "k6": {
+      "kind": "external",
+      "role": "open-model scenario driver (constant-arrival-rate)",
+      "version": "v2.3.0",
+      "commit": "e088784614",
+      "path": "k6-2.3.0/k6",
+      "sha256": "e001bbf39ba67424a85c9c8516440ba5c73ecf7a6021be96c76194380c15f260",
+      "source": "https://github.com/grafana/k6/releases/tag/v2.3.0",
+      "archive": "k6-v2.3.0-linux-amd64.tar.gz",
+      "archive_sha256": "39c3117b6af817592dcd0ce4242105c0a7af10948c2a425306f0be8f7a8a8ab1",
+      "status": "smoke-tested",
+      "notes": [
+        "Stage 1 smoke 2026-10-22: 100 iterations/s for 10 s on loopback, origin counted 1001 of 1000",
+        "reports anonymous usage on every run unless --no-usage-report; the Stage 1 smoke run did not pass it, the wrapper always does"
+      ]
+    },
+    "wrk": {
+      "kind": "system",
+      "role": "closed-loop generator; the negative control of the coordinated-omission test",
+      "version": "debian/4.1.0-4build3",
+      "path": "/usr/bin/wrk",
+      "sha256": "f6536e3f9479584fa2b4a97d12c56671487be9f1011f309dc7a3b1bb0f6ea06c",
+      "source": "Ubuntu package wrk",
+      "status": "installed",
+      "notes": [
+        "the generator the suite uses for the HTTP flood; not smoke-tested by the wrapper"
+      ]
+    },
+    "loadgen": {
+      "kind": "builtin",
+      "role": "in-repo open-loop engine (the primary generator)",
+      "version": "1",
+      "path": "bench/loadgen.py",
+      "sha256": "91aab0837ce688982c30cc2f8b9e867482f830d5ff49b9ec703888ac80ba92a1",
+      "source": "this repository",
+      "status": "installed",
+      "notes": [
+        "pinned to the file: any edit of bench/loadgen.py needs a new sha256 here and a new verification",
+        "not yet run through the verification harness"
+      ]
+    },
+    "wrk2": {
+      "kind": "external",
+      "role": "constant-throughput driver (was)",
+      "version": "44a94c17d8e6a0bac8559b53da76848e430cb7a7",
+      "path": "wrk2-44a94c1/wrk2",
+      "sha256": "fc49d84c51fc71ac8c7bb3a8237c781b485604ed4798c7527dc6468a5cb03fe1",
+      "source": "https://github.com/giltene/wrk2",
+      "build_log_sha256": "797da409c120ca938966e3ff90e9e89efe28ed6928535c8eabb6a8e61c0b074a",
+      "status": "unavailable",
+      "reason": "builds (GCC 15.2, OpenSSL 3.5.5) but exits at the start of every run with: PANIC: unprotected error in call to Lua API (attempt to index a nil value); its bundled LuaJIT is 2.0.3; recorded unavailable on 2026-10-22, cause not diagnosed, not retried",
+      "notes": []
+    }
+  }
+}

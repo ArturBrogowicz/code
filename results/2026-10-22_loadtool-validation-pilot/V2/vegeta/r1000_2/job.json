@@ -1,0 +1,12 @@
+{
+ "cpus": "4-7",
+ "duration": 20,
+ "key": "V2/vegeta/r1000_2",
+ "origin": "s1",
+ "rate": 1000,
+ "repeat": 2,
+ "role": "subject",
+ "s2": {},
+ "test": "V2",
+ "tool": "vegeta"
+}

@@ -22,8 +22,15 @@ Routes:
   GET  /download/large        a large body (DOWNLOAD_BYTES), for big-response benign flows
   POST /upload                accepts a body up to the size nginx allows; echoes the count
   POST /login                 always 401 (no accounts exist)
+  GET  /export[?r=<n>]        a small CSV (L7 v2: the C5 export route, docs/L7V2_DESIGN.md 4.1)
   GET  /robots.txt            allow-all robots file (the P5b polite crawler reads it)
   *                           404
+
+L7 v2 (docs/L7V2_DESIGN.md section 4): route_class() is the site map, the route class (C0 assets, C1 pages,
+C2 API, C3 search, C5 export; None = uncosted) of every route. With the environment variable L7_BACKEND=costed,
+app() serves the same URL space through l7_backend.CostedApp: each costed route calls the harm benchmark origin's
+work for its class, answers carry the calibration record's label, and an HTML answer sets the session cookie `sid`.
+Without it (the default), app() is legacy_app(), the 2026-10 app, unchanged, so published captures stay reproducible.
 
 The site's page resources (P5b, docs/L7_GRU_DESIGN.md §7.2) are defined here too:
 site_assets() / page_assets() list the same-origin assets a browser loads for a page, so
@@ -32,6 +39,7 @@ is the status app() returns for a request, as a pure function (the gate predicts
 ratios with it; a test checks it against app()).
 """
 import json
+import os
 import zlib
 
 DOWNLOAD_BYTES = 1_500_000      # ~1.5 MB, above nginx's 64 KiB body cap but a response
@@ -70,10 +78,59 @@ def page_assets(level, page):
     return [f"/static/site{level}/p{page}/img{i}.png" for i in range(n_img)]
 
 
+def static_size(path):
+    """The body size of the asset at `path` (both backends serve it)."""
+    return _size_for(path)
+
+
+def route_class(method, path):
+    """The site map (docs/L7V2_DESIGN.md 4.1, 8.2): the origin work class of a GET or HEAD request for `path` (a query
+    string is ignored), or None for an uncosted route. The route classes are the costed backend's and the navigation
+    features' only source of route semantics."""
+    path = path.split("?", 1)[0]
+    if method not in ("GET", "HEAD"):
+        return None
+    if path.startswith("/static/"):
+        return "C0"
+    if path == "/" or path.startswith("/page/"):
+        return "C1"
+    if path.startswith("/api/"):
+        return "C2"
+    if path.startswith("/search"):
+        return "C3"
+    if path == "/export":
+        return "C5"
+    return None
+
+
+# The words the origin's search ranks (bench/origin.py WORDS; a test checks they are the same).
+SEARCH_WORDS = ("alpha", "bravo", "cedar", "delta", "ember", "fjord", "gamma", "harbor", "indigo", "jasper",
+                "kestrel", "lumen", "meadow", "nectar", "onyx", "prairie", "quartz", "raven", "saffron", "tundra",
+                "umber", "velvet", "willow", "xenon", "yarrow", "zephyr", "amber", "basalt", "coral", "dune",
+                "elm", "flint", "glacier", "heron", "iris", "juniper", "kelp", "lichen", "moss", "nettle",
+                "opal", "pebble", "quill", "reed", "sage", "thistle", "urchin", "violet", "wren", "yucca",
+                "ash", "birch", "clover", "dusk", "echo", "fern", "grove", "hazel", "isle", "jade", "knoll", "loam")
+EXPORT_R = (1, 1000)
+
+
+def search_path(rng):
+    """A search of the site's search form (L7 v2, ml/l7v2_prereg.json search_terms): one word, uniform over
+    SEARCH_WORDS. Benign search users and the bots draw their terms here alike."""
+    return f"/search?q={rng.choice(SEARCH_WORDS)}"
+
+
+def export_path(rng):
+    """An export (L7 v2, ml/l7v2_prereg.json export_r): r uniform on 1..1000 changes only the URL's work factor."""
+    return f"/export?r={rng.randint(*EXPORT_R)}"
+
+
 def route_status(method, path):
-    """The HTTP status app() returns for (method, path), without running the handler."""
-    if path in ("/", "/robots.txt") or path.startswith(("/page/", "/api/", "/static/",
-                                                        "/search")):
+    """The HTTP status legacy_app() returns for (method, path), without running the handler (a query string is
+    ignored). The costed backend answers the same, except a 400 for a search term or export query the origin refuses,
+    which no generator sends."""
+    path = path.split("?", 1)[0]
+    if path in ("/", "/robots.txt", "/export") or path.startswith(("/page/", "/api/", "/static/",
+                                                                    "/search")):
         return 200
     if path == "/download/large":
         return 200
@@ -94,7 +151,32 @@ def _resp(start_response, status, body, ctype="text/html; charset=utf-8", extra=
     return [body]
 
 
+_BACKEND = []
+
+
+def _backend():
+    """The costed backend when L7_BACKEND=costed (built once per process), else None."""
+    if not _BACKEND:
+        mode = os.environ.get("L7_BACKEND", "legacy")
+        if mode not in ("legacy", "costed"):
+            raise ValueError(f"L7_BACKEND={mode!r}: legacy or costed")
+        if mode == "costed":
+            import l7_backend
+            _BACKEND.append(l7_backend.CostedApp.from_env())
+        else:
+            _BACKEND.append(None)
+    return _BACKEND[0]
+
+
 def app(environ, start_response):
+    """The WSGI entry gunicorn serves: the costed backend when L7_BACKEND=costed, else legacy_app."""
+    backend = _backend()
+    if backend is None:
+        return legacy_app(environ, start_response)
+    return backend(environ, start_response)
+
+
+def legacy_app(environ, start_response):
     method = environ.get("REQUEST_METHOD", "GET")
     path = environ.get("PATH_INFO", "/")
 
@@ -128,6 +210,10 @@ def app(environ, start_response):
                      json.dumps({"results": [], "q": environ.get("QUERY_STRING", "")}),
                      ctype="application/json")
 
+    if path == "/export":
+        body = "id,score\n" + "".join(f"{i},{_stable_hash(f'export|{i}') % 1000}\n" for i in range(1, 21))
+        return _resp(start_response, "200 OK", body, ctype="text/csv; charset=utf-8")
+
     if path == "/download/large":
         return _resp(start_response, "200 OK", b"L" * DOWNLOAD_BYTES,
                      ctype="application/octet-stream")
@@ -153,3 +239,7 @@ def app(environ, start_response):
     return _resp(start_response, "404 Not Found",
                  json.dumps({"error": "not found", "path": path}),
                  ctype="application/json")
+
+
+if os.environ.get("L7_BACKEND") == "costed":     # build the backend at worker boot, not on the first request
+    _backend()

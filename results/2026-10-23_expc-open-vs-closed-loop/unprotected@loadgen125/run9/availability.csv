@@ -1,0 +1,16 @@
+Timestamp,Scenario,Period,Profile,Mode,Backend,Total_Reqs,Success_200,Success_Rate_Pct,HTTP_503,HTTP_000_Timeout,HTTP_Other,Timeout_Rate_Pct,Lat_p50_ms,Lat_p95_ms,Lat_p99_ms,Lat_Mean_ms,Lat_Max_ms
+2026-10-23T11:05:07.478289,Distributed HTTP Flood,before,ALL,none,xdp,35,35,100.0,0,0,0,0.0,45.0,660.5,841.7,115.8,841.7
+2026-10-23T11:05:07.478289,Distributed HTTP Flood,before,broadband,none,xdp,14,14,100.0,0,0,0,0.0,54.1,171.4,171.4,68.2,171.4
+2026-10-23T11:05:07.478289,Distributed HTTP Flood,before,mobile_3g,none,xdp,5,5,100.0,0,0,0,0.0,437.0,660.5,660.5,447.3,660.5
+2026-10-23T11:05:07.478289,Distributed HTTP Flood,before,mobile_bad,none,xdp,1,1,100.0,0,0,0,0.0,841.7,841.7,841.7,841.7,841.7
+2026-10-23T11:05:07.478289,Distributed HTTP Flood,before,perfect,none,xdp,15,15,100.0,0,0,0,0.0,1.1,2.6,2.6,1.4,2.6
+2026-10-23T11:05:07.478289,Distributed HTTP Flood,during,ALL,none,xdp,271,271,100.0,0,0,0,0.0,42.2,352.7,860.4,94.1,1731.7
+2026-10-23T11:05:07.478289,Distributed HTTP Flood,during,broadband,none,xdp,112,112,100.0,0,0,0,0.0,44.5,84.1,106.9,50.0,121.3
+2026-10-23T11:05:07.478289,Distributed HTTP Flood,during,mobile_3g,none,xdp,45,45,100.0,0,0,0,0.0,303.5,404.5,860.4,311.0,860.4
+2026-10-23T11:05:07.478289,Distributed HTTP Flood,during,mobile_bad,none,xdp,5,5,100.0,0,0,0,0.0,857.0,1731.7,1731.7,1037.9,1731.7
+2026-10-23T11:05:07.478289,Distributed HTTP Flood,during,perfect,none,xdp,109,109,100.0,0,0,0,0.0,2.0,27.7,67.1,6.6,81.3
+2026-10-23T11:05:07.478289,Distributed HTTP Flood,after,ALL,none,xdp,76,76,100.0,0,0,0,0.0,40.5,496.3,787.8,98.1,787.8
+2026-10-23T11:05:07.478289,Distributed HTTP Flood,after,broadband,none,xdp,32,32,100.0,0,0,0,0.0,48.0,248.9,288.9,62.9,288.9
+2026-10-23T11:05:07.478289,Distributed HTTP Flood,after,mobile_3g,none,xdp,11,11,100.0,0,0,0,0.0,398.9,787.8,787.8,453.0,787.8
+2026-10-23T11:05:07.478289,Distributed HTTP Flood,after,mobile_bad,none,xdp,1,1,100.0,0,0,0,0.0,424.4,424.4,424.4,424.4,424.4
+2026-10-23T11:05:07.478289,Distributed HTTP Flood,after,perfect,none,xdp,32,32,100.0,0,0,0,0.0,1.1,1.4,1.5,1.1,1.5

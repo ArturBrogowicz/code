@@ -262,7 +262,8 @@ class RenderLimitsTest(unittest.TestCase):
 class OrchestratorPlanTest(unittest.TestCase):
     def test_capture_plan_mode_offline(self):
         r = subprocess.run([sys.executable, os.path.join(REPO, "ml", "capture_l7.py"),
-                            "--plan", "--duration", "300", "--benign", "12", "--seed", "1"],
+                            "--pipeline", "legacy", "--plan", "--duration", "300", "--benign", "12",
+                            "--seed", "1"],
                            capture_output=True, text=True, check=False)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("calibrated: True", r.stdout)
@@ -271,8 +272,8 @@ class OrchestratorPlanTest(unittest.TestCase):
 
     def test_tolerant_overlap_plan_launches_every_kind(self):
         r = subprocess.run([sys.executable, os.path.join(REPO, "ml", "capture_l7.py"),
-                            "--plan", "--duration", "300", "--seed", "1", "--mix", "overlap",
-                            "--heuristics", "tolerant"],
+                            "--pipeline", "legacy", "--plan", "--duration", "300", "--seed", "1",
+                            "--mix", "overlap", "--heuristics", "tolerant"],
                            capture_output=True, text=True, check=False)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertNotIn("DROPPED", r.stdout)

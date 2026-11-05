@@ -1,0 +1,4 @@
+[12:45:32] L7-06 xie2023applicationlayer: pdf downloads.hindawi.com: HTTP 403
+[12:45:32] L7-06 xie2023applicationlayer: pdf downloads.hindawi.com: [Errno -2] Name or service not known
+[12:45:32] L7-06 xie2023applicationlayer: abstract; B. Xie, Y. Wang, G. Wen, and X. Xu, "Application‐Layer DDoS Attack Detection Using Explicit Duration Recurrent Network‐Based Application‐Layer Protocol Communication Models," *International Journal of Intelligent Systems*, vol. 2023, no. 1, Jan. 2023, doi: 10.1155/2023/2632678.
+[12:45:32] manifest -> docs/sota/corpus_l7/manifest.json; 1/1 papers have text to verify against

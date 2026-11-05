@@ -1,0 +1,63 @@
+{
+ "schema": 1,
+ "campaign_id": "20261022T175432Z_knee_s4",
+ "created_utc": "2026-10-22T17:54:32+00:00",
+ "command": [
+  "eval/run_campaign.py",
+  "--operating-point",
+  "knee",
+  "--scenarios",
+  "4",
+  "--attack-duration",
+  "30",
+  "--modes",
+  "unprotected",
+  "--runs",
+  "1",
+  "--seed-base",
+  "100",
+  "--loads",
+  "wrk,loadgen:20"
+ ],
+ "python": "/usr/bin/python3",
+ "settings": {
+  "modes": [
+   "unprotected"
+  ],
+  "runs": 1,
+  "scenarios": "4",
+  "operating_point": "knee",
+  "attack_duration": 30.0,
+  "seed_base": 100,
+  "order_seed": 0,
+  "set": {},
+  "loads": [
+   "wrk",
+   "loadgen:20"
+  ]
+ },
+ "plan": [
+  {
+   "block": 1,
+   "mode": "unprotected",
+   "load": "wrk",
+   "profile_seed": 101,
+   "dir": "unprotected/run1"
+  },
+  {
+   "block": 1,
+   "mode": "unprotected",
+   "load": "loadgen:20",
+   "profile_seed": 101,
+   "dir": "unprotected@loadgen20/run1"
+  }
+ ],
+ "runs": {},
+ "status": "running",
+ "updated_utc": "2026-10-22T17:54:32+00:00",
+ "git": {
+  "commit": "3f4feeace957d1a7013a90e6b1d5cf4336c99138",
+  "branch": "feat/expc-attacker-setting",
+  "dirty": false
+ }
+}

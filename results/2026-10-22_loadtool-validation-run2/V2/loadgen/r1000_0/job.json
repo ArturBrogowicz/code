@@ -1,0 +1,17 @@
+{
+ "cpus": "4-7",
+ "duration": 20,
+ "key": "V2/loadgen/r1000_0",
+ "limits": {
+  "connections": 300,
+  "max_workers": 5000,
+  "workers": 300
+ },
+ "origin": "s1",
+ "rate": 1000,
+ "repeat": 0,
+ "role": "subject",
+ "s2": {},
+ "test": "V2",
+ "tool": "loadgen"
+}
