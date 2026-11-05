@@ -83,7 +83,7 @@ class ReRegistrationTest(unittest.TestCase):
                     "over [attack start + 30 s, attack end]", "180 s of traffic"):
             at = text.index(old)
             self.assertIn("[re-registered:", text[at:at + 400], old)
-        self.assertEqual(text[text.index("Two further forms"):].count("[re-registered:"), 9)
+        self.assertEqual(text[text.index("Two further forms"):].count("[re-registered:"), 10)
 
     def test_d046_is_dated_everywhere_before_the_code_it_judges(self):
         text = note()

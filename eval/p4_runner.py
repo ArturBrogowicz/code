@@ -104,7 +104,10 @@ SERVER_NS, SERVER_IP, BRIDGE, SERVER_VETH_HOST_END = "server_ns", "10.0.0.1", "d
 NS_PREFIX, MAX_ALIASES, SUBNET_MASK = "p4n", 80, "/16"
 # The runner too (review T-050 T050-17): its popen, curl and reads, and the ip and curl processes it starts, keep off the CPUs of the
 # server and the daemon, as bench/population.PIN_PLAN_DAEMON's executor CPU does. P4's plan has no CPU to spare, so it shares the clients'.
-PINS = {"server": "0-1", "daemon": "2", "clients": "3-7", "runner": "3-7"}
+# "timer": the CPU the timer gate probes (review T-057 T057-06), the legit CPU of bench/population.PIN_PLAN_DAEMON, on which the record's limit was
+# measured. P4's clients stay on 3-7, so the gate says that the host is calm, not that their CPUs are; the view slips read those.
+PINS = {"server": "0-1", "daemon": "2", "clients": "3-7", "runner": "3-7", "timer": "7"}
+TIMER_WAIT_MIN = 30.0              # bench/executor.py timer_gate's default wait, as eval/p1_runner.py: every run may use it in full
 CONF_R = "nginx_profile_r.conf"
 CONF_LIMITS = "nginx_profile_r_limits.conf"
 GUNICORN_CONF = "gunicorn_profile_r.py"
@@ -313,13 +316,14 @@ def plan_run(pop, phase, arm, out, *, thresholds=None, calibration=PLACEHOLDER, 
     }
 
 
-def record_status(path):
-    """The status of a calibration record, its schema and hash checked (l7_backend.load_record), or PlanError."""
+def read_record(path):
+    """(record, status) of a calibration record, its schema and hash checked (l7_backend.load_record), or PlanError."""
     import l7_backend
     try:
-        return l7_backend.load_record(path)[1]
+        rec, status, _tag = l7_backend.load_record(path)
     except (OSError, ValueError) as exc:
         raise PlanError(f"the calibration record {path}: {exc}") from None
+    return rec, status
 
 
 def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresholds=None, family=None,
@@ -331,7 +335,7 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresh
         raise PlanError(f"unknown phase {phase!r}")
     if selection and phase != "campaign":
         raise PlanError(f"{phase}: --selection is the campaign's: the validation's choice of T, F and K")
-    status = record_status(calibration)
+    record, status = read_record(calibration)
     if label and phase in ("campaign", "validation"):
         raise PlanError(f"{phase}: no --label: it would give another arm order in another directory (review T-047 P-13)")
     role = check_phase(phase, seed, sources, thresholds, family) if phase != "smoke" else "pilot"
@@ -348,6 +352,8 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresh
     bdir = os.path.join(root, phase, name)
     runs = [plan_run(pop, phase, arm, os.path.join(bdir, arm), thresholds=thresholds, calibration=calibration,
                      python=python) for arm in order]
+    for run in runs:
+        run["timer_limit_ms"] = record["validity"]["timer_p99_ms"]
     return {"phase": phase, "seed": seed, "attempt": attempt, "label": label, "dir": bdir, "root": root,
             "order": order, "sources": sources, "halvings": halvings, "thresholds": thresholds,
             "calibration": calibration, "calibration_status": status, "selection": selection, "runs": runs}
@@ -505,12 +511,15 @@ def execute_run(host, plan):
     if plan["enforcing"] and host.exists(plan["kill_file"]):
         return finish(host, plan, [(f"the kill file {plan['kill_file']} exists: an enforcing run would run in shadow; "
                                     "nothing was started")], started, None, [], {}, [])
+    timer, refused = timer_gate(host, plan)
+    if refused:
+        return finish(host, plan, [f"{refused}: nothing was started"], started, None, [], {}, [], timer=timer)
     logs, stub, t0 = {}, [], None
     try:
         procs.append(("topology", None))                # from here on the teardown runs, whatever happens
         reasons += topology(host, plan)
         if reasons:
-            return finish(host, plan, reasons, started, None, procs, logs, stub)
+            return finish(host, plan, reasons, started, None, procs, logs, stub, timer=timer)
         host.run(["mkdir", "-p", "/var/log/nginx", os.path.join(out, "feed_before")])
         for name, path in NGINX_LOGS.items():          # nginx starts its logs afresh; nothing of the host's is lost
             host.run(["mv", "-f", path, os.path.join(out, "feed_before", name)])
@@ -540,7 +549,7 @@ def execute_run(host, plan):
                          and any(e.get("kind") == "start" for e in _events(events)), DAEMON_READY_TIMEOUT_S):
                 reasons.append(f"the daemon was not ready within {DAEMON_READY_TIMEOUT_S:g} s")
         if reasons:
-            return finish(host, plan, reasons, started, None, procs, logs, stub)
+            return finish(host, plan, reasons, started, None, procs, logs, stub, timer=timer)
         t0 = host.time()
         total = sum(t.values())
         pending = list(plan["launches"])
@@ -568,10 +577,21 @@ def execute_run(host, plan):
                 break
             elapsed = host.time() - t0                                    # on the second, whatever the sample took
             host.sleep(max(0.0, min(math.floor(now) + 1, total) - elapsed))
-        return finish(host, plan, reasons, started, t0, procs, logs, stub, launched)
+        return finish(host, plan, reasons, started, t0, procs, logs, stub, launched, timer=timer)
     except Exception as exc:  # noqa: BLE001 - whatever failed, the run is recorded and the teardown runs
         reasons.append(f"the runner failed: {type(exc).__name__}: {exc}")
-        return finish(host, plan, reasons, started, t0, procs, logs, stub, launched)
+        return finish(host, plan, reasons, started, t0, procs, logs, stub, launched, timer=timer)
+
+
+def timer_gate(host, plan):
+    """The harm benchmark's gate before a run, as eval/p1_runner.py takes it (review T-057 T057-06): the timer of the CPU the record's limit was
+    measured on, at that limit, with its wait. Returns (the record of its probes, for run.json; the refusal's text, or None)."""
+    import executor
+    gate = types.SimpleNamespace(pins={"legit": PINS["timer"]}, timer_limit_ms=plan["timer_limit_ms"], overrides={})
+    try:
+        return executor.timer_gate(host, gate, TIMER_WAIT_MIN)[1], None
+    except executor.EnvironmentRefused as exc:
+        return getattr(exc, "record", None), f"the timer gate refused the run: {exc}"
 
 
 def start_nginx(host, plan):
@@ -606,7 +626,7 @@ def _stop(host, proc, grace=STOP_GRACE_S, interrupt=False):
             proc.kill()
 
 
-def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
+def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=(), timer=None):
     """Stop everything, take the logs into the run, tear the testbed down, check and write the run's records."""
     out = plan["out"]
     reasons = list(reasons)
@@ -656,7 +676,7 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
             "daemon": None if plan["daemon"] is None else {"mode": plan["daemon"]["mode"],
                                                            "env": plan["daemon"]["env"]},
             "thresholds": plan["thresholds"], "provenance": plan["provenance"],
-            "attack": attack_summary(plan) if t0 is not None else None, "stall": stall, "daemon_provenance": daemon_prov,
+            "attack": attack_summary(plan) if t0 is not None else None, "stall": stall, "timer": timer, "daemon_provenance": daemon_prov,
             "git": executor.git_state(host)}
     write_json(os.path.join(out, "run.json"), meta)
     write_json(os.path.join(out, "manifest.json"), manifest(plan, t0))

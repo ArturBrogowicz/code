@@ -872,6 +872,38 @@ class ExecuteTest(unittest.TestCase):
             with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
                 self.assertEqual(json.load(fh)["checks"]["reasons"], res["reasons"])
 
+    def test_the_timer_gate_goes_before_a_run_and_its_probes_are_recorded(self):
+        """Review T-057 T057-06: a host stall of the kind HG and P1 refuse reached P4's clients unprobed."""
+        run = self.one_run("timer", "campaign", 3106, "C", thresholds=POINT)
+        with open(R.PLACEHOLDER, encoding="utf-8") as fh:
+            self.assertEqual(run["timer_limit_ms"], json.load(fh)["validity"]["timer_p99_ms"])
+        host = F.FakeHost()
+        self.assertEqual(R.execute_run(host, run)["reasons"], [])
+        probes = [c[1] for c in host.commands if "timer-probe" in c[1]]
+        self.assertEqual(probes[0][:3], ("taskset", "-c", "7"))
+        self.assertEqual(R.PINS["timer"], F.X.P.PIN_PLAN_DAEMON["legit"])
+        with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+            meta = json.load(fh)
+        self.assertEqual(len(meta["timer"]["timer_probes"]), 1)
+        self.assertEqual(meta["provenance"]["pins"]["timer"], "7")
+
+    def test_a_refused_gate_starts_nothing_and_leaves_its_probes(self):
+        run = self.one_run("refused_timer", "campaign", 3106, "M_pc_post", thresholds=POINT)
+        host = F.FakeHost(timer_p99=50.0)
+        res = R.execute_run(host, run)
+        self.assertRegex(res["reasons"][0], r"^the timer gate refused the run: .*p99 50\.0 ms.*: nothing was started$")
+        self.assertEqual(host.procs, [])
+        self.assertFalse(host.ran("ip", "netns", "del", "server_ns"))
+        self.assertGreaterEqual(host.t, R.TIMER_WAIT_MIN * 60)
+        with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+            self.assertGreater(json.load(fh)["timer"]["timer_refused_probes"], 1)
+
+    def test_a_probe_that_passes_after_the_wait_opens_the_run(self):
+        run = self.one_run("late_timer", "campaign", 3106, "C", thresholds=POINT)
+        self.assertEqual(R.execute_run(F.FakeHost(timer_p99=[50.0, None, 2.0]), run)["reasons"], [])
+        with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+            self.assertEqual([p["passed"] for p in json.load(fh)["timer"]["timer_probes"]], [False, False, True])
+
     def test_gunicorn_dying_in_mid_run_makes_the_run_invalid(self):
         """D-063: a dead backend read as harm: the run went on, every request failed, and run.json said nothing."""
         for arm in ("U_post", "C"):
