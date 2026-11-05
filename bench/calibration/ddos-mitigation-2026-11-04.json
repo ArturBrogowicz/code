@@ -1,0 +1,119 @@
+{
+ "capacity": {
+  "c_sat_rps": 241.3,
+  "c_slo_rps": 84.5
+ },
+ "created_utc": "2026-11-04T11:28:31+00:00",
+ "drift_reference": {
+  "attack": {
+   "cheap_static_flood": {
+    "level": 2.0,
+    "p95_s": 0.20570220000000097,
+    "q_pct": 95.80888516345348
+   },
+   "costly_export_flood": {
+    "level": 4.0,
+    "p95_s": 0.25194199999999967,
+    "q_pct": 75.3211009174312
+   },
+   "costly_search_flood": {
+    "level": 4.0,
+    "p95_s": 0.6308129999999972,
+    "q_pct": 63.36996336996337
+   }
+  },
+  "p95_s": 0.0794383500000002,
+  "q_pct": 100.0,
+  "rho_rps": 42.25
+ },
+ "gate": {
+  "ci_level": 0.95,
+  "control_q_min": 99.0,
+  "floor_log2_p95": 1.0,
+  "floor_pp": 10.0,
+  "max_reruns": 2,
+  "min_blocks": 10,
+  "same_sign_share": 0.8
+ },
+ "host": {
+  "cpus": 8,
+  "gunicorn": {
+   "nofile": 524288,
+   "threads": 8,
+   "version": "26.2.0",
+   "workers": 2
+  },
+  "loadgen_sha256": "91aab0837ce688982c30cc2f8b9e867482f830d5ff49b9ec703888ac80ba92a1",
+  "mem_mib": 9426,
+  "nginx": {
+   "conf_sha256": "55f867904d18615b3f5405e3017ab17d425106d2e34d1b265ac4cf352135dfdb",
+   "version": "1.28.3"
+  },
+  "origin_seed": 1,
+  "origin_sha256": "4cb5e276c04e8a4c003729170112c8b21000aa5bc89901681f7c07cc268ff2b2",
+  "pins": {
+   "attack": "3-6",
+   "daemon": "2",
+   "legit": "7",
+   "server": "0-1"
+  },
+  "uname": "Linux ddos-mitigation 7.0.0-38-generic #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:10:14 UTC 2026 x86_64 "
+ },
+ "judged_profiles": [
+  "perfect",
+  "broadband"
+ ],
+ "knees": {
+  "cheap_static_flood": 2.0,
+  "costly_export_flood": 4.0,
+  "costly_search_flood": 4.0
+ },
+ "knobs": {
+  "api_burn": 4000,
+  "export_burn": 330000,
+  "export_rows": 6000,
+  "io_wait_ms": 0.0,
+  "page_burn": 6500,
+  "page_rows": 300,
+  "rows_total": 100000,
+  "search_burn": 0,
+  "search_rows": 50000,
+  "spread_sigma": 0.25,
+  "static_bytes": 2048
+ },
+ "mix": {
+  "C0": 0.33,
+  "C1": 0.22,
+  "C2": 0.33,
+  "C3": 0.11,
+  "C5": 0.01
+ },
+ "route_costs_ms": {
+  "C0": 0.005444691406250243,
+  "C1": 3.40712200000004,
+  "C2": 1.77428400000057,
+  "C3": 29.837566999999954,
+  "C5": 159.70452500000044
+ },
+ "schema": 1,
+ "sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+ "slo_ms": {
+  "C0": 100,
+  "C1": 300,
+  "C2": 300,
+  "C3": 1000,
+  "C4": 1000,
+  "C5": 3000,
+  "C6": 1000
+ },
+ "status": "frozen",
+ "validity": {
+  "cpu_share": 0.7,
+  "profile": "relative",
+  "sent_share": 0.99,
+  "slip_delta_s": 0.05,
+  "slip_pooled_s": 0.1,
+  "strict_slip_p99_s": 0.05,
+  "timer_p99_ms": 10.0
+ }
+}
