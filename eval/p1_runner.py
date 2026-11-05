@@ -699,7 +699,9 @@ def finish(host, plan, reasons, ctx):
             if name == "daemon":
                 P4._stop(host, proc, interrupt=True)       # SIGINT runs its finally, which detaches XDP and empties the map
         if any(name == "gunicorn" for name, _p in procs):
-            host.run(plan["nginx"]["stop"], ns=SERVER_NS)
+            quit_code = host.run(plan["nginx"]["stop"], ns=SERVER_NS).code
+            if quit_code != 0 and t0 is not None:          # D-063; its exit code is [CLAIMED], NOT RUN (P4.nginx_gone)
+                reasons.append(P4.nginx_gone(quit_code))
         for name, proc in procs:
             if name == "gunicorn":
                 P4._stop(host, proc)

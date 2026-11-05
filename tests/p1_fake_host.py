@@ -88,7 +88,7 @@ class P1FakeHost(F.FakeHost):
             self.lines.sort(key=lambda o: o["msec"])
             with open(self.sink, "w", encoding="utf-8") as fh:
                 fh.writelines(json.dumps(o) + "\n" for o in self.lines)
-            return F.X.Result(0, "", "")
+            return super().run(argv, ns, stdin, env, timeout) if self.nginx_gone else F.X.Result(0, "", "")
         return super().run(argv, ns, stdin, env, timeout)
 
     def pin(self, cpus):

@@ -526,6 +526,21 @@ class BackendExitTest(Base):
         self.assertTrue(host.ran("ip", "netns", "del", "server_ns"))
         self.assertFalse(os.path.exists(os.path.join(block["dir"], "M_gru_C2", "cpu.jsonl")))
 
+    def test_nginx_gone_at_the_run_s_end_makes_the_run_invalid(self):
+        res, meta = self.run_one("U_C2", nginx_gone=True)
+        self.assertEqual(res["reasons"], ["nginx was not running at the run's end: its quit exited 1"])
+        self.assertEqual(meta["checks"]["reasons"], res["reasons"])
+
+    def test_the_nginx_reason_is_p4_s_one_function(self):
+        self.assertEqual(R.P4.nginx_gone(1), "nginx was not running at the run's end: its quit exited 1")
+        self.assertIn("P4.nginx_gone", inspect.getsource(R))
+        self.assertIn("nginx_gone(quit_code)", inspect.getsource(R.P4.finish))
+
+    def test_a_run_that_never_began_has_no_end_to_speak_of(self):
+        res, _meta = self.run_one("C", nginx_gone=True, stack_ready=False)
+        self.assertEqual(len(res["reasons"]), 1, res["reasons"])
+        self.assertIn("did not answer", res["reasons"][0])
+
     def test_the_helper_is_p4_s_and_not_a_copy(self):
         source = inspect.getsource(R)
         self.assertIn("P4.gunicorn_gone", source)
