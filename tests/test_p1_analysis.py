@@ -6,6 +6,7 @@ import io
 import json
 import os
 import re
+import shutil
 import sys
 import tempfile
 import unittest
@@ -19,6 +20,7 @@ for _p in (HERE, REPO, os.path.join(REPO, "eval"), os.path.join(REPO, "ml"), os.
     if _p not in sys.path:
         sys.path.insert(0, _p)
 import calibration_fixtures
+import harm_gate as HG
 import l7v2_harm as LH
 import l7v2_replay as RP
 import l7v2_verdict_prereg as VP
@@ -26,6 +28,7 @@ import p1_analysis as A
 import p1_fake_host as F
 import p1_records as REC
 import p1_runner as R
+import p1_traffic as PT
 
 import l7_backend
 import l7_ingest as I
@@ -98,6 +101,13 @@ def run_campaign(root, frozen, fail, acts=None, cut=False, seeds=SEEDS):
         assert all(x["ok"] for _n, x in res), res
 
 
+def run_campaign_any(root, frozen, fail, acts=None, cut=False, seeds=SEEDS):
+    """run_campaign that lets a run be invalid."""
+    for seed in seeds:
+        block = R.plan_block("campaign", seed, root, frozen=frozen, cut=cut, benign_specs=F.thin_benign(LEAN), max_sources=3)
+        R.run_block(F.P1FakeHost(fail_share=fail, acts=acts), block)
+
+
 def deny_first_benign(names):
     """acts: in the named runs the daemon denies one view-level key of the run's first benign entity."""
     def acts(run, block_dir):
@@ -105,7 +115,7 @@ def deny_first_benign(names):
             return []
         plan = REC.read_json(os.path.join(block_dir, run, "plan.json"))
         ip = next(e["address"] for e in plan["entities"] if e["role"] == "benign")
-        return [(1.0, {"kind": "l7_deny", "level": 1, "ip": ip, "ua_h": 1, "sid_h": 2})]
+        return [(1.0, {"kind": "l7_deny", "level": 1, "ip": ip, "ua_h": 1, "sid_h": 2}), (2.0, {"kind": "l7_reload", "ok": True})]
     return acts
 
 
@@ -331,6 +341,7 @@ class LadderTest(unittest.TestCase):
         self.assertEqual(A.main([root, "--calibration", frozen["calibration"], "--ladder", "--out", out]), 0)
         self.assertEqual(REC.read_json(out)["record_sha256"], calibration_fixtures.frozen()["sha256"])
         self.assertEqual(json.loads(json.dumps(REC.read_json(out)["knees"]["C2"]))["level"], 2.0)
+        self.assertEqual(REC.read_json(out)["C2"], 2.0)
         self.assertEqual(REC.read_json(out)["benign_halvings"], 0)
 
     def test_a_ladder_at_two_factors_is_refused(self):
@@ -383,6 +394,13 @@ class LevelWindowTest(unittest.TestCase):
         self.assertLess(whole, 90.0)
         self.assertGreater(self.block["classes"]["C2"]["dQ"], 10.0)
 
+    def test_the_server_side_q_and_the_late_window_are_reported_for_every_live_arm(self):
+        for name in ("server_q", "late_window_q", "largest_view_slip_s"):
+            self.assertEqual(sorted(self.report[name]), ["R*", "U", "view_gru"], name)
+        self.assertEqual(self.report["late_window_q"]["U"][SEEDS[0]], 100.0, "U failed only before it")
+        self.assertLess(self.report["server_q"]["U"][SEEDS[0]], 90.0, "the 503s of its first 80 s")
+        self.assertGreater(self.report["server_q"]["view_gru"][SEEDS[0]], 99.0)
+
     def test_time_to_decision_and_cost_left_are_reported_per_arm(self):
         got = self.report["time_to_decision"]["view_gru"]["C2"]
         self.assertEqual(got["caught"], 2)
@@ -402,6 +420,246 @@ class LevelWindowTest(unittest.TestCase):
         self.assertEqual((left, sent), (63.0, 93.0))
         # a decision after the gate rules: at 140 s + 10 s the same request is still served
         self.assertEqual(RP.cost_left(requests, first, {"a": 40.0}, {"C3": 30.0, "C1": 3.0}, 20.0, 10.0)[0], 93.0)
+
+
+class LadderAttemptsTest(unittest.TestCase):
+    """T050-13: one invalid run does not sink its level for good; a re-run needs a reason; --ladder's file is what a campaign takes."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = tmp.name
+        self.frozen = F.frozen_inputs(os.path.join(tmp.name, "frozen"))
+        self.cal = l7_backend.load_record(self.frozen["calibration"])[0]
+        self.root = os.path.join(tmp.name, "runs")
+
+    def pair(self, cls, level, rep, seed=9001, attempt=1, share=0.30, **host):
+        def fail(run, _b, _t, s=share, name=f"U_{cls}"):
+            return s if run == name else 0.0
+        block = R.plan_block("ladder", seed, self.root, frozen=self.frozen, levels={cls: level}, runs=["C", f"U_{cls}"],
+                             label=f"{cls}_L{level:g}_r{rep}", attempt=attempt, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        return R.run_block(F.P1FakeHost(fail_share=fail, **host), block)
+
+    def test_a_clean_re_run_restores_its_level(self):
+        self.pair("C2", 1.0, 1, quiet_from=60.0)
+        self.pair("C2", 1.0, 2, seed=9002)
+        self.assertIsNone(A.ladder_knees(self.root, self.cal)["C2"]["level"], "repeat 1's only attempt is invalid: no harm")
+        self.pair("C2", 1.0, 1, attempt=2)
+        self.assertEqual(A.ladder_knees(self.root, self.cal)["C2"]["level"], 1.0)
+
+    def test_the_last_sound_attempt_counts_and_an_invalid_later_one_does_not_erase_it(self):
+        self.pair("C2", 1.0, 1, quiet_from=60.0)
+        self.pair("C2", 1.0, 1, attempt=2)
+        self.pair("C2", 1.0, 2, seed=9002)
+        self.assertEqual(A.ladder_knees(self.root, self.cal)["C2"]["level"], 1.0)
+
+    def test_a_re_run_needs_a_reason(self):
+        self.pair("C2", 1.0, 1)
+        with self.assertRaisesRegex(R.PlanError, "attempt 1 was valid"):
+            self.pair("C2", 1.0, 1, attempt=2)
+        with self.assertRaisesRegex(R.PlanError, "the next is 2"):
+            self.pair("C2", 1.0, 1, attempt=3)
+
+    def test_the_file_is_the_one_a_campaign_takes(self):
+        for cls, level in (("C2", 1.0), ("C3a", 1.0), ("C3b", 50)):
+            self.pair(cls, level, 1)
+            self.pair(cls, level, 2, seed=9002)
+        out = os.path.join(self.tmp, "knees.json")
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(A.main([self.root, "--calibration", self.frozen["calibration"], "--ladder", "--out", out]), 0)
+        got = REC.read_json(out)
+        self.assertEqual((got["C2"], got["C3a"], got["C3b"], got["no_knee"], got["status"]), (1.0, 1.0, 50, [], "frozen"))
+        self.assertEqual((got["record_sha256"], got["benign_halvings"]), (self.cal["sha256"], 0))
+        block = R.plan_block("campaign", SEEDS[0], self.root, frozen={**self.frozen, "knees": out}, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        self.assertEqual(block["levels"], {"C2": 1.0, "C3a": 1.0, "C3b": 50})
+
+    def test_a_class_without_a_knee_is_named_and_refused_when_needed(self):
+        for cls, level, share in (("C2", 1.0, 0.30), ("C3a", 1.0, 0.0), ("C3b", 50, 0.30)):
+            self.pair(cls, level, 1, share=share)
+            self.pair(cls, level, 2, seed=9002, share=share)
+        got = A.knees_file(self.root, self.cal)
+        self.assertEqual((got["C3a"], got["no_knee"]), (None, ["C3a"]))
+        path = os.path.join(self.tmp, "knees.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(got, fh)
+        with self.assertRaisesRegex(R.PlanError, "C3a has no knee"):
+            R.plan_block("campaign", SEEDS[0], self.root, frozen={**self.frozen, "knees": path}, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        block = R.plan_block("campaign", SEEDS[0], self.root, frozen={**self.frozen, "knees": path}, cut=True, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        self.assertEqual(sorted(block["levels"]), ["C2", "C3b"])
+
+
+def one_invalid(run, seed):
+    """acts: `run` of block `seed` has the arm's step fail in the attack window, so that run alone is invalid."""
+    def acts(name, block_dir):
+        if name == run and f"b{seed}_a1" in block_dir:
+            return [(100.0, {"kind": "daemon_error", "where": "l7_enforce", "error": "x", "action": "step skipped"})]
+        return []
+    return acts
+
+
+class ReRunTest(unittest.TestCase):
+    """D-058, T050-06: a re-run for one invalid run costs no class, the runner holds its limits, and an arm's bans count over all attempts."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.frozen = F.frozen_inputs(os.path.join(cls.tmp.name, "frozen"))
+        cls.cal = l7_backend.load_record(cls.frozen["calibration"])[0]
+        cls.root = os.path.join(cls.tmp.name, "runs")
+        fail = fail_from(TABLE_A)
+
+        def acts(name, block_dir):
+            ban = [(60.0, {"kind": "ban", "engine": "l7v2", "ip": "10.9.9.9"})] if name == "M_gru_C3b" else []
+            return ban + one_invalid("M_gru_C3b", SEEDS[3])(name, block_dir)
+
+        run_campaign_any(cls.root, cls.frozen, fail, acts, cut=True)
+        cls.block(SEEDS[3], 2, fail)
+        cls.res = A.analyse(cls.root, cls.cal, cls.frozen, arms_factory=factory(SHARES_A), cut=True)
+
+    @classmethod
+    def block(cls, seed, attempt, fail=None, acts=None):
+        block = R.plan_block("campaign", seed, cls.root, frozen=cls.frozen, cut=True, benign_specs=F.thin_benign(LEAN), max_sources=3, attempt=attempt)
+        return R.run_block(F.P1FakeHost(fail_share=fail, acts=acts), block)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_the_reviewer_s_s2_a_re_run_for_an_m_run_keeps_every_class(self):
+        for cls in ("C3b", "C2"):
+            with self.subTest(cls):
+                self.assertTrue(self.res[cls]["admission"]["admitted"], self.res[cls]["admission"]["reasons"])
+                self.assertEqual(self.res[cls]["blocks_judged"], SEEDS)
+                self.assertIsNotNone(self.res[cls]["verdict"])
+        self.assertEqual(self.res["C3b"]["admission"]["reruns"], 1)
+
+    def test_an_arm_s_bans_and_budget_count_the_superseded_attempt(self):
+        self.assertEqual(self.res["C3b"]["reported"]["bans_over_attempts"]["view_gru"], {"l7v2": 10}, "10 blocks; the block re-run was clean of this fixture's ban")
+        flagged, users = A.live_budget(self.root, "view_gru", "C3b")
+        self.assertEqual(len(A.arm_runs(self.root, "view_gru", "C3b")), 11)
+        self.assertGreater(users, 0)
+        self.assertGreaterEqual(flagged, 0)
+
+    def test_the_runner_refuses_a_re_run_without_a_reason(self):
+        with self.assertRaisesRegex(R.PlanError, "allows no re-run"):
+            self.block(SEEDS[0], 2)
+        self.assertFalse(os.path.exists(os.path.join(self.root, "campaign", f"b{SEEDS[0]}_a2")))
+
+    def test_the_runner_refuses_a_second_re_run_of_a_block_and_a_gap(self):
+        with self.assertRaisesRegex(R.PlanError, "the next is 3"):
+            self.block(SEEDS[3], 4)
+        with self.assertRaisesRegex(R.PlanError, "the next is 2"):
+            self.block(SEEDS[1], 3)
+
+    def test_a_block_valid_in_itself_is_valid_all(self):
+        got = LH.assess_block(os.path.join(self.root, "campaign", f"b{SEEDS[0]}_a1"), self.cal)
+        self.assertTrue(got["valid_all"])
+        got = LH.assess_block(os.path.join(self.root, "campaign", f"b{SEEDS[3]}_a1"), self.cal)
+        self.assertFalse(got["valid_all"])
+
+
+class ReRunLimitTest(unittest.TestCase):
+    def test_one_per_block_and_two_per_campaign(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        frozen = F.frozen_inputs(os.path.join(tmp.name, "frozen"))
+        root = os.path.join(tmp.name, "runs")
+
+        def block(seed, attempt, invalid=False):
+            plan = R.plan_block("campaign", seed, root, frozen=frozen, cut=True, benign_specs=F.thin_benign({"exporter": 1}), max_sources=1, attempt=attempt)
+            acts = one_invalid("M_gru_C2", seed) if invalid else None
+            acts2 = (lambda n, d: acts(n, d.replace(f"_a{attempt}", "_a1"))) if invalid else None
+            R.run_block(F.P1FakeHost(acts=acts2), plan)
+
+        for seed in SEEDS[:3]:
+            block(seed, 1, invalid=True)
+        block(SEEDS[0], 2, invalid=True)
+        block(SEEDS[1], 2)
+        with self.assertRaisesRegex(R.PlanError, "2 re-run blocks, at most 2"):
+            block(SEEDS[2], 2)
+        with self.assertRaisesRegex(R.PlanError, "1 re-runs already, at most 1 per block"):
+            block(SEEDS[0], 3)
+
+
+class TooFewJudgedBlocksTest(unittest.TestCase):
+    """D-058, T050-05: the reviewer's S1, on a whole fake campaign: one invalid M run, and the GRU's gain over U of 30 pp must not read V-D."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.frozen = F.frozen_inputs(os.path.join(cls.tmp.name, "frozen"))
+        cls.cal = l7_backend.load_record(cls.frozen["calibration"])[0]
+        cls.root = os.path.join(cls.tmp.name, "runs")
+        run_campaign_any(cls.root, cls.frozen, fail_from(TABLE_A), one_invalid("M_gru_C3b", SEEDS[3]), cut=True)
+        cls.res = A.analyse(cls.root, cls.cal, cls.frozen, arms_factory=factory(SHARES_A), cut=True)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_the_class_with_the_invalid_run_has_no_verdict(self):
+        r = self.res["C3b"]
+        self.assertIsNone(r["verdict"])
+        self.assertEqual(r["status"], "invalid (9 of 10)")
+        self.assertEqual(r["blocks_judged"], [s for s in SEEDS if s != SEEDS[3]])
+        self.assertTrue(any("the arm's step failed" in w for w in r["why_no_verdict"]), r["why_no_verdict"])
+        self.assertNotIn("judge", r)
+
+    def test_the_other_class_is_judged(self):
+        self.assertEqual(self.res["C2"]["blocks_judged"], SEEDS)
+        self.assertIsNotNone(self.res["C2"]["verdict"])
+        self.assertNotIn("status", self.res["C2"])
+
+    def test_zero_judged_blocks_do_not_raise(self):
+        got = A.judged_blocks([], "C3b", ["U", "R*", "view_gru"])
+        self.assertEqual(got, ([], {}))
+
+
+class CampaignSettingsTest(unittest.TestCase):
+    """T050-12: the analysis refuses blocks at two settings, and a record or selection other than the campaign's."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.frozen = F.frozen_inputs(os.path.join(cls.tmp.name, "frozen"))
+        cls.cal = l7_backend.load_record(cls.frozen["calibration"])[0]
+        cls.root = os.path.join(cls.tmp.name, "runs")
+        for seed in SEEDS[:2]:
+            block = R.plan_block("campaign", seed, cls.root, frozen=cls.frozen, cut=True, benign_specs=F.thin_benign(LEAN), max_sources=2)
+            R.run_block(F.P1FakeHost(), block)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_one_setting_passes(self):
+        A.check_campaign(self.root, self.cal, self.frozen)
+
+    def test_an_analysis_with_another_selection_is_refused(self):
+        with self.assertRaisesRegex(A.SettingsError, "selection_sha256"):
+            A.analyse(self.root, self.cal, {**self.frozen, "selection_sha256": "f" * 64}, arms_factory=factory({}), cut=True)
+        with self.assertRaisesRegex(A.SettingsError, "rules_sha256"):
+            A.check_campaign(self.root, self.cal, {**self.frozen, "rules_sha256": "f" * 64})
+        with self.assertRaisesRegex(A.SettingsError, "record_digest"):
+            A.check_campaign(self.root, {**self.cal, "sha256": "f" * 64}, self.frozen)
+
+    def test_blocks_at_two_settings_are_refused_and_the_command_line_says_so(self):
+        root = os.path.join(self.tmp.name, "two")
+        shutil.copytree(self.root, root)
+        path = os.path.join(root, "campaign", f"b{SEEDS[1]}_a1", "block.json")
+        meta = REC.read_json(path)
+        meta["settings"]["knees_sha256"] = "f" * 64
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(meta, fh)
+        with self.assertRaisesRegex(A.SettingsError, "knees_sha256"):
+            A.check_campaign(root, self.cal, self.frozen)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code = A.main([root, "--calibration", self.frozen["calibration"], "--selection", self.frozen["selection"], "--selection-sha256",
+                           self.frozen["selection_sha256"], "--rules", self.frozen["rules"], "--rules-sha256", self.frozen["rules_sha256"],
+                           "--cut", "--dry-run", "--out", os.path.join(self.tmp.name, "v.json")])
+        self.assertEqual(code, 1)
+        self.assertIn("knees_sha256", err.getvalue())
 
 
 class AdmittedOnTest(unittest.TestCase):
@@ -554,6 +812,50 @@ class HealthTest(unittest.TestCase):
     @staticmethod
     def sick_until(h):
         return lambda _run, block_dir, _t: 0.05 if int(re.search(r"_h(\d)", block_dir).group(1)) < h else 0.0
+
+    def test_a_client_side_failure_stops_the_rule_and_the_ladder_says_so(self):
+        """D-058, T050-09: unhealthy on the client, with nginx's own Q at 100 %."""
+        self.step(0, fail_share=self.sick_until(1), client_side=True)
+        got = A.health_result(self.root, self.cal)
+        self.assertEqual(got["decision"], "stopped")
+        self.assertEqual(got["steps"][0]["server_q"], [100.0, 100.0])
+        self.assertEqual(got["stopped_step"], got["steps"][0]["dir"])
+        health = self.result_file(code=1)
+        with self.assertRaisesRegex(R.PlanError, "stopped.*waits for a dated decision"):
+            R.plan_block("ladder", 9001, self.root, frozen={**self.frozen, "health": health}, levels={"C2": 1.0}, runs=["C", "U_C2"],
+                         benign_specs=F.thin_benign(LEAN), max_sources=2)
+        out = os.path.join(self.tmp, "h2.json")
+        step = got["stopped_step"]
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(A.main([self.root, "--calibration", self.frozen["calibration"], "--health", "--out", out,
+                                     "--health-decision", f"{step}=fire:D-999, 2026-11-05: the client's limit, halve anyway"]), 0)
+        self.assertEqual((REC.read_json(out)["decision"], REC.read_json(out)["next_halvings"]), ("run", 1))
+        self.assertIn(step, REC.read_json(out)["decisions"])
+
+    def test_an_undated_decision_is_refused(self):
+        for text in ("d=fire:the user said so", "d=later:D-1, 2026-11-05", "d:2026-11-05"):
+            with self.subTest(text), self.assertRaisesRegex(ValueError, "dated decision"):
+                A.parse_health_decision(text)
+
+    def test_the_class_floor_reads_from_20_judged_requests(self):
+        """D-058, T050-10: one slow export of five decides nothing; harm_gate.control_health itself is unchanged."""
+        cal = self.cal
+        def m(n, ok):
+            return {"Q": 99.5, "by_class": {"C5": {"n": n, "ok": ok, "Q": 100.0 * ok / n, "p95_s": 0.1}}}
+        reasons, small = LH.control_health(m(5, 4), cal)
+        self.assertEqual((reasons, small), ([], {"C5": {"n": 5, "ok": 4, "Q": 80.0}}))
+        reasons, small = LH.control_health(m(20, 18), cal)
+        self.assertEqual((len(reasons), small), (1, {}))
+        self.assertTrue(HG.control_health(m(5, 4), cal), "the harm benchmark's own stays as it was")
+        self.assertEqual(LH.CONTROL_CLASS_MIN_N, PT.prereg_4()["control_health"]["class_floor_from_n"])
+
+    def test_the_file_records_each_control_s_server_q_cpu_and_slip(self):
+        """T050-09's recording: a client-side firing can be told from a server-side one; the rule itself does not read them."""
+        self.step(0)
+        got = A.health_result(self.root, self.cal)["steps"][0]["controls"]["C"]
+        self.assertEqual(got["server_q"], 100.0)
+        self.assertEqual(sorted(got["cpu"]), ["attack", "legit", "server"])
+        self.assertLess(got["view_slip"]["largest_s"], 2.0)
 
     def test_healthy_at_once(self):
         self.step(0)

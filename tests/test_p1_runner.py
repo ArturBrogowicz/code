@@ -5,6 +5,8 @@ import copy
 import io
 import json
 import os
+import socket
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -39,8 +41,7 @@ def read_json(path):
 
 
 def index(root):
-    with open(os.path.join(root, "index.jsonl"), encoding="utf-8") as fh:
-        return [json.loads(x) for x in fh]
+    return R.read_index(root)
 
 
 class Base(unittest.TestCase):
@@ -198,6 +199,71 @@ class PlanTest(Base):
         self.assertAlmostEqual(R.vm_minutes(13), 13 * 5.25)
         self.assertAlmostEqual(10 * R.vm_minutes(13) / 60.0, 11.375)
         self.assertAlmostEqual(10 * R.vm_minutes(9) / 60.0, 7.875)
+
+
+FEEDS_ITS_SOCKET = {"C": False, "U_C3b": False, "M_default_rules_C3b": False, "M_hgb_C3b": True, "M_gru_C3b": True, "M_rstar_C3b": True}
+
+
+class AttackGeneratorTest(Base):
+    """T050-02: P1's attack generators, on the fake and on the real ml/l7_gen.py with P1's own argv, on a loopback sink."""
+
+    def block(self):
+        return R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=["U_C2"], label="stats",
+                            benign_specs=F.thin_benign({"exporter": 1}), max_sources=2)
+
+    def test_a_u_run_is_valid_and_its_generators_left_their_stats(self):
+        block = self.block()
+        res = dict(R.run_block(F.P1FakeHost(), block))["U_C2"]
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertEqual(len(os.listdir(os.path.join(block["dir"], "U_C2", "attack_stats"))), 2)
+
+    def test_the_real_generator_with_p1_s_argv_exits_0_and_writes_its_stats(self):
+        block = self.block()
+        R.run_block(F.P1FakeHost(), block)
+        run = block["runs"][0]
+        x = next(x for x in run["launches"] if x["role"] == "attack")
+        stats = x["argv"][x["argv"].index("--stats") + 1]
+        os.remove(stats)
+        argv = list(x["argv"][x["argv"].index(R.P4.GEN) + 1:])
+        with socket.create_server(("127.0.0.1", 0)) as srv:
+            argv[argv.index("--host") + 1] = "127.0.0.1"
+            argv[argv.index("--port") + 1] = str(srv.getsockname()[1])
+            argv[argv.index("--source") + 1] = "127.0.0.1"
+            argv[argv.index("--duration") + 1] = "0.5"
+            driver = ("import sys, ipaddress; sys.path.insert(0, 'ml'); import l7_gen; "
+                      "l7_gen.TESTBED_NET = ipaddress.ip_network('127.0.0.0/8'); sys.exit(l7_gen.main(sys.argv[1:]))")
+            got = subprocess.run([sys.executable, "-c", driver, *argv], cwd=REPO, capture_output=True, text=True, timeout=60, check=False)
+        self.assertEqual(got.returncode, 0, got.stderr[-500:])
+        self.assertTrue(os.path.isfile(stats))
+
+
+class WrittenConfTest(Base):
+    """T050-01: what execute_run writes, and nginx reads, not what the table's row renders. An enforcing arm's conf feeds its socket."""
+
+    def written(self):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C3b": 3}, runs=list(FEEDS_ITS_SOCKET), label="conf",
+                             benign_specs=F.thin_benign(), max_sources=2)
+        R.run_block(F.P1FakeHost(), block)
+        out = {}
+        for name in FEEDS_ITS_SOCKET:
+            with open(os.path.join(block["dir"], name, "nginx.conf"), encoding="utf-8") as fh:
+                out[name] = fh.read()
+        return out
+
+    def test_only_an_enforcing_arm_feeds_the_socket_and_every_daemon_feeds_the_heuristic(self):
+        for name, text in self.written().items():
+            with self.subTest(name):
+                sink = f"syslog:server=unix:{R.SOCKET_PATH}"
+                self.assertEqual(sink in text, FEEDS_ITS_SOCKET[name], "the socket sink")
+                self.assertEqual("/var/log/nginx/ddos_ml_access.log" in text, name.startswith("M_"), "the daemon's feed")
+
+    def test_the_written_conf_is_what_the_table_s_row_renders(self):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C3b": 3}, runs=["M_gru_C3b"], label="same",
+                             benign_specs=F.thin_benign(), max_sources=2)
+        R.run_block(F.P1FakeHost(), block)
+        run = block["runs"][0]
+        with open(run["nginx"]["conf_path"], encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), R.render_conf(R.ARM_TABLE["view_gru"], run["out"], run["nginx"]["deny_dir"]))
 
 
 class ConfTest(Base):
@@ -397,6 +463,250 @@ class ExecuteTest(Base):
         self.assertEqual(index(self.root)[0]["label"], "C2_L1_r1")
 
 
+class TimerGateTest(Base):
+    """T050-11: the harm benchmark's gate before a run, at the record's limit, with its probes in run.json."""
+
+    def run_with(self, p99):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, runs=["C"], label=f"t{len(os.listdir(self.root))}", benign_specs=F.thin_benign())
+        host = F.P1FakeHost(timer_p99=p99)
+        res = dict(R.run_block(host, block))["C"]
+        return res, read_json(os.path.join(block["dir"], "C", "run.json")), host
+
+    def test_the_limit_is_the_record_s(self):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, runs=["C"], label="l", benign_specs=F.thin_benign())
+        self.assertEqual(block["runs"][0]["timer_limit_ms"], 10.0)
+
+    def test_a_quiet_timer_passes_and_its_probe_is_recorded(self):
+        res, meta, _h = self.run_with(2.0)
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertEqual((meta["timer"]["timer_limit_ms"], meta["timer"]["timer_refused_probes"], meta["timer"]["timer_probes"][0]["p99_ms"]), (10.0, 0, 2.0))
+
+    def test_a_refused_probe_waits_and_passes_with_its_wait_recorded(self):
+        res, meta, _h = self.run_with([50.0, 12.0, 3.0])
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertEqual((len(meta["timer"]["timer_probes"]), meta["timer"]["timer_refused_probes"]), (3, 2))
+        self.assertGreaterEqual(meta["timer"]["timer_waited_s"], 60.0)
+
+    def test_a_timer_that_never_passes_starts_nothing(self):
+        res, meta, host = self.run_with(50.0)
+        self.assertFalse(res["ok"])
+        self.assertTrue(any("the timer gate refused the run" in r and "nothing was started" in r for r in res["reasons"]), res["reasons"])
+        self.assertGreater(meta["timer"]["timer_refused_probes"], 10)
+        self.assertEqual([c for c in host.commands if c[2] == "popen"], [], "no process was started")
+
+    def test_an_unreadable_probe_is_a_refused_one(self):
+        res, meta, _h = self.run_with([None, 2.0])
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertEqual(meta["timer"]["timer_refused_probes"], 1)
+
+
+class RunnerReportTest(Base):
+    def test_the_runner_s_lateness_is_reported(self):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, runs=["C"], label="r", benign_specs=F.thin_benign())
+        R.run_block(F.P1FakeHost(), block)
+        got = read_json(os.path.join(block["dir"], "C", "run.json"))["runner"]
+        self.assertGreaterEqual(got["largest_launch_lag_s"], 0.0)
+        self.assertLess(got["largest_launch_lag_s"], 2.0)
+        self.assertLessEqual(got["largest_loop_gap_s"], 1.5)
+
+    def test_a_loop_that_stalled_shows(self):
+        got = R.runner_report({"cpu": [{"t": 0.0}, {"t": 1.0}, {"t": 32.0}, {"t": 33.0}], "lags": [0.0, 31.0]})
+        self.assertEqual(got, {"largest_launch_lag_s": 31.0, "largest_loop_gap_s": 31.0})
+
+
+class OneSettingTest(Base):
+    """T050-12, -17: a campaign at one setting; the order; the index before and after a run; the executor's CPU."""
+
+    def knees(self, **fields):
+        path = os.path.join(tempfile.mkdtemp(dir=self.tmp.name), "knees.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump({**read_json(self.frozen["knees"]), **fields}, fh)
+        return {**self.frozen, "knees": path}
+
+    def test_a_block_at_other_knees_is_refused(self):
+        R.run_block(F.P1FakeHost(), thin(self.frozen, self.root, cut=True))
+        with self.assertRaisesRegex(R.PlanError, "knees_sha256.*differ from b3001_a1"):
+            R.run_block(F.P1FakeHost(), thin(self.knees(C3b=40), self.root, seed=3002, cut=True))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "campaign", "b3002_a1")), "nothing was started")
+        R.run_block(F.P1FakeHost(), thin(self.frozen, self.root, seed=3002, cut=True))
+
+    def test_a_block_on_other_code_is_refused(self):
+        R.run_block(F.P1FakeHost(), thin(self.frozen, self.root, cut=True))
+        block = thin(self.frozen, self.root, seed=3002, cut=True)
+        real = R.sha256_file
+        with mock.patch.object(R, "sha256_file", lambda p: "f" * 64 if p.endswith("l7_rule_engine.py") else real(p)), \
+                self.assertRaisesRegex(R.PlanError, "code_sha256"):
+            R.run_block(F.P1FakeHost(), block)
+
+    def test_a_pilot_block_is_not_bound(self):
+        for label, frozen in (("a", self.frozen), ("b", self.knees(C3b=40))):
+            block = R.plan_block("smoke", 9001, self.root, frozen=frozen, runs=["C"], label=label, benign_specs=F.thin_benign())
+            R.run_block(F.P1FakeHost(), block)
+
+    def test_the_settings_are_in_block_json_and_provenance_holds_the_record_s_files(self):
+        block = thin(self.frozen, self.root, cut=True)
+        R.run_block(F.P1FakeHost(), block)
+        got = read_json(os.path.join(block["dir"], "block.json"))["settings"]
+        self.assertEqual(got["selection_sha256"], self.frozen["selection_sha256"])
+        self.assertEqual(got["record_digest"], block["frozen"]["calibration"]["digest"])
+        self.assertTrue(set(R.PT.prereg_3()["one_setting"]["provenance_adds"]) <= set(R.PROVENANCE_FILES))
+        for name in R.PROVENANCE_FILES:
+            self.assertTrue(os.path.isfile(os.path.join(REPO, name)), name)
+
+    def test_a_campaign_s_order_does_not_read_a_label(self):
+        self.assertEqual(R.block_order("campaign", 3001, RUN_NAMES, "x"), R.block_order("campaign", 3001, RUN_NAMES))
+        self.assertNotEqual(R.block_order("smoke", 9001, RUN_NAMES, "x"), R.block_order("smoke", 9001, RUN_NAMES, "y"))
+
+    def test_a_runner_s_death_leaves_an_invalid_line(self):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=["C", "U_C2"], label="dead",
+                             benign_specs=F.thin_benign(), max_sources=2)
+        real = R.execute_run
+
+        def dies(host, run, sums):
+            if run["name"] == block["order"][1]:
+                raise KeyboardInterrupt
+            return real(host, run, sums)
+
+        with mock.patch.object(R, "execute_run", dies), self.assertRaises(KeyboardInterrupt):
+            R.run_block(F.P1FakeHost(), block)
+        rows = index(self.root)
+        self.assertEqual([x["run"] for x in rows], block["order"])
+        self.assertTrue(rows[0]["valid"])
+        self.assertFalse(rows[1]["valid"])
+        self.assertIn("the runner died", rows[1]["reasons"][0])
+        with open(os.path.join(self.root, "index.jsonl"), "a", encoding="utf-8") as fh:
+            fh.write('{"cut in the mid')
+        self.assertEqual(len(index(self.root)), 2)
+
+    def test_the_runner_keeps_to_the_executor_s_cpu(self):
+        host = F.P1FakeHost()
+        orig = R.PT.build_block
+
+        def thinned(*a, **kw):
+            return orig(*a, **{**kw, "benign_specs": F.thin_benign()})
+        with mock.patch.object(R.PT, "build_block", side_effect=thinned), contextlib.redirect_stdout(io.StringIO()):
+            R.main(["--phase", "smoke", "--seed", "9001", "--runs", "C", "--calibration", self.frozen["calibration"], "--root", self.root], host=host)
+        self.assertEqual(host.pinned, "6")
+
+
+class ArmCouldActTest(Base):
+    """T050-07: no M run with an empty feed, failing reloads or a failing step passes as valid."""
+
+    def run_with(self, acts=(), **host):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=["M_gru_C2"], label=f"a{len(os.listdir(self.root))}",
+                             benign_specs=F.thin_benign(), max_sources=3)
+        res = dict(R.run_block(F.P1FakeHost(acts=lambda _r, _b: list(acts), **host), block))["M_gru_C2"]
+        return res, read_json(os.path.join(block["dir"], "M_gru_C2", "run.json"))
+
+    def test_a_healthy_feed_passes_and_its_loss_is_reported(self):
+        res, meta = self.run_with()
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertEqual(meta["shadow"]["parsed"], meta["sink"]["lines"])
+        self.assertEqual(meta["shadow"]["socket_loss"], 0.0)
+        res, meta = self.run_with(parsed_share=0.8)
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertAlmostEqual(meta["shadow"]["socket_loss"], 0.2, delta=0.01)
+
+    def test_a_conf_without_the_socket_sink_invalidates_the_run(self):
+        """T050-01's failure itself: armed, sha256s right, no error anywhere, and nothing received."""
+        real = R.render_conf
+        with mock.patch.object(R, "render_conf", lambda spec, out, deny: real({**spec, "daemon": {"L7_SHADOW": "0"}}, out, deny)):
+            res, meta = self.run_with()
+        self.assertFalse(res["ok"])
+        self.assertTrue(any("the arm's feed is empty" in r for r in res["reasons"]), res["reasons"])
+        self.assertEqual(meta["shadow"]["parsed"], 0)
+
+    def test_a_feed_that_loses_most_of_the_sink_invalidates_the_run(self):
+        res, _meta = self.run_with(parsed_share=0.4)
+        self.assertFalse(res["ok"])
+        self.assertTrue(any("of the file sink's" in r and "at least 0.5" in r for r in res["reasons"]), res["reasons"])
+
+    def test_denies_whose_reload_fails_invalidate_the_run(self):
+        deny = {"kind": "l7_deny", "level": 1, "ip": "10.0.0.9"}
+        res, _m = self.run_with([(60.0, deny), (65.0, {"kind": "l7_reload", "ok": False}), (75.0, {"kind": "l7_reload", "ok": False})])
+        self.assertFalse(res["ok"])
+        self.assertTrue(any("no reload took effect within 30 s" in r for r in res["reasons"]), res["reasons"])
+        self.assertTrue(any("the last reload of the run failed" in r for r in res["reasons"]), res["reasons"])
+
+    def test_a_retried_reload_is_recorded_and_passes(self):
+        deny = {"kind": "l7_deny", "level": 1, "ip": "10.0.0.9"}
+        res, meta = self.run_with([(60.0, deny), (65.0, {"kind": "l7_reload", "ok": False}), (75.0, {"kind": "l7_reload", "ok": True})])
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertEqual((meta["shadow"]["denies"], meta["shadow"]["reloads"], meta["shadow"]["reloads_failed"]), (1, 2, 1))
+
+    def test_a_late_reload_invalidates_it(self):
+        deny = {"kind": "l7_deny", "level": 1, "ip": "10.0.0.9"}
+        res, _m = self.run_with([(60.0, deny), (95.0, {"kind": "l7_reload", "ok": True})])
+        self.assertTrue(any("no reload took effect within 30 s" in r for r in res["reasons"]), res["reasons"])
+
+    def test_the_arm_s_step_error_in_the_attack_window_invalidates_it(self):
+        err = {"kind": "daemon_error", "where": "l7_enforce", "error": "x", "action": "step skipped"}
+        res, meta = self.run_with([(100.0, err)])
+        self.assertFalse(res["ok"])
+        self.assertTrue(any("the arm's step failed 1 times" in r for r in res["reasons"]), res["reasons"])
+        self.assertEqual(meta["shadow"]["arm_step_errors_in_attack"], 1)
+
+    def test_the_default_rules_arm_has_no_feed_to_read(self):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C3b": 3}, runs=["M_default_rules_C3b"], label="def",
+                             benign_specs=F.thin_benign(), max_sources=2)
+        res = dict(R.run_block(F.P1FakeHost(), block))["M_default_rules_C3b"]
+        self.assertTrue(res["ok"], res["reasons"])
+
+
+class AttackRanTest(Base):
+    """T050-08: a U whose bots send nothing is not 'no harm', an M whose bots send nothing is not 'mitigated'."""
+
+    def run_with(self, silent_count, sources=10):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=["U_C2"], label=f"b{silent_count}",
+                             benign_specs=F.thin_benign(), max_sources=sources)
+        addresses = [e["address"] for e in block["runs"][0]["entities"] if e["role"] == "attack"]
+        res = dict(R.run_block(F.P1FakeHost(silent=addresses[:silent_count]), block))["U_C2"]
+        return res, read_json(os.path.join(block["dir"], "U_C2", "run.json")), len(addresses)
+
+    def test_an_attack_that_reached_the_server_passes(self):
+        res, meta, n = self.run_with(0)
+        self.assertTrue(res["ok"], res["reasons"])
+        self.assertEqual((meta["sink"]["attack_planned"], meta["sink"]["attack_seen"]), (n, n))
+
+    def test_one_source_of_ten_is_within_the_share(self):
+        res, meta, n = self.run_with(1)
+        self.assertEqual(meta["sink"]["attack_seen"], n - 1)
+        self.assertTrue(res["ok"], res["reasons"])
+
+    def test_an_attack_that_did_not_is_invalid(self):
+        res, _m, n = self.run_with(10)
+        self.assertFalse(res["ok"])
+        self.assertTrue(any(f"from 0 of its {n} addresses" in r for r in res["reasons"]), res["reasons"])
+
+
+class BenignSilenceTest(Base):
+    """T050-11: an attack's lines must not hide a silent benign side."""
+
+    def test_a_silence_of_the_benign_addresses_under_an_attack_s_lines(self):
+        sink = os.path.join(self.root, "access.log")
+        plan = {"timeline": {"baseline_s": 30, "attack_s": 210, "recovery_s": 30},
+                "entities": [{"address": "10.0.1.1", "role": "benign"}, {"address": "10.0.2.1", "role": "attack"}]}
+        def line(ip, t):
+            return json.dumps({"msec": 1000.0 + t, "rt": 0.01, "ip": ip, "uri": "/", "status": 200, "ua": "u", "method": "GET"}) + "\n"
+        with open(sink, "w", encoding="utf-8") as fh:
+            fh.writelines(line("10.0.2.1", t) for t in range(35, 240))
+            fh.writelines(line("10.0.1.1", t) for t in range(5, 270, 4) if not 100 <= t < 130)
+        got = R.sink_reading(sink, plan, 1000.0)
+        self.assertGreater(got["benign_gap_s"], 25.0)
+        self.assertEqual(got["attack_seen"], 1)
+        self.assertTrue(any("on the benign addresses" in r for r in R.sink_problems(got)))
+
+    def test_before_the_attack_a_natural_silence_judges_nothing(self):
+        sink = os.path.join(self.root, "access2.log")
+        plan = {"timeline": {"baseline_s": 30, "attack_s": 210, "recovery_s": 30}, "entities": [{"address": "10.0.1.1", "role": "benign"}]}
+        with open(sink, "w", encoding="utf-8") as fh:
+            fh.writelines(json.dumps({"msec": 1000.0 + t, "rt": 0.01, "ip": "10.0.1.1", "uri": "/", "status": 200, "ua": "u", "method": "GET"}) + "\n"
+                          for t in range(28, 270, 4))
+        got = R.sink_reading(sink, plan, 1000.0)
+        self.assertLessEqual(got["benign_gap_s"], 4.0)
+        self.assertEqual(R.sink_problems(got), [])
+
+
 class ShadowValidityTest(Base):
     """D-054, T048-14: the conditions the parity claim names, per M run; what makes a run invalid, and what is only recorded."""
 
@@ -409,7 +719,8 @@ class ShadowValidityTest(Base):
     def test_a_clean_run_records_zeros(self):
         res, meta = self.run_with([(60.0, {"kind": "l7_shadow", "evicted": 0, "late": 0, "active_keys": 3})])
         self.assertTrue(res["ok"], res["reasons"])
-        self.assertEqual(meta["shadow"], {"reports": 1, "evicted": 0, "late": 0, "daemon_errors": [], "shadow_restarts_in_attack": 0})
+        self.assertEqual({k: meta["shadow"][k] for k in ("reports", "evicted", "late", "daemon_errors", "shadow_restarts_in_attack")},
+                         {"reports": 2, "evicted": 0, "late": 0, "daemon_errors": [], "shadow_restarts_in_attack": 0})
         self.assertEqual(meta["bans_by_engine"], {})
 
     def test_an_eviction_makes_it_invalid_and_late_is_only_recorded(self):

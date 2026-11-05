@@ -570,7 +570,7 @@ enforcement and safeguards; and the verdict code. Every piece gets fake-based te
 
 | Step | Runs | VM h |
 |---|---|---|
-| smoke: part A, the alias reads, part B | 10 | 0.9 |
+| smoke: part A on two seeds, the alias read, part B | 10-11 | 0.9-1.0 |
 | the halving rule (D-049): 2 runs per step, 1-3 steps | 2-6 | 0.2-0.5 |
 | harm ladder, the reachable levels × 2 repeats × (C, U) | 28-32 | 2.5-2.8 |
 | evaluation: 10 blocks × 13 runs | 130 | 11.4 |
@@ -1318,7 +1318,7 @@ reported per run, so a branch like T048-07's is visible.
 - **Blocks a class judges** are the final attempts where the class is valid and every live run is sound; the others are listed.
 
 **VM time as built** [ESTIMATE, section 14's 45 s of set-up, D-053's timeline]: 5.25 min per run, 68.25 min per block, 11.4 h for 10 blocks (7.9 h for the minimum cut). The ladder, on HG2's numbers, has 14 reachable pairs of runs (C2 at 4 levels, C3b at 2, C3a at 1, 2 repeats each), 2.45 h, or 16 pairs
-and 2.8 h at 2 halvings, where C3b reaches 200 bots. Re-runs add up to 2.3 h. The halving rule adds 10.5 min per step, 31.5 min at most without re-runs. The smoke's own runs are 10, 0.9 h. In all about 18 h at most, plus P3's +0.6 h.
+and 2.8 h at 2 halvings, where C3b reaches 200 bots. Re-runs add up to 2.3 h. The halving rule adds 10.5 min per step, 31.5 min at most without re-runs. The smoke's own runs are 10-11, 1 h. In all about 18 h at most, plus P3's +0.6 h, plus whatever the timer gate waits: its probe takes seconds, and a refused one is made again every 30 s for up to 30 min per run.
 
 **Files touched in this round:** `ml/p1_traffic.py`, `eval/p1_runner.py`, `eval/p1_records.py`, `eval/p1_analysis.py`, `eval/p4_runner.py`
 (two additive parameters), `eval/l7v2_harm.py` (`window_figures`), `ml/l7v2_replay.py` (`with_poll_ticks`, `age_windows`, `age_auc`, `attack_requests`, `cost_left`), `ml/l7v2_verdict.py`, `ml/l7v2_verdict_prereg.py` and its `_v3.json`, `ml/p1_prereg.json`, `ml/p1_prereg_2.json`, `ml/p3_prereg.json`, tests and this note. `control_plane.py`, `l7_engine.py`, `l7_enforce.py`,
@@ -1341,6 +1341,40 @@ and 2.8 h at 2 halvings, where C3b reaches 200 bots. Re-runs add up to 2.3 h. Th
   population detector reads, and only for an address above 4,096 keys in 300 s. Replay and live share the code.
 - **T048-08 and T048-11, documented, not changed** (`docs/EVALUATION.md`, Known limits): no recovery while any user behind R*'s
   key sends, and a sid-less line hides the evidence that would withdraw it. Neither is reachable in P1's runs.
+
+### The fix round on review T-050, and D-058 (T-051, 2026-11-03, branch `feat/p1-fix`, records `ml/p1_prereg_3.json`, `ml/p1_prereg_4.json`, `ml/l7v2_verdict_prereg_v4.json`)
+
+T-050 found that a campaign from integ/s4 could not give a fair verdict. Built offline, on the fake host and on real generators over loopback; nothing ran on the VM. **Re-review is due before the VM, since these are live-path changes.**
+
+**The two that made a campaign rigged or impossible.**
+- **T050-01.** `execute_run` passed the plan's daemon dict to `render_conf`, which reads `L7_SHADOW` from the arm's row. So no real M run's nginx fed the socket: GRU, HGB and R* decided nothing and passed every check, and the verdict was V-C or V-D by construction. The tests now read the conf `execute_run` wrote.
+- **T050-02.** Merging P4's `--stats` made every P1 attack generator exit 1. P1 now makes `attack_stats/`, and the fake exits 1 as the real one does.
+
+**The generator's deadline (T050-03, -04, -16; `ml/l7_gen.py`, shared with P3 and P4).** Every think time and pause is cut at a generator's end, so no draw moves. No new view starts after it. A view in flight may finish within 5 s, so a healthy client's last view keeps its rows; no request starts or waits past that, and a hung one gets its row with its error. At the end + 7 s the process exits, code 0, whatever it is doing; the run's grace stays 10 s. Before this the downloader's last think time invalidated about a third of healthy runs, and a banned generator's overshoot made an arm's success invalidate its own run. A test runs every kind and family as a real process on three loopback sinks: one answering, one silent after accept, one with a full accept queue, which drops a SYN as an XDP ban does.
+
+**What makes a run invalid, added (T050-07, -08, -11; numbers [ASSUMPTION], mine, `ml/p1_prereg_3.json`).**
+- **An enforcing arm:** `parsed` above 0 and at least 0.5 of the file sink's lines; a reload that took effect within 30 s of the first deny, and a last reload that did not fail; no `daemon_error` at `l7_enforce` in the attack window. The socket loss is reported per run (section 15).
+- **An attack:** at least 0.9 of its addresses in the file sink by its end.
+- **The file sink:** the 10-s silence now reads the benign addresses from the attack's start to the run's end, so attack lines cannot hide a stalled benign CPU. At nominal times that silence is at most 3.8 s on the 18 seeds at any halvings [FACT]; before the attack it reaches 17.4 s at 2 halvings, so that part judges nothing.
+- **The timer gate:** the harm benchmark's before each run, at the record's `validity.timer_p99_ms`, with its wait. Its probes go into `run.json`, and a run it refuses starts nothing.
+
+**One setting (T050-12, -17).** A campaign block with another record, knees, factor, selection, point check or code is refused, and so is an analysis given another record or selection than the blocks ran. A campaign's order reads no free label; a run is in the index before it begins and when it ends; the runner keeps to the executor's CPU.
+
+**The ladder (T050-13).** Per (class, level, repeat) the last attempt with both runs sound counts, and a re-run needs an invalid run before it. `--ladder` writes the file `--knees` takes. A class without a knee is null and named there, and a campaign that needs it refuses; what that means for the verdict is not decided (`--cut` drops C3a).
+
+**D-058 (the user: "Approve as recommended").**
+- **Too few blocks (T050-05).** A class admitted with fewer than 10 judged blocks gets no verdict: `invalid (k of 10)`, with the excluded blocks' reasons. It used to read V-D.
+- **Re-runs (T050-06).** A block-level reason, `valid_all`: a run invalid or missing, a class invalid, or an unhealthy C. One per block and two per campaign, checked by the runner before a block starts. A re-run for one run no longer makes the other classes INVALID.
+- **Over all attempts.** An arm's bans and the benign users it wrongly acted on count over all attempts of all blocks, so an arm's worst run cannot vanish from the budget. Q and the contrasts read the judged blocks' final attempts.
+- **The halving rule's stop (T050-09).** A control unhealthy with a server-side Q of at least 99 % does not fire the rule. The rule stops for a dated decision, which fires or repeats that step (`--health-decision`). The file records each control's server-side Q, CPU shares and largest view slip.
+- **P1's control health (T050-10).** The class floor applies from 20 judged requests; a smaller class is reported. `eval/harm_gate.py control_health` is unchanged.
+- **V-C (T050-14).** When the GRU beats R* on harm and the verdict would be V-C through an HGB-led best learned arm, the class is inconclusive, with every contrast reported.
+
+**Reported, judging nothing (T050-09, -11, -15).** Server-side Q per run beside Q; the late window's Q over [210, 240) s, where arrivals have ended and no source is younger than 30 s, so that a speed effect can be told from a removal effect; per run the largest view slip, with its entity and time, where a stall in mid-life shows and no validity rule looks; the runner's largest launch lag and loop gap.
+
+**p95 (C-084).** `p95_s` counts only the requests that met their SLO, so it is no plain latency: it is capped by each class's SLO, and it can fall as an attack pushes requests out of the SLO, which Q then counts. P1 reads it as dL in harm admission, the placebo and the knees, either-or with dQ, and `admitted_on` "latency" names that reading. The verdict's contrasts read Q only. Any report of it says "p95 of the requests within their SLO".
+
+**On the frozen record (HG2, 2026-11-04; read only, nothing registered moved)** [FACT, arithmetic on plans at nominal times, `S3:T-051/artifacts/p1_on_frozen_record.json`; NOT RUN]. S is 0.263 CPU-s/s and rho 42.25 req/s, against the placeholder's 0.552 and 90. Costs and capacity are the figures above. A level's nominal cost over the whole attack window, in S, the window admission and the knees read: C2 0.61, 1.14, 2.26 and 4.50 at levels 1, 2, 4 and 8; C3a 1.22 at level 2, its one reachable level (79 sources; its bound of 100 is level 2.5); C3b@M2 0.85 at 50 bots and 1.73 at 100. The record's knees for its own floods: search 4, export 4, cheap 2. So [INFERENCE, the ladder decides, and P1's mix is not the benchmark's]: C2's knee is likely at 8; C3a likely has no knee; and C3b, at under half the costly floods' knee at 100 bots, may have none either, unless it reaches 200 bots at 2 halvings or a dated lift of the address limit. A campaign that needs a class without a knee refuses, and what that means for the verdict is undecided.
 
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.

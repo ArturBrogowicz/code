@@ -70,6 +70,9 @@ class HarmError(ValueError):
     """The run or block does not follow the contract above."""
 
 
+CONTROL_CLASS_MIN_N = 20        # D-058: the class floor of a control applies from this many judged requests (ml/p1_prereg_4.json)
+
+
 def _rule():
     return l7v2_prereg.load()["harm"]
 
@@ -118,12 +121,13 @@ def _failed(t, klass, key, origin):
             "route_class": klass, "user": key[0], "view": key[1], "wave": -1, "t_nominal": t, "t_origin": origin}
 
 
-def with_never_sent(rows, planned, origin, window_abs, after_s=None):
+def with_never_sent(rows, planned, origin, window_abs, after_s=None, slips=None):
     """`rows` with the never-sent guard on each device's own closed-loop schedule (ml/l7v2_prereg.json harm, re-registered
     2026-10-31): a view's intended start is the completion of the device's previous view plus that one's pause (the first
     view's is its nominal start, origin + t; a view that never completed hands its intended start on). A view whose
     intended start is in window_abs and that did not start within `after_s` of it fails every request it planned, at that
-    start; a started view's planned requests that have no row fail the same way. A paced request is a one-request view."""
+    start; a started view's planned requests that have no row fail the same way. A paced request is a one-request view. With a list
+    `slips`, each started view adds (actual start - intended start, intended start): a stall in mid-life shows there (T050-11)."""
     after_s = _rule()["never_sent_after_s"] if after_s is None else after_s
     lo, hi = window_abs
     by_view = {}
@@ -138,6 +142,8 @@ def with_never_sent(rows, planned, origin, window_abs, after_s=None):
             got = by_view.get(key, [])
             judged.add(key)
             sent = [r["t_sent"] for r in got if not math.isnan(r["t_sent"])]
+            if slips is not None and sent:
+                slips.append((min(sent) - intended, intended))
             if lo <= intended < hi:
                 if not sent or min(sent) - intended > after_s:
                     out += [_failed(intended, c, key, origin) for c in classes]
@@ -154,13 +160,14 @@ def with_never_sent(rows, planned, origin, window_abs, after_s=None):
 
 def run_rows(run_dir, manifest, window_rel, duration_s=None):
     """Every benign row of a run, with its entity's netem, after the never-sent guard, and which entities it covers:
-    (rows, t0, {"recorded": [entity ids], "unrecorded": {kind: count}}). A kind without a plan (the P5 kinds) writes no
-    records and is left out, by name, here and in the server-side cross-check (T-030 L7V2-05, L7V2-10)."""
+    (rows, t0, {"recorded": [entity ids], "unrecorded": {kind: count}, "view_slip": the largest gap between a device's intended view
+    start and its actual one, over the whole run, with its entity and its time from the run's start}). A kind without a plan (the P5
+    kinds) writes no records and is left out, by name, here and in the server-side cross-check (T-030 L7V2-05, L7V2-10)."""
     t0 = l7_dataset.time_origin(manifest)
     if t0 is None:
         raise HarmError(f"{run_dir}: manifest timeline.t0_wall missing")
     window_abs = (t0 + window_rel[0], t0 + window_rel[1])
-    out, cover = [], {"recorded": [], "unrecorded": {}}
+    out, cover = [], {"recorded": [], "unrecorded": {}, "view_slip": {"largest_s": 0.0, "entity": None, "at_s": None, "views": 0}}
     for e in manifest["entities"]:
         if e["role"] != "benign":
             continue
@@ -177,9 +184,14 @@ def run_rows(run_dir, manifest, window_rel, duration_s=None):
                 break
         dur = duration_s or (e["schedule"]["stop_s"] - e["schedule"]["start_s"])
         origin = rows[0]["t_origin"] if rows else t0 + e["schedule"]["start_s"]
-        for r in with_never_sent(rows, planned_views(e, dur), origin, window_abs):
+        slips = []
+        for r in with_never_sent(rows, planned_views(e, dur), origin, window_abs, slips=slips):
             r["netem"], r["entity"] = e["netem"], e["entity_id"]
             out.append(r)
+        cover["view_slip"]["views"] += len(slips)
+        for slip, intended in slips:
+            if slip > cover["view_slip"]["largest_s"]:
+                cover["view_slip"].update(largest_s=round(slip, 3), entity=e["entity_id"], at_s=round(intended - t0, 3))
     return out, t0, cover
 
 
@@ -278,6 +290,7 @@ def assess_run(run_dir, cal, timeline):
     rows, t0, cover = run_rows(run_dir, manifest, window)
     m = metrics(rows, cal, (t0 + window[0], t0 + window[1]), t0, total)
     m["unrecorded"] = cover["unrecorded"]
+    m["view_slip"] = cover["view_slip"]
     log = next((os.path.join(run_dir, n) for n in (l7_dataset.ACCESS_LOG_GZ, l7_dataset.ACCESS_LOG)
                 if os.path.isfile(os.path.join(run_dir, n))), None)
     checks = meta.get("checks") if isinstance(meta.get("checks"), dict) else {"ok": False, "reasons": ["no checks"]}
@@ -294,6 +307,16 @@ def window_figures(run_dir, cal, timeline, window_rel):
     return metrics(rows, cal, (t0 + window_rel[0], t0 + window_rel[1]), t0, total)
 
 
+def control_health(metrics, cal):
+    """P1's control health (D-058, T050-10; ml/p1_prereg_4.json control_health): (reasons, small classes). eval/harm_gate.control_health,
+    unchanged, on Q(C) and on the route classes with at least CONTROL_CLASS_MIN_N judged requests; a smaller class, where one slow export would
+    decide the block (C5 holds 1-8 judged requests in a control), is reported, not judged."""
+    classes = metrics["by_class"]
+    judged = {k: c for k, c in classes.items() if c["n"] >= CONTROL_CLASS_MIN_N}
+    small = {k: {f: c[f] for f in ("n", "ok", "Q")} for k, c in classes.items() if c["n"] < CONTROL_CLASS_MIN_N}
+    return HG.control_health({**metrics, "by_class": judged}, cal), small
+
+
 def assess_block(block_dir, cal):
     """Every class's block-level figures: dQ, dL against C and the placebo, validity and its reasons."""
     meta = _json(os.path.join(block_dir, "block.json"))
@@ -304,7 +327,7 @@ def assess_block(block_dir, cal):
             if os.path.isfile(os.path.join(block_dir, n, "run.json"))}
     shared = [f"run {n} is missing" for n in (CONTROL, PLACEBO) if n not in runs]
     if CONTROL in runs:
-        shared += [f"control: {r}" for r in HG.control_health(runs[CONTROL]["metrics"], cal)]
+        shared += [f"control: {r}" for r in control_health(runs[CONTROL]["metrics"], cal)[0]]
     for n in (CONTROL, PLACEBO):
         if n in runs and not runs[n]["checks"].get("ok"):
             shared += [f"{n}: {r}" for r in runs[n]["checks"].get("reasons", [])] or [f"{n}: not sound"]
@@ -330,8 +353,11 @@ def assess_block(block_dir, cal):
                       "dQ_placebo": HG._diff(c and c["Q"], cp and cp["Q"]),
                       "dL_placebo": HG._log2_ratio(cp and cp["p95_s"], c and c["p95_s"]),
                       "server_Q_U": server and server["Q"]}
+    missing = sorted(set(meta.get("order") or ()) - set(runs))
+    valid_all = not shared and not missing and all(r["checks"].get("ok") for r in runs.values()) and all(c["valid"] for c in classes.values())
     return {"dir": os.path.basename(block_dir), "block": meta["block"], "attempt": meta["attempt"],
-            "seed": meta["seed"], "calibration_sha256": meta["calibration_sha256"], "runs": runs, "classes": classes}
+            "seed": meta["seed"], "calibration_sha256": meta["calibration_sha256"], "runs": runs, "classes": classes,
+            "valid_all": valid_all, "shared_reasons": shared}
 
 
 def admission(blocks, cal, klass, dry_run=False):
@@ -343,7 +369,7 @@ def admission(blocks, cal, klass, dry_run=False):
     reasons = []
     attempts = [{"scenario": f"l7v2-{klass}", "seed_namespace": "p1_live_eval", "block": b["block"],
                  "attempt": b["attempt"], "seed": b["seed"], "calibration_sha256": b["calibration_sha256"],
-                 "valid": b["classes"].get(klass, {}).get("valid", False)} for b in blocks]
+                 "valid": b["classes"].get(klass, {}).get("valid", False), "valid_all": b.get("valid_all", False)} for b in blocks]
     problems, reruns = HG.protocol_problems(attempts, cal)
     reasons += problems
     final = {}

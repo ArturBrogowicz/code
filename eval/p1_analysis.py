@@ -6,11 +6,12 @@ moves here. For each class:
   * harm admission through eval/l7v2_harm.py (assess_block, admission), over every attempt, the last of each block counting; a
     campaign the admission finds INVALID (too few valid blocks, too many re-runs) gets no verdict, with its reasons, which is
     not the same as V-D "no harm";
-  * the blocks it judges: the final attempts whose class is valid and whose live M runs are sound; the others are listed;
+  * the blocks it judges: the final attempts whose class is valid and whose live M runs are sound; the others are listed, and fewer than
+    10 give no verdict, 'invalid (k of 10)' with their reasons (D-058, T050-05), which is not V-D either;
   * harm per block: Q of every live arm in the level window, from the attack's start + 90 s to its end (D-053, eval/l7v2_harm.py's
     figures); the whole attack window's Q is secondary, and admission reads that window, as registered;
-  * the budget, pooled over those blocks: live (D-044 OC-2), the benign users wrongly acted on in the arm's own M runs
-    (eval/p1_records.acted_on), and, reported beside it, the replay's benign units on the U runs;
+  * the budget: live (D-044 OC-2), the benign users wrongly acted on in the arm's own M runs (eval/p1_records.acted_on), pooled over all
+    attempts of all blocks, superseded and excluded ones too (D-058); and, reported beside it, the replay's benign units on the judged U runs;
   * detection per entity: each U run's recording through every arm (ml/l7v2_replay.py), the caught flags of the GRU, the HGB, the
     shuffled-GRU, R* and the age-only arm over the class's attack entities, with their block and family; l7v2_verdict reads the
     primary families (D-043) and reports the others;
@@ -24,10 +25,12 @@ replays, per block and per family, and the age-only arm's recall at its frozen p
 view_level_contrasts, every contrast of the judge's output naming a view-level arm with that reading beside it.
 
 ladder_knees() reads a finished ladder (phase ladder) into the knees a campaign needs: per class the lowest level whose harm
-reaches the floor in both repeats (bench/calibration.knee, harm as bench/calibrate.harm against the session's control).
+reaches the floor in both repeats (bench/calibration.knee, harm as bench/calibrate.harm against the session's control), each repeat by its
+last sound attempt. --ladder writes the file a campaign takes (--knees).
 
 health_result() reads the halving rule's steps (phase health, ml/p1_prereg.json) into the next step, the frozen factor or a refusal,
-in the file that the ladder and the campaign take (--health). Its exit code is 1 on a refusal.
+in the file that the ladder and the campaign take (--health). Its exit code is 1 on a refusal, and on a stop: a control unhealthy with a
+server-side Q of at least 99 % waits for a dated decision (--health-decision, D-058).
 
 point_check() replays the pilot's benign traffic through each arm at its frozen point, before the campaign (ml/p1_prereg_2.json
 point_check, D-052), into the file the campaign takes (--points): one valid control per pilot seed at the frozen factor. An arm that may
@@ -55,7 +58,6 @@ for _p in (REPO, os.path.join(REPO, "ml"), HERE, os.path.join(REPO, "bench")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 import calibration as CAL
-import harm_gate as HG
 import l7v2_harm as LH
 import l7v2_replay as RP
 import l7v2_verdict as J
@@ -175,9 +177,49 @@ def level_q(root, block, run, cal):
     return LH.window_figures(os.path.join(root, "campaign", block["dir"], run), cal, timeline, PT.level_window(timeline))["Q"]
 
 
+def window_q(root, block, run, cal, window_of):
+    """A run's Q in another window of its timeline (`window_of(timeline)`), by the figures of the level window."""
+    timeline = REC.read_json(os.path.join(root, "campaign", block["dir"], "block.json"))["timeline"]
+    return LH.window_figures(os.path.join(root, "campaign", block["dir"], run), cal, timeline, window_of(timeline))["Q"]
+
+
+def arm_runs(root, arm, cls):
+    """Every run of `arm` in the class over all attempts of the campaign, superseded and excluded ones too: the dirs that hold a manifest."""
+    name = RUN.run_name(arm, cls)
+    seen = []
+    for x in REC.index_lines(root):
+        if x["phase"] == "campaign" and x["run"] == name and x["dir"] not in seen:
+            seen.append(x["dir"])
+    return [os.path.join(root, d) for d in seen if os.path.isfile(os.path.join(root, d, D.MANIFEST_FILE))]
+
+
+def live_budget(root, arm, cls):
+    """(benign users wrongly acted on, benign users) of an arm in a class, pooled over all attempts (D-058, ml/p1_prereg_4.json over_all_attempts): an
+    arm's worst run does not vanish from the budget by being invalid. A run that never started has acted on nobody."""
+    flagged = users = 0
+    for run_dir in arm_runs(root, arm, cls):
+        man = REC.read_json(os.path.join(run_dir, D.MANIFEST_FILE))
+        if D.time_origin(man) is None:
+            continue
+        rec = REC.acted_on(man, P4._events(os.path.join(run_dir, "ban_events.jsonl")), REC.read_json(os.path.join(run_dir, "run.json")).get("budget"))
+        flagged += rec["benign_users"]
+        users += rec["benign_users_total"]
+    return flagged, users
+
+
+def bans_over_attempts(root, arm, cls):
+    """An arm's bans by engine in a class, over all attempts (D-058): {engine: count}."""
+    out = {}
+    for run_dir in arm_runs(root, arm, cls):
+        for engine, n in (REC.read_json(os.path.join(run_dir, "run.json")).get("bans_by_engine") or {}).items():
+            out[engine] = out.get(engine, 0) + n
+    return out
+
+
 def class_report(root, cal, cls, blocks, live, per_arm):
-    """What is reported per class beside the verdict, and judges nothing (D-053, ml/p1_prereg_2.json reported_per_class): the whole attack
-    window's Q; time to decision per arm and family; the attack cost left, by the replay's worst case and, for an arm with M runs, measured."""
+    """What is reported per class beside the verdict, and judges nothing (D-053, ml/p1_prereg_2.json reported_per_class; T050-11, T050-15,
+    ml/p1_prereg_3.json reported): the whole attack window's Q; the server-side Q; the late window's Q; each run's largest view slip; time to
+    decision per arm and family; the attack cost left, by the replay's worst case and, for an arm with M runs, measured."""
     ttd = {}
     for name, per in per_arm.items():
         ttd[name] = {fam: {"caught": len(v), "mean_s": round(float(np.mean(v)), 3), "median_s": round(float(np.median(v)), 3)}
@@ -194,8 +236,15 @@ def class_report(root, cal, cls, blocks, live, per_arm):
             if log:
                 live_cost[a] += REC.attacker_cost_ms(log, man, (lo, lo + float(timeline["attack_s"])), cal["route_costs_ms"])
     measured = {a: (round(live_cost[a] / live_cost["U"], 4) if live_cost["U"] else None) for a in live if a != "U"}
+    def per_block(read):
+        return {a: {b["block"]: read(b, RUN.run_name(a, cls)) for b in blocks} for a in live}
+
     return {"note": "descriptive (D-053): the verdict does not read it. A share of 1 means that the arm removed none of the attack's cost",
-            "whole_window_q": {a: {b["block"]: b["runs"][RUN.run_name(a, cls)]["metrics"]["Q"] for b in blocks} for a in live},
+            "whole_window_q": per_block(lambda b, run: b["runs"][run]["metrics"]["Q"]),
+            "server_q": per_block(lambda b, run: (b["runs"][run]["server"] or {}).get("Q")),
+            "late_window_q": per_block(lambda b, run: window_q(root, b, run, cal, PT.late_window)),
+            "largest_view_slip_s": per_block(lambda b, run: (b["runs"][run]["metrics"].get("view_slip") or {}).get("largest_s")),
+            "bans_over_attempts": {a: bans_over_attempts(root, a, cls) for a in live if a != "U"},
             "time_to_decision": ttd, "attack_cost_left": {"replay": replay, "live": measured}}
 
 
@@ -206,14 +255,9 @@ def class_inputs(root, cal, cls, blocks, live, frozen, arms_factory, on="Q"):
     budget = {"live": {a: [0, 0] for a in enforcing}, "replay": {a: [0, 0] for a in enforcing}}
     det = {"blocks": [], "families": [], "caught": {a: [] for a in DETECTION_ARMS}}
     per_arm, structured = {}, bool(blocks)
+    for a in enforcing:
+        budget["live"][a] = list(live_budget(root, a, cls))
     for b in blocks:
-        for a in enforcing:
-            run_dir = os.path.join(root, "campaign", b["dir"], RUN.run_name(a, cls))
-            rec = REC.acted_on(REC.read_json(os.path.join(run_dir, D.MANIFEST_FILE)),
-                               P4._events(os.path.join(run_dir, "ban_events.jsonl")),
-                               REC.read_json(os.path.join(run_dir, "run.json")).get("budget"))
-            budget["live"][a][0] += rec["benign_users"]
-            budget["live"][a][1] += rec["benign_users_total"]
         res, families, man = replay_block(root, b, cls, arms_factory, cal)
         structured = structured and any(e["kind_or_family"] == STRUCTURED_KIND for e in man["entities"])
         for a in enforcing:
@@ -287,8 +331,34 @@ def view_level_contrasts(judged, reading, primary):
     return out
 
 
+class SettingsError(ValueError):
+    """The campaign's blocks did not run one setting, or the analysis was not given what they ran (T050-12)."""
+
+
+def check_campaign(root, cal, frozen):
+    """One setting across the blocks, and the record and selections the analysis judges with are the ones they ran under (T050-12,
+    ml/p1_prereg_3.json one_setting): an arm replayed at X beside M runs made under Y is not a contrast."""
+    settings = {}
+    for x in REC.index_lines(root):
+        if x["phase"] == "campaign" and x["block_dir"] not in settings:
+            settings[x["block_dir"]] = REC.read_json(os.path.join(root, x["block_dir"], "block.json")).get("settings") or {}
+    names = sorted(settings)
+    for name in names[1:]:
+        differ = sorted(k for k in set(settings[name]) | set(settings[names[0]]) if settings[name].get(k) != settings[names[0]].get(k))
+        if differ:
+            raise SettingsError(f"{', '.join(differ)} differ between {names[0]} and {name}")
+    if names:
+        ran = settings[names[0]]
+        given = {"record_digest": cal.get("sha256"), "selection_sha256": frozen.get("selection_sha256"), "rules_sha256": frozen.get("rules_sha256")}
+        differ = sorted(k for k, v in given.items() if ran.get(k) != v)
+        if differ:
+            raise SettingsError(f"the analysis was given another {', '.join(differ)} than the campaign ran")
+
+
 def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, pre=None):
-    """Every class's admission, inputs and verdict: {class: {"verdict", "admission", "judge", "excluded", "replay"}}."""
+    """Every class's admission, inputs and verdict: {class: {"verdict", "admission", "judge", "excluded", "replay"}}. Blocks that did not run
+    one setting, or a record or selection other than theirs, are refused (SettingsError)."""
+    check_campaign(root, cal, frozen)
     pre = live_set(pre or VP.load(), cut)
     arms_factory = arms_factory or default_factory(frozen)
     classes = sorted(pre["live_set"]["per_class"])
@@ -311,9 +381,14 @@ def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, p
             continue
         blocks, excluded = judged_blocks(final, cls, live)
         row["excluded"] = excluded
+        row["blocks_judged"] = [b["block"] for b in blocks]
+        least = pre["units"]["min_blocks"]
+        if len(blocks) < least:                # D-058, T050-05: too few blocks are no verdict, and never V-D "no arm mitigates"
+            row["status"] = f"invalid ({len(blocks)} of {least})"
+            row["why_no_verdict"] = [f"{len(blocks)} judged blocks, fewer than {least}"] + [f"block {b}: {r}" for b, why in sorted(excluded.items()) for r in why]
+            continue
         inputs, per_arm = class_inputs(root, cal, cls, blocks, live, frozen, arms_factory, admitted_on(adm))
         row["replay"] = per_arm
-        row["blocks_judged"] = [b["block"] for b in blocks]
         row["age_only_on_U"] = age_only_on_u(root, blocks, cls, per_arm)
         row["reported"] = class_report(root, cal, cls, blocks, live, per_arm)
         if dry_run:
@@ -329,30 +404,46 @@ def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, p
 # --- the ladder --------------------------------------------------------------------------------------
 
 def ladder_knees(root, cal):
-    """The knees of a finished ladder: {class: bench/calibration.knee's result}, harm as bench/calibrate.harm against the attempt's
-    own control. A level with an invalid run, or that the plan refused, counts as no harm: never as passing."""
+    """The knees of a finished ladder: {class: bench/calibration.knee's result}, harm as bench/calibrate.harm against the attempt's own
+    control. Per (class, level, repeat) the last attempt with both runs sound counts (T050-13, ml/p1_prereg_3.json ladder): a clean re-run
+    restores a level, and one with no sound attempt, or that the plan refused, counts as no harm: never as passing."""
     import calibrate as K
     gate = cal["gate"]
-    rows = {}
+    attempts = {}
     for x in REC.index_lines(root):
-        if x["phase"] != "ladder" or not x["label"]:
-            continue
-        m = LADDER_LABEL.match(x["label"])
-        if m is None or x["run"] == "C":
-            continue
-        bdir = os.path.join(root, x["block_dir"])
-        try:
-            b = LH.assess_block(bdir, cal)
-        except LH.HarmError:
-            b = {"runs": {}, "classes": {}}
-        control, attack = b["runs"].get("C"), b["runs"].get(x["run"])
+        m = LADDER_LABEL.match(x["label"] or "") if x["phase"] == "ladder" else None
+        if m is not None and x["run"] != "C":
+            key = (m.group("cls"), float(m.group("level")), int(m.group("repeat")))
+            attempts.setdefault(key, []).append((x["attempt"], x["block_dir"], x["run"]))
+    rows = {}
+    for (cls, level, _repeat), tries in sorted(attempts.items()):
         harm = 0.0
-        if control and attack and control["checks"].get("ok") and attack["checks"].get("ok"):
-            h, _parts = K.harm([control["metrics"]], attack["metrics"], gate["floor_pp"], gate["floor_log2_p95"])
-            harm = h or 0.0
-        cls, level = m.group("cls"), float(m.group("level"))
+        for _attempt, block_dir, run in sorted(tries, reverse=True):
+            try:
+                b = LH.assess_block(os.path.join(root, block_dir), cal)
+            except LH.HarmError:
+                continue
+            control, attack = b["runs"].get("C"), b["runs"].get(run)
+            if control and attack and control["checks"].get("ok") and attack["checks"].get("ok"):
+                h, _parts = K.harm([control["metrics"]], attack["metrics"], gate["floor_pp"], gate["floor_log2_p95"])
+                harm = h or 0.0
+                break
         rows.setdefault(cls, {}).setdefault(level, []).append(harm)
     return {cls: CAL.knee(sorted(levels.items()), 1.0, 2) for cls, levels in sorted(rows.items())}
+
+
+def knees_file(root, cal):
+    """What --ladder writes and --knees takes (T050-13): each class's level at the top of the file, null and named under no_knee for a class
+    without one, bound to the record and the factor. A campaign that needs a class without a knee refuses."""
+    knees = ladder_knees(root, cal)
+    levels, none = {}, []
+    for cls in sorted(PT.PRIMARY):
+        level = (knees.get(cls) or {}).get("level")
+        levels[cls] = None if level is None else (int(level) if cls == "C3b" else float(level))
+        if level is None:
+            none.append(cls)
+    return {"format": "p1-knees/1", "status": cal.get("status"), "record_sha256": cal.get("sha256"), "record_status": cal.get("status"),
+            "benign_halvings": ladder_factor(root), **levels, "no_knee": none, "knees": knees}
 
 
 def ladder_factor(root):
@@ -371,7 +462,7 @@ def health_step(root, block_dir, cal):
     never ran, or whose run checks failed, gives no reading and fires nothing (ml/p1_prereg.json halving.unsound)."""
     path = os.path.join(root, block_dir)
     step = {"dir": block_dir, "halvings": REC.read_json(os.path.join(path, "block.json"))["halvings"], "sound": True,
-            "controls": {}, "reasons": []}
+            "controls": {}, "reasons": [], "server_q": []}
     try:
         runs = LH.assess_block(path, cal)["runs"]
     except LH.HarmError as exc:
@@ -382,13 +473,28 @@ def health_step(root, block_dir, cal):
             step["sound"] = False
             step["controls"][name] = {"sound": False, "checks": run and run["checks"].get("reasons")}
             continue
-        reasons = HG.control_health(run["metrics"], cal)
-        step["controls"][name] = {"sound": True, "Q": run["metrics"]["Q"], "reasons": reasons}
+        reasons, small = LH.control_health(run["metrics"], cal)
+        timeline = REC.read_json(os.path.join(path, "block.json"))["timeline"]
+        lo = float(timeline["baseline_s"])
+        step["controls"][name] = {"sound": True, "Q": run["metrics"]["Q"], "reasons": reasons,
+                                  "server_q": (run["server"] or {}).get("Q"),
+                                  "cpu": REC.cpu_load(os.path.join(path, name), (lo, lo + float(timeline["attack_s"]))),
+                                  "view_slip": run["metrics"].get("view_slip"), "small_classes": small}
         step["reasons"].append(reasons)
+        step["server_q"].append((run["server"] or {}).get("Q"))
     return step
 
 
-def health_result(root, cal):
+def parse_health_decision(text):
+    """{step's dir: {"action", "text"}} of one --health-decision DIR=ACTION:TEXT; the text must name a date (D-058)."""
+    head, _colon, words = text.partition(":")
+    step, _eq, action = head.partition("=")
+    if action not in ("fire", "repeat") or not re.search(r"\d{4}-\d{2}-\d{2}", words):
+        raise ValueError(f"--health-decision takes DIR=fire:TEXT or DIR=repeat:TEXT, and TEXT names a dated decision; got {text!r}")
+    return {step: {"action": action, "text": words.strip()}}
+
+
+def health_result(root, cal, decisions=None):
     """The rule over its steps in the order they ran (ROOT/index.jsonl): the health file."""
     dirs = []
     for x in REC.index_lines(root):
@@ -396,7 +502,7 @@ def health_result(root, cal):
             dirs.append(x["block_dir"])
     steps = [health_step(root, d, cal) for d in dirs]
     return {"format": RUN.HEALTH_FORMAT, "record_sha256": cal.get("sha256"), "record_status": cal.get("status"),
-            "rule": "ml/p1_prereg.json halving", **PT.next_step(steps), "steps": steps}
+            "rule": "ml/p1_prereg.json halving", **PT.next_step(steps, decisions), "decisions": decisions or {}, "steps": steps}
 
 
 # --- the frozen operating points on the pilot's benign traffic -----------------------------------------
@@ -451,17 +557,22 @@ def main(argv=None):
     ap.add_argument("--ladder", action="store_true", help="the knees of a finished ladder")
     ap.add_argument("--health", action="store_true", help="the halving rule's next step, frozen factor or refusal")
     ap.add_argument("--points", action="store_true", help="the frozen operating points on the pilot's benign traffic")
+    ap.add_argument("--health-decision", action="append", default=[], metavar="DIR=ACTION:TEXT",
+                    help="a step the rule stopped at: fire or repeat it, by a dated decision (D-058)")
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
     import l7_backend
     cal, _status, _tag = l7_backend.load_record(args.calibration)
     failed = False
+    decisions = {}
+    for text in args.health_decision:
+        decisions.update(parse_health_decision(text))
     if args.health:
-        res = health_result(args.root, cal)
-        failed = res["decision"] == "refused"
+        res = health_result(args.root, cal, decisions)
+        failed = res["decision"] in ("refused", "stopped")
         print(f"the halving rule: {res['decision']}: {res['why']}")
     elif args.points:
-        health = health_result(args.root, cal)
+        health = health_result(args.root, cal, decisions)
         if health["decision"] != "frozen":
             print(f"no point check without a frozen factor: {health['decision']}: {health['why']}", file=sys.stderr)
             return 1
@@ -471,13 +582,17 @@ def main(argv=None):
         print(f"the frozen points on the pilot's benign traffic: {res['status']}; over the budget: {res['over_budget']}; "
               f"seeds missing: {res['missing_seeds']}")
     elif args.ladder:
-        res = {"format": "p1-ladder/1", "record_sha256": cal.get("sha256"), "record_status": cal.get("status"),
-               "benign_halvings": ladder_factor(args.root), "knees": ladder_knees(args.root, cal)}
+        res = knees_file(args.root, cal)
+        print(f"the knees: { {c: res[c] for c in sorted(PT.PRIMARY)} }; no knee: {res['no_knee']}")
     else:
         frozen = {"selection": args.selection, "selection_sha256": args.selection_sha256, "rules": args.rules,
                   "rules_sha256": args.rules_sha256}
-        res = {"format": "p1-verdicts/1", "record_sha256": cal.get("sha256"), "cut": args.cut, "dry_run": args.dry_run,
-               "classes": analyse(args.root, cal, frozen, cut=args.cut, dry_run=args.dry_run)}
+        try:
+            classes = analyse(args.root, cal, frozen, cut=args.cut, dry_run=args.dry_run)
+        except SettingsError as exc:
+            print(f"refused: {exc}", file=sys.stderr)
+            return 1
+        res = {"format": "p1-verdicts/1", "record_sha256": cal.get("sha256"), "cut": args.cut, "dry_run": args.dry_run, "classes": classes}
     with open(args.out, "w", encoding="utf-8") as fh:
         json.dump(res, fh, indent=1, sort_keys=True, default=str)
         fh.write("\n")

@@ -80,6 +80,18 @@ def prereg_2():
         return json.load(fh)
 
 
+def prereg_3():
+    """ml/p1_prereg_3.json, the dated record of T-051's fix round on T-050."""
+    with open(os.path.join(HERE, "p1_prereg_3.json"), encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def prereg_4():
+    """ml/p1_prereg_4.json, the dated record of D-058."""
+    with open(os.path.join(HERE, "p1_prereg_4.json"), encoding="utf-8") as fh:
+        return json.load(fh)
+
+
 def check_halvings(halvings):
     """`halvings` if it is an int from 0 up to the rule's floor, or a refusal: past the floor there is no plan."""
     floor = prereg()["halving"]["floor"]["max_halvings"]
@@ -111,12 +123,16 @@ def halve(control_reasons):
     return any(bool(r) for r in control_reasons)
 
 
-def next_step(steps):
-    """The rule of ml/p1_prereg.json over its steps in the order they ran, each {"halvings", "sound", "reasons": [C's, C''s]}:
-    {"decision", "benign_halvings", "next_halvings", "why"}, the decision one of "run" (the next step's halvings), "frozen" (the
-    factor) and "refused" (there is no factor, and the ladder and the campaign refuse)."""
+def next_step(steps, decisions=None):
+    """The rule of ml/p1_prereg.json over its steps in the order they ran, each {"dir", "halvings", "sound", "reasons": [C's, C''s], "server_q":
+    [C's, C''s]}: {"decision", "benign_halvings", "next_halvings", "why"}, the decision one of "run" (the next step's halvings), "frozen" (the
+    factor), "refused" (there is no factor, and the ladder and the campaign refuse) and "stopped" (D-058, ml/p1_prereg_4.json halving): a control
+    unhealthy with a server-side Q of at least server_q_min does not fire the rule, whose limit is the client's or a timer's. It waits for a dated
+    decision, `decisions` {step's dir: {"action": "fire" | "repeat", "text"}}: to fire the rule at that step, or to take it as no reading."""
     rule = prereg()["halving"]
     floor, max_reruns = rule["floor"]["max_halvings"], rule["max_reruns"]
+    server_q_min = prereg_4()["halving"]["server_q_min"]
+    decisions = decisions or {}
 
     def refused(why):
         return {"decision": "refused", "benign_halvings": None, "next_halvings": None, "why": why}
@@ -135,6 +151,19 @@ def next_step(steps):
                 return refused(f"a step ran after the rule stopped at {h} halvings")
             return {"decision": "frozen", "benign_halvings": h, "next_halvings": None,
                     "why": f"both controls healthy at {h} halvings"}
+        client_side = [q for r, q in zip(step["reasons"], step.get("server_q") or (None, None), strict=False)
+                       if r and q is not None and q >= server_q_min]
+        if client_side:
+            action = (decisions.get(step.get("dir")) or {}).get("action")
+            if action is None:
+                return {"decision": "stopped", "benign_halvings": None, "next_halvings": None, "stopped_step": step.get("dir"),
+                        "why": (f"a control unhealthy at {h} halvings with a server-side Q of {client_side[0]:.2f} %: the limit is not the server's, "
+                                f"and the rule waits for a dated decision (ml/p1_prereg_4.json halving): {step['reasons']}")}
+            if action == "repeat":
+                reruns += 1
+                if reruns > max_reruns:
+                    return refused(f"the controls at {h} halvings gave no reading in {reruns} attempts (at most {max_reruns} re-runs)")
+                continue
         if h == floor:
             return refused(f"the benign mix does not reach health at the floor of {floor} halvings "
                            f"(ml/p1_prereg.json): {step['reasons']}")
@@ -156,6 +185,14 @@ def level_window(timeline=None):
     t = timeline or TIMELINE
     lo = float(t["baseline_s"])
     return lo + l7v2_verdict_prereg.load()["level_window"]["from_attack_start_s"], lo + float(t["attack_s"])
+
+
+def late_window(timeline=None):
+    """The descriptive window of ml/p1_prereg_3.json reported.late_window, seconds from the run's start: arrivals have ended and no source is
+    younger than 30 s, so that a speed effect can be told from a removal effect (T050-15)."""
+    t = timeline or TIMELINE
+    lo = float(t["baseline_s"])
+    return lo + prereg_3()["reported"]["late_window"]["from_attack_start_s"], lo + float(t["attack_s"])
 
 
 def ladder_levels(cls):

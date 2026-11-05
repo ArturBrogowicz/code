@@ -1,4 +1,4 @@
-"""The verdict pre-registration re-registered by D-051, D-053 and D-054 (ml/l7v2_verdict_prereg_v3.json, before any capture): every
+"""The verdict pre-registration re-registered by D-051, D-053 and D-054 (ml/l7v2_verdict_prereg_v4.json, before any capture): every
 value is pinned here, so a change shows up as a failing test and must become a new file version. Offline and pure."""
 import hashlib
 import json
@@ -13,8 +13,8 @@ import l7v2_model_prereg
 import p3_prereg
 import run_level_stats
 
-PATH = os.path.join(REPO, "ml", "l7v2_verdict_prereg_v3.json")
-SHA256 = "96cdd2c287859649a3712c9ce59b5a86ce0580ed3430197647de83ef8a5f9989"
+PATH = os.path.join(REPO, "ml", "l7v2_verdict_prereg_v4.json")
+SHA256 = "ed79a8e6064a300f0e0ea19b1cda87b9fdbb8c50987fe3775da88b2b19e8673a"
 
 
 def pre():
@@ -27,8 +27,8 @@ class FrozenFileTest(unittest.TestCase):
         with open(PATH, "rb") as fh:
             self.assertEqual(hashlib.sha256(fh.read()).hexdigest(), SHA256)
         p = pre()
-        self.assertEqual(p["format"], "l7v2-verdict-prereg/3")
-        self.assertTrue(p["label"].startswith("re-registered 2026-11-02 under D-051, D-053 and D-054"))
+        self.assertEqual(p["format"], "l7v2-verdict-prereg/4")
+        self.assertTrue(p["label"].startswith("re-registered 2026-11-03 under D-058"))
         self.assertIn("before any capture", p["label"])
 
     def test_d044_settles_every_choice(self):
@@ -57,6 +57,8 @@ class FrozenFileTest(unittest.TestCase):
         self.assertIn("admitted on latency alone and no live M's mean gain", rungs["V-D"]["when"])
         self.assertIn("meets the budget", rungs["V-B"]["when"])
         self.assertIn("and R* meets the budget", rungs["V-C"]["when"])
+        self.assertIn("not when the best learned arm is the HGB while the GRU beats R* on harm", rungs["V-C"]["when"])
+        self.assertIn("(D-058, T050-14)", rungs["inconclusive"]["when"])
         self.assertIn("inconclusive with the arm named (D-051)", rungs["inconclusive"]["when"])
         self.assertIn("beats every live baseline arm of the class on harm", rungs["V-A"]["when"])
         self.assertIn("the HGB and the shuffled-GRU on detection by >= 10 pp", rungs["V-A"]["when"])
@@ -97,6 +99,11 @@ class FrozenFileTest(unittest.TestCase):
         readings = {r["id"]: r["text"] for r in p["readings"]}
         self.assertIn("no gate on the HGB", readings["R-3"])
         self.assertIn("at most 0.10 by the union bound", readings["R-9"])
+
+    def test_d058_the_new_rules(self):
+        p = pre()
+        self.assertIn("every contrast reported", p["hgb_led_v_c"]["rule"])
+        self.assertIn("invalid (k of min_blocks)", p["judged_blocks"]["rule"])
 
     def test_d053_and_d054_the_harm_contrast(self):
         p = pre()

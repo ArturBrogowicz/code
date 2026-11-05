@@ -1,4 +1,4 @@
-"""The P1 verdict code (ml/l7v2_verdict.py; docs/L7V2_DESIGN.md section 11, ml/l7v2_verdict_prereg_v3.json): synthetic
+"""The P1 verdict code (ml/l7v2_verdict.py; docs/L7V2_DESIGN.md section 11, ml/l7v2_verdict_prereg_v4.json): synthetic
 fixtures for V-A, V-B, V-C, V-D and inconclusive, each reachable and each made unreachable by one change, the contrasts
 (the GRU vs R*, vs the HGB, vs the shuffled-GRU, vs the age-only arm), the settled choices of D-044, C3b's primary
 detection family of D-043, and the refusals. Offline and pure; no evaluation data exists."""
@@ -232,12 +232,38 @@ class ReviewFixesTest(unittest.TestCase):
         self.assertEqual(r["contrasts"]["harm view_gru vs R*"]["outcome"], "beats")
 
     def test_oc1_is_used_for_v_b_and_v_c_only(self):
-        """The same HGB lead, and the GRU's V-A broken on detection: V-C is read on the HGB, as OC-1 says."""
-        r = J.judge("C3b", fixture(q={"default_rules": 45.0, "R*": 70.0, "hgb": 71.0, "view_gru": 92.0},
+        """The same HGB lead, and the GRU's V-A broken on harm too: V-C is read on the HGB, as OC-1 says."""
+        r = J.judge("C3b", fixture(q={"default_rules": 45.0, "R*": 70.0, "hgb": 71.0, "view_gru": 72.0},
                                    recall={"view_gru": 0.6, "hgb": 0.6, "gru_shuffled": 0.6},
                                    val_recall={"view_gru": 0.800, "hgb": 0.803}))
         self.assertEqual(r["verdict"], "V-C")
         self.assertIn(("best_learned_vs_rstar", "hgb: equivalent"), r["steps"])
+
+    def test_t050_14_no_v_c_through_the_hgb_while_the_gru_beats_r_star(self):
+        """D-058: the reviewer's scenario. V-A misses on detection, the HGB leads validation by a hair and is about R*."""
+        q = {"U": 40.0, "default_rules": 45.0, "R*": 70.0, "hgb": 71.0, "view_gru": 92.0}
+        recall = {"view_gru": 0.60, "hgb": 0.55, "gru_shuffled": 0.55, "R*": 0.50}
+        r = J.judge("C3b", fixture(q=q, recall=recall, val_recall={"view_gru": 0.700, "hgb": 0.720}))
+        self.assertEqual(r["verdict"], "inconclusive")
+        self.assertIn("the GRU beats R* on harm (D-058)", r["notes"][0])
+        self.assertIn(("best_learned_vs_rstar", "hgb: equivalent"), r["steps"])
+        for name in ("harm view_gru vs R*", "harm hgb vs R*", "harm view_gru vs hgb", "detection view_gru vs hgb", "detection view_gru vs gru_shuffled"):
+            self.assertIn(name, r["contrasts"])
+        self.assertEqual(r["contrasts"]["harm view_gru vs R*"]["outcome"], "beats")
+        swapped = J.judge("C3b", fixture(q=q, recall={"view_gru": 0.6, "hgb": 0.6, "gru_shuffled": 0.6}, val_recall={"view_gru": 0.720, "hgb": 0.700}))
+        self.assertEqual(swapped["verdict"], "V-B", "the GRU leads validation: it carries V-B, as before")
+
+    def test_t050_14_r_star_above_the_hgb_is_covered_too(self):
+        q = {"default_rules": 45.0, "R*": 70.0, "hgb": 60.0, "view_gru": 92.0}
+        r = J.judge("C3b", fixture(q=q, recall={"view_gru": 0.60, "hgb": 0.55, "gru_shuffled": 0.55}, val_recall={"view_gru": 0.700, "hgb": 0.720}))
+        self.assertEqual(r["verdict"], "inconclusive")
+        self.assertIn("hgb led validation and loses to R*", r["notes"][0])
+
+    def test_t050_14_does_not_touch_v_c_through_the_gru_or_with_a_gru_about_r_star(self):
+        self.assertEqual(J.judge("C2", fixture("C2", q={"R*": 80.0, "view_gru": 81.0}))["verdict"], "V-C")
+        r = J.judge("C3b", fixture(q={"default_rules": 45.0, "R*": 70.0, "hgb": 71.0, "view_gru": 72.0},
+                                   recall={"view_gru": 0.60, "hgb": 0.55}, val_recall={"view_gru": 0.700, "hgb": 0.720}))
+        self.assertEqual(r["verdict"], "V-C")
 
     def test_every_gru_contrast_is_reported_whatever_the_verdict(self):
         over = over_budget(live=("R*", "hgb", "view_gru"), replay=("R*", "hgb", "view_gru"))

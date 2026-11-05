@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The P1 verdict per class (docs/L7V2_DESIGN.md section 11; constants from ml/l7v2_verdict_prereg_v3.json, frozen first).
+"""The P1 verdict per class (docs/L7V2_DESIGN.md section 11; constants from ml/l7v2_verdict_prereg_v4.json, frozen first).
 
 judge(cls, inputs) applies the ladder to one class's evaluation results and claims one verdict:
   * harm contrasts: Q in percent per block and arm, paired by block, judged by eval/run_level_stats (decide,
@@ -16,6 +16,7 @@ judge(cls, inputs) applies the ladder to one class's evaluation results and clai
     a verdict: V-B's carrier is the best learned arm, V-C's is R*, and the class is then inconclusive with the arm named;
   * a class admitted on latency alone gets V-D unless some live M's mean gain in Q reaches 5 pp (D-051): Q is the only harm
     outcome the ladder reads;
+  * no V-C through an HGB-led best learned arm while the GRU beats R* on harm (D-058): the class is inconclusive, every contrast reported;
   * the rungs V-D, V-A, V-B, V-C, inconclusive, the first that holds; V-A is blocked (inconclusive, the block named) on
     an age-confounded validation set, a structureless benign model, and never given on a non-frozen record;
   * the settled choices (D-044): the best learned arm has the higher validation recall at the budget, frozen in the
@@ -238,6 +239,8 @@ def _ladder(cls, live, inputs, opts, pre, memo):
     s3 = harm_c(best, RSTAR)["outcome"]
     steps.append(("best_learned_vs_rstar", f"{best}: {s3}"))
     if s3 in ("equivalent", "loses"):
+        if best != GRU and gru_harm[RSTAR]["outcome"] == "beats":
+            return "inconclusive", steps, [f"V-C not claimed: {best} led validation and {"loses to" if s3 == "loses" else "is equivalent to"} R*, while the GRU beats R* on harm (D-058)"]
         if s3 == "loses":
             notes.append("R* beats the best learned arm on harm (OC-4)")
             if opts["OC-4"] != "v_c":

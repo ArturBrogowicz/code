@@ -6,7 +6,7 @@ generators, as root. Run it only with the user's approval of a VM step. `--plan`
 nothing; the tests drive it with a fake host (tests/p1_fake_host.py), as eval/p4_runner.py's tests do.
 
 A block is one seed (ml/p1_traffic.py build_block): its pool, role map, parameters, netem and schedules are the same in
-every run. Its runs, in a seeded order, are the live set of ml/l7v2_verdict_prereg_v3.json: C, C' and, per class, U and
+every run. Its runs, in a seeded order, are the live set of ml/l7v2_verdict_prereg_v4.json: C, C' and, per class, U and
 its live arms (13 runs; `--cut` is section 14's minimum cut, 9 runs). Every attempt, valid or not, is a line of
 ROOT/index.jsonl with its reasons (section 13 row 6); an attempt is a directory ROOT/<phase>/b<seed>_a<attempt>[_<label>]/
 <run>/ beside block.json, the run contract of eval/l7v2_harm.py.
@@ -41,7 +41,7 @@ are bound to it (L7V2-08) and the block runs at them, and both selections are th
 
 Checks of a run (design 5.4): the stack answered; every planned client started and ended cleanly; in an M run the daemon was
 ready before the traffic, alive to the end, with XDP attached, its start event says what the table says and the arm armed;
-its l7_enforce_arm event names the arm, the selection's sha256 and R*'s rule; its shadow evicted nothing and did not restart in the attack window (D-054); the kill file stayed absent; the file sink has no silence longer than LOG_GAP_MAX_S [ASSUMPTION] over the run. A run that
+its l7_enforce_arm event names the arm, the selection's sha256 and R*'s rule; its shadow evicted nothing and did not restart in the attack window (D-054); an enforcing arm parsed its feed against the file sink, its reloads took effect and its step did not fail in the attack window; an attack reached the server (ml/p1_prereg_3.json run_validity); the kill file stayed absent; the file sink has no silence longer than LOG_GAP_MAX_S [ASSUMPTION] over the run. A run that
 fails one is invalid, with its reasons. CPU per core is sampled every second (cpu.jsonl).
 
     sudo ./venv/bin/python eval/p1_runner.py --phase campaign --seed 3001 --calibration REC --knees KNEES \\
@@ -61,6 +61,7 @@ import random
 import re
 import shutil
 import sys
+import types
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -95,12 +96,15 @@ READY_URL = f"http://{SERVER_IP}/"
 DAEMON_READY_TIMEOUT_S, STACK_READY_TIMEOUT_S = 90.0, 30.0
 LOG_GAP_MAX_S = 10.0                       # [ASSUMPTION] design 5.4's "the file-sink log has no gaps"
 SHADOW_THREAD = "thread:l7_shadow"          # control_plane.supervise's `where` of the shadow thread
+ARM_STEP = "l7_enforce"                     # control_plane's `where` of a failed step of the enforcing arm
+TIMER_WAIT_MIN = 30.0                       # bench/executor.py timer_gate's default wait: every run may use it in full
 SETUP_S = 45                               # [ESTIMATE] design 14: a run's set-up and teardown
 GUNICORN = {"backend": "costed", "gunicorn_workers": 2, "gunicorn_threads": 8}     # design 4.3
 PROVENANCE_FILES = ("nginx.conf", "nginx_unprotected.conf", "control_plane.py", "l7_enforce.py", "l7_arms.py", "l7_conf.py",
                     "l7_denymap.py", "l7_engine.py", "l7_backend.py", "l7_webapp.py", "ml/l7_gen.py", "ml/l7_bots.py",
                     "ml/l7_benign.py", "ml/l7_pools.py", "ml/p1_traffic.py", "ml/l7v2_prereg.json",
-                    "ml/l7v2_verdict_prereg_v3.json", "eval/p1_runner.py")
+                    "ml/l7v2_verdict_prereg_v4.json", "eval/p1_runner.py", "l7_rule_engine.py", "l7_ingest.py", "l7_features.py",
+                    "l7_scorer.py", "ml/l7v2_rules.py", "ml/p1_prereg.json", "ml/p1_prereg_2.json", "ml/p1_prereg_3.json", "ml/p1_prereg_4.json")
 BAN_ENGINES = (*ban_events.ENGINES, ban_events.L7V2_ENGINE)     # D-037: the arm's engine sits outside ENGINES
 
 # The one table: what each arm runs (T-025e's report, "Env per arm for the P1 runner", feat/l7v2-rstar c6028ce). Everything an
@@ -166,9 +170,9 @@ def live_runs(cut=False, pre=None):
 
 
 def block_order(phase, seed, names, label=""):
-    """The block's runs in a seeded random order (design 5.3); a re-run keeps it."""
+    """The block's runs in a seeded random order (design 5.3); a re-run keeps it, and a campaign's does not read a free label (T050-17)."""
     order = list(names)
-    random.Random(f"p1-order|{phase}|{seed}|{label}").shuffle(order)
+    random.Random(f"p1-order|{phase}|{seed}|{'' if phase == 'campaign' else label}").shuffle(order)
     return order
 
 
@@ -195,7 +199,8 @@ def file_sink(text, path):
 
 
 def render_conf(spec, out, deny_dir):
-    """The run's own nginx conf, from the tracked files, which are only read (D-028)."""
+    """The run's own nginx conf, from the tracked files, which are only read (D-028). `spec` is the arm's row of ARM_TABLE, its daemon
+    the row's environment: the plan's daemon dict holds it one level down (T050-01), so execute_run passes the row."""
     if spec["conf"] == "unprotected":
         text = l7_conf.unprotected(l7_conf.read(l7_conf.UNPROTECTED_CONF))
     else:
@@ -422,6 +427,9 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
             raise PlanError("a campaign runs the live set")
         pairs = live_runs(cut)
         levels = {c: knees.get(c) for c in sorted({c for _a, c in pairs} - {None})}
+        none = sorted(c for c, level in levels.items() if level is None)
+        if none:
+            raise PlanError(f"{', '.join(none)} has no knee at its reachable levels, and this campaign needs it (ml/p1_prereg_3.json ladder)")
     elif phase == "health":
         rule = PT.prereg()["halving"]
         if runs is not None or levels:
@@ -457,6 +465,8 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
         ages = PT.age_report(pop)
         planned = [plan_run(pop, phase, *names[n], os.path.join(bdir, n), frozen, python=python, age=ages.get(names[n][1]))
                    for n in order]
+        for run in planned:
+            run["timer_limit_ms"] = record["validity"]["timer_p99_ms"]
     except PT.PlanError as exc:
         raise PlanError(str(exc)) from exc
     return {"phase": phase, "seed": seed, "attempt": attempt, "label": label, "dir": bdir, "root": root, "order": order,
@@ -470,6 +480,18 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
 def vm_minutes(n_runs, setup_s=SETUP_S):
     """The VM time of `n_runs` runs [ESTIMATE of the set-up, design 14]."""
     return n_runs * (PT.run_seconds() + setup_s) / 60.0
+
+
+def timer_gate(host, plan, ctx):
+    """The harm benchmark's gate before a run (T050-11, ml/p1_prereg_3.json run_validity): the legit CPU's timer, at the record's limit, with its
+    wait. HG2's record was measured under it. Its probes go into run.json. Returns the refusal's text, or None."""
+    gate = types.SimpleNamespace(pins={"legit": PINS["legit"]}, timer_limit_ms=plan["timer_limit_ms"], overrides={})
+    try:
+        ctx["timer"] = X.timer_gate(host, gate, TIMER_WAIT_MIN)[1]
+    except X.EnvironmentRefused as exc:
+        ctx["timer"] = getattr(exc, "record", None)
+        return f"the timer gate refused the run: {exc}"
+    return None
 
 
 def describe(block):
@@ -535,28 +557,53 @@ def start_problems(plan, events, frozen_sums=None):
     return out
 
 
-def log_gap(path, t0, total):
-    """The longest silence of the file sink over [t0, t0 + total] (design 5.4), from its $msec."""
-    times = [t0, t0 + total]
+def sink_reading(path, plan, t0):
+    """One pass over a run's file sink (ml/p1_prereg_3.json run_validity): its lines; the longest silence of the benign addresses from the
+    attack's start to the run's end, from its $msec (an attack's lines must not hide a stalled benign CPU, T050-11); the attack's addresses
+    seen by the attack's end (T050-08)."""
+    t = plan["timeline"]
+    lo = t0 + t["baseline_s"]
+    hi, end = lo + t["attack_s"], lo + t["attack_s"] + t["recovery_s"]
+    benign = {e["address"] for e in plan["entities"] if e["role"] == "benign"}
+    attack = {e["address"] for e in plan["entities"] if e["role"] == "attack"}
+    lines, times, seen = 0, [lo, end], set()
     with l7_dataset.open_log(path) as fh:
-        for line in fh:
-            obj = l7_ingest.parse_l7_line(line)
-            if obj is not None:
-                msec = l7_ingest._num(obj.get("msec"))
-                if t0 <= msec <= t0 + total:
-                    times.append(msec)
+        for raw in fh:
+            obj = l7_ingest.parse_l7_line(raw)
+            if obj is None:
+                continue
+            lines += 1
+            msec, ip = l7_ingest._num(obj.get("msec")), obj.get("ip")
+            if ip in benign and lo <= msec <= end:
+                times.append(msec)
+            elif ip in attack and msec <= hi:
+                seen.add(ip)
     times.sort()
-    return max(b - a for a, b in itertools.pairwise(times))
+    return {"lines": lines, "benign_gap_s": round(max(b - a for a, b in itertools.pairwise(times)), 3), "attack_planned": len(attack),
+            "attack_seen": len(seen)}
+
+
+def sink_problems(sink):
+    """What makes a run invalid in its file sink: a silent benign side (design 5.4), an attack that did not reach the server."""
+    out = []
+    if sink["benign_gap_s"] > LOG_GAP_MAX_S:
+        out.append(f"the file sink has a silence of {sink['benign_gap_s']:.1f} s on the benign addresses (more than {LOG_GAP_MAX_S:g} s, design 5.4)")
+    share = PT.prereg_3()["run_validity"]["attack"]["attack_seen_min_share"]
+    if sink["attack_planned"] and sink["attack_seen"] < share * sink["attack_planned"]:
+        out.append(f"the attack reached the server from {sink['attack_seen']} of its {sink['attack_planned']} addresses by the attack's end "
+                   f"(at least {share:g} of them, T050-08)")
+    return out
 
 
 def execute_run(host, plan, frozen_sums):
     """Run one planned run on `host` and write its directory. Returns {"ok", "reasons", "started", "ended"}."""
     out = plan["out"]
-    reasons, procs, launched, logs, cpu = [], [], [], {}, []
+    reasons, procs, launched, logs, cpu, lags = [], [], [], {}, [], [0.0]
     os.makedirs(os.path.join(out, "records"), exist_ok=True)
+    os.makedirs(os.path.join(out, "attack_stats"), exist_ok=True)       # P4.gen_argv's --stats (T050-02): a generator writes there at its exit
     started = host.time()
     P4.write_json(os.path.join(out, "plan.json"), plan)
-    ctx = {"started": started, "t0": None, "procs": procs, "logs": logs, "launched": launched, "cpu": cpu, "sums": frozen_sums}
+    ctx = {"started": started, "t0": None, "procs": procs, "logs": logs, "launched": launched, "cpu": cpu, "lags": lags, "sums": frozen_sums}
     if not host.is_root():
         return finish(host, plan, ["not root: nothing was started"], ctx)
     if plan.get("pending") and not host.simulated:
@@ -566,11 +613,14 @@ def execute_run(host, plan, frozen_sums):
         return finish(host, plan, [f"leftover namespaces {left}: nothing was started"], ctx)
     if plan["enforcing"] and host.exists(plan["kill_file"]):
         return finish(host, plan, [f"the kill file {plan['kill_file']} exists: nothing was started"], ctx)
+    refused = timer_gate(host, plan, ctx)
+    if refused:
+        return finish(host, plan, [f"{refused}: nothing was started"], ctx)
     try:
         if plan["nginx"]["deny_dir"]:               # nginx refuses an include of a missing file
             l7_denymap.prepare_run_dir(plan["nginx"]["deny_dir"], **(plan["spec"]["deny_kw"] if m_arms_pending() is None else {}))
         with open(plan["nginx"]["conf_path"], "w", encoding="utf-8") as fh:
-            fh.write(render_conf(plan["spec"] | {"daemon": plan["daemon"]}, out, plan["nginx"]["deny_dir"]))
+            fh.write(render_conf(ARM_TABLE[plan["arm"]], out, plan["nginx"]["deny_dir"]))
         procs.append(("topology", None))                # from here on the teardown runs, whatever happens
         P4.topology(host, plan)
         host.run(["mkdir", "-p", "/var/log/nginx", os.path.join(out, "feed_before")])
@@ -605,6 +655,7 @@ def execute_run(host, plan, frozen_sums):
             now = host.time() - t0
             while pending and pending[0]["start_s"] <= now:
                 x = pending.pop(0)
+                lags.append(now - x["start_s"])
                 try:
                     launched.append((x, host.popen(x["argv"], ns=x["ns"], cwd=REPO)))
                 except OSError as exc:
@@ -650,8 +701,9 @@ def finish(host, plan, reasons, ctx):
         if procs:
             P4.teardown(host, plan)
     ended = host.time()
-    reasons += checks(host, plan, t0, launched, ctx["sums"])
     log = os.path.join(out, l7_dataset.ACCESS_LOG)
+    sink = sink_reading(log, plan, t0) if t0 is not None and os.path.isfile(log) else None
+    reasons += checks(host, plan, t0, launched, ctx["sums"], sink)
     if os.path.isfile(log):                               # a run's sink is tens of MB; the readers take either form
         with open(log, "rb") as src, gzip.open(log + ".gz", "wb") as dst:
             shutil.copyfileobj(src, dst)
@@ -667,7 +719,8 @@ def finish(host, plan, reasons, ctx):
             "checks": {"ok": ok, "reasons": reasons},
             "started_utc": P4._utc(ctx["started"]), "ended_utc": P4._utc(ended),
             "daemon": None if plan["daemon"] is None else {"env": plan["daemon"]["env"]},
-            "shadow": shadow_report(events, plan, t0) if plan["daemon"] and t0 is not None else None,
+            "sink": sink, "runner": runner_report(ctx), "timer": ctx.get("timer"),
+            "shadow": shadow_report(events, plan, t0, sink) if plan["daemon"] and t0 is not None else None,
             "bans_by_engine": {engine: len(rows) for engine, rows in sorted(run_bans(events).items())},
             "provenance": provenance(plan, ctx["sums"])}
     P4.write_json(os.path.join(out, "run.json"), meta)
@@ -675,43 +728,55 @@ def finish(host, plan, reasons, ctx):
     return {"ok": ok, "reasons": reasons, "started": ctx["started"], "ended": ended}
 
 
-def checks(host, plan, t0, launched, frozen_sums=None):
-    """The validity checks of a run that ran (design 5.4)."""
+def checks(host, plan, t0, launched, frozen_sums=None, sink=None):
+    """The validity checks of a run that ran (design 5.4, ml/p1_prereg_3.json run_validity)."""
     if t0 is None:
         return []
     reasons = []
-    total = PT.run_seconds()
     if len(launched) != len(plan["launches"]):
         reasons.append(f"{len(plan['launches']) - len(launched)} of {len(plan['launches'])} generators never started")
-    log = os.path.join(plan["out"], l7_dataset.ACCESS_LOG)
-    if not os.path.isfile(log):
-        reasons.append("the file sink is missing")
-    else:
-        gap = log_gap(log, t0, total)
-        if gap > LOG_GAP_MAX_S:
-            reasons.append(f"the file sink has a silence of {gap:.1f} s (more than {LOG_GAP_MAX_S:g} s, design 5.4)")
+    reasons += sink_problems(sink) if sink else ["the file sink is missing"]
     d = plan["daemon"]
     if d:
         if P4.XDP_ATTACHED_LINE not in P4._text(host, d["log"]):
             reasons.append("the daemon's log does not show XDP attached")
         events = P4._events(d["env"]["BAN_EVENTS"])
         reasons += start_problems(plan, events, frozen_sums)
-        reasons += shadow_problems(shadow_report(events, plan, t0))
+        report = shadow_report(events, plan, t0, sink)
+        reasons += shadow_problems(report)
+        if plan["enforcing"]:
+            reasons += arm_problems(report, events, plan, t0)
     return reasons
 
 
-def shadow_report(events, plan, t0):
+def shadow_report(events, plan, t0, sink=None):
     """What an M run's event log says of its shadow (D-054, ml/p1_prereg_2.json run_validity): the largest evicted and late counts of its
     l7_shadow reports (a restarted engine counts from 0; `evicted` is R*'s path's alone, a view store reports late_dropped), every
-    daemon_error, and how many of those are the shadow thread's in the attack window."""
+    daemon_error, and how many of those are the shadow thread's in the attack window. And (T050-07, ml/p1_prereg_3.json) what the arm
+    received and parsed against the file sink's lines, its reloads and denies, and the arm's own step errors in the attack window."""
     reports = [e for e in events if e.get("kind") == "l7_shadow"]
     errors = [e for e in events if e.get("kind") == "daemon_error"]
     lo = t0 + plan["timeline"]["baseline_s"]
     hi = lo + plan["timeline"]["attack_s"]
+    parsed = max((e.get("parsed", 0) for e in reports), default=0)
+    lines = sink["lines"] if sink else None
+    reloads = [e for e in events if e.get("kind") == "l7_reload"]
     return {"reports": len(reports), "evicted": max((e.get("evicted", 0) for e in reports), default=0),
             "late": max((max(e.get("late", 0), e.get("late_dropped", 0)) for e in reports), default=0),
+            "received": max((e.get("received", 0) for e in reports), default=0), "parsed": parsed, "sink_lines": lines,
+            "socket_loss": round(1.0 - parsed / lines, 4) if lines else None,
+            "denies": sum(1 for e in events if e.get("kind") == "l7_deny"), "reloads": len(reloads),
+            "reloads_failed": sum(1 for e in reloads if not e.get("ok")),
+            "arm_step_errors_in_attack": sum(1 for e in errors if e.get("where") == ARM_STEP and lo <= e.get("t_wall", 0.0) < hi),
             "daemon_errors": [{k: e.get(k) for k in ("t_wall", "where", "error", "action")} for e in errors],
             "shadow_restarts_in_attack": sum(1 for e in errors if e.get("where") == SHADOW_THREAD and lo <= e.get("t_wall", 0.0) < hi)}
+
+
+def runner_report(ctx):
+    """The runner's own lateness in a run, judging nothing (T050-11): its largest launch lag and the largest gap of its loop, from cpu.jsonl's clock."""
+    times = [c["t"] for c in ctx["cpu"]]
+    return {"largest_launch_lag_s": round(max(ctx["lags"]), 3),
+            "largest_loop_gap_s": round(max((b - a for a, b in itertools.pairwise(times)), default=0.0), 3)}
 
 
 def shadow_problems(report):
@@ -721,6 +786,31 @@ def shadow_problems(report):
         out.append(f"the rule path evicted {report['evicted']} addresses: R*'s parity with the replay holds only at 0")
     if report["shadow_restarts_in_attack"]:
         out.append(f"the shadow thread stopped or restarted {report['shadow_restarts_in_attack']} times in the attack window")
+    return out
+
+
+def arm_problems(report, events, plan, t0):
+    """What says an enforcing arm could act (T050-07, ml/p1_prereg_3.json run_validity.enforcing). A daemon that binds its socket and receives
+    nothing is armed, decides nothing and writes no error; a deny whose reload fails never takes effect, and the budget still charges it."""
+    rule = PT.prereg_3()["run_validity"]["enforcing"]
+    out = []
+    lines, parsed = report["sink_lines"], report["parsed"]
+    if parsed <= 0:
+        out.append(f"the arm's feed is empty: it parsed nothing of the file sink's {lines} lines")
+    elif lines and parsed < rule["parsed_min_share"] * lines:
+        out.append(f"the arm parsed {parsed} of the file sink's {lines} lines (at least {rule['parsed_min_share']:g} of them)")
+    end = t0 + sum(plan["timeline"].values())
+    within = rule["reload_within_s"]
+    first = min((e["t_wall"] for e in events if e.get("kind") == "l7_deny"), default=None)
+    reloads = sorted((e for e in events if e.get("kind") == "l7_reload"), key=lambda e: e["t_wall"])
+    if first is not None and first + within <= end \
+            and not any(e.get("ok") and first <= e["t_wall"] <= first + within for e in reloads):
+        out.append(f"no reload took effect within {within:g} s of the first deny: the arm's denies did not act")
+    running = [e for e in reloads if e["t_wall"] <= end]
+    if running and not running[-1].get("ok"):
+        out.append("the last reload of the run failed: the arm's last denies did not act")
+    if report["arm_step_errors_in_attack"]:
+        out.append(f"the arm's step failed {report['arm_step_errors_in_attack']} times in the attack window")
     return out
 
 
@@ -745,15 +835,116 @@ def run_bans(events):
     return out
 
 
-def index_line(block, run, res):
-    return {"phase": block["phase"], "block": block["seed"], "attempt": block["attempt"], "label": block["label"],
+def index_line(block, run, event, **fields):
+    return {"event": event, "phase": block["phase"], "block": block["seed"], "attempt": block["attempt"], "label": block["label"],
             "run": run["name"], "arm": run["arm"], "class": run["class"], "dir": os.path.relpath(run["out"], block["root"]),
-            "valid": res["ok"], "reasons": res["reasons"], "started_utc": P4._utc(res["started"]),
-            "ended_utc": P4._utc(res["ended"]), "block_dir": os.path.relpath(block["dir"], block["root"])}
+            "block_dir": os.path.relpath(block["dir"], block["root"]), **fields}
+
+
+def _append(fh, line):
+    fh.write(json.dumps(line, sort_keys=True) + "\n")
+    fh.flush()
+    os.fsync(fh.fileno())
+
+
+def read_index(root):
+    """Every run of ROOT/index.jsonl, one dict each, in the order they began (T050-17, as P4's): a run with no "ended" line is an invalid
+    run whose runner died. A last line cut in the middle is what such a death leaves; any other line that cannot be read is refused."""
+    path = os.path.join(root, "index.jsonl")
+    if not os.path.isfile(path):
+        return []
+    with open(path, encoding="utf-8") as fh:
+        lines = fh.readlines()
+    rows, by = [], {}
+    for k, raw in enumerate(lines):
+        try:
+            x = json.loads(raw)
+        except ValueError:
+            if k == len(lines) - 1:
+                break
+            raise ValueError(f"{path}: line {k + 1} cannot be read") from None
+        key = (x["phase"], x["block"], x["attempt"], x["label"], x["run"])
+        if x["event"] == "started":
+            by[key] = {**x, "ended": False, "valid": False, "reasons": ["the index holds no end of this run: the runner died"]}
+            rows.append(by[key])
+        else:
+            by[key].update(ended=True, valid=x["valid"], reasons=x["reasons"], ended_utc=x["ended_utc"])
+    return rows
+
+
+def block_settings(block):
+    """What every block of a campaign must share (T050-12, ml/p1_prereg_3.json one_setting): the frozen items, the factor, the levels and the
+    code. A path may differ, a hash may not."""
+    f = block["frozen"]
+    code = {name: sha256_file(os.path.join(REPO, name)) for name in PROVENANCE_FILES}
+    points = f.get("points") or {}
+    return {"record_digest": f["calibration"]["digest"], "knees_sha256": (f.get("knees") or {}).get("sha256"),
+            "health_sha256": (f.get("health") or {}).get("sha256"), "points_sha256": points.get("sha256"),
+            "points_decision": points.get("decision"), "selection_sha256": (f.get("selection") or {}).get("sha256"),
+            "rules_sha256": (f.get("rules") or {}).get("sha256"), "halvings": block["halvings"], "levels": block["levels"],
+            "sources": block["sources"], "cut": block["cut"],
+            "code_sha256": hashlib.sha256(json.dumps(code, sort_keys=True).encode()).hexdigest()}
+
+
+def check_attempt(block):
+    """A re-run needs a reason (T050-13, D-058, as eval/p4_runner.py check_attempt): a ladder's or a campaign's attempt is the next one the index
+    shows, and the one before had an invalid run; a campaign's also a run missing, a class invalid or an unhealthy C (the block-level valid_all
+    of eval/l7v2_harm.py). A campaign holds one re-run per block and two in all (ml/p1_prereg_4.json reruns)."""
+    phase = block["phase"]
+    if phase not in ("ladder", "campaign"):
+        return
+    rows = read_index(block["root"])
+    mine = [x for x in rows if (x["phase"], x["block"]) == (phase, block["seed"]) and (phase == "campaign" or x["label"] == block["label"])]
+    following = max((x["attempt"] for x in mine), default=0) + 1
+    if block["attempt"] != following:
+        raise PlanError(f"{phase} {block['label']} on seed {block['seed']}: attempt {block['attempt']}, and the index says the next is {following}")
+    if following == 1:
+        return
+    last = [x for x in mine if x["attempt"] == following - 1]
+    why = [x["run"] for x in last if not x["valid"]]
+    if phase == "ladder":
+        if not why:
+            raise PlanError(f"ladder {block['label']} on seed {block['seed']}: attempt {following - 1} was valid, so nothing gives a re-run its reason")
+        return
+    import l7v2_harm as LH
+
+    import l7_backend
+    rule = PT.prereg_4()["reruns"]
+    if following - 1 > rule["max_per_block"]:
+        raise PlanError(f"campaign block {block['seed']}: {following - 2} re-runs already, at most {rule['max_per_block']} per block (D-058)")
+    if not why:
+        cal = l7_backend.load_record(block["calibration"])[0]
+        try:
+            sound = LH.assess_block(os.path.join(block["root"], last[0]["block_dir"]), cal)["valid_all"]
+        except LH.HarmError:
+            sound = False
+        if sound:
+            raise PlanError(f"campaign block {block['seed']}: attempt {following - 1} had every run valid and a healthy C, and D-058 allows no re-run of it")
+    reruns = {x["block"] for x in rows if x["phase"] == "campaign" and x["attempt"] > 1}
+    if len(reruns - {block["seed"]}) >= rule["max_per_campaign"]:
+        raise PlanError(f"the campaign already holds {len(reruns)} re-run blocks, at most {rule['max_per_campaign']} (D-058)")
+
+
+def check_settings(block):
+    """A campaign at one setting: refuse a block whose settings differ from an earlier block's."""
+    if block["phase"] != "campaign":
+        return
+    base = os.path.join(block["root"], "campaign")
+    mine = block_settings(block)
+    for name in sorted(os.listdir(base)) if os.path.isdir(base) else ():
+        path = os.path.join(base, name, "block.json")
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8") as fh:
+                theirs = json.load(fh).get("settings") or {}
+            differ = sorted(k for k in mine if mine[k] != theirs.get(k))
+            if differ:
+                raise PlanError(f"campaign block {block['seed']}: {', '.join(differ)} differ from {name}'s (ml/p1_prereg_3.json one_setting)")
 
 
 def run_block(host, block):
-    """Every run of a block in its order; each attempt appended to ROOT/index.jsonl, valid or not."""
+    """Every run of a block in its order; each in ROOT/index.jsonl before it begins and when it ends, valid or not."""
+    check_attempt(block)
+    check_settings(block)
     if os.path.exists(block["dir"]):
         raise PlanError(f"{block['dir']} exists: an attempt is never overwritten (use the next --attempt)")
     os.makedirs(block["dir"])
@@ -764,13 +955,13 @@ def run_block(host, block):
                    "sources": block["sources"], "cut": block["cut"],
                    "frozen": block["frozen"], "intensity": block["intensity"], "flash": block["flash"],
                    "dropped": block["dropped"], "age_check": block["age_check"], "address_limit": block["address_limit"],
-                   "benign_load": block["benign_load"]})
+                   "benign_load": block["benign_load"], "settings": block_settings(block)})
     results = []
     with open(os.path.join(block["root"], "index.jsonl"), "a", encoding="utf-8") as idx:
         for run in block["runs"]:
+            _append(idx, index_line(block, run, "started", started_utc=P4._utc(host.time())))
             res = execute_run(host, run, block["frozen"])
-            idx.write(json.dumps(index_line(block, run, res), sort_keys=True) + "\n")
-            idx.flush()
+            _append(idx, index_line(block, run, "ended", valid=res["ok"], reasons=res["reasons"], ended_utc=P4._utc(res["ended"])))
             results.append((run["name"], res))
     return results
 
@@ -799,7 +990,7 @@ def main(argv=None, host=None):
     ap.add_argument("--label", default="")
     ap.add_argument("--cut", action="store_true", help="campaign: section 14's minimum cut")
     ap.add_argument("--calibration", default=P4.PLACEHOLDER)
-    ap.add_argument("--knees", help="campaign: the frozen knees (JSON: status, record_sha256, benign_halvings, C2, C3a, C3b)")
+    ap.add_argument("--knees", help="campaign: the frozen knees, what eval/p1_analysis.py --ladder writes")
     ap.add_argument("--halvings", type=int, help="smoke, health: how often the halving rule has fired (ml/p1_prereg.json)")
     ap.add_argument("--health", help="ladder, campaign: the rule's frozen factor (eval/p1_analysis.py --health)")
     ap.add_argument("--address-limit", type=int, help="smoke: read a level above the verified address limit (E-2)")
@@ -834,6 +1025,7 @@ def main(argv=None, host=None):
         return 0
     if host is None:
         host = X.RealHost()
+    host.pin(PINS["executor"])              # the runner's popen, curl and /proc reads keep off the legit CPU and the server's (T050-17)
     results = run_block(host, block)
     for name, res in results:
         print(f"  {name}: {'valid' if res['ok'] else 'INVALID: ' + '; '.join(res['reasons'])}")

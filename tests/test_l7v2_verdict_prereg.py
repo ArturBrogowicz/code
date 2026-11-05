@@ -1,5 +1,5 @@
 """The verdict pre-registration's loader (ml/l7v2_verdict_prereg.py) on its settled version: the consistency checks and
-the resolutions the verdict code judges under. tests/test_l7v2_verdict_prereg_v3.py pins every value. Offline and pure."""
+the resolutions the verdict code judges under. tests/test_l7v2_verdict_prereg_v4.py pins every value. Offline and pure."""
 import copy
 import json
 import os
@@ -23,9 +23,9 @@ class LoaderTest(unittest.TestCase):
             return P.load(path)
 
     def test_the_settled_version_loads(self):
-        self.assertEqual(P.PREREG_PATH, os.path.join(REPO, "ml", "l7v2_verdict_prereg_v3.json"))
-        self.assertEqual(P.load()["format"], "l7v2-verdict-prereg/3")
-        for old in ("l7v2_verdict_prereg.json", "l7v2_verdict_prereg_v2.json"):
+        self.assertEqual(P.PREREG_PATH, os.path.join(REPO, "ml", "l7v2_verdict_prereg_v4.json"))
+        self.assertEqual(P.load()["format"], "l7v2-verdict-prereg/4")
+        for old in ("l7v2_verdict_prereg.json", "l7v2_verdict_prereg_v2.json", "l7v2_verdict_prereg_v3.json"):
             self.assertFalse(os.path.exists(os.path.join(REPO, "ml", old)), f"{old} is replaced")
         self.assertEqual(P.resolutions(), {"OC-1": "validation", "OC-2": "live", "OC-3": "with_u", "OC-4": "v_c"})
 
