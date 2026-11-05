@@ -166,7 +166,10 @@ def main():
 
     def hook(now, key, recs, p):
         nonlocal writer, names
-        vec, nm = F.window_summary(recs, engine.cols)
+        if getattr(engine, "level", "request") == "view":       # L7 v2: the window's token summary
+            vec, nm = F.token_summary(F.token_matrix(recs, engine.max_views, engine.cols), engine.cols)
+        else:
+            vec, nm = F.window_summary(recs, engine.cols)
         if writer is None:
             names = nm
             writer = csv.writer(fh_csv)

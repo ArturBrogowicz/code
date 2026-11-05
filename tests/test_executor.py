@@ -37,6 +37,11 @@ SPECS = os.path.join(REPO, "bench", "scenarios")
 GOLDEN = os.path.join(REPO, "tests", "golden")
 CAL = C.load(C.PLACEHOLDER)
 OUT = "/var/tmp/ddos_campaigns/example/b01_a1"
+# P4's per-connection rule: the daemon reads these, and uses them only with SLOW_PC=1
+SLOW_PC_PARAMETERS = {"SLOW_PC_ENFORCE", "SLOW_PC_KILL_FILE", "SLOW_PC_RECORD", "SLOW_PC_T", "SLOW_PC_F", "SLOW_PC_K"}
+# the L7 v2 enforcing arm: the daemon reads these, and uses them only with L7_ENFORCE=1
+L7_ENFORCE_PARAMETERS = {"L7_ENFORCE_DIR", "L7_NGINX_CONF", "L7_ALLOWLIST", "L7_KILL_FILE", "L7_SELECTION",
+                         "L7_SELECTION_SHA256", "L7_ARM", "L7_SOCKET_GROUP"}
 
 
 def spec_path(name):
@@ -167,7 +172,7 @@ class PlanTest(unittest.TestCase):
             for s in streams:
                 head = ["prlimit", f"--nofile={s.nofile}", "--", "taskset", "-c", P.PIN_PLAN[kind]]
                 self.assertEqual(list(s.argv[:6]), head, s.id)
-        self.assertEqual(P.PIN_PLAN["legit"], "6")
+        self.assertEqual(P.PIN_PLAN["legit"], "7")
 
     def test_every_stream_command_is_one_the_engine_accepts_and_names_its_own_files(self):
         for s in plan().streams:
@@ -474,6 +479,150 @@ class NginxConfTest(unittest.TestCase):
         for text, fragment in ((without_access, "access_log"), (twice, "access_log"), (other, "error_log"), ("", "access_log")):
             with self.subTest(fragment=fragment), self.assertRaisesRegex(EX.PlanError, fragment):
                 EX.render_nginx_conf(text, "/a", "/b")
+
+
+class MitigatedPlanTest(unittest.TestCase):
+    """The protected arms (HG4 G1, G2, G12): M_limits and M_xdp are U's attack against nginx.conf, M_xdp with control_plane.py
+    beside it; the L7 GRU's modes are named and refused until they are built."""
+
+    DAEMON_SOURCE = read(os.path.join(REPO, "control_plane.py")) if os.path.exists(os.path.join(REPO, "control_plane.py")) else ""
+
+    def test_a_protected_run_is_planned_like_the_attack_run_with_its_mode(self):
+        m = plan("M_xdp")
+        u = EX.plan_run(scenario(), CAL, "U", 1, f"{OUT}/U", C.PLACEHOLDER, sha_of(spec_path("costly_search_sub_threshold")),
+                        pins=m.pins)                                     # as the campaign of an M_xdp run plans its U
+        self.assertEqual((m.kind, m.mode, u.mode), ("M_xdp", "xdp", None))
+        self.assertEqual(plan("M_limits").mode, "limits")
+        self.assertEqual(m.plan_sha256, u.plan_sha256)
+        self.assertEqual(m.level, u.level)
+
+        def streams(p):
+            return [(s.id, s.kind, s.ns, s.rate, s.seed, s.start_s, tuple(a.replace(p.out, "") for a in s.argv)) for s in p.streams]
+        self.assertEqual(streams(m), streams(u), "the attack and the clients are U's")
+
+    def test_the_run_directory_of_a_protected_run_is_named_after_its_kind(self):
+        with self.assertRaisesRegex(EX.PlanError, "the run directory of a M_xdp run is called M_xdp, not 'U'"):
+            plan("M_xdp", out=f"{OUT}/U")
+
+    def test_the_l7_modes_are_reserved_and_refused_until_they_are_built(self):
+        for kind in ("M_l7shadow", "M_l7"):
+            with self.subTest(kind=kind), self.assertRaisesRegex(EX.PlanError, "not built yet"):
+                plan(kind)
+        with self.assertRaisesRegex(EX.PlanError, "kind: one of C, Cp, U, M_limits, M_xdp"):
+            plan("M_iptables")
+        self.assertEqual(EX.RESERVED_MODES, ("l7shadow", "l7"))
+
+    def test_an_attack_free_scenario_has_no_protected_run(self):
+        with self.assertRaisesRegex(EX.PlanError, "attack-free"):
+            plan("M_xdp", name="benign_control")
+
+    def test_a_protected_stack_is_nginx_conf_with_its_limits(self):
+        original = read(os.path.join(REPO, "nginx.conf"))
+        for kind, feed in (("M_limits", False), ("M_xdp", True)):
+            with self.subTest(kind=kind):
+                p = plan(kind)
+                self.assertEqual(p.nginx_source, "nginx.conf")
+                self.assertEqual(p.nginx_conf, EX.render_nginx_conf(original, f"{p.out}/nginx_access.log", f"{p.out}/nginx_error.log",
+                                                                    feed=feed))
+                self.assertRegex(p.nginx_conf, r"\n[ \t]*limit_req zone=mylimit burst=100 nodelay;")
+                self.assertRegex(p.nginx_conf, r"\n[ \t]*limit_conn connlimit 50;")
+        self.assertEqual(plan("U").nginx_source, "nginx_unprotected.conf")
+
+    def test_with_a_daemon_nginx_also_writes_the_feed_the_daemon_reads(self):
+        original = read(os.path.join(REPO, "nginx.conf"))
+        out = EX.render_nginx_conf(original, "/run/x/access.log", "/run/x/error.log", feed=True)
+        added = [line.strip() for line in out.splitlines() if line not in original.splitlines()]
+        self.assertEqual(added, ["access_log /run/x/access.log json_ml_format;", "error_log /run/x/error.log info;"])
+        self.assertEqual(len(out.splitlines()), len(original.splitlines()) + 2)
+        kept = [line.strip() for line in out.splitlines() if line.strip().startswith(("access_log", "error_log"))]
+        self.assertEqual(kept, ["access_log /run/x/access.log json_ml_format;", f"access_log {EX.FEED_ACCESS_LOG} json_ml_format;",
+                                "error_log /run/x/error.log info;", f"error_log {EX.FEED_ERROR_LOG} info;"],
+                         "the run's own log first: the simulated host writes the first it finds")
+
+    @unittest.skipUnless(DAEMON_SOURCE, "control_plane.py is not in this checkout")
+    def test_the_feed_is_where_the_daemon_reads_and_every_variable_it_reads_is_set(self):
+        self.assertIn(f'NGINX_LOG_FILE = "{EX.FEED_ACCESS_LOG}"', self.DAEMON_SOURCE)
+        self.assertIn(f'NGINX_ERROR_LOG = "{EX.FEED_ERROR_LOG}"', self.DAEMON_SOURCE)
+        read_by_daemon = set(re.findall(r'os\.environ\.get\(\s*"(\w+)"', self.DAEMON_SOURCE))
+        planned = {k for k, _ in plan("M_xdp").daemon.env}
+        self.assertEqual(read_by_daemon - planned, {"L7_SOCKET_PATH"} | SLOW_PC_PARAMETERS | L7_ENFORCE_PARAMETERS,
+                         "read only when L7_SHADOW=1, or used only when SLOW_PC=1 or L7_ENFORCE=1, which the plan sets to 0")
+        self.assertLessEqual(planned, read_by_daemon)
+
+    def test_the_daemon_is_planned_with_its_environment_its_directory_and_its_cpu(self):
+        p = plan("M_xdp")
+        d = p.daemon
+        self.assertEqual(d.argv[:3], ("taskset", "-c", P.PIN_PLAN["daemon"]))
+        self.assertEqual(d.argv[4:], ("-u", os.path.join(REPO, "control_plane.py")))
+        self.assertEqual((d.ns, d.cwd, d.backend), (EX.SERVER_NS, REPO, "xdp"))
+        self.assertEqual((d.events, d.log), (f"{p.out}/ban_events.jsonl", f"{p.out}/daemon.log"))
+        self.assertEqual(dict(d.env), {"MITIGATION_BACKEND": "xdp", "BAN_EVENTS": f"{p.out}/ban_events.jsonl", "XDP_GRU": "0",
+                                       "GRU_ONLY": "0", "L7_SHADOW": "0", "HEURISTIC_PROFILE": "default", "L7_MODEL": "",
+                                       "L7_RECORD": "", "SLOW_PC": "0", "L7_ENFORCE": "0"})
+        for kind in ("C", "Cp", "U", "M_limits"):
+            self.assertIsNone(plan(kind).daemon, kind)
+
+    def test_the_hosts_logs_are_moved_into_the_run_not_erased_before_nginx_starts_in_a_daemon_mode_only(self):
+        p = plan("M_xdp")
+        cmds = [s for s in p.stack if isinstance(s, EX.Cmd)]
+        moves = [s for s in cmds if s.argv[:2] == ("mv", "-f")]
+        self.assertEqual([(s.argv[2:], s.when) for s in moves],
+                         [((path, f"{p.out}/feed_before/{os.path.basename(path)}"), f"present:{path}")
+                          for path in (EX.FEED_ACCESS_LOG, EX.FEED_ERROR_LOG)])
+        self.assertIn(EX.Mkdir((f"{p.out}/feed_before",), "the host's Nginx logs as they were before this run"), p.stack)
+        nginx = next(i for i, s in enumerate(cmds) if "nginx" in s.argv)
+        self.assertLess(max(cmds.index(s) for s in moves), nginx)
+        self.assertFalse([s for s in cmds if s.argv[0] == "truncate"], "nothing of the host's logs is erased (T-028 F-06)")
+        for kind in ("U", "M_limits"):
+            self.assertFalse([s for s in plan(kind).stack if isinstance(s, EX.Cmd) and s.argv[0] in ("mv", "truncate")], kind)
+
+    def test_the_plan_as_text_and_as_data_says_the_mode_and_the_daemon(self):
+        p = plan("M_xdp")
+        text = EX.describe(p)
+        self.assertIn("== run M_xdp (mitigated) of costly_search_sub_threshold", text)
+        self.assertIn("mode          xdp:", text)
+        self.assertIn("nginx.conf with its two log paths changed, and the daemon's feed beside them", text)
+        self.assertIn("MITIGATION_BACKEND=xdp", text)
+        self.assertIn("XDP_GRU=0", text)
+        self.assertIn("SIGINT", text)
+        self.assertNotIn("control_plane.py", EX.describe(plan("M_limits")))
+        d = EX.as_json(p)
+        self.assertEqual((d["mode"], d["nginx_source"], d["daemon"]["backend"], d["daemon"]["cwd"]), ("xdp", "nginx.conf", "xdp", REPO))
+        self.assertIsNone(EX.as_json(plan("U"))["daemon"])
+
+    def test_the_command_line_plans_a_protected_run_and_refuses_a_reserved_one(self):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            self.assertEqual(EX.main(["plan", spec_path("cheap_static_flood"), "--kind", "M_xdp", "--out", f"{OUT}/M_xdp"]), EX.EXIT_OK)
+            self.assertEqual(EX.main(["plan", spec_path("cheap_static_flood"), "--kind", "M_l7", "--out", f"{OUT}/M_l7"]),
+                             EX.EXIT_USAGE)
+        self.assertIn("== run M_xdp (mitigated) of cheap_static_flood", out.getvalue())
+        self.assertIn("not built yet", err.getvalue())
+
+
+class PinsTest(unittest.TestCase):
+    """G5: a run with a daemon, and every run of a campaign that has one, takes the daemon's pin plan."""
+
+    def test_a_run_with_a_daemon_takes_the_daemons_pin_plan_and_one_without_keeps_the_old(self):
+        self.assertEqual(plan("M_xdp").pins, P.PIN_PLAN_DAEMON)
+        for kind in ("C", "Cp", "U", "M_limits"):
+            self.assertEqual(plan(kind).pins, P.PIN_PLAN, kind)
+
+    def test_a_campaign_with_a_daemon_pins_all_its_runs_alike(self):
+        self.assertEqual(EX.pins_for(["C", "Cp", "U", "M_xdp"]), P.PIN_PLAN_DAEMON)
+        self.assertEqual(EX.pins_for(["C", "Cp", "U", "M_limits"]), P.PIN_PLAN)
+        c = EX.plan_run(scenario(), CAL, "C", 1, f"{OUT}/C", C.PLACEHOLDER, pins=P.PIN_PLAN_DAEMON)
+        self.assertEqual(c.pins, P.PIN_PLAN_DAEMON)
+        self.assertEqual(c.plan_sha256, plan("C").plan_sha256, "the pins are not part of who the clients are")
+
+    def test_the_streams_and_the_daemon_run_where_the_pin_plan_says(self):
+        p = plan("M_xdp")
+        for s in p.streams:
+            argv = list(s.argv)
+            self.assertEqual(argv[argv.index("taskset") + 2], P.PIN_PLAN_DAEMON["legit" if s.kind == "legit" else "attack"], s.id)
+        self.assertEqual(p.daemon.argv[:3], ("taskset", "-c", "2"))
+        self.assertIn("pins          server 0-1, daemon 2, executor 6, legit 7, attack 3-5: the executor on CPU 6", EX.describe(p))
+        self.assertNotIn("pins          ", EX.describe(plan("U")))
 
 
 class SuiteContractTest(unittest.TestCase):

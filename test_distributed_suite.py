@@ -614,7 +614,7 @@ def _start_web_stack():
     """Start gunicorn and nginx in server_ns and wait until the service answers."""
     run(_srv([PYTHON_VENV, "-m", "gunicorn", "--chdir", PROJECT_DIR,
               "--workers", GUNICORN_WORKERS, "--threads", GUNICORN_THREADS,
-              "-b", "0.0.0.0:8080", "dummy_app:app"]), ns=SERVER_NS, bg=True)
+              "-b", "127.0.0.1:8080", "dummy_app:app"]), ns=SERVER_NS, bg=True)   # nginx's upstream only (H-03)
     time.sleep(1)
     run(_srv(["nginx", "-c", _nginx_conf()]), ns=SERVER_NS, bg=True)
     time.sleep(0.5)

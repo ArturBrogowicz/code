@@ -18,10 +18,18 @@ The User-Agent and URI are hashed *here*, on ingest, never used as raw strings
 (the anti-fingerprint rule, §5.4). P1 logs them raw over the socket because this
 Nginx build has no njs to hash them in the log; moving the hash into Nginx is a
 P2 decision. Raw values are dropped immediately after hashing.
+
+L7 v2 (docs/L7V2_DESIGN.md 8.2-8.4, ml/l7v2_model_prereg.json): normalise() also
+hashes the Referer's path (ref_h, comparable with uri_h) and the session cookie
+(sid_h: the cookie the answer set, `sid_set`, else the request's `sid`), and keeps
+the route class of the raw URI (rc, the site map of l7_webapp.route_class) before
+the raw strings are dropped. key_v2() is the L7 v2 key (IP, ua_hash, sid_hash); the
+sid is a key component only, never a feature. key_of() stays the P5 key (IP, ua_hash).
 """
 
 import hashlib
 import json
+import math
 import os
 import socket
 import stat
@@ -98,7 +106,10 @@ def _num(val):
     if val is None:
         return 0.0
     if isinstance(val, (int, float)):
-        return float(val)
+        try:
+            return float(val)
+        except OverflowError:          # an int beyond a float's range: normalise drops the record
+            return math.inf
     total = 0.0
     for part in str(val).replace(":", ",").split(","):
         part = part.strip()
@@ -111,28 +122,104 @@ def _num(val):
     return total
 
 
+NO_SID = -1                     # sid_h without a session: the v2 key is then (IP, ua_h, NO_SID)
+ABSENT = ("", "-")              # how nginx logs an absent header, cookie or upstream cookie
+SID_FIELDS = ("sid_set", "sid")  # the cookie the answer set wins: it names the session of a first request
+
+
+def _present(val):
+    return val is not None and str(val).strip() not in ABSENT
+
+
+def route_class(method, uri):
+    """The route class of a request (C0 assets, C1 pages, C2 API, C3 search, C5 export; None = uncosted): the site
+    map of l7_webapp.route_class, restated here so this module stays standard library only and never imports the app
+    (which builds its backend at import under L7_BACKEND=costed); tests/test_l7v2_ingest.py keeps the two equal."""
+    path = (uri or "").split("?", 1)[0]
+    if method not in ("GET", "HEAD"):
+        return None
+    if path.startswith("/static/"):
+        return "C0"
+    if path == "/" or path.startswith("/page/"):
+        return "C1"
+    if path.startswith("/api/"):
+        return "C2"
+    if path.startswith("/search"):
+        return "C3"
+    if path == "/export":
+        return "C5"
+    return None
+
+
+def ref_path(ref):
+    """The path and query a Referer names, its scheme and authority dropped, so that its hash equals the uri_h of the
+    page it names (`http://10.0.0.1/page/3` -> `/page/3`; a bare authority -> `/`)."""
+    ref = str(ref).strip()
+    if "://" in ref:
+        rest = ref.split("://", 1)[1]
+        cut = rest.find("/")
+        return rest[cut:] if cut >= 0 else "/"
+    return ref
+
+
+def sid_hash(obj):
+    """stable_hash32 of the session id of a log object: `sid_set` (the cookie the answer set, so a session's first,
+    cookie-less request joins its session), else the request's `sid` cookie, else NO_SID."""
+    for name in SID_FIELDS:
+        if _present(obj.get(name)):
+            return stable_hash32(str(obj[name]).strip())
+    return NO_SID
+
+
+# The text fields nginx's log formats write as JSON strings. Another JSON type in one of them can only come from a
+# forged datagram; it used to raise here (stable_hash32 calls .encode) or in the engine (a key with an int IP is not
+# sortable with the others), which restarted the shadow thread with a fresh engine (T-042 E07). Such a record is dropped.
+TEXT_FIELDS = ("ip", "client_ip", "ua", "user_agent", "uri", "request_uri", "method", "request_method", "proto",
+               "server_protocol", "compl", "request_completion", "lreq", "limit_req_status", "tls", "reused", "ref",
+               "sid", "sid_set")
+
+
 def normalise(obj):
     """Turn a parsed log object into the slim record the window store keeps:
     numeric fields coerced, URI and UA replaced by 32-bit hashes, raw strings
-    dropped. Returns None if there is no client IP to key on."""
+    dropped. L7 v2: the Referer's path (ref_h, None when absent) and the session id
+    (sid_h, NO_SID when absent) are hashed too, and the raw URI's route class is kept
+    (rc). Returns None if there is no client IP to key on, if a text field holds
+    another JSON type than a string (TEXT_FIELDS), or if a numeric field is not a finite
+    number (1e999, 10**400, "nan"), which used to raise here or in the rules' statistics."""
+    if any(obj.get(k) is not None and not isinstance(obj[k], str) for k in TEXT_FIELDS):
+        return None
     ip = obj.get("ip") or obj.get("client_ip")
     if not ip:
         return None
+    uri = obj.get("uri") or obj.get("request_uri") or ""
+    method = obj.get("method") or obj.get("request_method") or ""
+    ref = obj.get("ref")
     rec = {"ip": ip, "ua_h": stable_hash32(obj.get("ua") or obj.get("user_agent") or ""),
-           "uri_h": stable_hash32(obj.get("uri") or obj.get("request_uri") or ""),
-           "method": obj.get("method") or obj.get("request_method") or "",
+           "uri_h": stable_hash32(uri),
+           "method": method,
            "proto": obj.get("proto") or obj.get("server_protocol") or "",
            "compl": obj.get("compl") or obj.get("request_completion") or "",
            "lreq": obj.get("lreq") or obj.get("limit_req_status") or "",
-           "tls": obj.get("tls") or "", "reused": obj.get("reused") or ""}
+           "tls": obj.get("tls") or "", "reused": obj.get("reused") or "",
+           "ref_h": stable_hash32(ref_path(ref)) if _present(ref) else None,
+           "sid_h": sid_hash(obj), "rc": route_class(method, uri)}
     for key, names in _NUMERIC.items():
         rec[key] = _num(next((obj[n] for n in names if n in obj), None))
+        if not math.isfinite(rec[key]):
+            return None                # only a forged datagram can carry one: nginx writes numbers (T048-09)
     return rec
 
 
 def key_of(rec):
     """The window key: (IP, ua_hash). Bans map back to rec['ip'] for XDP."""
     return (rec["ip"], rec["ua_h"])
+
+
+def key_v2(rec):
+    """The L7 v2 key (docs/L7V2_DESIGN.md 8.3): (IP, ua_hash, sid_hash), which is (IP, ua_hash, NO_SID) for a request
+    without a session. A ban decided on it still maps back to rec['ip']."""
+    return (rec["ip"], rec["ua_h"], rec.get("sid_h", NO_SID))
 
 
 class L7Counters:
@@ -193,6 +280,88 @@ class L7WindowStore:
                 "full_windows": full}
 
 
+V2_IDLE_TIMEOUT = 300.0      # s; L7 v2 sessions (ml/l7v2_model_prereg.json ingest.idle_timeout_s)
+V2_MAX_RECORDS = 2048        # records kept per v2 key at most (engine.max_records_per_key)
+V2_MAX_VIEWS = 32            # view tokens a v2 window holds (views.max_views)
+V2_PAGE_CLASSES = ("C1",)    # the route classes that open a view (site_map.page)
+
+
+class L7KeyStore:
+    """L7 v2: per (IP, ua_hash, sid_hash) key, the key's records in arrival order, for the view engine.
+
+    The engine prunes a key to the history its next windows need (prune_before); a record that started before a
+    key's pruning point is dropped on arrival (`late`), so a pruned key never grows a spurious token at its front.
+    At most `max_records` records are kept per key (the oldest go first, counted as `truncated`). Idle keys are
+    evicted as in L7WindowStore. Tokens are counted on arrival (a page request, or any request before the key's
+    first page, opens one) for the `full_windows` statistic only.
+    """
+
+    def __init__(self, idle_timeout=V2_IDLE_TIMEOUT, max_records=V2_MAX_RECORDS, max_views=V2_MAX_VIEWS):
+        self.idle_timeout = idle_timeout
+        self.max_records = max_records
+        self.max_views = max_views
+        self._recs = {}
+        self._last_seen = {}
+        self._cut = {}
+        self._opened = {}
+        self.late = self.truncated = 0
+
+    def add(self, rec, now=None):
+        """Append a record; return its key. `now` defaults to the record's msec."""
+        key = key_v2(rec)
+        if rec["msec"] - rec["rt"] < self._cut.get(key, float("-inf")):
+            self.late += 1
+            return key
+        seq = self._recs.setdefault(key, [])
+        seq.append(rec)
+        if len(seq) > self.max_records:
+            del seq[:len(seq) - self.max_records]
+            self.truncated += 1
+        tokens, page_seen = self._opened.get(key, (0, False))
+        is_page = rec.get("rc") in V2_PAGE_CLASSES
+        if is_page or not page_seen:
+            self._opened[key] = (tokens + 1, page_seen or is_page)
+        self._last_seen[key] = now if now is not None else rec.get("msec") or time.time()
+        return key
+
+    def records(self, key):
+        return self._recs.get(key, [])
+
+    def prune_before(self, key, start):
+        """Drop the key's records that started before `start`, and drop later arrivals that did."""
+        seq = self._recs.get(key)
+        if seq is not None:
+            seq[:] = [r for r in seq if r["msec"] - r["rt"] >= start]
+            self._cut[key] = start
+
+    def evict_keys(self, now):
+        """Drop keys idle for longer than idle_timeout. Return the dropped keys."""
+        stale = [k for k, ts in self._last_seen.items() if now - ts > self.idle_timeout]
+        for key in stale:
+            for d in (self._recs, self._last_seen, self._cut, self._opened):
+                d.pop(key, None)
+        return stale
+
+    def evict(self, now):
+        return len(self.evict_keys(now))
+
+    def stats(self):
+        full = sum(1 for n, _ in self._opened.values() if n - 1 >= self.max_views)
+        return {"active_keys": len(self._recs), "distinct_ips": len({k[0] for k in self._recs}),
+                "full_windows": full, "late_dropped": self.late, "truncated": self.truncated}
+
+
+def group_id(group):
+    """The gid of a group given by name or number; ValueError if there is no such group."""
+    if isinstance(group, int):
+        return group
+    import grp
+    try:
+        return grp.getgrnam(str(group)).gr_gid
+    except KeyError as e:
+        raise ValueError(f"no group {group!r}") from e
+
+
 class SyslogDatagramReader:
     """Bind a Unix-domain datagram socket and yield raw access-log datagrams.
 
@@ -203,7 +372,7 @@ class SyslogDatagramReader:
     """
 
     def __init__(self, path=DEFAULT_SOCKET_PATH, rcvbuf=DEFAULT_RCVBUF,
-                 unlink_stale=True, mode=DEFAULT_SOCKET_MODE):
+                 unlink_stale=True, mode=DEFAULT_SOCKET_MODE, group=None):
         self.path = path
         if unlink_stale:
             self._unlink()
@@ -213,6 +382,9 @@ class SyslogDatagramReader:
         except OSError:
             pass
         self.sock.bind(path)
+        if group is not None:
+            # The L7 v2 enforcing arm binds 0660 with nginx's group (T-042 E06): a datagram here can drive a ban.
+            os.chown(path, -1, group_id(group))
         if mode is not None:
             # Let the unprivileged Nginx worker send to a root-bound socket.
             os.chmod(path, mode)

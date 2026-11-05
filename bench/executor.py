@@ -62,11 +62,39 @@ CLIENT_IF = "veth_in"                     # the client end of every client names
 SERVER_VETH_HOST_END = "veth_srv_br"
 NS_PREFIX = "hg_"                         # this runner's namespaces; the suite's cleanup does not know them
 KINDS = ("C", "Cp", "U")
+MITIGATED = "M_"                          # a protected run is M_<mode> (eval/harm_gate.py reads its role from the name)
+# the protected arms (HG4, docs/HG1C_DESIGN.md 15): U's attack against a protected stack. Each mode's Nginx configuration, and the
+# backend its daemon (control_plane.py) bans with, or None for no daemon
+MODES = {"limits": {"conf": "nginx.conf", "daemon": None}, "xdp": {"conf": "nginx.conf", "daemon": "xdp"}}
+MODE_TEXT = {"limits": "nginx.conf's limits (limit_req and limit_conn per address), no daemon",
+             "xdp": "nginx.conf's limits, and control_plane.py banning into XDP (MITIGATION_BACKEND=xdp, XDP_GRU=0)"}
+RESERVED_MODES = ("l7shadow", "l7")       # the L7 GRU's arms (G12): named now, refused until L7 v2 is built
+MITIGATED_KINDS = tuple(MITIGATED + m for m in MODES)
 NGINX_CONF = os.path.join(REPO, "nginx_unprotected.conf")
 CERT, KEY = "/etc/ssl/certs/nginx-selfsigned.crt", "/etc/ssl/private/nginx-selfsigned.key"
 GUNICORN = {"workers": 2, "threads": 8, "bind": "127.0.0.1:8080", "app": "origin:app"}
 ORIGIN_SEED = 1
-KINDS_OF_RUN = {"C": "control", "Cp": "placebo", "U": "attack"}
+KINDS_OF_RUN = {"C": "control", "Cp": "placebo", "U": "attack", **{k: "mitigated" for k in MITIGATED_KINDS}}
+DAEMON = os.path.join(REPO, "control_plane.py")
+# the daemon reads the host's default Nginx logs (control_plane.py NGINX_LOG_FILE and NGINX_ERROR_LOG), and every run has its own: with
+# a daemon, Nginx writes both, the run's first and this feed beside it (several access_log and error_log lines may stand at one level)
+FEED_ACCESS_LOG, FEED_ERROR_LOG = "/var/log/nginx/ddos_ml_access.log", "/var/log/nginx/error.log"
+FEED_BEFORE = "feed_before"               # where a run with a daemon keeps what the host's Nginx logs held before it (T-028 F-06)
+# every other variable the daemon reads, set, so that nothing of the operator's environment reaches it (GRU_ONLY=1 there would turn
+# its rules off); MITIGATION_BACKEND and BAN_EVENTS are the mode's and the run's. L7_SOCKET_PATH is read only with L7_SHADOW=1,
+# and SLOW_PC_ENFORCE, _KILL_FILE, _RECORD, _T, _F, _K (P4's per-connection rule) are used only with SLOW_PC=1, and the L7 v2
+# enforcing arm's L7_ENFORCE_DIR, L7_NGINX_CONF, L7_ALLOWLIST, L7_KILL_FILE, L7_SELECTION, L7_SELECTION_SHA256,
+# L7_ARM and L7_SOCKET_GROUP only with L7_ENFORCE=1
+DAEMON_ENV = (("XDP_GRU", "0"), ("GRU_ONLY", "0"), ("L7_SHADOW", "0"), ("HEURISTIC_PROFILE", "default"), ("L7_MODEL", ""),
+              ("L7_RECORD", ""), ("SLOW_PC", "0"), ("L7_ENFORCE", "0"))
+DAEMON_READY_LINE = "Listening for Nginx logs"      # what the daemon prints last before its loop; the suite waits for it too
+# what a protected run's daemon must say it runs with in its start event, besides the mode's backend (G11): the rules as deployed,
+# the XDP-fed GRU off (78cfc9c), no L7 shadow engine
+MODE_DAEMON = {"xdp_gru": False, "gru_only": False, "l7_shadow": False, "heuristic_profile": "default"}
+DAEMON_READY_TIMEOUT_S = 60.0             # the suite's wait for the daemon's first start (test_distributed_suite.start_server_services)
+DAEMON_STOP_GRACE_S = 10.0                # SIGINT runs the daemon's finally, which detaches XDP; KILL after this
+XDP_DEVICE = "veth_server"                # where the daemon attaches its program: the server's end of its veth pair
+DAEMON_MAPS = ("blacklist_map", "telemetry_map", "flow_map")      # the maps of xdp_ddos_filter.c: a teardown looks for them
 READY_PATH = O.SAMPLE_URLS["C0"]          # the origin has no route at "/": it answers 404 there
 # recorded in every plan. The attack's start-up delay and the exit delay per request are what S1 and S1b measured on loopback, without
 # namespaces (docs/HG1C_DESIGN.md 14). The legit start-up delay is S4's, with the real launch chain: the attack began 0.32 s early on 2.5 s,
@@ -106,7 +134,7 @@ class Cmd:
     ns: str = ""
     stdin: str = ""
     env: tuple = ()                  # (("NAME", "value"), ...)
-    when: str = ""                   # "" or "absent:<path>": only if that path does not exist
+    when: str = ""                   # "" or "absent:<path>" (only if that path does not exist) or "present:<path>" (only if it does)
     keep: bool = False               # keep the process (gunicorn); every other command runs to completion
     detach: bool = False             # a daemon (Nginx): started with no pipe for it to hold, waited for until it has forked
     purpose: str = ""
@@ -124,6 +152,21 @@ class Write:
     """A file of the run, whose text the plan holds (named by its hash)."""
     path: str
     sha256: str
+    purpose: str = ""
+
+
+@dataclasses.dataclass(frozen=True)
+class Daemon:
+    """The mitigation daemon of a protected run: started in `ns` from the checkout (`cwd`) once the stack is ready, held by its
+    handle, ready when it says it listens, has written its start event to `events` and (with XDP) has attached its program; stopped
+    with SIGINT, which runs its finally."""
+    argv: tuple
+    ns: str
+    env: tuple
+    cwd: str
+    backend: str
+    events: str                      # the run's ban_events.jsonl
+    log: str                         # its stdout and stderr: daemon.log
     purpose: str = ""
 
 
@@ -151,6 +194,7 @@ class StreamLaunch:
     summary: str
     records: str
     argv: tuple
+    addresses: tuple = ()            # the identities it carries: the gate tells a blocked legit identity and an attack one by them
 
 
 @dataclasses.dataclass(frozen=True)
@@ -178,6 +222,10 @@ class RunPlan:
     overrides: dict                  # what a smoke test changed (rho, timeline, timer limit); empty in a real run
     timer_limit_ms: float            # the run is refused if the timer on the legit CPU has p99 of this or more: the calibration's
                                      # validity.timer_p99_ms, unless a smoke test set it (overrides["timer_limit_ms"])
+    mode: object = None              # None for C, Cp and U; `limits` or `xdp` for a protected run
+    pins: object = None              # the pin plan of the run (population.PIN_PLAN, or PIN_PLAN_DAEMON in a campaign with a daemon)
+    nginx_source: str = "nginx_unprotected.conf"      # the configuration of the repository that was rendered
+    daemon: object = None            # a Daemon, for a mode that has one
 
 
 # --- names -------------------------------------------------------------------------------------
@@ -208,14 +256,19 @@ ACCESS_LOG = re.compile(r"^([ \t]*)access_log[ \t]+/var/log/nginx/ddos_ml_access
 ERROR_LOG = re.compile(r"^([ \t]*)error_log[ \t]+/var/log/nginx/error\.log[ \t]+info;[ \t]*$", re.MULTILINE)
 
 
-def render_nginx_conf(text, access_log, error_log):
-    """`nginx_unprotected.conf` with only its two log paths changed: the stack of every earlier campaign, and a log
-    that belongs to this run. A file that does not have exactly these two lines is refused, not guessed at."""
+def render_nginx_conf(text, access_log, error_log, feed=False):
+    """`nginx_unprotected.conf` (or a protected run's `nginx.conf`) with only its two log paths changed: the stack of every earlier
+    campaign, and a log that belongs to this run. With `feed` (a mode with a daemon) each line is kept as well, after the run's: the
+    daemon reads the host's default logs, so Nginx writes both. A file that does not have exactly these two lines is refused, not
+    guessed at."""
     for pattern, what in ((ACCESS_LOG, "access_log"), (ERROR_LOG, "error_log")):
         if len(pattern.findall(text)) != 1:
             raise PlanError(f"nginx configuration: expected exactly one {what} line of the host's default path")
-    text = ACCESS_LOG.sub(lambda m: f"{m.group(1)}access_log {access_log} json_ml_format;", text)
-    return ERROR_LOG.sub(lambda m: f"{m.group(1)}error_log {error_log} info;", text)
+
+    def keep(m):
+        return f"\n{m.group(0).strip(chr(10))}" if feed else ""
+    text = ACCESS_LOG.sub(lambda m: f"{m.group(1)}access_log {access_log} json_ml_format;{keep(m)}", text)
+    return ERROR_LOG.sub(lambda m: f"{m.group(1)}error_log {error_log} info;{keep(m)}", text)
 
 
 # --- steps -------------------------------------------------------------------------------------
@@ -235,15 +288,23 @@ def topology_steps(namespaces):
     return tuple(steps)
 
 
-def stack_steps(out, calibration_path, python, pins, conf_sha256, bench=None):
-    """The server stack in `server_ns`: the origin under gunicorn, then Nginx on the rendered configuration."""
+def stack_steps(out, calibration_path, python, pins, conf_sha256, bench=None, conf_name="nginx_unprotected.conf", feed=False):
+    """The server stack in `server_ns`: the origin under gunicorn, then Nginx on the rendered configuration (`conf_name` of the
+    repository; with `feed`, the daemon's feed beside the run's logs: what the host's logs held is moved into the run first, so that
+    Nginx starts them afresh and nothing of them is erased, T-028 F-06)."""
     bench = bench or HERE
     pin = ("taskset", "-c", pins["server"])
     env = (("ORIGIN_CALIBRATION", calibration_path), ("ORIGIN_SEED", str(ORIGIN_SEED)))
+    feed_steps = (Mkdir((f"{out}/{FEED_BEFORE}",), "the host's Nginx logs as they were before this run"),
+                  *(Cmd(("mv", "-f", path, f"{out}/{FEED_BEFORE}/{os.path.basename(path)}"), when=f"present:{path}",
+                        purpose="the daemon's feed: moved into the run, not erased; Nginx creates it afresh for this run")
+                    for path in (FEED_ACCESS_LOG, FEED_ERROR_LOG))) if feed else ()
     return (
         Mkdir((out, f"{out}/streams"), "the run directory"),
-        Write(f"{out}/nginx.conf", conf_sha256, "nginx_unprotected.conf with its two log paths changed"),
+        Write(f"{out}/nginx.conf", conf_sha256, f"{conf_name} with its two log paths changed"
+              + (", and the daemon's feed beside them" if feed else "")),
         Cmd(("mkdir", "-p", "/var/log/nginx"), purpose="Nginx opens its compiled-in log path at start-up"),
+        *feed_steps,
         Cmd(("openssl", "req", "-x509", "-nodes", "-days", "365", "-newkey", "rsa:2048", "-keyout", KEY, "-out", CERT,
              "-subj", "/C=PL/ST=Masovian/L=Warsaw/O=PoC/CN=twojadomena.pl"), when=f"absent:{CERT}",
             purpose="the configuration listens on 443 with the suite's self-signed certificate"),
@@ -257,6 +318,15 @@ def stack_steps(out, calibration_path, python, pins, conf_sha256, bench=None):
         Cmd((*pin, "nginx", "-c", f"{out}/nginx.conf"), SERVER_NS, detach=True,
             purpose="Nginx daemonises: started like the origin, with no pipe for it to hold, and found again by namespace"),
     )
+
+
+def daemon_plan(out, python, pins, backend):
+    """control_plane.py of a protected run: in `server_ns` on the daemon's CPU, from the checkout (its model, its scaler and its XDP
+    source are relative paths), banning with `backend`, its events in the run's ban file, every other variable it reads set."""
+    events = f"{out}/ban_events.jsonl"
+    return Daemon(("taskset", "-c", pins["daemon"], python, "-u", DAEMON), SERVER_NS,
+                  (("MITIGATION_BACKEND", backend), ("BAN_EVENTS", events), *DAEMON_ENV), REPO, backend, events, f"{out}/daemon.log",
+                  "the mitigation daemon, held by its handle; its ban state is this run's alone (a new process in a new namespace)")
 
 
 def check_paths():
@@ -288,18 +358,40 @@ def _legit_hash(streams):
     return _sha(json.dumps(rows, sort_keys=True, separators=(",", ":")))
 
 
+def mode_of(kind):
+    """The mode of a run's kind: None for C, Cp and U, `limits` or `xdp` for M_limits and M_xdp. The L7 GRU's modes are named and
+    refused until they are built; anything else is not a kind."""
+    if kind in KINDS:
+        return None
+    mode = kind[len(MITIGATED):] if kind.startswith(MITIGATED) else None
+    if mode in MODES:
+        return mode
+    if mode in RESERVED_MODES:
+        raise PlanError(f"{kind}: not built yet. The L7 GRU's arms ({', '.join(MITIGATED + m for m in RESERVED_MODES)}) wait for "
+                        f"L7 v2; the protected arms built are {', '.join(MITIGATED_KINDS)}")
+    raise PlanError(f"kind: one of {', '.join(KINDS + MITIGATED_KINDS)}, got {kind!r}")
+
+
+def pins_for(kinds):
+    """The pin plan of a run, or of a campaign, made of `kinds`: PIN_PLAN_DAEMON as soon as one of them has a daemon (the executor
+    then has a CPU of its own), PIN_PLAN otherwise."""
+    daemon = any(MODES[mode]["daemon"] for mode in map(mode_of, kinds) if mode is not None)
+    return dict(P.PIN_PLAN_DAEMON if daemon else P.PIN_PLAN)
+
+
 def plan_run(scn, cal, kind, seed, out, calibration_path, scenario_sha256="", manifest=None, root=None, settings=None,
-             python=None, rho=None, timeline=None, timer_limit_ms=None):
+             python=None, rho=None, timeline=None, timer_limit_ms=None, pins=None):
     """Everything a run will do, as data. `scn` is a bench/scenario.Scenario, `cal` a calibration record read from
-    `calibration_path`, `kind` one of C, Cp and U, `out` the run's directory, which must be called after its kind (the
-    gate reads the role from the name). `rho` replaces the nominal load, `timeline` (baseline, attack, recovery seconds)
-    the scenario's, and `timer_limit_ms` the calibration's limit for the timer of the legit CPU, for a smoke test; all
-    three are recorded as overrides, and the harm gate gives no verdict on runs that carry any."""
-    if kind not in KINDS:
-        raise PlanError(f"kind: one of {', '.join(KINDS)}, got {kind!r}")
+    `calibration_path`, `kind` one of C, Cp, U and the protected M_<mode>, `out` the run's directory, which must be called after
+    its kind (the gate reads the role from the name). A protected run is U's attack against its mode's stack. `rho` replaces the
+    nominal load, `timeline` (baseline, attack, recovery seconds) the scenario's, and `timer_limit_ms` the calibration's limit for
+    the timer of the legit CPU, for a smoke test; all three are recorded as overrides, and the harm gate gives no verdict on runs
+    that carry any. `pins` is the pin plan (pins_for: of the campaign; of the kind alone by default)."""
+    mode = mode_of(kind)
     if os.path.basename(os.path.normpath(out)) != kind:
         raise PlanError(f"the run directory of a {kind} run is called {kind}, not {os.path.basename(os.path.normpath(out))!r}")
-    if kind == "U" and scn.is_control:
+    attack = kind == "U" or mode is not None
+    if attack and scn.is_control:
         raise PlanError(f"{scn.id} is attack-free: it has no attack run")
     overrides = {}
     if rho is not None:
@@ -316,48 +408,54 @@ def plan_run(scn, cal, kind, seed, out, calibration_path, scenario_sha256="", ma
             raise PlanError(f"timer_limit_ms: a positive number of milliseconds, got {timer_limit_ms!r}")
         overrides["timer_limit_ms"] = timer_limit_ms
     try:
-        pop, level = SC.population_of(scn, cal, seed, attack=kind == "U", rho=rho)
+        pop, level = SC.population_of(scn, cal, seed, attack=attack, rho=rho)
     except SC.ScenarioError as exc:
         raise PlanError(str(exc)) from exc
     return plan_population(pop, scn.id, kind, seed, out, cal, calibration_path, scn.timeline, level, scenario_sha256, manifest,
-                           root, settings, python, overrides)
+                           root, settings, python, overrides, mode=mode, pins=pins or pins_for([kind]))
 
 
 def plan_population(pop, scenario, kind, seed, out, cal, calibration_path, timeline, level=None, scenario_sha256="",
-                    manifest=None, root=None, settings=None, python=None, overrides=None):
+                    manifest=None, root=None, settings=None, python=None, overrides=None, mode=None, pins=None):
     """The plan of a run of a population that is drawn already: plan_run's for a scenario's, and bench/calibrate.py's for the
     staged load of the capacity probe and the legit probes. `timeline` is the population's population.Timeline; a stream is
-    launched so that its loop starts at its `start_s` on the run's axis (launch_due)."""
+    launched so that its loop starts at its `start_s` on the run's axis (launch_due). `mode` is a protected run's (MODES)."""
     out = os.path.abspath(out) if not os.path.isabs(out) else out
     python = python or os.path.join(REPO, "venv", "bin", "python")
-    pins = P.PIN_PLAN
+    pins = dict(pins or P.PIN_PLAN)
     aliases = pop.alias_plan()
     namespaces = tuple(Namespace(ns_name(spec), spec.index, spec.netem, tuple(aliases[spec.index]))
                        for spec in pop.namespaces if spec.index in aliases)
     by_index = {ns.index: ns for ns in namespaces}
-    with open(NGINX_CONF, encoding="utf-8") as fh:
-        conf = render_nginx_conf(fh.read(), f"{out}/nginx_access.log", f"{out}/nginx_error.log")
+    source = NGINX_CONF if mode is None else os.path.join(REPO, MODES[mode]["conf"])
+    backend = None if mode is None else MODES[mode]["daemon"]
+    with open(source, encoding="utf-8") as fh:
+        conf = render_nginx_conf(fh.read(), f"{out}/nginx_access.log", f"{out}/nginx_error.log", feed=backend is not None)
     conf_sha256 = _sha(conf)
     streams = []
     for s in pop.streams:
-        spec = P.to_load_spec(s, HTTP_URL)
+        spec = P.to_load_spec(s, HTTP_URL, pins)
         workdir = f"{out}/streams/{s.id}"
         launch = LT.build_plan("loadgen", spec, workdir, manifest, root)
         nofile = P.nofile_for(s, spec)
         streams.append(StreamLaunch(
             s.id, s.kind, s.route_class, s.netem, by_index[s.ns_index].name, s.start_s, s.duration_s, s.rate, s.seed,
             nofile, workdir, f"{workdir}/loadgen.summary.json", f"{workdir}/loadgen.records.csv.gz",
-            ("prlimit", f"--nofile={nofile}", "--", *launch.steps[0].argv)))
+            ("prlimit", f"--nofile={nofile}", "--", *launch.steps[0].argv), tuple(s.addresses)))
     return RunPlan(
         scenario=scenario, kind=kind, seed=seed, out=out, scenario_sha256=scenario_sha256,
         calibration_sha256=cal.get("sha256") or C.digest(cal), calibration_status=cal["status"],
         calibration_path=os.path.abspath(calibration_path),
         timeline=dataclasses.asdict(timeline) | {"total_s": timeline.total_s}, level=level,
         namespaces=namespaces, topology=topology_steps(namespaces),
-        stack=stack_steps(out, os.path.abspath(calibration_path), python, pins, conf_sha256), checks=check_paths(),
+        stack=stack_steps(out, os.path.abspath(calibration_path), python, pins, conf_sha256, conf_name=os.path.basename(source),
+                          feed=backend is not None),
+        checks=check_paths(),
         streams=tuple(streams), teardown=teardown_steps(namespaces), nginx_conf=conf, nginx_conf_sha256=conf_sha256,
         plan_sha256=_legit_hash(pop.of_kind("legit")), settings={**SETTINGS, **(settings or {})},
-        overrides=overrides or {}, timer_limit_ms=(overrides or {}).get("timer_limit_ms", cal["validity"]["timer_p99_ms"]))
+        overrides=overrides or {}, timer_limit_ms=(overrides or {}).get("timer_limit_ms", cal["validity"]["timer_p99_ms"]),
+        mode=mode, pins=pins, nginx_source=os.path.basename(source),
+        daemon=daemon_plan(out, python, pins, backend) if backend else None)
 
 
 # --- the plan as data and as text --------------------------------------------------------------
@@ -449,9 +547,16 @@ def describe(plan, python=None):
            timeline_line(plan, legit, attack),
            f"plan hash     {plan.plan_sha256[:12]} (the legit streams: equal in C, Cp and U of a block)",
            *([f"OVERRIDES     {plan.overrides}: a smoke test, not a result"] if plan.overrides else []),
-           f"timer gate    refused if the timer on CPU {P.PIN_PLAN['legit']} has p99 of {plan.timer_limit_ms:g} ms or more "
-           + ("(set by --timer-limit-ms)" if "timer_limit_ms" in plan.overrides else "(the calibration's validity.timer_p99_ms)"),
-           f"nginx.conf    sha256:{plan.nginx_conf_sha256[:12]} (nginx_unprotected.conf with its two log paths changed)",
+           f"timer gate    refused if the timer on CPU {plan.pins['legit']} has p99 of {plan.timer_limit_ms:g} ms or more "
+           + ("(set by --timer-limit-ms)" if "timer_limit_ms" in plan.overrides else "(the calibration's validity.timer_p99_ms)")
+           + f"; a refused probe is made again every {TIMER_REPROBE_S:g} s, up to --wait-gate minutes from the first (0: one probe)",
+           *([(f"timer record  the timer on the executor's CPU {plan.pins['executor']} is probed too, after the gate: recorded "
+               "(environment.json, timer_executor), not judged")] if "executor" in plan.pins else []),
+           f"nginx.conf    sha256:{plan.nginx_conf_sha256[:12]} ({plan.nginx_source} with its two log paths changed"
+           + (", and the daemon's feed beside them)" if plan.daemon else ")"),
+           *([f"mode          {plan.mode}: {MODE_TEXT[plan.mode]}"] if plan.mode else []),
+           *(["pins          " + ", ".join(f"{k} {v}" for k, v in plan.pins.items())
+              + f": the executor on CPU {P.executor_cpus(plan.pins)}, apart from the daemon's"] if plan.pins != P.PIN_PLAN else []),
            "settings      " + ", ".join(f"{k} {v}" for k, v in plan.settings.items()), ""]
     n_aliases = sum(len(n.addresses) for n in plan.namespaces)
     out.append(f"topology: {len(plan.namespaces)} client namespaces carrying {n_aliases} addresses")
@@ -464,6 +569,15 @@ def describe(plan, python=None):
     out.append(f"  ready: HTTP 200 from {HTTP_URL[:-1]}{READY_PATH}, and each route answers with its own X-Route-Class: "
                + ", ".join(f"{k} {p}" for k, p in plan.checks))
     out.append(f"  warm-up: {plan.settings['warmup_requests']} requests per route from {SERVER_NS}")
+    if plan.daemon:
+        d = plan.daemon
+        out += ["", (f"daemon in {SERVER_NS}, started after the warm-up and held by its handle ({DAEMON_READY_TIMEOUT_S:g} s at most to "
+                     f"be ready), in {_shown(d.cwd, python)}, its output in {_shown(d.log, python)}:"),
+                "    " + " ".join(f"{k}={_shown(v, python)}" for k, v in d.env) + " " + " ".join(_shown(a, python) for a in d.argv),
+                f"  ready: it says '{DAEMON_READY_LINE}', its start event is in {os.path.basename(d.events)}"
+                + (f", and an XDP program is attached to {XDP_DEVICE}" if d.backend == "xdp" else ""),
+                (f"  stopped after the timeline with SIGINT (its finally detaches XDP), KILL after {DAEMON_STOP_GRACE_S:g} s, then "
+                 f"`ip link set dev {XDP_DEVICE} xdp off`; the teardown also looks for XDP programs and the daemon's maps left loaded")]
     out += ["", f"streams: {len(plan.streams)} engine processes ({len(legit)} legit, {len(attack)} attack)"]
     rows = [("id", "ns", "vCPU", "rate", "start", "duration", "nofile")]
     for s in plan.streams:
@@ -483,7 +597,8 @@ def describe(plan, python=None):
 # --- the run: the plan through a Host ------------------------------------------------------------
 
 Result = collections.namedtuple("Result", "code out err")
-RunResult = collections.namedtuple("RunResult", "ok reasons out setup_retries seconds")
+RunResult = collections.namedtuple("RunResult", "ok reasons out setup_retries seconds timer_refused_probes timer_waited_s",
+                                   defaults=(None, None))
 ENGINE_T0_OFFSET_S = 0.05            # bench/loadgen.py: the schedule's zero is 50 ms after its loop starts
 EARLY_SLACK_S = 2.0                  # a stream that exits with an error, or leaving no output, this much before its end has died
 DRAIN_S = 12.0                       # the engine waits for requests in flight for its timeout (10 s) plus 2 s
@@ -515,7 +630,10 @@ class PreflightRefused(RunFailed):
 
 
 class EnvironmentRefused(RunFailed):
-    """The machine is not in the state the gate asks for (timers, load, uptime); nothing was built."""
+    """The machine is not in the state the gate asks for (timers, load, uptime); nothing was built. `record` is what the timer gate
+    saw before it refused, for the run's environment.json; None for a refusal of uptime or load."""
+
+    record = None
 
 
 class SetupFailed(RunFailed):
@@ -552,9 +670,10 @@ class Host:
         fails comes back with its code; only a host that cannot run it at all raises."""
         raise NotImplementedError
 
-    def popen(self, argv, ns="", env=None, stdout=None, stderr=None):
-        """Start a process and keep it: an object with pid, poll(), terminate(), kill() and exit_time (the wall-clock
-        time at which it was seen to exit, stamped by a watcher of its own)."""
+    def popen(self, argv, ns="", env=None, stdout=None, stderr=None, cwd=None):
+        """Start a process and keep it, in the directory `cwd` if one is given: an object with pid, poll(), terminate(), interrupt()
+        (SIGINT, as Ctrl-C would), kill() and exit_time (the wall-clock time at which it was seen to exit, stamped by a watcher of its
+        own)."""
         raise NotImplementedError
 
     def prim(self, name, *args):
@@ -575,6 +694,10 @@ class Host:
         raise NotImplementedError
 
     def exists(self, path):
+        raise NotImplementedError
+
+    def stat(self, path):
+        """(inode, size in bytes) of a file; None when it is not there."""
         raise NotImplementedError
 
     def is_root(self):
@@ -628,6 +751,10 @@ class RealProc:
         with contextlib.suppress(ProcessLookupError):
             self._p.terminate()
 
+    def interrupt(self):
+        with contextlib.suppress(ProcessLookupError):
+            self._p.send_signal(signal.SIGINT)
+
     def kill(self):
         with contextlib.suppress(ProcessLookupError):
             self._p.kill()
@@ -671,11 +798,11 @@ class RealHost(Host):
             return Result(127, "", str(exc))
         return Result(cp.returncode, cp.stdout, cp.stderr)
 
-    def popen(self, argv, ns="", env=None, stdout=None, stderr=None):
+    def popen(self, argv, ns="", env=None, stdout=None, stderr=None, cwd=None):
         full = (["ip", "netns", "exec", ns] if ns else []) + list(argv)
         return RealProc(subprocess.Popen(full, stdin=subprocess.DEVNULL, env=self._env(env), start_new_session=True,
                                          stdout=subprocess.DEVNULL if stdout is None else stdout,
-                                         stderr=subprocess.DEVNULL if stderr is None else stderr))
+                                         stderr=subprocess.DEVNULL if stderr is None else stderr, cwd=cwd))
 
     def prim(self, name, *args):
         s = self.suite()
@@ -697,6 +824,13 @@ class RealHost(Host):
 
     def exists(self, path):
         return os.path.exists(path)
+
+    def stat(self, path):
+        try:
+            st = os.stat(path)
+        except OSError:
+            return None
+        return st.st_ino, st.st_size
 
     def is_root(self):
         return os.geteuid() == 0
@@ -790,14 +924,34 @@ def process_leftovers(host):
             if pid not in mine and program_of(argv) in LEFTOVER_PROGRAMS]
 
 
-def leftovers(host):
-    """What of any testbed is still there: namespaces and links of the suite's and of this runner's, and processes.
-    Looking only; nothing here kills."""
+def bpf_leftovers(host):
+    """XDP programs the kernel still holds and the daemon's maps (DAEMON_MAPS), read with bpftool: what a daemon leaves when its
+    program stays attached, is pinned, or is held by a process that outlived its run. Nothing else on this machine runs XDP. A
+    listing that cannot be read raises TableUnreadable."""
+    found = []
+    for what, argv in (("prog", ["bpftool", "-j", "prog", "show"]), ("map", ["bpftool", "-j", "map", "show"])):
+        r = host.run(argv)
+        try:
+            if r.code != 0:
+                raise ValueError(f"exited {r.code}: {(r.err or r.out).strip()[:120]}")
+            items = json.loads(r.out or "[]")
+        except ValueError as exc:
+            raise TableUnreadable(f"`{' '.join(argv)}` {exc}") from exc
+        if what == "prog":
+            found += [f"xdp program {p.get('id')} {p.get('name', '')}".rstrip() for p in items if p.get("type") == "xdp"]
+        else:
+            found += [f"bpf map {m.get('name')} (id {m.get('id')})" for m in items if m.get("name") in DAEMON_MAPS]
+    return found
+
+
+def leftovers(host, bpf=False):
+    """What of any testbed is still there: namespaces and links of the suite's and of this runner's, and processes; with `bpf` (a
+    run with a daemon), XDP programs and the daemon's maps too. Looking only; nothing here kills."""
     found = [f"netns {n}" for n in (line.split()[0] for line in _table(host, ["ip", "netns", "list"]))
              if LEFTOVER_NS.match(n)]
     found += [f"link {n}" for n in (line.split()[0].split("@")[0] for line in _table(host, ["ip", "-br", "link", "show"]))
               if LEFTOVER_LINKS.match(n)]
-    return found + process_leftovers(host)
+    return found + process_leftovers(host) + (bpf_leftovers(host) if bpf else [])
 
 
 def namespace_pids(host, ns):
@@ -905,28 +1059,72 @@ def preflight(host, plan, allow_dirty=False, clean=False):
     if git["dirty"] and not allow_dirty:
         raise PreflightRefused("uncommitted changes to tracked files (a result must map to a commit; --allow-dirty "
                                "records them): " + ", ".join(git["dirty_files"][:5]))
-    left = leftovers(host)
+    bpf = plan.daemon is not None
+    left = leftovers(host, bpf)
     if left and clean:
         namespaces, links = discover(host)
         destroy(host, namespaces, links, plan.settings["term_grace_s"])
-        left = leftovers(host)
+        left = leftovers(host, bpf)
     if left:
         raise PreflightRefused("a testbed is still present (--clean takes down its namespaces and links):\n  " + "\n  ".join(left))
     return {"git": git, "nofile_soft": soft, "allow_dirty": allow_dirty}
 
 
 PROVENANCE_FILES = ("origin.py", "loadgen.py", "loadtools.json", "population.py", "scenario.py", "executor.py")
+# what a protected run's daemon is made of (paths in the checkout): hashed into the run's provenance
+DAEMON_FILES = ("control_plane.py", "ban_events.py", "xdp_ddos_filter.c", "l7_engine.py", "l7_ingest.py", "GRU_ML_model.py",
+                "training_results/feature_config_testbed.json")
+# H-01 (T-017; fixed on fix/daemon-robustness): one request with a byte that is not UTF-8 ended the daemon's main loop, whose finally
+# detached XDP and lifted every ban. A daemon launched for a result must come from a checkout that has the fix (docs/HG1C_DESIGN.md
+# 15). The run records whether it has: the fix's first commit is an ancestor of HEAD, or both of the daemon's log tailers read
+# undecodable bytes as U+FFFD (the fix's change, which a rebase keeps). A run without it is recorded and warned of, not refused.
+DAEMON_FIX_H01 = "8db9827a2a0f78e29c689f8520ccc9f5482fcc92"
+H01_TAILERS = ("tail_nginx_logs", "tail_nginx_error_logs")        # the daemon's two log tailers
+H01_DECODE = re.compile(r"""\bopen\([^)]*\berrors\s*=\s*['"]replace['"]""")      # an open() that reads undecodable bytes as U+FFFD
 
 
-def provenance(plan):
+def h01_tailers(source):
+    """How many of the daemon's two log tailers (H01_TAILERS) open their log with errors='replace', whatever else the call says: 2 with
+    the H-01 fix, on fix/daemon-robustness and with fix/rudy-client-ip's newline='\\n' alike (T-028 F-07), 0 without it. A signature
+    of the fix's effect, not a count of one exact line."""
+    found = 0
+    for name in H01_TAILERS:
+        body = re.search(rf"^def {name}\(.*?(?=^\S|\Z)", source, re.MULTILINE | re.DOTALL)
+        found += bool(body and H01_DECODE.search(body.group(0)))
+    return found
+
+
+def daemon_provenance(host=None):
+    """The daemon's files (sha256, None for one that is not there) and the H-01 record: whether the fix's commit is an ancestor of
+    the checkout's HEAD (None when git cannot say: no host, or a commit it does not have), how many of the daemon's tailers read
+    undecodable bytes as U+FFFD (2 with the fix), and whether either says the fix is in."""
+    files = {name: sha256_file(os.path.join(REPO, name)) if os.path.exists(os.path.join(REPO, name)) else None for name in DAEMON_FILES}
+    tailers = h01_tailers(_text(DAEMON)) if os.path.exists(DAEMON) else None
+    ancestor = None
+    if host is not None:
+        r = host.run(["git", "-c", f"safe.directory={REPO}", "-C", REPO, "merge-base", "--is-ancestor", DAEMON_FIX_H01, "HEAD"])
+        ancestor = {0: True, 1: False}.get(r.code)
+    return {"files": files, "h01": {"fix_commit": DAEMON_FIX_H01, "fix_is_ancestor": ancestor, "tailers_replace_undecodable": tailers,
+                                    "has_fix": ancestor is True or tailers == 2}}
+
+
+def provenance(plan, host=None):
     """sha256 of what a result depends on, as the executor finds it: the files of bench/ that make the load and the origin, this
-    runner, the Nginx configuration as it is in the repository and as rendered for this run, and the engine as the tool manifest
-    pins it."""
+    runner, the Nginx configuration as it is in the repository (the mode's) and as rendered for this run, and the engine as the tool
+    manifest pins it; for a run with a daemon, the daemon's files and the H-01 record (daemon_provenance)."""
     manifest = LT.load_manifest()
     files = {name: sha256_file(os.path.join(HERE, name)) for name in PROVENANCE_FILES}
-    return {"files": files, "nginx_source_sha256": sha256_file(NGINX_CONF), "nginx_rendered_sha256": plan.nginx_conf_sha256,
-            "engine_pinned_sha256": manifest["tools"]["loadgen"]["sha256"],
-            "engine_is_pinned": files["loadgen.py"] == manifest["tools"]["loadgen"]["sha256"]}
+    source = NGINX_CONF if plan.mode is None else os.path.join(REPO, MODES[plan.mode]["conf"])
+    out = {"files": files, "nginx_source": plan.nginx_source, "nginx_source_sha256": sha256_file(source),
+           "nginx_rendered_sha256": plan.nginx_conf_sha256, "engine_pinned_sha256": manifest["tools"]["loadgen"]["sha256"],
+           "engine_is_pinned": files["loadgen.py"] == manifest["tools"]["loadgen"]["sha256"]}
+    if plan.daemon is not None:
+        out["daemon"] = daemon_provenance(host)
+    return out
+
+
+# docs/HG1C_DESIGN.md departure 30 (D-045): how long the timer gate waits after a refused probe before it probes again
+TIMER_REPROBE_S = 30.0
 
 
 def timer_probe(host, cpus, samples=200, interval=0.01):
@@ -940,38 +1138,89 @@ def timer_probe(host, cpus, samples=200, interval=0.01):
         return None
 
 
-def environment(host, plan, gate="full", wait_gate_min=30.0, say=None):
+def quiet_gate(host, wait_gate_min=30.0, say=None):
+    """The uptime and load of the environment gate (docs/HG1B_MINIMAL_DESIGN.md 7.2 step 0; loadtool_validate.GATE: up 30 minutes,
+    1-minute load below 0.3): waits up to `wait_gate_min` minutes for them, polling, and refuses with EnvironmentRefused when they
+    are not met by then. Returns what was seen. A campaign's first run takes it through `environment`; the calibrator's origin step,
+    which makes no run, takes it on its own (calibrate.Runner.quiet)."""
+    import loadtool_validate as V
+    seen = V.wait_for_gate(wait_gate_min, read_up=lambda: float(host.read_text("/proc/uptime").split()[0]),
+                           read_load=lambda: float(host.read_text("/proc/loadavg").split()[0]), sleep=host.sleep,
+                           clock=host.monotonic, say=say or (lambda m: None))
+    if not seen["met"]:
+        raise EnvironmentRefused(f"the machine is not quiet enough: uptime {seen['uptime_s']:.0f} s (needs "
+                                 f"{seen['limit_uptime_s']}), load {seen['load1']:.2f} (needs below {seen['limit_load1']})")
+    return seen
+
+
+def timer_wait_text(wait_gate_min):
+    """What a run's timer gate does with this wait, for the plans' text."""
+    if wait_gate_min <= 0:
+        return "one probe (--wait-gate 0)"
+    return f"a refused probe is made again every {TIMER_REPROBE_S:g} s, for up to {wait_gate_min:g} min from the run's first probe"
+
+
+def timer_gate(host, plan, wait_gate_min=30.0, say=None, note=None):
+    """The timer of the legit streams' CPU, which every run takes (docs/HG1C_DESIGN.md departure 30, D-045): a probe must have p99
+    below the plan's `timer_limit_ms`. After a refused probe it waits TIMER_REPROBE_S and probes again, until a probe passes or
+    `wait_gate_min` minutes have passed since the first, so that 0 is one probe; a probe that cannot be read is a refused one. The
+    limit does not move. Returns the passing probe and the record of every probe; EnvironmentRefused, with the same record and the
+    last reading, after the last. `note` is given the record after each probe, so that a stop during the wait leaves the probes."""
+    say, note = say or (lambda m: None), note or (lambda r: None)
+    cpus, limit, raised = plan.pins["legit"], plan.timer_limit_ms, "timer_limit_ms" in plan.overrides
+    first, probes = host.monotonic(), []
+    while True:
+        utc = _utc(host.time())
+        probe = timer_probe(host, cpus)
+        passed = probe is not None and probe["p99_ms"] < limit
+        probes.append({"utc": utc, **{k: (probe or {}).get(k) for k in ("p50_ms", "p99_ms", "max_ms")}, "passed": passed})
+        waited = host.monotonic() - first
+        record = {"timer_limit_ms": limit, "timer_limit_is_override": raised, "timer_probes": probes,
+                  "timer_refused_probes": sum(not p["passed"] for p in probes), "timer_waited_s": round(waited, 1)}
+        reading = "unknown" if probe is None else f"{probe['p99_ms']:.1f} ms"
+        said = "unreadable" if probe is None else f"p50 {probe['p50_ms']:g}, p99 {probe['p99_ms']:g}, max {probe['max_ms']:g} ms"
+        verdict = "passed" if passed else f"refused, limit {limit:g} ms"
+        say(f"timer probe {len(probes)} on CPU {cpus} at {utc}: {said}: {verdict}")
+        note(record)
+        if passed:
+            return probe, record
+        if waited >= wait_gate_min * 60:
+            text = (f"timer wake-up on CPU {cpus} (the legit streams'): p99 {reading}, needs below {limit:g} ms"
+                    + (" (set by --timer-limit-ms for a smoke test)" if raised else ""))
+            if len(probes) > 1:
+                text += f"; {len(probes)} probes over {waited:.0f} s (--wait-gate {wait_gate_min:g}), none passed"
+            refused = EnvironmentRefused(text)
+            refused.record = record
+            raise refused
+        host.sleep(TIMER_REPROBE_S)
+
+
+def environment(host, plan, gate="full", wait_gate_min=30.0, say=None, note=None):
     """The environment gate (docs/HG1B_MINIMAL_DESIGN.md 7.2 step 0). The timer on the legit CPU must wake on time, always:
     p99 below the plan's `timer_limit_ms`, which is the calibration's validity.timer_p99_ms unless a smoke test set it (the
-    limit used, and whether it was set, are recorded). Uptime and load are the gate of a campaign's start (`gate="full"`:
-    waits up to `wait_gate_min` for them); between the runs of a campaign (`gate="timer"`) they are only recorded, since
-    the load a run leaves is its own and would make every next run wait for it to decay. Refuses with EnvironmentRefused;
-    the caller may wait and ask again."""
-    import loadtool_validate as V
+    limit used, and whether it was set, are recorded), within the wait of `timer_gate`, which every run may use in full. Uptime and
+    load are the gate of a campaign's start (`gate="full"`:
+    waits up to `wait_gate_min` for them, `quiet_gate`); between the runs of a campaign (`gate="timer"`) they are only recorded,
+    since the load a run leaves is its own and would make every next run wait for it to decay. Refuses with EnvironmentRefused;
+    the caller may wait and ask again. A plan that gives the executor a CPU of its own (PIN_PLAN_DAEMON: every run of a campaign
+    with a daemon, the warm-up too) has that CPU's timer probed as well, after the gate, and recorded (`timer_executor`), never
+    judged: the executor's reaper threads stamp the streams' exits, which the run's clock is made of (T-039 V-33)."""
     say = say or (lambda m: None)
     up, load = float(host.read_text("/proc/uptime").split()[0]), float(host.read_text("/proc/loadavg").split()[0])
     if gate == "full":
-        seen = V.wait_for_gate(wait_gate_min, read_up=lambda: float(host.read_text("/proc/uptime").split()[0]),
-                               read_load=lambda: float(host.read_text("/proc/loadavg").split()[0]), sleep=host.sleep,
-                               clock=host.monotonic, say=say)
-        if not seen["met"]:
-            raise EnvironmentRefused(f"the machine is not quiet enough: uptime {seen['uptime_s']:.0f} s (needs "
-                                     f"{seen['limit_uptime_s']}), load {seen['load1']:.2f} (needs below {seen['limit_load1']})")
+        seen = quiet_gate(host, wait_gate_min, say)
     else:
         seen = {"met": None, "uptime_s": up, "load1": load, "waited_s": 0.0}
-    probe = timer_probe(host, P.PIN_PLAN["legit"])
-    raised = "timer_limit_ms" in plan.overrides
-    if probe is None or probe["p99_ms"] >= plan.timer_limit_ms:
-        raise EnvironmentRefused(f"timer wake-up on CPU {P.PIN_PLAN['legit']} (the legit streams'): p99 "
-                                 f"{'unknown' if probe is None else format(probe['p99_ms'], '.1f') + ' ms'}, needs below "
-                                 f"{plan.timer_limit_ms:g} ms" + (" (set by --timer-limit-ms for a smoke test)" if raised else ""))
+    probe, timer = timer_gate(host, plan, wait_gate_min, say, note)
+    timer["load1_after_timer_gate"] = float(host.read_text("/proc/loadavg").split()[0])        # `seen` was read before the wait
+    own = plan.pins.get("executor")
+    timers = {"timer_executor": timer_probe(host, own), "timer_executor_cpus": own} if own is not None else {}
     stat = host.read_text("/proc/stat").splitlines()[0].split()
     try:
         governor = host.read_text("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor").strip()
     except OSError:
         governor = None
-    return {"gate_mode": gate, "gate": seen, "timer_legit": probe, "timer_limit_ms": plan.timer_limit_ms,
-            "timer_limit_is_override": raised, "governor": governor,
+    return {"gate_mode": gate, "gate": seen, "timer_legit": probe, **timer, **timers, "governor": governor,
             "steal_jiffies": int(stat[8]) if len(stat) > 8 else None, "jiffies": sum(map(int, stat[1:9]))}
 
 
@@ -984,11 +1233,18 @@ class Sampler:
     def __init__(self, host):
         self.host, self.rows, self.pids, self._last, self._ticks = host, [], {}, None, 0
         self.tck = host.clk_tck()
+        self.daemon_pid = None           # a protected run's daemon: a Python process in server_ns, which is not the origin
+
+    def groups(self):
+        return ("origin", "nginx", "daemon") if self.daemon_pid else ("origin", "nginx")
 
     def attach(self):
-        """Find the server namespace's processes, grouped by what they are (Nginx and the origin)."""
+        """Find the server namespace's processes, grouped by what they are (Nginx, the origin and a protected run's daemon)."""
         self.pids = {}
         for pid in namespace_pids(self.host, SERVER_NS):
+            if pid == self.daemon_pid:
+                self.pids[pid] = "daemon"
+                continue
             try:
                 comm = self.host.read_text(f"/proc/{pid}/comm").strip()
             except OSError:
@@ -1005,11 +1261,11 @@ class Sampler:
         return out
 
     def _proc_jiffies(self):
-        out = {"origin": 0, "nginx": 0}
+        out = {"origin": 0, "nginx": 0}       # a daemon whose CPU could not be read has no entry, and no share in the row
         for pid, group in self.pids.items():
             try:
                 f = self.host.read_text(f"/proc/{pid}/stat").rsplit(")", 1)[1].split()
-                out[group] += int(f[11]) + int(f[12])                                  # utime + stime
+                out[group] = out.get(group, 0) + int(f[11]) + int(f[12])                # utime + stime
             except (OSError, IndexError, ValueError):
                 pass
         return out
@@ -1055,15 +1311,16 @@ class Sampler:
                     row[f"{name}_busy_pct"] = round(100.0 * (1 - (idle - b[1]) / (total - b[0])), 1)
                     if name == "cpu":
                         row["steal_pct"] = round(100.0 * (steal - b[2]) / (total - b[0]), 2)
-            for group in ("origin", "nginx"):
-                row[f"{group}_cpu_pct"] = round(100.0 * (now["proc"][group] - before["proc"][group]) / (self.tck * dt), 1)
+            for group in self.groups():
+                if group in before["proc"] and group in now["proc"]:
+                    row[f"{group}_cpu_pct"] = round(100.0 * (now["proc"][group] - before["proc"][group]) / (self.tck * dt), 1)
         row.update(self._tcp())
         self._last = {**now, "t": row["t_epoch"]}
         self.rows.append(row)
 
     def write(self, path):
-        names = ["t_epoch", "t_rel", "load1", "steal_pct", "origin_cpu_pct", "nginx_cpu_pct", "listen_overflows",
-                 "listen_drops", "tcp_inuse", "tcp_tw"]
+        names = ["t_epoch", "t_rel", "load1", "steal_pct", "origin_cpu_pct", "nginx_cpu_pct",
+                 *(["daemon_cpu_pct"] if self.daemon_pid else []), "listen_overflows", "listen_drops", "tcp_inuse", "tcp_tw"]
         names += sorted({k for r in self.rows for k in r if k.endswith("_busy_pct")}, key=lambda k: (len(k), k))
         with open(path, "w", newline="", encoding="utf-8") as fh:
             w = csv.writer(fh)
@@ -1087,7 +1344,7 @@ def stack_facts(host, sampler):
     so this is where they are recorded)."""
     sampler.attach()
     out = {}
-    for group in ("origin", "nginx"):
+    for group in sampler.groups():
         pids = sorted(p for p, g in sampler.pids.items() if g == group)
         cpus, limits = set(), set()
         for pid in pids:
@@ -1257,6 +1514,12 @@ def alignment(plan, found, tails=None):
 
 # --- building the testbed -------------------------------------------------------------------------
 
+def _skipped(host, when):
+    """A command's condition: `absent:<path>` runs it only if the path is not there, `present:<path>` only if it is."""
+    kind, _, path = when.partition(":")
+    return (kind == "absent" and host.exists(path)) or (kind == "present" and not host.exists(path))
+
+
 def _do(host, step, plan, log, procs):
     """One step of the plan. A command that fails raises SetupFailed with what it said."""
     if isinstance(step, Prim):
@@ -1269,7 +1532,7 @@ def _do(host, step, plan, log, procs):
             raise SetupFailed(f"{step.path}: the plan holds no text with that hash")
         with open(step.path, "w", encoding="utf-8") as fh:
             fh.write(plan.nginx_conf)
-    elif step.when.startswith("absent:") and host.exists(step.when[len("absent:"):]):
+    elif step.when and _skipped(host, step.when):
         return
     elif step.keep:
         with open(f"{plan.out}/gunicorn.log", "ab") as err:
@@ -1401,6 +1664,181 @@ def start_stack(host, plan, log, procs):
         for _, path in plan.checks:
             _curl(host, path)
     log(f"stack ready: {len(plan.checks)} routes answer with their own class under calibration {tag}; warmed up")
+
+
+# --- the daemon of a protected run ---------------------------------------------------------------
+
+def _text(path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            return fh.read()
+    except OSError:
+        return ""
+
+
+def daemon_events(path):
+    """The events a daemon wrote to its ban file (JSON lines: ban_events.py, docs/EVALUATION.md), oldest first; [] while there is
+    none. A line that is not whole yet is skipped, as ban_events.read_events does."""
+    events = []
+    for line in _text(path).splitlines():
+        with contextlib.suppress(ValueError):
+            event = json.loads(line)
+            if isinstance(event, dict) and "kind" in event:
+                events.append(event)
+    return events
+
+
+def xdp_program(host):
+    """The id of the program attached to veth_server in server_ns; None when there is none or the link cannot be read."""
+    r = host.run(["ip", "-j", "link", "show", XDP_DEVICE], ns=SERVER_NS)
+    try:
+        return json.loads(r.out)[0]["xdp"]["prog"]["id"]
+    except (ValueError, KeyError, IndexError, TypeError):
+        return None
+
+
+def start_mitigation(host, plan, log, procs, sampler):
+    """A protected run's daemon (plan.daemon), once the stack is ready: started and held by its handle, its output in daemon.log;
+    ready when it has said DAEMON_READY_LINE, its start event (with its own pid) is in the run's ban file and, with XDP, a program is
+    attached to veth_server. SetupFailed when it exits first or is not ready within DAEMON_READY_TIMEOUT_S, saying what was missing.
+    Returns what was seen at readiness (None without a daemon); from then on the sampler counts the daemon apart from the origin."""
+    d = plan.daemon
+    if d is None:
+        return None
+    with open(d.log, "ab") as out:
+        proc = procs["daemon"] = host.popen(list(d.argv), ns=d.ns, env=dict(d.env), stdout=out, stderr=out, cwd=d.cwd)
+    began, started = host.monotonic(), host.time()
+    while True:
+        said = DAEMON_READY_LINE in _text(d.log)
+        start = next((e for e in daemon_events(d.events) if e["kind"] == "start" and e.get("pid") == proc.pid), None)
+        prog = xdp_program(host) if d.backend == "xdp" else None
+        if said and start is not None and (d.backend != "xdp" or prog is not None):
+            break
+        if proc.poll() is not None:
+            raise SetupFailed(f"the daemon exited with {proc.poll()} before it was ready: {_tail(d.log, 2)[:240]}")
+        if host.monotonic() - began > DAEMON_READY_TIMEOUT_S:
+            missing = [what for what, ok in ((f"line '{DAEMON_READY_LINE}'", said), ("start event", start is not None),
+                                             (f"XDP program on {XDP_DEVICE}", d.backend != "xdp" or prog is not None)) if not ok]
+            raise SetupFailed(f"the daemon was not ready within {DAEMON_READY_TIMEOUT_S:g} s: no " + ", no ".join(missing))
+        host.sleep(0.5)
+    sampler.daemon_pid = proc.pid
+    after = host.monotonic() - began
+    log(f"started the daemon as pid {proc.pid}: ready after {after:.1f} s" + (f", XDP program {prog} on {XDP_DEVICE}" if prog else ""))
+    return {"pid": proc.pid, "started_epoch_s": round(started, 3), "ready_epoch_s": round(host.time(), 3),
+            "ready_after_s": round(after, 2), "xdp_prog_at_ready": prog, "start_event": start,
+            "feed_at_ready": {path: host.stat(path) for path in (FEED_ACCESS_LOG, FEED_ERROR_LOG)}}
+
+
+def feed_before(plan, host):
+    """What the host's Nginx logs held before a run with a daemon, now in the run (FEED_BEFORE): bytes per file, None for one there
+    was not. Recorded in the run's provenance (T-028 F-06)."""
+    out = {}
+    for path in (FEED_ACCESS_LOG, FEED_ERROR_LOG):
+        seen = host.stat(f"{plan.out}/{FEED_BEFORE}/{os.path.basename(path)}")
+        out[path] = None if seen is None else {"moved_to": f"{FEED_BEFORE}/{os.path.basename(path)}", "bytes": seen[1]}
+    return out
+
+
+def stop_daemon(host, procs, log):
+    """The daemon this run holds (procs["daemon"]), stopped by its handle: SIGINT, which runs its finally (XDP detached, exit 0),
+    KILL if it is still there after DAEMON_STOP_GRACE_S; then XDP is taken off veth_server whatever it did, as the suite does. The
+    handle is let go, so that a second call does nothing. Returns the record of the stop; None if there was no daemon."""
+    proc = procs.pop("daemon", None)
+    if proc is None:
+        return None
+    began = host.monotonic()
+    record = {"signal": None, "killed": False}
+    if proc.poll() is None:
+        record["signal"] = "INT"
+        proc.interrupt()
+        while proc.poll() is None and host.monotonic() - began < DAEMON_STOP_GRACE_S:
+            host.sleep(0.1)
+        if proc.poll() is None:
+            log(f"KILL the daemon (pid {proc.pid}): SIGINT did not end it within {DAEMON_STOP_GRACE_S:g} s")
+            proc.kill()
+            record["killed"] = True
+            host.sleep(0.2)
+    off = host.run(["ip", "link", "set", "dev", XDP_DEVICE, "xdp", "off"], ns=SERVER_NS)
+    record.update(exit=proc.poll(), exit_epoch_s=None if proc.exit_time is None else round(proc.exit_time, 3),
+                  seconds=round(host.monotonic() - began, 2), xdp_off=off.code == 0)
+    log(f"stopped the daemon (pid {proc.pid}) in {record['seconds']:.2f} s: exit {record['exit']}"
+        + (", killed" if record["killed"] else "") + f"; XDP off {XDP_DEVICE}: " + ("done" if record["xdp_off"] else f"exit {off.code}"))
+    return record
+
+
+ORIGIN_EXIT_CAUSES = ("CalibrationError", "Worker failed to boot")     # what gunicorn.log says when the origin refuses or cannot boot
+
+
+def origin_log_says(path):
+    """The line of gunicorn.log that says why the origin ended, if there is one: a calibration refusal before a failed boot."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            lines = [x.strip() for x in fh]
+    except OSError:
+        return ""
+    found = [[x for x in lines if cause in x][-1:] for cause in ORIGIN_EXIT_CAUSES]
+    return next((f"; gunicorn.log says: {hit[0][:200]}" for hit in found if hit), "")
+
+
+def origin_validity(plan, procs, t_launch):
+    """Why a run whose origin did not last the timeline is not sound (docs/HG1C_DESIGN.md departure 34, D-063), looked at when the
+    timeline is over and before the teardown stops it, as the daemon is: once gunicorn has stopped, Nginx answers 502, and that would
+    read as harm. It looks at gunicorn's master only, so a worker that was replaced is no exit. `t_launch` is when the legit streams
+    were launched."""
+    proc = procs.get("origin")
+    if proc is not None and proc.poll() is None:
+        return []
+    when = "" if proc is None or proc.exit_time is None else f" at T+{proc.exit_time - t_launch:.1f} s after the launch"
+    return [f"the origin exited with {None if proc is None else proc.poll()}{when}, before the end of the run"
+            + origin_log_says(f"{plan.out}/gunicorn.log")]
+
+
+def daemon_validity(host, plan, procs, daemon, sampler, t_launch):
+    """Why a protected run with a daemon is not sound (G11), looked at when the timeline is over and before the daemon is stopped,
+    and what was seen. The daemon was ready before the first stream was launched, so before the attack; it must still be alive. With
+    XDP, the program on veth_server must still be the one it attached at readiness. Its start event must say what the mode asks for
+    (its backend and MODE_DAEMON), whatever its environment was; the run's ban file must be there; its CPU must have been sampled.
+    None of these reads what the attack did to the server. `t_launch` is when the legit streams were launched."""
+    d, proc = plan.daemon, procs.get("daemon")
+    reasons = []
+    alive = proc is not None and proc.poll() is None
+    if not alive:
+        when = "" if proc is None or proc.exit_time is None else f" at T+{proc.exit_time - t_launch:.1f} s after the launch"
+        reasons.append(f"the daemon exited with {None if proc is None else proc.poll()}{when}, before the end of the run")
+    prog = xdp_program(host) if d.backend == "xdp" else None
+    if d.backend == "xdp" and prog != daemon["xdp_prog_at_ready"]:
+        reasons.append(f"XDP: the program on {XDP_DEVICE} at the end of the run is {prog or 'none'}, not "
+                       f"{daemon['xdp_prog_at_ready']}, the one attached at readiness")
+    start = daemon["start_event"] or {}
+    for key, value in {"backend": d.backend, **MODE_DAEMON}.items():
+        if start.get(key) != value:
+            reasons.append(f"the daemon's start event says {key} {start.get(key)}, the mode asks for {value}")
+    if not os.path.exists(d.events):
+        reasons.append(f"the ban file {os.path.basename(d.events)} is not there")
+    shares, seconds, previous = [], 0.0, None
+    for row in sampler.rows:
+        if row.get("daemon_cpu_pct") is not None:
+            shares.append(row["daemon_cpu_pct"])
+            if previous is not None:
+                seconds += row["daemon_cpu_pct"] / 100.0 * (row["t_epoch"] - previous)
+        previous = row["t_epoch"]
+    if not shares:
+        reasons.append("the daemon's CPU was never sampled")
+    cpu = {"samples": len(shares), "mean_pct": round(statistics.fmean(shares), 2) if shares else None,
+           "max_pct": max(shares, default=None), "seconds": round(seconds, 2)}
+    feed = {path: host.stat(path) for path in (FEED_ACCESS_LOG, FEED_ERROR_LOG)}
+    for path, now in feed.items():                  # T-028 F-04: logrotate, or anything else, during the run
+        then = (daemon.get("feed_at_ready") or {}).get(path)
+        if then is None or now is None or now[0] != then[0]:
+            reasons.append(f"the daemon's feed {path} was replaced or removed during the run (inode {then and then[0]} at readiness, "
+                           f"{now and now[0]} at the end): the daemon lost what Nginx wrote meanwhile")
+    own = host.stat(f"{plan.out}/nginx_access.log")
+    access = feed[FEED_ACCESS_LOG]
+    if own is not None and access is not None and access[1] < own[1]:
+        reasons.append(f"the daemon's feed {FEED_ACCESS_LOG} holds {access[1]} bytes, less than the run's own access log ({own[1]}), "
+                       "which Nginx writes line for line with it: it was truncated during the run")
+    return reasons, {"alive_at_end": alive, "xdp_prog_at_end": prog, "cpu": cpu,
+                     "feed_at_end": feed, "run_access_log_bytes": None if own is None else own[1]}
 
 
 # --- the timeline and what it leaves --------------------------------------------------------------
@@ -1535,10 +1973,11 @@ def collect(plan, procs, launched, problems):
              "attack_start_error_s": al["attack_start_error_s"], "estimator": "exit-minus-consistent-wall",
              "wall_gap_s": {sid: gaps[sid] for sid in sorted(gaps)},
              "exit_epoch_s": {sid: round(found[sid][0], 3) for sid in sorted(found)},
+             "zero_epoch_s": None if al["zero"] is None else round(al["zero"], 4),
              "launch_attack_after_s": launch_attack_after(plan) if "attack" in launched else None}
     rows = [{"id": s.id, "kind": s.kind, "route_class": s.route_class, "netem": s.netem,
              "summary": os.path.relpath(s.summary, plan.out), "records": os.path.relpath(s.records, plan.out),
-             "offset_s": round(al["offsets"][s.id], 4)} for s in streams]
+             "offset_s": round(al["offsets"][s.id], 4), "addresses": list(s.addresses)} for s in streams]
     return block, rows, al["zero"]
 
 
@@ -1567,7 +2006,7 @@ def teardown(host, plan, log):
     links = [outer_veth(ns.name) for ns in plan.namespaces] + [SERVER_VETH_HOST_END, BRIDGE]
     destroy(host, names, links, plan.settings["term_grace_s"], log)
     looked = host.monotonic()
-    left = leftovers(host)
+    left = leftovers(host, plan.daemon is not None)
     if left:
         raise LeftoverError("still there after the teardown:\n  " + "\n  ".join(left))
     log("teardown complete: no namespace, link or process of the testbed is left "
@@ -1603,30 +2042,44 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
     os.makedirs(out, exist_ok=True)
     log = EventLog(f"{out}/executor.log", host, say)
     t_begin = host.monotonic()
+
+    def gate_so_far(timer):                  # on disk through the wait: a stop during it leaves the probes (D-045, T-047 G-01)
+        write_json(f"{out}/environment.json", {"gate_unfinished": True, "gate_mode": gate, **timer})
+
     try:
         pre = preflight(host, plan, allow_dirty, clean)
-        env = environment(host, plan, gate, wait_gate_min, say)
+        env = environment(host, plan, gate, wait_gate_min, log, gate_so_far)
     except RunFailed as exc:
         log(f"refused: {exc}")
         _failed(out, exc)
+        if getattr(exc, "record", None):
+            write_json(f"{out}/environment.json", {"refused": str(exc), "gate_mode": gate, **exc.record})
         raise
     record = {**env, **pre, "facts": host.facts(), "calibration_sha256": plan.calibration_sha256,
-              "scenario_sha256": plan.scenario_sha256, "provenance": provenance(plan), "checked_utc": _utc(host.time())}
+              "scenario_sha256": plan.scenario_sha256, "provenance": provenance(plan, host), "checked_utc": _utc(host.time())}
     write_json(f"{out}/environment.json", record)
     write_json(f"{out}/plan.json", as_json(plan))
     log(f"run {plan.kind} of {plan.scenario}, seed {plan.seed}: preflight and environment passed")
-    procs, sampler = {}, sampler or Sampler(host)
+    if plan.daemon is not None and not record["provenance"]["daemon"]["h01"]["has_fix"]:
+        log(f"WARNING: this checkout's daemon lacks the H-01 fix ({DAEMON_FIX_H01[:7]}, fix/daemon-robustness): one request with a "
+            "byte that is not UTF-8 can end it and lift every ban during the run. Recorded in environment.json (provenance.daemon.h01)")
+    procs, sampler, daemon = {}, sampler or Sampler(host), None
     try:
         retries = 0
         while True:
             try:
                 procs.clear()
+                sampler.daemon_pid = None
                 build_topology(host, plan, log, procs)
                 start_stack(host, plan, log, procs)
+                daemon = start_mitigation(host, plan, log, procs, sampler)
+                if plan.daemon is not None:
+                    record["provenance"]["daemon"]["feed_before"] = feed_before(plan, host)
                 write_json(f"{out}/environment.json", {**record, "stack": stack_facts(host, sampler)})
                 break
             except SetupFailed as exc:
                 log(f"setup failed: {exc}")
+                stop_daemon(host, procs, log)
                 stop_all(host, procs, plan, log)
                 teardown(host, plan, log)
                 retries += 1
@@ -1635,6 +2088,12 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
                 _reset(out)
                 log(f"retrying the setup ({retries} of {MAX_SETUP_RETRIES})")
         launched, problems = run_timeline(host, plan, log, procs, sampler)
+        problems += origin_validity(plan, procs, launched.get("legit", host.time()))
+        if daemon is not None:
+            unsound, seen = daemon_validity(host, plan, procs, daemon, sampler, launched.get("legit", host.time()))
+            problems += unsound
+            daemon.update(seen)
+        stopped = stop_daemon(host, procs, log)
         stop_all(host, procs, plan, log)
         block, rows, zero = collect(plan, procs, launched, problems)
         raised = {sid: gap for sid, gap in block["wall_gap_s"].items() if gap > WALL_GAP_NOTE_S}
@@ -1648,18 +2107,22 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
         sampler.write(f"{out}/server.csv")
         finish_logs(plan, zero, log)
         write_json(f"{out}/run.json", {
-            "role": KINDS_OF_RUN[plan.kind], "mode": None, "started_utc": _utc(launched["legit"]),
+            "role": KINDS_OF_RUN[plan.kind], "mode": plan.mode, "started_utc": _utc(launched["legit"]),
+            "daemon": None if daemon is None else {**daemon, "stop": stopped},
             "scenario": plan.scenario, "seed": plan.seed, "plan_sha256": plan.plan_sha256,
             "calibration_sha256": plan.calibration_sha256, "overrides": plan.overrides,
-            "executor": {**block, "setup_retries": retries}, "streams": rows})
+            "executor": {**block, "setup_retries": retries, "timer_refused_probes": env["timer_refused_probes"],
+                         "timer_waited_s": env["timer_waited_s"]}, "streams": rows})
         log("run.json written; the run is " + ("sound" if block["ok"] else "UNSOUND: " + "; ".join(block["reasons"])))
-        return RunResult(block["ok"], block["reasons"], out, retries, host.monotonic() - t_begin)
+        return RunResult(block["ok"], block["reasons"], out, retries, host.monotonic() - t_begin,
+                         env["timer_refused_probes"], env["timer_waited_s"])
     except BaseException as exc:
         log(f"failed: {exc!r}")
         _failed(out, exc)
         raise
     finally:
         with host.shielded():
+            stop_daemon(host, procs, log)
             stop_all(host, procs, plan, log)
             try:
                 teardown(host, plan, log)
@@ -1877,7 +2340,8 @@ def _plan_from_args(args):
 def _add_plan_args(p, kind_required=True):
     p.add_argument("spec", help="a scenario record (bench/scenarios/*.json)")
     p.add_argument("--calibration", default=C.PLACEHOLDER, help="calibration record (default: the placeholder)")
-    p.add_argument("--kind", choices=KINDS, required=kind_required, default="C")
+    p.add_argument("--kind", choices=KINDS + MITIGATED_KINDS + tuple(MITIGATED + m for m in RESERVED_MODES), required=kind_required,
+                   default="C", help="C, Cp, U, or a protected run M_<mode> (M_l7shadow and M_l7 are not built yet)")
     p.add_argument("--seed", type=int, default=None, help="the block's seed (default: the scenario's first)")
     p.add_argument("--out", help="the run directory (named after its kind)")
     p.add_argument("--rho", type=float, default=None, help="smoke test: the benign load in requests/s, instead of the calibration's")
@@ -1913,7 +2377,8 @@ def main(argv=None, host=None):
     p.add_argument("--clean", action="store_true", help="take down the namespaces and links of an earlier testbed first")
     p.add_argument("--gate", choices=("full", "timer"), default="full",
                    help="full: wait for uptime and load as well (a campaign's first run); timer: the timer only")
-    p.add_argument("--wait-gate", type=float, default=30.0, metavar="MIN", help="minutes to wait for the full gate")
+    p.add_argument("--wait-gate", type=float, default=30.0, metavar="MIN", help="minutes to wait for uptime and load (the full gate) and, from the first probe, for a refused timer probe to pass; "
+                   "0: one probe")
     p = sub.add_parser("smoke-topology", help="S2: build and verify the topology of a plan, then take it down (root)")
     _add_plan_args(p, kind_required=False)
     p.add_argument("--allow-dirty", action="store_true")
@@ -1939,7 +2404,7 @@ def main(argv=None, host=None):
             return EXIT_OK if result["reported"] else EXIT_FAILED
         plan = _plan_from_args(args)
         real = host or RealHost()
-        real.pin(P.PIN_PLAN["daemon"])
+        real.pin(P.executor_cpus(plan.pins))
         _install_signal_handlers()
         if args.command == "smoke-topology":
             seconds = smoke_topology(plan, real, print, args.allow_dirty, args.clean)

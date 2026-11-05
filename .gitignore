@@ -15,3 +15,33 @@ venv/
 # published campaigns under results/<campaign-id>/ (see results/README.md).
 *.csv
 !/results/**/*.csv
+
+# agent worktrees and personal agent state: a `git add -A` once committed them as gitlinks (25bb14b)
+/.claude/worktrees/
+/.claude/settings.local.json
+
+# virtualenvs: directory or symlink, any spelling (the repo expects <checkout>/venv/bin/python, never tracked)
+/venv
+/.venv
+
+# tool caches and build output
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.pyo
+
+# scratch
+/outputs/
+
+# LaTeX build products of thesis/main.tex (nothing tracked today)
+thesis/*.aux
+thesis/*.log
+thesis/*.out
+thesis/*.toc
+thesis/*.bbl
+thesis/*.blg
+thesis/*.fls
+thesis/*.fdb_latexmk
+thesis/*.synctex.gz
+thesis/main.pdf

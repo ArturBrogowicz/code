@@ -4,7 +4,7 @@ scenario      sha256:025628ed, no attack in this run
 run directory /var/tmp/ddos_campaigns/example/b01_a1/C
 timeline      the 29 legit streams are launched at L; their loops start about 2.9 s later, which is T = 0, and run 105 s
 plan hash     1054ec8289c0 (the legit streams: equal in C, Cp and U of a block)
-timer gate    refused if the timer on CPU 6 has p99 of 10 ms or more (the calibration's validity.timer_p99_ms)
+timer gate    refused if the timer on CPU 7 has p99 of 10 ms or more (the calibration's validity.timer_p99_ms); a refused probe is made again every 30 s, up to --wait-gate minutes from the first (0: one probe)
 nginx.conf    sha256:d84fd57c34ce (nginx_unprotected.conf with its two log paths changed)
 settings      startup_delay_legit_s 2.9, startup_delay_attack_s 0.15, readiness_timeout_s 30.0, warmup_requests 2, t0_spread_limit_s 0.5, t0_range_limit_s 2.5, attack_start_limit_s 0.5, group_start_limit_s 0.5, term_grace_s 2.0, min_nofile 16384, exit_delay_per_request_s 8e-06, straggler_share 0.5, straggler_tail_s 0.1
 
@@ -42,37 +42,37 @@ stack in server_ns, then the readiness probe (30 s at most):
 
 streams: 29 engine processes (29 legit, 0 attack)
     id                         ns               vCPU   rate  start  duration  nofile
-    L-poisson-C0-broadband-1   hg_1_broadband   6     11.80      0       105    2214
-    L-poisson-C0-mobile_3g-2   hg_2_mobile_3g   6      5.42      0       105    2172
-    L-poisson-C0-mobile_bad-3  hg_3_mobile_bad  6      2.49      0       105    2118
-    L-poisson-C0-perfect-0     hg_0_perfect     6      9.63      0       105    2256
-    L-poisson-C1-broadband-1   hg_1_broadband   6      7.82      0       105    2304
-    L-poisson-C1-mobile_3g-2   hg_2_mobile_3g   6      3.69      0       105    2232
-    L-poisson-C1-mobile_bad-3  hg_3_mobile_bad  6      1.48      0       105    2154
-    L-poisson-C1-perfect-0     hg_0_perfect     6      7.89      0       105    2394
-    L-poisson-C2-broadband-1   hg_1_broadband   6      6.80      0       105    2310
-    L-poisson-C2-mobile_3g-2   hg_2_mobile_3g   6      2.18      0       105    2220
-    L-poisson-C2-mobile_bad-3  hg_3_mobile_bad  6      1.18      0       105    2136
-    L-poisson-C2-perfect-0     hg_0_perfect     6      8.12      0       105    2334
-    L-poisson-C3-broadband-1   hg_1_broadband   6      2.72      0       105    2154
-    L-poisson-C3-mobile_3g-2   hg_2_mobile_3g   6      2.10      0       105    2124
-    L-poisson-C3-mobile_bad-3  hg_3_mobile_bad  6      0.61      0       105    2082
-    L-poisson-C3-perfect-0     hg_0_perfect     6      2.58      0       105    2124
-    L-poisson-C5-broadband-1   hg_1_broadband   6      0.30      0       105    2154
-    L-poisson-C5-mobile_3g-2   hg_2_mobile_3g   6      0.07      0       105    2124
-    L-poisson-C5-mobile_bad-3  hg_3_mobile_bad  6      0.11      0       105    2100
-    L-poisson-C5-perfect-0     hg_0_perfect     6      0.41      0       105    2202
-    L-pulse-C1-broadband-1     hg_1_broadband   6      0.07      0       105    2076
-    L-pulse-C1-mobile_3g-2     hg_2_mobile_3g   6      0.07      0       105    2070
-    L-pulse-C1-perfect-0       hg_0_perfect     6      0.40      0       105    2106
-    L-pulse-C2-broadband-1     hg_1_broadband   6      3.07      0       105    2112
-    L-pulse-C2-mobile_3g-2     hg_2_mobile_3g   6      1.53      0       105    2088
-    L-pulse-C2-perfect-0       hg_0_perfect     6      5.73      0       105    2124
-    L-pulse-C3-broadband-1     hg_1_broadband   6      0.73      0       105    2100
-    L-pulse-C3-mobile_3g-2     hg_2_mobile_3g   6      0.40      0       105    2082
-    L-pulse-C3-perfect-0       hg_0_perfect     6      0.67      0       105    2082
+    L-poisson-C0-broadband-1   hg_1_broadband   7     11.80      0       105    2214
+    L-poisson-C0-mobile_3g-2   hg_2_mobile_3g   7      5.42      0       105    2172
+    L-poisson-C0-mobile_bad-3  hg_3_mobile_bad  7      2.49      0       105    2118
+    L-poisson-C0-perfect-0     hg_0_perfect     7      9.63      0       105    2256
+    L-poisson-C1-broadband-1   hg_1_broadband   7      7.82      0       105    2304
+    L-poisson-C1-mobile_3g-2   hg_2_mobile_3g   7      3.69      0       105    2232
+    L-poisson-C1-mobile_bad-3  hg_3_mobile_bad  7      1.48      0       105    2154
+    L-poisson-C1-perfect-0     hg_0_perfect     7      7.89      0       105    2394
+    L-poisson-C2-broadband-1   hg_1_broadband   7      6.80      0       105    2310
+    L-poisson-C2-mobile_3g-2   hg_2_mobile_3g   7      2.18      0       105    2220
+    L-poisson-C2-mobile_bad-3  hg_3_mobile_bad  7      1.18      0       105    2136
+    L-poisson-C2-perfect-0     hg_0_perfect     7      8.12      0       105    2334
+    L-poisson-C3-broadband-1   hg_1_broadband   7      2.72      0       105    2154
+    L-poisson-C3-mobile_3g-2   hg_2_mobile_3g   7      2.10      0       105    2124
+    L-poisson-C3-mobile_bad-3  hg_3_mobile_bad  7      0.61      0       105    2082
+    L-poisson-C3-perfect-0     hg_0_perfect     7      2.58      0       105    2124
+    L-poisson-C5-broadband-1   hg_1_broadband   7      0.30      0       105    2154
+    L-poisson-C5-mobile_3g-2   hg_2_mobile_3g   7      0.07      0       105    2124
+    L-poisson-C5-mobile_bad-3  hg_3_mobile_bad  7      0.11      0       105    2100
+    L-poisson-C5-perfect-0     hg_0_perfect     7      0.41      0       105    2202
+    L-pulse-C1-broadband-1     hg_1_broadband   7      0.07      0       105    2076
+    L-pulse-C1-mobile_3g-2     hg_2_mobile_3g   7      0.07      0       105    2070
+    L-pulse-C1-perfect-0       hg_0_perfect     7      0.40      0       105    2106
+    L-pulse-C2-broadband-1     hg_1_broadband   7      3.07      0       105    2112
+    L-pulse-C2-mobile_3g-2     hg_2_mobile_3g   7      1.53      0       105    2088
+    L-pulse-C2-perfect-0       hg_0_perfect     7      5.73      0       105    2124
+    L-pulse-C3-broadband-1     hg_1_broadband   7      0.73      0       105    2100
+    L-pulse-C3-mobile_3g-2     hg_2_mobile_3g   7      0.40      0       105    2082
+    L-pulse-C3-perfect-0       hg_0_perfect     7      0.67      0       105    2082
   the command of the first, inside its namespace:
-    ip netns exec hg_1_broadband prlimit --nofile=2214 -- taskset -c 6 <python> <repo>/bench/loadgen.py --url http://10.0.0.1/ --rate 11.8036 --duration 105 --timeout 10 --max-inflight 2000 --pool 6 --method GET --summary /var/tmp/ddos_campaigns/example/b01_a1/C/streams/L-poisson-C0-broadband-1/loadgen.summary.json --records /var/tmp/ddos_campaigns/example/b01_a1/C/streams/L-poisson-C0-broadband-1/loadgen.records.csv.gz --local-addr 10.0.1.12 --local-addr 10.0.1.16 --local-addr 10.0.1.56 --local-addr 10.0.1.64 --local-addr 10.0.1.71 --local-addr 10.0.1.73 --local-addr 10.0.1.86 --local-addr 10.0.1.88 --local-addr 10.0.1.112 --local-addr 10.0.1.131 --local-addr 10.0.1.132 --local-addr 10.0.1.136 --local-addr 10.0.1.141 --local-addr 10.0.1.146 --local-addr 10.0.1.174 --local-addr 10.0.1.176 --local-addr 10.0.1.191 --local-addr 10.0.1.197 --local-addr 10.0.1.202 --local-addr 10.0.1.210 --local-addr 10.0.1.213 --local-addr 10.0.1.223 --local-addr 10.0.1.233 --local-addr 10.0.1.236 --local-addr 10.0.1.246 --process poisson --seed 489528663 --path /static/91474 --path /static/85705 --path /static/20664 --path /static/46775 --path /static/71352 --path /static/1047 --path /static/37879 --path /static/25448 --path /static/11198 --path /static/45533 --path /static/93523 --path /static/55624 --path /static/40966 --path /static/68836 --path /static/38378 --path /static/95434 --path /static/43196 --path /static/63569 --path /static/76525 --path /static/72007
+    ip netns exec hg_1_broadband prlimit --nofile=2214 -- taskset -c 7 <python> <repo>/bench/loadgen.py --url http://10.0.0.1/ --rate 11.8036 --duration 105 --timeout 10 --max-inflight 2000 --pool 6 --method GET --summary /var/tmp/ddos_campaigns/example/b01_a1/C/streams/L-poisson-C0-broadband-1/loadgen.summary.json --records /var/tmp/ddos_campaigns/example/b01_a1/C/streams/L-poisson-C0-broadband-1/loadgen.records.csv.gz --local-addr 10.0.1.12 --local-addr 10.0.1.16 --local-addr 10.0.1.56 --local-addr 10.0.1.64 --local-addr 10.0.1.71 --local-addr 10.0.1.73 --local-addr 10.0.1.86 --local-addr 10.0.1.88 --local-addr 10.0.1.112 --local-addr 10.0.1.131 --local-addr 10.0.1.132 --local-addr 10.0.1.136 --local-addr 10.0.1.141 --local-addr 10.0.1.146 --local-addr 10.0.1.174 --local-addr 10.0.1.176 --local-addr 10.0.1.191 --local-addr 10.0.1.197 --local-addr 10.0.1.202 --local-addr 10.0.1.210 --local-addr 10.0.1.213 --local-addr 10.0.1.223 --local-addr 10.0.1.233 --local-addr 10.0.1.236 --local-addr 10.0.1.246 --process poisson --seed 489528663 --path /static/91474 --path /static/85705 --path /static/20664 --path /static/46775 --path /static/71352 --path /static/1047 --path /static/37879 --path /static/25448 --path /static/11198 --path /static/45533 --path /static/93523 --path /static/55624 --path /static/40966 --path /static/68836 --path /static/38378 --path /static/95434 --path /static/43196 --path /static/63569 --path /static/76525 --path /static/72007
 
 teardown (also on any failure), with the namespaces found by `ip netns pids`, never by pattern:
   1. cmd   ip netns pids hg_0_perfect    # every pid in it: TERM, then KILL after the grace

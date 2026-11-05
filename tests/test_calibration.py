@@ -306,6 +306,50 @@ class DriftTest(unittest.TestCase):
         self.assertFalse(C.drift_ok(99.0, 0.0, 99.0, 1.0)[0])     # a zero frozen p95 cannot be compared with
 
 
+DRIFT_GATE = {"floor_pp": 10.0, "floor_log2_p95": 1.0}
+
+
+class DriftAttackTest(unittest.TestCase):
+    """D-062, docs/HG1C_DESIGN.md departure 33: an attack run's tolerance is the record's gate floors."""
+
+    def test_q_off_by_10_passes_and_10_1_fails_in_both_directions(self):
+        for q in (80.0, 60.0):
+            self.assertEqual(C.drift_attack_ok(DRIFT_GATE, 70.0, 0.2, q, 0.2), (True, []), q)
+        for q in (80.1, 59.9):
+            ok, reasons = C.drift_attack_ok(DRIFT_GATE, 70.0, 0.2, q, 0.2)
+            self.assertFalse(ok, q)
+            self.assertEqual(len(reasons), 1)
+            self.assertIn("floor_pp, 10 pp", reasons[0], "the reason names the tolerance")
+
+    def test_a_p95_ratio_of_2_and_a_half_passes_and_2_01_fails_in_both_directions(self):
+        for p95 in (0.4, 0.1):
+            self.assertEqual(C.drift_attack_ok(DRIFT_GATE, 70.0, 0.2, 70.0, p95), (True, []), p95)
+        for p95 in (0.2 * 2.01, 0.2 / 2.01):
+            ok, reasons = C.drift_attack_ok(DRIFT_GATE, 70.0, 0.2, 70.0, p95)
+            self.assertFalse(ok, p95)
+            self.assertEqual(len(reasons), 1)
+            self.assertIn("floor_log2_p95, a factor of 2", reasons[0], "the reason names the tolerance")
+
+    def test_the_tolerance_follows_the_records_gate_block(self):
+        tight, wide = {"floor_pp": 5.0, "floor_log2_p95": 0.5}, {"floor_pp": 20.0, "floor_log2_p95": 2.0}
+        self.assertTrue(C.drift_attack_ok(tight, 70.0, 0.2, 75.0, 0.2 * 2 ** 0.5)[0])
+        self.assertFalse(C.drift_attack_ok(tight, 70.0, 0.2, 75.1, 0.2)[0])
+        self.assertFalse(C.drift_attack_ok(tight, 70.0, 0.2, 70.0, 0.2 * 1.5)[0])
+        self.assertTrue(C.drift_attack_ok(wide, 70.0, 0.2, 90.0, 0.8)[0])
+        self.assertFalse(C.drift_attack_ok(wide, 70.0, 0.2, 90.1, 0.2)[0])
+        self.assertFalse(C.drift_attack_ok(wide, 70.0, 0.2, 70.0, 0.81)[0])
+
+    def test_what_cannot_be_compared_fails_and_says_so(self):
+        for frozen_p95, q, p95 in ((0.0, 70.0, 1.0), (0.2, 70.0, 0.0), (0.2, 70.0, None), (0.2, None, 0.2)):
+            ok, reasons = C.drift_attack_ok(DRIFT_GATE, 70.0, frozen_p95, q, p95)
+            self.assertFalse(ok, (frozen_p95, q, p95))
+            self.assertTrue(reasons)
+
+    def test_the_legit_probes_rule_is_not_the_attack_runs(self):
+        self.assertFalse(C.drift_ok(70.0, 0.2, 75.0, 0.2)[0])
+        self.assertTrue(C.drift_attack_ok(DRIFT_GATE, 70.0, 0.2, 75.0, 0.2)[0])
+
+
 class CommandLineTest(unittest.TestCase):
     def run_main(self, *argv):
         out, err = io.StringIO(), io.StringIO()

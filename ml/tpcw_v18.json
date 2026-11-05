@@ -1,0 +1,718 @@
+{
+ "format": "tpcw-thresholds/1",
+ "mixes": {
+  "browsing": {
+   "printed_mix": {
+    "Admin Confirm": "0.09%",
+    "Admin Request": "0.10%",
+    "Best Sellers": "11.00%",
+    "Buy Confirm": "0.69%",
+    "Buy Request": "0.75%",
+    "Customer Registration": "0.82%",
+    "Home": "29.00%",
+    "New Products": "11.00%",
+    "Order Display": "0.25%",
+    "Order Inquiry": "0.30%",
+    "Product Detail": "21.00%",
+    "Search Request": "12.00%",
+    "Search Results": "11.00%",
+    "Shopping Cart": "2.00%"
+   },
+   "thresholds": {
+    "Admin Confirm": [
+     [
+      "Home",
+      9877
+     ],
+     [
+      "Search Request",
+      9999
+     ]
+    ],
+    "Admin Request": [
+     [
+      "Admin Confirm",
+      8999
+     ],
+     [
+      "Home",
+      9999
+     ]
+    ],
+    "Best Sellers": [
+     [
+      "Home",
+      4607
+     ],
+     [
+      "Product Detail",
+      5259
+     ],
+     [
+      "Search Request",
+      9942
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Buy Confirm": [
+     [
+      "Home",
+      342
+     ],
+     [
+      "Search Request",
+      9999
+     ]
+    ],
+    "Buy Request": [
+     [
+      "Buy Confirm",
+      9199
+     ],
+     [
+      "Home",
+      9595
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Customer Registration": [
+     [
+      "Buy Request",
+      9145
+     ],
+     [
+      "Home",
+      9619
+     ],
+     [
+      "Search Request",
+      9999
+     ]
+    ],
+    "Home": [
+     [
+      "Best Sellers",
+      3792
+     ],
+     [
+      "New Products",
+      7585
+     ],
+     [
+      "Order Inquiry",
+      7688
+     ],
+     [
+      "Search Request",
+      9559
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "New Products": [
+     [
+      "Home",
+      299
+     ],
+     [
+      "Product Detail",
+      9867
+     ],
+     [
+      "Search Request",
+      9941
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Order Display": [
+     [
+      "Home",
+      802
+     ],
+     [
+      "Search Request",
+      9999
+     ]
+    ],
+    "Order Inquiry": [
+     [
+      "Home",
+      523
+     ],
+     [
+      "Order Display",
+      8856
+     ],
+     [
+      "Search Request",
+      9999
+     ]
+    ],
+    "Product Detail": [
+     [
+      "Admin Request",
+      47
+     ],
+     [
+      "Home",
+      8346
+     ],
+     [
+      "Product Detail",
+      9749
+     ],
+     [
+      "Search Request",
+      9890
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Search Request": [
+     [
+      "Home",
+      788
+     ],
+     [
+      "Search Results",
+      9955
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Search Results": [
+     [
+      "Home",
+      3674
+     ],
+     [
+      "Product Detail",
+      9868
+     ],
+     [
+      "Search Request",
+      9942
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Shopping Cart": [
+     [
+      "Customer Registration",
+      4099
+     ],
+     [
+      "Home",
+      8883
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ]
+   }
+  },
+  "ordering": {
+   "printed_mix": {
+    "Admin Confirm": "0.11%",
+    "Admin Request": "0.12%",
+    "Best Sellers": "0.46%",
+    "Buy Confirm": "10.18%",
+    "Buy Request": "12.73%",
+    "Customer Registration": "12.86%",
+    "Home": "9.12%",
+    "New Products": "0.46%",
+    "Order Display": "0.22%",
+    "Order Inquiry": "0.25%",
+    "Product Detail": "12.35%",
+    "Search Request": "14.53%",
+    "Search Results": "13.08%",
+    "Shopping Cart": "13.53%"
+   },
+   "thresholds": {
+    "Admin Confirm": [
+     [
+      "Home",
+      8348
+     ],
+     [
+      "Search Request",
+      9999
+     ]
+    ],
+    "Admin Request": [
+     [
+      "Admin Confirm",
+      8999
+     ],
+     [
+      "Home",
+      9999
+     ]
+    ],
+    "Best Sellers": [
+     [
+      "Home",
+      1
+     ],
+     [
+      "Product Detail",
+      333
+     ],
+     [
+      "Search Request",
+      9998
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Buy Confirm": [
+     [
+      "Home",
+      2
+     ],
+     [
+      "Search Request",
+      9999
+     ]
+    ],
+    "Buy Request": [
+     [
+      "Buy Confirm",
+      7999
+     ],
+     [
+      "Home",
+      9453
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Customer Registration": [
+     [
+      "Buy Request",
+      9899
+     ],
+     [
+      "Home",
+      9901
+     ],
+     [
+      "Search Request",
+      9999
+     ]
+    ],
+    "Home": [
+     [
+      "Best Sellers",
+      499
+     ],
+     [
+      "New Products",
+      999
+     ],
+     [
+      "Order Inquiry",
+      1269
+     ],
+     [
+      "Search Request",
+      1295
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "New Products": [
+     [
+      "Home",
+      504
+     ],
+     [
+      "Product Detail",
+      9942
+     ],
+     [
+      "Search Request",
+      9976
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Order Display": [
+     [
+      "Home",
+      9939
+     ],
+     [
+      "Search Request",
+      9999
+     ]
+    ],
+    "Order Inquiry": [
+     [
+      "Home",
+      1168
+     ],
+     [
+      "Order Display",
+      9968
+     ],
+     [
+      "Search Request",
+      9999
+     ]
+    ],
+    "Product Detail": [
+     [
+      "Admin Request",
+      99
+     ],
+     [
+      "Home",
+      3750
+     ],
+     [
+      "Product Detail",
+      5621
+     ],
+     [
+      "Search Request",
+      6341
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Search Request": [
+     [
+      "Home",
+      815
+     ],
+     [
+      "Search Results",
+      9815
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Search Results": [
+     [
+      "Home",
+      486
+     ],
+     [
+      "Product Detail",
+      7817
+     ],
+     [
+      "Search Request",
+      9998
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Shopping Cart": [
+     [
+      "Customer Registration",
+      9499
+     ],
+     [
+      "Home",
+      9918
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ]
+   }
+  },
+  "shopping": {
+   "printed_mix": {
+    "Admin Confirm": "0.09%",
+    "Admin Request": "0.10%",
+    "Best Sellers": "5.00%",
+    "Buy Confirm": "1.20%",
+    "Buy Request": "2.60%",
+    "Customer Registration": "3.00%",
+    "Home": "16.00%",
+    "New Products": "5.00%",
+    "Order Display": "0.66%",
+    "Order Inquiry": "0.75%",
+    "Product Detail": "17.00%",
+    "Search Request": "20.00%",
+    "Search Results": "17.00%",
+    "Shopping Cart": "11.60%"
+   },
+   "thresholds": {
+    "Admin Confirm": [
+     [
+      "Home",
+      9952
+     ],
+     [
+      "Search Request",
+      9999
+     ]
+    ],
+    "Admin Request": [
+     [
+      "Admin Confirm",
+      8999
+     ],
+     [
+      "Home",
+      9999
+     ]
+    ],
+    "Best Sellers": [
+     [
+      "Home",
+      167
+     ],
+     [
+      "Product Detail",
+      472
+     ],
+     [
+      "Search Request",
+      9927
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Buy Confirm": [
+     [
+      "Home",
+      84
+     ],
+     [
+      "Search Request",
+      9999
+     ]
+    ],
+    "Buy Request": [
+     [
+      "Buy Confirm",
+      4614
+     ],
+     [
+      "Home",
+      6546
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Customer Registration": [
+     [
+      "Buy Request",
+      8666
+     ],
+     [
+      "Home",
+      8760
+     ],
+     [
+      "Search Request",
+      9999
+     ]
+    ],
+    "Home": [
+     [
+      "Best Sellers",
+      3124
+     ],
+     [
+      "New Products",
+      6249
+     ],
+     [
+      "Order Inquiry",
+      6718
+     ],
+     [
+      "Search Request",
+      7026
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "New Products": [
+     [
+      "Home",
+      156
+     ],
+     [
+      "Product Detail",
+      9735
+     ],
+     [
+      "Search Request",
+      9784
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Order Display": [
+     [
+      "Home",
+      69
+     ],
+     [
+      "Search Request",
+      9999
+     ]
+    ],
+    "Order Inquiry": [
+     [
+      "Home",
+      72
+     ],
+     [
+      "Order Display",
+      8872
+     ],
+     [
+      "Search Request",
+      9999
+     ]
+    ],
+    "Product Detail": [
+     [
+      "Admin Request",
+      58
+     ],
+     [
+      "Home",
+      832
+     ],
+     [
+      "Product Detail",
+      1288
+     ],
+     [
+      "Search Request",
+      8603
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Search Request": [
+     [
+      "Home",
+      635
+     ],
+     [
+      "Search Results",
+      9135
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Search Results": [
+     [
+      "Home",
+      2657
+     ],
+     [
+      "Product Detail",
+      9294
+     ],
+     [
+      "Search Request",
+      9304
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ],
+    "Shopping Cart": [
+     [
+      "Customer Registration",
+      2585
+     ],
+     [
+      "Home",
+      9552
+     ],
+     [
+      "Shopping Cart",
+      9999
+     ]
+    ]
+   }
+  }
+ },
+ "session_start": "Home",
+ "source": {
+  "clause": "5.2.2.4 (Thresholds tables; selection rule 5.2.2.3), PDF pp. 105-106 (printed pp. 99-100); mix table 5.2.1, PDF p. 104",
+  "copy_read": "https://web.archive.org/web/20030322015529/http://tpc.org:80/tpcw/spec/tpcw_V1.8.pdf",
+  "cross_check": "TPC-W draft D-5.5 (tpc.org) agrees on 134 of 135 cells",
+  "document": "TPC Benchmark W (Web Commerce) Specification, Version 1.8, 2002-02-19, Transaction Processing Performance Council",
+  "pdf_sha256": "d74231b78dadbcc0d7cc37608299ffb0749238a9ff7c1f2662d68c20bda0c65e",
+  "rule": "5.2.2.3: draw r uniform on 1..9999 and take the option whose Threshold is equal to or most immediately greater than r; P(option k) = (T_k - T_(k-1)) / 9999",
+  "session_start": "2.2.20: the first web interaction of a User Session is always a Home web interaction",
+  "think_time": "5.3.1.1: negative exponential, mean 7 to 8 s; truncated at 10 x mean (Comment 1)",
+  "transcribed_by": "agent_workspace T-018 (tpcw_mixes.csv sha256 b27fdd2eda11feff024d3f327d0c285f236cca9da66022bd646584e5fb0f6a1b), accepted by the orchestrator's review 2026-10-30",
+  "url": "http://www.tpc.org/tpcw/spec/tpcw_V1.8.pdf (no longer served)"
+ },
+ "states": [
+  "Admin Confirm",
+  "Admin Request",
+  "Best Sellers",
+  "Buy Confirm",
+  "Buy Request",
+  "Customer Registration",
+  "Home",
+  "New Products",
+  "Order Display",
+  "Order Inquiry",
+  "Product Detail",
+  "Search Request",
+  "Search Results",
+  "Shopping Cart"
+ ]
+}

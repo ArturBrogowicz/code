@@ -1,0 +1,69 @@
+{
+ "format": "p1-prereg-3/1",
+ "date": "2026-11-03",
+ "decisions": "T-051, the orchestrator's fix round on the independent review T-050 (findings T050-01 to -04, -07, -08, -09's recording, -11 to -13, -15 to -17). T050-05, -06, -09's rule, -10 and -14 are the user's, and are not here",
+ "status": "post hoc to docs/L7V2_DESIGN.md and to ml/p1_prereg.json and ml/p1_prereg_2.json, which stand; before any P1 data and before the code it judges. Every number marked [ASSUMPTION] is my choice, labelled, and judges a run's validity, never an arm",
+ "generator": {
+  "findings": "T050-03, -04, -16; ml/l7_gen.py, shared with P3 and P4: before any capture",
+  "drain_s": 5.0,
+  "hard_exit_s": 7.0,
+  "rule": "a generator's deadline bounds every kind and every view. No request starts after its end + drain_s, and no wait lasts past it; a think time is cut at its end. A view in flight at the end may finish within drain_s, so a healthy client's last view keeps its rows; a request hanging at end + drain_s is abandoned, and its row written with its error. At end + hard_exit_s the process exits whatever it is doing, with what it has written, and code 0: an arm that banned it did not break it",
+  "why": "eval/p4_runner.py STOP_GRACE_S, 10 s, still makes a generator alive past it invalid, which now means a stall of the machine, not an arm's ban or a downloader's think time",
+  "stream": "no draw moves: a cut sleep has already drawn its length"
+ },
+ "run_validity": {
+  "findings": "T050-07, -08, -11. A run failing one is invalid, with its reason; it is re-run or excluded as any invalid run",
+  "enforcing": {
+   "feed": "the largest parsed count of the l7_shadow reports is above 0, and at least parsed_min_share of the file sink's lines; the loss is reported per run (design section 15)",
+   "parsed_min_share": 0.5,
+   "parsed_min_share_status": "[ASSUMPTION] below it the arm is blind by a fault, not by a live system's ordinary loss, which is the arm's own and stays in the run",
+   "reload": "when the run holds an l7_deny, an l7_reload with ok true follows the first one within reload_within_s, and the last l7_reload up to the run's end is ok",
+   "reload_within_s": 30.0,
+   "reload_within_s_status": "[ASSUMPTION] l7_enforce.py RELOAD_MIN_S is 10 s, so this is three chances",
+   "step_errors": "a daemon_error at l7_enforce in the attack window"
+  },
+  "attack": {
+   "seen": "at least attack_seen_min_share of the run's attack addresses are in the file sink by the attack's end",
+   "attack_seen_min_share": 0.9,
+   "attack_seen_min_share_status": "[ASSUMPTION] every bot's first request precedes any action on it, so a shortfall is a broken run: a source that did not bind, a route, a generator that died"
+  },
+  "file_sink": "ml/p1_prereg.json's limit of 10 s on the file sink's silence now reads the benign addresses only, from the attack's start to the run's end, so that an attack's lines cannot hide a stalled benign CPU. At nominal times their silence there is at most 3.8 s on the 18 seeds of p1_pilot and p1_live_eval at any halvings; before the attack it reaches 17.4 s at 2 halvings, which judges nothing",
+  "timer_gate": "before a run, the harm benchmark's gate (bench/executor.py timer_gate) on the legit CPU, at the record's validity.timer_p99_ms, with its wait: a run it refuses starts nothing and is invalid. Its probes go into run.json"
+ },
+ "one_setting": {
+  "findings": "T050-12, -17",
+  "rule": "every block of a campaign has the same record, knees, factor, both selections, point check and code hashes, or the block is refused; the analysis refuses blocks that differ from each other or from its own arguments",
+  "provenance_adds": [
+   "l7_rule_engine.py",
+   "l7_ingest.py",
+   "l7_features.py",
+   "l7_scorer.py",
+   "ml/l7v2_rules.py",
+   "ml/p1_prereg.json",
+   "ml/p1_prereg_2.json",
+   "ml/p1_prereg_3.json"
+  ],
+  "order": "a campaign's order does not read a free label",
+  "index": "a run is in ROOT/index.jsonl before it begins and when it ends; one with no end was a runner's death, and is invalid",
+  "executor_cpu": "the runner keeps to the pin plan's executor CPU (bench/population.PIN_PLAN_DAEMON), off the legit CPU and the server's"
+ },
+ "ladder": {
+  "findings": "T050-13",
+  "rule": "per (class, level, repeat) the harm is the last attempt's with both runs sound; a level none of whose attempts is sound is no harm. A re-run needs a reason: the attempt before it had an invalid run",
+  "knees_file": "--ladder writes the file --knees takes, bound to the record and the factor, so that no hand step lies between them",
+  "no_knee": "a class without a knee is null in that file, named there, and a campaign that needs it refuses and says so; what it means for the verdict is not decided here"
+ },
+ "reported": {
+  "findings": "T050-09's recording, T050-11, T050-15; descriptive, judging nothing",
+  "server_q": "the server-side Q of every live arm's runs, beside Q, per block",
+  "health_file": "each control's server-side Q, legit CPU share and largest view slip, in the rule's file",
+  "view_slip": "per run, the largest gap between a device's intended view start and its actual one, with its entity and time: a stall in mid-life shows here, where no validity rule sees it",
+  "runner": "per run, the largest launch lag and the largest gap of the runner's own loop",
+  "late_window": {
+   "from_attack_start_s": 180.0,
+   "to": "the attack's end",
+   "text": "Q over [210, 240) s, where arrivals have ended and no source is younger than 30 s, beside the level window's, so that a speed effect can be told from a removal effect"
+  },
+  "socket_loss": "1 - parsed / the file sink's lines, per enforcing run"
+ }
+}

@@ -53,7 +53,7 @@ VALIDITY_KEYS = ("profile", "slip_pooled_s", "slip_delta_s", "strict_slip_p99_s"
                  "timer_p99_ms")
 CANNOT_HARM = "cannot harm this server within the generator limit"
 RHO_SHARE = 0.5                          # the legit load is this share of the SLO capacity (design 6.1)
-DRIFT_Q_PP, DRIFT_P95 = 2.0, 0.25        # design 7.2 step 7
+DRIFT_Q_PP, DRIFT_P95 = 2.0, 0.25        # design 7.2 step 7, for the legit probe; an attack run has the record's gate floors (drift_attack_ok)
 
 
 class RecordError(ValueError):
@@ -301,12 +301,27 @@ def knee(ladder, floor, repeats=2):
 
 
 def drift_ok(frozen_q, frozen_p95, q, p95):
-    """Design 7.2 step 7: `Q` within 2 pp and p95 within 25 % of the frozen values, else no campaign starts."""
+    """Design 7.2 step 7, for the legit probe: `Q` within 2 pp and p95 within 25 % of the frozen values, else no campaign starts."""
     reasons = []
     if abs(q - frozen_q) > DRIFT_Q_PP + 1e-9:
         reasons.append(f"Q {q:g} against {frozen_q:g} frozen (more than {DRIFT_Q_PP:g} pp)")
     if frozen_p95 <= 0 or abs(p95 - frozen_p95) / frozen_p95 > DRIFT_P95 + 1e-9:
         reasons.append(f"p95 {p95:g} against {frozen_p95:g} frozen (more than {DRIFT_P95:.0%})")
+    return not reasons, reasons
+
+
+def drift_attack_ok(gate, frozen_q, frozen_p95, q, p95):
+    """Design 7.2 step 7 for an attack run, as departed from on 2026-11-04 (docs/HG1C_DESIGN.md departure 33, D-062): `Q` within the
+    record's gate.floor_pp and p95 within its gate.floor_log2_p95, in log2, of the frozen values, else no campaign starts. The reasons
+    name the tolerance that failed. A `Q` or a p95 that is missing, or a p95 that is not positive, cannot be compared and fails."""
+    floor_pp, floor_log2 = gate["floor_pp"], gate["floor_log2_p95"]
+    reasons = []
+    if q is None or abs(q - frozen_q) > floor_pp + 1e-9:
+        reasons.append(f"Q {'none' if q is None else format(q, 'g')} against {frozen_q:g} frozen (more than the gate's floor_pp, {floor_pp:g} pp)")
+    if p95 is None or p95 <= 0 or frozen_p95 <= 0:
+        reasons.append(f"p95 {'none' if p95 is None else format(p95, 'g')} against {frozen_p95:g} frozen (cannot be compared)")
+    elif abs(math.log2(p95 / frozen_p95)) > floor_log2 + 1e-9:
+        reasons.append(f"p95 {p95:g} against {frozen_p95:g} frozen (more than the gate's floor_log2_p95, a factor of {2 ** floor_log2:g})")
     return not reasons, reasons
 
 

@@ -24,7 +24,7 @@ the data it will judge; **[RISK]** a hazard with its mitigation.
 
 | # | Decision | State |
 |---|---|---|
-| D14 | O4: the legit streams run on vCPU 6 (the healthy one), generator validity is relative to the control (a ceiling and a difference; the ceiling is pooled since 9.7), no `--spin-ms` for populations (allowed on at most four attack streams), the environment gate judges the timers on the vCPU of the legit streams | approved 2026-10-23 |
+| D14 | O4: the legit streams run on vCPU 6 (the healthy one; amended 2026-10-31 by the user to vCPU 7, with the timer gate: section 4), generator validity is relative to the control (a ceiling and a difference; the ceiling is pooled since 9.7), no `--spin-ms` for populations (allowed on at most four attack streams), the environment gate judges the timers on the vCPU of the legit streams | approved 2026-10-23 |
 | D15 | Deltas 1-10 of section 3 | approved 2026-10-23 |
 | D16 | The executor and the calibration runner are HG1c, with their own design note and approval | acknowledged |
 | D17 | The full cut: commits 0-7 | approved 2026-10-23 |
@@ -53,9 +53,15 @@ below 50 ms; neither can be met on most vCPUs.
 
 **Rules, frozen before any gate data.**
 
-1. **Pinning [PROPOSAL, replaces design 7.4].** Server stack CPUs 0-1, daemon CPU 2, **legit streams CPU 6**, attack streams CPUs 3, 4, 5 and 7.
+1. **Pinning [PROPOSAL, replaces design 7.4].** Server stack CPUs 0-1, daemon CPU 2, **legit streams CPU 6**, attack streams CPUs 3, 4, 5 and 7 (as approved on 2026-10-23; amended below).
+   **D14 amended 2026-10-31 by the user, before any capacity data (AP-1's origin step runs on CPU 0, unaffected; D-032):** the legit
+   streams, and the timer gate with them (rule 2: one probe, p99 below 10 ms, the limit unchanged), move to **CPU 7**, which the latest
+   idle timer probes found the quietest (T-000, 2026-10-29: only CPU 7 under 10 ms p99; CPU 6 at 12.6 ms) [CLAIMED, T-000/T-004]; the
+   attack streams take CPU 6 in exchange and keep four CPUs, 3-6, so their planned CPU share does not change; nothing else uses CPU 7.
+   `population.PIN_PLAN` = server 0-1, daemon 2, legit 7, attack 3-6, pinned by a test.
 2. **Environment gate.** The timer probe (200 x 10 ms) is judged on the CPU of the legit streams: p99 below 10 ms. The other CPUs are
-   recorded, not judged. The probe is repeated before every run, as the harness already does.
+   recorded, not judged. The probe is repeated before every run, as the harness already does. Since 2026-11-01 (D-045; HG1C departure 30) a refused probe is
+   made again within the wait, at the same limit.
 3. **Generator validity, profile `relative` (the default).** A stream is invalid when its CPU share exceeds 0.70, when it sent fewer
    than 99 % of its intended requests, when it ran out of descriptors or ports, or, for a legit stream, when it dropped a request. Slip is a
    difference, not an absolute: the p99 slip of the legit streams in a run may exceed the control's by at most 50 ms and may not
@@ -66,7 +72,7 @@ below 50 ms; neither can be met on most vCPUs.
    are not repeated.
 
 **Not decided here.** Whether idle-priority busy loops on the other vCPUs would remove the lateness at its root (it needs a short VM probe and
-changes the system under test). It is the fallback if the environment gate of 2 fails on vCPU 6 in HG2.
+changes the system under test). It is the fallback if the environment gate of 2 fails on the legit streams' vCPU in HG2 (vCPU 7 since the amendment of 1; vCPU 6 before).
 
 ## 5. Contracts
 
@@ -92,7 +98,8 @@ A JSON object with: `schema` (1), `status` (`placeholder` or `frozen`), `created
 The hash is that of the canonical JSON (sorted keys, no whitespace) without the `sha256` key. Derived, never stored: `rho = 0.5 c_slo`, the mean
 cost of the mix, and the spare capacity `S = (c_slo - rho) x mean cost` in CPU-seconds per second. The knee rule is the design's (7.2 step 4): the lowest
 level whose harm reaches the floor in both repeats; none means "cannot harm this server within the generator limit". The drift check
-reproduces `Q` within 2 pp and p95 within 25 % (7.2 step 7).
+reproduces `Q` within 2 pp and p95 within 25 % (7.2 step 7); an attack run, since 2026-11-04, within the gate's floors, 10 pp and a factor of 2 (D-062; HG1C
+departure 33).
 
 ### 5.3 Populations (`bench/population.py`)
 

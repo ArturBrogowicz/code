@@ -1,0 +1,119 @@
+{
+ "format": "l7v2-model-prereg/1",
+ "source": "docs/L7V2_DESIGN.md sections 8, 10, 11 and 13 (approved 2026-10-30 as recommended: D-V5 two-level model, navigation features, (IP, UA, sid) keying, class-preserving probe gate; D-V8 every arm tuned on validation seeds to the same benign budget); docs/P3_DATASET_DESIGN.md sections 4.8 and 6",
+ "rule": "The model side of L7 v2, frozen by commit before any L7 v2 or P3 capture (design section 13; the operating points themselves come later, from validation only). A change is a new file version, labelled post hoc in the design's 'As built' section; tests/test_l7v2_model_prereg.py pins every value, and each module's constants are tested against this file.",
+ "keying": {
+  "key": ["ip", "ua_h", "sid_h"],
+  "sid_fields": ["sid_set", "sid"],
+  "sid_rule": "sid_h = stable_hash32 of sid_set when the answer set a session (a session's first request), else of the request's sid cookie; with neither, sid_h = no_sid and the key is (IP, ua_h) as before",
+  "absent": ["", "-"],
+  "no_sid": -1,
+  "sid_is_a_feature": false,
+  "note": "design 8.3: the sid separates CGNAT users whose UAs collide; it is a key component only"
+ },
+ "ingest": {
+  "hashed": {"uri": "uri_h", "ua": "ua_h", "ref": "ref_h", "sid": "sid_h"},
+  "hash": "l7_ingest.stable_hash32; the raw URI, UA, Referer and cookies are dropped after hashing",
+  "ref_rule": "the Referer's path and query (scheme and authority dropped) is hashed like the URI, so ref_h equals the uri_h of the page it names; absent: None",
+  "route_class": "l7_webapp.route_class(method, uri), computed at ingest from the raw URI before it is dropped (design 8.2: class-level semantics may enter, identities may not)",
+  "idle_timeout_s": 300.0,
+  "idle_note": "a key idle longer than this starts a new session: the engine evicts it, the trainer splits it at that start-time gap"
+ },
+ "site_map": {"page": ["C1"], "asset": ["C0"], "costly": ["C3", "C5"], "source": "l7_webapp.route_class"},
+ "request_level": {
+  "nav_features": ["is_page", "is_asset", "is_costly", "asset_refetch", "page_revisit", "ref_present", "ref_known", "log_page_gap"],
+  "nav_history": "within the window, as uri_repeat: refetch, revisit and ref_known look at the window's earlier requests only",
+  "page_gap_clip_s": 3600.0,
+  "groups": ["timing", "completion", "status", "method", "connection", "uri", "ratelimit", "nav"],
+  "groups_note": "design 8.2: the P5 default groups without server_timing (R17) and without size, as P5c's published variant no_size_no_server_timing; protocol stays off; plus nav",
+  "groups_label": "re-registered 2026-10-31 under D-034 (the user's 'Approve all three', 2026-10-31T12:10:57Z), post hoc but before any capture (T038-03): the size group (log_rlen, log_bsent, size_ratio) is dropped; no view arm sees sizes, and with C3b aimed at export the response size would tell an export from a search for the request arm only",
+  "seq_len": 64,
+  "stride": 3,
+  "min_events": 5,
+  "use": "the per-request GRU, an offline ablation (design 8.1, 10)"
+ },
+ "views": {
+  "max_views": 32,
+  "min_views": 4,
+  "order": "request start time (msec - rt); ties in arrival order",
+  "open_rule": "a page request (route class C1) opens a view; the key's following non-page requests belong to it until the next page request",
+  "pageless_rule": "a request that arrives while the key has no open page view (before its first page in the window) is a pageless token of its own, so keys that never load a page (C2, API clients) are still scored",
+  "closed_rule": "a token is complete when the key's next token starts; its dwell is the gap between the two starts; only complete tokens are scored, the open one never",
+  "history": "within the window: the window's tokens are recomputed from its own requests, so revisit, refetch and ref_known look back over the window only",
+  "dwell_clip_s": 3600.0,
+  "count_clip": 10000,
+  "token_features": ["log_dwell", "log_n_req", "asset_share", "asset_refetch_share", "log_n_costly", "page_view", "page_revisit", "ref_present", "ref_known", "s2xx_share", "s3xx_share", "s4xx_share", "s5xx_share", "get_share", "post_share", "other_share", "new_conn_share"],
+  "token_note": "design 8.1's list: log dwell, request count and asset share, refetched-asset share, costly count, page revisit, referrer present and known, status and method mix, new-connection share; page_view marks a page view against a pageless token",
+  "summary": {"per_column": ["mean", "std", "max"], "counts": ["n_views", "log_n_req_total", "log_span", "log_rate"]},
+  "summary_note": "design 8.2: the HGB and the LR get the same tokens summarized, so a GRU win has to come from order"
+ },
+ "models": {
+  "view_gru": {"level": "view", "embed": 32, "hidden": 64, "layers": 2, "dropout": 0.2, "epochs": 25, "lr": 0.001, "batch": 128},
+  "request_gru": {"level": "request", "hidden": 64, "layers": 2, "dropout": 0.2, "epochs": 25, "lr": 0.001, "batch": 128},
+  "hgb": {"input": "token summaries", "max_iter": 200, "class_weight": "balanced", "early_stopping": false},
+  "lr": {"input": "token summaries", "scaler": "standard", "max_iter": 3000, "class_weight": "balanced"},
+  "gru_shuffled": {"what": "the fitted view GRU scoring windows whose tokens are shuffled within the window", "operating_point": "the view GRU's (theta, k), applied unchanged (design 10)", "shuffle_seed": 7, "pin_first": "a variant that keeps each window's first valid token in place and shuffles the others, at the same (theta, k) (T038-05: every C3b window starts with the key's entry token)", "report": "at the view GRU's (theta, k), the benign units each shuffled variant flags are reported beside every gap", "label": "pin_first and report re-registered 2026-10-31 under D-034, before any capture (T038-05)"},
+  "training": "Adam, BCE with logits; fixed epochs (each model's epochs), the last epoch's weights kept: no epoch or iteration count is chosen on validation (docs/P3_DATASET_DESIGN.md 6.1); one class weighting for every learned arm, balanced: the GRUs' pos_weight = negatives / positives of the training windows, the LR's and the HGB's class_weight 'balanced'; the HGB without early stopping (max_iter iterations); no architecture search",
+  "training_label": "re-registered 2026-10-31 under D-034, before any capture (T038-04); before, the GRUs kept the epoch with the lowest loss on the validation windows, and the HGB had no class weight and sklearn's automatic early stopping on 10 % of its training windows",
+  "fit_seed": 0,
+  "threads_max": 2
+ },
+ "probes": {
+  "gate_v2": ["ua_swap", "uri_bijection_class", "sid_swap", "time_offset", "server_load"],
+  "gate_p5c": ["ua_swap", "uri_bijection", "time_offset", "server_load"],
+  "exact_tol": 1e-05,
+  "flip_tol": 0.05,
+  "load_factor": 10.0,
+  "max_windows": 2000,
+  "data": "validation records only",
+  "uri_bijection_class": "a random bijection of the window's URI identities onto new ones within each route class (every request keeps its route class); the same map renames the Referers, so the site graph, revisits and referrer consistency are kept",
+  "sid_swap": "a random bijection of the window's session ids onto new ones (absent stays absent)",
+  "change": "a change to a hard gate, approved with the design (D-V5, 2026-10-30): the L7 v2 gate uses uri_bijection_class where P5c used uri_bijection, which renames paths at random and so fails any model that reads a route class or the referrer's consistency by construction (F-V8); sid_swap is new. The P5c gate and probe stay reachable for reproducing P5c."
+ },
+ "selection": {
+  "data": "validation captures only (docs/P3_DATASET_DESIGN.md 4.8); evaluation is scored by a separate step that refuses without the frozen selection",
+  "budget": 0.01,
+  "budget_units": "benign users: l7_dataset.user_units of the validation manifests (a pool counts by its users), pooled over the validation captures; allowed = floor(budget x units)",
+  "unit_cost": "a flagged key costs one unit of its entity; an entity's flagged units are min(its flagged keys, its units)",
+  "objective": "max attack-entity recall over the validation attack entities; an entity is caught when any of its keys is flagged",
+  "ties": ["fewer benign units flagged", "lower median time to decision of the caught attack entities", "grid order"],
+  "grid_order": "k in k_grid order, then theta in theta_grid order; the first point wins an exact tie",
+  "theta_grid": [0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.98, 0.99, 0.995, 0.999],
+  "k_grid": [1, 2, 3, 5, 8],
+  "policy": "p > theta in k consecutive scored windows of a key (design 9.1)",
+  "policy_engine": "at the view level the k consecutive windows are those the live engine would score: of the windows a key completes between two polls (polls at whole seconds of the log clock, poll_s apart; a window belongs to the first poll after its completion), only the newest engine.max_new_windows_per_key_per_poll are scored, the older ones are skipped and counted; the request level, an offline ablation that no engine runs, scores every window",
+  "policy_engine_poll_s": 1.0,
+  "policy_engine_label": "re-registered 2026-10-31 under D-034, before any capture (T038-06): before, the evaluator scored every window, so k consecutive could differ from the engine's on a key that completes more than 4 windows in one poll",
+  "time_to_decision": "from the entity's first request start to the completion (msec) of the request that closed the deciding window",
+  "probe_gate": "an arm that fails the v2 gate gets no operating point and cannot be selected",
+  "arms": ["view_gru", "hgb", "lr", "request_gru", "gru_shuffled"]
+ },
+ "baselines": {
+  "age_only": {
+   "label": "registered 2026-10-31 under D-034 (the user's 'Approve all three', 2026-10-31T12:10:57Z), before any capture (T038-01)",
+   "score": "the key-level time since the key's first view: for a view window, the start of the request that completes it minus the start of its key session's first token; p = the share of the training benign windows whose age is greater (ties count one half), so a younger window scores higher and the theta grid reads quantiles of the benign training ages",
+   "windows": "the view arms' windows (train_l7v2.view_windows), the same keys, sessions and denominators",
+   "operating_point": "chosen on validation by the selection rules of every arm (budget, grids, ties, policy); no probe gate: it reads start times only; a diagnostic, never selected or run live",
+   "reading": "near chance on validation: the AUC of p, attack windows against benign windows pooled over the validation captures, must lie within 0.5 +- auc_band; outside the band the validation captures carry key age, and every view-level result on them is labelled age-confounded: none supports V-A or 'sequence helps'. Its AUC per core family and its recall and benign units at its operating point are reported beside the arms",
+   "auc_band": 0.15
+  }
+ },
+ "load_split": {
+  "label": "registered 2026-10-31 under D-034, before any capture (T038-02); descriptive, never a gate",
+  "data": "validation captures only, every arm (and the age-only baseline) at its own operating point",
+  "phase_rule": "a window is inside an attack phase when its completion, in seconds from the manifest's timeline.t0_wall, lies in [start_s, stop_s) of a phase of the manifest's timeline; otherwise outside (lead-in, tail)",
+  "benign": "the share of benign windows with p > theta inside and outside the attack phases, with their counts",
+  "recall_by_load": "attack-entity recall per load level: the intensity multiplier the plan records for the phase of the entity's schedule (C3b's is recorded and not applied)",
+  "why": "the v2 probe gate is a pipeline-invariance check: server_load holds request starts fixed and view tokens read start times only, so it cannot fail a view arm, while closed-loop load reaches dwell, span and rate"
+ },
+ "engine": {
+  "observe_only": true,
+  "min_views": 4,
+  "max_records_per_key": 2048,
+  "max_new_windows_per_key_per_poll": 4,
+  "evict_every_s": 5.0,
+  "contamination_max": 0.5,
+  "gates": "flood suppression and the age gate of the P5 engine, unchanged; min_events becomes min_views",
+  "event": "l7_would_ban with the key (ip, ua_h, sid_h) and level view; no ban path (the enforcing arm is T-025c)"
+ }
+}

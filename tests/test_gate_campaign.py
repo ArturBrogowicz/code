@@ -121,6 +121,118 @@ class OrderTest(unittest.TestCase):
         self.assertEqual(sorted(names), ["b01_a1", "b01_a2", "b02_a1", "b02_a2", "b10_a1", "b10_a2"])
 
 
+class ProtectedCampaignTest(CampaignCase):
+    """G6: blocks with the protected runs: C, Cp, U and M_<mode> in a drawn order, every run on the daemon's pin plan, the re-run
+    rule on the whole block, the budget of blocks of four runs or more, and the gate's protected-arm verdict at the end."""
+
+    def test_the_order_draws_the_protected_runs_with_the_others_and_is_unchanged_without_them(self):
+        for b in range(1, 11):
+            self.assertEqual(sorted(GC.run_order(self.scn, b, 1, ("xdp",))), ["C", "Cp", "M_xdp", "U"])
+        self.assertEqual(len({tuple(GC.run_order(self.scn, b, 1, ("xdp",))) for b in range(1, 300)}), 24)
+        self.assertEqual([GC.run_order(self.scn, b, a, ()) for b in range(1, 8) for a in (1, 2)],
+                         [GC.run_order(self.scn, b, a) for b in range(1, 8) for a in (1, 2)])
+
+    def test_a_protected_campaign_makes_every_block_with_its_arm_on_the_daemons_pins(self):
+        state = self.run_campaign(modes=("xdp",))
+        self.assertEqual(state["state"], "complete")
+        self.assertEqual((state["fingerprint"]["modes"], state["fingerprint"]["pins"]), (["xdp"], X.P.PIN_PLAN_DAEMON))
+        for d in self.dirs():
+            meta = self.json(d, "block.json")
+            self.assertEqual((sorted(meta["order"]), meta["planned_order"]), (["C", "Cp", "M_xdp", "U"], meta["order"]))
+            for kind in meta["order"]:
+                self.assertEqual(self.json(d, kind, "plan.json")["pins"], X.P.PIN_PLAN_DAEMON, (d, kind))
+                env = self.json(d, kind, "environment.json")     # T-039 V-33: in every arm alike, recorded, not judged
+                self.assertEqual((env["timer_executor_cpus"], env["timer_executor"]["samples"]), ("6", 200), (d, kind))
+        self.assertEqual([(p["mode"], p["verdict"]) for p in state["gate"]["protected"]], [("xdp", "INVALID")],
+                         "three blocks: fewer than the outcome needs")
+        self.assertTrue(any(m.startswith("P2 outcome of M_xdp: INVALID") for m in self.say), self.say)
+        self.assertTrue([a for a in state["attempts"] if a["valid_all"]])
+
+    def test_a_block_whose_protected_run_is_unsound_is_made_again(self):
+        b = next(b for b in range(1, 11) if GC.run_order(self.scn, b, 1, ("xdp",))[-1] == "M_xdp")
+        state = self.run_campaign(modes=("xdp",), blocks=max(3, b), host=self.host(fault_schedule={4 * b: {"stream_dies": 1}}))
+        first = self.json(f"b{b:02d}_a1", "block.json")
+        self.assertEqual((first["aborted"], sorted(first["order"])), ("M_xdp", ["C", "Cp", "M_xdp", "U"]))
+        rows = {(a["block"], a["attempt"]): a for a in state["attempts"]}
+        self.assertEqual((rows[(b, 1)]["valid"], rows[(b, 1)]["valid_all"]), (True, False))
+        self.assertTrue(rows[(b, 1)]["arm_reasons"])
+        self.assertTrue(rows[(b, 2)]["valid_all"])
+        self.assertEqual(state["reruns"], 1)
+        result = H.analyse(self.path(), self.CAL, allow_overrides=True)
+        self.assertEqual((result["reruns"], [r for r in result["reasons"] if "re-run" in r]), (1, []))
+
+    def test_the_ban_file_of_an_unfinished_protected_run_is_kept_when_the_run_is_made_again(self):
+        self.run_campaign(modes=("xdp",), blocks=1)
+        run = self.path("b01_a1", "M_xdp")
+        os.remove(os.path.join(run, GC.DONE))
+        with open(self.path("b01_a1", "block.json"), encoding="utf-8") as fh:
+            meta = json.load(fh)
+        meta["complete"] = False
+        with open(self.path("b01_a1", "block.json"), "w", encoding="utf-8") as fh:
+            json.dump(meta, fh)
+        with open(os.path.join(run, H.BAN_FILE), "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"t_wall": 1.0, "kind": "ban", "ip": "10.0.1.7", "engine": "l7_rate"}) + "\n")
+        self.run_campaign(modes=("xdp",), blocks=1)
+        kept = self.path("b01_a1", f"M_xdp{H.UNFINISHED}1.{H.BAN_FILE}")
+        self.assertTrue(os.path.isfile(kept))
+        self.assertTrue(any("its ban file is kept as M_xdp.unfinished.1.ban_events.jsonl" in m for m in self.say), self.say)
+        result = H.analyse(self.path(), self.CAL, allow_overrides=True)
+        self.assertEqual(result["protected"][0]["protected"]["benign_blocked"], ["10.0.1.7"])
+
+    def test_the_plan_prints_the_arms_the_pins_the_outcome_and_the_budget(self):
+        text = GC.describe(self.scn, self.CAL, SPEC_SHA, GC.Options(blocks=10, modes=("xdp",)))
+        self.assertIn("a block is C, Cp, U, M_xdp in the order shown", text)
+        self.assertIn("pins         server 0-1, daemon 2, executor 6, legit 7, attack 3-5 for every run (the executor on CPU 6)", text)
+        self.assertIn("P2 outcome   pre-registered (harm_gate.P2_OUTCOME)", text)
+        self.assertIn("VM time      41 runs at about 150 s = 1.7 h; each re-run adds 10.0 min (4 runs); at most 2 re-runs, 20.0 min", text)
+        self.assertIn("a block whose protected run is not valid is not valid either", text)
+        self.assertRegex(text, r"\n    1     1  (C|Cp|U|M_xdp), (C|Cp|U|M_xdp), (C|Cp|U|M_xdp), (C|Cp|U|M_xdp)\n")
+
+    def test_a_reserved_or_repeated_mode_is_refused_before_anything_runs(self):
+        for modes, fragment in ((("l7",), "not built yet"), (("xdp", "xdp"), "each mode once"), (("iptables",), "kind")):
+            with self.subTest(modes=modes), self.assertRaisesRegex(GC.CampaignError, fragment):
+                self.run_campaign(modes=modes)
+        self.assertFalse(os.path.exists(self.path()))
+
+    def test_a_campaign_resumes_only_with_its_modes_and_pins_and_one_that_recorded_no_pins_is_refused(self):
+        """T-039 V-22: a record without pins was made before the campaigns recorded them, perhaps under D14's first plan (legit and
+        the timer gate on CPU 6; s4_1 of 2026-10-28 is one). It is read as that plan and refused, with or without modes, and nothing
+        is run in it; one that lacks only its modes resumes as before."""
+        self.run_campaign(modes=("xdp",), blocks=1)
+        with self.assertRaisesRegex(GC.CampaignError, "modes, pins"):
+            self.run_campaign(blocks=1)
+        self.assertEqual(self.run_campaign(out="old", blocks=1)["fingerprint"]["pins"], X.P.PIN_PLAN)
+        path = os.path.join(self.tmp.name, "old", GC.CAMPAIGN)
+        with open(path, encoding="utf-8") as fh:
+            state = json.load(fh)
+        state["fingerprint"].pop("modes")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(state, fh)
+        self.assertEqual(self.run_campaign(out="old", blocks=1)["state"], "complete")
+        state["fingerprint"].pop("pins")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(state, fh)
+        listed = sorted(os.listdir(os.path.join(self.tmp.name, "old")))
+        for modes in ((), ("xdp",)):
+            with self.subTest(modes=modes), self.assertRaises(GC.CampaignError) as ctx:
+                self.run_campaign(out="old", blocks=1, modes=modes)
+            text = str(ctx.exception)
+            self.assertIn("records no pin plan", text)
+            self.assertIn("before 2026-10-31 (D-032), server 0-1, daemon 2, legit 6, attack 3-5,7", text)
+            self.assertIn("would run with " + GC.pins_text(X.pins_for(GC.kinds_of(self.options(modes=modes)))), text)
+        self.assertEqual(sorted(os.listdir(os.path.join(self.tmp.name, "old"))), listed)
+        with open(path, encoding="utf-8") as fh:
+            self.assertNotIn("pins", json.load(fh)["fingerprint"], "the record is left as it was")
+
+    def test_the_command_line_takes_the_modes(self):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            self.assertEqual(GC.main(["plan", SPEC, "--calibration", self.cal_path, "--modes", "xdp"]), GC.EXIT_OK)
+            self.assertEqual(GC.main(["plan", SPEC, "--calibration", self.cal_path, "--modes", "l7"]), GC.EXIT_STOPPED)
+        self.assertIn("M_xdp", out.getvalue())
+        self.assertIn("not built yet", err.getvalue())
+
+
 class PlanTextTest(CampaignCase):
     def text(self, cal=None, **kw):
         return GC.describe(self.scn, cal or self.CAL, SPEC_SHA, self.options(**kw))
@@ -614,6 +726,109 @@ class StopTest(CampaignCase):
         resumed = self.run_campaign()
         self.assertEqual((resumed["state"], resumed["gate"]["verdict"]), ("complete", "PASS"))
         self.assertIsNone(self.state()["stopped"])
+
+    def test_an_origin_that_exits_during_a_run_ends_the_attempt_and_the_campaign_has_no_verdict_on_it(self):
+        """HG1C departure 34: unsound, not harm."""
+        state = self.run_campaign(host=self.host(origin_exit=(12.0, 3, "[ERROR] Worker failed to boot.\n")), blocks=1)
+        first = self.json("b01_a1", "block.json")
+        kind = first["planned_order"][0]
+        self.assertEqual((first["aborted"], first["runs"][kind]["ok"]), (kind, False))
+        self.assertTrue(any(r.startswith("the origin exited with 3") and r.endswith("Worker failed to boot.") for r in first["runs"][kind]["reasons"]),
+                        first["runs"][kind]["reasons"])
+        self.assertEqual(state["gate"]["verdict"], "INVALID")
+
+    def test_a_probe_refused_before_every_run_waits_and_moves_nothing_the_campaign_is_judged_on(self):
+        """HG1C departure 30: the wait comes before a run's own clock, so that no clock rule of a block can see it."""
+        plain = self.run_campaign(out="plain")
+        host = self.host(timer_p99_by_cpu={"7": [25.0, 1.0] * 9 + [1.0]})
+        waited = self.run_campaign(out="waited", host=host)
+        self.assertEqual(sum(s == X.TIMER_REPROBE_S for s in host.sleeps), 9)
+        for d in self.dirs("waited"):
+            with open(os.path.join(self.tmp.name, "waited", d, "block.json"), encoding="utf-8") as fh:
+                meta = json.load(fh)
+            for kind in meta["order"]:
+                with open(os.path.join(self.tmp.name, "waited", d, kind, "environment.json"), encoding="utf-8") as fh:
+                    self.assertEqual(json.load(fh)["timer_refused_probes"], 1, (d, kind))
+        self.assertEqual(waited["gate"], plain["gate"])
+        without = [[{k: v for k, v in a.items() if k != "waits"} for a in s["attempts"]] for s in (waited, plain)]
+        self.assertEqual(without[0], without[1], "the waits are the only difference, and they judge nothing")
+
+    def test_a_blocks_waits_are_in_its_record_the_campaigns_summary_the_status_and_the_report(self):
+        """T-047 G-02: drift between the arms of a block can be seen."""
+        order = GC.run_order(self.scn, 1, 1)
+        with self.assertRaises(X.EnvironmentRefused):
+            self.run_campaign(host=self.host(timer_p99_ms=25.0), wait_gate_min=1.0, blocks=1)
+        host = self.host(timer_p99_by_cpu={"7": [25.0, 25.0, 1.0]})
+        state = self.run_campaign(host=host, blocks=1)
+        meta = self.json("b01_a1", "block.json")
+        self.assertEqual((meta["runs"][order[0]]["timer_refused_probes"], meta["runs"][order[0]]["timer_waited_s"]), (2, 60.0))
+        self.assertEqual(self.json("b01_a1", order[1], GC.DONE)["timer_refused_probes"], 0)
+        waits = state["attempts"][0]["waits"]
+        first = waits["runs"][order[0]]
+        self.assertEqual((first["refused_probes"], first["waited_s"], first["t0_after_first_s"]), (2, 60.0, 0.0))
+        self.assertEqual([(e["refused_probes"], e["waited_s"]) for e in first["earlier"]], [(3, 60.0)], "before the resume")
+        self.assertGreater(waits["t0_span_s"], 0.0)
+        self.assertEqual(waits["runs"][order[1]]["earlier"], [])
+        with open(self.path("gate.md"), encoding="utf-8") as fh:
+            report = fh.read()
+        self.assertIn("## Timer waits (recorded, not judged)", report)
+        self.assertRegex(report, rf"\| 1 \| 1 \| \d+ \| {order[0]} 2/60 s at \+0 s \(\+3 refused, 60 s in 1 earlier stop\), {order[1]} 0/0 s at \+\d+ s")
+        self.assertEqual(self.json("gate.json")["blocks"][0]["waits"], waits)
+        self.assertIn(f"timer waits, recorded and not judged: {order[0]} 2/60 s", GC.status_text(self.path()))
+        plain = self.run_campaign(out="plain", blocks=1)
+        self.assertEqual(plain["attempts"][0]["waits"]["runs"][order[0]]["refused_probes"], 0)
+        self.assertNotIn("timer waits", GC.status_text(os.path.join(self.tmp.name, "plain")), "the status says so only when a run waited")
+
+    def test_a_last_refused_probe_still_stops_the_campaign_and_the_same_command_resumes_it(self):
+        with self.assertRaisesRegex(X.EnvironmentRefused, "3 probes over 60 s"):
+            self.run_campaign(host=self.host(timer_p99_ms=25.0), wait_gate_min=1.0)
+        state = self.state()
+        self.assertEqual(state["state"], "stopped")
+        self.assertIn("EnvironmentRefused", state["stopped"])
+        self.assertEqual(self.run_campaign()["state"], "complete")
+
+    def test_a_resume_keeps_the_probes_of_a_refused_run_beside_the_run_it_makes_again(self):
+        """T-047 G-01: D-045's 'every probe is recorded' holds across a resume, which starts a new wait."""
+        for k in (1, 2):
+            with self.assertRaises(X.EnvironmentRefused):
+                self.run_campaign(host=self.host(timer_p99_ms=25.0 + k), wait_gate_min=1.0)
+        state = self.run_campaign()
+        self.assertEqual(state["gate"]["verdict"], "PASS", "what is kept beside a run judges nothing")
+        kind = GC.run_order(self.scn, 1, 1)[0]
+        for k in (1, 2):
+            env = self.json("b01_a1", f"{kind}.unfinished.{k}.environment.json")
+            self.assertEqual([(p["p99_ms"], p["passed"]) for p in env["timer_probes"]], [(25.0 + k, False)] * 3)
+            self.assertEqual(env["timer_refused_probes"], 3)
+            self.assertIn("none passed", env["refused"])
+            with open(self.path("b01_a1", f"{kind}.unfinished.{k}.executor.log"), encoding="utf-8") as fh:
+                self.assertEqual(fh.read().count("timer probe"), 3)
+        self.assertEqual(self.json("b01_a1", kind, "environment.json")["timer_refused_probes"], 0, "the run made again has its own")
+        self.assertTrue(any(f"its gate's record is kept as {kind}.unfinished.2.environment.json" in m for m in self.say), self.say)
+
+    def test_a_resume_keeps_the_probes_of_a_wait_that_was_interrupted(self):
+        host = self.host(timer_p99_ms=25.0)
+
+        def stop(_):
+            raise KeyboardInterrupt
+
+        host.on_sleep = stop
+        with self.assertRaises(KeyboardInterrupt):
+            self.run_campaign(host=host)
+        self.assertEqual(self.run_campaign()["state"], "complete")
+        env = self.json("b01_a1", f"{GC.run_order(self.scn, 1, 1)[0]}.unfinished.1.environment.json")
+        self.assertEqual((env["gate_unfinished"], len(env["timer_probes"])), (True, 1))
+
+    def test_a_resume_keeps_the_probes_of_a_refused_warm_up_too(self):
+        with self.assertRaises(X.EnvironmentRefused):
+            self.run_campaign(host=self.host(timer_p99_ms=25.0), wait_gate_min=0, warmup=True)
+        self.assertEqual(self.run_campaign(warmup=True)["state"], "complete")
+        self.assertEqual(self.json(GC.WARMUP, "C.unfinished.1.environment.json")["timer_refused_probes"], 1)
+
+    def test_the_plan_of_a_campaign_states_the_wait(self):
+        text = GC.describe(self.scn, self.CAL, SPEC_SHA, self.options(wait_gate_min=10.0))
+        self.assertIn("timer gate   every run, on CPU 7: a refused probe is made again every 30 s, for up to 10 min from the run's first "
+                      "probe; a last refusal stops the campaign", text)
+        self.assertIn("on CPU 7: one probe (--wait-gate 0);", GC.describe(self.scn, self.CAL, SPEC_SHA, self.options(wait_gate_min=0)))
 
     def test_a_timer_that_goes_bad_mid_campaign_stops_it_and_the_made_runs_are_kept(self):
         def degrade(host):

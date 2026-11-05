@@ -163,8 +163,12 @@ def expected_error_ratio(spec, n=400):
     p = spec.params
     method = "POST" if spec.family == "credstuff" else "GET"
     rng = random.Random(0)
-    paths = ([p["path"]] * n if "path" in p
-             else [l7_gen._paths(p.get("paths", "mixed"), rng) for _ in range(n)])
+    if spec.family == "C2":                    # L7 v2: the costly route's own paths (ml/l7_bots.py)
+        import l7_bots
+        paths = [l7_bots.costly_path(p.get("route", "C3"), rng) for _ in range(n)]
+    else:
+        paths = ([p["path"]] * n if "path" in p
+                 else [l7_gen._paths(p.get("paths", "mixed"), rng) for _ in range(n)])
     errs = 0
     for path in paths:
         st = l7_webapp.route_status(method, path.split("?", 1)[0])
@@ -214,6 +218,11 @@ def _check_spec(spec):
         if "body_bytes" in p and p["body_bytes"] > THRESHOLDS["nginx_max_body"]:
             violations.append(f"body_bytes {p['body_bytes']} > client_max_body_size "
                               f"{THRESHOLDS['nginx_max_body']} (would 413)")
+    elif spec.mechanism == "nav":
+        # L7 v2 navigation bots (C3a, C3b; docs/L7V2_DESIGN.md §7.1): no per-source rate or connection parameter to
+        # hold under a ban threshold. Their intensity is the harm ladder's (§5.3), and the deterministic rules are an
+        # arm whose effect is measured (§10), not a limit the generator is tuned to avoid.
+        rec["note"] = "navigation bot: intensity from the harm ladder; the deterministic rules are a measured arm"
     else:
         violations.append(f"unknown mechanism {spec.mechanism}")
     rec["violations"] = violations

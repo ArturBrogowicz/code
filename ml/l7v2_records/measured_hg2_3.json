@@ -1,0 +1,81 @@
+{
+ "created_utc": "2026-10-30T11:18:07+00:00",
+ "format": "l7v2-measured/1",
+ "knobs": {
+  "api_burn": 4000,
+  "export_burn": 330000,
+  "export_rows": 6000,
+  "io_wait_ms": 0.0,
+  "page_burn": 6500,
+  "page_rows": 300,
+  "rows_total": 100000,
+  "search_burn": 0,
+  "search_rows": 50000,
+  "spread_sigma": 0.25,
+  "static_bytes": 2048
+ },
+ "note": "MEASURED, NOT FROZEN. AP-1's unloaded route costs from the HG2.3 origin step (one CPU, thread_time, the median over 21 repeats in 3 sessions), for offline arithmetic only. It is not a calibration record: bench/calibration.py refuses its status, it carries no capacity, and no verdict accepts it. The knobs are the placeholder's, which the step measured (its template_sha256).",
+ "provenance": {
+  "cpu": "0",
+  "estimator": {
+   "batch_max": 4096,
+   "batch_min_s": 0.001,
+   "cost": "the median over the repeats of a batch's time per call",
+   "order": "the routes in turn, one batch each, per repeat",
+   "version": 2
+  },
+  "gate": {
+   "limit_load1": 0.3,
+   "limit_uptime_s": 1800,
+   "load1": 0.07,
+   "met": true,
+   "uptime_s": 9420.71,
+   "waited_s": 0.0
+  },
+  "path": "/var/tmp/ddos_campaigns/hg2_3/origin/origin.json",
+  "per_session_ms": [
+   {
+    "C0": 0.005476023437502725,
+    "C1": 3.40712200000004,
+    "C2": 1.8973039999998775,
+    "C3": 29.837566999999954,
+    "C5": 161.19900600000037
+   },
+   {
+    "C0": 0.005422574218750392,
+    "C1": 3.3783889999998706,
+    "C2": 1.7618510000003695,
+    "C3": 29.691086999999783,
+    "C5": 158.22186699999997
+   },
+   {
+    "C0": 0.005444691406250243,
+    "C1": 3.4184040000004856,
+    "C2": 1.77428400000057,
+    "C3": 29.975868999999822,
+    "C5": 159.70452500000044
+   }
+  ],
+  "repeats": 21,
+  "sessions": 3,
+  "sha256": "db8af1ba608b855097ea8f7adc6131c201fecd675610f44a49c9eecf109499fa",
+  "spread": {
+   "C0": 0.009816758152900208,
+   "C1": 0.011744516339777238,
+   "C2": 0.07634234429181827,
+   "C3": 0.009544410909912307,
+   "C5": 0.018641544439648054
+  },
+  "step": "origin",
+  "template_sha256": "ac4e3156db5eacb62fad6c39ebd24c9b5943c07662d231ac7070d9ed9d7e0716"
+ },
+ "route_costs_ms": {
+  "C0": 0.005444691406250243,
+  "C1": 3.40712200000004,
+  "C2": 1.77428400000057,
+  "C3": 29.837566999999954,
+  "C5": 159.70452500000044
+ },
+ "sha256": "c42b721539a5db16f2c2925d74f978ce0b6e461ad708d9885e49042c6e62d30d",
+ "status": "measured"
+}

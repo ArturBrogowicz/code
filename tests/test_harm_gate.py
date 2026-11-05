@@ -81,7 +81,7 @@ def write_stream(run_dir, stream, rng, cal, effect, summary_edit=None):
         json.dump(summary, fh)
     return {"id": stream.id, "kind": stream.kind, "route_class": stream.route_class, "netem": stream.netem,
             "summary": f"streams/{stream.id}.summary.json", "records": f"streams/{stream.id}.records.csv.gz",
-            "offset_s": stream.start_s if stream.kind == "attack" else 0.0}
+            "offset_s": stream.start_s if stream.kind == "attack" else 0.0, "addresses": list(stream.addresses)}
 
 
 def write_run(block_dir, name, pop, seed, cal, effect, summary_edit=None):
@@ -114,7 +114,8 @@ def write_block(root, number, cal, effects=None, attempt=1, seed=None, scenario=
     k = number % 3
     with open(os.path.join(block_dir, "block.json"), "w", encoding="utf-8") as fh:
         json.dump({"scenario": scenario, "block": number, "attempt": attempt, "seed_namespace": "calib", "seed": seed,
-                   "calibration_sha256": cal["sha256"], "timeline": TIMELINE, "order": made[k:] + made[:k]}, fh)
+                   "calibration_sha256": cal["sha256"], "timeline": TIMELINE,
+                   "order": made[k:] + made[:k] + [n for n in effects if n.startswith(H.MITIGATED)]}, fh)
 
 
 def json_of(path):
@@ -168,7 +169,7 @@ _ANALYSES = {}
 
 def setUpModule():
     for name, effects in (("pass", PASS_EFFECTS), ("fail", {}), ("small", {"U": {"fail_p": 0.04}}),
-                          ("latency", {"U": {"slow": 3.0}})):
+                          ("latency", {"U": {"slow": 3.0}}), ("protected", {"U": {"fail_p": 0.3}, "M_x": {}})):
         BASE[name] = os.path.join(_TMP.name, name)
         os.makedirs(BASE[name])
         for number in range(1, 11):
@@ -622,6 +623,22 @@ class JudgedLinksTest(WithCopies):
                 self.assertGreater(row["dQ"], 0.0)               # the attack hurts them too, and that is reported
         self.assertTrue(any(row["share"] for row in table.values() if not row["judged"]))
 
+    def test_a_campaign_of_before_the_gates_records_says_so_and_has_no_section_on_the_waits(self):
+        r = self.analyse(BASE["pass"])
+        self.assertEqual({w["refused_probes"] for w in r["blocks"][0]["waits"]["runs"].values()}, {None})
+        self.assertNotIn("Timer waits", H.to_markdown(r))
+        self.assertFalse(H.waited(r["blocks"][0]["waits"]))
+        self.assertFalse(H.waited(None))
+
+    def test_a_kept_record_that_cannot_be_read_says_nothing_and_stops_nothing(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        with open(os.path.join(tmp.name, "C.unfinished.1.environment.json"), "w", encoding="utf-8") as fh:
+            fh.write("{ not json")
+        self.assertEqual(H.earlier_waits(tmp.name, "C"),
+                         [{"file": "C.unfinished.1.environment.json", "refused_probes": None, "waited_s": None}])
+        self.assertEqual(H.earlier_waits(tmp.name, "Cp"), [])
+
     def test_the_report_shows_every_link_profile(self):
         md = H.to_markdown(self.analyse(BASE["pass"]))
         self.assertIn("## Per link profile", md)
@@ -943,6 +960,7 @@ class HrrTest(WithCopies):
         root = self.copy_of("fail")
         for d in block_dirs(root):
             shutil.copytree(os.path.join(BASE["pass"], os.path.basename(d), "M_x"), os.path.join(d, "M_x"))
+            edit_json(os.path.join(d, "block.json"), lambda j: j.update(order=j["order"] + ["M_x"]))
         r = self.analyse(root)
         self.assertEqual(r["verdict"], "FAIL")
         self.assertIsNone(r["hrr"])
@@ -962,6 +980,355 @@ class HrrTest(WithCopies):
                         "M_x": {"metrics": {"Q": 99.0}, "valid": True}}}
         self.assertIsNone(H.hrr([row, row, row], "x")["hrr"])
         self.assertEqual(H.hrr([], "x"), {"mode": "x", "n": 0, "hrr": None})
+
+
+class MitigationOutcomeTest(WithCopies):
+    """G8 and G9: from a protected run's ban file, the legit identities its daemon blocked and the time to mitigate of each attack
+    identity on the run's axis; from the records, the legit requests a limit refused (503, 429)."""
+
+    ZERO = 1_798_000_000.0
+
+    def with_bans(self, bans, recorded_zero=True):
+        root = self.copy_of("pass")
+        run = os.path.join(root, "b01_a1", "M_x")
+        if recorded_zero:
+            edit_json(os.path.join(run, "run.json"), lambda j: j["executor"].update(zero_epoch_s=self.ZERO))
+        with open(os.path.join(run, H.BAN_FILE), "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"t_wall": self.ZERO - 5.0, "kind": "start", "pid": 7}) + "\n")
+            fh.writelines(json.dumps({"t_wall": self.ZERO + t, "kind": "ban", "ip": ip, "engine": "l7_rate"}) + "\n" for ip, t in bans)
+        return H.assess_block(os.path.join(root, "b01_a1"), FROZEN)
+
+    def test_the_legit_identities_its_daemon_blocked_are_counted_per_run_and_block(self):
+        a = self.with_bans([("10.0.1.7", 3.0), ("10.0.2.9", 11.0), ("10.0.1.7", 12.0)])
+        m = a["runs"]["M_x"]["mitigation"]
+        self.assertEqual((m["ban_file"], m["bans"], m["benign_blocked"], m["engines"]), (True, 3, ["10.0.1.7"], {"l7_rate": 2}))
+        self.assertEqual(a["benign_blocked"], {"M_x": ["10.0.1.7"]})
+
+    def test_ttm_is_each_attack_identitys_first_ban_after_the_attack_began_on_the_runs_axis(self):
+        a = self.with_bans([("10.0.2.9", 11.5), ("10.0.2.4", 13.0), ("10.0.2.9", 20.0)])
+        m = a["runs"]["M_x"]["mitigation"]
+        # the synthetic attack streams sit at the end of the baseline, 10 s, on the run's axis
+        self.assertEqual(m["ttm_s"]["by_identity"], {"10.0.2.4": 3.0, "10.0.2.9": 1.5})
+        self.assertEqual((m["ttm_s"]["n"], m["ttm_s"]["median"], m["ttm_s"]["min"], m["ttm_s"]["max"]), (2, 2.25, 1.5, 3.0))
+        self.assertEqual((m["attack_identities"], m["attack_banned"]), (5, 2))
+
+    def test_without_the_runs_zero_there_is_no_time_to_mitigate(self):
+        m = self.with_bans([("10.0.2.9", 11.5)], recorded_zero=False)["runs"]["M_x"]["mitigation"]
+        self.assertEqual((m["attack_banned"], m["ttm_s"]), (1, None))
+
+    def test_a_run_without_a_ban_file_has_no_ban(self):
+        a = H.assess_block(os.path.join(BASE["pass"], "b01_a1"), FROZEN)
+        for name in ("C", "Cp", "U", "M_x"):
+            m = a["runs"][name]["mitigation"]
+            self.assertEqual((m["ban_file"], m["bans"], m["benign_blocked"], m["attack_banned"], m["ttm_s"]),
+                             (False, 0, [], 0, None), name)
+
+    def test_refused_requests_are_the_legit_503s_and_429s_in_the_window_and_in_the_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            m = H.run_metrics(hand_run(tmp, {
+                "a": ("C1", 0.0, [(1.0, 1.0, 1.01, 503, ""), (2.5, 2.5, 2.51, 503, ""), (3.0, 3.0, 3.01, 429, ""),
+                                  (3.5, 3.5, 3.6, 200, ""), (4.0, 4.0, 4.01, 502, "")]),
+                "b": ("C1", 0.0, [(4.5, 4.5, 4.51, 429, "")], "mobile_3g")}), FROZEN, SHORT)
+        self.assertEqual(m["refused"], {"window": 3, "window_judged": 2, "run": 4})
+
+
+class ProtectedArmsBlockTest(WithCopies):
+    """G7: a block's order covers its protected runs, and for a campaign a block is complete only when every protected run it planned
+    is there and valid; Gate A's own validity still reads C, Cp and U only."""
+
+    def test_the_order_must_list_the_protected_runs_too(self):
+        root = self.copy_of("pass")
+        edit_json(os.path.join(root, "b02_a1", "block.json"), lambda j: j.update(order=[r for r in j["order"] if r != "M_x"]))
+        b = self.block(self.analyse(root), 2)
+        self.assertFalse(b["valid"])
+        self.assertTrue(any(r.startswith("order") and "M_x" in r for r in b["reasons"]), b["reasons"])
+
+    def test_an_invalid_protected_run_leaves_gate_a_valid_and_the_arms_not(self):
+        root = self.copy_of("pass")
+        edit_json(legit_summary(os.path.join(root, "b03_a1"), "M_x"), lambda j: j.update(cpu={"share": 0.99}))
+        b = self.block(self.analyse(root), 3)
+        self.assertEqual((b["valid"], b["arms"], b["arms_valid"], b["valid_all"]), (True, ["M_x"], False, False))
+        self.assertTrue(b["arm_reasons"] and all(r.startswith("M_x: ") for r in b["arm_reasons"]), b["arm_reasons"])
+        good = self.block(self.analyse(BASE["pass"]), 3)
+        self.assertEqual((good["arms_valid"], good["valid_all"], good["arm_reasons"]), (True, True, []))
+
+    def test_a_planned_protected_run_that_is_missing_leaves_the_arms_incomplete(self):
+        root = self.copy_of("pass")
+        d = os.path.join(root, "b04_a1")
+        shutil.rmtree(os.path.join(d, "M_x"))
+        edit_json(os.path.join(d, "block.json"),
+                  lambda j: j.update(planned_order=j["order"], order=[r for r in j["order"] if r != "M_x"]))
+        b = self.block(self.analyse(root), 4)
+        self.assertEqual((b["valid"], b["arms_valid"], b["arm_reasons"]), (True, False, ["run M_x is missing"]))
+
+    def test_a_block_whose_protected_run_failed_may_be_made_again(self):
+        root = self.copy_of("pass")
+        edit_json(legit_summary(os.path.join(root, "b05_a1"), "M_x"), lambda j: j.update(cpu={"share": 0.99}))
+        shutil.copytree(os.path.join(BASE["pass"], "b05_a1"), os.path.join(root, "b05_a2"))
+        edit_json(os.path.join(root, "b05_a2", "block.json"), lambda j: j.update(attempt=2))
+        r = self.analyse(root)
+        self.assertEqual(r["reruns"], 1)
+        self.assertFalse([x for x in r["reasons"] if "re-run although attempt 1 was valid" in x], r["reasons"])
+        self.assertEqual(r["verdict"], "PASS")
+
+
+class HrrP95Test(WithCopies):
+    """G10: HRR on p95, on the log2 scale the gate judges p95 on, beside HRR on Q."""
+
+    def latency_campaign(self, m_slow):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        for number in range(1, 11):
+            write_block(tmp.name, number, FROZEN, {"U": {"slow": 3.0}, "M_x": {"slow": m_slow}})
+        return tmp.name
+
+    def test_hrr_on_p95_is_the_share_of_the_log2_p95_harm_taken_back(self):
+        r = self.analyse(self.latency_campaign(1.5))
+        self.assertEqual(r["verdict"], "PASS")
+        (h,) = r["hrr_p95"]
+        self.assertEqual((h["mode"], h["metric"], h["n"]), ("x", "log2 p95", 10))
+        self.assertAlmostEqual(h["hrr"], (math.log2(3.0) - math.log2(1.5)) / math.log2(3.0), delta=0.12)
+        self.assertLess(h["lo"], h["hrr"])
+        self.assertGreater(h["hi"], h["hrr"])
+
+    def test_hrr_on_p95_is_the_ratio_of_block_means_of_log2_p95(self):
+        r = self.analyse(self.latency_campaign(1.0))
+        rows = [[math.log2(b["runs"][n]["metrics"]["p95_s"]) for n in ("C", "U", "M_x")] for b in r["blocks"]]
+        c, u, m = (sum(col) / len(col) for col in zip(*rows, strict=True))
+        self.assertAlmostEqual(r["hrr_p95"][0]["hrr"], (u - m) / (u - c))
+        self.assertIn("| x | 10 |", H.to_markdown(r))
+        self.assertIn("HRR on p95", H.to_markdown(r))
+
+    def test_no_hrr_on_p95_without_a_pass(self):
+        root = self.copy_of("fail")
+        for d in block_dirs(root):
+            shutil.copytree(os.path.join(BASE["pass"], os.path.basename(d), "M_x"), os.path.join(d, "M_x"))
+            edit_json(os.path.join(d, "block.json"), lambda j: j.update(order=j["order"] + ["M_x"]))
+        self.assertIsNone(self.analyse(root)["hrr_p95"])
+
+
+class ProtectedVerdictTest(WithCopies):
+    """G10: the pre-registered P2 outcome of each protected mode, in the analysis and the report."""
+
+    def test_an_arm_that_takes_the_harm_back_meets_the_outcome(self):
+        (p,) = self.analyse(BASE["protected"])["protected"]
+        self.assertEqual((p["mode"], p["verdict"], p["reasons"], p["outcome"]), ("x", "MET", [], H.P2_OUTCOME))
+        self.assertEqual((p["unprotected"]["harmed"], p["protected"]["held"], p["protected"]["benign_blocked"]), (10, 10, []))
+        self.assertEqual((p["attack_banned"], p["attack_identities"], p["ttm_s"]["n"]), (0, 50, 0))
+
+    def test_an_arm_that_leaves_a_tenth_of_the_harm_does_not(self):
+        (p,) = self.analyse(BASE["pass"])["protected"]
+        self.assertEqual((p["verdict"], p["unprotected"]["passed"], p["protected"]["held"]), ("NOT MET", True, 0))
+
+    def test_one_legit_identity_blocked_in_one_run_is_enough_to_miss_it(self):
+        root = self.copy_of("protected")
+        with open(os.path.join(root, "b03_a1", "M_x", H.BAN_FILE), "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"t_wall": 1.0, "kind": "ban", "ip": "10.0.1.7", "engine": "l4_slowconn"}) + "\n")
+        (p,) = self.analyse(root)["protected"]
+        self.assertEqual((p["verdict"], p["protected"]["benign_blocked"], p["protected"]["held"]), ("NOT MET", ["10.0.1.7"], 10))
+        self.assertIn("* M_x blocked legit identities: 10.0.1.7", H.to_markdown(self.analyse(root)))
+
+    def test_a_smoke_test_gives_the_arms_no_verdict_unless_it_is_allowed(self):
+        root = self.copy_of("protected")
+        set_overrides(os.path.join(root, "b02_a1", "M_x", "run.json"), SMOKE)
+        (p,) = self.analyse(root)["protected"]
+        self.assertEqual(p["verdict"], "INVALID")
+        self.assertTrue(any("overrides" in x for x in p["reasons"]), p["reasons"])
+        self.assertEqual(self.analyse(root, allow_overrides=True)["protected"][0]["verdict"], "MET")
+
+    def test_fewer_than_ten_blocks_with_a_valid_arm_give_no_verdict(self):
+        root = self.copy_of("protected")
+        edit_json(legit_summary(os.path.join(root, "b02_a1"), "M_x"), lambda j: j.update(cpu={"share": 0.99}))
+        (p,) = self.analyse(root)["protected"]
+        self.assertEqual(p["verdict"], "INVALID")
+        self.assertIn("9 blocks with a valid M_x run, fewer than the 10 the outcome needs", p["reasons"])
+
+    def test_the_report_has_the_arms_and_the_record_round_trips(self):
+        r = self.analyse(BASE["protected"])
+        md = H.to_markdown(r)
+        self.assertIn("## Protected arms: the pre-registered P2 outcome", md)
+        self.assertIn("| M_x | MET | 10 of 10 (needs 9) | 10 of 10 (needs 9) | 0 | 0 | 0 of 50 | n/a | n/a |", md)
+        self.assertEqual(json.loads(json.dumps(r)), r)
+
+    def test_a_campaign_without_protected_runs_has_no_arm(self):
+        self.assertEqual(self.analyse(BASE["fail"])["protected"], [])
+        self.assertNotIn("## Protected arms", H.to_markdown(self.analyse(BASE["fail"])))
+
+
+def write_bans(path, ips):
+    """A ban file with a start event and one ban per address, as a daemon writes them."""
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps({"t_wall": 1.0, "kind": "start", "pid": 7}) + "\n")
+        fh.writelines(json.dumps({"t_wall": 2.0 + i, "kind": "ban", "ip": ip, "engine": "l4_slowconn"}) + "\n" for i, ip in enumerate(ips))
+
+
+class EveryLegitBanTest(WithCopies):
+    """F-01 of T-028: "no legit identity blocked in any of its runs" counts the bans of every M run the campaign made, the runs that
+    are not valid and the attempts a re-run superseded included; otherwise a ban could hide in exactly the run the gate drops."""
+
+    def test_a_legit_ban_in_an_m_run_that_is_not_valid_misses_the_outcome(self):
+        root = self.copy_of("protected")
+        write_block(root, 11, FROZEN, {"U": {"fail_p": 0.3}, "M_x": {}})
+        third = os.path.join(root, "b03_a1")
+        edit_json(legit_summary(third, "M_x"), lambda j: j.update(cpu={"share": 0.99}))
+        write_bans(os.path.join(third, "M_x", H.BAN_FILE), ["10.0.1.7"])
+        r = self.analyse(root)
+        self.assertFalse(self.block(r, 3)["runs"]["M_x"]["valid"])
+        (p,) = r["protected"]
+        self.assertEqual((p["protected"]["n"], p["protected"]["held"]), (10, 10), "ten blocks with a valid M_x run are enough")
+        self.assertEqual((p["verdict"], p["protected"]["benign_blocked"]), ("NOT MET", ["10.0.1.7"]))
+        self.assertEqual(p["benign_bans"], [{"ip": "10.0.1.7", "block": 3, "attempt": 1, "file": "b03_a1/M_x/ban_events.jsonl",
+                                             "run_valid": False}])
+        self.assertIn("  * 10.0.1.7 in block 3 attempt 1 (b03_a1/M_x/ban_events.jsonl, not valid)", H.to_markdown(r))
+
+    def test_a_legit_ban_in_an_attempt_a_re_run_superseded_misses_the_outcome(self):
+        root = self.copy_of("protected")
+        first = os.path.join(root, "b03_a1")
+        edit_json(legit_summary(first, "M_x"), lambda j: j.update(cpu={"share": 0.99}))
+        write_bans(os.path.join(first, "M_x", H.BAN_FILE), ["10.0.1.7"])
+        shutil.copytree(os.path.join(BASE["protected"], "b03_a1"), os.path.join(root, "b03_a2"))
+        edit_json(os.path.join(root, "b03_a2", "block.json"), lambda j: j.update(attempt=2))
+        r = self.analyse(root)
+        self.assertEqual((r["reruns"], r["verdict"], self.block(r, 3)["attempt"]), (1, "PASS", 2))
+        (p,) = r["protected"]
+        self.assertEqual((p["verdict"], p["protected"]["held"], p["protected"]["benign_blocked"]), ("NOT MET", 10, ["10.0.1.7"]))
+
+    def test_the_ban_file_kept_of_an_unfinished_run_counts_too(self):
+        root = self.copy_of("protected")
+        write_bans(os.path.join(root, "b05_a1", f"M_x{H.UNFINISHED}1.{H.BAN_FILE}"), ["10.0.1.9", "10.0.2.3"])
+        (p,) = self.analyse(root)["protected"]
+        self.assertEqual((p["verdict"], p["protected"]["benign_blocked"]), ("NOT MET", ["10.0.1.9"]))
+        self.assertEqual(p["benign_bans"][0]["run_valid"], None)
+
+
+class PostBanRuleTest(unittest.TestCase):
+    """T-028 F-02, fixed before any protected data and pending the user's confirmation: in a protected run an attack stream's sending
+    is judged only up to its sources' first bans; what it could not send after them is mitigated, not unsent."""
+
+    NAN = float("nan")
+
+    def run_of(self, tmp, rows, role="mitigated"):
+        """One attack stream of two sources (ident 0 and 1) at offset 10 s, with these (t_intended, t_sent, err, ident) records."""
+        path = os.path.join(tmp, "a.csv.gz")
+        df = pd.DataFrame([(t, s, s + 0.01, 200 if err == "" else 0, err, ident) for t, s, err, ident in rows],
+                          columns=["t_intended", "t_sent", "t_done", "status", "err", "ident"])
+        df.insert(0, "i", range(len(df)))
+        df.to_csv(path, index=False, compression="gzip", na_rep="nan")
+        sent = sum(1 for r in rows if not math.isnan(r[1]))
+        summary = {"intended": len(rows), "sent": sent, "dropped": len(rows) - sent, "cpu": {"share": 0.02}, "slip_s": {"p99": 0.001},
+                   "flags": {**OK_FLAGS, "dropped": sent < len(rows), "descriptors": any(r[2] == "fd" for r in rows)}}
+        return {"dir": tmp, "role": role, "executor": None, "streams": [
+            {"id": "A-cheap_static_flood-perfect-0", "kind": "attack", "route_class": "C1", "netem": "perfect", "records": path,
+             "offset_s": 10.0, "summary": summary, "addresses": ["10.0.2.1", "10.0.2.2"]}]}
+
+    def requests(self, unsent_b_after=3.0, extra=()):
+        """Source A (ident 0) is banned at 12 s on the axis (2 s into the stream); A's requests after it are not sent, and B's
+        (ident 1) are dropped by the engine's cap from `unsent_b_after`."""
+        out = []
+        for k in range(100):
+            t, ident = k / 10, k % 2
+            lost = (ident == 0 and t >= 2.0) or (ident == 1 and t >= unsent_b_after)
+            out.append((t, self.NAN if lost else t + 0.001, "dropped" if lost else "", ident))
+        return out + list(extra)
+
+    def test_drops_after_the_bans_void_the_run_under_the_old_rule_and_not_under_the_new(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run = self.run_of(tmp, self.requests())
+            old = H.validity(run, FROZEN, None, None)
+            new = H.validity(run, FROZEN, None, None, {"10.0.2.1": 12.0})
+        self.assertIn("A-cheap_static_flood-perfect-0: sent 25 of 100 intended", old["relative"]["reasons"])
+        self.assertEqual((new["relative"]["ok"], new["strict"]["ok"]), (True, True), new["strict"]["reasons"])
+        self.assertEqual(new["post_ban"]["A-cheap_static_flood-perfect-0"],
+                         {"judged_intended": 25, "judged_sent": 25, "judged_dropped": 0, "judged_fd": 0, "judged_port": 0,
+                          "mitigated": 75, "first_ban_s": 12.0})
+
+    def test_a_generator_that_fails_before_the_first_ban_still_voids_the_run(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dropped = self.run_of(tmp, self.requests(unsent_b_after=1.0))
+            new = H.validity(dropped, FROZEN, None, None, {"10.0.2.1": 12.0})
+        self.assertIn("A-cheap_static_flood-perfect-0: sent 15 of the 20 requests due before its sources' bans",
+                      new["relative"]["reasons"])
+        self.assertIn("A-cheap_static_flood-perfect-0: dropped 5 requests before its sources' bans", new["strict"]["reasons"])
+        with tempfile.TemporaryDirectory() as tmp:
+            fd = self.run_of(tmp, self.requests(extra=[(0.55, self.NAN, "fd", 1), (5.0, self.NAN, "fd", 0)]))
+            new = H.validity(fd, FROZEN, None, None, {"10.0.2.1": 12.0})
+        self.assertIn("A-cheap_static_flood-perfect-0: out of descriptors before its sources' bans", new["relative"]["reasons"])
+
+    def test_a_run_that_is_not_protected_or_has_no_ban_is_judged_as_before(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            u = H.validity(self.run_of(tmp, self.requests(), role="attack"), FROZEN, None, None, {"10.0.2.1": 12.0})
+            m = H.validity(self.run_of(tmp, self.requests()), FROZEN, None, None, {})
+        for v in (u, m):
+            self.assertIn("A-cheap_static_flood-perfect-0: sent 25 of 100 intended", v["relative"]["reasons"])
+            self.assertNotIn("post_ban", v)
+
+
+class P2OutcomeTest(unittest.TestCase):
+    """The pre-registered P2 outcome (PRIORITY_PLAN 3): its constants are fixed before any protected run and pinned here, and its two
+    halves are tested at their boundaries. A change to a value below is a new pre-registration, not a fix."""
+
+    @staticmethod
+    def unprotected(dqs, dls=None):
+        dls = dls or [0.0] * len(dqs)
+        return [{"block": i + 1, "dQ": dq, "dL": dl} for i, (dq, dl) in enumerate(zip(dqs, dls, strict=True))]
+
+    @staticmethod
+    def protected(pairs, blocked=None):
+        blocked = blocked or {}
+        return [{"block": i + 1, "q_control": c, "q_mitigated": m, "benign_blocked": blocked.get(i + 1, [])}
+                for i, (c, m) in enumerate(pairs)]
+
+    def test_the_constants_are_the_pre_registered_ones(self):
+        self.assertEqual(H.P2_OUTCOME, {"unprotected_floor_pp": 10.0, "unprotected_p95_ratio": 2.0, "protected_q_ratio": 0.99,
+                                        "protected_benign_blocked_max": 0, "block_share": 0.9, "min_blocks": 10})
+
+    def test_the_unprotected_floors_are_the_gates_floors_of_the_template(self):
+        gate = PLACEHOLDER["gate"]
+        self.assertEqual(H.P2_OUTCOME["unprotected_floor_pp"], gate["floor_pp"])
+        self.assertEqual(math.log2(H.P2_OUTCOME["unprotected_p95_ratio"]), gate["floor_log2_p95"])
+        self.assertEqual(H.P2_OUTCOME["min_blocks"], gate["min_blocks"])
+
+    def test_nine_of_ten_blocks_are_needed_whatever_the_floating_point_says(self):
+        self.assertEqual([H.blocks_needed(n, 0.9) for n in (10, 11, 20, 1)], [9, 10, 18, 1])
+
+    def test_the_unprotected_server_fails_in_nine_blocks_of_ten_and_not_in_eight(self):
+        r = H.unprotected_fails(self.unprotected([10.0] * 9 + [9.99]))
+        self.assertEqual((r["harmed"], r["needed"], r["passed"]), (9, 9, True))
+        r = H.unprotected_fails(self.unprotected([10.0] * 8 + [9.99] * 2))
+        self.assertEqual((r["harmed"], r["passed"]), (8, False))
+
+    def test_a_block_is_harmed_by_its_p95_alone_at_twice_the_controls(self):
+        r = H.unprotected_fails(self.unprotected([0.0] * 10, [1.0] * 9 + [0.99]))
+        self.assertEqual((r["harmed"], r["passed"]), (9, True))
+        r = H.unprotected_fails(self.unprotected([None] * 10, [None] * 10))
+        self.assertEqual((r["harmed"], r["passed"]), (0, False))
+
+    def test_fewer_than_ten_blocks_give_no_verdict(self):
+        r = H.unprotected_fails(self.unprotected([50.0] * 9))
+        self.assertEqual((r["evaluable"], r["passed"]), (False, False))
+        p = H.protected_works(self.protected([(100.0, 100.0)] * 9))
+        self.assertEqual((p["evaluable"], p["passed"]), (False, False))
+        self.assertEqual(H.p2_verdict(r, p), "INVALID")
+
+    def test_the_protected_server_works_at_ninety_nine_percent_of_the_control(self):
+        p = H.protected_works(self.protected([(100.0, 99.0)] * 9 + [(100.0, 98.99)]))
+        self.assertEqual((p["held"], p["passed"]), (9, True))
+        p = H.protected_works(self.protected([(100.0, 99.0)] * 8 + [(100.0, 50.0)] * 2))
+        self.assertEqual((p["held"], p["passed"]), (8, False))
+        p = H.protected_works(self.protected([(90.0, 89.1)] * 10))
+        self.assertEqual(p["held"], 10, "the ratio is to the control of the same block, not to 100 %")
+
+    def test_one_blocked_legit_identity_is_enough_to_fail_the_protected_half(self):
+        p = H.protected_works(self.protected([(100.0, 100.0)] * 10, {3: ["10.0.1.7"], 5: ["10.0.1.7"]}))
+        self.assertEqual((p["held"], p["benign_blocked"], p["passed"]), (10, ["10.0.1.7"], False))
+
+    def test_the_outcome_is_met_only_when_both_halves_pass(self):
+        fails = H.unprotected_fails(self.unprotected([20.0] * 10))
+        holds = H.unprotected_fails(self.unprotected([0.0] * 10))
+        works = H.protected_works(self.protected([(100.0, 100.0)] * 10))
+        broken = H.protected_works(self.protected([(100.0, 70.0)] * 10))
+        self.assertEqual([H.p2_verdict(a, b) for a, b in ((fails, works), (holds, works), (fails, broken))],
+                         ["MET", "NOT MET", "NOT MET"])
 
 
 # --- the calibration, the files and the report ---------------------------------------------------

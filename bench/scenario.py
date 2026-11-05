@@ -15,6 +15,7 @@ cost-rate model expects. The deployed thresholds are printed and never used: no 
 or clipped by them (a test changes them and checks that nothing moves).
 
     python3 bench/scenario.py --plan bench/scenarios/costly_search_sub_threshold.json
+    python3 bench/scenario.py --plan --daemon bench/scenarios/cheap_static_flood.json   # the pins of a campaign with a daemon
     python3 bench/scenario.py --check bench/scenarios/*.json
 """
 import argparse
@@ -364,7 +365,7 @@ def _attack(scn, pop, cal, level, spare, capacity):
                             "limit_conn": LIMIT_CONN, "slowconn": SLOWCONN_CONNS}}
 
 
-def _generator(pop, cal):
+def _generator(pop, cal, pins):
     kinds = {}
     for kind in ("legit", "attack"):
         streams = pop.of_kind(kind)
@@ -372,12 +373,12 @@ def _generator(pop, cal):
             continue
         specs = [P.to_load_spec(s, URL) for s in streams]
         rate = sum(s.rate for s in streams)
-        cpus = _cpu_count(P.PIN_PLAN[kind])
+        cpus = _cpu_count(pins[kind])
         cores = rate * P.CPU_MS_PER_REQUEST / 1000
         kinds[kind] = {"streams": len(streams), "rate": rate, "max_stream_rate": max(s.rate for s in streams),
                        "inflight": max(s.rate * sp.timeout for s, sp in zip(streams, specs, strict=True)),
                        "cap": specs[0].max_workers,
-                       "pin": P.PIN_PLAN[kind], "cpus": cpus, "cores": cores, "share": cores / cpus,
+                       "pin": pins[kind], "cpus": cpus, "cores": cores, "share": cores / cpus,
                        "keepalive": sum(len(s.addresses) * sp.connections for s, sp in zip(streams, specs, strict=True)),
                        "nofile": max(P.nofile_for(s, sp) for s, sp in zip(streams, specs, strict=True)),
                        "split": len(streams) - len({(s.process, s.route_class, s.netem, s.ns_index) for s in streams})}
@@ -450,9 +451,12 @@ def population_of(scn, cal, seed, attack=True, rho=None):
     return pop, level
 
 
-def plan(scn, cal, seed=None):
-    """What one block of `scn` would be, as plain data. Pure: no clock, no network, no process."""
+def plan(scn, cal, seed=None, pins=None):
+    """What one block of `scn` would be, as plain data. Pure: no clock, no network, no process. `pins` is the pin plan of the
+    campaign: population.PIN_PLAN by default, PIN_PLAN_DAEMON for one with a daemon (gate_campaign's pins_of), whose attack streams
+    have a CPU fewer, so that their share is the one they will have (T-039 V-32)."""
     seed = scn.first_seed if seed is None else seed
+    pins = dict(pins or P.PIN_PLAN)
     rho, spare = C.rho_rps(cal), C.spare_capacity(cal)
     pop, level = population_of(scn, cal, seed)
     capacity = cal["capacity"]["c_slo_rps"] * C.mean_cost_ms(cal) / 1000          # CPU-s/s at the SLO capacity
@@ -474,11 +478,11 @@ def plan(scn, cal, seed=None):
         "entities": _entities(pop),
         "benign": _benign(pop, cal, rho, capacity),
         "attack": _attack(scn, pop, cal, level, spare, capacity),
-        "generator": _generator(pop, cal),
+        "generator": _generator(pop, cal, pins),
         "namespaces": [{"index": n.index, "name": n.name, "netem": n.netem,
                         "aliases": len(pop.alias_plan().get(n.index, ()))} for n in pop.namespaces],
         "streams": [{"id": s.id, "kind": s.kind, "route": s.route_class, "process": s.process, "rate": s.rate,
-                     "addresses": len(s.addresses), "netem": s.netem, "ns": s.ns_index, "pin": P.PIN_PLAN[s.cpu],
+                     "addresses": len(s.addresses), "netem": s.netem, "ns": s.ns_index, "pin": pins[s.cpu],
                      "start_s": s.start_s, "duration_s": s.duration_s, "seed": s.seed} for s in pop.streams],
         "expected_gate": expected_gate(level),
     }
@@ -635,6 +639,8 @@ def main(argv=None):
     ap.add_argument("--calibration", default=C.PLACEHOLDER, help="calibration record (default: the placeholder)")
     ap.add_argument("--seed", type=int, default=None, help="seed in the scenario's namespace (default: its first)")
     ap.add_argument("--json", action="store_true", help="print the plans as JSON")
+    ap.add_argument("--daemon", action="store_true", help="the pins of a campaign with a daemon (population.PIN_PLAN_DAEMON, as "
+                    "gate_campaign.py --modes xdp has for every run), not population.PIN_PLAN")
     ap.add_argument("specs", nargs="+", metavar="SPEC")
     args = ap.parse_args(argv)
     try:
@@ -646,7 +652,7 @@ def main(argv=None):
             for path, scn in loaded:
                 print(f"{path}: valid" + (f", paired with {scn.controls['control']}" if scn.controls else ""))
             return 0
-        plans = [plan(scn, cal, args.seed) for _, scn in loaded]
+        plans = [plan(scn, cal, args.seed, P.PIN_PLAN_DAEMON if args.daemon else None) for _, scn in loaded]
     except (ScenarioError, C.RecordError, OSError) as exc:
         print(exc, file=sys.stderr)
         return 1

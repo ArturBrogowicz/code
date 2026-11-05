@@ -4,6 +4,7 @@ find can be compared with what the model says they are. Nothing here needs root 
 for the steps of docs/HG1C_DESIGN.md 10."""
 import contextlib
 import copy
+import inspect
 import io
 import json
 import math
@@ -25,6 +26,8 @@ import calibration_fixtures as CF
 import executor as X
 import gate_campaign as GC
 import harm_gate as H
+import loadtool_validate as V
+import origin as O
 import population as P
 import scenario as SC
 import sim_host as S
@@ -156,6 +159,29 @@ class StackCostTest(unittest.TestCase):
         self.assertEqual(out[0]["origin_ms_per_request"], 2.0)
         self.assertIsNone(out[1])
 
+    def test_a_steps_record_says_what_the_timer_gate_cost_its_runs(self):
+        """T-047 G-02; recorded, not judged. A resumed step counts the runs it finds done and the stops before them."""
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        levels = [80.0, 160.0, 240.0, 320.0, 400.0, 480.0]
+
+        def host(**kw):
+            return S.SimHost(server=S.SyntheticServer(TEMPLATE, (30, 45, 30), capacity_cpu=1.1), **kw)
+
+        with self.assertRaises(X.EnvironmentRefused):
+            K.capacity_step(K.Runner(host(timer_p99_ms=25.0), wait_gate_min=0.5), TEMPLATE, C.PLACEHOLDER, tmp.name, levels, 10.0, 2,
+                            lambda m: None)
+        result = K.capacity_step(K.Runner(host(timer_p99_by_cpu={"7": [25.0, 1.0]})), TEMPLATE, C.PLACEHOLDER, tmp.name, levels, 10.0, 2,
+                                 lambda m: None)
+        waits = K.read_json(os.path.join(tmp.name, "capacity", "capacity.json"))["waits"]
+        self.assertEqual(waits, result["waits"])
+        self.assertEqual((waits["runs"], waits["refused_probes"], waits["waited_s"]), (2, 3, 60.0), "2 refused before the stop, 1 after it")
+        self.assertEqual(list(waits["waited"]), [os.sep.join(("capacity", "r1", "C"))])
+        self.assertEqual(waits["waited"]["capacity/r1/C"]["refused_probes"], 1)
+        self.assertEqual([e["refused_probes"] for e in waits["waited"]["capacity/r1/C"]["earlier"]], [2])
+        again = K.capacity_step(K.Runner(host()), TEMPLATE, C.PLACEHOLDER, tmp.name, levels, 10.0, 2, lambda m: None)
+        self.assertEqual(again["waits"], waits, "the runs found done still say what they cost")
+
     def test_the_capacity_step_records_it_next_to_the_capacity(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -266,7 +292,7 @@ class OriginTest(unittest.TestCase):
     def step(self, noise, **faults):
         host = S.SimHost(origin_costs=dict(TEMPLATE["route_costs_ms"]), origin_noise=noise, faults=faults)
         say = []
-        result = K.origin_step(host, TEMPLATE, C.PLACEHOLDER, self.tmp.name, say.append)
+        result = K.origin_step(K.Runner(host), TEMPLATE, C.PLACEHOLDER, self.tmp.name, say.append)
         return host, result, say
 
     def test_three_sessions_each_a_process_on_cpu_zero_and_their_median_are_the_step(self):
@@ -307,22 +333,54 @@ class OriginTest(unittest.TestCase):
             self.step((0.0,), origin_session_fails=None)
 
     def test_one_real_session_times_every_route(self):
-        costs = K.origin_session(TEMPLATE, repeats=3)
+        session = K.origin_session(TEMPLATE, repeats=3)
+        costs = session["costs_ms"]
         self.assertEqual(sorted(costs), ["C0", "C1", "C2", "C3", "C5"])
         self.assertTrue(all(v > 0 for v in costs.values()))
         self.assertGreater(costs["C5"], costs["C0"])
+        self.assertEqual(sorted(session["batch"]), sorted(costs))
+        self.assertGreater(session["batch"]["C0"], 1, "a call of some microseconds is timed in a batch")
+        self.assertEqual(session["batch"]["C5"], 1, "one of a tenth of a second alone")
+        self.assertEqual(session["clock"], "thread_time", "the calling thread's CPU time, not the process's")
+
+    def test_the_record_keeps_how_each_session_timed_the_routes(self):
+        _, result, _ = self.step((0.0, 0.01, -0.01))
+        timing = result["rounds"][0]["timing"]
+        self.assertEqual(len(timing), 3)
+        for t in timing:
+            self.assertEqual(t["clock"], "simulated")
+            self.assertEqual(sorted(t["batch"]), sorted(TEMPLATE["route_costs_ms"]))
+        # the placeholder's C0 costs 0.05 ms: 32 calls are 1.6 ms and 16 only 0.8; C5's 150 ms is one call
+        self.assertEqual((timing[0]["batch"]["C0"], timing[0]["batch"]["C5"]), (32, 1))
+        self.assertEqual(result["estimator"]["batch_min_s"], 0.001)
+        self.assertEqual(result["estimator"]["version"], O.ESTIMATOR_VERSION)
+        self.assertEqual(O.ESTIMATOR_VERSION, 2, "1 was each route in a row on the process's clock")
+        saved = K.read_json(os.path.join(self.tmp.name, "origin", "origin.json"))
+        self.assertEqual(saved["rounds"][0]["timing"], timing)
+        self.assertEqual(saved["estimator"], K.origin_estimator())
+
+    def test_a_session_that_does_not_say_how_it_timed_the_routes_is_not_readable(self):
+        class Bare(S.SimHost):
+            def run(self, argv, **kw):                        # the medians alone, as a session printed them before
+                return X.Result(0, json.dumps({"C0": 0.0058, "C1": 4.0}), "")
+        stop, _ = self.run_step(Bare())
+        self.assertIsInstance(stop, K.CalibrationStop)
+        self.assertIn("gave nothing readable", str(stop))
 
     # --- a stopped step keeps what it measured (docs/HG1C_DESIGN.md 27) ---
 
     @staticmethod
     def scripted(*answers):
-        """A host whose origin sessions answer one after another: a dict is a session's medians, a string is a session that failed."""
+        """A host whose origin sessions answer one after another: a dict is a session's medians, a string is a session that failed.
+        Its uptime and load are the simulated host's, which meet the environment gate at once."""
         left = list(answers)
 
-        class Host:
+        class Host(S.SimHost):
             def run(self, argv, **kw):
                 answer = left.pop(0)
-                return X.Result(1, "", answer) if isinstance(answer, str) else X.Result(0, json.dumps(answer), "")
+                if isinstance(answer, str):
+                    return X.Result(1, "", answer)
+                return X.Result(0, json.dumps({"costs_ms": answer, "batch": {k: 1 for k in answer}, "clock": "scripted"}), "")
         return Host()
 
     @staticmethod
@@ -336,7 +394,7 @@ class OriginTest(unittest.TestCase):
     def run_step(self, host):
         say = []
         try:
-            return K.origin_step(host, TEMPLATE, C.PLACEHOLDER, self.tmp.name, say.append), say
+            return K.origin_step(K.Runner(host), TEMPLATE, C.PLACEHOLDER, self.tmp.name, say.append), say
         except K.CalibrationStop as exc:
             return exc, say
 
@@ -408,6 +466,81 @@ class OriginTest(unittest.TestCase):
         self.assertEqual(saved["rounds"][0]["sessions"][2]["C1"], 9.4)
         self.assertEqual([s["C1"] for s in saved["partial_sessions"]], [3.9])
         self.assertIn("gave nothing readable", str(stop))
+
+
+class OriginGateTest(unittest.TestCase):
+    """The origin step takes the environment gate of a campaign's start before its first session (docs/HG1C_DESIGN.md departure
+    28): uptime 1800 s and a load below 0.3, waiting up to --wait-gate minutes for them. Until then --wait-gate was read and
+    ignored for this step, and HG2b's first attempt began 11 minutes after a boot."""
+
+    class Clocked(S.SimHost):
+        """The simulated host, which also notes the time on its clock at which each origin session begins."""
+
+        def __init__(self, **kw):
+            super().__init__(origin_costs=dict(TEMPLATE["route_costs_ms"]), **kw)
+            self.session_at = []
+
+        def _origin_session(self):
+            self.session_at.append(self.t)
+            return super()._origin_session()
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.out = os.path.join(self.tmp.name, "s")
+
+    def origin(self, host, *args):
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(X.signal, "signal"), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = K.main(["origin", "--out", self.out, *args], host=host)
+        return code, out.getvalue(), err.getvalue()
+
+    def test_a_machine_up_for_a_minute_is_refused_after_the_wait_and_no_session_is_made(self):
+        host = self.Clocked(uptime_s=60.0)
+        code, _, err = self.origin(host, "--wait-gate", "1")
+        self.assertEqual(code, K.EXIT_STOPPED)
+        self.assertIn("EnvironmentRefused: the machine is not quiet enough: uptime 120 s (needs 1800)", err)
+        self.assertEqual(host.session_at, [], "no session before the gate")
+        self.assertEqual(sum(host.sleeps), 60.0, "it waited the minute --wait-gate gave it")
+        self.assertFalse(os.path.exists(os.path.join(self.out, "origin")), "nothing measured, nothing written")
+
+    def test_a_busy_machine_is_refused(self):
+        host = self.Clocked(load1=0.5)
+        code, _, err = self.origin(host, "--wait-gate", "0")
+        self.assertEqual(code, K.EXIT_STOPPED)
+        self.assertIn("load 0.50 (needs below 0.3)", err)
+        self.assertEqual((host.session_at, host.sleeps), ([], []))
+
+    def test_the_step_waits_for_the_gate_and_then_measures(self):
+        host = self.Clocked(uptime_s=1750.0)
+        code, text, _ = self.origin(host, "--wait-gate", "5")
+        self.assertEqual(code, K.EXIT_OK)
+        self.assertIn("waiting up to 5 min", text)
+        gate = K.read_json(os.path.join(self.out, "origin", "origin.json"))["gate"]
+        self.assertEqual((gate["met"], gate["waited_s"], gate["uptime_s"]), (True, 60.0, 1810.0))
+        self.assertEqual(len(host.session_at), 3)
+        self.assertGreaterEqual(min(host.session_at), 60.0, "every session began after the wait")
+
+    def test_a_quiet_machine_passes_at_once_and_the_record_says_what_the_gate_saw(self):
+        host = self.Clocked()
+        self.assertEqual(self.origin(host)[0], K.EXIT_OK)
+        self.assertEqual(host.sleeps, [])
+        self.assertEqual(K.read_json(os.path.join(self.out, "origin", "origin.json"))["gate"],
+                         {"met": True, "uptime_s": 7200.0, "load1": 0.05, "waited_s": 0.0, "limit_uptime_s": 1800,
+                          "limit_load1": 0.3})
+
+    def test_wait_gate_is_how_long_the_step_waits(self):
+        for minutes in (0, 1, 3):
+            with self.subTest(minutes=minutes):
+                host = self.Clocked(uptime_s=60.0)
+                self.assertEqual(self.origin(host, "--wait-gate", str(minutes))[0], K.EXIT_STOPPED)
+                self.assertEqual(sum(host.sleeps), 60.0 * minutes)
+
+    def test_a_step_that_stops_after_the_gate_keeps_what_the_gate_saw(self):
+        host = self.Clocked(origin_noise=(-0.1, 0.0, 0.2))
+        self.assertEqual(self.origin(host)[0], K.EXIT_STOPPED)
+        saved = K.read_json(os.path.join(self.out, "origin", "stopped_1.json"))
+        self.assertEqual((saved["gate"]["met"], saved["gate"]["uptime_s"]), (True, 7200.0))
 
 
 class HarmTest(unittest.TestCase):
@@ -629,12 +762,59 @@ class ReferenceTest(unittest.TestCase):
         self.assertEqual(r, {"ok": True, "reasons": []})
 
     def test_beyond_them_it_is_and_the_reason_names_the_probe(self):
+        """The attack run's tolerance is the gate's floors since D-062 (departure 33): 72.1 and 0.2501 are within it now."""
         cal = self.frozen()
-        r = K.drift_check(cal, {"Q": 97.9, "p95_s": 0.0626}, {"costly_search_flood": {"Q": 72.1, "p95_s": 0.2501}})
+        r = K.drift_check(cal, {"Q": 97.9, "p95_s": 0.0626}, {"costly_search_flood": {"Q": 80.1, "p95_s": 0.2 * 2.01}})
         self.assertFalse(r["ok"])
         self.assertEqual(len(r["reasons"]), 4)
         self.assertTrue(r["reasons"][0].startswith("legit probe: Q 97.9"))
-        self.assertTrue(any(x.startswith("costly_search_flood: p95") for x in r["reasons"]))
+        self.assertTrue(any(x.startswith("costly_search_flood: p95") and "floor_log2_p95" in x for x in r["reasons"]))
+        self.assertTrue(any(x.startswith("costly_search_flood: Q") and "floor_pp" in x for x in r["reasons"]))
+
+    def test_a_legit_probe_at_2_1_points_or_26_percent_still_fails_with_an_attack_run_inside_the_floors(self):
+        cal = self.frozen()
+        inside = {"costly_search_flood": {"Q": 79.0, "p95_s": 0.39}}
+        self.assertEqual(K.drift_check(cal, {"Q": 98.0, "p95_s": 0.0625}, inside), {"ok": True, "reasons": []})
+        for legit, said in (({"Q": 97.9, "p95_s": 0.05}, "legit probe: Q 97.9"), ({"Q": 100.0, "p95_s": 0.063}, "legit probe: p95 0.063")):
+            r = K.drift_check(cal, legit, inside)
+            self.assertFalse(r["ok"])
+            self.assertEqual(len(r["reasons"]), 1, r["reasons"])
+            self.assertTrue(r["reasons"][0].startswith(said), r["reasons"])
+
+    def test_the_tolerance_of_the_check_follows_the_records_gate_block(self):
+        cal = self.frozen()
+        attack = {"costly_search_flood": {"Q": 75.0, "p95_s": 0.2}}
+        self.assertTrue(K.drift_check(cal, {"Q": 100.0, "p95_s": 0.05}, attack)["ok"])
+        tight = copy.deepcopy(cal)
+        tight["gate"]["floor_pp"] = 4.0
+        r = K.drift_check(tight, {"Q": 100.0, "p95_s": 0.05}, attack)
+        self.assertEqual(len(r["reasons"]), 1, r["reasons"])
+        self.assertIn("floor_pp, 4 pp", r["reasons"][0])
+
+    def test_the_repeats_of_c_085_all_pass_the_attack_rule_and_one_of_six_passed_the_old_one(self):
+        """The ladder repeats at the knees against the frozen reference of hg2_3 (ddos-mitigation-2026-11-04.json), exact values read from
+        ladder.json and the record on 2026-11-04. The old rule is the legit probe's, so its result stays on record here."""
+        reference = {"cheap_static_flood": (95.80888516345348, 0.20570220000000097),
+                     "costly_export_flood": (75.3211009174312, 0.25194199999999967),
+                     "costly_search_flood": (63.36996336996337, 0.6308129999999972)}
+        repeats = {"cheap_static_flood": ((89.50617283950618, 0.2036669999999949), (92.04946996466431, 0.17855809999999434)),
+                   "costly_export_flood": ((70.77625570776256, 0.2720831999999958), (74.22053231939164, 0.28067324999999954)),
+                   "costly_search_flood": ((69.75455265241489, 0.3432430000000011), (61.98412698412698, 0.41934499999999986))}
+        deviations = [round(q - reference[f][0], 1) for f, pair in sorted(repeats.items()) for q, _ in pair]
+        self.assertEqual(deviations, [-6.3, -3.8, -4.5, -1.1, 6.4, -1.4], "C-085")
+        self.assertEqual([round(100 * (p / reference["costly_search_flood"][1] - 1)) for _, p in repeats["costly_search_flood"]], [-46, -34])
+        cal = self.frozen()
+        cal["drift_reference"] = {"rho_rps": 90.0, "q_pct": 100.0, "p95_s": 0.05,
+                                  "attack": {f: {"level": 2.0, "q_pct": q, "p95_s": p} for f, (q, p) in reference.items()}}
+        self.assertEqual((cal["gate"]["floor_pp"], cal["gate"]["floor_log2_p95"]), (10.0, 1.0))
+        passed_old = []
+        for family, pair in sorted(repeats.items()):
+            for i, (q, p) in enumerate(pair, 1):
+                with self.subTest(family=family, repeat=i):
+                    self.assertEqual(K.drift_check(cal, {"Q": 100.0, "p95_s": 0.05}, {family: {"Q": q, "p95_s": p}}), {"ok": True, "reasons": []})
+                if C.drift_ok(*reference[family], q, p)[0]:
+                    passed_old.append((family, i))
+        self.assertEqual(passed_old, [("costly_export_flood", 2)], "1 of 6 within the old tolerance: what D-062 changed")
 
 
 ORIGIN = {"route_costs_ms": {"C0": 0.06, "C1": 3.3, "C2": 2.2, "C3": 31.0, "C5": 155.0}, "template_sha256": TEMPLATE["sha256"]}
@@ -680,27 +860,34 @@ class RecordTest(unittest.TestCase):
         self.assertNotEqual(under, other)
 
     def test_the_host_is_what_the_environment_of_a_run_recorded(self):
-        host = K.host_of(ENV)
+        host = K.host_of(ENV, P.PIN_PLAN)
         self.assertEqual(host["gunicorn"], {"version": "26.2.0", "workers": 2, "threads": 8, "nofile": 524288})
         self.assertEqual(host["nginx"], {"version": "1.28.3", "conf_sha256": "c" * 64})
         self.assertEqual((host["origin_sha256"], host["loadgen_sha256"], host["origin_seed"]), ("a" * 64, "b" * 64, 1))
         self.assertEqual(host["pins"], P.PIN_PLAN)
         C.freeze(copy.deepcopy(TEMPLATE), host=host, drift_reference=CF.SAMPLE_DRIFT)
 
+    def test_the_fixtures_host_has_the_current_pin_plan(self):
+        self.assertEqual(CF.SAMPLE_HOST["pins"], P.PIN_PLAN)
+
+    def test_the_hosts_pins_are_the_ones_it_is_given_not_this_codes_plan(self):
+        other = {**P.PIN_PLAN, "legit": "5"}
+        self.assertEqual(K.host_of(ENV, other)["pins"], other)
+
     def test_a_limit_that_is_not_a_number_or_a_missing_stack_record_stops_it(self):
         env = copy.deepcopy(ENV)
         env["stack"]["origin"]["nofile_soft_hard"] = [["unlimited", "unlimited"]]
         with self.assertRaisesRegex(K.CalibrationStop, "open-file limit"):
-            K.host_of(env)
+            K.host_of(env, P.PIN_PLAN)
         del env["stack"]
         with self.assertRaisesRegex(K.CalibrationStop, "open-file limit"):
-            K.host_of(env)
+            K.host_of(env, P.PIN_PLAN)
 
     def test_a_version_is_read_from_the_tools_own_words(self):
         env = copy.deepcopy(ENV)
         env["facts"]["nginx"] = "nothing"
         with self.assertRaisesRegex(K.CalibrationStop, "no version number"):
-            K.host_of(env)
+            K.host_of(env, P.PIN_PLAN)
 
 
 class ProbeTest(unittest.TestCase):
@@ -745,6 +932,65 @@ class RunnerTest(unittest.TestCase):
         with mock.patch.object(K.X, "execute") as execute:
             self.assertEqual(K.Runner(S.SimHost()).run(plan, lambda m: None), record)
         execute.assert_not_called()
+
+    def test_a_resume_keeps_the_probes_of_a_refused_run_beside_the_run_it_makes_again(self):
+        """T-047 G-01: as gate_campaign does, for a step that a last refusal stopped."""
+        plan = self.plan()
+        with self.assertRaises(X.EnvironmentRefused):
+            K.Runner(S.SimHost(timer_p99_ms=25.0), wait_gate_min=0.5).run(plan, lambda m: None)
+        said = []
+        self.assertTrue(K.Runner(S.SimHost()).run(plan, said.append)["ok"])
+        env = K.read_json(plan.out + ".unfinished.1.environment.json")
+        self.assertEqual([(p["p99_ms"], p["passed"]) for p in env["timer_probes"]], [(25.0, False)] * 2)
+        with open(plan.out + ".unfinished.1.executor.log", encoding="utf-8") as fh:
+            self.assertEqual(fh.read().count("timer probe"), 2)
+        self.assertEqual(K.read_json(os.path.join(plan.out, "environment.json"))["timer_refused_probes"], 0)
+        self.assertTrue(any("its gate's record is kept as C.unfinished.1.environment.json" in m for m in said), said)
+
+    def test_a_finished_run_from_another_pin_plan_is_refused_and_kept(self):
+        """T-039 V-22's follow-up, docs/HG1C_DESIGN.md departure 31: a step resumes from what is done, but not across two layouts."""
+        plan = self.plan()
+        record = K.Runner(S.SimHost()).run(plan, lambda m: None)
+        path = os.path.join(plan.out, "plan.json")
+        made = K.read_json(path)
+        self.assertEqual(made["pins"], P.PIN_PLAN, "a run says what it was made with")
+
+        def stands_in():
+            with mock.patch.object(K.X, "execute") as execute:
+                try:
+                    return K.Runner(S.SimHost()).run(plan, lambda m: None) == record
+                finally:
+                    execute.assert_not_called()
+
+        self.assertTrue(stands_in(), "the same plan: reused")
+        for label, pins, said in (("other", {**P.PIN_PLAN, "legit": "5"},
+                                   "made with attack 3-6, daemon 2, legit 5, server 0-1, and this step runs with attack 3-6, daemon 2, legit 7, server 0-1"),
+                                  ("none", None, r"no pin plan on record, read as the plan of before 2026-10-31 \(D-032\), server 0-1, daemon 2, legit 6, attack 3-5,7")):
+            with self.subTest(label):
+                K.write_json(path, {**made, "pins": pins} if pins else {k: v for k, v in made.items() if k != "pins"})
+                with self.assertRaisesRegex(K.CalibrationStop, said):
+                    stands_in()
+                self.assertTrue(os.path.exists(os.path.join(plan.out, GC.DONE)), "the run stays as it was")
+        os.remove(path)
+        with self.assertRaisesRegex(K.CalibrationStop, "no pin plan on record"):
+            stands_in()
+
+    def test_a_refused_probe_waits_within_the_steps_wait_and_a_last_refusal_stops_it_without_a_second_attempt(self):
+        host = S.SimHost(timer_p99_by_cpu={"7": [25.0, 5.0]})
+        self.assertTrue(K.Runner(host, wait_gate_min=1.0).run(self.plan("waits"), lambda m: None)["ok"])
+        self.assertEqual(host.sleeps[0], X.TIMER_REPROBE_S)
+        host = S.SimHost(timer_p99_ms=25.0)
+        with self.assertRaisesRegex(X.EnvironmentRefused, "2 probes over 30 s"):
+            K.Runner(host, wait_gate_min=0.5).run(self.plan("stops"), lambda m: None)
+        self.assertEqual(sum("timer-probe" in argv for _, _, argv in host.commands), 2, "one attempt: no retry of a refusal")
+
+    def test_the_plan_states_both_drift_tolerances(self):
+        self.assertIn("a legit probe within 2 pp and 25 % of the reference, and an attack run within the gate's floors, 10 pp and a factor of 2",
+                      K.plan_text(TEMPLATE))
+
+    def test_the_plan_states_the_wait(self):
+        self.assertIn("a refused probe is made again every 30 s, up to --wait-gate minutes from the run's first probe (0: one probe)",
+                      K.plan_text(TEMPLATE))
 
     def test_the_first_run_of_a_process_waits_for_the_full_gate_and_the_next_for_the_timer(self):
         runner = K.Runner(S.SimHost())
@@ -824,7 +1070,7 @@ class SimulatedCalibrationTest(unittest.TestCase):
         cls.host = S.SimHost(server=S.SyntheticServer(cls.template, (30, 45, 30), capacity_cpu=CAPACITY_CPU), tag="placeholder",
                              origin_costs=dict(cls.template["route_costs_ms"]), origin_noise=(0.0, 0.01, -0.01))
         cls.runner = K.Runner(cls.host)
-        cls.origin = K.origin_step(cls.host, cls.template, C.PLACEHOLDER, cls.out, cls.say.append)
+        cls.origin = K.origin_step(cls.runner, cls.template, C.PLACEHOLDER, cls.out, cls.say.append)
         cls.capacity = K.capacity_step(cls.runner, cls.template, C.PLACEHOLDER, cls.out, say=cls.say.append)
         cls.draft, cls.under = K.session_draft(cls.out, cls.template)
         cls.ladders = {f: K.ladder_step(cls.runner, cls.draft, C.PLACEHOLDER, f, cls.out, cls.under, say=cls.say.append)
@@ -1004,6 +1250,25 @@ class SimulatedCalibrationTest(unittest.TestCase):
         self.assertFalse(K.read_json(os.path.join(self.tmp.name, "c3", "drift", "drift.json"))["ok"])
         self.assertTrue(K.read_json(os.path.join(self.tmp.name, "c3.second", "drift", "drift.json"))["ok"])
 
+    def test_a_drift_step_whose_attack_run_fails_twice_stops_and_one_inside_the_floors_passes(self):
+        """D-062 moves the tolerance only: a failure is made once more and twice stops. 9 pp off passes; 10.1 pp off does not."""
+        path = os.path.join(self.tmp.name, "cli_cal3.json")
+        C.dump(self.frozen, path)
+        family = min(self.frozen["drift_reference"]["attack"])
+        ref = self.frozen["drift_reference"]["attack"][family]
+        far, near = {"Q": ref["q_pct"] - 10.1, "p95_s": ref["p95_s"]}, {"Q": ref["q_pct"] - 9.0, "p95_s": ref["p95_s"]}
+        args = ("drift", "--calibration", path, "--simulate", "--sim-capacity-cpu", str(CAPACITY_CPU))
+        with mock.patch.object(K, "attack_run", side_effect=[far, near]) as made:
+            code, out, _ = self.cli(*args, "--out", os.path.join(self.tmp.name, "c5"))
+        self.assertEqual((code, made.call_count), (K.EXIT_OK, 2), out)
+        self.assertIn("drift check 1 of 2 failed; making it once more", out)
+        with mock.patch.object(K, "attack_run", side_effect=[far, far]) as made:
+            code, out, _ = self.cli(*args, "--out", os.path.join(self.tmp.name, "c6"))
+        self.assertEqual((code, made.call_count), (K.EXIT_INVALID, 2), out)
+        self.assertIn("floor_pp", out)
+        self.assertIn("drift check 2 of 2 failed; it stops here", out)
+        self.assertFalse(K.read_json(os.path.join(self.tmp.name, "c6.second", "drift", "drift.json"))["ok"])
+
     def test_a_screening_whose_controls_are_unhealthy_is_invalid_and_exits_three(self):
         dest = self.copy_session()                      # not the session itself: this overwrites a screening
         shutil.rmtree(os.path.join(dest, "ladder_costly_search_flood"))
@@ -1051,6 +1316,39 @@ class SimulatedCalibrationTest(unittest.TestCase):
         env = K.read_json(os.path.join(dest, "capacity", "r1", "C", "environment.json"))
         return K.freeze_step(dest, template or self.template, env)
 
+    def test_the_frozen_record_has_the_pins_the_steps_were_made_with(self):
+        self.assertEqual(self.frozen["host"]["pins"], P.PIN_PLAN)
+        for name in ("capacity", "reference"):
+            self.assertEqual(K.read_json(os.path.join(self.out, name, name + ".json"))["pins"], P.PIN_PLAN, name)
+        dest = self.copy_session()
+        other = {**P.PIN_PLAN, "legit": "5"}
+        for parts in (("capacity", "capacity.json"), ("reference", "reference.json"),
+                      *[(f"ladder_{f}", "ladder.json") for f in K.FAMILY_SPECS]):
+            self.edit(dest, *parts, change=lambda d: d.update(pins=other))
+        self.assertEqual(self.freeze(dest)["host"]["pins"], other, "what they were made with, not this code's plan")
+
+    def test_a_session_whose_steps_were_made_with_two_pin_plans_or_do_not_say_is_not_frozen(self):
+        for parts, change, said in ((("reference", "reference.json"), lambda d: d.update(pins={**P.PIN_PLAN, "legit": "5"}),
+                                     "reference was made with attack 3-6, daemon 2, legit 5, server 0-1"),
+                                    (("ladder_cheap_static_flood", "ladder.json"), lambda d: d.pop("pins"),
+                                     "ladder cheap_static_flood was made with no pin plan on record"),
+                                    (("capacity", "capacity.json"), lambda d: d.pop("pins"),
+                                     "capacity was made with no pin plan on record")):
+            with self.subTest(parts=parts):
+                dest = self.copy_session()
+                self.edit(dest, *parts, change=change)
+                with self.assertRaisesRegex(K.CalibrationStop, said):
+                    self.freeze(dest)
+
+    def test_a_later_step_refuses_a_capacity_made_with_other_pins_before_any_run(self):
+        dest = self.copy_session()
+        self.assertEqual(K.session_draft(dest, self.template)[0]["capacity"]["c_slo_rps"], self.capacity["c_slo_rps"])
+        for change, said in ((lambda d: d.update(pins={**P.PIN_PLAN, "legit": "5"}), "made with attack 3-6, daemon 2, legit 5, server 0-1"),
+                             (lambda d: d.pop("pins"), "no pin plan on record")):
+            self.edit(dest, "capacity", "capacity.json", change=change)
+            with self.assertRaisesRegex(K.CalibrationStop, said):
+                K.session_draft(dest, self.template)
+
     def test_a_copy_of_the_session_freezes_the_same(self):
         dest = self.copy_session()
         self.assertEqual({**self.freeze(dest), "created_utc": 0}, {**self.frozen, "created_utc": 0} | {"sha256": self.freeze(dest)["sha256"]})
@@ -1092,6 +1390,21 @@ class SimulatedCalibrationTest(unittest.TestCase):
         self.edit(dest, "reference", "reference.json", change=lambda d: d["reference"].update(rho_rps=50.0))
         with self.assertRaisesRegex(K.CalibrationStop, "reference was taken at rho 50"):
             self.freeze(dest)
+
+    def test_an_origin_of_another_estimator_or_of_none_is_neither_resumed_nor_frozen(self):
+        """An origin.json that does not say its estimator (HG2a's, made before the version was recorded) or names another
+        version: its costs differ from this code's by up to about 9 % a route, which the origin's 25 % self-check would not
+        see once frozen (docs/HG1C_DESIGN.md departure 29)."""
+        for label, change, said in (("none", lambda d: d.pop("estimator"), "does not say which estimator"),
+                                    ("version 1", lambda d: d["estimator"].update(version=1), "estimator version 1")):
+            with self.subTest(origin=label):
+                dest = self.copy_session()
+                self.edit(dest, "origin", "origin.json", change=change)
+                with self.assertRaisesRegex(K.CalibrationStop, said):
+                    self.freeze(dest)
+                with self.assertRaisesRegex(K.CalibrationStop, said):
+                    K.session_draft(dest, self.template)
+        self.assertTrue(self.freeze(self.copy_session())["sha256"], "this code's own origin still freezes")
 
 
 class CommandLineTest(unittest.TestCase):
@@ -1185,7 +1498,136 @@ class CommandLineTest(unittest.TestCase):
     def test_origin_session_prints_one_json_object(self):
         code, out, _ = self.cli("origin-session", "--repeats", "3")
         self.assertEqual(code, K.EXIT_OK)
-        self.assertEqual(sorted(json.loads(out)), ["C0", "C1", "C2", "C3", "C5"])
+        got = json.loads(out)
+        self.assertEqual(sorted(got), ["batch", "clock", "costs_ms"])
+        self.assertEqual(sorted(got["costs_ms"]), ["C0", "C1", "C2", "C3", "C5"])
+
+    def test_a_session_whose_origin_says_no_estimator_is_not_resumed_and_nothing_runs(self):
+        """The directory of HG2a (hg2_1) as it is: an origin.json from the old estimator, with no `estimator`, and a capacity
+        step's record. A later step on it refuses before any run (the host here would refuse a run anyway: not root)."""
+        out = os.path.join(self.tmp.name, "hg2_1")
+        K.write_json(os.path.join(out, "origin", "origin.json"),
+                     {"step": "origin", "route_costs_ms": {"C0": 0.0058, "C1": 3.96, "C2": 2.15, "C3": 35.5, "C5": 191.8},
+                      "rounds": [], "sessions": 3, "repeats": 21, "cpu": "0", "template_sha256": TEMPLATE["sha256"]})
+        K.write_json(os.path.join(out, "capacity", "capacity.json"),
+                     {"step": "capacity", "c_slo_rps": 84.5, "c_sat_rps": 241.3, "smoke": False, "template_sha256": TEMPLATE["sha256"]})
+        for args in (("ladder", "--family", "cheap_static_flood"), ("reference",)):
+            with self.subTest(step=args[0]):
+                code, _, err = self.cli(*args[:1], "--out", out, *args[1:], host=S.SimHost(root=False))
+                self.assertEqual(code, K.EXIT_STOPPED)
+                self.assertIn("does not say which estimator measured it", err)
+                self.assertIn("make the origin step again", err)
+        self.assertEqual(sorted(os.listdir(out)), ["capacity", "origin"], "no run was made")
+
+
+class RulesPinnedTest(unittest.TestCase):
+    """The rules and thresholds of the calibration and of the runs, as they stood when the origin step's measurement was changed
+    after HG2b's stops (docs/HG1C_DESIGN.md departures 28 and 29). That change is to how a route is timed and when the step may
+    start, not to what the step accepts: the 10 % rule, its three sessions of 21 repeats, its one retry, the 25 % of the origin's
+    start-up self-check and the environment gate stay as they were, and so do the thresholds pinned below: the capacity probe's
+    levels, limits and window, rho's share, the screening's ladders, repeats, controls and the knee's floor of 1, the drift
+    tolerances, the executor's settings, the generator's model and the template with the harm gate's floors. These are the
+    constants the steps rest on, not every constant of the code. A failure here means one of them moved, which is a decision to be
+    labelled (post hoc, if it follows data), not a measurement fix."""
+
+    def origin(self, noise):
+        """The origin step from the command line on the simulated host, whose sessions disagree by `noise` (cycled): its exit code
+        and how many sessions it made."""
+        host = S.SimHost(origin_costs=dict(TEMPLATE["route_costs_ms"]), origin_noise=noise)
+        out = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, out)
+        with mock.patch.object(X.signal, "signal"), contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()):
+            code = K.main(["origin", "--out", out], host=host)
+        return code, host.origin_calls
+
+    def test_the_origin_rule_is_three_sessions_of_21_repeats_on_cpu_0_within_10_percent(self):
+        self.assertEqual((K.ORIGIN_SESSIONS, K.ORIGIN_REPEATS, K.ORIGIN_SPREAD, K.ORIGIN_CPU), (3, 21, 0.10, "0"))
+
+    def test_a_round_over_the_limit_is_made_once_more_and_a_second_one_stops_the_step(self):
+        self.assertEqual(self.origin((-0.04, 0.0, 0.04)), (K.EXIT_OK, 3), "8 % passes in the first round")
+        self.assertEqual(self.origin((-0.1, 0.0, 0.2, 0.0, 0.01, -0.01)), (K.EXIT_OK, 6), "30 %, then 2 %: one retry")
+        self.assertEqual(self.origin((-0.1, 0.0, 0.2)), (K.EXIT_STOPPED, 6), "30 % twice: it stops after two rounds")
+
+    def test_the_start_up_self_check_of_the_origin_allows_25_percent_over_5_repeats(self):
+        frozen = {k: 1.0 for k in O.CLASSES}
+        self.assertEqual(O.TOLERANCE, 0.25)
+        self.assertEqual(O.self_check({k: 1.24 for k in frozen}, frozen), [])
+        self.assertEqual(O.self_check({k: 0.76 for k in frozen}, frozen), [])
+        self.assertEqual(len(O.self_check({k: 1.26 for k in frozen}, frozen)), 5)
+        self.assertEqual(inspect.signature(O.measure_unloaded).parameters["repeats"].default, 5)
+        small = O.CostKnobs(rows_total=200, page_rows=5, page_burn=5, api_burn=5, search_rows=50, export_rows=20, export_burn=5)
+        with mock.patch.object(O, "measure_unloaded", return_value=dict(frozen)) as measured:
+            O.make_app(small, frozen_costs_ms=frozen).close()
+        self.assertEqual(measured.call_count, 1)
+        self.assertNotIn("repeats", measured.call_args.kwargs, "the self-check takes the default of 5 repeats")
+        self.assertEqual(len(measured.call_args.args), 1)
+
+    def test_the_environment_gate_is_up_30_minutes_and_load_below_0_3(self):
+        self.assertEqual(V.GATE, {"uptime_s": 1800, "load1": 0.3})
+
+    def test_the_thresholds_of_the_other_steps(self):
+        self.assertEqual((K.CAPACITY_REPEATS, K.STEP_S, K.Q_WINDOW), (3, 20.0, (5.0, 17.0)))
+        self.assertEqual((K.HEALTHY_Q, K.SATURATED_Q, K.SATURATED_REPEATS), (99.0, 50.0, 2))
+        self.assertEqual((K.LADDER_REPEATS, K.CONTROL_EVERY, K.CONTROL_SPREAD_PP), (2, 4, 2.0))
+        self.assertEqual((K.PROBE_S, K.PROBE_WINDOW, K.REFERENCE_PROBES), (120.0, (10.0, 120.0), 3))
+        self.assertEqual(K.SEEDS, {"capacity": 11, "ladder": 21, "reference": 31, "drift": 41})
+        self.assertEqual(K.staged_limits(K.STEP_S), {"t0_spread_limit_s": 3.0, "t0_range_limit_s": 3.0, "group_start_limit_s": 3.0})
+
+    def test_the_clock_rules_and_settings_of_a_run(self):
+        self.assertEqual(X.SETTINGS, {
+            "startup_delay_legit_s": 2.9, "startup_delay_attack_s": 0.15, "readiness_timeout_s": 30.0, "warmup_requests": 2,
+            "t0_spread_limit_s": 0.5, "t0_range_limit_s": 2.5, "attack_start_limit_s": 0.5, "group_start_limit_s": 0.5,
+            "term_grace_s": 2.0, "min_nofile": 16384, "exit_delay_per_request_s": 8e-6, "straggler_share": 0.5,
+            "straggler_tail_s": 0.1})
+
+    def test_the_capacity_levels_and_rho_s_share_of_c_slo(self):
+        self.assertEqual(K.capacity_levels(), [50.0, 65.0, 84.5, 109.9, 142.8, 185.6, 241.3, 313.7, 407.9, 530.2])
+        self.assertEqual(C.RHO_SHARE, 0.5)
+
+    def test_the_knee_is_a_harm_of_1_in_each_of_two_repeats(self):
+        def entries(harm_by_level):
+            rows = [{"kind": "C", "level": None, "repeat": i, "metrics": metrics(100.0, 0.05, {"C0": {"Q": 100.0, "ok": 1, "n": 1}})}
+                    for i in (1, 2)]
+            return rows + [{"kind": "U", "level": level, "repeat": rep, "metrics": metrics(100.0 - 10.0 * h, 0.05)}
+                           for level, h in harm_by_level.items() for rep in (1, 2)]
+        cal = CF.frozen()
+        self.assertEqual(cal["gate"]["floor_pp"], 10.0, "a harm of 1 is a loss of 10 pp of Q here")
+        self.assertEqual(K.analyse_ladder(entries({1: 0.999, 2: 1.0}), cal)["knee"]["level"], 2.0)
+        self.assertIsNone(K.analyse_ladder(entries({1: 0.999}), cal)["knee"]["level"])
+
+    def test_the_departure_dates_the_attack_runs_tolerance(self):
+        """D-062: post hoc, from 6 runs, before any campaign data, in the user's words, with what it costs."""
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "HG1C_DESIGN.md"), encoding="utf-8") as fh:
+            rows = [line for line in fh if line.startswith("| 33 |")]
+        self.assertEqual(len(rows), 1)
+        for phrase in ("D-062", '"Yes, widen it"', "post hoc", "from 6 runs", "before any campaign data", "`gate.floor_pp` (10)",
+                       "`gate.floor_log2_p95` (1.0, a factor of 2)", "`DRIFT_Q_PP` 2.0", "`DRIFT_P95` 0.25", "no longer detects"):
+            self.assertIn(phrase, rows[0])
+
+    def test_the_drift_tolerances_are_2_points_of_q_and_25_percent_of_p95(self):
+        self.assertEqual((C.DRIFT_Q_PP, C.DRIFT_P95), (2.0, 0.25))
+        self.assertTrue(C.drift_ok(99.0, 0.10, 97.0, 0.125)[0])
+        self.assertFalse(C.drift_ok(99.0, 0.10, 96.9, 0.10)[0])
+        self.assertFalse(C.drift_ok(99.0, 0.10, 99.0, 0.126)[0])
+
+    def test_an_attack_runs_drift_tolerance_is_the_gates_floors_of_10_points_and_a_factor_of_2(self):
+        gate = C.load(C.PLACEHOLDER)["gate"]
+        self.assertEqual((gate["floor_pp"], gate["floor_log2_p95"]), (10.0, 1.0))
+        self.assertTrue(C.drift_attack_ok(gate, 70.0, 0.10, 60.0, 0.20)[0])
+        self.assertFalse(C.drift_attack_ok(gate, 70.0, 0.10, 59.9, 0.10)[0])
+        self.assertFalse(C.drift_attack_ok(gate, 70.0, 0.10, 70.0, 0.201)[0])
+
+    def test_the_ladders_of_the_three_families_and_the_generator_s_model(self):
+        for family, spec in sorted(K.FAMILY_SPECS.items()):
+            self.assertEqual(SC.load(K.spec_path(spec)).intensity["ladder"], [0.125, 0.25, 0.5, 1, 2, 4, 8], family)
+        self.assertEqual((P.ENGINE_CEILING_RPS, P.CPU_MS_PER_REQUEST), (5000, 0.1))
+
+    def test_the_template_with_the_gate_s_floors_is_the_one_hashed_ac4e3156(self):
+        self.assertEqual(TEMPLATE["sha256"], "ac4e3156db5eacb62fad6c39ebd24c9b5943c07662d231ac7070d9ed9d7e0716")
+        self.assertEqual(C.digest(TEMPLATE), TEMPLATE["sha256"])
+        self.assertEqual(TEMPLATE["gate"], {"ci_level": 0.95, "control_q_min": 99.0, "floor_log2_p95": 1.0, "floor_pp": 10.0,
+                                            "max_reruns": 2, "min_blocks": 10, "same_sign_share": 0.8})
 
 
 if __name__ == "__main__":
