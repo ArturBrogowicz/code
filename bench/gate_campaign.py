@@ -142,6 +142,10 @@ def describe(scn, cal, scenario_sha, opts):
                + ("PLACEHOLDER: a dry run, nothing it makes is a result" if cal["status"] != "frozen" else "frozen"))
     level = "none" if scn.is_control else SC.resolve_level(scn, cal)
     out.append(f"scenario     sha256:{scenario_sha[:8]}, {scn.family} ({scn.threat_class}), attack level {level}")
+    if not scn.is_control:
+        out.append("level rule   " + ("the design allows the frozen knee and, as the one further confirmation after a failure, 2 x the knee; "
+                                      "`run` refuses any other level on a frozen record" if cal["status"] == "frozen" else
+                                      "no frozen record: a dry run may take any level, and the gate gives it no verdict"))
     out.append("timeline     " + ", ".join(f"{k} {v:g}" for k, v in timeline_of(scn, opts).items()))
     smoke = {k: v for k, v in (("rho", opts.rho), ("timeline", opts.timeline), ("timer limit ms", opts.timer_limit_ms)) if v}
     if smoke:
@@ -172,6 +176,11 @@ def describe(scn, cal, scenario_sha, opts):
                                                                f"{gate['max_reruns'] * per_block * RUN_ESTIMATE_S / 60:.1f} min"
                                                                if per_block != 3 else ""))
     out.append("")
+    warned = SC.plan(scn, cal, pins=pins_of(opts))["warnings"]        # the scenario plan's own, so that the two plans cannot disagree
+    problem = level_problem(scn, cal, opts)
+    out += [f"WARNING: {w}." for w in warned] + ([f"WARNING: `run` refuses this: {problem}."] if problem else [])
+    if warned or problem:
+        out.append("")
     if n < gate["min_blocks"]:
         out.append(f"WARNING: {n} blocks are fewer than the {gate['min_blocks']} the gate needs: the verdict would be INVALID.\n")
     out.append("block  seed  order of attempt 1")
@@ -352,6 +361,22 @@ def check_calibration(cal, opts):
                             "or pass --dry-run to run the protocol and label everything a dry run.")
 
 
+def level_problem(scn, cal, opts):
+    """Why a campaign on a frozen record may not run at the scenario's level, or None (docs/HG1C_DESIGN.md departure 37): design 7.2 step
+    6 allows 'Ten paired blocks at the frozen kappa_f' and, if that fails, one further confirmation at 2 x kappa_f; 'no other level is
+    tried'. A record that is not frozen makes no result at any level, and a dry run may take any."""
+    if cal["status"] != "frozen" or scn.is_control:
+        return None
+    knee = cal["knees"].get(scn.family)
+    if not isinstance(knee, (int, float)):
+        return f"the frozen record holds no knee for {scn.family} ({knee!r}), so no level of {scn.id} is one the design allows"
+    level = SC.resolve_level(scn, cal)
+    if level == knee:
+        return None
+    return (f"{scn.id} is at level {level:g}, and the frozen knee of {scn.family} is {knee:g}: the design (7.2 step 6) allows only the knee "
+            "and, as the one further confirmation after a failure, 2 x the knee")
+
+
 def check_options(opts):
     """A timer limit other than the calibration's is a smoke test's, and the harm gate gives no verdict on runs that carry it:
     a campaign meant to count would spend its VM hours for nothing, so it is refused before any starts."""
@@ -379,6 +404,9 @@ def run_campaign(scn, cal, cal_path, scenario_sha, out, host, opts=None, say=pri
     opts = opts or Options()
     check_calibration(cal, opts)
     check_options(opts)
+    problem = level_problem(scn, cal, opts)
+    if problem:
+        raise CampaignError(problem)
     fp = fingerprint(scn, cal, scenario_sha, opts)
     state = load_state(out, fp)
     os.makedirs(out, exist_ok=True)
@@ -496,7 +524,7 @@ def parse_faults(items):
 
 def _add_common(p):
     p.add_argument("spec", help="a scenario record (bench/scenarios/*.json)")
-    p.add_argument("--calibration", default=C.PLACEHOLDER, help="the calibration record (default: the placeholder, for a dry run)")
+    p.add_argument("--calibration", default=C.PLACEHOLDER, help="the calibration record (default: the placeholder, which has no knee, so an attack spec needs another)")
     p.add_argument("--blocks", type=int, default=None, help="fewer blocks than the scenario's: a smoke test")
     p.add_argument("--rho", type=float, default=None, help="smoke test: the benign load in requests/s")
     p.add_argument("--timeline", type=X._timeline_arg, default=None, metavar="B,A,R", help="smoke test: baseline, attack, recovery seconds")

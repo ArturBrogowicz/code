@@ -95,7 +95,7 @@ generator     in-repo engine; at most 5000 req/s a stream; 0.1 ms of CPU a reque
     A-cheap_static_flood-broadband-1   C1     poisson  147.28      1   1  3-6      30  1288599683
     A-cheap_static_flood-mobile_bad-3  C1     poisson  147.28      1   3  3-6      30   966256732
 
-expected gate likely PASS (A = 4 S; PASS is expected from 2, FAIL up to 0.5; first order)
+expected gate likely PASS (A = 4 S against the recorded knee 4: the ladder passed at the knee in both repeats, and a confirmation can still fail)
 
 warnings
   - the calibration is a placeholder: every cost, rate and capacity here is an illustration, and the harm gate refuses a verdict on it

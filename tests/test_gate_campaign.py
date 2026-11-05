@@ -33,6 +33,11 @@ RHO = 20.0
 SPEC_SHA = GC.sha256_of(SPEC)
 
 
+def SC_RECORD(path):
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
 def three_block_cal(**gate):
     """The placeholder frozen with a gate that needs three blocks, so that a campaign of three can end in a verdict."""
     cal = copy.deepcopy(CF.placeholder_with_knees())
@@ -261,6 +266,22 @@ class PlanTextTest(CampaignCase):
     def test_a_timer_limit_is_one_of_the_overrides_it_names(self):
         self.assertRegex(self.text(timer_limit_ms=50.0), r"OVERRIDES    .*timer limit ms 50\.0.*: a smoke test, not a result")
         self.assertNotIn("timer limit", self.text())
+
+    def test_the_plan_shows_the_scenario_plans_warnings_and_says_what_run_will_refuse(self):
+        """T-056: `gate_campaign plan` showed no warning at a level below the knee, and said nothing of the design's rule."""
+        cal = copy.deepcopy(self.CAL)
+        cal["knees"] = {"costly_search_flood": 4.0}
+        scn = SC.from_record({**SC_RECORD(SPEC), "intensity": {**SC_RECORD(SPEC)["intensity"], "level": 2}})
+        text = GC.describe(scn, cal, SPEC_SHA, self.options())
+        for w in SC.plan(scn, cal)["warnings"]:
+            self.assertIn(f"WARNING: {w}.", text)
+        self.assertIn("the level 2 is below the recorded knee 4", text)
+        self.assertIn("WARNING: `run` refuses this: costly_search_sub_threshold is at level 2, and the frozen knee of costly_search_flood is 4", text)
+        self.assertIn("level rule   the design allows the frozen knee and, as the one further confirmation after a failure, 2 x the knee", text)
+        at = GC.describe(self.scn, self.CAL, SPEC_SHA, self.options())
+        self.assertNotIn("WARNING", at)
+        self.assertIn("level rule   the design allows", at)
+        self.assertIn("level rule   no frozen record: a dry run may take any level", self.text(cal=CF.placeholder_with_knees()))
 
     def test_a_placeholder_is_a_dry_run(self):
         self.assertIn("PLACEHOLDER: a dry run", self.text(cal=CF.placeholder_with_knees()))
@@ -885,6 +906,40 @@ class CalibrationTest(CampaignCase):
             GC.run_campaign(self.scn, CF.placeholder(), C.PLACEHOLDER, SPEC_SHA, self.path(), S.SimHost(), self.options())
         self.assertIn("placeholder", str(ctx.exception))
         self.assertFalse(os.path.exists(self.path()))
+
+    def scenario_at(self, level):
+        return SC.from_record({**SC_RECORD(SPEC), "intensity": {**SC_RECORD(SPEC)["intensity"], "level": level}})
+
+    def test_a_frozen_record_refuses_any_level_but_the_knee_and_names_both(self):
+        """D-066, design 7.2 step 6: 'no other level is tried'."""
+        cal = copy.deepcopy(self.CAL)
+        cal["knees"] = {"costly_search_flood": 4.0}
+        for level in (2, 8, 0.5):
+            with self.subTest(level=level), self.assertRaises(GC.CampaignError) as ctx:
+                self.run_campaign(scn=self.scenario_at(level), cal=cal)
+            self.assertIn(f"is at level {level:g}, and the frozen knee of costly_search_flood is 4", str(ctx.exception))
+            self.assertFalse(os.path.exists(self.path()), "refused before anything is made")
+        self.assertIsNone(GC.level_problem(self.scenario_at(4), cal, self.options()), "a number that is the knee is the knee")
+        self.assertIsNone(GC.level_problem(self.scenario_at("knee"), cal, self.options()))
+
+    def test_a_frozen_record_with_no_knee_for_the_family_refuses_it(self):
+        cal = copy.deepcopy(self.CAL)
+        for knees, said in (({}, "None"), ({"costly_search_flood": None}, "None")):
+            cal["knees"] = knees
+            with self.subTest(knees=knees), self.assertRaisesRegex(GC.CampaignError, f"holds no knee for costly_search_flood \\({said}\\)"):
+                self.run_campaign(scn=self.scenario_at(2), cal=cal)
+
+    def test_a_dry_run_on_a_placeholder_may_take_any_level_and_gets_no_verdict(self):
+        cal = CF.placeholder_with_knees()
+        self.assertIsNone(GC.level_problem(self.scenario_at(1), cal, self.options(dry_run=True)))
+
+    def test_the_real_frozen_record_allows_the_three_specs_as_they_stand(self):
+        frozen = C.load(os.path.join(REPO, "bench", "calibration", "ddos-mitigation-2026-11-04.json"))
+        for name, level in (("costly_search_sub_threshold", 4), ("costly_export_sub_threshold", 4), ("cheap_static_flood", 2)):
+            with self.subTest(name=name):
+                scn = SC.load(os.path.join(REPO, "bench", "scenarios", name + ".json"))
+                self.assertIsNone(GC.level_problem(scn, frozen, self.options()))
+                self.assertIn(f"attack level {float(level)}", GC.describe(scn, frozen, "0" * 64, self.options()))
 
     def test_a_dry_run_on_a_placeholder_is_labelled_everywhere(self):
         cal = CF.placeholder_with_knees()

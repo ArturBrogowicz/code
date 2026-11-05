@@ -441,9 +441,25 @@ class ExpectedGateTest(unittest.TestCase):
         for level, want in classes.items():
             with self.subTest(level=level):
                 self.assertEqual(S.expected_gate(level)["class"], want)
-                self.assertEqual(plan_of("costly_search_sub_threshold", intensity__level=level)["expected_gate"]["class"],
-                                 want)
+                self.assertEqual(S.plan(scenario("costly_search_sub_threshold", intensity__level=level), C.load(C.PLACEHOLDER))["expected_gate"]["class"],
+                                 want, "without a knee on record it is the model's reading")
         self.assertEqual(S.expected_gate(None)["class"], "n/a")
+
+    def test_a_plan_does_not_say_likely_pass_beside_a_level_below_the_knee(self):
+        """T-056: `the level 2 is below the recorded knee 4` beside `expected gate likely PASS`. A knee on record decides."""
+        frozen = C.load(FROZEN)
+        below = S.plan(scenario("costly_search_sub_threshold", intensity__level=2), frozen)
+        self.assertTrue(any("below the recorded knee 4" in w for w in below["warnings"]), below["warnings"])
+        self.assertEqual(below["expected_gate"]["class"], "likely FAIL")
+        self.assertNotIn("likely PASS", S.render(below))
+        at = S.plan(scenario("costly_search_sub_threshold"), frozen)
+        self.assertEqual(at["expected_gate"]["class"], "likely PASS")
+        self.assertIn("a confirmation can still fail", at["expected_gate"]["basis"])
+        cal = copy.deepcopy(frozen)
+        cal["knees"]["costly_search_flood"] = None
+        none = S.plan(scenario("costly_search_sub_threshold", intensity__level=2), cal)
+        self.assertEqual(none["expected_gate"]["class"], "likely FAIL")
+        self.assertTrue(any("cannot harm" in w for w in none["warnings"]), none["warnings"])
 
     def test_the_two_shipped_attacks(self):
         self.assertEqual(plan_of("costly_search_sub_threshold")["expected_gate"]["class"], "likely PASS")
