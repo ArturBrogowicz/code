@@ -554,7 +554,14 @@ def _knees(knees, seed_role, rec):
         if bound is None:
             raise PlanError("knees for training, validation or evaluation must name the calibration record they were "
                             "measured on (record_sha256)")
-    return dict(PLACEHOLDER_KNEES) if knees is None else dict(knees)
+    if knees is None:
+        return dict(PLACEHOLDER_KNEES)
+    c2 = knees.get("C2")
+    if isinstance(c2, bool) or not isinstance(c2, (int, float)) or not c2 > 0:
+        what = f"have C2 = {c2!r}" if "C2" in knees else "have no C2"
+        raise PlanError(f"the knees {what}, and a plan sizes its C2 attack from it (ml/l7v2_prereg.json classes.C2); "
+                        f"they name {sorted(knees)}. C2 must be P1's frozen knee, a positive number")
+    return dict(knees)
 
 
 def build_plan(version, seed, seed_role, population="smoke", *, heuristics="tolerant", scale=1,

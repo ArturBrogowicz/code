@@ -157,6 +157,8 @@ class BlockTest(unittest.TestCase):
             P.build_block(3001, "eval", LEVELS, record_path=None, knees=KNEES)
         with self.assertRaises(P.PlanError):
             P.build_block(3001, "eval", LEVELS, record_path=RECORD, knees={**KNEES, "record_sha256": "0" * 64})
+        with self.assertRaisesRegex(P.PlanError, "have C2 = None"):
+            P.build_block(3001, "eval", LEVELS, record_path=RECORD, knees={**KNEES, "C2": None})
         with self.assertRaises(P.PlanError):
             P.build_block(3001, "eval", LEVELS, record_path=RECORD, knees=None)
 
