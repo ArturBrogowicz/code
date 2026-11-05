@@ -180,7 +180,7 @@ def attack_window():
 
 
 def level_window(timeline=None):
-    """What the verdict's harm contrasts read (D-053, ml/l7v2_verdict_prereg_v3.json level_window), seconds from the run's start."""
+    """What the verdict's harm contrasts read (D-053, ml/l7v2_verdict_prereg_v4.json level_window), seconds from the run's start."""
     import l7v2_verdict_prereg
     t = timeline or TIMELINE
     lo = float(t["baseline_s"])
