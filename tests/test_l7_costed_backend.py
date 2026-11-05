@@ -9,6 +9,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -250,10 +251,74 @@ class RecordTest(unittest.TestCase):
 
     def test_a_record_that_is_not_frozen_has_nothing_to_check(self):
         env = {}
-        with mock.patch.object(O, "measure_unloaded", side_effect=AssertionError("measured")), \
-                mock.patch.object(B.CostedApp, "from_env", side_effect=AssertionError("built")):
+        with mock.patch.object(O, "make_app", side_effect=AssertionError("built")):
             B.check_at_server_start(env)
         self.assertEqual(env, {})
+
+    def test_the_masters_check_is_the_check_a_worker_would_run(self):
+        """One build behind both, so the knobs, seed, costs, tag and clock cannot drift apart; a guard, which passes on its parent too."""
+        frozen = CF.frozen()
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(O, "make_app") as build:
+            path = os.path.join(d, "f.json")
+            CAL.dump(frozen, path)
+            B.check_at_server_start({B.ENV_RECORD: path, "ORIGIN_SEED": "7"})
+            B.CostedApp.from_env({B.ENV_RECORD: path, "ORIGIN_SEED": "7"})
+            master, worker = build.call_args_list
+            self.assertEqual(master, worker)
+            self.assertEqual(master.args[1:3], (7, frozen["route_costs_ms"]))
+            self.assertIs(master.args[4], time.process_time)
+            B.CostedApp.from_env({B.ENV_RECORD: path, "ORIGIN_SEED": "7", B.ENV_CHECKED: frozen["sha256"]})
+            self.assertIsNone(build.call_args.args[2], "with the marker it brings no costs to measure against")
+
+    SERVER_START = """
+import importlib, importlib.util, json, os, sys
+repo, factor = sys.argv[1], float(sys.argv[2])
+sys.path[:0] = [repo, os.path.join(repo, "bench")]
+import origin as O
+calls, record = [], json.load(open(os.environ["L7_CALIBRATION"]))
+def measure(*args, **kw):
+    calls.append(os.getpid())
+    return {k: v * factor for k, v in record["route_costs_ms"].items()}
+O.measure_unloaded = measure
+spec = importlib.util.spec_from_file_location("gunicorn_profile_r", os.path.join(repo, "gunicorn_profile_r.py"))
+conf = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(conf)
+conf.on_starting(None)
+print(json.dumps({"measures": len(calls), "imported": "l7_webapp" in sys.modules, "marker": os.environ.get("L7_RECORD_CHECKED")}), flush=True)
+pid = os.fork()
+if pid == 0:
+    before = "l7_webapp" in sys.modules
+    mod = importlib.import_module("l7_webapp")
+    print(json.dumps({"imported": before, "measures": len(calls) - 1, "tag": mod._BACKEND[0].tag}), flush=True)
+    os._exit(0)
+os._exit(os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1]))
+"""
+
+    def server_start(self, factor):
+        """Gunicorn's order by direct calls in a subprocess, with raw_env's environment and the measure counted: the hook, a fork, and the
+        import a worker's load_wsgi does. No gunicorn, no socket; that path itself is the smoke's."""
+        frozen = CF.frozen()
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "f.json")
+            CAL.dump(frozen, path)
+            env = {"PATH": os.environ.get("PATH", ""), "HOME": d, "L7_BACKEND": "costed", "L7_UPLOAD": "streamed", "L7_CALIBRATION": path}
+            run = subprocess.run([sys.executable, "-c", self.SERVER_START, REPO, str(factor)], env=env, capture_output=True, text=True,
+                                 check=False, cwd=d)
+        return frozen, run
+
+    def test_the_master_measures_once_and_the_worker_builds_its_own(self):
+        """T-058: through a CostedApp the master measured twice, kept the backend l7_webapp builds at import, and its forked workers
+        inherited it, opened before the fork, and read no marker."""
+        frozen, run = self.server_start(1.0)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        master, worker = map(json.loads, run.stdout.splitlines())
+        self.assertEqual(master, {"measures": 1, "imported": False, "marker": frozen["sha256"]})
+        self.assertEqual(worker, {"imported": False, "measures": 0, "tag": "frozen:" + frozen["sha256"][:8]})
+
+    def test_a_refused_master_still_ends_with_the_named_line(self):
+        _frozen, run = self.server_start(2.0)
+        self.assertEqual((run.returncode, run.stdout), (1, ""))
+        self.assertIn("CalibrationError: C0:", run.stderr)
 
     def on_starting(self):
         spec = importlib.util.spec_from_file_location("gunicorn_profile_r", os.path.join(REPO, "gunicorn_profile_r.py"))

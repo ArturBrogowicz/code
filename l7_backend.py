@@ -142,16 +142,33 @@ def arithmetic_record(costs_rec, base_rec):
     return out
 
 
+def _origin(rec, status, tag, *, knobs=None, data_seed=1, clock=time.process_time, checked=None):
+    """The origin a record asks for, the one build behind a CostedApp and the master's check (check_at_server_start): the record's
+    knobs with `knobs` over them, and its frozen costs, which make the origin measure itself, unless `checked` says that this
+    server's master has already measured against this record."""
+    fields = {f.name for f in dataclasses.fields(O.CostKnobs)}
+    merged = {k: v for k, v in rec["knobs"].items() if k in fields}
+    merged.update(knobs or {})
+    frozen = rec["route_costs_ms"] if status == "frozen" and checked != rec["sha256"] else None
+    return O.make_app(O.CostKnobs(**merged), data_seed, frozen, tag, clock)
+
+
+def _env_seed(environ):
+    return int(environ.get("ORIGIN_SEED", "1"))
+
+
 def check_at_server_start(environ=None):
     """Profile R's master (gunicorn_profile_r.py, D-063): the frozen record's self-check, once per server start and exactly as a worker
     would run it, or origin.CalibrationError; then the marker its workers inherit, bound to the record's hash, so that they keep
     the tag and do not measure. An earlier server's marker counts for nothing. A record that is not frozen has no check. Without
-    the marker (P1, the harm benchmark) a CostedApp checks itself as before."""
+    the marker (P1, the harm benchmark) a CostedApp checks itself as before. It builds no CostedApp: that imports l7_webapp, which
+    under L7_BACKEND=costed builds a backend at import, so the master would measure twice and its workers would inherit that
+    backend, opened before the fork, and read no marker."""
     environ = os.environ if environ is None else environ
     environ.pop(ENV_CHECKED, None)
-    rec, status, _tag = load_record(environ.get(ENV_RECORD) or None)
+    rec, status, tag = load_record(environ.get(ENV_RECORD) or None)
     if status == "frozen":
-        CostedApp.from_env(environ).origin.close()
+        _origin(rec, status, tag, data_seed=_env_seed(environ)).close()
         environ[ENV_CHECKED] = rec["sha256"]
 
 
@@ -187,11 +204,7 @@ class CostedApp:
         import l7_webapp
         self.site = l7_webapp
         self.record, self.status, self.tag = load_record(record_path)
-        fields = {f.name for f in dataclasses.fields(O.CostKnobs)}
-        merged = {k: v for k, v in self.record["knobs"].items() if k in fields}
-        merged.update(knobs or {})
-        frozen = self.record["route_costs_ms"] if self.status == "frozen" and checked != self.record["sha256"] else None
-        self.origin = O.make_app(O.CostKnobs(**merged), data_seed, frozen, self.tag, clock)
+        self.origin = _origin(self.record, self.status, self.tag, knobs=knobs, data_seed=data_seed, clock=clock, checked=checked)
         self.knobs = self.origin.knobs
         self.data_seed = data_seed
         self.new_sid = sid_factory or (lambda: secrets.token_hex(16))
@@ -199,7 +212,7 @@ class CostedApp:
     @classmethod
     def from_env(cls, environ=None):
         environ = os.environ if environ is None else environ
-        return cls(environ.get(ENV_RECORD) or None, data_seed=int(environ.get("ORIGIN_SEED", "1")),
+        return cls(environ.get(ENV_RECORD) or None, data_seed=_env_seed(environ),
                    upload=environ.get(ENV_UPLOAD) or "legacy", checked=environ.get(ENV_CHECKED))
 
     def _reply(self, start_response, status, ctype, body, *, klass=None, work=None, cache=None, cookie=None,
