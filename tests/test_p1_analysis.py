@@ -751,6 +751,8 @@ class AgeReadingTest(unittest.TestCase):
 class PointCheckTest(unittest.TestCase):
     """The frozen points on the pilot's benign traffic (D-052), through the replay's real accounting; only the arms' decisions are stubs."""
 
+    LADDER = tuple((level, repeat) for level in (1.0, 2.0, 4.0, 8.0) for repeat in (1, 2))       # one (level, repeat) per seed from 9002 on
+
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
@@ -768,7 +770,8 @@ class PointCheckTest(unittest.TestCase):
     @classmethod
     def pair(cls, root, lo, hi, quiet):
         for seed in range(lo, hi):
-            block = R.plan_block("ladder", seed, root, frozen=cls.frozen, levels={"C2": 1.0}, runs=["C", "U_C2"], label="C2_L1_r1",
+            level, repeat = cls.LADDER[seed - 9002]
+            block = R.plan_block("ladder", seed, root, frozen=cls.frozen, levels={"C2": level}, runs=["C", "U_C2"], label=f"C2_L{level:g}_r{repeat}",
                                  benign_specs=F.thin_benign(LEAN), max_sources=2)
             R.run_block(F.P1FakeHost(quiet_from=quiet), block)
 

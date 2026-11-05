@@ -466,6 +466,54 @@ class ExecuteTest(Base):
         self.assertEqual(index(self.root)[0]["label"], "C2_L1_r1")
 
 
+class LadderRegisteredTest(Base):
+    """T057-05: the ladder runs what ml/l7v2_prereg.json harm.ladder registered, and a repeat that fell short stays where it fell."""
+
+    def plan(self, seed=9001, cls="C2", level=2.0, label="C2_L2_r1", attempt=1):
+        return R.plan_block("ladder", seed, self.root, frozen=self.frozen, levels={cls: level}, runs=["C", f"U_{cls}"], label=label, attempt=attempt,
+                            benign_specs=F.thin_benign(), max_sources=3)
+
+    def test_a_level_outside_the_ladder_is_refused(self):
+        for cls, level in (("C2", 3.0), ("C2", 0.5), ("C3a", 0.75), ("C3b", 75)):
+            with self.subTest(cls=cls, level=level), self.assertRaisesRegex(R.PlanError, "not one of its pre-registered levels"):
+                self.plan(cls=cls, level=level, label=f"{cls}_L{level:g}_r1")
+        for level in R.PT.ladder_levels("C2"):
+            with self.subTest(level=level):
+                self.assertEqual(self.plan(level=float(level), label=f"C2_L{level:g}_r1")["levels"], {"C2": float(level)})
+
+    def test_the_command_line_says_so_in_plan_mode(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            code = R.main(["--phase", "ladder", "--seed", "9001", "--class", "C2", "--level", "3", "--plan",
+                           "--calibration", self.frozen["calibration"], "--health", self.frozen["health"], "--root", self.root])
+        self.assertEqual(code, 2)
+        self.assertIn("not one of its pre-registered levels [1, 2, 4, 8]", err.getvalue())
+
+    def test_a_third_repeat_or_a_label_of_its_own_is_refused(self):
+        for label in ("C2_L2_r3", "C2_L2_r0", "x", "", "C2_L2.0_r1", "C2_L1_r1", "C3a_L2_r1"):
+            with self.subTest(label=label), self.assertRaisesRegex(R.PlanError, "is not one of .*the ladder has 2 repeats"):
+                self.plan(label=label)
+
+    def test_a_sound_repeat_is_not_rolled_again_on_another_seed(self):
+        self.assertTrue(all(res["ok"] for _n, res in R.run_block(F.P1FakeHost(), self.plan(9001))))
+        before = index(self.root)
+        block = self.plan(9002)
+        with self.assertRaisesRegex(R.PlanError, "C2_L2_r1 ran on seed 9001.*not rolled again on 9002"):
+            R.run_block(F.P1FakeHost(), block)
+        self.assertEqual(index(self.root), before)
+        self.assertFalse(os.path.exists(block["dir"]))
+
+    def test_an_invalid_repeat_is_re_run_on_its_own_seed_and_not_on_another(self):
+        self.assertFalse(all(res["ok"] for _n, res in R.run_block(F.P1FakeHost(quiet_from=60.0), self.plan(9001))))
+        with self.assertRaisesRegex(R.PlanError, "ran on seed 9001"):
+            R.run_block(F.P1FakeHost(), self.plan(9002))
+        self.assertTrue(all(res["ok"] for _n, res in R.run_block(F.P1FakeHost(), self.plan(9001, attempt=2))))
+
+    def test_the_other_repeat_may_take_another_seed(self):
+        R.run_block(F.P1FakeHost(), self.plan(9001))
+        self.assertTrue(all(res["ok"] for _n, res in R.run_block(F.P1FakeHost(), self.plan(9002, label="C2_L2_r2"))))
+
+
 class BackendExitTest(Base):
     """D-063: a gunicorn that exits by itself. On the fake's real path through execute_run; its requests get 502s from its death on."""
 
@@ -887,7 +935,7 @@ class PointsTest(Base):
             thin(frozen, self.root)
 
     def test_a_pilot_block_needs_none(self):
-        block = R.plan_block("ladder", 9001, self.root, frozen={**self.frozen, "points": None}, levels={"C2": 2.0}, runs=["C", "U_C2"], label="x",
+        block = R.plan_block("ladder", 9001, self.root, frozen={**self.frozen, "points": None}, levels={"C2": 2.0}, runs=["C", "U_C2"], label="C2_L2_r1",
                              benign_specs=F.thin_benign(), max_sources=3)
         self.assertNotIn("points", block["frozen"])
 
@@ -940,11 +988,11 @@ class AgeCheckTest(Base):
                 self.assertFalse(by_name[name]["age_check"]["applied"])
 
     def test_a_failing_check_invalidates_nothing_and_every_phase_records_it(self):
-        block = R.plan_block("ladder", 9001, self.root, frozen=self.frozen, levels={"C2": 2.0}, runs=["C", "U_C2"], label="x",
+        block = R.plan_block("ladder", 9001, self.root, frozen=self.frozen, levels={"C2": 2.0}, runs=["C", "U_C2"], label="C2_L2_r1",
                              benign_specs=F.thin_benign(), max_sources=3)
         report = {"pass": False, "ks": 0.9}
         with mock.patch.object(R.PT, "age_report", return_value={"C2": report}):
-            block = R.plan_block("ladder", 9001, self.root, frozen=self.frozen, levels={"C2": 2.0}, runs=["C", "U_C2"], label="y",
+            block = R.plan_block("ladder", 9001, self.root, frozen=self.frozen, levels={"C2": 2.0}, runs=["C", "U_C2"], label="C2_L2_r2",
                                  benign_specs=F.thin_benign(), max_sources=3)
         results = dict(R.run_block(F.P1FakeHost(), block))
         self.assertTrue(results["U_C2"]["ok"], results["U_C2"]["reasons"])

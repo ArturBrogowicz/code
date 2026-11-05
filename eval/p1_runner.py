@@ -409,6 +409,22 @@ def plan_run(pop, phase, arm, cls, out, frozen, *, python=PYTHON, age=None):
     }
 
 
+def check_ladder(levels, label):
+    """A ladder block is one class at one pre-registered level, under the label the analysis reads its class, level and repeat from
+    (T057-05, ml/l7v2_prereg.json harm.ladder; P4's ladder refuses the same way). A level 3 could otherwise become a knee, and a third
+    repeat, a free label or another spelling of a label would re-roll a repeat that fell short."""
+    if len(levels) != 1:
+        raise PlanError(f"a ladder block is one class at one level, not {levels}")
+    cls, level = next(iter(levels.items()))
+    allowed = PT.ladder_levels(cls)
+    if level not in allowed:
+        raise PlanError(f"ladder: {cls} at {level:g} is not one of its pre-registered levels {allowed} (ml/l7v2_prereg.json harm.ladder)")
+    labels = [f"{cls}_L{level:g}_r{repeat}" for repeat in range(1, PT.ladder_repeats() + 1)]
+    if label not in labels:
+        raise PlanError(f"ladder: the label {label!r} is not one of {labels}: the analysis reads the level and the repeat from it, "
+                        f"and the ladder has {len(labels)} repeats")
+
+
 def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", runs=None, cut=False, python=PYTHON,
                benign_specs=None, max_sources=None, halvings=None, address_limit=None):
     """One block's runs, in their seeded order, as data. A campaign's levels are the knees, and its runs the live set; a health
@@ -449,6 +465,8 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
                              benign_specs=benign_specs, max_sources=max_sources, halvings=factor)
     except PT.PlanError as exc:
         raise PlanError(str(exc)) from exc
+    if phase == "ladder":
+        check_ladder(levels, label)
     if address_limit is not None:
         pop["pool"]["address_limit"] = address_limit
     arms = {a for a, _c in pairs}
@@ -899,11 +917,17 @@ def block_settings(block):
 def check_attempt(block):
     """A re-run needs a reason (T050-13, D-058, as eval/p4_runner.py check_attempt): a ladder's or a campaign's attempt is the next one the index
     shows, and the one before had an invalid run; a campaign's also a run missing, a class invalid or an unhealthy C (the block-level valid_all
-    of eval/l7v2_harm.py). A campaign holds one re-run per block and two in all (ml/p1_prereg_4.json reruns)."""
+    of eval/l7v2_harm.py). A campaign holds one re-run per block and two in all (ml/p1_prereg_4.json reruns). A ladder's repeat stays on its
+    seed: on another one it would be attempt 1, with no reason asked, and the analysis keys by class, level and repeat (T057-05)."""
     phase = block["phase"]
     if phase not in ("ladder", "campaign"):
         return
     rows = read_index(block["root"])
+    if phase == "ladder":
+        other = sorted({x["block"] for x in rows if x["phase"] == "ladder" and x["label"] == block["label"] and x["block"] != block["seed"]})
+        if other:
+            raise PlanError(f"ladder {block['label']} ran on seed {other[0]}: a repeat is re-run on its own seed, with a reason, "
+                            f"not rolled again on {block['seed']}")
     mine = [x for x in rows if (x["phase"], x["block"]) == (phase, block["seed"]) and (phase == "campaign" or x["label"] == block["label"])]
     following = max((x["attempt"] for x in mine), default=0) + 1
     if block["attempt"] != following:
