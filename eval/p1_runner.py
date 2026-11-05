@@ -622,7 +622,9 @@ def execute_run(host, plan, frozen_sums):
         with open(plan["nginx"]["conf_path"], "w", encoding="utf-8") as fh:
             fh.write(render_conf(ARM_TABLE[plan["arm"]], out, plan["nginx"]["deny_dir"]))
         procs.append(("topology", None))                # from here on the teardown runs, whatever happens
-        P4.topology(host, plan)
+        reasons += P4.topology(host, plan)
+        if reasons:
+            return finish(host, plan, reasons, ctx)
         host.run(["mkdir", "-p", "/var/log/nginx", os.path.join(out, "feed_before")])
         for path in HOST_LOGS:                          # the daemon tails the host's log: nothing of an earlier run reaches it
             host.run(["mv", "-f", path, os.path.join(out, "feed_before", os.path.basename(path))])

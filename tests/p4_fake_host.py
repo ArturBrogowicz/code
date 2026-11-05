@@ -84,7 +84,7 @@ class FakeHost(X.Host):
                  poll_every_s=1.0, modelled_attackers=None, harm=None, fail_prim=None, limit_refuses=0.0,
                  gen_late=None, stub_fails=None, ss_fails=None, attack_fails=False, attack_opened_share=1.0, no_socket_of=(),
                  garbled_bans=False, ban_file_lost=False, gen_stall=None, runner_stall=None, gunicorn_refuses=None,
-                 gunicorn_dies=None, nginx_gone=False, nginx_hangs=False):
+                 gunicorn_dies=None, nginx_gone=False, nginx_hangs=False, ip_batch_fails=False, netem_fails=False):
         self.t = 0.0
         self.root, self.netns, self.stack_ready, self.nginx_fails = root, list(netns), stack_ready, nginx_fails
         self.kill_file, self.kill_appears_at = kill_file, kill_appears_at
@@ -102,6 +102,7 @@ class FakeHost(X.Host):
         self.gunicorn_dies = gunicorn_dies      # (seconds of the run, its exit code, what its log says then)
         self.nginx_gone, self.gunicorn = nginx_gone, None   # nginx_gone: its -s quit fails, as for a master that has died
         self.nginx_hangs = nginx_hangs          # its launcher never returns
+        self.ip_batch_fails, self.netem_fails = ip_batch_fails, netem_fails     # the runner's own commands of the topology exit non-zero
         self.pids, self.seq = itertools.count(100), itertools.count()
         self.events, self.commands, self.prims, self.procs = [], [], [], []
         self.reset_world()
@@ -162,6 +163,10 @@ class FakeHost(X.Host):
     def run(self, argv, ns="", stdin="", env=None, timeout=None):
         argv = list(argv)
         self.commands.append((ns, tuple(argv), stdin))
+        if argv[:2] == ["ip", "-batch"] and self.ip_batch_fails:
+            return X.Result(2, "", "RTNETLINK answers: File exists\n")
+        if argv[:2] == ["tc", "qdisc"] and self.netem_fails:
+            return X.Result(2, "", "Error: Specified qdisc not found.\n")
         if argv[:3] == ["ip", "netns", "list"]:
             return X.Result(0, "".join(f"{n}\n" for n in self.netns), "")
         if argv[0] == "curl" and argv[-1].endswith("/nginx_status"):

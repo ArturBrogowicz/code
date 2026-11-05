@@ -449,17 +449,28 @@ def _text(host, path):
 
 
 def topology(host, plan):
+    """The run's testbed. Returns what failed, for the run's reasons (review T-057 T057-03): an alias that was not added fails its generator's
+    every request, which reads as harm, and a netem that failed leaves a slow uploader fast. Only these two are the runner's own commands: the
+    suite's primitives run theirs unchecked and return nothing, so a failure inside one is not seen here."""
+    problems = []
+
+    def step(what, argv, name, stdin=""):
+        r = host.run(argv, ns=name, stdin=stdin)
+        if r.code != 0:
+            problems.append(f"{what} in {name} exited {r.code}: {(r.err or r.out).strip()[:200]}")
+
     host.prim("bridge")
     host.prim("server_ns")
     for ns in plan["namespaces"]:
         host.prim("client_ns", ns["name"], ns["addresses"][0])
         if ns["addresses"][1:]:
-            host.run(["ip", "-batch", "-"], ns=ns["name"],
-                     stdin="".join(f"addr add {a}{SUBNET_MASK} dev veth_in\n" for a in ns["addresses"][1:]))
+            step("ip -batch", ["ip", "-batch", "-"], ns["name"],
+                 "".join(f"addr add {a}{SUBNET_MASK} dev veth_in\n" for a in ns["addresses"][1:]))
         if ns["profile"] == PT.NETEM_SLOW:
-            host.run(list(PT.NETEM_SLOW_ARGV), ns=ns["name"])
+            step("netem", list(PT.NETEM_SLOW_ARGV), ns["name"])
         else:
             host.prim("netem", ns["name"], ns["profile"])
+    return problems
 
 
 def teardown(host, plan):
@@ -497,7 +508,9 @@ def execute_run(host, plan):
     logs, stub, t0 = {}, [], None
     try:
         procs.append(("topology", None))                # from here on the teardown runs, whatever happens
-        topology(host, plan)
+        reasons += topology(host, plan)
+        if reasons:
+            return finish(host, plan, reasons, started, None, procs, logs, stub)
         host.run(["mkdir", "-p", "/var/log/nginx", os.path.join(out, "feed_before")])
         for name, path in NGINX_LOGS.items():          # nginx starts its logs afresh; nothing of the host's is lost
             host.run(["mv", "-f", path, os.path.join(out, "feed_before", name)])

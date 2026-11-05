@@ -858,6 +858,20 @@ class ExecuteTest(unittest.TestCase):
         res = R.execute_run(F.FakeHost(nginx_hangs=True), self.one_run("hangs", "campaign", 3106, "C", thresholds=POINT))
         self.assertRegex(res["reasons"][0], r"^nginx did not start: .* did not return within 10 s")
 
+    def test_a_failed_alias_or_netem_makes_the_run_invalid_and_names_the_step(self):
+        """Review T-057 T057-03: an alias that was not added read as harm, and a netem that failed left a slow uploader fast, silently."""
+        for name, kw, want in (("alias", {"ip_batch_fails": True}, r"^ip -batch in p4n\d+_\S+ exited 2: RTNETLINK answers: File exists$"),
+                               ("netem", {"netem_fails": True}, r"^netem in p4n\d+_\S+ exited 2: Error: Specified qdisc not found\.$")):
+            run = self.one_run(name, "campaign", 3106, "U_post", thresholds=POINT)
+            host = F.FakeHost(modelled_attackers=1, **kw)
+            res = R.execute_run(host, run)
+            self.assertFalse(res["ok"])
+            self.assertRegex(res["reasons"][0], want)
+            self.assertEqual({p.kind for p in host.procs}, set(), "nothing was started on a testbed that is not what the plan says")
+            self.assertTrue(host.ran("ip", "netns", "del", "server_ns"), "and it was taken down")
+            with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+                self.assertEqual(json.load(fh)["checks"]["reasons"], res["reasons"])
+
     def test_gunicorn_dying_in_mid_run_makes_the_run_invalid(self):
         """D-063: a dead backend read as harm: the run went on, every request failed, and run.json said nothing."""
         for arm in ("U_post", "C"):
