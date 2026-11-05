@@ -16,7 +16,10 @@ What it models, as far as the runner's and the analysis's inputs need it:
   * an address in `silent` sends nothing, whatever its generator says (T050-08);
   * gunicorn (D-063): `gunicorn_refuses` and `gunicorn_dies` are tests/p4_fake_host.py's, here in the run named by `gunicorn_dies_in`, or in every
     run without it. From its death on, every request is answered 502, in the sink and in the client's rows: what a dead backend looks like in Q;
-  * the timer probe of bench/executor.py answers with `timer_p99`, a value or a list taken in turn, the last one repeating.
+  * the timer probe of bench/executor.py answers with `timer_p99`, a value or a list taken in turn, the last one repeating;
+  * `interrupt_at`: seconds after a run's stack starts, one of the runner's own sleeps raises KeyboardInterrupt, as Ctrl-C does (T057-07);
+  * a generator that exits with a code of its own writes a line to the stderr file it was started with, and the handles it was given are
+    kept, so that a test can see they were closed.
 frozen_inputs() writes the frozen items a campaign checks: a frozen record with the placeholder's numbers, knees bound to it,
 and small but well-formed selections. They are fixtures, not results.
 """
@@ -52,7 +55,8 @@ def _sid(seed, user):
 
 class P1FakeHost(F.FakeHost):
     def __init__(self, *, fail_share=None, acts=None, quiet_from=None, armed=True, start_overrides=None, arm_overrides=None,
-                 rule_arm="cost_budget", parsed_share=1.0, silent=(), timer_p99=2.0, client_side=False, gunicorn_dies_in=None, **kw):
+                 rule_arm="cost_budget", parsed_share=1.0, silent=(), timer_p99=2.0, client_side=False, gunicorn_dies_in=None,
+                 interrupt_at=None, **kw):
         super().__init__(**kw)
         self.fail_share = fail_share or (lambda _run, _block, _t: 0.0)
         self.acts, self.quiet_from = acts or (lambda _run, _block: []), quiet_from
@@ -62,6 +66,17 @@ class P1FakeHost(F.FakeHost):
         self.gunicorn_dies_in, self.dead_at = gunicorn_dies_in, None
         self.timer_p99 = list(timer_p99) if isinstance(timer_p99, (list, tuple)) else [timer_p99]
         self.sink, self.lines, self.run_name, self.block_dir, self.n_request = None, [], None, None, 0
+        self.interrupt_at, self.stderr_handles = interrupt_at, []
+
+    def popen(self, argv, ns="", env=None, stdout=None, stderr=None, cwd=None):
+        p = super().popen(argv, ns=ns, env=env, stdout=stdout, stderr=stderr, cwd=cwd)
+        if p.kind == "gen" and stderr is not None:
+            p.stderr_path = stderr.name
+            self.stderr_handles.append(stderr)
+        return p
+
+    def _interrupt(self):
+        raise KeyboardInterrupt
 
     def run(self, argv, ns="", stdin="", env=None, timeout=None):
         argv = list(argv)
@@ -82,6 +97,9 @@ class P1FakeHost(F.FakeHost):
             self.lines, self.n_request, self.dead_at = [], 0, None
             res = super().run(argv, ns, stdin, env, timeout)
             self.stack_t0 = self.t
+            if self.interrupt_at is not None:
+                self.at(self.t + self.interrupt_at, self._interrupt)
+                self.interrupt_at = None
             self._monitor(self.world)
             return res
         if "nginx" in argv and "quit" in argv and self.sink:
@@ -146,6 +164,9 @@ class P1FakeHost(F.FakeHost):
         super().end(proc, code)
 
     def _gen_exit(self, p):
+        if p.returncode > 0 and hasattr(p, "stderr_path"):
+            with open(p.stderr_path, "a", encoding="utf-8") as fh:
+                fh.write(f"RuntimeError: a fixture's generator, exit {p.returncode}\n")
         if p.ip in self.silent:
             return
         if p.role == "attack":

@@ -613,11 +613,31 @@ def sink_problems(sink):
     return out
 
 
+def gen_stderr_path(out, entity_id):
+    return os.path.join(out, "gen_stderr", entity_id.replace(":", "_") + ".log")
+
+
+def launch_generator(host, x, out):
+    """A generator, with its stderr in a file of the run (T057-07): "exited with code 1" alone slows a smoke's diagnosis. The child holds
+    its own copy of the handle, so none per generator stays open here."""
+    with open(gen_stderr_path(out, x["entity_id"]), "w", encoding="utf-8") as err:
+        return host.popen(x["argv"], ns=x["ns"], cwd=REPO, stderr=err)
+
+
+def drop_empty_stderr(out):
+    """A clean generator writes nothing, and a run has hundreds of them: the files left are the ones that say something."""
+    folder = os.path.join(out, "gen_stderr")
+    for name in os.listdir(folder):
+        if os.path.getsize(os.path.join(folder, name)) == 0:
+            os.remove(os.path.join(folder, name))
+
+
 def execute_run(host, plan, frozen_sums):
     """Run one planned run on `host` and write its directory. Returns {"ok", "reasons", "started", "ended"}."""
     out = plan["out"]
     reasons, procs, launched, logs, cpu, lags = [], [], [], {}, [], [0.0]
     os.makedirs(os.path.join(out, "records"), exist_ok=True)
+    os.makedirs(os.path.join(out, "gen_stderr"), exist_ok=True)
     os.makedirs(os.path.join(out, "attack_stats"), exist_ok=True)       # P4.gen_argv's --stats (T050-02): a generator writes there at its exit
     started = host.time()
     P4.write_json(os.path.join(out, "plan.json"), plan)
@@ -678,7 +698,7 @@ def execute_run(host, plan, frozen_sums):
                 x = pending.pop(0)
                 lags.append(now - x["start_s"])
                 try:
-                    launched.append((x, host.popen(x["argv"], ns=x["ns"], cwd=REPO)))
+                    launched.append((x, launch_generator(host, x, out)))
                 except OSError as exc:
                     reasons.append(f"{x['entity_id']} did not start: {exc}")
             cpu.append({"t": round(now, 3), "cpu": _cpu_times(P4._text(host, "/proc/stat"))})
@@ -698,19 +718,29 @@ def execute_run(host, plan, frozen_sums):
     except Exception as exc:  # noqa: BLE001 - whatever failed, the run is recorded and the teardown runs
         reasons.append(f"the runner failed: {type(exc).__name__}: {exc}")
         return finish(host, plan, reasons, ctx)
+    except KeyboardInterrupt as exc:      # Ctrl-C, and TERM and HUP as executor._install_signal_handlers turns them into it (T057-07)
+        finish(host, plan, [*reasons, f"interrupted ({str(exc) or 'Ctrl-C'}): the testbed was taken down"], ctx, interrupted=True)
+        raise
 
 
-def finish(host, plan, reasons, ctx):
-    """Stop everything, tear the testbed down, check and write the run's records."""
+def finish(host, plan, reasons, ctx, interrupted=False):
+    """Stop everything, tear the testbed down, check and write the run's records. `interrupted`: the generators are stopped now rather
+    than waited for until their end, and their exit codes say nothing."""
     out, procs, launched, t0 = plan["out"], ctx["procs"], ctx["launched"], ctx["t0"]
     reasons = list(reasons)
     try:
+        if interrupted:
+            for _x, proc in launched:
+                if proc.poll() is None:
+                    proc.terminate()
         for x, proc in launched:                          # the generators end on their own at their duration
             if not P4._wait(host, lambda p=proc: p.poll() is not None, P4.STOP_GRACE_S, step=0.5):
                 reasons.append(f"{x['entity_id']} was still running {P4.STOP_GRACE_S:g} s after its end: stopped")
                 P4._stop(host, proc)
-            elif proc.poll() != 0:
-                reasons.append(f"{x['entity_id']} exited with code {proc.poll()}")
+            elif proc.poll() != 0 and not interrupted:
+                path = gen_stderr_path(out, x["entity_id"])
+                said = f" (its stderr: {os.path.relpath(path, out)})" if os.path.getsize(path) else ""
+                reasons.append(f"{x['entity_id']} exited with code {proc.poll()}{said}")
         for name, proc in procs:
             if name == "gunicorn" and t0 is not None and proc.poll() is not None and not any(r.startswith("gunicorn exited") for r in reasons):
                 reasons.append(P4.gunicorn_gone(host, plan, proc, f"at {host.time() - t0:.0f} s"))    # after the loop's last look
@@ -729,6 +759,7 @@ def finish(host, plan, reasons, ctx):
         if procs:
             P4.teardown(host, plan)
     ended = host.time()
+    drop_empty_stderr(out)
     log = os.path.join(out, l7_dataset.ACCESS_LOG)
     sink = sink_reading(log, plan, t0) if t0 is not None and os.path.isfile(log) else None
     reasons += checks(host, plan, t0, launched, ctx["sums"], sink)
@@ -1059,8 +1090,17 @@ def main(argv=None, host=None):
         return 0
     if host is None:
         host = X.RealHost()
+        X._install_signal_handlers()
     host.pin(PINS["executor"])              # the runner's popen, curl and /proc reads keep off the legit CPU and the server's (T050-17)
-    results = run_block(host, block)
+    try:
+        results = run_block(host, block)
+    except PlanError as exc:              # a re-run without a reason, an attempt that exists: the reason, and not the exit code of an invalid run
+        print(f"[-] {exc}", file=sys.stderr)
+        return 2
+    except KeyboardInterrupt as exc:
+        print(f"[-] interrupted ({str(exc) or 'Ctrl-C'}): the testbed is down, this run is invalid and the block's other runs did not start",
+              file=sys.stderr)
+        return 130
     for name, res in results:
         print(f"  {name}: {'valid' if res['ok'] else 'INVALID: ' + '; '.join(res['reasons'])}")
     return 0 if all(res["ok"] for _n, res in results) else 1
