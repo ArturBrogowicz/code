@@ -148,7 +148,7 @@ def read_run(run_dir):
     if not isinstance(executor, dict) or not isinstance(executor.get("ok"), bool) \
             or not isinstance(executor.get("reasons"), list):
         raise GateError(f"{run_dir}/run.json: executor needs ok (a boolean) and reasons (a list)")
-    return {"dir": run_dir, "name": name, "role": want, "mode": meta.get("mode"),
+    return {"dir": run_dir, "name": name, "role": want, "mode": meta.get("mode"), "confirmation": meta.get("confirmation"),
             "started_utc": meta.get("started_utc"), "executor": executor, "streams": streams,
             "zero_epoch_s": executor.get("zero_epoch_s"),
             "overrides": _overrides(meta.get("overrides"), f"{run_dir}/run.json")}
@@ -502,7 +502,7 @@ def assess_block(block_dir, cal, slo_scale=1.0):
             "dL": _log2_ratio(u and u["p95_s"], control and control["p95_s"]),
             "dQ_placebo": _diff(control and control["Q"], cp and cp["Q"]),
             "dL_placebo": _log2_ratio(cp and cp["p95_s"], control and control["p95_s"]),
-            "waits": block_waits(block_dir, runs)}
+            "waits": block_waits(block_dir, runs), "confirmation": meta.get("confirmation")}
 
 
 def protocol_problems(attempts, cal):
@@ -801,7 +801,8 @@ def analyse(root, cal, dry_run=False, metrics=METRICS, slo_scale=1.0, allow_over
             "hrr_p95": [hrr_p95(valid, m) for m in modes] if verdict == "PASS" else None,
             "hrr_withheld": bool(modes) and verdict != "PASS",
             "protected": [protected_arm(blocks, m, gating, campaign_benign_bans(root, attempts, MITIGATED + m)) for m in arm_modes],
-            "blocks": blocks, "attempts": [a for a in attempts if a is not final[a["block"]]]}   # the superseded ones
+            "blocks": blocks, "attempts": [a for a in attempts if a is not final[a["block"]]],   # the superseded ones
+            "confirmation": next((a["confirmation"] for a in blocks if a.get("confirmation")), None)}
 
 
 # --- the report --------------------------------------------------------------------------------
@@ -831,6 +832,8 @@ def to_markdown(r):
         out.append(f"> **SMOKE TEST.** The runs carry overrides {r['overrides']}: "
                    + ("the verdict was allowed (a simulation or a test) and is no result.\n" if r.get("overrides_allowed")
                       else "no verdict is given, and nothing below is a result.\n"))
+    if r.get("confirmation"):
+        out.append("> **Further confirmation at 2 x the knee** (design 7.2 step 6), asked for by hand: report it beside the confirmation at the knee.\n")
     out.append(f"**Verdict: {r['verdict']}**" + (" (dry run)" if r["dry_run"] else "") + "\n")
     out.append(f"{r['blocks_valid']} valid blocks of {r['blocks_total']}, {r['reruns']} re-run(s); calibration "
                f"{r['calibration']['status']} `{r['calibration']['sha256'][:8]}`; validity profile `{r['profile']}`; "
