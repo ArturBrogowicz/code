@@ -72,8 +72,10 @@ What the runs write feeds eval/p4_validation.py (slow_pc_manifest.json, slow_pc.
 the closes, and nginx's refusals by role from the access log, for the limits' own cost of D-041) unchanged; `--summarize ROOT OUT.jsonl` writes the run records of every evaluation attempt of the
 run index, valid or not (D-035, V-03).
 
+    ./venv/bin/python eval/p4_ladder.py ROOT --calibration FROZEN.json --out knees.json
+    sudo ./venv/bin/python eval/p4_runner.py --phase validation --seed 4001 --loris 175 --post 10 --knees knees.json --calibration FROZEN.json
     ./venv/bin/python eval/p4_validation.py ROOT --json selection.json
-    sudo ./venv/bin/python eval/p4_runner.py --phase campaign --seed 3101 --loris 175 --post 10 --thresholds 20,64,2 --selection selection.json --calibration FROZEN.json
+    sudo ./venv/bin/python eval/p4_runner.py --phase campaign --seed 3101 --loris 175 --post 10 --thresholds 20,64,2 --selection selection.json --knees knees.json --calibration FROZEN.json
     ./venv/bin/python eval/p4_runner.py --phase validation --seed 4001 --loris 175 --post 10 --plan
     ./venv/bin/python eval/p4_runner.py --summarize ROOT runs.jsonl --calibration FROZEN.json    # --dry-run: a simulated campaign
 """
@@ -327,14 +329,17 @@ def read_record(path):
 
 
 def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresholds=None, family=None,
-               arms=None, label="", calibration=PLACEHOLDER, python=PYTHON, selection=None):
+               arms=None, label="", calibration=PLACEHOLDER, python=PYTHON, selection=None, knees=None):
     """One block's runs, in their seeded order, as data. `selection`: the campaign's record of the validation, which run_block
-    checks (check_selection); a plan can be printed without it."""
+    checks (check_selection); `knees`: the validation's and the campaign's record of the ladder (check_knees); a plan can be printed
+    without them."""
     sources = {"loris": 0, "post": 0, **(sources or {})}
     if phase not in PHASES:
         raise PlanError(f"unknown phase {phase!r}")
     if selection and phase != "campaign":
         raise PlanError(f"{phase}: --selection is the campaign's: the validation's choice of T, F and K")
+    if knees and phase not in ("validation", "campaign"):
+        raise PlanError(f"{phase}: --knees is the validation's and the campaign's: the ladder's record")
     record, status = read_record(calibration)
     if label and phase in ("campaign", "validation"):
         raise PlanError(f"{phase}: no --label: it would give another arm order in another directory (review T-047 P-13)")
@@ -356,7 +361,7 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresh
         run["timer_limit_ms"] = record["validity"]["timer_p99_ms"]
     return {"phase": phase, "seed": seed, "attempt": attempt, "label": label, "dir": bdir, "root": root,
             "order": order, "sources": sources, "halvings": halvings, "thresholds": thresholds,
-            "calibration": calibration, "calibration_status": status, "selection": selection, "runs": runs}
+            "calibration": calibration, "calibration_status": status, "selection": selection, "knees": knees, "runs": runs}
 
 
 def describe(block):
@@ -364,7 +369,8 @@ def describe(block):
     lines = [f"P4 {block['phase']} block {block['seed']} attempt {block['attempt']}: {block['dir']}",
              (f"order {block['order']}; sources {block['sources']}; halvings {block['halvings']}; "
               f"thresholds {block['thresholds']}; calibration {block['calibration']} ({block['calibration_status']})"
-              + (f"; selection {block['selection']}" if block["phase"] == "campaign" else ""))]
+              + (f"; selection {block['selection']}" if block["phase"] == "campaign" else "")
+              + (f"; knees {block['knees']}" if block["phase"] in ("validation", "campaign") else ""))]
     if block["calibration_status"] != "frozen" and block["phase"] in ("validation", "campaign"):
         lines.append(f"  NOT FROZEN: {'a real host refuses this campaign' if block['phase'] == 'campaign' else 'no campaign can follow this validation'}"
                      " (T-052b; the campaign must name the validation's record, and a frozen one)")
@@ -882,7 +888,8 @@ def block_settings(block):
             "thresholds": list(block["thresholds"]) if block["thresholds"] else None,
             "calibration_sha256": sha256_file(block["calibration"]), "calibration_status": block["calibration_status"],
             "code_sha256": code,
-            "selection_sha256": sha256_file(block["selection"]) if block.get("selection") else None}
+            "selection_sha256": sha256_file(block["selection"]) if block.get("selection") else None,
+            "knees_sha256": sha256_file(block["knees"]) if block.get("knees") else None}
 
 
 def check_frozen(block, host):
@@ -896,6 +903,35 @@ def check_frozen(block, host):
         l7_backend.require_frozen(l7_backend.load_record(block["calibration"])[0])
     except (OSError, ValueError) as exc:
         raise PlanError(f"campaign: {block['calibration']}: {exc}") from None
+
+
+def check_knees(block, host):
+    """§5 (review T-057 T057-04): a validation's and a campaign's level and halvings are the ladder's, read by eval/p4_ladder.py, under the same
+    calibration record. A family with no knee stops here: what that means is not decided (T-060). Only a host that measures nothing may go
+    without the file, as with check_frozen."""
+    if block["phase"] not in ("validation", "campaign"):
+        return
+    path = block["knees"]
+    if not path:
+        if getattr(host, "simulated", False):
+            return
+        raise PlanError(f"{block['phase']}: --knees must name the ladder's record (eval/p4_ladder.py --out, §5)")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            rec = json.load(fh)
+        levels, halvings, record = rec["levels"], rec["halvings"], rec["calibration_sha256"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise PlanError(f"{path} is not a record of eval/p4_ladder.py: {exc!r}") from None
+    none = sorted(f for f in OUT.FAMILIES if levels.get(f) is None)
+    if none:
+        raise PlanError(f"{block['phase']}: {', '.join(none)} has no knee in {path}: what that means is not decided, so nothing runs (T-060)")
+    typed = {f: block["sources"][f] for f in OUT.FAMILIES}
+    if typed != {f: levels[f] for f in OUT.FAMILIES}:
+        raise PlanError(f"{block['phase']}: the sources {typed} are not the ladder's knees { {f: levels[f] for f in OUT.FAMILIES} } ({path})")
+    if block["halvings"] != halvings:
+        raise PlanError(f"{block['phase']}: --halvings {block['halvings']}, and the ladder ran at {halvings} ({path})")
+    if record != sha256_file(block["calibration"]):
+        raise PlanError(f"{block['phase']}: {path} was read under another calibration record than {block['calibration']}")
 
 
 def check_selection(block):
@@ -919,7 +955,7 @@ def check_selection(block):
     if detector != sha256_file(os.path.join(REPO, "slow_pc.py")):
         raise PlanError(f"{path}: the validation scored another slow_pc.py (§13 row 3)")
     mine = block_settings(block)
-    differ = sorted(k for k in ("sources", "halvings", "calibration_sha256") if mine[k] != theirs.get(k))
+    differ = sorted(k for k in ("sources", "halvings", "calibration_sha256", "knees_sha256") if mine[k] != theirs.get(k))
     if differ:
         raise PlanError(f"campaign: {', '.join(differ)} differ from the validation's ({path})")
 
@@ -975,6 +1011,7 @@ def run_block(host, block):
     """Every run of a block in its order; each in ROOT/index.jsonl before it begins and when it ends, valid or not."""
     check_frozen(block, host)
     check_attempt(block)
+    check_knees(block, host)
     check_selection(block)
     check_settings(block)
     if os.path.exists(block["dir"]):
@@ -1131,6 +1168,7 @@ def main(argv=None, host=None):
     ap.add_argument("--halvings", type=int, default=0, help="how often the halving rule of §4.2 has fired")
     ap.add_argument("--thresholds", type=_thresholds, help="campaign: the committed T,F,K; a smoke C_M: a grid point")
     ap.add_argument("--selection", help="campaign: the validation's record (eval/p4_validation.py --json)")
+    ap.add_argument("--knees", help="validation, campaign: the ladder's record (eval/p4_ladder.py --out)")
     ap.add_argument("--calibration", default=PLACEHOLDER)
     ap.add_argument("--root", default="/var/tmp/p4_runs")
     ap.add_argument("--python", default=PYTHON)
@@ -1156,7 +1194,7 @@ def main(argv=None, host=None):
                            sources={"loris": args.loris, "post": args.post}, halvings=args.halvings,
                            thresholds=args.thresholds, family=args.family,
                            arms=args.arms.split(",") if args.arms else None, label=args.label,
-                           calibration=args.calibration, python=args.python, selection=args.selection)
+                           calibration=args.calibration, python=args.python, selection=args.selection, knees=args.knees)
     except (PlanError, PT.PlanError) as exc:
         print(f"[-] {exc}", file=sys.stderr)
         return 2

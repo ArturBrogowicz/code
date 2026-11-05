@@ -38,13 +38,21 @@ def index(root):
     return R.read_index(root)
 
 
-def selection_file(where, point=POINT, sources=None, halvings=0, calibration=None):
+def knees_file(where, calibration=None, levels=None, halvings=0, name="knees.json"):
+    """The ladder's record, as far as the runner reads it (eval/p4_ladder.py --out)."""
+    path = os.path.join(where, name)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({"levels": {**KNEE, **(levels or {})}, "halvings": halvings, "calibration_sha256": sha(calibration or R.PLACEHOLDER)}, fh)
+    return path
+
+
+def selection_file(where, point=POINT, sources=None, halvings=0, calibration=None, knees=None):
     """The validation's record, as far as the runner reads it (eval/p4_validation.py --json)."""
     path = os.path.join(where, "selection.json")
     with open(path, "w", encoding="utf-8") as fh:
         json.dump({"selection": {"point": list(point) if point else None}, "slow_pc_sha256": sha(os.path.join(REPO, "slow_pc.py")),
                    "settings": {"sources": {"loris": 0, "post": 0, **KNEE, **(sources or {})}, "halvings": halvings,
-                                "calibration_sha256": sha(calibration or R.PLACEHOLDER)}}, fh)
+                                "calibration_sha256": sha(calibration or R.PLACEHOLDER), "knees_sha256": sha(knees) if knees else None}}, fh)
     return path
 
 
@@ -332,8 +340,9 @@ class FrozenRecordTest(unittest.TestCase):
 
     def campaign(self, seed=3101, arms=("C", "U_post"), **kw):
         kw.setdefault("calibration", self.frozen)
+        kw.setdefault("knees", knees_file(self.root, calibration=kw["calibration"]))
         if "selection" not in kw:
-            kw["selection"] = selection_file(self.root, calibration=kw["calibration"])
+            kw["selection"] = selection_file(self.root, calibration=kw["calibration"], knees=kw["knees"])
         return R.plan_block("campaign", seed, self.root, sources=KNEE, thresholds=POINT, arms=list(arms), **kw)
 
     def test_a_campaign_on_a_host_that_measures_refuses_the_placeholder_before_anything_runs(self):
@@ -393,13 +402,13 @@ class FrozenRecordTest(unittest.TestCase):
             R.main(["--phase", "campaign", "--seed", "3101", "--dry-run"])
 
     def test_smoke_ladder_and_validation_may_name_any_record_and_say_which(self):
-        for phase, seed, kw in (("smoke", 9101, {"arms": ["C"], "label": "s"}), ("validation", 4001, {"sources": KNEE}),
+        for phase, seed, kw in (("smoke", 9101, {"arms": ["C"], "label": "s"}), ("validation", 4001, {"sources": KNEE, "knees": "yes"}),
                                 ("ladder", 9102, {"sources": {"post": 20}, "family": "post", "label": "l"})):
             for path, status in ((R.PLACEHOLDER, "placeholder"), (self.frozen, "frozen")):
                 root = os.path.join(self.root, f"{phase}_{status}")
                 os.makedirs(root)
                 host = HostThatMeasures(modelled_attackers=1)
-                block = R.plan_block(phase, seed, root, calibration=path, **kw)
+                block = R.plan_block(phase, seed, root, calibration=path, **{**kw, **({"knees": knees_file(root, calibration=path)} if "knees" in kw else {})})
                 R.run_block(host, block)
                 with open(os.path.join(block["dir"], "block.json"), encoding="utf-8") as fh:
                     settings = json.load(fh)["settings"]
@@ -411,7 +420,7 @@ class FrozenRecordTest(unittest.TestCase):
     def test_a_validation_under_another_record_cannot_feed_the_campaign(self):
         """T-052 (1)'s check holds this already: the frozen rule makes it a dead end, so the plan says so before the VM hours."""
         block = self.campaign(selection=selection_file(self.root, calibration=R.PLACEHOLDER))
-        with self.assertRaisesRegex(R.PlanError, "calibration_sha256 differ"):
+        with self.assertRaisesRegex(R.PlanError, "calibration_sha256"):
             R.run_block(HostThatMeasures(), block)
         text = R.describe(R.plan_block("validation", 4001, self.root, sources=KNEE))
         self.assertIn("(placeholder)", text)
@@ -426,6 +435,74 @@ class FrozenRecordTest(unittest.TestCase):
             rc = R.main(["--phase", "smoke", "--seed", "9101", "--arms", "C", "--calibration", os.path.join(self.root, "absent.json"), "--plan"])
         self.assertEqual(rc, 2)
         self.assertIn("the calibration record", err.getvalue())
+
+
+class KneesTest(unittest.TestCase):
+    """§5 (review T-057 T057-04): `--loris 300 --post 40` passed every gate, whatever the ladder showed, and so did --halvings."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = self.tmp.name
+
+    def refused(self, why, phase="validation", seed=4001, **kw):
+        kw = {"sources": KNEE, **kw}
+        host = HostThatMeasures()
+        with self.assertRaisesRegex(R.PlanError, why):
+            R.run_block(host, R.plan_block(phase, seed, self.root, **kw))
+        self.assertEqual(host.procs, [])
+        self.assertFalse(os.path.exists(os.path.join(self.root, phase)), "nothing was started")
+
+    def test_a_host_that_measures_needs_the_ladders_record(self):
+        self.refused("--knees must name")
+
+    def test_a_typed_level_is_refused(self):
+        self.refused("are not the ladder's knees", sources={"loris": 300, "post": 40}, knees=knees_file(self.root))
+        self.refused("are not the ladder's knees", sources={"loris": 100, "post": 10}, knees=knees_file(self.root))
+
+    def test_a_typed_halving_count_is_refused(self):
+        self.refused("--halvings 1, and the ladder ran at 0", halvings=1, knees=knees_file(self.root))
+        self.refused("--halvings 0, and the ladder ran at 1", knees=knees_file(self.root, halvings=1))
+
+    def test_a_family_with_no_knee_stops_the_validation_and_the_campaign(self):
+        path = knees_file(self.root, levels={"post": None})
+        self.refused("post has no knee .* not decided", knees=path)
+
+    def test_another_calibration_is_refused(self):
+        other = os.path.join(self.root, "other.json")
+        with open(R.PLACEHOLDER, encoding="utf-8") as fh, open(other, "w", encoding="utf-8") as out:
+            out.write(fh.read() + "\n")
+        self.refused("another calibration record", knees=knees_file(self.root, calibration=other))
+
+    def test_an_unreadable_record_is_refused(self):
+        self.refused("is not a record", knees=os.path.join(self.root, "absent.json"))
+
+    def test_only_the_validation_and_the_campaign_take_it(self):
+        with self.assertRaisesRegex(R.PlanError, "the validation's and the campaign's"):
+            R.plan_block("smoke", 9101, self.root, arms=["C"], knees="x.json")
+
+    def test_the_block_names_it_and_the_campaign_shares_the_validations(self):
+        path = knees_file(self.root)
+        block = R.plan_block("validation", 4001, self.root, sources=KNEE, knees=path, arms=None)
+        R.run_block(HostThatMeasures(modelled_attackers=1), block)
+        with open(os.path.join(block["dir"], "block.json"), encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh)["settings"]["knees_sha256"], sha(path))
+        other = knees_file(self.root, name="other_knees.json", levels={"loris": 100})
+        with open(other, "a", encoding="utf-8") as fh:
+            fh.write("\n")
+        with self.assertRaisesRegex(R.PlanError, "knees_sha256"):
+            R.run_block(HostThatMeasures(), R.plan_block("validation", 4002, self.root, sources=KNEE, knees=other))
+        selection = selection_file(self.root, knees=path)
+        with self.assertRaisesRegex(R.PlanError, "knees_sha256 differ"):
+            R.check_selection(R.plan_block("campaign", 3101, self.root, sources=KNEE, thresholds=POINT, selection=selection, knees=other))
+
+    def test_the_command_line_carries_it(self):
+        path = knees_file(self.root)
+        base = ["--phase", "validation", "--seed", "4001", "--loris", "300", "--post", "40", "--root", self.root, "--knees", path]
+        with contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(R.main(base, host=HostThatMeasures()), 2)
+        self.assertIn("are not the ladder's knees", err.getvalue())
+        self.assertIn(f"knees {path}", out.getvalue())
 
 
 class SelectionTest(unittest.TestCase):
