@@ -1,6 +1,6 @@
 == costly_export_sub_threshold: attack, costly_export_flood, class B ==
 Requests to the export route spread over 100 sources: the total cost rate is the level, each source's rate is far below every per-source rule.
-calibration   PLACEHOLDER sha256:ac4e3156: illustrative numbers, not measurements; nothing below is a result
+calibration   PLACEHOLDER sha256:ba195e14: illustrative numbers, not measurements; nothing below is a result
 grounding     OWASP API4:2023 unrestricted resource consumption
 resource      app_cpu
 seeds         calib 1 (this plan); 10 blocks use calib 1-10
@@ -42,7 +42,7 @@ legit load    rho 90 req/s = 0.5 x c_slo 180; mean cost 6.14 ms; the SLO capacit
   judged links: perfect, broadband carry 76.3% of them; the others are reported, not judged (their own links exceed the SLOs)
 
 attack        costly_export_flood on C5 (150 ms unloaded) from 100 sources
-  level 2 x S, S = 0.5523 CPU-s/s; ladder 0.125 0.25 0.5 1 2 4 8; knee not measured
+  level 2 x S, S = 0.5523 CPU-s/s; ladder 0.125 0.25 0.5 1 2 4 8; knee 2
   total 7.36 req/s = 0.074 req/s a source; cost 1.1046 CPU-s/s = 2.000 S
   model utilisation: legit 0.500 + attack 1.000 = 1.500 of the SLO capacity; saturation (c_sat) is at 1.444
   a source against the deployed rules (Gate A runs without them; printed, never used):

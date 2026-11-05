@@ -26,8 +26,9 @@ import scenario as S
 
 SPECS = os.path.join(REPO, "bench", "scenarios")
 GOLDEN = os.path.join(REPO, "tests", "golden")
+FROZEN = os.path.join(REPO, "bench", "calibration", "ddos-mitigation-2026-11-04.json")
 NAMES = ("benign_control", "costly_search_sub_threshold", "cheap_static_flood", "costly_export_sub_threshold")
-CAL = C.load(C.PLACEHOLDER)
+CAL = F.placeholder_with_knees()
 RHO, SPARE = C.rho_rps(CAL), C.spare_capacity(CAL)
 
 
@@ -96,11 +97,41 @@ class SpecsTest(unittest.TestCase):
             self.assertEqual(raw["routes"], {fam.route_class: 1.0})
             self.assertEqual(raw["arrival"], {"process": fam.process, "loop": "open"})
 
-    def test_the_ladder_is_the_designs_and_contains_the_level(self):
+    def test_the_ladder_is_the_designs_and_the_level_is_the_calibrations_knee(self):
+        """D-066, design 7.2 step 6: 'Ten paired blocks at the frozen kappa_f'. The numbers the specs held dated from before any knee."""
         for name in NAMES[1:]:
             it = record(name)["intensity"]
             self.assertEqual(it["ladder"], [0.125, 0.25, 0.5, 1, 2, 4, 8])
-            self.assertIn(it["level"], it["ladder"])
+            self.assertEqual(it["level"], "knee", name)
+
+    def test_the_frozen_record_gives_each_spec_the_knee_it_froze(self):
+        frozen = C.load(FROZEN)
+        self.assertEqual(frozen["knees"], {"cheap_static_flood": 2.0, "costly_export_flood": 4.0, "costly_search_flood": 4.0})
+        for name, level in (("costly_search_sub_threshold", 4.0), ("costly_export_sub_threshold", 4.0), ("cheap_static_flood", 2.0)):
+            with self.subTest(name=name):
+                p = S.plan(scenario(name), frozen)
+                self.assertEqual((p["attack"]["level"], p["attack"]["knee"], p["attack"]["on_ladder"]), (level, level, True))
+                self.assertFalse([w for w in p["warnings"] if "knee" in w], p["warnings"])
+
+    def test_a_record_with_no_knee_refuses_the_attack_specs_and_not_the_control(self):
+        none = C.load(C.PLACEHOLDER)
+        self.assertEqual(none["knees"], {})
+        for name in NAMES[1:]:
+            with self.subTest(name=name), self.assertRaisesRegex(S.ScenarioError, "level 'knee' needs a knee for"):
+                S.plan(scenario(name), none)
+            code, out, err = run_main("--plan", path_of(name))
+            self.assertEqual((code, out), (1, ""))
+            self.assertIn("level 'knee' needs a knee for", err)
+        self.assertEqual(S.plan(scenario(NAMES[0]), none)["attack"], None)
+
+    def test_the_test_record_is_the_placeholder_with_knees_and_says_it_is_a_placeholder(self):
+        """So that the plans of the attack specs can be pinned without a measured knee: the knees are the numbers the specs held, not
+        measurements. It must not drift from the placeholder."""
+        plain, kneed = C.load(C.PLACEHOLDER), F.placeholder_with_knees()
+        self.assertEqual(kneed["status"], "placeholder")
+        self.assertEqual(kneed["knees"], {"costly_search_flood": 2.0, "costly_export_flood": 2.0, "cheap_static_flood": 4.0})
+        self.assertEqual({k: v for k, v in kneed.items() if k not in ("knees", "sha256")},
+                         {k: v for k, v in plain.items() if k not in ("knees", "sha256")})
 
     def test_the_gate_asks_for_ten_blocks_and_both_metrics(self):
         for name in NAMES[1:]:
@@ -257,7 +288,7 @@ class PlanNumbersTest(unittest.TestCase):
         self.assertAlmostEqual(a["cost_cpu_s"], 2.0 * SPARE, places=6)
         self.assertAlmostEqual(a["cost_in_s"], 2.0, places=6)
         self.assertEqual((a["family"], a["route"], a["sources"], a["level"]), ("costly_search_flood", "C3", 100, 2.0))
-        self.assertEqual(a["knee"], "not measured")
+        self.assertEqual(a["knee"], 2.0, "the test record's")
 
     def test_the_model_utilisation_adds_up_to_the_designs_picture(self):
         p = plan_of("costly_search_sub_threshold")
@@ -444,7 +475,7 @@ class ThresholdsNeverChooseTest(unittest.TestCase):
         for name in NAMES[1:]:
             p, scn = plan_of(name), scenario(name)
             route = P.ATTACK_FAMILIES[scn.family].route_class
-            want = scn.intensity["level"] * SPARE / (CAL["route_costs_ms"][route] / 1000)
+            want = S.resolve_level(scn, CAL) * SPARE / (CAL["route_costs_ms"][route] / 1000)
             self.assertAlmostEqual(p["attack"]["total_rate"], want, places=5)
 
     def test_the_printed_thresholds_are_the_deployed_ones(self):
@@ -513,11 +544,11 @@ class WarningsTest(unittest.TestCase):
     def test_a_level_below_the_recorded_knee_and_a_family_that_cannot_harm_are_flagged(self):
         cal = copy.deepcopy(CAL)
         cal["knees"] = {"costly_search_flood": 4.0}
-        p = S.plan(scenario("costly_search_sub_threshold"), cal)
+        p = S.plan(scenario("costly_search_sub_threshold", intensity__level=2), cal)
         self.assertIn("below the recorded knee 4", self.words(p))
         self.assertEqual(p["attack"]["knee"], 4.0)
         cal["knees"] = {"costly_search_flood": None}
-        q = S.plan(scenario("costly_search_sub_threshold"), cal)
+        q = S.plan(scenario("costly_search_sub_threshold", intensity__level=2), cal)
         self.assertIn("cannot harm this server", self.words(q))
         self.assertIn("none within the generator limit", S.render(q))
 
@@ -572,9 +603,10 @@ class GoldenTest(unittest.TestCase):
             with self.subTest(name=name):
                 with open(os.path.join(GOLDEN, name + ".plan.txt"), encoding="utf-8") as fh:
                     want = fh.read()
-                self.assertEqual(S.render(plan_of(name)), want,
-                                 f"regenerate: python3 bench/scenario.py --plan bench/scenarios/{name}.json "
-                                 f"> tests/golden/{name}.plan.txt, and read the diff")
+                control = name == NAMES[0]                  # needs no knee: it stays on the placeholder itself
+                self.assertEqual(S.render(plan_of(name, cal=C.load(C.PLACEHOLDER) if control else CAL)), want,
+                                 f"regenerate: python3 bench/scenario.py --plan{'' if control else ' --calibration ' + os.path.relpath(F.PLACEHOLDER_WITH_KNEES, REPO)} "
+                                 f"bench/scenarios/{name}.json > tests/golden/{name}.plan.txt, and read the diff")
 
 
 class DaemonPinsTest(unittest.TestCase):
@@ -601,16 +633,16 @@ class DaemonPinsTest(unittest.TestCase):
 
     def test_the_command_line_prints_the_daemons_pins_with_daemon(self):
         spec = path_of("cheap_static_flood")
-        code, out, err = run_main("--plan", "--json", "--daemon", spec)
+        code, out, err = run_main("--plan", "--json", "--daemon", "--calibration", F.PLACEHOLDER_WITH_KNEES, spec)
         self.assertEqual((code, err), (0, ""))
         self.assertEqual(json.loads(out)[0]["generator"]["kinds"]["attack"]["pin"], "3-5")
-        code, text, _ = run_main("--plan", "--daemon", spec)
+        code, text, _ = run_main("--plan", "--daemon", "--calibration", F.PLACEHOLDER_WITH_KNEES, spec)
         rows = [line.split() for line in text.splitlines() if line.split()[:1] == ["attack"] and line.split()[1].isdigit()]
         self.assertTrue(rows)
         self.assertIn("3-5", rows[0])
         self.assertNotIn("3-6", text)
         with open(os.path.join(GOLDEN, "cheap_static_flood.plan.txt"), encoding="utf-8") as fh:
-            self.assertEqual(run_main("--plan", spec)[1], fh.read(), "without --daemon the plan is the golden one")
+            self.assertEqual(run_main("--plan", "--calibration", F.PLACEHOLDER_WITH_KNEES, spec)[1], fh.read(), "without --daemon the plan is the golden one")
 
 
 class CommandLineTest(unittest.TestCase):
@@ -621,13 +653,14 @@ class CommandLineTest(unittest.TestCase):
         self.assertEqual(out.count("paired with benign_control"), 3)
 
     def test_plan_is_the_default_and_prints_each_scenario(self):
-        code, out, _ = run_main(path_of("benign_control"), path_of("cheap_static_flood"))
+        args = ("--calibration", F.PLACEHOLDER_WITH_KNEES, path_of("benign_control"), path_of("cheap_static_flood"))
+        code, out, _ = run_main(*args)
         self.assertEqual(code, 0)
         self.assertEqual(sum(1 for line in out.splitlines() if line.startswith("== ")), 2)
-        self.assertEqual(run_main("--plan", path_of("benign_control"), path_of("cheap_static_flood")), (0, out, ""))
+        self.assertEqual(run_main("--plan", *args), (0, out, ""))
 
     def test_json_is_one_plan_per_spec(self):
-        code, out, _ = run_main("--plan", "--json", path_of("benign_control"), path_of("cheap_static_flood"))
+        code, out, _ = run_main("--plan", "--json", "--calibration", F.PLACEHOLDER_WITH_KNEES, path_of("benign_control"), path_of("cheap_static_flood"))
         self.assertEqual(code, 0)
         plans = json.loads(out)
         self.assertEqual([p["scenario"]["id"] for p in plans], ["benign_control", "cheap_static_flood"])

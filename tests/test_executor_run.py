@@ -66,7 +66,7 @@ class RunCase(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.scn = SC.load(SPEC)
-        self.cal = C.load(C.PLACEHOLDER)
+        self.cal = CF.placeholder_with_knees()
 
     def plan(self, kind="C", name=None, cal=None, path=None, settings=None, **kw):
         out = os.path.join(self.tmp.name, name or kind)
@@ -3242,8 +3242,8 @@ class CommandLineTest(RunCase):
         return code, handlers, out.getvalue(), err.getvalue()
 
     def base(self, kind="C", name=None):
-        return ["run", SPEC, "--kind", kind, "--out", os.path.join(self.tmp.name, name or kind), "--rho", "20",
-                "--timeline", "10,10,10", "--allow-dirty"]
+        return ["run", SPEC, "--kind", kind, "--calibration", CF.PLACEHOLDER_WITH_KNEES, "--out", os.path.join(self.tmp.name, name or kind),
+                "--rho", "20", "--timeline", "10,10,10", "--allow-dirty"]
 
     def test_a_sound_run_exits_zero_pins_itself_and_installs_its_signal_handlers(self):
         host = F.SimHost()
@@ -3365,7 +3365,7 @@ class CommandLineTest(RunCase):
     def test_clock_probe_with_attack_says_so_and_runs_the_attack_streams(self):
         out = os.path.join(self.tmp.name, "probe")
         with few_streams(), mock.patch.object(X.RealHost, "pin"):
-            code, _, shown, _ = self.run_main("clock-probe", SPEC, "--duration", "3", "--attack", "--out", out)
+            code, _, shown, _ = self.run_main("clock-probe", SPEC, "--duration", "3", "--attack", "--calibration", CF.PLACEHOLDER_WITH_KNEES, "--out", out)
         self.assertEqual(code, X.EXIT_OK)
         self.assertIn("4 of 4 streams gave a reference", shown)
         self.assertIn("error against requests:", shown)
@@ -3381,8 +3381,8 @@ class CommandLineTest(RunCase):
         self.assertRegex(shown, r"p95 [1-9]\d* ms, slip p99 [1-9]\d* ms")
 
     def test_the_plan_prints_the_overrides_it_was_given(self):
-        code, _, shown, _ = self.run_main("plan", SPEC, "--kind", "U", "--out", os.path.join(self.tmp.name, "U"), "--rho", "20",
-                                          "--timeline", "10,10,10")
+        code, _, shown, _ = self.run_main("plan", SPEC, "--kind", "U", "--calibration", CF.PLACEHOLDER_WITH_KNEES, "--out",
+                                          os.path.join(self.tmp.name, "U"), "--rho", "20", "--timeline", "10,10,10")
         self.assertEqual(code, X.EXIT_OK)
         self.assertIn("OVERRIDES", shown)
         self.assertIn("timeline_s", shown)

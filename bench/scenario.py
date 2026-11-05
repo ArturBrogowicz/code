@@ -14,8 +14,11 @@ each source's rate against the deployed per-source rules, the load on the genera
 cost-rate model expects. The deployed thresholds are printed and never used: no intensity is chosen, moved
 or clipped by them (a test changes them and checks that nothing moves).
 
-    python3 bench/scenario.py --plan bench/scenarios/costly_search_sub_threshold.json
-    python3 bench/scenario.py --plan --daemon bench/scenarios/cheap_static_flood.json   # the pins of a campaign with a daemon
+    python3 bench/scenario.py --plan --calibration bench/calibration/ddos-mitigation-2026-11-04.json bench/scenarios/costly_search_sub_threshold.json
+    python3 bench/scenario.py --plan --daemon --calibration FILE bench/scenarios/cheap_static_flood.json   # the pins of a campaign with a daemon
+
+The attack specs run at the calibration's knee (`"level": "knee"`, design 7.2 step 6, D-066), so they need a record that has one; the
+placeholder, the default, has none and refuses them.
     python3 bench/scenario.py --check bench/scenarios/*.json
 """
 import argparse

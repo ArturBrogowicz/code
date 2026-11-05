@@ -7,7 +7,7 @@
  "grounding": "assumed",
  "resource": "app_cpu",
  "routes": {"C1": 1.0},
- "intensity": {"unit": "cost_rate_S", "ladder": [0.125, 0.25, 0.5, 1, 2, 4, 8], "level": 4},
+ "intensity": {"unit": "cost_rate_S", "ladder": [0.125, 0.25, 0.5, 1, 2, 4, 8], "level": "knee"},
  "sources": 5,
  "arrival": {"process": "poisson", "loop": "open"},
  "benign": {"identities": 200, "per_profile": 1},

@@ -947,6 +947,17 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(K.read_json(os.path.join(plan.out, "environment.json"))["timer_refused_probes"], 0)
         self.assertTrue(any("its gate's record is kept as C.unfinished.1.environment.json" in m for m in said), said)
 
+    def test_a_screening_takes_its_level_from_the_ladder_and_nothing_compares_a_specs_hash(self):
+        """D-066: the specs now say 'knee', which a template has none of. The calibration's steps give each run a number of their own,
+        and their plans record no spec hash, so hg2_3's runs and the frozen record do not depend on the specs' new hash."""
+        self.assertEqual(TEMPLATE["knees"], {})
+        for family in sorted(K.FAMILY_SPECS):
+            with self.subTest(family=family):
+                self.assertEqual(K.ladder_scenario(family).intensity["level"], "knee")
+                plan = X.plan_run(K.ladder_scenario(family, 2.0), TEMPLATE, "U", 21, "/var/tmp/ddos_campaigns/example/U", C.PLACEHOLDER, "")
+                self.assertEqual((plan.level, plan.scenario_sha256), (2.0, ""))
+                self.assertEqual(K.level_flags(K.ladder_scenario(family), TEMPLATE, 2.0), [])
+
     def test_a_finished_run_from_another_pin_plan_is_refused_and_kept(self):
         """T-039 V-22's follow-up, docs/HG1C_DESIGN.md departure 31: a step resumes from what is done, but not across two layouts."""
         plan = self.plan()

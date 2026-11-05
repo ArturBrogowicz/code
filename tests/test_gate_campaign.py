@@ -35,7 +35,7 @@ SPEC_SHA = GC.sha256_of(SPEC)
 
 def three_block_cal(**gate):
     """The placeholder frozen with a gate that needs three blocks, so that a campaign of three can end in a verdict."""
-    cal = copy.deepcopy(CF.placeholder())
+    cal = copy.deepcopy(CF.placeholder_with_knees())
     cal["gate"].update(min_blocks=3, **gate)
     return CF.frozen(cal)
 
@@ -263,7 +263,7 @@ class PlanTextTest(CampaignCase):
         self.assertNotIn("timer limit", self.text())
 
     def test_a_placeholder_is_a_dry_run(self):
-        self.assertIn("PLACEHOLDER: a dry run", self.text(cal=CF.placeholder()))
+        self.assertIn("PLACEHOLDER: a dry run", self.text(cal=CF.placeholder_with_knees()))
 
     def test_fewer_blocks_than_the_gate_needs_are_warned_about(self):
         self.assertIn("WARNING: 2 blocks are fewer than the 3 the gate needs", self.text(blocks=2))
@@ -887,10 +887,10 @@ class CalibrationTest(CampaignCase):
         self.assertFalse(os.path.exists(self.path()))
 
     def test_a_dry_run_on_a_placeholder_is_labelled_everywhere(self):
-        cal = CF.placeholder()
+        cal = CF.placeholder_with_knees()
         cal["gate"]["min_blocks"] = 3
         host = S.SimHost(server=S.SyntheticServer(cal, SHORT, S.EFFECT_PRESETS["pass"]), tag="placeholder")
-        state = GC.run_campaign(self.scn, cal, C.PLACEHOLDER, SPEC_SHA, self.path(), host, self.options(dry_run=True),
+        state = GC.run_campaign(self.scn, cal, CF.PLACEHOLDER_WITH_KNEES, SPEC_SHA, self.path(), host, self.options(dry_run=True),
                                 say=self.say.append)
         self.assertTrue(state["gate"]["dry_run"])
         with open(self.path("gate.md"), encoding="utf-8") as fh:

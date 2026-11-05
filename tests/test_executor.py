@@ -23,6 +23,7 @@ sys.path.insert(0, REPO)
 sys.path.insert(0, os.path.join(REPO, "bench"))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import calibration as C
+import calibration_fixtures as CF
 import executor as EX
 import loadgen as LG
 import loadtools as LT
@@ -35,7 +36,7 @@ with mock.patch("atexit.register"), mock.patch("signal.signal"):
 
 SPECS = os.path.join(REPO, "bench", "scenarios")
 GOLDEN = os.path.join(REPO, "tests", "golden")
-CAL = C.load(C.PLACEHOLDER)
+CAL = CF.placeholder_with_knees()
 OUT = "/var/tmp/ddos_campaigns/example/b01_a1"
 # P4's per-connection rule: the daemon reads these, and uses them only with SLOW_PC=1
 SLOW_PC_PARAMETERS = {"SLOW_PC_ENFORCE", "SLOW_PC_KILL_FILE", "SLOW_PC_RECORD", "SLOW_PC_T", "SLOW_PC_F", "SLOW_PC_K"}
@@ -61,7 +62,7 @@ def scenario(name="costly_search_sub_threshold", **benign):
 
 
 def plan(kind="U", name="costly_search_sub_threshold", seed=1, out=None, **benign):
-    return EX.plan_run(scenario(name, **benign), CAL, kind, seed, out or f"{OUT}/{kind}", C.PLACEHOLDER,
+    return EX.plan_run(scenario(name, **benign), CAL, kind, seed, out or f"{OUT}/{kind}", CF.PLACEHOLDER_WITH_KNEES,
                        sha_of(spec_path(name)))
 
 
@@ -204,7 +205,7 @@ class PlanTest(unittest.TestCase):
         self.assertEqual((gun.detach, nginx.detach), (False, True), "Nginx daemonises: it is started with no pipe to hold")
         self.assertIn("detach cmd   [server_ns] taskset -c 0-1 nginx -c ", EX.describe(p))
         self.assertIn("keep cmd   [server_ns] ", EX.describe(p))
-        self.assertEqual(dict(gun.env), {"ORIGIN_CALIBRATION": os.path.abspath(C.PLACEHOLDER), "ORIGIN_SEED": "1"})
+        self.assertEqual(dict(gun.env), {"ORIGIN_CALIBRATION": os.path.abspath(CF.PLACEHOLDER_WITH_KNEES), "ORIGIN_SEED": "1"})
         self.assertEqual(gun.argv[:3], ("taskset", "-c", "0-1"))
         self.assertEqual(gun.argv[gun.argv.index("--bind") + 1], "127.0.0.1:8080")
         self.assertEqual((gun.argv[gun.argv.index("--workers") + 1], gun.argv[gun.argv.index("--threads") + 1]), ("2", "8"))
@@ -432,7 +433,7 @@ class StagedPlanTest(unittest.TestCase):
     def test_plan_run_is_plan_population_of_the_scenarios_draw(self):
         scn = scenario()
         pop, level = SC.population_of(scn, CAL, 1, attack=True)
-        direct = EX.plan_population(pop, scn.id, "U", 1, f"{OUT}/U", CAL, C.PLACEHOLDER, scn.timeline, level,
+        direct = EX.plan_population(pop, scn.id, "U", 1, f"{OUT}/U", CAL, CF.PLACEHOLDER_WITH_KNEES, scn.timeline, level,
                                     sha_of(spec_path("costly_search_sub_threshold")))
         self.assertEqual(EX.as_json(direct), EX.as_json(plan("U")))
 
@@ -593,7 +594,8 @@ class MitigatedPlanTest(unittest.TestCase):
     def test_the_command_line_plans_a_protected_run_and_refuses_a_reserved_one(self):
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            self.assertEqual(EX.main(["plan", spec_path("cheap_static_flood"), "--kind", "M_xdp", "--out", f"{OUT}/M_xdp"]), EX.EXIT_OK)
+            self.assertEqual(EX.main(["plan", spec_path("cheap_static_flood"), "--kind", "M_xdp", "--calibration", CF.PLACEHOLDER_WITH_KNEES,
+                                      "--out", f"{OUT}/M_xdp"]), EX.EXIT_OK)
             self.assertEqual(EX.main(["plan", spec_path("cheap_static_flood"), "--kind", "M_l7", "--out", f"{OUT}/M_l7"]),
                              EX.EXIT_USAGE)
         self.assertIn("== run M_xdp (mitigated) of cheap_static_flood", out.getvalue())
@@ -675,7 +677,8 @@ class DescribeTest(unittest.TestCase):
         for kind, spec, golden in (("U", "costly_search_sub_threshold", "executor_costly_search_sub_threshold_U.plan.txt"),
                                    ("C", "benign_control", "executor_benign_control_C.plan.txt")):
             with self.subTest(golden=golden):
-                text = EX.describe(plan(kind, spec))
+                text = EX.describe(plan(kind, spec) if kind == "U" else   # the control needs no knee: it stays on the placeholder itself
+                                   EX.plan_run(scenario(spec), C.load(C.PLACEHOLDER), kind, 1, f"{OUT}/{kind}", C.PLACEHOLDER, sha_of(spec_path(spec))))
                 self.assertEqual(text, self.golden(golden),
                                  f"regenerate: python3 bench/executor.py plan bench/scenarios/{spec}.json --kind {kind} "
                                  f"--seed 1 --out {OUT}/{kind} > tests/golden/{golden}, and read the diff")
@@ -709,7 +712,7 @@ class CommandLineTest(unittest.TestCase):
 
     def test_plan_prints_the_plan(self):
         code, out, err = self.run_main("plan", spec_path("costly_search_sub_threshold"), "--kind", "U", "--seed", "1",
-                                       "--out", f"{OUT}/U")
+                                       "--calibration", CF.PLACEHOLDER_WITH_KNEES, "--out", f"{OUT}/U")
         self.assertEqual((code, err), (0, ""))
         self.assertEqual(out, EX.describe(plan("U")))
 
