@@ -70,6 +70,7 @@ class Options:
     settings: tuple = ()                    # executor settings changed, as (name, value) pairs
     simulate: str | None = None             # the name of an effect preset of bench/sim_host.py
     modes: tuple = ()                       # the protected arms, M_<mode> in every block beside C, Cp and U (HG4)
+    confirm_2x_knee: bool = False           # the one further confirmation of design 7.2 step 6, after one at the knee has failed
 
 
 def kinds_of(opts):
@@ -126,13 +127,15 @@ def fingerprint(scn, cal, scenario_sha, opts):
             "calibration_status": cal["status"], "seed_namespace": scn.seed_namespace, "first_seed": scn.first_seed,
             "blocks": block_count(scn, opts), "timeline": timeline_of(scn, opts), "rho_rps": opts.rho,
             "timer_limit_ms": opts.timer_limit_ms, "settings": {**X.SETTINGS, **dict(opts.settings)}, "gate": cal["gate"],
-            "warmup": opts.warmup, "simulate": opts.simulate, "modes": list(opts.modes), "pins": pins_of(opts)}
+            "warmup": opts.warmup, "simulate": opts.simulate, "modes": list(opts.modes), "pins": pins_of(opts),
+            "confirmation": confirmation_of(opts)}
 
 
 # --- the plan ---------------------------------------------------------------------------------
 
 def describe(scn, cal, scenario_sha, opts):
     """What the campaign would do, as text. Pure."""
+    scn = at_campaign_level(scn, cal, opts)
     n = block_count(scn, opts)
     gate = cal["gate"]
     per_block = len(kinds_of(opts))
@@ -142,6 +145,9 @@ def describe(scn, cal, scenario_sha, opts):
                + ("PLACEHOLDER: a dry run, nothing it makes is a result" if cal["status"] != "frozen" else "frozen"))
     level = "none" if scn.is_control else SC.resolve_level(scn, cal)
     out.append(f"scenario     sha256:{scenario_sha[:8]}, {scn.family} ({scn.threat_class}), attack level {level}")
+    if opts.confirm_2x_knee:
+        out.append("CONFIRMATION at 2 x the knee, asked for by hand: the design's one further confirmation, for after one at the knee has "
+                   "failed; every run's manifest records it, and both outcomes are reported")
     if not scn.is_control:
         out.append("level rule   " + ("the design allows the frozen knee and, as the one further confirmation after a failure, 2 x the knee; "
                                       "`run` refuses any other level on a frozen record" if cal["status"] == "frozen" else
@@ -207,7 +213,7 @@ def load_state(out, fp):
                             f"of before 2026-10-31 (D-032), {pins_text(P.PIN_PLAN_BEFORE_D032)}, while this campaign would run "
                             f"with {pins_text(fp['pins'])}; a campaign resumes only as it began. Use another directory for "
                             "another campaign.")
-    before = {"modes": [], **state["fingerprint"]}      # a campaign of before HG4 had no modes (nor pins: refused above)
+    before = {"modes": [], "confirmation": None, **state["fingerprint"]}      # a campaign of before HG4 had no modes (nor pins: refused above)
     differ = sorted(k for k in fp if before.get(k) != fp[k])
     if differ:
         raise CampaignError(f"{out} was started with other settings ({', '.join(differ)}); a campaign resumes only as it "
@@ -246,7 +252,7 @@ def plans_of(scn, cal, cal_path, scenario_sha, out_dir, seed, opts):
     be the same."""
     plans = {kind: X.plan_run(scn, cal, kind, seed, os.path.join(out_dir, kind), cal_path, scenario_sha,
                               settings=dict(opts.settings), rho=opts.rho, timeline=opts.timeline,
-                              timer_limit_ms=opts.timer_limit_ms, pins=pins_of(opts))
+                              timer_limit_ms=opts.timer_limit_ms, pins=pins_of(opts), confirmation=confirmation_of(opts))
              for kind in kinds_of(opts)}
     hashes = {p.plan_sha256 for p in plans.values()}
     if len(hashes) != 1:
@@ -319,7 +325,7 @@ def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opt
         "scenario": scn.id, "block": block, "attempt": attempt, "seed_namespace": scn.seed_namespace, "seed": seed,
         "calibration_sha256": cal.get("sha256") or C.digest(cal), "timeline": t, "order": made,
         "scenario_sha256": scenario_sha, "plan_sha256": next(iter(plans.values())).plan_sha256, "planned_order": planned,
-        "aborted": aborted, "runs": records, "overrides": plans[planned[0]].overrides, "complete": True,
+        "aborted": aborted, "runs": records, "overrides": plans[planned[0]].overrides, "confirmation": confirmation_of(opts), "complete": True,
         "finished_utc": now()})
     return H.assess_block(d, cal), gate
 
@@ -343,7 +349,8 @@ def warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate, say):
         say(f"warm-up: removing the unfinished run{keep_unfinished(os.path.dirname(path), os.path.basename(path), path)}")
         shutil.rmtree(path)
     plan = X.plan_run(scn, cal, "C", scn.first_seed, path, cal_path, scenario_sha, settings=dict(opts.settings),
-                      rho=opts.rho, timeline=opts.timeline, timer_limit_ms=opts.timer_limit_ms, pins=pins_of(opts))
+                      rho=opts.rho, timeline=opts.timeline, timer_limit_ms=opts.timer_limit_ms, pins=pins_of(opts),
+                      confirmation=confirmation_of(opts))
     say(f"warm-up run C at seed {scn.first_seed}")
     try:
         record = run_record(X.execute(plan, host, gate, opts.allow_dirty, opts.clean, opts.wait_gate_min, say))
@@ -361,6 +368,22 @@ def check_calibration(cal, opts):
                             "or pass --dry-run to run the protocol and label everything a dry run.")
 
 
+def confirmation_of(opts):
+    """What a run's manifest says of its level: None, or the design's one further confirmation."""
+    return "2x_knee" if opts.confirm_2x_knee else None
+
+
+def at_campaign_level(scn, cal, opts):
+    """The scenario at the campaign's level: its own, or with --confirm-2x-knee twice the record's knee (design 7.2 step 6). That is asked
+    for by hand and recorded in every run's manifest; nothing starts it after a failure (docs/HG1C_DESIGN.md departure 38)."""
+    if not opts.confirm_2x_knee:
+        return scn
+    knee = None if scn.is_control else cal["knees"].get(scn.family)
+    if not isinstance(knee, (int, float)):
+        raise CampaignError(f"--confirm-2x-knee needs a knee for {scn.family or scn.id} in the calibration; it holds {knee!r}")
+    return dataclasses.replace(scn, intensity={**scn.intensity, "level": 2 * float(knee)})
+
+
 def level_problem(scn, cal, opts):
     """Why a campaign on a frozen record may not run at the scenario's level, or None (docs/HG1C_DESIGN.md departure 37): design 7.2 step
     6 allows 'Ten paired blocks at the frozen kappa_f' and, if that fails, one further confirmation at 2 x kappa_f; 'no other level is
@@ -371,10 +394,10 @@ def level_problem(scn, cal, opts):
     if not isinstance(knee, (int, float)):
         return f"the frozen record holds no knee for {scn.family} ({knee!r}), so no level of {scn.id} is one the design allows"
     level = SC.resolve_level(scn, cal)
-    if level == knee:
+    if level == knee or (opts.confirm_2x_knee and level == 2 * knee):
         return None
     return (f"{scn.id} is at level {level:g}, and the frozen knee of {scn.family} is {knee:g}: the design (7.2 step 6) allows only the knee "
-            "and, as the one further confirmation after a failure, 2 x the knee")
+            "and, as the one further confirmation after a failure, 2 x the knee, which --confirm-2x-knee asks for")
 
 
 def check_options(opts):
@@ -404,6 +427,7 @@ def run_campaign(scn, cal, cal_path, scenario_sha, out, host, opts=None, say=pri
     opts = opts or Options()
     check_calibration(cal, opts)
     check_options(opts)
+    scn = at_campaign_level(scn, cal, opts)
     problem = level_problem(scn, cal, opts)
     if problem:
         raise CampaignError(problem)
@@ -500,6 +524,8 @@ def status_text(out):
              f"{fp['calibration_sha256'][:8]} {fp['calibration_status']}" + (", SIMULATED" if state.get("simulated") else "")
              + (f", arms {', '.join(X.MITIGATED + m for m in fp['modes'])}" if fp.get("modes") else ""),
              f"state {state['state']}" + (f": {state['stopped']}" if state.get("stopped") else "") + f"; re-runs {state['reruns']}"]
+    if fp.get("confirmation"):
+        lines.append(f"confirmation {fp['confirmation']}: asked for by hand, after one at the knee")
     for a in state["attempts"]:
         lines.append(f"  block {a['block']:>2} attempt {a['attempt']} seed {a['seed']}: " + ("valid" if a["valid"] else "NOT valid")
                      + f"  order {', '.join(a['order'])}" + ("" if a["valid"] else "  " + "; ".join(a["reasons"])[:160]))
@@ -532,6 +558,8 @@ def _add_common(p):
                    help="smoke test: refuse a run if the timer on the legit CPU has p99 of this many ms or more, instead of the "
                         "calibration's validity.timer_p99_ms; needs --dry-run")
     p.add_argument("--no-warmup", action="store_true", help="skip the unscored warm-up run")
+    p.add_argument("--confirm-2x-knee", action="store_true",
+                   help="the one further confirmation at 2 x the frozen knee (design 7.2 step 6), for after one at the knee has failed; never automatic")
     p.add_argument("--modes", type=_modes_arg, default=(), metavar="MODE[,MODE]",
                    help="the protected arms: an M_<mode> run in every block (limits, xdp; l7shadow and l7 are not built yet)")
 
@@ -544,6 +572,7 @@ def options_of(args):
     return Options(blocks=args.blocks, dry_run=getattr(args, "dry_run", False), warmup=not args.no_warmup,
                    allow_dirty=getattr(args, "allow_dirty", False), clean=getattr(args, "clean", False),
                    wait_gate_min=getattr(args, "wait_gate", 30.0), keep_going=getattr(args, "keep_going", False),
+                   confirm_2x_knee=args.confirm_2x_knee,
                    rho=args.rho, timeline=args.timeline, timer_limit_ms=args.timer_limit_ms,
                    simulate=getattr(args, "simulate", None), modes=args.modes)
 

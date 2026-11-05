@@ -941,6 +941,59 @@ class CalibrationTest(CampaignCase):
                 self.assertIsNone(GC.level_problem(scn, frozen, self.options()))
                 self.assertIn(f"attack level {float(level)}", GC.describe(scn, frozen, "0" * 64, self.options()))
 
+    def test_the_further_confirmation_is_asked_for_by_hand_and_recorded_in_every_manifest(self):
+        """Design 7.2 step 6: 'one further confirmation at 2 x kappa_f'. The test record's knee of this family is 2."""
+        state = self.run_campaign(confirm_2x_knee=True, blocks=1)
+        self.assertEqual(state["fingerprint"]["confirmation"], "2x_knee")
+        meta = self.json("b01_a1", "block.json")
+        self.assertEqual(meta["confirmation"], "2x_knee")
+        for kind in meta["order"]:
+            plan, run = self.json("b01_a1", kind, "plan.json"), self.json("b01_a1", kind, "run.json")
+            self.assertEqual((plan["confirmation"], run["confirmation"]), ("2x_knee", "2x_knee"), kind)
+        self.assertEqual(self.json("b01_a1", "U", "plan.json")["level"], 4.0)
+        self.assertEqual(self.json("b01_a1", "U", "run.json")["level"], 4.0)
+        self.assertEqual(self.json("gate.json")["confirmation"], "2x_knee")
+        with open(self.path("gate.md"), encoding="utf-8") as fh:
+            self.assertIn("**Further confirmation at 2 x the knee**", fh.read())
+        self.assertIn("confirmation 2x_knee", GC.status_text(self.path()))
+        self.assertIn("CONFIRMATION at 2 x the knee", GC.describe(self.scn, self.CAL, SPEC_SHA, self.options(confirm_2x_knee=True)))
+
+    def test_nothing_starts_the_further_confirmation_after_a_failure(self):
+        host = self.host(effects="fail")
+        state = self.run_campaign(host=host, blocks=1)
+        self.assertIsNone(state["fingerprint"]["confirmation"])
+        self.assertEqual([d for d in self.dirs()], ["b01_a1"])
+        self.assertEqual(self.json("b01_a1", "U", "plan.json")["level"], 2.0, "the knee")
+        self.assertIsNone(self.json("b01_a1", "block.json")["confirmation"])
+        self.assertIsNone(self.json("b01_a1", "U", "run.json")["confirmation"])
+
+    def test_a_campaign_resumes_only_with_the_confirmation_it_began_with(self):
+        self.run_campaign(blocks=1)
+        with self.assertRaisesRegex(GC.CampaignError, "confirmation"):
+            self.run_campaign(confirm_2x_knee=True, blocks=1)
+        state = self.json(GC.CAMPAIGN)
+        state["fingerprint"].pop("confirmation")
+        with open(self.path(GC.CAMPAIGN), "w", encoding="utf-8") as fh:
+            json.dump(state, fh)
+        self.assertEqual(self.run_campaign(blocks=1)["state"], "complete", "one made before the field had none")
+
+    def test_twice_the_knee_as_a_number_needs_the_flag_and_a_record_with_no_knee_cannot_take_it(self):
+        cal = copy.deepcopy(self.CAL)
+        cal["knees"] = {"costly_search_flood": 2.0}
+        with self.assertRaisesRegex(GC.CampaignError, "--confirm-2x-knee asks for"):
+            self.run_campaign(scn=self.scenario_at(4), cal=cal)
+        self.assertIsNone(GC.level_problem(self.scenario_at(4), cal, self.options(confirm_2x_knee=True)))
+        cal["knees"] = {}
+        with self.assertRaisesRegex(GC.CampaignError, "--confirm-2x-knee needs a knee for costly_search_flood"):
+            self.run_campaign(scn=self.scenario_at(4), cal=cal, confirm_2x_knee=True)
+
+    def test_the_command_line_takes_the_flag_and_plan_shows_it(self):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            self.assertEqual(GC.main(["plan", SPEC, "--calibration", self.cal_path, "--confirm-2x-knee"]), GC.EXIT_OK)
+        self.assertIn("attack level 4.0", out.getvalue())
+        self.assertIn("CONFIRMATION at 2 x the knee", out.getvalue())
+
     def test_a_dry_run_on_a_placeholder_is_labelled_everywhere(self):
         cal = CF.placeholder_with_knees()
         cal["gate"]["min_blocks"] = 3

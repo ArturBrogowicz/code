@@ -226,6 +226,7 @@ class RunPlan:
     pins: object = None              # the pin plan of the run (population.PIN_PLAN, or PIN_PLAN_DAEMON in a campaign with a daemon)
     nginx_source: str = "nginx_unprotected.conf"      # the configuration of the repository that was rendered
     daemon: object = None            # a Daemon, for a mode that has one
+    confirmation: object = None      # "2x_knee": the campaign's one further confirmation at 2 x the knee (design 7.2 step 6), by hand
 
 
 # --- names -------------------------------------------------------------------------------------
@@ -380,7 +381,7 @@ def pins_for(kinds):
 
 
 def plan_run(scn, cal, kind, seed, out, calibration_path, scenario_sha256="", manifest=None, root=None, settings=None,
-             python=None, rho=None, timeline=None, timer_limit_ms=None, pins=None):
+             python=None, rho=None, timeline=None, timer_limit_ms=None, pins=None, confirmation=None):
     """Everything a run will do, as data. `scn` is a bench/scenario.Scenario, `cal` a calibration record read from
     `calibration_path`, `kind` one of C, Cp, U and the protected M_<mode>, `out` the run's directory, which must be called after
     its kind (the gate reads the role from the name). A protected run is U's attack against its mode's stack. `rho` replaces the
@@ -412,11 +413,11 @@ def plan_run(scn, cal, kind, seed, out, calibration_path, scenario_sha256="", ma
     except SC.ScenarioError as exc:
         raise PlanError(str(exc)) from exc
     return plan_population(pop, scn.id, kind, seed, out, cal, calibration_path, scn.timeline, level, scenario_sha256, manifest,
-                           root, settings, python, overrides, mode=mode, pins=pins or pins_for([kind]))
+                           root, settings, python, overrides, mode=mode, pins=pins or pins_for([kind]), confirmation=confirmation)
 
 
 def plan_population(pop, scenario, kind, seed, out, cal, calibration_path, timeline, level=None, scenario_sha256="",
-                    manifest=None, root=None, settings=None, python=None, overrides=None, mode=None, pins=None):
+                    manifest=None, root=None, settings=None, python=None, overrides=None, mode=None, pins=None, confirmation=None):
     """The plan of a run of a population that is drawn already: plan_run's for a scenario's, and bench/calibrate.py's for the
     staged load of the capacity probe and the legit probes. `timeline` is the population's population.Timeline; a stream is
     launched so that its loop starts at its `start_s` on the run's axis (launch_due). `mode` is a protected run's (MODES)."""
@@ -454,7 +455,7 @@ def plan_population(pop, scenario, kind, seed, out, cal, calibration_path, timel
         streams=tuple(streams), teardown=teardown_steps(namespaces), nginx_conf=conf, nginx_conf_sha256=conf_sha256,
         plan_sha256=_legit_hash(pop.of_kind("legit")), settings={**SETTINGS, **(settings or {})},
         overrides=overrides or {}, timer_limit_ms=(overrides or {}).get("timer_limit_ms", cal["validity"]["timer_p99_ms"]),
-        mode=mode, pins=pins, nginx_source=os.path.basename(source),
+        mode=mode, pins=pins, confirmation=confirmation, nginx_source=os.path.basename(source),
         daemon=daemon_plan(out, python, pins, backend) if backend else None)
 
 
@@ -555,6 +556,7 @@ def describe(plan, python=None):
            f"nginx.conf    sha256:{plan.nginx_conf_sha256[:12]} ({plan.nginx_source} with its two log paths changed"
            + (", and the daemon's feed beside them)" if plan.daemon else ")"),
            *([f"mode          {plan.mode}: {MODE_TEXT[plan.mode]}"] if plan.mode else []),
+           *([f"confirmation  {plan.confirmation}: the design's one further confirmation, asked for by hand"] if plan.confirmation else []),
            *(["pins          " + ", ".join(f"{k} {v}" for k, v in plan.pins.items())
               + f": the executor on CPU {P.executor_cpus(plan.pins)}, apart from the daemon's"] if plan.pins != P.PIN_PLAN else []),
            "settings      " + ", ".join(f"{k} {v}" for k, v in plan.settings.items()), ""]
@@ -2117,7 +2119,8 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
         sampler.write(f"{out}/server.csv")
         finish_logs(plan, zero, log)
         write_json(f"{out}/run.json", {
-            "role": KINDS_OF_RUN[plan.kind], "mode": plan.mode, "started_utc": _utc(launched["legit"]),
+            "role": KINDS_OF_RUN[plan.kind], "mode": plan.mode, "level": plan.level, "confirmation": plan.confirmation,
+            "started_utc": _utc(launched["legit"]),
             "daemon": None if daemon is None else {**daemon, "stop": stopped},
             "scenario": plan.scenario, "seed": plan.seed, "plan_sha256": plan.plan_sha256,
             "calibration_sha256": plan.calibration_sha256, "overrides": plan.overrides,
