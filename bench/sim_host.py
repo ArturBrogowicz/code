@@ -145,7 +145,7 @@ class SimHost(X.Host):
                  fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,), wall_late_s=None, silent=None, nonzero=None,
                  ping_drops=None, daemon_holds_pipes=True, run_cost_s=None, daemon_startup_s=DAEMON_STARTUP_S,
                  daemon_ban_rps=DAEMON_BAN_RPS, daemon_ban_delay_s=DAEMON_BAN_DELAY_S, h01_fix_in_history=False,
-                 max_inflight=None, host_feed=None, timer_p99_by_cpu=None, origin_exit=None):
+                 max_inflight=None, host_feed=None, timer_p99_by_cpu=None, origin_exit=None, nginx_exit=None):
         self.t = 0.0
         self.inodes = itertools.count(7000)
         self.max_inflight = max_inflight      # a lower in-flight cap for the engines than their --max-inflight (a test of F-02)
@@ -169,6 +169,7 @@ class SimHost(X.Host):
         self.commands, self.prims, self.sleeps = [], [], []
         self.root, self.dirty, self.nofile = root, dirty, nofile
         self.uptime_s, self.load1, self.timer_p99_ms = uptime_s, load1, timer_p99_ms
+        self.nginx_exit = nginx_exit                               # (seconds after its start, exit code): Nginx dies during the run
         self.origin_exit = origin_exit                             # (seconds after its start, exit code, what gunicorn.log then says)
         self.timer_p99_by_cpu = dict(timer_p99_by_cpu or {})       # the CPU list taskset is given -> p99 or [p99, ...]; else timer_p99_ms
         self.exit_delay_s, self.exit_delay_per_request_s = exit_delay_s, exit_delay_per_request_s
@@ -722,7 +723,17 @@ class SimHost(X.Host):
         return X.Result(0, json.dumps({"costs_ms": session, "batch": batch, "clock": "simulated"}), "")
 
     def _cmd_nginx(self, a, ns, stdin, cpus=None):
-        """Nginx run to completion with its output captured: the daemon forks and the call, whose pipes it holds, returns at its timeout."""
+        """Nginx run to completion with its output captured: the daemon forks and the call, whose pipes it holds, returns at its timeout.
+        With `-s quit` it signals the master and exits at once: 1 with no master to signal (as the runners of P1 and P4 take it; the code
+        is [CLAIMED], not run). A stubborn Nginx does not end on it, and is left for the teardown to kill."""
+        if "-s" in a:
+            nginx = [p for p in self.alive() if p.role == "nginx"]
+            if not any("master process" in p.argv for p in nginx):
+                return X.Result(1, "", 'nginx: [error] open() "/run/nginx.pid" failed (2: No such file or directory)')
+            for p in nginx:
+                if not p.ignores_term:
+                    self.deliver(p, signal.SIGQUIT)
+            return X.Result(0, "", "")
         code, message = self._daemon_start(a, ns, cpus)
         if code != 0:
             return X.Result(code, "", message)
@@ -749,6 +760,9 @@ class SimHost(X.Host):
             proc.cpus = cpus or proc.cpus
             proc.immortal = self.fault_peek("leftover_nginx_after_teardown")
             proc.ignores_term = self.fault_peek("stubborn_nginx")
+        if self.nginx_exit:
+            after, code = self.nginx_exit
+            self.schedule(self.t + after, lambda: [self.end(p, code) for p in self.alive() if p.role == "nginx"])
         return 0, ""
 
     def _cmd_mkdir(self, a, ns, stdin):

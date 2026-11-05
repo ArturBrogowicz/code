@@ -1793,6 +1793,15 @@ def origin_validity(plan, procs, t_launch):
             + origin_log_says(f"{plan.out}/gunicorn.log")]
 
 
+def nginx_validity(host, plan):
+    """Why a run whose Nginx did not last the timeline is not sound (docs/HG1C_DESIGN.md departure 35, D-065): nothing holds the daemon
+    after its launcher returned, and once it is gone every request fails, which would read as harm. It is told to quit when the run is
+    over, as P4's and P1's runners tell theirs, and a quit that fails says that it had gone, in P4's words (eval/p4_runner.py). That a
+    quit to a dead master exits non-zero is [CLAIMED], NOT RUN on this VM."""
+    code = host.run(["nginx", "-c", f"{plan.out}/nginx.conf", "-s", "quit"], ns=SERVER_NS).code
+    return [] if code == 0 else [f"nginx was not running at the run's end: its quit exited {code}"]
+
+
 def daemon_validity(host, plan, procs, daemon, sampler, t_launch):
     """Why a protected run with a daemon is not sound (G11), looked at when the timeline is over and before the daemon is stopped,
     and what was seen. The daemon was ready before the first stream was launched, so before the attack; it must still be alive. With
@@ -1901,7 +1910,7 @@ def run_timeline(host, plan, log, procs, sampler):
 
 def stop_all(host, procs, plan, log):
     """TERM, then KILL after the grace, for the processes this run started and holds a handle of; the namespaces' other
-    processes (Nginx, gunicorn's workers) go in the teardown."""
+    processes (gunicorn's workers, and Nginx if its quit has not ended it) go in the teardown."""
     live = [p for p in procs.values() if p.poll() is None]
     if not live:
         return
@@ -2094,6 +2103,7 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
             problems += unsound
             daemon.update(seen)
         stopped = stop_daemon(host, procs, log)
+        problems += nginx_validity(host, plan)
         stop_all(host, procs, plan, log)
         block, rows, zero = collect(plan, procs, launched, problems)
         raised = {sid: gap for sid, gap in block["wall_gap_s"].items() if gap > WALL_GAP_NOTE_S}

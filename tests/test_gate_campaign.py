@@ -737,6 +737,15 @@ class StopTest(CampaignCase):
                         first["runs"][kind]["reasons"])
         self.assertEqual(state["gate"]["verdict"], "INVALID")
 
+    def test_nginx_that_dies_during_a_run_ends_the_attempt_and_the_campaign_has_no_verdict_on_it(self):
+        """HG1C departure 35: unsound, not harm."""
+        state = self.run_campaign(host=self.host(nginx_exit=(12.0, -11)), blocks=1)
+        first = self.json("b01_a1", "block.json")
+        kind = first["planned_order"][0]
+        self.assertEqual((first["aborted"], first["runs"][kind]["ok"]), (kind, False))
+        self.assertIn("nginx was not running at the run's end: its quit exited 1", first["runs"][kind]["reasons"])
+        self.assertEqual(state["gate"]["verdict"], "INVALID")
+
     def test_a_probe_refused_before_every_run_waits_and_moves_nothing_the_campaign_is_judged_on(self):
         """HG1C departure 30: the wait comes before a run's own clock, so that no clock rule of a block can see it."""
         plain = self.run_campaign(out="plain")
