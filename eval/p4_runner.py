@@ -86,6 +86,7 @@ import math
 import os
 import random
 import sys
+import types
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -504,8 +505,9 @@ def execute_run(host, plan):
         gunicorn = host.popen(plan["gunicorn"]["argv"], ns=SERVER_NS, env=plan["gunicorn"]["env"],
                               stdout=logs["gunicorn"], stderr=logs["gunicorn"], cwd=REPO)
         procs.append(("gunicorn", gunicorn))
-        if host.run(plan["nginx"]["start"], ns=SERVER_NS).code != 0:
-            reasons.append("nginx did not start")
+        refused = start_nginx(host, plan)
+        if refused:
+            reasons.append(refused)
         ready = _wait(host, lambda: gunicorn.poll() is not None
                       or host.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "2",
                                    READY_URL], ns=SERVER_NS).out.strip() == "200", STACK_READY_TIMEOUT_S)
@@ -557,6 +559,19 @@ def execute_run(host, plan):
     except Exception as exc:  # noqa: BLE001 - whatever failed, the run is recorded and the teardown runs
         reasons.append(f"the runner failed: {type(exc).__name__}: {exc}")
         return finish(host, plan, reasons, started, t0, procs, logs, stub, launched)
+
+
+def start_nginx(host, plan):
+    """Nginx as the harm benchmark starts it (bench/executor.py start_daemon; review T-057 T057-01): a process of its own with no pipe for
+    its daemon to hold. `host.run` captures its output, and a call like that came back only at its 120-s timeout, so no run would have got past
+    this line. A failed start keeps its message in the run's nginx_start.log. Returns the reason, or None. P1 calls it too."""
+    import executor
+    step = executor.Cmd(tuple(plan["nginx"]["start"]), SERVER_NS, detach=True)
+    try:
+        executor.start_daemon(host, step, types.SimpleNamespace(out=plan["out"]), lambda _said: None)
+    except executor.SetupFailed as exc:
+        return f"nginx did not start: {exc}"
+    return None
 
 
 def gunicorn_gone(host, plan, proc, when):

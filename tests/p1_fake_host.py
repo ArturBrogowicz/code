@@ -68,28 +68,31 @@ class P1FakeHost(F.FakeHost):
         if "timer-probe" in argv:
             p99 = self.timer_p99.pop(0) if len(self.timer_p99) > 1 else self.timer_p99[0]
             return F.X.Result(0, "" if p99 is None else json.dumps({"p50_ms": 1.0, "p99_ms": p99, "max_ms": p99 + 1.0}), "")
-        if "nginx" in argv and "-s" not in argv:
-            conf = argv[argv.index("nginx") + 2]
-            with open(conf, encoding="utf-8") as fh:
-                text = fh.read()
-            found = SINK.findall(text)
-            self.sink = found[0] if found else None
-            self.socket_sink = SOCKET_SINK in text
-            self.run_name, self.block_dir = os.path.basename(os.path.dirname(conf)), os.path.dirname(os.path.dirname(conf))
-            with open(os.path.join(os.path.dirname(conf), "plan.json"), encoding="utf-8") as fh:
-                benign = [e["address"] for e in json.load(fh)["entities"] if e["role"] == "benign"]
-            self.heartbeat = benign[0] if benign else None
-            self.lines, self.n_request, self.dead_at = [], 0, None
-            res = super().run(argv, ns, stdin, env, timeout)
-            self.stack_t0 = self.t
-            self._monitor(self.world)
-            return res
         if "nginx" in argv and "quit" in argv and self.sink:
             self.lines.sort(key=lambda o: o["msec"])
             with open(self.sink, "w", encoding="utf-8") as fh:
                 fh.writelines(json.dumps(o) + "\n" for o in self.lines)
             return super().run(argv, ns, stdin, env, timeout) if self.nginx_gone else F.X.Result(0, "", "")
         return super().run(argv, ns, stdin, env, timeout)
+
+    def popen(self, argv, ns="", env=None, stdout=None, stderr=None, cwd=None):
+        if "nginx" not in argv or "-s" in argv:
+            return super().popen(argv, ns, env, stdout, stderr, cwd)
+        conf = argv[argv.index("nginx") + 2]                # a start with no pipe, as the real one must be (the base class's `run` times out)
+        with open(conf, encoding="utf-8") as fh:
+            text = fh.read()
+        found = SINK.findall(text)
+        self.sink = found[0] if found else None
+        self.socket_sink = SOCKET_SINK in text
+        self.run_name, self.block_dir = os.path.basename(os.path.dirname(conf)), os.path.dirname(os.path.dirname(conf))
+        with open(os.path.join(os.path.dirname(conf), "plan.json"), encoding="utf-8") as fh:
+            benign = [e["address"] for e in json.load(fh)["entities"] if e["role"] == "benign"]
+        self.heartbeat = benign[0] if benign else None
+        self.lines, self.n_request, self.dead_at = [], 0, None
+        launcher = super().popen(argv, ns, env, stdout, stderr, cwd)
+        self.stack_t0 = self.t
+        self._monitor(self.world)
+        return launcher
 
     def pin(self, cpus):
         self.pinned = cpus

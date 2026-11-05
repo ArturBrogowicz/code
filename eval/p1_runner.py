@@ -629,8 +629,9 @@ def execute_run(host, plan, frozen_sums):
         logs["gunicorn"] = open(plan["gunicorn"]["log"], "w", encoding="utf-8")       # noqa: SIM115 (closed in finish)
         gunicorn = host.popen(plan["gunicorn"]["argv"], ns=SERVER_NS, stdout=logs["gunicorn"], stderr=logs["gunicorn"], cwd=REPO)
         procs.append(("gunicorn", gunicorn))
-        if host.run(plan["nginx"]["start"], ns=SERVER_NS).code != 0:
-            reasons.append("nginx did not start")
+        refused = P4.start_nginx(host, plan)
+        if refused:
+            reasons.append(refused)
         ready = P4._wait(host, lambda: gunicorn.poll() is not None
                          or host.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "2",
                                       READY_URL], ns=SERVER_NS).out.strip() == "200", STACK_READY_TIMEOUT_S)

@@ -3,6 +3,8 @@ from a small model, processes live on a virtual clock, and the files a real run 
 asks for them. Nothing here touches the machine: no namespace, no socket, no process.
 
 The model, as far as the runner's outputs need it:
+  * nginx starts as the real one does (review T-057 T057-01): `popen` with no pipe gives a launcher that returns at once, or exits 1 with its message on
+    its stderr (`nginx_fails`), or never returns (`nginx_hangs`); `run`, which captures its output, comes back only at its 120-s timeout, with -1;
   * the stack answers its readiness probe and stub_status (except over `stub_fails`, seconds of the run: slots exhausted);
   * a generator (ml/l7_gen.py) exits 0 at the end of its duration, or `gen_late[its address]` seconds later (or `gen_code`
     for the entities named in `gen_fails`). A benign plan-kind generator writes its client-side rows (ml/l7_gen.py --records) at its exit, from
@@ -82,7 +84,7 @@ class FakeHost(X.Host):
                  poll_every_s=1.0, modelled_attackers=None, harm=None, fail_prim=None, limit_refuses=0.0,
                  gen_late=None, stub_fails=None, ss_fails=None, attack_fails=False, attack_opened_share=1.0, no_socket_of=(),
                  garbled_bans=False, ban_file_lost=False, gen_stall=None, runner_stall=None, gunicorn_refuses=None,
-                 gunicorn_dies=None, nginx_gone=False):
+                 gunicorn_dies=None, nginx_gone=False, nginx_hangs=False):
         self.t = 0.0
         self.root, self.netns, self.stack_ready, self.nginx_fails = root, list(netns), stack_ready, nginx_fails
         self.kill_file, self.kill_appears_at = kill_file, kill_appears_at
@@ -99,6 +101,7 @@ class FakeHost(X.Host):
         self.gunicorn_refuses = gunicorn_refuses  # text: gunicorn's master writes it to its log and exits 1 at once, before it serves
         self.gunicorn_dies = gunicorn_dies      # (seconds of the run, its exit code, what its log says then)
         self.nginx_gone, self.gunicorn = nginx_gone, None   # nginx_gone: its -s quit fails, as for a master that has died
+        self.nginx_hangs = nginx_hangs          # its launcher never returns
         self.pids, self.seq = itertools.count(100), itertools.count()
         self.events, self.commands, self.prims, self.procs = [], [], [], []
         self.reset_world()
@@ -177,10 +180,9 @@ class FakeHost(X.Host):
                 fh.writelines(json.dumps(x) + "\n" for x in self.access)
             self.access = []
             return X.Result(0, "", "")
-        if "nginx" in argv and "-s" not in argv:            # a run's stack starts: a new world
-            self.reset_world()
-            self.limits = any("limits" in a for a in argv)
-            return X.Result(1 if self.nginx_fails else 0, "", "")
+        if "nginx" in argv and "-s" not in argv:            # captured, its daemon keeps the pipe: only the timeout ends the call
+            self.sleep(timeout or X.RealHost.COMMAND_TIMEOUT_S)
+            return X.Result(-1, "", "timeout")
         return X.Result(0, "", "")
 
     def popen(self, argv, ns="", env=None, stdout=None, stderr=None, cwd=None):
@@ -199,6 +201,14 @@ class FakeHost(X.Host):
             return p
         p = Proc(self, "server", argv, env, stdout)
         self.procs.append(p)
+        if "nginx" in argv and "-s" not in argv:            # a run's stack starts: a new world, and the launcher returns once it has forked
+            self.reset_world()
+            self.limits = any("limits" in a for a in argv)
+            if self.nginx_fails:
+                stderr.write(b"nginx: [emerg] unknown directive in the conf\n")
+                self.end(p, 1)
+            elif not self.nginx_hangs:
+                self.end(p, 0)
         if "gunicorn" in text:
             self.gunicorn = p
             if self.gunicorn_refuses:

@@ -836,6 +836,28 @@ class ExecuteTest(unittest.TestCase):
         self.assertEqual(R.STALL_BOUND_S, l7v2_harm._rule()["never_sent_after_s"])
         self.assertEqual(R.STALL_BOUND_S, R.STOP_GRACE_S)
 
+    def test_nginx_starts_with_no_pipe_for_its_daemon_to_hold(self):
+        """Review T-057 T057-01: on this VM's nginx a start run to completion with its output captured comes back only at the 120-s timeout,
+        so a runner that does that gets "nginx did not start" in every run, and the old fake answered it at once with 0."""
+        host = F.FakeHost()
+        self.assertEqual(tuple(host.run(["taskset", "-c", "0-1", "nginx", "-c", "x.conf"], ns="server_ns"))[:3], (-1, "", "timeout"))
+        self.assertEqual(host.t, 120.0)
+        host, run = F.FakeHost(), self.one_run("no_pipe", "campaign", 3106, "C", thresholds=POINT)
+        self.assertEqual(R.execute_run(host, run)["reasons"], [])
+        self.assertEqual([c[2] for c in host.commands if c[1] == tuple(run["nginx"]["start"])], ["popen"])
+        self.assertTrue(os.path.isfile(os.path.join(run["out"], "nginx_start.log")))
+
+    def test_a_failed_start_says_why_and_keeps_its_message(self):
+        run = self.one_run("emerg", "campaign", 3106, "C", thresholds=POINT)
+        res = R.execute_run(F.FakeHost(nginx_fails=True), run)
+        self.assertRegex(res["reasons"][0], r"^nginx did not start: .* exited 1: nginx: \[emerg\] unknown directive")
+        with open(os.path.join(run["out"], "nginx_start.log"), encoding="utf-8") as fh:
+            self.assertIn("[emerg]", fh.read())
+
+    def test_a_launcher_that_never_returns_is_named(self):
+        res = R.execute_run(F.FakeHost(nginx_hangs=True), self.one_run("hangs", "campaign", 3106, "C", thresholds=POINT))
+        self.assertRegex(res["reasons"][0], r"^nginx did not start: .* did not return within 10 s")
+
     def test_gunicorn_dying_in_mid_run_makes_the_run_invalid(self):
         """D-063: a dead backend read as harm: the run went on, every request failed, and run.json said nothing."""
         for arm in ("U_post", "C"):
