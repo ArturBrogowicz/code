@@ -51,11 +51,13 @@ class KneeTest(LadderCase):
         self.assertEqual(rec["calibration_sha256"], R.sha256_file(R.PLACEHOLDER))
         self.assertEqual(len(rec["controls"]), 8)
 
-    def test_a_further_repeat_cannot_re_roll_a_level(self):
-        self.ladder("loris", (100, ATTACK, NO_ATTACK), (175, ATTACK, ATTACK))
-        self.ladder("post", (5, ATTACK, ATTACK))
-        self.run_level("loris", 100, 3)
-        self.assertEqual(self.read()["levels"]["loris"], 175)
+    def test_a_third_repeat_or_another_seed_is_refused(self):
+        """Review T-063 T063-05: a third repeat could turn a passing level into a failing one, and one on another seed could re-roll it."""
+        self.ladder("loris", (100, ATTACK, ATTACK))
+        with self.assertRaisesRegex(R.PlanError, r"the label 'l100r3' is not one of \['l100r1', 'l100r2'\]"):
+            self.run_level("loris", 100, 3)
+        with self.assertRaisesRegex(R.PlanError, "ladder l100r2 ran on seed 9101: a repeat is re-run on its own seed"):
+            self.run_level("loris", 100, 2, seed=9102)
 
     def test_a_repeat_with_no_sound_attempt_stops_the_reader_until_it_is_re_run(self):
         """Review T-063 T063-01, D-067: an invalid U at loris 100 r2 counted as harm 0, so the knee moved to 175 with exit 0."""

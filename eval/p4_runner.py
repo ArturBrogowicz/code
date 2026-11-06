@@ -185,6 +185,15 @@ def arm_spec(arm, phase):
     return CONF_R, None, family
 
 
+LADDER_REPEATS = 2           # §5: "the lowest level that harms in 2 of 2 repeats"
+
+
+def ladder_labels(level):
+    """The labels of a ladder level's repeats (review T-063 T063-05; the spelling the tests and eval/p4_ladder.py used). A level names its
+    family too, since the two families' ladders share no level."""
+    return [f"l{level}r{repeat}" for repeat in range(1, LADDER_REPEATS + 1)]
+
+
 def block_order(phase, seed, arms, label=""):
     """The block's runs in a seeded random order (§10: each block's runs in a seeded order)."""
     order = list(arms)
@@ -356,6 +365,9 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresh
             raise PlanError("smoke: --thresholds T,F,K must be a point of slow_pc.GRID")
     if phase == "ladder":                        # the ladder's runs carry only the family under test
         sources = {f: (n if f == family else 0) for f, n in sources.items()}
+        if label not in ladder_labels(sources[family]):
+            raise PlanError(f"ladder: the label {label!r} is not one of {ladder_labels(sources[family])}: eval/p4_ladder.py reads the repeat "
+                            f"from it, and §5's ladder has {LADDER_REPEATS} repeats a level (review T-063 T063-05)")
     pop = PT.build_plan(seed, role, halvings=halvings, loris=sources["loris"], post=sources["post"])
     wanted = tuple(arms) if arms else phase_arms(phase, family)
     order = block_order(phase, seed, wanted, label)
@@ -1017,6 +1029,11 @@ def check_attempt(block):
     next_attempt = max((x["attempt"] for x in mine), default=0) + 1
     if block["attempt"] != next_attempt:
         raise PlanError(f"{phase} block {seed}: attempt {block['attempt']}, and the index says the next is {next_attempt}")
+    if phase == "ladder":                       # a repeat stays on its seed: on another it would be attempt 1, with no reason asked
+        other = sorted({x["block"] for x in rows if x["phase"] == "ladder" and x["label"] == block["label"] and x["block"] != seed})
+        if other:
+            raise PlanError(f"ladder {block['label']} ran on seed {other[0]}: a repeat is re-run on its own seed, with a reason, not rolled "
+                            f"again on {seed} (review T-063 T063-05)")
     if next_attempt == 1 or phase == "smoke":
         return
     last = {x["arm"]: x for x in mine if x["attempt"] == next_attempt - 1}

@@ -30,7 +30,7 @@ import p4_runner as R
 import p4_traffic as PT
 
 FORMAT = "p4-knees/1"
-REPEATS = 2              # §5: "in 2 of 2 repeats"
+REPEATS = R.LADDER_REPEATS   # §5: "in 2 of 2 repeats"
 
 
 def _repeats(root, rows, named):
@@ -46,6 +46,8 @@ def _repeats(root, rows, named):
         halvings.add(meta["settings"]["halvings"])
         family = next(a[2:] for a in meta["order"] if a.startswith("U_"))
         one = next(iter(arms.values()))
+        if one["label"] not in R.ladder_labels(meta["sources"][family]):
+            raise ValueError(f"{block_dir}: the label {one['label']!r} is not one of {R.ladder_labels(meta['sources'][family])} (T063-05)")
         repeats.setdefault((family, meta["sources"][family], one["block"], one["label"]), []).append((one["attempt"], arms))
     return repeats, halvings
 

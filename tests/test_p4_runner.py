@@ -218,6 +218,30 @@ class PlanTest(unittest.TestCase):
         self.assertIsNone(R.parse_stub_status("502 Bad Gateway"))
 
 
+class LadderLabelTest(unittest.TestCase):
+    """Review T-063 T063-05: P4's ladder labels were free text, so a third repeat or another spelling reached the reader."""
+
+    def test_a_ladder_label_is_its_level_and_a_repeat_of_two(self):
+        self.assertEqual(R.ladder_labels(20), ["l20r1", "l20r2"])
+        R.plan_block("ladder", 9102, "/r", sources={"post": 20}, family="post", label="l20r2")
+        for label in ("l20r3", "L20r1", "l20_r1", "l10r1", "post_l20r1", ""):
+            with self.assertRaisesRegex(R.PlanError, "is not one of"):
+                R.plan_block("ladder", 9102, "/r", sources={"post": 20}, family="post", label=label)
+
+    def test_the_plan_refuses_it_too(self):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
+            rc = R.main(["--phase", "ladder", "--seed", "9102", "--family", "post", "--post", "20", "--label", "l20r3", "--plan"])
+        self.assertEqual(rc, 2)
+        self.assertIn("is not one of ['l20r1', 'l20r2']", err.getvalue())
+
+    def test_a_repeat_is_not_rolled_again_on_another_seed(self):
+        with tempfile.TemporaryDirectory() as root:
+            R.run_block(F.FakeHost(), R.plan_block("ladder", 9102, root, sources={"post": 20}, family="post", label="l20r1"))
+            with self.assertRaisesRegex(R.PlanError, "ladder l20r1 ran on seed 9102"):
+                R.run_block(F.FakeHost(), R.plan_block("ladder", 9103, root, sources={"post": 20}, family="post", label="l20r1"))
+            R.run_block(F.FakeHost(), R.plan_block("ladder", 9103, root, sources={"post": 20}, family="post", label="l20r2"))
+
+
 class ArmOrderTest(unittest.TestCase):
     """Review T-047 P-13: the arm order is fixed by phase and seed; a label must not change it."""
 
@@ -403,7 +427,7 @@ class FrozenRecordTest(unittest.TestCase):
 
     def test_smoke_ladder_and_validation_may_name_any_record_and_say_which(self):
         for phase, seed, kw in (("smoke", 9101, {"arms": ["C"], "label": "s"}), ("validation", 4001, {"sources": KNEE, "knees": "yes"}),
-                                ("ladder", 9102, {"sources": {"post": 20}, "family": "post", "label": "l"})):
+                                ("ladder", 9102, {"sources": {"post": 20}, "family": "post", "label": "l20r1"})):
             for path, status in ((R.PLACEHOLDER, "placeholder"), (self.frozen, "frozen")):
                 root = os.path.join(self.root, f"{phase}_{status}")
                 os.makedirs(root)
