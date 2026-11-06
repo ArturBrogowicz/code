@@ -1017,7 +1017,15 @@ class ExecuteTest(unittest.TestCase):
         self.assertIn("gunicorn", " ".join(next(p for p in host.procs if p.returncode == -15).argv))
         self.assertLess(host.t - host.run_t0, 130.0, "it does not wait out the generators")
         with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
-            self.assertEqual(json.load(fh)["checks"]["reasons"], ["the run was interrupted (signal 15)"])
+            meta = json.load(fh)
+        self.assertEqual(meta["checks"]["reasons"], ["the run was interrupted (signal 15)"])
+        self.assertIsNotNone(meta["stall"], "review T-063 T063-08: the run reached its traffic, and its record says so")
+        self.assertIsNotNone(meta["attack"])
+        with open(os.path.join(run["out"], "manifest.json"), encoding="utf-8") as fh:
+            self.assertIsNotNone(json.load(fh)["timeline"]["t0_wall"])
+        gens = [p for p in host.procs if p.kind == "gen"]
+        self.assertTrue(gens and all(p.returncode is not None for p in gens))
+        self.assertTrue(any(p.returncode == -15 for p in gens), "stopped, not waited for")
 
     def test_ctrl_c_ends_the_block_and_the_command_line_says_so(self):
         block = self.block("campaign", 3101, thresholds=POINT, arms=["C", "Cp"])
