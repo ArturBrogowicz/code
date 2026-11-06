@@ -51,20 +51,55 @@ class KneeTest(LadderCase):
         self.assertEqual(rec["calibration_sha256"], R.sha256_file(R.PLACEHOLDER))
         self.assertEqual(len(rec["controls"]), 8)
 
-    def test_a_further_repeat_cannot_re_roll_a_level(self):
-        self.ladder("loris", (100, ATTACK, NO_ATTACK), (175, ATTACK, ATTACK))
-        self.ladder("post", (5, ATTACK, ATTACK))
-        self.run_level("loris", 100, 3)
-        self.assertEqual(self.read()["levels"]["loris"], 175)
+    def test_a_third_repeat_or_another_seed_is_refused(self):
+        """Review T-063 T063-05: a third repeat could turn a passing level into a failing one, and one on another seed could re-roll it."""
+        self.ladder("loris", (100, ATTACK, ATTACK))
+        with self.assertRaisesRegex(R.PlanError, r"the label 'l100r3' is not one of \['l100r1', 'l100r2'\]"):
+            self.run_level("loris", 100, 3)
+        with self.assertRaisesRegex(R.PlanError, "ladder l100r2 ran on seed 9101: a repeat is re-run on its own seed"):
+            self.run_level("loris", 100, 2, seed=9102)
 
-    def test_a_clean_re_run_restores_a_repeat_and_a_repeat_with_no_sound_attempt_is_no_harm(self):
+    def test_a_repeat_with_no_sound_attempt_stops_the_reader_until_it_is_re_run(self):
+        """Review T-063 T063-01, D-067: an invalid U at loris 100 r2 counted as harm 0, so the knee moved to 175 with exit 0."""
         self.ladder("post", (5, ATTACK, ATTACK))
         self.run_level("loris", 100, 1)
-        self.run_level("loris", 100, 2, stack_ready=False)
+        self.run_level("loris", 100, 2, attack_fails=True)
         self.ladder("loris", (175, ATTACK, ATTACK))
-        self.assertEqual(self.read()["levels"]["loris"], 175, "the failed repeat does not pass")
+        out = os.path.join(self.root, "knees.json")
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(L.main([self.root, "--calibration", R.PLACEHOLDER, "--out", out]), 2)
+        self.assertIn("loris 100: repeat l100r2 on seed 9101 has no sound attempt", err.getvalue())
+        self.assertIn("re-run it, with its reason (D-067)", err.getvalue())
+        self.assertFalse(os.path.exists(out))
         self.run_level("loris", 100, 2, attempt=2)
         self.assertEqual(self.read()["levels"]["loris"], 100, "its re-run counts")
+
+    def test_the_knee_cannot_pass_on_one_sound_repeat(self):
+        self.ladder("post", (5, ATTACK, ATTACK))
+        self.run_level("loris", 100, 1)
+        self.run_level("loris", 100, 2, attack_fails=True)
+        with self.assertRaisesRegex(ValueError, "loris 100: repeat l100r2"):
+            self.read()
+
+    def test_no_knee_needs_two_sound_repeats_at_every_level_that_ran(self):
+        self.ladder("post", (5, ATTACK, ATTACK))
+        self.ladder("loris", (100, NO_ATTACK, NO_ATTACK))
+        self.run_level("loris", 175, 1, NO_ATTACK)
+        with self.assertRaisesRegex(ValueError, r"loris: no level passes, but level\(s\) \[175\] have fewer than 2 sound repeats"):
+            self.read()
+        self.run_level("loris", 175, 2, NO_ATTACK, attack_fails=True)
+        with self.assertRaisesRegex(ValueError, "loris 175: repeat l175r2"):
+            self.read()
+        self.run_level("loris", 175, 2, NO_ATTACK, attempt=2)
+        self.assertEqual(self.read()["levels"]["loris"], None)
+
+    def test_a_missing_repeat_above_the_knee_is_named_and_does_not_stop_it(self):
+        self.ladder("post", (5, ATTACK, ATTACK))
+        self.ladder("loris", (100, ATTACK, ATTACK))
+        self.run_level("loris", 175, 1, attack_fails=True)
+        rec = self.read()
+        self.assertEqual(rec["levels"]["loris"], 100)
+        self.assertEqual(rec["families"]["loris"]["unsound_above_knee"], [(175, 9101, "l175r1")])
 
     def test_a_level_skipped_under_the_knee_is_refused(self):
         self.ladder("loris", (175, ATTACK, ATTACK))

@@ -218,6 +218,30 @@ class PlanTest(unittest.TestCase):
         self.assertIsNone(R.parse_stub_status("502 Bad Gateway"))
 
 
+class LadderLabelTest(unittest.TestCase):
+    """Review T-063 T063-05: P4's ladder labels were free text, so a third repeat or another spelling reached the reader."""
+
+    def test_a_ladder_label_is_its_level_and_a_repeat_of_two(self):
+        self.assertEqual(R.ladder_labels(20), ["l20r1", "l20r2"])
+        R.plan_block("ladder", 9102, "/r", sources={"post": 20}, family="post", label="l20r2")
+        for label in ("l20r3", "L20r1", "l20_r1", "l10r1", "post_l20r1", ""):
+            with self.assertRaisesRegex(R.PlanError, "is not one of"):
+                R.plan_block("ladder", 9102, "/r", sources={"post": 20}, family="post", label=label)
+
+    def test_the_plan_refuses_it_too(self):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
+            rc = R.main(["--phase", "ladder", "--seed", "9102", "--family", "post", "--post", "20", "--label", "l20r3", "--plan"])
+        self.assertEqual(rc, 2)
+        self.assertIn("is not one of ['l20r1', 'l20r2']", err.getvalue())
+
+    def test_a_repeat_is_not_rolled_again_on_another_seed(self):
+        with tempfile.TemporaryDirectory() as root:
+            R.run_block(F.FakeHost(), R.plan_block("ladder", 9102, root, sources={"post": 20}, family="post", label="l20r1"))
+            with self.assertRaisesRegex(R.PlanError, "ladder l20r1 ran on seed 9102"):
+                R.run_block(F.FakeHost(), R.plan_block("ladder", 9103, root, sources={"post": 20}, family="post", label="l20r1"))
+            R.run_block(F.FakeHost(), R.plan_block("ladder", 9103, root, sources={"post": 20}, family="post", label="l20r2"))
+
+
 class ArmOrderTest(unittest.TestCase):
     """Review T-047 P-13: the arm order is fixed by phase and seed; a label must not change it."""
 
@@ -403,7 +427,7 @@ class FrozenRecordTest(unittest.TestCase):
 
     def test_smoke_ladder_and_validation_may_name_any_record_and_say_which(self):
         for phase, seed, kw in (("smoke", 9101, {"arms": ["C"], "label": "s"}), ("validation", 4001, {"sources": KNEE, "knees": "yes"}),
-                                ("ladder", 9102, {"sources": {"post": 20}, "family": "post", "label": "l"})):
+                                ("ladder", 9102, {"sources": {"post": 20}, "family": "post", "label": "l20r1"})):
             for path, status in ((R.PLACEHOLDER, "placeholder"), (self.frozen, "frozen")):
                 root = os.path.join(self.root, f"{phase}_{status}")
                 os.makedirs(root)
@@ -993,7 +1017,15 @@ class ExecuteTest(unittest.TestCase):
         self.assertIn("gunicorn", " ".join(next(p for p in host.procs if p.returncode == -15).argv))
         self.assertLess(host.t - host.run_t0, 130.0, "it does not wait out the generators")
         with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
-            self.assertEqual(json.load(fh)["checks"]["reasons"], ["the run was interrupted (signal 15)"])
+            meta = json.load(fh)
+        self.assertEqual(meta["checks"]["reasons"], ["the run was interrupted (signal 15)"])
+        self.assertIsNotNone(meta["stall"], "review T-063 T063-08: the run reached its traffic, and its record says so")
+        self.assertIsNotNone(meta["attack"])
+        with open(os.path.join(run["out"], "manifest.json"), encoding="utf-8") as fh:
+            self.assertIsNotNone(json.load(fh)["timeline"]["t0_wall"])
+        gens = [p for p in host.procs if p.kind == "gen"]
+        self.assertTrue(gens and all(p.returncode is not None for p in gens))
+        self.assertTrue(any(p.returncode == -15 for p in gens), "stopped, not waited for")
 
     def test_ctrl_c_ends_the_block_and_the_command_line_says_so(self):
         block = self.block("campaign", 3101, thresholds=POINT, arms=["C", "Cp"])
@@ -1006,6 +1038,26 @@ class ExecuteTest(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
             self.assertEqual(R.main(argv, host=F.FakeHost(interrupt_at=50.0)), 130)
         self.assertIn("the testbed is down", err.getvalue())
+
+    def test_a_second_ctrl_c_does_not_cut_the_teardown_short(self):
+        """Review T-063 T063-02: a second interrupt during the orderly stop left the testbed standing; HG shields that stretch."""
+        run = self.one_run("twice", "campaign", 3106, "M_pc_post", thresholds=POINT)
+        host = F.FakeHost(interrupt_at=100.0, interrupt_again=True, modelled_attackers=1)
+        with self.assertRaisesRegex(KeyboardInterrupt, r"^signal 15$"):
+            R.execute_run(host, run)
+        self.assertEqual(host.ignored_interrupts, 1)
+        gone = {c[1][3] for c in host.commands if c[1][:3] == ("ip", "netns", "del")}
+        self.assertEqual(gone, {ns["name"] for ns in run["namespaces"]} | {"server_ns"}, "every namespace was taken down")
+        self.assertTrue(host.ran("ip", "link", "del", "ddos_br0"))
+        with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh)["checks"]["reasons"], ["the run was interrupted (signal 15)"])
+
+    def test_a_ctrl_c_during_an_orderly_teardown_is_ignored_too(self):
+        run = self.one_run("once", "campaign", 3106, "C", thresholds=POINT)
+        host = F.FakeHost(interrupt_again=True)
+        self.assertEqual(R.execute_run(host, run)["reasons"], [])
+        self.assertEqual(host.ignored_interrupts, 1)
+        self.assertEqual(host.shield_depth, 0)
 
     def test_a_real_host_ends_on_term_and_hup_as_on_ctrl_c(self):
         import executor
@@ -1032,6 +1084,17 @@ class ExecuteTest(unittest.TestCase):
         self.assertEqual(sum("was replaced" in r for r in res["reasons"]), 3)
         run = self.one_run("not_rotated", "campaign", 3106, "M_def_post", thresholds=POINT)
         self.assertEqual(R.execute_run(F.FakeHost(modelled_attackers=1), run)["reasons"], [])
+
+    def test_a_rotation_before_the_traffic_or_after_the_loop_is_seen(self):
+        """Review T-063 T063-07: the stats were taken at t0 and at the loop's end, blind to the daemon's readiness wait and to the generators' and
+        the daemon's stop before the logs move."""
+        run = self.one_run("before", "campaign", 3106, "M_def_post", thresholds=POINT)
+        res = R.execute_run(F.FakeHost(logs_rotate_at_clock=1.0, modelled_attackers=1), run)
+        self.assertTrue(any("l7_capture.log was replaced or removed during the run (inode 1 at nginx's start, 2" in r for r in res["reasons"]),
+                        res["reasons"])
+        run = self.one_run("after", "campaign", 3106, "C", thresholds=POINT)
+        self.assertEqual(sum("was replaced" in r for r in R.execute_run(F.FakeHost(logs_rotate_at=270.2), run)["reasons"]), 3)
+        self.assertEqual(sorted(R.log_stats(F.FakeHost(), ["/a", "/b"])), ["/a", "/b"])
 
     def test_gunicorn_dying_in_mid_run_makes_the_run_invalid(self):
         """D-063: a dead backend read as harm: the run went on, every request failed, and run.json said nothing."""
