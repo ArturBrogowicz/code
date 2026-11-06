@@ -56,6 +56,7 @@ import subprocess
 import sys
 import threading
 import time
+import warnings
 
 import l7_benign  # ml/ is the script's directory, so it is on sys.path
 import l7_bots
@@ -798,6 +799,14 @@ def _hard_exit(stats_path):
     os._exit(0)
 
 
+def quiet_insecure_warning():
+    """The testbed's certificate is self-signed and the requests are made with verify=False, so urllib3 warns on every one of them, under
+    an "always" filter of its own. PYTHONWARNINGS in os.environ does nothing to a running interpreter, and the warnings filled the run's
+    gen_stderr files (T063-03). A filter in this process for that category alone; what is verified, and how, is not changed."""
+    import urllib3
+    warnings.filterwarnings("ignore", category=urllib3.exceptions.InsecureRequestWarning)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--role", required=True, choices=("benign", "attack"))
@@ -842,6 +851,7 @@ def main(argv=None):
     SOURCE = args.source
     if args.port == 443:
         os.environ.setdefault("PYTHONWARNINGS", "ignore")      # self-signed cert
+        quiet_insecure_warning()
     if args.records is not None:
         RECORDER = Recorder(args.records)
     bound = threading.Timer(args.duration + HARD_EXIT_S, _hard_exit, args=(args.stats,))
