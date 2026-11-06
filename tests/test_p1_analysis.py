@@ -447,6 +447,25 @@ class LadderAttemptsTest(unittest.TestCase):
         self.pair("C2", 1.0, 1, attempt=2)
         self.assertEqual(A.ladder_knees(self.root, self.cal)["C2"]["level"], 1.0)
 
+    def test_a_repeat_with_no_sound_attempt_is_named_where_it_counts_as_no_harm(self):
+        """T063-01: the registered rule stays (no sound attempt is no harm), and the file and the summary name the repeats it applied to."""
+        self.pair("C2", 1.0, 1, quiet_from=60.0)
+        self.pair("C2", 1.0, 2, seed=9002)
+        out, said = os.path.join(self.tmp, "knees.json"), io.StringIO()
+        with contextlib.redirect_stdout(said):
+            self.assertEqual(A.main([self.root, "--calibration", self.frozen["calibration"], "--ladder", "--out", out]), 0)
+        got = REC.read_json(out)
+        self.assertEqual(got["no_sound_attempt"], [{"class": "C2", "level": 1.0, "repeat": 1, "attempts": 1}])
+        self.assertIsNone(got["C2"], "the knee is read as before")
+        self.assertIn("no sound attempt, counted as no harm (ml/p1_prereg_3.json ladder): C2 L1 r1", said.getvalue())
+        self.pair("C2", 1.0, 1, attempt=2)
+        got = A.knees_file(self.root, self.cal)
+        self.assertEqual((got["no_sound_attempt"], got["C2"]), ([], 1.0))
+        said = io.StringIO()
+        with contextlib.redirect_stdout(said):
+            A.main([self.root, "--calibration", self.frozen["calibration"], "--ladder", "--out", out])
+        self.assertIn("counted as no harm (ml/p1_prereg_3.json ladder): none", said.getvalue())
+
     def test_the_last_sound_attempt_counts_and_an_invalid_later_one_does_not_erase_it(self):
         self.pair("C2", 1.0, 1, quiet_from=60.0)
         self.pair("C2", 1.0, 1, attempt=2)
