@@ -20,14 +20,14 @@ What it models, as far as the runner's and the analysis's inputs need it:
   * the timer probe of bench/executor.py answers with `timer_p99`, a value or a list taken in turn, the last one repeating;
   * `interrupt_at`: seconds after a run's stack starts, one of the runner's own sleeps raises KeyboardInterrupt, as Ctrl-C does (T057-07);
     `second_interrupt_on`, words of a command: when the runner runs it after that, a second one comes as it starts, unless the runner is
-    inside `shielded()`, where it is lost, as bench/executor.py RealHost ignores INT, TERM and HUP there (T063-02);
+    inside `shielded()`, where it is lost, as bench/executor.py RealHost ignores INT, TERM and HUP there (T063-02). The shield is the base
+    fake's (tests/p4_fake_host.py shielded, shield_depth), so its own `interrupt_again` sees the same one (review T-067 T067-02);
   * a generator that exits with a code of its own writes a line to the stderr file it was started with, and the handles it was given are
     kept, so that a test can see they were closed.
 frozen_inputs() writes the frozen items a campaign checks: a frozen record with the placeholder's numbers, knees bound to it,
 and small but well-formed selections. They are fixtures, not results.
 """
 import bisect
-import contextlib
 import csv
 import hashlib
 import json
@@ -73,15 +73,12 @@ class P1FakeHost(F.FakeHost):
         self.timer_p99 = list(timer_p99) if isinstance(timer_p99, (list, tuple)) else [timer_p99]
         self.sink, self.lines, self.run_name, self.block_dir, self.n_request = None, [], None, None, 0
         self.interrupt_at, self.stderr_handles = interrupt_at, []
-        self.second_interrupt_on, self.interrupted, self.shield, self.lost_interrupts = second_interrupt_on, False, False, 0
+        self.second_interrupt_on, self.interrupted, self.lost_interrupts = second_interrupt_on, False, 0
 
-    @contextlib.contextmanager
-    def shielded(self):
-        was, self.shield = self.shield, True
-        try:
-            yield
-        finally:
-            self.shield = was
+    @property
+    def shield(self):
+        """Inside shielded(): the base fake's shield_depth, one shield state for both its interrupt_again and second_interrupt_on (T067-02)."""
+        return self.shield_depth > 0
 
     def _interrupt(self):
         self.interrupted = True
@@ -91,7 +88,7 @@ class P1FakeHost(F.FakeHost):
         argv = list(argv)
         if self.interrupted and self.second_interrupt_on and all(w in argv for w in self.second_interrupt_on):
             self.second_interrupt_on = None
-            if not self.shield:
+            if not self.shield_depth:
                 raise KeyboardInterrupt
             self.lost_interrupts += 1
         if "timer-probe" in argv:

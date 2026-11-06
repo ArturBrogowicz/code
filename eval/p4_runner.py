@@ -608,8 +608,9 @@ def execute_run(host, plan):
             host.sleep(max(0.0, min(math.floor(now) + 1, total) - elapsed))
         return finish(host, plan, reasons, started, t0, procs, logs, stub, launched, timer=timer, logs_at_start=logs_at_start)
     except KeyboardInterrupt as exc:     # Ctrl-C, or TERM or HUP in main: the testbed comes down, the generators with it, and the block stops
-        finish(host, plan, [*reasons, f"the run was interrupted ({exc})"], started, t0, procs, logs, stub, launched, timer=timer,
-               logs_at_start=logs_at_start, interrupted=True)
+        with host.shielded():          # D-068, as P1's: only this pass is shielded, so a second interrupt cannot cut it short (T063-02)
+            finish(host, plan, [*reasons, f"the run was interrupted ({exc})"], started, t0, procs, logs, stub, launched, timer=timer,
+                   logs_at_start=logs_at_start, interrupted=True)
         raise
     except Exception as exc:  # noqa: BLE001 - whatever failed, the run is recorded and the teardown runs
         reasons.append(f"the runner failed: {type(exc).__name__}: {exc}")
@@ -636,14 +637,15 @@ def log_stats(host, paths=None):
 def replaced_logs(host, at_start):
     """Review T-057 T057-09, HG's check (bench/executor.py, T-028 F-04): nginx's logs sit in logrotate's glob, and a rotation in a run leaves its copy
     only what came after, and the daemon without what nginx wrote until it reopened. `at_start` is log_stats() at nginx's start, and this is called
-    once its last writer has stopped and before the logs are moved, so no stretch of the run is left out (T063-07). A log that was not there at the
+    once nginx has stopped, so no stretch of the run is left out (T063-07): P4 after nginx's and gunicorn's stop, before it moves the logs; P1
+    after nginx's quit, with the host's logs left where they are. The reason says only what is true for both (T067-03). A log that was not there at the
     start has nothing to compare. Only the inode: logrotate's rule for these logs renames and creates, which the inode sees; a truncation in place
     would keep it, and two sizes, one at a fresh start, cannot tell one from a log that grew."""
     out = []
     for path, then in at_start.items():
         now = host.stat(path)
         if then is not None and (now is None or now[0] != then[0]):
-            out.append(f"{path} was replaced or removed during the run (inode {then[0]} at nginx's start, {now and now[0]} before the logs were moved): "
+            out.append(f"{path} was replaced or removed during the run (inode {then[0]} at nginx's start, {now and now[0]} after nginx stopped): "
                        "logrotate?")
     return out
 
@@ -681,49 +683,51 @@ def _stop(host, proc, grace=STOP_GRACE_S, interrupt=False):
 
 
 def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=(), timer=None, logs_at_start=None, interrupted=False):
-    """Stop everything, take the logs into the run, tear the testbed down, check and write the run's records. The stop and the teardown run
-    inside host.shielded(), as the harm benchmark's do (bench/executor.py): Ctrl-C, TERM and HUP are ignored there, since a second one would
-    leave the testbed standing (review T-063 T063-02). P1 calls teardown and _stop itself, so the shield is here and not in them. An `interrupted`
-    run keeps its t0 and its generators, so its record keeps its figures (T063-08): they are stopped at once, not waited for, and the reasons a run's
-    end and checks would add are left out, so that the interrupt is its reason."""
+    """Stop everything, take the logs into the run, tear the testbed down, check and write the run's records. As in P1 (D-068, review T-067
+    T067-01), only the `interrupted` finish runs inside host.shielded(), from execute_run's handler: a Ctrl-C, TERM or HUP during an ordinary
+    finish reaches that handler, whose shielded pass completes the stop and the teardown, and the block stops; a second interrupt in that pass is
+    lost (T063-02). So an interrupted pass may follow an ordinary one cut short, and repeats what it did harmlessly. An `interrupted` run keeps
+    its t0 and its generators, so its record keeps its figures (T063-08): they are stopped at once, not waited for, and the reasons a run's end
+    and checks would add are left out, gunicorn's exit, nginx's quit and the logs' inodes included, which a first pass may already have taken,
+    so that the interrupt is its reason."""
     import executor
     out = plan["out"]
     reasons = list(reasons)
-    with host.shielded():                                 # a second Ctrl-C must not cut the stop and the teardown short (T063-02)
-        try:
-            for _x, proc in launched if interrupted else ():
-                if proc.poll() is None:
-                    proc.terminate()
-            for x, proc in launched:                          # the generators end on their own at their duration
-                if not _wait(host, lambda p=proc: p.poll() is not None, STOP_GRACE_S, step=0.5):
-                    if not interrupted:
-                        reasons.append(f"{x['entity_id']} was still running {STOP_GRACE_S:g} s after its end: stopped")
-                    _stop(host, proc)
-                elif proc.poll() != 0 and not interrupted:
-                    said = executor._tail(stderr_path(out, x["entity_id"]))
-                    reasons.append(f"{x['entity_id']} exited with code {proc.poll()}" + (f": {said[:200]}" if said else ""))
-            for name, proc in procs:
-                if name == "gunicorn" and t0 is not None and proc.poll() is not None and not any(r.startswith("gunicorn exited") for r in reasons):
-                    reasons.append(gunicorn_gone(host, plan, proc, f"at {host.time() - t0:.0f} s"))    # after the loop's last look
-                if name == "daemon":
-                    _stop(host, proc, interrupt=True)          # SIGINT runs its finally, which detaches XDP
-            if any(name == "gunicorn" for name, _p in procs):
-                quit_code = host.run(plan["nginx"]["stop"], ns=SERVER_NS).code
-                if quit_code != 0 and t0 is not None:          # stub_status judges nothing (D-050), so only this says it had gone
-                    reasons.append(nginx_gone(quit_code))
-            for name, proc in procs:
-                if name == "gunicorn":
-                    _stop(host, proc)
-            if logs_at_start and t0 is not None:          # nginx and gunicorn have stopped: nothing writes these logs any more
-                reasons += replaced_logs(host, logs_at_start)
-            if procs:
-                for name, path in NGINX_LOGS.items():
-                    host.run(["mv", "-f", path, os.path.join(out, name)])
-        finally:
-            for fh in logs.values():
-                fh.close()
-            if procs or t0 is not None:
-                teardown(host, plan)
+    try:
+        for _x, proc in launched if interrupted else ():
+            if proc.poll() is None:
+                proc.terminate()
+        for x, proc in launched:                          # the generators end on their own at their duration
+            if not _wait(host, lambda p=proc: p.poll() is not None, STOP_GRACE_S, step=0.5):
+                if not interrupted:
+                    reasons.append(f"{x['entity_id']} was still running {STOP_GRACE_S:g} s after its end: stopped")
+                _stop(host, proc)
+            elif proc.poll() != 0 and not interrupted:
+                said = executor._tail(stderr_path(out, x["entity_id"]))
+                reasons.append(f"{x['entity_id']} exited with code {proc.poll()}" + (f": {said[:200]}" if said else ""))
+        for name, proc in procs:
+            if name == "gunicorn" and t0 is not None and proc.poll() is not None and not interrupted and \
+                    not any(r.startswith("gunicorn exited") for r in reasons):
+                reasons.append(gunicorn_gone(host, plan, proc, f"at {host.time() - t0:.0f} s"))    # after the loop's last look
+            if name == "daemon":
+                _stop(host, proc, interrupt=True)          # SIGINT runs its finally, which detaches XDP
+        if any(name == "gunicorn" for name, _p in procs):
+            quit_code = host.run(plan["nginx"]["stop"], ns=SERVER_NS).code
+            if quit_code != 0 and t0 is not None and not interrupted:   # stub_status judges nothing (D-050), so only this says it had gone
+                reasons.append(nginx_gone(quit_code))
+        for name, proc in procs:
+            if name == "gunicorn":
+                _stop(host, proc)
+        if logs_at_start and t0 is not None and not interrupted:   # nginx and gunicorn have stopped: nothing writes these logs any more
+            reasons += replaced_logs(host, logs_at_start)
+        if procs:
+            for name, path in NGINX_LOGS.items():
+                host.run(["mv", "-f", path, os.path.join(out, name)])
+    finally:
+        for fh in logs.values():
+            fh.close()
+        if procs or t0 is not None:
+            teardown(host, plan)
     ended = host.time()
     reasons += [] if interrupted else checks(host, plan, t0, launched)
     stall = stall_reading(plan, t0, launched, stub) if t0 is not None else None
