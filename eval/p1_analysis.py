@@ -410,10 +410,11 @@ def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, p
 
 # --- the ladder --------------------------------------------------------------------------------------
 
-def ladder_knees(root, cal):
-    """The knees of a finished ladder: {class: bench/calibration.knee's result}, harm as bench/calibrate.harm against the attempt's own
-    control. Per (class, level, repeat) the last attempt with both runs sound counts (T050-13, ml/p1_prereg_3.json ladder): a clean re-run
-    restores a level, and one with no sound attempt, or that the plan refused, counts as no harm: never as passing."""
+def ladder_harm(root, cal):
+    """A finished ladder's harm, as bench/calibrate.harm against the attempt's own control: ({class: {level: [harm per repeat]}}, the repeats
+    with no sound attempt). Per (class, level, repeat) the last attempt with both runs sound counts (T050-13, ml/p1_prereg_3.json ladder):
+    a clean re-run restores a level, and one with no sound attempt, or that the plan refused, counts as no harm: never as passing. Those
+    are named as well, so that the rule's zero is not read as a measured one (T063-01)."""
     import calibrate as K
     gate = cal["gate"]
     attempts = {}
@@ -422,9 +423,9 @@ def ladder_knees(root, cal):
         if m is not None and x["run"] != "C":
             key = (m.group("cls"), float(m.group("level")), int(m.group("repeat")))
             attempts.setdefault(key, []).append((x["attempt"], x["block_dir"], x["run"]))
-    rows = {}
-    for (cls, level, _repeat), tries in sorted(attempts.items()):
-        harm = 0.0
+    rows, unsound = {}, []
+    for (cls, level, repeat), tries in sorted(attempts.items()):
+        harm, sound = 0.0, False
         for _attempt, block_dir, run in sorted(tries, reverse=True):
             try:
                 b = LH.assess_block(os.path.join(root, block_dir), cal)
@@ -433,16 +434,26 @@ def ladder_knees(root, cal):
             control, attack = b["runs"].get("C"), b["runs"].get(run)
             if control and attack and control["checks"].get("ok") and attack["checks"].get("ok"):
                 h, _parts = K.harm([control["metrics"]], attack["metrics"], gate["floor_pp"], gate["floor_log2_p95"])
-                harm = h or 0.0
+                harm, sound = h or 0.0, True
                 break
+        if not sound:
+            unsound.append({"class": cls, "level": int(level) if cls == "C3b" else level, "repeat": repeat, "attempts": len(tries)})
         rows.setdefault(cls, {}).setdefault(level, []).append(harm)
+    return rows, unsound
+
+
+def ladder_knees(root, cal, harm=None):
+    """The knees of a finished ladder: {class: bench/calibration.knee's result} over ladder_harm's rows, or over the `harm` it gave."""
+    rows, _unsound = harm or ladder_harm(root, cal)
     return {cls: CAL.knee(sorted(levels.items()), 1.0, 2) for cls, levels in sorted(rows.items())}
 
 
 def knees_file(root, cal):
     """What --ladder writes and --knees takes (T050-13): each class's level at the top of the file, null and named under no_knee for a class
-    without one, bound to the record and the factor. A campaign that needs a class without a knee refuses."""
-    knees = ladder_knees(root, cal)
+    without one, bound to the record and the factor. A campaign that needs a class without a knee refuses. Under no_sound_attempt, every
+    (class, level, repeat) that had no sound attempt and so counted as no harm (T063-01)."""
+    harm = ladder_harm(root, cal)
+    knees = ladder_knees(root, cal, harm)
     levels, none = {}, []
     for cls in sorted(PT.PRIMARY):
         level = (knees.get(cls) or {}).get("level")
@@ -450,7 +461,7 @@ def knees_file(root, cal):
         if level is None:
             none.append(cls)
     return {"format": "p1-knees/1", "status": cal.get("status"), "record_sha256": cal.get("sha256"), "record_status": cal.get("status"),
-            "benign_halvings": ladder_factor(root), **levels, "no_knee": none, "knees": knees}
+            "benign_halvings": ladder_factor(root), **levels, "no_knee": none, "no_sound_attempt": harm[1], "knees": knees}
 
 
 def ladder_factor(root):
@@ -590,7 +601,9 @@ def main(argv=None):
               f"seeds missing: {res['missing_seeds']}")
     elif args.ladder:
         res = knees_file(args.root, cal)
-        print(f"the knees: { {c: res[c] for c in sorted(PT.PRIMARY)} }; no knee: {res['no_knee']}")
+        holes = ", ".join(f"{h['class']} L{h['level']:g} r{h['repeat']}" for h in res["no_sound_attempt"]) or "none"
+        print(f"the knees: { {c: res[c] for c in sorted(PT.PRIMARY)} }; no knee: {res['no_knee']}; "
+              f"no sound attempt, counted as no harm (ml/p1_prereg_3.json ladder): {holes}")
     else:
         frozen = {"selection": args.selection, "selection_sha256": args.selection_sha256, "rules": args.rules,
                   "rules_sha256": args.rules_sha256}
