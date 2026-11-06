@@ -11,15 +11,20 @@ What it models, as far as the runner's and the analysis's inputs need it:
     `fail_share(run, block_dir, t)` of the benign ones, which fail (nginx logs a 503, so the server-side Q agrees, or, with `client_side`, a 200);
   * the daemon: `daemon_startup_s` after its start it prints its ready line and XDP's and writes its start event from its
     environment (`start_overrides` to make it lie), with L7_ENFORCE=1 an l7_enforce_arm event (`arm_overrides`), and then the events
-    `acts(run, block_dir)` gives as (seconds after its start, event). When it stops, with L7_SHADOW=1, an l7_shadow report: what it received
-    and parsed is what the socket sink carried, every line if nginx's conf has the sink, `parsed_share` of them, and nothing if it has none;
+    `acts(run, block_dir)` gives as (seconds after its start, event). With L7_SHADOW=1 an l7_shadow report every 5 s and none at its stop, as
+    control_plane.py does (T057-10), so the lines after its last report are in none: what it received and parsed by each report is what the
+    socket sink had carried by then, every line if nginx's conf has the sink, `parsed_share` of them, and nothing if it has none;
   * an address in `silent` sends nothing, whatever its generator says (T050-08);
   * gunicorn (D-063): `gunicorn_refuses` and `gunicorn_dies` are tests/p4_fake_host.py's, here in the run named by `gunicorn_dies_in`, or in every
     run without it. From its death on, every request is answered 502, in the sink and in the client's rows: what a dead backend looks like in Q;
-  * the timer probe of bench/executor.py answers with `timer_p99`, a value or a list taken in turn, the last one repeating.
+  * the timer probe of bench/executor.py answers with `timer_p99`, a value or a list taken in turn, the last one repeating;
+  * `interrupt_at`: seconds after a run's stack starts, one of the runner's own sleeps raises KeyboardInterrupt, as Ctrl-C does (T057-07);
+  * a generator that exits with a code of its own writes a line to the stderr file it was started with, and the handles it was given are
+    kept, so that a test can see they were closed.
 frozen_inputs() writes the frozen items a campaign checks: a frozen record with the placeholder's numbers, knees bound to it,
 and small but well-formed selections. They are fixtures, not results.
 """
+import bisect
 import csv
 import hashlib
 import json
@@ -44,6 +49,7 @@ import l7_webapp
 SINK = re.compile(r"access_log\s+(\S+)\s+l7json;")
 SOCKET_SINK = "syslog:server=unix:"
 MONITOR = "10.0.0.1"
+SHADOW_REPORT_EVERY_S = 5.0        # control_plane.py L7_SHADOW_REPORT_INTERVAL
 
 
 def _sid(seed, user):
@@ -52,7 +58,8 @@ def _sid(seed, user):
 
 class P1FakeHost(F.FakeHost):
     def __init__(self, *, fail_share=None, acts=None, quiet_from=None, armed=True, start_overrides=None, arm_overrides=None,
-                 rule_arm="cost_budget", parsed_share=1.0, silent=(), timer_p99=2.0, client_side=False, gunicorn_dies_in=None, **kw):
+                 rule_arm="cost_budget", parsed_share=1.0, silent=(), timer_p99=2.0, client_side=False, gunicorn_dies_in=None,
+                 interrupt_at=None, **kw):
         super().__init__(**kw)
         self.fail_share = fail_share or (lambda _run, _block, _t: 0.0)
         self.acts, self.quiet_from = acts or (lambda _run, _block: []), quiet_from
@@ -62,6 +69,17 @@ class P1FakeHost(F.FakeHost):
         self.gunicorn_dies_in, self.dead_at = gunicorn_dies_in, None
         self.timer_p99 = list(timer_p99) if isinstance(timer_p99, (list, tuple)) else [timer_p99]
         self.sink, self.lines, self.run_name, self.block_dir, self.n_request = None, [], None, None, 0
+        self.interrupt_at, self.stderr_handles = interrupt_at, []
+
+    def popen(self, argv, ns="", env=None, stdout=None, stderr=None, cwd=None):
+        p = super().popen(argv, ns=ns, env=env, stdout=stdout, stderr=stderr, cwd=cwd)
+        if p.kind == "gen" and stderr is not None:
+            p.stderr_path = stderr.name
+            self.stderr_handles.append(stderr)
+        return p
+
+    def _interrupt(self):
+        raise KeyboardInterrupt
 
     def run(self, argv, ns="", stdin="", env=None, timeout=None):
         argv = list(argv)
@@ -82,6 +100,9 @@ class P1FakeHost(F.FakeHost):
             self.lines, self.n_request, self.dead_at = [], 0, None
             res = super().run(argv, ns, stdin, env, timeout)
             self.stack_t0 = self.t
+            if self.interrupt_at is not None:
+                self.at(self.t + self.interrupt_at, self._interrupt)
+                self.interrupt_at = None
             self._monitor(self.world)
             return res
         if "nginx" in argv and "quit" in argv and self.sink:
@@ -141,11 +162,24 @@ class P1FakeHost(F.FakeHost):
 
     def end(self, proc, code):
         if proc.kind == "daemon" and proc.returncode is None and proc.env.get("L7_SHADOW") == "1":
-            n = round(len(self.lines) * self.parsed_share) if self.socket_sink else 0
-            self._emit(proc, "l7_shadow", received=n, parsed=n, active_keys=1, distinct_ips=1)
+            self._shadow_reports(proc)
         super().end(proc, code)
 
+    def _shadow_reports(self, p):
+        """The reports of the daemon's life, each at its own time. A fake line only exists once its generator has exited, so they are written
+        here, when the daemon ends; a report counts the lines whose time had come by then."""
+        arrived = sorted(o["msec"] for o in self.lines)
+        tick = p.started + SHADOW_REPORT_EVERY_S
+        while tick <= self.t:
+            wall = F.BASE_EPOCH + tick
+            n = round(bisect.bisect_right(arrived, wall) * self.parsed_share) if self.socket_sink else 0
+            self._emit(p, "l7_shadow", t_wall=wall, received=n, parsed=n, active_keys=1, distinct_ips=1)
+            tick += SHADOW_REPORT_EVERY_S
+
     def _gen_exit(self, p):
+        if p.returncode > 0 and hasattr(p, "stderr_path"):
+            with open(p.stderr_path, "a", encoding="utf-8") as fh:
+                fh.write(f"RuntimeError: a fixture's generator, exit {p.returncode}\n")
         if p.ip in self.silent:
             return
         if p.role == "attack":
@@ -191,6 +225,8 @@ class P1FakeHost(F.FakeHost):
 
     # --- the daemon ------------------------------------------------------------------------------
     def _start_daemon(self, p):
+        p.started = self.t
+
         def ready():
             if p.returncode is not None:
                 return

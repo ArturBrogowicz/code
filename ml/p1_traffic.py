@@ -202,6 +202,12 @@ def ladder_levels(cls):
     return list(pre["classes"]["C3b"]["ladder_bots"]) if cls == "C3b" else list(pre["harm"]["ladder"]["levels"])
 
 
+def ladder_repeats():
+    """How many times the ladder runs a level (ml/l7v2_prereg.json harm.ladder.repeats)."""
+    import l7v2_prereg
+    return int(l7v2_prereg.load()["harm"]["ladder"]["repeats"])
+
+
 def c3a_sources(level, spare_cpu_s, costs, route, gap):
     """C3a's sources at level L (ml/l7v2_prereg.json classes.C3a.intensity)."""
     return math.ceil(level * spare_cpu_s / ((costs["C1"] + costs[route]) / 1000.0 / (sum(gap) / len(gap))))
