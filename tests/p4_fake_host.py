@@ -86,7 +86,7 @@ class FakeHost(X.Host):
                  gen_late=None, stub_fails=None, ss_fails=None, attack_fails=False, attack_opened_share=1.0, no_socket_of=(),
                  garbled_bans=False, ban_file_lost=False, gen_stall=None, runner_stall=None, gunicorn_refuses=None,
                  gunicorn_dies=None, nginx_gone=False, nginx_hangs=False, ip_batch_fails=False, netem_fails=False, timer_p99=2.0,
-                 interrupt_at=None, logs_rotate_at=None, interrupt_again=False):
+                 interrupt_at=None, logs_rotate_at=None, interrupt_again=False, logs_rotate_at_clock=None):
         self.t = 0.0
         self.root, self.netns, self.stack_ready, self.nginx_fails = root, list(netns), stack_ready, nginx_fails
         self.kill_file, self.kill_appears_at = kill_file, kill_appears_at
@@ -106,6 +106,7 @@ class FakeHost(X.Host):
         self.nginx_hangs = nginx_hangs          # its launcher never returns
         self.interrupt_at = interrupt_at        # seconds of the run: Ctrl-C reaches the runner in its sleep
         self.logs_rotate_at = logs_rotate_at    # seconds of the run: nginx's logs get a new inode
+        self.logs_rotate_at_clock = logs_rotate_at_clock    # the same at a moment of the host's clock, before the traffic or after it
         self.interrupt_again = interrupt_again  # a second Ctrl-C arrives at the teardown's first `ip netns del`
         self.shield_depth, self.ignored_interrupts = 0, 0
         self.timer_p99 = list(timer_p99) if isinstance(timer_p99, (list, tuple)) else [timer_p99]   # the timer probe's answers, the last repeated; None: unreadable
@@ -162,7 +163,8 @@ class FakeHost(X.Host):
             self.shield_depth -= 1
 
     def stat(self, path):
-        rotated = self.logs_rotate_at is not None and self.run_t0 is not None and self.t - self.run_t0 >= self.logs_rotate_at
+        rotated = (self.logs_rotate_at is not None and self.run_t0 is not None and self.t - self.run_t0 >= self.logs_rotate_at) or \
+            (self.logs_rotate_at_clock is not None and self.t >= self.logs_rotate_at_clock)
         return (2 if rotated else 1), 100
 
     def is_root(self):

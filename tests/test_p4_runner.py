@@ -1077,6 +1077,17 @@ class ExecuteTest(unittest.TestCase):
         run = self.one_run("not_rotated", "campaign", 3106, "M_def_post", thresholds=POINT)
         self.assertEqual(R.execute_run(F.FakeHost(modelled_attackers=1), run)["reasons"], [])
 
+    def test_a_rotation_before_the_traffic_or_after_the_loop_is_seen(self):
+        """Review T-063 T063-07: the stats were taken at t0 and at the loop's end, blind to the daemon's readiness wait and to the generators' and
+        the daemon's stop before the logs move."""
+        run = self.one_run("before", "campaign", 3106, "M_def_post", thresholds=POINT)
+        res = R.execute_run(F.FakeHost(logs_rotate_at_clock=1.0, modelled_attackers=1), run)
+        self.assertTrue(any("l7_capture.log was replaced or removed during the run (inode 1 at nginx's start, 2" in r for r in res["reasons"]),
+                        res["reasons"])
+        run = self.one_run("after", "campaign", 3106, "C", thresholds=POINT)
+        self.assertEqual(sum("was replaced" in r for r in R.execute_run(F.FakeHost(logs_rotate_at=270.2), run)["reasons"]), 3)
+        self.assertEqual(sorted(R.log_stats(F.FakeHost(), ["/a", "/b"])), ["/a", "/b"])
+
     def test_gunicorn_dying_in_mid_run_makes_the_run_invalid(self):
         """D-063: a dead backend read as harm: the run went on, every request failed, and run.json said nothing."""
         for arm in ("U_post", "C"):

@@ -539,12 +539,12 @@ def execute_run(host, plan):
     timer, refused = timer_gate(host, plan)
     if refused:
         return finish(host, plan, [f"{refused}: nothing was started"], started, None, [], {}, [], timer=timer)
-    logs, stub, t0 = {}, [], None
+    logs, stub, t0, logs_at_start = {}, [], None, None
     try:
         procs.append(("topology", None))                # from here on the teardown runs, whatever happens
         reasons += topology(host, plan)
         if reasons:
-            return finish(host, plan, reasons, started, None, procs, logs, stub, timer=timer)
+            return finish(host, plan, reasons, started, None, procs, logs, stub, timer=timer, logs_at_start=logs_at_start)
         host.run(["mkdir", "-p", "/var/log/nginx", os.path.join(out, "feed_before")])
         for name, path in NGINX_LOGS.items():          # nginx starts its logs afresh; nothing of the host's is lost
             host.run(["mv", "-f", path, os.path.join(out, "feed_before", name)])
@@ -555,6 +555,8 @@ def execute_run(host, plan):
         refused = start_nginx(host, plan)
         if refused:
             reasons.append(refused)
+        else:
+            logs_at_start = log_stats(host)
         ready = _wait(host, lambda: gunicorn.poll() is not None
                       or host.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "2",
                                    READY_URL], ns=SERVER_NS).out.strip() == "200", STACK_READY_TIMEOUT_S)
@@ -574,9 +576,8 @@ def execute_run(host, plan):
                          and any(e.get("kind") == "start" for e in _events(events)), DAEMON_READY_TIMEOUT_S):
                 reasons.append(f"the daemon was not ready within {DAEMON_READY_TIMEOUT_S:g} s")
         if reasons:
-            return finish(host, plan, reasons, started, None, procs, logs, stub, timer=timer)
+            return finish(host, plan, reasons, started, None, procs, logs, stub, timer=timer, logs_at_start=logs_at_start)
         t0 = host.time()
-        logs_at_start = {path: host.stat(path) for path in NGINX_LOGS.values()}
         total = sum(t.values())
         pending = list(plan["launches"])
         kill_seen = None
@@ -605,14 +606,13 @@ def execute_run(host, plan):
                 break
             elapsed = host.time() - t0                                    # on the second, whatever the sample took
             host.sleep(max(0.0, min(math.floor(now) + 1, total) - elapsed))
-        reasons += replaced_logs(host, logs_at_start)
-        return finish(host, plan, reasons, started, t0, procs, logs, stub, launched, timer=timer)
+        return finish(host, plan, reasons, started, t0, procs, logs, stub, launched, timer=timer, logs_at_start=logs_at_start)
     except KeyboardInterrupt as exc:     # Ctrl-C, or TERM or HUP in main: the testbed comes down, the generators with it, and the block stops
-        finish(host, plan, [*reasons, f"the run was interrupted ({exc})"], started, None, procs, logs, stub, timer=timer)
+        finish(host, plan, [*reasons, f"the run was interrupted ({exc})"], started, None, procs, logs, stub, timer=timer, logs_at_start=logs_at_start)
         raise
     except Exception as exc:  # noqa: BLE001 - whatever failed, the run is recorded and the teardown runs
         reasons.append(f"the runner failed: {type(exc).__name__}: {exc}")
-        return finish(host, plan, reasons, started, t0, procs, logs, stub, launched, timer=timer)
+        return finish(host, plan, reasons, started, t0, procs, logs, stub, launched, timer=timer, logs_at_start=logs_at_start)
 
 
 def timer_gate(host, plan):
@@ -626,14 +626,24 @@ def timer_gate(host, plan):
         return getattr(exc, "record", None), f"the timer gate refused the run: {exc}"
 
 
+def log_stats(host, paths=None):
+    """{path: (inode, size) or None} of nginx's logs, or of `paths` (P1 passes its own), for replaced_logs(): taken once nginx has started
+    (review T-063 T063-07)."""
+    return {path: host.stat(path) for path in (NGINX_LOGS.values() if paths is None else paths)}
+
+
 def replaced_logs(host, at_start):
     """Review T-057 T057-09, HG's check (bench/executor.py, T-028 F-04): nginx's logs sit in logrotate's glob, and a rotation in a run leaves its copy
-    only what came after, and the daemon without what nginx wrote until it reopened. A log that was not there at the start has nothing to compare."""
+    only what came after, and the daemon without what nginx wrote until it reopened. `at_start` is log_stats() at nginx's start, and this is called
+    once its last writer has stopped and before the logs are moved, so no stretch of the run is left out (T063-07). A log that was not there at the
+    start has nothing to compare. Only the inode: logrotate's rule for these logs renames and creates, which the inode sees; a truncation in place
+    would keep it, and two sizes, one at a fresh start, cannot tell one from a log that grew."""
     out = []
     for path, then in at_start.items():
         now = host.stat(path)
         if then is not None and (now is None or now[0] != then[0]):
-            out.append(f"{path} was replaced or removed during the run (inode {then[0]} at the traffic's start, {now and now[0]} at its end): logrotate?")
+            out.append(f"{path} was replaced or removed during the run (inode {then[0]} at nginx's start, {now and now[0]} before the logs were moved): "
+                       "logrotate?")
     return out
 
 
@@ -669,7 +679,7 @@ def _stop(host, proc, grace=STOP_GRACE_S, interrupt=False):
             proc.kill()
 
 
-def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=(), timer=None):
+def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=(), timer=None, logs_at_start=None):
     """Stop everything, take the logs into the run, tear the testbed down, check and write the run's records. The stop and the teardown run
     inside host.shielded(), as the harm benchmark's do (bench/executor.py): Ctrl-C, TERM and HUP are ignored there, since a second one would
     leave the testbed standing (review T-063 T063-02). P1 calls teardown and _stop itself, so the shield is here and not in them."""
@@ -697,6 +707,8 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=(), tim
             for name, proc in procs:
                 if name == "gunicorn":
                     _stop(host, proc)
+            if logs_at_start and t0 is not None:          # nginx and gunicorn have stopped: nothing writes these logs any more
+                reasons += replaced_logs(host, logs_at_start)
             if procs:
                 for name, path in NGINX_LOGS.items():
                     host.run(["mv", "-f", path, os.path.join(out, name)])
