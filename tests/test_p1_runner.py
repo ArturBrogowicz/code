@@ -416,6 +416,17 @@ class ExecuteTest(Base):
         self.assertEqual(host.kinds().get("gen", 0), 0)
         self.assertTrue(host.ran("ip", "netns", "del", "server_ns"))
 
+    def test_the_fakes_share_one_shield(self):
+        """Review T-067 T067-02: P1's fake kept a shield of its own, which the base fake's interrupt_again never saw."""
+        host = F.P1FakeHost(interrupt_again=True)
+        with host.shielded():
+            self.assertTrue(host.shield)
+            host.run(["ip", "netns", "del", "x"])
+        self.assertEqual((host.ignored_interrupts, host.shield_depth, host.shield), (1, 0, False))
+        host = F.P1FakeHost(interrupt_again=True)
+        with self.assertRaises(KeyboardInterrupt):
+            host.run(["ip", "netns", "del", "x"])
+
     def test_refusals_before_the_traffic(self):
         self.assertIn("not root", self.invalid(F.P1FakeHost(root=False)))
         self.root = tempfile.mkdtemp(dir=self.tmp.name)
