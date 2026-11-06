@@ -395,6 +395,27 @@ class ExecuteTest(Base):
         self.assertEqual(index(self.root)[-1]["reasons"], res["reasons"])
         return " | ".join(res["reasons"])
 
+    def test_nginx_starts_with_no_pipe_for_its_daemon_to_hold(self):
+        """Review T-057 T057-01: `host.run` of this start comes back only at the 120-s timeout on the real nginx, and now on the fake."""
+        host = F.P1FakeHost()
+        block = self.block(runs=("C",))
+        ((_n, res),) = R.run_block(host, block)
+        self.assertTrue(res["ok"], res["reasons"])
+        start = tuple(block["runs"][0]["nginx"]["start"])
+        self.assertEqual([c[2] for c in host.commands if c[1] == start], ["popen"])
+        self.assertTrue(os.path.isfile(os.path.join(block["runs"][0]["out"], "nginx_start.log")))
+        self.assertEqual(F.P1FakeHost().run(list(start), ns="server_ns").code, -1)
+
+    def test_a_failed_start_keeps_its_message(self):
+        self.assertRegex(self.invalid(F.P1FakeHost(nginx_fails=True)), r"nginx did not start: .* exited 1: nginx: \[emerg\]")
+
+    def test_a_failed_alias_makes_the_run_invalid_and_names_the_step(self):
+        """Review T-057 T057-03, through P4's topology."""
+        host = F.P1FakeHost(ip_batch_fails=True)
+        self.assertRegex(self.invalid(host), r"ip -batch in \S+ exited 2: RTNETLINK answers: File exists")
+        self.assertEqual(host.kinds().get("gen", 0), 0)
+        self.assertTrue(host.ran("ip", "netns", "del", "server_ns"))
+
     def test_refusals_before_the_traffic(self):
         self.assertIn("not root", self.invalid(F.P1FakeHost(root=False)))
         self.root = tempfile.mkdtemp(dir=self.tmp.name)

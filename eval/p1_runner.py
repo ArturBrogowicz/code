@@ -660,15 +660,18 @@ def execute_run(host, plan, frozen_sums):
         with open(plan["nginx"]["conf_path"], "w", encoding="utf-8") as fh:
             fh.write(render_conf(ARM_TABLE[plan["arm"]], out, plan["nginx"]["deny_dir"]))
         procs.append(("topology", None))                # from here on the teardown runs, whatever happens
-        P4.topology(host, plan)
+        reasons += P4.topology(host, plan)
+        if reasons:
+            return finish(host, plan, reasons, ctx)
         host.run(["mkdir", "-p", "/var/log/nginx", os.path.join(out, "feed_before")])
         for path in HOST_LOGS:                          # the daemon tails the host's log: nothing of an earlier run reaches it
             host.run(["mv", "-f", path, os.path.join(out, "feed_before", os.path.basename(path))])
         logs["gunicorn"] = open(plan["gunicorn"]["log"], "w", encoding="utf-8")       # noqa: SIM115 (closed in finish)
         gunicorn = host.popen(plan["gunicorn"]["argv"], ns=SERVER_NS, stdout=logs["gunicorn"], stderr=logs["gunicorn"], cwd=REPO)
         procs.append(("gunicorn", gunicorn))
-        if host.run(plan["nginx"]["start"], ns=SERVER_NS).code != 0:
-            reasons.append("nginx did not start")
+        refused = P4.start_nginx(host, plan)
+        if refused:
+            reasons.append(refused)
         ready = P4._wait(host, lambda: gunicorn.poll() is not None
                          or host.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "2",
                                       READY_URL], ns=SERVER_NS).out.strip() == "200", STACK_READY_TIMEOUT_S)
