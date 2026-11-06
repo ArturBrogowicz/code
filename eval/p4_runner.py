@@ -670,38 +670,41 @@ def _stop(host, proc, grace=STOP_GRACE_S, interrupt=False):
 
 
 def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=(), timer=None):
-    """Stop everything, take the logs into the run, tear the testbed down, check and write the run's records."""
+    """Stop everything, take the logs into the run, tear the testbed down, check and write the run's records. The stop and the teardown run
+    inside host.shielded(), as the harm benchmark's do (bench/executor.py): Ctrl-C, TERM and HUP are ignored there, since a second one would
+    leave the testbed standing (review T-063 T063-02). P1 calls teardown and _stop itself, so the shield is here and not in them."""
     import executor
     out = plan["out"]
     reasons = list(reasons)
-    try:
-        for x, proc in launched:                          # the generators end on their own at their duration
-            if not _wait(host, lambda p=proc: p.poll() is not None, STOP_GRACE_S, step=0.5):
-                reasons.append(f"{x['entity_id']} was still running {STOP_GRACE_S:g} s after its end: stopped")
-                _stop(host, proc)
-            elif proc.poll() != 0:
-                said = executor._tail(stderr_path(out, x["entity_id"]))
-                reasons.append(f"{x['entity_id']} exited with code {proc.poll()}" + (f": {said[:200]}" if said else ""))
-        for name, proc in procs:
-            if name == "gunicorn" and t0 is not None and proc.poll() is not None and not any(r.startswith("gunicorn exited") for r in reasons):
-                reasons.append(gunicorn_gone(host, plan, proc, f"at {host.time() - t0:.0f} s"))    # after the loop's last look
-            if name == "daemon":
-                _stop(host, proc, interrupt=True)          # SIGINT runs its finally, which detaches XDP
-        if any(name == "gunicorn" for name, _p in procs):
-            quit_code = host.run(plan["nginx"]["stop"], ns=SERVER_NS).code
-            if quit_code != 0 and t0 is not None:          # stub_status judges nothing (D-050), so only this says it had gone
-                reasons.append(nginx_gone(quit_code))
-        for name, proc in procs:
-            if name == "gunicorn":
-                _stop(host, proc)
-        if procs:
-            for name, path in NGINX_LOGS.items():
-                host.run(["mv", "-f", path, os.path.join(out, name)])
-    finally:
-        for fh in logs.values():
-            fh.close()
-        if procs or t0 is not None:
-            teardown(host, plan)
+    with host.shielded():                                 # a second Ctrl-C must not cut the stop and the teardown short (T063-02)
+        try:
+            for x, proc in launched:                          # the generators end on their own at their duration
+                if not _wait(host, lambda p=proc: p.poll() is not None, STOP_GRACE_S, step=0.5):
+                    reasons.append(f"{x['entity_id']} was still running {STOP_GRACE_S:g} s after its end: stopped")
+                    _stop(host, proc)
+                elif proc.poll() != 0:
+                    said = executor._tail(stderr_path(out, x["entity_id"]))
+                    reasons.append(f"{x['entity_id']} exited with code {proc.poll()}" + (f": {said[:200]}" if said else ""))
+            for name, proc in procs:
+                if name == "gunicorn" and t0 is not None and proc.poll() is not None and not any(r.startswith("gunicorn exited") for r in reasons):
+                    reasons.append(gunicorn_gone(host, plan, proc, f"at {host.time() - t0:.0f} s"))    # after the loop's last look
+                if name == "daemon":
+                    _stop(host, proc, interrupt=True)          # SIGINT runs its finally, which detaches XDP
+            if any(name == "gunicorn" for name, _p in procs):
+                quit_code = host.run(plan["nginx"]["stop"], ns=SERVER_NS).code
+                if quit_code != 0 and t0 is not None:          # stub_status judges nothing (D-050), so only this says it had gone
+                    reasons.append(nginx_gone(quit_code))
+            for name, proc in procs:
+                if name == "gunicorn":
+                    _stop(host, proc)
+            if procs:
+                for name, path in NGINX_LOGS.items():
+                    host.run(["mv", "-f", path, os.path.join(out, name)])
+        finally:
+            for fh in logs.values():
+                fh.close()
+            if procs or t0 is not None:
+                teardown(host, plan)
     ended = host.time()
     reasons += checks(host, plan, t0, launched)
     stall = stall_reading(plan, t0, launched, stub) if t0 is not None else None

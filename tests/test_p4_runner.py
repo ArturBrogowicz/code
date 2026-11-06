@@ -1031,6 +1031,26 @@ class ExecuteTest(unittest.TestCase):
             self.assertEqual(R.main(argv, host=F.FakeHost(interrupt_at=50.0)), 130)
         self.assertIn("the testbed is down", err.getvalue())
 
+    def test_a_second_ctrl_c_does_not_cut_the_teardown_short(self):
+        """Review T-063 T063-02: a second interrupt during the orderly stop left the testbed standing; HG shields that stretch."""
+        run = self.one_run("twice", "campaign", 3106, "M_pc_post", thresholds=POINT)
+        host = F.FakeHost(interrupt_at=100.0, interrupt_again=True, modelled_attackers=1)
+        with self.assertRaisesRegex(KeyboardInterrupt, r"^signal 15$"):
+            R.execute_run(host, run)
+        self.assertEqual(host.ignored_interrupts, 1)
+        gone = {c[1][3] for c in host.commands if c[1][:3] == ("ip", "netns", "del")}
+        self.assertEqual(gone, {ns["name"] for ns in run["namespaces"]} | {"server_ns"}, "every namespace was taken down")
+        self.assertTrue(host.ran("ip", "link", "del", "ddos_br0"))
+        with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh)["checks"]["reasons"], ["the run was interrupted (signal 15)"])
+
+    def test_a_ctrl_c_during_an_orderly_teardown_is_ignored_too(self):
+        run = self.one_run("once", "campaign", 3106, "C", thresholds=POINT)
+        host = F.FakeHost(interrupt_again=True)
+        self.assertEqual(R.execute_run(host, run)["reasons"], [])
+        self.assertEqual(host.ignored_interrupts, 1)
+        self.assertEqual(host.shield_depth, 0)
+
     def test_a_real_host_ends_on_term_and_hup_as_on_ctrl_c(self):
         import executor
         with mock.patch.object(executor, "RealHost"), mock.patch.object(executor, "_install_signal_handlers") as handlers, \
