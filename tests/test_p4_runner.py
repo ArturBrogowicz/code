@@ -981,6 +981,49 @@ class ExecuteTest(unittest.TestCase):
         with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
             self.assertEqual([p["passed"] for p in json.load(fh)["timer"]["timer_probes"]], [False, False, True])
 
+    def test_ctrl_c_takes_the_testbed_down_and_says_so(self):
+        """Review T-057 T057-07: only Exception was caught, so an interrupt left namespaces, nginx, gunicorn, the daemon and XDP up."""
+        run = self.one_run("ctrl_c", "campaign", 3106, "M_pc_post", thresholds=POINT)
+        host = F.FakeHost(interrupt_at=100.0, modelled_attackers=1)
+        with self.assertRaises(KeyboardInterrupt):
+            R.execute_run(host, run)
+        self.assertTrue(host.ran("ip", "netns", "del", "server_ns"))
+        self.assertTrue(host.ran("nginx", "-c", run["nginx"]["conf_path"], "-s", "quit"))
+        self.assertEqual(next(p for p in host.procs if p.kind == "daemon").returncode, 0, "SIGINT runs its finally, which detaches XDP")
+        self.assertIn("gunicorn", " ".join(next(p for p in host.procs if p.returncode == -15).argv))
+        self.assertLess(host.t - host.run_t0, 130.0, "it does not wait out the generators")
+        with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh)["checks"]["reasons"], ["the run was interrupted (signal 15)"])
+
+    def test_ctrl_c_ends_the_block_and_the_command_line_says_so(self):
+        block = self.block("campaign", 3101, thresholds=POINT, arms=["C", "Cp"])
+        host = F.FakeHost(interrupt_at=50.0)
+        with self.assertRaises(KeyboardInterrupt):
+            R.run_block(host, block)
+        rows = index(self.root)
+        self.assertEqual([(x["ended"], x["valid"]) for x in rows], [(False, False)], "the second run never began")
+        argv = ["--phase", "smoke", "--seed", "9101", "--arms", "C", "--label", "cli", "--root", self.root]
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(R.main(argv, host=F.FakeHost(interrupt_at=50.0)), 130)
+        self.assertIn("the testbed is down", err.getvalue())
+
+    def test_a_real_host_ends_on_term_and_hup_as_on_ctrl_c(self):
+        import executor
+        with mock.patch.object(executor, "RealHost"), mock.patch.object(executor, "_install_signal_handlers") as handlers, \
+                mock.patch.object(R, "run_block", return_value=[]), contextlib.redirect_stdout(io.StringIO()):
+            R.main(["--phase", "smoke", "--seed", "9101", "--arms", "C", "--label", "h", "--root", self.root])
+        handlers.assert_called_once()
+
+    def test_a_generators_stderr_stays_with_the_run(self):
+        """Review T-057 T057-07: it went to /dev/null, so a failing generator's reason was only its exit code."""
+        run = self.one_run("gen_stderr", "campaign", 3106, "C", thresholds=POINT)
+        bad = next(e for e in run["entities"] if e["kind_or_family"] == "uploader")
+        res = R.execute_run(F.FakeHost(gen_fails=[bad["address"]]), run)
+        self.assertTrue(any(r.startswith(f"{bad['entity_id']} exited with code 3: ") and "Cannot assign requested address" in r
+                            for r in res["reasons"]), res["reasons"])
+        names = os.listdir(os.path.join(run["out"], "gen_stderr"))
+        self.assertEqual(names, [bad["entity_id"].replace(":", "_") + ".log"], "the empty ones are gone")
+
     def test_gunicorn_dying_in_mid_run_makes_the_run_invalid(self):
         """D-063: a dead backend read as harm: the run went on, every request failed, and run.json said nothing."""
         for arm in ("U_post", "C"):

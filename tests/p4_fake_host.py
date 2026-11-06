@@ -84,7 +84,8 @@ class FakeHost(X.Host):
                  poll_every_s=1.0, modelled_attackers=None, harm=None, fail_prim=None, limit_refuses=0.0,
                  gen_late=None, stub_fails=None, ss_fails=None, attack_fails=False, attack_opened_share=1.0, no_socket_of=(),
                  garbled_bans=False, ban_file_lost=False, gen_stall=None, runner_stall=None, gunicorn_refuses=None,
-                 gunicorn_dies=None, nginx_gone=False, nginx_hangs=False, ip_batch_fails=False, netem_fails=False, timer_p99=2.0):
+                 gunicorn_dies=None, nginx_gone=False, nginx_hangs=False, ip_batch_fails=False, netem_fails=False, timer_p99=2.0,
+                 interrupt_at=None):
         self.t = 0.0
         self.root, self.netns, self.stack_ready, self.nginx_fails = root, list(netns), stack_ready, nginx_fails
         self.kill_file, self.kill_appears_at = kill_file, kill_appears_at
@@ -102,6 +103,7 @@ class FakeHost(X.Host):
         self.gunicorn_dies = gunicorn_dies      # (seconds of the run, its exit code, what its log says then)
         self.nginx_gone, self.gunicorn = nginx_gone, None   # nginx_gone: its -s quit fails, as for a master that has died
         self.nginx_hangs = nginx_hangs          # its launcher never returns
+        self.interrupt_at = interrupt_at        # seconds of the run: Ctrl-C reaches the runner in its sleep
         self.timer_p99 = list(timer_p99) if isinstance(timer_p99, (list, tuple)) else [timer_p99]   # the timer probe's answers, the last repeated; None: unreadable
         self.ip_batch_fails, self.netem_fails = ip_batch_fails, netem_fails     # the runner's own commands of the topology exit non-zero
         self.pids, self.seq = itertools.count(100), itertools.count()
@@ -129,6 +131,9 @@ class FakeHost(X.Host):
         heapq.heappush(self.events, (t, next(self.seq), fn))
 
     def sleep(self, seconds):
+        if self.interrupt_at is not None and self.run_t0 is not None and self.t - self.run_t0 >= self.interrupt_at:
+            self.interrupt_at = None
+            raise KeyboardInterrupt("signal 15")
         if self.runner_stall and self.run_t0 is not None and self.t - self.run_t0 >= self.runner_stall[0]:
             seconds += self.runner_stall[1]
             self.runner_stall = None
@@ -205,6 +210,7 @@ class FakeHost(X.Host):
             return p
         if "l7_gen.py" in text:
             p = Proc(self, "gen", argv, env, stdout)
+            p.stderr_name = getattr(stderr, "name", None)
             self.procs.append(p)
             self._start_gen(p)
             return p
@@ -275,6 +281,9 @@ class FakeHost(X.Host):
                        "local_errors": conns if self.attack_fails else 0}, fh)
 
     def _gen_exit(self, p):
+        if p.ip in self.gen_fails and p.stderr_name:
+            with open(p.stderr_name, "a", encoding="utf-8") as fh:
+                fh.write("Traceback (most recent call last):\nOSError: [Errno 99] Cannot assign requested address\n")
         if p.stats and self.attack_opened_share is not None:
             self._write_stats(p)
         for key in [k for k, s in self.socks.items() if s["ip"] == p.ip]:

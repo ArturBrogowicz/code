@@ -80,6 +80,7 @@ run index, valid or not (D-035, V-03).
     ./venv/bin/python eval/p4_runner.py --summarize ROOT runs.jsonl --calibration FROZEN.json    # --dry-run: a simulated campaign
 """
 import argparse
+import contextlib
 import datetime
 import hashlib
 import itertools
@@ -250,6 +251,11 @@ def namespaces(entities, prefix=NS_PREFIX):
 def records_path(out, entity):
     """Where a benign plan-kind entity writes its client-side rows (eval/l7v2_harm.py run_rows reads them)."""
     return os.path.join(out, "records", entity["entity_id"].replace(":", "_") + ".csv")
+
+
+def stderr_path(out, entity_id):
+    """Where a generator's stderr goes (review T-057 T057-07); finish() removes the empty ones."""
+    return os.path.join(out, "gen_stderr", entity_id.replace(":", "_") + ".log")
 
 
 def stats_path(out, entity):
@@ -507,6 +513,7 @@ def execute_run(host, plan):
     reasons, procs, launched = [], [], []
     os.makedirs(os.path.join(out, "records"), exist_ok=True)
     os.makedirs(os.path.join(out, "attack_stats"), exist_ok=True)
+    os.makedirs(os.path.join(out, "gen_stderr"), exist_ok=True)
     started = host.time()
     write_json(os.path.join(out, "plan.json"), plan)
     if not host.is_root():
@@ -565,7 +572,9 @@ def execute_run(host, plan):
             while pending and pending[0]["start_s"] <= now:
                 x = pending.pop(0)
                 try:
-                    launched.append(({**x, "lag_s": host.time() - t0 - x["start_s"]}, host.popen(x["argv"], ns=x["ns"], cwd=REPO)))
+                    with open(stderr_path(out, x["entity_id"]), "ab") as err:
+                        launched.append(({**x, "lag_s": host.time() - t0 - x["start_s"]},
+                                         host.popen(x["argv"], ns=x["ns"], cwd=REPO, stderr=err)))
                 except OSError as exc:
                     reasons.append(f"{x['entity_id']} did not start: {exc}")
             r = host.run(["curl", "-s", "--max-time", "1", STUB_STATUS_URL], ns=SERVER_NS)
@@ -584,6 +593,9 @@ def execute_run(host, plan):
             elapsed = host.time() - t0                                    # on the second, whatever the sample took
             host.sleep(max(0.0, min(math.floor(now) + 1, total) - elapsed))
         return finish(host, plan, reasons, started, t0, procs, logs, stub, launched, timer=timer)
+    except KeyboardInterrupt as exc:     # Ctrl-C, or TERM or HUP in main: the testbed comes down, the generators with it, and the block stops
+        finish(host, plan, [*reasons, f"the run was interrupted ({exc})"], started, None, procs, logs, stub, timer=timer)
+        raise
     except Exception as exc:  # noqa: BLE001 - whatever failed, the run is recorded and the teardown runs
         reasons.append(f"the runner failed: {type(exc).__name__}: {exc}")
         return finish(host, plan, reasons, started, t0, procs, logs, stub, launched, timer=timer)
@@ -634,6 +646,7 @@ def _stop(host, proc, grace=STOP_GRACE_S, interrupt=False):
 
 def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=(), timer=None):
     """Stop everything, take the logs into the run, tear the testbed down, check and write the run's records."""
+    import executor
     out = plan["out"]
     reasons = list(reasons)
     try:
@@ -642,7 +655,8 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=(), tim
                 reasons.append(f"{x['entity_id']} was still running {STOP_GRACE_S:g} s after its end: stopped")
                 _stop(host, proc)
             elif proc.poll() != 0:
-                reasons.append(f"{x['entity_id']} exited with code {proc.poll()}")
+                said = executor._tail(stderr_path(out, x["entity_id"]))
+                reasons.append(f"{x['entity_id']} exited with code {proc.poll()}" + (f": {said[:200]}" if said else ""))
         for name, proc in procs:
             if name == "gunicorn" and t0 is not None and proc.poll() is not None and not any(r.startswith("gunicorn exited") for r in reasons):
                 reasons.append(gunicorn_gone(host, plan, proc, f"at {host.time() - t0:.0f} s"))    # after the loop's last look
@@ -667,7 +681,10 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=(), tim
     reasons += checks(host, plan, t0, launched)
     stall = stall_reading(plan, t0, launched, stub) if t0 is not None else None
     reasons += stall_reasons(stall) if stall else []
-    import executor
+    for x, _proc in launched:
+        with contextlib.suppress(OSError):
+            if os.path.getsize(stderr_path(out, x["entity_id"])) == 0:
+                os.remove(stderr_path(out, x["entity_id"]))
     daemon_prov = executor.daemon_provenance(host) if plan["daemon"] else None
     if daemon_prov and t0 is not None and not daemon_prov["h01"]["has_fix"]:
         reasons.append("the daemon lacks the H-01 fix, the prerequisite of every daemon arm (§4.3)")
@@ -1204,11 +1221,15 @@ def main(argv=None, host=None):
     if host is None:
         import executor
         host = executor.RealHost()
+        executor._install_signal_handlers()        # TERM and HUP end the run as Ctrl-C does
     try:
         results = run_block(host, block)
     except PlanError as exc:
         print(f"[-] {exc}", file=sys.stderr)
         return 2
+    except KeyboardInterrupt as exc:
+        print(f"[-] interrupted ({exc}): the testbed is down; the run is invalid, and the index holds no end of it", file=sys.stderr)
+        return 130
     for arm, res in results:
         print(f"  {arm}: {'valid' if res['ok'] else 'INVALID: ' + '; '.join(res['reasons'])}")
     return 0 if all(res["ok"] for _a, res in results) else 1
