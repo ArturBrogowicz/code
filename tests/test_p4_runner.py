@@ -1110,7 +1110,8 @@ class ExecuteTest(unittest.TestCase):
         the daemon's stop before the logs move."""
         run = self.one_run("before", "campaign", 3106, "M_def_post", thresholds=POINT)
         res = R.execute_run(F.FakeHost(logs_rotate_at_clock=1.0, modelled_attackers=1), run)
-        self.assertTrue(any("l7_capture.log was replaced or removed during the run (inode 1 at nginx's start, 2" in r for r in res["reasons"]),
+        self.assertTrue(any("l7_capture.log was replaced or removed during the run (inode 1 at nginx's start, 2 after nginx stopped): logrotate?" in r
+                            for r in res["reasons"]),
                         res["reasons"])
         run = self.one_run("after", "campaign", 3106, "C", thresholds=POINT)
         self.assertEqual(sum("was replaced" in r for r in R.execute_run(F.FakeHost(logs_rotate_at=270.2), run)["reasons"]), 3)

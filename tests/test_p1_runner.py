@@ -690,7 +690,7 @@ class HostLogsTest(Base):
         res = self.run_with(F.P1FakeHost(logs_rotate_at=60.0))
         self.assertFalse(res["ok"])
         for path in R.HOST_LOGS:
-            self.assertIn(f"{path} was replaced or removed during the run (inode 1 at nginx's start, 2 before the logs were moved): logrotate?", res["reasons"])
+            self.assertIn(f"{path} was replaced or removed during the run (inode 1 at nginx's start, 2 after nginx stopped): logrotate?", res["reasons"])
 
     def test_a_removed_log_too_and_the_stats_bracket_nginx_s_life(self):
         class Watched(F.P1FakeHost):
@@ -709,7 +709,7 @@ class HostLogsTest(Base):
                 return None if gone else super().stat(path)
         host = Watched()
         res = self.run_with(host)
-        self.assertIn(f"{R.HOST_LOGS[0]} was replaced or removed during the run (inode 1 at nginx's start, None before the logs were moved): logrotate?",
+        self.assertIn(f"{R.HOST_LOGS[0]} was replaced or removed during the run (inode 1 at nginx's start, None after nginx stopped): logrotate?",
                       res["reasons"])
         mine = [s for s in host.stats if s[0] in R.HOST_LOGS]
         self.assertEqual(len(mine), 4)

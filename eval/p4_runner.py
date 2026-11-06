@@ -637,14 +637,15 @@ def log_stats(host, paths=None):
 def replaced_logs(host, at_start):
     """Review T-057 T057-09, HG's check (bench/executor.py, T-028 F-04): nginx's logs sit in logrotate's glob, and a rotation in a run leaves its copy
     only what came after, and the daemon without what nginx wrote until it reopened. `at_start` is log_stats() at nginx's start, and this is called
-    once its last writer has stopped and before the logs are moved, so no stretch of the run is left out (T063-07). A log that was not there at the
+    once nginx has stopped, so no stretch of the run is left out (T063-07): P4 after nginx's and gunicorn's stop, before it moves the logs; P1
+    after nginx's quit, with the host's logs left where they are. The reason says only what is true for both (T067-03). A log that was not there at the
     start has nothing to compare. Only the inode: logrotate's rule for these logs renames and creates, which the inode sees; a truncation in place
     would keep it, and two sizes, one at a fresh start, cannot tell one from a log that grew."""
     out = []
     for path, then in at_start.items():
         now = host.stat(path)
         if then is not None and (now is None or now[0] != then[0]):
-            out.append(f"{path} was replaced or removed during the run (inode {then[0]} at nginx's start, {now and now[0]} before the logs were moved): "
+            out.append(f"{path} was replaced or removed during the run (inode {then[0]} at nginx's start, {now and now[0]} after nginx stopped): "
                        "logrotate?")
     return out
 
