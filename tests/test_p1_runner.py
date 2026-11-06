@@ -594,6 +594,22 @@ class OperationsTest(Base):
         daemon = next(p for p in host.procs if p.kind == "daemon")
         self.assertEqual(daemon.returncode, 0, "SIGINT runs its finally")
 
+    def test_a_second_interrupt_cannot_cut_the_stop_or_the_teardown_short(self):
+        """T063-02: Ctrl-C, then another as the runner quits nginx or deletes a namespace. The interrupted stop and teardown run inside
+        host.shielded(), as HG's do, so the second one is lost and the testbed still goes down."""
+        for words in (("-s", "quit"), ("netns", "del")):
+            with self.subTest(words=words):
+                self.root = tempfile.mkdtemp(dir=self.tmp.name)
+                host, block = F.P1FakeHost(interrupt_at=60.0, second_interrupt_on=words), self.block(runs=("M_gru_C2",))
+                with self.assertRaises(KeyboardInterrupt):
+                    R.run_block(host, block)
+                self.assertEqual(host.lost_interrupts, 1, "the second one came, inside the shield")
+                self.assertFalse(host.shield, "and the shield ends with the teardown")
+                self.assert_torn_down(host, block["runs"][0])
+                self.assertEqual(next(p for p in host.procs if p.kind == "daemon").returncode, 0, "the daemon still got its SIGINT")
+                self.assertIn("interrupted (Ctrl-C): the testbed was taken down",
+                              read_json(os.path.join(block["dir"], "M_gru_C2", "run.json"))["checks"]["reasons"])
+
     def test_an_interrupt_while_the_run_is_finishing_still_tears_it_down(self):
         host, block = F.P1FakeHost(interrupt_at=R.PT.run_seconds() + 0.2), self.block(runs=("C",))
         with self.assertRaises(KeyboardInterrupt):

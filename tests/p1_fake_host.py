@@ -19,12 +19,15 @@ What it models, as far as the runner's and the analysis's inputs need it:
     run without it. From its death on, every request is answered 502, in the sink and in the client's rows: what a dead backend looks like in Q;
   * the timer probe of bench/executor.py answers with `timer_p99`, a value or a list taken in turn, the last one repeating;
   * `interrupt_at`: seconds after a run's stack starts, one of the runner's own sleeps raises KeyboardInterrupt, as Ctrl-C does (T057-07);
+    `second_interrupt_on`, words of a command: when the runner runs it after that, a second one comes as it starts, unless the runner is
+    inside `shielded()`, where it is lost, as bench/executor.py RealHost ignores INT, TERM and HUP there (T063-02);
   * a generator that exits with a code of its own writes a line to the stderr file it was started with, and the handles it was given are
     kept, so that a test can see they were closed.
 frozen_inputs() writes the frozen items a campaign checks: a frozen record with the placeholder's numbers, knees bound to it,
 and small but well-formed selections. They are fixtures, not results.
 """
 import bisect
+import contextlib
 import csv
 import hashlib
 import json
@@ -59,7 +62,7 @@ def _sid(seed, user):
 class P1FakeHost(F.FakeHost):
     def __init__(self, *, fail_share=None, acts=None, quiet_from=None, armed=True, start_overrides=None, arm_overrides=None,
                  rule_arm="cost_budget", parsed_share=1.0, silent=(), timer_p99=2.0, client_side=False, gunicorn_dies_in=None,
-                 interrupt_at=None, **kw):
+                 interrupt_at=None, second_interrupt_on=None, **kw):
         super().__init__(**kw)
         self.fail_share = fail_share or (lambda _run, _block, _t: 0.0)
         self.acts, self.quiet_from = acts or (lambda _run, _block: []), quiet_from
@@ -70,12 +73,27 @@ class P1FakeHost(F.FakeHost):
         self.timer_p99 = list(timer_p99) if isinstance(timer_p99, (list, tuple)) else [timer_p99]
         self.sink, self.lines, self.run_name, self.block_dir, self.n_request = None, [], None, None, 0
         self.interrupt_at, self.stderr_handles = interrupt_at, []
+        self.second_interrupt_on, self.interrupted, self.shield, self.lost_interrupts = second_interrupt_on, False, False, 0
+
+    @contextlib.contextmanager
+    def shielded(self):
+        was, self.shield = self.shield, True
+        try:
+            yield
+        finally:
+            self.shield = was
 
     def _interrupt(self):
+        self.interrupted = True
         raise KeyboardInterrupt
 
     def run(self, argv, ns="", stdin="", env=None, timeout=None):
         argv = list(argv)
+        if self.interrupted and self.second_interrupt_on and all(w in argv for w in self.second_interrupt_on):
+            self.second_interrupt_on = None
+            if not self.shield:
+                raise KeyboardInterrupt
+            self.lost_interrupts += 1
         if "timer-probe" in argv:
             p99 = self.timer_p99.pop(0) if len(self.timer_p99) > 1 else self.timer_p99[0]
             return F.X.Result(0, "" if p99 is None else json.dumps({"p50_ms": 1.0, "p99_ms": p99, "max_ms": p99 + 1.0}), "")

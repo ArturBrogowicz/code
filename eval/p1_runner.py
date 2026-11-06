@@ -722,7 +722,8 @@ def execute_run(host, plan, frozen_sums):
         reasons.append(f"the runner failed: {type(exc).__name__}: {exc}")
         return finish(host, plan, reasons, ctx)
     except KeyboardInterrupt as exc:      # Ctrl-C, and TERM and HUP as executor._install_signal_handlers turns them into it (T057-07)
-        finish(host, plan, [*reasons, f"interrupted ({str(exc) or 'Ctrl-C'}): the testbed was taken down"], ctx, interrupted=True)
+        with host.shielded():             # a second one must not cut the stop and the teardown short (T063-02), as in HG's run
+            finish(host, plan, [*reasons, f"interrupted ({str(exc) or 'Ctrl-C'}): the testbed was taken down"], ctx, interrupted=True)
         raise
 
 
