@@ -1052,12 +1052,32 @@ class ExecuteTest(unittest.TestCase):
         with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
             self.assertEqual(json.load(fh)["checks"]["reasons"], ["the run was interrupted (signal 15)"])
 
-    def test_a_ctrl_c_during_an_orderly_teardown_is_ignored_too(self):
+    def test_a_ctrl_c_during_an_ordinary_stop_stops_the_block_after_a_shielded_teardown(self):
+        """D-068 (review T-067 T067-01): the ordinary finish was shielded too, and RealHost's shield drops a signal, so a Ctrl-C, TERM or HUP in any
+        run's stop phase was lost and the block went on. Now it reaches the handler, whose shielded pass repeats the stop and the teardown."""
         run = self.one_run("once", "campaign", 3106, "C", thresholds=POINT)
         host = F.FakeHost(interrupt_again=True)
-        self.assertEqual(R.execute_run(host, run)["reasons"], [])
-        self.assertEqual(host.ignored_interrupts, 1)
-        self.assertEqual(host.shield_depth, 0)
+        with self.assertRaisesRegex(KeyboardInterrupt, "^signal 2, again$"):
+            R.execute_run(host, run)
+        self.assertEqual((host.ignored_interrupts, host.shield_depth), (0, 0))
+        gone = {c[1][3] for c in host.commands if c[1][:3] == ("ip", "netns", "del")}
+        self.assertEqual(gone, {ns["name"] for ns in run["namespaces"]} | {"server_ns"}, "every namespace was taken down")
+        self.assertTrue(host.ran("ip", "link", "del", "ddos_br0"))
+        with open(os.path.join(run["out"], "run.json"), encoding="utf-8") as fh:
+            meta = json.load(fh)
+        self.assertEqual(meta["checks"]["reasons"], ["the run was interrupted (signal 2, again)"], "the repeated stop added nothing")
+        self.assertIsNotNone(meta["stall"])
+
+    def test_a_ctrl_c_while_the_generators_are_waited_for_stops_the_block(self):
+        block = self.block("campaign", 3101, thresholds=POINT, arms=["C", "Cp"])
+        with self.assertRaises(KeyboardInterrupt):
+            R.run_block(F.FakeHost(interrupt_at=270.0), block)
+        self.assertEqual([(x["ended"], x["valid"]) for x in index(self.root)], [(False, False)], "the block stopped")
+        with open(os.path.join(block["runs"][0]["out"], "run.json"), encoding="utf-8") as fh:
+            self.assertEqual(json.load(fh)["checks"]["reasons"], ["the run was interrupted (signal 15)"])
+        argv = ["--phase", "smoke", "--seed", "9101", "--arms", "C", "--label", "stop", "--root", self.root]
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(R.main(argv, host=F.FakeHost(interrupt_again=True)), 130)
 
     def test_a_real_host_ends_on_term_and_hup_as_on_ctrl_c(self):
         import executor

@@ -107,7 +107,7 @@ class FakeHost(X.Host):
         self.interrupt_at = interrupt_at        # seconds of the run: Ctrl-C reaches the runner in its sleep
         self.logs_rotate_at = logs_rotate_at    # seconds of the run: nginx's logs get a new inode
         self.logs_rotate_at_clock = logs_rotate_at_clock    # the same at a moment of the host's clock, before the traffic or after it
-        self.interrupt_again = interrupt_again  # a second Ctrl-C arrives at the teardown's first `ip netns del`
+        self.interrupt_again = interrupt_again  # a Ctrl-C arrives at the teardown's first `ip netns del` (a second one, after interrupt_at's)
         self.shield_depth, self.ignored_interrupts = 0, 0
         self.timer_p99 = list(timer_p99) if isinstance(timer_p99, (list, tuple)) else [timer_p99]   # the timer probe's answers, the last repeated; None: unreadable
         self.ip_batch_fails, self.netem_fails = ip_batch_fails, netem_fails     # the runner's own commands of the topology exit non-zero
