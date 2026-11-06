@@ -677,6 +677,50 @@ class OperationsTest(Base):
             self.assertEqual(fh.read(), "boom\n")
 
 
+class HostLogsTest(Base):
+    """T063-06: the daemon's heuristic feed and nginx's error log sit in /var/log/nginx, inside logrotate's glob. A rotation in a run would
+    blind default_rules, whose feed it is, more than the learned arms, which read the socket sink: the run is invalid, in P4's words."""
+
+    def run_with(self, host, run="M_default_rules_C3b"):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0, "C3b": 50}, runs=[run], label="logs",
+                             benign_specs=F.thin_benign(), max_sources=3)
+        return dict(R.run_block(host, block))[run]
+
+    def test_a_rotation_in_the_run_makes_it_invalid(self):
+        res = self.run_with(F.P1FakeHost(logs_rotate_at=60.0))
+        self.assertFalse(res["ok"])
+        for path in R.HOST_LOGS:
+            self.assertIn(f"{path} was replaced or removed during the run (inode 1 at the traffic's start, 2 at its end): logrotate?", res["reasons"])
+
+    def test_a_removed_log_too_and_the_stats_bracket_nginx_s_life(self):
+        class Watched(F.P1FakeHost):
+            def __init__(self, **kw):
+                super().__init__(**kw)
+                self.stats, self.quit_at = [], None
+
+            def run(self, argv, ns="", stdin="", env=None, timeout=None):
+                if "quit" in argv:
+                    self.quit_at = self.t
+                return super().run(argv, ns, stdin, env, timeout)
+
+            def stat(self, path):
+                self.stats.append((path, self.t, self.run_t0, self.quit_at))
+                gone = path == R.HOST_LOGS[0] and self.run_t0 is not None and self.t - self.run_t0 >= 60.0
+                return None if gone else super().stat(path)
+        host = Watched()
+        res = self.run_with(host)
+        self.assertIn(f"{R.HOST_LOGS[0]} was replaced or removed during the run (inode 1 at the traffic's start, None at its end): logrotate?",
+                      res["reasons"])
+        mine = [s for s in host.stats if s[0] in R.HOST_LOGS]
+        self.assertEqual(len(mine), 4)
+        self.assertTrue(all(run_t0 is None for _p, _t, run_t0, _q in mine[:2]), "at nginx's start, before the traffic")
+        self.assertTrue(all(quit_at is not None for _p, _t, _r, quit_at in mine[2:]), "after nginx's quit, its last writer")
+
+    def test_a_clean_run_has_nothing_to_say(self):
+        res = self.run_with(F.P1FakeHost(), run="C")
+        self.assertTrue(res["ok"], res["reasons"])
+
+
 class BackendExitTest(Base):
     """D-063: a gunicorn that exits by itself. On the fake's real path through execute_run; its requests get 502s from its death on."""
 

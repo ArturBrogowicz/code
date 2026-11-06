@@ -670,6 +670,7 @@ def execute_run(host, plan, frozen_sums):
         gunicorn = host.popen(plan["gunicorn"]["argv"], ns=SERVER_NS, stdout=logs["gunicorn"], stderr=logs["gunicorn"], cwd=REPO)
         procs.append(("gunicorn", gunicorn))
         refused = P4.start_nginx(host, plan)
+        ctx["host_logs"] = {path: host.stat(path) for path in HOST_LOGS}     # T063-06: in logrotate's glob (daily, create), as P4's are
         if refused:
             reasons.append(refused)
         ready = P4._wait(host, lambda: gunicorn.poll() is not None
@@ -754,6 +755,8 @@ def finish(host, plan, reasons, ctx, interrupted=False):
             quit_code = host.run(plan["nginx"]["stop"], ns=SERVER_NS).code
             if quit_code != 0 and t0 is not None:          # D-063; its exit code is [CLAIMED], NOT RUN (P4.nginx_gone)
                 reasons.append(P4.nginx_gone(quit_code))
+            if t0 is not None and ctx.get("host_logs"):    # after their writer has stopped: a rotation loses default_rules its feed
+                reasons += P4.replaced_logs(host, ctx["host_logs"])
         for name, proc in procs:
             if name == "gunicorn":
                 P4._stop(host, proc)
