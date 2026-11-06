@@ -1024,6 +1024,15 @@ class ExecuteTest(unittest.TestCase):
         names = os.listdir(os.path.join(run["out"], "gen_stderr"))
         self.assertEqual(names, [bad["entity_id"].replace(":", "_") + ".log"], "the empty ones are gone")
 
+    def test_a_log_rotated_in_mid_run_makes_the_run_invalid(self):
+        """Review T-057 T057-09: the daily timer, in a campaign of hours: `mv` then takes only the part after it, and the daemon loses what came between."""
+        run = self.one_run("rotated", "campaign", 3106, "M_def_post", thresholds=POINT)
+        res = R.execute_run(F.FakeHost(logs_rotate_at=100.0, modelled_attackers=1), run)
+        self.assertTrue(any("l7_capture.log was replaced or removed during the run (inode 1" in r for r in res["reasons"]), res["reasons"])
+        self.assertEqual(sum("was replaced" in r for r in res["reasons"]), 3)
+        run = self.one_run("not_rotated", "campaign", 3106, "M_def_post", thresholds=POINT)
+        self.assertEqual(R.execute_run(F.FakeHost(modelled_attackers=1), run)["reasons"], [])
+
     def test_gunicorn_dying_in_mid_run_makes_the_run_invalid(self):
         """D-063: a dead backend read as harm: the run went on, every request failed, and run.json said nothing."""
         for arm in ("U_post", "C"):

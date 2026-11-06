@@ -564,6 +564,7 @@ def execute_run(host, plan):
         if reasons:
             return finish(host, plan, reasons, started, None, procs, logs, stub, timer=timer)
         t0 = host.time()
+        logs_at_start = {path: host.stat(path) for path in NGINX_LOGS.values()}
         total = sum(t.values())
         pending = list(plan["launches"])
         kill_seen = None
@@ -592,6 +593,7 @@ def execute_run(host, plan):
                 break
             elapsed = host.time() - t0                                    # on the second, whatever the sample took
             host.sleep(max(0.0, min(math.floor(now) + 1, total) - elapsed))
+        reasons += replaced_logs(host, logs_at_start)
         return finish(host, plan, reasons, started, t0, procs, logs, stub, launched, timer=timer)
     except KeyboardInterrupt as exc:     # Ctrl-C, or TERM or HUP in main: the testbed comes down, the generators with it, and the block stops
         finish(host, plan, [*reasons, f"the run was interrupted ({exc})"], started, None, procs, logs, stub, timer=timer)
@@ -610,6 +612,17 @@ def timer_gate(host, plan):
         return executor.timer_gate(host, gate, TIMER_WAIT_MIN)[1], None
     except executor.EnvironmentRefused as exc:
         return getattr(exc, "record", None), f"the timer gate refused the run: {exc}"
+
+
+def replaced_logs(host, at_start):
+    """Review T-057 T057-09, HG's check (bench/executor.py, T-028 F-04): nginx's logs sit in logrotate's glob, and a rotation in a run leaves its copy
+    only what came after, and the daemon without what nginx wrote until it reopened. A log that was not there at the start has nothing to compare."""
+    out = []
+    for path, then in at_start.items():
+        now = host.stat(path)
+        if then is not None and (now is None or now[0] != then[0]):
+            out.append(f"{path} was replaced or removed during the run (inode {then[0]} at the traffic's start, {now and now[0]} at its end): logrotate?")
+    return out
 
 
 def start_nginx(host, plan):

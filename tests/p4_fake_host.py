@@ -85,7 +85,7 @@ class FakeHost(X.Host):
                  gen_late=None, stub_fails=None, ss_fails=None, attack_fails=False, attack_opened_share=1.0, no_socket_of=(),
                  garbled_bans=False, ban_file_lost=False, gen_stall=None, runner_stall=None, gunicorn_refuses=None,
                  gunicorn_dies=None, nginx_gone=False, nginx_hangs=False, ip_batch_fails=False, netem_fails=False, timer_p99=2.0,
-                 interrupt_at=None):
+                 interrupt_at=None, logs_rotate_at=None):
         self.t = 0.0
         self.root, self.netns, self.stack_ready, self.nginx_fails = root, list(netns), stack_ready, nginx_fails
         self.kill_file, self.kill_appears_at = kill_file, kill_appears_at
@@ -104,6 +104,7 @@ class FakeHost(X.Host):
         self.nginx_gone, self.gunicorn = nginx_gone, None   # nginx_gone: its -s quit fails, as for a master that has died
         self.nginx_hangs = nginx_hangs          # its launcher never returns
         self.interrupt_at = interrupt_at        # seconds of the run: Ctrl-C reaches the runner in its sleep
+        self.logs_rotate_at = logs_rotate_at    # seconds of the run: nginx's logs get a new inode
         self.timer_p99 = list(timer_p99) if isinstance(timer_p99, (list, tuple)) else [timer_p99]   # the timer probe's answers, the last repeated; None: unreadable
         self.ip_batch_fails, self.netem_fails = ip_batch_fails, netem_fails     # the runner's own commands of the topology exit non-zero
         self.pids, self.seq = itertools.count(100), itertools.count()
@@ -147,6 +148,10 @@ class FakeHost(X.Host):
     # --- the host's face -------------------------------------------------------------------------
     def pin(self, cpus):
         self.commands.append(("", ("pin", cpus), ""))
+
+    def stat(self, path):
+        rotated = self.logs_rotate_at is not None and self.run_t0 is not None and self.t - self.run_t0 >= self.logs_rotate_at
+        return (2 if rotated else 1), 100
 
     def is_root(self):
         return self.root
