@@ -409,20 +409,25 @@ def plan_run(pop, phase, arm, cls, out, frozen, *, python=PYTHON, age=None):
     }
 
 
-def check_ladder(levels, label):
+def check_ladder(levels, label, seed):
     """A ladder block is one class at one pre-registered level, under the label the analysis reads its class, level and repeat from
-    (T057-05, ml/l7v2_prereg.json harm.ladder; P4's ladder refuses the same way). A level 3 could otherwise become a knee, and a third
-    repeat, a free label or another spelling of a label would re-roll a repeat that fell short."""
+    (T057-05, ml/p1_prereg_5.json ladder; P4's ladder refuses the same way), on the seed the seed map gives that repeat (D-073). A level 3
+    could otherwise become a knee; a third repeat, a free label or another spelling of a label would re-roll a repeat that fell short; and
+    two repeats on one seed would replay one population twice."""
     if len(levels) != 1:
         raise PlanError(f"a ladder block is one class at one level, not {levels}")
     cls, level = next(iter(levels.items()))
     allowed = PT.ladder_levels(cls)
     if level not in allowed:
-        raise PlanError(f"ladder: {cls} at {level:g} is not one of its pre-registered levels {allowed} (ml/l7v2_prereg.json harm.ladder)")
+        raise PlanError(f"ladder: {cls} at {level:g} is not one of its pre-registered levels {allowed} (ml/p1_prereg_5.json ladder.levels)")
     labels = [f"{cls}_L{level:g}_r{repeat}" for repeat in range(1, PT.ladder_repeats() + 1)]
     if label not in labels:
         raise PlanError(f"ladder: the label {label!r} is not one of {labels}: the analysis reads the level and the repeat from it, "
                         f"and the ladder has {len(labels)} repeats")
+    want = PT.ladder_seed(cls, level, labels.index(label) + 1)
+    if seed != want:
+        raise PlanError(f"ladder: {label} runs on pilot seed {want}, not {seed} (ml/p1_prereg_5.json ladder.seed_map): the two repeats "
+                        "of a level never share a seed")
 
 
 def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", runs=None, cut=False, python=PYTHON,
@@ -466,7 +471,7 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
     except PT.PlanError as exc:
         raise PlanError(str(exc)) from exc
     if phase == "ladder":
-        check_ladder(levels, label)
+        check_ladder(levels, label, seed)
     if address_limit is not None:
         pop["pool"]["address_limit"] = address_limit
     arms = {a for a, _c in pairs}

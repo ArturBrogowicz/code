@@ -330,8 +330,8 @@ class LadderTest(unittest.TestCase):
         cal = l7_backend.load_record(frozen["calibration"])[0]
         root = os.path.join(tmp.name, "runs")
         for level, share in ((1.0, 0.02), (2.0, 0.30)):
-            for rep, seed in ((1, 9001), (2, 9002)):
-                block = R.plan_block("ladder", seed, root, frozen=frozen, levels={"C2": level}, runs=["C", "U_C2"],
+            for rep in (1, 2):
+                block = R.plan_block("ladder", R.PT.ladder_seed("C2", level, rep), root, frozen=frozen, levels={"C2": level}, runs=["C", "U_C2"],
                                      label=f"C2_L{level:g}_r{rep}", benign_specs=F.thin_benign(LEAN), max_sources=2)
                 R.run_block(F.P1FakeHost(fail_share=lambda run, _b, _t, s=share: s if run == "U_C2" else 0.0), block)
         got = A.ladder_knees(root, cal)
@@ -353,7 +353,7 @@ class LadderTest(unittest.TestCase):
             json.dump({**REC.read_json(frozen["health"]), "benign_halvings": 1}, fh)
         root = os.path.join(tmp.name, "runs")
         for rep, inputs in ((1, frozen), (2, other)):
-            block = R.plan_block("ladder", 9001, root, frozen=inputs, levels={"C2": 1.0}, runs=["C", "U_C2"],
+            block = R.plan_block("ladder", 9000 + rep, root, frozen=inputs, levels={"C2": 1.0}, runs=["C", "U_C2"],
                                  label=f"C2_L1_r{rep}", benign_specs=F.thin_benign(LEAN), max_sources=2)
             R.run_block(F.P1FakeHost(), block)
         with self.assertRaisesRegex(ValueError, "one factor"):
@@ -433,10 +433,10 @@ class LadderAttemptsTest(unittest.TestCase):
         self.cal = l7_backend.load_record(self.frozen["calibration"])[0]
         self.root = os.path.join(tmp.name, "runs")
 
-    def pair(self, cls, level, rep, seed=9001, attempt=1, share=0.30, **host):
+    def pair(self, cls, level, rep, seed=None, attempt=1, share=0.30, **host):
         def fail(run, _b, _t, s=share, name=f"U_{cls}"):
             return s if run == name else 0.0
-        block = R.plan_block("ladder", seed, self.root, frozen=self.frozen, levels={cls: level}, runs=["C", f"U_{cls}"],
+        block = R.plan_block("ladder", seed or R.PT.ladder_seed(cls, level, rep), self.root, frozen=self.frozen, levels={cls: level}, runs=["C", f"U_{cls}"],
                              label=f"{cls}_L{level:g}_r{rep}", attempt=attempt, benign_specs=F.thin_benign(LEAN), max_sources=2)
         return R.run_block(F.P1FakeHost(fail_share=fail, **host), block)
 
@@ -789,7 +789,7 @@ class PointCheckTest(unittest.TestCase):
     @classmethod
     def pair(cls, root, lo, hi, quiet):
         for seed in range(lo, hi):
-            level, repeat = cls.LADDER[seed - 9002]
+            level, repeat = next((lv, r) for lv, r in cls.LADDER if R.PT.ladder_seed("C2", lv, r) == seed)
             block = R.plan_block("ladder", seed, root, frozen=cls.frozen, levels={"C2": level}, runs=["C", "U_C2"], label=f"C2_L{level:g}_r{repeat}",
                                  benign_specs=F.thin_benign(LEAN), max_sources=2)
             R.run_block(F.P1FakeHost(quiet_from=quiet), block)
