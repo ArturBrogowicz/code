@@ -82,6 +82,30 @@ class SpecsTest(unittest.TestCase):
                 self.assertEqual(scn.id, name)
                 self.assertEqual(S.problems_of(record(name)), [])
 
+    def test_hg4s_cheap_spec_is_hg3s_at_level_4_twice_the_frozen_knee(self):
+        """D-071 (the user's, 2026-11-06, before any HG4 data; R-020): at the knee of 2 a source sends 30.8 req/s, 3 % above limit_req's
+        30 r/s and under the L7 rule's 50, so the rules' control could not show the rules winning. HG3 stays at the knee (D-066)."""
+        hg3, hg4 = record("cheap_static_flood"), record("cheap_static_flood_hg4")
+        self.assertEqual(S.load(path_of("cheap_static_flood_hg4")).id, "cheap_static_flood_hg4")
+        self.assertEqual(S.problems_of(hg4), [])
+        self.assertEqual((hg3["intensity"]["level"], hg4["intensity"]["level"]), ("knee", 4))
+        self.assertEqual({k: v for k, v in hg4.items() if k not in ("id", "description", "intensity")},
+                         {k: v for k, v in hg3.items() if k not in ("id", "description", "intensity")})
+        self.assertEqual({k: v for k, v in hg4["intensity"].items() if k != "level"}, {k: v for k, v in hg3["intensity"].items() if k != "level"})
+        self.assertIn("D-071", hg4["description"])
+        self.assertEqual(S.pair_problems(S.load(path_of("cheap_static_flood_hg4")), S.load(path_of("benign_control"))), [])
+        frozen = C.load(FROZEN)
+        self.assertEqual(frozen["knees"]["cheap_static_flood"], 2.0)
+        p = S.plan(S.load(path_of("cheap_static_flood_hg4")), frozen)
+        a = p["attack"]
+        self.assertEqual(a["level"], 2 * frozen["knees"]["cheap_static_flood"])
+        self.assertAlmostEqual(a["per_source_rate"], 61.67, places=2, msg="D-071's 61.6 req/s a source")
+        self.assertEqual((a["rules"]["limit_req_sheds"], a["rules"]["l7_rule_bans"]), (True, True))
+        knee = S.plan(S.load(path_of("cheap_static_flood")), frozen)["attack"]
+        self.assertAlmostEqual(knee["per_source_rate"], 30.83, places=2, msg="R-020's 30.8 req/s at the knee")
+        self.assertEqual((knee["rules"]["limit_req_sheds"], knee["rules"]["l7_rule_bans"]), (True, False))
+        self.assertEqual(p["warnings"], ["the attack family's grounding is 'assumed': no external reference motivates it"])
+
     def test_every_attack_is_paired_with_the_control_and_the_pair_is_fit(self):
         control = S.load(path_of("benign_control"))
         self.assertTrue(control.is_control)
