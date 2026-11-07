@@ -952,11 +952,38 @@ class CalibrationTest(CampaignCase):
         self.assertIn("level rule   with protected arms (HG4) cheap_static_flood runs at 2 x the frozen knee (D-071)",
                       GC.describe(hg4, cal, SPEC_SHA, xdp))
 
+    def test_hg4s_cheap_spec_is_refused_without_arms_and_names_the_spec_to_use(self):
+        """D-077: one experiment, one spec. HG3's 2 x knee confirmation is cheap_static_flood with --confirm-2x-knee."""
+        cal = copy.deepcopy(self.CAL)
+        cal["knees"] = {"cheap_static_flood": 2.0}
+        path = os.path.join(REPO, "bench", "scenarios", "cheap_static_flood_hg4.json")
+        hg4 = SC.load(path)
+        said = ("cheap_static_flood_hg4 is HG4's spec and runs only with protected arms (--modes; D-071, D-077); without them use "
+                "cheap_static_flood, and cheap_static_flood with --confirm-2x-knee for HG3's further confirmation at 2 x the knee")
+        for opts in (self.options(), self.options(confirm_2x_knee=True)):
+            self.assertEqual(GC.spec_problem(hg4, opts), said)
+            with self.assertRaises(GC.CampaignError) as ctx:
+                self.run_campaign(scn=hg4, cal=cal, **{k: getattr(opts, k) for k in ("confirm_2x_knee",)})
+            self.assertEqual(str(ctx.exception), said)
+            self.assertFalse(os.path.exists(self.path()), "refused before anything is made")
+        self.assertIsNone(GC.spec_problem(hg4, self.options(modes=("xdp",))))
+        self.assertIsNone(GC.spec_problem(SC.load(SPEC), self.options()))
+        cal_path = os.path.join(self.tmp.name, "kneed.json")
+        cal["sha256"] = C.digest(cal)
+        C.dump(cal, cal_path)
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            self.assertEqual(GC.main(["plan", path, "--calibration", cal_path]), GC.EXIT_STOPPED)
+            self.assertEqual(GC.main(["plan", path, "--calibration", cal_path, "--confirm-2x-knee"]), GC.EXIT_STOPPED)
+            self.assertEqual(GC.main(["plan", path, "--calibration", cal_path, "--modes", "xdp"]), GC.EXIT_OK)
+        self.assertEqual(err.getvalue().count(said), 2)
+        self.assertIn("attack level 4.0", out.getvalue())
+
     def test_on_the_real_record_hg4s_cheap_spec_passes_with_arms_and_hg3s_without(self):
         frozen = C.load(os.path.join(REPO, "bench", "calibration", "ddos-mitigation-2026-11-04.json"))
         xdp = self.options(modes=("xdp",))
         for name, opts, ok in (("cheap_static_flood_hg4", xdp, True), ("cheap_static_flood", xdp, False),
-                               ("cheap_static_flood", self.options(), True), ("cheap_static_flood_hg4", self.options(), False),
+                               ("cheap_static_flood", self.options(), True),
                                ("costly_search_sub_threshold", xdp, True), ("costly_export_sub_threshold", xdp, True)):
             with self.subTest(name=name, modes=opts.modes):
                 scn = SC.load(os.path.join(REPO, "bench", "scenarios", name + ".json"))

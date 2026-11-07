@@ -394,6 +394,18 @@ def at_campaign_level(scn, cal, opts):
 # docs/HG1C_DESIGN.md departure 39 (D-071, the user's, 2026-11-06, before any HG4 data; R-020): a campaign with protected arms (HG4) runs
 # these families at this multiple of the frozen knee, which their HG4 spec states as a number; every other family at the knee
 HG4_KNEE_MULTIPLE = {"cheap_static_flood": 2}
+# D-077: a spec made for HG4 runs only with protected arms, so that HG3's 2 x knee confirmation keeps one spec (and one spec hash): the
+# HG3 spec of the same family, with --confirm-2x-knee
+HG4_ONLY_SPECS = {"cheap_static_flood_hg4": "cheap_static_flood"}
+
+
+def spec_problem(scn, opts):
+    """Why this spec may not be planned or run as the campaign is asked for, or None: an HG4 spec without protected arms (D-077)."""
+    if scn.id in HG4_ONLY_SPECS and not opts.modes:
+        hg3 = HG4_ONLY_SPECS[scn.id]
+        return (f"{scn.id} is HG4's spec and runs only with protected arms (--modes; D-071, D-077); without them use {hg3}, and "
+                f"{hg3} with --confirm-2x-knee for HG3's further confirmation at 2 x the knee")
+    return None
 
 
 def level_problem(scn, cal, opts):
@@ -450,6 +462,8 @@ def run_campaign(scn, cal, cal_path, scenario_sha, out, host, opts=None, say=pri
     opts = opts or Options()
     check_calibration(cal, opts)
     check_options(opts)
+    if spec_problem(scn, opts):
+        raise CampaignError(spec_problem(scn, opts))
     scn = at_campaign_level(scn, cal, opts)
     problem = level_problem(scn, cal, opts)
     if problem:
@@ -628,6 +642,8 @@ def main(argv=None, host=None):
         opts = options_of(args)
         check_modes(opts)
         scenario_sha = sha256_of(args.spec)
+        if spec_problem(scn, opts):
+            raise CampaignError(spec_problem(scn, opts))
         if args.command == "plan":
             print(describe(scn, cal, scenario_sha, opts), end="")
             return EXIT_OK
