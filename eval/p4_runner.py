@@ -34,6 +34,12 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     and ss_failed N when every read fails, so counting events would call a blind rule alive). A run that
     fails one is invalid, with its reasons.
 
+Re-registration record (D-073 (4), 2026-11-07T08:33Z, the user's approval of T-071, before any P4 data; R-021), committed before the code
+it judges: P4's benign clients run on CPU 7, the CPU the timer gate probes at the record's limit, measured there; the attack generators
+(grouped or not) and the runner on CPUs 3-6, as P1 and HG pin them (bench/population.PIN_PLAN_DAEMON). A pass of the gate now speaks for
+the CPU of the clients whose requests are judged, and the attack's start no longer shares their CPU. gen_argv's `cpus` defaults to its
+entity's role's; P1 passes its own, as before.
+
 Re-registration record (D-073 (3), 2026-11-07T08:33Z, the user's approval of T-071, before any P4 data; R-021), committed before the code
 it judges: phase `health` runs the halving rule's two controls, C and C' (no attack, profile R, no daemon), on its pilot seed 9101 at
 `--halvings`, under the label h<halvings>; eval/p4_health.py reads its steps into the frozen factor. A ladder, a validation and a campaign
@@ -138,10 +144,10 @@ HEALTH_FORMAT = "p4-health/1"     # eval/p4_health.py --out
 SERVER_NS, SERVER_IP, BRIDGE, SERVER_VETH_HOST_END = "server_ns", "10.0.0.1", "ddos_br0", "veth_srv_br"
 NS_PREFIX, MAX_ALIASES, SUBNET_MASK = "p4n", 80, "/16"
 # The runner too (review T-050 T050-17): its popen, curl and reads, and the ip and curl processes it starts, keep off the CPUs of the
-# server and the daemon, as bench/population.PIN_PLAN_DAEMON's executor CPU does. P4's plan has no CPU to spare, so it shares the clients'.
+# server and the daemon, as bench/population.PIN_PLAN_DAEMON's executor CPU does. P4's plan has no CPU to spare, so it shares the attack's.
 # "timer": the CPU the timer gate probes (review T-057 T057-06), the legit CPU of bench/population.PIN_PLAN_DAEMON, on which the record's limit was
-# measured. P4's clients stay on 3-7, so the gate says that the host is calm, not that their CPUs are; the view slips read those.
-PINS = {"server": "0-1", "daemon": "2", "clients": "3-7", "runner": "3-7", "timer": "7"}
+# measured. D-073 (4): the benign clients run there, so the gate speaks for their CPU; the attack generators and the runner on 3-6.
+PINS = {"server": "0-1", "daemon": "2", "benign": "7", "attack": "3-6", "runner": "3-6", "timer": "7"}
 TIMER_WAIT_MIN = 30.0              # bench/executor.py timer_gate's default wait, as eval/p1_runner.py: every run may use it in full
 CONF_R = "nginx_profile_r.conf"
 CONF_LIMITS = "nginx_profile_r_limits.conf"
@@ -320,8 +326,9 @@ def stats_path(out, entity):
     return os.path.join(out, "attack_stats", entity["entity_id"].replace(":", "_") + ".json")
 
 
-def gen_argv(entity, out, python, cpus=PINS["clients"]):
+def gen_argv(entity, out, python, cpus=None):
     role = "benign" if entity["role"] == "benign" else "attack"
+    cpus = cpus or PINS[role]                         # D-073 (4); P1 passes its own
     dur = entity["schedule"]["stop_s"] - entity["schedule"]["start_s"]
     argv = ["taskset", "-c", cpus, python, GEN, "--role", role, "--host", SERVER_IP,
             "--port", str(entity["port"]), "--duration", f"{dur:.1f}", "--seed", str(entity["client_seed"]),
@@ -337,7 +344,7 @@ def gen_argv(entity, out, python, cpus=PINS["clients"]):
 GROUPED_FAMILIES = ("slowloris",)    # D-075: ml/l7_gen.py GROUP_FAMILIES, pinned by the tests
 
 
-def group_argv(members, out, python, cpus=PINS["clients"]):
+def group_argv(members, out, python, cpus=PINS["attack"]):
     """D-075: one generator for the Slowloris sources of one namespace (ml/l7_gen.py --group): each with its address, port, seed,
     parameters and stats file, as gen_argv gives a generator of its own."""
     family = {e["kind_or_family"] for e in members}

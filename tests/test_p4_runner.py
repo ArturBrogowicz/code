@@ -137,7 +137,7 @@ class PlanTest(unittest.TestCase):
                           "uploader"])
         for x in loris["launches"]:
             argv = x["argv"]
-            self.assertEqual(argv[:3], ["taskset", "-c", "3-7"])
+            self.assertEqual(argv[:3], ["taskset", "-c", "7" if x["role"] == "benign" else "3-6"])      # D-073 (4)
             self.assertEqual(argv[argv.index("--host") + 1], "10.0.0.1")
             if "--group" in argv:            # D-075: a namespace's Slowloris sources, one generator (tests/test_p4_grouped.py)
                 self.assertEqual((x["role"], x["start_s"], float(argv[argv.index("--duration") + 1])), ("attack", 30.0, 210.0))
@@ -747,9 +747,10 @@ class ExecuteTest(unittest.TestCase):
         host = F.FakeHost()
         block = self.block("smoke", 9101, arms=["C"], label="pin", sources={"loris": 0, "post": 0})
         R.run_block(host, block)
-        self.assertEqual(host.commands[0], ("", ("pin", "3-7"), ""))
-        self.assertEqual(block["runs"][0]["provenance"]["pins"]["runner"], "3-7")
-        self.assertEqual((R.PINS["runner"], R.PINS["clients"], R.PINS["server"], R.PINS["daemon"]), ("3-7", "3-7", "0-1", "2"))
+        self.assertEqual(host.commands[0], ("", ("pin", "3-6"), ""))                                     # D-073 (4)
+        self.assertEqual(block["runs"][0]["provenance"]["pins"]["runner"], "3-6")
+        self.assertEqual((R.PINS["runner"], R.PINS["attack"], R.PINS["benign"], R.PINS["server"], R.PINS["daemon"]),
+                         ("3-6", "3-6", "7", "0-1", "2"))
 
     def test_what_a_run_writes(self):
         host = F.FakeHost(modelled_attackers=2)
