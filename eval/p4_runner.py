@@ -34,6 +34,13 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     and ss_failed N when every read fails, so counting events would call a blind rule alive). A run that
     fails one is invalid, with its reasons.
 
+Re-registration record (D-075, 2026-11-07T08:33Z, the user's approval of T-071's option (a); memory, R-023), committed before the code it
+judges: the Slowloris sources of a run are launched grouped, one generator process per client namespace (at most MAX_ALIASES sources), a
+thread per source (ml/l7_gen.py --group, group_argv): each source's seeded schedule, address and statistics file are what its own
+generator's were. Every other generator is launched as before, one per entity (gen_argv, which P1 calls too, is unchanged). A group's
+launch is named group:<namespace>; its launch lag, exit code and stderr are the group's; attack_summary still reads each source's stats and
+counts the processes.
+
 Re-registration record (D-073 (1) and D-074, 2026-11-07T08:33Z, the user's approval of T-071, before any ladder data), committed before the
 code it judges: a ladder block at a level above a ladder's first ml/p4_traffic.ALWAYS_RUN levels runs only once every lower level has 2 sound
 repeats and none of them is a knee (check_ladder_order, eval/p4_ladder.next_allowed), on any host. A knees file whose family has no knee
@@ -307,6 +314,47 @@ def gen_argv(entity, out, python, cpus=PINS["clients"]):
     return argv
 
 
+GROUPED_FAMILIES = ("slowloris",)    # D-075: ml/l7_gen.py GROUP_FAMILIES, pinned by the tests
+
+
+def group_argv(members, out, python, cpus=PINS["clients"]):
+    """D-075: one generator for the Slowloris sources of one namespace (ml/l7_gen.py --group): each with its address, port, seed,
+    parameters and stats file, as gen_argv gives a generator of its own."""
+    family = {e["kind_or_family"] for e in members}
+    durs = {e["schedule"]["stop_s"] - e["schedule"]["start_s"] for e in members}
+    spaces = {e["namespace"] for e in members}
+    if len(family) != 1 or len(durs) != 1 or len(spaces) != 1 or family - set(GROUPED_FAMILIES):
+        raise PlanError(f"a group is one namespace's sources of one family of {GROUPED_FAMILIES} with one duration, got "
+                        f"{sorted(family)} {sorted(durs)} {sorted(spaces)}")
+    group = {"sources": [{"entity_id": e["entity_id"], "source": e["address"], "port": e["port"], "seed": e["client_seed"],
+                          "params": e["params"], "stats": stats_path(out, e)} for e in members]}
+    return ["taskset", "-c", cpus, python, GEN, "--role", "attack", "--family", family.pop(), "--host", SERVER_IP,
+            "--duration", f"{durs.pop():.1f}", "--group", json.dumps(group, sort_keys=True)]
+
+
+def launches_of(ents, out, python):
+    """A run's generators in the order of their start: one per entity (gen_argv), except the sources of GROUPED_FAMILIES, one per
+    namespace (group_argv, D-075), placed at its first source."""
+    keyed, groups = [], {}
+    for e in sorted(ents, key=lambda e: (e["schedule"]["start_s"], e["index"])):
+        if e["role"] == "attack" and e["kind_or_family"] in GROUPED_FAMILIES:
+            if e["namespace"] not in groups:
+                groups[e["namespace"]] = []
+                keyed.append(((e["schedule"]["start_s"], e["index"]), ("group", e["namespace"])))
+            groups[e["namespace"]].append(e)
+            continue
+        keyed.append(((e["schedule"]["start_s"], e["index"]), {"entity_id": e["entity_id"], "role": e["role"], "ns": e["namespace"],
+                                                               "start_s": e["schedule"]["start_s"], "argv": gen_argv(e, out, python)}))
+    out_ = []
+    for _key, x in sorted(keyed, key=lambda k: k[0]):
+        if isinstance(x, tuple):
+            members = groups[x[1]]
+            x = {"entity_id": f"group:{x[1]}", "role": "attack", "ns": x[1], "start_s": members[0]["schedule"]["start_s"],
+                 "argv": group_argv(members, out, python), "entities": [m["entity_id"] for m in members]}
+        out_.append(x)
+    return out_
+
+
 def daemon_env(mode, out, thresholds):
     env = {**DAEMON_BASE_ENV, **DAEMON_MODES[mode], "BAN_EVENTS": os.path.join(out, "ban_events.jsonl")}
     if mode in ("pc", "shadow"):
@@ -325,9 +373,7 @@ def plan_run(pop, phase, arm, out, *, thresholds=None, calibration=PLACEHOLDER, 
             if e["role"] == "benign" or (family is not None and e["schedule"]["phase"] == family)]
     nss = namespaces(ents)
     files = {name: sha256_file(os.path.join(REPO, name)) for name in PROFILE_FILES}
-    launches = [{"entity_id": e["entity_id"], "role": e["role"], "ns": e["namespace"],
-                 "start_s": e["schedule"]["start_s"], "argv": gen_argv(e, out, python)}
-                for e in sorted(ents, key=lambda e: (e["schedule"]["start_s"], e["index"]))]
+    launches = launches_of(ents, out, python)
     conf_path = os.path.join(REPO, conf)
     daemon = None
     if mode is not None:
@@ -427,7 +473,7 @@ def describe(block):
                      + f"; {len(r['namespaces'])} namespaces, {sum(len(n['addresses']) for n in r['namespaces'])} "
                        f"addresses, {len(r['launches'])} generators "
                        f"({sum(1 for x in r['launches'] if x['role'] == 'attack')} attacking from "
-                       f"{r['timeline']['baseline_s']} s)")
+                       f"{r['timeline']['baseline_s']} s, for {sum(1 for e in r['entities'] if e['role'] == 'attack')} sources)")
     return "\n".join(lines)
 
 
@@ -795,7 +841,8 @@ def attack_summary(plan):
     if not entities:
         return None
     out = {"planned": sum(e["params"]["conns"] for e in entities), "generators": len(entities), "no_stats": 0, "opened": 0,
-           "reopened": 0, "failed_opens": 0, "local_errors": 0, "sent_bytes": 0}
+           "reopened": 0, "failed_opens": 0, "local_errors": 0, "sent_bytes": 0,
+           "processes": sum(1 for x in plan["launches"] if x["role"] == "attack")}
     for e in entities:
         try:
             with open(stats_path(plan["out"], e), encoding="utf-8") as fh:

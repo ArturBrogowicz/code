@@ -130,6 +130,9 @@ class PlanTest(unittest.TestCase):
             argv = x["argv"]
             self.assertEqual(argv[:3], ["taskset", "-c", "3-7"])
             self.assertEqual(argv[argv.index("--host") + 1], "10.0.0.1")
+            if "--group" in argv:            # D-075: a namespace's Slowloris sources, one generator (tests/test_p4_grouped.py)
+                self.assertEqual((x["role"], x["start_s"], float(argv[argv.index("--duration") + 1])), ("attack", 30.0, 210.0))
+                continue
             e = next(e for e in loris["entities"] if e["entity_id"] == x["entity_id"])
             self.assertEqual(argv[argv.index("--source") + 1], e["address"])
             self.assertEqual(x["start_s"], 30.0 if e["role"] == "attack" else 0.0)
