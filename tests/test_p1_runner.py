@@ -579,6 +579,43 @@ class MemoryReadTest(Base):
         self.assertEqual(got["mem_available_min_kb"], min(r["mem_available_kb"] for r in rows))
 
 
+class UnreachableRecordTest(Base):
+    """D-074: a registered ladder level the plan refuses as not reachable is recorded for the knees file, never read as no harm."""
+
+    def main(self, *argv):
+        orig = R.PT.build_block
+
+        def thinned(*a, **kw):
+            return orig(*a, **{**kw, "benign_specs": F.thin_benign(), "max_sources": None})
+        err = io.StringIO()
+        with mock.patch.object(R.PT, "build_block", side_effect=thinned), contextlib.redirect_stderr(err), \
+                contextlib.redirect_stdout(io.StringIO()):
+            code = R.main(["--phase", "ladder", *argv, "--health", self.frozen["health"], "--calibration", self.frozen["calibration"],
+                           "--root", self.root])
+        return code, err.getvalue()
+
+    def test_a_level_over_the_address_limit_is_recorded_as_not_reachable(self):
+        code, said = self.main("--seed", "9001", "--class", "C3b", "--level", "300")
+        self.assertEqual(code, 2)
+        self.assertIn("exceed the verified limit of 300", said)
+        got = R.read_unreachable(self.root)
+        self.assertEqual([(x["class"], x["level"], x["repeat"], x["seed"]) for x in got], [("C3b", 300, 1, 9001)])
+        self.assertIn("not reachable on this testbed", got[0]["reason"])
+        self.assertFalse(os.path.exists(os.path.join(self.root, "ladder")))
+
+    def test_bounds_too_but_not_a_plan_nor_a_block_off_the_registered_ones(self):
+        code, _said = self.main("--seed", "9007", "--class", "C3a", "--level", "8")      # 8 x 84 sources on the fixture record
+        self.assertEqual(code, 2)
+        self.assertEqual([(x["class"], x["level"]) for x in R.read_unreachable(self.root)], [("C3a", 8.0)])
+        self.assertIn("c3a.sources_bounds", R.read_unreachable(self.root)[0]["reason"])
+        for argv in (("--seed", "9002", "--class", "C3b", "--level", "300", "--plan"),      # a preview
+                     ("--seed", "9002", "--class", "C3b", "--level", "300"),                # off the seed map
+                     ("--seed", "9001", "--class", "C3a", "--level", "16")):                # not on the ladder
+            with self.subTest(argv=argv):
+                self.assertEqual(self.main(*argv)[0], 2)
+        self.assertEqual(len(R.read_unreachable(self.root)), 1)
+
+
 class OperationsTest(Base):
     """T057-07, P1's side: a refusal is a reason and not a traceback, an interrupt goes through the teardown, and a generator's stderr stays."""
 

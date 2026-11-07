@@ -61,6 +61,7 @@ import random
 import re
 import shutil
 import sys
+import time
 import types
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -129,6 +130,32 @@ SLUG = {"default_rules": "default_rules", "R*": "rstar", "hgb": "hgb", "view_gru
 
 class PlanError(ValueError):
     """The run or block cannot be planned as asked."""
+
+
+class Unreachable(PlanError):
+    """A level this testbed cannot carry as planned (ml/p1_traffic.Unreachable): the source bounds or P1's address limit. For a ladder it is
+    recorded (record_unreachable) and reported as 'not reachable', never as no harm (D-074)."""
+
+
+UNREACHABLE_LOG = "ladder_unreachable.jsonl"
+
+
+def record_unreachable(root, cls, level, repeat, seed, reason):
+    """A registered ladder block the plan refused as not reachable, one JSON line in ROOT/ladder_unreachable.jsonl (D-074): the knees file
+    names the level so, and never as no harm."""
+    os.makedirs(root, exist_ok=True)
+    with open(os.path.join(root, UNREACHABLE_LOG), "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"class": cls, "level": level, "repeat": repeat, "seed": seed, "reason": reason,
+                             "utc": P4._utc(time.time())}, sort_keys=True) + "\n")
+
+
+def read_unreachable(root):
+    """The lines record_unreachable wrote, oldest first; none when there is no file."""
+    path = os.path.join(root, UNREACHABLE_LOG)
+    if not os.path.isfile(path):
+        return []
+    with open(path, encoding="utf-8") as fh:
+        return [json.loads(x) for x in fh if x.strip()]
 
 
 # --- runs ------------------------------------------------------------------------------------------
@@ -468,6 +495,8 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
         factor = plan_halvings(phase, frozen, knees, halvings)
         pop = PT.build_block(seed, role, levels, record_path=frozen["calibration"], knees=knees if phase == "campaign" else None,
                              benign_specs=benign_specs, max_sources=max_sources, halvings=factor)
+    except PT.Unreachable as exc:
+        raise Unreachable(str(exc)) from exc
     except PT.PlanError as exc:
         raise PlanError(str(exc)) from exc
     if phase == "ladder":
@@ -490,6 +519,8 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
                    for n in order]
         for run in planned:
             run["timer_limit_ms"] = record["validity"]["timer_p99_ms"]
+    except PT.Unreachable as exc:
+        raise Unreachable(str(exc)) from exc
     except PT.PlanError as exc:
         raise PlanError(str(exc)) from exc
     return {"phase": phase, "seed": seed, "attempt": attempt, "label": label, "dir": bdir, "root": root, "order": order,
@@ -1105,6 +1136,13 @@ def main(argv=None, host=None):
         block = plan_block(args.phase, args.seed, args.root, frozen=frozen, levels=levels, attempt=args.attempt, label=label,
                            runs=runs, cut=args.cut, python=args.python, halvings=args.halvings, address_limit=args.address_limit)
     except PlanError as exc:
+        if isinstance(exc, Unreachable) and args.phase == "ladder" and not args.plan:
+            try:
+                check_ladder(levels, label, args.seed)          # only a registered block on its seed says something about its level
+            except PlanError:
+                pass
+            else:
+                record_unreachable(args.root, args.cls, levels[args.cls], args.repeat, args.seed, str(exc))
         print(f"[-] {exc}", file=sys.stderr)
         return 2
     print(describe(block))
