@@ -466,6 +466,37 @@ class LadderAttemptsTest(unittest.TestCase):
             A.main([self.root, "--calibration", self.frozen["calibration"], "--ladder", "--out", out])
         self.assertIn("counted as no harm (ml/p1_prereg_3.json ladder): none", said.getvalue())
 
+    def test_every_level_has_its_status_and_a_class_without_a_knee_its_line(self):
+        """D-074: run, not reachable, not run; 'no harm reached up to X on this testbed'; 'not reachable' never reads as no harm."""
+        for rep in (1, 2):
+            self.pair("C2", 1.0, rep)
+            self.pair("C3a", 2.0, rep, share=0.0)
+        why = "C3a at level 4.0 needs 333 sources, outside [50, 320]: not reachable"
+        R.record_unreachable(self.root, "C3a", 4.0, 1, 9003, why)
+        got = A.knees_file(self.root, self.cal)
+        self.assertEqual(got["top_tested"], {"C2": 1.0, "C3a": 2.0, "C3b": None})
+        lv = got["levels"]["C3a"]
+        self.assertEqual([lv[k]["status"] for k in ("2", "4", "6", "8")], ["run", "not reachable", "not run", "not run"])
+        self.assertEqual((lv["2"]["passed"], lv["2"]["no_sound_attempt"], lv["4"]["reason"]), (False, [], why))
+        self.assertEqual(got["results"], {"C2": "C2: knee at 1",
+                                          "C3a": f"C3a: no harm reached up to 2 on this testbed; not reachable: 4 ({why}); the ladder was cut "
+                                                 "short below its registered top",
+                                          "C3b": "C3b: not tested"})
+        self.assertTrue(got["levels"]["C2"]["16"]["above_knee"])
+        self.assertEqual((got["C3a"], got["no_knee"]), (None, ["C3a", "C3b"]))
+        said = io.StringIO()
+        with contextlib.redirect_stdout(said):
+            A.main([self.root, "--calibration", self.frozen["calibration"], "--ladder", "--out", os.path.join(self.tmp, "knees.json")])
+        self.assertIn("C3a: no harm reached up to 2 on this testbed", said.getvalue())
+
+    def test_a_repeat_with_no_sound_attempt_is_named_in_the_line(self):
+        self.pair("C3b", 50, 1, quiet_from=60.0, share=0.0)
+        self.pair("C3b", 50, 2, share=0.0)
+        got = A.knees_file(self.root, self.cal)
+        self.assertEqual(got["levels"]["C3b"]["50"]["no_sound_attempt"], [1])
+        self.assertEqual(got["top_tested"]["C3b"], None)
+        self.assertEqual(got["results"]["C3b"], "C3b: no level ran with every repeat sound; no sound attempt, counted as no harm: 50 r1")
+
     def test_the_last_sound_attempt_counts_and_an_invalid_later_one_does_not_erase_it(self):
         self.pair("C2", 1.0, 1, quiet_from=60.0)
         self.pair("C2", 1.0, 1, attempt=2)

@@ -413,8 +413,9 @@ def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, p
 def ladder_harm(root, cal):
     """A finished ladder's harm, as bench/calibrate.harm against the attempt's own control: ({class: {level: [harm per repeat]}}, the repeats
     with no sound attempt). Per (class, level, repeat) the last attempt with both runs sound counts (T050-13, ml/p1_prereg_3.json ladder):
-    a clean re-run restores a level, and one with no sound attempt, or that the plan refused, counts as no harm: never as passing. Those
-    are named as well, so that the rule's zero is not read as a measured one (T063-01)."""
+    a clean re-run restores a level, and one with no sound attempt counts as no harm: never as passing. Those are named as well, so that
+    the rule's zero is not read as a measured one (T063-01). A level the plan refused has no attempt and no row: it is 'not reachable'
+    (ladder_status, D-074), never no harm."""
     import calibrate as K
     gate = cal["gate"]
     attempts = {}
@@ -448,12 +449,68 @@ def ladder_knees(root, cal, harm=None):
     return {cls: CAL.knee(sorted(levels.items()), 1.0, 2) for cls, levels in sorted(rows.items())}
 
 
+def ladder_status(root, harm, knees):
+    """D-074 (ml/p1_prereg_5.json ladder.statuses and no_knee), per class: each registered level's status, 'run' (with its repeats that
+    had no sound attempt), 'not reachable' (with the plan's reason, from the runner's ladder_unreachable.jsonl) or 'not run'; the top tested
+    level, the highest whose repeats all had a sound attempt; and the class's line: its knee, or 'no harm reached up to X on this testbed'.
+    'Not reachable' never reads as no harm."""
+    rows, unsound = harm
+    refused = {}
+    for x in RUN.read_unreachable(root):
+        refused.setdefault((x["class"], float(x["level"])), x["reason"])
+    repeats = PT.ladder_repeats()
+    out = {}
+    for cls in sorted(PT.PRIMARY):
+        knee = knees.get(cls) or {}
+        passing = {float(x) for x in knee.get("passing") or []}
+        levels, tested = {}, []
+        for lv in PT.ladder_levels(cls):
+            key = float(lv)
+            holes = sorted(u["repeat"] for u in unsound if u["class"] == cls and float(u["level"]) == key)
+            ran = rows.get(cls, {}).get(key)
+            if ran is not None:
+                st = {"status": "run", "repeats": len(ran), "no_sound_attempt": holes, "passed": key in passing}
+                if len(ran) >= repeats and not holes:
+                    tested.append(lv)
+            elif (cls, key) in refused:
+                st = {"status": "not reachable", "reason": refused[(cls, key)]}
+            else:
+                st = {"status": "not run"}
+            if knee.get("level") is not None and key > knee["level"]:
+                st["above_knee"] = True
+            levels[f"{lv:g}"] = st
+        top = max(tested) if tested else None
+        out[cls] = {"levels": levels, "top_tested": top, "result": _ladder_line(cls, knee.get("level"), top, levels)}
+    return out
+
+
+def _ladder_line(cls, knee, top, levels):
+    """A class's line in the ladder's report (D-074)."""
+    if knee is not None:
+        return f"{cls}: knee at {knee:g}"
+    gone = [f"{lv} ({st['reason']})" for lv, st in levels.items() if st["status"] == "not reachable"]
+    holes = [f"{lv} r{r}" for lv, st in levels.items() if st["status"] == "run" for r in st["no_sound_attempt"]]
+    if not any(st["status"] == "run" for st in levels.values()):
+        line = f"{cls}: not tested"
+    elif top is None:
+        line = f"{cls}: no level ran with every repeat sound"
+    else:
+        line = f"{cls}: no harm reached up to {top:g} on this testbed"
+    if holes:
+        line += f"; no sound attempt, counted as no harm: {', '.join(holes)}"
+    if gone:
+        line += f"; not reachable: {'; '.join(gone)}; the ladder was cut short below its registered top"
+    return line
+
+
 def knees_file(root, cal):
     """What --ladder writes and --knees takes (T050-13): each class's level at the top of the file, null and named under no_knee for a class
     without one, bound to the record and the factor. A campaign that needs a class without a knee refuses. Under no_sound_attempt, every
-    (class, level, repeat) that had no sound attempt and so counted as no harm (T063-01)."""
+    (class, level, repeat) that had no sound attempt and so counted as no harm (T063-01). Under levels, top_tested and results, D-074's
+    statuses and lines (ladder_status); P3 sizes a family without a knee at its top tested level (ml/p3_sizing_prereg.json)."""
     harm = ladder_harm(root, cal)
     knees = ladder_knees(root, cal, harm)
+    status = ladder_status(root, harm, knees)
     levels, none = {}, []
     for cls in sorted(PT.PRIMARY):
         level = (knees.get(cls) or {}).get("level")
@@ -461,7 +518,9 @@ def knees_file(root, cal):
         if level is None:
             none.append(cls)
     return {"format": "p1-knees/1", "status": cal.get("status"), "record_sha256": cal.get("sha256"), "record_status": cal.get("status"),
-            "benign_halvings": ladder_factor(root), **levels, "no_knee": none, "no_sound_attempt": harm[1], "knees": knees}
+            "benign_halvings": ladder_factor(root), **levels, "no_knee": none, "no_sound_attempt": harm[1],
+            "top_tested": {c: s["top_tested"] for c, s in status.items()}, "levels": {c: s["levels"] for c, s in status.items()},
+            "results": {c: s["result"] for c, s in status.items()}, "knees": knees}
 
 
 def ladder_factor(root):
@@ -604,6 +663,8 @@ def main(argv=None):
         holes = ", ".join(f"{h['class']} L{h['level']:g} r{h['repeat']}" for h in res["no_sound_attempt"]) or "none"
         print(f"the knees: { {c: res[c] for c in sorted(PT.PRIMARY)} }; no knee: {res['no_knee']}; "
               f"no sound attempt, counted as no harm (ml/p1_prereg_3.json ladder): {holes}")
+        for line in res["results"].values():
+            print(f"  {line}")
     else:
         frozen = {"selection": args.selection, "selection_sha256": args.selection_sha256, "rules": args.rules,
                   "rules_sha256": args.rules_sha256}
