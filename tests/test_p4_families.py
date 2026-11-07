@@ -15,10 +15,11 @@ import unittest
 from unittest import mock
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-for _p in (REPO, os.path.join(REPO, "ml")):
+for _p in (REPO, os.path.join(REPO, "ml"), os.path.join(REPO, "tests")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 import l7_gen
+import l7_gen_timer
 import l7_pools
 import p4_traffic as P
 
@@ -244,9 +245,10 @@ class GeneratorTest(unittest.TestCase):
 
     def test_the_generator_states_what_it_opened(self):
         # The real generator, in the sandbox: its source address is not on this machine, so every open fails for a local
-        # reason, and that must reach the runner (review T-047 P-06: the stats were dropped).
+        # reason, and that must reach the runner (review T-047 P-06: the stats were dropped). Its hard exit stays inert (T-074b): armed, it
+        # would os._exit this process 7.2 s later (tests/l7_gen_timer.py).
         params = dict(P.FAMILIES["loris"]["params"], conns=2, port=80)
-        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(l7_gen, "SOURCE", None):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(l7_gen, "SOURCE", None), l7_gen_timer.inert():
             path = os.path.join(tmp, "stats.json")
             rc = l7_gen.main(["--role", "attack", "--family", "slowloris", "--host", "10.0.0.1", "--duration", "0.2",
                               "--seed", "7", "--params", json.dumps(params), "--source", "10.0.16.5", "--stats", path])

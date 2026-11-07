@@ -21,6 +21,7 @@ import l7_gen
 import p4_fake_host as F
 import p4_runner as R
 import p4_traffic as P
+from l7_gen_timer import inert
 
 ADDRS = ("10.0.16.5", "10.0.16.9", "10.0.17.2")
 
@@ -55,23 +56,6 @@ class RecordingSocket:
 
     def close(self):
         pass
-
-
-class InertTimer:
-    """threading.Timer for the generator's hard exit (ml/l7_gen.py HARD_EXIT_S), which must not end the test process after main returns."""
-
-    def __init__(self, *_a, **_k):
-        self.daemon = True
-
-    def start(self):
-        pass
-
-    def cancel(self):
-        pass
-
-
-def inert():
-    return mock.patch.object(l7_gen.threading, "Timer", InertTimer)
 
 
 def recorded(argv):
