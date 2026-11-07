@@ -106,6 +106,21 @@ class SpecsTest(unittest.TestCase):
         self.assertEqual((knee["rules"]["limit_req_sheds"], knee["rules"]["l7_rule_bans"]), (True, False))
         self.assertEqual(p["warnings"], ["the attack family's grounding is 'assumed': no external reference motivates it"])
 
+    def test_cheaps_description_says_what_holds_at_its_knee_on_the_frozen_record(self):
+        """D-077: 'The control where the rules win ... each far above the per-source rules' no longer held at the knee (R-020)."""
+        text = record("cheap_static_flood")["description"]
+        a = S.plan(S.load(path_of("cheap_static_flood")), C.load(FROZEN))["attack"]
+        limit_req = next(r for r in a["thresholds"] if r["name"] == "limit_req") if "thresholds" in a else None
+        self.assertEqual(f"{a['per_source_rate']:.1f}", "30.8")
+        self.assertIn(f"about {a['per_source_rate']:.1f} req/s a source", text)
+        ratio = limit_req["ratio"] if limit_req else a["per_source_rate"] / 30
+        self.assertIn(f"about {ratio:.2f} x limit_req's 30 r/s", text)
+        self.assertEqual(round(100 * a["rules"]["reject_share"]), 3)
+        self.assertIn("so it sheds about 3 %", text)
+        self.assertFalse(a["rules"]["l7_rule_bans"])
+        self.assertIn("under the L7 rule's 50 r/s, so no ban: the rules may barely win", text)
+        self.assertNotIn("far above", text)
+
     def test_every_attack_is_paired_with_the_control_and_the_pair_is_fit(self):
         control = S.load(path_of("benign_control"))
         self.assertTrue(control.is_control)
