@@ -347,6 +347,9 @@ def check_campaign(root, cal, frozen, cut=False):
     unsaid = [name for name in names if "cut" not in settings[name]]
     if unsaid:
         raise SettingsError(f"{', '.join(unsaid)} do not record whether they ran the cut, so --cut cannot be checked against them")
+    unsaid = [name for name in names if "live_classes" not in settings[name]]
+    if unsaid:
+        raise SettingsError(f"{', '.join(unsaid)} do not record which classes they ran (D-074), so the analysis cannot tell what to judge")
     for name in names[1:]:
         differ = sorted(k for k in set(settings[name]) | set(settings[names[0]]) if settings[name].get(k) != settings[names[0]].get(k))
         if differ:
@@ -360,13 +363,20 @@ def check_campaign(root, cal, frozen, cut=False):
         if ran["cut"] != bool(cut):
             ran_what, asked = ("the cut", "the full live set") if ran["cut"] else ("the full live set", "the cut (--cut)")
             raise SettingsError(f"the campaign ran {ran_what}, and the analysis was asked to read {asked}")
+        return ran
+    return None
 
 
 def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, pre=None):
     """Every class's admission, inputs and verdict: {class: {"verdict", "admission", "judge", "excluded", "replay"}}. Blocks that did not run
     one setting, or a record or selection other than theirs, are refused (SettingsError)."""
-    check_campaign(root, cal, frozen, cut)
+    ran = check_campaign(root, cal, frozen, cut)
     pre = live_set(pre or VP.load(), cut)
+    left_out = []
+    if ran is not None:                       # D-074: the classes that ran, those with a knee; the others are named, not judged
+        left_out = sorted(c for c in pre["live_set"]["per_class"] if c not in ran["live_classes"])
+        pre = copy.deepcopy(pre)
+        pre["live_set"]["per_class"] = {c: v for c, v in pre["live_set"]["per_class"].items() if c in ran["live_classes"]}
     arms_factory = arms_factory or default_factory(frozen)
     classes = sorted(pre["live_set"]["per_class"])
     attempts = assess_attempts(root, cal, classes)
@@ -405,6 +415,9 @@ def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, p
         row["verdict"] = row["judge"]["verdict"]
         row["view_level_contrasts"] = view_level_contrasts(row["judge"], row["age_only_on_U"],
                                                            pre["detection_entities"]["per_class"][cls]["primary"])
+    for cls in left_out:
+        out[cls] = {"class": cls, "verdict": None, "status": "not in the campaign: no knee (D-074); its line, 'no harm reached up to X on "
+                                                             "this testbed', is in the ladder's knees file"}
     return out
 
 

@@ -468,6 +468,7 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
         raise PlanError(f"only a smoke reads above the verified address limit, not a {phase}")
     role = "eval" if phase == "campaign" else "pilot"
     knees = load_knees(frozen.get("knees"))
+    no_knee = []
     if phase == "campaign":
         if knees is None:
             raise PlanError("a campaign needs the frozen knees (--knees)")
@@ -475,9 +476,12 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
             raise PlanError("a campaign runs the live set")
         pairs = live_runs(cut)
         levels = {c: knees.get(c) for c in sorted({c for _a, c in pairs} - {None})}
-        none = sorted(c for c, level in levels.items() if level is None)
-        if none:
-            raise PlanError(f"{', '.join(none)} has no knee at its reachable levels, and this campaign needs it (ml/p1_prereg_3.json ladder)")
+        no_knee = sorted(c for c, level in levels.items() if level is None)
+        if len(no_knee) == len(levels):
+            raise PlanError(f"no class of this campaign has a knee ({', '.join(no_knee)}): there is no campaign (D-074, ml/p1_prereg_5.json "
+                            "no_knee)")
+        pairs = [(a, c) for a, c in pairs if c not in no_knee]     # D-074: the classes with a knee, C2 alone if it is the only one
+        levels = {c: level for c, level in levels.items() if c not in no_knee}
     elif phase == "health":
         rule = PT.prereg()["halving"]
         if runs is not None or levels:
@@ -525,7 +529,7 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
         raise PlanError(str(exc)) from exc
     return {"phase": phase, "seed": seed, "attempt": attempt, "label": label, "dir": bdir, "root": root, "order": order,
             "levels": levels, "halvings": factor, "sources": pop["sources"], "cut": bool(cut), "frozen": sums,
-            "calibration": frozen["calibration"],
+            "calibration": frozen["calibration"], "live_classes": sorted({c for _a, c in pairs} - {None}), "no_knee": no_knee,
             "intensity": pop["intensity"], "flash": pop["flash"], "dropped": pop["dropped"],
             "age_check": ages, "address_limit": pop["pool"]["address_limit"], "benign_load": PT.benign_load(pop, record),
             "runs": planned}
@@ -559,6 +563,8 @@ def describe(block):
               f"rho {load['rho_req_s']:g} req/s, {load['rho_cpu_s_s']} CPU-s/s; C_slo {load['c_slo_req_s']:g} req/s, "
               f"{load['c_slo_cpu_s_s']} CPU-s/s; S {load['spare_cpu_s']} CPU-s/s"),
              f"VM time of this block: {vm_minutes(len(block['runs'])):.0f} min [ESTIMATE]"]
+    if block["no_knee"]:
+        lines.append(f"not in this campaign: {', '.join(block['no_knee'])}, which has no knee (D-074): its line is in the knees file")
     for r in block["runs"]:
         d = r["daemon"]
         env = " ".join(f"{k}={v}" for k, v in sorted(d["env"].items())) if d else "none"
@@ -994,7 +1000,7 @@ def block_settings(block):
             "health_sha256": (f.get("health") or {}).get("sha256"), "points_sha256": points.get("sha256"),
             "points_decision": points.get("decision"), "selection_sha256": (f.get("selection") or {}).get("sha256"),
             "rules_sha256": (f.get("rules") or {}).get("sha256"), "halvings": block["halvings"], "levels": block["levels"],
-            "sources": block["sources"], "cut": block["cut"],
+            "sources": block["sources"], "cut": block["cut"], "live_classes": block["live_classes"],
             "code_sha256": hashlib.sha256(json.dumps(code, sort_keys=True).encode()).hexdigest()}
 
 
@@ -1070,7 +1076,7 @@ def run_block(host, block):
                   {"block": block["seed"], "attempt": block["attempt"], "seed": block["seed"], "phase": block["phase"],
                    "calibration_sha256": block["frozen"]["calibration"]["digest"], "timeline": dict(PT.TIMELINE),
                    "order": block["order"], "levels": block["levels"], "halvings": block["halvings"],
-                   "sources": block["sources"], "cut": block["cut"],
+                   "sources": block["sources"], "cut": block["cut"], "live_classes": block["live_classes"], "no_knee": block["no_knee"],
                    "frozen": block["frozen"], "intensity": block["intensity"], "flash": block["flash"],
                    "dropped": block["dropped"], "age_check": block["age_check"], "address_limit": block["address_limit"],
                    "benign_load": block["benign_load"], "settings": block_settings(block)})

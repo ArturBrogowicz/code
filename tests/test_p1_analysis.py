@@ -523,7 +523,7 @@ class LadderAttemptsTest(unittest.TestCase):
         block = R.plan_block("campaign", SEEDS[0], self.root, frozen={**self.frozen, "knees": out}, benign_specs=F.thin_benign(LEAN), max_sources=2)
         self.assertEqual(block["levels"], {"C2": 1.0, "C3a": 2.0, "C3b": 50})
 
-    def test_a_class_without_a_knee_is_named_and_refused_when_needed(self):
+    def test_a_class_without_a_knee_stays_out_of_the_campaign(self):
         for cls, level, share in (("C2", 1.0, 0.30), ("C3a", 2.0, 0.0), ("C3b", 50, 0.30)):
             self.pair(cls, level, 1, share=share)
             self.pair(cls, level, 2, seed=9002, share=share)
@@ -532,10 +532,70 @@ class LadderAttemptsTest(unittest.TestCase):
         path = os.path.join(self.tmp, "knees.json")
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(got, fh)
-        with self.assertRaisesRegex(R.PlanError, "C3a has no knee"):
-            R.plan_block("campaign", SEEDS[0], self.root, frozen={**self.frozen, "knees": path}, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        block = R.plan_block("campaign", SEEDS[0], self.root, frozen={**self.frozen, "knees": path}, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        self.assertEqual((sorted(block["levels"]), block["no_knee"], block["live_classes"]), (["C2", "C3b"], ["C3a"], ["C2", "C3b"]))
+        self.assertFalse([n for n in block["order"] if n.endswith("_C3a")], "D-074: no run of a class without a knee")
+        self.assertIn("not in this campaign: C3a, which has no knee (D-074)", R.describe(block))
         block = R.plan_block("campaign", SEEDS[0], self.root, frozen={**self.frozen, "knees": path}, cut=True, benign_specs=F.thin_benign(LEAN), max_sources=2)
-        self.assertEqual(sorted(block["levels"]), ["C2", "C3b"])
+        self.assertEqual((sorted(block["levels"]), block["no_knee"]), (["C2", "C3b"], []))
+
+
+class NoKneeCampaignTest(unittest.TestCase):
+    """D-074: the campaign runs the classes with a knee, C2 alone if it is the only one, and the analysis judges what ran."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        rec = calibration_fixtures.frozen()
+        bound = {"status": "frozen", "record_sha256": rec["sha256"]}
+        cls.frozen = F.frozen_inputs(os.path.join(cls.tmp.name, "frozen"), knees={**bound, "C2": 4.0, "C3a": None, "C3b": None})
+        cls.none = F.frozen_inputs(os.path.join(cls.tmp.name, "none"), knees={**bound, "C2": None, "C3a": None, "C3b": None})
+        cls.cal = l7_backend.load_record(cls.frozen["calibration"])[0]
+        cls.root = os.path.join(cls.tmp.name, "runs")
+        cls.block = R.plan_block("campaign", SEEDS[0], cls.root, frozen=cls.frozen, cut=True, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        R.run_block(F.P1FakeHost(), cls.block)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_c2_alone_when_it_is_the_only_class_with_a_knee(self):
+        self.assertEqual(sorted(self.block["order"]), ["C", "Cp", "M_gru_C2", "M_rstar_C2", "U_C2"])
+        self.assertEqual((self.block["no_knee"], self.block["live_classes"]), (["C3b"], ["C2"]))
+        meta = REC.read_json(os.path.join(self.block["dir"], "block.json"))
+        self.assertEqual((meta["no_knee"], meta["settings"]["live_classes"]), (["C3b"], ["C2"]))
+
+    def test_c3b_alone_when_c2_has_no_knee(self):
+        rec = calibration_fixtures.frozen()
+        frozen = F.frozen_inputs(os.path.join(self.tmp.name, "c3b"), knees={"status": "frozen", "record_sha256": rec["sha256"], "C2": None,
+                                                                            "C3a": None, "C3b": 50, "no_knee": ["C2", "C3a"]})
+        block = R.plan_block("campaign", SEEDS[1], os.path.join(self.tmp.name, "c3b_runs"), frozen=frozen, cut=True,
+                             benign_specs=F.thin_benign(LEAN), max_sources=2)
+        self.assertEqual(sorted(block["order"]), ["C", "Cp", "M_gru_C3b", "M_hgb_C3b", "M_rstar_C3b", "U_C3b"])
+        self.assertEqual((block["no_knee"], block["levels"]), (["C2"], {"C3b": 50}))
+
+    def test_no_class_with_a_knee_is_no_campaign(self):
+        with self.assertRaisesRegex(R.PlanError, "no class of this campaign has a knee.*there is no campaign"):
+            R.plan_block("campaign", SEEDS[1], os.path.join(self.tmp.name, "none_runs"), frozen=self.none, cut=True,
+                         benign_specs=F.thin_benign(LEAN), max_sources=2)
+
+    def test_the_analysis_judges_what_ran_and_names_the_rest(self):
+        res = A.analyse(self.root, self.cal, self.frozen, arms_factory=factory({}), cut=True, dry_run=True)
+        self.assertEqual(sorted(res), ["C2", "C3b"])
+        self.assertIn("admission", res["C2"])
+        self.assertEqual(res["C3b"]["verdict"], None)
+        self.assertIn("not in the campaign: no knee (D-074)", res["C3b"]["status"])
+
+    def test_a_block_that_does_not_record_its_classes_is_refused(self):
+        root = os.path.join(self.tmp.name, "unsaid")
+        shutil.copytree(self.root, root)
+        path = os.path.join(root, "campaign", f"b{SEEDS[0]}_a1", "block.json")
+        meta = REC.read_json(path)
+        del meta["settings"]["live_classes"]
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(meta, fh)
+        with self.assertRaisesRegex(A.SettingsError, "do not record which classes they ran"):
+            A.check_campaign(root, self.cal, self.frozen, cut=True)
 
 
 def one_invalid(run, seed):

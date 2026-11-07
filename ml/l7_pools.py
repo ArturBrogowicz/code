@@ -533,7 +533,7 @@ def c2_rps(m, level, spare_cpu_s, n, cost_ms):
     return round(m * level * spare_cpu_s / (n * cost_ms / 1000.0), 4)
 
 
-def _knees(knees, seed_role, rec):
+def _knees(knees, seed_role, rec, need=("C2",)):
     """The knees a plan uses (T-030 L7V2-08): for training, validation and evaluation, frozen knees measured on the
     plan's own calibration record, which must be frozen; the placeholder for a pilot without knees. Knees that name
     their record (`record_sha256`, the record's digest) are refused on any other record, whatever the role."""
@@ -557,7 +557,7 @@ def _knees(knees, seed_role, rec):
     if knees is None:
         return dict(PLACEHOLDER_KNEES)
     c2 = knees.get("C2")
-    if isinstance(c2, bool) or not isinstance(c2, (int, float)) or not c2 > 0:
+    if "C2" in need and (isinstance(c2, bool) or not isinstance(c2, (int, float)) or not c2 > 0):
         what = f"have C2 = {c2!r}" if "C2" in knees else "have no C2"
         raise PlanError(f"the knees {what}, and a plan sizes its C2 attack from it (ml/l7v2_prereg.json classes.C2); "
                         f"they name {sorted(knees)}. C2 must be P1's frozen knee, a positive number")

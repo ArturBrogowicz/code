@@ -368,7 +368,7 @@ def build_block(seed, seed_role, levels, *, record_path=None, knees=None, check_
     if status == "measured":
         rec = l7_backend.arithmetic_record(rec, l7_backend.load_record()[0])
     try:
-        bound = LP._knees(knees, seed_role, rec)
+        bound = LP._knees(knees, seed_role, rec, need=("C2",) if "C2" in levels else ())      # D-074: a campaign may run without C2
     except LP.PlanError as exc:
         raise PlanError(str(exc)) from exc
     if seed_role == "eval":
