@@ -56,6 +56,15 @@ def selection_file(where, point=POINT, sources=None, halvings=0, calibration=Non
     return path
 
 
+def health_file(where, calibration=None, halvings=0, name="health.json"):
+    """The halving rule's frozen factor, as far as the runner reads it (eval/p4_health.py --out, D-073 (3))."""
+    path = os.path.join(where, name)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({"format": "p4-health/1", "decision": "frozen", "benign_halvings": halvings,
+                   "calibration_sha256": sha(calibration or R.PLACEHOLDER)}, fh)
+    return path
+
+
 class PlanTest(unittest.TestCase):
     def setUp(self):
         self.block = R.plan_block("campaign", 3101, "/r", sources=KNEE, thresholds=POINT)
@@ -368,6 +377,7 @@ class FrozenRecordTest(unittest.TestCase):
     def campaign(self, seed=3101, arms=("C", "U_post"), **kw):
         kw.setdefault("calibration", self.frozen)
         kw.setdefault("knees", knees_file(self.root, calibration=kw["calibration"]))
+        kw.setdefault("health", health_file(self.root, calibration=kw["calibration"]))
         if "selection" not in kw:
             kw["selection"] = selection_file(self.root, calibration=kw["calibration"], knees=kw["knees"])
         return R.plan_block("campaign", seed, self.root, sources=KNEE, thresholds=POINT, arms=list(arms), **kw)
@@ -435,7 +445,8 @@ class FrozenRecordTest(unittest.TestCase):
                 root = os.path.join(self.root, f"{phase}_{status}")
                 os.makedirs(root)
                 host = HostThatMeasures(modelled_attackers=1)
-                block = R.plan_block(phase, seed, root, calibration=path, **{**kw, **({"knees": knees_file(root, calibration=path)} if "knees" in kw else {})})
+                block = R.plan_block(phase, seed, root, calibration=path, **{**kw, **({"knees": knees_file(root, calibration=path)} if "knees" in kw else {}),
+                                                                             **({"health": health_file(root, calibration=path)} if phase != "smoke" else {})})
                 R.run_block(host, block)
                 with open(os.path.join(block["dir"], "block.json"), encoding="utf-8") as fh:
                     settings = json.load(fh)["settings"]
@@ -510,7 +521,7 @@ class KneesTest(unittest.TestCase):
 
     def test_the_block_names_it_and_the_campaign_shares_the_validations(self):
         path = knees_file(self.root)
-        block = R.plan_block("validation", 4001, self.root, sources=KNEE, knees=path, arms=None)
+        block = R.plan_block("validation", 4001, self.root, sources=KNEE, knees=path, arms=None, health=health_file(self.root))
         R.run_block(HostThatMeasures(modelled_attackers=1), block)
         with open(os.path.join(block["dir"], "block.json"), encoding="utf-8") as fh:
             self.assertEqual(json.load(fh)["settings"]["knees_sha256"], sha(path))
@@ -518,7 +529,7 @@ class KneesTest(unittest.TestCase):
         with open(other, "a", encoding="utf-8") as fh:
             fh.write("\n")
         with self.assertRaisesRegex(R.PlanError, "knees_sha256"):
-            R.run_block(HostThatMeasures(), R.plan_block("validation", 4002, self.root, sources=KNEE, knees=other))
+            R.run_block(HostThatMeasures(), R.plan_block("validation", 4002, self.root, sources=KNEE, knees=other, health=health_file(self.root)))
         selection = selection_file(self.root, knees=path)
         with self.assertRaisesRegex(R.PlanError, "knees_sha256 differ"):
             R.check_selection(R.plan_block("campaign", 3101, self.root, sources=KNEE, thresholds=POINT, selection=selection, knees=other))

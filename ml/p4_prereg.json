@@ -1,0 +1,31 @@
+{
+ "format": "p4-prereg/1",
+ "date": "2026-11-07",
+ "decision": "D-073 (3) (the user: \"Approve both (Recommended)\", 2026-11-07T08:33Z), on T-071's design 5.2 and R-021",
+ "status": "before any P4 data and before the code it judges; docs/P4_SLOW_DESIGN.md's dated row D-073 (3)",
+ "halving": {
+  "modelled_on": "ml/p1_prereg.json halving (D-049) and ml/p1_prereg_4.json halving (D-058's guard)",
+  "when": "before the ladder, on a pilot seed only, never on a validation or an evaluation seed",
+  "seed": 9101,
+  "controls": ["C", "Cp"],
+  "health": {
+   "judge": "eval/p4_outcome.control_health on each of the two controls (D-046, D-050)",
+   "q_min": 99.0,
+   "class_q_min": 95.0,
+   "class_floor_from_n": 20
+  },
+  "fires": "either control unhealthy",
+  "step": "halvings + 1, both controls again on the same seed, so that only the mix moves",
+  "stop": "the first step counting up from 0 whose two controls are sound and healthy: its halvings is the factor. No step runs after it",
+  "unsound": "a control whose run checks fail, or that never ran, gives no reading and fires nothing: the step is repeated at the same halvings, at most max_reruns times; past that the rule gives no factor",
+  "max_reruns": 2,
+  "halved": "the browser devices: 40, 20, 10 (ml/p4_traffic.browser_devices); the last ones of the list are dropped",
+  "never_removed": "CGNAT-12, CGNAT-24 and every other benign entity",
+  "floor": {"max_halvings": 2},
+  "at_the_floor": "still unhealthy at max_halvings: there is no factor. The ladder, the validation and the campaign refuse and say so; going on is a new decision, not a further step of this rule",
+  "server_q_min": 99.0,
+  "stop_for_decision": "D-058's guard: a control unhealthy with a server-side Q of at least server_q_min stops the rule for a dated decision (fire, or repeat as no reading) instead of firing it: the limit is the client's or a timer's, and a halving would shrink the benign mix for nothing",
+  "factor_file": "eval/p4_health.py --out writes p4-health/1, bound to the calibration record's sha256; the ladder, the validation and the campaign run at its factor (eval/p4_runner.py --health)",
+  "in_the_ladder": "an unhealthy C of a ladder block makes that attempt unsound, to be re-run with that reason; it never fires the rule"
+ }
+}

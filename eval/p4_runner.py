@@ -34,6 +34,13 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     and ss_failed N when every read fails, so counting events would call a blind rule alive). A run that
     fails one is invalid, with its reasons.
 
+Re-registration record (D-073 (3), 2026-11-07T08:33Z, the user's approval of T-071, before any P4 data; R-021), committed before the code
+it judges: phase `health` runs the halving rule's two controls, C and C' (no attack, profile R, no daemon), on its pilot seed 9101 at
+`--halvings`, under the label h<halvings>; eval/p4_health.py reads its steps into the frozen factor. A ladder, a validation and a campaign
+run at that factor (`--health`, the file bound to the calibration record, its sha256 among the block's settings), and a host that measures
+refuses them without it. A ladder attempt whose C is unhealthy is a reason for its re-run, as in the campaign. The health phase's own
+re-runs follow the rule's reader (unsound steps at most twice), not D-050.
+
 Re-registration record (D-075, 2026-11-07T08:33Z, the user's approval of T-071's option (a); memory, R-023), committed before the code it
 judges: the Slowloris sources of a run are launched grouped, one generator process per client namespace (at most MAX_ALIASES sources), a
 thread per source (ml/l7_gen.py --group, group_argv): each source's seeded schedule, address and statistics file are what its own
@@ -126,7 +133,8 @@ import p4_traffic as PT
 import slow_pc
 
 FORMAT = "p4-run/1"
-PHASES = ("smoke", "ladder", "validation", "campaign")
+PHASES = ("smoke", "health", "ladder", "validation", "campaign")
+HEALTH_FORMAT = "p4-health/1"     # eval/p4_health.py --out
 SERVER_NS, SERVER_IP, BRIDGE, SERVER_VETH_HOST_END = "server_ns", "10.0.0.1", "ddos_br0", "veth_srv_br"
 NS_PREFIX, MAX_ALIASES, SUBNET_MASK = "p4n", 80, "/16"
 # The runner too (review T-050 T050-17): its popen, curl and reads, and the ip and curl processes it starts, keep off the CPUs of the
@@ -196,6 +204,10 @@ def arm_spec(arm, phase, families=OUT.FAMILIES):
         raise PlanError(f"{arm} attacks with {family}, and this block runs the families {list(families)} (D-069: --families)")
     if arm == OUT.PROTECTED and phase in ("campaign", "smoke"):
         return CONF_LIMITS, "pc", None                # D-041: R + the deployed limits + M_pc's daemon, no attack
+    if phase == "health":
+        if arm not in PT.prereg()["halving"]["controls"]:
+            raise PlanError(f"a health step runs the halving rule's two controls {PT.prereg()['halving']['controls']}, not {arm!r}")
+        return CONF_R, None, None
     if phase in ("validation", "smoke"):
         if arm not in slow_pc.VALIDATION_RUNS:
             raise PlanError(f"{phase} runs are {slow_pc.VALIDATION_RUNS}, not {arm!r}")
@@ -230,6 +242,8 @@ def block_order(phase, seed, arms, label=""):
 
 
 def phase_arms(phase, family=None, families=OUT.FAMILIES):
+    if phase == "health":
+        return tuple(PT.prereg()["halving"]["controls"])
     if phase == "campaign":
         return OUT.arms_of(families)
     if phase in ("validation", "smoke"):
@@ -241,8 +255,14 @@ def phase_arms(phase, family=None, families=OUT.FAMILIES):
 
 def check_phase(phase, seed, sources, thresholds, family=None, families=OUT.FAMILIES):
     """What each phase needs, so that no run judges data on a setting that was not frozen."""
-    role = {"smoke": "pilot", "ladder": "pilot", "validation": "val", "campaign": "eval"}[phase]
+    role = {"smoke": "pilot", "health": "pilot", "ladder": "pilot", "validation": "val", "campaign": "eval"}[phase]
     PT.check_seed(seed, role)
+    if phase == "health":
+        rule = PT.prereg()["halving"]
+        if seed != rule["seed"]:
+            raise PlanError(f"a health step runs on the halving rule's pilot seed {rule['seed']}, not on {seed} (ml/p4_prereg.json)")
+        if any(sources.values()) or family is not None:
+            raise PlanError("a health step runs the rule's two controls, without attack")
     if phase == "ladder" and family not in families:
         raise PlanError(f"a ladder needs --family {' or '.join(families)}" + (f" ({family} is fenced by D-069: --families)" if family else ""))
     if phase in ("validation", "campaign"):
@@ -410,11 +430,31 @@ def read_record(path):
     return rec, status
 
 
-def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresholds=None, family=None,
-               arms=None, label="", calibration=PLACEHOLDER, python=PYTHON, selection=None, knees=None, families=OUT.FAMILIES):
+def load_factor(health, calibration):
+    """The frozen factor of the halving rule from the health file (eval/p4_health.py --out), bound to the calibration record in use; a
+    file without a factor is refused, and the refusal says why (D-073 (3))."""
+    try:
+        with open(health, encoding="utf-8") as fh:
+            rec = json.load(fh)
+    except (OSError, ValueError) as exc:
+        raise PlanError(f"the health file {health}: {exc}") from None
+    if rec.get("format") != HEALTH_FORMAT:
+        raise PlanError(f"{health} is not a {HEALTH_FORMAT} file (eval/p4_health.py --out)")
+    if rec.get("calibration_sha256") != sha256_file(calibration):
+        raise PlanError(f"{health} was read on another calibration record than {calibration}")
+    if rec.get("decision") != "frozen":
+        raise PlanError(f"the benign mix has no frozen factor in {health} ({rec.get('decision')}): {rec.get('why')}")
+    return rec["benign_halvings"]
+
+
+def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=None, thresholds=None, family=None,
+               arms=None, label="", calibration=PLACEHOLDER, python=PYTHON, selection=None, knees=None, families=OUT.FAMILIES,
+               health=None):
     """One block's runs, in their seeded order, as data. `selection`: the campaign's record of the validation, which run_block
     checks (check_selection); `knees`: the validation's and the campaign's record of the ladder (check_knees); a plan can be printed
-    without them. `families`: what the block runs (D-069); a fenced family's sources must be 0."""
+    without them. `families`: what the block runs (D-069); a fenced family's sources must be 0. `health`: the halving rule's frozen
+    factor (eval/p4_health.py --out), whose factor a ladder, a validation and a campaign run at (D-073 (3)); a typed `halvings` must be
+    it, and a host that measures refuses them without it (check_health)."""
     sources = {"loris": 0, "post": 0, **(sources or {})}
     if phase not in PHASES:
         raise PlanError(f"unknown phase {phase!r}")
@@ -429,6 +469,20 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresh
         raise PlanError(f"{phase}: --selection is the campaign's: the validation's choice of T, F and K")
     if knees and phase not in ("validation", "campaign"):
         raise PlanError(f"{phase}: --knees is the validation's and the campaign's: the ladder's record")
+    if health and phase not in ("ladder", "validation", "campaign"):
+        raise PlanError(f"{phase}: --health is the ladder's, the validation's and the campaign's: the halving rule's frozen factor")
+    if health:
+        factor = load_factor(health, calibration)
+        if halvings is not None and halvings != factor:
+            raise PlanError(f"{phase}: --halvings {halvings}, and the halving rule's factor is {factor} ({health}, D-073 (3))")
+        halvings = factor
+    halvings = 0 if halvings is None else halvings
+    if phase == "health":
+        if label and label != f"h{halvings}":
+            raise PlanError(f"health: the label is h{halvings}, the step's halvings, not {label!r}")
+        if arms:
+            raise PlanError("health: the runs are the halving rule's two controls (ml/p4_prereg.json)")
+        label = f"h{halvings}"
     record, status = read_record(calibration)
     if label and phase in ("campaign", "validation"):
         raise PlanError(f"{phase}: no --label: it would give another arm order in another directory (review T-047 P-13)")
@@ -452,7 +506,7 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresh
     for run in runs:
         run["timer_limit_ms"] = record["validity"]["timer_p99_ms"]
     return {"phase": phase, "seed": seed, "attempt": attempt, "label": label, "dir": bdir, "root": root,
-            "order": order, "sources": sources, "halvings": halvings, "thresholds": thresholds, "families": families,
+            "order": order, "sources": sources, "halvings": halvings, "thresholds": thresholds, "families": families, "health": health,
             "calibration": calibration, "calibration_status": status, "selection": selection, "knees": knees, "runs": runs}
 
 
@@ -1038,6 +1092,7 @@ def block_settings(block):
             "calibration_sha256": sha256_file(block["calibration"]), "calibration_status": block["calibration_status"],
             "code_sha256": code,
             "selection_sha256": sha256_file(block["selection"]) if block.get("selection") else None,
+            "health_sha256": sha256_file(block["health"]) if block.get("health") else None,
             "knees_sha256": sha256_file(block["knees"]) if block.get("knees") else None}
 
 
@@ -1093,6 +1148,14 @@ def check_knees(block, host):
         raise PlanError(f"{block['phase']}: --halvings {block['halvings']}, and the ladder ran at {halvings} ({path})")
     if record != sha256_file(block["calibration"]):
         raise PlanError(f"{block['phase']}: {path} was read under another calibration record than {block['calibration']}")
+
+
+def check_health(block, host):
+    """D-073 (3): a ladder, a validation and a campaign run at the halving rule's frozen factor (plan_block reads it from --health); on
+    a host that measures they need the file. Only a host that measures nothing may go without it, as with check_knees."""
+    if block["phase"] not in ("ladder", "validation", "campaign") or block.get("health") or getattr(host, "simulated", False):
+        return
+    raise PlanError(f"{block['phase']}: --health must name the halving rule's frozen factor (eval/p4_health.py --out, D-073 (3))")
 
 
 def check_ladder_order(block):
@@ -1166,12 +1229,12 @@ def check_attempt(block):
         if other:
             raise PlanError(f"ladder {block['label']} ran on seed {other[0]}: a repeat is re-run on its own seed, with a reason, not rolled "
                             f"again on {seed} (review T-063 T063-05)")
-    if next_attempt == 1 or phase == "smoke":
+    if next_attempt == 1 or phase in ("smoke", "health"):          # a health step's re-runs are the rule's (eval/p4_health.py)
         return
     last = {x["arm"]: x for x in mine if x["attempt"] == next_attempt - 1}
     needed = OUT.needed_arms(block["families"]) if phase == "campaign" else block["order"]
     why = [arm for arm in needed if arm not in last or not last[arm]["valid"]]
-    if phase == "campaign" and not why:
+    if phase in ("campaign", "ladder") and not why:                 # D-073 (3): the ladder's C too
         import l7_backend
         cal = l7_backend.load_record(block["calibration"])[0]
         control = last[OUT.CONTROL]
@@ -1191,6 +1254,7 @@ def run_block(host, block):
     check_frozen(block, host)
     check_attempt(block)
     check_knees(block, host)
+    check_health(block, host)
     check_ladder_order(block)
     check_selection(block)
     check_settings(block)
@@ -1347,7 +1411,8 @@ def main(argv=None, host=None):
                     help="the families the block runs (D-069: Slowloris only, the default; loris,post: the design's two)")
     ap.add_argument("--label", default="", help="a ladder's level and repeat, a smoke run's name; refused elsewhere")
     ap.add_argument("--arms", help="smoke only: the runs, comma-separated (C, U_loris, U_post, C_M)")
-    ap.add_argument("--halvings", type=int, default=0, help="how often the halving rule of §4.2 has fired")
+    ap.add_argument("--halvings", type=int, help="smoke, health: how often the halving rule of §4.2 has fired; elsewhere --health's")
+    ap.add_argument("--health", help="ladder, validation, campaign: the halving rule's frozen factor (eval/p4_health.py --out)")
     ap.add_argument("--thresholds", type=_thresholds, help="campaign: the committed T,F,K; a smoke C_M: a grid point")
     ap.add_argument("--selection", help="campaign: the validation's record (eval/p4_validation.py --json)")
     ap.add_argument("--knees", help="validation, campaign: the ladder's record (eval/p4_ladder.py --out)")
@@ -1377,7 +1442,7 @@ def main(argv=None, host=None):
                            thresholds=args.thresholds, family=args.family,
                            arms=args.arms.split(",") if args.arms else None, label=args.label,
                            calibration=args.calibration, python=args.python, selection=args.selection, knees=args.knees,
-                           families=tuple(args.families.split(",")))
+                           families=tuple(args.families.split(",")), health=args.health)
     except (PlanError, PT.PlanError) as exc:
         print(f"[-] {exc}", file=sys.stderr)
         return 2

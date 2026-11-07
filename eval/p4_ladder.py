@@ -25,8 +25,10 @@ always-run levels, when P4-S s2's feasibility reading fails there. It must not h
 at the level below it, and the record names the level and why. The exit code is 0 when every family has a knee, 1 when one has none (rule A)
 and none is incomplete, 3 when one is incomplete, and 2 on a refusal.
 
-What the design leaves open is not chosen here (T-060), and it stops rather than picks: which "two pilot controls" §4.2's halving rule reads.
-A ladder holds many, so any unhealthy one stops this tool, named, with no file.
+Re-registration record (D-073 (3), 2026-11-07T08:33Z, R-021), committed before the code it judges: the halving rule reads the health
+phase's two controls (eval/p4_health.py), not the ladder's. A ladder attempt whose C is unhealthy (eval/p4_outcome.control_health) is not
+sound: the repeat reads as missing until it is re-run, with that reason (eval/p4_runner.py check_attempt); it never fires the rule. Every
+control read is in the record, with its reasons.
 
     ./venv/bin/python eval/p4_ladder.py ROOT --calibration REC --out knees.json [--unreachable 500 --why "2026-11-..: P4-S s2 ..."]
 """
@@ -83,18 +85,17 @@ def _harms(root, repeats, cal, families):
             c, u = arms.get(OUT.CONTROL), arms.get(f"U_{family}")
             if c and u and c["valid"] and u["valid"]:
                 control = R.run_record(os.path.join(root, c["dir"]), cal, seed, attempt)
+                controls.append({"family": family, "level": level, "seed": seed, "label": label, "attempt": attempt, "Q": control["Q"],
+                                 "reasons": control["control_reasons"]})
+                if control["control_reasons"]:                # D-073 (3): an unhealthy C makes the attempt unsound
+                    continue
                 attack = R.run_record(os.path.join(root, u["dir"]), cal, seed, attempt)
-                controls.append({"seed": seed, "label": label, "attempt": attempt, "Q": control["Q"], "reasons": control["control_reasons"]})
                 harm = K.harm([control], attack, OUT.GATE["floor_pp"], OUT.GATE["floor_log2_p95"])[0] or 0.0
                 break
         if harm is None:
             missing[family].setdefault(level, []).append((seed, label))
         else:
             harms[family].setdefault(level, []).append(harm)
-    unhealthy = [c for c in controls if c["reasons"]]
-    if unhealthy:
-        raise ValueError(f"unhealthy ladder controls {[(c['seed'], c['label']) for c in unhealthy]}: which two the halving rule of §4.2 reads is not "
-                         f"decided, so no knee is read over them: {unhealthy[0]['reasons'][0]}")
     return harms, missing, controls
 
 
@@ -140,7 +141,7 @@ def next_allowed(root, record_path, family, level):
         raise ValueError(f"{family} {level}: {int(k['level'])} is the knee, and a level above the knee does not run (D-073 (1))")
 
 
-def _result(f, harms, missing, gone):
+def _result(f, harms, missing, gone, controls=()):
     """One family's knee and status (see the module docstring), or ValueError for a reading D-067 refuses."""
     ladder = PT.FAMILIES[f]["levels"]
     reachable = [n for n in ladder if n not in gone]
@@ -152,8 +153,11 @@ def _result(f, harms, missing, gone):
     holes = [(n, seed, label) for n in ran if level is None or n <= level for seed, label in missing.get(n, ())]
     if holes:
         n, seed, label = holes[0]
+        sick = next((c["reasons"][0] for c in reversed(controls) if (c.get("family"), c.get("level"), c["seed"], c["label"]) == (f, n, seed, label)
+                     and c["reasons"]), None)
         raise ValueError(f"{f} {n}: repeat {label} on seed {seed} has no sound attempt, so no knee is read across it: re-run it, with its "
-                         f"reason (D-067)" + (f"; also {[(h[0], h[2], h[1]) for h in holes[1:]]}" if holes[1:] else ""))
+                         f"reason (D-067)" + (f"; its C was unhealthy (D-073 (3)): {sick}" if sick else "")
+                         + (f"; also {[(h[0], h[2], h[1]) for h in holes[1:]]}" if holes[1:] else ""))
     short = [n for n in ran if level is None and len(harms.get(n, ())) < REPEATS]
     if short:
         raise ValueError(f"{f}: no level passes, but level(s) {short} have fewer than {REPEATS} sound repeats, so no knee is not read either (D-067)")
@@ -195,7 +199,7 @@ def knees(root, record_path, unreachable=None):
     levels, no_knee, families, results = {}, {}, {}, {}
     for f in family_set:
         gone = tuple(unreachable.get(f, {}).get("levels", ()))
-        res, k = _result(f, harms[f], missing[f], gone)
+        res, k = _result(f, harms[f], missing[f], gone, controls)
         if gone:
             res["why_not_reachable"] = unreachable[f]["why"]
         results[f] = res

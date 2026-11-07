@@ -122,14 +122,16 @@ class KneeTest(LadderCase):
         with self.assertRaisesRegex(R.PlanError, "loris has no knee .*level 175 runs next"):
             R.check_knees(R.plan_block("validation", 4001, self.root, sources={"loris": 100, "post": 5}, knees=out), F.FakeHost())
 
-    def test_an_unhealthy_control_stops_it_and_is_named(self):
+    def test_an_unhealthy_control_makes_its_repeat_unsound_and_is_named(self):
+        # D-073 (3): the halving rule reads the health phase's controls; an unhealthy ladder C is an unsound attempt, to be re-run.
         self.ladder("post", (5, ATTACK, ATTACK))
         self.run_level("loris", 100, 1, harm=lambda _t: True)
         self.run_level("loris", 100, 2)
         out = os.path.join(self.root, "knees.json")
         with contextlib.redirect_stderr(io.StringIO()) as err:
             self.assertEqual(L.main([self.root, "--calibration", R.PLACEHOLDER, "--out", out]), 2)
-        self.assertIn("unhealthy ladder controls [(9101, 'l100r1')]", err.getvalue())
+        self.assertIn("loris 100: repeat l100r1 on seed 9101 has no sound attempt", err.getvalue())
+        self.assertIn("its C was unhealthy (D-073 (3))", err.getvalue())
         self.assertFalse(os.path.exists(out))
 
     def test_a_ladder_holds_one_halving_count_one_record_and_both_families(self):
