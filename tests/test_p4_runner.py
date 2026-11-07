@@ -1384,7 +1384,8 @@ class ExecuteTest(unittest.TestCase):
         self.assertEqual((attack["planned"], attack["opened"], attack["failed_opens"]), (600, 400, 200))
         run = self.one_run("too_few", "campaign", 3106, "U_loris", thresholds=POINT)
         res = R.execute_run(F.FakeHost(attack_opened_share=0.4, modelled_attackers=1), run)
-        self.assertTrue(any("the attack opened 200 of its 600" in r for r in res["reasons"]), res["reasons"])
+        self.assertTrue(any("the attack opened 200 of its 600 connections, under the floor of 300" in r for r in res["reasons"]),
+                        res["reasons"])
 
     def test_an_attack_generator_without_stats_is_a_reason(self):
         run = self.one_run("no_stats", "campaign", 3106, "U_post", thresholds=POINT)

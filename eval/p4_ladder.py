@@ -138,7 +138,7 @@ def main(argv=None):
         fh.write("\n")
     print(f"knees {rec['levels']}; halvings {rec['halvings']}; calibration {rec['calibration_status']}")
     for f, why in rec["no_knee"].items():
-        print(f"  {f}: no knee: {why['why']}" + ("" if why["top_level_run"] else f"; the 4th level, {PT.FAMILIES[f]['levels'][-1]}, has not run (§11)"))
+        print(f"  {f}: no knee: {why['why']}" + ("" if why["top_level_run"] else f"; its top level, {PT.FAMILIES[f]['levels'][-1]}, has not run (D-073 (1))"))
     return 1 if rec["no_knee"] else 0
 
 

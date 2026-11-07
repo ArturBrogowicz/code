@@ -27,7 +27,7 @@ Each entity's P4 label (`p4_role`) is what eval/p4_validation.py and eval/p4_out
 and the kind for every other benign entity ("attack" for the attack families).
 
 The two P4 families at the frozen scale of §5 (FAMILIES; scenario parameters of the in-repo generators, ml/l7_gen.py
-slowloris and slowpost, nothing else): sources from the ladders {100, 175, 250, 300} and {5, 10, 20, 40}, on port 80,
+slowloris and slowpost, nothing else): sources from the ladders {100, 175, 250, 300, 400, 500} and {5, 10, 20, 40}, on port 80,
 each attacking only during the attack (30-240 s of the run):
   * Slowloris (family 1): 6 connections per source, the benign device's footprint; each connection sends a header
     line of at most 32 B every U[10, 40] s, never completing the request;
@@ -37,6 +37,13 @@ A connection that is closed is re-opened at once and carries on with its slot's 
 re-open. loris_schedule() and post_schedule() are each source's seeded schedule, the one its generator executes and
 prints with --plan. Only the number of sources moves (the ladder); the pacing is frozen. Slow read stays secondary
 (§5: recorded and replayed, not in the verdict) and is not built here.
+
+Re-registration record (D-073 (1), 2026-11-07T08:33Z, the user's approval of T-071, before any ladder data; D-070), committed before the
+code it judges: the loris ladder is (100, 175, 250, 300, 400, 500). The first ALWAYS_RUN = 3 levels of a ladder always run, and each higher
+level only once every lower level has 2 sound repeats and none of them is a knee (eval/p4_runner.py check_ladder_order, eval/p4_ladder.py);
+slow POST's 4th level keeps that rule. The pool is drawn at its largest, 60 + 500 + 40 = 600 addresses; CPython's random.sample takes the
+same branch for 400 and 600 of the /20's 4,094 hosts, so every address the 400-address pool gave is kept (tested), and only slow POST's
+entities, whose indices start after loris's top, move. The pacing does not move.
 
 This module stays light (no numpy, no eval/ imports): ml/l7_gen.py, which every generator process runs, imports it.
 """
@@ -78,10 +85,12 @@ BENIGN = (
      "params": {**_UPLOAD, "rate_Bps": 2000}},
 )
 BENIGN_ENTITIES = sum(s["count"] for s in BENIGN)
-# §5, frozen with the smoke run (§13 row 2). `levels` is the ladder of sources; `params` are the generator's.
+# §5, frozen with the smoke run (§13 row 2). `levels` is the ladder of sources; `params` are the generator's. Loris's top two
+# levels, D-073 (1).
 LINE_MAX_BYTES = 32
+ALWAYS_RUN = 3                      # D-073 (1): a ladder's first three levels always run; a higher one only if no lower one is a knee
 FAMILIES = {
-    "loris": {"family": "slowloris", "mechanism": "conns", "levels": (100, 175, 250, 300), "ports": [80],
+    "loris": {"family": "slowloris", "mechanism": "conns", "levels": (100, 175, 250, 300, 400, 500), "ports": [80],
               "params": {"conns": 6, "header_every_s": [10.0, 40.0], "line_max_bytes": LINE_MAX_BYTES}},
     "post": {"family": "slowpost", "mechanism": "conns", "levels": (5, 10, 20, 40), "ports": [80],
              "params": {"conns": 1, "byte_every_s": [5.0, 30.0], "chunk_bytes": [1, 16],

@@ -116,7 +116,7 @@ class KneeTest(LadderCase):
         out = os.path.join(self.root, "knees.json")
         with contextlib.redirect_stdout(io.StringIO()) as said:
             self.assertEqual(L.main([self.root, "--calibration", R.PLACEHOLDER, "--out", out]), 1)
-        self.assertIn("the 4th level, 300, has not run", said.getvalue())
+        self.assertIn("its top level, 500, has not run", said.getvalue())           # D-073 (1): the ladder's top is 500
         with self.assertRaisesRegex(R.PlanError, "loris has no knee"):
             R.check_knees(R.plan_block("validation", 4001, self.root, sources={"loris": 100, "post": 5}, knees=out), F.FakeHost())
 

@@ -34,6 +34,11 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     and ss_failed N when every read fails, so counting events would call a blind rule alive). A run that
     fails one is invalid, with its reasons.
 
+Re-registration record (D-073 (2), 2026-11-07T08:33Z, the user's approval of T-071, before any ladder data), committed before the code it
+judges: the attack ran if at least ATTACK_MIN_OPENED_SHARE x min(planned, ATTACK_OPENED_CAP) = 0.5 x min(planned, 1,800) of its connections
+opened at least once (opened_floor): unchanged up to 300 sources, 900 connections above, so that the saturation of 400 and 500 sources
+(3,000 connections against about 1,576 of slots and backlog) is not called invalid, the floor's own reason (D-057).
+
 Re-registration record (D-069, 2026-11-06T16:30Z, the user's minimum cut of the VM plan, before any data; T-071, T-074), committed before the
 code it judges: P4 runs Slowloris only. A block names its families (`--families`, D-069's ("loris",) by default on the command line; the
 design's two in plan_block, whose tests keep slow POST's code tested), records them in block.json and its settings, and runs only their
@@ -137,10 +142,12 @@ DAEMON_READY_LINE = "Listening for Nginx logs"          # bench/executor.py DAEM
 XDP_ATTACHED_LINE = "Successfully attached XDP program"
 DAEMON_READY_TIMEOUT_S, STACK_READY_TIMEOUT_S = 60.0, 30.0
 STOP_GRACE_S = 10.0
-# The attack ran: no open failed for a local reason, and at least this share of its connections was opened at least once. Not
-# 90 %: slots run out as the attack harms (at the ladder's top ~1,800 connections meet ~1,065 free slots and a backlog of 511),
-# so a higher floor would call the harm itself invalid, the trap of stub_status (D-050, P-02).
+# The attack ran: no open failed for a local reason, and at least this share of its connections, up to ATTACK_OPENED_CAP, was opened at
+# least once (opened_floor). Not 90 %: slots run out as the attack harms (at 300 sources ~1,800 connections meet ~1,065 free slots and a
+# backlog of 511), so a higher floor would call the harm itself invalid, the trap of stub_status (D-050, P-02); and at 400-500 sources even
+# half would (D-073 (2)).
 ATTACK_MIN_OPENED_SHARE = 0.5
+ATTACK_OPENED_CAP = 1800
 # What gunicorn.log names when gunicorn stops by itself (D-063): the first found goes in the reason.
 GUNICORN_REFUSALS = (("CalibrationError", "the origin refused its calibration record"), ("Worker failed to boot", "a worker failed to boot"))
 SLOW_PC_POLL_GAP_S = 10.0          # D-035 (V-08): the longest silence of the rule in an M_pc or validation run
@@ -866,6 +873,11 @@ def stall_reasons(stall):
     return reasons
 
 
+def opened_floor(planned):
+    """D-073 (2): the fewest connections an attack must have opened at least once to have run."""
+    return ATTACK_MIN_OPENED_SHARE * min(planned, ATTACK_OPENED_CAP)
+
+
 def checks(host, plan, t0, launched):
     """The validity checks of a run that ran (see the module docstring)."""
     if t0 is None:
@@ -880,8 +892,9 @@ def checks(host, plan, t0, launched):
             reasons.append(f"{attack['no_stats']} of {attack['generators']} attack generators left no stats")
         if attack["local_errors"]:
             reasons.append(f"the attack could not open connections on this machine: {attack['local_errors']} local errors")
-        if attack["opened"] < ATTACK_MIN_OPENED_SHARE * attack["planned"]:
-            reasons.append(f"the attack opened {attack['opened']} of its {attack['planned']} connections")
+        if attack["opened"] < opened_floor(attack["planned"]):
+            reasons.append(f"the attack opened {attack['opened']} of its {attack['planned']} connections, under the floor of "
+                           f"{opened_floor(attack['planned']):g} (D-073 (2))")
     d = plan["daemon"]
     if d:
         log = _text(host, d["log"])
