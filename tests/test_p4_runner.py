@@ -490,7 +490,7 @@ class KneesTest(unittest.TestCase):
 
     def test_a_family_with_no_knee_stops_the_validation_and_the_campaign(self):
         path = knees_file(self.root, levels={"post": None})
-        self.refused("post has no knee .* not decided", knees=path)
+        self.refused("post has no knee .* nothing runs across it", knees=path)        # a record without statuses (D-074)
 
     def test_another_calibration_is_refused(self):
         other = os.path.join(self.root, "other.json")

@@ -34,6 +34,12 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     and ss_failed N when every read fails, so counting events would call a blind rule alive). A run that
     fails one is invalid, with its reasons.
 
+Re-registration record (D-073 (1) and D-074, 2026-11-07T08:33Z, the user's approval of T-071, before any ladder data), committed before the
+code it judges: a ladder block at a level above a ladder's first ml/p4_traffic.ALWAYS_RUN levels runs only once every lower level has 2 sound
+repeats and none of them is a knee (check_ladder_order, eval/p4_ladder.next_allowed), on any host. A knees file whose family has no knee
+stops a validation and a campaign and says what it reads: up to the reachable top, a reported result (rule A: no validation, no campaign);
+below it, an incomplete ladder.
+
 Re-registration record (D-073 (2), 2026-11-07T08:33Z, the user's approval of T-071, before any ladder data), committed before the code it
 judges: the attack ran if at least ATTACK_MIN_OPENED_SHARE x min(planned, ATTACK_OPENED_CAP) = 0.5 x min(planned, 1,800) of its connections
 opened at least once (opened_floor): unchanged up to 300 sources, 900 connections above, so that the saturation of 400 and 500 sources
@@ -1024,7 +1030,15 @@ def check_knees(block, host):
         raise PlanError(f"{block['phase']}: {path} read the ladder of the families {list(read)}, and this block runs {list(families)} (D-069)")
     none = sorted(f for f in families if levels.get(f) is None)
     if none:
-        raise PlanError(f"{block['phase']}: {', '.join(none)} has no knee in {path}: what that means is not decided, so nothing runs (T-060)")
+        res = (rec.get("results") or {}).get(none[0]) or {}
+        if res.get("status") == "no knee":
+            why = (f"up to {res['top']} sources: P4 reads it as a result, not harmful on R up to {res['top']} sources (D-074, rule A), "
+                   "and no validation and no campaign run")
+        elif res.get("status") == "incomplete":
+            why = f"the ladder is incomplete: level {res['next_level']} runs next (D-073 (1))"
+        else:
+            why = "nothing runs across it (D-074)"
+        raise PlanError(f"{block['phase']}: {', '.join(none)} has no knee in {path}: {why}")
     typed = {f: block["sources"][f] for f in families}
     if typed != {f: levels[f] for f in families}:
         raise PlanError(f"{block['phase']}: the sources {typed} are not the ladder's knees { {f: levels[f] for f in families} } ({path})")
@@ -1032,6 +1046,19 @@ def check_knees(block, host):
         raise PlanError(f"{block['phase']}: --halvings {block['halvings']}, and the ladder ran at {halvings} ({path})")
     if record != sha256_file(block["calibration"]):
         raise PlanError(f"{block['phase']}: {path} was read under another calibration record than {block['calibration']}")
+
+
+def check_ladder_order(block):
+    """D-073 (1): a ladder block above the first ALWAYS_RUN levels runs only once every lower level has 2 sound repeats and none of them is a
+    knee (eval/p4_ladder.next_allowed, over the run index under the block's calibration record), on any host."""
+    if block["phase"] != "ladder":
+        return
+    import p4_ladder
+    family = next(a[2:] for a in block["order"] if a.startswith("U_"))
+    try:
+        p4_ladder.next_allowed(block["root"], block["calibration"], family, block["sources"][family])
+    except (ValueError, OSError, KeyError) as exc:
+        raise PlanError(f"ladder: {exc}") from None
 
 
 def check_selection(block):
@@ -1117,6 +1144,7 @@ def run_block(host, block):
     check_frozen(block, host)
     check_attempt(block)
     check_knees(block, host)
+    check_ladder_order(block)
     check_selection(block)
     check_settings(block)
     if os.path.exists(block["dir"]):

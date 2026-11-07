@@ -104,6 +104,12 @@ needs C, Cp, C_M, U_loris and M_pc_loris, refuses a record of a slow-POST arm, a
 code stays, fenced: it is judged only in a campaign whose settings name both families. A record whose settings name no
 families is from before the cut, and is read with both.
 
+Re-registration record (D-074, 2026-11-07T08:33Z, the user's approval of T-071, before any ladder data), committed before the code it
+judges: no knee at the extended top is a reported result, rule A. When eval/p4_ladder.py reads, for a family, no knee up to the reachable top
+(every level with 2 sound repeats, none harming in 2 of 2), `--knees KNEES` (no_knee_verdict) reads "<family> below the default rules'
+thresholds did not harm profile R up to N sources" with each level's figures, and M7 "not applicable: no harmful attack"; no validation and
+no campaign run. A level not reachable (D-073 (5)) is named as such and never reads as no harm. An incomplete ladder gives no reading.
+
 A run of C states its health in its record: "control_reasons" is control_health's list, empty when it is healthy. A
 record of C without it is refused, and C's "valid" stays what the run's own checks said, the outcome adding the health.
 
@@ -542,12 +548,62 @@ def outcome(runs, dry_run=False):
             "largest_view_slip": largest_view_slip(runs)}
 
 
+NO_HARM = "{name} below the default rules' thresholds did not harm profile R up to {top} sources"
+
+
+def no_knee_verdict(knees):
+    """D-074, rule A, over the ladder's record (eval/p4_ladder.py --out): per family its status and reading, with each level's figures, and
+    M7. ValueError for a record without statuses or an incomplete ladder: there is no reading yet."""
+    results = knees.get("results")
+    if not results:
+        raise ValueError("not a record of eval/p4_ladder.py with its statuses (D-074)")
+    fam = {}
+    for f, r in results.items():
+        if r["status"] == "incomplete":
+            raise ValueError(f"{f}: the ladder is incomplete, level {r['next_level']} runs next (D-073 (1)): no reading yet")
+        gone = [{"level": n, "status": "not reachable", "why": r.get("why_not_reachable")} for n in r.get("not_reachable", ())]
+        if r["status"] == "no knee":
+            reading = NO_HARM.format(name=FAMILY_NAMES[f], top=r["top"]) + " (D-074, rule A): no validation and no campaign"
+        else:
+            reading = f"a knee at {r['level']} sources: the campaign judges it"
+        fam[f] = {"status": r["status"], "reading": reading, "top": r.get("top"), "knee": r.get("level"), "not_reachable": gone,
+                  "levels": (knees.get("families") or {}).get(f, {}).get("rows")}
+    if all(x["status"] == "no knee" for x in fam.values()):
+        m7 = "not applicable: no harmful attack (D-074, rule A)"
+    elif any(x["status"] == "no knee" for x in fam.values()):
+        m7 = "the campaign's, over the families with a knee (D-074)"
+    else:
+        m7 = "the campaign's: every family has a knee"
+    return {"M7": m7, "families": fam, "halvings": knees.get("halvings"), "calibration_sha256": knees.get("calibration_sha256")}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("runs", help="JSON Lines, one run record per line")
+    ap.add_argument("runs", nargs="?", help="JSON Lines, one run record per line")
     ap.add_argument("--json", help="write the full verdict here")
     ap.add_argument("--dry-run", action="store_true", help="allow records under a calibration that is not frozen; labelled")
+    ap.add_argument("--knees", help="without runs: the ladder's record (eval/p4_ladder.py --out), for D-074's rule A")
     args = ap.parse_args(argv)
+    if (args.runs is None) == (args.knees is None):
+        ap.error("give the campaign's run records, or --knees for a ladder without a knee (D-074)")
+    if args.knees:
+        try:
+            with open(args.knees, encoding="utf-8") as fh:
+                res = no_knee_verdict(json.load(fh))
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            print(f"[-] {exc}", file=sys.stderr)
+            return 2
+        print(f"M7: {res['M7']}")
+        for f, r in res["families"].items():
+            print(f"  {FAMILY_NAMES[f]}: {r['reading']}")
+            for g in r["not_reachable"]:
+                print(f"    {g['level']} sources: not reachable ({g['why']}), which is not no harm")
+            for level, harms in r["levels"] or ():
+                print(f"    {level:g} sources: harm per repeat {harms}")
+        if args.json:
+            with open(args.json, "w", encoding="utf-8") as fh:
+                json.dump(res, fh, indent=1, default=str)
+        return 0
     with open(args.runs, encoding="utf-8") as fh:
         runs = [json.loads(line) for line in fh if line.strip()]
     try:
