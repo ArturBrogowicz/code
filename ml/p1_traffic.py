@@ -180,7 +180,7 @@ def attack_window():
 
 
 def level_window(timeline=None):
-    """What the verdict's harm contrasts read (D-053, ml/l7v2_verdict_prereg_v3.json level_window), seconds from the run's start."""
+    """What the verdict's harm contrasts read (D-053, ml/l7v2_verdict_prereg_v4.json level_window), seconds from the run's start."""
     import l7v2_verdict_prereg
     t = timeline or TIMELINE
     lo = float(t["baseline_s"])
@@ -200,6 +200,12 @@ def ladder_levels(cls):
     import l7v2_prereg
     pre = l7v2_prereg.load()
     return list(pre["classes"]["C3b"]["ladder_bots"]) if cls == "C3b" else list(pre["harm"]["ladder"]["levels"])
+
+
+def ladder_repeats():
+    """How many times the ladder runs a level (ml/l7v2_prereg.json harm.ladder.repeats)."""
+    import l7v2_prereg
+    return int(l7v2_prereg.load()["harm"]["ladder"]["repeats"])
 
 
 def c3a_sources(level, spare_cpu_s, costs, route, gap):

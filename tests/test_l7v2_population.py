@@ -91,6 +91,23 @@ class TrainingPlanTest(unittest.TestCase):
             with self.subTest(knees=knees), self.assertRaises(LP.PlanError):
                 plan(1001, "train", knees=knees)
 
+    def test_knees_without_a_usable_c2_are_a_refusal_that_names_it(self):
+        """C-096: they were a KeyError or a TypeError. The record's own knees use the benchmark's names, and a class with no knee is null."""
+        bound = {"status": "frozen", "record_sha256": FROZEN["sha256"]}
+        for why, knees, says in (("the record's own knees", {**bound, "search": 4, "export": 4, "cheap": 2}, r"have no C2.*'cheap', 'export'"),
+                                 ("a class with no knee", {**bound, "C2": None, "no_knee": ["C2"]}, r"have C2 = None.*'no_knee'"),
+                                 ("not a number", {**bound, "C2": "4"}, r"have C2 = '4'"),
+                                 ("a flag", {**bound, "C2": True}, r"have C2 = True"),
+                                 ("no level", {**bound, "C2": 0}, r"have C2 = 0"),
+                                 ("nan", {**bound, "C2": float("nan")}, r"have C2 = nan")):
+            for seed, role in ((3202, "eval"), (1001, "train"), (9201, "pilot")):
+                with self.subTest(why=why, role=role), self.assertRaisesRegex(LP.PlanError, says):
+                    plan(seed, role, knees=knees)
+
+    def test_the_record_checks_still_come_first(self):
+        with self.assertRaisesRegex(LP.PlanError, "must name the calibration record"):
+            plan(1001, "train", knees={"status": "frozen", "C2": None})
+
     def test_knees_are_bound_to_a_frozen_record(self):
         # T-030 L7V2-08: the knees name the record they were measured on, and a training, validation or evaluation
         # plan runs on that record, frozen

@@ -17,6 +17,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(REPO, "bench"))
 sys.path.insert(0, os.path.join(REPO, "eval"))
 import calibration as C
+import calibration_fixtures as CF
 import executor as X
 import harm_gate as H
 import origin as O
@@ -25,7 +26,7 @@ import sim_host as S
 
 SPEC = os.path.join(REPO, "bench", "scenarios", "costly_search_sub_threshold.json")
 TIMELINE = (10.0, 10.0, 10.0)
-CAL = C.load(C.PLACEHOLDER)
+CAL = CF.placeholder_with_knees()
 
 
 class StreamIdTest(unittest.TestCase):

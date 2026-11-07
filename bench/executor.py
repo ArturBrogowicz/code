@@ -226,6 +226,7 @@ class RunPlan:
     pins: object = None              # the pin plan of the run (population.PIN_PLAN, or PIN_PLAN_DAEMON in a campaign with a daemon)
     nginx_source: str = "nginx_unprotected.conf"      # the configuration of the repository that was rendered
     daemon: object = None            # a Daemon, for a mode that has one
+    confirmation: object = None      # "2x_knee": the campaign's one further confirmation at 2 x the knee (design 7.2 step 6), by hand
 
 
 # --- names -------------------------------------------------------------------------------------
@@ -380,7 +381,7 @@ def pins_for(kinds):
 
 
 def plan_run(scn, cal, kind, seed, out, calibration_path, scenario_sha256="", manifest=None, root=None, settings=None,
-             python=None, rho=None, timeline=None, timer_limit_ms=None, pins=None):
+             python=None, rho=None, timeline=None, timer_limit_ms=None, pins=None, confirmation=None):
     """Everything a run will do, as data. `scn` is a bench/scenario.Scenario, `cal` a calibration record read from
     `calibration_path`, `kind` one of C, Cp, U and the protected M_<mode>, `out` the run's directory, which must be called after
     its kind (the gate reads the role from the name). A protected run is U's attack against its mode's stack. `rho` replaces the
@@ -412,11 +413,11 @@ def plan_run(scn, cal, kind, seed, out, calibration_path, scenario_sha256="", ma
     except SC.ScenarioError as exc:
         raise PlanError(str(exc)) from exc
     return plan_population(pop, scn.id, kind, seed, out, cal, calibration_path, scn.timeline, level, scenario_sha256, manifest,
-                           root, settings, python, overrides, mode=mode, pins=pins or pins_for([kind]))
+                           root, settings, python, overrides, mode=mode, pins=pins or pins_for([kind]), confirmation=confirmation)
 
 
 def plan_population(pop, scenario, kind, seed, out, cal, calibration_path, timeline, level=None, scenario_sha256="",
-                    manifest=None, root=None, settings=None, python=None, overrides=None, mode=None, pins=None):
+                    manifest=None, root=None, settings=None, python=None, overrides=None, mode=None, pins=None, confirmation=None):
     """The plan of a run of a population that is drawn already: plan_run's for a scenario's, and bench/calibrate.py's for the
     staged load of the capacity probe and the legit probes. `timeline` is the population's population.Timeline; a stream is
     launched so that its loop starts at its `start_s` on the run's axis (launch_due). `mode` is a protected run's (MODES)."""
@@ -454,7 +455,7 @@ def plan_population(pop, scenario, kind, seed, out, cal, calibration_path, timel
         streams=tuple(streams), teardown=teardown_steps(namespaces), nginx_conf=conf, nginx_conf_sha256=conf_sha256,
         plan_sha256=_legit_hash(pop.of_kind("legit")), settings={**SETTINGS, **(settings or {})},
         overrides=overrides or {}, timer_limit_ms=(overrides or {}).get("timer_limit_ms", cal["validity"]["timer_p99_ms"]),
-        mode=mode, pins=pins, nginx_source=os.path.basename(source),
+        mode=mode, pins=pins, confirmation=confirmation, nginx_source=os.path.basename(source),
         daemon=daemon_plan(out, python, pins, backend) if backend else None)
 
 
@@ -555,6 +556,7 @@ def describe(plan, python=None):
            f"nginx.conf    sha256:{plan.nginx_conf_sha256[:12]} ({plan.nginx_source} with its two log paths changed"
            + (", and the daemon's feed beside them)" if plan.daemon else ")"),
            *([f"mode          {plan.mode}: {MODE_TEXT[plan.mode]}"] if plan.mode else []),
+           *([f"confirmation  {plan.confirmation}: the design's one further confirmation, asked for by hand"] if plan.confirmation else []),
            *(["pins          " + ", ".join(f"{k} {v}" for k, v in plan.pins.items())
               + f": the executor on CPU {P.executor_cpus(plan.pins)}, apart from the daemon's"] if plan.pins != P.PIN_PLAN else []),
            "settings      " + ", ".join(f"{k} {v}" for k, v in plan.settings.items()), ""]
@@ -1793,6 +1795,15 @@ def origin_validity(plan, procs, t_launch):
             + origin_log_says(f"{plan.out}/gunicorn.log")]
 
 
+def nginx_validity(host, plan):
+    """Why a run whose Nginx did not last the timeline is not sound (docs/HG1C_DESIGN.md departure 35, D-065): nothing holds the daemon
+    after its launcher returned, and once it is gone every request fails, which would read as harm. It is told to quit when the run is
+    over, as P4's and P1's runners tell theirs, and a quit that fails says that it had gone, in P4's words (eval/p4_runner.py). That a
+    quit to a dead master exits non-zero is [CLAIMED], NOT RUN on this VM."""
+    code = host.run(["nginx", "-c", f"{plan.out}/nginx.conf", "-s", "quit"], ns=SERVER_NS).code
+    return [] if code == 0 else [f"nginx was not running at the run's end: its quit exited {code}"]
+
+
 def daemon_validity(host, plan, procs, daemon, sampler, t_launch):
     """Why a protected run with a daemon is not sound (G11), looked at when the timeline is over and before the daemon is stopped,
     and what was seen. The daemon was ready before the first stream was launched, so before the attack; it must still be alive. With
@@ -1901,7 +1912,7 @@ def run_timeline(host, plan, log, procs, sampler):
 
 def stop_all(host, procs, plan, log):
     """TERM, then KILL after the grace, for the processes this run started and holds a handle of; the namespaces' other
-    processes (Nginx, gunicorn's workers) go in the teardown."""
+    processes (gunicorn's workers, and Nginx if its quit has not ended it) go in the teardown."""
     live = [p for p in procs.values() if p.poll() is None]
     if not live:
         return
@@ -2094,6 +2105,7 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
             problems += unsound
             daemon.update(seen)
         stopped = stop_daemon(host, procs, log)
+        problems += nginx_validity(host, plan)
         stop_all(host, procs, plan, log)
         block, rows, zero = collect(plan, procs, launched, problems)
         raised = {sid: gap for sid, gap in block["wall_gap_s"].items() if gap > WALL_GAP_NOTE_S}
@@ -2107,7 +2119,8 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
         sampler.write(f"{out}/server.csv")
         finish_logs(plan, zero, log)
         write_json(f"{out}/run.json", {
-            "role": KINDS_OF_RUN[plan.kind], "mode": plan.mode, "started_utc": _utc(launched["legit"]),
+            "role": KINDS_OF_RUN[plan.kind], "mode": plan.mode, "level": plan.level, "confirmation": plan.confirmation,
+            "started_utc": _utc(launched["legit"]),
             "daemon": None if daemon is None else {**daemon, "stop": stopped},
             "scenario": plan.scenario, "seed": plan.seed, "plan_sha256": plan.plan_sha256,
             "calibration_sha256": plan.calibration_sha256, "overrides": plan.overrides,

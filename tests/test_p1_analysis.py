@@ -447,6 +447,25 @@ class LadderAttemptsTest(unittest.TestCase):
         self.pair("C2", 1.0, 1, attempt=2)
         self.assertEqual(A.ladder_knees(self.root, self.cal)["C2"]["level"], 1.0)
 
+    def test_a_repeat_with_no_sound_attempt_is_named_where_it_counts_as_no_harm(self):
+        """T063-01: the registered rule stays (no sound attempt is no harm), and the file and the summary name the repeats it applied to."""
+        self.pair("C2", 1.0, 1, quiet_from=60.0)
+        self.pair("C2", 1.0, 2, seed=9002)
+        out, said = os.path.join(self.tmp, "knees.json"), io.StringIO()
+        with contextlib.redirect_stdout(said):
+            self.assertEqual(A.main([self.root, "--calibration", self.frozen["calibration"], "--ladder", "--out", out]), 0)
+        got = REC.read_json(out)
+        self.assertEqual(got["no_sound_attempt"], [{"class": "C2", "level": 1.0, "repeat": 1, "attempts": 1}])
+        self.assertIsNone(got["C2"], "the knee is read as before")
+        self.assertIn("no sound attempt, counted as no harm (ml/p1_prereg_3.json ladder): C2 L1 r1", said.getvalue())
+        self.pair("C2", 1.0, 1, attempt=2)
+        got = A.knees_file(self.root, self.cal)
+        self.assertEqual((got["no_sound_attempt"], got["C2"]), ([], 1.0))
+        said = io.StringIO()
+        with contextlib.redirect_stdout(said):
+            A.main([self.root, "--calibration", self.frozen["calibration"], "--ladder", "--out", out])
+        self.assertIn("counted as no harm (ml/p1_prereg_3.json ladder): none", said.getvalue())
+
     def test_the_last_sound_attempt_counts_and_an_invalid_later_one_does_not_erase_it(self):
         self.pair("C2", 1.0, 1, quiet_from=60.0)
         self.pair("C2", 1.0, 1, attempt=2)
@@ -633,15 +652,62 @@ class CampaignSettingsTest(unittest.TestCase):
         cls.tmp.cleanup()
 
     def test_one_setting_passes(self):
-        A.check_campaign(self.root, self.cal, self.frozen)
+        A.check_campaign(self.root, self.cal, self.frozen, cut=True)
 
     def test_an_analysis_with_another_selection_is_refused(self):
         with self.assertRaisesRegex(A.SettingsError, "selection_sha256"):
             A.analyse(self.root, self.cal, {**self.frozen, "selection_sha256": "f" * 64}, arms_factory=factory({}), cut=True)
         with self.assertRaisesRegex(A.SettingsError, "rules_sha256"):
-            A.check_campaign(self.root, self.cal, {**self.frozen, "rules_sha256": "f" * 64})
+            A.check_campaign(self.root, self.cal, {**self.frozen, "rules_sha256": "f" * 64}, cut=True)
         with self.assertRaisesRegex(A.SettingsError, "record_digest"):
-            A.check_campaign(self.root, {**self.cal, "sha256": "f" * 64}, self.frozen)
+            A.check_campaign(self.root, {**self.cal, "sha256": "f" * 64}, self.frozen, cut=True)
+
+    def command_line(self, root, *flags):
+        """The analysis's command line on `root`: its exit code and what it said."""
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code = A.main([root, "--calibration", self.frozen["calibration"], "--selection", self.frozen["selection"], "--selection-sha256",
+                           self.frozen["selection_sha256"], "--rules", self.frozen["rules"], "--rules-sha256", self.frozen["rules_sha256"],
+                           *flags, "--dry-run", "--out", os.path.join(self.tmp.name, "v.json")])
+        return code, err.getvalue()
+
+    def test_a_full_campaign_read_with_cut_is_refused(self):
+        """T057-02: it would drop default_rules from V-A's baselines, in the GRU's favour. Blocks of the runner's own writing."""
+        root = os.path.join(self.tmp.name, "full")
+        block = R.plan_block("campaign", SEEDS[0], root, frozen=self.frozen, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        R.run_block(F.P1FakeHost(), block)
+        self.assertIn("M_default_rules_C3b", block["order"])
+        with self.assertRaisesRegex(A.SettingsError, "ran the full live set.*read the cut"):
+            A.check_campaign(root, self.cal, self.frozen, cut=True)
+        with self.assertRaisesRegex(A.SettingsError, "ran the full live set"):
+            A.analyse(root, self.cal, self.frozen, arms_factory=factory({}), cut=True)
+        A.check_campaign(root, self.cal, self.frozen)
+        code, said = self.command_line(root, "--cut")
+        self.assertEqual(code, 1)
+        self.assertIn("ran the full live set", said)
+
+    def test_a_cut_campaign_read_without_cut_is_refused(self):
+        with self.assertRaisesRegex(A.SettingsError, "ran the cut.*read the full live set"):
+            A.check_campaign(self.root, self.cal, self.frozen)
+        code, said = self.command_line(self.root)
+        self.assertEqual(code, 1)
+        self.assertIn("ran the cut", said)
+
+    def test_blocks_that_do_not_record_it_are_refused_whichever_is_asked(self):
+        root = os.path.join(self.tmp.name, "unsaid")
+        shutil.copytree(self.root, root)
+        for seed in SEEDS[:2]:
+            path = os.path.join(root, "campaign", f"b{seed}_a1", "block.json")
+            meta = REC.read_json(path)
+            del meta["settings"]["cut"]
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(meta, fh)
+        for cut in (True, False):
+            with self.subTest(cut=cut), self.assertRaisesRegex(A.SettingsError, f"b{SEEDS[0]}_a1.*do not record whether they ran the cut"):
+                A.check_campaign(root, self.cal, self.frozen, cut=cut)
+        code, said = self.command_line(root, "--cut")
+        self.assertEqual(code, 1)
+        self.assertIn("do not record", said)
 
     def test_blocks_at_two_settings_are_refused_and_the_command_line_says_so(self):
         root = os.path.join(self.tmp.name, "two")
@@ -652,7 +718,7 @@ class CampaignSettingsTest(unittest.TestCase):
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(meta, fh)
         with self.assertRaisesRegex(A.SettingsError, "knees_sha256"):
-            A.check_campaign(root, self.cal, self.frozen)
+            A.check_campaign(root, self.cal, self.frozen, cut=True)
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
             code = A.main([root, "--calibration", self.frozen["calibration"], "--selection", self.frozen["selection"], "--selection-sha256",
@@ -704,6 +770,8 @@ class AgeReadingTest(unittest.TestCase):
 class PointCheckTest(unittest.TestCase):
     """The frozen points on the pilot's benign traffic (D-052), through the replay's real accounting; only the arms' decisions are stubs."""
 
+    LADDER = tuple((level, repeat) for level in (1.0, 2.0, 4.0, 8.0) for repeat in (1, 2))       # one (level, repeat) per seed from 9002 on
+
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
@@ -721,7 +789,8 @@ class PointCheckTest(unittest.TestCase):
     @classmethod
     def pair(cls, root, lo, hi, quiet):
         for seed in range(lo, hi):
-            block = R.plan_block("ladder", seed, root, frozen=cls.frozen, levels={"C2": 1.0}, runs=["C", "U_C2"], label="C2_L1_r1",
+            level, repeat = cls.LADDER[seed - 9002]
+            block = R.plan_block("ladder", seed, root, frozen=cls.frozen, levels={"C2": level}, runs=["C", "U_C2"], label=f"C2_L{level:g}_r{repeat}",
                                  benign_specs=F.thin_benign(LEAN), max_sources=2)
             R.run_block(F.P1FakeHost(quiet_from=quiet), block)
 

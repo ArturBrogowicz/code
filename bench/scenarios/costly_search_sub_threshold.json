@@ -7,7 +7,7 @@
  "grounding": "OWASP API4:2023 unrestricted resource consumption",
  "resource": "app_cpu",
  "routes": {"C3": 1.0},
- "intensity": {"unit": "cost_rate_S", "ladder": [0.125, 0.25, 0.5, 1, 2, 4, 8], "level": 2},
+ "intensity": {"unit": "cost_rate_S", "ladder": [0.125, 0.25, 0.5, 1, 2, 4, 8], "level": "knee"},
  "sources": 100,
  "arrival": {"process": "poisson", "loop": "open"},
  "benign": {"identities": 200, "per_profile": 1},

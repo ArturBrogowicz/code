@@ -14,8 +14,11 @@ each source's rate against the deployed per-source rules, the load on the genera
 cost-rate model expects. The deployed thresholds are printed and never used: no intensity is chosen, moved
 or clipped by them (a test changes them and checks that nothing moves).
 
-    python3 bench/scenario.py --plan bench/scenarios/costly_search_sub_threshold.json
-    python3 bench/scenario.py --plan --daemon bench/scenarios/cheap_static_flood.json   # the pins of a campaign with a daemon
+    python3 bench/scenario.py --plan --calibration bench/calibration/ddos-mitigation-2026-11-04.json bench/scenarios/costly_search_sub_threshold.json
+    python3 bench/scenario.py --plan --daemon --calibration FILE bench/scenarios/cheap_static_flood.json   # the pins of a campaign with a daemon
+
+The attack specs run at the calibration's knee (`"level": "knee"`, design 7.2 step 6, D-066), so they need a record that has one; the
+placeholder, the default, has none and refuses them.
     python3 bench/scenario.py --check bench/scenarios/*.json
 """
 import argparse
@@ -291,10 +294,19 @@ def _cpu_count(cpus):
     return n
 
 
-def expected_gate(level):
-    """The cost-rate model's first-order reading (Appendix B); the ladder, not the model, finds the knee."""
+def expected_gate(level, knee="not measured"):
+    """What to expect of the gate at `level`. The ladder finds the knee, so a knee on record, or a record that the family cannot harm
+    (None), decides; only without one is it the cost-rate model's first-order reading (Appendix B), so that a plan cannot say PASS
+    beside a warning that the level is below the knee."""
     if level is None:
         return {"class": "n/a", "basis": "no attack in this scenario"}
+    if knee is None:
+        return {"class": "likely FAIL", "basis": "the calibration records that this family cannot harm the server within the generator limit"}
+    if _num(knee):
+        if level >= knee:
+            return {"class": "likely PASS", "basis": f"A = {level:g} S against the recorded knee {knee:g}: the ladder passed at the knee "
+                                                     "in both repeats, and a confirmation can still fail"}
+        return {"class": "likely FAIL", "basis": f"A = {level:g} S is below the recorded knee {knee:g}: the ladder did not pass there"}
     if level >= LIKELY_PASS_A:
         verdict = "likely PASS"
     elif level <= LIKELY_FAIL_A:
@@ -484,8 +496,8 @@ def plan(scn, cal, seed=None, pins=None):
         "streams": [{"id": s.id, "kind": s.kind, "route": s.route_class, "process": s.process, "rate": s.rate,
                      "addresses": len(s.addresses), "netem": s.netem, "ns": s.ns_index, "pin": pins[s.cpu],
                      "start_s": s.start_s, "duration_s": s.duration_s, "seed": s.seed} for s in pop.streams],
-        "expected_gate": expected_gate(level),
     }
+    out["expected_gate"] = expected_gate(level, out["attack"]["knee"] if out["attack"] else "not measured")
     out["warnings"] = _warnings(scn, cal, out)
     return out
 

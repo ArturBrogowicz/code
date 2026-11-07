@@ -335,14 +335,18 @@ class SettingsError(ValueError):
     """The campaign's blocks did not run one setting, or the analysis was not given what they ran (T050-12)."""
 
 
-def check_campaign(root, cal, frozen):
-    """One setting across the blocks, and the record and selections the analysis judges with are the ones they ran under (T050-12,
-    ml/p1_prereg_3.json one_setting): an arm replayed at X beside M runs made under Y is not a contrast."""
+def check_campaign(root, cal, frozen, cut=False):
+    """One setting across the blocks, and the record, the selections and the live set the analysis judges with are the ones they ran under
+    (T050-12, ml/p1_prereg_3.json one_setting): an arm replayed at X beside M runs made under Y is not a contrast. `cut` decides which
+    baselines V-A has to beat, so a full campaign read with --cut would drop default_rules in the GRU's favour (T057-02)."""
     settings = {}
     for x in REC.index_lines(root):
         if x["phase"] == "campaign" and x["block_dir"] not in settings:
             settings[x["block_dir"]] = REC.read_json(os.path.join(root, x["block_dir"], "block.json")).get("settings") or {}
     names = sorted(settings)
+    unsaid = [name for name in names if "cut" not in settings[name]]
+    if unsaid:
+        raise SettingsError(f"{', '.join(unsaid)} do not record whether they ran the cut, so --cut cannot be checked against them")
     for name in names[1:]:
         differ = sorted(k for k in set(settings[name]) | set(settings[names[0]]) if settings[name].get(k) != settings[names[0]].get(k))
         if differ:
@@ -353,12 +357,15 @@ def check_campaign(root, cal, frozen):
         differ = sorted(k for k, v in given.items() if ran.get(k) != v)
         if differ:
             raise SettingsError(f"the analysis was given another {', '.join(differ)} than the campaign ran")
+        if ran["cut"] != bool(cut):
+            ran_what, asked = ("the cut", "the full live set") if ran["cut"] else ("the full live set", "the cut (--cut)")
+            raise SettingsError(f"the campaign ran {ran_what}, and the analysis was asked to read {asked}")
 
 
 def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, pre=None):
     """Every class's admission, inputs and verdict: {class: {"verdict", "admission", "judge", "excluded", "replay"}}. Blocks that did not run
     one setting, or a record or selection other than theirs, are refused (SettingsError)."""
-    check_campaign(root, cal, frozen)
+    check_campaign(root, cal, frozen, cut)
     pre = live_set(pre or VP.load(), cut)
     arms_factory = arms_factory or default_factory(frozen)
     classes = sorted(pre["live_set"]["per_class"])
@@ -403,10 +410,11 @@ def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, p
 
 # --- the ladder --------------------------------------------------------------------------------------
 
-def ladder_knees(root, cal):
-    """The knees of a finished ladder: {class: bench/calibration.knee's result}, harm as bench/calibrate.harm against the attempt's own
-    control. Per (class, level, repeat) the last attempt with both runs sound counts (T050-13, ml/p1_prereg_3.json ladder): a clean re-run
-    restores a level, and one with no sound attempt, or that the plan refused, counts as no harm: never as passing."""
+def ladder_harm(root, cal):
+    """A finished ladder's harm, as bench/calibrate.harm against the attempt's own control: ({class: {level: [harm per repeat]}}, the repeats
+    with no sound attempt). Per (class, level, repeat) the last attempt with both runs sound counts (T050-13, ml/p1_prereg_3.json ladder):
+    a clean re-run restores a level, and one with no sound attempt, or that the plan refused, counts as no harm: never as passing. Those
+    are named as well, so that the rule's zero is not read as a measured one (T063-01)."""
     import calibrate as K
     gate = cal["gate"]
     attempts = {}
@@ -415,9 +423,9 @@ def ladder_knees(root, cal):
         if m is not None and x["run"] != "C":
             key = (m.group("cls"), float(m.group("level")), int(m.group("repeat")))
             attempts.setdefault(key, []).append((x["attempt"], x["block_dir"], x["run"]))
-    rows = {}
-    for (cls, level, _repeat), tries in sorted(attempts.items()):
-        harm = 0.0
+    rows, unsound = {}, []
+    for (cls, level, repeat), tries in sorted(attempts.items()):
+        harm, sound = 0.0, False
         for _attempt, block_dir, run in sorted(tries, reverse=True):
             try:
                 b = LH.assess_block(os.path.join(root, block_dir), cal)
@@ -426,16 +434,26 @@ def ladder_knees(root, cal):
             control, attack = b["runs"].get("C"), b["runs"].get(run)
             if control and attack and control["checks"].get("ok") and attack["checks"].get("ok"):
                 h, _parts = K.harm([control["metrics"]], attack["metrics"], gate["floor_pp"], gate["floor_log2_p95"])
-                harm = h or 0.0
+                harm, sound = h or 0.0, True
                 break
+        if not sound:
+            unsound.append({"class": cls, "level": int(level) if cls == "C3b" else level, "repeat": repeat, "attempts": len(tries)})
         rows.setdefault(cls, {}).setdefault(level, []).append(harm)
+    return rows, unsound
+
+
+def ladder_knees(root, cal, harm=None):
+    """The knees of a finished ladder: {class: bench/calibration.knee's result} over ladder_harm's rows, or over the `harm` it gave."""
+    rows, _unsound = harm or ladder_harm(root, cal)
     return {cls: CAL.knee(sorted(levels.items()), 1.0, 2) for cls, levels in sorted(rows.items())}
 
 
 def knees_file(root, cal):
     """What --ladder writes and --knees takes (T050-13): each class's level at the top of the file, null and named under no_knee for a class
-    without one, bound to the record and the factor. A campaign that needs a class without a knee refuses."""
-    knees = ladder_knees(root, cal)
+    without one, bound to the record and the factor. A campaign that needs a class without a knee refuses. Under no_sound_attempt, every
+    (class, level, repeat) that had no sound attempt and so counted as no harm (T063-01)."""
+    harm = ladder_harm(root, cal)
+    knees = ladder_knees(root, cal, harm)
     levels, none = {}, []
     for cls in sorted(PT.PRIMARY):
         level = (knees.get(cls) or {}).get("level")
@@ -443,7 +461,7 @@ def knees_file(root, cal):
         if level is None:
             none.append(cls)
     return {"format": "p1-knees/1", "status": cal.get("status"), "record_sha256": cal.get("sha256"), "record_status": cal.get("status"),
-            "benign_halvings": ladder_factor(root), **levels, "no_knee": none, "knees": knees}
+            "benign_halvings": ladder_factor(root), **levels, "no_knee": none, "no_sound_attempt": harm[1], "knees": knees}
 
 
 def ladder_factor(root):
@@ -583,7 +601,9 @@ def main(argv=None):
               f"seeds missing: {res['missing_seeds']}")
     elif args.ladder:
         res = knees_file(args.root, cal)
-        print(f"the knees: { {c: res[c] for c in sorted(PT.PRIMARY)} }; no knee: {res['no_knee']}")
+        holes = ", ".join(f"{h['class']} L{h['level']:g} r{h['repeat']}" for h in res["no_sound_attempt"]) or "none"
+        print(f"the knees: { {c: res[c] for c in sorted(PT.PRIMARY)} }; no knee: {res['no_knee']}; "
+              f"no sound attempt, counted as no harm (ml/p1_prereg_3.json ladder): {holes}")
     else:
         frozen = {"selection": args.selection, "selection_sha256": args.selection_sha256, "rules": args.rules,
                   "rules_sha256": args.rules_sha256}

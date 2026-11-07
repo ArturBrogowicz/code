@@ -2,13 +2,16 @@
 on the fake host of tests/p1_fake_host.py. Nothing touches the machine."""
 import contextlib
 import copy
+import inspect
 import io
 import json
 import os
+import signal
 import socket
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -18,12 +21,14 @@ for _p in (HERE, REPO, os.path.join(REPO, "eval"), os.path.join(REPO, "ml"), os.
     if _p not in sys.path:
         sys.path.insert(0, _p)
 import executor as X
+import l7v2_harm as LH
 import l7v2_verdict_prereg as VP
 import p1_fake_host as F
 import p1_runner as R
 import population as POP
 
 import ban_events
+import l7_backend
 import l7_conf
 import l7_dataset
 
@@ -390,6 +395,38 @@ class ExecuteTest(Base):
         self.assertEqual(index(self.root)[-1]["reasons"], res["reasons"])
         return " | ".join(res["reasons"])
 
+    def test_nginx_starts_with_no_pipe_for_its_daemon_to_hold(self):
+        """Review T-057 T057-01: `host.run` of this start comes back only at the 120-s timeout on the real nginx, and now on the fake."""
+        host = F.P1FakeHost()
+        block = self.block(runs=("C",))
+        ((_n, res),) = R.run_block(host, block)
+        self.assertTrue(res["ok"], res["reasons"])
+        start = tuple(block["runs"][0]["nginx"]["start"])
+        self.assertEqual([c[2] for c in host.commands if c[1] == start], ["popen"])
+        self.assertTrue(os.path.isfile(os.path.join(block["runs"][0]["out"], "nginx_start.log")))
+        self.assertEqual(F.P1FakeHost().run(list(start), ns="server_ns").code, -1)
+
+    def test_a_failed_start_keeps_its_message(self):
+        self.assertRegex(self.invalid(F.P1FakeHost(nginx_fails=True)), r"nginx did not start: .* exited 1: nginx: \[emerg\]")
+
+    def test_a_failed_alias_makes_the_run_invalid_and_names_the_step(self):
+        """Review T-057 T057-03, through P4's topology."""
+        host = F.P1FakeHost(ip_batch_fails=True)
+        self.assertRegex(self.invalid(host), r"ip -batch in \S+ exited 2: RTNETLINK answers: File exists")
+        self.assertEqual(host.kinds().get("gen", 0), 0)
+        self.assertTrue(host.ran("ip", "netns", "del", "server_ns"))
+
+    def test_the_fakes_share_one_shield(self):
+        """Review T-067 T067-02: P1's fake kept a shield of its own, which the base fake's interrupt_again never saw."""
+        host = F.P1FakeHost(interrupt_again=True)
+        with host.shielded():
+            self.assertTrue(host.shield)
+            host.run(["ip", "netns", "del", "x"])
+        self.assertEqual((host.ignored_interrupts, host.shield_depth, host.shield), (1, 0, False))
+        host = F.P1FakeHost(interrupt_again=True)
+        with self.assertRaises(KeyboardInterrupt):
+            host.run(["ip", "netns", "del", "x"])
+
     def test_refusals_before_the_traffic(self):
         self.assertIn("not root", self.invalid(F.P1FakeHost(root=False)))
         self.root = tempfile.mkdtemp(dir=self.tmp.name)
@@ -461,6 +498,320 @@ class ExecuteTest(Base):
         self.assertEqual(code, 0, out.getvalue())
         self.assertEqual({x["run"] for x in index(self.root)}, {"C", "U_C2"})
         self.assertEqual(index(self.root)[0]["label"], "C2_L1_r1")
+
+
+class LadderRegisteredTest(Base):
+    """T057-05: the ladder runs what ml/l7v2_prereg.json harm.ladder registered, and a repeat that fell short stays where it fell."""
+
+    def plan(self, seed=9001, cls="C2", level=2.0, label="C2_L2_r1", attempt=1):
+        return R.plan_block("ladder", seed, self.root, frozen=self.frozen, levels={cls: level}, runs=["C", f"U_{cls}"], label=label, attempt=attempt,
+                            benign_specs=F.thin_benign(), max_sources=3)
+
+    def test_a_level_outside_the_ladder_is_refused(self):
+        for cls, level in (("C2", 3.0), ("C2", 0.5), ("C3a", 0.75), ("C3b", 75)):
+            with self.subTest(cls=cls, level=level), self.assertRaisesRegex(R.PlanError, "not one of its pre-registered levels"):
+                self.plan(cls=cls, level=level, label=f"{cls}_L{level:g}_r1")
+        for level in R.PT.ladder_levels("C2"):
+            with self.subTest(level=level):
+                self.assertEqual(self.plan(level=float(level), label=f"C2_L{level:g}_r1")["levels"], {"C2": float(level)})
+
+    def test_the_command_line_says_so_in_plan_mode(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            code = R.main(["--phase", "ladder", "--seed", "9001", "--class", "C2", "--level", "3", "--plan",
+                           "--calibration", self.frozen["calibration"], "--health", self.frozen["health"], "--root", self.root])
+        self.assertEqual(code, 2)
+        self.assertIn("not one of its pre-registered levels [1, 2, 4, 8]", err.getvalue())
+
+    def test_a_third_repeat_or_a_label_of_its_own_is_refused(self):
+        for label in ("C2_L2_r3", "C2_L2_r0", "x", "", "C2_L2.0_r1", "C2_L1_r1", "C3a_L2_r1"):
+            with self.subTest(label=label), self.assertRaisesRegex(R.PlanError, "is not one of .*the ladder has 2 repeats"):
+                self.plan(label=label)
+
+    def test_a_sound_repeat_is_not_rolled_again_on_another_seed(self):
+        self.assertTrue(all(res["ok"] for _n, res in R.run_block(F.P1FakeHost(), self.plan(9001))))
+        before = index(self.root)
+        block = self.plan(9002)
+        with self.assertRaisesRegex(R.PlanError, "C2_L2_r1 ran on seed 9001.*not rolled again on 9002"):
+            R.run_block(F.P1FakeHost(), block)
+        self.assertEqual(index(self.root), before)
+        self.assertFalse(os.path.exists(block["dir"]))
+
+    def test_an_invalid_repeat_is_re_run_on_its_own_seed_and_not_on_another(self):
+        self.assertFalse(all(res["ok"] for _n, res in R.run_block(F.P1FakeHost(quiet_from=60.0), self.plan(9001))))
+        with self.assertRaisesRegex(R.PlanError, "ran on seed 9001"):
+            R.run_block(F.P1FakeHost(), self.plan(9002))
+        self.assertTrue(all(res["ok"] for _n, res in R.run_block(F.P1FakeHost(), self.plan(9001, attempt=2))))
+
+    def test_the_other_repeat_may_take_another_seed(self):
+        R.run_block(F.P1FakeHost(), self.plan(9001))
+        self.assertTrue(all(res["ok"] for _n, res in R.run_block(F.P1FakeHost(), self.plan(9002, label="C2_L2_r2"))))
+
+
+class OperationsTest(Base):
+    """T057-07, P1's side: a refusal is a reason and not a traceback, an interrupt goes through the teardown, and a generator's stderr stays."""
+
+    RUNS = ("C", "U_C2")
+
+    def block(self, runs=RUNS):
+        return R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=list(runs), label="ops",
+                            benign_specs=F.thin_benign(), max_sources=3)
+
+    def command_line(self, host):
+        """The ladder's real command line on `host`, on thin traffic: its exit code and what it said."""
+        orig = R.PT.build_block
+
+        def thinned(*a, **kw):
+            return orig(*a, **{**kw, "benign_specs": F.thin_benign(), "max_sources": 2})
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(R.PT, "build_block", side_effect=thinned), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = R.main(["--phase", "ladder", "--seed", "9001", "--class", "C2", "--level", "1", "--health", self.frozen["health"],
+                           "--calibration", self.frozen["calibration"], "--root", self.root], host=host)
+        return code, err.getvalue()
+
+    def assert_torn_down(self, host, run):
+        self.assertEqual([(p.kind, p.argv[:2]) for p in host.procs if p.returncode is None], [], "nothing keeps running")
+        gone = {c[1][3] for c in host.commands if c[1][:3] == ("ip", "netns", "del")}
+        self.assertGreaterEqual(gone, {ns["name"] for ns in run["namespaces"]} | {R.SERVER_NS})
+        self.assertTrue(any(c[1][:3] == ("ip", "link", "del") and c[1][3] == R.P4.BRIDGE for c in host.commands), "the bridge goes too")
+
+    def test_a_refused_re_run_prints_its_reason_and_no_traceback(self):
+        self.assertEqual(self.command_line(F.P1FakeHost())[0], 0)
+        code, said = self.command_line(F.P1FakeHost())
+        self.assertEqual(code, 2, "not the exit code of an invalid run")
+        self.assertIn("[-] ladder C2_L1_r1 on seed 9001: attempt 1, and the index says the next is 2", said)
+
+    def test_ctrl_c_tears_the_testbed_down_at_once(self):
+        host, block = F.P1FakeHost(interrupt_at=60.0), self.block()
+        with self.assertRaises(KeyboardInterrupt):
+            R.run_block(host, block)
+        self.assert_torn_down(host, block["runs"][0])
+        self.assertLess(host.t, 120.0, "the generators were stopped, not waited for until their end")
+        meta = read_json(os.path.join(block["dir"], block["order"][0], "run.json"))
+        self.assertFalse(meta["checks"]["ok"])
+        self.assertIsNotNone(meta["sink"], "nginx was stopped: it writes the fake's sink as it quits")
+        self.assertIn("interrupted (Ctrl-C): the testbed was taken down", meta["checks"]["reasons"])
+        self.assertFalse(any("exited with code" in r for r in meta["checks"]["reasons"]), "the runner stopped them: their codes say nothing")
+        rows = index(self.root)
+        self.assertEqual([x["run"] for x in rows], block["order"][:1], "the block's other run did not start")
+        self.assertFalse(rows[0]["ended"], "the index holds no end: read_index reads the run as invalid")
+        self.assertFalse(rows[0]["valid"])
+
+    def test_an_enforcing_arm_s_daemon_is_stopped_the_way_that_detaches_xdp(self):
+        host, block = F.P1FakeHost(interrupt_at=60.0), self.block(runs=("M_gru_C2",))
+        with self.assertRaises(KeyboardInterrupt):
+            R.run_block(host, block)
+        self.assert_torn_down(host, block["runs"][0])
+        daemon = next(p for p in host.procs if p.kind == "daemon")
+        self.assertEqual(daemon.returncode, 0, "SIGINT runs its finally")
+
+    def test_a_second_interrupt_cannot_cut_the_stop_or_the_teardown_short(self):
+        """T063-02: Ctrl-C, then another as the runner quits nginx or deletes a namespace. The interrupted stop and teardown run inside
+        host.shielded(), as HG's do, so the second one is lost and the testbed still goes down."""
+        for words in (("-s", "quit"), ("netns", "del")):
+            with self.subTest(words=words):
+                self.root = tempfile.mkdtemp(dir=self.tmp.name)
+                host, block = F.P1FakeHost(interrupt_at=60.0, second_interrupt_on=words), self.block(runs=("M_gru_C2",))
+                with self.assertRaises(KeyboardInterrupt):
+                    R.run_block(host, block)
+                self.assertEqual(host.lost_interrupts, 1, "the second one came, inside the shield")
+                self.assertFalse(host.shield, "and the shield ends with the teardown")
+                self.assert_torn_down(host, block["runs"][0])
+                self.assertEqual(next(p for p in host.procs if p.kind == "daemon").returncode, 0, "the daemon still got its SIGINT")
+                self.assertIn("interrupted (Ctrl-C): the testbed was taken down",
+                              read_json(os.path.join(block["dir"], "M_gru_C2", "run.json"))["checks"]["reasons"])
+
+    def test_an_interrupt_while_the_run_is_finishing_still_tears_it_down(self):
+        host, block = F.P1FakeHost(interrupt_at=R.PT.run_seconds() + 0.2), self.block(runs=("C",))
+        with self.assertRaises(KeyboardInterrupt):
+            R.run_block(host, block)
+        self.assertGreater(host.t - host.stack_t0, R.PT.run_seconds(), "it came after the run loop")
+        self.assert_torn_down(host, block["runs"][0])
+        self.assertIn("interrupted (Ctrl-C): the testbed was taken down", read_json(os.path.join(block["dir"], "C", "run.json"))["checks"]["reasons"])
+
+    def test_term_does_the_same_through_the_handlers_a_real_run_installs(self):
+        for sig in (signal.SIGTERM, signal.SIGHUP):
+            self.addCleanup(signal.signal, sig, signal.getsignal(sig))
+        X._install_signal_handlers()
+        host, block = F.P1FakeHost(), self.block(runs=("C",))
+        host.at(60.0, lambda: os.kill(os.getpid(), signal.SIGTERM))
+        with self.assertRaises(KeyboardInterrupt):
+            R.run_block(host, block)
+        self.assert_torn_down(host, block["runs"][0])
+        self.assertIn(f"interrupted (signal {int(signal.SIGTERM)}): the testbed was taken down",
+                      read_json(os.path.join(block["dir"], "C", "run.json"))["checks"]["reasons"])
+
+    def test_the_command_line_ends_with_a_line_and_its_own_code(self):
+        try:
+            code, said = self.command_line(F.P1FakeHost(interrupt_at=60.0))
+        except KeyboardInterrupt:
+            self.fail("the interrupt went through main")
+        self.assertEqual(code, 130)
+        self.assertIn("[-] interrupted (Ctrl-C): the testbed is down", said)
+
+    def test_only_a_real_run_installs_the_handlers(self):
+        with mock.patch.object(R.X, "_install_signal_handlers") as installed:
+            self.assertEqual(self.command_line(F.P1FakeHost())[0], 0)
+            installed.assert_not_called()
+            self.root = tempfile.mkdtemp(dir=self.tmp.name)
+            with mock.patch.object(R.X, "RealHost", return_value=F.P1FakeHost()):
+                self.assertEqual(self.command_line(None)[0], 0)
+            installed.assert_called_once_with()
+
+    def test_a_failing_generator_s_stderr_is_a_file_of_the_run(self):
+        probe = self.block(runs=("U_C2",))
+        ip = next(e["address"] for e in probe["runs"][0]["entities"] if e["role"] == "attack")
+        entity = next(e["entity_id"] for e in probe["runs"][0]["entities"] if e["address"] == ip)
+        host = F.P1FakeHost(gen_fails=[ip], gen_code=3)
+        res = dict(R.run_block(host, probe))["U_C2"]
+        run_dir = os.path.join(probe["dir"], "U_C2")
+        name = entity.replace(":", "_") + ".log"
+        self.assertIn(f"{entity} exited with code 3 (its stderr: {os.path.join('gen_stderr', name)})", res["reasons"])
+        with open(os.path.join(run_dir, "gen_stderr", name), encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), "RuntimeError: a fixture's generator, exit 3\n")
+        self.assertEqual(os.listdir(os.path.join(run_dir, "gen_stderr")), [name], "the clean generators' empty files are gone")
+        self.assertGreater(len(host.stderr_handles), 1)
+        self.assertTrue(all(h.closed for h in host.stderr_handles), "no handle per generator stays open in the runner")
+
+    def test_a_real_process_writes_there_after_the_runner_closed_its_handle(self):
+        """Through executor.RealHost's own popen, with no namespace: the fake cannot show that a child keeps the file. The long limit is for
+        this machine's stalls, not a claim about how fast a child ends."""
+        out = tempfile.mkdtemp(dir=self.tmp.name)
+        os.makedirs(os.path.join(out, "gen_stderr"))
+        code = "import sys, time; time.sleep(0.2); sys.stderr.write('boom\\n'); sys.exit(3)"
+        proc = R.launch_generator(X.RealHost(), {"entity_id": "v:1:2", "ns": "", "argv": [sys.executable, "-c", code]}, out)
+        deadline = time.monotonic() + 600.0
+        while proc.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.05)
+        self.assertEqual(proc.poll(), 3)
+        with open(os.path.join(out, "gen_stderr", "v_1_2.log"), encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), "boom\n")
+
+
+class HostLogsTest(Base):
+    """T063-06: the daemon's heuristic feed and nginx's error log sit in /var/log/nginx, inside logrotate's glob. A rotation in a run would
+    blind default_rules, whose feed it is, more than the learned arms, which read the socket sink: the run is invalid, in P4's words."""
+
+    def run_with(self, host, run="M_default_rules_C3b"):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0, "C3b": 50}, runs=[run], label="logs",
+                             benign_specs=F.thin_benign(), max_sources=3)
+        return dict(R.run_block(host, block))[run]
+
+    def test_a_rotation_in_the_run_makes_it_invalid(self):
+        res = self.run_with(F.P1FakeHost(logs_rotate_at=60.0))
+        self.assertFalse(res["ok"])
+        for path in R.HOST_LOGS:
+            self.assertIn(f"{path} was replaced or removed during the run (inode 1 at nginx's start, 2 after nginx stopped): logrotate?", res["reasons"])
+
+    def test_a_removed_log_too_and_the_stats_bracket_nginx_s_life(self):
+        class Watched(F.P1FakeHost):
+            def __init__(self, **kw):
+                super().__init__(**kw)
+                self.stats, self.quit_at = [], None
+
+            def run(self, argv, ns="", stdin="", env=None, timeout=None):
+                if "quit" in argv:
+                    self.quit_at = self.t
+                return super().run(argv, ns, stdin, env, timeout)
+
+            def stat(self, path):
+                self.stats.append((path, self.t, self.run_t0, self.quit_at))
+                gone = path == R.HOST_LOGS[0] and self.run_t0 is not None and self.t - self.run_t0 >= 60.0
+                return None if gone else super().stat(path)
+        host = Watched()
+        res = self.run_with(host)
+        self.assertIn(f"{R.HOST_LOGS[0]} was replaced or removed during the run (inode 1 at nginx's start, None after nginx stopped): logrotate?",
+                      res["reasons"])
+        mine = [s for s in host.stats if s[0] in R.HOST_LOGS]
+        self.assertEqual(len(mine), 4)
+        self.assertTrue(all(run_t0 is None for _p, _t, run_t0, _q in mine[:2]), "at nginx's start, before the traffic")
+        self.assertTrue(all(quit_at is not None for _p, _t, _r, quit_at in mine[2:]), "after nginx's quit, its last writer")
+
+    def test_a_clean_run_has_nothing_to_say(self):
+        res = self.run_with(F.P1FakeHost(), run="C")
+        self.assertTrue(res["ok"], res["reasons"])
+
+
+class BackendExitTest(Base):
+    """D-063: a gunicorn that exits by itself. On the fake's real path through execute_run; its requests get 502s from its death on."""
+
+    BOOT = "[ERROR] Worker (pid:7) exited with code 3.\n[ERROR] Reason: Worker failed to boot.\n"
+
+    def block(self, *runs, **kw):
+        self.made = getattr(self, "made", 0) + 1
+        return R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=list(runs), label=f"g{self.made}",
+                            benign_specs=F.thin_benign(), max_sources=3, **kw)
+
+    def run_one(self, name, **host):
+        block = self.block(name)
+        res = dict(R.run_block(F.P1FakeHost(**host), block))[name]
+        return res, read_json(os.path.join(block["dir"], name, "run.json"))
+
+    def test_gunicorn_dying_in_mid_run_makes_the_run_invalid(self):
+        for name in ("U_C2", "C", "M_gru_C2"):
+            res, meta = self.run_one(name, gunicorn_dies=(100.0, 1, ""))
+            with self.subTest(name):
+                self.assertFalse(res["ok"])
+                self.assertEqual([r for r in res["reasons"] if "gunicorn" in r], ["gunicorn exited at 100 s (code 1)"])
+                self.assertEqual(meta["checks"]["reasons"], res["reasons"])
+
+    def test_the_reason_names_what_the_log_shows_in_p4_s_words(self):
+        refusal = "origin.CalibrationError: C0: 0.005 ms against 0.05 ms frozen\n" + self.BOOT
+        for text, want in ((self.BOOT, "gunicorn exited at 150 s (code 3): a worker failed to boot (gunicorn.log)"),
+                           (refusal, "gunicorn exited at 150 s (code 3): the origin refused its calibration record (gunicorn.log)")):
+            res, _meta = self.run_one("C", gunicorn_dies=(150.0, 3, text))
+            self.assertIn(want, res["reasons"])
+
+    def test_a_dead_backend_does_not_read_as_harm(self):
+        """The failure itself: Q falls in U, by every reading, client and server, and the class would be harmed. The block must say why not."""
+        block = self.block("C", "Cp", "U_C2")
+        R.run_block(F.P1FakeHost(gunicorn_dies=(60.0, 1, ""), gunicorn_dies_in={"U_C2"}), block)
+        got = LH.assess_block(block["dir"], l7_backend.load_record(self.frozen["calibration"])[0])
+        self.assertLess(got["runs"]["U_C2"]["metrics"]["Q"], 50.0, "the 502s are in Q")
+        self.assertGreater(got["classes"]["C2"]["dQ"], 10.0)
+        self.assertFalse(got["classes"]["C2"]["valid"])
+        self.assertIn("U_C2: gunicorn exited at 60 s (code 1)", got["classes"]["C2"]["reasons"])
+        self.assertFalse(got["valid_all"])
+
+    def test_gunicorn_dying_after_the_loop_s_last_look_is_seen_once(self):
+        res, _meta = self.run_one("C", gunicorn_dies=(270.2, 1, ""))
+        self.assertEqual(len([r for r in res["reasons"] if r.startswith("gunicorn exited at 27")]), 1, res["reasons"])
+
+    def test_the_runner_stopping_gunicorn_is_no_reason(self):
+        res, _meta = self.run_one("C")
+        self.assertEqual(res["reasons"], [])
+
+    def test_a_refused_master_never_serves(self):
+        """Named at once, with no traffic, no daemon and no 30-s wait; nginx is stopped and the testbed torn down."""
+        block = self.block("M_gru_C2")
+        host = F.P1FakeHost(gunicorn_refuses="[INFO] Starting gunicorn 26.2.0\nCalibrationError: C0: 0.005 ms against 0.05 ms frozen\n")
+        res = dict(R.run_block(host, block))["M_gru_C2"]
+        self.assertEqual(res["reasons"], ["gunicorn exited before the traffic (code 1): the origin refused its calibration record (gunicorn.log)"])
+        self.assertEqual({p.kind for p in host.procs}, {"server"})
+        self.assertLess(host.t, 5.0)
+        self.assertTrue(host.ran("ip", "netns", "del", "server_ns"))
+        self.assertFalse(os.path.exists(os.path.join(block["dir"], "M_gru_C2", "cpu.jsonl")))
+
+    def test_nginx_gone_at_the_run_s_end_makes_the_run_invalid(self):
+        res, meta = self.run_one("U_C2", nginx_gone=True)
+        self.assertEqual(res["reasons"], ["nginx was not running at the run's end: its quit exited 1"])
+        self.assertEqual(meta["checks"]["reasons"], res["reasons"])
+
+    def test_the_nginx_reason_is_p4_s_one_function(self):
+        self.assertEqual(R.P4.nginx_gone(1), "nginx was not running at the run's end: its quit exited 1")
+        self.assertIn("P4.nginx_gone", inspect.getsource(R))
+        self.assertIn("nginx_gone(quit_code)", inspect.getsource(R.P4.finish))
+
+    def test_a_run_that_never_began_has_no_end_to_speak_of(self):
+        res, _meta = self.run_one("C", nginx_gone=True, stack_ready=False)
+        self.assertEqual(len(res["reasons"]), 1, res["reasons"])
+        self.assertIn("did not answer", res["reasons"][0])
+
+    def test_the_helper_is_p4_s_and_not_a_copy(self):
+        source = inspect.getsource(R)
+        self.assertIn("P4.gunicorn_gone", source)
+        self.assertNotIn("GUNICORN_REFUSALS", source)
+        self.assertFalse(hasattr(R, "gunicorn_gone"))
 
 
 class TimerGateTest(Base):
@@ -601,11 +952,26 @@ class ArmCouldActTest(Base):
     def test_a_healthy_feed_passes_and_its_loss_is_reported(self):
         res, meta = self.run_with()
         self.assertTrue(res["ok"], res["reasons"])
-        self.assertEqual(meta["shadow"]["parsed"], meta["sink"]["lines"])
-        self.assertEqual(meta["shadow"]["socket_loss"], 0.0)
+        self.assertLess(meta["shadow"]["parsed"], meta["sink"]["lines"], "nothing reports the lines after the daemon's last 5-s report (T057-10)")
+        self.assertGreater(meta["shadow"]["socket_loss"], 0.0)
+        self.assertLess(meta["shadow"]["socket_loss"], 0.05)
+        last_s = meta["shadow"]["socket_loss"]
         res, meta = self.run_with(parsed_share=0.8)
         self.assertTrue(res["ok"], res["reasons"])
-        self.assertAlmostEqual(meta["shadow"]["socket_loss"], 0.2, delta=0.01)
+        self.assertAlmostEqual(meta["shadow"]["socket_loss"], 1.0 - 0.8 * (1.0 - last_s), delta=0.005)
+
+    def test_the_fake_reports_as_the_real_daemon_does(self):
+        """T057-10: control_plane.py reports l7_shadow every 5 s, and at its end only l7_gru_poll. No report comes at the daemon's stop."""
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=["M_gru_C2"], label="reports",
+                             benign_specs=F.thin_benign(), max_sources=3)
+        host = F.P1FakeHost()
+        R.run_block(host, block)
+        daemon = next(p for p in host.procs if p.kind == "daemon")
+        times = [e["t_wall"] for e in ban_events.read_events(daemon.env["BAN_EVENTS"]) if e.get("kind") == "l7_shadow"]
+        self.assertEqual(sorted(times), times)
+        self.assertEqual({round(times[k + 1] - times[k], 6) for k in range(len(times) - 1)}, {5.0})
+        self.assertLessEqual(daemon.exit_time - times[-1], 5.0)
+        self.assertGreater(daemon.exit_time, times[-1], "the last one comes before the stop, not at it")
 
     def test_a_conf_without_the_socket_sink_invalidates_the_run(self):
         """T050-01's failure itself: armed, sha256s right, no error anywhere, and nothing received."""
@@ -719,8 +1085,9 @@ class ShadowValidityTest(Base):
     def test_a_clean_run_records_zeros(self):
         res, meta = self.run_with([(60.0, {"kind": "l7_shadow", "evicted": 0, "late": 0, "active_keys": 3})])
         self.assertTrue(res["ok"], res["reasons"])
-        self.assertEqual({k: meta["shadow"][k] for k in ("reports", "evicted", "late", "daemon_errors", "shadow_restarts_in_attack")},
-                         {"reports": 2, "evicted": 0, "late": 0, "daemon_errors": [], "shadow_restarts_in_attack": 0})
+        self.assertEqual({k: meta["shadow"][k] for k in ("evicted", "late", "daemon_errors", "shadow_restarts_in_attack")},
+                         {"evicted": 0, "late": 0, "daemon_errors": [], "shadow_restarts_in_attack": 0})
+        self.assertGreater(meta["shadow"]["reports"], 50, "every 5 s of the run, and the one the test added")
         self.assertEqual(meta["bans_by_engine"], {})
 
     def test_an_eviction_makes_it_invalid_and_late_is_only_recorded(self):
@@ -802,7 +1169,7 @@ class PointsTest(Base):
             thin(frozen, self.root)
 
     def test_a_pilot_block_needs_none(self):
-        block = R.plan_block("ladder", 9001, self.root, frozen={**self.frozen, "points": None}, levels={"C2": 2.0}, runs=["C", "U_C2"], label="x",
+        block = R.plan_block("ladder", 9001, self.root, frozen={**self.frozen, "points": None}, levels={"C2": 2.0}, runs=["C", "U_C2"], label="C2_L2_r1",
                              benign_specs=F.thin_benign(), max_sources=3)
         self.assertNotIn("points", block["frozen"])
 
@@ -855,11 +1222,11 @@ class AgeCheckTest(Base):
                 self.assertFalse(by_name[name]["age_check"]["applied"])
 
     def test_a_failing_check_invalidates_nothing_and_every_phase_records_it(self):
-        block = R.plan_block("ladder", 9001, self.root, frozen=self.frozen, levels={"C2": 2.0}, runs=["C", "U_C2"], label="x",
+        block = R.plan_block("ladder", 9001, self.root, frozen=self.frozen, levels={"C2": 2.0}, runs=["C", "U_C2"], label="C2_L2_r1",
                              benign_specs=F.thin_benign(), max_sources=3)
         report = {"pass": False, "ks": 0.9}
         with mock.patch.object(R.PT, "age_report", return_value={"C2": report}):
-            block = R.plan_block("ladder", 9001, self.root, frozen=self.frozen, levels={"C2": 2.0}, runs=["C", "U_C2"], label="y",
+            block = R.plan_block("ladder", 9001, self.root, frozen=self.frozen, levels={"C2": 2.0}, runs=["C", "U_C2"], label="C2_L2_r2",
                                  benign_specs=F.thin_benign(), max_sources=3)
         results = dict(R.run_block(F.P1FakeHost(), block))
         self.assertTrue(results["U_C2"]["ok"], results["U_C2"]["reasons"])

@@ -72,12 +72,15 @@ What the runs write feeds eval/p4_validation.py (slow_pc_manifest.json, slow_pc.
 the closes, and nginx's refusals by role from the access log, for the limits' own cost of D-041) unchanged; `--summarize ROOT OUT.jsonl` writes the run records of every evaluation attempt of the
 run index, valid or not (D-035, V-03).
 
+    ./venv/bin/python eval/p4_ladder.py ROOT --calibration FROZEN.json --out knees.json
+    sudo ./venv/bin/python eval/p4_runner.py --phase validation --seed 4001 --loris 175 --post 10 --knees knees.json --calibration FROZEN.json
     ./venv/bin/python eval/p4_validation.py ROOT --json selection.json
-    sudo ./venv/bin/python eval/p4_runner.py --phase campaign --seed 3101 --loris 175 --post 10 --thresholds 20,64,2 --selection selection.json --calibration FROZEN.json
+    sudo ./venv/bin/python eval/p4_runner.py --phase campaign --seed 3101 --loris 175 --post 10 --thresholds 20,64,2 --selection selection.json --knees knees.json --calibration FROZEN.json
     ./venv/bin/python eval/p4_runner.py --phase validation --seed 4001 --loris 175 --post 10 --plan
     ./venv/bin/python eval/p4_runner.py --summarize ROOT runs.jsonl --calibration FROZEN.json    # --dry-run: a simulated campaign
 """
 import argparse
+import contextlib
 import datetime
 import hashlib
 import itertools
@@ -86,6 +89,7 @@ import math
 import os
 import random
 import sys
+import types
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -103,7 +107,10 @@ SERVER_NS, SERVER_IP, BRIDGE, SERVER_VETH_HOST_END = "server_ns", "10.0.0.1", "d
 NS_PREFIX, MAX_ALIASES, SUBNET_MASK = "p4n", 80, "/16"
 # The runner too (review T-050 T050-17): its popen, curl and reads, and the ip and curl processes it starts, keep off the CPUs of the
 # server and the daemon, as bench/population.PIN_PLAN_DAEMON's executor CPU does. P4's plan has no CPU to spare, so it shares the clients'.
-PINS = {"server": "0-1", "daemon": "2", "clients": "3-7", "runner": "3-7"}
+# "timer": the CPU the timer gate probes (review T-057 T057-06), the legit CPU of bench/population.PIN_PLAN_DAEMON, on which the record's limit was
+# measured. P4's clients stay on 3-7, so the gate says that the host is calm, not that their CPUs are; the view slips read those.
+PINS = {"server": "0-1", "daemon": "2", "clients": "3-7", "runner": "3-7", "timer": "7"}
+TIMER_WAIT_MIN = 30.0              # bench/executor.py timer_gate's default wait, as eval/p1_runner.py: every run may use it in full
 CONF_R = "nginx_profile_r.conf"
 CONF_LIMITS = "nginx_profile_r_limits.conf"
 GUNICORN_CONF = "gunicorn_profile_r.py"
@@ -178,6 +185,15 @@ def arm_spec(arm, phase):
     return CONF_R, None, family
 
 
+LADDER_REPEATS = 2           # §5: "the lowest level that harms in 2 of 2 repeats"
+
+
+def ladder_labels(level):
+    """The labels of a ladder level's repeats (review T-063 T063-05; the spelling the tests and eval/p4_ladder.py used). A level names its
+    family too, since the two families' ladders share no level."""
+    return [f"l{level}r{repeat}" for repeat in range(1, LADDER_REPEATS + 1)]
+
+
 def block_order(phase, seed, arms, label=""):
     """The block's runs in a seeded random order (§10: each block's runs in a seeded order)."""
     order = list(arms)
@@ -246,6 +262,11 @@ def records_path(out, entity):
     return os.path.join(out, "records", entity["entity_id"].replace(":", "_") + ".csv")
 
 
+def stderr_path(out, entity_id):
+    """Where a generator's stderr goes (review T-057 T057-07); finish() removes the empty ones."""
+    return os.path.join(out, "gen_stderr", entity_id.replace(":", "_") + ".log")
+
+
 def stats_path(out, entity):
     """Where an attack generator writes what it did (ml/l7_gen.py --stats)."""
     return os.path.join(out, "attack_stats", entity["entity_id"].replace(":", "_") + ".json")
@@ -312,25 +333,29 @@ def plan_run(pop, phase, arm, out, *, thresholds=None, calibration=PLACEHOLDER, 
     }
 
 
-def record_status(path):
-    """The status of a calibration record, its schema and hash checked (l7_backend.load_record), or PlanError."""
+def read_record(path):
+    """(record, status) of a calibration record, its schema and hash checked (l7_backend.load_record), or PlanError."""
     import l7_backend
     try:
-        return l7_backend.load_record(path)[1]
+        rec, status, _tag = l7_backend.load_record(path)
     except (OSError, ValueError) as exc:
         raise PlanError(f"the calibration record {path}: {exc}") from None
+    return rec, status
 
 
 def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresholds=None, family=None,
-               arms=None, label="", calibration=PLACEHOLDER, python=PYTHON, selection=None):
+               arms=None, label="", calibration=PLACEHOLDER, python=PYTHON, selection=None, knees=None):
     """One block's runs, in their seeded order, as data. `selection`: the campaign's record of the validation, which run_block
-    checks (check_selection); a plan can be printed without it."""
+    checks (check_selection); `knees`: the validation's and the campaign's record of the ladder (check_knees); a plan can be printed
+    without them."""
     sources = {"loris": 0, "post": 0, **(sources or {})}
     if phase not in PHASES:
         raise PlanError(f"unknown phase {phase!r}")
     if selection and phase != "campaign":
         raise PlanError(f"{phase}: --selection is the campaign's: the validation's choice of T, F and K")
-    status = record_status(calibration)
+    if knees and phase not in ("validation", "campaign"):
+        raise PlanError(f"{phase}: --knees is the validation's and the campaign's: the ladder's record")
+    record, status = read_record(calibration)
     if label and phase in ("campaign", "validation"):
         raise PlanError(f"{phase}: no --label: it would give another arm order in another directory (review T-047 P-13)")
     role = check_phase(phase, seed, sources, thresholds, family) if phase != "smoke" else "pilot"
@@ -340,6 +365,9 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresh
             raise PlanError("smoke: --thresholds T,F,K must be a point of slow_pc.GRID")
     if phase == "ladder":                        # the ladder's runs carry only the family under test
         sources = {f: (n if f == family else 0) for f, n in sources.items()}
+        if label not in ladder_labels(sources[family]):
+            raise PlanError(f"ladder: the label {label!r} is not one of {ladder_labels(sources[family])}: eval/p4_ladder.py reads the repeat "
+                            f"from it, and §5's ladder has {LADDER_REPEATS} repeats a level (review T-063 T063-05)")
     pop = PT.build_plan(seed, role, halvings=halvings, loris=sources["loris"], post=sources["post"])
     wanted = tuple(arms) if arms else phase_arms(phase, family)
     order = block_order(phase, seed, wanted, label)
@@ -347,9 +375,11 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresh
     bdir = os.path.join(root, phase, name)
     runs = [plan_run(pop, phase, arm, os.path.join(bdir, arm), thresholds=thresholds, calibration=calibration,
                      python=python) for arm in order]
+    for run in runs:
+        run["timer_limit_ms"] = record["validity"]["timer_p99_ms"]
     return {"phase": phase, "seed": seed, "attempt": attempt, "label": label, "dir": bdir, "root": root,
             "order": order, "sources": sources, "halvings": halvings, "thresholds": thresholds,
-            "calibration": calibration, "calibration_status": status, "selection": selection, "runs": runs}
+            "calibration": calibration, "calibration_status": status, "selection": selection, "knees": knees, "runs": runs}
 
 
 def describe(block):
@@ -357,7 +387,8 @@ def describe(block):
     lines = [f"P4 {block['phase']} block {block['seed']} attempt {block['attempt']}: {block['dir']}",
              (f"order {block['order']}; sources {block['sources']}; halvings {block['halvings']}; "
               f"thresholds {block['thresholds']}; calibration {block['calibration']} ({block['calibration_status']})"
-              + (f"; selection {block['selection']}" if block["phase"] == "campaign" else ""))]
+              + (f"; selection {block['selection']}" if block["phase"] == "campaign" else "")
+              + (f"; knees {block['knees']}" if block["phase"] in ("validation", "campaign") else ""))]
     if block["calibration_status"] != "frozen" and block["phase"] in ("validation", "campaign"):
         lines.append(f"  NOT FROZEN: {'a real host refuses this campaign' if block['phase'] == 'campaign' else 'no campaign can follow this validation'}"
                      " (T-052b; the campaign must name the validation's record, and a frozen one)")
@@ -448,17 +479,28 @@ def _text(host, path):
 
 
 def topology(host, plan):
+    """The run's testbed. Returns what failed, for the run's reasons (review T-057 T057-03): an alias that was not added fails its generator's
+    every request, which reads as harm, and a netem that failed leaves a slow uploader fast. Only these two are the runner's own commands: the
+    suite's primitives run theirs unchecked and return nothing, so a failure inside one is not seen here."""
+    problems = []
+
+    def step(what, argv, name, stdin=""):
+        r = host.run(argv, ns=name, stdin=stdin)
+        if r.code != 0:
+            problems.append(f"{what} in {name} exited {r.code}: {(r.err or r.out).strip()[:200]}")
+
     host.prim("bridge")
     host.prim("server_ns")
     for ns in plan["namespaces"]:
         host.prim("client_ns", ns["name"], ns["addresses"][0])
         if ns["addresses"][1:]:
-            host.run(["ip", "-batch", "-"], ns=ns["name"],
-                     stdin="".join(f"addr add {a}{SUBNET_MASK} dev veth_in\n" for a in ns["addresses"][1:]))
+            step("ip -batch", ["ip", "-batch", "-"], ns["name"],
+                 "".join(f"addr add {a}{SUBNET_MASK} dev veth_in\n" for a in ns["addresses"][1:]))
         if ns["profile"] == PT.NETEM_SLOW:
-            host.run(list(PT.NETEM_SLOW_ARGV), ns=ns["name"])
+            step("netem", list(PT.NETEM_SLOW_ARGV), ns["name"])
         else:
             host.prim("netem", ns["name"], ns["profile"])
+    return problems
 
 
 def teardown(host, plan):
@@ -483,6 +525,7 @@ def execute_run(host, plan):
     reasons, procs, launched = [], [], []
     os.makedirs(os.path.join(out, "records"), exist_ok=True)
     os.makedirs(os.path.join(out, "attack_stats"), exist_ok=True)
+    os.makedirs(os.path.join(out, "gen_stderr"), exist_ok=True)
     started = host.time()
     write_json(os.path.join(out, "plan.json"), plan)
     if not host.is_root():
@@ -493,10 +536,15 @@ def execute_run(host, plan):
     if plan["enforcing"] and host.exists(plan["kill_file"]):
         return finish(host, plan, [(f"the kill file {plan['kill_file']} exists: an enforcing run would run in shadow; "
                                     "nothing was started")], started, None, [], {}, [])
-    logs, stub, t0 = {}, [], None
+    timer, refused = timer_gate(host, plan)
+    if refused:
+        return finish(host, plan, [f"{refused}: nothing was started"], started, None, [], {}, [], timer=timer)
+    logs, stub, t0, logs_at_start = {}, [], None, None
     try:
         procs.append(("topology", None))                # from here on the teardown runs, whatever happens
-        topology(host, plan)
+        reasons += topology(host, plan)
+        if reasons:
+            return finish(host, plan, reasons, started, None, procs, logs, stub, timer=timer, logs_at_start=logs_at_start)
         host.run(["mkdir", "-p", "/var/log/nginx", os.path.join(out, "feed_before")])
         for name, path in NGINX_LOGS.items():          # nginx starts its logs afresh; nothing of the host's is lost
             host.run(["mv", "-f", path, os.path.join(out, "feed_before", name)])
@@ -504,8 +552,11 @@ def execute_run(host, plan):
         gunicorn = host.popen(plan["gunicorn"]["argv"], ns=SERVER_NS, env=plan["gunicorn"]["env"],
                               stdout=logs["gunicorn"], stderr=logs["gunicorn"], cwd=REPO)
         procs.append(("gunicorn", gunicorn))
-        if host.run(plan["nginx"]["start"], ns=SERVER_NS).code != 0:
-            reasons.append("nginx did not start")
+        refused = start_nginx(host, plan)
+        if refused:
+            reasons.append(refused)
+        else:
+            logs_at_start = log_stats(host)
         ready = _wait(host, lambda: gunicorn.poll() is not None
                       or host.run(["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "2",
                                    READY_URL], ns=SERVER_NS).out.strip() == "200", STACK_READY_TIMEOUT_S)
@@ -525,7 +576,7 @@ def execute_run(host, plan):
                          and any(e.get("kind") == "start" for e in _events(events)), DAEMON_READY_TIMEOUT_S):
                 reasons.append(f"the daemon was not ready within {DAEMON_READY_TIMEOUT_S:g} s")
         if reasons:
-            return finish(host, plan, reasons, started, None, procs, logs, stub)
+            return finish(host, plan, reasons, started, None, procs, logs, stub, timer=timer, logs_at_start=logs_at_start)
         t0 = host.time()
         total = sum(t.values())
         pending = list(plan["launches"])
@@ -535,7 +586,9 @@ def execute_run(host, plan):
             while pending and pending[0]["start_s"] <= now:
                 x = pending.pop(0)
                 try:
-                    launched.append(({**x, "lag_s": host.time() - t0 - x["start_s"]}, host.popen(x["argv"], ns=x["ns"], cwd=REPO)))
+                    with open(stderr_path(out, x["entity_id"]), "ab") as err:
+                        launched.append(({**x, "lag_s": host.time() - t0 - x["start_s"]},
+                                         host.popen(x["argv"], ns=x["ns"], cwd=REPO, stderr=err)))
                 except OSError as exc:
                     reasons.append(f"{x['entity_id']} did not start: {exc}")
             r = host.run(["curl", "-s", "--max-time", "1", STUB_STATUS_URL], ns=SERVER_NS)
@@ -553,10 +606,61 @@ def execute_run(host, plan):
                 break
             elapsed = host.time() - t0                                    # on the second, whatever the sample took
             host.sleep(max(0.0, min(math.floor(now) + 1, total) - elapsed))
-        return finish(host, plan, reasons, started, t0, procs, logs, stub, launched)
+        return finish(host, plan, reasons, started, t0, procs, logs, stub, launched, timer=timer, logs_at_start=logs_at_start)
+    except KeyboardInterrupt as exc:     # Ctrl-C, or TERM or HUP in main: the testbed comes down, the generators with it, and the block stops
+        with host.shielded():          # D-068, as P1's: only this pass is shielded, so a second interrupt cannot cut it short (T063-02)
+            finish(host, plan, [*reasons, f"the run was interrupted ({exc})"], started, t0, procs, logs, stub, launched, timer=timer,
+                   logs_at_start=logs_at_start, interrupted=True)
+        raise
     except Exception as exc:  # noqa: BLE001 - whatever failed, the run is recorded and the teardown runs
         reasons.append(f"the runner failed: {type(exc).__name__}: {exc}")
-        return finish(host, plan, reasons, started, t0, procs, logs, stub, launched)
+        return finish(host, plan, reasons, started, t0, procs, logs, stub, launched, timer=timer, logs_at_start=logs_at_start)
+
+
+def timer_gate(host, plan):
+    """The harm benchmark's gate before a run, as eval/p1_runner.py takes it (review T-057 T057-06): the timer of the CPU the record's limit was
+    measured on, at that limit, with its wait. Returns (the record of its probes, for run.json; the refusal's text, or None)."""
+    import executor
+    gate = types.SimpleNamespace(pins={"legit": PINS["timer"]}, timer_limit_ms=plan["timer_limit_ms"], overrides={})
+    try:
+        return executor.timer_gate(host, gate, TIMER_WAIT_MIN)[1], None
+    except executor.EnvironmentRefused as exc:
+        return getattr(exc, "record", None), f"the timer gate refused the run: {exc}"
+
+
+def log_stats(host, paths=None):
+    """{path: (inode, size) or None} of nginx's logs, or of `paths` (P1 passes its own), for replaced_logs(): taken once nginx has started
+    (review T-063 T063-07)."""
+    return {path: host.stat(path) for path in (NGINX_LOGS.values() if paths is None else paths)}
+
+
+def replaced_logs(host, at_start):
+    """Review T-057 T057-09, HG's check (bench/executor.py, T-028 F-04): nginx's logs sit in logrotate's glob, and a rotation in a run leaves its copy
+    only what came after, and the daemon without what nginx wrote until it reopened. `at_start` is log_stats() at nginx's start, and this is called
+    once nginx has stopped, so no stretch of the run is left out (T063-07): P4 after nginx's and gunicorn's stop, before it moves the logs; P1
+    after nginx's quit, with the host's logs left where they are. The reason says only what is true for both (T067-03). A log that was not there at the
+    start has nothing to compare. Only the inode: logrotate's rule for these logs renames and creates, which the inode sees; a truncation in place
+    would keep it, and two sizes, one at a fresh start, cannot tell one from a log that grew."""
+    out = []
+    for path, then in at_start.items():
+        now = host.stat(path)
+        if then is not None and (now is None or now[0] != then[0]):
+            out.append(f"{path} was replaced or removed during the run (inode {then[0]} at nginx's start, {now and now[0]} after nginx stopped): "
+                       "logrotate?")
+    return out
+
+
+def start_nginx(host, plan):
+    """Nginx as the harm benchmark starts it (bench/executor.py start_daemon; review T-057 T057-01): a process of its own with no pipe for
+    its daemon to hold. `host.run` captures its output, and a call like that came back only at its 120-s timeout, so no run would have got past
+    this line. A failed start keeps its message in the run's nginx_start.log. Returns the reason, or None. P1 calls it too."""
+    import executor
+    step = executor.Cmd(tuple(plan["nginx"]["start"]), SERVER_NS, detach=True)
+    try:
+        executor.start_daemon(host, step, types.SimpleNamespace(out=plan["out"]), lambda _said: None)
+    except executor.SetupFailed as exc:
+        return f"nginx did not start: {exc}"
+    return None
 
 
 def gunicorn_gone(host, plan, proc, when):
@@ -566,6 +670,11 @@ def gunicorn_gone(host, plan, proc, when):
     return f"gunicorn exited {when} (code {proc.poll()}){named}"
 
 
+def nginx_gone(code):
+    """The reason a run gives when `nginx -s quit` fails at its end (D-063). That a master that has died gives a non-zero exit is [CLAIMED], NOT RUN."""
+    return f"nginx was not running at the run's end: its quit exited {code}"
+
+
 def _stop(host, proc, grace=STOP_GRACE_S, interrupt=False):
     if proc.poll() is None:
         (proc.interrupt if interrupt else proc.terminate)()
@@ -573,29 +682,44 @@ def _stop(host, proc, grace=STOP_GRACE_S, interrupt=False):
             proc.kill()
 
 
-def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
-    """Stop everything, take the logs into the run, tear the testbed down, check and write the run's records."""
+def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=(), timer=None, logs_at_start=None, interrupted=False):
+    """Stop everything, take the logs into the run, tear the testbed down, check and write the run's records. As in P1 (D-068, review T-067
+    T067-01), only the `interrupted` finish runs inside host.shielded(), from execute_run's handler: a Ctrl-C, TERM or HUP during an ordinary
+    finish reaches that handler, whose shielded pass completes the stop and the teardown, and the block stops; a second interrupt in that pass is
+    lost (T063-02). So an interrupted pass may follow an ordinary one cut short, and repeats what it did harmlessly. An `interrupted` run keeps
+    its t0 and its generators, so its record keeps its figures (T063-08): they are stopped at once, not waited for, and the reasons a run's end
+    and checks would add are left out, gunicorn's exit, nginx's quit and the logs' inodes included, which a first pass may already have taken,
+    so that the interrupt is its reason."""
+    import executor
     out = plan["out"]
     reasons = list(reasons)
     try:
+        for _x, proc in launched if interrupted else ():
+            if proc.poll() is None:
+                proc.terminate()
         for x, proc in launched:                          # the generators end on their own at their duration
             if not _wait(host, lambda p=proc: p.poll() is not None, STOP_GRACE_S, step=0.5):
-                reasons.append(f"{x['entity_id']} was still running {STOP_GRACE_S:g} s after its end: stopped")
+                if not interrupted:
+                    reasons.append(f"{x['entity_id']} was still running {STOP_GRACE_S:g} s after its end: stopped")
                 _stop(host, proc)
-            elif proc.poll() != 0:
-                reasons.append(f"{x['entity_id']} exited with code {proc.poll()}")
+            elif proc.poll() != 0 and not interrupted:
+                said = executor._tail(stderr_path(out, x["entity_id"]))
+                reasons.append(f"{x['entity_id']} exited with code {proc.poll()}" + (f": {said[:200]}" if said else ""))
         for name, proc in procs:
-            if name == "gunicorn" and t0 is not None and proc.poll() is not None and not any(r.startswith("gunicorn exited") for r in reasons):
+            if name == "gunicorn" and t0 is not None and proc.poll() is not None and not interrupted and \
+                    not any(r.startswith("gunicorn exited") for r in reasons):
                 reasons.append(gunicorn_gone(host, plan, proc, f"at {host.time() - t0:.0f} s"))    # after the loop's last look
             if name == "daemon":
                 _stop(host, proc, interrupt=True)          # SIGINT runs its finally, which detaches XDP
         if any(name == "gunicorn" for name, _p in procs):
             quit_code = host.run(plan["nginx"]["stop"], ns=SERVER_NS).code
-            if quit_code != 0 and t0 is not None:          # stub_status judges nothing (D-050), so only this says it had gone
-                reasons.append(f"nginx was not running at the run's end: its quit exited {quit_code}")
+            if quit_code != 0 and t0 is not None and not interrupted:   # stub_status judges nothing (D-050), so only this says it had gone
+                reasons.append(nginx_gone(quit_code))
         for name, proc in procs:
             if name == "gunicorn":
                 _stop(host, proc)
+        if logs_at_start and t0 is not None and not interrupted:   # nginx and gunicorn have stopped: nothing writes these logs any more
+            reasons += replaced_logs(host, logs_at_start)
         if procs:
             for name, path in NGINX_LOGS.items():
                 host.run(["mv", "-f", path, os.path.join(out, name)])
@@ -605,10 +729,13 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
         if procs or t0 is not None:
             teardown(host, plan)
     ended = host.time()
-    reasons += checks(host, plan, t0, launched)
+    reasons += [] if interrupted else checks(host, plan, t0, launched)
     stall = stall_reading(plan, t0, launched, stub) if t0 is not None else None
-    reasons += stall_reasons(stall) if stall else []
-    import executor
+    reasons += stall_reasons(stall) if stall and not interrupted else []
+    for x, _proc in launched:
+        with contextlib.suppress(OSError):
+            if os.path.getsize(stderr_path(out, x["entity_id"])) == 0:
+                os.remove(stderr_path(out, x["entity_id"]))
     daemon_prov = executor.daemon_provenance(host) if plan["daemon"] else None
     if daemon_prov and t0 is not None and not daemon_prov["h01"]["has_fix"]:
         reasons.append("the daemon lacks the H-01 fix, the prerequisite of every daemon arm (§4.3)")
@@ -623,7 +750,7 @@ def finish(host, plan, reasons, started, t0, procs, logs, stub, launched=()):
             "daemon": None if plan["daemon"] is None else {"mode": plan["daemon"]["mode"],
                                                            "env": plan["daemon"]["env"]},
             "thresholds": plan["thresholds"], "provenance": plan["provenance"],
-            "attack": attack_summary(plan) if t0 is not None else None, "stall": stall, "daemon_provenance": daemon_prov,
+            "attack": attack_summary(plan) if t0 is not None else None, "stall": stall, "timer": timer, "daemon_provenance": daemon_prov,
             "git": executor.git_state(host)}
     write_json(os.path.join(out, "run.json"), meta)
     write_json(os.path.join(out, "manifest.json"), manifest(plan, t0))
@@ -829,7 +956,8 @@ def block_settings(block):
             "thresholds": list(block["thresholds"]) if block["thresholds"] else None,
             "calibration_sha256": sha256_file(block["calibration"]), "calibration_status": block["calibration_status"],
             "code_sha256": code,
-            "selection_sha256": sha256_file(block["selection"]) if block.get("selection") else None}
+            "selection_sha256": sha256_file(block["selection"]) if block.get("selection") else None,
+            "knees_sha256": sha256_file(block["knees"]) if block.get("knees") else None}
 
 
 def check_frozen(block, host):
@@ -843,6 +971,35 @@ def check_frozen(block, host):
         l7_backend.require_frozen(l7_backend.load_record(block["calibration"])[0])
     except (OSError, ValueError) as exc:
         raise PlanError(f"campaign: {block['calibration']}: {exc}") from None
+
+
+def check_knees(block, host):
+    """§5 (review T-057 T057-04): a validation's and a campaign's level and halvings are the ladder's, read by eval/p4_ladder.py, under the same
+    calibration record. A family with no knee stops here: what that means is not decided (T-060). Only a host that measures nothing may go
+    without the file, as with check_frozen."""
+    if block["phase"] not in ("validation", "campaign"):
+        return
+    path = block["knees"]
+    if not path:
+        if getattr(host, "simulated", False):
+            return
+        raise PlanError(f"{block['phase']}: --knees must name the ladder's record (eval/p4_ladder.py --out, §5)")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            rec = json.load(fh)
+        levels, halvings, record = rec["levels"], rec["halvings"], rec["calibration_sha256"]
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise PlanError(f"{path} is not a record of eval/p4_ladder.py: {exc!r}") from None
+    none = sorted(f for f in OUT.FAMILIES if levels.get(f) is None)
+    if none:
+        raise PlanError(f"{block['phase']}: {', '.join(none)} has no knee in {path}: what that means is not decided, so nothing runs (T-060)")
+    typed = {f: block["sources"][f] for f in OUT.FAMILIES}
+    if typed != {f: levels[f] for f in OUT.FAMILIES}:
+        raise PlanError(f"{block['phase']}: the sources {typed} are not the ladder's knees { {f: levels[f] for f in OUT.FAMILIES} } ({path})")
+    if block["halvings"] != halvings:
+        raise PlanError(f"{block['phase']}: --halvings {block['halvings']}, and the ladder ran at {halvings} ({path})")
+    if record != sha256_file(block["calibration"]):
+        raise PlanError(f"{block['phase']}: {path} was read under another calibration record than {block['calibration']}")
 
 
 def check_selection(block):
@@ -866,7 +1023,7 @@ def check_selection(block):
     if detector != sha256_file(os.path.join(REPO, "slow_pc.py")):
         raise PlanError(f"{path}: the validation scored another slow_pc.py (§13 row 3)")
     mine = block_settings(block)
-    differ = sorted(k for k in ("sources", "halvings", "calibration_sha256") if mine[k] != theirs.get(k))
+    differ = sorted(k for k in ("sources", "halvings", "calibration_sha256", "knees_sha256") if mine[k] != theirs.get(k))
     if differ:
         raise PlanError(f"campaign: {', '.join(differ)} differ from the validation's ({path})")
 
@@ -898,6 +1055,11 @@ def check_attempt(block):
     next_attempt = max((x["attempt"] for x in mine), default=0) + 1
     if block["attempt"] != next_attempt:
         raise PlanError(f"{phase} block {seed}: attempt {block['attempt']}, and the index says the next is {next_attempt}")
+    if phase == "ladder":                       # a repeat stays on its seed: on another it would be attempt 1, with no reason asked
+        other = sorted({x["block"] for x in rows if x["phase"] == "ladder" and x["label"] == block["label"] and x["block"] != seed})
+        if other:
+            raise PlanError(f"ladder {block['label']} ran on seed {other[0]}: a repeat is re-run on its own seed, with a reason, not rolled "
+                            f"again on {seed} (review T-063 T063-05)")
     if next_attempt == 1 or phase == "smoke":
         return
     last = {x["arm"]: x for x in mine if x["attempt"] == next_attempt - 1}
@@ -922,6 +1084,7 @@ def run_block(host, block):
     """Every run of a block in its order; each in ROOT/index.jsonl before it begins and when it ends, valid or not."""
     check_frozen(block, host)
     check_attempt(block)
+    check_knees(block, host)
     check_selection(block)
     check_settings(block)
     if os.path.exists(block["dir"]):
@@ -1078,6 +1241,7 @@ def main(argv=None, host=None):
     ap.add_argument("--halvings", type=int, default=0, help="how often the halving rule of §4.2 has fired")
     ap.add_argument("--thresholds", type=_thresholds, help="campaign: the committed T,F,K; a smoke C_M: a grid point")
     ap.add_argument("--selection", help="campaign: the validation's record (eval/p4_validation.py --json)")
+    ap.add_argument("--knees", help="validation, campaign: the ladder's record (eval/p4_ladder.py --out)")
     ap.add_argument("--calibration", default=PLACEHOLDER)
     ap.add_argument("--root", default="/var/tmp/p4_runs")
     ap.add_argument("--python", default=PYTHON)
@@ -1103,7 +1267,7 @@ def main(argv=None, host=None):
                            sources={"loris": args.loris, "post": args.post}, halvings=args.halvings,
                            thresholds=args.thresholds, family=args.family,
                            arms=args.arms.split(",") if args.arms else None, label=args.label,
-                           calibration=args.calibration, python=args.python, selection=args.selection)
+                           calibration=args.calibration, python=args.python, selection=args.selection, knees=args.knees)
     except (PlanError, PT.PlanError) as exc:
         print(f"[-] {exc}", file=sys.stderr)
         return 2
@@ -1113,11 +1277,15 @@ def main(argv=None, host=None):
     if host is None:
         import executor
         host = executor.RealHost()
+        executor._install_signal_handlers()        # TERM and HUP end the run as Ctrl-C does
     try:
         results = run_block(host, block)
     except PlanError as exc:
         print(f"[-] {exc}", file=sys.stderr)
         return 2
+    except KeyboardInterrupt as exc:
+        print(f"[-] interrupted ({exc}): the testbed is down; the run is invalid, and the index holds no end of it", file=sys.stderr)
+        return 130
     for arm, res in results:
         print(f"  {arm}: {'valid' if res['ok'] else 'INVALID: ' + '; '.join(res['reasons'])}")
     return 0 if all(res["ok"] for _a, res in results) else 1

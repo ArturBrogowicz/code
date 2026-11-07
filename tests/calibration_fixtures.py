@@ -26,6 +26,16 @@ def placeholder():
     return C.load(C.PLACEHOLDER)
 
 
+# The placeholder with knees, for the tests and the golden plans of the attack specs, which run at the calibration's knee (D-066) and
+# refuse a record that has none. These are the levels the specs named before D-066, not measurements: a test that wants the real ones
+# reads the frozen record. The status stays placeholder, and the placeholder itself still has no knee.
+PLACEHOLDER_WITH_KNEES = os.path.join(REPO, "tests", "golden", "placeholder_with_knees.json")
+
+
+def placeholder_with_knees():
+    return C.load(PLACEHOLDER_WITH_KNEES)
+
+
 def frozen(cal=None, created="2026-10-24T08:00:00Z", host=None, drift_reference=None):
     """`cal` (default the placeholder) as a frozen record with a sample host and drift reference, unless it brings
     its own."""

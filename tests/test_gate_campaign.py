@@ -33,9 +33,14 @@ RHO = 20.0
 SPEC_SHA = GC.sha256_of(SPEC)
 
 
+def SC_RECORD(path):
+    with open(path, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
 def three_block_cal(**gate):
     """The placeholder frozen with a gate that needs three blocks, so that a campaign of three can end in a verdict."""
-    cal = copy.deepcopy(CF.placeholder())
+    cal = copy.deepcopy(CF.placeholder_with_knees())
     cal["gate"].update(min_blocks=3, **gate)
     return CF.frozen(cal)
 
@@ -262,8 +267,24 @@ class PlanTextTest(CampaignCase):
         self.assertRegex(self.text(timer_limit_ms=50.0), r"OVERRIDES    .*timer limit ms 50\.0.*: a smoke test, not a result")
         self.assertNotIn("timer limit", self.text())
 
+    def test_the_plan_shows_the_scenario_plans_warnings_and_says_what_run_will_refuse(self):
+        """T-056: `gate_campaign plan` showed no warning at a level below the knee, and said nothing of the design's rule."""
+        cal = copy.deepcopy(self.CAL)
+        cal["knees"] = {"costly_search_flood": 4.0}
+        scn = SC.from_record({**SC_RECORD(SPEC), "intensity": {**SC_RECORD(SPEC)["intensity"], "level": 2}})
+        text = GC.describe(scn, cal, SPEC_SHA, self.options())
+        for w in SC.plan(scn, cal)["warnings"]:
+            self.assertIn(f"WARNING: {w}.", text)
+        self.assertIn("the level 2 is below the recorded knee 4", text)
+        self.assertIn("WARNING: `run` refuses this: costly_search_sub_threshold is at level 2, and the frozen knee of costly_search_flood is 4", text)
+        self.assertIn("level rule   the design allows the frozen knee and, as the one further confirmation after a failure, 2 x the knee", text)
+        at = GC.describe(self.scn, self.CAL, SPEC_SHA, self.options())
+        self.assertNotIn("WARNING", at)
+        self.assertIn("level rule   the design allows", at)
+        self.assertIn("level rule   no frozen record: a dry run may take any level", self.text(cal=CF.placeholder_with_knees()))
+
     def test_a_placeholder_is_a_dry_run(self):
-        self.assertIn("PLACEHOLDER: a dry run", self.text(cal=CF.placeholder()))
+        self.assertIn("PLACEHOLDER: a dry run", self.text(cal=CF.placeholder_with_knees()))
 
     def test_fewer_blocks_than_the_gate_needs_are_warned_about(self):
         self.assertIn("WARNING: 2 blocks are fewer than the 3 the gate needs", self.text(blocks=2))
@@ -737,6 +758,15 @@ class StopTest(CampaignCase):
                         first["runs"][kind]["reasons"])
         self.assertEqual(state["gate"]["verdict"], "INVALID")
 
+    def test_nginx_that_dies_during_a_run_ends_the_attempt_and_the_campaign_has_no_verdict_on_it(self):
+        """HG1C departure 35: unsound, not harm."""
+        state = self.run_campaign(host=self.host(nginx_exit=(12.0, -11)), blocks=1)
+        first = self.json("b01_a1", "block.json")
+        kind = first["planned_order"][0]
+        self.assertEqual((first["aborted"], first["runs"][kind]["ok"]), (kind, False))
+        self.assertIn("nginx was not running at the run's end: its quit exited 1", first["runs"][kind]["reasons"])
+        self.assertEqual(state["gate"]["verdict"], "INVALID")
+
     def test_a_probe_refused_before_every_run_waits_and_moves_nothing_the_campaign_is_judged_on(self):
         """HG1C departure 30: the wait comes before a run's own clock, so that no clock rule of a block can see it."""
         plain = self.run_campaign(out="plain")
@@ -877,11 +907,98 @@ class CalibrationTest(CampaignCase):
         self.assertIn("placeholder", str(ctx.exception))
         self.assertFalse(os.path.exists(self.path()))
 
+    def scenario_at(self, level):
+        return SC.from_record({**SC_RECORD(SPEC), "intensity": {**SC_RECORD(SPEC)["intensity"], "level": level}})
+
+    def test_a_frozen_record_refuses_any_level_but_the_knee_and_names_both(self):
+        """D-066, design 7.2 step 6: 'no other level is tried'."""
+        cal = copy.deepcopy(self.CAL)
+        cal["knees"] = {"costly_search_flood": 4.0}
+        for level in (2, 8, 0.5):
+            with self.subTest(level=level), self.assertRaises(GC.CampaignError) as ctx:
+                self.run_campaign(scn=self.scenario_at(level), cal=cal)
+            self.assertIn(f"is at level {level:g}, and the frozen knee of costly_search_flood is 4", str(ctx.exception))
+            self.assertFalse(os.path.exists(self.path()), "refused before anything is made")
+        self.assertIsNone(GC.level_problem(self.scenario_at(4), cal, self.options()), "a number that is the knee is the knee")
+        self.assertIsNone(GC.level_problem(self.scenario_at("knee"), cal, self.options()))
+
+    def test_a_frozen_record_with_no_knee_for_the_family_refuses_it(self):
+        cal = copy.deepcopy(self.CAL)
+        for knees, said in (({}, "None"), ({"costly_search_flood": None}, "None")):
+            cal["knees"] = knees
+            with self.subTest(knees=knees), self.assertRaisesRegex(GC.CampaignError, f"holds no knee for costly_search_flood \\({said}\\)"):
+                self.run_campaign(scn=self.scenario_at(2), cal=cal)
+
+    def test_a_dry_run_on_a_placeholder_may_take_any_level_and_gets_no_verdict(self):
+        cal = CF.placeholder_with_knees()
+        self.assertIsNone(GC.level_problem(self.scenario_at(1), cal, self.options(dry_run=True)))
+
+    def test_the_real_frozen_record_allows_the_three_specs_as_they_stand(self):
+        frozen = C.load(os.path.join(REPO, "bench", "calibration", "ddos-mitigation-2026-11-04.json"))
+        for name, level in (("costly_search_sub_threshold", 4), ("costly_export_sub_threshold", 4), ("cheap_static_flood", 2)):
+            with self.subTest(name=name):
+                scn = SC.load(os.path.join(REPO, "bench", "scenarios", name + ".json"))
+                self.assertIsNone(GC.level_problem(scn, frozen, self.options()))
+                self.assertIn(f"attack level {float(level)}", GC.describe(scn, frozen, "0" * 64, self.options()))
+
+    def test_the_further_confirmation_is_asked_for_by_hand_and_recorded_in_every_manifest(self):
+        """Design 7.2 step 6: 'one further confirmation at 2 x kappa_f'. The test record's knee of this family is 2."""
+        state = self.run_campaign(confirm_2x_knee=True, blocks=1)
+        self.assertEqual(state["fingerprint"]["confirmation"], "2x_knee")
+        meta = self.json("b01_a1", "block.json")
+        self.assertEqual(meta["confirmation"], "2x_knee")
+        for kind in meta["order"]:
+            plan, run = self.json("b01_a1", kind, "plan.json"), self.json("b01_a1", kind, "run.json")
+            self.assertEqual((plan["confirmation"], run["confirmation"]), ("2x_knee", "2x_knee"), kind)
+        self.assertEqual(self.json("b01_a1", "U", "plan.json")["level"], 4.0)
+        self.assertEqual(self.json("b01_a1", "U", "run.json")["level"], 4.0)
+        self.assertEqual(self.json("gate.json")["confirmation"], "2x_knee")
+        with open(self.path("gate.md"), encoding="utf-8") as fh:
+            self.assertIn("**Further confirmation at 2 x the knee**", fh.read())
+        self.assertIn("confirmation 2x_knee", GC.status_text(self.path()))
+        self.assertIn("CONFIRMATION at 2 x the knee", GC.describe(self.scn, self.CAL, SPEC_SHA, self.options(confirm_2x_knee=True)))
+
+    def test_nothing_starts_the_further_confirmation_after_a_failure(self):
+        host = self.host(effects="fail")
+        state = self.run_campaign(host=host, blocks=1)
+        self.assertIsNone(state["fingerprint"]["confirmation"])
+        self.assertEqual([d for d in self.dirs()], ["b01_a1"])
+        self.assertEqual(self.json("b01_a1", "U", "plan.json")["level"], 2.0, "the knee")
+        self.assertIsNone(self.json("b01_a1", "block.json")["confirmation"])
+        self.assertIsNone(self.json("b01_a1", "U", "run.json")["confirmation"])
+
+    def test_a_campaign_resumes_only_with_the_confirmation_it_began_with(self):
+        self.run_campaign(blocks=1)
+        with self.assertRaisesRegex(GC.CampaignError, "confirmation"):
+            self.run_campaign(confirm_2x_knee=True, blocks=1)
+        state = self.json(GC.CAMPAIGN)
+        state["fingerprint"].pop("confirmation")
+        with open(self.path(GC.CAMPAIGN), "w", encoding="utf-8") as fh:
+            json.dump(state, fh)
+        self.assertEqual(self.run_campaign(blocks=1)["state"], "complete", "one made before the field had none")
+
+    def test_twice_the_knee_as_a_number_needs_the_flag_and_a_record_with_no_knee_cannot_take_it(self):
+        cal = copy.deepcopy(self.CAL)
+        cal["knees"] = {"costly_search_flood": 2.0}
+        with self.assertRaisesRegex(GC.CampaignError, "--confirm-2x-knee asks for"):
+            self.run_campaign(scn=self.scenario_at(4), cal=cal)
+        self.assertIsNone(GC.level_problem(self.scenario_at(4), cal, self.options(confirm_2x_knee=True)))
+        cal["knees"] = {}
+        with self.assertRaisesRegex(GC.CampaignError, "--confirm-2x-knee needs a knee for costly_search_flood"):
+            self.run_campaign(scn=self.scenario_at(4), cal=cal, confirm_2x_knee=True)
+
+    def test_the_command_line_takes_the_flag_and_plan_shows_it(self):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            self.assertEqual(GC.main(["plan", SPEC, "--calibration", self.cal_path, "--confirm-2x-knee"]), GC.EXIT_OK)
+        self.assertIn("attack level 4.0", out.getvalue())
+        self.assertIn("CONFIRMATION at 2 x the knee", out.getvalue())
+
     def test_a_dry_run_on_a_placeholder_is_labelled_everywhere(self):
-        cal = CF.placeholder()
+        cal = CF.placeholder_with_knees()
         cal["gate"]["min_blocks"] = 3
         host = S.SimHost(server=S.SyntheticServer(cal, SHORT, S.EFFECT_PRESETS["pass"]), tag="placeholder")
-        state = GC.run_campaign(self.scn, cal, C.PLACEHOLDER, SPEC_SHA, self.path(), host, self.options(dry_run=True),
+        state = GC.run_campaign(self.scn, cal, CF.PLACEHOLDER_WITH_KNEES, SPEC_SHA, self.path(), host, self.options(dry_run=True),
                                 say=self.say.append)
         self.assertTrue(state["gate"]["dry_run"])
         with open(self.path("gate.md"), encoding="utf-8") as fh:

@@ -66,7 +66,7 @@ class RunCase(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.scn = SC.load(SPEC)
-        self.cal = C.load(C.PLACEHOLDER)
+        self.cal = CF.placeholder_with_knees()
 
     def plan(self, kind="C", name=None, cal=None, path=None, settings=None, **kw):
         out = os.path.join(self.tmp.name, name or kind)
@@ -999,6 +999,66 @@ class OriginDuringTheRunTest(RunCase):
         self.assertEqual(X.origin_log_says(os.path.join(self.tmp.name, "no_such_gunicorn.log")), "")
 
 
+class NginxAtTheRunsEndTest(RunCase):
+    """docs/HG1C_DESIGN.md departure 35 (D-065, R-018): Nginx that is not running when the run is over makes the run unsound, in P4's
+    words; once it is gone every request fails, which would read as harm. A quit to a dead master exiting non-zero is the fake host's
+    model: [CLAIMED], not run."""
+
+    def test_nginx_that_died_during_the_run_makes_it_unsound_in_p4s_words(self):
+        for kind, args in (("C", {}), ("U", {}), ("M_xdp", {"pins": X.pins_for(["M_xdp"])})):
+            with self.subTest(kind=kind):
+                plan, _, result = self.go(kind, F.SimHost(nginx_exit=(20.0, -11)), plan_args=args)
+                self.assertFalse(result.ok)
+                self.assertEqual([r for r in result.reasons if "nginx" in r], ["nginx was not running at the run's end: its quit exited 1"])
+                executor = self.run_json(plan)["executor"]
+                self.assertFalse(executor["ok"])
+                self.assertIn("nginx was not running at the run's end: its quit exited 1", executor["reasons"])
+
+    def test_the_words_are_p4s_and_any_other_exit_is_a_failed_quit(self):
+        with open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "eval", "p4_runner.py"), encoding="utf-8") as fh:
+            source = fh.read()
+        words = re.search(r'f"(nginx was not running at the run\'s end: its quit exited )\{code\}"', source)
+        self.assertIsNotNone(words, "the wording of eval/p4_runner.py")
+        host = mock.Mock()
+        for code in (1, 2, -1):
+            host.run.return_value = X.Result(code, "", "")
+            self.assertEqual(X.nginx_validity(host, self.plan("C")), [f"{words.group(1)}{code}"], code)
+
+    def test_a_healthy_run_is_unaffected_and_its_nginx_is_told_to_quit_once(self):
+        plan, host, result = self.go("C")
+        self.assertTrue(result.ok, result.reasons)
+        self.assertFalse([r for r in self.run_json(plan)["executor"]["reasons"] if "nginx" in r])
+        quits = [c for c in host.ran("nginx") if "-s" in c[2]]
+        self.assertEqual([(ns, argv) for _, ns, argv in quits], [(X.SERVER_NS, ("nginx", "-c", f"{plan.out}/nginx.conf", "-s", "quit"))])
+        self.assertTestbedEmpty(host)
+
+    def test_the_quit_comes_after_the_daemon_has_stopped_and_before_the_origin_does(self):
+        order, real = [], {name: getattr(X, name) for name in ("stop_daemon", "nginx_validity", "stop_all")}
+
+        def spy(name):
+            def call(*a, **k):
+                order.append(name)
+                return real[name](*a, **k)
+            return call
+
+        with mock.patch.multiple(X, **{name: spy(name) for name in real}):
+            self.go("M_xdp", plan_args={"pins": X.pins_for(["M_xdp"])})
+        self.assertEqual(order[:3], ["stop_daemon", "nginx_validity", "stop_all"])
+
+    def test_nothing_is_told_to_quit_when_no_timeline_ran(self):
+        plan = self.plan("C")
+        with mock.patch.object(X, "nginx_validity") as told, self.assertRaises(X.SetupFailed):
+            X.execute(plan, F.SimHost(faults={"not_ready": None}))
+        told.assert_not_called()
+
+    def test_a_stubborn_nginx_is_still_left_for_the_teardown_to_kill(self):
+        plan, host, result = self.go("C", F.SimHost(faults={"stubborn_nginx": None}))
+        self.assertTrue(result.ok, result.reasons)
+        self.assertEqual(len([c for c in host.ran("nginx") if "-s" in c[2]]), 1)
+        self.assertIn("KILL", self.read(plan, "executor.log"))
+        self.assertTestbedEmpty(host)
+
+
 class SetupTest(RunCase):
     def build(self, faults, expect=X.SetupFailed, **kw):
         host = F.SimHost(faults=faults)
@@ -1527,8 +1587,10 @@ class TeardownTest(RunCase):
                     self.assertEqual(argv[1:], ("-eo", "pid=,ppid=,args="))
 
     def test_the_teardown_logs_the_time_of_each_step(self):
-        """S3's teardown took 12.6 s and the log did not say where."""
-        plan, _, result = self.go("C", F.SimHost(run_cost_s=teardown_cost))
+        """S3's teardown took 12.6 s and the log did not say where. Nginx is left for the teardown here, as when its quit does not end it
+        (departure 35), so that the step that ends processes has something to time."""
+        with mock.patch.object(X, "nginx_validity", return_value=[]):
+            plan, _, result = self.go("C", F.SimHost(run_cost_s=teardown_cost))
         self.assertTrue(result.ok, result.reasons)
         text = self.read(plan, "executor.log")
         namespaces = [ns.name for ns in plan.namespaces] + [X.SERVER_NS]
@@ -3180,8 +3242,8 @@ class CommandLineTest(RunCase):
         return code, handlers, out.getvalue(), err.getvalue()
 
     def base(self, kind="C", name=None):
-        return ["run", SPEC, "--kind", kind, "--out", os.path.join(self.tmp.name, name or kind), "--rho", "20",
-                "--timeline", "10,10,10", "--allow-dirty"]
+        return ["run", SPEC, "--kind", kind, "--calibration", CF.PLACEHOLDER_WITH_KNEES, "--out", os.path.join(self.tmp.name, name or kind),
+                "--rho", "20", "--timeline", "10,10,10", "--allow-dirty"]
 
     def test_a_sound_run_exits_zero_pins_itself_and_installs_its_signal_handlers(self):
         host = F.SimHost()
@@ -3303,7 +3365,7 @@ class CommandLineTest(RunCase):
     def test_clock_probe_with_attack_says_so_and_runs_the_attack_streams(self):
         out = os.path.join(self.tmp.name, "probe")
         with few_streams(), mock.patch.object(X.RealHost, "pin"):
-            code, _, shown, _ = self.run_main("clock-probe", SPEC, "--duration", "3", "--attack", "--out", out)
+            code, _, shown, _ = self.run_main("clock-probe", SPEC, "--duration", "3", "--attack", "--calibration", CF.PLACEHOLDER_WITH_KNEES, "--out", out)
         self.assertEqual(code, X.EXIT_OK)
         self.assertIn("4 of 4 streams gave a reference", shown)
         self.assertIn("error against requests:", shown)
@@ -3319,8 +3381,8 @@ class CommandLineTest(RunCase):
         self.assertRegex(shown, r"p95 [1-9]\d* ms, slip p99 [1-9]\d* ms")
 
     def test_the_plan_prints_the_overrides_it_was_given(self):
-        code, _, shown, _ = self.run_main("plan", SPEC, "--kind", "U", "--out", os.path.join(self.tmp.name, "U"), "--rho", "20",
-                                          "--timeline", "10,10,10")
+        code, _, shown, _ = self.run_main("plan", SPEC, "--kind", "U", "--calibration", CF.PLACEHOLDER_WITH_KNEES, "--out",
+                                          os.path.join(self.tmp.name, "U"), "--rho", "20", "--timeline", "10,10,10")
         self.assertEqual(code, X.EXIT_OK)
         self.assertIn("OVERRIDES", shown)
         self.assertIn("timeline_s", shown)
