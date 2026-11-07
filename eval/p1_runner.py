@@ -540,6 +540,12 @@ def describe(block):
 
 # --- executing -----------------------------------------------------------------------------------
 
+def _mem_available_kb(text):
+    """MemAvailable of /proc/meminfo in kB, or None: what the smoke's read judges (D-075, ml/p1_prereg_5.json address_limit.read)."""
+    m = re.search(r"^MemAvailable:\s+(\d+)\s+kB", text, re.MULTILINE)
+    return int(m.group(1)) if m else None
+
+
 def _cpu_times(text):
     """{cpu number: (busy, total) jiffies} of /proc/stat."""
     out = {}
@@ -710,7 +716,8 @@ def execute_run(host, plan, frozen_sums):
                     launched.append((x, launch_generator(host, x, out)))
                 except OSError as exc:
                     reasons.append(f"{x['entity_id']} did not start: {exc}")
-            cpu.append({"t": round(now, 3), "cpu": _cpu_times(P4._text(host, "/proc/stat"))})
+            cpu.append({"t": round(now, 3), "cpu": _cpu_times(P4._text(host, "/proc/stat")),
+                        "mem_available_kb": _mem_available_kb(P4._text(host, "/proc/meminfo"))})
             if plan["enforcing"] and kill_seen is None and host.exists(plan["kill_file"]):
                 kill_seen = now
                 reasons.append(f"the kill file appeared at {now:.0f} s: the arm stopped acting")
@@ -844,10 +851,13 @@ def shadow_report(events, plan, t0, sink=None):
 
 
 def runner_report(ctx):
-    """The runner's own lateness in a run, judging nothing (T050-11): its largest launch lag and the largest gap of its loop, from cpu.jsonl's clock."""
+    """The runner's own lateness in a run, judging nothing (T050-11): its largest launch lag and the largest gap of its loop, from cpu.jsonl's clock;
+    and the least MemAvailable it saw, which the smoke's read judges (D-075)."""
     times = [c["t"] for c in ctx["cpu"]]
+    mem = [c["mem_available_kb"] for c in ctx["cpu"] if c.get("mem_available_kb") is not None]
     return {"largest_launch_lag_s": round(max(ctx["lags"]), 3),
-            "largest_loop_gap_s": round(max((b - a for a, b in itertools.pairwise(times)), default=0.0), 3)}
+            "largest_loop_gap_s": round(max((b - a for a, b in itertools.pairwise(times)), default=0.0), 3),
+            "mem_available_min_kb": min(mem, default=None)}
 
 
 def shadow_problems(report):

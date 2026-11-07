@@ -559,6 +559,26 @@ class LadderRegisteredTest(Base):
         self.assertEqual(self.plan(seed=9003, level=2.0, label="C2_L2_r1")["seed"], 9003)
 
 
+class MemoryReadTest(Base):
+    """D-075: P1 keeps one process per client, so the smoke reads MemAvailable at the heaviest planned run; the runner samples it."""
+
+    def test_meminfo_is_read_and_a_missing_line_is_none(self):
+        text = "MemTotal:        9652224 kB\nMemFree:         1038336 kB\nMemAvailable:    7804928 kB\n"
+        self.assertEqual(R._mem_available_kb(text), 7804928)
+        self.assertIsNone(R._mem_available_kb("MemTotal: 1 kB\n"))
+
+    def test_every_sample_holds_it_and_the_run_reports_its_least(self):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=["C"], label="mem",
+                             benign_specs=F.thin_benign(), max_sources=3)
+        R.run_block(F.P1FakeHost(), block)
+        with open(os.path.join(block["dir"], "C", "cpu.jsonl"), encoding="utf-8") as fh:
+            rows = [json.loads(x) for x in fh]
+        self.assertGreater(len(rows), 200)
+        self.assertTrue(all(isinstance(r["mem_available_kb"], int) and r["mem_available_kb"] > 0 for r in rows))
+        got = read_json(os.path.join(block["dir"], "C", "run.json"))["runner"]
+        self.assertEqual(got["mem_available_min_kb"], min(r["mem_available_kb"] for r in rows))
+
+
 class OperationsTest(Base):
     """T057-07, P1's side: a refusal is a reason and not a traceback, an interrupt goes through the teardown, and a generator's stderr stays."""
 
@@ -873,7 +893,7 @@ class RunnerReportTest(Base):
 
     def test_a_loop_that_stalled_shows(self):
         got = R.runner_report({"cpu": [{"t": 0.0}, {"t": 1.0}, {"t": 32.0}, {"t": 33.0}], "lags": [0.0, 31.0]})
-        self.assertEqual(got, {"largest_launch_lag_s": 31.0, "largest_loop_gap_s": 31.0})
+        self.assertEqual(got, {"largest_launch_lag_s": 31.0, "largest_loop_gap_s": 31.0, "mem_available_min_kb": None})
 
 
 class OneSettingTest(Base):
