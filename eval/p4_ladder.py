@@ -8,6 +8,9 @@ repeat at or below it is missing, the knee needs 2 sound repeats, and "no knee" 
 names the repeat, to be re-run with its reason. Asking every repeat to pass means a further repeat can only make a level harder to pass, so
 it cannot re-roll one. A lower level of the ladder that was skipped is refused.
 
+The families read are the ones the ladder's blocks name in their settings (D-069, 2026-11-06T16:30Z: Slowloris only, ("loris",)), one
+setting for the whole ladder; the record names them (`family_set`), and the runner refuses a validation or a campaign of other families.
+
 What the design leaves open is not chosen here (T-060), and both ways it stops rather than picks:
   * a family with no knee: its level is null and it is named under no_knee, this tool exits 1, and eval/p4_runner.py refuses a validation or
     campaign on the file. Whether such a family runs at the top level, is dropped, or reads "not harmful" with no campaign needs a decision;
@@ -34,8 +37,9 @@ REPEATS = R.LADDER_REPEATS   # §5: "in 2 of 2 repeats"
 
 
 def _repeats(root, rows, named):
-    """{(family, level, seed, label): [(attempt, {arm: index row})]} of the ladder's blocks, and the halvings they ran at."""
-    blocks, repeats, halvings = {}, {}, set()
+    """{(family, level, seed, label): [(attempt, {arm: index row})]} of the ladder's blocks, the halvings they ran at and the families
+    their settings name (D-069)."""
+    blocks, repeats, halvings, families = {}, {}, set(), set()
     for x in rows:
         blocks.setdefault(x["block_dir"], {})[x["arm"]] = x
     for block_dir, arms in sorted(blocks.items()):
@@ -44,12 +48,13 @@ def _repeats(root, rows, named):
         if meta["settings"]["calibration_sha256"] != named:
             raise ValueError(f"{block_dir} ran under calibration {meta['settings']['calibration_sha256'][:8]}, not the one named")
         halvings.add(meta["settings"]["halvings"])
+        families.add(OUT.settings_families(meta["settings"]))
         family = next(a[2:] for a in meta["order"] if a.startswith("U_"))
         one = next(iter(arms.values()))
         if one["label"] not in R.ladder_labels(meta["sources"][family]):
             raise ValueError(f"{block_dir}: the label {one['label']!r} is not one of {R.ladder_labels(meta['sources'][family])} (T063-05)")
         repeats.setdefault((family, meta["sources"][family], one["block"], one["label"]), []).append((one["attempt"], arms))
-    return repeats, halvings
+    return repeats, halvings, families
 
 
 def knees(root, record_path):
@@ -60,10 +65,16 @@ def knees(root, record_path):
     rows = [x for x in R.read_index(root) if x["phase"] == "ladder"]
     if not rows:
         raise ValueError(f"{root}: the index holds no ladder run")
-    repeats, halvings = _repeats(root, rows, named)
+    repeats, halvings, family_sets = _repeats(root, rows, named)
     if len(halvings) != 1:
         raise ValueError(f"the ladder ran at {sorted(halvings)} halvings: a ladder holds one")
-    harms, missing, controls = {f: {} for f in OUT.FAMILIES}, {f: {} for f in OUT.FAMILIES}, []
+    if len(family_sets) != 1:
+        raise ValueError(f"the ladder's blocks name the families {sorted(list(x) for x in family_sets)}: a ladder holds one setting (D-069)")
+    family_set = family_sets.pop()
+    stray = sorted({f for f, *_rest in repeats} - set(family_set))
+    if stray:
+        raise ValueError(f"the ladder holds runs of {stray}, and its blocks run the families {list(family_set)} (D-069)")
+    harms, missing, controls = {f: {} for f in family_set}, {f: {} for f in family_set}, []
     for (family, level, seed, label), attempts in sorted(repeats.items()):
         harm = None
         for attempt, arms in sorted(attempts, key=lambda a: a[0], reverse=True):
@@ -83,7 +94,7 @@ def knees(root, record_path):
         raise ValueError(f"unhealthy ladder controls {[(c['seed'], c['label']) for c in unhealthy]}: which two the halving rule of §4.2 reads is not "
                          f"decided, so no knee is read over them: {unhealthy[0]['reasons'][0]}")
     levels, no_knee, families = {}, {}, {}
-    for f in OUT.FAMILIES:
+    for f in family_set:
         ran = sorted(set(harms[f]) | set(missing[f]))
         if not ran:
             raise ValueError(f"the ladder holds no run of {f}")
@@ -106,7 +117,8 @@ def knees(root, record_path):
             no_knee[f] = {"why": k["why"], "top_level_run": ladder[-1] in harms[f]}
         families[f] = {"rows": sorted(harms[f].items()), "passing": k["passing"], "monotone": k["monotone"],
                        "unsound_above_knee": sorted((n, seed, label) for n, rs in missing[f].items() for seed, label in rs)}
-    return {"format": FORMAT, "levels": levels, "no_knee": no_knee, "halvings": halvings.pop(), "calibration_sha256": named,
+    return {"format": FORMAT, "levels": levels, "no_knee": no_knee, "halvings": halvings.pop(), "family_set": list(family_set),
+            "calibration_sha256": named,
             "calibration_status": status, "families": families, "controls": controls}
 
 

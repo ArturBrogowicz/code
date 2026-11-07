@@ -97,6 +97,13 @@ Re-registration record (T-052, 2026-11-03T15:01Z, the orchestrator's brief, befo
 not a decision of the user), committed before the code it judges: (c) cannot be met over an attempt of M_pc or C_M whose ban record is unreadable. The output
 lists every invalid run with its reasons and, per family, why each block is left out of the comparison with M_def; these judge nothing.
 
+Re-registration record (D-069, 2026-11-06T16:30Z, the user's minimum cut of the VM plan, before any data; T-071, T-074),
+committed before the code it judges: P4 runs Slowloris only. A block's settings name its `families` (eval/p4_runner.py
+block_settings), and the arms, the needed arms, the validation's runs and the verdict follow them: a campaign of ("loris",)
+needs C, Cp, C_M, U_loris and M_pc_loris, refuses a record of a slow-POST arm, and M7 judges Slowloris alone. Slow POST's
+code stays, fenced: it is judged only in a campaign whose settings name both families. A record whose settings name no
+families is from before the cut, and is read with both.
+
 A run of C states its health in its record: "control_reasons" is control_health's list, empty when it is healthy. A
 record of C without it is refused, and C's "valid" stays what the run's own checks said, the outcome adding the health.
 
@@ -154,6 +161,47 @@ ATTACK = "attack"
 C_M_COLLATERAL_ROLES = ("cgnat", "tpcw_browsing", "search_user")
 SCOPE = "profile R, {families} at this scale, this testbed"
 FAMILY_NAMES = {"loris": "Slowloris", "post": "slow POST"}
+CUT_FAMILIES = ("loris",)        # D-069: the families P4 runs; FAMILIES stays the design's, whose code stays tested
+
+
+def check_families(families):
+    """The families a block runs, as a tuple in FAMILIES' order (D-069): a non-empty selection of FAMILIES, without repeats."""
+    if isinstance(families, str) or not families:
+        raise ValueError(f"families must be a non-empty selection of {FAMILIES}, got {families!r}")
+    families = tuple(families)
+    if len(set(families)) != len(families) or set(families) - set(FAMILIES):
+        raise ValueError(f"families must be a selection of {FAMILIES}, got {families!r}")
+    return tuple(f for f in FAMILIES if f in families)
+
+
+def arm_family(arm):
+    """The family an arm attacks with (U_loris: "loris"), or None for an arm without attack."""
+    return next((f for f in FAMILIES if arm.endswith("_" + f)), None)
+
+
+def _of(arms, families):
+    families = check_families(families)
+    return tuple(a for a in arms if arm_family(a) in (None, *families))
+
+
+def arms_of(families=FAMILIES):
+    """ARMS, without the arms of a family the block does not run (D-069)."""
+    return _of(ARMS, families)
+
+
+def needed_arms(families=FAMILIES):
+    """NEEDED_ARMS, without the arms of a family the block does not run (D-069)."""
+    return _of(NEEDED_ARMS, families)
+
+
+def validation_runs(families=FAMILIES):
+    """slow_pc.VALIDATION_RUNS, without the runs of a family the block does not run (D-069)."""
+    return _of(slow_pc.VALIDATION_RUNS, families)
+
+
+def settings_families(settings):
+    """The families a block's settings name; a block from before D-069 names none, and ran both."""
+    return check_families((settings or {}).get("families") or FAMILIES)
 
 
 def check_record_timeline(q_per_s, level_window):
@@ -249,9 +297,13 @@ def _blocks(runs):
     if len(kinds) > 1:
         raise ValueError(f"the records hold {len(kinds)} different settings of scale, halvings, T, F, K, calibration or "
                          "code: a campaign holds one (review T-047 P-08)")
+    families = settings_families(runs[0]["settings"]) if runs else FAMILIES
+    arms, needed = arms_of(families), needed_arms(families)
     for r in runs:
         if r["arm"] not in ARMS:
             raise ValueError(f"unknown arm {r['arm']!r}")
+        if r["arm"] not in arms:
+            raise ValueError(f"block {r['block']}: a record of {r['arm']}, in a campaign of the families {list(families)} (D-069)")
         if r["block"] not in BLOCK_SEEDS:
             raise ValueError(f"block {r['block']!r} is not an evaluation seed")
         try:
@@ -274,7 +326,7 @@ def _blocks(runs):
         if attempts != list(range(1, len(attempts) + 1)):
             raise ValueError(f"block {block}: attempts {attempts}, not 1, 2, ... (D-050)")
         at = {a: {r["arm"]: r for rs in arms.values() for r in rs if r["attempt"] == a} for a in attempts}
-        lacking = {a: [arm for arm in NEEDED_ARMS if not (arm in at[a] and at[a][arm]["valid"])] for a in attempts}
+        lacking = {a: [arm for arm in needed if not (arm in at[a] and at[a][arm]["valid"])] for a in attempts}
         complete = [a for a in attempts if not lacking[a]]
         if any(a != attempts[-1] for a in complete):
             raise ValueError(f"block {block}: attempt {complete[0] + 1} follows attempt {complete[0]}, whose every needed "
@@ -457,8 +509,9 @@ def outcome(runs, dry_run=False):
     settings = runs[0]["settings"] if runs else {}
     if runs and not dry_run:
         l7_backend.require_frozen({"status": settings.get("calibration_status")})
+    families = settings_families(settings)
     fam = {}
-    for f in FAMILIES:
+    for f in families:
         h, m = harm(blocks, f), mitigation(blocks, f, every)
         k = None
         if h["valid_blocks"] < MIN_VALID_BLOCKS:
@@ -472,8 +525,8 @@ def outcome(runs, dry_run=False):
         else:
             status = "harmful but not mitigated"
         fam[f] = {"status": status, "harm": h, "mitigation": m, "valid_blocks_if_invalid": k}
-    qualified = [f for f in FAMILIES if fam[f]["status"] == "mitigated"]
-    lacking = [f for f in FAMILIES if fam[f]["valid_blocks_if_invalid"] is not None]
+    qualified = [f for f in families if fam[f]["status"] == "mitigated"]
+    lacking = [f for f in families if fam[f]["valid_blocks_if_invalid"] is not None]
     if qualified:
         m7 = "supported with scope: " + SCOPE.format(
             families=" and ".join(FAMILY_NAMES[f] for f in qualified))
@@ -481,7 +534,7 @@ def outcome(runs, dry_run=False):
         m7 = invalid(min(fam[f]["valid_blocks_if_invalid"] for f in lacking))
     else:
         m7 = "not supported"
-    return {"M7": m7, "dry_run": settings.get("calibration_status") != "frozen",
+    return {"M7": m7, "families_run": list(families), "dry_run": settings.get("calibration_status") != "frozen",
             "calibration": {k: settings.get(f"calibration_{k}") for k in ("status", "sha256")}, "families": fam, "bans_by_arm": bans_by_arm(runs), "t_mit_s": T_MIT_S,
             "limits_cost": limits_cost(blocks), "unhealthy_controls": unhealthy_controls(every),
             "small_control_classes": small_control_classes(every),

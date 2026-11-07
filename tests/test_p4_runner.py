@@ -200,7 +200,7 @@ class PlanTest(unittest.TestCase):
     def test_plan_prints_and_touches_nothing(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            rc = R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5",
+            rc = R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--families", "loris,post",
                          "--thresholds", "5,256,2", "--root", "/nonexistent/p4", "--plan"])
         self.assertEqual(rc, 0)
         text = out.getvalue()
@@ -230,7 +230,7 @@ class LadderLabelTest(unittest.TestCase):
 
     def test_the_plan_refuses_it_too(self):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
-            rc = R.main(["--phase", "ladder", "--seed", "9102", "--family", "post", "--post", "20", "--label", "l20r3", "--plan"])
+            rc = R.main(["--phase", "ladder", "--seed", "9102", "--family", "post", "--post", "20", "--families", "loris,post", "--label", "l20r3", "--plan"])
         self.assertEqual(rc, 2)
         self.assertIn("is not one of ['l20r1', 'l20r2']", err.getvalue())
 
@@ -251,7 +251,7 @@ class ArmOrderTest(unittest.TestCase):
         with self.assertRaisesRegex(R.PlanError, "no --label"):
             R.plan_block("validation", 4001, "/r", sources=KNEE, label="x")
         with contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--thresholds",
+            self.assertEqual(R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--families", "loris,post", "--thresholds",
                                      "5,256,2", "--label", "x", "--plan"]), 2)
         self.assertEqual(R.plan_block("smoke", 9101, "/r", label="s1", arms=["C"])["dir"], "/r/smoke/b9101_a1_s1")
         first = R.plan_block("campaign", 3101, "/r", sources=KNEE, thresholds=POINT)["order"]
@@ -333,7 +333,7 @@ class AttemptRuleTest(unittest.TestCase):
     def test_the_command_line_says_no(self):
         with tempfile.TemporaryDirectory() as root, contextlib.redirect_stderr(io.StringIO()) as err, \
                 contextlib.redirect_stdout(io.StringIO()):
-            rc = R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--thresholds", "5,256,2",
+            rc = R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--families", "loris,post", "--thresholds", "5,256,2",
                          "--attempt", "2", "--root", root], host=F.FakeHost())
         self.assertEqual(rc, 2)
         self.assertIn("the next is 1", err.getvalue())
@@ -385,7 +385,7 @@ class FrozenRecordTest(unittest.TestCase):
 
     def test_the_command_line_refuses_the_default_record(self):
         with contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()) as err:
-            rc = R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--thresholds", "5,256,2",
+            rc = R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--families", "loris,post", "--thresholds", "5,256,2",
                          "--selection", selection_file(self.root), "--root", self.root], host=HostThatMeasures())
         self.assertEqual(rc, 2)
         self.assertIn("no verdict is given on it", err.getvalue())
@@ -522,7 +522,7 @@ class KneesTest(unittest.TestCase):
 
     def test_the_command_line_carries_it(self):
         path = knees_file(self.root)
-        base = ["--phase", "validation", "--seed", "4001", "--loris", "300", "--post", "40", "--root", self.root, "--knees", path]
+        base = ["--phase", "validation", "--seed", "4001", "--loris", "300", "--post", "40", "--families", "loris,post", "--root", self.root, "--knees", path]
         with contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()) as err:
             self.assertEqual(R.main(base, host=HostThatMeasures()), 2)
         self.assertIn("are not the ladder's knees", err.getvalue())
@@ -599,7 +599,7 @@ class SelectionTest(unittest.TestCase):
             R.run_block(host, R.plan_block("campaign", 3102, self.root, sources=KNEE, thresholds=POINT, arms=["C"], selection=path))
 
     def test_the_command_line_carries_it(self):
-        base = ["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--thresholds", "5,256,2", "--root", self.root]
+        base = ["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--families", "loris,post", "--thresholds", "5,256,2", "--root", self.root]
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
             self.assertEqual(R.main(base, host=F.FakeHost()), 2)
         self.assertIn("--selection must name", err.getvalue())

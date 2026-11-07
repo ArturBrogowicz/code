@@ -34,6 +34,12 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     and ss_failed N when every read fails, so counting events would call a blind rule alive). A run that
     fails one is invalid, with its reasons.
 
+Re-registration record (D-069, 2026-11-06T16:30Z, the user's minimum cut of the VM plan, before any data; T-071, T-074), committed before the
+code it judges: P4 runs Slowloris only. A block names its families (`--families`, D-069's ("loris",) by default on the command line; the
+design's two in plan_block, whose tests keep slow POST's code tested), records them in block.json and its settings, and runs only their
+arms: the campaign's, the validation's and a smoke test's runs, the ladder's family, the sources (a fenced family's must be 0), the needed
+arms of a re-run and the knees all follow them.
+
 Re-registration record (D-063, 2026-11-04T13:04Z, the orchestrator's decision, before any data; the user may overrule), committed
 before the code it judges: gunicorn exiting during a run is a reason, named as a calibration refusal or a failed worker boot when
 gunicorn.log shows one, and so is nginx not running at the run's end.
@@ -163,9 +169,11 @@ class PlanError(ValueError):
 
 # --- arms ----------------------------------------------------------------------------------------
 
-def arm_spec(arm, phase):
-    """(nginx configuration, daemon mode or None, family or None) of an arm in a phase."""
-    family = next((f for f in OUT.FAMILIES if arm.endswith("_" + f)), None)
+def arm_spec(arm, phase, families=OUT.FAMILIES):
+    """(nginx configuration, daemon mode or None, family or None) of an arm in a phase, of a block that runs `families` (D-069)."""
+    family = OUT.arm_family(arm)
+    if family is not None and family not in families:
+        raise PlanError(f"{arm} attacks with {family}, and this block runs the families {list(families)} (D-069: --families)")
     if arm == OUT.PROTECTED and phase in ("campaign", "smoke"):
         return CONF_LIMITS, "pc", None                # D-041: R + the deployed limits + M_pc's daemon, no attack
     if phase in ("validation", "smoke"):
@@ -201,24 +209,24 @@ def block_order(phase, seed, arms, label=""):
     return order
 
 
-def phase_arms(phase, family=None):
+def phase_arms(phase, family=None, families=OUT.FAMILIES):
     if phase == "campaign":
-        return OUT.ARMS
+        return OUT.arms_of(families)
     if phase in ("validation", "smoke"):
-        return slow_pc.VALIDATION_RUNS
-    if family not in OUT.FAMILIES:
-        raise PlanError(f"a ladder needs --family {' or '.join(OUT.FAMILIES)}")
+        return OUT.validation_runs(families)
+    if family not in families:
+        raise PlanError(f"a ladder needs --family {' or '.join(families)}")
     return ("C", f"U_{family}")
 
 
-def check_phase(phase, seed, sources, thresholds, family=None):
+def check_phase(phase, seed, sources, thresholds, family=None, families=OUT.FAMILIES):
     """What each phase needs, so that no run judges data on a setting that was not frozen."""
     role = {"smoke": "pilot", "ladder": "pilot", "validation": "val", "campaign": "eval"}[phase]
     PT.check_seed(seed, role)
-    if phase == "ladder" and family not in OUT.FAMILIES:
-        raise PlanError(f"a ladder needs --family {' or '.join(OUT.FAMILIES)}")
+    if phase == "ladder" and family not in families:
+        raise PlanError(f"a ladder needs --family {' or '.join(families)}" + (f" ({family} is fenced by D-069: --families)" if family else ""))
     if phase in ("validation", "campaign"):
-        for f in OUT.FAMILIES:
+        for f in families:
             if sources[f] not in PT.FAMILIES[f]["levels"]:
                 raise PlanError(f"{phase}: --{f} must be a level of the ladder {PT.FAMILIES[f]['levels']} (the knee)")
     if phase == "ladder" and sources[family] not in PT.FAMILIES[family]["levels"]:
@@ -295,9 +303,9 @@ def daemon_env(mode, out, thresholds):
     return env
 
 
-def plan_run(pop, phase, arm, out, *, thresholds=None, calibration=PLACEHOLDER, python=PYTHON):
+def plan_run(pop, phase, arm, out, *, thresholds=None, calibration=PLACEHOLDER, python=PYTHON, families=OUT.FAMILIES):
     """One run as data: everything execute_run() does, and nothing it does not."""
-    conf, mode, family = arm_spec(arm, phase)
+    conf, mode, family = arm_spec(arm, phase, families)
     if mode == "pc" and thresholds is None:
         raise PlanError(f"{arm} runs M_pc's daemon: it needs --thresholds T,F,K")
     ents = [dict(e) for e in pop["entities"]
@@ -344,13 +352,20 @@ def read_record(path):
 
 
 def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresholds=None, family=None,
-               arms=None, label="", calibration=PLACEHOLDER, python=PYTHON, selection=None, knees=None):
+               arms=None, label="", calibration=PLACEHOLDER, python=PYTHON, selection=None, knees=None, families=OUT.FAMILIES):
     """One block's runs, in their seeded order, as data. `selection`: the campaign's record of the validation, which run_block
     checks (check_selection); `knees`: the validation's and the campaign's record of the ladder (check_knees); a plan can be printed
-    without them."""
+    without them. `families`: what the block runs (D-069); a fenced family's sources must be 0."""
     sources = {"loris": 0, "post": 0, **(sources or {})}
     if phase not in PHASES:
         raise PlanError(f"unknown phase {phase!r}")
+    try:
+        families = OUT.check_families(families)
+    except ValueError as exc:
+        raise PlanError(str(exc)) from None
+    fenced = sorted(f for f in OUT.FAMILIES if f not in families and sources.get(f))
+    if fenced:
+        raise PlanError(f"--{fenced[0]} {sources[fenced[0]]}: this block runs the families {list(families)} (D-069: --families)")
     if selection and phase != "campaign":
         raise PlanError(f"{phase}: --selection is the campaign's: the validation's choice of T, F and K")
     if knees and phase not in ("validation", "campaign"):
@@ -358,7 +373,7 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresh
     record, status = read_record(calibration)
     if label and phase in ("campaign", "validation"):
         raise PlanError(f"{phase}: no --label: it would give another arm order in another directory (review T-047 P-13)")
-    role = check_phase(phase, seed, sources, thresholds, family) if phase != "smoke" else "pilot"
+    role = check_phase(phase, seed, sources, thresholds, family, families) if phase != "smoke" else "pilot"
     if phase == "smoke":
         PT.check_seed(seed, "pilot")
         if thresholds is not None and tuple(thresholds) not in slow_pc.GRID:
@@ -369,23 +384,23 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresh
             raise PlanError(f"ladder: the label {label!r} is not one of {ladder_labels(sources[family])}: eval/p4_ladder.py reads the repeat "
                             f"from it, and §5's ladder has {LADDER_REPEATS} repeats a level (review T-063 T063-05)")
     pop = PT.build_plan(seed, role, halvings=halvings, loris=sources["loris"], post=sources["post"])
-    wanted = tuple(arms) if arms else phase_arms(phase, family)
+    wanted = tuple(arms) if arms else phase_arms(phase, family, families)
     order = block_order(phase, seed, wanted, label)
     name = f"b{seed}_a{attempt}" + (f"_{label}" if label else "")
     bdir = os.path.join(root, phase, name)
     runs = [plan_run(pop, phase, arm, os.path.join(bdir, arm), thresholds=thresholds, calibration=calibration,
-                     python=python) for arm in order]
+                     python=python, families=families) for arm in order]
     for run in runs:
         run["timer_limit_ms"] = record["validity"]["timer_p99_ms"]
     return {"phase": phase, "seed": seed, "attempt": attempt, "label": label, "dir": bdir, "root": root,
-            "order": order, "sources": sources, "halvings": halvings, "thresholds": thresholds,
+            "order": order, "sources": sources, "halvings": halvings, "thresholds": thresholds, "families": families,
             "calibration": calibration, "calibration_status": status, "selection": selection, "knees": knees, "runs": runs}
 
 
 def describe(block):
     """The text of --plan."""
     lines = [f"P4 {block['phase']} block {block['seed']} attempt {block['attempt']}: {block['dir']}",
-             (f"order {block['order']}; sources {block['sources']}; halvings {block['halvings']}; "
+             (f"families {list(block['families'])}; order {block['order']}; sources {block['sources']}; halvings {block['halvings']}; "
               f"thresholds {block['thresholds']}; calibration {block['calibration']} ({block['calibration_status']})"
               + (f"; selection {block['selection']}" if block["phase"] == "campaign" else "")
               + (f"; knees {block['knees']}" if block["phase"] in ("validation", "campaign") else ""))]
@@ -952,7 +967,7 @@ def block_settings(block):
     the thresholds, the calibration record, the validation's record and the code."""
     prov = block["runs"][0]["provenance"]
     code = hashlib.sha256(json.dumps([prov["files_sha256"], prov["code_sha256"]], sort_keys=True).encode()).hexdigest()
-    return {"sources": block["sources"], "halvings": block["halvings"],
+    return {"sources": block["sources"], "halvings": block["halvings"], "families": list(block["families"]),
             "thresholds": list(block["thresholds"]) if block["thresholds"] else None,
             "calibration_sha256": sha256_file(block["calibration"]), "calibration_status": block["calibration_status"],
             "code_sha256": code,
@@ -990,12 +1005,16 @@ def check_knees(block, host):
         levels, halvings, record = rec["levels"], rec["halvings"], rec["calibration_sha256"]
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise PlanError(f"{path} is not a record of eval/p4_ladder.py: {exc!r}") from None
-    none = sorted(f for f in OUT.FAMILIES if levels.get(f) is None)
+    families = block["families"]
+    read = OUT.check_families(rec.get("family_set") or OUT.FAMILIES)
+    if read != tuple(families):
+        raise PlanError(f"{block['phase']}: {path} read the ladder of the families {list(read)}, and this block runs {list(families)} (D-069)")
+    none = sorted(f for f in families if levels.get(f) is None)
     if none:
         raise PlanError(f"{block['phase']}: {', '.join(none)} has no knee in {path}: what that means is not decided, so nothing runs (T-060)")
-    typed = {f: block["sources"][f] for f in OUT.FAMILIES}
-    if typed != {f: levels[f] for f in OUT.FAMILIES}:
-        raise PlanError(f"{block['phase']}: the sources {typed} are not the ladder's knees { {f: levels[f] for f in OUT.FAMILIES} } ({path})")
+    typed = {f: block["sources"][f] for f in families}
+    if typed != {f: levels[f] for f in families}:
+        raise PlanError(f"{block['phase']}: the sources {typed} are not the ladder's knees { {f: levels[f] for f in families} } ({path})")
     if block["halvings"] != halvings:
         raise PlanError(f"{block['phase']}: --halvings {block['halvings']}, and the ladder ran at {halvings} ({path})")
     if record != sha256_file(block["calibration"]):
@@ -1063,7 +1082,7 @@ def check_attempt(block):
     if next_attempt == 1 or phase == "smoke":
         return
     last = {x["arm"]: x for x in mine if x["attempt"] == next_attempt - 1}
-    needed = OUT.NEEDED_ARMS if phase == "campaign" else block["order"]
+    needed = OUT.needed_arms(block["families"]) if phase == "campaign" else block["order"]
     why = [arm for arm in needed if arm not in last or not last[arm]["valid"]]
     if phase == "campaign" and not why:
         import l7_backend
@@ -1096,7 +1115,7 @@ def run_block(host, block):
                {"block": block["seed"], "attempt": block["attempt"], "seed": block["seed"], "phase": block["phase"],
                 "calibration_sha256": sha256_file(cal), "timeline": dict(PT.TIMELINE), "order": block["order"],
                 "sources": block["sources"], "halvings": block["halvings"], "thresholds": block["thresholds"],
-                "settings": block_settings(block)})
+                "families": list(block["families"]), "settings": block_settings(block)})
     results = []
     with open(os.path.join(block["root"], "index.jsonl"), "a", encoding="utf-8") as idx:
         for run in block["runs"]:
@@ -1236,6 +1255,8 @@ def main(argv=None, host=None):
     ap.add_argument("--loris", type=int, default=0, help="Slowloris sources (a ladder level; the knee)")
     ap.add_argument("--post", type=int, default=0, help="slow-POST sources (a ladder level; the knee)")
     ap.add_argument("--family", choices=OUT.FAMILIES, help="the ladder's family")
+    ap.add_argument("--families", default=",".join(OUT.CUT_FAMILIES), choices=("loris", "loris,post"),
+                    help="the families the block runs (D-069: Slowloris only, the default; loris,post: the design's two)")
     ap.add_argument("--label", default="", help="a ladder's level and repeat, a smoke run's name; refused elsewhere")
     ap.add_argument("--arms", help="smoke only: the runs, comma-separated (C, U_loris, U_post, C_M)")
     ap.add_argument("--halvings", type=int, default=0, help="how often the halving rule of §4.2 has fired")
@@ -1267,7 +1288,8 @@ def main(argv=None, host=None):
                            sources={"loris": args.loris, "post": args.post}, halvings=args.halvings,
                            thresholds=args.thresholds, family=args.family,
                            arms=args.arms.split(",") if args.arms else None, label=args.label,
-                           calibration=args.calibration, python=args.python, selection=args.selection, knees=args.knees)
+                           calibration=args.calibration, python=args.python, selection=args.selection, knees=args.knees,
+                           families=tuple(args.families.split(",")))
     except (PlanError, PT.PlanError) as exc:
         print(f"[-] {exc}", file=sys.stderr)
         return 2
