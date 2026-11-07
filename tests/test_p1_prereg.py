@@ -7,6 +7,8 @@ import unittest
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PATH = os.path.join(REPO, "ml", "p1_prereg.json")
+PATH_5 = os.path.join(REPO, "ml", "p1_prereg_5.json")
+PREREG_5_SHA256 = "162374d1291ab59e52a70e72bf3eadfda31eb809365fb9094b50acd3c95fbb9c"
 PATH_4 = os.path.join(REPO, "ml", "p1_prereg_4.json")
 PREREG_4_SHA256 = "e3a39613818313d69c32062a35d52499e36f46bf98bcac7517bdd059c84c3862"
 PATH_3 = os.path.join(REPO, "ml", "p1_prereg_3.json")
@@ -163,3 +165,31 @@ class FourthRecordTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Prereg5Test(unittest.TestCase):
+    """ml/p1_prereg_5.json: the user's D-073, D-074 and D-075, before any ladder run."""
+
+    @staticmethod
+    def load():
+        with open(PATH_5, encoding="utf-8") as fh:
+            return json.load(fh)
+
+    def test_the_file_is_the_frozen_version(self):
+        with open(PATH_5, "rb") as fh:
+            self.assertEqual(hashlib.sha256(fh.read()).hexdigest(), PREREG_5_SHA256)
+        rec = self.load()
+        self.assertEqual((rec["format"], rec["date"]), ("p1-prereg-5/1", "2026-11-07"))
+        for d in ("D-073", "D-074", "D-075"):
+            self.assertIn(d, rec["decision"])
+
+    def test_its_numbers(self):
+        rec = self.load()
+        self.assertEqual(rec["ladder"]["levels"], {"C2": [1, 2, 4, 8, 16], "C3a": [2, 4, 6, 8], "C3b": [50, 100, 150, 200, 300]})
+        self.assertEqual(rec["ladder"]["repeats"], 2)
+        self.assertEqual((rec["ladder"]["seed_map"]["first"], rec["ladder"]["seed_map"]["seeds"]), (9001, 8))
+        self.assertEqual(rec["c3a"]["sources_bounds"], [50, 320])
+        self.assertEqual((rec["address_limit"]["ceiling"], rec["address_limit"]["read"]["margin_mb"]), (468, 1024))
+        self.assertEqual((rec["premise"]["windows_s"], rec["premise"]["quantile"]), ([1, 10, 30, 60, 300], 0.99))
+        self.assertIn("never read as no harm", rec["ladder"]["statuses"]["not_reachable"])
+        self.assertIn("C2 alone", rec["no_knee"]["campaign"])
