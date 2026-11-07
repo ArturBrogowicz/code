@@ -1,0 +1,16 @@
+{
+ "format": "p3-sizing/1",
+ "date": "2026-11-07",
+ "decision": "D-076 (the user's \"Hybrid (Recommended)\" of 2026-11-07, on tasks/T-070/artifacts/design.md section 6.2): P3 sizes each core family's phase from that family's own knee (C-096)",
+ "status": "pre-data: written before any P3 capture. It supersedes ml/l7_pools.py's module note on L7 v2 intensity, and says how docs/P3_DATASET_DESIGN.md:185 ('{0.5, 1, 2} x that family's knee') is carried out",
+ "knees": "each of C2, C3a and C3b from its own value in P1's knees file (eval/p1_analysis.py --ladder). A family named in no_knee is sized at its top tested level (top_tested in that file: the highest level whose repeats all had a sound attempt) and marked so; a family with neither is a refusal. A pilot plan without knees keeps the placeholder sizing and says so",
+ "target": "m x K per phase, m from ml/p3_prereg.json volume.phase_intensity_multipliers: in S for C2 and C3a, in bots for C3b",
+ "room": "the family's registered entities (ml/l7_pools.py POPULATIONS l7v2, at least volume.attack_entities_per_core_family_min): the 300 verified addresses leave no more",
+ "carrier": {
+  "C2": "the room's entities, each at the Poisson rate m x K x S / (n x cost) (ml/l7_pools.py c2_rps), as before but from C2's own knee",
+  "C3a": "the room's entities, then pace: page gaps divided by f = (m x K x S / per-source cost rate) / entities, with f at most pace_cap, P1's per-source pace times 2; below 1 the pace slows",
+  "C3b": "count only: the room's bots, whose frozen parameters do not change; C3b@M1 rides along as registered"
+ },
+ "pace_cap": 2.0,
+ "manifest": "per core phase in the plan's intensity.phases: family, m, knee, no_knee, unit, target, realized, shortfall, excess, entities, pace_factor"
+}

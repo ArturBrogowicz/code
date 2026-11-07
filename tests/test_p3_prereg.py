@@ -1,5 +1,6 @@
 """The P3 pre-registration (docs/P3_DATASET_DESIGN.md §5, §6.1, §8 item 3) is pinned value by value:
 a change to the committed file must change this test too, in the same reviewed commit."""
+import hashlib
 import json
 import os
 import sys
@@ -119,3 +120,19 @@ class PinnedVolumeAndCurveTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SizingRecordTest(unittest.TestCase):
+    """ml/p3_sizing_prereg.json: the user's D-076, before any P3 capture."""
+    PATH = os.path.join(REPO, "ml", "p3_sizing_prereg.json")
+    SHA256 = "86c4c6e76eb0a890406fec12e4767bd2616097a5c10b6f886ea414790395e470"
+
+    def test_the_file_is_the_frozen_version(self):
+        with open(self.PATH, "rb") as fh:
+            self.assertEqual(hashlib.sha256(fh.read()).hexdigest(), self.SHA256)
+        with open(self.PATH, encoding="utf-8") as fh:
+            rec = json.load(fh)
+        self.assertEqual((rec["format"], rec["date"], rec["pace_cap"]), ("p3-sizing/1", "2026-11-07", 2.0))
+        self.assertIn("D-076", rec["decision"])
+        self.assertEqual(sorted(rec["carrier"]), ["C2", "C3a", "C3b"])
+        self.assertIn("count only", rec["carrier"]["C3b"])
