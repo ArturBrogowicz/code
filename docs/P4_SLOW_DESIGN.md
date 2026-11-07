@@ -1,6 +1,7 @@
 # P4: slow-connection attacks that harm a realistic server, mitigated per connection without CGNAT collateral (design note, written before the code)
 
-**Status (2026-11-02): approved, and built offline on `feat/p4-runner`; nothing has run on the VM. The text below is the design as
+**Status (2026-11-07): T-071's extension of the loris ladder, the halving rule's controls, the CPU layout, the cut to Slowloris and the
+grouped generator are approved (D-069, D-073 to D-075) and re-registered below, before any ladder data.** **Status (2026-11-02): approved, and built offline on `feat/p4-runner`; nothing has run on the VM. The text below is the design as
 approved, with its dated re-registrations.** **Status (2026-10-30): a design for approval. Nothing in it is built or run.** It is on `design/priority-p1-p4`, branched from
 `feat/hg1c` at e413a34, and changes no code. It details priority P4 of the approved direction
 (`/home/artur/agent_workspace/final/PRIORITY_PLAN.md` §4). It uses the L7 v2 runner as its harm vehicle
@@ -48,6 +49,14 @@ was; each place a re-registration changes carries a marker "[re-registered: ...]
 | T-060 (T057-09) | 2026-11-05T10:51Z | An nginx log replaced or removed during a run, by logrotate's daily timer or anything else, is a reason, HG's check (T-028 F-04): its copy holds only what came after, and the daemon loses what came between. Q is client-side and would not move, but M arms' daemon could, so it invalidates rather than notes. A 13-h campaign meets the timer at most once, which costs one of its 2 re-runs (the orchestrator's brief, pre-data; review T-057) | §12, silent |
 | D-067 | 2026-11-06T08:29Z | P4's ladder reader treats a repeat with no sound attempt as missing, not as harm 0: it reads no knee while such a repeat sits at or below the knee, the knee needs 2 sound repeats, "no knee" needs 2 sound repeats at every level that ran, and the refusal names the repeat, to be re-run with its reason. P4's ladder labels are bound to family, level and repeat 1-2, like P1's (orchestrator, pre-data; the user may overrule; review T-063 T063-01, T063-05) | T-060's reader counted it as harm 0 |
 | D-068 | 2026-11-06T13:09Z | P4's runner follows P1 on interrupts: only the interrupted finish is shielded. A Ctrl-C, TERM or HUP during an ordinary run's stop phase reaches the interrupt handler, whose shielded pass completes the stop and the teardown, and the block stops, instead of the signal being dropped while the block goes on; a second interrupt in that pass is still lost (T063-02). HG's executor is not changed (R-022) (orchestrator, pre-data; the user may overrule; review T-067 T067-01) | T-064 shielded every finish |
+| D-069 | 2026-11-06T16:30Z | P4 runs **Slowloris only** (the user's minimum cut of the VM plan). Every block records its `families` in its settings, ["loris"] by default (`eval/p4_runner.py --families`), and the arms, the needed arms, the validation's and the smoke's runs, the ladder's families and the knees follow it; a campaign holds one setting. Slow POST's code, arms and tests stay, fenced: they run only under `--families loris,post` | §4.3 arms; §10 "per family (loris, post)"; §11 "the cut" |
+| D-073 (1) | 2026-11-07T08:33Z | The loris ladder is **(100, 175, 250, 300, 400, 500)** sources (T-071 §2.3; D-070, "extend the ladder", before any ladder data). The first three levels of a family always run; each higher level runs only once every lower level has 2 sound repeats and none of them is a knee, and the runner refuses it otherwise. Slow POST's ladder (5, 10, 20, 40) keeps its 4th-level rule, which is the same rule. Nothing else moves: 6 connections per source, a header line of at most 32 B every U[10, 40] s. The pool is drawn at its largest, 60 + 500 + 40 = 600 addresses of 10.0.16.0/20, and keeps every address the 400-address pool gave (tested) | §5 the ladder and "Held connections"; §11 "the 4th only if no knee" |
+| D-073 (2) | 2026-11-07T08:33Z | The attack ran if at least **0.5 × min(planned, 1,800)** of its connections opened at least once: unchanged up to 300 sources, 900 connections above, so that saturation at 400-500 sources is not called invalid, the floor's own reason (D-057) | D-057's "50 % of the connections opened" |
+| D-073 (3) | 2026-11-07T08:33Z | The halving rule of §4.2 reads **C and C' of a health phase on pilot seed 9101, before the ladder** (R-021; P1's D-049 rule, `ml/p4_prereg.json` halving): either control unhealthy (`eval/p4_outcome.control_health`) fires it; the next step runs both again at halvings + 1 on the same seed; the first sound and healthy step freezes the factor; an unsound step is repeated at most twice; the floor is 2 halvings (10 browser devices; the CGNAT pools are never removed); a control unhealthy with a server-side Q of at least 99 % stops the rule for a dated decision instead of firing it (D-058's guard). `eval/p4_health.py` writes the factor to a `p4-health/1` file bound to the calibration record, and the ladder, the validation and the campaign run at it (`--health`). An unhealthy C inside the ladder makes that attempt unsound, to be re-run with that reason; it never fires the rule | §4.2 "either of two pilot controls"; T-060 (T057-04)'s first open point |
+| D-073 (4) | 2026-11-07T08:33Z | CPUs: P4's **benign clients run on CPU 7**, the CPU the timer gate probes, and the **attack generators and the runner on CPUs 3-6**, as P1 and HG pin them; the server (0-1) and the daemon (2) are unchanged. A pass of the gate now speaks for the CPU of the clients whose requests are judged | T-060 (T057-06): "P4's clients stay on CPUs 3-7" |
+| D-073 (5) | 2026-11-07T08:33Z | P4-S s2 runs U_loris at the top, `--loris 500` (560 addresses). If a feasibility reading fails there (free memory, a launch more than 10 s late, the opened share under D-073 (2)'s floor), the top is 400 and 500 is "not reachable", a status of its own that never reads as no harm (D-074). s2 reads no harm: it has no C. Recorded and never judged: stub_status `reading` and `active` over the attack, the generators' `reopened` total, and the 408 lines of attack addresses in the access log (T-071's finding H-1, an inference: nginx's `client_header_timeout` may bound the whole header rather than each gap, so that a loris connection holds its slot about 60 % of the time) | §5 pacing "it must stay under R's 60 s header timeout"; §5 "never reach the access log" |
+| D-074 | 2026-11-07T08:33Z | **No knee at the extended top is a reported result (rule A, R-021):** when every level up to the reachable top has 2 sound repeats and none harms in 2 of 2, P4 reads "Slowloris below the default rules' thresholds did not harm profile R up to N sources", with each level's figures; no validation and no campaign run, and M7 reads "not applicable: no harmful attack". `eval/p4_ladder.py` names each family's status (a knee; no knee up to N; incomplete, with the next level to run; a level not reachable) and `eval/p4_outcome.py --knees` prints the reading | T-060 (T057-04)'s second open point; §10, where "not harmful" was a campaign's verdict |
+| D-075 | 2026-11-07T08:33Z | The loris generators are **grouped** (memory, R-023): one process per client namespace, at most 80 sources, a thread per source; each source's seeded schedule, address and statistics (its own `--stats` file) are unchanged, and so is every other generator, P1's included (one process per entity: `ml/l7_gen.py` without `--group`) | §11's one generator per source |
 
 Two further forms appear here:
 - `T0:` facts were read on this VM on 2026-10-30, without running anything: package metadata, the ss manual page, the kernel
@@ -185,7 +194,7 @@ on R are not transferable to the hardened profile, and the reverse holds too. Th
   1,536 before any attack.
 - **Rule, frozen before the pilot.** If either of two pilot controls is unhealthy (Q(C) < 99 % or a class below 95 %,
   `eval/harm_gate.py:300-312`), the browser devices are halved and the pilot is repeated. CGNAT-12 and CGNAT-24 are never
-  removed.
+  removed. [re-registered: the two controls are C and C' of a health phase on pilot seed 9101, before the ladder, D-073 (3)]
 
 ### 4.3 The arms on R [PROPOSAL, D-S7]
 
@@ -208,10 +217,10 @@ daemon and lifts every XDP ban (NEW-1), and the telemetry thread has no guard (N
 | | Slowloris (family 1, primary) | Slow POST, R.U.D.Y.-like (family 2, primary) | Slow read (secondary) |
 |---|---|---|---|
 | Generator | `ml/l7_gen.py` slowloris (`:325`) | slowpost (`:345`) | slowread (`:375`) |
-| Sources (ladder) | {100, 175, 250, 300} from the per-seed pool (`docs/L7V2_DESIGN.md` §6) | {5, 10, 20, 40} | 50 |
+| Sources (ladder) | {100, 175, 250, 300} from the per-seed pool (`docs/L7V2_DESIGN.md` §6) [re-registered: (100, 175, 250, 300, 400, 500), a level above the third only if no lower level is a knee, D-073 (1); P4 runs Slowloris only, D-069] | {5, 10, 20, 40} | 50 |
 | Connections per source | 6, the benign device's footprint; < SlowConn's 8 and < `limit_conn` 50 | 1-2 | 6 |
-| Held connections at the top level | ~1,800 (L7-03 needed ~1,900 against an unhardened nginx) | ≤ 80 | ~300 |
-| Pacing | a header line every U[10, 40] s per connection, ≤ 32 B; it must stay under R's 60 s header timeout (L7-02: a gap longer than the timeout keeps the attack alive only part of the time, via `S1:T-006/p4_design_sketch.md` §4.5) | Content-Length U[100 KB, 1 MB] (≤ 10m); a chunk of ≤ 16 B every U[5, 30] s | reads ≤ 64 B every U[5, 30] s from `/download/large` |
+| Held connections at the top level | ~1,800 (L7-03 needed ~1,900 against an unhardened nginx) [re-registered: 3,000 planned at 500 sources; L7-03's ~1,900 was Slow Read's figure, T-071 H-2, D-073 (1)] | ≤ 80 | ~300 |
+| Pacing | a header line every U[10, 40] s per connection, ≤ 32 B; it must stay under R's 60 s header timeout (L7-02: a gap longer than the timeout keeps the attack alive only part of the time, via `S1:T-006/p4_design_sketch.md` §4.5) [re-registered: the gaps stay; whether the timeout bounds each gap or the whole header is read in P4-S s2, D-073 (5)] | Content-Length U[100 KB, 1 MB] (≤ 10m); a chunk of ≤ 16 B every U[5, 30] s | reads ≤ 64 B every U[5, 30] s from `/download/large` |
 | Port | 80 (443 secondary, D-S8) | 80, `/upload` | 80 |
 | Re-opening | a closed connection is re-opened, as the in-repo generators do (`S1:T-006/p4_inventory.md` §1) | same | same |
 | Harm mechanism | nginx's 1,536 slots: new benign connections fail to be accepted | the 5 sync workers: benign requests queue | send buffers and slots |
@@ -219,7 +228,7 @@ daemon and lifts every XDP ban (NEW-1), and the telemetry thread has no guard (N
 **Notes:**
 - **Intensity.** It is set by the ladder on pilot seeds; the knee is the lowest level that harms in 2 of 2 repeats
   (`bench/calibration.py:288`). Only the number of sources moves; the pacing is frozen.
-- **The UA does not matter here.** Slowloris requests never complete, so they never reach the access log
+- **The UA does not matter here.** Slowloris requests never complete, so they never reach the access log [re-registered: a header timeout may leave a 408 line; s2 counts them, D-073 (5)]
   (`S1:T-006/p4_design_sketch.md` §1).
 
 ## 6. The per-connection detector (P4.2)
@@ -385,13 +394,13 @@ of traffic, ~5.5 min a run, ~11.8 h in all (10.4 h without re-runs), D-030; with
 | Step | Runs | VM h |
 |---|---|---|
 | smoke of R, with the `ss` and `stub_status` recording and the parser fixture | 3 | 0.2 |
-| harm ladder: 2 families × 3 levels (the 4th only if no knee is found) × 2 repeats × (C, U) | 24 | 1.6 |
+| harm ladder: 2 families × 3 levels (the 4th only if no knee is found) × 2 repeats × (C, U) [re-registered: Slowloris only, up to 500 sources, each level above the third only if no lower level is a knee, after a health phase of 2 runs, D-069, D-073 (1), (3)] | 24 | 1.6 |
 | validation for the threshold rule: 2 seeds × (C, U_loris, U_post) | 6 | 0.4 |
 | campaign: 10 blocks × 8 runs | 80 | 5.3 |
 | re-runs (≤ 2 blocks) | 16 | 1.1 |
 | **total** | | **~8.6 h (7.5 h without re-runs)** |
 
-**The cut**, Slowloris only (C, C', U, M_def, M_pc): ~5 h with re-runs.
+**The cut**, Slowloris only (C, C', U, M_def, M_pc): ~5 h with re-runs. [re-registered: the cut is the plan, with C_M, D-069]
 
 **The budget as of 2026-11-02** [ESTIMATE, at ~5.5 min a run, §11's method; review T-047 P-17]. The figures above count 3 smoke
 runs and the ladder's 3 levels. In full: the P4-S packet, 6 runs and hand steps, ~0.8 h; the ladder, 24 runs, 2.2 h; the validation,
@@ -410,12 +419,12 @@ needed: P4's harm is about slots, not CPU, and is judged against its own control
 
 | Risk | Mitigation |
 |---|---|
-| The control on R is unhealthy (benign keep-alive, F-S8) | Section 4.2's sizing rule, frozen before the pilot |
+| The control on R is unhealthy (benign keep-alive, F-S8) | Section 4.2's sizing rule, frozen before the pilot [re-registered: read on a health phase's C and C', D-073 (3)] |
 | The undocumented `ss` tokens behave differently (F-S3) | The pilot fixture; a missing token = 0; legs 3-5 are tested on fakes |
 | The cost of polling ~2,000 sockets every second, and the closes | The daemon's CPU is recorded per run; caps of 500 closes per poll |
-| VM timer stalls inflate client-side latency (`S1:T-004/p2_capacity.md` §6) | The harm benchmark's timer gate before every run, with its probes in `run.json`; a mid-life stall is a reason (T-052 (4)); placebo; re-run rule. [re-registered: this row said "`stub_status` cross-check", which judges nothing since D-050; T-060, review T-057 T057-06] |
+| VM timer stalls inflate client-side latency (`S1:T-004/p2_capacity.md` §6) | The harm benchmark's timer gate before every run, with its probes in `run.json`; a mid-life stall is a reason (T-052 (4)); placebo; re-run rule. [re-registered: this row said "`stub_status` cross-check", which judges nothing since D-050; T-060, review T-057 T057-06] [re-registered: P4's benign clients now run on CPU 7 itself, D-073 (4)] |
 | The R.U.D.Y. regex stays silent on R: with pacing under 60 s, no body timeout occurs [INFERENCE] | Reported as it is; the per-connection rule is the detector under test |
-| The scale needs more than 300 addresses | The ladder's top level is 300; ≤ 300 aliases are verified [CLAIMED, `final/PRIORITY_PLAN.md` §3] |
+| The scale needs more than 300 addresses | The ladder's top level is 300; ≤ 300 aliases are verified [CLAIMED, `final/PRIORITY_PLAN.md` §3] [re-registered: the top is 500, 560 addresses, checked by P4-S s2, else 400; the loris generators are grouped, D-073 (1), (5), D-075] |
 | The content level | Parameters for the in-repo generators only; no new tool; nothing outside the namespaces (ledger D-006) |
 
 ## 13. Pre-registration: what is frozen, and before what [PROPOSAL]
