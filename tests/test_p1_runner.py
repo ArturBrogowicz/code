@@ -521,7 +521,7 @@ class LadderRegisteredTest(Base):
             code = R.main(["--phase", "ladder", "--seed", "9001", "--class", "C2", "--level", "3", "--plan",
                            "--calibration", self.frozen["calibration"], "--health", self.frozen["health"], "--root", self.root])
         self.assertEqual(code, 2)
-        self.assertIn("not one of its pre-registered levels [1, 2, 4, 8]", err.getvalue())
+        self.assertIn("not one of its pre-registered levels [1, 2, 4, 8, 16]", err.getvalue())
 
     def test_a_third_repeat_or_a_label_of_its_own_is_refused(self):
         for label in ("C2_L2_r3", "C2_L2_r0", "x", "", "C2_L2.0_r1", "C2_L1_r1", "C3a_L2_r1"):

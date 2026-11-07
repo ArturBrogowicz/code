@@ -480,20 +480,20 @@ class LadderAttemptsTest(unittest.TestCase):
             self.pair("C2", 1.0, 1, attempt=3)
 
     def test_the_file_is_the_one_a_campaign_takes(self):
-        for cls, level in (("C2", 1.0), ("C3a", 1.0), ("C3b", 50)):
+        for cls, level in (("C2", 1.0), ("C3a", 2.0), ("C3b", 50)):
             self.pair(cls, level, 1)
             self.pair(cls, level, 2, seed=9002)
         out = os.path.join(self.tmp, "knees.json")
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(A.main([self.root, "--calibration", self.frozen["calibration"], "--ladder", "--out", out]), 0)
         got = REC.read_json(out)
-        self.assertEqual((got["C2"], got["C3a"], got["C3b"], got["no_knee"], got["status"]), (1.0, 1.0, 50, [], "frozen"))
+        self.assertEqual((got["C2"], got["C3a"], got["C3b"], got["no_knee"], got["status"]), (1.0, 2.0, 50, [], "frozen"))
         self.assertEqual((got["record_sha256"], got["benign_halvings"]), (self.cal["sha256"], 0))
         block = R.plan_block("campaign", SEEDS[0], self.root, frozen={**self.frozen, "knees": out}, benign_specs=F.thin_benign(LEAN), max_sources=2)
-        self.assertEqual(block["levels"], {"C2": 1.0, "C3a": 1.0, "C3b": 50})
+        self.assertEqual(block["levels"], {"C2": 1.0, "C3a": 2.0, "C3b": 50})
 
     def test_a_class_without_a_knee_is_named_and_refused_when_needed(self):
-        for cls, level, share in (("C2", 1.0, 0.30), ("C3a", 1.0, 0.0), ("C3b", 50, 0.30)):
+        for cls, level, share in (("C2", 1.0, 0.30), ("C3a", 2.0, 0.0), ("C3b", 50, 0.30)):
             self.pair(cls, level, 1, share=share)
             self.pair(cls, level, 2, seed=9002, share=share)
         got = A.knees_file(self.root, self.cal)
