@@ -497,6 +497,17 @@ class LadderAttemptsTest(unittest.TestCase):
         self.assertEqual(got["top_tested"]["C3b"], None)
         self.assertEqual(got["results"]["C3b"], "C3b: no level ran with every repeat sound; no sound attempt, counted as no harm: 50 r1")
 
+    def test_a_level_marked_crosses_never_becomes_a_knee(self):
+        """ml/p1_prereg_5.json premise: such a level tests rate detection, not P1. None is so marked; a patched mark shows the rule."""
+        for rep in (1, 2):
+            self.pair("C2", 1.0, rep)
+            self.pair("C2", 2.0, rep)
+        self.assertEqual(A.ladder_knees(self.root, self.cal)["C2"]["level"], 1.0)
+        self.assertEqual(A.knees_file(self.root, self.cal)["levels"]["C2"]["1"]["premise"], "evades")
+        with mock.patch.object(A.PREMISE, "marks", return_value={("C2", 1.0): "crosses"}):
+            self.assertEqual(A.ladder_knees(self.root, self.cal)["C2"]["level"], 2.0)
+            self.assertEqual(A.knees_file(self.root, self.cal)["levels"]["C2"]["1"]["premise"], "crosses")
+
     def test_the_last_sound_attempt_counts_and_an_invalid_later_one_does_not_erase_it(self):
         self.pair("C2", 1.0, 1, quiet_from=60.0)
         self.pair("C2", 1.0, 1, attempt=2)

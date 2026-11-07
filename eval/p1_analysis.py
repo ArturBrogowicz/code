@@ -62,6 +62,7 @@ import l7v2_harm as LH
 import l7v2_replay as RP
 import l7v2_verdict as J
 import l7v2_verdict_prereg as VP
+import p1_premise as PREMISE
 import p1_records as REC
 import p1_runner as RUN
 import p1_traffic as PT
@@ -457,8 +458,11 @@ def ladder_harm(root, cal):
 
 
 def ladder_knees(root, cal, harm=None):
-    """The knees of a finished ladder: {class: bench/calibration.knee's result} over ladder_harm's rows, or over the `harm` it gave."""
+    """The knees of a finished ladder: {class: bench/calibration.knee's result} over ladder_harm's rows, or over the `harm` it gave. A level the
+    premise check marked 'crosses' (ml/p1_premise.json) never becomes a knee (ml/p1_prereg_5.json premise): it tests rate detection, not P1."""
     rows, _unsound = harm or ladder_harm(root, cal)
+    marks = PREMISE.marks()
+    rows = {cls: {lv: h for lv, h in levels.items() if marks.get((cls, float(lv))) != "crosses"} for cls, levels in rows.items()}
     return {cls: CAL.knee(sorted(levels.items()), 1.0, 2) for cls, levels in sorted(rows.items())}
 
 
@@ -472,6 +476,7 @@ def ladder_status(root, harm, knees):
     for x in RUN.read_unreachable(root):
         refused.setdefault((x["class"], float(x["level"])), x["reason"])
     repeats = PT.ladder_repeats()
+    marks = PREMISE.marks()
     out = {}
     for cls in sorted(PT.PRIMARY):
         knee = knees.get(cls) or {}
@@ -491,6 +496,7 @@ def ladder_status(root, harm, knees):
                 st = {"status": "not run"}
             if knee.get("level") is not None and key > knee["level"]:
                 st["above_knee"] = True
+            st["premise"] = marks.get((cls, key))
             levels[f"{lv:g}"] = st
         top = max(tested) if tested else None
         out[cls] = {"levels": levels, "top_tested": top, "result": _ladder_line(cls, knee.get("level"), top, levels)}
