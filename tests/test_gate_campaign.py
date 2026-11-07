@@ -929,6 +929,42 @@ class CalibrationTest(CampaignCase):
             with self.subTest(knees=knees), self.assertRaisesRegex(GC.CampaignError, f"holds no knee for costly_search_flood \\({said}\\)"):
                 self.run_campaign(scn=self.scenario_at(2), cal=cal)
 
+    def test_with_protected_arms_cheap_takes_exactly_twice_its_knee_and_the_others_their_knee(self):
+        """docs/HG1C_DESIGN.md departure 39 (D-071, R-020): HG4's cheap flood at level 4, twice the frozen knee of 2; HG3 at the knee."""
+        cal = copy.deepcopy(self.CAL)
+        cal["knees"] = {"cheap_static_flood": 2.0, "costly_search_flood": 4.0}
+        hg4, hg3 = (SC.load(os.path.join(REPO, "bench", "scenarios", n + ".json")) for n in ("cheap_static_flood_hg4", "cheap_static_flood"))
+        xdp, limits, plain = self.options(modes=("xdp",)), self.options(modes=("limits", "xdp")), self.options()
+        for opts in (xdp, limits):
+            self.assertIsNone(GC.level_problem(hg4, cal, opts))
+            self.assertIn("with protected arms (HG4) cheap_static_flood runs at 2 x its frozen knee of 2, so 4 (D-071)",
+                          GC.level_problem(hg3, cal, opts))
+        for level in (1, 3, 8):
+            self.assertIsNotNone(GC.level_problem(dataclasses.replace(hg4, intensity={**hg4.intensity, "level": level}), cal, xdp), level)
+        self.assertIn("with protected arms (--modes) this family runs at 2 x the knee (D-071)", GC.level_problem(hg4, cal, plain))
+        self.assertIsNone(GC.level_problem(hg3, cal, plain), "HG3 at the knee")
+        self.assertIsNone(GC.level_problem(self.scenario_at("knee"), cal, xdp), "search with protected arms at its knee")
+        self.assertIn("runs at its frozen knee, 4", GC.level_problem(self.scenario_at(8), cal, xdp))
+        self.assertIn("HG3's one further confirmation", GC.level_problem(hg4, cal, self.options(modes=("xdp",), confirm_2x_knee=True)))
+        with self.assertRaisesRegex(GC.CampaignError, "runs at 2 x its frozen knee of 2, so 4"):
+            self.run_campaign(scn=hg3, cal=cal, modes=("xdp",))
+        self.assertFalse(os.path.exists(self.path()), "refused before anything is made")
+        self.assertIn("level rule   with protected arms (HG4) cheap_static_flood runs at 2 x the frozen knee (D-071)",
+                      GC.describe(hg4, cal, SPEC_SHA, xdp))
+
+    def test_on_the_real_record_hg4s_cheap_spec_passes_with_arms_and_hg3s_without(self):
+        frozen = C.load(os.path.join(REPO, "bench", "calibration", "ddos-mitigation-2026-11-04.json"))
+        xdp = self.options(modes=("xdp",))
+        for name, opts, ok in (("cheap_static_flood_hg4", xdp, True), ("cheap_static_flood", xdp, False),
+                               ("cheap_static_flood", self.options(), True), ("cheap_static_flood_hg4", self.options(), False),
+                               ("costly_search_sub_threshold", xdp, True), ("costly_export_sub_threshold", xdp, True)):
+            with self.subTest(name=name, modes=opts.modes):
+                scn = SC.load(os.path.join(REPO, "bench", "scenarios", name + ".json"))
+                self.assertEqual(GC.level_problem(scn, frozen, opts) is None, ok)
+                self.assertEqual("WARNING: `run` refuses this" not in GC.describe(scn, frozen, "0" * 64, opts), ok)
+        self.assertIn("attack level 4.0", GC.describe(SC.load(os.path.join(REPO, "bench", "scenarios", "cheap_static_flood_hg4.json")),
+                                                      frozen, "0" * 64, xdp))
+
     def test_a_dry_run_on_a_placeholder_may_take_any_level_and_gets_no_verdict(self):
         cal = CF.placeholder_with_knees()
         self.assertIsNone(GC.level_problem(self.scenario_at(1), cal, self.options(dry_run=True)))

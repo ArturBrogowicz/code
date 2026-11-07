@@ -485,6 +485,16 @@ class ExpectedGateTest(unittest.TestCase):
         self.assertEqual(none["expected_gate"]["class"], "likely FAIL")
         self.assertTrue(any("cannot harm" in w for w in none["warnings"]), none["warnings"])
 
+    def test_on_a_frozen_record_a_level_neither_at_the_knee_nor_twice_it_is_flagged(self):
+        """The scenario plan agrees with `gate_campaign run` (departures 37 to 39): no campaign takes such a level."""
+        frozen = C.load(FROZEN)
+        flag = "nor twice it: no campaign takes it"
+        for level, flagged in ((1, True), (2, False), (3, True), (4, False), (8, True)):
+            with self.subTest(level=level):
+                p = S.plan(scenario("cheap_static_flood", intensity__level=level), frozen)
+                self.assertEqual(any(flag in w for w in p["warnings"]), flagged, p["warnings"])
+        self.assertFalse(any(flag in w for w in plan_of("cheap_static_flood", intensity__level=3)["warnings"]), "not on a placeholder")
+
     def test_the_two_shipped_attacks(self):
         self.assertEqual(plan_of("costly_search_sub_threshold")["expected_gate"]["class"], "likely PASS")
         self.assertEqual(plan_of("cheap_static_flood")["expected_gate"]["class"], "likely PASS")

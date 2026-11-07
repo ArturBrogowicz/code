@@ -702,6 +702,8 @@ executor's CPU after the gate and records it (`environment.json`, `timer_executo
 stamps taken there (T-039 V-33). `scenario.py --plan --daemon` shows a block on these pins, the attack's CPU share
 over its three CPUs (T-039 V-32).
 
+**HG4's levels (departure 39, D-071).** A campaign with `--modes` runs `cheap_static_flood_hg4` at 2 x the frozen knee (level 4 on the record of 2026-11-04) and the other families at their knees; `gate_campaign run` refuses any other level with protected arms, `--confirm-2x-knee` among them, which is HG3's. HG3 runs `cheap_static_flood` at the knee.
+
 **H-01: the daemon must come from a checkout that has `fix/daemon-robustness`.** One request with a byte that is not UTF-8 ended the daemon's
 main loop on this branch's `control_plane.py`; its `finally` detached XDP and lifted every ban (T-017 H-01, fixed in 8db9827 and the
 commits after it on `fix/daemon-robustness`). A protected run records in `environment.json` (`provenance.daemon.h01`) whether the fix's
