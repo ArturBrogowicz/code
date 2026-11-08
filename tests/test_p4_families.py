@@ -15,10 +15,11 @@ import unittest
 from unittest import mock
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-for _p in (REPO, os.path.join(REPO, "ml")):
+for _p in (REPO, os.path.join(REPO, "ml"), os.path.join(REPO, "tests")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 import l7_gen
+import l7_gen_timer
 import l7_pools
 import p4_traffic as P
 
@@ -78,23 +79,24 @@ def run(sched, dur, net=None, before=None):
 class FrozenScaleTest(unittest.TestCase):
     def test_the_parameters_of_section_5(self):
         lo, po = P.FAMILIES["loris"], P.FAMILIES["post"]
-        self.assertEqual((lo["family"], lo["levels"], lo["ports"]), ("slowloris", (100, 175, 250, 300), [80]))
+        self.assertEqual((lo["family"], lo["levels"], lo["ports"]), ("slowloris", (100, 175, 250, 300, 400, 500), [80]))   # D-073 (1)
         self.assertEqual(lo["params"], {"conns": 6, "header_every_s": [10.0, 40.0], "line_max_bytes": 32})
         self.assertEqual((po["family"], po["levels"], po["ports"]), ("slowpost", (5, 10, 20, 40), [80]))
         self.assertEqual(po["params"], {"conns": 1, "byte_every_s": [5.0, 30.0], "chunk_bytes": [1, 16],
                                         "content_length": [100_000, 1_000_000], "path": "/upload"})
         self.assertEqual(po["draws"], {"conns": ["int", 1, 2]})
-        self.assertEqual(P.POOL_SIZE, 60 + 300 + 40)
+        self.assertEqual(P.POOL_SIZE, 60 + 500 + 40)
+        self.assertEqual((P.FAMILY_BASE, P.ALWAYS_RUN), ({"loris": 60, "post": 560}, 3))
 
     def test_the_top_of_both_ladders_in_one_plan(self):
-        plan = P.build_plan(3101, "eval", loris=300, post=40)
+        plan = P.build_plan(3101, "eval", loris=500, post=40)
         fam = collections.Counter(e["kind_or_family"] for e in plan["entities"] if e["role"] == "attack")
-        self.assertEqual(fam, {"slowloris": 300, "slowpost": 40})
+        self.assertEqual(fam, {"slowloris": 500, "slowpost": 40})
         loris = [e for e in plan["entities"] if e["kind_or_family"] == "slowloris"]
         post = [e for e in plan["entities"] if e["kind_or_family"] == "slowpost"]
         self.assertEqual({e["params"]["conns"] for e in loris}, {6})
         self.assertEqual({e["params"]["conns"] for e in post}, {1, 2})
-        self.assertEqual(sum(e["params"]["conns"] for e in loris), 1800)          # ~1,800 held at the top level
+        self.assertEqual(sum(e["params"]["conns"] for e in loris), 3000)          # 3,000 planned at the top level (D-073 (1))
         self.assertLessEqual(sum(e["params"]["conns"] for e in post), 80)
         self.assertTrue(all(e["p4_role"] == "attack" and e["port"] == 80 and e["params"]["port"] == 80
                             for e in loris + post))
@@ -107,7 +109,7 @@ class FrozenScaleTest(unittest.TestCase):
         self.assertLessEqual(max(netem.values()) - min(netem.values()), 1)
 
     def test_only_the_number_of_sources_moves(self):
-        top = {e["entity_id"]: e for e in P.build_plan(9101, "pilot", loris=300, post=40)["entities"]}
+        top = {e["entity_id"]: e for e in P.build_plan(9101, "pilot", loris=500, post=40)["entities"]}
         knee = P.build_plan(9101, "pilot", loris=175, post=10)["entities"]
         for e in knee:
             self.assertEqual({k: e[k] for k in ("address", "params", "client_seed")},
@@ -115,7 +117,7 @@ class FrozenScaleTest(unittest.TestCase):
         benign = [e for e in knee if e["role"] == "benign"]
         self.assertEqual(benign, [e for e in P.build_plan(9101, "pilot")["entities"] if e["role"] == "benign"])
         with self.assertRaises(P.PlanError):
-            P.build_plan(9101, "pilot", loris=301)
+            P.build_plan(9101, "pilot", loris=501)
         with self.assertRaises(P.PlanError):
             P.build_plan(9101, "pilot", post=-1)
 
@@ -243,9 +245,10 @@ class GeneratorTest(unittest.TestCase):
 
     def test_the_generator_states_what_it_opened(self):
         # The real generator, in the sandbox: its source address is not on this machine, so every open fails for a local
-        # reason, and that must reach the runner (review T-047 P-06: the stats were dropped).
+        # reason, and that must reach the runner (review T-047 P-06: the stats were dropped). Its hard exit stays inert (T-074b): armed, it
+        # would os._exit this process 7.2 s later (tests/l7_gen_timer.py).
         params = dict(P.FAMILIES["loris"]["params"], conns=2, port=80)
-        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(l7_gen, "SOURCE", None):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(l7_gen, "SOURCE", None), l7_gen_timer.inert():
             path = os.path.join(tmp, "stats.json")
             rc = l7_gen.main(["--role", "attack", "--family", "slowloris", "--host", "10.0.0.1", "--duration", "0.2",
                               "--seed", "7", "--params", json.dumps(params), "--source", "10.0.16.5", "--stats", path])

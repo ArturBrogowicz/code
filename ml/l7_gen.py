@@ -31,6 +31,14 @@ on with its slot's schedule, and --plan prints the schedule. With a number there
 re-opened and failed to open, those that failed for a local reason (no such source address, no descriptors: not the
 server's doing), and the bytes it sent.
 
+--group JSON (P4, D-075, 2026-11-07T08:33Z; memory, R-023): the Slowloris sources of one client namespace in one process, a thread per
+source. JSON is {"sources": [{"entity_id", "source", "port", "seed", "params", "stats"}, ...]}: each source runs exactly what a generator of
+its own would run with --source, --port, --seed, --params and --stats (its seeded schedule, from its own address, its statistics to its own
+file, at its exit or at the hard exit), and --plan prints each one's schedule. Only the P4 pacing of GROUP_FAMILIES may be grouped. Without
+--group nothing changes, P1's generators included: SOURCE and LIVE_STATS keep their roles, and a thread of a group reads its own address
+and keeps its own statistics through a thread-local (_LOCAL). The process exits 1 when a source's thread raised, after the others have
+written their statistics; that source writes none, as a generator of its own that raised would not.
+
 The deadline (ml/p1_prereg_3.json generator; review T-050 T050-03, -04, -16), for every kind: a generator's end is its start + --duration.
 Every think time and pause is cut at it, so no draw moves. No new view starts after it. A view in flight may finish within DRAIN_S, so a
 healthy client's last view keeps its rows; no request starts, and no wait lasts, past the end + DRAIN_S, so a request hanging there (an
@@ -56,6 +64,7 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 import warnings
 
 import l7_benign  # ml/ is the script's directory, so it is on sys.path
@@ -77,6 +86,8 @@ RECORD_COLUMNS = ("t_intended", "t_sent", "t_done", "status", "err", "route_clas
 DRAIN_S = 5.0          # what a view or request in flight at a generator's end may still take (ml/p1_prereg_3.json generator)
 HARD_EXIT_S = 7.0      # past its end a generator exits whatever it is doing; under eval/p4_runner.py STOP_GRACE_S
 LIVE_STATS = None      # what a generator of the P4 pacing has done so far, for a hard exit (--stats)
+_LOCAL = threading.local()      # a grouped source's thread (--group, D-075): its own address and its box of live stats
+GROUP_FAMILIES = ("slowloris",)  # D-075: the families whose P4 sources may run grouped
 
 
 class Recorder:
@@ -551,16 +562,22 @@ LOCAL_ERRNOS = {errno.EADDRNOTAVAIL, errno.EADDRINUSE, errno.EMFILE, errno.ENFIL
                 errno.ENETUNREACH}       # an open that failed for a reason of this machine, not the server's answer
 
 
+def _source():
+    """The address a connection is bound to: a grouped source's own (D-075), else SOURCE."""
+    return getattr(_LOCAL, "source", SOURCE)
+
+
 def _open_sockets(host, port, n, send_head, errors=None, end=None):
     socks = []
+    source = _source()
     for _ in range(n):
         if end is not None and time.time() >= end:
             break
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(4)
-            if SOURCE is not None:
-                s.bind((SOURCE, 0))
+            if source is not None:
+                s.bind((source, 0))
             s.connect((host, port))
             if port == 443:
                 ctx = ssl._create_unverified_context()   # testbed self-signed cert
@@ -605,7 +622,12 @@ def run_slow_schedule(host, port, sched, dur):
     slots = sched["slots"]
     events = [s["chunks"] if post else s["lines"] for s in slots]
     global LIVE_STATS
-    stats = LIVE_STATS = {"opened": 0, "reopened": 0, "sent_bytes": 0, "failed_opens": 0, "local_errors": 0}
+    stats = {"opened": 0, "reopened": 0, "sent_bytes": 0, "failed_opens": 0, "local_errors": 0}
+    box = getattr(_LOCAL, "box", None)
+    if box is not None:                 # a grouped source's thread (D-075): its own live stats
+        box["stats"] = stats
+    else:
+        LIVE_STATS = stats
     conns, opens, body = [None] * len(slots), [0] * len(slots), [0] * len(slots)
 
     def head(i):
@@ -799,6 +821,72 @@ def _hard_exit(stats_path):
     os._exit(0)
 
 
+def _group_member(box, family, host, dur):
+    """One source of a --group, in its own thread: what a generator of its own runs with --source, --port, --seed and --params."""
+    src = box["source"]
+    _LOCAL.source, _LOCAL.box = src["source"], box
+    try:
+        box["stats"] = ATTACK[family](host, src["port"], src["params"], dur, random.Random(src["seed"]))
+    except BaseException:  # noqa: BLE001 - a source that raised writes no stats, as a generator of its own would not, and is named
+        box["error"] = traceback.format_exc()
+
+
+def _write_group_stats(boxes):
+    for box in boxes:
+        if box["error"] is None and box["source"].get("stats"):
+            with open(box["source"]["stats"], "w", encoding="utf-8") as fh:
+                json.dump(box["stats"] or {}, fh)
+
+
+def _hard_exit_group(boxes):
+    """The bound on a group, as _hard_exit on a generator of its own: each source's live stats, and exit 0 now."""
+    _write_group_stats(boxes)
+    os._exit(0)
+
+
+def read_group(text, family):
+    """The sources of a --group (see the module docstring), checked: a family of GROUP_FAMILIES with the P4 pacing, testbed addresses."""
+    if family not in GROUP_FAMILIES:
+        raise SystemExit(f"[-] --group is for {GROUP_FAMILIES}, not {family}")
+    try:
+        group = json.loads(text)
+        sources = group["sources"]
+        keys = [(s["entity_id"], s["source"], int(s["port"]), int(s["seed"]), s["params"], s.get("stats")) for s in sources]
+    except (ValueError, KeyError, TypeError) as exc:
+        raise SystemExit(f"[-] --group: {exc!r}") from None
+    if not keys or len({k[1] for k in keys}) != len(keys):
+        raise SystemExit("[-] --group needs sources, each with an address of its own")
+    for _eid, addr, _port, _seed, params, _stats in keys:
+        if not paced(family, params):
+            raise SystemExit(f"[-] --group runs the P4 pacing only: {params!r}")
+        try:
+            if ipaddress.ip_address(addr) not in TESTBED_NET:
+                raise SystemExit(f"[-] refusing: source {addr} is outside the testbed net {TESTBED_NET}")
+        except ValueError:
+            raise SystemExit(f"[-] refusing: source {addr} is not a testbed IP") from None
+    return sources
+
+
+def run_group(sources, family, host, dur):
+    """D-075: every source of a --group in a thread of its own; their stats when they end. Returns the exit code."""
+    boxes = [{"source": s, "stats": None, "error": None} for s in sources]
+    bound = threading.Timer(dur + HARD_EXIT_S, _hard_exit_group, args=(boxes,))
+    bound.daemon = True
+    bound.start()
+    threads = [threading.Thread(target=_group_member, args=(box, family, host, dur), name=box["source"]["entity_id"], daemon=True)
+               for box in boxes]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    bound.cancel()
+    _write_group_stats(boxes)
+    failed = [box for box in boxes if box["error"] is not None]
+    for box in failed:
+        print(f"[-] {box['source']['entity_id']} ({box['source']['source']}):\n{box['error']}", file=sys.stderr)
+    return 1 if failed else 0
+
+
 def quiet_insecure_warning():
     """The testbed's certificate is self-signed and the requests are made with verify=False, so urllib3 warns on every one of them, under
     an "always" filter of its own. PYTHONWARNINGS in os.environ does nothing to a running interpreter, and the warnings filled the run's
@@ -821,7 +909,10 @@ def main(argv=None):
     ap.add_argument("--source", help="send from this address (an alias of the namespace; P3)")
     ap.add_argument("--records", help="write the client-side harm records here (L7 v2; benign plan kinds)")
     ap.add_argument("--stats", help="write what a generator of the P4 pacing did here, at its exit")
+    ap.add_argument("--group", help="P4, D-075: JSON, the Slowloris sources of one namespace, a thread each (the module docstring)")
     args = ap.parse_args(argv)
+    if args.group is not None:
+        return main_group(args)
 
     name = args.kind if args.role == "benign" else args.family
     params = json.loads(args.params)
@@ -866,6 +957,28 @@ def main(argv=None):
         with open(args.stats, "w", encoding="utf-8") as fh:
             json.dump(stats or {}, fh)
     return 0
+
+
+def main_group(args):
+    """--group (D-075): the sources of one namespace, each as a generator of its own would run it."""
+    if args.role != "attack" or args.family is None:
+        raise SystemExit("[-] --group is for an attack --family")
+    alone = [name for name, value in (("--source", args.source), ("--stats", args.stats), ("--records", args.records),
+                                      ("--seed", args.seed or None), ("--params", None if args.params == "{}" else args.params)) if value]
+    if alone:
+        raise SystemExit(f"[-] --group gives each source its own {', '.join(alone)}")
+    sources = read_group(args.group, args.family)
+    if args.plan:
+        print(json.dumps({"role": "attack", "name": args.family, "host": args.host, "duration": args.duration,
+                          "group": [{**s, "schedule": slow_schedule(args.family, args.host, s["params"], args.duration, random.Random(s["seed"]))}
+                                    for s in sources]}))
+        return 0
+    try:
+        if ipaddress.ip_address(args.host) not in TESTBED_NET:
+            raise SystemExit(f"[-] refusing: target {args.host} is outside the testbed net {TESTBED_NET}")
+    except ValueError:
+        raise SystemExit(f"[-] refusing: target {args.host} is not a testbed IP") from None
+    return run_group(sources, args.family, args.host, args.duration)
 
 
 if __name__ == "__main__":

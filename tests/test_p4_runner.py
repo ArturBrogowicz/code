@@ -56,6 +56,15 @@ def selection_file(where, point=POINT, sources=None, halvings=0, calibration=Non
     return path
 
 
+def health_file(where, calibration=None, halvings=0, name="health.json"):
+    """The halving rule's frozen factor, as far as the runner reads it (eval/p4_health.py --out, D-073 (3))."""
+    path = os.path.join(where, name)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump({"format": "p4-health/1", "decision": "frozen", "benign_halvings": halvings,
+                   "calibration_sha256": sha(calibration or R.PLACEHOLDER)}, fh)
+    return path
+
+
 class PlanTest(unittest.TestCase):
     def setUp(self):
         self.block = R.plan_block("campaign", 3101, "/r", sources=KNEE, thresholds=POINT)
@@ -128,8 +137,11 @@ class PlanTest(unittest.TestCase):
                           "uploader"])
         for x in loris["launches"]:
             argv = x["argv"]
-            self.assertEqual(argv[:3], ["taskset", "-c", "3-7"])
+            self.assertEqual(argv[:3], ["taskset", "-c", "7" if x["role"] == "benign" else "3-6"])      # D-073 (4)
             self.assertEqual(argv[argv.index("--host") + 1], "10.0.0.1")
+            if "--group" in argv:            # D-075: a namespace's Slowloris sources, one generator (tests/test_p4_grouped.py)
+                self.assertEqual((x["role"], x["start_s"], float(argv[argv.index("--duration") + 1])), ("attack", 30.0, 210.0))
+                continue
             e = next(e for e in loris["entities"] if e["entity_id"] == x["entity_id"])
             self.assertEqual(argv[argv.index("--source") + 1], e["address"])
             self.assertEqual(x["start_s"], 30.0 if e["role"] == "attack" else 0.0)
@@ -200,7 +212,7 @@ class PlanTest(unittest.TestCase):
     def test_plan_prints_and_touches_nothing(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            rc = R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5",
+            rc = R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--families", "loris,post",
                          "--thresholds", "5,256,2", "--root", "/nonexistent/p4", "--plan"])
         self.assertEqual(rc, 0)
         text = out.getvalue()
@@ -230,7 +242,7 @@ class LadderLabelTest(unittest.TestCase):
 
     def test_the_plan_refuses_it_too(self):
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
-            rc = R.main(["--phase", "ladder", "--seed", "9102", "--family", "post", "--post", "20", "--label", "l20r3", "--plan"])
+            rc = R.main(["--phase", "ladder", "--seed", "9102", "--family", "post", "--post", "20", "--families", "loris,post", "--label", "l20r3", "--plan"])
         self.assertEqual(rc, 2)
         self.assertIn("is not one of ['l20r1', 'l20r2']", err.getvalue())
 
@@ -251,7 +263,7 @@ class ArmOrderTest(unittest.TestCase):
         with self.assertRaisesRegex(R.PlanError, "no --label"):
             R.plan_block("validation", 4001, "/r", sources=KNEE, label="x")
         with contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--thresholds",
+            self.assertEqual(R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--families", "loris,post", "--thresholds",
                                      "5,256,2", "--label", "x", "--plan"]), 2)
         self.assertEqual(R.plan_block("smoke", 9101, "/r", label="s1", arms=["C"])["dir"], "/r/smoke/b9101_a1_s1")
         first = R.plan_block("campaign", 3101, "/r", sources=KNEE, thresholds=POINT)["order"]
@@ -333,7 +345,7 @@ class AttemptRuleTest(unittest.TestCase):
     def test_the_command_line_says_no(self):
         with tempfile.TemporaryDirectory() as root, contextlib.redirect_stderr(io.StringIO()) as err, \
                 contextlib.redirect_stdout(io.StringIO()):
-            rc = R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--thresholds", "5,256,2",
+            rc = R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--families", "loris,post", "--thresholds", "5,256,2",
                          "--attempt", "2", "--root", root], host=F.FakeHost())
         self.assertEqual(rc, 2)
         self.assertIn("the next is 1", err.getvalue())
@@ -365,6 +377,7 @@ class FrozenRecordTest(unittest.TestCase):
     def campaign(self, seed=3101, arms=("C", "U_post"), **kw):
         kw.setdefault("calibration", self.frozen)
         kw.setdefault("knees", knees_file(self.root, calibration=kw["calibration"]))
+        kw.setdefault("health", health_file(self.root, calibration=kw["calibration"]))
         if "selection" not in kw:
             kw["selection"] = selection_file(self.root, calibration=kw["calibration"], knees=kw["knees"])
         return R.plan_block("campaign", seed, self.root, sources=KNEE, thresholds=POINT, arms=list(arms), **kw)
@@ -385,7 +398,7 @@ class FrozenRecordTest(unittest.TestCase):
 
     def test_the_command_line_refuses_the_default_record(self):
         with contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()) as err:
-            rc = R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--thresholds", "5,256,2",
+            rc = R.main(["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--families", "loris,post", "--thresholds", "5,256,2",
                          "--selection", selection_file(self.root), "--root", self.root], host=HostThatMeasures())
         self.assertEqual(rc, 2)
         self.assertIn("no verdict is given on it", err.getvalue())
@@ -432,7 +445,8 @@ class FrozenRecordTest(unittest.TestCase):
                 root = os.path.join(self.root, f"{phase}_{status}")
                 os.makedirs(root)
                 host = HostThatMeasures(modelled_attackers=1)
-                block = R.plan_block(phase, seed, root, calibration=path, **{**kw, **({"knees": knees_file(root, calibration=path)} if "knees" in kw else {})})
+                block = R.plan_block(phase, seed, root, calibration=path, **{**kw, **({"knees": knees_file(root, calibration=path)} if "knees" in kw else {}),
+                                                                             **({"health": health_file(root, calibration=path)} if phase != "smoke" else {})})
                 R.run_block(host, block)
                 with open(os.path.join(block["dir"], "block.json"), encoding="utf-8") as fh:
                     settings = json.load(fh)["settings"]
@@ -490,7 +504,7 @@ class KneesTest(unittest.TestCase):
 
     def test_a_family_with_no_knee_stops_the_validation_and_the_campaign(self):
         path = knees_file(self.root, levels={"post": None})
-        self.refused("post has no knee .* not decided", knees=path)
+        self.refused("post has no knee .* nothing runs across it", knees=path)        # a record without statuses (D-074)
 
     def test_another_calibration_is_refused(self):
         other = os.path.join(self.root, "other.json")
@@ -507,7 +521,7 @@ class KneesTest(unittest.TestCase):
 
     def test_the_block_names_it_and_the_campaign_shares_the_validations(self):
         path = knees_file(self.root)
-        block = R.plan_block("validation", 4001, self.root, sources=KNEE, knees=path, arms=None)
+        block = R.plan_block("validation", 4001, self.root, sources=KNEE, knees=path, arms=None, health=health_file(self.root))
         R.run_block(HostThatMeasures(modelled_attackers=1), block)
         with open(os.path.join(block["dir"], "block.json"), encoding="utf-8") as fh:
             self.assertEqual(json.load(fh)["settings"]["knees_sha256"], sha(path))
@@ -515,14 +529,14 @@ class KneesTest(unittest.TestCase):
         with open(other, "a", encoding="utf-8") as fh:
             fh.write("\n")
         with self.assertRaisesRegex(R.PlanError, "knees_sha256"):
-            R.run_block(HostThatMeasures(), R.plan_block("validation", 4002, self.root, sources=KNEE, knees=other))
+            R.run_block(HostThatMeasures(), R.plan_block("validation", 4002, self.root, sources=KNEE, knees=other, health=health_file(self.root)))
         selection = selection_file(self.root, knees=path)
         with self.assertRaisesRegex(R.PlanError, "knees_sha256 differ"):
             R.check_selection(R.plan_block("campaign", 3101, self.root, sources=KNEE, thresholds=POINT, selection=selection, knees=other))
 
     def test_the_command_line_carries_it(self):
         path = knees_file(self.root)
-        base = ["--phase", "validation", "--seed", "4001", "--loris", "300", "--post", "40", "--root", self.root, "--knees", path]
+        base = ["--phase", "validation", "--seed", "4001", "--loris", "300", "--post", "40", "--families", "loris,post", "--root", self.root, "--knees", path]
         with contextlib.redirect_stdout(io.StringIO()) as out, contextlib.redirect_stderr(io.StringIO()) as err:
             self.assertEqual(R.main(base, host=HostThatMeasures()), 2)
         self.assertIn("are not the ladder's knees", err.getvalue())
@@ -599,7 +613,7 @@ class SelectionTest(unittest.TestCase):
             R.run_block(host, R.plan_block("campaign", 3102, self.root, sources=KNEE, thresholds=POINT, arms=["C"], selection=path))
 
     def test_the_command_line_carries_it(self):
-        base = ["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--thresholds", "5,256,2", "--root", self.root]
+        base = ["--phase", "campaign", "--seed", "3101", "--loris", "100", "--post", "5", "--families", "loris,post", "--thresholds", "5,256,2", "--root", self.root]
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
             self.assertEqual(R.main(base, host=F.FakeHost()), 2)
         self.assertIn("--selection must name", err.getvalue())
@@ -733,9 +747,10 @@ class ExecuteTest(unittest.TestCase):
         host = F.FakeHost()
         block = self.block("smoke", 9101, arms=["C"], label="pin", sources={"loris": 0, "post": 0})
         R.run_block(host, block)
-        self.assertEqual(host.commands[0], ("", ("pin", "3-7"), ""))
-        self.assertEqual(block["runs"][0]["provenance"]["pins"]["runner"], "3-7")
-        self.assertEqual((R.PINS["runner"], R.PINS["clients"], R.PINS["server"], R.PINS["daemon"]), ("3-7", "3-7", "0-1", "2"))
+        self.assertEqual(host.commands[0], ("", ("pin", "3-6"), ""))                                     # D-073 (4)
+        self.assertEqual(block["runs"][0]["provenance"]["pins"]["runner"], "3-6")
+        self.assertEqual((R.PINS["runner"], R.PINS["attack"], R.PINS["benign"], R.PINS["server"], R.PINS["daemon"]),
+                         ("3-6", "3-6", "7", "0-1", "2"))
 
     def test_what_a_run_writes(self):
         host = F.FakeHost(modelled_attackers=2)
@@ -1384,7 +1399,8 @@ class ExecuteTest(unittest.TestCase):
         self.assertEqual((attack["planned"], attack["opened"], attack["failed_opens"]), (600, 400, 200))
         run = self.one_run("too_few", "campaign", 3106, "U_loris", thresholds=POINT)
         res = R.execute_run(F.FakeHost(attack_opened_share=0.4, modelled_attackers=1), run)
-        self.assertTrue(any("the attack opened 200 of its 600" in r for r in res["reasons"]), res["reasons"])
+        self.assertTrue(any("the attack opened 200 of its 600 connections, under the floor of 300" in r for r in res["reasons"]),
+                        res["reasons"])
 
     def test_an_attack_generator_without_stats_is_a_reason(self):
         run = self.one_run("no_stats", "campaign", 3106, "U_post", thresholds=POINT)
