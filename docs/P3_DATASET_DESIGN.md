@@ -184,6 +184,12 @@ A test asserts that two rebuilds are byte-identical, and that a single flipped b
   order; then 120 s benign only.
   - Each phase's intensity is drawn from {0.5, 1, 2} × that family's knee from the P1 ladder. The models therefore see each
     class under more than one load (R17).
+    - **As built (D-076, `ml/p3_sizing_prereg.json`, 2026-11-07, before any capture):** each core family takes its own knee from P1's
+      knees file. A family without one takes its top tested level, marked; one with neither is refused.
+    - The target m × K is carried as far as the capture carries it. C2 uses its per-entity rate. C3a uses its registered entities and
+      then its pace, at most 2 × P1's per-source pace. C3b uses its registered bots only.
+    - Target, realized, shortfall and excess are recorded per phase in the plan's intensity and on the phase in its timeline, which
+      the manifest keeps.
   - C3b at M1 joins the C3b phase with 10 entities.
   - **Evaluation captures only:** C3b at M3 (held out) runs in a fourth slot, with the 120 s tail extended to 240 s (1,020 s in
     all), together with the held-out benign kinds.
