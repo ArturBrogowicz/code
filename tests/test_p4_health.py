@@ -154,6 +154,15 @@ class HealthPhaseTest(unittest.TestCase):
         block = R.plan_block("ladder", 9101, self.root, sources={"loris": 100}, family="loris", label="l100r1", families=LORIS, health=self.out)
         self.assertEqual((block["halvings"], P.browser_devices(block["halvings"])), (1, 20))
 
+    def test_an_off_rule_health_step_is_refused_before_it_runs(self):
+        # D-080 (T078-07): the first step runs at 0 halvings; a step at 1 is refused before it runs.
+        with self.assertRaisesRegex(R.PlanError, r"health: the rule's next step runs at 0 halvings, not 1"):
+            R.run_block(F.FakeHost(), R.plan_block("health", 9101, self.root, halvings=1, families=LORIS))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "health")), "nothing was started")
+        self.health()                                                   # frozen at 0
+        with self.assertRaisesRegex(R.PlanError, r"health: the rule is frozen .*no further step runs"):
+            R.run_block(F.FakeHost(), R.plan_block("health", 9101, self.root, halvings=0, attempt=2, families=LORIS))
+
     def test_an_unsound_step_is_repeated_without_a_reason_asked(self):
         self.health(stack_ready=False)
         rc, rec, _said = self.read()

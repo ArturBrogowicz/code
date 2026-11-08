@@ -1165,6 +1165,28 @@ def check_health(block, host):
     raise PlanError(f"{block['phase']}: --health must name the halving rule's frozen factor (eval/p4_health.py --out, D-073 (3))")
 
 
+def check_health_order(block):
+    """D-080 (T078-07): a health block runs only at the halvings the rule (ml/p4_traffic.next_step) allows next, over the steps already in
+    the index (eval/p4_health.health_result), so an off-rule step is refused before it runs rather than after, as check_ladder_order does for
+    the ladder. A re-run of an unsound step at the same halvings is a "run" of the rule and is allowed. A D-058 "stopped" state waits for a
+    dated decision the runner does not have, so it is left to the operator; "frozen" and "refused" refuse a further step."""
+    if block["phase"] != "health":
+        return
+    import p4_health
+    try:
+        res = p4_health.health_result(block["root"], block["calibration"])
+    except (ValueError, OSError, KeyError) as exc:
+        raise PlanError(f"health: {exc}") from None
+    if res["decision"] == "stopped":
+        return
+    if res["decision"] != "run":
+        raise PlanError(f"health: the rule is {res['decision']} ({res.get('why')}), and no further step runs "
+                        "(ml/p4_prereg.json next_step, D-080, T078-07)")
+    if res.get("next_halvings") != block["halvings"]:
+        raise PlanError(f"health: the rule's next step runs at {res['next_halvings']} halvings, not {block['halvings']} "
+                        "(ml/p4_prereg.json next_step, D-080, T078-07)")
+
+
 def check_ladder_order(block):
     """D-073 (1): a ladder block above the first ALWAYS_RUN levels runs only once every lower level has 2 sound repeats and none of them is a
     knee (eval/p4_ladder.next_allowed, over the run index under the block's calibration record), on any host."""
@@ -1274,6 +1296,7 @@ def run_block(host, block):
     check_attempt(block)
     check_knees(block, host)
     check_health(block, host)
+    check_health_order(block)
     check_ladder_order(block)
     check_selection(block)
     check_settings(block)
