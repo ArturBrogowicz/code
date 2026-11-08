@@ -437,9 +437,11 @@ def read_record(path):
     return rec, status
 
 
-def load_factor(health, calibration):
-    """The frozen factor of the halving rule from the health file (eval/p4_health.py --out), bound to the calibration record in use; a
-    file without a factor is refused, and the refusal says why (D-073 (3))."""
+def load_factor(health, calibration, root):
+    """The frozen factor of the halving rule from the health file (eval/p4_health.py --out), bound to the calibration record in use and to
+    the root and health index it read (D-080, T078-08); a file without a factor, or of another root, is refused, and the refusal says why
+    (D-073 (3))."""
+    import p4_health
     try:
         with open(health, encoding="utf-8") as fh:
             rec = json.load(fh)
@@ -449,6 +451,11 @@ def load_factor(health, calibration):
         raise PlanError(f"{health} is not a {HEALTH_FORMAT} file (eval/p4_health.py --out)")
     if rec.get("calibration_sha256") != sha256_file(calibration):
         raise PlanError(f"{health} was read on another calibration record than {calibration}")
+    if rec.get("root") != os.path.abspath(root):
+        raise PlanError(f"{health} was produced under the root {rec.get('root')}, not {os.path.abspath(root)} (D-080, T078-08): a ladder "
+                        "runs at its own root's factor")
+    if rec.get("index_digest") != p4_health.health_index_digest(root):
+        raise PlanError(f"{health}'s health index digest does not match {root}'s: the health phase changed since it was frozen (D-080, T078-08)")
     if rec.get("decision") != "frozen":
         raise PlanError(f"the benign mix has no frozen factor in {health} ({rec.get('decision')}): {rec.get('why')}")
     return rec["benign_halvings"]
@@ -479,7 +486,7 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=None, thr
     if health and phase not in ("ladder", "validation", "campaign"):
         raise PlanError(f"{phase}: --health is the ladder's, the validation's and the campaign's: the halving rule's frozen factor")
     if health:
-        factor = load_factor(health, calibration)
+        factor = load_factor(health, calibration, root)
         if halvings is not None and halvings != factor:
             raise PlanError(f"{phase}: --halvings {halvings}, and the halving rule's factor is {factor} ({health}, D-073 (3))")
         halvings = factor

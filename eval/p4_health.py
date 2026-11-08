@@ -87,8 +87,29 @@ def parse_health_decision(text):
     return {step: {"action": action, "text": words.strip()}}
 
 
+def health_index_digest(root):
+    """A digest of ROOT/index.jsonl's health lines (D-080, T078-08): the factor file is bound to the health runs it read, so a ladder in
+    another root, or after the health phase was re-run, cannot borrow it. The raw lines are hashed in order; no health line hashes the empty
+    string, as it does when the index does not exist."""
+    import hashlib
+    path = os.path.join(root, "index.jsonl")
+    lines = []
+    try:
+        with open(path, encoding="utf-8") as fh:
+            for raw in fh:
+                try:
+                    if json.loads(raw).get("phase") == "health":
+                        lines.append(raw if raw.endswith("\n") else raw + "\n")
+                except ValueError:
+                    continue
+    except OSError:
+        pass
+    return hashlib.sha256("".join(lines).encode()).hexdigest()
+
+
 def health_result(root, calibration, decisions=None):
-    """The rule over its steps in the order they ran (ROOT/index.jsonl): the health file, bound to the calibration record."""
+    """The rule over its steps in the order they ran (ROOT/index.jsonl): the health file, bound to the calibration record and to the root and
+    health index it read (D-080, T078-08)."""
     cal, status = R.read_record(calibration)
     rows = [x for x in R.read_index(root) if x["phase"] == "health"]
     dirs = []
@@ -101,6 +122,7 @@ def health_result(root, calibration, decisions=None):
                 raise ValueError(f"{block_dir} ran under another calibration record than {calibration}")
     steps = [health_step(root, d, rows, cal) for d in dirs]
     return {"format": FORMAT, "calibration_sha256": R.sha256_file(calibration), "calibration_status": status,
+            "root": os.path.abspath(root), "index_digest": health_index_digest(root),
             "rule": "ml/p4_prereg.json halving", **PT.next_step(steps, decisions), "decisions": decisions or {}, "steps": steps}
 
 

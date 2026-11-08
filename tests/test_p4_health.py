@@ -154,6 +154,18 @@ class HealthPhaseTest(unittest.TestCase):
         block = R.plan_block("ladder", 9101, self.root, sources={"loris": 100}, family="loris", label="l100r1", families=LORIS, health=self.out)
         self.assertEqual((block["halvings"], P.browser_devices(block["halvings"])), (1, 20))
 
+    def test_the_factor_file_is_bound_to_its_root_and_health_index_D080(self):
+        # D-080 (T078-08): a factor file is refused for another root, or when the health index it read has changed.
+        self.health()
+        self.read()                                                     # writes self.out, frozen in self.root
+        with tempfile.TemporaryDirectory() as other,                 self.assertRaisesRegex(R.PlanError, r"was produced under the root .* not .*D-080"):
+            R.plan_block("ladder", 9101, other, sources={"loris": 100}, family="loris", label="l100r1", families=LORIS, health=self.out)
+        R.plan_block("ladder", 9101, self.root, sources={"loris": 100}, family="loris", label="l100r1", families=LORIS, health=self.out)
+        with open(os.path.join(self.root, "index.jsonl"), "a", encoding="utf-8") as fh:   # the health phase changed
+            fh.write(json.dumps({"phase": "health", "event": "started", "block": 9101, "attempt": 9}) + "\n")
+        with self.assertRaisesRegex(R.PlanError, "health index digest does not match"):
+            R.plan_block("ladder", 9101, self.root, sources={"loris": 100}, family="loris", label="l100r1", families=LORIS, health=self.out)
+
     def test_an_off_rule_health_step_is_refused_before_it_runs(self):
         # D-080 (T078-07): the first step runs at 0 halvings; a step at 1 is refused before it runs.
         with self.assertRaisesRegex(R.PlanError, r"health: the rule's next step runs at 0 halvings, not 1"):
