@@ -1,10 +1,12 @@
 """P1 traffic (ml/p1_traffic.py; docs/L7V2_DESIGN.md 5.3, 6, 7, 14): one block's population as data, on the frozen
 benign mix and class table, under its own stream. Offline and pure."""
+import hashlib
 import json
 import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 for _p in (REPO, os.path.join(REPO, "ml"), os.path.join(REPO, "bench"), os.path.join(REPO, "tests")):
@@ -27,6 +29,7 @@ RECORD = os.path.join(_TMP.name, "frozen.json")
 with open(RECORD, "w", encoding="utf-8") as _fh:
     json.dump(FROZEN, _fh)
 LEVELS = {"C2": 4.0, "C3a": 1.0, "C3b": 100}
+PINNED_ROWS_SHA256 = "4395b2a7bdafbe4e06f5323368a6ac447bacab1da87ac8e1a4338fa9bce4cd92"         # the rows of seed 9001's C2 1 and C3b 50 block as planned before D-073's extension
 _BLOCKS = {}
 
 
@@ -49,8 +52,9 @@ class BlockTest(unittest.TestCase):
         self.assertEqual(set(P.SIDE_FAMILIES["C3b"]),
                          set(VP.load()["detection_entities"]["per_class"]["C3b"]["reported_separately"]))
         self.assertTrue(set(P.FAMILY_ORDER) <= set(l7_bots.FAMILIES))
-        self.assertEqual(P.ladder_levels("C2"), [1, 2, 4, 8])
-        self.assertEqual(P.ladder_levels("C3b"), [50, 100, 200, 300])
+        self.assertEqual(P.ladder_levels("C2"), [1, 2, 4, 8, 16])
+        self.assertEqual(P.ladder_levels("C3a"), [2, 4, 6, 8])
+        self.assertEqual(P.ladder_levels("C3b"), [50, 100, 150, 200, 300])
 
     def test_seeds_are_the_pre_registered_ones(self):
         seeds = p3_prereg.load()["seeds"]
@@ -187,6 +191,58 @@ class BlockTest(unittest.TestCase):
         rep = P.age_report(block())
         self.assertEqual(sorted(rep), ["C2", "C3a", "C3b"])
         self.assertTrue(all("ks" in r and "auc" in r and "pass" in r for r in rep.values()))
+
+
+class LadderExtensionTest(unittest.TestCase):
+    """D-073 (ml/p1_prereg_5.json): the per-class ladder, its seed map, C3a past 100 sources and P1's own address limit."""
+    FROZEN_RECORD = os.path.join(REPO, "bench", "calibration", "ddos-mitigation-2026-11-04.json")
+
+    def test_the_seed_map_never_puts_a_level_s_repeats_on_one_seed(self):
+        self.assertEqual([P.ladder_seed("C2", lv, r) for lv in (1, 2, 16) for r in (1, 2)], [9001, 9002, 9003, 9004, 9001, 9002])
+        self.assertEqual(P.ladder_seed("C3a", 8, 2), 9008)
+        for cls in ("C2", "C3a", "C3b"):
+            for lv in P.ladder_levels(cls):
+                self.assertNotEqual(P.ladder_seed(cls, lv, 1), P.ladder_seed(cls, lv, 2))
+                self.assertTrue(all(9001 <= P.ladder_seed(cls, lv, r) <= 9008 for r in (1, 2)))
+        with self.assertRaisesRegex(P.PlanError, "not one of its pre-registered levels"):
+            P.ladder_seed("C2", 3, 1)
+
+    def test_c3a_carries_level_8_and_its_lower_levels_keep_their_sources(self):
+        """On the frozen record C3a needs 316 sources at level 8; level 2's 79 are the first of them, unchanged."""
+        low = P.build_block(9001, "pilot", {"C3a": 2}, record_path=self.FROZEN_RECORD)
+        top = P.build_block(9001, "pilot", {"C3a": 8}, record_path=self.FROZEN_RECORD)
+        self.assertEqual((low["sources"]["C3a"], top["sources"]["C3a"]), (79, 316))
+        key = ("index", "subseed", "address", "params", "schedule", "netem")
+        self.assertEqual([{k: e[k] for k in key if k != "netem"} for e in low["attack"]["C3a"]],
+                         [{k: e[k] for k in key if k != "netem"} for e in top["attack"]["C3a"][:79]])
+        self.assertEqual(len({e["address"] for e in top["attack"]["C3a"]}), 316)
+        with self.assertRaisesRegex(P.Unreachable, r"outside \[50, 320\]: not reachable"):
+            P.build_block(9001, "pilot", {"C3a": 9}, record_path=self.FROZEN_RECORD)
+
+    def test_the_address_limit_is_p1_s_own_once_the_read_is_decided(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = os.path.join(tmp.name, "limit.json")
+        b = P.build_block(9001, "pilot", {"C3b": 200}, record_path=RECORD)
+        with self.assertRaisesRegex(P.Unreachable, "368 addresses exceed the verified limit of 300.*not reachable on this testbed"):
+            P.run_entities(b, "C3b")
+        for limit, decision, ok in ((400, "D-099, 2026-11-20, the smoke's read", True), (469, "D-099, 2026-11-20", False),
+                                    (400, "the read passed", False), (True, "D-099, 2026-11-20", False)):
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump({"limit": limit, "decision": decision}, fh)
+            with self.subTest(limit=limit, decision=decision), mock.patch.object(P, "ADDRESS_LIMIT_FILE", path):
+                if ok:
+                    self.assertEqual(P.address_limit(), 400)
+                    self.assertEqual(len(P.run_entities(P.build_block(9001, "pilot", {"C3b": 200}, record_path=RECORD), "C3b")), 368)
+                else:
+                    with self.assertRaises(P.PlanError):
+                        P.address_limit()
+
+    def test_no_entity_of_today_moves(self):
+        """A guard: the appended range moves no benign or C3b entity of a block planned before it (sha256 of index, sub-seed and address)."""
+        b = P.build_block(9001, "pilot", {"C3b": 50, "C2": 1}, record_path=RECORD)
+        rows = [(e["index"], e["subseed"], e["address"]) for e in b["benign"] + b["attack"]["C3b"] + b["attack"]["C2"]]
+        self.assertEqual(hashlib.sha256(json.dumps(rows).encode()).hexdigest(), PINNED_ROWS_SHA256)
 
 
 class ArrivalsAt210Test(unittest.TestCase):

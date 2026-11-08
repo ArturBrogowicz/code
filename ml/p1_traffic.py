@@ -10,8 +10,8 @@ What a block holds:
   * benign: l7_pools.POPULATIONS["l7v2"]'s frozen mix, the held-out kinds included (5.2: FP per benign kind), through the
     benign gate under the tolerant profile, as a P3 plan;
   * C2: classes.C2.sources_p1 sources, each at L x S / (n x cost(route)) (l7_pools.c2_rps at m = 1);
-  * C3a: n = ceil(L x S / ((cost_C1 + cost_route) / mean(page_gap_s))) sources, refused outside classes.C3a.sources_bounds
-    ("not reachable", ml/l7v2_prereg.json);
+  * C3a: n = ceil(L x S / ((cost_C1 + cost_route) / mean(page_gap_s))) sources, refused outside ml/p1_prereg_5.json c3a.sources_bounds
+    ("not reachable", D-073); sources 101-320 take an index range of their own after the last family, so no lower level's entity moves;
   * C3b: `level` bots at M2, the primary family (D-043), and SIDE_FAMILIES, a fixed number of bots at M1, M3 and M2exp,
     which only the ladder's level does not move. All of ml/l7_bots.FAMILIES' C3b levels run here: M2exp is in the frozen
     class table (ml/l7v2_prereg.json mimicry, design 12.4), so it has its entity labels here, and l7_pools's P3 population
@@ -39,6 +39,7 @@ import json
 import math
 import os
 import random
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -53,11 +54,18 @@ ROLES = {"eval": "p1_live_eval", "pilot": "p1_pilot"}               # ml/p3_prer
 PRIMARY = {"C2": "C2", "C3a": "C3a", "C3b": "C3b@M2"}
 SIDE_FAMILIES = {"C3b": {"C3b@M1": 10, "C3b@M3": 10, "C3b@M2exp": 10}}   # [ASSUMPTION] reported separately, judge nothing
 MAX_SOURCES = {"C2": 100, "C3a": 100, "C3b": 300}                   # each family's index range, its ladder's top
+EXTENDED = {"C3a": ("C3a+", 220)}       # D-073: C3a's sources 101-320, after the last family, so that no index of today moves
+ADDRESS_LIMIT_FILE = os.path.join(HERE, "p1_address_limit.json")      # the dated decision on the smoke's read (D-075), when it exists
 FAMILY_ORDER = ("C2", "C3a", "C3b@M2", "C3b@M1", "C3b@M3", "C3b@M2exp")
 
 
 class PlanError(ValueError):
     """The block cannot be planned as asked (seed, level or limits)."""
+
+
+class Unreachable(PlanError):
+    """A level this testbed cannot carry as planned (ml/p1_prereg_5.json ladder.statuses.not_reachable): the source bounds or the address
+    limit. Never read as no harm."""
 
 
 def check_seed(seed, seed_role):
@@ -89,6 +97,12 @@ def prereg_3():
 def prereg_4():
     """ml/p1_prereg_4.json, the dated record of D-058."""
     with open(os.path.join(HERE, "p1_prereg_4.json"), encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def prereg_5():
+    """ml/p1_prereg_5.json, the dated record of D-073, D-074 and D-075."""
+    with open(os.path.join(HERE, "p1_prereg_5.json"), encoding="utf-8") as fh:
         return json.load(fh)
 
 
@@ -196,16 +210,26 @@ def late_window(timeline=None):
 
 
 def ladder_levels(cls):
-    """A class's ladder (ml/l7v2_prereg.json harm.ladder.levels; C3b's is its number of bots)."""
-    import l7v2_prereg
-    pre = l7v2_prereg.load()
-    return list(pre["classes"]["C3b"]["ladder_bots"]) if cls == "C3b" else list(pre["harm"]["ladder"]["levels"])
+    """A class's ladder (ml/p1_prereg_5.json ladder.levels, D-073; C3b's is its number of bots)."""
+    levels = prereg_5()["ladder"]["levels"]
+    if cls not in levels:
+        raise PlanError(f"no ladder for class {cls!r} (have {sorted(levels)})")
+    return list(levels[cls])
 
 
 def ladder_repeats():
-    """How many times the ladder runs a level (ml/l7v2_prereg.json harm.ladder.repeats)."""
-    import l7v2_prereg
-    return int(l7v2_prereg.load()["harm"]["ladder"]["repeats"])
+    """How many times the ladder runs a level (ml/p1_prereg_5.json ladder.repeats)."""
+    return int(prereg_5()["ladder"]["repeats"])
+
+
+def ladder_seed(cls, level, repeat):
+    """The pilot seed of a ladder block (ml/p1_prereg_5.json ladder.seed_map): repeat r of the level at index i of its class's list runs
+    on 9001 + ((2 i + r - 1) mod 8), so the two repeats of a level never share a seed."""
+    rule = prereg_5()["ladder"]["seed_map"]
+    levels = ladder_levels(cls)
+    if level not in levels:
+        raise PlanError(f"ladder: {cls} at {level:g} is not one of its pre-registered levels {levels} (ml/p1_prereg_5.json ladder.levels)")
+    return rule["first"] + (2 * levels.index(level) + repeat - 1) % rule["seeds"]
 
 
 def c3a_sources(level, spare_cpu_s, costs, route, gap):
@@ -235,7 +259,19 @@ def _bases(n_benign):
             at += MAX_SOURCES[next(c for c, f in PRIMARY.items() if f == fam)]
         else:
             at += SIDE_FAMILIES["C3b"][fam]
+    for name, size in EXTENDED.values():
+        bases[name] = at
+        at += size
     return bases, at
+
+
+def _indices(bases, cls, fam, n):
+    """A family's first `n` entity indices: its own range, then, for C3a past 100 sources, its extended range (D-073)."""
+    own = list(range(bases[fam], bases[fam] + min(n, MAX_SOURCES.get(cls, n) if fam == PRIMARY.get(cls) else n)))
+    if fam == PRIMARY.get(cls) and cls in EXTENDED and n > len(own):
+        name, size = EXTENDED[cls]
+        own += list(range(bases[name], bases[name] + min(n - len(own), size)))
+    return own
 
 
 def _entity(LP, seed, index, role, name, spec):
@@ -285,13 +321,12 @@ def _benign(LP, seed, specs, span, flash, heuristics, gate_seeds):
     return rows, dropped
 
 
-def _attack(LP, seed, cls, fam, spec, base, n, rule, rates):
-    """The rows of one attack family: `n` sources from its index base, arriving over the attack's first part."""
+def _attack(LP, seed, cls, fam, spec, indices, rule, rates):
+    """The rows of one attack family: a source per index, arriving over the attack's first part."""
     import l7_traffic
     lo, hi = attack_window()
     out = []
-    for k in range(n):
-        i = base + k
+    for i in indices:
         row, rng = _entity(LP, seed, i, "attack", fam, spec)
         if fam == "C2":
             row["params"]["rps"] = LP.c2_rps(1.0, rates["C2"], rates["spare_cpu_s"], rates["c2_sources"],
@@ -333,7 +368,7 @@ def build_block(seed, seed_role, levels, *, record_path=None, knees=None, check_
     if status == "measured":
         rec = l7_backend.arithmetic_record(rec, l7_backend.load_record()[0])
     try:
-        bound = LP._knees(knees, seed_role, rec)
+        bound = LP._knees(knees, seed_role, rec, need=("C2",) if "C2" in levels else ())      # D-074: a campaign may run without C2
     except LP.PlanError as exc:
         raise PlanError(str(exc)) from exc
     if seed_role == "eval":
@@ -363,19 +398,20 @@ def build_block(seed, seed_role, levels, *, record_path=None, knees=None, check_
         elif cls == "C3a":
             c3a = pre["classes"]["C3a"]
             n = c3a_sources(level, spare, costs, fams["C3a"]["params"]["route"], c3a["page_gap_s"])
-            if not c3a["sources_bounds"][0] <= n <= c3a["sources_bounds"][1]:
-                raise PlanError(f"C3a at level {level} needs {n} sources, outside {c3a['sources_bounds']}: not reachable "
-                                "(ml/l7v2_prereg.json classes.C3a.out_of_bounds)")
+            bounds = prereg_5()["c3a"]["sources_bounds"]
+            if not bounds[0] <= n <= bounds[1]:
+                raise Unreachable(f"C3a at level {level} needs {n} sources, outside {bounds}: not reachable "
+                                  "(ml/p1_prereg_5.json c3a.sources_bounds)")
         else:
             n = int(level)
             if not 1 <= n <= MAX_SOURCES["C3b"]:
-                raise PlanError(f"C3b at {level} bots is outside 1..{MAX_SOURCES['C3b']}")
+                raise Unreachable(f"C3b at {level} bots is outside 1..{MAX_SOURCES['C3b']}: not reachable")
         sources[cls] = n
         wanted = {PRIMARY[cls]: n, **SIDE_FAMILIES.get(cls, {})}
         rows = []
         for fam, count in wanted.items():
             count = min(count, max_sources) if max_sources else count
-            group = _attack(LP, seed, cls, fam, fams[fam], bases[fam], count, rule, rates)
+            group = _attack(LP, seed, cls, fam, fams[fam], _indices(bases, cls, fam, count), rule, rates)
             _netem(LP, seed, group, fam)
             rows += group
         attack[cls] = rows
@@ -399,8 +435,25 @@ def build_block(seed, seed_role, levels, *, record_path=None, knees=None, check_
 
 
 def _address_limit():
+    return address_limit()
+
+
+def address_limit():
+    """P1's address limit (ml/p1_prereg_5.json address_limit, D-075): the dated decision on the smoke's read in ADDRESS_LIMIT_FILE, at most the
+    ceiling; until that file exists, the verified limit of ml/p3_prereg.json."""
     import p3_prereg
-    return p3_prereg.load()["pool"]["address_limit"]
+    rule = prereg_5()["address_limit"]
+    if not os.path.isfile(ADDRESS_LIMIT_FILE):
+        return p3_prereg.load()["pool"]["address_limit"]
+    with open(ADDRESS_LIMIT_FILE, encoding="utf-8") as fh:
+        got = json.load(fh)
+    limit, decision = got.get("limit"), str(got.get("decision") or "")
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= rule["ceiling"]:
+        raise PlanError(f"{ADDRESS_LIMIT_FILE}: limit {limit!r} is not an address count up to the ceiling {rule['ceiling']} "
+                        "(ml/p1_prereg_5.json address_limit)")
+    if not re.search(r"\d{4}-\d{2}-\d{2}", decision):
+        raise PlanError(f"{ADDRESS_LIMIT_FILE} must name the dated decision on the smoke's read, got {decision!r}")
+    return limit
 
 
 def run_entities(block, cls=None):
@@ -413,8 +466,8 @@ def run_entities(block, cls=None):
         rows += [dict(e) for e in block["attack"][cls]]
     limit = block["pool"]["address_limit"]
     if len({e["address"] for e in rows}) > limit:
-        raise PlanError(f"{cls}: {len(rows)} addresses exceed the verified limit of {limit} (ml/p3_prereg.json "
-                        "pool.address_limit): this level is not reachable as planned")
+        raise Unreachable(f"{cls}: {len(rows)} addresses exceed the verified limit of {limit} (P1's address limit, ml/p1_prereg_5.json "
+                          "address_limit): this level is not reachable on this testbed")
     return rows
 
 

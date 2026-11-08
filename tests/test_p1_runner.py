@@ -184,10 +184,10 @@ class PlanTest(Base):
             thin(other, self.root)
 
     def test_smoke_and_ladder_take_named_runs_on_pilot_seeds(self):
-        block = R.plan_block("ladder", 9001, self.root, frozen=self.frozen, levels={"C2": 2.0}, runs=["C", "U_C2"],
-                             label="C2_L2_r1", benign_specs=F.thin_benign(), max_sources=3)
+        block = R.plan_block("ladder", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=["C", "U_C2"],
+                             label="C2_L1_r1", benign_specs=F.thin_benign(), max_sources=3)
         self.assertEqual(sorted(block["order"]), ["C", "U_C2"])
-        self.assertIn("b9001_a1_C2_L2_r1", block["dir"])
+        self.assertIn("b9001_a1_C2_L1_r1", block["dir"])
         with self.assertRaises(R.PlanError):
             R.plan_block("ladder", 3001, self.root, frozen=self.frozen, levels={"C2": 2.0}, runs=["C", "U_C2"])
 
@@ -503,7 +503,7 @@ class ExecuteTest(Base):
 class LadderRegisteredTest(Base):
     """T057-05: the ladder runs what ml/l7v2_prereg.json harm.ladder registered, and a repeat that fell short stays where it fell."""
 
-    def plan(self, seed=9001, cls="C2", level=2.0, label="C2_L2_r1", attempt=1):
+    def plan(self, seed=9001, cls="C2", level=1.0, label="C2_L1_r1", attempt=1):
         return R.plan_block("ladder", seed, self.root, frozen=self.frozen, levels={cls: level}, runs=["C", f"U_{cls}"], label=label, attempt=attempt,
                             benign_specs=F.thin_benign(), max_sources=3)
 
@@ -513,7 +513,8 @@ class LadderRegisteredTest(Base):
                 self.plan(cls=cls, level=level, label=f"{cls}_L{level:g}_r1")
         for level in R.PT.ladder_levels("C2"):
             with self.subTest(level=level):
-                self.assertEqual(self.plan(level=float(level), label=f"C2_L{level:g}_r1")["levels"], {"C2": float(level)})
+                block = self.plan(seed=R.PT.ladder_seed("C2", level, 1), level=float(level), label=f"C2_L{level:g}_r1")
+                self.assertEqual(block["levels"], {"C2": float(level)})
 
     def test_the_command_line_says_so_in_plan_mode(self):
         err = io.StringIO()
@@ -521,31 +522,98 @@ class LadderRegisteredTest(Base):
             code = R.main(["--phase", "ladder", "--seed", "9001", "--class", "C2", "--level", "3", "--plan",
                            "--calibration", self.frozen["calibration"], "--health", self.frozen["health"], "--root", self.root])
         self.assertEqual(code, 2)
-        self.assertIn("not one of its pre-registered levels [1, 2, 4, 8]", err.getvalue())
+        self.assertIn("not one of its pre-registered levels [1, 2, 4, 8, 16]", err.getvalue())
 
     def test_a_third_repeat_or_a_label_of_its_own_is_refused(self):
-        for label in ("C2_L2_r3", "C2_L2_r0", "x", "", "C2_L2.0_r1", "C2_L1_r1", "C3a_L2_r1"):
+        for label in ("C2_L1_r3", "C2_L1_r0", "x", "", "C2_L1.0_r1", "C2_L2_r1", "C3a_L1_r1"):
             with self.subTest(label=label), self.assertRaisesRegex(R.PlanError, "is not one of .*the ladder has 2 repeats"):
                 self.plan(label=label)
 
     def test_a_sound_repeat_is_not_rolled_again_on_another_seed(self):
         self.assertTrue(all(res["ok"] for _n, res in R.run_block(F.P1FakeHost(), self.plan(9001))))
         before = index(self.root)
-        block = self.plan(9002)
-        with self.assertRaisesRegex(R.PlanError, "C2_L2_r1 ran on seed 9001.*not rolled again on 9002"):
-            R.run_block(F.P1FakeHost(), block)
+        with self.assertRaisesRegex(R.PlanError, "C2_L1_r1 runs on pilot seed 9001, not 9002"):
+            self.plan(9002)
+        with mock.patch.object(R.PT, "ladder_seed", return_value=9002):      # behind the map, the index still refuses it (T057-05)
+            block = self.plan(9002)
+            with self.assertRaisesRegex(R.PlanError, "C2_L1_r1 ran on seed 9001.*not rolled again on 9002"):
+                R.run_block(F.P1FakeHost(), block)
         self.assertEqual(index(self.root), before)
         self.assertFalse(os.path.exists(block["dir"]))
 
     def test_an_invalid_repeat_is_re_run_on_its_own_seed_and_not_on_another(self):
         self.assertFalse(all(res["ok"] for _n, res in R.run_block(F.P1FakeHost(quiet_from=60.0), self.plan(9001))))
-        with self.assertRaisesRegex(R.PlanError, "ran on seed 9001"):
-            R.run_block(F.P1FakeHost(), self.plan(9002))
+        with self.assertRaisesRegex(R.PlanError, "runs on pilot seed 9001"):
+            self.plan(9002)
         self.assertTrue(all(res["ok"] for _n, res in R.run_block(F.P1FakeHost(), self.plan(9001, attempt=2))))
 
     def test_the_other_repeat_may_take_another_seed(self):
         R.run_block(F.P1FakeHost(), self.plan(9001))
-        self.assertTrue(all(res["ok"] for _n, res in R.run_block(F.P1FakeHost(), self.plan(9002, label="C2_L2_r2"))))
+        self.assertTrue(all(res["ok"] for _n, res in R.run_block(F.P1FakeHost(), self.plan(9002, label="C2_L1_r2"))))
+
+    def test_the_seed_map_refuses_a_repeat_on_another_seed(self):
+        """D-073: repeat r of the level at index i runs on 9001 + ((2 i + r - 1) mod 8), so a level's repeats never share one."""
+        for seed, level, label in ((9002, 1.0, "C2_L1_r1"), (9001, 1.0, "C2_L1_r2"), (9001, 2.0, "C2_L2_r1"), (9003, 16.0, "C2_L16_r1")):
+            with self.subTest(label=label, seed=seed), self.assertRaisesRegex(R.PlanError, "ladder.seed_map"):
+                self.plan(seed=seed, level=level, label=label)
+        self.assertEqual(self.plan(seed=9003, level=2.0, label="C2_L2_r1")["seed"], 9003)
+
+
+class MemoryReadTest(Base):
+    """D-075: P1 keeps one process per client, so the smoke reads MemAvailable at the heaviest planned run; the runner samples it."""
+
+    def test_meminfo_is_read_and_a_missing_line_is_none(self):
+        text = "MemTotal:        9652224 kB\nMemFree:         1038336 kB\nMemAvailable:    7804928 kB\n"
+        self.assertEqual(R._mem_available_kb(text), 7804928)
+        self.assertIsNone(R._mem_available_kb("MemTotal: 1 kB\n"))
+
+    def test_every_sample_holds_it_and_the_run_reports_its_least(self):
+        block = R.plan_block("smoke", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=["C"], label="mem",
+                             benign_specs=F.thin_benign(), max_sources=3)
+        R.run_block(F.P1FakeHost(), block)
+        with open(os.path.join(block["dir"], "C", "cpu.jsonl"), encoding="utf-8") as fh:
+            rows = [json.loads(x) for x in fh]
+        self.assertGreater(len(rows), 200)
+        self.assertTrue(all(isinstance(r["mem_available_kb"], int) and r["mem_available_kb"] > 0 for r in rows))
+        got = read_json(os.path.join(block["dir"], "C", "run.json"))["runner"]
+        self.assertEqual(got["mem_available_min_kb"], min(r["mem_available_kb"] for r in rows))
+
+
+class UnreachableRecordTest(Base):
+    """D-074: a registered ladder level the plan refuses as not reachable is recorded for the knees file, never read as no harm."""
+
+    def main(self, *argv):
+        orig = R.PT.build_block
+
+        def thinned(*a, **kw):
+            return orig(*a, **{**kw, "benign_specs": F.thin_benign(), "max_sources": None})
+        err = io.StringIO()
+        with mock.patch.object(R.PT, "build_block", side_effect=thinned), contextlib.redirect_stderr(err), \
+                contextlib.redirect_stdout(io.StringIO()):
+            code = R.main(["--phase", "ladder", *argv, "--health", self.frozen["health"], "--calibration", self.frozen["calibration"],
+                           "--root", self.root])
+        return code, err.getvalue()
+
+    def test_a_level_over_the_address_limit_is_recorded_as_not_reachable(self):
+        code, said = self.main("--seed", "9001", "--class", "C3b", "--level", "300")
+        self.assertEqual(code, 2)
+        self.assertIn("exceed the verified limit of 300", said)
+        got = R.read_unreachable(self.root)
+        self.assertEqual([(x["class"], x["level"], x["repeat"], x["seed"]) for x in got], [("C3b", 300, 1, 9001)])
+        self.assertIn("not reachable on this testbed", got[0]["reason"])
+        self.assertFalse(os.path.exists(os.path.join(self.root, "ladder")))
+
+    def test_bounds_too_but_not_a_plan_nor_a_block_off_the_registered_ones(self):
+        code, _said = self.main("--seed", "9007", "--class", "C3a", "--level", "8")      # 8 x 84 sources on the fixture record
+        self.assertEqual(code, 2)
+        self.assertEqual([(x["class"], x["level"]) for x in R.read_unreachable(self.root)], [("C3a", 8.0)])
+        self.assertIn("c3a.sources_bounds", R.read_unreachable(self.root)[0]["reason"])
+        for argv in (("--seed", "9002", "--class", "C3b", "--level", "300", "--plan"),      # a preview
+                     ("--seed", "9002", "--class", "C3b", "--level", "300"),                # off the seed map
+                     ("--seed", "9001", "--class", "C3a", "--level", "16")):                # not on the ladder
+            with self.subTest(argv=argv):
+                self.assertEqual(self.main(*argv)[0], 2)
+        self.assertEqual(len(R.read_unreachable(self.root)), 1)
 
 
 class OperationsTest(Base):
@@ -862,7 +930,7 @@ class RunnerReportTest(Base):
 
     def test_a_loop_that_stalled_shows(self):
         got = R.runner_report({"cpu": [{"t": 0.0}, {"t": 1.0}, {"t": 32.0}, {"t": 33.0}], "lags": [0.0, 31.0]})
-        self.assertEqual(got, {"largest_launch_lag_s": 31.0, "largest_loop_gap_s": 31.0})
+        self.assertEqual(got, {"largest_launch_lag_s": 31.0, "largest_loop_gap_s": 31.0, "mem_available_min_kb": None})
 
 
 class OneSettingTest(Base):
@@ -1169,7 +1237,7 @@ class PointsTest(Base):
             thin(frozen, self.root)
 
     def test_a_pilot_block_needs_none(self):
-        block = R.plan_block("ladder", 9001, self.root, frozen={**self.frozen, "points": None}, levels={"C2": 2.0}, runs=["C", "U_C2"], label="C2_L2_r1",
+        block = R.plan_block("ladder", 9001, self.root, frozen={**self.frozen, "points": None}, levels={"C2": 1.0}, runs=["C", "U_C2"], label="C2_L1_r1",
                              benign_specs=F.thin_benign(), max_sources=3)
         self.assertNotIn("points", block["frozen"])
 
@@ -1222,11 +1290,11 @@ class AgeCheckTest(Base):
                 self.assertFalse(by_name[name]["age_check"]["applied"])
 
     def test_a_failing_check_invalidates_nothing_and_every_phase_records_it(self):
-        block = R.plan_block("ladder", 9001, self.root, frozen=self.frozen, levels={"C2": 2.0}, runs=["C", "U_C2"], label="C2_L2_r1",
+        block = R.plan_block("ladder", 9001, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=["C", "U_C2"], label="C2_L1_r1",
                              benign_specs=F.thin_benign(), max_sources=3)
         report = {"pass": False, "ks": 0.9}
         with mock.patch.object(R.PT, "age_report", return_value={"C2": report}):
-            block = R.plan_block("ladder", 9001, self.root, frozen=self.frozen, levels={"C2": 2.0}, runs=["C", "U_C2"], label="C2_L2_r2",
+            block = R.plan_block("ladder", 9002, self.root, frozen=self.frozen, levels={"C2": 1.0}, runs=["C", "U_C2"], label="C2_L1_r2",
                                  benign_specs=F.thin_benign(), max_sources=3)
         results = dict(R.run_block(F.P1FakeHost(), block))
         self.assertTrue(results["U_C2"]["ok"], results["U_C2"]["reasons"])
@@ -1248,7 +1316,7 @@ class HalvingTest(Base):
         return {**self.frozen, "health": path}
 
     def ladder(self, frozen, **kw):
-        return R.plan_block("ladder", 9001, self.root, frozen=frozen, levels={"C2": 2.0}, runs=["C", "U_C2"], label="C2_L2_r1",
+        return R.plan_block("ladder", 9001, self.root, frozen=frozen, levels={"C2": 1.0}, runs=["C", "U_C2"], label="C2_L1_r1",
                             benign_specs=F.thin_benign(), max_sources=3, **kw)
 
     def test_a_health_step_is_the_rule_s_two_controls_on_its_seed(self):

@@ -1,0 +1,92 @@
+{
+ "format": "p1-prereg-5/1",
+ "date": "2026-11-07",
+ "decision": "D-073 (build T-070's design), D-074 (no knee at the extended top is a reported result) and D-075 (P1 keeps one generator process per client; its smoke reads MemAvailable at the heaviest planned run): the user's \"Approve both (Recommended)\", \"Report it (Recommended)\" and \"Group P4, measure P1 (Recommended)\" of 2026-11-07, on tasks/T-070/artifacts/design.md",
+ "status": "pre-data: written before any P1 ladder or campaign run. For P1 only, it supersedes what `supersedes` names; the earlier records stand otherwise",
+ "supersedes": {
+  "ml/l7v2_prereg.json harm.ladder.levels": "ladder.levels below, one list per class",
+  "ml/l7v2_prereg.json classes.C3a.sources_bounds": "c3a.sources_bounds below",
+  "ml/l7v2_prereg.json classes.C3b.ladder_note": "address_limit below",
+  "ml/p3_prereg.json pool.address_limit": "address_limit below, for P1 only; P3 keeps its 300",
+  "ml/p1_prereg_3.json ladder.no_knee": "no_knee below"
+ },
+ "ladder": {
+  "levels": {
+   "C2": [
+    1,
+    2,
+    4,
+    8,
+    16
+   ],
+   "C3a": [
+    2,
+    4,
+    6,
+    8
+   ],
+   "C3b": [
+    50,
+    100,
+    150,
+    200,
+    300
+   ]
+  },
+  "repeats": 2,
+  "order": "ascending: a class's ladder stops after the first level that passes in both repeats. The knee is the lowest such level (bench/calibration.knee), so a higher level cannot move it",
+  "conditional": {
+   "C2 16": "run only when level 8 ran and did not pass in both repeats",
+   "C3a 6": "run only when level 8 is not reachable",
+   "C3b 150": "run only when 200 bots are not reachable"
+  },
+  "seed_map": {
+   "rule": "repeat r of the level at index i of its class's list runs on pilot seed 9001 + ((2 i + r - 1) mod 8); the two repeats of a level never share a seed. The runner refuses a ladder block off the map",
+   "first": 9001,
+   "seeds": 8
+  },
+  "statuses": {
+   "run": "the level has attempts; per repeat the last attempt with both runs sound counts (ml/p1_prereg_3.json ladder)",
+   "no_sound_attempt": "a repeat with attempts but none sound: counted as no harm by the registered rule, and named",
+   "not_reachable": "the plan refused the level on this testbed (the source bounds, the address limit, the memory read); never read as no harm"
+  }
+ },
+ "c3a": {
+  "sources_bounds": [
+   50,
+   320
+  ],
+  "index_range": "sources 101-320 take an index range of their own after the last family, so that every entity of a lower level keeps its index, sub-seed and address"
+ },
+ "address_limit": {
+  "ceiling": 468,
+  "until_read": "ml/p3_prereg.json pool.address_limit (300)",
+  "decision_file": "ml/p1_address_limit.json",
+  "rule": "P1's address limit is the largest address count at which the smoke's read passed, at most the ceiling, set by a dated decision in decision_file; until that file exists, the verified 300. A count above 512 would also need the server namespace's neighbour table raised, which this record does not cover",
+  "read": {
+   "run": "the heaviest planned run at the count: M_gru_C3b with its daemon when C3b's knee may need the count, else U",
+   "accept": "MemAvailable at or above margin_mb at every sample of the run, no process OOM-killed, every alias added, and the run's view-slip and attack-in-sink checks passed",
+   "margin_mb": 1024,
+   "margin_label": "[ASSUMPTION] fixed here, before the read"
+  }
+ },
+ "memory": "D-075: P1 keeps one generator process per client; the runner samples MemAvailable every loop into cpu.jsonl, and run.json reports its least value",
+ "premise": {
+  "file": "ml/p1_premise.json",
+  "windows_s": [
+   1,
+   10,
+   30,
+   60,
+   300
+  ],
+  "quantile": 0.99,
+  "rule": "on the pilot plans at nominal times, a level is 'evades' when the largest per-key (address, UA) window maximum of its primary family's sources stays below the benign per-key quantile on every window, and 'crosses' otherwise, naming the windows. Written by eval/p1_premise.py before any ladder run; a level marked 'crosses' never becomes a knee. Re-read on P3's validation captures, reported, judging nothing"
+ },
+ "no_knee": {
+  "decision": "D-074",
+  "result": "a class with no level passing in both repeats up to its highest level whose repeats all had a sound attempt (X) is reported as 'no harm reached up to X on this testbed', with every level's status and both repeats' harm. It gets no campaign runs and no verdict",
+  "campaign": "the campaign runs the classes of its live set (or of its cut) that have a knee, C2 alone if it is the only one, and records which; with none, there is no campaign",
+  "not_reachable": "a level not reachable on this testbed is reported as such and never as no harm; if it stops the ladder below the class's registered top, the report says the ladder was cut short"
+ }
+}

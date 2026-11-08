@@ -330,8 +330,8 @@ class LadderTest(unittest.TestCase):
         cal = l7_backend.load_record(frozen["calibration"])[0]
         root = os.path.join(tmp.name, "runs")
         for level, share in ((1.0, 0.02), (2.0, 0.30)):
-            for rep, seed in ((1, 9001), (2, 9002)):
-                block = R.plan_block("ladder", seed, root, frozen=frozen, levels={"C2": level}, runs=["C", "U_C2"],
+            for rep in (1, 2):
+                block = R.plan_block("ladder", R.PT.ladder_seed("C2", level, rep), root, frozen=frozen, levels={"C2": level}, runs=["C", "U_C2"],
                                      label=f"C2_L{level:g}_r{rep}", benign_specs=F.thin_benign(LEAN), max_sources=2)
                 R.run_block(F.P1FakeHost(fail_share=lambda run, _b, _t, s=share: s if run == "U_C2" else 0.0), block)
         got = A.ladder_knees(root, cal)
@@ -353,7 +353,7 @@ class LadderTest(unittest.TestCase):
             json.dump({**REC.read_json(frozen["health"]), "benign_halvings": 1}, fh)
         root = os.path.join(tmp.name, "runs")
         for rep, inputs in ((1, frozen), (2, other)):
-            block = R.plan_block("ladder", 9001, root, frozen=inputs, levels={"C2": 1.0}, runs=["C", "U_C2"],
+            block = R.plan_block("ladder", 9000 + rep, root, frozen=inputs, levels={"C2": 1.0}, runs=["C", "U_C2"],
                                  label=f"C2_L1_r{rep}", benign_specs=F.thin_benign(LEAN), max_sources=2)
             R.run_block(F.P1FakeHost(), block)
         with self.assertRaisesRegex(ValueError, "one factor"):
@@ -433,10 +433,10 @@ class LadderAttemptsTest(unittest.TestCase):
         self.cal = l7_backend.load_record(self.frozen["calibration"])[0]
         self.root = os.path.join(tmp.name, "runs")
 
-    def pair(self, cls, level, rep, seed=9001, attempt=1, share=0.30, **host):
+    def pair(self, cls, level, rep, seed=None, attempt=1, share=0.30, **host):
         def fail(run, _b, _t, s=share, name=f"U_{cls}"):
             return s if run == name else 0.0
-        block = R.plan_block("ladder", seed, self.root, frozen=self.frozen, levels={cls: level}, runs=["C", f"U_{cls}"],
+        block = R.plan_block("ladder", seed or R.PT.ladder_seed(cls, level, rep), self.root, frozen=self.frozen, levels={cls: level}, runs=["C", f"U_{cls}"],
                              label=f"{cls}_L{level:g}_r{rep}", attempt=attempt, benign_specs=F.thin_benign(LEAN), max_sources=2)
         return R.run_block(F.P1FakeHost(fail_share=fail, **host), block)
 
@@ -466,6 +466,48 @@ class LadderAttemptsTest(unittest.TestCase):
             A.main([self.root, "--calibration", self.frozen["calibration"], "--ladder", "--out", out])
         self.assertIn("counted as no harm (ml/p1_prereg_3.json ladder): none", said.getvalue())
 
+    def test_every_level_has_its_status_and_a_class_without_a_knee_its_line(self):
+        """D-074: run, not reachable, not run; 'no harm reached up to X on this testbed'; 'not reachable' never reads as no harm."""
+        for rep in (1, 2):
+            self.pair("C2", 1.0, rep)
+            self.pair("C3a", 2.0, rep, share=0.0)
+        why = "C3a at level 4.0 needs 333 sources, outside [50, 320]: not reachable"
+        R.record_unreachable(self.root, "C3a", 4.0, 1, 9003, why)
+        got = A.knees_file(self.root, self.cal)
+        self.assertEqual(got["top_tested"], {"C2": 1.0, "C3a": 2.0, "C3b": None})
+        lv = got["levels"]["C3a"]
+        self.assertEqual([lv[k]["status"] for k in ("2", "4", "6", "8")], ["run", "not reachable", "not run", "not run"])
+        self.assertEqual((lv["2"]["passed"], lv["2"]["no_sound_attempt"], lv["4"]["reason"]), (False, [], why))
+        self.assertEqual(got["results"], {"C2": "C2: knee at 1",
+                                          "C3a": f"C3a: no harm reached up to 2 on this testbed; not reachable: 4 ({why}); the ladder was cut "
+                                                 "short below its registered top",
+                                          "C3b": "C3b: not tested"})
+        self.assertTrue(got["levels"]["C2"]["16"]["above_knee"])
+        self.assertEqual((got["C3a"], got["no_knee"]), (None, ["C3a", "C3b"]))
+        said = io.StringIO()
+        with contextlib.redirect_stdout(said):
+            A.main([self.root, "--calibration", self.frozen["calibration"], "--ladder", "--out", os.path.join(self.tmp, "knees.json")])
+        self.assertIn("C3a: no harm reached up to 2 on this testbed", said.getvalue())
+
+    def test_a_repeat_with_no_sound_attempt_is_named_in_the_line(self):
+        self.pair("C3b", 50, 1, quiet_from=60.0, share=0.0)
+        self.pair("C3b", 50, 2, share=0.0)
+        got = A.knees_file(self.root, self.cal)
+        self.assertEqual(got["levels"]["C3b"]["50"]["no_sound_attempt"], [1])
+        self.assertEqual(got["top_tested"]["C3b"], None)
+        self.assertEqual(got["results"]["C3b"], "C3b: no level ran with every repeat sound; no sound attempt, counted as no harm: 50 r1")
+
+    def test_a_level_marked_crosses_never_becomes_a_knee(self):
+        """ml/p1_prereg_5.json premise: such a level tests rate detection, not P1. None is so marked; a patched mark shows the rule."""
+        for rep in (1, 2):
+            self.pair("C2", 1.0, rep)
+            self.pair("C2", 2.0, rep)
+        self.assertEqual(A.ladder_knees(self.root, self.cal)["C2"]["level"], 1.0)
+        self.assertEqual(A.knees_file(self.root, self.cal)["levels"]["C2"]["1"]["premise"], "evades")
+        with mock.patch.object(A.PREMISE, "marks", return_value={("C2", 1.0): "crosses"}):
+            self.assertEqual(A.ladder_knees(self.root, self.cal)["C2"]["level"], 2.0)
+            self.assertEqual(A.knees_file(self.root, self.cal)["levels"]["C2"]["1"]["premise"], "crosses")
+
     def test_the_last_sound_attempt_counts_and_an_invalid_later_one_does_not_erase_it(self):
         self.pair("C2", 1.0, 1, quiet_from=60.0)
         self.pair("C2", 1.0, 1, attempt=2)
@@ -480,20 +522,20 @@ class LadderAttemptsTest(unittest.TestCase):
             self.pair("C2", 1.0, 1, attempt=3)
 
     def test_the_file_is_the_one_a_campaign_takes(self):
-        for cls, level in (("C2", 1.0), ("C3a", 1.0), ("C3b", 50)):
+        for cls, level in (("C2", 1.0), ("C3a", 2.0), ("C3b", 50)):
             self.pair(cls, level, 1)
             self.pair(cls, level, 2, seed=9002)
         out = os.path.join(self.tmp, "knees.json")
         with contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(A.main([self.root, "--calibration", self.frozen["calibration"], "--ladder", "--out", out]), 0)
         got = REC.read_json(out)
-        self.assertEqual((got["C2"], got["C3a"], got["C3b"], got["no_knee"], got["status"]), (1.0, 1.0, 50, [], "frozen"))
+        self.assertEqual((got["C2"], got["C3a"], got["C3b"], got["no_knee"], got["status"]), (1.0, 2.0, 50, [], "frozen"))
         self.assertEqual((got["record_sha256"], got["benign_halvings"]), (self.cal["sha256"], 0))
         block = R.plan_block("campaign", SEEDS[0], self.root, frozen={**self.frozen, "knees": out}, benign_specs=F.thin_benign(LEAN), max_sources=2)
-        self.assertEqual(block["levels"], {"C2": 1.0, "C3a": 1.0, "C3b": 50})
+        self.assertEqual(block["levels"], {"C2": 1.0, "C3a": 2.0, "C3b": 50})
 
-    def test_a_class_without_a_knee_is_named_and_refused_when_needed(self):
-        for cls, level, share in (("C2", 1.0, 0.30), ("C3a", 1.0, 0.0), ("C3b", 50, 0.30)):
+    def test_a_class_without_a_knee_stays_out_of_the_campaign(self):
+        for cls, level, share in (("C2", 1.0, 0.30), ("C3a", 2.0, 0.0), ("C3b", 50, 0.30)):
             self.pair(cls, level, 1, share=share)
             self.pair(cls, level, 2, seed=9002, share=share)
         got = A.knees_file(self.root, self.cal)
@@ -501,10 +543,70 @@ class LadderAttemptsTest(unittest.TestCase):
         path = os.path.join(self.tmp, "knees.json")
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(got, fh)
-        with self.assertRaisesRegex(R.PlanError, "C3a has no knee"):
-            R.plan_block("campaign", SEEDS[0], self.root, frozen={**self.frozen, "knees": path}, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        block = R.plan_block("campaign", SEEDS[0], self.root, frozen={**self.frozen, "knees": path}, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        self.assertEqual((sorted(block["levels"]), block["no_knee"], block["live_classes"]), (["C2", "C3b"], ["C3a"], ["C2", "C3b"]))
+        self.assertFalse([n for n in block["order"] if n.endswith("_C3a")], "D-074: no run of a class without a knee")
+        self.assertIn("not in this campaign: C3a, which has no knee (D-074)", R.describe(block))
         block = R.plan_block("campaign", SEEDS[0], self.root, frozen={**self.frozen, "knees": path}, cut=True, benign_specs=F.thin_benign(LEAN), max_sources=2)
-        self.assertEqual(sorted(block["levels"]), ["C2", "C3b"])
+        self.assertEqual((sorted(block["levels"]), block["no_knee"]), (["C2", "C3b"], []))
+
+
+class NoKneeCampaignTest(unittest.TestCase):
+    """D-074: the campaign runs the classes with a knee, C2 alone if it is the only one, and the analysis judges what ran."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        rec = calibration_fixtures.frozen()
+        bound = {"status": "frozen", "record_sha256": rec["sha256"]}
+        cls.frozen = F.frozen_inputs(os.path.join(cls.tmp.name, "frozen"), knees={**bound, "C2": 4.0, "C3a": None, "C3b": None})
+        cls.none = F.frozen_inputs(os.path.join(cls.tmp.name, "none"), knees={**bound, "C2": None, "C3a": None, "C3b": None})
+        cls.cal = l7_backend.load_record(cls.frozen["calibration"])[0]
+        cls.root = os.path.join(cls.tmp.name, "runs")
+        cls.block = R.plan_block("campaign", SEEDS[0], cls.root, frozen=cls.frozen, cut=True, benign_specs=F.thin_benign(LEAN), max_sources=2)
+        R.run_block(F.P1FakeHost(), cls.block)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+
+    def test_c2_alone_when_it_is_the_only_class_with_a_knee(self):
+        self.assertEqual(sorted(self.block["order"]), ["C", "Cp", "M_gru_C2", "M_rstar_C2", "U_C2"])
+        self.assertEqual((self.block["no_knee"], self.block["live_classes"]), (["C3b"], ["C2"]))
+        meta = REC.read_json(os.path.join(self.block["dir"], "block.json"))
+        self.assertEqual((meta["no_knee"], meta["settings"]["live_classes"]), (["C3b"], ["C2"]))
+
+    def test_c3b_alone_when_c2_has_no_knee(self):
+        rec = calibration_fixtures.frozen()
+        frozen = F.frozen_inputs(os.path.join(self.tmp.name, "c3b"), knees={"status": "frozen", "record_sha256": rec["sha256"], "C2": None,
+                                                                            "C3a": None, "C3b": 50, "no_knee": ["C2", "C3a"]})
+        block = R.plan_block("campaign", SEEDS[1], os.path.join(self.tmp.name, "c3b_runs"), frozen=frozen, cut=True,
+                             benign_specs=F.thin_benign(LEAN), max_sources=2)
+        self.assertEqual(sorted(block["order"]), ["C", "Cp", "M_gru_C3b", "M_hgb_C3b", "M_rstar_C3b", "U_C3b"])
+        self.assertEqual((block["no_knee"], block["levels"]), (["C2"], {"C3b": 50}))
+
+    def test_no_class_with_a_knee_is_no_campaign(self):
+        with self.assertRaisesRegex(R.PlanError, "no class of this campaign has a knee.*there is no campaign"):
+            R.plan_block("campaign", SEEDS[1], os.path.join(self.tmp.name, "none_runs"), frozen=self.none, cut=True,
+                         benign_specs=F.thin_benign(LEAN), max_sources=2)
+
+    def test_the_analysis_judges_what_ran_and_names_the_rest(self):
+        res = A.analyse(self.root, self.cal, self.frozen, arms_factory=factory({}), cut=True, dry_run=True)
+        self.assertEqual(sorted(res), ["C2", "C3b"])
+        self.assertIn("admission", res["C2"])
+        self.assertEqual(res["C3b"]["verdict"], None)
+        self.assertIn("not in the campaign: no knee (D-074)", res["C3b"]["status"])
+
+    def test_a_block_that_does_not_record_its_classes_is_refused(self):
+        root = os.path.join(self.tmp.name, "unsaid")
+        shutil.copytree(self.root, root)
+        path = os.path.join(root, "campaign", f"b{SEEDS[0]}_a1", "block.json")
+        meta = REC.read_json(path)
+        del meta["settings"]["live_classes"]
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(meta, fh)
+        with self.assertRaisesRegex(A.SettingsError, "do not record which classes they ran"):
+            A.check_campaign(root, self.cal, self.frozen, cut=True)
 
 
 def one_invalid(run, seed):
@@ -789,7 +891,7 @@ class PointCheckTest(unittest.TestCase):
     @classmethod
     def pair(cls, root, lo, hi, quiet):
         for seed in range(lo, hi):
-            level, repeat = cls.LADDER[seed - 9002]
+            level, repeat = next((lv, r) for lv, r in cls.LADDER if R.PT.ladder_seed("C2", lv, r) == seed)
             block = R.plan_block("ladder", seed, root, frozen=cls.frozen, levels={"C2": level}, runs=["C", "U_C2"], label=f"C2_L{level:g}_r{repeat}",
                                  benign_specs=F.thin_benign(LEAN), max_sources=2)
             R.run_block(F.P1FakeHost(quiet_from=quiet), block)
