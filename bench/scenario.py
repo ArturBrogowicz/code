@@ -424,6 +424,9 @@ def _warnings(scn, cal, out):
             w.append(f"the calibration records that {scn.family} cannot harm this server within the generator limit")
         elif _num(a["knee"]) and a["level"] < a["knee"]:
             w.append(f"the level {a['level']:g} is below the recorded knee {a['knee']:g}: no measurable harm is expected")
+        if cal["status"] == "frozen" and _num(a["knee"]) and a["level"] not in (a["knee"], 2 * a["knee"]):
+            w.append(f"the level {a['level']:g} is neither the frozen knee {a['knee']:g} nor twice it: no campaign takes it "
+                     "(design 7.2 step 6; docs/HG1C_DESIGN.md departures 37 to 39)")
     g = out["generator"]
     for kind, k in g["kinds"].items():
         if k["share"] > g["cpu_share_limit"]:

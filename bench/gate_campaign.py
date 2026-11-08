@@ -149,9 +149,16 @@ def describe(scn, cal, scenario_sha, opts):
         out.append("CONFIRMATION at 2 x the knee, asked for by hand: the design's one further confirmation, for after one at the knee has "
                    "failed; every run's manifest records it, and both outcomes are reported")
     if not scn.is_control:
-        out.append("level rule   " + ("the design allows the frozen knee and, as the one further confirmation after a failure, 2 x the knee; "
-                                      "`run` refuses any other level on a frozen record" if cal["status"] == "frozen" else
-                                      "no frozen record: a dry run may take any level, and the gate gives it no verdict"))
+        if cal["status"] != "frozen":
+            rule = "no frozen record: a dry run may take any level, and the gate gives it no verdict"
+        elif opts.modes:
+            times = HG4_KNEE_MULTIPLE.get(scn.family, 1)
+            rule = ("with protected arms (HG4) " + (f"{scn.family} runs at {times} x the frozen knee (D-071)" if times != 1 else
+                                                    "the frozen knee") + "; `run` refuses any other level")
+        else:
+            rule = ("the design allows the frozen knee and, as the one further confirmation after a failure, 2 x the knee; "
+                    "`run` refuses any other level on a frozen record")
+        out.append("level rule   " + rule)
     out.append("timeline     " + ", ".join(f"{k} {v:g}" for k, v in timeline_of(scn, opts).items()))
     smoke = {k: v for k, v in (("rho", opts.rho), ("timeline", opts.timeline), ("timer limit ms", opts.timer_limit_ms)) if v}
     if smoke:
@@ -384,6 +391,23 @@ def at_campaign_level(scn, cal, opts):
     return dataclasses.replace(scn, intensity={**scn.intensity, "level": 2 * float(knee)})
 
 
+# docs/HG1C_DESIGN.md departure 39 (D-071, the user's, 2026-11-06, before any HG4 data; R-020): a campaign with protected arms (HG4) runs
+# these families at this multiple of the frozen knee, which their HG4 spec states as a number; every other family at the knee
+HG4_KNEE_MULTIPLE = {"cheap_static_flood": 2}
+# D-077: a spec made for HG4 runs only with protected arms, so that HG3's 2 x knee confirmation keeps one spec (and one spec hash): the
+# HG3 spec of the same family, with --confirm-2x-knee
+HG4_ONLY_SPECS = {"cheap_static_flood_hg4": "cheap_static_flood"}
+
+
+def spec_problem(scn, opts):
+    """Why this spec may not be planned or run as the campaign is asked for, or None: an HG4 spec without protected arms (D-077)."""
+    if scn.id in HG4_ONLY_SPECS and not opts.modes:
+        hg3 = HG4_ONLY_SPECS[scn.id]
+        return (f"{scn.id} is HG4's spec and runs only with protected arms (--modes; D-071, D-077); without them use {hg3}, and "
+                f"{hg3} with --confirm-2x-knee for HG3's further confirmation at 2 x the knee")
+    return None
+
+
 def level_problem(scn, cal, opts):
     """Why a campaign on a frozen record may not run at the scenario's level, or None (docs/HG1C_DESIGN.md departure 37): design 7.2 step
     6 allows 'Ten paired blocks at the frozen kappa_f' and, if that fails, one further confirmation at 2 x kappa_f; 'no other level is
@@ -394,10 +418,21 @@ def level_problem(scn, cal, opts):
     if not isinstance(knee, (int, float)):
         return f"the frozen record holds no knee for {scn.family} ({knee!r}), so no level of {scn.id} is one the design allows"
     level = SC.resolve_level(scn, cal)
+    if opts.modes:
+        if opts.confirm_2x_knee:
+            return ("--confirm-2x-knee is HG3's one further confirmation (design 7.2 step 6); a campaign with protected arms (HG4) takes "
+                    "its own level (departure 39)")
+        times = HG4_KNEE_MULTIPLE.get(scn.family, 1)
+        if level == times * knee:
+            return None
+        return (f"{scn.id} is at level {level:g}; with protected arms (HG4) {scn.family} runs at "
+                + (f"{times} x its frozen knee of {knee:g}, so {times * knee:g} (D-071)" if times != 1 else f"its frozen knee, {knee:g}"))
     if level == knee or (opts.confirm_2x_knee and level == 2 * knee):
         return None
     return (f"{scn.id} is at level {level:g}, and the frozen knee of {scn.family} is {knee:g}: the design (7.2 step 6) allows only the knee "
-            "and, as the one further confirmation after a failure, 2 x the knee, which --confirm-2x-knee asks for")
+            "and, as the one further confirmation after a failure, 2 x the knee, which --confirm-2x-knee asks for"
+            + (f"; with protected arms (--modes) this family runs at {HG4_KNEE_MULTIPLE[scn.family]} x the knee (D-071)"
+               if scn.family in HG4_KNEE_MULTIPLE else ""))
 
 
 def check_options(opts):
@@ -427,6 +462,8 @@ def run_campaign(scn, cal, cal_path, scenario_sha, out, host, opts=None, say=pri
     opts = opts or Options()
     check_calibration(cal, opts)
     check_options(opts)
+    if spec_problem(scn, opts):
+        raise CampaignError(spec_problem(scn, opts))
     scn = at_campaign_level(scn, cal, opts)
     problem = level_problem(scn, cal, opts)
     if problem:
@@ -605,6 +642,8 @@ def main(argv=None, host=None):
         opts = options_of(args)
         check_modes(opts)
         scenario_sha = sha256_of(args.spec)
+        if spec_problem(scn, opts):
+            raise CampaignError(spec_problem(scn, opts))
         if args.command == "plan":
             print(describe(scn, cal, scenario_sha, opts), end="")
             return EXIT_OK
