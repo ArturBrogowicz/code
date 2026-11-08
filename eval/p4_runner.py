@@ -1223,8 +1223,9 @@ def check_settings(block):
 
 def check_attempt(block):
     """D-050 (review T-047 P-03): the attempt must be the next one the index shows, and a re-run needs a reason: attempt N-1 of
-    the block had an invalid or missing needed arm (a run whose runner died is invalid), or, in the campaign, an unhealthy
-    C. The campaign holds at most OUT.MAX_RERUNS re-runs. Smoke runs judge nothing and need no reason."""
+    the block had an invalid or missing needed arm (a run whose runner died is invalid), or, in the ladder or the campaign, an unhealthy
+    C. The campaign holds at most OUT.MAX_RERUNS re-runs; a ladder repeat is re-run for an unhealthy C at most the record's
+    gate.max_reruns times, then it has no sound attempt (D-080, T078-05). Smoke and health runs judge nothing here and need no reason."""
     phase, seed = block["phase"], block["seed"]
     rows = read_index(block["root"])
     mine = [x for x in rows if (x["phase"], x["block"], x["label"]) == (phase, seed, block["label"])]
@@ -1241,6 +1242,7 @@ def check_attempt(block):
     last = {x["arm"]: x for x in mine if x["attempt"] == next_attempt - 1}
     needed = OUT.needed_arms(block["families"]) if phase == "campaign" else block["order"]
     why = [arm for arm in needed if arm not in last or not last[arm]["valid"]]
+    cal = None
     if phase in ("campaign", "ladder") and not why:                 # D-073 (3): the ladder's C too
         import l7_backend
         cal = l7_backend.load_record(block["calibration"])[0]
@@ -1250,6 +1252,16 @@ def check_attempt(block):
     if not why:
         raise PlanError(f"{phase} block {seed}: attempt {next_attempt - 1} had every needed arm valid and a healthy C, and "
                         "D-050 allows no re-run of it")
+    if phase == "ladder" and why == ["an unhealthy C"]:             # D-080 (T078-05): cap the unhealthy-C re-runs of this repeat
+        cap = cal["gate"]["max_reruns"]
+        unhealthy = 0
+        for a in range(1, next_attempt):
+            crow = next((x for x in mine if x["attempt"] == a and x["arm"] == OUT.CONTROL and x["valid"]), None)
+            if crow and run_record(os.path.join(block["root"], crow["dir"]), cal, seed, a)["control_reasons"]:
+                unhealthy += 1
+        if unhealthy > cap:
+            raise PlanError(f"ladder {block['label']} on seed {seed}: {unhealthy} attempts had an unhealthy C, at most {cap} re-runs for an "
+                            "unhealthy C (D-080); the repeat has no sound attempt (D-067)")
     if phase == "campaign":
         reruns = {(x["block"], x["attempt"]) for x in rows if x["phase"] == "campaign" and x["attempt"] > 1}
         if len(reruns) >= OUT.MAX_RERUNS:

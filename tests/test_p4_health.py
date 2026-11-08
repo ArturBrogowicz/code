@@ -187,9 +187,23 @@ class LadderControlTest(unittest.TestCase):
         self.run_level(100, 1, attempt=2)                                  # the unhealthy C is its reason (check_attempt)
         rec = L.knees(self.root, R.PLACEHOLDER)
         self.assertEqual(rec["levels"], {"loris": 100})
-        self.assertEqual([(c["label"], c["attempt"], c["reasons"]) for c in rec["controls"]], [("l100r1", 2, []), ("l100r2", 1, [])])
+        # D-080 (T078-05): the superseded attempt 1, whose C was unhealthy, is listed too, with its reasons
+        listed = [(c["label"], c["attempt"], bool(c["reasons"]), c["judged"]) for c in rec["controls"]]
+        self.assertEqual(listed, [("l100r1", 2, False, True), ("l100r1", 1, True, False), ("l100r2", 1, False, True)])
         with self.assertRaisesRegex(R.PlanError, "allows no re-run"):
             self.run_level(100, 2, attempt=2)
+
+    def test_a_ladder_c_is_re_run_for_an_unhealthy_c_at_most_max_reruns_times(self):
+        # D-080 (T078-05): at most the record's gate.max_reruns (2) re-runs for an unhealthy C, then the repeat has no sound attempt.
+        import l7_backend
+        cap = l7_backend.load_record(R.PLACEHOLDER)[0]["gate"]["max_reruns"]
+        self.assertEqual(cap, 2)
+        for attempt in range(1, cap + 2):                   # attempts 1..cap+1, each C unhealthy, all allowed (cap re-runs)
+            self.run_level(100, 1, harm=lambda _t: True, attempt=attempt)
+        with self.assertRaisesRegex(R.PlanError, r"at most 2 re-runs for an unhealthy C \(D-080\); the repeat has no sound attempt"):
+            self.run_level(100, 1, harm=lambda _t: True, attempt=cap + 2)
+        with self.assertRaisesRegex(ValueError, "loris 100: repeat l100r1 .* no sound attempt"):
+            L.knees(self.root, R.PLACEHOLDER)
 
 
 if __name__ == "__main__":

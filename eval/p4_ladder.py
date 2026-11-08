@@ -28,7 +28,9 @@ and none is incomplete, 3 when one is incomplete, and 2 on a refusal.
 Re-registration record (D-073 (3), 2026-11-07T08:33Z, R-021), committed before the code it judges: the halving rule reads the health
 phase's two controls (eval/p4_health.py), not the ladder's. A ladder attempt whose C is unhealthy (eval/p4_outcome.control_health) is not
 sound: the repeat reads as missing until it is re-run, with that reason (eval/p4_runner.py check_attempt); it never fires the rule. Every
-control read is in the record, with its reasons.
+control read is in the record, with its reasons (D-080, T078-05): a repeat's superseded attempts, those whose C was unhealthy or that were
+replaced by a later sound one, are all listed in `controls`, with `judged` marking the one its harm came from, so keeping only the healthy C
+does not drop the reference arm silently.
 
     ./venv/bin/python eval/p4_ladder.py ROOT --calibration REC --out knees.json [--unreachable 500 --why "2026-11-..: P4-S s2 ..."]
 """
@@ -81,17 +83,19 @@ def _harms(root, repeats, cal, families):
         if family not in harms:
             continue
         harm = None
-        for attempt, arms in sorted(attempts, key=lambda a: a[0], reverse=True):
+        for attempt, arms in sorted(attempts, key=lambda a: a[0], reverse=True):     # newest first: the newest healthy C is judged
             c, u = arms.get(OUT.CONTROL), arms.get(f"U_{family}")
-            if c and u and c["valid"] and u["valid"]:
-                control = R.run_record(os.path.join(root, c["dir"]), cal, seed, attempt)
-                controls.append({"family": family, "level": level, "seed": seed, "label": label, "attempt": attempt, "Q": control["Q"],
-                                 "reasons": control["control_reasons"]})
-                if control["control_reasons"]:                # D-073 (3): an unhealthy C makes the attempt unsound
-                    continue
-                attack = R.run_record(os.path.join(root, u["dir"]), cal, seed, attempt)
-                harm = K.harm([control], attack, OUT.GATE["floor_pp"], OUT.GATE["floor_log2_p95"])[0] or 0.0
-                break
+            if not (c and u and c["valid"] and u["valid"]):
+                continue
+            control = R.run_record(os.path.join(root, c["dir"]), cal, seed, attempt)
+            row = {"family": family, "level": level, "seed": seed, "label": label, "attempt": attempt, "Q": control["Q"],
+                   "reasons": control["control_reasons"], "judged": False}
+            controls.append(row)                             # D-080 (T078-05): every readable attempt, superseded ones included
+            if control["control_reasons"] or harm is not None:    # D-073 (3): an unhealthy C makes the attempt unsound
+                continue
+            attack = R.run_record(os.path.join(root, u["dir"]), cal, seed, attempt)
+            harm = K.harm([control], attack, OUT.GATE["floor_pp"], OUT.GATE["floor_log2_p95"])[0] or 0.0
+            row["judged"] = True
         if harm is None:
             missing[family].setdefault(level, []).append((seed, label))
         else:
