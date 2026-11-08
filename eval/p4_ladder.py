@@ -20,9 +20,11 @@ reading has a status, in the record's `results`:
     P4 reads "<family> below the default rules' thresholds did not harm profile R up to N sources" (eval/p4_outcome.py --knees), with each
     level's figures, and no validation and no campaign run (eval/p4_runner.py refuses them on the file);
   * "incomplete": no knee among the levels that ran, and `next_level` has not run: the ladder goes on.
-A level is "not reachable" (D-073 (5)) only as `--unreachable LEVEL --why TEXT`, TEXT naming the dated reading: the ladder's top, above the
-always-run levels, when P4-S s2's feasibility reading fails there. It must not have run, and it never reads as no harm: "no knee" then stops
-at the level below it, and the record names the level and why. The exit code is 0 when every family has a knee, 1 when one has none (rule A)
+A level is "not reachable" (D-073 (5), D-080) only as `--unreachable LEVEL --s2 DIR --why TEXT`: the ladder's top, above the always-run
+levels, when P4-S s2's feasibility reading fails there. DIR is that s2 run's directory; the tool reads its run.json and refuses a reading
+dated (started_utc) after the ladder's first run (the earliest run in the ladder's index), so a 'not reachable' is read before the ladder and
+not after its data (T078-06). The dated TEXT stays. It must not have run, and it never reads as no harm: "no knee" then stops at the level
+below it, and the record names the level, its s2 run and why. The exit code is 0 when every family has a knee, 1 when one has none (rule A)
 and none is incomplete, 3 when one is incomplete, and 2 on a refusal.
 
 Re-registration record (D-073 (3), 2026-11-07T08:33Z, R-021), committed before the code it judges: the halving rule reads the health
@@ -32,7 +34,7 @@ control read is in the record, with its reasons (D-080, T078-05): a repeat's sup
 replaced by a later sound one, are all listed in `controls`, with `judged` marking the one its harm came from, so keeping only the healthy C
 does not drop the reference arm silently.
 
-    ./venv/bin/python eval/p4_ladder.py ROOT --calibration REC --out knees.json [--unreachable 500 --why "2026-11-..: P4-S s2 ..."]
+    ./venv/bin/python eval/p4_ladder.py ROOT --calibration REC --out knees.json [--unreachable 500 --s2 smoke/b9101_a1_s2/U_loris --why "2026-11-..: P4-S s2 ..."]
 """
 import argparse
 import json
@@ -178,8 +180,9 @@ def _result(f, harms, missing, gone, controls=()):
     return out, k
 
 
-def check_unreachable(unreachable, family_set, harms, missing):
-    """D-073 (5): --unreachable names only a ladder's top, above its always-run levels, that has not run, with a dated reading."""
+def check_unreachable(unreachable, family_set, harms, missing, ladder_start=None):
+    """D-073 (5), D-080: --unreachable names only a ladder's top, above its always-run levels, that has not run, with a dated reading from a
+    P4-S s2 run whose run.json (`s2_started`) is dated no later than the ladder's first run (`ladder_start`)."""
     for f, spec in unreachable.items():
         if f not in family_set:
             raise ValueError(f"--unreachable: {f} is not a family of this ladder {list(family_set)}")
@@ -192,6 +195,14 @@ def check_unreachable(unreachable, family_set, harms, missing):
                 raise ValueError(f"--unreachable {n}: {f} {n} has run, so it is not 'not reachable' (D-073 (5))")
         if not re.search(r"\d{4}-\d{2}-\d{2}", spec.get("why") or ""):
             raise ValueError("--unreachable needs --why naming the dated reading that found the level not reachable (D-073 (5))")
+        if not spec.get("s2"):
+            raise ValueError("--unreachable needs --s2 naming the P4-S s2 run directory the reading comes from (D-080, T078-06)")
+        started = spec.get("s2_started")
+        if started is None:
+            raise ValueError(f"--unreachable: the P4-S s2 run {spec['s2']} has no run.json with a started_utc (D-080)")
+        if ladder_start is not None and started > ladder_start:
+            raise ValueError(f"--unreachable: the P4-S s2 reading is dated {started}, after the ladder's first run {ladder_start}: a "
+                             "'not reachable' is read before the ladder, not after its data (D-080, T078-06)")
 
 
 def knees(root, record_path, unreachable=None):
@@ -199,13 +210,25 @@ def knees(root, record_path, unreachable=None):
     See the module docstring."""
     unreachable = unreachable or {}
     status, named, halvings, family_set, harms, missing, controls = _ladder(root, record_path)
-    check_unreachable(unreachable, family_set, harms, missing)
+    ladder_start = min((x["started_utc"] for x in R.read_index(root) if x["phase"] == "ladder" and x.get("started_utc")), default=None)
+    for f, spec in unreachable.items():                              # D-080: the s2 run's started_utc, read before the structural checks
+        s2 = spec.get("s2")
+        if s2:
+            s2_dir = s2 if os.path.isabs(s2) else os.path.join(root, s2)
+            try:
+                with open(os.path.join(s2_dir, "run.json"), encoding="utf-8") as fh:
+                    spec["s2_started"] = json.load(fh).get("started_utc")
+            except (OSError, ValueError):
+                spec["s2_started"] = None
+    check_unreachable(unreachable, family_set, harms, missing, ladder_start)
     levels, no_knee, families, results = {}, {}, {}, {}
     for f in family_set:
         gone = tuple(unreachable.get(f, {}).get("levels", ()))
         res, k = _result(f, harms[f], missing[f], gone, controls)
         if gone:
             res["why_not_reachable"] = unreachable[f]["why"]
+            res["s2_run"] = unreachable[f].get("s2")
+            res["s2_started"] = unreachable[f].get("s2_started")
         results[f] = res
         levels[f] = res["level"]
         if res["level"] is None:
@@ -237,11 +260,15 @@ def main(argv=None):
     ap.add_argument("--unreachable", type=int, action="append", default=[], metavar="LEVEL",
                     help="loris's top, not reachable by P4-S s2's feasibility reading (D-073 (5)); needs --why")
     ap.add_argument("--family", default="loris", choices=OUT.FAMILIES, help="the family of --unreachable")
+    ap.add_argument("--s2", help="the P4-S s2 run directory the --unreachable reading comes from (D-080, T078-06)")
     ap.add_argument("--why", help="the dated reading that found --unreachable's level not reachable")
     args = ap.parse_args(argv)
-    unreachable = {args.family: {"levels": sorted(set(args.unreachable)), "why": args.why}} if args.unreachable else {}
-    if args.why and not args.unreachable:
-        ap.error("--why goes with --unreachable")
+    unreachable = ({args.family: {"levels": sorted(set(args.unreachable)), "why": args.why, "s2": args.s2}}
+                   if args.unreachable else {})
+    if (args.why or args.s2) and not args.unreachable:
+        ap.error("--why and --s2 go with --unreachable")
+    if args.unreachable and not args.s2:
+        ap.error("--unreachable needs --s2 naming the P4-S s2 run directory (D-080, T078-06)")
     try:
         rec = knees(args.root, args.calibration, unreachable)
     except (ValueError, OSError, KeyError) as exc:
