@@ -29,6 +29,7 @@ RECORD = os.path.join(_TMP.name, "frozen.json")
 with open(RECORD, "w", encoding="utf-8") as _fh:
     json.dump(FROZEN, _fh)
 LEVELS = {"C2": 4.0, "C3a": 1.0, "C3b": 100}
+NO_LIMIT_FILE = os.path.join(tempfile.gettempdir(), "t079-no-p1-address-limit", "p1_address_limit.json")   # never created (T078-10)
 PINNED_ROWS_SHA256 = "4395b2a7bdafbe4e06f5323368a6ac447bacab1da87ac8e1a4338fa9bce4cd92"         # the rows of seed 9001's C2 1 and C3b 50 block as planned before D-073's extension
 _BLOCKS = {}
 
@@ -177,9 +178,10 @@ class BlockTest(unittest.TestCase):
             P.run_entities(b, "C4")
 
     def test_a_level_over_the_address_limit_is_refused_per_run(self):
-        b = P.build_block(9001, "pilot", {"C3b": 200}, record_path=RECORD)
-        with self.assertRaisesRegex(P.PlanError, "verified limit"):
-            P.run_entities(b, "C3b")
+        with mock.patch.object(P, "ADDRESS_LIMIT_FILE", NO_LIMIT_FILE):
+            b = P.build_block(9001, "pilot", {"C3b": 200}, record_path=RECORD)
+            with self.assertRaisesRegex(P.PlanError, "verified limit"):
+                P.run_entities(b, "C3b")
 
     def test_a_thin_plan_for_tests_keeps_the_rates(self):
         thin = P.build_block(3001, "eval", LEVELS, record_path=RECORD, knees=KNEES, max_sources=2,
@@ -223,9 +225,10 @@ class LadderExtensionTest(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         path = os.path.join(tmp.name, "limit.json")
-        b = P.build_block(9001, "pilot", {"C3b": 200}, record_path=RECORD)
-        with self.assertRaisesRegex(P.Unreachable, "368 addresses exceed the verified limit of 300.*not reachable on this testbed"):
-            P.run_entities(b, "C3b")
+        with mock.patch.object(P, "ADDRESS_LIMIT_FILE", NO_LIMIT_FILE):
+            b = P.build_block(9001, "pilot", {"C3b": 200}, record_path=RECORD)
+            with self.assertRaisesRegex(P.Unreachable, "368 addresses exceed the verified limit of 300.*not reachable on this testbed"):
+                P.run_entities(b, "C3b")
         for limit, decision, ok in ((400, "D-099, 2026-11-20, the smoke's read", True), (469, "D-099, 2026-11-20", False),
                                     (400, "the read passed", False), (True, "D-099, 2026-11-20", False)):
             with open(path, "w", encoding="utf-8") as fh:

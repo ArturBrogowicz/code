@@ -36,6 +36,9 @@ RUN_NAMES = ["C", "Cp", "M_default_rules_C3b", "M_gru_C2", "M_gru_C3a", "M_gru_C
              "M_rstar_C3b", "U_C2", "U_C3a", "U_C3b"]
 
 
+NO_LIMIT_FILE = os.path.join(tempfile.gettempdir(), "t079-no-p1-address-limit", "p1_address_limit.json")   # never created (T078-10)
+
+
 def thin(frozen, root, seed=3001, **kw):
     return R.plan_block("campaign", seed, root, frozen=frozen, benign_specs=F.thin_benign(), max_sources=3, **kw)
 
@@ -589,7 +592,7 @@ class UnreachableRecordTest(Base):
             return orig(*a, **{**kw, "benign_specs": F.thin_benign(), "max_sources": None})
         err = io.StringIO()
         with mock.patch.object(R.PT, "build_block", side_effect=thinned), contextlib.redirect_stderr(err), \
-                contextlib.redirect_stdout(io.StringIO()):
+                contextlib.redirect_stdout(io.StringIO()), mock.patch.object(R.PT, "ADDRESS_LIMIT_FILE", NO_LIMIT_FILE):
             code = R.main(["--phase", "ladder", *argv, "--health", self.frozen["health"], "--calibration", self.frozen["calibration"],
                            "--root", self.root])
         return code, err.getvalue()
@@ -1244,6 +1247,12 @@ class PointsTest(Base):
 
 class SmokeReadsTest(Base):
     """What a smoke reads (D-049, E-2, E-4): a level above the verified address limit, in a smoke only; the load against rho."""
+
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.object(R.PT, "ADDRESS_LIMIT_FILE", NO_LIMIT_FILE)      # the verified 300, whatever the read decided (T078-10)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_a_smoke_reads_above_the_limit_and_nothing_else_does(self):
         kw = {"frozen": self.frozen, "levels": {"C3b": 300}, "runs": ["U_C3b"], "label": "aliases"}
