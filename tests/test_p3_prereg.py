@@ -118,10 +118,6 @@ class PinnedVolumeAndCurveTest(unittest.TestCase):
         self.assertIn("within 0.5 +- auc_band is 'near chance'", b["reading"])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class SizingRecordTest(unittest.TestCase):
     """ml/p3_sizing_prereg.json: the user's D-076, before any P3 capture."""
     PATH = os.path.join(REPO, "ml", "p3_sizing_prereg.json")
@@ -136,3 +132,7 @@ class SizingRecordTest(unittest.TestCase):
         self.assertIn("D-076", rec["decision"])
         self.assertEqual(sorted(rec["carrier"]), ["C2", "C3a", "C3b"])
         self.assertIn("count only", rec["carrier"]["C3b"])
+
+
+if __name__ == "__main__":
+    unittest.main()

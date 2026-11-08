@@ -163,10 +163,6 @@ class FourthRecordTest(unittest.TestCase):
         self.assertIn("control_health stays unchanged", rec["control_health"]["rule"])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class Prereg5Test(unittest.TestCase):
     """ml/p1_prereg_5.json: the user's D-073, D-074 and D-075, before any ladder run."""
 
@@ -193,3 +189,7 @@ class Prereg5Test(unittest.TestCase):
         self.assertEqual((rec["premise"]["windows_s"], rec["premise"]["quantile"]), ([1, 10, 30, 60, 300], 0.99))
         self.assertIn("never read as no harm", rec["ladder"]["statuses"]["not_reachable"])
         self.assertIn("C2 alone", rec["no_knee"]["campaign"])
+
+
+if __name__ == "__main__":
+    unittest.main()
