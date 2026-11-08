@@ -22,7 +22,7 @@ GATE = (0, 1)
 # a frozen record with the placeholder's numbers (tests/calibration_fixtures.frozen), so the plans keep their rates;
 # the knees name it (T-030 L7V2-08)
 FROZEN = calibration_fixtures.frozen()
-FROZEN_KNEES = {"status": "frozen", "C2": 4.0, "record_sha256": FROZEN["sha256"]}
+FROZEN_KNEES = {"status": "frozen", "C2": 4.0, "C3a": 1.0, "C3b": 100, "record_sha256": FROZEN["sha256"]}
 _TMP = tempfile.TemporaryDirectory()
 FROZEN_PATH = os.path.join(_TMP.name, "frozen.json")
 with open(FROZEN_PATH, "w", encoding="utf-8") as _fh:
@@ -143,11 +143,51 @@ class TrainingPlanTest(unittest.TestCase):
         self.assertEqual({e["params"]["route"] for e in p["entities"] if e["kind_or_family"].startswith("C3b@")}, {"C5"})
         self.assertEqual({e["params"]["route"] for e in p["entities"] if e["kind_or_family"] in ("C2", "C3a")}, {"C3"})
 
-    def test_c3a_gaps_scale_with_the_phase(self):
+    def test_c3a_gaps_follow_its_own_knee_up_to_twice_p1_s_pace(self):
+        """D-076: page gaps divided by f = (m x K x S / per-source cost) / n, at most 2."""
         p = Cache.get(1001, "train")
+        rec, _, _ = l7_backend.load_record(FROZEN_PATH)
+        s, c = CAL.spare_capacity(rec), rec["route_costs_ms"]
         m = next(x for x in p["timeline"]["phases"] if x["name"] == "C3a")["intensity"]
+        f = min(m * 1.0 * s / ((c["C1"] + c["C3"]) / 1000.0 / 5.0) / 50, 2.0)
+        self.assertAlmostEqual(p["intensity"]["phases"]["C3a"]["pace_factor"], f, places=4)
         for e in (e for e in p["entities"] if e["kind_or_family"] == "C3a"):
-            self.assertEqual(e["params"]["page_gap_s"], [round(2.0 / m, 3), round(8.0 / m, 3)])
+            self.assertEqual(e["params"]["page_gap_s"], [round(2.0 / round(f, 4), 3), round(8.0 / round(f, 4), 3)])
+
+    def test_each_core_family_is_sized_from_its_own_knee_and_the_plan_says_how_far(self):
+        """D-076 (ml/p3_sizing_prereg.json): target m x K; C2 reaches it; C3a by its pace, capped; C3b by count, its shortfall recorded."""
+        p = Cache.get(1001, "train")
+        got = p["intensity"]["phases"]
+        m = {ph["name"]: ph["intensity"] for ph in p["timeline"]["phases"]}
+        self.assertEqual({f: (r["knee"], r["no_knee"], r["unit"], r["entities"]) for f, r in got.items()},
+                         {"C2": (4.0, False, "S", 50), "C3a": (1.0, False, "S", 50), "C3b@M2": (100, False, "bots", 50)})
+        self.assertEqual((got["C2"]["target"], got["C2"]["realized"], got["C2"]["shortfall"]), (m["C2"] * 4.0, m["C2"] * 4.0, 0.0))
+        self.assertEqual((got["C3b@M2"]["target"], got["C3b@M2"]["realized"]), (m["C3b"] * 100, 50))
+        self.assertAlmostEqual(got["C3b@M2"]["shortfall"], max(0.0, m["C3b"] * 100 - 50), places=4)
+        self.assertAlmostEqual(got["C3a"]["target"] - got["C3a"]["realized"], got["C3a"]["shortfall"] - got["C3a"]["excess"], places=3)
+        sized = {f: r for ph in p["timeline"]["phases"] for f, r in (ph.get("sizing") or {}).items()}
+        self.assertEqual(sized, got, "the timeline, which the capture's manifest keeps, carries the same records")
+
+    def test_a_family_without_a_knee_is_sized_at_its_top_tested_level_and_marked(self):
+        knees = {**FROZEN_KNEES, "C3a": None, "C3b": None, "no_knee": ["C3a", "C3b"], "top_tested": {"C3a": 2, "C3b": 300}}
+        got = plan(1001, "train", knees=knees)["intensity"]["phases"]
+        self.assertEqual((got["C3a"]["knee"], got["C3a"]["no_knee"], got["C3b@M2"]["knee"], got["C3b@M2"]["no_knee"]), (2, True, 300, True))
+        for knees, says in (({**FROZEN_KNEES, "C3a": None}, r"have C3a = None and no top tested level"),
+                            ({k: v for k, v in FROZEN_KNEES.items() if k != "C3b"}, r"have no C3b"),
+                            ({**FROZEN_KNEES, "C3b": None, "no_knee": ["C3b"]}, r"have C3b = None and no top tested level")):
+            with self.subTest(knees=knees), self.assertRaisesRegex(LP.PlanError, says):
+                plan(1001, "train", knees=knees)
+
+    def test_c3a_s_pace_stops_at_twice_p1_s_and_the_rest_is_a_shortfall(self):
+        got = plan(1001, "train", knees={**FROZEN_KNEES, "C3a": 8.0})["intensity"]["phases"]["C3a"]
+        self.assertEqual(got["pace_factor"], 2.0)
+        self.assertGreater(got["shortfall"], 0.0)
+        self.assertEqual(got["excess"], 0.0)
+
+    def test_a_c2_without_a_knee_is_sized_at_its_top_tested_level(self):
+        knees = {**FROZEN_KNEES, "C2": None, "no_knee": ["C2"], "top_tested": {"C2": 16}}
+        got = plan(1001, "train", knees=knees)["intensity"]["phases"]["C2"]
+        self.assertEqual((got["knee"], got["no_knee"]), (16, True))
 
     def test_plans_are_seeded(self):
         self.assertEqual(plan(1002, "train")["plan_set_sha256"], plan(1002, "train")["plan_set_sha256"])
@@ -205,6 +245,9 @@ class EvaluationPlanTest(unittest.TestCase):
     def test_a_pilot_plan_uses_the_placeholder_knee_and_says_so(self):
         p = plan(9201, "pilot", knees=None, record_path=None)
         self.assertEqual(p["intensity"]["knees"], {"status": "placeholder", "C2": 1.0})
+        sized = p["intensity"]["phases"]
+        self.assertEqual({r["rule"] for r in sized.values()}, {"placeholder"})
+        self.assertEqual(sized["C3a"]["pace_factor"], next(x for x in p["timeline"]["phases"] if x["name"] == "C3a")["intensity"])
         self.assertEqual(p["intensity"]["record_status"], "placeholder")
         self.assertEqual(p["duration_s"], 1140.0)
 
