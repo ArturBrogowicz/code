@@ -8,7 +8,7 @@ import unittest
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PATH = os.path.join(REPO, "ml", "p1_prereg.json")
 PATH_5 = os.path.join(REPO, "ml", "p1_prereg_5.json")
-PREREG_5_SHA256 = "162374d1291ab59e52a70e72bf3eadfda31eb809365fb9094b50acd3c95fbb9c"
+PREREG_5_SHA256 = "fce9ade32e4313ac09522a1e06f7354671223db8fdd8890849e372afd8db9aa9"     # 2026-11-08: D-079's dated note added (T-079), the rest unchanged
 PATH_4 = os.path.join(REPO, "ml", "p1_prereg_4.json")
 PREREG_4_SHA256 = "e3a39613818313d69c32062a35d52499e36f46bf98bcac7517bdd059c84c3862"
 PATH_3 = os.path.join(REPO, "ml", "p1_prereg_3.json")
@@ -189,6 +189,14 @@ class Prereg5Test(unittest.TestCase):
         self.assertEqual((rec["premise"]["windows_s"], rec["premise"]["quantile"]), ([1, 10, 30, 60, 300], 0.99))
         self.assertIn("never read as no harm", rec["ladder"]["statuses"]["not_reachable"])
         self.assertIn("C2 alone", rec["no_knee"]["campaign"])
+
+    def test_the_dated_note_of_d_079(self):
+        """Added on 2026-11-08, before any P1 data: the earlier text stands, as the note narrows it."""
+        note = self.load()["dated_notes"][0]
+        self.assertEqual(note["date"], "2026-11-08")
+        self.assertIn("D-079", note["decision"])
+        self.assertIn("no level harmed in 2 of 2 up to X on this testbed", " ".join(note["notes"]))
+        self.assertIn("knee, no_knee, incomplete, not_tested or no_sound_level", note["notes"][0])
 
 
 if __name__ == "__main__":

@@ -12,5 +12,12 @@
   "C3b": "count only: the room's bots, whose frozen parameters do not change; C3b@M1 rides along as registered"
  },
  "pace_cap": 2.0,
- "manifest": "per core phase in the plan's intensity.phases: family, m, knee, no_knee, unit, target, realized, shortfall, excess, entities, pace_factor"
+ "manifest": "per core phase in the plan's intensity.phases: family, m, knee, no_knee, unit, target, realized, shortfall, excess, entities, pace_factor",
+ "dated_notes": [
+  {
+   "date": "2026-11-08",
+   "decision": "D-079 (the orchestrator, pre-data), on review T-078's T078-01",
+   "note": "P1's knees file now gives each class a status (knee, no_knee, incomplete, not_tested, no_sound_level), and its no_knee lists only no_knee classes. A plan takes a family's knee only at status knee and its top tested level only at no_knee; every other status is a refusal naming the family and the status"
+  }
+ ]
 }
