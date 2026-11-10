@@ -235,6 +235,20 @@ class ReadingTest(unittest.TestCase):
         with self.assertRaisesRegex(R.PlanError, "the ladder is incomplete: level 300 runs next"):
             R.check_knees(R.plan_block("validation", 4001, self.root, sources={"loris": 100}, families=LORIS, knees=path), TR.HostThatMeasures())
 
+    def test_a_mixed_ladder_reads_no_campaign_as_the_runner_refuses_it_D080(self):
+        # T078-09: loris has a knee, post has none; check_knees refuses the campaign, so M7 does not promise one.
+        _path, rec = self.record({"loris": {"status": "knee", "level": 250, "top": None, "next_level": None, "not_reachable": []},
+                                  "post": {"status": "no knee", "level": None, "top": 40, "next_level": None, "not_reachable": []}})
+        verdict = OUT.no_knee_verdict(rec)
+        self.assertEqual(verdict["M7"], "no campaign: slow POST has no knee, which eval/p4_runner.py refuses (check_knees, D-074); "
+                                        "a family with a knee is not run on its own")
+        path, _rec = self.record({"loris": {"status": "knee", "level": 250, "top": None, "next_level": None, "not_reachable": []},
+                                  "post": {"status": "no knee", "level": None, "top": 40, "next_level": None, "not_reachable": []}},
+                                 name="mixed.json")
+        with self.assertRaisesRegex(R.PlanError, "post has no knee"):
+            R.check_knees(R.plan_block("campaign", 3101, self.root, sources={"loris": 250, "post": 40}, thresholds=(5, 256, 2),
+                                       families=OUT.FAMILIES, knees=path), TR.HostThatMeasures())
+
     def test_a_knee_leaves_the_verdict_to_the_campaign_and_runs_or_knees_must_be_given(self):
         _path, rec = self.record({"loris": {"status": "knee", "level": 250, "top": None, "next_level": None, "not_reachable": []}})
         self.assertEqual(OUT.no_knee_verdict(rec)["M7"], "the campaign's: every family has a knee")
