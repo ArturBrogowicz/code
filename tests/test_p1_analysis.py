@@ -523,6 +523,19 @@ class LadderAttemptsTest(unittest.TestCase):
             self.assertEqual(A.ladder_knees(self.root, self.cal)["C2"]["level"], 2.0)
             self.assertEqual(A.knees_file(self.root, self.cal)["levels"]["C2"]["1"]["premise"], "crosses")
 
+    def test_a_crossing_level_reads_its_raw_harms_and_is_never_x(self):
+        """T078-04: dropped before the knee, a crossing level read passed: false although it harmed 2 of 2, and it could become X."""
+        for rep in (1, 2):
+            self.pair("C2", 1.0, rep)
+            self.pair("C3a", 2.0, rep, share=0.0)
+        marks = {("C2", 1.0): "crosses", ("C3a", 2.0): "crosses"}
+        with mock.patch.object(A.PREMISE, "marks", return_value=marks):
+            got = A.knees_file(self.root, self.cal)
+        self.assertEqual((got["levels"]["C2"]["1"]["passed"], got["levels"]["C3a"]["2"]["passed"]), (True, False))
+        self.assertEqual((got["C2"], got["top_tested"]["C2"], got["top_tested"]["C3a"]), (None, None, None))
+        for cls, lv in (("C2", "1"), ("C3a", "2")):
+            self.assertIn(f"marked 'crosses' (ml/p1_premise.json), never a knee nor X: {lv}", got["results"][cls])
+
     def test_the_last_sound_attempt_counts_and_an_invalid_later_one_does_not_erase_it(self):
         self.pair("C2", 1.0, 1, quiet_from=60.0)
         self.pair("C2", 1.0, 1, attempt=2)

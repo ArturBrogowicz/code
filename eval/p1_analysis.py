@@ -485,16 +485,16 @@ def ladder_status(root, harm, knees):
     out = {}
     for cls in sorted(PT.PRIMARY):
         knee = knees.get(cls) or {}
-        passing = {float(x) for x in knee.get("passing") or []}
         levels, tested = {}, []
         for lv in PT.ladder_levels(cls):
             key = float(lv)
             holes = sorted(u["repeat"] for u in unsound if u["class"] == cls and float(u["level"]) == key)
             ran = rows.get(cls, {}).get(key)
             if ran is not None:
-                st = {"status": "run", "repeats": len(ran), "no_sound_attempt": holes, "passed": key in passing,
+                sound = len(ran) >= repeats and not holes
+                st = {"status": "run", "repeats": len(ran), "no_sound_attempt": holes, "passed": sound and min(ran) >= 1.0,
                       "harm": detail[cls][key]}
-                if len(ran) >= repeats and not holes:
+                if sound and marks.get((cls, key)) != "crosses":      # T078-04: a crossing level is never X
                     tested.append(lv)
             elif (cls, key) in refused:
                 st = {"status": "not reachable", "reason": refused[(cls, key)]}
@@ -538,6 +538,9 @@ def _ladder_line(cls, knee, top, levels, repeats):
         line += f"; no sound attempt, counted as no harm: {', '.join(holes)}"
     if gone:
         line += f"; not reachable: {'; '.join(gone)}; the ladder was cut short below its registered top"
+    crossing = [lv for lv, st in levels.items() if st.get("premise") == "crosses"]
+    if crossing:
+        line += f"; marked 'crosses' (ml/p1_premise.json), never a knee nor X: {', '.join(crossing)}"
     return line
 
 
