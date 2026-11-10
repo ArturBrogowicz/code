@@ -429,7 +429,8 @@ def ladder_harm(root, cal):
     with no sound attempt). Per (class, level, repeat) the last attempt with both runs sound counts (T050-13, ml/p1_prereg_3.json ladder):
     a clean re-run restores a level, and one with no sound attempt counts as no harm: never as passing. Those are named as well, so that
     the rule's zero is not read as a measured one (T063-01). A level the plan refused has no attempt and no row: it is 'not reachable'
-    (ladder_status, D-074), never no harm."""
+    (ladder_status, D-074), never no harm. The third item is each repeat's harm as read (T078-03): {class: {level: [{repeat, sound,
+    attempts, harm, dQ_pp, dlog2_p95}]}}, dQ in percentage points and dlog2 p95 in log2, before bench/calibrate.harm's floors."""
     import calibrate as K
     gate = cal["gate"]
     attempts = {}
@@ -438,9 +439,9 @@ def ladder_harm(root, cal):
         if m is not None and x["run"] != "C":
             key = (m.group("cls"), float(m.group("level")), int(m.group("repeat")))
             attempts.setdefault(key, []).append((x["attempt"], x["block_dir"], x["run"]))
-    rows, unsound = {}, []
+    rows, unsound, detail = {}, [], {}
     for (cls, level, repeat), tries in sorted(attempts.items()):
-        harm, sound = 0.0, False
+        harm, sound, parts = 0.0, False, {}
         for _attempt, block_dir, run in sorted(tries, reverse=True):
             try:
                 b = LH.assess_block(os.path.join(root, block_dir), cal)
@@ -448,19 +449,23 @@ def ladder_harm(root, cal):
                 continue
             control, attack = b["runs"].get("C"), b["runs"].get(run)
             if control and attack and control["checks"].get("ok") and attack["checks"].get("ok"):
-                h, _parts = K.harm([control["metrics"]], attack["metrics"], gate["floor_pp"], gate["floor_log2_p95"])
+                h, parts = K.harm([control["metrics"]], attack["metrics"], gate["floor_pp"], gate["floor_log2_p95"])
                 harm, sound = h or 0.0, True
                 break
         if not sound:
             unsound.append({"class": cls, "level": int(level) if cls == "C3b" else level, "repeat": repeat, "attempts": len(tries)})
         rows.setdefault(cls, {}).setdefault(level, []).append(harm)
-    return rows, unsound
+        detail.setdefault(cls, {}).setdefault(level, []).append(
+            {"repeat": repeat, "sound": sound, "attempts": len(tries), "harm": round(harm, 4) if sound else None,
+             "dQ_pp": round(parts["dQ"] * gate["floor_pp"], 4) if "dQ" in parts else None,
+             "dlog2_p95": round(parts["dL"] * gate["floor_log2_p95"], 4) if "dL" in parts else None})
+    return rows, unsound, detail
 
 
 def ladder_knees(root, cal, harm=None):
     """The knees of a finished ladder: {class: bench/calibration.knee's result} over ladder_harm's rows, or over the `harm` it gave. A level the
     premise check marked 'crosses' (ml/p1_premise.json) never becomes a knee (ml/p1_prereg_5.json premise): it tests rate detection, not P1."""
-    rows, _unsound = harm or ladder_harm(root, cal)
+    rows = (harm or ladder_harm(root, cal))[0]
     marks = PREMISE.marks()
     rows = {cls: {lv: h for lv, h in levels.items() if marks.get((cls, float(lv))) != "crosses"} for cls, levels in rows.items()}
     return {cls: CAL.knee(sorted(levels.items()), 1.0, 2) for cls, levels in sorted(rows.items())}
@@ -471,7 +476,7 @@ def ladder_status(root, harm, knees):
     had no sound attempt), 'not reachable' (with the plan's reason, from the runner's ladder_unreachable.jsonl) or 'not run'; the top tested
     level, the highest whose repeats all had a sound attempt; and the class's line: its knee, or 'no harm reached up to X on this testbed'.
     'Not reachable' never reads as no harm."""
-    rows, unsound = harm
+    rows, unsound, detail = harm
     refused = {}
     for x in RUN.read_unreachable(root):
         refused.setdefault((x["class"], float(x["level"])), x["reason"])
@@ -487,7 +492,8 @@ def ladder_status(root, harm, knees):
             holes = sorted(u["repeat"] for u in unsound if u["class"] == cls and float(u["level"]) == key)
             ran = rows.get(cls, {}).get(key)
             if ran is not None:
-                st = {"status": "run", "repeats": len(ran), "no_sound_attempt": holes, "passed": key in passing}
+                st = {"status": "run", "repeats": len(ran), "no_sound_attempt": holes, "passed": key in passing,
+                      "harm": detail[cls][key]}
                 if len(ran) >= repeats and not holes:
                     tested.append(lv)
             elif (cls, key) in refused:
@@ -499,11 +505,24 @@ def ladder_status(root, harm, knees):
             st["premise"] = marks.get((cls, key))
             levels[f"{lv:g}"] = st
         top = max(tested) if tested else None
-        out[cls] = {"levels": levels, "top_tested": top, "result": _ladder_line(cls, knee.get("level"), top, levels)}
+        out[cls] = {"levels": levels, "top_tested": top, "result": _ladder_line(cls, knee.get("level"), top, levels, repeats)}
     return out
 
 
-def _ladder_line(cls, knee, top, levels):
+def harm_text(level_status):
+    """One run level's repeats as --ladder prints them (T078-03)."""
+    parts = []
+    for r in level_status.get("harm") or []:
+        if not r["sound"]:
+            parts.append(f"r{r['repeat']} no sound attempt in {r['attempts']}")
+            continue
+        dq = "-" if r["dQ_pp"] is None else f"{r['dQ_pp']:.1f} pp"
+        dl = "-" if r["dlog2_p95"] is None else f"{r['dlog2_p95']:.2f}"
+        parts.append(f"r{r['repeat']} harm {r['harm']:.2f} (dQ {dq}, dlog2 p95 {dl})")
+    return "; ".join(parts)
+
+
+def _ladder_line(cls, knee, top, levels, repeats):
     """A class's line in the ladder's report (D-074)."""
     if knee is not None:
         return f"{cls}: knee at {knee:g}"
@@ -514,7 +533,7 @@ def _ladder_line(cls, knee, top, levels):
     elif top is None:
         line = f"{cls}: no level ran with every repeat sound"
     else:
-        line = f"{cls}: no harm reached up to {top:g} on this testbed"
+        line = f"{cls}: no level harmed in {repeats} of {repeats} up to {top:g} on this testbed"
     if holes:
         line += f"; no sound attempt, counted as no harm: {', '.join(holes)}"
     if gone:
@@ -682,8 +701,11 @@ def main(argv=None):
         holes = ", ".join(f"{h['class']} L{h['level']:g} r{h['repeat']}" for h in res["no_sound_attempt"]) or "none"
         print(f"the knees: { {c: res[c] for c in sorted(PT.PRIMARY)} }; no knee: {res['no_knee']}; "
               f"no sound attempt, counted as no harm (ml/p1_prereg_3.json ladder): {holes}")
-        for line in res["results"].values():
+        for cls, line in res["results"].items():
             print(f"  {line}")
+            for lv, st in res["levels"][cls].items():
+                if st["status"] == "run":
+                    print(f"    {cls} L{lv}: {harm_text(st)}")
     else:
         frozen = {"selection": args.selection, "selection_sha256": args.selection_sha256, "rules": args.rules,
                   "rules_sha256": args.rules_sha256}

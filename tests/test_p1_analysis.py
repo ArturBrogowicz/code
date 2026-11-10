@@ -479,15 +479,30 @@ class LadderAttemptsTest(unittest.TestCase):
         self.assertEqual([lv[k]["status"] for k in ("2", "4", "6", "8")], ["run", "not reachable", "not run", "not run"])
         self.assertEqual((lv["2"]["passed"], lv["2"]["no_sound_attempt"], lv["4"]["reason"]), (False, [], why))
         self.assertEqual(got["results"], {"C2": "C2: knee at 1",
-                                          "C3a": f"C3a: no harm reached up to 2 on this testbed; not reachable: 4 ({why}); the ladder was cut "
-                                                 "short below its registered top",
+                                          "C3a": f"C3a: no level harmed in 2 of 2 up to 2 on this testbed; not reachable: 4 ({why}); the ladder "
+                                                 "was cut short below its registered top",
                                           "C3b": "C3b: not tested"})
         self.assertTrue(got["levels"]["C2"]["16"]["above_knee"])
         self.assertEqual((got["C3a"], got["no_knee"]), (None, ["C3a", "C3b"]))
         said = io.StringIO()
         with contextlib.redirect_stdout(said):
             A.main([self.root, "--calibration", self.frozen["calibration"], "--ladder", "--out", os.path.join(self.tmp, "knees.json")])
-        self.assertIn("C3a: no harm reached up to 2 on this testbed", said.getvalue())
+        self.assertIn("C3a: no level harmed in 2 of 2 up to 2 on this testbed", said.getvalue())
+
+    def test_every_repeat_s_harm_is_in_the_file_and_printed(self):
+        """T078-03: the registration asks for both repeats' harm beside every level's status (ml/p1_prereg_5.json no_knee.result)."""
+        self.pair("C2", 1.0, 1)
+        self.pair("C2", 1.0, 2, quiet_from=60.0)
+        gate = self.cal["gate"]
+        got = A.knees_file(self.root, self.cal)["levels"]["C2"]["1"]["harm"]
+        self.assertEqual([(r["repeat"], r["sound"], r["attempts"]) for r in got], [(1, True, 1), (2, False, 1)])
+        self.assertGreater(got[0]["dQ_pp"], 10.0)
+        self.assertEqual(got[0]["harm"], round(max(got[0]["dQ_pp"] / gate["floor_pp"], got[0]["dlog2_p95"] / gate["floor_log2_p95"]), 4))
+        self.assertEqual((got[1]["harm"], got[1]["dQ_pp"], got[1]["dlog2_p95"]), (None, None, None))
+        said = io.StringIO()
+        with contextlib.redirect_stdout(said):
+            A.main([self.root, "--calibration", self.frozen["calibration"], "--ladder", "--out", os.path.join(self.tmp, "knees.json")])
+        self.assertRegex(said.getvalue(), r"C2 L1: r1 harm [\d.]+ \(dQ [\d.]+ pp, dlog2 p95 -?[\d.]+\); r2 no sound attempt in 1")
 
     def test_a_repeat_with_no_sound_attempt_is_named_in_the_line(self):
         self.pair("C3b", 50, 1, quiet_from=60.0, share=0.0)
