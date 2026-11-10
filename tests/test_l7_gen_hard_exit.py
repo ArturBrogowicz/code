@@ -8,11 +8,16 @@ The guard finds, in the source of every tests/test_*.py, each call of l7_gen's m
 directly or through a module-level helper; it runs those classes here and fails if any of their tests leaves such a timer armed, cancelling
 it. A future in-process call is picked up by the same scan. Nothing touches the machine."""
 import ast
+import contextlib
 import glob
+import io
+import json
 import os
 import sys
+import tempfile
 import threading
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
@@ -110,6 +115,35 @@ class HardExitTest(unittest.TestCase):
         self.assertGreater(result.testsRun, 0)
         self.assertEqual(result.leaks, {}, "a test called l7_gen.main without --plan and left its hard exit (os._exit) armed in this "
                                            "process: wrap the call in l7_gen_timer.inert()")
+
+
+class HardExitRunsTest(unittest.TestCase):
+    """T078-11: the hard exit writes each source's stats and always reaches os._exit, even when a write fails."""
+
+    def test_the_group_hard_exit_writes_stats_and_exits_even_when_a_write_fails(self):
+        import l7_gen
+        with tempfile.TemporaryDirectory() as tmp:
+            good = os.path.join(tmp, "good.json")
+            boxes = [{"source": {"entity_id": "g0", "stats": good}, "stats": {"opened": 3}, "error": None},
+                     {"source": {"entity_id": "g1", "stats": os.path.join(tmp, "nope", "x.json")}, "stats": {"opened": 1}, "error": None},
+                     {"source": {"entity_id": "g2", "stats": os.path.join(tmp, "g2.json")}, "stats": None, "error": "boom"}]
+            calls = []
+            with mock.patch.object(l7_gen.os, "_exit", calls.append), contextlib.redirect_stderr(io.StringIO()) as err:
+                l7_gen._hard_exit_group(boxes)
+            self.assertEqual(calls, [0], "os._exit ran once despite the failed write")
+            with open(good, encoding="utf-8") as fh:
+                self.assertEqual(json.load(fh), {"opened": 3})
+            self.assertFalse(os.path.exists(os.path.join(tmp, "g2.json")), "a raised source writes no stats")
+            self.assertIn("g1: stats not written", err.getvalue())
+
+    def test_the_single_hard_exit_names_a_failed_write_and_exits(self):
+        import l7_gen
+        calls = []
+        with mock.patch.object(l7_gen, "LIVE_STATS", {"opened": 2}), mock.patch.object(l7_gen, "RECORDER", None), \
+                mock.patch.object(l7_gen.os, "_exit", calls.append), contextlib.redirect_stderr(io.StringIO()) as err:
+            l7_gen._hard_exit(os.path.join(tempfile.gettempdir(), "no-such-dir-T078-11", "s.json"))
+        self.assertEqual(calls, [0])
+        self.assertIn("stats not written to", err.getvalue())
 
 
 if __name__ == "__main__":

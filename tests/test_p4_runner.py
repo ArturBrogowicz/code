@@ -57,11 +57,13 @@ def selection_file(where, point=POINT, sources=None, halvings=0, calibration=Non
 
 
 def health_file(where, calibration=None, halvings=0, name="health.json"):
-    """The halving rule's frozen factor, as far as the runner reads it (eval/p4_health.py --out, D-073 (3))."""
+    """The halving rule's frozen factor, as far as the runner reads it (eval/p4_health.py --out, D-073 (3), D-080): bound to `where`."""
+    import p4_health
     path = os.path.join(where, name)
     with open(path, "w", encoding="utf-8") as fh:
         json.dump({"format": "p4-health/1", "decision": "frozen", "benign_halvings": halvings,
-                   "calibration_sha256": sha(calibration or R.PLACEHOLDER)}, fh)
+                   "calibration_sha256": sha(calibration or R.PLACEHOLDER), "root": os.path.abspath(where),
+                   "index_digest": p4_health.health_index_digest(where)}, fh)
     return path
 
 
@@ -1405,7 +1407,7 @@ class ExecuteTest(unittest.TestCase):
     def test_an_attack_generator_without_stats_is_a_reason(self):
         run = self.one_run("no_stats", "campaign", 3106, "U_post", thresholds=POINT)
         res = R.execute_run(F.FakeHost(attack_opened_share=None, modelled_attackers=1), run)
-        self.assertTrue(any("attack generators left no stats" in r for r in res["reasons"]), res["reasons"])
+        self.assertTrue(any("attack sources left no stats" in r for r in res["reasons"]), res["reasons"])
         run = self.one_run("no_attack_arm")
         self.assertEqual(R.execute_run(F.FakeHost(attack_fails=True), run)["reasons"], [])
 

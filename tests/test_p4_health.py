@@ -154,6 +154,27 @@ class HealthPhaseTest(unittest.TestCase):
         block = R.plan_block("ladder", 9101, self.root, sources={"loris": 100}, family="loris", label="l100r1", families=LORIS, health=self.out)
         self.assertEqual((block["halvings"], P.browser_devices(block["halvings"])), (1, 20))
 
+    def test_the_factor_file_is_bound_to_its_root_and_health_index_D080(self):
+        # D-080 (T078-08): a factor file is refused for another root, or when the health index it read has changed.
+        self.health()
+        self.read()                                                     # writes self.out, frozen in self.root
+        with tempfile.TemporaryDirectory() as other,                 self.assertRaisesRegex(R.PlanError, r"was produced under the root .* not .*D-080"):
+            R.plan_block("ladder", 9101, other, sources={"loris": 100}, family="loris", label="l100r1", families=LORIS, health=self.out)
+        R.plan_block("ladder", 9101, self.root, sources={"loris": 100}, family="loris", label="l100r1", families=LORIS, health=self.out)
+        with open(os.path.join(self.root, "index.jsonl"), "a", encoding="utf-8") as fh:   # the health phase changed
+            fh.write(json.dumps({"phase": "health", "event": "started", "block": 9101, "attempt": 9}) + "\n")
+        with self.assertRaisesRegex(R.PlanError, "health index digest does not match"):
+            R.plan_block("ladder", 9101, self.root, sources={"loris": 100}, family="loris", label="l100r1", families=LORIS, health=self.out)
+
+    def test_an_off_rule_health_step_is_refused_before_it_runs(self):
+        # D-080 (T078-07): the first step runs at 0 halvings; a step at 1 is refused before it runs.
+        with self.assertRaisesRegex(R.PlanError, r"health: the rule's next step runs at 0 halvings, not 1"):
+            R.run_block(F.FakeHost(), R.plan_block("health", 9101, self.root, halvings=1, families=LORIS))
+        self.assertFalse(os.path.exists(os.path.join(self.root, "health")), "nothing was started")
+        self.health()                                                   # frozen at 0
+        with self.assertRaisesRegex(R.PlanError, r"health: the rule is frozen .*no further step runs"):
+            R.run_block(F.FakeHost(), R.plan_block("health", 9101, self.root, halvings=0, attempt=2, families=LORIS))
+
     def test_an_unsound_step_is_repeated_without_a_reason_asked(self):
         self.health(stack_ready=False)
         rc, rec, _said = self.read()
@@ -187,9 +208,23 @@ class LadderControlTest(unittest.TestCase):
         self.run_level(100, 1, attempt=2)                                  # the unhealthy C is its reason (check_attempt)
         rec = L.knees(self.root, R.PLACEHOLDER)
         self.assertEqual(rec["levels"], {"loris": 100})
-        self.assertEqual([(c["label"], c["attempt"], c["reasons"]) for c in rec["controls"]], [("l100r1", 2, []), ("l100r2", 1, [])])
+        # D-080 (T078-05): the superseded attempt 1, whose C was unhealthy, is listed too, with its reasons
+        listed = [(c["label"], c["attempt"], bool(c["reasons"]), c["judged"]) for c in rec["controls"]]
+        self.assertEqual(listed, [("l100r1", 2, False, True), ("l100r1", 1, True, False), ("l100r2", 1, False, True)])
         with self.assertRaisesRegex(R.PlanError, "allows no re-run"):
             self.run_level(100, 2, attempt=2)
+
+    def test_a_ladder_c_is_re_run_for_an_unhealthy_c_at_most_max_reruns_times(self):
+        # D-080 (T078-05): at most the record's gate.max_reruns (2) re-runs for an unhealthy C, then the repeat has no sound attempt.
+        import l7_backend
+        cap = l7_backend.load_record(R.PLACEHOLDER)[0]["gate"]["max_reruns"]
+        self.assertEqual(cap, 2)
+        for attempt in range(1, cap + 2):                   # attempts 1..cap+1, each C unhealthy, all allowed (cap re-runs)
+            self.run_level(100, 1, harm=lambda _t: True, attempt=attempt)
+        with self.assertRaisesRegex(R.PlanError, r"at most 2 re-runs for an unhealthy C \(D-080\); the repeat has no sound attempt"):
+            self.run_level(100, 1, harm=lambda _t: True, attempt=cap + 2)
+        with self.assertRaisesRegex(ValueError, "loris 100: repeat l100r1 .* no sound attempt"):
+            L.knees(self.root, R.PLACEHOLDER)
 
 
 if __name__ == "__main__":

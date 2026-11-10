@@ -571,7 +571,9 @@ def no_knee_verdict(knees):
     if all(x["status"] == "no knee" for x in fam.values()):
         m7 = "not applicable: no harmful attack (D-074, rule A)"
     elif any(x["status"] == "no knee" for x in fam.values()):
-        m7 = "the campaign's, over the families with a knee (D-074)"
+        # T078-09: a family with no knee makes eval/p4_runner.py check_knees refuse the whole campaign, so none runs.
+        noknee = " and ".join(FAMILY_NAMES[f] for f in fam if fam[f]["status"] == "no knee")
+        m7 = f"no campaign: {noknee} has no knee, which eval/p4_runner.py refuses (check_knees, D-074); a family with a knee is not run on its own"
     else:
         m7 = "the campaign's: every family has a knee"
     return {"M7": m7, "families": fam, "halvings": knees.get("halvings"), "calibration_sha256": knees.get("calibration_sha256")}

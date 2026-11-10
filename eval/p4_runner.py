@@ -350,9 +350,10 @@ def group_argv(members, out, python, cpus=PINS["attack"]):
     family = {e["kind_or_family"] for e in members}
     durs = {e["schedule"]["stop_s"] - e["schedule"]["start_s"] for e in members}
     spaces = {e["namespace"] for e in members}
-    if len(family) != 1 or len(durs) != 1 or len(spaces) != 1 or family - set(GROUPED_FAMILIES):
-        raise PlanError(f"a group is one namespace's sources of one family of {GROUPED_FAMILIES} with one duration, got "
-                        f"{sorted(family)} {sorted(durs)} {sorted(spaces)}")
+    starts = {e["schedule"]["start_s"] for e in members}
+    if len(family) != 1 or len(durs) != 1 or len(spaces) != 1 or len(starts) != 1 or family - set(GROUPED_FAMILIES):
+        raise PlanError(f"a group is one namespace's sources of one family of {GROUPED_FAMILIES} with one start and one duration, got "
+                        f"{sorted(family)} starts {sorted(starts)} durs {sorted(durs)} {sorted(spaces)}")
     group = {"sources": [{"entity_id": e["entity_id"], "source": e["address"], "port": e["port"], "seed": e["client_seed"],
                           "params": e["params"], "stats": stats_path(out, e)} for e in members]}
     return ["taskset", "-c", cpus, python, GEN, "--role", "attack", "--family", family.pop(), "--host", SERVER_IP,
@@ -437,9 +438,11 @@ def read_record(path):
     return rec, status
 
 
-def load_factor(health, calibration):
-    """The frozen factor of the halving rule from the health file (eval/p4_health.py --out), bound to the calibration record in use; a
-    file without a factor is refused, and the refusal says why (D-073 (3))."""
+def load_factor(health, calibration, root):
+    """The frozen factor of the halving rule from the health file (eval/p4_health.py --out), bound to the calibration record in use and to
+    the root and health index it read (D-080, T078-08); a file without a factor, or of another root, is refused, and the refusal says why
+    (D-073 (3))."""
+    import p4_health
     try:
         with open(health, encoding="utf-8") as fh:
             rec = json.load(fh)
@@ -449,6 +452,11 @@ def load_factor(health, calibration):
         raise PlanError(f"{health} is not a {HEALTH_FORMAT} file (eval/p4_health.py --out)")
     if rec.get("calibration_sha256") != sha256_file(calibration):
         raise PlanError(f"{health} was read on another calibration record than {calibration}")
+    if rec.get("root") != os.path.abspath(root):
+        raise PlanError(f"{health} was produced under the root {rec.get('root')}, not {os.path.abspath(root)} (D-080, T078-08): a ladder "
+                        "runs at its own root's factor")
+    if rec.get("index_digest") != p4_health.health_index_digest(root):
+        raise PlanError(f"{health}'s health index digest does not match {root}'s: the health phase changed since it was frozen (D-080, T078-08)")
     if rec.get("decision") != "frozen":
         raise PlanError(f"the benign mix has no frozen factor in {health} ({rec.get('decision')}): {rec.get('why')}")
     return rec["benign_halvings"]
@@ -479,7 +487,7 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=None, thr
     if health and phase not in ("ladder", "validation", "campaign"):
         raise PlanError(f"{phase}: --health is the ladder's, the validation's and the campaign's: the halving rule's frozen factor")
     if health:
-        factor = load_factor(health, calibration)
+        factor = load_factor(health, calibration, root)
         if halvings is not None and halvings != factor:
             raise PlanError(f"{phase}: --halvings {halvings}, and the halving rule's factor is {factor} ({health}, D-073 (3))")
         halvings = factor
@@ -1003,7 +1011,7 @@ def checks(host, plan, t0, launched):
     attack = attack_summary(plan)
     if attack:
         if attack["no_stats"]:
-            reasons.append(f"{attack['no_stats']} of {attack['generators']} attack generators left no stats")
+            reasons.append(f"{attack['no_stats']} of {attack['generators']} attack sources left no stats")
         if attack["local_errors"]:
             reasons.append(f"the attack could not open connections on this machine: {attack['local_errors']} local errors")
         if attack["opened"] < opened_floor(attack["planned"]):
@@ -1165,6 +1173,28 @@ def check_health(block, host):
     raise PlanError(f"{block['phase']}: --health must name the halving rule's frozen factor (eval/p4_health.py --out, D-073 (3))")
 
 
+def check_health_order(block):
+    """D-080 (T078-07): a health block runs only at the halvings the rule (ml/p4_traffic.next_step) allows next, over the steps already in
+    the index (eval/p4_health.health_result), so an off-rule step is refused before it runs rather than after, as check_ladder_order does for
+    the ladder. A re-run of an unsound step at the same halvings is a "run" of the rule and is allowed. A D-058 "stopped" state waits for a
+    dated decision the runner does not have, so it is left to the operator; "frozen" and "refused" refuse a further step."""
+    if block["phase"] != "health":
+        return
+    import p4_health
+    try:
+        res = p4_health.health_result(block["root"], block["calibration"])
+    except (ValueError, OSError, KeyError) as exc:
+        raise PlanError(f"health: {exc}") from None
+    if res["decision"] == "stopped":
+        return
+    if res["decision"] != "run":
+        raise PlanError(f"health: the rule is {res['decision']} ({res.get('why')}), and no further step runs "
+                        "(ml/p4_prereg.json next_step, D-080, T078-07)")
+    if res.get("next_halvings") != block["halvings"]:
+        raise PlanError(f"health: the rule's next step runs at {res['next_halvings']} halvings, not {block['halvings']} "
+                        "(ml/p4_prereg.json next_step, D-080, T078-07)")
+
+
 def check_ladder_order(block):
     """D-073 (1): a ladder block above the first ALWAYS_RUN levels runs only once every lower level has 2 sound repeats and none of them is a
     knee (eval/p4_ladder.next_allowed, over the run index under the block's calibration record), on any host."""
@@ -1223,8 +1253,9 @@ def check_settings(block):
 
 def check_attempt(block):
     """D-050 (review T-047 P-03): the attempt must be the next one the index shows, and a re-run needs a reason: attempt N-1 of
-    the block had an invalid or missing needed arm (a run whose runner died is invalid), or, in the campaign, an unhealthy
-    C. The campaign holds at most OUT.MAX_RERUNS re-runs. Smoke runs judge nothing and need no reason."""
+    the block had an invalid or missing needed arm (a run whose runner died is invalid), or, in the ladder or the campaign, an unhealthy
+    C. The campaign holds at most OUT.MAX_RERUNS re-runs; a ladder repeat is re-run for an unhealthy C at most the record's
+    gate.max_reruns times, then it has no sound attempt (D-080, T078-05). Smoke and health runs judge nothing here and need no reason."""
     phase, seed = block["phase"], block["seed"]
     rows = read_index(block["root"])
     mine = [x for x in rows if (x["phase"], x["block"], x["label"]) == (phase, seed, block["label"])]
@@ -1241,6 +1272,7 @@ def check_attempt(block):
     last = {x["arm"]: x for x in mine if x["attempt"] == next_attempt - 1}
     needed = OUT.needed_arms(block["families"]) if phase == "campaign" else block["order"]
     why = [arm for arm in needed if arm not in last or not last[arm]["valid"]]
+    cal = None
     if phase in ("campaign", "ladder") and not why:                 # D-073 (3): the ladder's C too
         import l7_backend
         cal = l7_backend.load_record(block["calibration"])[0]
@@ -1250,6 +1282,16 @@ def check_attempt(block):
     if not why:
         raise PlanError(f"{phase} block {seed}: attempt {next_attempt - 1} had every needed arm valid and a healthy C, and "
                         "D-050 allows no re-run of it")
+    if phase == "ladder" and why == ["an unhealthy C"]:             # D-080 (T078-05): cap the unhealthy-C re-runs of this repeat
+        cap = cal["gate"]["max_reruns"]
+        unhealthy = 0
+        for a in range(1, next_attempt):
+            crow = next((x for x in mine if x["attempt"] == a and x["arm"] == OUT.CONTROL and x["valid"]), None)
+            if crow and run_record(os.path.join(block["root"], crow["dir"]), cal, seed, a)["control_reasons"]:
+                unhealthy += 1
+        if unhealthy > cap:
+            raise PlanError(f"ladder {block['label']} on seed {seed}: {unhealthy} attempts had an unhealthy C, at most {cap} re-runs for an "
+                            "unhealthy C (D-080); the repeat has no sound attempt (D-067)")
     if phase == "campaign":
         reruns = {(x["block"], x["attempt"]) for x in rows if x["phase"] == "campaign" and x["attempt"] > 1}
         if len(reruns) >= OUT.MAX_RERUNS:
@@ -1262,6 +1304,7 @@ def run_block(host, block):
     check_attempt(block)
     check_knees(block, host)
     check_health(block, host)
+    check_health_order(block)
     check_ladder_order(block)
     check_selection(block)
     check_settings(block)

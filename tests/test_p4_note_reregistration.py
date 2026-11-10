@@ -116,6 +116,21 @@ class ReRegistrationTest(unittest.TestCase):
             self.assertIn(marker, after[at:at + 700], old)
         self.assertIn("**Status (2026-11-07):", text)
 
+    def test_d080_is_dated_before_the_code_it_judges(self):
+        # T-080: D-080's P4 ladder hygiene (T078-05..08 and section 2), registered 2026-11-08 before the code it judges.
+        text = note()
+        block = text[text.index("**Re-registrations, dated, all before any P4 data**"):text.index("Two further forms")]
+        for row in ("| D-080 (1) | 2026-11-08T09:50Z |", "| D-080 (2) | 2026-11-08T09:50Z |",
+                    "| D-080 (3) | 2026-11-08T09:50Z |", "| D-080 (4) | 2026-11-08T09:50Z |"):
+            self.assertIn(row, block)
+        self.assertLess(block.index("| D-075 |"), block.index("| D-080 (1) |"))
+        for needle in ("at most the frozen record's `gate.max_reruns`", "lists every superseded attempt",
+                       "must name the P4-S s2 run directory", "refuses a reading dated after the ladder's first run",
+                       "checked against the halving rule (ml/p4_traffic.next_step) before it runs",
+                       "records its root and a digest of the health index lines",
+                       "start within milliseconds of each other", "not more spread out"):
+            self.assertIn(needle, block)
+
     def test_d046_is_dated_everywhere_before_the_code_it_judges(self):
         text = note()
         block = text[text.index("**Re-registrations, dated, all before any P4 data**"):text.index("Two further forms")]

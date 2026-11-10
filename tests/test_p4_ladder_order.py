@@ -57,18 +57,71 @@ class ResultTest(unittest.TestCase):
 
 
 class UnreachableTest(unittest.TestCase):
+    def spec(self, **kw):
+        return {"levels": [500], "why": "2026-11-09: P4-S s2's free memory", "s2": "smoke/s2/U_loris",
+                "s2_started": "2026-11-08T10:00:00Z", **kw}
+
     def test_only_the_top_above_the_always_run_levels_and_not_run_with_a_dated_why(self):
         harms = {"loris": ladder((n, CLEAN) for n in LEVELS[:5])}
-        L.check_unreachable({"loris": {"levels": [500], "why": "2026-11-09: P4-S s2's free memory"}}, LORIS, harms, {"loris": {}})
-        for spec, why in (({"levels": [400], "why": "2026-11-09"}, "only loris's top, 500"),
-                          ({"levels": [500], "why": "s2 failed"}, "--why naming the dated reading")):
+        L.check_unreachable({"loris": self.spec()}, LORIS, harms, {"loris": {}}, ladder_start="2026-11-09T00:00:00Z")
+        for kw, why in (({"levels": [400]}, "only loris's top, 500"), ({"why": "s2 failed"}, "--why naming the dated reading")):
             with self.assertRaisesRegex(ValueError, why):
-                L.check_unreachable({"loris": spec}, LORIS, harms, {"loris": {}})
+                L.check_unreachable({"loris": self.spec(**kw)}, LORIS, harms, {"loris": {}})
         ran = {"loris": ladder((n, CLEAN) for n in LEVELS)}
         with self.assertRaisesRegex(ValueError, "loris 500 has run"):
-            L.check_unreachable({"loris": {"levels": [500], "why": "2026-11-09"}}, LORIS, ran, {"loris": {}})
+            L.check_unreachable({"loris": self.spec()}, LORIS, ran, {"loris": {}})
         with self.assertRaisesRegex(ValueError, "only post's top, 40"):
-            L.check_unreachable({"post": {"levels": [20], "why": "2026-11-09"}}, OUT.FAMILIES, {"post": {}}, {"post": {}})
+            L.check_unreachable({"post": self.spec(levels=[20])}, OUT.FAMILIES, {"post": {}}, {"post": {}})
+
+    def test_the_s2_run_and_its_date_are_required_D080(self):
+        # D-080 (T078-06): --unreachable names the s2 run, and its reading must precede the ladder's first run.
+        harms = {"loris": ladder((n, CLEAN) for n in LEVELS[:5])}
+        with self.assertRaisesRegex(ValueError, "needs --s2 naming the P4-S s2 run directory"):
+            L.check_unreachable({"loris": {"levels": [500], "why": "2026-11-09: x"}}, LORIS, harms, {"loris": {}})
+        with self.assertRaisesRegex(ValueError, "has no run.json with a started_utc"):
+            L.check_unreachable({"loris": self.spec(s2_started=None)}, LORIS, harms, {"loris": {}}, ladder_start="2026-11-09T00:00:00Z")
+        with self.assertRaisesRegex(ValueError, r"dated 2026-11-10T00:00:00Z, after the ladder's first run 2026-11-09T00:00:00Z"):
+            L.check_unreachable({"loris": self.spec(s2_started="2026-11-10T00:00:00Z")}, LORIS, harms, {"loris": {}},
+                                ladder_start="2026-11-09T00:00:00Z")
+
+
+class S2DatingTest(unittest.TestCase):
+    """D-080 (T078-06): knees reads the s2 run's run.json and the ladder's first-run time, and refuses an s2 reading dated after it."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = self.tmp.name
+        os.makedirs(os.path.join(self.root, "smoke", "s2", "U_loris"))
+        self.rows = [{"phase": "ladder", "started_utc": "2026-11-09T00:00:00Z"}]
+
+    def s2(self, started):
+        with open(os.path.join(self.root, "smoke", "s2", "U_loris", "run.json"), "w", encoding="utf-8") as fh:
+            json.dump({"started_utc": started}, fh)
+
+    def knees(self, started):
+        self.s2(started)
+        harms = {"loris": ladder((n, CLEAN) for n in LEVELS[:5])}       # no knee up to 400; 500 proposed not reachable
+        with mock.patch.object(L, "_ladder", return_value=("frozen", "x", 0, LORIS, harms, {"loris": {}}, [])), \
+                mock.patch.object(R, "read_index", return_value=self.rows):
+            return L.knees(self.root, R.PLACEHOLDER,
+                           {"loris": {"levels": [500], "why": "2026-11-09: s2 memory", "s2": "smoke/s2/U_loris"}})
+
+    def test_a_reading_before_the_ladder_is_accepted_and_recorded(self):
+        rec = self.knees("2026-11-08T10:00:00Z")
+        res = rec["results"]["loris"]
+        self.assertEqual((res["status"], res["top"], res["not_reachable"]), ("no knee", 400, [500]))
+        self.assertEqual((res["s2_run"], res["s2_started"]), ("smoke/s2/U_loris", "2026-11-08T10:00:00Z"))
+
+    def test_a_reading_after_the_ladders_first_run_is_refused(self):
+        with self.assertRaisesRegex(ValueError, "after the ladder's first run"):
+            self.knees("2026-11-09T12:00:00Z")
+
+    def test_the_command_line_requires_s2(self):
+        with contextlib.redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit):
+            L.main([self.root, "--calibration", R.PLACEHOLDER, "--out", os.path.join(self.root, "k.json"),
+                    "--unreachable", "500", "--why", "2026-11-09: s2"])
+        self.assertIn("--unreachable needs --s2", err.getvalue())
 
 
 class OrderTest(unittest.TestCase):
@@ -181,6 +234,20 @@ class ReadingTest(unittest.TestCase):
             self.assertEqual(OUT.main(["--knees", path]), 2)
         with self.assertRaisesRegex(R.PlanError, "the ladder is incomplete: level 300 runs next"):
             R.check_knees(R.plan_block("validation", 4001, self.root, sources={"loris": 100}, families=LORIS, knees=path), TR.HostThatMeasures())
+
+    def test_a_mixed_ladder_reads_no_campaign_as_the_runner_refuses_it_D080(self):
+        # T078-09: loris has a knee, post has none; check_knees refuses the campaign, so M7 does not promise one.
+        _path, rec = self.record({"loris": {"status": "knee", "level": 250, "top": None, "next_level": None, "not_reachable": []},
+                                  "post": {"status": "no knee", "level": None, "top": 40, "next_level": None, "not_reachable": []}})
+        verdict = OUT.no_knee_verdict(rec)
+        self.assertEqual(verdict["M7"], "no campaign: slow POST has no knee, which eval/p4_runner.py refuses (check_knees, D-074); "
+                                        "a family with a knee is not run on its own")
+        path, _rec = self.record({"loris": {"status": "knee", "level": 250, "top": None, "next_level": None, "not_reachable": []},
+                                  "post": {"status": "no knee", "level": None, "top": 40, "next_level": None, "not_reachable": []}},
+                                 name="mixed.json")
+        with self.assertRaisesRegex(R.PlanError, "post has no knee"):
+            R.check_knees(R.plan_block("campaign", 3101, self.root, sources={"loris": 250, "post": 40}, thresholds=(5, 256, 2),
+                                       families=OUT.FAMILIES, knees=path), TR.HostThatMeasures())
 
     def test_a_knee_leaves_the_verdict_to_the_campaign_and_runs_or_knees_must_be_given(self):
         _path, rec = self.record({"loris": {"status": "knee", "level": 250, "top": None, "next_level": None, "not_reachable": []}})
