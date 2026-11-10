@@ -619,8 +619,11 @@ class NoKneeCampaignTest(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory()
         rec = calibration_fixtures.frozen()
         bound = {"status": "frozen", "record_sha256": rec["sha256"]}
-        cls.frozen = F.frozen_inputs(os.path.join(cls.tmp.name, "frozen"), knees={**bound, "C2": 4.0, "C3a": None, "C3b": None})
-        cls.none = F.frozen_inputs(os.path.join(cls.tmp.name, "none"), knees={**bound, "C2": None, "C3a": None, "C3b": None})
+        lines = {c: f"{c}: no level harmed in 2 of 2 up to {x} on this testbed" for c, x in (("C2", 16), ("C3a", 2), ("C3b", 300))}
+        cls.frozen = F.frozen_inputs(os.path.join(cls.tmp.name, "frozen"), knees={**bound, "C2": 4.0, "C3a": None, "C3b": None, "results": lines,
+                                     "statuses": {"C2": "knee", "C3a": "no_knee", "C3b": "no_knee"}, "no_knee": ["C3a", "C3b"]})
+        cls.none = F.frozen_inputs(os.path.join(cls.tmp.name, "none"), knees={**bound, "C2": None, "C3a": None, "C3b": None,
+                                   "statuses": {"C2": "no_knee", "C3a": "no_knee", "C3b": "no_knee"}})
         cls.cal = l7_backend.load_record(cls.frozen["calibration"])[0]
         cls.root = os.path.join(cls.tmp.name, "runs")
         cls.block = R.plan_block("campaign", SEEDS[0], cls.root, frozen=cls.frozen, cut=True, benign_specs=F.thin_benign(LEAN), max_sources=2)
@@ -639,11 +642,34 @@ class NoKneeCampaignTest(unittest.TestCase):
     def test_c3b_alone_when_c2_has_no_knee(self):
         rec = calibration_fixtures.frozen()
         frozen = F.frozen_inputs(os.path.join(self.tmp.name, "c3b"), knees={"status": "frozen", "record_sha256": rec["sha256"], "C2": None,
-                                                                            "C3a": None, "C3b": 50, "no_knee": ["C2", "C3a"]})
+                                                                            "C3a": None, "C3b": 50, "no_knee": ["C2", "C3a"],
+                                                                            "statuses": {"C2": "no_knee", "C3a": "no_knee", "C3b": "knee"}})
         block = R.plan_block("campaign", SEEDS[1], os.path.join(self.tmp.name, "c3b_runs"), frozen=frozen, cut=True,
                              benign_specs=F.thin_benign(LEAN), max_sources=2)
         self.assertEqual(sorted(block["order"]), ["C", "Cp", "M_gru_C3b", "M_hgb_C3b", "M_rstar_C3b", "U_C3b"])
         self.assertEqual((block["no_knee"], block["levels"]), (["C2"], {"C3b": 50}))
+
+    def test_a_class_at_any_other_status_is_refused_by_name(self):
+        """D-079 (T078-01): only knee and no_knee are taken; an unfinished ladder is not a no-knee result."""
+        rec = calibration_fixtures.frozen()
+        bound = {"status": "frozen", "record_sha256": rec["sha256"]}
+        for knees, says in (({**bound, "C2": 4.0, "C3a": None, "C3b": 50, "statuses": {"C2": "knee", "C3a": "not_tested", "C3b": "knee"}},
+                             r"the knees give C3a \(not_tested\): a campaign takes a class only at status knee or no_knee \(D-079\)"),
+                            ({**bound, "C2": 4.0, "C3a": 1.0, "C3b": None, "statuses": {"C2": "knee", "C3a": "knee", "C3b": "incomplete"}},
+                             r"C3b \(incomplete\)"),
+                            ({**bound, "C2": 4.0, "C3a": None, "C3b": 50, "no_knee": ["C3a"]}, r"C3a \(unknown\)"),
+                            ({**bound, "C2": None, "C3a": 1.0, "C3b": 50, "statuses": {"C2": "knee", "C3a": "knee", "C3b": "knee"}},
+                             r"C2 \(a knee without a level\)")):
+            frozen = F.frozen_inputs(tempfile.mkdtemp(dir=self.tmp.name), knees=knees)
+            with self.subTest(says=says), self.assertRaisesRegex(R.PlanError, says):
+                R.plan_block("campaign", SEEDS[1], os.path.join(self.tmp.name, "refused"), frozen=frozen, benign_specs=F.thin_benign(LEAN),
+                             max_sources=2)
+
+    def test_the_block_carries_the_left_out_classes_lines(self):
+        meta = REC.read_json(os.path.join(self.block["dir"], "block.json"))
+        self.assertEqual(meta["left_out"], {"C3b": "C3b: no level harmed in 2 of 2 up to 300 on this testbed"})
+        self.assertEqual(meta["settings"]["left_out"], meta["left_out"])
+        self.assertIn("  C3b: no level harmed in 2 of 2 up to 300 on this testbed", R.describe(self.block))
 
     def test_no_class_with_a_knee_is_no_campaign(self):
         with self.assertRaisesRegex(R.PlanError, "no class of this campaign has a knee.*there is no campaign"):
@@ -655,7 +681,7 @@ class NoKneeCampaignTest(unittest.TestCase):
         self.assertEqual(sorted(res), ["C2", "C3b"])
         self.assertIn("admission", res["C2"])
         self.assertEqual(res["C3b"]["verdict"], None)
-        self.assertIn("not in the campaign: no knee (D-074)", res["C3b"]["status"])
+        self.assertEqual(res["C3b"]["status"], "not in the campaign (D-074, D-079): C3b: no level harmed in 2 of 2 up to 300 on this testbed")
 
     def test_a_block_that_does_not_record_its_classes_is_refused(self):
         root = os.path.join(self.tmp.name, "unsaid")

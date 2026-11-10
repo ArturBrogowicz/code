@@ -416,9 +416,10 @@ def analyse(root, cal, frozen, *, arms_factory=None, cut=False, dry_run=False, p
         row["verdict"] = row["judge"]["verdict"]
         row["view_level_contrasts"] = view_level_contrasts(row["judge"], row["age_only_on_U"],
                                                            pre["detection_entities"]["per_class"][cls]["primary"])
-    for cls in left_out:
-        out[cls] = {"class": cls, "verdict": None, "status": "not in the campaign: no knee (D-074); its line, 'no harm reached up to X on "
-                                                             "this testbed', is in the ladder's knees file"}
+    lines = (ran or {}).get("left_out") or {}
+    for cls in left_out:                      # D-079: the knees file's own line, as the campaign's blocks recorded it
+        out[cls] = {"class": cls, "verdict": None,
+                    "status": f"not in the campaign (D-074, D-079): {lines.get(cls) or 'its line is in the ladder knees file'}"}
     return out
 
 

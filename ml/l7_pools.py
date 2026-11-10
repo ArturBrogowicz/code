@@ -544,18 +544,27 @@ def _positive(v):
     return not isinstance(v, bool) and isinstance(v, (int, float)) and v > 0
 
 
+def knee_status(knees, cls):
+    """D-079: a class's status in P1's knees file (knee, no_knee, incomplete, not_tested, no_sound_level). A file without statuses, one written
+    before D-079 or a fixture, gives 'knee' to a positive value and 'unknown' to anything else, which nothing takes."""
+    statuses = knees.get("statuses")
+    if statuses is not None:
+        return statuses.get(cls, "not_tested")
+    return "knee" if _positive(knees.get(cls)) else "unknown"
+
+
 def family_knee(knees, cls):
-    """D-076 (ml/p3_sizing_prereg.json knees): a core family's knee from P1's knees file, or, for a family named in no_knee, its top tested
-    level, marked: (level, no_knee). Neither is a refusal naming what is there."""
-    value = knees.get(cls)
-    if _positive(value):
+    """D-076 and D-079 (ml/p3_sizing_prereg.json knees and its dated note): a core family's knee at status knee, or its top tested level,
+    marked, at status no_knee: (level, no_knee). Every other status, or a value missing, is a refusal naming the family and its status."""
+    status, value = knee_status(knees, cls), knees.get(cls)
+    if status == "knee" and _positive(value):
         return value, False
     top = (knees.get("top_tested") or {}).get(cls)
-    if cls in (knees.get("no_knee") or []) and _positive(top):
+    if status == "no_knee" and _positive(top):
         return top, True
     what = f"have {cls} = {value!r}" if cls in knees else f"have no {cls}"
-    raise PlanError(f"the knees {what} and no top tested level for it, and a plan sizes its {cls} phase from it (ml/p3_sizing_prereg.json "
-                    f"knees); they name {sorted(knees)}")
+    raise PlanError(f"the knees {what} at status {status!r}, top tested {top!r}: a plan takes a family's knee only at status knee and its top "
+                    f"tested level only at no_knee (D-079, ml/p3_sizing_prereg.json knees); they name {sorted(knees)}")
 
 
 def phase_sizing(knees, phases, specs, scale, rates):
