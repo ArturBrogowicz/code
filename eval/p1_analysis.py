@@ -471,11 +471,18 @@ def ladder_knees(root, cal, harm=None):
     return {cls: CAL.knee(sorted(levels.items()), 1.0, 2) for cls, levels in sorted(rows.items())}
 
 
-def ladder_status(root, harm, knees):
-    """D-074 (ml/p1_prereg_5.json ladder.statuses and no_knee), per class: each registered level's status, 'run' (with its repeats that
-    had no sound attempt), 'not reachable' (with the plan's reason, from the runner's ladder_unreachable.jsonl) or 'not run'; the top tested
-    level, the highest whose repeats all had a sound attempt; and the class's line: its knee, or 'no harm reached up to X on this testbed'.
-    'Not reachable' never reads as no harm."""
+def ladder_status(root, harm):
+    """D-074 and D-079 (ml/p1_prereg_5.json ladder.statuses, no_knee and its dated note), per class: each registered level's status, 'run'
+    (each repeat's harm, its repeats that had no sound attempt, passed from its raw harms), 'not reachable' (the plan's reason, from the
+    runner's ladder_unreachable.jsonl) or 'not run'; for a conditional level, whether its condition holds (ladder.conditional); and the
+    class's status, its top tested level X and its line. Of the levels the conditions call for:
+      * knee: the lowest that passed in 2 of 2, outside a 'crosses' mark, with none below it 'not run';
+      * no_knee: none passed, every one ran with every repeat sound or is not reachable, and X, the highest that ran sound outside a
+        'crosses' mark, exists: 'no level harmed in 2 of 2 up to X on this testbed';
+      * incomplete: a knee read over one 'not run', one 'not run' or with a repeat that had no sound attempt where no knee is read, or a
+        conditional level run outside its condition (named, from a hand-made index: the runner refuses one);
+      * not_tested: no level ran; no_sound_level: levels ran, none sound outside a 'crosses' mark.
+    'Not reachable' never reads as no harm, and only knee and no_knee are taken by a campaign or by P3."""
     rows, unsound, detail = harm
     refused = {}
     for x in RUN.read_unreachable(root):
@@ -484,29 +491,62 @@ def ladder_status(root, harm, knees):
     marks = PREMISE.marks()
     out = {}
     for cls in sorted(PT.PRIMARY):
-        knee = knees.get(cls) or {}
-        levels, tested = {}, []
+        levels = {}
         for lv in PT.ladder_levels(cls):
             key = float(lv)
             holes = sorted(u["repeat"] for u in unsound if u["class"] == cls and float(u["level"]) == key)
             ran = rows.get(cls, {}).get(key)
             if ran is not None:
                 sound = len(ran) >= repeats and not holes
-                st = {"status": "run", "repeats": len(ran), "no_sound_attempt": holes, "passed": sound and min(ran) >= 1.0,
-                      "harm": detail[cls][key]}
-                if sound and marks.get((cls, key)) != "crosses":      # T078-04: a crossing level is never X
-                    tested.append(lv)
+                st = {"status": "run", "repeats": len(ran), "no_sound_attempt": holes, "sound": sound,
+                      "passed": sound and min(ran) >= 1.0, "harm": detail[cls][key]}
             elif (cls, key) in refused:
                 st = {"status": "not reachable", "reason": refused[(cls, key)]}
             else:
                 st = {"status": "not run"}
-            if knee.get("level") is not None and key > knee["level"]:
-                st["above_knee"] = True
             st["premise"] = marks.get((cls, key))
-            levels[f"{lv:g}"] = st
-        top = max(tested) if tested else None
-        out[cls] = {"levels": levels, "top_tested": top, "result": _ladder_line(cls, knee.get("level"), top, levels, repeats)}
+            levels[lv] = st
+        for lv, st in levels.items():
+            cond = PT.CONDITIONAL.get((cls, float(lv)))
+            if cond is not None:
+                st["condition"] = PT.prereg_5()["ladder"]["conditional"][cond["record"]]
+                st["condition_holds"] = PT.condition_holds(cond, levels[cond["level"]])
+        out[cls] = _class_status(cls, levels, repeats)
+        out[cls]["levels"] = {f"{lv:g}": st for lv, st in levels.items()}
     return out
+
+
+def _class_status(cls, levels, repeats):
+    """A class's status, knee, top tested level, reasons and line over its level states (ladder_status)."""
+    called = [lv for lv, st in levels.items() if st.get("condition_holds", True)]
+    outside = [lv for lv, st in levels.items() if not st.get("condition_holds", True) and st["status"] == "run"]
+    for lv in outside:
+        levels[lv]["outside_condition"] = True
+    ran = [lv for lv, st in levels.items() if st["status"] == "run"]
+    clean = [lv for lv in called if levels[lv]["status"] == "run" and levels[lv]["sound"] and levels[lv]["premise"] != "crosses"]
+    passing = [lv for lv in clean if levels[lv]["passed"]]
+    unrun = [lv for lv in called if levels[lv]["status"] == "not run"]
+    knee = min(passing) if passing else None
+    top = max(clean) if clean else None
+    why = [f"{lv:g} ran outside its condition ({levels[lv]['condition']})" for lv in outside]
+    if knee is not None:
+        why += [f"{lv:g} not run below the knee at {knee:g}" for lv in unrun if lv < knee]
+        status = "incomplete" if why else "knee"
+        for lv, st in levels.items():
+            if lv > knee:
+                st["above_knee"] = True
+    elif not ran:
+        status = "not_tested"
+    elif why:
+        status = "incomplete"
+    elif top is None:
+        status = "no_sound_level"
+    else:
+        why += [f"{lv:g} not run" for lv in unrun]
+        why += [f"{lv:g} r{r} has no sound attempt" for lv in called if levels[lv]["status"] == "run" for r in levels[lv]["no_sound_attempt"]]
+        status = "incomplete" if why else "no_knee"
+    return {"status": status, "knee": knee if status == "knee" else None, "top_tested": top, "why": why,
+            "result": _ladder_line(cls, status, knee, top, why, levels, repeats)}
 
 
 def harm_text(level_status):
@@ -522,46 +562,40 @@ def harm_text(level_status):
     return "; ".join(parts)
 
 
-def _ladder_line(cls, knee, top, levels, repeats):
-    """A class's line in the ladder's report (D-074)."""
-    if knee is not None:
-        return f"{cls}: knee at {knee:g}"
-    gone = [f"{lv} ({st['reason']})" for lv, st in levels.items() if st["status"] == "not reachable"]
-    holes = [f"{lv} r{r}" for lv, st in levels.items() if st["status"] == "run" for r in st["no_sound_attempt"]]
-    if not any(st["status"] == "run" for st in levels.values()):
-        line = f"{cls}: not tested"
-    elif top is None:
-        line = f"{cls}: no level ran with every repeat sound"
-    else:
-        line = f"{cls}: no level harmed in {repeats} of {repeats} up to {top:g} on this testbed"
-    if holes:
+def _ladder_line(cls, status, knee, top, why, levels, repeats):
+    """A class's line in the ladder's report (D-074, D-079): the knees file's own words, which a campaign copies for a class left out."""
+    gone = [f"{lv:g} ({st['reason']})" for lv, st in levels.items() if st["status"] == "not reachable"]
+    holes = [f"{lv:g} r{r}" for lv, st in levels.items() if st["status"] == "run" for r in st["no_sound_attempt"]]
+    crossing = [f"{lv:g}" for lv, st in levels.items() if st.get("premise") == "crosses"]
+    line = {"knee": f"{cls}: knee at {knee if knee is None else format(knee, 'g')}",
+            "no_knee": f"{cls}: no level harmed in {repeats} of {repeats} up to {top if top is None else format(top, 'g')} on this testbed",
+            "incomplete": f"{cls}: incomplete: {'; '.join(why)}",
+            "not_tested": f"{cls}: not tested",
+            "no_sound_level": f"{cls}: no level ran with every repeat sound"}[status]
+    if holes and status != "incomplete":
         line += f"; no sound attempt, counted as no harm: {', '.join(holes)}"
     if gone:
         line += f"; not reachable: {'; '.join(gone)}; the ladder was cut short below its registered top"
-    crossing = [lv for lv, st in levels.items() if st.get("premise") == "crosses"]
     if crossing:
         line += f"; marked 'crosses' (ml/p1_premise.json), never a knee nor X: {', '.join(crossing)}"
     return line
 
 
 def knees_file(root, cal):
-    """What --ladder writes and --knees takes (T050-13): each class's level at the top of the file, null and named under no_knee for a class
-    without one, bound to the record and the factor. A campaign that needs a class without a knee refuses. Under no_sound_attempt, every
-    (class, level, repeat) that had no sound attempt and so counted as no harm (T063-01). Under levels, top_tested and results, D-074's
-    statuses and lines (ladder_status); P3 sizes a family without a knee at its top tested level (ml/p3_sizing_prereg.json)."""
+    """What --ladder writes and --knees takes (T050-13): each class's knee at the top of the file, null for a class without one, bound to the
+    record and the factor. D-079: statuses gives each class's status (ladder_status), and no_knee lists only the no_knee classes; a campaign
+    and P3 take a class only at knee or no_knee. Under no_sound_attempt, every (class, level, repeat) that had no sound attempt and so counted
+    as no harm (T063-01); under levels, top_tested, incomplete and results, the statuses and lines; P3 sizes a no_knee family at its top
+    tested level (ml/p3_sizing_prereg.json). knees keeps bench/calibration.knee's reading, monotone among it."""
     harm = ladder_harm(root, cal)
     knees = ladder_knees(root, cal, harm)
-    status = ladder_status(root, harm, knees)
-    levels, none = {}, []
-    for cls in sorted(PT.PRIMARY):
-        level = (knees.get(cls) or {}).get("level")
-        levels[cls] = None if level is None else (int(level) if cls == "C3b" else float(level))
-        if level is None:
-            none.append(cls)
+    status = ladder_status(root, harm)
+    levels = {c: None if s["knee"] is None else (int(s["knee"]) if c == "C3b" else float(s["knee"])) for c, s in status.items()}
     return {"format": "p1-knees/1", "status": cal.get("status"), "record_sha256": cal.get("sha256"), "record_status": cal.get("status"),
-            "benign_halvings": ladder_factor(root), **levels, "no_knee": none, "no_sound_attempt": harm[1],
-            "top_tested": {c: s["top_tested"] for c, s in status.items()}, "levels": {c: s["levels"] for c, s in status.items()},
-            "results": {c: s["result"] for c, s in status.items()}, "knees": knees}
+            "benign_halvings": ladder_factor(root), **levels, "statuses": {c: s["status"] for c, s in status.items()},
+            "no_knee": sorted(c for c, s in status.items() if s["status"] == "no_knee"), "no_sound_attempt": harm[1],
+            "top_tested": {c: s["top_tested"] for c, s in status.items()}, "incomplete": {c: s["why"] for c, s in status.items() if s["why"]},
+            "levels": {c: s["levels"] for c, s in status.items()}, "results": {c: s["result"] for c, s in status.items()}, "knees": knees}
 
 
 def ladder_factor(root):

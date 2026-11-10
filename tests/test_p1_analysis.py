@@ -478,16 +478,46 @@ class LadderAttemptsTest(unittest.TestCase):
         lv = got["levels"]["C3a"]
         self.assertEqual([lv[k]["status"] for k in ("2", "4", "6", "8")], ["run", "not reachable", "not run", "not run"])
         self.assertEqual((lv["2"]["passed"], lv["2"]["no_sound_attempt"], lv["4"]["reason"]), (False, [], why))
+        self.assertEqual((lv["6"]["condition_holds"], lv["6"]["condition"]), (False, "run only when level 8 is not reachable"))
+        self.assertEqual(got["statuses"], {"C2": "knee", "C3a": "incomplete", "C3b": "not_tested"})
         self.assertEqual(got["results"], {"C2": "C2: knee at 1",
-                                          "C3a": f"C3a: no level harmed in 2 of 2 up to 2 on this testbed; not reachable: 4 ({why}); the ladder "
-                                                 "was cut short below its registered top",
+                                          "C3a": f"C3a: incomplete: 8 not run; not reachable: 4 ({why}); the ladder was cut short below its "
+                                                 "registered top",
                                           "C3b": "C3b: not tested"})
         self.assertTrue(got["levels"]["C2"]["16"]["above_knee"])
-        self.assertEqual((got["C3a"], got["no_knee"]), (None, ["C3a", "C3b"]))
+        self.assertEqual((got["C3a"], got["no_knee"], got["incomplete"]), (None, [], {"C3a": ["8 not run"]}))
+        R.record_unreachable(self.root, "C3a", 8.0, 1, 9007, "C3a at level 8.0 needs 667 sources: not reachable")
+        got = A.knees_file(self.root, self.cal)
+        self.assertEqual((got["statuses"]["C3a"], got["incomplete"]), ("incomplete", {"C3a": ["6 not run"]}), "6 is called for once 8 is not")
+        R.record_unreachable(self.root, "C3a", 6.0, 1, 9005, "C3a at level 6.0 needs 500 sources: not reachable")
+        got = A.knees_file(self.root, self.cal)
+        self.assertEqual((got["statuses"]["C3a"], got["no_knee"], got["top_tested"]["C3a"]), ("no_knee", ["C3a"], 2.0))
         said = io.StringIO()
         with contextlib.redirect_stdout(said):
             A.main([self.root, "--calibration", self.frozen["calibration"], "--ladder", "--out", os.path.join(self.tmp, "knees.json")])
-        self.assertIn("C3a: no level harmed in 2 of 2 up to 2 on this testbed", said.getvalue())
+        self.assertIn("C3a: no level harmed in 2 of 2 up to 2 on this testbed; not reachable: 4 (", said.getvalue())
+
+    def test_a_knee_over_an_unrun_lower_level_and_a_level_outside_its_condition_are_incomplete(self):
+        """D-079 (T078-01, T078-02): neither is a knee nor a no-knee result. The index here is hand-made: the runner refuses the second."""
+        for rep in (1, 2):
+            self.pair("C2", 2.0, rep)                                   # 1 never ran
+            with mock.patch.object(R, "check_conditional", lambda _block: None, create=True):
+                self.pair("C3b", 150, rep)                                # while 200 is not recorded not reachable
+        got = A.knees_file(self.root, self.cal)
+        self.assertEqual(got["statuses"], {"C2": "incomplete", "C3a": "not_tested", "C3b": "incomplete"})
+        self.assertEqual((got["C2"], got["C3b"]), (None, None))
+        self.assertEqual(got["incomplete"]["C2"], ["1 not run below the knee at 2"])
+        self.assertEqual(got["incomplete"]["C3b"], ["150 ran outside its condition (run only when 200 bots are not reachable)"])
+        self.assertTrue(got["levels"]["C3b"]["150"]["outside_condition"])
+        self.assertEqual(got["no_knee"], [])
+
+    def test_c2_16_is_called_for_once_8_ran_sound_and_failed(self):
+        for lv in (1.0, 2.0, 4.0, 8.0):
+            for rep in (1, 2):
+                self.pair("C2", lv, rep, share=0.0)
+        got = A.knees_file(self.root, self.cal)
+        self.assertEqual((got["statuses"]["C2"], got["incomplete"]["C2"]), ("incomplete", ["16 not run"]))
+        self.assertTrue(got["levels"]["C2"]["16"]["condition_holds"])
 
     def test_every_repeat_s_harm_is_in_the_file_and_printed(self):
         """T078-03: the registration asks for both repeats' harm beside every level's status (ml/p1_prereg_5.json no_knee.result)."""
@@ -566,8 +596,10 @@ class LadderAttemptsTest(unittest.TestCase):
         for cls, level, share in (("C2", 1.0, 0.30), ("C3a", 2.0, 0.0), ("C3b", 50, 0.30)):
             self.pair(cls, level, 1, share=share)
             self.pair(cls, level, 2, seed=9002, share=share)
+        for lv, seed in ((4.0, 9003), (6.0, 9005), (8.0, 9007)):          # D-079: a no_knee class has run out of levels
+            R.record_unreachable(self.root, "C3a", lv, 1, seed, f"C3a at level {lv:g}: not reachable")
         got = A.knees_file(self.root, self.cal)
-        self.assertEqual((got["C3a"], got["no_knee"]), (None, ["C3a"]))
+        self.assertEqual((got["C3a"], got["no_knee"], got["statuses"]["C3a"]), (None, ["C3a"], "no_knee"))
         path = os.path.join(self.tmp, "knees.json")
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(got, fh)

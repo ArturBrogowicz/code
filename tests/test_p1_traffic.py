@@ -209,6 +209,19 @@ class LadderExtensionTest(unittest.TestCase):
         with self.assertRaisesRegex(P.PlanError, "not one of its pre-registered levels"):
             P.ladder_seed("C2", 3, 1)
 
+    def test_the_conditional_levels_are_the_record_s(self):
+        """D-079: the runner and the knees file read ml/p1_prereg_5.json ladder.conditional from one table."""
+        self.assertEqual(sorted(c["record"] for c in P.CONDITIONAL.values()), sorted(P.prereg_5()["ladder"]["conditional"]))
+        for (cls, level), cond in P.CONDITIONAL.items():
+            self.assertIn(level, [float(x) for x in P.ladder_levels(cls)])
+            self.assertIn(cond["level"], P.ladder_levels(cls))
+        self.assertTrue(P.condition_holds(P.CONDITIONAL[("C3a", 6.0)], {"status": "not reachable"}))
+        self.assertFalse(P.condition_holds(P.CONDITIONAL[("C3a", 6.0)], {"status": "not run"}))
+        c2 = P.CONDITIONAL[("C2", 16.0)]
+        self.assertTrue(P.condition_holds(c2, {"status": "run", "sound": True, "passed": False}))
+        for other in ({"status": "run", "sound": True, "passed": True}, {"status": "run", "sound": False, "passed": False}, {"status": "not run"}):
+            self.assertFalse(P.condition_holds(c2, other))
+
     def test_c3a_carries_level_8_and_its_lower_levels_keep_their_sources(self):
         """On the frozen record C3a needs 316 sources at level 8; level 2's 79 are the first of them, unchanged."""
         low = P.build_block(9001, "pilot", {"C3a": 2}, record_path=self.FROZEN_RECORD)
