@@ -350,9 +350,10 @@ def group_argv(members, out, python, cpus=PINS["attack"]):
     family = {e["kind_or_family"] for e in members}
     durs = {e["schedule"]["stop_s"] - e["schedule"]["start_s"] for e in members}
     spaces = {e["namespace"] for e in members}
-    if len(family) != 1 or len(durs) != 1 or len(spaces) != 1 or family - set(GROUPED_FAMILIES):
-        raise PlanError(f"a group is one namespace's sources of one family of {GROUPED_FAMILIES} with one duration, got "
-                        f"{sorted(family)} {sorted(durs)} {sorted(spaces)}")
+    starts = {e["schedule"]["start_s"] for e in members}
+    if len(family) != 1 or len(durs) != 1 or len(spaces) != 1 or len(starts) != 1 or family - set(GROUPED_FAMILIES):
+        raise PlanError(f"a group is one namespace's sources of one family of {GROUPED_FAMILIES} with one start and one duration, got "
+                        f"{sorted(family)} starts {sorted(starts)} durs {sorted(durs)} {sorted(spaces)}")
     group = {"sources": [{"entity_id": e["entity_id"], "source": e["address"], "port": e["port"], "seed": e["client_seed"],
                           "params": e["params"], "stats": stats_path(out, e)} for e in members]}
     return ["taskset", "-c", cpus, python, GEN, "--role", "attack", "--family", family.pop(), "--host", SERVER_IP,
@@ -1010,7 +1011,7 @@ def checks(host, plan, t0, launched):
     attack = attack_summary(plan)
     if attack:
         if attack["no_stats"]:
-            reasons.append(f"{attack['no_stats']} of {attack['generators']} attack generators left no stats")
+            reasons.append(f"{attack['no_stats']} of {attack['generators']} attack sources left no stats")
         if attack["local_errors"]:
             reasons.append(f"the attack could not open connections on this machine: {attack['local_errors']} local errors")
         if attack["opened"] < opened_floor(attack["planned"]):

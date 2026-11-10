@@ -2,6 +2,7 @@
 source, each source's seeded schedule, address and statistics unchanged; every other generator, P1's included, runs as before (T-074).
 Offline: the generator runs against fake sockets, or against addresses this machine does not have; the runner on the fake host."""
 import contextlib
+import errno
 import io
 import json
 import os
@@ -24,6 +25,25 @@ import p4_traffic as P
 from l7_gen_timer import inert
 
 ADDRS = ("10.0.16.5", "10.0.16.9", "10.0.17.2")
+
+
+class FailBindSocket:
+    """A socket whose bind raises EADDRNOTAVAIL, as an alias this machine lacks does; it never connects (T078-14)."""
+
+    def __init__(self, *_a):
+        pass
+
+    def settimeout(self, _t):
+        pass
+
+    def bind(self, _addr):
+        raise OSError(errno.EADDRNOTAVAIL, "cannot assign requested address")
+
+    def connect(self, _addr):
+        raise AssertionError("must not connect: bind should have failed")
+
+    def close(self):
+        pass
 
 
 def source(i, addr, conns=2):
@@ -72,11 +92,11 @@ class GeneratorTest(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.sources = [dict(source(i, a), stats=os.path.join(self.tmp.name, f"s{i}.json")) for i, a in enumerate(ADDRS)]
 
-    def alone(self, s, stats=None):
-        return ["--role", "attack", "--family", "slowloris", "--host", "10.0.0.1", "--port", str(s["port"]), "--duration", "0.3",
+    def alone(self, s, stats=None, duration="2.0"):
+        return ["--role", "attack", "--family", "slowloris", "--host", "10.0.0.1", "--port", str(s["port"]), "--duration", duration,
                 "--seed", str(s["seed"]), "--params", json.dumps(s["params"]), "--source", s["source"]] + (["--stats", stats] if stats else [])
 
-    def group(self, sources=None, duration="0.3"):
+    def group(self, sources=None, duration="2.0"):     # the header gaps are >= 10 s, so no line is due in 2 s: no real sleep, a stall margin
         return ["--role", "attack", "--family", "slowloris", "--host", "10.0.0.1", "--duration", duration,
                 "--group", json.dumps({"sources": self.sources if sources is None else sources})]
 
@@ -106,9 +126,10 @@ class GeneratorTest(unittest.TestCase):
                 self.assertEqual(json.load(fh), json.load(fh1))
 
     def test_a_group_of_addresses_this_machine_lacks_states_it_per_source(self):
-        # As tests/test_p4_families.py's generator of its own: every open fails for a local reason, and each source's file says so.
-        with mock.patch.object(l7_gen, "SOURCE", None), inert():
-            self.assertEqual(l7_gen.main(self.group(duration="0.2")), 0)
+        # As tests/test_p4_families.py's generator of its own: every open fails for a local reason, and each source's file says so. T078-14:
+        # bind raises EADDRNOTAVAIL explicitly, so no connect to 10.0.0.1:80 can slip through if an alias were bindable here.
+        with mock.patch.object(l7_gen.socket, "socket", FailBindSocket), inert():
+            self.assertEqual(l7_gen.main(self.group()), 0)
         for s in self.sources:
             with open(s["stats"], encoding="utf-8") as fh:
                 stats = json.load(fh)
@@ -209,6 +230,16 @@ class RunnerTest(unittest.TestCase):
         starts = [x["start_s"] for x in run["launches"]]
         self.assertEqual(starts, sorted(starts))
 
+    def test_group_argv_requires_one_start_s_D080(self):
+        # T078-12: a group is one namespace's sources with one start; group_argv refuses members that differ.
+        def member(start):
+            return {"entity_id": f"p4:9101:{int(start)}", "kind_or_family": "slowloris", "namespace": "p4n0_perfect",
+                    "address": "10.0.16.5", "port": 80, "client_seed": 1, "params": dict(P.FAMILIES["loris"]["params"]),
+                    "schedule": {"start_s": start, "stop_s": start + 210.0}}
+        R.group_argv([member(30.0), member(30.0)], "/o", "/py")
+        with self.assertRaisesRegex(R.PlanError, r"one start and one duration, got .*starts \[30.0, 31.0\]"):
+            R.group_argv([member(30.0), member(31.0)], "/o", "/py")
+
     def test_slow_post_and_the_controls_are_not_grouped(self):
         post = self.run_of("U_post", post=10)
         self.assertEqual(sum(1 for x in post["launches"] if x["role"] == "attack"), 10)
@@ -230,7 +261,7 @@ class RunnerTest(unittest.TestCase):
         bad = next(e for e in run["entities"] if e["role"] == "attack")
         res = R.execute_run(F.FakeHost(modelled_attackers=1, gen_fails={bad["address"]}), run)
         self.assertTrue(any(r.startswith(f"group:{bad['namespace']} exited with code 3") for r in res["reasons"]), res["reasons"])
-        self.assertTrue(any("1 of 100 attack generators left no stats" in r for r in res["reasons"]), res["reasons"])
+        self.assertTrue(any("1 of 100 attack sources left no stats" in r for r in res["reasons"]), res["reasons"])
 
     def test_p1s_helpers_are_unchanged(self):
         """P1 calls gen_argv and namespaces (eval/p1_runner.py): one generator per entity, from its own address."""
