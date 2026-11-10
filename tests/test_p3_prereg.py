@@ -118,14 +118,10 @@ class PinnedVolumeAndCurveTest(unittest.TestCase):
         self.assertIn("within 0.5 +- auc_band is 'near chance'", b["reading"])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class SizingRecordTest(unittest.TestCase):
     """ml/p3_sizing_prereg.json: the user's D-076, before any P3 capture."""
     PATH = os.path.join(REPO, "ml", "p3_sizing_prereg.json")
-    SHA256 = "86c4c6e76eb0a890406fec12e4767bd2616097a5c10b6f886ea414790395e470"
+    SHA256 = "bec5ab2f0eb4aa0fc2ce65f74de5a3303e3f7d3205545ed7eedb95a2bffb83ba"      # 2026-11-08: D-079's dated note added (T-079)
 
     def test_the_file_is_the_frozen_version(self):
         with open(self.PATH, "rb") as fh:
@@ -136,3 +132,9 @@ class SizingRecordTest(unittest.TestCase):
         self.assertIn("D-076", rec["decision"])
         self.assertEqual(sorted(rec["carrier"]), ["C2", "C3a", "C3b"])
         self.assertIn("count only", rec["carrier"]["C3b"])
+        self.assertEqual((rec["dated_notes"][0]["date"], "D-079" in rec["dated_notes"][0]["decision"]), ("2026-11-08", True))
+        self.assertIn("only at status knee", rec["dated_notes"][0]["note"])
+
+
+if __name__ == "__main__":
+    unittest.main()

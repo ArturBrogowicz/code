@@ -222,6 +222,21 @@ def ladder_repeats():
     return int(prereg_5()["ladder"]["repeats"])
 
 
+CONDITIONAL = {     # ml/p1_prereg_5.json ladder.conditional (D-073), enforced since D-079: (class, level) -> what the other level must show
+    ("C2", 16.0): {"record": "C2 16", "kind": "ran_and_failed", "level": 8},
+    ("C3a", 6.0): {"record": "C3a 6", "kind": "not_reachable", "level": 8},
+    ("C3b", 150.0): {"record": "C3b 150", "kind": "not_reachable", "level": 200},
+}
+
+
+def condition_holds(cond, other):
+    """Whether a conditional level's condition holds, from the state of the level it names: 'ran_and_failed', every repeat sound and not
+    passed in 2 of 2; 'not_reachable', recorded not reachable."""
+    if cond["kind"] == "not_reachable":
+        return other["status"] == "not reachable"
+    return other["status"] == "run" and bool(other.get("sound")) and not other.get("passed")
+
+
 def ladder_seed(cls, level, repeat):
     """The pilot seed of a ladder block (ml/p1_prereg_5.json ladder.seed_map): repeat r of the level at index i of its class's list runs
     on 9001 + ((2 i + r - 1) mod 8), so the two repeats of a level never share a seed."""

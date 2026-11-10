@@ -71,6 +71,7 @@ for _p in (REPO, os.path.join(REPO, "ml"), HERE, os.path.join(REPO, "bench")):
         sys.path.insert(0, _p)
 import capture_l7 as CAP
 import executor as X
+import l7_pools as LP
 import l7v2_verdict_prereg as VP
 import p1_traffic as PT
 import p4_runner as P4
@@ -267,9 +268,20 @@ def load_knees(path):
         return json.load(fh)
 
 
-def load_factor(frozen):
-    """The frozen factor of the halving rule, from the health file (eval/p1_analysis.py --health), bound to the record in use; a
-    file without a factor is refused, and the refusal says why (ml/p1_prereg.json halving.at_the_floor)."""
+def health_rows_sha256(rows):
+    """sha256 of a run index's health lines, as read_index gives them: what a factor file is bound to (D-080)."""
+    return hashlib.sha256(json.dumps([x for x in rows if x["phase"] == "health"], sort_keys=True).encode()).hexdigest()
+
+
+def health_index_sha256(root):
+    """The digest of ROOT's health steps (D-080, T078-08): eval/p1_analysis.py --health records it, and load_factor checks it."""
+    return health_rows_sha256(read_index(root))
+
+
+def load_factor(frozen, root):
+    """The frozen factor of the halving rule, from the health file (eval/p1_analysis.py --health), bound to the record in use and to ROOT's
+    health steps (D-080: its root and the digest of ROOT's health index lines); a file without a factor is refused, and the refusal says why
+    (ml/p1_prereg.json halving.at_the_floor)."""
     import l7_backend
     path = frozen.get("health")
     if not path:
@@ -288,17 +300,24 @@ def load_factor(frozen):
                         f"the record in use ({str(rec.get('sha256'))[:12]}...)")
     if health.get("decision") != "frozen":
         raise PlanError(f"the benign mix has no frozen factor ({health.get('decision')}): {health.get('why')}")
+    here = os.path.realpath(root)
+    if health.get("root") is not None and health["root"] != here:
+        raise PlanError(f"the health file was read on the root {health['root']}, not on {here}: a factor is bound to the root whose index holds "
+                        "its steps (D-080)")
+    if health.get("health_index_sha256") != health_index_sha256(root):
+        raise PlanError(f"the health file's steps are not {here}'s: its health index sha256 {str(health.get('health_index_sha256'))[:12]}... is "
+                        f"not that of the root's health lines ({health_index_sha256(root)[:12]}...); a factor is bound to its own steps (D-080)")
     return PT.check_halvings(health["benign_halvings"])
 
 
-def plan_halvings(phase, frozen, knees, halvings):
+def plan_halvings(phase, frozen, knees, halvings, root):
     """A block's halvings: a smoke's or a health step's own; a ladder's and a campaign's the frozen factor, which a campaign's knees
     must name too, since they were measured at it."""
     if phase in ("smoke", "health"):
         return halvings or 0
     if halvings is not None:
         raise PlanError(f"a {phase} runs at the frozen factor (--health), not at --halvings")
-    factor = load_factor(frozen)
+    factor = load_factor(frozen, root)
     if phase == "campaign" and knees.get("benign_halvings") != factor:
         raise PlanError(f"the knees were measured at {knees.get('benign_halvings')} halvings, the frozen factor is {factor}")
     return factor
@@ -468,20 +487,27 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
         raise PlanError(f"only a smoke reads above the verified address limit, not a {phase}")
     role = "eval" if phase == "campaign" else "pilot"
     knees = load_knees(frozen.get("knees"))
-    no_knee = []
+    no_knee, left_out = [], {}
     if phase == "campaign":
         if knees is None:
             raise PlanError("a campaign needs the frozen knees (--knees)")
         if runs is not None:
             raise PlanError("a campaign runs the live set")
         pairs = live_runs(cut)
-        levels = {c: knees.get(c) for c in sorted({c for _a, c in pairs} - {None})}
-        no_knee = sorted(c for c, level in levels.items() if level is None)
-        if len(no_knee) == len(levels):
+        live = sorted({c for _a, c in pairs} - {None})
+        statuses = {c: LP.knee_status(knees, c) for c in live}
+        bad = [f"{c} ({s})" for c, s in sorted(statuses.items()) if s not in ("knee", "no_knee")]
+        bad += [f"{c} (a knee without a level)" for c in live if statuses[c] == "knee" and not LP._positive(knees.get(c))]
+        if bad:
+            raise PlanError(f"the knees give {', '.join(bad)}: a campaign takes a class only at status knee or no_knee (D-079); finish its "
+                            "ladder first")
+        no_knee = sorted(c for c in live if statuses[c] == "no_knee")
+        if len(no_knee) == len(live):
             raise PlanError(f"no class of this campaign has a knee ({', '.join(no_knee)}): there is no campaign (D-074, ml/p1_prereg_5.json "
                             "no_knee)")
+        left_out = {c: (knees.get("results") or {}).get(c) or f"{c}: no knee (its knees file gives no line)" for c in no_knee}
         pairs = [(a, c) for a, c in pairs if c not in no_knee]     # D-074: the classes with a knee, C2 alone if it is the only one
-        levels = {c: level for c, level in levels.items() if c not in no_knee}
+        levels = {c: knees[c] for c in live if c not in no_knee}
     elif phase == "health":
         rule = PT.prereg()["halving"]
         if runs is not None or levels:
@@ -496,7 +522,7 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
         pairs = [parse_run(n) for n in runs]
         levels = dict(levels or {})
     try:
-        factor = plan_halvings(phase, frozen, knees, halvings)
+        factor = plan_halvings(phase, frozen, knees, halvings, root)
         pop = PT.build_block(seed, role, levels, record_path=frozen["calibration"], knees=knees if phase == "campaign" else None,
                              benign_specs=benign_specs, max_sources=max_sources, halvings=factor)
     except PT.Unreachable as exc:
@@ -530,6 +556,7 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
     return {"phase": phase, "seed": seed, "attempt": attempt, "label": label, "dir": bdir, "root": root, "order": order,
             "levels": levels, "halvings": factor, "sources": pop["sources"], "cut": bool(cut), "frozen": sums,
             "calibration": frozen["calibration"], "live_classes": sorted({c for _a, c in pairs} - {None}), "no_knee": no_knee,
+            "left_out": left_out,
             "intensity": pop["intensity"], "flash": pop["flash"], "dropped": pop["dropped"],
             "age_check": ages, "address_limit": pop["pool"]["address_limit"], "benign_load": PT.benign_load(pop, record),
             "runs": planned}
@@ -565,6 +592,7 @@ def describe(block):
              f"VM time of this block: {vm_minutes(len(block['runs'])):.0f} min [ESTIMATE]"]
     if block["no_knee"]:
         lines.append(f"not in this campaign: {', '.join(block['no_knee'])}, which has no knee (D-074): its line is in the knees file")
+        lines += [f"  {line}" for line in block["left_out"].values()]
     for r in block["runs"]:
         d = r["daemon"]
         env = " ".join(f"{k}={v}" for k, v in sorted(d["env"].items())) if d else "none"
@@ -1000,7 +1028,7 @@ def block_settings(block):
             "health_sha256": (f.get("health") or {}).get("sha256"), "points_sha256": points.get("sha256"),
             "points_decision": points.get("decision"), "selection_sha256": (f.get("selection") or {}).get("sha256"),
             "rules_sha256": (f.get("rules") or {}).get("sha256"), "halvings": block["halvings"], "levels": block["levels"],
-            "sources": block["sources"], "cut": block["cut"], "live_classes": block["live_classes"],
+            "sources": block["sources"], "cut": block["cut"], "live_classes": block["live_classes"], "left_out": block["left_out"],
             "code_sha256": hashlib.sha256(json.dumps(code, sort_keys=True).encode()).hexdigest()}
 
 
@@ -1065,8 +1093,31 @@ def check_settings(block):
                 raise PlanError(f"campaign block {block['seed']}: {', '.join(differ)} differ from {name}'s (ml/p1_prereg_3.json one_setting)")
 
 
+def check_conditional(block):
+    """D-079 (T078-02, ml/p1_prereg_5.json ladder.conditional): a conditional level runs only when its condition holds, read from ROOT's index
+    and ladder_unreachable.jsonl before the block runs, as eval/p4_runner.py check_ladder_order: C2 16 once 8 ran with every repeat sound and
+    did not pass in 2 of 2, C3a 6 and C3b 150 once 8 and 200 are recorded not reachable. Unlike the ascending stop, a fallback below a
+    registered level could otherwise move the knee down."""
+    if block["phase"] != "ladder":
+        return
+    cls, level = next(iter(block["levels"].items()))
+    cond = PT.CONDITIONAL.get((cls, float(level)))
+    if cond is None:
+        return
+    import p1_analysis as A
+
+    import l7_backend
+    cal = l7_backend.load_record(block["calibration"])[0]
+    other = A.ladder_status(block["root"], A.ladder_harm(block["root"], cal))[cls]["levels"][f"{cond['level']:g}"]
+    if not PT.condition_holds(cond, other):
+        shown = other["status"] + (f", every repeat sound: {other['sound']}, passed: {other['passed']}" if other["status"] == "run" else "")
+        raise PlanError(f"ladder: {cls} {level:g} is a conditional level, '{PT.prereg_5()['ladder']['conditional'][cond['record']]}' "
+                        f"(ml/p1_prereg_5.json ladder.conditional, D-079), and level {cond['level']:g} is {shown}")
+
+
 def run_block(host, block):
     """Every run of a block in its order; each in ROOT/index.jsonl before it begins and when it ends, valid or not."""
+    check_conditional(block)
     check_attempt(block)
     check_settings(block)
     if os.path.exists(block["dir"]):
@@ -1077,6 +1128,7 @@ def run_block(host, block):
                    "calibration_sha256": block["frozen"]["calibration"]["digest"], "timeline": dict(PT.TIMELINE),
                    "order": block["order"], "levels": block["levels"], "halvings": block["halvings"],
                    "sources": block["sources"], "cut": block["cut"], "live_classes": block["live_classes"], "no_knee": block["no_knee"],
+                   "left_out": block["left_out"],
                    "frozen": block["frozen"], "intensity": block["intensity"], "flash": block["flash"],
                    "dropped": block["dropped"], "age_check": block["age_check"], "address_limit": block["address_limit"],
                    "benign_load": block["benign_load"], "settings": block_settings(block)})

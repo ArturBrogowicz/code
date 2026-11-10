@@ -88,5 +88,18 @@
   "result": "a class with no level passing in both repeats up to its highest level whose repeats all had a sound attempt (X) is reported as 'no harm reached up to X on this testbed', with every level's status and both repeats' harm. It gets no campaign runs and no verdict",
   "campaign": "the campaign runs the classes of its live set (or of its cut) that have a knee, C2 alone if it is the only one, and records which; with none, there is no campaign",
   "not_reachable": "a level not reachable on this testbed is reported as such and never as no harm; if it stops the ladder below the class's registered top, the report says the ladder was cut short"
- }
+ },
+ "dated_notes": [
+  {
+   "date": "2026-11-08",
+   "decision": "D-079 (the orchestrator, pre-data: no P1 ladder has run; the user may overrule), on review T-078's T078-01 to T078-04",
+   "notes": [
+    "statuses: each class is knee, no_knee, incomplete, not_tested or no_sound_level. no_knee.result holds only when every registered level ran with both repeats having a sound attempt or is recorded not reachable, every conditional level is resolved by its condition, and none is 'not run'; a knee or an X read over an unrun lower registered level is incomplete; the knees file's no_knee lists only no_knee classes",
+    "no_knee.campaign: the campaign and P3 take a class only at knee or no_knee and refuse the other statuses by name; a class left out carries the knees file's own line",
+    "ladder.conditional is enforced: the runner refuses a conditional level outside its condition, read from the index and ladder_unreachable.jsonl, before the block runs; the knees file names one that ran outside its condition and the class is incomplete",
+    "no_knee.result's line reads 'no level harmed in 2 of 2 up to X on this testbed', and the knees file carries each repeat's harm (dQ in pp, dlog2 p95)",
+    "premise: a level marked 'crosses' is never X and is named; a level's passed is read from its raw harms"
+   ]
+  }
+ ]
 }

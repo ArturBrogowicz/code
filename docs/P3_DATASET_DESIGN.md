@@ -190,6 +190,8 @@ A test asserts that two rebuilds are byte-identical, and that a single flipped b
       then its pace, at most 2 × P1's per-source pace. C3b uses its registered bots only.
     - Target, realized, shortfall and excess are recorded per phase in the plan's intensity and on the phase in its timeline, which
       the manifest keeps.
+    - **Dated note, 2026-11-08 (D-079, before any P1 data):** P1's knees file now gives each class a status. A plan takes a family's
+      knee only at status knee and its top tested level only at no_knee; incomplete, not_tested and no_sound_level are refused by name.
   - C3b at M1 joins the C3b phase with 10 entities.
   - **Evaluation captures only:** C3b at M3 (held out) runs in a fourth slot, with the 120 s tail extended to 240 s (1,020 s in
     all), together with the held-out benign kinds.

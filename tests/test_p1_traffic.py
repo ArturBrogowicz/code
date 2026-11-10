@@ -29,6 +29,7 @@ RECORD = os.path.join(_TMP.name, "frozen.json")
 with open(RECORD, "w", encoding="utf-8") as _fh:
     json.dump(FROZEN, _fh)
 LEVELS = {"C2": 4.0, "C3a": 1.0, "C3b": 100}
+NO_LIMIT_FILE = os.path.join(tempfile.gettempdir(), "t079-no-p1-address-limit", "p1_address_limit.json")   # never created (T078-10)
 PINNED_ROWS_SHA256 = "4395b2a7bdafbe4e06f5323368a6ac447bacab1da87ac8e1a4338fa9bce4cd92"         # the rows of seed 9001's C2 1 and C3b 50 block as planned before D-073's extension
 _BLOCKS = {}
 
@@ -177,9 +178,10 @@ class BlockTest(unittest.TestCase):
             P.run_entities(b, "C4")
 
     def test_a_level_over_the_address_limit_is_refused_per_run(self):
-        b = P.build_block(9001, "pilot", {"C3b": 200}, record_path=RECORD)
-        with self.assertRaisesRegex(P.PlanError, "verified limit"):
-            P.run_entities(b, "C3b")
+        with mock.patch.object(P, "ADDRESS_LIMIT_FILE", NO_LIMIT_FILE):
+            b = P.build_block(9001, "pilot", {"C3b": 200}, record_path=RECORD)
+            with self.assertRaisesRegex(P.PlanError, "verified limit"):
+                P.run_entities(b, "C3b")
 
     def test_a_thin_plan_for_tests_keeps_the_rates(self):
         thin = P.build_block(3001, "eval", LEVELS, record_path=RECORD, knees=KNEES, max_sources=2,
@@ -207,6 +209,19 @@ class LadderExtensionTest(unittest.TestCase):
         with self.assertRaisesRegex(P.PlanError, "not one of its pre-registered levels"):
             P.ladder_seed("C2", 3, 1)
 
+    def test_the_conditional_levels_are_the_record_s(self):
+        """D-079: the runner and the knees file read ml/p1_prereg_5.json ladder.conditional from one table."""
+        self.assertEqual(sorted(c["record"] for c in P.CONDITIONAL.values()), sorted(P.prereg_5()["ladder"]["conditional"]))
+        for (cls, level), cond in P.CONDITIONAL.items():
+            self.assertIn(level, [float(x) for x in P.ladder_levels(cls)])
+            self.assertIn(cond["level"], P.ladder_levels(cls))
+        self.assertTrue(P.condition_holds(P.CONDITIONAL[("C3a", 6.0)], {"status": "not reachable"}))
+        self.assertFalse(P.condition_holds(P.CONDITIONAL[("C3a", 6.0)], {"status": "not run"}))
+        c2 = P.CONDITIONAL[("C2", 16.0)]
+        self.assertTrue(P.condition_holds(c2, {"status": "run", "sound": True, "passed": False}))
+        for other in ({"status": "run", "sound": True, "passed": True}, {"status": "run", "sound": False, "passed": False}, {"status": "not run"}):
+            self.assertFalse(P.condition_holds(c2, other))
+
     def test_c3a_carries_level_8_and_its_lower_levels_keep_their_sources(self):
         """On the frozen record C3a needs 316 sources at level 8; level 2's 79 are the first of them, unchanged."""
         low = P.build_block(9001, "pilot", {"C3a": 2}, record_path=self.FROZEN_RECORD)
@@ -223,9 +238,10 @@ class LadderExtensionTest(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         path = os.path.join(tmp.name, "limit.json")
-        b = P.build_block(9001, "pilot", {"C3b": 200}, record_path=RECORD)
-        with self.assertRaisesRegex(P.Unreachable, "368 addresses exceed the verified limit of 300.*not reachable on this testbed"):
-            P.run_entities(b, "C3b")
+        with mock.patch.object(P, "ADDRESS_LIMIT_FILE", NO_LIMIT_FILE):
+            b = P.build_block(9001, "pilot", {"C3b": 200}, record_path=RECORD)
+            with self.assertRaisesRegex(P.Unreachable, "368 addresses exceed the verified limit of 300.*not reachable on this testbed"):
+                P.run_entities(b, "C3b")
         for limit, decision, ok in ((400, "D-099, 2026-11-20, the smoke's read", True), (469, "D-099, 2026-11-20", False),
                                     (400, "the read passed", False), (True, "D-099, 2026-11-20", False)):
             with open(path, "w", encoding="utf-8") as fh:

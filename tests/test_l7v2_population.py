@@ -169,14 +169,18 @@ class TrainingPlanTest(unittest.TestCase):
         self.assertEqual(sized, got, "the timeline, which the capture's manifest keeps, carries the same records")
 
     def test_a_family_without_a_knee_is_sized_at_its_top_tested_level_and_marked(self):
-        knees = {**FROZEN_KNEES, "C3a": None, "C3b": None, "no_knee": ["C3a", "C3b"], "top_tested": {"C3a": 2, "C3b": 300}}
+        statuses = {"C2": "knee", "C3a": "no_knee", "C3b": "no_knee"}
+        knees = {**FROZEN_KNEES, "C3a": None, "C3b": None, "no_knee": ["C3a", "C3b"], "top_tested": {"C3a": 2, "C3b": 300}, "statuses": statuses}
         got = plan(1001, "train", knees=knees)["intensity"]["phases"]
         self.assertEqual((got["C3a"]["knee"], got["C3a"]["no_knee"], got["C3b@M2"]["knee"], got["C3b@M2"]["no_knee"]), (2, True, 300, True))
-        for knees, says in (({**FROZEN_KNEES, "C3a": None}, r"have C3a = None and no top tested level"),
-                            ({k: v for k, v in FROZEN_KNEES.items() if k != "C3b"}, r"have no C3b"),
-                            ({**FROZEN_KNEES, "C3b": None, "no_knee": ["C3b"]}, r"have C3b = None and no top tested level")):
-            with self.subTest(knees=knees), self.assertRaisesRegex(LP.PlanError, says):
-                plan(1001, "train", knees=knees)
+        for bad, says in (({**FROZEN_KNEES, "C3a": None}, r"have C3a = None at status 'unknown'"),
+                            ({k: v for k, v in FROZEN_KNEES.items() if k != "C3b"}, r"have no C3b at status 'unknown'"),
+                            ({**FROZEN_KNEES, "C3b": None, "no_knee": ["C3b"]}, r"have C3b = None at status 'unknown'"),
+                            ({**knees, "statuses": {**statuses, "C3b": "incomplete"}}, r"have C3b = None at status 'incomplete'"),
+                            ({**knees, "top_tested": {"C3a": 2}}, r"have C3b = None at status 'no_knee', top tested None"),
+                            ({**knees, "statuses": {**statuses, "C3a": "no_sound_level"}}, r"have C3a = None at status 'no_sound_level'")):
+            with self.subTest(knees=bad), self.assertRaisesRegex(LP.PlanError, says):
+                plan(1001, "train", knees=bad)
 
     def test_c3a_s_pace_stops_at_twice_p1_s_and_the_rest_is_a_shortfall(self):
         got = plan(1001, "train", knees={**FROZEN_KNEES, "C3a": 8.0})["intensity"]["phases"]["C3a"]
@@ -185,7 +189,7 @@ class TrainingPlanTest(unittest.TestCase):
         self.assertEqual(got["excess"], 0.0)
 
     def test_a_c2_without_a_knee_is_sized_at_its_top_tested_level(self):
-        knees = {**FROZEN_KNEES, "C2": None, "no_knee": ["C2"], "top_tested": {"C2": 16}}
+        knees = {**FROZEN_KNEES, "C2": None, "no_knee": ["C2"], "top_tested": {"C2": 16}, "statuses": {"C2": "no_knee", "C3a": "knee", "C3b": "knee"}}
         got = plan(1001, "train", knees=knees)["intensity"]["phases"]["C2"]
         self.assertEqual((got["knee"], got["no_knee"]), (16, True))
 
