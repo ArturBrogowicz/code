@@ -816,8 +816,11 @@ def _hard_exit(stats_path):
     if RECORDER is not None:
         RECORDER.lock.acquire(timeout=1.0)
     if stats_path:
-        with open(stats_path, "w", encoding="utf-8") as fh:
-            json.dump(LIVE_STATS or {}, fh)
+        try:                                             # T078-11: a write that fails is named, never stops the exit
+            with open(stats_path, "w", encoding="utf-8") as fh:
+                json.dump(LIVE_STATS or {}, fh)
+        except OSError as exc:
+            print(f"[-] stats not written to {stats_path}: {exc}", file=sys.stderr)
     os._exit(0)
 
 
@@ -832,15 +835,28 @@ def _group_member(box, family, host, dur):
 
 
 def _write_group_stats(boxes):
+    """Write each source's stats; a write that fails is collected and returned, not raised, so the rest of the group's stats, and os._exit,
+    still run (T078-11)."""
+    failed = []
     for box in boxes:
         if box["error"] is None and box["source"].get("stats"):
-            with open(box["source"]["stats"], "w", encoding="utf-8") as fh:
-                json.dump(box["stats"] or {}, fh)
+            try:
+                with open(box["source"]["stats"], "w", encoding="utf-8") as fh:
+                    json.dump(box["stats"] or {}, fh)
+            except OSError as exc:
+                failed.append((box["source"]["entity_id"], exc))
+    return failed
+
+
+def _name_unwritten(failed):
+    for eid, exc in failed:
+        print(f"[-] {eid}: stats not written: {exc}", file=sys.stderr)
 
 
 def _hard_exit_group(boxes):
-    """The bound on a group, as _hard_exit on a generator of its own: each source's live stats, and exit 0 now."""
-    _write_group_stats(boxes)
+    """The bound on a group, as _hard_exit on a generator of its own: each source's live stats, and exit 0 now; a write that fails is named
+    and never stops the exit (T078-11)."""
+    _name_unwritten(_write_group_stats(boxes))
     os._exit(0)
 
 
@@ -880,7 +896,7 @@ def run_group(sources, family, host, dur):
     for t in threads:
         t.join()
     bound.cancel()
-    _write_group_stats(boxes)
+    _name_unwritten(_write_group_stats(boxes))
     failed = [box for box in boxes if box["error"] is not None]
     for box in failed:
         print(f"[-] {box['source']['entity_id']} ({box['source']['source']}):\n{box['error']}", file=sys.stderr)
