@@ -1065,8 +1065,31 @@ def check_settings(block):
                 raise PlanError(f"campaign block {block['seed']}: {', '.join(differ)} differ from {name}'s (ml/p1_prereg_3.json one_setting)")
 
 
+def check_conditional(block):
+    """D-079 (T078-02, ml/p1_prereg_5.json ladder.conditional): a conditional level runs only when its condition holds, read from ROOT's index
+    and ladder_unreachable.jsonl before the block runs, as eval/p4_runner.py check_ladder_order: C2 16 once 8 ran with every repeat sound and
+    did not pass in 2 of 2, C3a 6 and C3b 150 once 8 and 200 are recorded not reachable. Unlike the ascending stop, a fallback below a
+    registered level could otherwise move the knee down."""
+    if block["phase"] != "ladder":
+        return
+    cls, level = next(iter(block["levels"].items()))
+    cond = PT.CONDITIONAL.get((cls, float(level)))
+    if cond is None:
+        return
+    import p1_analysis as A
+
+    import l7_backend
+    cal = l7_backend.load_record(block["calibration"])[0]
+    other = A.ladder_status(block["root"], A.ladder_harm(block["root"], cal))[cls]["levels"][f"{cond['level']:g}"]
+    if not PT.condition_holds(cond, other):
+        shown = other["status"] + (f", every repeat sound: {other['sound']}, passed: {other['passed']}" if other["status"] == "run" else "")
+        raise PlanError(f"ladder: {cls} {level:g} is a conditional level, '{PT.prereg_5()['ladder']['conditional'][cond['record']]}' "
+                        f"(ml/p1_prereg_5.json ladder.conditional, D-079), and level {cond['level']:g} is {shown}")
+
+
 def run_block(host, block):
     """Every run of a block in its order; each in ROOT/index.jsonl before it begins and when it ends, valid or not."""
+    check_conditional(block)
     check_attempt(block)
     check_settings(block)
     if os.path.exists(block["dir"]):
