@@ -279,6 +279,23 @@ def thin_benign(counts=None):
     return out
 
 
+def _no_health_steps_sha256():
+    import p1_runner
+    return p1_runner.health_rows_sha256([])
+
+
+def bound_health(frozen, root):
+    """`frozen` with the fixture's factor file bound to ROOT's health steps (D-080), as eval/p1_analysis.py --health would write it there."""
+    import p1_runner
+    with open(frozen["health"], encoding="utf-8") as fh:
+        health = json.load(fh)
+    health.update(root=os.path.realpath(root), health_index_sha256=p1_runner.health_index_sha256(root))
+    path = os.path.join(os.path.dirname(frozen["health"]), f"health_{health['health_index_sha256'][:16]}.json")
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(health, fh)
+    return {**frozen, "health": path}
+
+
 def frozen_inputs(d, *, record_status="frozen", knees=None, valid=True):
     """The frozen items of a campaign under directory `d`: {calibration, knees, health, selection, selection_sha256, rules,
     rules_sha256}. The health file freezes no halving; the selections are well-formed (formats, artifacts, operating points);
@@ -297,7 +314,7 @@ def frozen_inputs(d, *, record_status="frozen", knees=None, valid=True):
     health_path = os.path.join(d, "health.json")
     with open(health_path, "w", encoding="utf-8") as fh:
         json.dump({"format": "p1-health/1", "record_sha256": rec["sha256"], "decision": "frozen", "benign_halvings": 0,
-                   "why": "fixture", "steps": []}, fh)
+                   "why": "fixture", "steps": [], "health_index_sha256": _no_health_steps_sha256()}, fh)
     sel_dir, rule_dir = os.path.join(d, "sel"), os.path.join(d, "rules")
     os.makedirs(os.path.join(rule_dir, "rules"), exist_ok=True)
     os.makedirs(sel_dir, exist_ok=True)

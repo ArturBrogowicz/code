@@ -268,9 +268,20 @@ def load_knees(path):
         return json.load(fh)
 
 
-def load_factor(frozen):
-    """The frozen factor of the halving rule, from the health file (eval/p1_analysis.py --health), bound to the record in use; a
-    file without a factor is refused, and the refusal says why (ml/p1_prereg.json halving.at_the_floor)."""
+def health_rows_sha256(rows):
+    """sha256 of a run index's health lines, as read_index gives them: what a factor file is bound to (D-080)."""
+    return hashlib.sha256(json.dumps([x for x in rows if x["phase"] == "health"], sort_keys=True).encode()).hexdigest()
+
+
+def health_index_sha256(root):
+    """The digest of ROOT's health steps (D-080, T078-08): eval/p1_analysis.py --health records it, and load_factor checks it."""
+    return health_rows_sha256(read_index(root))
+
+
+def load_factor(frozen, root):
+    """The frozen factor of the halving rule, from the health file (eval/p1_analysis.py --health), bound to the record in use and to ROOT's
+    health steps (D-080: its root and the digest of ROOT's health index lines); a file without a factor is refused, and the refusal says why
+    (ml/p1_prereg.json halving.at_the_floor)."""
     import l7_backend
     path = frozen.get("health")
     if not path:
@@ -289,17 +300,24 @@ def load_factor(frozen):
                         f"the record in use ({str(rec.get('sha256'))[:12]}...)")
     if health.get("decision") != "frozen":
         raise PlanError(f"the benign mix has no frozen factor ({health.get('decision')}): {health.get('why')}")
+    here = os.path.realpath(root)
+    if health.get("root") is not None and health["root"] != here:
+        raise PlanError(f"the health file was read on the root {health['root']}, not on {here}: a factor is bound to the root whose index holds "
+                        "its steps (D-080)")
+    if health.get("health_index_sha256") != health_index_sha256(root):
+        raise PlanError(f"the health file's steps are not {here}'s: its health index sha256 {str(health.get('health_index_sha256'))[:12]}... is "
+                        f"not that of the root's health lines ({health_index_sha256(root)[:12]}...); a factor is bound to its own steps (D-080)")
     return PT.check_halvings(health["benign_halvings"])
 
 
-def plan_halvings(phase, frozen, knees, halvings):
+def plan_halvings(phase, frozen, knees, halvings, root):
     """A block's halvings: a smoke's or a health step's own; a ladder's and a campaign's the frozen factor, which a campaign's knees
     must name too, since they were measured at it."""
     if phase in ("smoke", "health"):
         return halvings or 0
     if halvings is not None:
         raise PlanError(f"a {phase} runs at the frozen factor (--health), not at --halvings")
-    factor = load_factor(frozen)
+    factor = load_factor(frozen, root)
     if phase == "campaign" and knees.get("benign_halvings") != factor:
         raise PlanError(f"the knees were measured at {knees.get('benign_halvings')} halvings, the frozen factor is {factor}")
     return factor
@@ -504,7 +522,7 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
         pairs = [parse_run(n) for n in runs]
         levels = dict(levels or {})
     try:
-        factor = plan_halvings(phase, frozen, knees, halvings)
+        factor = plan_halvings(phase, frozen, knees, halvings, root)
         pop = PT.build_block(seed, role, levels, record_path=frozen["calibration"], knees=knees if phase == "campaign" else None,
                              benign_specs=benign_specs, max_sources=max_sources, halvings=factor)
     except PT.Unreachable as exc:

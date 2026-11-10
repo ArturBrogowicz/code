@@ -655,6 +655,7 @@ def health_result(root, cal, decisions=None):
             dirs.append(x["block_dir"])
     steps = [health_step(root, d, cal) for d in dirs]
     return {"format": RUN.HEALTH_FORMAT, "record_sha256": cal.get("sha256"), "record_status": cal.get("status"),
+            "root": os.path.realpath(root), "health_index_sha256": RUN.health_index_sha256(root),     # D-080: bound to these steps
             "rule": "ml/p1_prereg.json halving", **PT.next_step(steps, decisions), "decisions": decisions or {}, "steps": steps}
 
 
