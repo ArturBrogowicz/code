@@ -1418,6 +1418,30 @@ that reads them. Where this section and the ones above differ, this one holds.
 - **Not measured:** T-070's memory figures (20 MB private per generator at import, 7.6 GB available, no swap) are what the smoke's read
   checks. No ladder level, address count or memory reading has been run.
 
+### Dated note, 2026-11-08: D-079 and D-080, on review T-078 (T-079, branch `feat/p1-review-fixes-4`), before any P1 data
+
+The orchestrator's decisions, pre-data; the user may overrule them. The section above stands where this note does not narrow it, and so
+does `ml/p1_prereg_5.json`, which carries the same note.
+
+- **Class statuses (D-079, T078-01).**
+  - Each class in the knees file is knee, no_knee, incomplete, not_tested or no_sound_level, read over the levels its conditions call
+    for.
+  - no_knee, D-074's "no harm" result, holds only when no level passed in 2 of 2, every called level ran with every repeat sound or is
+    recorded not reachable, and X exists.
+  - A knee or an X read over a called level that is "not run", a level with a repeat that had no sound attempt where no knee is read,
+    or a conditional level run outside its condition, is incomplete. The reasons are named under `incomplete`.
+  - `no_knee` lists only no_knee classes.
+- **Who takes what (D-079).** The campaign and P3's family_knee take a class only at knee or no_knee and refuse every other status by
+  name. A class left out of the campaign carries the knees file's own line, in its blocks and in the analysis.
+- **Conditional levels (D-079, T078-02).** The runner refuses C2 16, C3a 6 and C3b 150 outside their conditions, read from the index
+  and `ladder_unreachable.jsonl`, before the block runs. The ascending stop stays a procedure.
+- **Harm in the file (T078-03, T078-04).**
+  - Each run level gives each repeat's harm, dQ in pp and dlog2 p95, and `--ladder` prints them.
+  - The no-knee line reads "no level harmed in 2 of 2 up to X on this testbed".
+  - passed comes from the raw harms. A level marked "crosses" is never X and is named.
+- **The factor file (D-080, T078-08).** `--health` records the root and the sha256 of its health index lines, and `load_factor` refuses
+  a file of another root or of changed steps.
+
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.
 - G1-02 Kadel et al., BOTracle, ESORICS Workshops 2024.
