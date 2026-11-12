@@ -1607,7 +1607,7 @@ Z11 & wektory specyficzne dla HTTP/2 & scenariusze na porcie 443 (np. Rapid Rese
 \end{table}
 
 \section{Wnioski}\label{sec:wnioski}
-\doUzupelnienia{Rozdział zostanie opracowany po zakończeniu kampanii pomiarowych z tabeli~\ref{tab:plan}. Wnioski zostaną sformułowane jako ocena spełnienia wymagań W1--W7 z tabeli~\ref{tab:wymagania}, na podstawie wyników z rozdziału~\ref{sec:wyniki} i z zachowaniem podanych tam zakresów obowiązywania.}
+Wnioski sformułowano jako ocenę spełnienia wymagań W1--W7 z tabeli~\ref{tab:wymagania} (tab.~\ref{tab:ocena_wymagan}), na podstawie wyników z rozdziału~\ref{sec:wyniki} i z zachowaniem podanych tam zakresów obowiązywania. Ocena odpowiada stanowi z 12~listopada 2026~r.: eksperymenty P1 i P4 nie zostały przeprowadzone, a benchmark szkody nie ma wyników, więc nie są one podstawą żadnej oceny. W tym zakresie reguły deterministyczne z egzekwowaniem blokad w punkcie XDP zablokowały, przy domyślnym profilu progów, wszystkie warianty ataków zestawu, a w punkcie \textit{knee} zalewania HTTP zwiększyły dostępność usługi względem konfiguracji bez ochrony (+33,2~pp, ten sam znak w 10 z 10 bloków). Ochrony przed atakami powolnymi nie wykazano, a żaden z ocenianych modeli GRU nie wniósł wartości detekcyjnej ponad reguły.
 
 \begin{table}[H]
 \centering
@@ -1617,13 +1617,13 @@ Z11 & wektory specyficzne dla HTTP/2 & scenariusze na porcie 443 (np. Rapid Rese
 \toprule
 ID & Podstawa oceny & Ocena \\
 \midrule
-W1 & sekcja~\ref{sec:wyniki_xdp} & \doUzupelnienia{ocena} \\
+W1 & sekcja~\ref{sec:wyniki_xdp} & Spełnione w części. Odrzucanie przed alokacją \textit{sk\_buff} zmierzono: przy 0,84--1,66~mln pakietów/s na interfejsie do warstwy IP trafiało nie więcej niż 227 pakietów/s (interfejs \texttt{veth}, jeden host). Stałego kosztu wyszukiwania nie mierzono. Dostępnością XDP nie różnił się od iptables, a szybsze blokady (o 0,075~s) wykazano tylko dla zalewania HTTP, w analizie \textit{post hoc}. \\
 W2 & sekcja~\ref{sec:wyniki_slow} & \doUzupelnienia{ocena} \\
-W3 & sekcje~\ref{sec:wyniki_reguly}--\ref{sec:wyniki_dostepnosc} & \doUzupelnienia{ocena} \\
+W3 & sekcje~\ref{sec:wyniki_reguly}--\ref{sec:wyniki_dostepnosc} & Spełnione z ograniczeniem zakresu. Reguły nałożyły wszystkie blokady botów w punkcie \textit{default} (200 z 200 w 40 przebiegach scenariuszy), a w punkcie \textit{knee} zalewania HTTP demon zwiększył dostępność o 33,2~pp względem braku ochrony (10 z 10 bloków). Czas do mitygacji opisują ograniczenia dla poszczególnych reguł. Jako punkt odniesienia reguły nie zostały pokonane przez żaden model GRU; z realistycznymi klientami nałożyły 3 fałszywe blokady. \\
 W4 & sekcja~\ref{sec:wyniki_gru} & \doUzupelnienia{ocena} \\
-W5 & rozdział~\ref{sec:testbed} & \doUzupelnienia{ocena} \\
-W6 & sekcja~\ref{sec:impl_events} & \doUzupelnienia{ocena} \\
-W7 & sekcja~\ref{sec:ograniczenia} & \doUzupelnienia{ocena} \\
+W5 & rozdział~\ref{sec:testbed} & Spełnione dla wyników opublikowanych. Opublikowane kampanie (poza zastąpioną) mają weryfikowalne sumy kontrolne, a analizy odtwarzają się bajt w bajt. Sparowane bloki z regułą decyzyjną zapisaną przed zebraniem danych dotyczą jednak tylko EXP-A i EXP-C (jeden scenariusz, jeden punkt pracy); pozostałe wyniki pochodzą z 3--7 przebiegów i mają charakter opisowy. Ruch prawowity jest syntetyczny, a środowisko wyłącznie laboratoryjne. \\
+W6 & sekcja~\ref{sec:impl_events} & Spełnione dla blokad. Każda z 710 blokad w 52 opublikowanych rejestrach zdarzeń ma przypisany silnik, a zdarzenia \texttt{ban} bieżącej wersji zawierają zmierzoną wartość i próg; kampanie prototypowe z 12~października 2026~r. przekształcono do tego formatu z udokumentowanymi przybliżeniami. Nie każda decyzja demona jest rejestrowana: włączenie ciasteczek SYN nie tworzy zdarzenia. \\
+W7 & sekcja~\ref{sec:ograniczenia} & Spełnione jako założenie zakresu: system działa na jednym hoście, bez współpracy operatora sieci. Ograniczenia wskazano w sekcji~\ref{sec:ograniczenia}: interfejsy \texttt{veth} zamiast fizycznej karty sieciowej, brak ataków odbiciowych i wysycenia łącza, wyłącznie IPv4 i HTTP/1.1 na porcie 80, atakujący nieadaptacyjny i syntetyczny ruch prawowity. \\
 \bottomrule
 \end{tabularx}
 \end{table}
