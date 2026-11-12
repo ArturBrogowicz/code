@@ -97,6 +97,19 @@ Re-registration record (T-052, 2026-11-03T15:01Z, the orchestrator's brief, befo
 not a decision of the user), committed before the code it judges: (c) cannot be met over an attempt of M_pc or C_M whose ban record is unreadable. The output
 lists every invalid run with its reasons and, per family, why each block is left out of the comparison with M_def; these judge nothing.
 
+Re-registration record (D-069, 2026-11-06T16:30Z, the user's minimum cut of the VM plan, before any data; T-071, T-074),
+committed before the code it judges: P4 runs Slowloris only. A block's settings name its `families` (eval/p4_runner.py
+block_settings), and the arms, the needed arms, the validation's runs and the verdict follow them: a campaign of ("loris",)
+needs C, Cp, C_M, U_loris and M_pc_loris, refuses a record of a slow-POST arm, and M7 judges Slowloris alone. Slow POST's
+code stays, fenced: it is judged only in a campaign whose settings name both families. A record whose settings name no
+families is from before the cut, and is read with both.
+
+Re-registration record (D-074, 2026-11-07T08:33Z, the user's approval of T-071, before any ladder data), committed before the code it
+judges: no knee at the extended top is a reported result, rule A. When eval/p4_ladder.py reads, for a family, no knee up to the reachable top
+(every level with 2 sound repeats, none harming in 2 of 2), `--knees KNEES` (no_knee_verdict) reads "<family> below the default rules'
+thresholds did not harm profile R up to N sources" with each level's figures, and M7 "not applicable: no harmful attack"; no validation and
+no campaign run. A level not reachable (D-073 (5)) is named as such and never reads as no harm. An incomplete ladder gives no reading.
+
 A run of C states its health in its record: "control_reasons" is control_health's list, empty when it is healthy. A
 record of C without it is refused, and C's "valid" stays what the run's own checks said, the outcome adding the health.
 
@@ -154,6 +167,47 @@ ATTACK = "attack"
 C_M_COLLATERAL_ROLES = ("cgnat", "tpcw_browsing", "search_user")
 SCOPE = "profile R, {families} at this scale, this testbed"
 FAMILY_NAMES = {"loris": "Slowloris", "post": "slow POST"}
+CUT_FAMILIES = ("loris",)        # D-069: the families P4 runs; FAMILIES stays the design's, whose code stays tested
+
+
+def check_families(families):
+    """The families a block runs, as a tuple in FAMILIES' order (D-069): a non-empty selection of FAMILIES, without repeats."""
+    if isinstance(families, str) or not families:
+        raise ValueError(f"families must be a non-empty selection of {FAMILIES}, got {families!r}")
+    families = tuple(families)
+    if len(set(families)) != len(families) or set(families) - set(FAMILIES):
+        raise ValueError(f"families must be a selection of {FAMILIES}, got {families!r}")
+    return tuple(f for f in FAMILIES if f in families)
+
+
+def arm_family(arm):
+    """The family an arm attacks with (U_loris: "loris"), or None for an arm without attack."""
+    return next((f for f in FAMILIES if arm.endswith("_" + f)), None)
+
+
+def _of(arms, families):
+    families = check_families(families)
+    return tuple(a for a in arms if arm_family(a) in (None, *families))
+
+
+def arms_of(families=FAMILIES):
+    """ARMS, without the arms of a family the block does not run (D-069)."""
+    return _of(ARMS, families)
+
+
+def needed_arms(families=FAMILIES):
+    """NEEDED_ARMS, without the arms of a family the block does not run (D-069)."""
+    return _of(NEEDED_ARMS, families)
+
+
+def validation_runs(families=FAMILIES):
+    """slow_pc.VALIDATION_RUNS, without the runs of a family the block does not run (D-069)."""
+    return _of(slow_pc.VALIDATION_RUNS, families)
+
+
+def settings_families(settings):
+    """The families a block's settings name; a block from before D-069 names none, and ran both."""
+    return check_families((settings or {}).get("families") or FAMILIES)
 
 
 def check_record_timeline(q_per_s, level_window):
@@ -249,9 +303,13 @@ def _blocks(runs):
     if len(kinds) > 1:
         raise ValueError(f"the records hold {len(kinds)} different settings of scale, halvings, T, F, K, calibration or "
                          "code: a campaign holds one (review T-047 P-08)")
+    families = settings_families(runs[0]["settings"]) if runs else FAMILIES
+    arms, needed = arms_of(families), needed_arms(families)
     for r in runs:
         if r["arm"] not in ARMS:
             raise ValueError(f"unknown arm {r['arm']!r}")
+        if r["arm"] not in arms:
+            raise ValueError(f"block {r['block']}: a record of {r['arm']}, in a campaign of the families {list(families)} (D-069)")
         if r["block"] not in BLOCK_SEEDS:
             raise ValueError(f"block {r['block']!r} is not an evaluation seed")
         try:
@@ -274,7 +332,7 @@ def _blocks(runs):
         if attempts != list(range(1, len(attempts) + 1)):
             raise ValueError(f"block {block}: attempts {attempts}, not 1, 2, ... (D-050)")
         at = {a: {r["arm"]: r for rs in arms.values() for r in rs if r["attempt"] == a} for a in attempts}
-        lacking = {a: [arm for arm in NEEDED_ARMS if not (arm in at[a] and at[a][arm]["valid"])] for a in attempts}
+        lacking = {a: [arm for arm in needed if not (arm in at[a] and at[a][arm]["valid"])] for a in attempts}
         complete = [a for a in attempts if not lacking[a]]
         if any(a != attempts[-1] for a in complete):
             raise ValueError(f"block {block}: attempt {complete[0] + 1} follows attempt {complete[0]}, whose every needed "
@@ -457,8 +515,9 @@ def outcome(runs, dry_run=False):
     settings = runs[0]["settings"] if runs else {}
     if runs and not dry_run:
         l7_backend.require_frozen({"status": settings.get("calibration_status")})
+    families = settings_families(settings)
     fam = {}
-    for f in FAMILIES:
+    for f in families:
         h, m = harm(blocks, f), mitigation(blocks, f, every)
         k = None
         if h["valid_blocks"] < MIN_VALID_BLOCKS:
@@ -472,8 +531,8 @@ def outcome(runs, dry_run=False):
         else:
             status = "harmful but not mitigated"
         fam[f] = {"status": status, "harm": h, "mitigation": m, "valid_blocks_if_invalid": k}
-    qualified = [f for f in FAMILIES if fam[f]["status"] == "mitigated"]
-    lacking = [f for f in FAMILIES if fam[f]["valid_blocks_if_invalid"] is not None]
+    qualified = [f for f in families if fam[f]["status"] == "mitigated"]
+    lacking = [f for f in families if fam[f]["valid_blocks_if_invalid"] is not None]
     if qualified:
         m7 = "supported with scope: " + SCOPE.format(
             families=" and ".join(FAMILY_NAMES[f] for f in qualified))
@@ -481,7 +540,7 @@ def outcome(runs, dry_run=False):
         m7 = invalid(min(fam[f]["valid_blocks_if_invalid"] for f in lacking))
     else:
         m7 = "not supported"
-    return {"M7": m7, "dry_run": settings.get("calibration_status") != "frozen",
+    return {"M7": m7, "families_run": list(families), "dry_run": settings.get("calibration_status") != "frozen",
             "calibration": {k: settings.get(f"calibration_{k}") for k in ("status", "sha256")}, "families": fam, "bans_by_arm": bans_by_arm(runs), "t_mit_s": T_MIT_S,
             "limits_cost": limits_cost(blocks), "unhealthy_controls": unhealthy_controls(every),
             "small_control_classes": small_control_classes(every),
@@ -489,12 +548,64 @@ def outcome(runs, dry_run=False):
             "largest_view_slip": largest_view_slip(runs)}
 
 
+NO_HARM = "{name} below the default rules' thresholds did not harm profile R up to {top} sources"
+
+
+def no_knee_verdict(knees):
+    """D-074, rule A, over the ladder's record (eval/p4_ladder.py --out): per family its status and reading, with each level's figures, and
+    M7. ValueError for a record without statuses or an incomplete ladder: there is no reading yet."""
+    results = knees.get("results")
+    if not results:
+        raise ValueError("not a record of eval/p4_ladder.py with its statuses (D-074)")
+    fam = {}
+    for f, r in results.items():
+        if r["status"] == "incomplete":
+            raise ValueError(f"{f}: the ladder is incomplete, level {r['next_level']} runs next (D-073 (1)): no reading yet")
+        gone = [{"level": n, "status": "not reachable", "why": r.get("why_not_reachable")} for n in r.get("not_reachable", ())]
+        if r["status"] == "no knee":
+            reading = NO_HARM.format(name=FAMILY_NAMES[f], top=r["top"]) + " (D-074, rule A): no validation and no campaign"
+        else:
+            reading = f"a knee at {r['level']} sources: the campaign judges it"
+        fam[f] = {"status": r["status"], "reading": reading, "top": r.get("top"), "knee": r.get("level"), "not_reachable": gone,
+                  "levels": (knees.get("families") or {}).get(f, {}).get("rows")}
+    if all(x["status"] == "no knee" for x in fam.values()):
+        m7 = "not applicable: no harmful attack (D-074, rule A)"
+    elif any(x["status"] == "no knee" for x in fam.values()):
+        # T078-09: a family with no knee makes eval/p4_runner.py check_knees refuse the whole campaign, so none runs.
+        noknee = " and ".join(FAMILY_NAMES[f] for f in fam if fam[f]["status"] == "no knee")
+        m7 = f"no campaign: {noknee} has no knee, which eval/p4_runner.py refuses (check_knees, D-074); a family with a knee is not run on its own"
+    else:
+        m7 = "the campaign's: every family has a knee"
+    return {"M7": m7, "families": fam, "halvings": knees.get("halvings"), "calibration_sha256": knees.get("calibration_sha256")}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("runs", help="JSON Lines, one run record per line")
+    ap.add_argument("runs", nargs="?", help="JSON Lines, one run record per line")
     ap.add_argument("--json", help="write the full verdict here")
     ap.add_argument("--dry-run", action="store_true", help="allow records under a calibration that is not frozen; labelled")
+    ap.add_argument("--knees", help="without runs: the ladder's record (eval/p4_ladder.py --out), for D-074's rule A")
     args = ap.parse_args(argv)
+    if (args.runs is None) == (args.knees is None):
+        ap.error("give the campaign's run records, or --knees for a ladder without a knee (D-074)")
+    if args.knees:
+        try:
+            with open(args.knees, encoding="utf-8") as fh:
+                res = no_knee_verdict(json.load(fh))
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            print(f"[-] {exc}", file=sys.stderr)
+            return 2
+        print(f"M7: {res['M7']}")
+        for f, r in res["families"].items():
+            print(f"  {FAMILY_NAMES[f]}: {r['reading']}")
+            for g in r["not_reachable"]:
+                print(f"    {g['level']} sources: not reachable ({g['why']}), which is not no harm")
+            for level, harms in r["levels"] or ():
+                print(f"    {level:g} sources: harm per repeat {harms}")
+        if args.json:
+            with open(args.json, "w", encoding="utf-8") as fh:
+                json.dump(res, fh, indent=1, default=str)
+        return 0
     with open(args.runs, encoding="utf-8") as fh:
         runs = [json.loads(line) for line in fh if line.strip()]
     try:

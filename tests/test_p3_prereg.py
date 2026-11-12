@@ -1,5 +1,6 @@
 """The P3 pre-registration (docs/P3_DATASET_DESIGN.md §5, §6.1, §8 item 3) is pinned value by value:
 a change to the committed file must change this test too, in the same reviewed commit."""
+import hashlib
 import json
 import os
 import sys
@@ -115,6 +116,24 @@ class PinnedVolumeAndCurveTest(unittest.TestCase):
         self.assertIn("(IP, UA)", b["key"])
         self.assertIn("'age-assisted'", b["reading"])
         self.assertIn("within 0.5 +- auc_band is 'near chance'", b["reading"])
+
+
+class SizingRecordTest(unittest.TestCase):
+    """ml/p3_sizing_prereg.json: the user's D-076, before any P3 capture."""
+    PATH = os.path.join(REPO, "ml", "p3_sizing_prereg.json")
+    SHA256 = "bec5ab2f0eb4aa0fc2ce65f74de5a3303e3f7d3205545ed7eedb95a2bffb83ba"      # 2026-11-08: D-079's dated note added (T-079)
+
+    def test_the_file_is_the_frozen_version(self):
+        with open(self.PATH, "rb") as fh:
+            self.assertEqual(hashlib.sha256(fh.read()).hexdigest(), self.SHA256)
+        with open(self.PATH, encoding="utf-8") as fh:
+            rec = json.load(fh)
+        self.assertEqual((rec["format"], rec["date"], rec["pace_cap"]), ("p3-sizing/1", "2026-11-07", 2.0))
+        self.assertIn("D-076", rec["decision"])
+        self.assertEqual(sorted(rec["carrier"]), ["C2", "C3a", "C3b"])
+        self.assertIn("count only", rec["carrier"]["C3b"])
+        self.assertEqual((rec["dated_notes"][0]["date"], "D-079" in rec["dated_notes"][0]["decision"]), ("2026-11-08", True))
+        self.assertIn("only at status knee", rec["dated_notes"][0]["note"])
 
 
 if __name__ == "__main__":

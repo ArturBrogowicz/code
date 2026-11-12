@@ -1,0 +1,122 @@
+[2026-11-11 19:17:00 +0000] [299283] [INFO] Starting gunicorn 26.2.0
+[2026-11-11 19:17:00 +0000] [299283] [INFO] Listening at: http://127.0.0.1:8080 (299283)
+[2026-11-11 19:17:00 +0000] [299283] [INFO] Using worker: gthread
+[2026-11-11 19:17:00 +0000] [299297] [INFO] Booting worker with pid: 299297
+[2026-11-11 19:17:00 +0000] [299298] [INFO] Booting worker with pid: 299298
+[2026-11-11 19:17:00 +0000] [299283] [INFO] Control socket listening at /root/.gunicorn/gunicorn.ctl
+[2026-11-11 19:17:03 +0000] [299297] [ERROR] Exception in worker process
+Traceback (most recent call last):
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/arbiter.py", line 753, in spawn_worker
+    worker.init_process()
+    ~~~~~~~~~~~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/workers/gthread.py", line 274, in init_process
+    super().init_process()
+    ~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/workers/base.py", line 137, in init_process
+    self.load_wsgi()
+    ~~~~~~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/workers/base.py", line 149, in load_wsgi
+    self.wsgi = self.app.wsgi()
+                ~~~~~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/app/base.py", line 66, in wsgi
+    self.callable = self.load()
+                    ~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/app/wsgiapp.py", line 57, in load
+    return self.load_wsgiapp()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/app/wsgiapp.py", line 47, in load_wsgiapp
+    return util.import_app(self.app_uri)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/util.py", line 463, in import_app
+    app = getattr(mod, name)
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/bench/origin.py", line 381, in __getattr__
+    globals()["app"] = app_from_env()
+                       ~~~~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/bench/origin.py", line 375, in app_from_env
+    return make_app(CostKnobs(**knobs), int(environ.get("ORIGIN_SEED", "1")), frozen, tag, clock)
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/bench/origin.py", line 356, in make_app
+    raise CalibrationError("; ".join(
+        f"{b['class']}: {b['measured_ms']:.3g} ms against {b['frozen_ms']:.3g} ms frozen"
+        if b["measured_ms"] is not None else f"{b['class']}: not measured" for b in bad))
+origin.CalibrationError: C0: 0.00809 ms against 0.00544 ms frozen; C1: 5 ms against 3.41 ms frozen; C2: 2.96 ms against 1.77 ms frozen; C3: 43.6 ms against 29.8 ms frozen; C5: 228 ms against 160 ms frozen
+C0: 0.00809 ms against 0.00544 ms frozen; C1: 5 ms against 3.41 ms frozen; C2: 2.96 ms against 1.77 ms frozen; C3: 43.6 ms against 29.8 ms frozen; C5: 228 ms against 160 ms frozen
+[2026-11-11 19:17:03 +0000] [299297] [INFO] Worker exiting (pid: 299297)
+[2026-11-11 19:17:03 +0000] [299283] [ERROR] Worker (pid:299297) exited with code 3.
+[2026-11-11 19:17:03 +0000] [299298] [ERROR] Exception in worker process
+Traceback (most recent call last):
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/arbiter.py", line 753, in spawn_worker
+    worker.init_process()
+    ~~~~~~~~~~~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/workers/gthread.py", line 274, in init_process
+    super().init_process()
+    ~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/workers/base.py", line 137, in init_process
+    self.load_wsgi()
+    ~~~~~~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/workers/base.py", line 149, in load_wsgi
+    self.wsgi = self.app.wsgi()
+                ~~~~~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/app/base.py", line 66, in wsgi
+    self.callable = self.load()
+                    ~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/app/wsgiapp.py", line 57, in load
+    return self.load_wsgiapp()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/app/wsgiapp.py", line 47, in load_wsgiapp
+    return util.import_app(self.app_uri)
+           ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/util.py", line 463, in import_app
+    app = getattr(mod, name)
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/bench/origin.py", line 381, in __getattr__
+    globals()["app"] = app_from_env()
+                       ~~~~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/bench/origin.py", line 375, in app_from_env
+    return make_app(CostKnobs(**knobs), int(environ.get("ORIGIN_SEED", "1")), frozen, tag, clock)
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/bench/origin.py", line 356, in make_app
+    raise CalibrationError("; ".join(
+        f"{b['class']}: {b['measured_ms']:.3g} ms against {b['frozen_ms']:.3g} ms frozen"
+        if b["measured_ms"] is not None else f"{b['class']}: not measured" for b in bad))
+origin.CalibrationError: C0: 0.00916 ms against 0.00544 ms frozen; C1: 4.84 ms against 3.41 ms frozen; C2: 2.23 ms against 1.77 ms frozen; C3: 39.6 ms against 29.8 ms frozen; C5: 230 ms against 160 ms frozen
+C0: 0.00916 ms against 0.00544 ms frozen; C1: 4.84 ms against 3.41 ms frozen; C2: 2.23 ms against 1.77 ms frozen; C3: 39.6 ms against 29.8 ms frozen; C5: 230 ms against 160 ms frozen
+[2026-11-11 19:17:03 +0000] [299298] [INFO] Worker exiting (pid: 299298)
+[2026-11-11 19:17:03 +0000] [299283] [ERROR] Worker (pid:299298) exited with code 3.
+Traceback (most recent call last):
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/arbiter.py", line 271, in run
+    handler()
+    ~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/arbiter.py", line 300, in handle_chld
+    self.reap_workers()
+    ~~~~~~~~~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/arbiter.py", line 684, in reap_workers
+    raise HaltServer(reason, self.WORKER_BOOT_ERROR)
+gunicorn.errors.HaltServer: <HaltServer 'Worker failed to boot.' 3>
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/__main__.py", line 10, in <module>
+    run(prog="gunicorn")
+    ~~~^^^^^^^^^^^^^^^^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/app/wsgiapp.py", line 66, in run
+    WSGIApplication("%(prog)s [OPTIONS] [APP_MODULE]", prog=prog).run()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/app/base.py", line 235, in run
+    super().run()
+    ~~~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/app/base.py", line 71, in run
+    Arbiter(self).run()
+    ~~~~~~~~~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/arbiter.py", line 279, in run
+    self.halt(reason=inst.reason, exit_status=inst.exit_status)
+    ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/arbiter.py", line 406, in halt
+    self.stop()
+    ~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/arbiter.py", line 486, in stop
+    self.reap_workers()
+    ~~~~~~~~~~~~~~~~~^^
+  File "/home/artur/agent_workspace/worktrees/ap4-drift/venv/lib/python3.14/site-packages/gunicorn/arbiter.py", line 684, in reap_workers
+    raise HaltServer(reason, self.WORKER_BOOT_ERROR)
+gunicorn.errors.HaltServer: <HaltServer 'Worker failed to boot.' 3>

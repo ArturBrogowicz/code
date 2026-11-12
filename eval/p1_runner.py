@@ -61,6 +61,7 @@ import random
 import re
 import shutil
 import sys
+import time
 import types
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -70,6 +71,7 @@ for _p in (REPO, os.path.join(REPO, "ml"), HERE, os.path.join(REPO, "bench")):
         sys.path.insert(0, _p)
 import capture_l7 as CAP
 import executor as X
+import l7_pools as LP
 import l7v2_verdict_prereg as VP
 import p1_traffic as PT
 import p4_runner as P4
@@ -129,6 +131,32 @@ SLUG = {"default_rules": "default_rules", "R*": "rstar", "hgb": "hgb", "view_gru
 
 class PlanError(ValueError):
     """The run or block cannot be planned as asked."""
+
+
+class Unreachable(PlanError):
+    """A level this testbed cannot carry as planned (ml/p1_traffic.Unreachable): the source bounds or P1's address limit. For a ladder it is
+    recorded (record_unreachable) and reported as 'not reachable', never as no harm (D-074)."""
+
+
+UNREACHABLE_LOG = "ladder_unreachable.jsonl"
+
+
+def record_unreachable(root, cls, level, repeat, seed, reason):
+    """A registered ladder block the plan refused as not reachable, one JSON line in ROOT/ladder_unreachable.jsonl (D-074): the knees file
+    names the level so, and never as no harm."""
+    os.makedirs(root, exist_ok=True)
+    with open(os.path.join(root, UNREACHABLE_LOG), "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({"class": cls, "level": level, "repeat": repeat, "seed": seed, "reason": reason,
+                             "utc": P4._utc(time.time())}, sort_keys=True) + "\n")
+
+
+def read_unreachable(root):
+    """The lines record_unreachable wrote, oldest first; none when there is no file."""
+    path = os.path.join(root, UNREACHABLE_LOG)
+    if not os.path.isfile(path):
+        return []
+    with open(path, encoding="utf-8") as fh:
+        return [json.loads(x) for x in fh if x.strip()]
 
 
 # --- runs ------------------------------------------------------------------------------------------
@@ -240,9 +268,20 @@ def load_knees(path):
         return json.load(fh)
 
 
-def load_factor(frozen):
-    """The frozen factor of the halving rule, from the health file (eval/p1_analysis.py --health), bound to the record in use; a
-    file without a factor is refused, and the refusal says why (ml/p1_prereg.json halving.at_the_floor)."""
+def health_rows_sha256(rows):
+    """sha256 of a run index's health lines, as read_index gives them: what a factor file is bound to (D-080)."""
+    return hashlib.sha256(json.dumps([x for x in rows if x["phase"] == "health"], sort_keys=True).encode()).hexdigest()
+
+
+def health_index_sha256(root):
+    """The digest of ROOT's health steps (D-080, T078-08): eval/p1_analysis.py --health records it, and load_factor checks it."""
+    return health_rows_sha256(read_index(root))
+
+
+def load_factor(frozen, root):
+    """The frozen factor of the halving rule, from the health file (eval/p1_analysis.py --health), bound to the record in use and to ROOT's
+    health steps (D-080: its root and the digest of ROOT's health index lines); a file without a factor is refused, and the refusal says why
+    (ml/p1_prereg.json halving.at_the_floor)."""
     import l7_backend
     path = frozen.get("health")
     if not path:
@@ -261,17 +300,24 @@ def load_factor(frozen):
                         f"the record in use ({str(rec.get('sha256'))[:12]}...)")
     if health.get("decision") != "frozen":
         raise PlanError(f"the benign mix has no frozen factor ({health.get('decision')}): {health.get('why')}")
+    here = os.path.realpath(root)
+    if health.get("root") is not None and health["root"] != here:
+        raise PlanError(f"the health file was read on the root {health['root']}, not on {here}: a factor is bound to the root whose index holds "
+                        "its steps (D-080)")
+    if health.get("health_index_sha256") != health_index_sha256(root):
+        raise PlanError(f"the health file's steps are not {here}'s: its health index sha256 {str(health.get('health_index_sha256'))[:12]}... is "
+                        f"not that of the root's health lines ({health_index_sha256(root)[:12]}...); a factor is bound to its own steps (D-080)")
     return PT.check_halvings(health["benign_halvings"])
 
 
-def plan_halvings(phase, frozen, knees, halvings):
+def plan_halvings(phase, frozen, knees, halvings, root):
     """A block's halvings: a smoke's or a health step's own; a ladder's and a campaign's the frozen factor, which a campaign's knees
     must name too, since they were measured at it."""
     if phase in ("smoke", "health"):
         return halvings or 0
     if halvings is not None:
         raise PlanError(f"a {phase} runs at the frozen factor (--health), not at --halvings")
-    factor = load_factor(frozen)
+    factor = load_factor(frozen, root)
     if phase == "campaign" and knees.get("benign_halvings") != factor:
         raise PlanError(f"the knees were measured at {knees.get('benign_halvings')} halvings, the frozen factor is {factor}")
     return factor
@@ -409,20 +455,25 @@ def plan_run(pop, phase, arm, cls, out, frozen, *, python=PYTHON, age=None):
     }
 
 
-def check_ladder(levels, label):
+def check_ladder(levels, label, seed):
     """A ladder block is one class at one pre-registered level, under the label the analysis reads its class, level and repeat from
-    (T057-05, ml/l7v2_prereg.json harm.ladder; P4's ladder refuses the same way). A level 3 could otherwise become a knee, and a third
-    repeat, a free label or another spelling of a label would re-roll a repeat that fell short."""
+    (T057-05, ml/p1_prereg_5.json ladder; P4's ladder refuses the same way), on the seed the seed map gives that repeat (D-073). A level 3
+    could otherwise become a knee; a third repeat, a free label or another spelling of a label would re-roll a repeat that fell short; and
+    two repeats on one seed would replay one population twice."""
     if len(levels) != 1:
         raise PlanError(f"a ladder block is one class at one level, not {levels}")
     cls, level = next(iter(levels.items()))
     allowed = PT.ladder_levels(cls)
     if level not in allowed:
-        raise PlanError(f"ladder: {cls} at {level:g} is not one of its pre-registered levels {allowed} (ml/l7v2_prereg.json harm.ladder)")
+        raise PlanError(f"ladder: {cls} at {level:g} is not one of its pre-registered levels {allowed} (ml/p1_prereg_5.json ladder.levels)")
     labels = [f"{cls}_L{level:g}_r{repeat}" for repeat in range(1, PT.ladder_repeats() + 1)]
     if label not in labels:
         raise PlanError(f"ladder: the label {label!r} is not one of {labels}: the analysis reads the level and the repeat from it, "
                         f"and the ladder has {len(labels)} repeats")
+    want = PT.ladder_seed(cls, level, labels.index(label) + 1)
+    if seed != want:
+        raise PlanError(f"ladder: {label} runs on pilot seed {want}, not {seed} (ml/p1_prereg_5.json ladder.seed_map): the two repeats "
+                        "of a level never share a seed")
 
 
 def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", runs=None, cut=False, python=PYTHON,
@@ -436,16 +487,27 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
         raise PlanError(f"only a smoke reads above the verified address limit, not a {phase}")
     role = "eval" if phase == "campaign" else "pilot"
     knees = load_knees(frozen.get("knees"))
+    no_knee, left_out = [], {}
     if phase == "campaign":
         if knees is None:
             raise PlanError("a campaign needs the frozen knees (--knees)")
         if runs is not None:
             raise PlanError("a campaign runs the live set")
         pairs = live_runs(cut)
-        levels = {c: knees.get(c) for c in sorted({c for _a, c in pairs} - {None})}
-        none = sorted(c for c, level in levels.items() if level is None)
-        if none:
-            raise PlanError(f"{', '.join(none)} has no knee at its reachable levels, and this campaign needs it (ml/p1_prereg_3.json ladder)")
+        live = sorted({c for _a, c in pairs} - {None})
+        statuses = {c: LP.knee_status(knees, c) for c in live}
+        bad = [f"{c} ({s})" for c, s in sorted(statuses.items()) if s not in ("knee", "no_knee")]
+        bad += [f"{c} (a knee without a level)" for c in live if statuses[c] == "knee" and not LP._positive(knees.get(c))]
+        if bad:
+            raise PlanError(f"the knees give {', '.join(bad)}: a campaign takes a class only at status knee or no_knee (D-079); finish its "
+                            "ladder first")
+        no_knee = sorted(c for c in live if statuses[c] == "no_knee")
+        if len(no_knee) == len(live):
+            raise PlanError(f"no class of this campaign has a knee ({', '.join(no_knee)}): there is no campaign (D-074, ml/p1_prereg_5.json "
+                            "no_knee)")
+        left_out = {c: (knees.get("results") or {}).get(c) or f"{c}: no knee (its knees file gives no line)" for c in no_knee}
+        pairs = [(a, c) for a, c in pairs if c not in no_knee]     # D-074: the classes with a knee, C2 alone if it is the only one
+        levels = {c: knees[c] for c in live if c not in no_knee}
     elif phase == "health":
         rule = PT.prereg()["halving"]
         if runs is not None or levels:
@@ -460,13 +522,15 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
         pairs = [parse_run(n) for n in runs]
         levels = dict(levels or {})
     try:
-        factor = plan_halvings(phase, frozen, knees, halvings)
+        factor = plan_halvings(phase, frozen, knees, halvings, root)
         pop = PT.build_block(seed, role, levels, record_path=frozen["calibration"], knees=knees if phase == "campaign" else None,
                              benign_specs=benign_specs, max_sources=max_sources, halvings=factor)
+    except PT.Unreachable as exc:
+        raise Unreachable(str(exc)) from exc
     except PT.PlanError as exc:
         raise PlanError(str(exc)) from exc
     if phase == "ladder":
-        check_ladder(levels, label)
+        check_ladder(levels, label, seed)
     if address_limit is not None:
         pop["pool"]["address_limit"] = address_limit
     arms = {a for a, _c in pairs}
@@ -485,11 +549,14 @@ def plan_block(phase, seed, root, *, frozen, levels=None, attempt=1, label="", r
                    for n in order]
         for run in planned:
             run["timer_limit_ms"] = record["validity"]["timer_p99_ms"]
+    except PT.Unreachable as exc:
+        raise Unreachable(str(exc)) from exc
     except PT.PlanError as exc:
         raise PlanError(str(exc)) from exc
     return {"phase": phase, "seed": seed, "attempt": attempt, "label": label, "dir": bdir, "root": root, "order": order,
             "levels": levels, "halvings": factor, "sources": pop["sources"], "cut": bool(cut), "frozen": sums,
-            "calibration": frozen["calibration"],
+            "calibration": frozen["calibration"], "live_classes": sorted({c for _a, c in pairs} - {None}), "no_knee": no_knee,
+            "left_out": left_out,
             "intensity": pop["intensity"], "flash": pop["flash"], "dropped": pop["dropped"],
             "age_check": ages, "address_limit": pop["pool"]["address_limit"], "benign_load": PT.benign_load(pop, record),
             "runs": planned}
@@ -523,6 +590,9 @@ def describe(block):
               f"rho {load['rho_req_s']:g} req/s, {load['rho_cpu_s_s']} CPU-s/s; C_slo {load['c_slo_req_s']:g} req/s, "
               f"{load['c_slo_cpu_s_s']} CPU-s/s; S {load['spare_cpu_s']} CPU-s/s"),
              f"VM time of this block: {vm_minutes(len(block['runs'])):.0f} min [ESTIMATE]"]
+    if block["no_knee"]:
+        lines.append(f"not in this campaign: {', '.join(block['no_knee'])}, which has no knee (D-074): its line is in the knees file")
+        lines += [f"  {line}" for line in block["left_out"].values()]
     for r in block["runs"]:
         d = r["daemon"]
         env = " ".join(f"{k}={v}" for k, v in sorted(d["env"].items())) if d else "none"
@@ -534,6 +604,12 @@ def describe(block):
 
 
 # --- executing -----------------------------------------------------------------------------------
+
+def _mem_available_kb(text):
+    """MemAvailable of /proc/meminfo in kB, or None: what the smoke's read judges (D-075, ml/p1_prereg_5.json address_limit.read)."""
+    m = re.search(r"^MemAvailable:\s+(\d+)\s+kB", text, re.MULTILINE)
+    return int(m.group(1)) if m else None
+
 
 def _cpu_times(text):
     """{cpu number: (busy, total) jiffies} of /proc/stat."""
@@ -705,7 +781,8 @@ def execute_run(host, plan, frozen_sums):
                     launched.append((x, launch_generator(host, x, out)))
                 except OSError as exc:
                     reasons.append(f"{x['entity_id']} did not start: {exc}")
-            cpu.append({"t": round(now, 3), "cpu": _cpu_times(P4._text(host, "/proc/stat"))})
+            cpu.append({"t": round(now, 3), "cpu": _cpu_times(P4._text(host, "/proc/stat")),
+                        "mem_available_kb": _mem_available_kb(P4._text(host, "/proc/meminfo"))})
             if plan["enforcing"] and kill_seen is None and host.exists(plan["kill_file"]):
                 kill_seen = now
                 reasons.append(f"the kill file appeared at {now:.0f} s: the arm stopped acting")
@@ -839,10 +916,13 @@ def shadow_report(events, plan, t0, sink=None):
 
 
 def runner_report(ctx):
-    """The runner's own lateness in a run, judging nothing (T050-11): its largest launch lag and the largest gap of its loop, from cpu.jsonl's clock."""
+    """The runner's own lateness in a run, judging nothing (T050-11): its largest launch lag and the largest gap of its loop, from cpu.jsonl's clock;
+    and the least MemAvailable it saw, which the smoke's read judges (D-075)."""
     times = [c["t"] for c in ctx["cpu"]]
+    mem = [c["mem_available_kb"] for c in ctx["cpu"] if c.get("mem_available_kb") is not None]
     return {"largest_launch_lag_s": round(max(ctx["lags"]), 3),
-            "largest_loop_gap_s": round(max((b - a for a, b in itertools.pairwise(times)), default=0.0), 3)}
+            "largest_loop_gap_s": round(max((b - a for a, b in itertools.pairwise(times)), default=0.0), 3),
+            "mem_available_min_kb": min(mem, default=None)}
 
 
 def shadow_problems(report):
@@ -948,7 +1028,7 @@ def block_settings(block):
             "health_sha256": (f.get("health") or {}).get("sha256"), "points_sha256": points.get("sha256"),
             "points_decision": points.get("decision"), "selection_sha256": (f.get("selection") or {}).get("sha256"),
             "rules_sha256": (f.get("rules") or {}).get("sha256"), "halvings": block["halvings"], "levels": block["levels"],
-            "sources": block["sources"], "cut": block["cut"],
+            "sources": block["sources"], "cut": block["cut"], "live_classes": block["live_classes"], "left_out": block["left_out"],
             "code_sha256": hashlib.sha256(json.dumps(code, sort_keys=True).encode()).hexdigest()}
 
 
@@ -1013,8 +1093,31 @@ def check_settings(block):
                 raise PlanError(f"campaign block {block['seed']}: {', '.join(differ)} differ from {name}'s (ml/p1_prereg_3.json one_setting)")
 
 
+def check_conditional(block):
+    """D-079 (T078-02, ml/p1_prereg_5.json ladder.conditional): a conditional level runs only when its condition holds, read from ROOT's index
+    and ladder_unreachable.jsonl before the block runs, as eval/p4_runner.py check_ladder_order: C2 16 once 8 ran with every repeat sound and
+    did not pass in 2 of 2, C3a 6 and C3b 150 once 8 and 200 are recorded not reachable. Unlike the ascending stop, a fallback below a
+    registered level could otherwise move the knee down."""
+    if block["phase"] != "ladder":
+        return
+    cls, level = next(iter(block["levels"].items()))
+    cond = PT.CONDITIONAL.get((cls, float(level)))
+    if cond is None:
+        return
+    import p1_analysis as A
+
+    import l7_backend
+    cal = l7_backend.load_record(block["calibration"])[0]
+    other = A.ladder_status(block["root"], A.ladder_harm(block["root"], cal))[cls]["levels"][f"{cond['level']:g}"]
+    if not PT.condition_holds(cond, other):
+        shown = other["status"] + (f", every repeat sound: {other['sound']}, passed: {other['passed']}" if other["status"] == "run" else "")
+        raise PlanError(f"ladder: {cls} {level:g} is a conditional level, '{PT.prereg_5()['ladder']['conditional'][cond['record']]}' "
+                        f"(ml/p1_prereg_5.json ladder.conditional, D-079), and level {cond['level']:g} is {shown}")
+
+
 def run_block(host, block):
     """Every run of a block in its order; each in ROOT/index.jsonl before it begins and when it ends, valid or not."""
+    check_conditional(block)
     check_attempt(block)
     check_settings(block)
     if os.path.exists(block["dir"]):
@@ -1024,7 +1127,8 @@ def run_block(host, block):
                   {"block": block["seed"], "attempt": block["attempt"], "seed": block["seed"], "phase": block["phase"],
                    "calibration_sha256": block["frozen"]["calibration"]["digest"], "timeline": dict(PT.TIMELINE),
                    "order": block["order"], "levels": block["levels"], "halvings": block["halvings"],
-                   "sources": block["sources"], "cut": block["cut"],
+                   "sources": block["sources"], "cut": block["cut"], "live_classes": block["live_classes"], "no_knee": block["no_knee"],
+                   "left_out": block["left_out"],
                    "frozen": block["frozen"], "intensity": block["intensity"], "flash": block["flash"],
                    "dropped": block["dropped"], "age_check": block["age_check"], "address_limit": block["address_limit"],
                    "benign_load": block["benign_load"], "settings": block_settings(block)})
@@ -1090,6 +1194,13 @@ def main(argv=None, host=None):
         block = plan_block(args.phase, args.seed, args.root, frozen=frozen, levels=levels, attempt=args.attempt, label=label,
                            runs=runs, cut=args.cut, python=args.python, halvings=args.halvings, address_limit=args.address_limit)
     except PlanError as exc:
+        if isinstance(exc, Unreachable) and args.phase == "ladder" and not args.plan:
+            try:
+                check_ladder(levels, label, args.seed)          # only a registered block on its seed says something about its level
+            except PlanError:
+                pass
+            else:
+                record_unreachable(args.root, args.cls, levels[args.cls], args.repeat, args.seed, str(exc))
         print(f"[-] {exc}", file=sys.stderr)
         return 2
     print(describe(block))

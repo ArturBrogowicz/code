@@ -1,0 +1,47 @@
+{
+ "attacks": {
+  "cheap_static_flood": {
+   "Q": 95.89416058394161,
+   "level": 2.0,
+   "p95_s": 0.20824899999999857,
+   "requests": 1096
+  },
+  "costly_export_flood": {
+   "Q": 86.06245239908607,
+   "level": 4.0,
+   "p95_s": 0.22596925000000417,
+   "requests": 1313
+  },
+  "costly_search_flood": {
+   "Q": 57.551319648093845,
+   "level": 4.0,
+   "p95_s": 0.49377999999999367,
+   "requests": 1364
+  }
+ },
+ "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+ "created_utc": "2026-11-11T19:04:44+00:00",
+ "legit": {
+  "Q": 100.0,
+  "p95_s": 0.07422749999999888,
+  "requests": 3038
+ },
+ "ok": false,
+ "reasons": [
+  "costly_export_flood: Q 86.0625 against 75.3211 frozen (more than the gate's floor_pp, 10 pp)"
+ ],
+ "smoke": false,
+ "step": "drift",
+ "waits": {
+  "refused_probes": 1,
+  "runs": 4,
+  "waited": {
+   "drift/attack_costly_export_flood/U": {
+    "earlier": [],
+    "refused_probes": 1,
+    "waited_s": 35.9
+   }
+  },
+  "waited_s": 47.6
+ }
+}

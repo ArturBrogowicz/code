@@ -1,0 +1,1 @@
+artur:artur 2026-11-08 08:45:13.936397089 +0000 /home/artur/agent_workspace/sandbox/code.git/worktrees/ap4-drift1/index

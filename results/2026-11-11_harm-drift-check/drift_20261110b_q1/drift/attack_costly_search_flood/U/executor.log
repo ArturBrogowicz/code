@@ -1,0 +1,7 @@
+    2.468 timer probe 1 on CPU 7 at 2026-11-10T16:58:50+00:00: p50 0.906493, p99 4.32927, max 5.84215 ms: passed
+    2.572 run U of costly_search_sub_threshold, seed 44: preflight and environment passed
+   11.310 topology: 4 namespaces, 300 addresses, verified in 8.7 s
+   11.386 started the origin as pid 6679
+   11.449 started Nginx (its launcher returned after 0.06 s)
+   15.140 stack ready: 5 routes answer with their own class under calibration frozen:cff6e515; warmed up
+   15.396 launched 31 legit streams

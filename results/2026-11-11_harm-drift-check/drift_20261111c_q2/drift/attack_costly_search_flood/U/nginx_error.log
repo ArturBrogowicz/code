@@ -1,0 +1,7 @@
+2026/11/11 19:17:00 [error] 299288#299288: *1 connect() failed (111: Connection refused) while connecting to upstream, client: 10.0.0.1, server: twojadomena.pl, request: "GET /static/1 HTTP/1.1", upstream: "http://127.0.0.1:8080/static/1", host: "10.0.0.1"
+2026/11/11 19:17:00 [info] 299288#299288: *1 client 10.0.0.1 closed keepalive connection
+2026/11/11 19:17:02 [info] 299288#299288: *3 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too while sending request to upstream, client: 10.0.0.1, server: twojadomena.pl, request: "GET /static/1 HTTP/1.1", upstream: "http://127.0.0.1:8080/static/1", host: "10.0.0.1"
+2026/11/11 19:17:03 [error] 299288#299288: *5 recv() failed (104: Connection reset by peer) while reading response header from upstream, client: 10.0.0.1, server: twojadomena.pl, request: "GET /static/1 HTTP/1.1", upstream: "http://127.0.0.1:8080/static/1", host: "10.0.0.1"
+2026/11/11 19:17:03 [info] 299288#299288: *5 client 10.0.0.1 closed keepalive connection
+2026/11/11 19:17:04 [error] 299288#299288: *7 connect() failed (111: Connection refused) while connecting to upstream, client: 10.0.0.1, server: twojadomena.pl, request: "GET /static/1 HTTP/1.1", upstream: "http://127.0.0.1:8080/static/1", host: "10.0.0.1"
+2026/11/11 19:17:04 [info] 299288#299288: *7 client 10.0.0.1 closed keepalive connection

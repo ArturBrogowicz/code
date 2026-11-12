@@ -82,6 +82,45 @@ class SpecsTest(unittest.TestCase):
                 self.assertEqual(scn.id, name)
                 self.assertEqual(S.problems_of(record(name)), [])
 
+    def test_hg4s_cheap_spec_is_hg3s_at_level_4_twice_the_frozen_knee(self):
+        """D-071 (the user's, 2026-11-06, before any HG4 data; R-020): at the knee of 2 a source sends 30.8 req/s, 3 % above limit_req's
+        30 r/s and under the L7 rule's 50, so the rules' control could not show the rules winning. HG3 stays at the knee (D-066)."""
+        hg3, hg4 = record("cheap_static_flood"), record("cheap_static_flood_hg4")
+        self.assertEqual(S.load(path_of("cheap_static_flood_hg4")).id, "cheap_static_flood_hg4")
+        self.assertEqual(S.problems_of(hg4), [])
+        self.assertEqual((hg3["intensity"]["level"], hg4["intensity"]["level"]), ("knee", 4))
+        self.assertEqual({k: v for k, v in hg4.items() if k not in ("id", "description", "intensity")},
+                         {k: v for k, v in hg3.items() if k not in ("id", "description", "intensity")})
+        self.assertEqual({k: v for k, v in hg4["intensity"].items() if k != "level"}, {k: v for k, v in hg3["intensity"].items() if k != "level"})
+        self.assertIn("D-071", hg4["description"])
+        self.assertEqual(S.pair_problems(S.load(path_of("cheap_static_flood_hg4")), S.load(path_of("benign_control"))), [])
+        frozen = C.load(FROZEN)
+        self.assertEqual(frozen["knees"]["cheap_static_flood"], 2.0)
+        p = S.plan(S.load(path_of("cheap_static_flood_hg4")), frozen)
+        a = p["attack"]
+        self.assertEqual(a["level"], 2 * frozen["knees"]["cheap_static_flood"])
+        self.assertAlmostEqual(a["per_source_rate"], 61.67, places=2, msg="D-071's 61.6 req/s a source")
+        self.assertEqual((a["rules"]["limit_req_sheds"], a["rules"]["l7_rule_bans"]), (True, True))
+        knee = S.plan(S.load(path_of("cheap_static_flood")), frozen)["attack"]
+        self.assertAlmostEqual(knee["per_source_rate"], 30.83, places=2, msg="R-020's 30.8 req/s at the knee")
+        self.assertEqual((knee["rules"]["limit_req_sheds"], knee["rules"]["l7_rule_bans"]), (True, False))
+        self.assertEqual(p["warnings"], ["the attack family's grounding is 'assumed': no external reference motivates it"])
+
+    def test_cheaps_description_says_what_holds_at_its_knee_on_the_frozen_record(self):
+        """D-077: 'The control where the rules win ... each far above the per-source rules' no longer held at the knee (R-020)."""
+        text = record("cheap_static_flood")["description"]
+        a = S.plan(S.load(path_of("cheap_static_flood")), C.load(FROZEN))["attack"]
+        limit_req = next(r for r in a["thresholds"] if r["name"] == "limit_req") if "thresholds" in a else None
+        self.assertEqual(f"{a['per_source_rate']:.1f}", "30.8")
+        self.assertIn(f"about {a['per_source_rate']:.1f} req/s a source", text)
+        ratio = limit_req["ratio"] if limit_req else a["per_source_rate"] / 30
+        self.assertIn(f"about {ratio:.2f} x limit_req's 30 r/s", text)
+        self.assertEqual(round(100 * a["rules"]["reject_share"]), 3)
+        self.assertIn("so it sheds about 3 %", text)
+        self.assertFalse(a["rules"]["l7_rule_bans"])
+        self.assertIn("under the L7 rule's 50 r/s, so no ban: the rules may barely win", text)
+        self.assertNotIn("far above", text)
+
     def test_every_attack_is_paired_with_the_control_and_the_pair_is_fit(self):
         control = S.load(path_of("benign_control"))
         self.assertTrue(control.is_control)
@@ -460,6 +499,16 @@ class ExpectedGateTest(unittest.TestCase):
         none = S.plan(scenario("costly_search_sub_threshold", intensity__level=2), cal)
         self.assertEqual(none["expected_gate"]["class"], "likely FAIL")
         self.assertTrue(any("cannot harm" in w for w in none["warnings"]), none["warnings"])
+
+    def test_on_a_frozen_record_a_level_neither_at_the_knee_nor_twice_it_is_flagged(self):
+        """The scenario plan agrees with `gate_campaign run` (departures 37 to 39): no campaign takes such a level."""
+        frozen = C.load(FROZEN)
+        flag = "nor twice it: no campaign takes it"
+        for level, flagged in ((1, True), (2, False), (3, True), (4, False), (8, True)):
+            with self.subTest(level=level):
+                p = S.plan(scenario("cheap_static_flood", intensity__level=level), frozen)
+                self.assertEqual(any(flag in w for w in p["warnings"]), flagged, p["warnings"])
+        self.assertFalse(any(flag in w for w in plan_of("cheap_static_flood", intensity__level=3)["warnings"]), "not on a placeholder")
 
     def test_the_two_shipped_attacks(self):
         self.assertEqual(plan_of("costly_search_sub_threshold")["expected_gate"]["class"], "likely PASS")

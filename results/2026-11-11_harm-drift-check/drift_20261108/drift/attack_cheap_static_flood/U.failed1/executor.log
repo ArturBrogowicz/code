@@ -1,0 +1,18 @@
+    2.736 timer probe 1 on CPU 7 at 2026-11-08T09:35:32+00:00: p50 2.80308, p99 7.6688, max 7.75538 ms: passed
+    2.834 run U of cheap_static_flood, seed 42: preflight and environment passed
+   13.645 topology: 4 namespaces, 205 addresses, verified in 10.8 s
+   13.668 started the origin as pid 10793
+   13.725 started Nginx (its launcher returned after 0.06 s)
+   17.395 stack ready: 5 routes answer with their own class under calibration frozen:cff6e515; warmed up
+   17.595 launched 32 legit streams
+   50.199 launched 3 attack streams
+  125.303 timeline over after 107.9 s
+  125.634 stopped 1 process(es) of this run in 0.32 s
+  125.651 wall time of 20 stream(s) raised to what their records need, by up to 2.06 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  125.651 20 legit stream(s) began outside the pack of the others, by up to 2.26 s, and are placed by their own offsets: L-poisson-C0-mobile_3g-2, L-poisson-C0-mobile_bad-3, L-poisson-C0-perfect-0, L-poisson-C1-broadband-1, L-poisson-C1-mobile_3g-2, L-poisson-C1-mobile_bad-3, L-poisson-C1-perfect-0, L-poisson-C2-broadband-1, L-poisson-C3-mobile_3g-2, L-poisson-C3-mobile_bad-3, L-poisson-C3-perfect-0, L-poisson-C5-broadband-1, L-poisson-C5-mobile_3g-2, L-poisson-C5-mobile_bad-3, L-poisson-C5-perfect-0, L-pulse-C1-broadband-1, L-pulse-C1-mobile_3g-2, L-pulse-C1-mobile_bad-3, L-pulse-C1-perfect-0, L-pulse-C2-mobile_bad-3
+  125.785 nginx access log: 11423 lines (0 unparsed), server_requests.csv written, log compressed
+  125.787 run.json written; the run is UNSOUND: the legit streams began 2.28 s apart (limit 0.5 s; 20 of 32 are outside the pack, at most 15 may be)
+  125.830 teardown: 0 process(es) in 5 namespace(s): listed in 0.04 s, ended in 0.00 s
+  125.881 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.02 s, hg_2_mobile_3g 0.01 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  126.047 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.08 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.02 s, ddos_br0 0.02 s
+  126.069 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.3 s in all)

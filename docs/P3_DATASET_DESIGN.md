@@ -1,7 +1,9 @@
 # P3: multi-seed, entity-disjoint L7 datasets and learning curves (design note, written before the code)
 
-**Status (2026-10-30): a design for approval. Nothing in it is built or run.** It is on `design/priority-p1-p4`, branched from
-`feat/hg1c` at e413a34, and changes no code. It details priority P3 of the approved direction
+**Status (2026-11-12): approved on 2026-10-30 (ledger D-021) and built offline (`feat/p3-dataset-pipeline`, on `main`); no
+capture has run on the VM. The text below is the design as approved, with its dated re-registrations.** History: Status
+(2026-10-30): a design for approval. Nothing in it is built or run. It was written on `design/priority-p1-p4`, branched from
+`feat/hg1c` at e413a34, and changed no code. It details priority P3 of the approved direction
 (`/home/artur/agent_workspace/final/PRIORITY_PLAN.md` §5), refining T-005's learning-curve protocol
 (`S1:T-005/learning_curve_protocol.md`). It supplies P1's training and validation data (`docs/L7V2_DESIGN.md`). The tags and
 citation forms are those of `docs/L7V2_DESIGN.md` (header): `path:line` refers to e413a34, `S1:T-00x/<file>` is an accepted S1
@@ -184,6 +186,14 @@ A test asserts that two rebuilds are byte-identical, and that a single flipped b
   order; then 120 s benign only.
   - Each phase's intensity is drawn from {0.5, 1, 2} × that family's knee from the P1 ladder. The models therefore see each
     class under more than one load (R17).
+    - **As built (D-076, `ml/p3_sizing_prereg.json`, 2026-11-07, before any capture):** each core family takes its own knee from P1's
+      knees file. A family without one takes its top tested level, marked; one with neither is refused.
+    - The target m × K is carried as far as the capture carries it. C2 uses its per-entity rate. C3a uses its registered entities and
+      then its pace, at most 2 × P1's per-source pace. C3b uses its registered bots only.
+    - Target, realized, shortfall and excess are recorded per phase in the plan's intensity and on the phase in its timeline, which
+      the manifest keeps.
+    - **Dated note, 2026-11-08 (D-079, before any P1 data):** P1's knees file now gives each class a status. A plan takes a family's
+      knee only at status knee and its top tested level only at no_knee; incomplete, not_tested and no_sound_level are refused by name.
   - C3b at M1 joins the C3b phase with 10 entities.
   - **Evaluation captures only:** C3b at M3 (held out) runs in a fourth slot, with the 120 s tail extended to 240 s (1,020 s in
     all), together with the held-out benign kinds.

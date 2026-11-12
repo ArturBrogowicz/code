@@ -1,0 +1,9 @@
+{
+ "finished_utc": "2026-11-11T19:09:37+00:00",
+ "ok": true,
+ "reasons": [],
+ "seconds": 290.1,
+ "setup_retries": 0,
+ "timer_refused_probes": 1,
+ "timer_waited_s": 37.1
+}

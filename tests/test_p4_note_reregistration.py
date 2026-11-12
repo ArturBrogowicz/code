@@ -83,7 +83,53 @@ class ReRegistrationTest(unittest.TestCase):
                     "over [attack start + 30 s, attack end]", "180 s of traffic"):
             at = text.index(old)
             self.assertIn("[re-registered:", text[at:at + 400], old)
-        self.assertEqual(text[text.index("Two further forms"):].count("[re-registered:"), 10)
+        self.assertEqual(text[text.index("Two further forms"):].count("[re-registered:"), 20)
+
+    def test_t071_is_dated_before_the_code_it_judges(self):
+        # T-074: the extension of T-071 as approved (D-069, D-073 to D-075), re-registered before any ladder data and before its code.
+        text = note()
+        block = text[text.index("**Re-registrations, dated, all before any P4 data**"):text.index("Two further forms")]
+        for row in ("| D-069 | 2026-11-06T16:30Z |", "| D-073 (1) | 2026-11-07T08:33Z |", "| D-073 (2) | 2026-11-07T08:33Z |",
+                    "| D-073 (3) | 2026-11-07T08:33Z |", "| D-073 (4) | 2026-11-07T08:33Z |", "| D-073 (5) | 2026-11-07T08:33Z |",
+                    "| D-074 | 2026-11-07T08:33Z |", "| D-075 | 2026-11-07T08:33Z |"):
+            self.assertIn(row, block)
+        self.assertLess(block.index("| D-068 |"), block.index("| D-069 |"))
+        for needle in ("**Slowloris only**", "`--families loris,post`", "**(100, 175, 250, 300, 400, 500)**",
+                       "each higher level runs only once every lower level has 2 sound repeats and none of them is a knee",
+                       "**0.5 × min(planned, 1,800)**", "**C and C' of a health phase on pilot seed 9101, before the ladder**",
+                       "D-058's guard", "`p4-health/1`", "never fires the rule", "**benign clients run on CPU 7**",
+                       "**attack generators and the runner on CPUs 3-6**", "`--loris 500` (560 addresses)", "\"not reachable\"",
+                       "**No knee at the extended top is a reported result (rule A, R-021):**", "not applicable: no harmful attack",
+                       "`eval/p4_outcome.py --knees`", "**grouped**", "a thread per source", "without `--group`"):
+            self.assertIn(needle, block)
+        after = text[text.index("Two further forms"):]
+        for old, marker in (("If either of two pilot controls is unhealthy", "D-073 (3)]"),
+                            ("{100, 175, 250, 300} from the per-seed pool", "(100, 175, 250, 300, 400, 500)"),
+                            ("~1,800 (L7-03 needed ~1,900", "Slow Read's figure"),
+                            ("it must stay under R's 60 s header timeout", "read in P4-S s2, D-073 (5)]"),
+                            ("so they never reach the access log", "s2 counts them, D-073 (5)]"),
+                            ("2 families × 3 levels (the 4th only if no knee is found)", "D-069, D-073 (1), (3)]"),
+                            ("**The cut**, Slowloris only", "the cut is the plan, with C_M, D-069]"),
+                            ("The ladder's top level is 300", "the loris generators are grouped, D-073 (1), (5), D-075]"),
+                            ("VM timer stalls inflate client-side latency", "run on CPU 7 itself, D-073 (4)]")):
+            at = after.index(old)
+            self.assertIn(marker, after[at:at + 700], old)
+        self.assertIn("**Status (2026-11-07):", text)
+
+    def test_d080_is_dated_before_the_code_it_judges(self):
+        # T-080: D-080's P4 ladder hygiene (T078-05..08 and section 2), registered 2026-11-08 before the code it judges.
+        text = note()
+        block = text[text.index("**Re-registrations, dated, all before any P4 data**"):text.index("Two further forms")]
+        for row in ("| D-080 (1) | 2026-11-08T09:50Z |", "| D-080 (2) | 2026-11-08T09:50Z |",
+                    "| D-080 (3) | 2026-11-08T09:50Z |", "| D-080 (4) | 2026-11-08T09:50Z |"):
+            self.assertIn(row, block)
+        self.assertLess(block.index("| D-075 |"), block.index("| D-080 (1) |"))
+        for needle in ("at most the frozen record's `gate.max_reruns`", "lists every superseded attempt",
+                       "must name the P4-S s2 run directory", "refuses a reading dated after the ladder's first run",
+                       "checked against the halving rule (ml/p4_traffic.next_step) before it runs",
+                       "records its root and a digest of the health index lines",
+                       "start within milliseconds of each other", "not more spread out"):
+            self.assertIn(needle, block)
 
     def test_d046_is_dated_everywhere_before_the_code_it_judges(self):
         text = note()

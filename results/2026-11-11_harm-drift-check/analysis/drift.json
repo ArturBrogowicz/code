@@ -1,0 +1,534 @@
+{
+ "attempts": [
+  {
+   "agree": true,
+   "differences": [],
+   "dir": "drift_20261108",
+   "judged": {
+    "attacks": {
+     "cheap_static_flood": {
+      "Q": 94.70319634703196,
+      "level": 2.0,
+      "p95_s": 0.2226493999999974,
+      "requests": 1095
+     },
+     "costly_export_flood": {
+      "Q": 55.25114155251141,
+      "level": 4.0,
+      "p95_s": 0.24511424999999853,
+      "requests": 1314
+     },
+     "costly_search_flood": {
+      "Q": 65.12141280353201,
+      "level": 4.0,
+      "p95_s": 0.4256244000000008,
+      "requests": 1359
+     }
+    },
+    "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+    "legit": {
+     "Q": 99.67051070840198,
+     "p95_s": 0.08530640000000175,
+     "requests": 3035
+    },
+    "ok": false,
+    "reasons": [
+     "costly_export_flood: Q 55.2511 against 75.3211 frozen (more than the gate's floor_pp, 10 pp)"
+    ]
+   },
+   "not_compared": [
+    "created_utc",
+    "waits",
+    "smoke"
+   ],
+   "problems": [],
+   "recorded": {
+    "attacks": {
+     "cheap_static_flood": {
+      "Q": 94.70319634703196,
+      "level": 2.0,
+      "p95_s": 0.2226493999999974,
+      "requests": 1095
+     },
+     "costly_export_flood": {
+      "Q": 55.25114155251141,
+      "level": 4.0,
+      "p95_s": 0.24511424999999853,
+      "requests": 1314
+     },
+     "costly_search_flood": {
+      "Q": 65.12141280353201,
+      "level": 4.0,
+      "p95_s": 0.4256244000000008,
+      "requests": 1359
+     }
+    },
+    "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+    "created_utc": "2026-11-08T09:43:49+00:00",
+    "legit": {
+     "Q": 99.67051070840198,
+     "p95_s": 0.08530640000000175,
+     "requests": 3035
+    },
+    "ok": false,
+    "reasons": [
+     "costly_export_flood: Q 55.2511 against 75.3211 frozen (more than the gate's floor_pp, 10 pp)"
+    ],
+    "smoke": false,
+    "step": "drift",
+    "waits": {
+     "refused_probes": 0,
+     "runs": 4,
+     "waited": {},
+     "waited_s": 9.7
+    }
+   },
+   "recorded_file": null,
+   "verdict": "recorded ok=False"
+  },
+  {
+   "agree": true,
+   "differences": [],
+   "dir": "drift_20261108.second",
+   "judged": {
+    "attacks": {
+     "cheap_static_flood": {
+      "Q": 78.53881278538813,
+      "level": 2.0,
+      "p95_s": 0.2868987500000101,
+      "requests": 1095
+     },
+     "costly_export_flood": {
+      "Q": 78.88293802601378,
+      "level": 4.0,
+      "p95_s": 0.24657749999999723,
+      "requests": 1307
+     },
+     "costly_search_flood": {
+      "Q": 54.224834680382074,
+      "level": 4.0,
+      "p95_s": 0.44086840000000266,
+      "requests": 1361
+     }
+    },
+    "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+    "legit": {
+     "Q": 100.0,
+     "p95_s": 0.07187279999999703,
+     "requests": 3037
+    },
+    "ok": false,
+    "reasons": [
+     "cheap_static_flood: Q 78.5388 against 95.8089 frozen (more than the gate's floor_pp, 10 pp)"
+    ]
+   },
+   "not_compared": [
+    "created_utc",
+    "waits",
+    "smoke"
+   ],
+   "problems": [],
+   "recorded": {
+    "attacks": {
+     "cheap_static_flood": {
+      "Q": 78.53881278538813,
+      "level": 2.0,
+      "p95_s": 0.2868987500000101,
+      "requests": 1095
+     },
+     "costly_export_flood": {
+      "Q": 78.88293802601378,
+      "level": 4.0,
+      "p95_s": 0.24657749999999723,
+      "requests": 1307
+     },
+     "costly_search_flood": {
+      "Q": 54.224834680382074,
+      "level": 4.0,
+      "p95_s": 0.44086840000000266,
+      "requests": 1361
+     }
+    },
+    "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+    "created_utc": "2026-11-08T09:53:54+00:00",
+    "legit": {
+     "Q": 100.0,
+     "p95_s": 0.07187279999999703,
+     "requests": 3037
+    },
+    "ok": false,
+    "reasons": [
+     "cheap_static_flood: Q 78.5388 against 95.8089 frozen (more than the gate's floor_pp, 10 pp)"
+    ],
+    "smoke": false,
+    "step": "drift",
+    "waits": {
+     "refused_probes": 0,
+     "runs": 4,
+     "waited": {},
+     "waited_s": 10.2
+    }
+   },
+   "recorded_file": null,
+   "verdict": "recorded ok=False"
+  },
+  {
+   "agree": true,
+   "differences": [],
+   "dir": "drift_20261108_q1",
+   "judged": {
+    "attacks": {
+     "cheap_static_flood": {
+      "Q": 95.24680073126143,
+      "level": 2.0,
+      "p95_s": 0.19769934999999939,
+      "requests": 1094
+     },
+     "costly_export_flood": {
+      "Q": 85.38812785388127,
+      "level": 4.0,
+      "p95_s": 0.27446650000000156,
+      "requests": 1314
+     },
+     "costly_search_flood": {
+      "Q": 61.94690265486726,
+      "level": 4.0,
+      "p95_s": 0.4124344999999989,
+      "requests": 1356
+     }
+    },
+    "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+    "legit": {
+     "Q": 100.0,
+     "p95_s": 0.07718300000000013,
+     "requests": 3039
+    },
+    "ok": false,
+    "reasons": [
+     "costly_export_flood: Q 85.3881 against 75.3211 frozen (more than the gate's floor_pp, 10 pp)"
+    ]
+   },
+   "not_compared": [
+    "created_utc",
+    "waits",
+    "smoke"
+   ],
+   "problems": [],
+   "recorded": {
+    "attacks": {
+     "cheap_static_flood": {
+      "Q": 95.24680073126143,
+      "level": 2.0,
+      "p95_s": 0.19769934999999939,
+      "requests": 1094
+     },
+     "costly_export_flood": {
+      "Q": 85.38812785388127,
+      "level": 4.0,
+      "p95_s": 0.27446650000000156,
+      "requests": 1314
+     },
+     "costly_search_flood": {
+      "Q": 61.94690265486726,
+      "level": 4.0,
+      "p95_s": 0.4124344999999989,
+      "requests": 1356
+     }
+    },
+    "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+    "created_utc": "2026-11-10T15:42:50+00:00",
+    "legit": {
+     "Q": 100.0,
+     "p95_s": 0.07718300000000013,
+     "requests": 3039
+    },
+    "ok": false,
+    "reasons": [
+     "costly_export_flood: Q 85.3881 against 75.3211 frozen (more than the gate's floor_pp, 10 pp)"
+    ],
+    "smoke": false,
+    "step": "drift",
+    "waits": {
+     "refused_probes": 0,
+     "runs": 4,
+     "waited": {},
+     "waited_s": 10.0
+    }
+   },
+   "recorded_file": null,
+   "verdict": "recorded ok=False"
+  },
+  {
+   "descriptive_not_a_verdict": {},
+   "dir": "drift_20261108_q1.second",
+   "judged": null,
+   "problems": [
+    "legit: no complete run (run.json and DONE)"
+   ],
+   "recorded": null,
+   "recorded_file": "absent",
+   "verdict": "no verdict (the step was cut: no drift.json)"
+  },
+  {
+   "descriptive_not_a_verdict": {
+    "cheap_static_flood": {
+     "Q": 82.52516010978957,
+     "level": 2.0,
+     "p95_s": 0.2557134000000033,
+     "requests": 1093
+    },
+    "costly_export_flood": {
+     "Q": 76.23762376237623,
+     "level": 4.0,
+     "p95_s": 0.32815399999999784,
+     "requests": 1313
+    },
+    "legit": {
+     "Q": 100.0,
+     "p95_s": 0.07876540000000025,
+     "requests": 3037
+    }
+   },
+   "dir": "drift_20261110b_q1",
+   "judged": null,
+   "problems": [
+    "costly_search_flood: no complete run (run.json and DONE)"
+   ],
+   "recorded": null,
+   "recorded_file": "absent",
+   "verdict": "no verdict (the step was cut: no drift.json)"
+  },
+  {
+   "agree": true,
+   "differences": [],
+   "dir": "drift_20261111c_q1",
+   "judged": {
+    "attacks": {
+     "cheap_static_flood": {
+      "Q": 10.714285714285714,
+      "level": 2.0,
+      "p95_s": 0.6101729999999971,
+      "requests": 1092
+     },
+     "costly_export_flood": {
+      "Q": 68.67378048780488,
+      "level": 4.0,
+      "p95_s": 0.27658699999999925,
+      "requests": 1312
+     },
+     "costly_search_flood": {
+      "Q": 74.9632892804699,
+      "level": 4.0,
+      "p95_s": 0.29805099999999385,
+      "requests": 1362
+     }
+    },
+    "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+    "legit": {
+     "Q": 97.001647446458,
+     "p95_s": 0.09694469999999987,
+     "requests": 3035
+    },
+    "ok": false,
+    "reasons": [
+     "legit probe: Q 97.0016 against 100 frozen (more than 2 pp)",
+     "cheap_static_flood: Q 10.7143 against 95.8089 frozen (more than the gate's floor_pp, 10 pp)",
+     "cheap_static_flood: p95 0.610173 against 0.205702 frozen (more than the gate's floor_log2_p95, a factor of 2)",
+     "costly_search_flood: Q 74.9633 against 63.37 frozen (more than the gate's floor_pp, 10 pp)",
+     "costly_search_flood: p95 0.298051 against 0.630813 frozen (more than the gate's floor_log2_p95, a factor of 2)"
+    ]
+   },
+   "not_compared": [
+    "created_utc",
+    "waits",
+    "smoke"
+   ],
+   "problems": [],
+   "recorded": {
+    "attacks": {
+     "cheap_static_flood": {
+      "Q": 10.714285714285714,
+      "level": 2.0,
+      "p95_s": 0.6101729999999971,
+      "requests": 1092
+     },
+     "costly_export_flood": {
+      "Q": 68.67378048780488,
+      "level": 4.0,
+      "p95_s": 0.27658699999999925,
+      "requests": 1312
+     },
+     "costly_search_flood": {
+      "Q": 74.9632892804699,
+      "level": 4.0,
+      "p95_s": 0.29805099999999385,
+      "requests": 1362
+     }
+    },
+    "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+    "created_utc": "2026-11-11T18:51:45+00:00",
+    "legit": {
+     "Q": 97.001647446458,
+     "p95_s": 0.09694469999999987,
+     "requests": 3035
+    },
+    "ok": false,
+    "reasons": [
+     "legit probe: Q 97.0016 against 100 frozen (more than 2 pp)",
+     "cheap_static_flood: Q 10.7143 against 95.8089 frozen (more than the gate's floor_pp, 10 pp)",
+     "cheap_static_flood: p95 0.610173 against 0.205702 frozen (more than the gate's floor_log2_p95, a factor of 2)",
+     "costly_search_flood: Q 74.9633 against 63.37 frozen (more than the gate's floor_pp, 10 pp)",
+     "costly_search_flood: p95 0.298051 against 0.630813 frozen (more than the gate's floor_log2_p95, a factor of 2)"
+    ],
+    "smoke": false,
+    "step": "drift",
+    "waits": {
+     "refused_probes": 1,
+     "runs": 4,
+     "waited": {
+      "drift/legit/C": {
+       "earlier": [],
+       "refused_probes": 1,
+       "waited_s": 36.0
+      }
+     },
+     "waited_s": 44.2
+    }
+   },
+   "recorded_file": null,
+   "verdict": "recorded ok=False"
+  },
+  {
+   "agree": true,
+   "differences": [],
+   "dir": "drift_20261111c_q1.second",
+   "judged": {
+    "attacks": {
+     "cheap_static_flood": {
+      "Q": 95.89416058394161,
+      "level": 2.0,
+      "p95_s": 0.20824899999999857,
+      "requests": 1096
+     },
+     "costly_export_flood": {
+      "Q": 86.06245239908607,
+      "level": 4.0,
+      "p95_s": 0.22596925000000417,
+      "requests": 1313
+     },
+     "costly_search_flood": {
+      "Q": 57.551319648093845,
+      "level": 4.0,
+      "p95_s": 0.49377999999999367,
+      "requests": 1364
+     }
+    },
+    "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+    "legit": {
+     "Q": 100.0,
+     "p95_s": 0.07422749999999888,
+     "requests": 3038
+    },
+    "ok": false,
+    "reasons": [
+     "costly_export_flood: Q 86.0625 against 75.3211 frozen (more than the gate's floor_pp, 10 pp)"
+    ]
+   },
+   "not_compared": [
+    "created_utc",
+    "waits",
+    "smoke"
+   ],
+   "problems": [],
+   "recorded": {
+    "attacks": {
+     "cheap_static_flood": {
+      "Q": 95.89416058394161,
+      "level": 2.0,
+      "p95_s": 0.20824899999999857,
+      "requests": 1096
+     },
+     "costly_export_flood": {
+      "Q": 86.06245239908607,
+      "level": 4.0,
+      "p95_s": 0.22596925000000417,
+      "requests": 1313
+     },
+     "costly_search_flood": {
+      "Q": 57.551319648093845,
+      "level": 4.0,
+      "p95_s": 0.49377999999999367,
+      "requests": 1364
+     }
+    },
+    "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+    "created_utc": "2026-11-11T19:04:44+00:00",
+    "legit": {
+     "Q": 100.0,
+     "p95_s": 0.07422749999999888,
+     "requests": 3038
+    },
+    "ok": false,
+    "reasons": [
+     "costly_export_flood: Q 86.0625 against 75.3211 frozen (more than the gate's floor_pp, 10 pp)"
+    ],
+    "smoke": false,
+    "step": "drift",
+    "waits": {
+     "refused_probes": 1,
+     "runs": 4,
+     "waited": {
+      "drift/attack_costly_export_flood/U": {
+       "earlier": [],
+       "refused_probes": 1,
+       "waited_s": 35.9
+      }
+     },
+     "waited_s": 47.6
+    }
+   },
+   "recorded_file": null,
+   "verdict": "recorded ok=False"
+  },
+  {
+   "descriptive_not_a_verdict": {
+    "cheap_static_flood": {
+     "Q": 72.12065813528336,
+     "level": 2.0,
+     "p95_s": 0.2014333999999995,
+     "requests": 1094
+    },
+    "costly_export_flood": {
+     "Q": 25.133282559025133,
+     "level": 4.0,
+     "p95_s": 0.5827209499999992,
+     "requests": 1313
+    },
+    "legit": {
+     "Q": 100.0,
+     "p95_s": 0.07566785000000012,
+     "requests": 3034
+    }
+   },
+   "dir": "drift_20261111c_q2",
+   "judged": null,
+   "problems": [
+    "costly_search_flood: no complete run (run.json and DONE)"
+   ],
+   "recorded": null,
+   "recorded_file": "absent",
+   "verdict": "no verdict (the step was cut: no drift.json)"
+  }
+ ],
+ "calibration": {
+  "file_sha256": "55d84b004d9f61ca0ff1735fa6a7b11192bfe91d2cba2da7aa9c1b12cb72d016",
+  "path": "bench/calibration/ddos-mitigation-2026-11-04.json",
+  "sha256_field": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf"
+ },
+ "not_compared": [
+  "created_utc",
+  "waits",
+  "smoke"
+ ],
+ "rule": "bench/calibrate.py drift_check (docs/HG1C_DESIGN.md departure 33)"
+}

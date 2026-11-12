@@ -23,11 +23,16 @@ CGNAT-12 and CGNAT-24 are never removed. A plan carries how many times the rule 
 browser devices. The devices dropped are the last ones of the list, and an entity keeps its index, sub-seed, address
 and parameters whatever the halvings, so a halved plan is the full plan without those devices.
 
+Re-registration record (D-073 (3), 2026-11-07T08:33Z, the user's approval of T-071, before any P4 data; R-021), committed before the code
+it judges: the two pilot controls are C and C' of a health phase on pilot seed 9101, before the ladder (ml/p4_prereg.json halving, P1's
+D-049 rule with D-058's guard); next_step() applies the rule to its steps, and eval/p4_health.py writes the factor the ladder, the validation
+and the campaign run at. An unhealthy C inside the ladder makes that attempt unsound; it never fires the rule.
+
 Each entity's P4 label (`p4_role`) is what eval/p4_validation.py and eval/p4_outcome.py read: "slow_uploader", "cgnat",
 and the kind for every other benign entity ("attack" for the attack families).
 
 The two P4 families at the frozen scale of §5 (FAMILIES; scenario parameters of the in-repo generators, ml/l7_gen.py
-slowloris and slowpost, nothing else): sources from the ladders {100, 175, 250, 300} and {5, 10, 20, 40}, on port 80,
+slowloris and slowpost, nothing else): sources from the ladders {100, 175, 250, 300, 400, 500} and {5, 10, 20, 40}, on port 80,
 each attacking only during the attack (30-240 s of the run):
   * Slowloris (family 1): 6 connections per source, the benign device's footprint; each connection sends a header
     line of at most 32 B every U[10, 40] s, never completing the request;
@@ -37,6 +42,13 @@ A connection that is closed is re-opened at once and carries on with its slot's 
 re-open. loris_schedule() and post_schedule() are each source's seeded schedule, the one its generator executes and
 prints with --plan. Only the number of sources moves (the ladder); the pacing is frozen. Slow read stays secondary
 (§5: recorded and replayed, not in the verdict) and is not built here.
+
+Re-registration record (D-073 (1), 2026-11-07T08:33Z, the user's approval of T-071, before any ladder data; D-070), committed before the
+code it judges: the loris ladder is (100, 175, 250, 300, 400, 500). The first ALWAYS_RUN = 3 levels of a ladder always run, and each higher
+level only once every lower level has 2 sound repeats and none of them is a knee (eval/p4_runner.py check_ladder_order, eval/p4_ladder.py);
+slow POST's 4th level keeps that rule. The pool is drawn at its largest, 60 + 500 + 40 = 600 addresses; CPython's random.sample takes the
+same branch for 400 and 600 of the /20's 4,094 hosts, so every address the 400-address pool gave is kept (tested), and only slow POST's
+entities, whose indices start after loris's top, move. The pacing does not move.
 
 This module stays light (no numpy, no eval/ imports): ml/l7_gen.py, which every generator process runs, imports it.
 """
@@ -78,10 +90,12 @@ BENIGN = (
      "params": {**_UPLOAD, "rate_Bps": 2000}},
 )
 BENIGN_ENTITIES = sum(s["count"] for s in BENIGN)
-# §5, frozen with the smoke run (§13 row 2). `levels` is the ladder of sources; `params` are the generator's.
+# §5, frozen with the smoke run (§13 row 2). `levels` is the ladder of sources; `params` are the generator's. Loris's top two
+# levels, D-073 (1).
 LINE_MAX_BYTES = 32
+ALWAYS_RUN = 3                      # D-073 (1): a ladder's first three levels always run; a higher one only if no lower one is a knee
 FAMILIES = {
-    "loris": {"family": "slowloris", "mechanism": "conns", "levels": (100, 175, 250, 300), "ports": [80],
+    "loris": {"family": "slowloris", "mechanism": "conns", "levels": (100, 175, 250, 300, 400, 500), "ports": [80],
               "params": {"conns": 6, "header_every_s": [10.0, 40.0], "line_max_bytes": LINE_MAX_BYTES}},
     "post": {"family": "slowpost", "mechanism": "conns", "levels": (5, 10, 20, 40), "ports": [80],
              "params": {"conns": 1, "byte_every_s": [5.0, 30.0], "chunk_bytes": [1, 16],
@@ -115,6 +129,61 @@ def halve(control_reasons):
     if len(control_reasons) != 2:
         raise PlanError(f"the rule judges the two pilot controls, got {len(control_reasons)}")
     return any(bool(r) for r in control_reasons)
+
+
+PREREG = os.path.join(HERE, "p4_prereg.json")
+
+
+def prereg():
+    """ml/p4_prereg.json, the pre-registered halving rule (D-073 (3))."""
+    import json
+    with open(PREREG, encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def next_step(steps, decisions=None):
+    """The rule of ml/p4_prereg.json over its steps in the order they ran, as ml/p1_traffic.next_step applies P1's: each step {"dir",
+    "halvings", "sound", "reasons": [C's, C''s], "server_q": [C's, C''s]}; returns {"decision", "benign_halvings", "next_halvings", "why"},
+    the decision one of "run" (the next step's halvings), "frozen" (the factor), "refused" (there is no factor) and "stopped" (D-058's guard:
+    a control unhealthy with a server-side Q of at least server_q_min waits for a dated decision, `decisions` {step's dir: {"action": "fire" |
+    "repeat", "text"}})."""
+    rule = prereg()["halving"]
+    floor, max_reruns, server_q_min = rule["floor"]["max_halvings"], rule["max_reruns"], rule["server_q_min"]
+    decisions = decisions or {}
+
+    def refused(why):
+        return {"decision": "refused", "benign_halvings": None, "next_halvings": None, "why": why}
+
+    h, reruns = 0, 0
+    for i, step in enumerate(steps):
+        if step["halvings"] != h:
+            return refused(f"step {i + 1} ran at {step['halvings']} halvings while the rule stood at {h}")
+        if not step["sound"]:
+            reruns += 1
+            if reruns > max_reruns:
+                return refused(f"the controls at {h} halvings gave no reading in {reruns} attempts (at most {max_reruns} re-runs)")
+            continue
+        if not halve(step["reasons"]):
+            if i != len(steps) - 1:
+                return refused(f"a step ran after the rule stopped at {h} halvings")
+            return {"decision": "frozen", "benign_halvings": h, "next_halvings": None, "why": f"both controls healthy at {h} halvings"}
+        client_side = [q for r, q in zip(step["reasons"], step.get("server_q") or (None, None), strict=False)
+                       if r and q is not None and q >= server_q_min]
+        if client_side:
+            action = (decisions.get(step.get("dir")) or {}).get("action")
+            if action is None:
+                return {"decision": "stopped", "benign_halvings": None, "next_halvings": None, "stopped_step": step.get("dir"),
+                        "why": (f"a control unhealthy at {h} halvings with a server-side Q of {client_side[0]:.2f} %: the limit is not the server's, "
+                                f"and the rule waits for a dated decision (ml/p4_prereg.json halving, D-058's guard): {step['reasons']}")}
+            if action == "repeat":
+                reruns += 1
+                if reruns > max_reruns:
+                    return refused(f"the controls at {h} halvings gave no reading in {reruns} attempts (at most {max_reruns} re-runs)")
+                continue
+        if h == floor:
+            return refused(f"the benign mix does not reach health at the floor of {floor} halvings (ml/p4_prereg.json): {step['reasons']}")
+        h, reruns = h + 1, 0
+    return {"decision": "run", "benign_halvings": None, "next_halvings": h, "why": f"the next step runs at {h} halvings"}
 
 
 def check_seed(seed, seed_role):

@@ -41,10 +41,12 @@ slot. An evaluation or pilot plan ends with the same 120 s benign tail after the
 slot (1,140 s), and an M3 bot takes the address of a trained attack entity that has stopped (C2 first). The age check is
 extended (rule_v2) to the key units' lifetimes and to window age at nominal times (key_units, nominal_tokens).
 
-L7 v2 intensity: each phase draws a multiplier m from {0.5, 1, 2} (ml/p3_prereg.json) on its family's knee from the
-P1 ladder. C2's per-entity rate is m x L_knee x S / (n x cost(route)), S and the cost from the calibration record
-in use (l7_backend.load_record; the placeholder until HG2 is frozen); C3a's page gaps are divided by m; C3b's frozen
-parameters may change only through the number of bots, which P3 fixes, so m is recorded for C3b and not applied. A
+L7 v2 intensity (ml/p3_sizing_prereg.json, D-076): each core phase draws a multiplier m from {0.5, 1, 2} (ml/p3_prereg.json) on its
+own family's knee from the P1 ladder, or, for a family without one, on its top tested level, marked. C2's per-entity rate is
+m x K x S / (n x cost(route)), S and the cost from the calibration record in use; C3a fills its registered entities and then its pace,
+page gaps divided by (m x K x S / per-source cost) / n, at most 2 x P1's pace; C3b is carried by count only, its registered bots. Target,
+realized, shortfall and excess are recorded per phase in the plan's intensity and on the phase in its timeline. A pilot plan without knees
+keeps the placeholder sizing (C2 at L = 1, C3a's gaps divided by m, C3b's m recorded) and says so. A
 training, validation or evaluation plan needs frozen knees (`knees`) bound to a frozen calibration record: the knees
 carry the sha256 of the record they were measured on (`record_sha256`, the record's own digest), and the plan's record
 must be that record (T-030 L7V2-08); a pilot plan without knees uses the placeholder knee L = 1 and says so.
@@ -53,6 +55,7 @@ import bisect
 import copy
 import hashlib
 import ipaddress
+import json
 import math
 import os
 import random
@@ -533,7 +536,76 @@ def c2_rps(m, level, spare_cpu_s, n, cost_ms):
     return round(m * level * spare_cpu_s / (n * cost_ms / 1000.0), 4)
 
 
-def _knees(knees, seed_role, rec):
+SIZING_PREREG = os.path.join(HERE, "p3_sizing_prereg.json")
+CORE_FAMILIES = {"C2": "C2", "C3a": "C3a", "C3b@M2": "C3b"}      # a core phase's family -> its class in P1's knees file
+
+
+def _positive(v):
+    return not isinstance(v, bool) and isinstance(v, (int, float)) and v > 0
+
+
+def knee_status(knees, cls):
+    """D-079: a class's status in P1's knees file (knee, no_knee, incomplete, not_tested, no_sound_level). A file without statuses, one written
+    before D-079 or a fixture, gives 'knee' to a positive value and 'unknown' to anything else, which nothing takes."""
+    statuses = knees.get("statuses")
+    if statuses is not None:
+        return statuses.get(cls, "not_tested")
+    return "knee" if _positive(knees.get(cls)) else "unknown"
+
+
+def family_knee(knees, cls):
+    """D-076 and D-079 (ml/p3_sizing_prereg.json knees and its dated note): a core family's knee at status knee, or its top tested level,
+    marked, at status no_knee: (level, no_knee). Every other status, or a value missing, is a refusal naming the family and its status."""
+    status, value = knee_status(knees, cls), knees.get(cls)
+    if status == "knee" and _positive(value):
+        return value, False
+    top = (knees.get("top_tested") or {}).get(cls)
+    if status == "no_knee" and _positive(top):
+        return top, True
+    what = f"have {cls} = {value!r}" if cls in knees else f"have no {cls}"
+    raise PlanError(f"the knees {what} at status {status!r}, top tested {top!r}: a plan takes a family's knee only at status knee and its top "
+                    f"tested level only at no_knee (D-079, ml/p3_sizing_prereg.json knees); they name {sorted(knees)}")
+
+
+def phase_sizing(knees, phases, specs, scale, rates):
+    """D-076 (ml/p3_sizing_prereg.json): each core phase's target m x K, its carrier and what it reaches, {family: record}."""
+    with open(SIZING_PREREG, encoding="utf-8") as fh:
+        rule = json.load(fh)
+    placeholder = knees.get("status") == "placeholder"
+    spare, costs = rates["spare_cpu_s"], rates["route_costs_ms"]
+    by_family = {s["family"]: s for s in specs}
+    out = {}
+    for ph in phases:
+        for fam in ph["families"]:
+            cls = CORE_FAMILIES.get(fam)
+            if cls is None:
+                continue
+            m, n, params = ph["intensity"], by_family[fam]["count"] * scale, by_family[fam]["params"]
+            unit = "bots" if cls == "C3b" else "S"
+            if placeholder:
+                knee, marked = (knees.get("C2"), False) if cls == "C2" else (None, False)
+            else:
+                knee, marked = family_knee(knees, cls)
+            rec = {"family": fam, "m": m, "knee": knee, "no_knee": marked, "unit": unit, "entities": n, "pace_factor": None,
+                   "rule": "placeholder" if placeholder else "D-076"}
+            target = None if knee is None else m * knee
+            if cls == "C2":
+                realized = target
+            elif cls == "C3a":
+                per_source = (costs["C1"] + costs[params["route"]]) / 1000.0 / (sum(params["page_gap_s"]) / len(params["page_gap_s"]))
+                pace = m if placeholder else min(target * spare / per_source / n, rule["pace_cap"])
+                rec["pace_factor"] = round(pace, 4)
+                realized = n * pace * per_source / spare
+            else:
+                realized = n
+            rec.update(target=None if target is None else round(target, 4), realized=round(realized, 4),
+                       shortfall=None if target is None else round(max(0.0, target - realized), 4),
+                       excess=None if target is None else round(max(0.0, realized - target), 4))
+            out[fam] = rec
+    return out
+
+
+def _knees(knees, seed_role, rec, need=("C2",)):
     """The knees a plan uses (T-030 L7V2-08): for training, validation and evaluation, frozen knees measured on the
     plan's own calibration record, which must be frozen; the placeholder for a pilot without knees. Knees that name
     their record (`record_sha256`, the record's digest) are refused on any other record, whatever the role."""
@@ -556,11 +628,8 @@ def _knees(knees, seed_role, rec):
                             "measured on (record_sha256)")
     if knees is None:
         return dict(PLACEHOLDER_KNEES)
-    c2 = knees.get("C2")
-    if isinstance(c2, bool) or not isinstance(c2, (int, float)) or not c2 > 0:
-        what = f"have C2 = {c2!r}" if "C2" in knees else "have no C2"
-        raise PlanError(f"the knees {what}, and a plan sizes its C2 attack from it (ml/l7v2_prereg.json classes.C2); "
-                        f"they name {sorted(knees)}. C2 must be P1's frozen knee, a positive number")
+    for cls in need:                    # C-096: a refusal naming what is there, not a KeyError or a TypeError later
+        family_knee(knees, cls)
     return dict(knees)
 
 
@@ -610,6 +679,11 @@ def build_plan(version, seed, seed_role, population="smoke", *, heuristics="tole
         rates = {"knees": _knees(knees, seed_role, rec), "record_status": rec["status"], "record_tag": tag,
                  "label": l7_backend.label(rec), "spare_cpu_s": CAL.spare_capacity(rec),
                  "route_costs_ms": dict(rec["route_costs_ms"])}
+        rates["phases"] = phase_sizing(rates["knees"], timeline["phases"], pop["attack"], scale, rates)
+        for p in timeline["phases"]:                  # on the phase too, which the capture's manifest keeps with its timeline
+            sized = {f: rates["phases"][f] for f in p["families"] if f in rates["phases"]}
+            if sized:
+                p["sizing"] = sized
 
     specs = [("benign", s) for s in pop["benign"]] + [("attack", s) for s in pop["attack"]]
     rows, dropped, gate_cache, held_report = [], [], {}, []
@@ -637,10 +711,11 @@ def build_plan(version, seed, seed_role, population="smoke", *, heuristics="tole
                 ph = phase_of[name]
                 if spec.get("rate_rule") == "C2":
                     costs = rates["route_costs_ms"]
-                    params["rps"] = c2_rps(ph["intensity"], rates["knees"]["C2"], rates["spare_cpu_s"],
+                    params["rps"] = c2_rps(ph["intensity"], rates["phases"][name]["knee"], rates["spare_cpu_s"],
                                            spec["count"] * scale, costs[params.get("route", "C3")])
                 elif population == "l7v2" and "page_gap_s" in params:
-                    params["page_gap_s"] = [round(x / ph["intensity"], 3) for x in params["page_gap_s"]]
+                    pace = (rates["phases"].get(name) or {}).get("pace_factor") or ph["intensity"]
+                    params["page_gap_s"] = [round(x / pace, 3) for x in params["page_gap_s"]]
                 elif ph["intensity"] != 1.0 and "rps" in params:
                     params["rps"] = round(params["rps"] * ph["intensity"], 3)
                 if spec.get("reuse"):

@@ -1,0 +1,13 @@
+legit probes: [(31, 100.0, 0.073459, True), (32, 100.0, 0.079438, True), (33, 100.0, 0.08626, True)] median 100.0 0.0794383500000002 record 100.0 0.0794383500000002 SAME
+reference cheap_static_flood: seed 34 level 2.0 Q 95.8089 p95 0.205702 own-agree True record 95.8089/0.205702 SAME | mem 9426 kernel 7.0.0-38-generic pins {'attack': '3-6', 'daemon': '2', 'legit': '7', 'server': '0-1'} commit 8030506 dirty False 2026-11-04T11:07:50+00:00
+   ladder 08_L2_r2: seed 21 sound True Q 92.0495 p95 0.178558 own-agree True mem 9426 kernel 7.0.0-38-generic 2026-11-03T10:50:24+00:00
+   ladder 12_L2_r1: seed 21 sound True Q 89.5062 p95 0.203667 own-agree True mem 9426 kernel 7.0.0-38-generic 2026-11-04T10:42:51+00:00
+reference costly_export_flood: seed 35 level 4.0 Q 75.3211 p95 0.251942 own-agree True record 75.3211/0.251942 SAME | mem 9426 kernel 7.0.0-38-generic pins {'attack': '3-6', 'daemon': '2', 'legit': '7', 'server': '0-1'} commit 8030506 dirty False 2026-11-04T11:10:25+00:00
+   ladder 03_L4_r1: seed 22 sound True Q 70.7763 p95 0.272083 own-agree True mem 9426 kernel 7.0.0-38-generic 2026-11-03T09:54:15+00:00
+   ladder 09_L4_r2: seed 22 sound True Q 74.2205 p95 0.280673 own-agree True mem 9426 kernel 7.0.0-38-generic 2026-11-03T10:06:59+00:00
+   set aside: ['/var/tmp/ddos_campaigns/hg2_3/ladder_costly_export_flood/03_L4_r1/U.failed1']
+reference costly_search_flood: seed 36 level 4.0 Q 63.3700 p95 0.630813 own-agree True record 63.3700/0.630813 SAME | mem 9426 kernel 7.0.0-38-generic pins {'attack': '3-6', 'daemon': '2', 'legit': '7', 'server': '0-1'} commit 8030506 dirty False 2026-11-04T11:12:27+00:00
+   ladder 01_L4_r2: seed 23 sound True Q 61.9841 p95 0.419345 own-agree True mem 9426 kernel 7.0.0-38-generic 2026-11-03T09:06:00+00:00
+   ladder 06_L4_r1: seed 23 sound True Q 69.7546 p95 0.343243 own-agree True mem 9426 kernel 7.0.0-38-generic 2026-11-03T09:16:06+00:00
+   set aside: ['/var/tmp/ddos_campaigns/hg2_3/ladder_costly_search_flood/01_L4_r2/U.failed1']
+legit host facts: [(31, 9426, '7.0.0-38-generic', '2026-11-04T11:01:00+00:00', '8030506', False), (32, 9426, '7.0.0-38-generic', '2026-11-04T11:03:15+00:00', '8030506', False), (33, 9426, '7.0.0-38-generic', '2026-11-04T11:05:35+00:00', '8030506', False)]

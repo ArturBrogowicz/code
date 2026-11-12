@@ -1,0 +1,17 @@
+    0.126 gate: uptime 16275 s, load 1.45; waiting up to 30 min for uptime 1800 s and load below 0.3
+  125.537 timer probe 1 on CPU 7 at 2026-11-10T15:34:17+00:00: p50 0.512134, p99 4.82212, max 4.97827 ms: passed
+  125.789 run C of drift_legit, seed 41: preflight and environment passed
+  132.612 topology: 4 namespaces, 200 addresses, verified in 6.8 s
+  132.690 started the origin as pid 35859
+  132.810 started Nginx (its launcher returned after 0.12 s)
+  136.012 stack ready: 5 routes answer with their own class under calibration frozen:cff6e515; warmed up
+  136.114 launched 32 legit streams
+  261.255 timeline over after 125.2 s
+  261.585 stopped 1 process(es) of this run in 0.31 s
+  261.596 wall time of 10 stream(s) raised to what their records need, by up to 0.13 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  261.668 nginx access log: 5121 lines (0 unparsed), server_requests.csv written, log compressed
+  261.669 run.json written; the run is sound
+  261.698 teardown: 0 process(es) in 5 namespace(s): listed in 0.03 s, ended in 0.00 s
+  261.736 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.01 s, hg_2_mobile_3g 0.01 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  261.913 teardown: links deleted: vo_hg_0_perfect 0.02 s, vo_hg_1_broadba 0.09 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.02 s, veth_srv_br 0.01 s, ddos_br0 0.03 s
+  261.945 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.3 s in all)

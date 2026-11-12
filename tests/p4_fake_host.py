@@ -15,7 +15,9 @@ The model, as far as the runner's outputs need it:
     `modelled_attackers` attack sources, unanswered and dribbling (a line every 20 s); a connection the rule closes is
     re-opened 10 s later with a new port, and a banned address holds none;
   * an attack generator writes its --stats at its exit (`attack_fails`: nothing opens, for a local reason;
-    `attack_opened_share`: the share that opens, the rest refused; None: no stats);
+    `attack_opened_share`: the share that opens, the rest refused; None: no stats); a group (--group, D-075) is its sources'
+    generators in one process: each source opens its connections and writes its own stats, `gen_fails` and `gen_late` name a
+    source's address, and the group exits with the code and at the time of its latest source;
   * nginx's access log (l7json, written where the runner moves it): one line per answered request of a plan-kind
     generator and one per other benign generator; behind nginx_profile_r_limits.conf a share `limit_refuses` of a CGNAT
     pool's requests is refused with a 503, which its client also records;
@@ -277,6 +279,8 @@ class FakeHost(X.Host):
                 at, code, text = self.gunicorn_dies
                 self.at(self.t + at, lambda g=self.gunicorn, c=code, s=text: self._gunicorn_stops(g, c, s))
         a = p.argv
+        if "--group" in a:
+            return self._start_group(p)
         p.role, p.ip, p.port = _opt(a, "--role"), _opt(a, "--source"), int(_opt(a, "--port"))
         p.name = _opt(a, "--kind") or _opt(a, "--family")
         p.params, p.seed, p.dur = json.loads(_opt(a, "--params")), int(_opt(a, "--seed")), float(_opt(a, "--duration"))
@@ -293,25 +297,48 @@ class FakeHost(X.Host):
         code = self.gen_code if p.ip in self.gen_fails else 0
         self.at(self.t + p.dur + 0.5 + self.gen_late.get(p.ip, 0.0), lambda: self.end(p, code))
 
+    def _attack_ips(self):
+        """The addresses of this world's attack sources started so far, grouped ones included."""
+        return {ip for q in self.procs if q.kind == "gen" and getattr(q, "role", "") == "attack" and q.world == self.world
+                for ip in getattr(q, "ips", (q.ip,)) if ip is not None}
+
+    def _start_group(self, p):
+        a = p.argv
+        p.role, p.name, p.dur = "attack", _opt(a, "--family"), float(_opt(a, "--duration"))
+        p.members, p.ip, p.ips, p.records, p.stats, p.start, p.world = json.loads(_opt(a, "--group"))["sources"], None, [], None, None, \
+            self.t, self.world
+        for m in p.members:
+            p.ips.append(m["source"])
+            if not self.attack_fails and (self.modelled_attackers is None or len(self._attack_ips()) <= self.modelled_attackers):
+                for _ in range(m["params"].get("conns", 1)):
+                    self._open(m["source"], int(m["port"]), p.name)
+        code = self.gen_code if set(p.ips) & self.gen_fails else 0
+        late = max((self.gen_late.get(ip, 0.0) for ip in p.ips), default=0.0)
+        self.at(self.t + p.dur + 0.5 + late, lambda: self.end(p, code))
+
     def _open(self, ip, sport, kind):
         port = next(self.ports)
         self.socks[(ip, port, "10.0.0.1", sport)] = {"ip": ip, "port": port, "sport": sport, "kind": kind,
                                                      "opened": self.t}
 
-    def _write_stats(self, p):
-        conns = p.params.get("conns", 1)
+    def _write_stats(self, p, params=None, path=None):
+        conns = (params or p.params).get("conns", 1)
         opened = 0 if self.attack_fails else round(self.attack_opened_share * conns)
-        with open(p.stats, "w", encoding="utf-8") as fh:
+        with open(path or p.stats, "w", encoding="utf-8") as fh:
             json.dump({"opened": opened, "reopened": 0, "failed_opens": conns - opened, "sent_bytes": 14 * opened,
                        "local_errors": conns if self.attack_fails else 0}, fh)
 
     def _gen_exit(self, p):
-        if p.ip in self.gen_fails and p.stderr_name:
+        ips = getattr(p, "ips", [p.ip])
+        if set(ips) & self.gen_fails and p.stderr_name:
             with open(p.stderr_name, "a", encoding="utf-8") as fh:
                 fh.write("Traceback (most recent call last):\nOSError: [Errno 99] Cannot assign requested address\n")
         if p.stats and self.attack_opened_share is not None:
             self._write_stats(p)
-        for key in [k for k, s in self.socks.items() if s["ip"] == p.ip]:
+        for m in getattr(p, "members", ()):
+            if self.attack_opened_share is not None and m["source"] not in self.gen_fails:
+                self._write_stats(p, m["params"], m["stats"])
+        for key in [k for k, s in self.socks.items() if s["ip"] in ips]:
             del self.socks[key]
         if p.records:
             self._write_records(p)
@@ -446,7 +473,7 @@ class FakeHost(X.Host):
         self.at(self.t + self.poll_every_s, lambda: self._poll(p))
 
     def _reopen(self, s):
-        live = any(q.kind == "gen" and q.ip == s["ip"] and q.returncode is None for q in self.procs)
+        live = any(q.kind == "gen" and s["ip"] in getattr(q, "ips", (q.ip,)) and q.returncode is None for q in self.procs)
         if live and self.banned.get(s["ip"], 0) <= self.time():
             self._open(s["ip"], s["sport"], s["kind"])
 

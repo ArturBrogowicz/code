@@ -1,0 +1,140 @@
+== AP-4 attempt 1  (/var/tmp/ddos_campaigns/drift_20261108)  complete=True  drift.json present=True
+   run   legit                              sound=True  n= 3035 Q=99.6705 p95=0.085306 | own n= 3035 Q=99.6705 p95=0.085306 agree=True | fail={'slow': 10} wall=158.6
+   run   cheap_static_flood                 sound=True  n= 1095 Q=94.7032 p95=0.222649 | own n= 1095 Q=94.7032 p95=0.222649 agree=True | fail={'slow': 58} wall=124.2
+   run   costly_export_flood                sound=True  n= 1314 Q=55.2511 p95=0.245114 | own n= 1314 Q=55.2511 p95=0.245114 agree=True | fail={'slow': 588} wall=124.3
+   run   costly_search_flood                sound=True  n= 1359 Q=65.1214 p95=0.425624 | own n= 1359 Q=65.1214 p95=0.425624 agree=True | fail={'slow': 474} wall=121.1
+   asid  cheap_static_flood/U.failed1       sound=False n= 1103 Q=96.1015 p95=0.180605 | own n= 1103 Q=96.1015 p95=0.180605 agree=True | fail={'slow': 43} wall=None
+         reasons: ['the legit streams began 2.28 s apart (limit 0.5 s; 20 of 32 are outside the pack, at most 15 may be)']
+   D-062 single check: tool_ok=False own_ok=False reasons=["costly_export_flood: Q 55.2511 against 75.3211 frozen (more than the gate's floor_pp, 10 pp)"]
+       legit {'Q': 99.6705, 'ref_Q': 100.0, 'dQ_pp': -0.3295, 'tol_pp': 2.0, 'p95_s': 0.0853, 'ref_p95_s': 0.0794, 'p95_rel': 0.0739, 'tol_rel': 0.25, 'ok': True}
+       cheap_static_flood {'Q': 94.7032, 'ref_Q': 95.8089, 'dQ_pp': -1.1057, 'tol_pp': 10.0, 'p95_s': 0.2226, 'ref_p95_s': 0.2057, 'log2_p95_ratio': 0.1142, 'tol_log2': 1.0, 'ok_Q': True, 'ok_p95': True, 'ok': True}
+       costly_export_flood {'Q': 55.2511, 'ref_Q': 75.3211, 'dQ_pp': -20.07, 'tol_pp': 10.0, 'p95_s': 0.2451, 'ref_p95_s': 0.2519, 'log2_p95_ratio': -0.0396, 'tol_log2': 1.0, 'ok_Q': False, 'ok_p95': True, 'ok': False}
+       costly_search_flood {'Q': 65.1214, 'ref_Q': 63.37, 'dQ_pp': 1.7514, 'tol_pp': 10.0, 'p95_s': 0.4256, 'ref_p95_s': 0.6308, 'log2_p95_ratio': -0.5676, 'tol_log2': 1.0, 'ok_Q': True, 'ok_p95': True, 'ok': True}
+== AP-4 attempt 2  (/var/tmp/ddos_campaigns/drift_20261108.second)  complete=True  drift.json present=True
+   run   legit                              sound=True  n= 3037 Q=100.0000 p95=0.071873 | own n= 3037 Q=100.0000 p95=0.071873 agree=True | fail={} wall=238.7
+   run   cheap_static_flood                 sound=True  n= 1095 Q=78.5388 p95=0.286899 | own n= 1095 Q=78.5388 p95=0.286899 agree=True | fail={'slow': 235} wall=122.4
+   run   costly_export_flood                sound=True  n= 1307 Q=78.8829 p95=0.246577 | own n= 1307 Q=78.8829 p95=0.246577 agree=True | fail={'slow': 276} wall=121.6
+   run   costly_search_flood                sound=True  n= 1361 Q=54.2248 p95=0.440868 | own n= 1361 Q=54.2248 p95=0.440868 agree=True | fail={'slow': 623} wall=121.0
+   D-062 single check: tool_ok=False own_ok=False reasons=["cheap_static_flood: Q 78.5388 against 95.8089 frozen (more than the gate's floor_pp, 10 pp)"]
+       legit {'Q': 100.0, 'ref_Q': 100.0, 'dQ_pp': 0.0, 'tol_pp': 2.0, 'p95_s': 0.0719, 'ref_p95_s': 0.0794, 'p95_rel': -0.0952, 'tol_rel': 0.25, 'ok': True}
+       cheap_static_flood {'Q': 78.5388, 'ref_Q': 95.8089, 'dQ_pp': -17.2701, 'tol_pp': 10.0, 'p95_s': 0.2869, 'ref_p95_s': 0.2057, 'log2_p95_ratio': 0.48, 'tol_log2': 1.0, 'ok_Q': False, 'ok_p95': True, 'ok': False}
+       costly_export_flood {'Q': 78.8829, 'ref_Q': 75.3211, 'dQ_pp': 3.5618, 'tol_pp': 10.0, 'p95_s': 0.2466, 'ref_p95_s': 0.2519, 'log2_p95_ratio': -0.0311, 'tol_log2': 1.0, 'ok_Q': True, 'ok_p95': True, 'ok': True}
+       costly_search_flood {'Q': 54.2248, 'ref_Q': 63.37, 'dQ_pp': -9.1451, 'tol_pp': 10.0, 'p95_s': 0.4409, 'ref_p95_s': 0.6308, 'log2_p95_ratio': -0.5169, 'tol_log2': 1.0, 'ok_Q': True, 'ok_p95': True, 'ok': True}
+== AP-5 q1 attempt 1  (/var/tmp/ddos_campaigns/drift_20261108_q1)  complete=True  drift.json present=True
+   run   legit                              sound=True  n= 3039 Q=100.0000 p95=0.077183 | own n= 3039 Q=100.0000 p95=0.077183 agree=True | fail={} wall=261.7
+   run   cheap_static_flood                 sound=True  n= 1094 Q=95.2468 p95=0.197699 | own n= 1094 Q=95.2468 p95=0.197699 agree=True | fail={'slow': 52} wall=122.1
+   run   costly_export_flood                sound=True  n= 1314 Q=85.3881 p95=0.274467 | own n= 1314 Q=85.3881 p95=0.274467 agree=True | fail={'slow': 192} wall=127.2
+   run   costly_search_flood                sound=True  n= 1356 Q=61.9469 p95=0.412434 | own n= 1356 Q=61.9469 p95=0.412434 agree=True | fail={'slow': 516} wall=124.2
+   D-062 single check: tool_ok=False own_ok=False reasons=["costly_export_flood: Q 85.3881 against 75.3211 frozen (more than the gate's floor_pp, 10 pp)"]
+       legit {'Q': 100.0, 'ref_Q': 100.0, 'dQ_pp': 0.0, 'tol_pp': 2.0, 'p95_s': 0.0772, 'ref_p95_s': 0.0794, 'p95_rel': -0.0284, 'tol_rel': 0.25, 'ok': True}
+       cheap_static_flood {'Q': 95.2468, 'ref_Q': 95.8089, 'dQ_pp': -0.5621, 'tol_pp': 10.0, 'p95_s': 0.1977, 'ref_p95_s': 0.2057, 'log2_p95_ratio': -0.0572, 'tol_log2': 1.0, 'ok_Q': True, 'ok_p95': True, 'ok': True}
+       costly_export_flood {'Q': 85.3881, 'ref_Q': 75.3211, 'dQ_pp': 10.067, 'tol_pp': 10.0, 'p95_s': 0.2745, 'ref_p95_s': 0.2519, 'log2_p95_ratio': 0.1235, 'tol_log2': 1.0, 'ok_Q': False, 'ok_p95': True, 'ok': False}
+       costly_search_flood {'Q': 61.9469, 'ref_Q': 63.37, 'dQ_pp': -1.4231, 'tol_pp': 10.0, 'p95_s': 0.4124, 'ref_p95_s': 0.6308, 'log2_p95_ratio': -0.613, 'tol_log2': 1.0, 'ok_Q': True, 'ok_p95': True, 'ok': True}
+== AP-5 q1 attempt 2  (/var/tmp/ddos_campaigns/drift_20261108_q1.second)  complete=False  drift.json present=False
+   run   legit                              INCOMPLETE files=['environment.json', 'executor.log', 'gunicorn.log', 'nginx.conf', 'nginx_access.log', 'nginx_error.log', 'nginx_start.log', 'plan.json', 'streams']
+   run   cheap_static_flood                 INCOMPLETE files=None
+   run   costly_export_flood                INCOMPLETE files=None
+   run   costly_search_flood                INCOMPLETE files=None
+== AP-5b q1 attempt 1  (/var/tmp/ddos_campaigns/drift_20261110b_q1)  complete=False  drift.json present=False
+   run   legit                              sound=True  n= 3037 Q=100.0000 p95=0.078765 | own n= 3037 Q=100.0000 p95=0.078765 agree=True | fail={} wall=145.1
+   run   cheap_static_flood                 sound=True  n= 1093 Q=82.5252 p95=0.255713 | own n= 1093 Q=82.5252 p95=0.255713 agree=True | fail={'slow': 191} wall=126.8
+   run   costly_export_flood                sound=True  n= 1313 Q=76.2376 p95=0.328154 | own n= 1313 Q=76.2376 p95=0.328154 agree=True | fail={'slow': 312} wall=124.5
+   run   costly_search_flood                INCOMPLETE files=['environment.json', 'executor.log', 'gunicorn.log', 'nginx.conf', 'nginx_access.log', 'nginx_error.log', 'nginx_start.log', 'plan.json', 'streams']
+   asid  costly_export_flood/U.failed1      sound=False n= 1298 Q=59.7072 p95=0.289715 | own n= 1298 Q=59.7072 p95=0.289715 agree=True | fail={'slow': 523} wall=None
+         reasons: ['the legit streams began 2.34 s apart (limit 0.5 s; 18 of 31 are outside the pack, at most 15 may be)']
+complete attempts: ['AP-4 attempt 1', 'AP-4 attempt 2', 'AP-5 q1 attempt 1']
+{
+ "legit": {
+  "n": 3,
+  "mean": 99.890170236134,
+  "sd_sample": 0.19023073119921755,
+  "sd_population": 0.15532274161154241,
+  "min": 99.67051070840198,
+  "max": 100.0,
+  "values": [
+   99.67051070840198,
+   100.0,
+   100.0
+  ]
+ },
+ "cheap_static_flood": {
+  "n": 3,
+  "mean": 89.4962699545605,
+  "sd_sample": 9.493328033009483,
+  "sd_population": 7.751269880577578,
+  "min": 78.53881278538813,
+  "max": 95.24680073126143,
+  "values": [
+   94.70319634703196,
+   78.53881278538813,
+   95.24680073126143
+  ]
+ },
+ "costly_export_flood": {
+  "n": 3,
+  "mean": 73.17406914413549,
+  "sd_sample": 15.858842131917996,
+  "sd_population": 12.948690378183613,
+  "min": 55.25114155251141,
+  "max": 85.38812785388127,
+  "values": [
+   55.25114155251141,
+   78.88293802601378,
+   85.38812785388127
+  ]
+ },
+ "costly_search_flood": {
+  "n": 3,
+  "mean": 60.43105004626045,
+  "sd_sample": 5.604213642139502,
+  "sd_population": 4.575821277595423,
+  "min": 54.224834680382074,
+  "max": 65.12141280353201,
+  "values": [
+   65.12141280353201,
+   54.224834680382074,
+   61.94690265486726
+  ]
+ }
+}
+{
+ "cheap_static_flood": {
+  "mean_Q": 89.4962699545605,
+  "ref_Q": 95.80888516345348,
+  "mean_dQ_pp": -6.312615208892979,
+  "within_floor_pp_10": true,
+  "mean_log2_p95_ratio": 0.17898395436722814,
+  "within_floor_log2_1": true,
+  "sd_sample_Q": 9.493328033009483,
+  "sd_over_5pp": true
+ },
+ "costly_export_flood": {
+  "mean_Q": 73.17406914413549,
+  "ref_Q": 75.3211009174312,
+  "mean_dQ_pp": -2.1470317732957085,
+  "within_floor_pp_10": true,
+  "mean_log2_p95_ratio": 0.017616884097705492,
+  "within_floor_log2_1": true,
+  "sd_sample_Q": 15.858842131917996,
+  "sd_over_5pp": true
+ },
+ "costly_search_flood": {
+  "mean_Q": 60.43105004626045,
+  "ref_Q": 63.36996336996337,
+  "mean_dQ_pp": -2.93891332370292,
+  "within_floor_pp_10": true,
+  "mean_log2_p95_ratio": -0.5658477416094758,
+  "within_floor_log2_1": true,
+  "sd_sample_Q": 5.604213642139502,
+  "sd_over_5pp": true
+ },
+ "legit": {
+  "mean_Q": 99.890170236134,
+  "ref_Q": 100.0,
+  "within_2pp": true,
+  "mean_p95_s": 0.07812073333333297,
+  "ref_p95_s": 0.0794383500000002,
+  "mean_p95_rel": -0.01658665703236817,
+  "within_25pct": true
+ }
+}

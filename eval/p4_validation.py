@@ -36,6 +36,10 @@ not a decision of the user), committed before the code it judges: a run with no 
 hold by construction. The record also holds the settings of the validation's blocks, which eval/p4_runner.py compares with the
 campaign's.
 
+Re-registration record (D-069, 2026-11-06T16:30Z, the user's minimum cut of the VM plan, before any data; T-074), committed before the
+code it judges: the validation's runs are slow_pc.VALIDATION_RUNS without the runs of a family its blocks do not run, read from their
+settings (eval/p4_outcome.validation_runs): (C, U_loris) under the cut to Slowloris. Its blocks hold one setting.
+
 The share of attacking addresses banned within SECONDARY_DEADLINE_S of their first connection, the T_mit
 of the design note before its re-registration, is reported next to each point; it is not used.
 
@@ -81,22 +85,48 @@ def load_run(manifest_path):
             "polls": slow_pc.read_record(record), "manifest": manifest_path, "record": record}
 
 
-def runs_from_index(root):
-    """(manifests, attempts) of the validation: per seed, the last attempt of ROOT/index.jsonl with every run of
-    slow_pc.VALIDATION_RUNS valid; `attempts` says, per seed, which was judged and which it superseded."""
+def families_of(root, rows):
+    """The families the validation's blocks run, from their settings in block.json beside each attempt's runs (D-069): one setting. A
+    block without a readable block.json names none here; settings_of() refuses it."""
+    import p4_outcome
+    seen = set()
+    for block_dir in sorted({os.path.dirname(x["dir"]) for x in rows}):
+        try:
+            with open(os.path.join(root, block_dir, "block.json"), encoding="utf-8") as fh:
+                seen.add(p4_outcome.settings_families(json.load(fh)["settings"]))
+        except (OSError, ValueError, KeyError):
+            continue
+    if len(seen) > 1:
+        raise ValueError(f"the validation's blocks run the families {sorted(list(x) for x in seen)}: one setting (D-069)")
+    return seen.pop() if seen else p4_outcome.FAMILIES
+
+
+def validation_families(root):
+    """The families of the validation in ROOT/index.jsonl (families_of)."""
     sys.path.insert(0, os.path.join(REPO, "eval"))
     import p4_runner
+    return families_of(root, [x for x in p4_runner.read_index(root) if x["phase"] == "validation"])
+
+
+def runs_from_index(root):
+    """(manifests, attempts) of the validation: per seed, the last attempt of ROOT/index.jsonl with every run of
+    slow_pc.VALIDATION_RUNS of its families (validation_families) valid; `attempts` says, per seed, which was judged and which it
+    superseded."""
+    sys.path.insert(0, os.path.join(REPO, "eval"))
+    import p4_outcome
+    import p4_runner
     rows = [x for x in p4_runner.read_index(root) if x["phase"] == "validation"]
+    wanted = p4_outcome.validation_runs(families_of(root, rows))
     manifests, attempts = [], []
     for seed in slow_pc.VALIDATION_SEEDS:
         mine = [x for x in rows if x["block"] == seed]
         numbers = sorted({x["attempt"] for x in mine})
-        good = [a for a in numbers if {x["arm"] for x in mine if x["attempt"] == a and x["valid"]} >= set(slow_pc.VALIDATION_RUNS)]
+        good = [a for a in numbers if {x["arm"] for x in mine if x["attempt"] == a and x["valid"]} >= set(wanted)]
         if not good:
             raise ValueError(f"seed {seed}: no attempt in {root} has every validation run valid")
         attempts.append({"seed": seed, "judged": good[-1], "superseded": [a for a in numbers if a != good[-1]]})
         manifests += [os.path.join(root, x["dir"], "slow_pc_manifest.json") for x in mine
-                      if x["attempt"] == good[-1] and x["arm"] in slow_pc.VALIDATION_RUNS]
+                      if x["attempt"] == good[-1] and x["arm"] in wanted]
     return manifests, attempts
 
 
@@ -129,11 +159,16 @@ def roles_without_a_socket(polls, roles):
     return sorted(wanted)
 
 
-def check_runs(runs):
-    """The validation set must be exactly the frozen seeds x runs, no run missing and none extra, each with a socket of every
-    benign role."""
+def check_runs(runs, families=None):
+    """The validation set must be exactly the frozen seeds x runs of its families (D-069; both when not given), no run missing and none
+    extra, each with a socket of every benign role."""
     have = sorted((r["seed"], r["arm"]) for r in runs)
-    want = sorted((s, a) for s in slow_pc.VALIDATION_SEEDS for a in slow_pc.VALIDATION_RUNS)
+    wanted = slow_pc.VALIDATION_RUNS
+    if families is not None:
+        sys.path.insert(0, os.path.join(REPO, "eval"))
+        import p4_outcome
+        wanted = p4_outcome.validation_runs(families)
+    want = sorted((s, a) for s in slow_pc.VALIDATION_SEEDS for a in wanted)
     if have != want:
         raise ValueError(f"the validation runs must be exactly {want}, got {have}")
     for r in runs:
@@ -216,7 +251,7 @@ def main(argv=None):
     try:
         manifests, attempts = runs_from_index(args.root)
         runs = [load_run(m) for m in manifests]
-        check_runs(runs)
+        check_runs(runs, validation_families(args.root))
         settings = settings_of(manifests)
     except ValueError as exc:
         print(f"[-] {exc}", file=sys.stderr)

@@ -1,7 +1,9 @@
 # L7 track v2: a costed, enforcing L7 harness for P1, shared with P3 and P4 (design note, written before the code)
 
-**Status (2026-10-30): a design for approval. Nothing in it is built or run.** It is on `design/priority-p1-p4`, branched
-from `feat/hg1c` at e413a34, and changes no code. It carries out harness architecture B of the priority plan (P1, P3 and P4 on
+**Status (2026-11-12): approved on 2026-10-30 (ledger D-021) and built offline (the seven `feat/l7v2-*` branches, on
+`main`); the re-registrations up to 2026-11-10 are dated in the text; no P1 run exists.** History: Status (2026-10-30): a
+design for approval. Nothing in it is built or run. It was written on `design/priority-p1-p4`, branched
+from `feat/hg1c` at e413a34, and changed no code. It carries out harness architecture B of the priority plan (P1, P3 and P4 on
 "L7 track v2", P2 on the harm benchmark), which you approved on 2026-10-30 (ledger D-015), for the 2-4 week deadline (D-014). Two
 companion notes reuse the harness defined here: `docs/P4_SLOW_DESIGN.md` (slow attacks) and `docs/P3_DATASET_DESIGN.md` (the
 capture pipeline and the learning curves). The form follows `docs/HG1C_DESIGN.md`.
@@ -1376,6 +1378,71 @@ T-050 found that a campaign from integ/s4 could not give a fair verdict. Built o
 **p95 (C-084).** `p95_s` counts only the requests that met their SLO, so it is no plain latency: it is capped by each class's SLO, and it can fall as an attack pushes requests out of the SLO, which Q then counts. P1 reads it as dL in harm admission, the placebo and the knees, either-or with dQ, and `admitted_on` "latency" names that reading. The verdict's contrasts read Q only. Any report of it says "p95 of the requests within their SLO".
 
 **On the frozen record (HG2, 2026-11-04; read only, nothing registered moved)** [FACT, arithmetic on plans at nominal times, `S3:T-051/artifacts/p1_on_frozen_record.json`; NOT RUN]. S is 0.263 CPU-s/s and rho 42.25 req/s, against the placeholder's 0.552 and 90. Costs and capacity are the figures above. A level's nominal cost over the whole attack window, in S, the window admission and the knees read: C2 0.61, 1.14, 2.26 and 4.50 at levels 1, 2, 4 and 8; C3a 1.22 at level 2, its one reachable level (79 sources; its bound of 100 is level 2.5); C3b@M2 0.85 at 50 bots and 1.73 at 100. The record's knees for its own floods: search 4, export 4, cheap 2. So [INFERENCE, the ladder decides, and P1's mix is not the benchmark's]: C2's knee is likely at 8; C3a likely has no knee; and C3b, at under half the costly floods' knee at 100 bots, may have none either, unless it reaches 200 bots at 2 halvings or a dated lift of the address limit. A campaign that needs a class without a knee refuses, and what that means for the verdict is undecided.
+
+## As built: the ladder extension, the no-knee rule and P3's per-family sizing (T-073, 2026-11-07, branch `feat/p1-ladder-ext`)
+
+Built offline from T-070's design (`S3:T-070/artifacts/design.md`) as the user approved it on 2026-11-07 (D-073 to D-076). Nothing ran on
+the VM. The records `ml/p1_prereg_5.json` (D-073, D-074, D-075) and `ml/p3_sizing_prereg.json` (D-076) were each pinned before the code
+that reads them. Where this section and the ones above differ, this one holds.
+
+- **Levels (D-073).**
+  - The classes: C2 1, 2, 4, 8, 16; C3a 2, 4, 6, 8; C3b 50, 100, 150, 200, 300 bots.
+  - Ascending, stopping after the first level that passes in both repeats. C2 16 runs only after 8 failed; C3a 6 and C3b 150 only when
+    8 or 200 is not reachable.
+  - The two repeats sit on the seed map 9001 + ((2 i + r - 1) mod 8). The runner refuses a ladder block off it.
+  - C3a takes up to 320 sources. Its sources 101-320 sit in an index range after the last family, so no entity of a lower level moves
+    (a test pins seed 9001's rows as planned before).
+- **The address limit and memory (D-075).**
+  - P1 keeps one generator process per client. P1's address limit is its own: the dated decision on the smoke's read at the heaviest
+    planned run, in `ml/p1_address_limit.json`, at most 468; the verified 300 until it exists.
+  - The read accepts on MemAvailable >= 1024 MB at every sample [ASSUMPTION, fixed before the read], no OOM kill, every alias added,
+    and the run's own checks.
+  - The runner samples MemAvailable into `cpu.jsonl`, and `run.json`'s runner report gives its least value.
+- **Statuses and the no-knee rule (D-074).**
+  - A level is run, with its repeats that had no sound attempt, not reachable or not run.
+  - A registered ladder block that the plan refuses as not reachable (the source bounds, the address limit) goes into
+    `ROOT/ladder_unreachable.jsonl`.
+  - `--ladder`'s knees file gives every level's status, `top_tested` and a line per class: its knee, or "no harm reached up to X on
+    this testbed". "Not reachable" never reads as no harm.
+  - The campaign runs the classes of its live set, or of its cut, that have a knee, C2 alone if it is the only one. With none, there is
+    no campaign. Blocks record `live_classes`, and the analysis judges those and names the rest.
+- **The premise check.** `eval/p1_premise.py` wrote `ml/p1_premise.json` (pinned) on the frozen record of 2026-11-04, on the pilot plans at
+  nominal times [FACT, plan arithmetic; NOT RUN on the VM]. Every registered level evades. A level marked "crosses" never becomes a knee.
+
+  | Per (address, UA) key, req/s | 1 s | 10 s | 30 s | 60 s | 300 s |
+  |---|---|---|---|---|---|
+  | benign q 0.99 | 82 | 14.7 | 8.8 | 6.9 | 3.8 |
+  | C2 at 16, highest maximum | 12 | 3.3 | 2.4 | 2.0 | 1.0 |
+  | C3b at any bot count, highest maximum | 61 | 10.4 | 4.3 | 2.9 | 1.1 |
+  | C3a at any level, highest maximum | 2 | 1.0 | 0.67 | 0.63 | 0.31 |
+
+- **P3 (D-076):** see `docs/P3_DATASET_DESIGN.md`, section on the capture's timeline.
+- **Not measured:** T-070's memory figures (20 MB private per generator at import, 7.6 GB available, no swap) are what the smoke's read
+  checks. No ladder level, address count or memory reading has been run.
+
+### Dated note, 2026-11-08: D-079 and D-080, on review T-078 (T-079, branch `feat/p1-review-fixes-4`), before any P1 data
+
+The orchestrator's decisions, pre-data; the user may overrule them. The section above stands where this note does not narrow it, and so
+does `ml/p1_prereg_5.json`, which carries the same note.
+
+- **Class statuses (D-079, T078-01).**
+  - Each class in the knees file is knee, no_knee, incomplete, not_tested or no_sound_level, read over the levels its conditions call
+    for.
+  - no_knee, D-074's "no harm" result, holds only when no level passed in 2 of 2, every called level ran with every repeat sound or is
+    recorded not reachable, and X exists.
+  - A knee or an X read over a called level that is "not run", a level with a repeat that had no sound attempt where no knee is read,
+    or a conditional level run outside its condition, is incomplete. The reasons are named under `incomplete`.
+  - `no_knee` lists only no_knee classes.
+- **Who takes what (D-079).** The campaign and P3's family_knee take a class only at knee or no_knee and refuse every other status by
+  name. A class left out of the campaign carries the knees file's own line, in its blocks and in the analysis.
+- **Conditional levels (D-079, T078-02).** The runner refuses C2 16, C3a 6 and C3b 150 outside their conditions, read from the index
+  and `ladder_unreachable.jsonl`, before the block runs. The ascending stop stays a procedure.
+- **Harm in the file (T078-03, T078-04).**
+  - Each run level gives each repeat's harm, dQ in pp and dlog2 p95, and `--ladder` prints them.
+  - The no-knee line reads "no level harmed in 2 of 2 up to X on this testbed".
+  - passed comes from the raw harms. A level marked "crosses" is never X and is named.
+- **The factor file (D-080, T078-08).** `--health` records the root and the sha256 of its health index lines, and `load_factor` refuses
+  a file of another root or of changed steps.
 
 ## References (T-012 ids; full IEEE entries in `S1:T-012/bib_ieee.txt`)
 - G1-01 Li et al., S&P 2021.

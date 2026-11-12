@@ -34,6 +34,43 @@ One run, per arm (eval/p4_outcome.ARMS; the validation runs are slow_pc.VALIDATI
     and ss_failed N when every read fails, so counting events would call a blind rule alive). A run that
     fails one is invalid, with its reasons.
 
+Re-registration record (D-073 (4), 2026-11-07T08:33Z, the user's approval of T-071, before any P4 data; R-021), committed before the code
+it judges: P4's benign clients run on CPU 7, the CPU the timer gate probes at the record's limit, measured there; the attack generators
+(grouped or not) and the runner on CPUs 3-6, as P1 and HG pin them (bench/population.PIN_PLAN_DAEMON). A pass of the gate now speaks for
+the CPU of the clients whose requests are judged, and the attack's start no longer shares their CPU. gen_argv's `cpus` defaults to its
+entity's role's; P1 passes its own, as before.
+
+Re-registration record (D-073 (3), 2026-11-07T08:33Z, the user's approval of T-071, before any P4 data; R-021), committed before the code
+it judges: phase `health` runs the halving rule's two controls, C and C' (no attack, profile R, no daemon), on its pilot seed 9101 at
+`--halvings`, under the label h<halvings>; eval/p4_health.py reads its steps into the frozen factor. A ladder, a validation and a campaign
+run at that factor (`--health`, the file bound to the calibration record, its sha256 among the block's settings), and a host that measures
+refuses them without it. A ladder attempt whose C is unhealthy is a reason for its re-run, as in the campaign. The health phase's own
+re-runs follow the rule's reader (unsound steps at most twice), not D-050.
+
+Re-registration record (D-075, 2026-11-07T08:33Z, the user's approval of T-071's option (a); memory, R-023), committed before the code it
+judges: the Slowloris sources of a run are launched grouped, one generator process per client namespace (at most MAX_ALIASES sources), a
+thread per source (ml/l7_gen.py --group, group_argv): each source's seeded schedule, address and statistics file are what its own
+generator's were. Every other generator is launched as before, one per entity (gen_argv, which P1 calls too, is unchanged). A group's
+launch is named group:<namespace>; its launch lag, exit code and stderr are the group's; attack_summary still reads each source's stats and
+counts the processes.
+
+Re-registration record (D-073 (1) and D-074, 2026-11-07T08:33Z, the user's approval of T-071, before any ladder data), committed before the
+code it judges: a ladder block at a level above a ladder's first ml/p4_traffic.ALWAYS_RUN levels runs only once every lower level has 2 sound
+repeats and none of them is a knee (check_ladder_order, eval/p4_ladder.next_allowed), on any host. A knees file whose family has no knee
+stops a validation and a campaign and says what it reads: up to the reachable top, a reported result (rule A: no validation, no campaign);
+below it, an incomplete ladder.
+
+Re-registration record (D-073 (2), 2026-11-07T08:33Z, the user's approval of T-071, before any ladder data), committed before the code it
+judges: the attack ran if at least ATTACK_MIN_OPENED_SHARE x min(planned, ATTACK_OPENED_CAP) = 0.5 x min(planned, 1,800) of its connections
+opened at least once (opened_floor): unchanged up to 300 sources, 900 connections above, so that the saturation of 400 and 500 sources
+(3,000 connections against about 1,576 of slots and backlog) is not called invalid, the floor's own reason (D-057).
+
+Re-registration record (D-069, 2026-11-06T16:30Z, the user's minimum cut of the VM plan, before any data; T-071, T-074), committed before the
+code it judges: P4 runs Slowloris only. A block names its families (`--families`, D-069's ("loris",) by default on the command line; the
+design's two in plan_block, whose tests keep slow POST's code tested), records them in block.json and its settings, and runs only their
+arms: the campaign's, the validation's and a smoke test's runs, the ladder's family, the sources (a fenced family's must be 0), the needed
+arms of a re-run and the knees all follow them.
+
 Re-registration record (D-063, 2026-11-04T13:04Z, the orchestrator's decision, before any data; the user may overrule), committed
 before the code it judges: gunicorn exiting during a run is a reason, named as a calibration refusal or a failed worker boot when
 gunicorn.log shows one, and so is nginx not running at the run's end.
@@ -102,14 +139,15 @@ import p4_traffic as PT
 import slow_pc
 
 FORMAT = "p4-run/1"
-PHASES = ("smoke", "ladder", "validation", "campaign")
+PHASES = ("smoke", "health", "ladder", "validation", "campaign")
+HEALTH_FORMAT = "p4-health/1"     # eval/p4_health.py --out
 SERVER_NS, SERVER_IP, BRIDGE, SERVER_VETH_HOST_END = "server_ns", "10.0.0.1", "ddos_br0", "veth_srv_br"
 NS_PREFIX, MAX_ALIASES, SUBNET_MASK = "p4n", 80, "/16"
 # The runner too (review T-050 T050-17): its popen, curl and reads, and the ip and curl processes it starts, keep off the CPUs of the
-# server and the daemon, as bench/population.PIN_PLAN_DAEMON's executor CPU does. P4's plan has no CPU to spare, so it shares the clients'.
+# server and the daemon, as bench/population.PIN_PLAN_DAEMON's executor CPU does. P4's plan has no CPU to spare, so it shares the attack's.
 # "timer": the CPU the timer gate probes (review T-057 T057-06), the legit CPU of bench/population.PIN_PLAN_DAEMON, on which the record's limit was
-# measured. P4's clients stay on 3-7, so the gate says that the host is calm, not that their CPUs are; the view slips read those.
-PINS = {"server": "0-1", "daemon": "2", "clients": "3-7", "runner": "3-7", "timer": "7"}
+# measured. D-073 (4): the benign clients run there, so the gate speaks for their CPU; the attack generators and the runner on 3-6.
+PINS = {"server": "0-1", "daemon": "2", "benign": "7", "attack": "3-6", "runner": "3-6", "timer": "7"}
 TIMER_WAIT_MIN = 30.0              # bench/executor.py timer_gate's default wait, as eval/p1_runner.py: every run may use it in full
 CONF_R = "nginx_profile_r.conf"
 CONF_LIMITS = "nginx_profile_r_limits.conf"
@@ -131,10 +169,12 @@ DAEMON_READY_LINE = "Listening for Nginx logs"          # bench/executor.py DAEM
 XDP_ATTACHED_LINE = "Successfully attached XDP program"
 DAEMON_READY_TIMEOUT_S, STACK_READY_TIMEOUT_S = 60.0, 30.0
 STOP_GRACE_S = 10.0
-# The attack ran: no open failed for a local reason, and at least this share of its connections was opened at least once. Not
-# 90 %: slots run out as the attack harms (at the ladder's top ~1,800 connections meet ~1,065 free slots and a backlog of 511),
-# so a higher floor would call the harm itself invalid, the trap of stub_status (D-050, P-02).
+# The attack ran: no open failed for a local reason, and at least this share of its connections, up to ATTACK_OPENED_CAP, was opened at
+# least once (opened_floor). Not 90 %: slots run out as the attack harms (at 300 sources ~1,800 connections meet ~1,065 free slots and a
+# backlog of 511), so a higher floor would call the harm itself invalid, the trap of stub_status (D-050, P-02); and at 400-500 sources even
+# half would (D-073 (2)).
 ATTACK_MIN_OPENED_SHARE = 0.5
+ATTACK_OPENED_CAP = 1800
 # What gunicorn.log names when gunicorn stops by itself (D-063): the first found goes in the reason.
 GUNICORN_REFUSALS = (("CalibrationError", "the origin refused its calibration record"), ("Worker failed to boot", "a worker failed to boot"))
 SLOW_PC_POLL_GAP_S = 10.0          # D-035 (V-08): the longest silence of the rule in an M_pc or validation run
@@ -163,11 +203,17 @@ class PlanError(ValueError):
 
 # --- arms ----------------------------------------------------------------------------------------
 
-def arm_spec(arm, phase):
-    """(nginx configuration, daemon mode or None, family or None) of an arm in a phase."""
-    family = next((f for f in OUT.FAMILIES if arm.endswith("_" + f)), None)
+def arm_spec(arm, phase, families=OUT.FAMILIES):
+    """(nginx configuration, daemon mode or None, family or None) of an arm in a phase, of a block that runs `families` (D-069)."""
+    family = OUT.arm_family(arm)
+    if family is not None and family not in families:
+        raise PlanError(f"{arm} attacks with {family}, and this block runs the families {list(families)} (D-069: --families)")
     if arm == OUT.PROTECTED and phase in ("campaign", "smoke"):
         return CONF_LIMITS, "pc", None                # D-041: R + the deployed limits + M_pc's daemon, no attack
+    if phase == "health":
+        if arm not in PT.prereg()["halving"]["controls"]:
+            raise PlanError(f"a health step runs the halving rule's two controls {PT.prereg()['halving']['controls']}, not {arm!r}")
+        return CONF_R, None, None
     if phase in ("validation", "smoke"):
         if arm not in slow_pc.VALIDATION_RUNS:
             raise PlanError(f"{phase} runs are {slow_pc.VALIDATION_RUNS}, not {arm!r}")
@@ -201,24 +247,32 @@ def block_order(phase, seed, arms, label=""):
     return order
 
 
-def phase_arms(phase, family=None):
+def phase_arms(phase, family=None, families=OUT.FAMILIES):
+    if phase == "health":
+        return tuple(PT.prereg()["halving"]["controls"])
     if phase == "campaign":
-        return OUT.ARMS
+        return OUT.arms_of(families)
     if phase in ("validation", "smoke"):
-        return slow_pc.VALIDATION_RUNS
-    if family not in OUT.FAMILIES:
-        raise PlanError(f"a ladder needs --family {' or '.join(OUT.FAMILIES)}")
+        return OUT.validation_runs(families)
+    if family not in families:
+        raise PlanError(f"a ladder needs --family {' or '.join(families)}")
     return ("C", f"U_{family}")
 
 
-def check_phase(phase, seed, sources, thresholds, family=None):
+def check_phase(phase, seed, sources, thresholds, family=None, families=OUT.FAMILIES):
     """What each phase needs, so that no run judges data on a setting that was not frozen."""
-    role = {"smoke": "pilot", "ladder": "pilot", "validation": "val", "campaign": "eval"}[phase]
+    role = {"smoke": "pilot", "health": "pilot", "ladder": "pilot", "validation": "val", "campaign": "eval"}[phase]
     PT.check_seed(seed, role)
-    if phase == "ladder" and family not in OUT.FAMILIES:
-        raise PlanError(f"a ladder needs --family {' or '.join(OUT.FAMILIES)}")
+    if phase == "health":
+        rule = PT.prereg()["halving"]
+        if seed != rule["seed"]:
+            raise PlanError(f"a health step runs on the halving rule's pilot seed {rule['seed']}, not on {seed} (ml/p4_prereg.json)")
+        if any(sources.values()) or family is not None:
+            raise PlanError("a health step runs the rule's two controls, without attack")
+    if phase == "ladder" and family not in families:
+        raise PlanError(f"a ladder needs --family {' or '.join(families)}" + (f" ({family} is fenced by D-069: --families)" if family else ""))
     if phase in ("validation", "campaign"):
-        for f in OUT.FAMILIES:
+        for f in families:
             if sources[f] not in PT.FAMILIES[f]["levels"]:
                 raise PlanError(f"{phase}: --{f} must be a level of the ladder {PT.FAMILIES[f]['levels']} (the knee)")
     if phase == "ladder" and sources[family] not in PT.FAMILIES[family]["levels"]:
@@ -272,8 +326,9 @@ def stats_path(out, entity):
     return os.path.join(out, "attack_stats", entity["entity_id"].replace(":", "_") + ".json")
 
 
-def gen_argv(entity, out, python, cpus=PINS["clients"]):
+def gen_argv(entity, out, python, cpus=None):
     role = "benign" if entity["role"] == "benign" else "attack"
+    cpus = cpus or PINS[role]                         # D-073 (4); P1 passes its own
     dur = entity["schedule"]["stop_s"] - entity["schedule"]["start_s"]
     argv = ["taskset", "-c", cpus, python, GEN, "--role", role, "--host", SERVER_IP,
             "--port", str(entity["port"]), "--duration", f"{dur:.1f}", "--seed", str(entity["client_seed"]),
@@ -286,6 +341,48 @@ def gen_argv(entity, out, python, cpus=PINS["clients"]):
     return argv
 
 
+GROUPED_FAMILIES = ("slowloris",)    # D-075: ml/l7_gen.py GROUP_FAMILIES, pinned by the tests
+
+
+def group_argv(members, out, python, cpus=PINS["attack"]):
+    """D-075: one generator for the Slowloris sources of one namespace (ml/l7_gen.py --group): each with its address, port, seed,
+    parameters and stats file, as gen_argv gives a generator of its own."""
+    family = {e["kind_or_family"] for e in members}
+    durs = {e["schedule"]["stop_s"] - e["schedule"]["start_s"] for e in members}
+    spaces = {e["namespace"] for e in members}
+    starts = {e["schedule"]["start_s"] for e in members}
+    if len(family) != 1 or len(durs) != 1 or len(spaces) != 1 or len(starts) != 1 or family - set(GROUPED_FAMILIES):
+        raise PlanError(f"a group is one namespace's sources of one family of {GROUPED_FAMILIES} with one start and one duration, got "
+                        f"{sorted(family)} starts {sorted(starts)} durs {sorted(durs)} {sorted(spaces)}")
+    group = {"sources": [{"entity_id": e["entity_id"], "source": e["address"], "port": e["port"], "seed": e["client_seed"],
+                          "params": e["params"], "stats": stats_path(out, e)} for e in members]}
+    return ["taskset", "-c", cpus, python, GEN, "--role", "attack", "--family", family.pop(), "--host", SERVER_IP,
+            "--duration", f"{durs.pop():.1f}", "--group", json.dumps(group, sort_keys=True)]
+
+
+def launches_of(ents, out, python):
+    """A run's generators in the order of their start: one per entity (gen_argv), except the sources of GROUPED_FAMILIES, one per
+    namespace (group_argv, D-075), placed at its first source."""
+    keyed, groups = [], {}
+    for e in sorted(ents, key=lambda e: (e["schedule"]["start_s"], e["index"])):
+        if e["role"] == "attack" and e["kind_or_family"] in GROUPED_FAMILIES:
+            if e["namespace"] not in groups:
+                groups[e["namespace"]] = []
+                keyed.append(((e["schedule"]["start_s"], e["index"]), ("group", e["namespace"])))
+            groups[e["namespace"]].append(e)
+            continue
+        keyed.append(((e["schedule"]["start_s"], e["index"]), {"entity_id": e["entity_id"], "role": e["role"], "ns": e["namespace"],
+                                                               "start_s": e["schedule"]["start_s"], "argv": gen_argv(e, out, python)}))
+    out_ = []
+    for _key, x in sorted(keyed, key=lambda k: k[0]):
+        if isinstance(x, tuple):
+            members = groups[x[1]]
+            x = {"entity_id": f"group:{x[1]}", "role": "attack", "ns": x[1], "start_s": members[0]["schedule"]["start_s"],
+                 "argv": group_argv(members, out, python), "entities": [m["entity_id"] for m in members]}
+        out_.append(x)
+    return out_
+
+
 def daemon_env(mode, out, thresholds):
     env = {**DAEMON_BASE_ENV, **DAEMON_MODES[mode], "BAN_EVENTS": os.path.join(out, "ban_events.jsonl")}
     if mode in ("pc", "shadow"):
@@ -295,18 +392,16 @@ def daemon_env(mode, out, thresholds):
     return env
 
 
-def plan_run(pop, phase, arm, out, *, thresholds=None, calibration=PLACEHOLDER, python=PYTHON):
+def plan_run(pop, phase, arm, out, *, thresholds=None, calibration=PLACEHOLDER, python=PYTHON, families=OUT.FAMILIES):
     """One run as data: everything execute_run() does, and nothing it does not."""
-    conf, mode, family = arm_spec(arm, phase)
+    conf, mode, family = arm_spec(arm, phase, families)
     if mode == "pc" and thresholds is None:
         raise PlanError(f"{arm} runs M_pc's daemon: it needs --thresholds T,F,K")
     ents = [dict(e) for e in pop["entities"]
             if e["role"] == "benign" or (family is not None and e["schedule"]["phase"] == family)]
     nss = namespaces(ents)
     files = {name: sha256_file(os.path.join(REPO, name)) for name in PROFILE_FILES}
-    launches = [{"entity_id": e["entity_id"], "role": e["role"], "ns": e["namespace"],
-                 "start_s": e["schedule"]["start_s"], "argv": gen_argv(e, out, python)}
-                for e in sorted(ents, key=lambda e: (e["schedule"]["start_s"], e["index"]))]
+    launches = launches_of(ents, out, python)
     conf_path = os.path.join(REPO, conf)
     daemon = None
     if mode is not None:
@@ -343,22 +438,70 @@ def read_record(path):
     return rec, status
 
 
-def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresholds=None, family=None,
-               arms=None, label="", calibration=PLACEHOLDER, python=PYTHON, selection=None, knees=None):
+def load_factor(health, calibration, root):
+    """The frozen factor of the halving rule from the health file (eval/p4_health.py --out), bound to the calibration record in use and to
+    the root and health index it read (D-080, T078-08); a file without a factor, or of another root, is refused, and the refusal says why
+    (D-073 (3))."""
+    import p4_health
+    try:
+        with open(health, encoding="utf-8") as fh:
+            rec = json.load(fh)
+    except (OSError, ValueError) as exc:
+        raise PlanError(f"the health file {health}: {exc}") from None
+    if rec.get("format") != HEALTH_FORMAT:
+        raise PlanError(f"{health} is not a {HEALTH_FORMAT} file (eval/p4_health.py --out)")
+    if rec.get("calibration_sha256") != sha256_file(calibration):
+        raise PlanError(f"{health} was read on another calibration record than {calibration}")
+    if rec.get("root") != os.path.abspath(root):
+        raise PlanError(f"{health} was produced under the root {rec.get('root')}, not {os.path.abspath(root)} (D-080, T078-08): a ladder "
+                        "runs at its own root's factor")
+    if rec.get("index_digest") != p4_health.health_index_digest(root):
+        raise PlanError(f"{health}'s health index digest does not match {root}'s: the health phase changed since it was frozen (D-080, T078-08)")
+    if rec.get("decision") != "frozen":
+        raise PlanError(f"the benign mix has no frozen factor in {health} ({rec.get('decision')}): {rec.get('why')}")
+    return rec["benign_halvings"]
+
+
+def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=None, thresholds=None, family=None,
+               arms=None, label="", calibration=PLACEHOLDER, python=PYTHON, selection=None, knees=None, families=OUT.FAMILIES,
+               health=None):
     """One block's runs, in their seeded order, as data. `selection`: the campaign's record of the validation, which run_block
     checks (check_selection); `knees`: the validation's and the campaign's record of the ladder (check_knees); a plan can be printed
-    without them."""
+    without them. `families`: what the block runs (D-069); a fenced family's sources must be 0. `health`: the halving rule's frozen
+    factor (eval/p4_health.py --out), whose factor a ladder, a validation and a campaign run at (D-073 (3)); a typed `halvings` must be
+    it, and a host that measures refuses them without it (check_health)."""
     sources = {"loris": 0, "post": 0, **(sources or {})}
     if phase not in PHASES:
         raise PlanError(f"unknown phase {phase!r}")
+    try:
+        families = OUT.check_families(families)
+    except ValueError as exc:
+        raise PlanError(str(exc)) from None
+    fenced = sorted(f for f in OUT.FAMILIES if f not in families and sources.get(f))
+    if fenced:
+        raise PlanError(f"--{fenced[0]} {sources[fenced[0]]}: this block runs the families {list(families)} (D-069: --families)")
     if selection and phase != "campaign":
         raise PlanError(f"{phase}: --selection is the campaign's: the validation's choice of T, F and K")
     if knees and phase not in ("validation", "campaign"):
         raise PlanError(f"{phase}: --knees is the validation's and the campaign's: the ladder's record")
+    if health and phase not in ("ladder", "validation", "campaign"):
+        raise PlanError(f"{phase}: --health is the ladder's, the validation's and the campaign's: the halving rule's frozen factor")
+    if health:
+        factor = load_factor(health, calibration, root)
+        if halvings is not None and halvings != factor:
+            raise PlanError(f"{phase}: --halvings {halvings}, and the halving rule's factor is {factor} ({health}, D-073 (3))")
+        halvings = factor
+    halvings = 0 if halvings is None else halvings
+    if phase == "health":
+        if label and label != f"h{halvings}":
+            raise PlanError(f"health: the label is h{halvings}, the step's halvings, not {label!r}")
+        if arms:
+            raise PlanError("health: the runs are the halving rule's two controls (ml/p4_prereg.json)")
+        label = f"h{halvings}"
     record, status = read_record(calibration)
     if label and phase in ("campaign", "validation"):
         raise PlanError(f"{phase}: no --label: it would give another arm order in another directory (review T-047 P-13)")
-    role = check_phase(phase, seed, sources, thresholds, family) if phase != "smoke" else "pilot"
+    role = check_phase(phase, seed, sources, thresholds, family, families) if phase != "smoke" else "pilot"
     if phase == "smoke":
         PT.check_seed(seed, "pilot")
         if thresholds is not None and tuple(thresholds) not in slow_pc.GRID:
@@ -369,23 +512,23 @@ def plan_block(phase, seed, root, *, attempt=1, sources=None, halvings=0, thresh
             raise PlanError(f"ladder: the label {label!r} is not one of {ladder_labels(sources[family])}: eval/p4_ladder.py reads the repeat "
                             f"from it, and §5's ladder has {LADDER_REPEATS} repeats a level (review T-063 T063-05)")
     pop = PT.build_plan(seed, role, halvings=halvings, loris=sources["loris"], post=sources["post"])
-    wanted = tuple(arms) if arms else phase_arms(phase, family)
+    wanted = tuple(arms) if arms else phase_arms(phase, family, families)
     order = block_order(phase, seed, wanted, label)
     name = f"b{seed}_a{attempt}" + (f"_{label}" if label else "")
     bdir = os.path.join(root, phase, name)
     runs = [plan_run(pop, phase, arm, os.path.join(bdir, arm), thresholds=thresholds, calibration=calibration,
-                     python=python) for arm in order]
+                     python=python, families=families) for arm in order]
     for run in runs:
         run["timer_limit_ms"] = record["validity"]["timer_p99_ms"]
     return {"phase": phase, "seed": seed, "attempt": attempt, "label": label, "dir": bdir, "root": root,
-            "order": order, "sources": sources, "halvings": halvings, "thresholds": thresholds,
+            "order": order, "sources": sources, "halvings": halvings, "thresholds": thresholds, "families": families, "health": health,
             "calibration": calibration, "calibration_status": status, "selection": selection, "knees": knees, "runs": runs}
 
 
 def describe(block):
     """The text of --plan."""
     lines = [f"P4 {block['phase']} block {block['seed']} attempt {block['attempt']}: {block['dir']}",
-             (f"order {block['order']}; sources {block['sources']}; halvings {block['halvings']}; "
+             (f"families {list(block['families'])}; order {block['order']}; sources {block['sources']}; halvings {block['halvings']}; "
               f"thresholds {block['thresholds']}; calibration {block['calibration']} ({block['calibration_status']})"
               + (f"; selection {block['selection']}" if block["phase"] == "campaign" else "")
               + (f"; knees {block['knees']}" if block["phase"] in ("validation", "campaign") else ""))]
@@ -399,7 +542,7 @@ def describe(block):
                      + f"; {len(r['namespaces'])} namespaces, {sum(len(n['addresses']) for n in r['namespaces'])} "
                        f"addresses, {len(r['launches'])} generators "
                        f"({sum(1 for x in r['launches'] if x['role'] == 'attack')} attacking from "
-                       f"{r['timeline']['baseline_s']} s)")
+                       f"{r['timeline']['baseline_s']} s, for {sum(1 for e in r['entities'] if e['role'] == 'attack')} sources)")
     return "\n".join(lines)
 
 
@@ -767,7 +910,8 @@ def attack_summary(plan):
     if not entities:
         return None
     out = {"planned": sum(e["params"]["conns"] for e in entities), "generators": len(entities), "no_stats": 0, "opened": 0,
-           "reopened": 0, "failed_opens": 0, "local_errors": 0, "sent_bytes": 0}
+           "reopened": 0, "failed_opens": 0, "local_errors": 0, "sent_bytes": 0,
+           "processes": sum(1 for x in plan["launches"] if x["role"] == "attack")}
     for e in entities:
         try:
             with open(stats_path(plan["out"], e), encoding="utf-8") as fh:
@@ -851,6 +995,11 @@ def stall_reasons(stall):
     return reasons
 
 
+def opened_floor(planned):
+    """D-073 (2): the fewest connections an attack must have opened at least once to have run."""
+    return ATTACK_MIN_OPENED_SHARE * min(planned, ATTACK_OPENED_CAP)
+
+
 def checks(host, plan, t0, launched):
     """The validity checks of a run that ran (see the module docstring)."""
     if t0 is None:
@@ -862,11 +1011,12 @@ def checks(host, plan, t0, launched):
     attack = attack_summary(plan)
     if attack:
         if attack["no_stats"]:
-            reasons.append(f"{attack['no_stats']} of {attack['generators']} attack generators left no stats")
+            reasons.append(f"{attack['no_stats']} of {attack['generators']} attack sources left no stats")
         if attack["local_errors"]:
             reasons.append(f"the attack could not open connections on this machine: {attack['local_errors']} local errors")
-        if attack["opened"] < ATTACK_MIN_OPENED_SHARE * attack["planned"]:
-            reasons.append(f"the attack opened {attack['opened']} of its {attack['planned']} connections")
+        if attack["opened"] < opened_floor(attack["planned"]):
+            reasons.append(f"the attack opened {attack['opened']} of its {attack['planned']} connections, under the floor of "
+                           f"{opened_floor(attack['planned']):g} (D-073 (2))")
     d = plan["daemon"]
     if d:
         log = _text(host, d["log"])
@@ -952,11 +1102,12 @@ def block_settings(block):
     the thresholds, the calibration record, the validation's record and the code."""
     prov = block["runs"][0]["provenance"]
     code = hashlib.sha256(json.dumps([prov["files_sha256"], prov["code_sha256"]], sort_keys=True).encode()).hexdigest()
-    return {"sources": block["sources"], "halvings": block["halvings"],
+    return {"sources": block["sources"], "halvings": block["halvings"], "families": list(block["families"]),
             "thresholds": list(block["thresholds"]) if block["thresholds"] else None,
             "calibration_sha256": sha256_file(block["calibration"]), "calibration_status": block["calibration_status"],
             "code_sha256": code,
             "selection_sha256": sha256_file(block["selection"]) if block.get("selection") else None,
+            "health_sha256": sha256_file(block["health"]) if block.get("health") else None,
             "knees_sha256": sha256_file(block["knees"]) if block.get("knees") else None}
 
 
@@ -990,16 +1141,71 @@ def check_knees(block, host):
         levels, halvings, record = rec["levels"], rec["halvings"], rec["calibration_sha256"]
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise PlanError(f"{path} is not a record of eval/p4_ladder.py: {exc!r}") from None
-    none = sorted(f for f in OUT.FAMILIES if levels.get(f) is None)
+    families = block["families"]
+    read = OUT.check_families(rec.get("family_set") or OUT.FAMILIES)
+    if read != tuple(families):
+        raise PlanError(f"{block['phase']}: {path} read the ladder of the families {list(read)}, and this block runs {list(families)} (D-069)")
+    none = sorted(f for f in families if levels.get(f) is None)
     if none:
-        raise PlanError(f"{block['phase']}: {', '.join(none)} has no knee in {path}: what that means is not decided, so nothing runs (T-060)")
-    typed = {f: block["sources"][f] for f in OUT.FAMILIES}
-    if typed != {f: levels[f] for f in OUT.FAMILIES}:
-        raise PlanError(f"{block['phase']}: the sources {typed} are not the ladder's knees { {f: levels[f] for f in OUT.FAMILIES} } ({path})")
+        res = (rec.get("results") or {}).get(none[0]) or {}
+        if res.get("status") == "no knee":
+            why = (f"up to {res['top']} sources: P4 reads it as a result, not harmful on R up to {res['top']} sources (D-074, rule A), "
+                   "and no validation and no campaign run")
+        elif res.get("status") == "incomplete":
+            why = f"the ladder is incomplete: level {res['next_level']} runs next (D-073 (1))"
+        else:
+            why = "nothing runs across it (D-074)"
+        raise PlanError(f"{block['phase']}: {', '.join(none)} has no knee in {path}: {why}")
+    typed = {f: block["sources"][f] for f in families}
+    if typed != {f: levels[f] for f in families}:
+        raise PlanError(f"{block['phase']}: the sources {typed} are not the ladder's knees { {f: levels[f] for f in families} } ({path})")
     if block["halvings"] != halvings:
         raise PlanError(f"{block['phase']}: --halvings {block['halvings']}, and the ladder ran at {halvings} ({path})")
     if record != sha256_file(block["calibration"]):
         raise PlanError(f"{block['phase']}: {path} was read under another calibration record than {block['calibration']}")
+
+
+def check_health(block, host):
+    """D-073 (3): a ladder, a validation and a campaign run at the halving rule's frozen factor (plan_block reads it from --health); on
+    a host that measures they need the file. Only a host that measures nothing may go without it, as with check_knees."""
+    if block["phase"] not in ("ladder", "validation", "campaign") or block.get("health") or getattr(host, "simulated", False):
+        return
+    raise PlanError(f"{block['phase']}: --health must name the halving rule's frozen factor (eval/p4_health.py --out, D-073 (3))")
+
+
+def check_health_order(block):
+    """D-080 (T078-07): a health block runs only at the halvings the rule (ml/p4_traffic.next_step) allows next, over the steps already in
+    the index (eval/p4_health.health_result), so an off-rule step is refused before it runs rather than after, as check_ladder_order does for
+    the ladder. A re-run of an unsound step at the same halvings is a "run" of the rule and is allowed. A D-058 "stopped" state waits for a
+    dated decision the runner does not have, so it is left to the operator; "frozen" and "refused" refuse a further step."""
+    if block["phase"] != "health":
+        return
+    import p4_health
+    try:
+        res = p4_health.health_result(block["root"], block["calibration"])
+    except (ValueError, OSError, KeyError) as exc:
+        raise PlanError(f"health: {exc}") from None
+    if res["decision"] == "stopped":
+        return
+    if res["decision"] != "run":
+        raise PlanError(f"health: the rule is {res['decision']} ({res.get('why')}), and no further step runs "
+                        "(ml/p4_prereg.json next_step, D-080, T078-07)")
+    if res.get("next_halvings") != block["halvings"]:
+        raise PlanError(f"health: the rule's next step runs at {res['next_halvings']} halvings, not {block['halvings']} "
+                        "(ml/p4_prereg.json next_step, D-080, T078-07)")
+
+
+def check_ladder_order(block):
+    """D-073 (1): a ladder block above the first ALWAYS_RUN levels runs only once every lower level has 2 sound repeats and none of them is a
+    knee (eval/p4_ladder.next_allowed, over the run index under the block's calibration record), on any host."""
+    if block["phase"] != "ladder":
+        return
+    import p4_ladder
+    family = next(a[2:] for a in block["order"] if a.startswith("U_"))
+    try:
+        p4_ladder.next_allowed(block["root"], block["calibration"], family, block["sources"][family])
+    except (ValueError, OSError, KeyError) as exc:
+        raise PlanError(f"ladder: {exc}") from None
 
 
 def check_selection(block):
@@ -1047,8 +1253,9 @@ def check_settings(block):
 
 def check_attempt(block):
     """D-050 (review T-047 P-03): the attempt must be the next one the index shows, and a re-run needs a reason: attempt N-1 of
-    the block had an invalid or missing needed arm (a run whose runner died is invalid), or, in the campaign, an unhealthy
-    C. The campaign holds at most OUT.MAX_RERUNS re-runs. Smoke runs judge nothing and need no reason."""
+    the block had an invalid or missing needed arm (a run whose runner died is invalid), or, in the ladder or the campaign, an unhealthy
+    C. The campaign holds at most OUT.MAX_RERUNS re-runs; a ladder repeat is re-run for an unhealthy C at most the record's
+    gate.max_reruns times, then it has no sound attempt (D-080, T078-05). Smoke and health runs judge nothing here and need no reason."""
     phase, seed = block["phase"], block["seed"]
     rows = read_index(block["root"])
     mine = [x for x in rows if (x["phase"], x["block"], x["label"]) == (phase, seed, block["label"])]
@@ -1060,12 +1267,13 @@ def check_attempt(block):
         if other:
             raise PlanError(f"ladder {block['label']} ran on seed {other[0]}: a repeat is re-run on its own seed, with a reason, not rolled "
                             f"again on {seed} (review T-063 T063-05)")
-    if next_attempt == 1 or phase == "smoke":
+    if next_attempt == 1 or phase in ("smoke", "health"):          # a health step's re-runs are the rule's (eval/p4_health.py)
         return
     last = {x["arm"]: x for x in mine if x["attempt"] == next_attempt - 1}
-    needed = OUT.NEEDED_ARMS if phase == "campaign" else block["order"]
+    needed = OUT.needed_arms(block["families"]) if phase == "campaign" else block["order"]
     why = [arm for arm in needed if arm not in last or not last[arm]["valid"]]
-    if phase == "campaign" and not why:
+    cal = None
+    if phase in ("campaign", "ladder") and not why:                 # D-073 (3): the ladder's C too
         import l7_backend
         cal = l7_backend.load_record(block["calibration"])[0]
         control = last[OUT.CONTROL]
@@ -1074,6 +1282,16 @@ def check_attempt(block):
     if not why:
         raise PlanError(f"{phase} block {seed}: attempt {next_attempt - 1} had every needed arm valid and a healthy C, and "
                         "D-050 allows no re-run of it")
+    if phase == "ladder" and why == ["an unhealthy C"]:             # D-080 (T078-05): cap the unhealthy-C re-runs of this repeat
+        cap = cal["gate"]["max_reruns"]
+        unhealthy = 0
+        for a in range(1, next_attempt):
+            crow = next((x for x in mine if x["attempt"] == a and x["arm"] == OUT.CONTROL and x["valid"]), None)
+            if crow and run_record(os.path.join(block["root"], crow["dir"]), cal, seed, a)["control_reasons"]:
+                unhealthy += 1
+        if unhealthy > cap:
+            raise PlanError(f"ladder {block['label']} on seed {seed}: {unhealthy} attempts had an unhealthy C, at most {cap} re-runs for an "
+                            "unhealthy C (D-080); the repeat has no sound attempt (D-067)")
     if phase == "campaign":
         reruns = {(x["block"], x["attempt"]) for x in rows if x["phase"] == "campaign" and x["attempt"] > 1}
         if len(reruns) >= OUT.MAX_RERUNS:
@@ -1085,6 +1303,9 @@ def run_block(host, block):
     check_frozen(block, host)
     check_attempt(block)
     check_knees(block, host)
+    check_health(block, host)
+    check_health_order(block)
+    check_ladder_order(block)
     check_selection(block)
     check_settings(block)
     if os.path.exists(block["dir"]):
@@ -1096,7 +1317,7 @@ def run_block(host, block):
                {"block": block["seed"], "attempt": block["attempt"], "seed": block["seed"], "phase": block["phase"],
                 "calibration_sha256": sha256_file(cal), "timeline": dict(PT.TIMELINE), "order": block["order"],
                 "sources": block["sources"], "halvings": block["halvings"], "thresholds": block["thresholds"],
-                "settings": block_settings(block)})
+                "families": list(block["families"]), "settings": block_settings(block)})
     results = []
     with open(os.path.join(block["root"], "index.jsonl"), "a", encoding="utf-8") as idx:
         for run in block["runs"]:
@@ -1236,9 +1457,12 @@ def main(argv=None, host=None):
     ap.add_argument("--loris", type=int, default=0, help="Slowloris sources (a ladder level; the knee)")
     ap.add_argument("--post", type=int, default=0, help="slow-POST sources (a ladder level; the knee)")
     ap.add_argument("--family", choices=OUT.FAMILIES, help="the ladder's family")
+    ap.add_argument("--families", default=",".join(OUT.CUT_FAMILIES), choices=("loris", "loris,post"),
+                    help="the families the block runs (D-069: Slowloris only, the default; loris,post: the design's two)")
     ap.add_argument("--label", default="", help="a ladder's level and repeat, a smoke run's name; refused elsewhere")
     ap.add_argument("--arms", help="smoke only: the runs, comma-separated (C, U_loris, U_post, C_M)")
-    ap.add_argument("--halvings", type=int, default=0, help="how often the halving rule of §4.2 has fired")
+    ap.add_argument("--halvings", type=int, help="smoke, health: how often the halving rule of §4.2 has fired; elsewhere --health's")
+    ap.add_argument("--health", help="ladder, validation, campaign: the halving rule's frozen factor (eval/p4_health.py --out)")
     ap.add_argument("--thresholds", type=_thresholds, help="campaign: the committed T,F,K; a smoke C_M: a grid point")
     ap.add_argument("--selection", help="campaign: the validation's record (eval/p4_validation.py --json)")
     ap.add_argument("--knees", help="validation, campaign: the ladder's record (eval/p4_ladder.py --out)")
@@ -1267,7 +1491,8 @@ def main(argv=None, host=None):
                            sources={"loris": args.loris, "post": args.post}, halvings=args.halvings,
                            thresholds=args.thresholds, family=args.family,
                            arms=args.arms.split(",") if args.arms else None, label=args.label,
-                           calibration=args.calibration, python=args.python, selection=args.selection, knees=args.knees)
+                           calibration=args.calibration, python=args.python, selection=args.selection, knees=args.knees,
+                           families=tuple(args.families.split(",")), health=args.health)
     except (PlanError, PT.PlanError) as exc:
         print(f"[-] {exc}", file=sys.stderr)
         return 2

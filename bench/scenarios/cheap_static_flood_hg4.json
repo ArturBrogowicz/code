@@ -1,0 +1,19 @@
+{
+ "schema": 1,
+ "id": "cheap_static_flood_hg4",
+ "description": "HG4's control where the rules win (D-071, R-020): the plain flood of the cheap dynamic route from 5 sources at level 4, twice the frozen knee of 2, so that each source is well above limit_req's 30 r/s and the L7 rule's 50 r/s. HG3 confirms the family at its knee with cheap_static_flood.",
+ "family": "cheap_static_flood",
+ "class": "F",
+ "grounding": "assumed",
+ "resource": "app_cpu",
+ "routes": {"C1": 1.0},
+ "intensity": {"unit": "cost_rate_S", "ladder": [0.125, 0.25, 0.5, 1, 2, 4, 8], "level": 4},
+ "sources": 5,
+ "arrival": {"process": "poisson", "loop": "open"},
+ "benign": {"identities": 200, "per_profile": 1},
+ "netem": "suite_mix",
+ "timeline": {"baseline_s": 30, "attack_s": 45, "recovery_s": 30},
+ "seed_namespace": "calib",
+ "gate": {"blocks": 10, "metrics": ["Q", "p95"]},
+ "controls": {"control": "benign_control", "placebo": "repeat"}
+}

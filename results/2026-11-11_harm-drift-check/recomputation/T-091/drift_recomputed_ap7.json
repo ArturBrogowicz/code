@@ -1,0 +1,7017 @@
+{
+ "attempts": {
+  "AP-4 attempt 1": {
+   "aside": {
+    "cheap_static_flood/U.failed1": {
+     "complete": false,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261108/drift/attack_cheap_static_flood/U.failed1",
+     "facts": {
+      "DONE": null,
+      "env": {
+       "checked_utc": "2026-11-08T09:35:35+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 9426,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 0.95,
+        "met": null,
+        "uptime_s": 3484.27,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 0.88,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 7.755384000338381,
+         "p50_ms": 2.803083499875356,
+         "p99_ms": 7.66880292010228,
+         "passed": true,
+         "utc": "2026-11-08T09:35:32+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      },
+      "files": [
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 2.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "cheap_static_flood",
+       "seed": 42,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 3,
+       "executor_ok": false,
+       "executor_reasons": [
+        "the legit streams began 2.28 s apart (limit 0.5 s; 20 of 32 are outside the pack, at most 15 may be)"
+       ],
+       "legit_streams": 32,
+       "level": 2.0,
+       "role": "attack",
+       "scenario": "cheap_static_flood",
+       "seed": 42,
+       "setup_retries": 0,
+       "started_utc": "2026-11-08T09:35:49+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      }
+     },
+     "route1_committed": {
+      "Q": 96.10154125113327,
+      "p95_s": 0.18060499999999918,
+      "requests": 1103
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 94.07008086253369,
+        "n": 371,
+        "ok": 349,
+        "p95_s": 0.06030039999999698
+       },
+       "C1": {
+        "Q": 96.51162790697674,
+        "n": 258,
+        "ok": 249,
+        "p95_s": 0.1851300000000023
+       },
+       "C2": {
+        "Q": 96.40718562874251,
+        "n": 334,
+        "ok": 322,
+        "p95_s": 0.18767235000000076
+       },
+       "C3": {
+        "Q": 100.0,
+        "n": 130,
+        "ok": 130,
+        "p95_s": 0.21016474999999588
+       },
+       "C5": {
+        "Q": 100.0,
+        "n": 10,
+        "ok": 10,
+        "p95_s": 1.826738149999991
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 95.1304347826087,
+        "judged": true,
+        "n": 575,
+        "ok": 547,
+        "p95_s": 0.19881559999999762
+       },
+       "mobile_3g": {
+        "Q": 53.71287128712871,
+        "judged": false,
+        "n": 404,
+        "ok": 217,
+        "p95_s": 0.35677459999999794
+       },
+       "mobile_bad": {
+        "Q": 15.426997245179063,
+        "judged": false,
+        "n": 363,
+        "ok": 56,
+        "p95_s": 0.7244652499999962
+       },
+       "perfect": {
+        "Q": 97.1590909090909,
+        "judged": true,
+        "n": 528,
+        "ok": 513,
+        "p95_s": 0.16498140000000333
+       }
+      },
+      "failures": {
+       "slow": 43
+      },
+      "judged_share": 0.5898395721925134,
+      "lost": 43,
+      "ok": 1060,
+      "p50_s": 0.0331004999999962,
+      "p99_s": 0.29654264000000047,
+      "slip_p99_s": 0.08560837000000183
+     },
+     "route2_own": {
+      "Q": 96.10154125113327,
+      "failures": {
+       "slow": 43
+      },
+      "ok": 1060,
+      "p95_s": 0.18060499999999918,
+      "requests": 1103
+     },
+     "routes_agree": true,
+     "sound": false,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    }
+   },
+   "complete": true,
+   "dir": "/var/tmp/ddos_campaigns/drift_20261108",
+   "drift_json_exists": true,
+   "runs": {
+    "cheap_static_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261108/drift/attack_cheap_static_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-08T09:39:42+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 124.2,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      },
+      "env": {
+       "checked_utc": "2026-11-08T09:37:41+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 9426,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 1.52,
+        "met": null,
+        "uptime_s": 3610.34,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 1.4,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 8.588914999781991,
+         "p50_ms": 2.7666779999344726,
+         "p99_ms": 7.536032339753547,
+         "passed": true,
+         "utc": "2026-11-08T09:37:38+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 2.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "cheap_static_flood",
+       "seed": 42,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 3,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 32,
+       "level": 2.0,
+       "role": "attack",
+       "scenario": "cheap_static_flood",
+       "seed": 42,
+       "setup_retries": 0,
+       "started_utc": "2026-11-08T09:37:51+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      }
+     },
+     "route1_committed": {
+      "Q": 94.70319634703196,
+      "p95_s": 0.2226493999999974,
+      "requests": 1095
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 91.62162162162163,
+        "n": 370,
+        "ok": 339,
+        "p95_s": 0.05942920000000312
+       },
+       "C1": {
+        "Q": 95.9839357429719,
+        "n": 249,
+        "ok": 239,
+        "p95_s": 0.20083530000000133
+       },
+       "C2": {
+        "Q": 94.91017964071857,
+        "n": 334,
+        "ok": 317,
+        "p95_s": 0.23731459999999624
+       },
+       "C3": {
+        "Q": 100.0,
+        "n": 132,
+        "ok": 132,
+        "p95_s": 0.3175434000000023
+       },
+       "C5": {
+        "Q": 100.0,
+        "n": 10,
+        "ok": 10,
+        "p95_s": 0.7800860500000043
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 94.91228070175438,
+        "judged": true,
+        "n": 570,
+        "ok": 541,
+        "p95_s": 0.23239699999999885
+       },
+       "mobile_3g": {
+        "Q": 52.46305418719212,
+        "judged": false,
+        "n": 406,
+        "ok": 213,
+        "p95_s": 0.43360539999999737
+       },
+       "mobile_bad": {
+        "Q": 16.022099447513813,
+        "judged": false,
+        "n": 362,
+        "ok": 58,
+        "p95_s": 0.7422434999999985
+       },
+       "perfect": {
+        "Q": 94.47619047619048,
+        "judged": true,
+        "n": 525,
+        "ok": 496,
+        "p95_s": 0.21346000000000132
+       }
+      },
+      "failures": {
+       "slow": 58
+      },
+      "judged_share": 0.5877616747181964,
+      "lost": 58,
+      "ok": 1037,
+      "p50_s": 0.03609400000000562,
+      "p99_s": 0.4050378400000001,
+      "slip_p99_s": 0.01798206000000209
+     },
+     "route2_own": {
+      "Q": 94.70319634703196,
+      "failures": {
+       "slow": 58
+      },
+      "ok": 1037,
+      "p95_s": 0.2226493999999974,
+      "requests": 1095
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "costly_export_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261108/drift/attack_costly_export_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-08T09:41:47+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 124.3,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.3
+      },
+      "env": {
+       "checked_utc": "2026-11-08T09:39:45+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 9426,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 1.93,
+        "met": null,
+        "uptime_s": 3734.92,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 1.78,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 5.952550000292831,
+         "p50_ms": 0.5448619999606306,
+         "p99_ms": 4.8305798300225415,
+         "passed": true,
+         "utc": "2026-11-08T09:39:43+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.3
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 4.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "costly_export_sub_threshold",
+       "seed": 43,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 4,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 31,
+       "level": 4.0,
+       "role": "attack",
+       "scenario": "costly_export_sub_threshold",
+       "seed": 43,
+       "setup_retries": 0,
+       "started_utc": "2026-11-08T09:39:57+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.3
+      }
+     },
+     "route1_committed": {
+      "Q": 55.25114155251141,
+      "p95_s": 0.24511424999999853,
+      "requests": 1314
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 56.973995271867615,
+        "n": 423,
+        "ok": 241,
+        "p95_s": 0.06653500000000179
+       },
+       "C1": {
+        "Q": 57.915057915057915,
+        "n": 259,
+        "ok": 150,
+        "p95_s": 0.22906305000000174
+       },
+       "C2": {
+        "Q": 50.33557046979866,
+        "n": 447,
+        "ok": 225,
+        "p95_s": 0.19756279999999998
+       },
+       "C3": {
+        "Q": 58.8235294117647,
+        "n": 170,
+        "ok": 100,
+        "p95_s": 0.5764642499999967
+       },
+       "C5": {
+        "Q": 66.66666666666667,
+        "n": 15,
+        "ok": 10,
+        "p95_s": 2.1140887500000014
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 55.484693877551024,
+        "judged": true,
+        "n": 784,
+        "ok": 435,
+        "p95_s": 0.21692220000000104
+       },
+       "mobile_3g": {
+        "Q": 15.447154471544716,
+        "judged": false,
+        "n": 369,
+        "ok": 57,
+        "p95_s": 0.5456283999999968
+       },
+       "mobile_bad": {
+        "Q": 13.194444444444445,
+        "judged": false,
+        "n": 144,
+        "ok": 19,
+        "p95_s": 1.0590124999999977
+       },
+       "perfect": {
+        "Q": 54.905660377358494,
+        "judged": true,
+        "n": 530,
+        "ok": 291,
+        "p95_s": 0.292234999999998
+       }
+      },
+      "failures": {
+       "slow": 588
+      },
+      "judged_share": 0.7192118226600985,
+      "lost": 588,
+      "ok": 726,
+      "p50_s": 0.044026999999999816,
+      "p99_s": 0.7996300000000005,
+      "slip_p99_s": 0.04611336000000196
+     },
+     "route2_own": {
+      "Q": 55.25114155251141,
+      "failures": {
+       "slow": 588
+      },
+      "ok": 726,
+      "p95_s": 0.24511424999999853,
+      "requests": 1314
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "costly_search_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261108/drift/attack_costly_search_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-08T09:43:49+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 121.1,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.3
+      },
+      "env": {
+       "checked_utc": "2026-11-08T09:41:50+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 9426,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 2.04,
+        "met": null,
+        "uptime_s": 3860.02,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 1.88,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 5.994697000223823,
+         "p50_ms": 0.5023250000613186,
+         "p99_ms": 5.08387078004034,
+         "passed": true,
+         "utc": "2026-11-08T09:41:48+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.3
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 4.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "costly_search_sub_threshold",
+       "seed": 44,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 4,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 31,
+       "level": 4.0,
+       "role": "attack",
+       "scenario": "costly_search_sub_threshold",
+       "seed": 44,
+       "setup_retries": 0,
+       "started_utc": "2026-11-08T09:42:00+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.3
+      }
+     },
+     "route1_committed": {
+      "Q": 65.12141280353201,
+      "p95_s": 0.4256244000000008,
+      "requests": 1359
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 57.142857142857146,
+        "n": 455,
+        "ok": 260,
+        "p95_s": 0.07401124999999875
+       },
+       "C1": {
+        "Q": 53.02013422818792,
+        "n": 298,
+        "ok": 158,
+        "p95_s": 0.2641152999999946
+       },
+       "C2": {
+        "Q": 70.28199566160521,
+        "n": 461,
+        "ok": 324,
+        "p95_s": 0.27889084999999836
+       },
+       "C3": {
+        "Q": 99.26470588235294,
+        "n": 136,
+        "ok": 135,
+        "p95_s": 0.6444081000000004
+       },
+       "C5": {
+        "Q": 88.88888888888889,
+        "n": 9,
+        "ok": 8,
+        "p95_s": 1.2535379499999983
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 63.50148367952522,
+        "judged": true,
+        "n": 674,
+        "ok": 428,
+        "p95_s": 0.46481790000000256
+       },
+       "mobile_3g": {
+        "Q": 19.764705882352942,
+        "judged": false,
+        "n": 425,
+        "ok": 84,
+        "p95_s": 0.8314604499999971
+       },
+       "mobile_bad": {
+        "Q": 20.689655172413794,
+        "judged": false,
+        "n": 87,
+        "ok": 18,
+        "p95_s": 2.5787443500000014
+       },
+       "perfect": {
+        "Q": 66.71532846715328,
+        "judged": true,
+        "n": 685,
+        "ok": 457,
+        "p95_s": 0.35757360000000477
+       }
+      },
+      "failures": {
+       "slow": 474
+      },
+      "judged_share": 0.726349545697488,
+      "lost": 474,
+      "ok": 885,
+      "p50_s": 0.058179000000002645,
+      "p99_s": 0.7339976799999925,
+      "slip_p99_s": 0.04582427999999803
+     },
+     "route2_own": {
+      "Q": 65.12141280353201,
+      "failures": {
+       "slow": 474
+      },
+      "ok": 885,
+      "p95_s": 0.4256244000000008,
+      "requests": 1359
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "legit": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261108/drift/legit/C",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-08T09:35:32+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 158.6,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      },
+      "env": {
+       "checked_utc": "2026-11-08T09:33:17+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 9426,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "limit_load1": 0.3,
+        "limit_uptime_s": 1800,
+        "load1": 0.22,
+        "met": true,
+        "uptime_s": 3346.37,
+        "waited_s": 20.4
+       },
+       "gate_mode": "full",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 0.2,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 4.765732999876491,
+         "p50_ms": 0.6735105000552719,
+         "p99_ms": 4.259503809962553,
+         "passed": true,
+         "utc": "2026-11-08T09:33:14+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "C",
+       "level": null,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "drift_legit",
+       "seed": 41,
+       "streams": 32,
+       "timeline": {
+        "attack_s": 0.0,
+        "baseline_s": 120.0,
+        "recovery_s": 0.0,
+        "total_s": 120.0
+       }
+      },
+      "run": {
+       "attack_streams": 0,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 32,
+       "level": null,
+       "role": "control",
+       "scenario": "drift_legit",
+       "seed": 41,
+       "setup_retries": 0,
+       "started_utc": "2026-11-08T09:33:27+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      }
+     },
+     "route1_committed": {
+      "Q": 99.67051070840198,
+      "p95_s": 0.08530640000000175,
+      "requests": 3035
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 99.13793103448276,
+        "n": 1044,
+        "ok": 1035,
+        "p95_s": 0.031654199999999834
+       },
+       "C1": {
+        "Q": 99.87212276214834,
+        "n": 782,
+        "ok": 781,
+        "p95_s": 0.0930450000000036
+       },
+       "C2": {
+        "Q": 100.0,
+        "n": 858,
+        "ok": 858,
+        "p95_s": 0.06400780000000558
+       },
+       "C3": {
+        "Q": 100.0,
+        "n": 325,
+        "ok": 325,
+        "p95_s": 0.10890820000000012
+       },
+       "C5": {
+        "Q": 100.0,
+        "n": 26,
+        "ok": 26,
+        "p95_s": 0.39950724999999476
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 99.72770592239618,
+        "judged": true,
+        "n": 1469,
+        "ok": 1465,
+        "p95_s": 0.09225499999999726
+       },
+       "mobile_3g": {
+        "Q": 42.40790655884995,
+        "judged": false,
+        "n": 1113,
+        "ok": 472,
+        "p95_s": 0.8857755499999944
+       },
+       "mobile_bad": {
+        "Q": 23.877551020408163,
+        "judged": false,
+        "n": 490,
+        "ok": 117,
+        "p95_s": 0.9284913999999974
+       },
+       "perfect": {
+        "Q": 99.61685823754789,
+        "judged": true,
+        "n": 1566,
+        "ok": 1560,
+        "p95_s": 0.0535163999999916
+       }
+      },
+      "failures": {
+       "slow": 10
+      },
+      "judged_share": 0.654376886589047,
+      "lost": 10,
+      "ok": 3025,
+      "p50_s": 0.022847999999996205,
+      "p99_s": 0.197852519999997,
+      "slip_p99_s": 0.1229021399999979
+     },
+     "route2_own": {
+      "Q": 99.67051070840198,
+      "failures": {
+       "slow": 10
+      },
+      "ok": 3025,
+      "p95_s": 0.08530640000000175,
+      "requests": 3035
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      10.0,
+      120.0
+     ]
+    }
+   },
+   "single_check_D062": {
+    "own_ok": false,
+    "rows": {
+     "cheap_static_flood": {
+      "Q": 94.70319634703196,
+      "dQ_pp": -1.1056888164215195,
+      "log2_p95_ratio": 0.11421650030912463,
+      "ok": true,
+      "ok_Q": true,
+      "ok_p95": true,
+      "p95_s": 0.2226493999999974,
+      "ref_Q": 95.80888516345348,
+      "ref_p95_s": 0.20570220000000097,
+      "tol_log2": 1.0,
+      "tol_pp": 10.0
+     },
+     "costly_export_flood": {
+      "Q": 55.25114155251141,
+      "dQ_pp": -20.069959364919782,
+      "log2_p95_ratio": -0.03963728726354452,
+      "ok": false,
+      "ok_Q": false,
+      "ok_p95": true,
+      "p95_s": 0.24511424999999853,
+      "ref_Q": 75.3211009174312,
+      "ref_p95_s": 0.25194199999999967,
+      "tol_log2": 1.0,
+      "tol_pp": 10.0
+     },
+     "costly_search_flood": {
+      "Q": 65.12141280353201,
+      "dQ_pp": 1.751449433568638,
+      "log2_p95_ratio": -0.567631532596463,
+      "ok": true,
+      "ok_Q": true,
+      "ok_p95": true,
+      "p95_s": 0.4256244000000008,
+      "ref_Q": 63.36996336996337,
+      "ref_p95_s": 0.6308129999999972,
+      "tol_log2": 1.0,
+      "tol_pp": 10.0
+     },
+     "legit": {
+      "Q": 99.67051070840198,
+      "dQ_pp": -0.32948929159802276,
+      "ok": true,
+      "p95_rel": 0.0738692331852504,
+      "p95_s": 0.08530640000000175,
+      "ref_Q": 100.0,
+      "ref_p95_s": 0.0794383500000002,
+      "tol_pp": 2.0,
+      "tol_rel": 0.25
+     }
+    },
+    "tool_and_own_agree": true,
+    "tool_ok": false,
+    "tool_reasons": [
+     "costly_export_flood: Q 55.2511 against 75.3211 frozen (more than the gate's floor_pp, 10 pp)"
+    ]
+   }
+  },
+  "AP-4 attempt 2": {
+   "aside": {},
+   "complete": true,
+   "dir": "/var/tmp/ddos_campaigns/drift_20261108.second",
+   "drift_json_exists": true,
+   "runs": {
+    "cheap_static_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261108.second/drift/attack_cheap_static_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-08T09:49:50+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 122.4,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      },
+      "env": {
+       "checked_utc": "2026-11-08T09:47:50+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 9426,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 0.09,
+        "met": null,
+        "uptime_s": 4220.27,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 0.08,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 5.173436999248224,
+         "p50_ms": 0.5816175000654764,
+         "p99_ms": 4.874492709532204,
+         "passed": true,
+         "utc": "2026-11-08T09:47:48+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 2.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "cheap_static_flood",
+       "seed": 42,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 3,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 32,
+       "level": 2.0,
+       "role": "attack",
+       "scenario": "cheap_static_flood",
+       "seed": 42,
+       "setup_retries": 0,
+       "started_utc": "2026-11-08T09:48:00+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      }
+     },
+     "route1_committed": {
+      "Q": 78.53881278538813,
+      "p95_s": 0.2868987500000101,
+      "requests": 1095
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 74.32432432432432,
+        "n": 370,
+        "ok": 275,
+        "p95_s": 0.06747950000000102
+       },
+       "C1": {
+        "Q": 77.51004016064257,
+        "n": 249,
+        "ok": 193,
+        "p95_s": 0.23763620000000288
+       },
+       "C2": {
+        "Q": 74.8502994011976,
+        "n": 334,
+        "ok": 250,
+        "p95_s": 0.2707718000000007
+       },
+       "C3": {
+        "Q": 100.0,
+        "n": 132,
+        "ok": 132,
+        "p95_s": 0.6298645500000006
+       },
+       "C5": {
+        "Q": 100.0,
+        "n": 10,
+        "ok": 10,
+        "p95_s": 2.1159658999999986
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 78.59649122807018,
+        "judged": true,
+        "n": 570,
+        "ok": 448,
+        "p95_s": 0.2979552000000012
+       },
+       "mobile_3g": {
+        "Q": 40.68627450980392,
+        "judged": false,
+        "n": 408,
+        "ok": 166,
+        "p95_s": 0.7027515000000015
+       },
+       "mobile_bad": {
+        "Q": 11.538461538461538,
+        "judged": false,
+        "n": 364,
+        "ok": 42,
+        "p95_s": 0.8479098500000009
+       },
+       "perfect": {
+        "Q": 78.47619047619048,
+        "judged": true,
+        "n": 525,
+        "ok": 412,
+        "p95_s": 0.27199690000000276
+       }
+      },
+      "failures": {
+       "slow": 235
+      },
+      "judged_share": 0.5865024102838778,
+      "lost": 235,
+      "ok": 860,
+      "p50_s": 0.043952999999998354,
+      "p99_s": 0.8014315900000023,
+      "slip_p99_s": 0.018683500000000294
+     },
+     "route2_own": {
+      "Q": 78.53881278538813,
+      "failures": {
+       "slow": 235
+      },
+      "ok": 860,
+      "p95_s": 0.2868987500000101,
+      "requests": 1095
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "costly_export_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261108.second/drift/attack_costly_export_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-08T09:51:52+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 121.6,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      },
+      "env": {
+       "checked_utc": "2026-11-08T09:49:53+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 9426,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 2.39,
+        "met": null,
+        "uptime_s": 4342.95,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 2.39,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 5.28478999989602,
+         "p50_ms": 1.2084409997805776,
+         "p99_ms": 4.874745339893707,
+         "passed": true,
+         "utc": "2026-11-08T09:49:51+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 4.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "costly_export_sub_threshold",
+       "seed": 43,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 4,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 31,
+       "level": 4.0,
+       "role": "attack",
+       "scenario": "costly_export_sub_threshold",
+       "seed": 43,
+       "setup_retries": 0,
+       "started_utc": "2026-11-08T09:50:02+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      }
+     },
+     "route1_committed": {
+      "Q": 78.88293802601378,
+      "p95_s": 0.24657749999999723,
+      "requests": 1307
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 76.2589928057554,
+        "n": 417,
+        "ok": 318,
+        "p95_s": 0.06600170000000208
+       },
+       "C1": {
+        "Q": 79.45736434108527,
+        "n": 258,
+        "ok": 205,
+        "p95_s": 0.23075840000000183
+       },
+       "C2": {
+        "Q": 78.74720357941834,
+        "n": 447,
+        "ok": 352,
+        "p95_s": 0.16430619999999932
+       },
+       "C3": {
+        "Q": 83.52941176470588,
+        "n": 170,
+        "ok": 142,
+        "p95_s": 0.4121837499999971
+       },
+       "C5": {
+        "Q": 93.33333333333333,
+        "n": 15,
+        "ok": 14,
+        "p95_s": 2.126923899999996
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 78.27763496143959,
+        "judged": true,
+        "n": 778,
+        "ok": 609,
+        "p95_s": 0.21755760000000088
+       },
+       "mobile_3g": {
+        "Q": 29.619565217391305,
+        "judged": false,
+        "n": 368,
+        "ok": 109,
+        "p95_s": 0.6547748000000011
+       },
+       "mobile_bad": {
+        "Q": 21.52777777777778,
+        "judged": false,
+        "n": 144,
+        "ok": 31,
+        "p95_s": 2.2776129999999952
+       },
+       "perfect": {
+        "Q": 79.77315689981097,
+        "judged": true,
+        "n": 529,
+        "ok": 422,
+        "p95_s": 0.26506894999999453
+       }
+      },
+      "failures": {
+       "slow": 276
+      },
+      "judged_share": 0.7185266630016492,
+      "lost": 276,
+      "ok": 1031,
+      "p50_s": 0.04431999999999903,
+      "p99_s": 0.9183920000000053,
+      "slip_p99_s": 0.03272320000000084
+     },
+     "route2_own": {
+      "Q": 78.88293802601378,
+      "failures": {
+       "slow": 276
+      },
+      "ok": 1031,
+      "p95_s": 0.24657749999999723,
+      "requests": 1307
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "costly_search_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261108.second/drift/attack_costly_search_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-08T09:53:54+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 121.0,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      },
+      "env": {
+       "checked_utc": "2026-11-08T09:51:55+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 9426,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 2.38,
+        "met": null,
+        "uptime_s": 4464.83,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 2.19,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 323.6540899999818,
+         "p50_ms": 1.263959999723738,
+         "p99_ms": 4.9762642599853235,
+         "passed": true,
+         "utc": "2026-11-08T09:51:52+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 4.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "costly_search_sub_threshold",
+       "seed": 44,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 4,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 31,
+       "level": 4.0,
+       "role": "attack",
+       "scenario": "costly_search_sub_threshold",
+       "seed": 44,
+       "setup_retries": 0,
+       "started_utc": "2026-11-08T09:52:04+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      }
+     },
+     "route1_committed": {
+      "Q": 54.224834680382074,
+      "p95_s": 0.44086840000000266,
+      "requests": 1361
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 45.714285714285715,
+        "n": 455,
+        "ok": 208,
+        "p95_s": 0.07868580000000128
+       },
+       "C1": {
+        "Q": 42.80936454849498,
+        "n": 299,
+        "ok": 128,
+        "p95_s": 0.281776649999999
+       },
+       "C2": {
+        "Q": 60.17316017316017,
+        "n": 462,
+        "ok": 278,
+        "p95_s": 0.27823254999999564
+       },
+       "C3": {
+        "Q": 85.29411764705883,
+        "n": 136,
+        "ok": 116,
+        "p95_s": 0.8114597500000027
+       },
+       "C5": {
+        "Q": 88.88888888888889,
+        "n": 9,
+        "ok": 8,
+        "p95_s": 1.9908779999999995
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 52.888888888888886,
+        "judged": true,
+        "n": 675,
+        "ok": 357,
+        "p95_s": 0.5188717999999993
+       },
+       "mobile_3g": {
+        "Q": 19.058823529411764,
+        "judged": false,
+        "n": 425,
+        "ok": 81,
+        "p95_s": 0.7491160000000008
+       },
+       "mobile_bad": {
+        "Q": 17.24137931034483,
+        "judged": false,
+        "n": 87,
+        "ok": 15,
+        "p95_s": 2.0196628999999984
+       },
+       "perfect": {
+        "Q": 55.53935860058309,
+        "judged": true,
+        "n": 686,
+        "ok": 381,
+        "p95_s": 0.3449990000000014
+       }
+      },
+      "failures": {
+       "slow": 623
+      },
+      "judged_share": 0.7266417512012814,
+      "lost": 623,
+      "ok": 738,
+      "p50_s": 0.06542550000000347,
+      "p99_s": 0.8218865700000056,
+      "slip_p99_s": 0.04710859999999923
+     },
+     "route2_own": {
+      "Q": 54.224834680382074,
+      "failures": {
+       "slow": 623
+      },
+      "ok": 738,
+      "p95_s": 0.44086840000000266,
+      "requests": 1361
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "legit": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261108.second/drift/legit/C",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-08T09:47:48+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 238.7,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      },
+      "env": {
+       "checked_utc": "2026-11-08T09:45:33+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 9426,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "limit_load1": 0.3,
+        "limit_uptime_s": 1800,
+        "load1": 0.26,
+        "met": true,
+        "uptime_s": 4083.01,
+        "waited_s": 101.8
+       },
+       "gate_mode": "full",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 0.26,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 7.720370999995794,
+         "p50_ms": 2.477511500037508,
+         "p99_ms": 7.045179450133218,
+         "passed": true,
+         "utc": "2026-11-08T09:45:31+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "C",
+       "level": null,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "drift_legit",
+       "seed": 41,
+       "streams": 32,
+       "timeline": {
+        "attack_s": 0.0,
+        "baseline_s": 120.0,
+        "recovery_s": 0.0,
+        "total_s": 120.0
+       }
+      },
+      "run": {
+       "attack_streams": 0,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 32,
+       "level": null,
+       "role": "control",
+       "scenario": "drift_legit",
+       "seed": 41,
+       "setup_retries": 0,
+       "started_utc": "2026-11-08T09:45:44+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      }
+     },
+     "route1_committed": {
+      "Q": 100.0,
+      "p95_s": 0.07187279999999703,
+      "requests": 3037
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 100.0,
+        "n": 1046,
+        "ok": 1046,
+        "p95_s": 0.026586
+       },
+       "C1": {
+        "Q": 100.0,
+        "n": 783,
+        "ok": 783,
+        "p95_s": 0.0799564000000025
+       },
+       "C2": {
+        "Q": 100.0,
+        "n": 858,
+        "ok": 858,
+        "p95_s": 0.056262199999997965
+       },
+       "C3": {
+        "Q": 100.0,
+        "n": 325,
+        "ok": 325,
+        "p95_s": 0.08519559999999622
+       },
+       "C5": {
+        "Q": 100.0,
+        "n": 25,
+        "ok": 25,
+        "p95_s": 0.4234740000000043
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 100.0,
+        "judged": true,
+        "n": 1470,
+        "ok": 1470,
+        "p95_s": 0.08280430000000151
+       },
+       "mobile_3g": {
+        "Q": 41.83123877917415,
+        "judged": false,
+        "n": 1114,
+        "ok": 466,
+        "p95_s": 0.8463910000000112
+       },
+       "mobile_bad": {
+        "Q": 24.489795918367346,
+        "judged": false,
+        "n": 490,
+        "ok": 120,
+        "p95_s": 1.0314437999999995
+       },
+       "perfect": {
+        "Q": 100.0,
+        "judged": true,
+        "n": 1567,
+        "ok": 1567,
+        "p95_s": 0.043307000000003266
+       }
+      },
+      "failures": {},
+      "judged_share": 0.6543848308554191,
+      "lost": 0,
+      "ok": 3037,
+      "p50_s": 0.02177900000000932,
+      "p99_s": 0.12259307999999897,
+      "slip_p99_s": 0.04374785999999948
+     },
+     "route2_own": {
+      "Q": 100.0,
+      "failures": {},
+      "ok": 3037,
+      "p95_s": 0.07187279999999703,
+      "requests": 3037
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      10.0,
+      120.0
+     ]
+    }
+   },
+   "single_check_D062": {
+    "own_ok": false,
+    "rows": {
+     "cheap_static_flood": {
+      "Q": 78.53881278538813,
+      "dQ_pp": -17.27007237806535,
+      "log2_p95_ratio": 0.47998445871398027,
+      "ok": false,
+      "ok_Q": false,
+      "ok_p95": true,
+      "p95_s": 0.2868987500000101,
+      "ref_Q": 95.80888516345348,
+      "ref_p95_s": 0.20570220000000097,
+      "tol_log2": 1.0,
+      "tol_pp": 10.0
+     },
+     "costly_export_flood": {
+      "Q": 78.88293802601378,
+      "dQ_pp": 3.56183710858258,
+      "log2_p95_ratio": -0.031050485672715265,
+      "ok": true,
+      "ok_Q": true,
+      "ok_p95": true,
+      "p95_s": 0.24657749999999723,
+      "ref_Q": 75.3211009174312,
+      "ref_p95_s": 0.25194199999999967,
+      "tol_log2": 1.0,
+      "tol_pp": 10.0
+     },
+     "costly_search_flood": {
+      "Q": 54.224834680382074,
+      "dQ_pp": -9.145128689581298,
+      "log2_p95_ratio": -0.5168643189508298,
+      "ok": true,
+      "ok_Q": true,
+      "ok_p95": true,
+      "p95_s": 0.44086840000000266,
+      "ref_Q": 63.36996336996337,
+      "ref_p95_s": 0.6308129999999972,
+      "tol_log2": 1.0,
+      "tol_pp": 10.0
+     },
+     "legit": {
+      "Q": 100.0,
+      "dQ_pp": 0.0,
+      "ok": true,
+      "p95_rel": -0.09523800532114712,
+      "p95_s": 0.07187279999999703,
+      "ref_Q": 100.0,
+      "ref_p95_s": 0.0794383500000002,
+      "tol_pp": 2.0,
+      "tol_rel": 0.25
+     }
+    },
+    "tool_and_own_agree": true,
+    "tool_ok": false,
+    "tool_reasons": [
+     "cheap_static_flood: Q 78.5388 against 95.8089 frozen (more than the gate's floor_pp, 10 pp)"
+    ]
+   }
+  },
+  "AP-5 q1 attempt 1": {
+   "aside": {},
+   "complete": true,
+   "dir": "/var/tmp/ddos_campaigns/drift_20261108_q1",
+   "drift_json_exists": true,
+   "runs": {
+    "cheap_static_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261108_q1/drift/attack_cheap_static_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-10T15:38:38+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 122.1,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.6
+      },
+      "env": {
+       "checked_utc": "2026-11-10T15:36:39+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 0.48,
+        "met": null,
+        "uptime_s": 16536.91,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 0.44,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 9.246448999183485,
+         "p50_ms": 2.1864869997807546,
+         "p99_ms": 7.9367556884972075,
+         "passed": true,
+         "utc": "2026-11-10T15:36:36+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.6
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 2.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "cheap_static_flood",
+       "seed": 42,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 3,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 32,
+       "level": 2.0,
+       "role": "attack",
+       "scenario": "cheap_static_flood",
+       "seed": 42,
+       "setup_retries": 0,
+       "started_utc": "2026-11-10T15:36:49+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.6
+      }
+     },
+     "route1_committed": {
+      "Q": 95.24680073126143,
+      "p95_s": 0.19769934999999939,
+      "requests": 1094
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 91.35135135135135,
+        "n": 370,
+        "ok": 338,
+        "p95_s": 0.0661988000000042
+       },
+       "C1": {
+        "Q": 96.3855421686747,
+        "n": 249,
+        "ok": 240,
+        "p95_s": 0.2098366499999982
+       },
+       "C2": {
+        "Q": 96.69669669669669,
+        "n": 333,
+        "ok": 322,
+        "p95_s": 0.20410915000000493
+       },
+       "C3": {
+        "Q": 100.0,
+        "n": 132,
+        "ok": 132,
+        "p95_s": 0.2554194499999975
+       },
+       "C5": {
+        "Q": 100.0,
+        "n": 10,
+        "ok": 10,
+        "p95_s": 0.7194838999999991
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 94.73684210526316,
+        "judged": true,
+        "n": 570,
+        "ok": 540,
+        "p95_s": 0.2083297499999968
+       },
+       "mobile_3g": {
+        "Q": 51.724137931034484,
+        "judged": false,
+        "n": 406,
+        "ok": 210,
+        "p95_s": 0.4178652000000023
+       },
+       "mobile_bad": {
+        "Q": 14.3646408839779,
+        "judged": false,
+        "n": 362,
+        "ok": 52,
+        "p95_s": 0.8231367500000013
+       },
+       "perfect": {
+        "Q": 95.80152671755725,
+        "judged": true,
+        "n": 524,
+        "ok": 502,
+        "p95_s": 0.18247614999999853
+       }
+      },
+      "failures": {
+       "slow": 52
+      },
+      "judged_share": 0.5875402792696026,
+      "lost": 52,
+      "ok": 1042,
+      "p50_s": 0.038687000000003025,
+      "p99_s": 0.371331279999997,
+      "slip_p99_s": 0.05257338000000119
+     },
+     "route2_own": {
+      "Q": 95.24680073126143,
+      "failures": {
+       "slow": 52
+      },
+      "ok": 1042,
+      "p95_s": 0.19769934999999939,
+      "requests": 1094
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "costly_export_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261108_q1/drift/attack_costly_export_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-10T15:40:46+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 127.2,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      },
+      "env": {
+       "checked_utc": "2026-11-10T15:38:41+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 1.12,
+        "met": null,
+        "uptime_s": 16659.11,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 1.03,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 7.997268001636257,
+         "p50_ms": 2.4211334987194277,
+         "p99_ms": 7.730172290830523,
+         "passed": true,
+         "utc": "2026-11-10T15:38:38+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 4.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "costly_export_sub_threshold",
+       "seed": 43,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 4,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 31,
+       "level": 4.0,
+       "role": "attack",
+       "scenario": "costly_export_sub_threshold",
+       "seed": 43,
+       "setup_retries": 0,
+       "started_utc": "2026-11-10T15:38:56+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      }
+     },
+     "route1_committed": {
+      "Q": 85.38812785388127,
+      "p95_s": 0.27446650000000156,
+      "requests": 1314
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 83.92434988179669,
+        "n": 423,
+        "ok": 355,
+        "p95_s": 0.06595349999999912
+       },
+       "C1": {
+        "Q": 86.1003861003861,
+        "n": 259,
+        "ok": 223,
+        "p95_s": 0.23826120000000015
+       },
+       "C2": {
+        "Q": 82.77404921700224,
+        "n": 447,
+        "ok": 370,
+        "p95_s": 0.20803075000000107
+       },
+       "C3": {
+        "Q": 93.52941176470588,
+        "n": 170,
+        "ok": 159,
+        "p95_s": 0.5985352999999967
+       },
+       "C5": {
+        "Q": 100.0,
+        "n": 15,
+        "ok": 15,
+        "p95_s": 1.5063632999999994
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 85.96938775510205,
+        "judged": true,
+        "n": 784,
+        "ok": 674,
+        "p95_s": 0.27571719999999833
+       },
+       "mobile_3g": {
+        "Q": 27.100271002710027,
+        "judged": false,
+        "n": 369,
+        "ok": 100,
+        "p95_s": 0.5448261499999961
+       },
+       "mobile_bad": {
+        "Q": 21.52777777777778,
+        "judged": false,
+        "n": 144,
+        "ok": 31,
+        "p95_s": 1.1522070000000042
+       },
+       "perfect": {
+        "Q": 84.52830188679245,
+        "judged": true,
+        "n": 530,
+        "ok": 448,
+        "p95_s": 0.25244100000000397
+       }
+      },
+      "failures": {
+       "slow": 192
+      },
+      "judged_share": 0.7192118226600985,
+      "lost": 192,
+      "ok": 1122,
+      "p50_s": 0.04579349999999849,
+      "p99_s": 0.7713187100000009,
+      "slip_p99_s": 0.040832659999997634
+     },
+     "route2_own": {
+      "Q": 85.38812785388127,
+      "failures": {
+       "slow": 192
+      },
+      "ok": 1122,
+      "p95_s": 0.27446650000000156,
+      "requests": 1314
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "costly_search_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261108_q1/drift/attack_costly_search_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-10T15:42:50+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 124.2,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      },
+      "env": {
+       "checked_utc": "2026-11-10T15:40:48+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 1.15,
+        "met": null,
+        "uptime_s": 16786.68,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 1.15,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 4.888143999996828,
+         "p50_ms": 0.6680965000123249,
+         "p99_ms": 4.834178679993784,
+         "passed": true,
+         "utc": "2026-11-10T15:40:46+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 4.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "costly_search_sub_threshold",
+       "seed": 44,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 4,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 31,
+       "level": 4.0,
+       "role": "attack",
+       "scenario": "costly_search_sub_threshold",
+       "seed": 44,
+       "setup_retries": 0,
+       "started_utc": "2026-11-10T15:41:01+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      }
+     },
+     "route1_committed": {
+      "Q": 61.94690265486726,
+      "p95_s": 0.4124344999999989,
+      "requests": 1356
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 50.44444444444444,
+        "n": 450,
+        "ok": 227,
+        "p95_s": 0.08609639999999956
+       },
+       "C1": {
+        "Q": 52.84280936454849,
+        "n": 299,
+        "ok": 158,
+        "p95_s": 0.28595485000000415
+       },
+       "C2": {
+        "Q": 67.96536796536796,
+        "n": 462,
+        "ok": 314,
+        "p95_s": 0.2812864000000001
+       },
+       "C3": {
+        "Q": 97.79411764705883,
+        "n": 136,
+        "ok": 133,
+        "p95_s": 0.6651336000000012
+       },
+       "C5": {
+        "Q": 88.88888888888889,
+        "n": 9,
+        "ok": 8,
+        "p95_s": 2.2488282999999996
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 60.36036036036036,
+        "judged": true,
+        "n": 666,
+        "ok": 402,
+        "p95_s": 0.4426265500000013
+       },
+       "mobile_3g": {
+        "Q": 21.779859484777518,
+        "judged": false,
+        "n": 427,
+        "ok": 93,
+        "p95_s": 0.7125298000000014
+       },
+       "mobile_bad": {
+        "Q": 21.839080459770116,
+        "judged": false,
+        "n": 87,
+        "ok": 19,
+        "p95_s": 2.599747299999996
+       },
+       "perfect": {
+        "Q": 63.47826086956522,
+        "judged": true,
+        "n": 690,
+        "ok": 438,
+        "p95_s": 0.34123345000000305
+       }
+      },
+      "failures": {
+       "slow": 516
+      },
+      "judged_share": 0.7251336898395722,
+      "lost": 516,
+      "ok": 840,
+      "p50_s": 0.07109549999999842,
+      "p99_s": 0.8691068299999978,
+      "slip_p99_s": 0.0489539600000019
+     },
+     "route2_own": {
+      "Q": 61.94690265486726,
+      "failures": {
+       "slow": 516
+      },
+      "ok": 840,
+      "p95_s": 0.4124344999999989,
+      "requests": 1356
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "legit": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261108_q1/drift/legit/C",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-10T15:36:36+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 261.7,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.3
+      },
+      "env": {
+       "checked_utc": "2026-11-10T15:34:20+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "limit_load1": 0.3,
+        "limit_uptime_s": 1800,
+        "load1": 0.26,
+        "met": true,
+        "uptime_s": 16397.88,
+        "waited_s": 123.1
+       },
+       "gate_mode": "full",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 0.24,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 4.978265000536339,
+         "p50_ms": 0.5121344986400798,
+         "p99_ms": 4.82211808208376,
+         "passed": true,
+         "utc": "2026-11-10T15:34:17+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.3
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "C",
+       "level": null,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "drift_legit",
+       "seed": 41,
+       "streams": 32,
+       "timeline": {
+        "attack_s": 0.0,
+        "baseline_s": 120.0,
+        "recovery_s": 0.0,
+        "total_s": 120.0
+       }
+      },
+      "run": {
+       "attack_streams": 0,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 32,
+       "level": null,
+       "role": "control",
+       "scenario": "drift_legit",
+       "seed": 41,
+       "setup_retries": 0,
+       "started_utc": "2026-11-10T15:34:30+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.3
+      }
+     },
+     "route1_committed": {
+      "Q": 100.0,
+      "p95_s": 0.07718300000000013,
+      "requests": 3039
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 100.0,
+        "n": 1048,
+        "ok": 1048,
+        "p95_s": 0.031281499999995785
+       },
+       "C1": {
+        "Q": 100.0,
+        "n": 783,
+        "ok": 783,
+        "p95_s": 0.08838989999999143
+       },
+       "C2": {
+        "Q": 100.0,
+        "n": 858,
+        "ok": 858,
+        "p95_s": 0.05767325000000518
+       },
+       "C3": {
+        "Q": 100.0,
+        "n": 325,
+        "ok": 325,
+        "p95_s": 0.0864190000000015
+       },
+       "C5": {
+        "Q": 100.0,
+        "n": 25,
+        "ok": 25,
+        "p95_s": 0.393907599999997
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 100.0,
+        "judged": true,
+        "n": 1470,
+        "ok": 1470,
+        "p95_s": 0.08790445000000204
+       },
+       "mobile_3g": {
+        "Q": 41.973094170403584,
+        "judged": false,
+        "n": 1115,
+        "ok": 468,
+        "p95_s": 0.7464658499999957
+       },
+       "mobile_bad": {
+        "Q": 23.625254582484725,
+        "judged": false,
+        "n": 491,
+        "ok": 116,
+        "p95_s": 1.1095179999999996
+       },
+       "perfect": {
+        "Q": 100.0,
+        "judged": true,
+        "n": 1569,
+        "ok": 1569,
+        "p95_s": 0.04523779999999532
+       }
+      },
+      "failures": {},
+      "judged_share": 0.6542518837459634,
+      "lost": 0,
+      "ok": 3039,
+      "p50_s": 0.022533999999996723,
+      "p99_s": 0.13392247999999948,
+      "slip_p99_s": 0.07695389999999973
+     },
+     "route2_own": {
+      "Q": 100.0,
+      "failures": {},
+      "ok": 3039,
+      "p95_s": 0.07718300000000013,
+      "requests": 3039
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      10.0,
+      120.0
+     ]
+    }
+   },
+   "single_check_D062": {
+    "own_ok": false,
+    "rows": {
+     "cheap_static_flood": {
+      "Q": 95.24680073126143,
+      "dQ_pp": -0.5620844321920515,
+      "log2_p95_ratio": -0.05724909592142052,
+      "ok": true,
+      "ok_Q": true,
+      "ok_p95": true,
+      "p95_s": 0.19769934999999939,
+      "ref_Q": 95.80888516345348,
+      "ref_p95_s": 0.20570220000000097,
+      "tol_log2": 1.0,
+      "tol_pp": 10.0
+     },
+     "costly_export_flood": {
+      "Q": 85.38812785388127,
+      "dQ_pp": 10.067026936450077,
+      "log2_p95_ratio": 0.12353842522937626,
+      "ok": false,
+      "ok_Q": false,
+      "ok_p95": true,
+      "p95_s": 0.27446650000000156,
+      "ref_Q": 75.3211009174312,
+      "ref_p95_s": 0.25194199999999967,
+      "tol_log2": 1.0,
+      "tol_pp": 10.0
+     },
+     "costly_search_flood": {
+      "Q": 61.94690265486726,
+      "dQ_pp": -1.4230607150961134,
+      "log2_p95_ratio": -0.6130473732811346,
+      "ok": true,
+      "ok_Q": true,
+      "ok_p95": true,
+      "p95_s": 0.4124344999999989,
+      "ref_Q": 63.36996336996337,
+      "ref_p95_s": 0.6308129999999972,
+      "tol_log2": 1.0,
+      "tol_pp": 10.0
+     },
+     "legit": {
+      "Q": 100.0,
+      "dQ_pp": 0.0,
+      "ok": true,
+      "p95_rel": -0.028391198961207897,
+      "p95_s": 0.07718300000000013,
+      "ref_Q": 100.0,
+      "ref_p95_s": 0.0794383500000002,
+      "tol_pp": 2.0,
+      "tol_rel": 0.25
+     }
+    },
+    "tool_and_own_agree": true,
+    "tool_ok": false,
+    "tool_reasons": [
+     "costly_export_flood: Q 85.3881 against 75.3211 frozen (more than the gate's floor_pp, 10 pp)"
+    ]
+   }
+  },
+  "AP-5 q1 attempt 2": {
+   "aside": {},
+   "complete": false,
+   "dir": "/var/tmp/ddos_campaigns/drift_20261108_q1.second",
+   "drift_json_exists": false,
+   "runs": {
+    "cheap_static_flood": {
+     "complete": false,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261108_q1.second/drift/attack_cheap_static_flood/U",
+     "exists": false
+    },
+    "costly_export_flood": {
+     "complete": false,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261108_q1.second/drift/attack_costly_export_flood/U",
+     "exists": false
+    },
+    "costly_search_flood": {
+     "complete": false,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261108_q1.second/drift/attack_costly_search_flood/U",
+     "exists": false
+    },
+    "legit": {
+     "complete": false,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261108_q1.second/drift/legit/C",
+     "facts": {
+      "DONE": null,
+      "env": {
+       "checked_utc": "2026-11-10T15:44:28+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "limit_load1": 0.3,
+        "limit_uptime_s": 1800,
+        "load1": 0.28,
+        "met": true,
+        "uptime_s": 16971.28,
+        "waited_s": 60.1
+       },
+       "gate_mode": "full",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 0.21,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 12.465891001047567,
+         "p50_ms": 4.875847500661621,
+         "p99_ms": 11.589394439652095,
+         "passed": false,
+         "utc": "2026-11-10T15:43:51+00:00"
+        },
+        {
+         "max_ms": 6.766785000072559,
+         "p50_ms": 1.7054780002945333,
+         "p99_ms": 6.7608041193307145,
+         "passed": true,
+         "utc": "2026-11-10T15:44:26+00:00"
+        }
+       ],
+       "timer_refused_probes": 1,
+       "timer_waited_s": 37.6
+      },
+      "files": [
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "streams"
+      ],
+      "plan": null,
+      "plan_json_bytes": 0,
+      "run": null
+     }
+    }
+   }
+  },
+  "AP-5b q1 attempt 1": {
+   "aside": {
+    "costly_export_flood/U.failed1": {
+     "complete": false,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261110b_q1/drift/attack_costly_export_flood/U.failed1",
+     "facts": {
+      "DONE": null,
+      "env": {
+       "checked_utc": "2026-11-10T16:54:46+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 2.42,
+        "met": null,
+        "uptime_s": 2906.95,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 1.35,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 11.577022999736073,
+         "p50_ms": 3.0966844999420573,
+         "p99_ms": 10.644105169913017,
+         "passed": false,
+         "utc": "2026-11-10T16:54:10+00:00"
+        },
+        {
+         "max_ms": 8.20354400024371,
+         "p50_ms": 2.2397385002841474,
+         "p99_ms": 7.62450499958504,
+         "passed": true,
+         "utc": "2026-11-10T16:54:43+00:00"
+        }
+       ],
+       "timer_refused_probes": 1,
+       "timer_waited_s": 35.5
+      },
+      "files": [
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 4.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "costly_export_sub_threshold",
+       "seed": 43,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 4,
+       "executor_ok": false,
+       "executor_reasons": [
+        "the legit streams began 2.34 s apart (limit 0.5 s; 18 of 31 are outside the pack, at most 15 may be)"
+       ],
+       "legit_streams": 31,
+       "level": 4.0,
+       "role": "attack",
+       "scenario": "costly_export_sub_threshold",
+       "seed": 43,
+       "setup_retries": 0,
+       "started_utc": "2026-11-10T16:54:57+00:00",
+       "timer_refused_probes": 1,
+       "timer_waited_s": 35.5
+      }
+     },
+     "route1_committed": {
+      "Q": 59.707241910631744,
+      "p95_s": 0.2897145000000014,
+      "requests": 1298
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 59.2326139088729,
+        "n": 417,
+        "ok": 247,
+        "p95_s": 0.07983179999999947
+       },
+       "C1": {
+        "Q": 59.00383141762452,
+        "n": 261,
+        "ok": 154,
+        "p95_s": 0.2374841999999976
+       },
+       "C2": {
+        "Q": 57.95454545454545,
+        "n": 440,
+        "ok": 255,
+        "p95_s": 0.2207699999999995
+       },
+       "C3": {
+        "Q": 65.66265060240964,
+        "n": 166,
+        "ok": 109,
+        "p95_s": 0.8283039999999983
+       },
+       "C5": {
+        "Q": 71.42857142857143,
+        "n": 14,
+        "ok": 10,
+        "p95_s": 2.8909219000000017
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 58.815958815958815,
+        "judged": true,
+        "n": 777,
+        "ok": 457,
+        "p95_s": 0.28288060000000137
+       },
+       "mobile_3g": {
+        "Q": 16.939890710382514,
+        "judged": false,
+        "n": 366,
+        "ok": 62,
+        "p95_s": 0.8053925499999935
+       },
+       "mobile_bad": {
+        "Q": 14.893617021276595,
+        "judged": false,
+        "n": 141,
+        "ok": 21,
+        "p95_s": 1.9288290000000075
+       },
+       "perfect": {
+        "Q": 61.036468330134355,
+        "judged": true,
+        "n": 521,
+        "ok": 318,
+        "p95_s": 0.3038882500000003
+       }
+      },
+      "failures": {
+       "slow": 523
+      },
+      "judged_share": 0.7191135734072022,
+      "lost": 523,
+      "ok": 775,
+      "p50_s": 0.054036999999993895,
+      "p99_s": 0.8708159400000044,
+      "slip_p99_s": 0.05554120000000067
+     },
+     "route2_own": {
+      "Q": 59.707241910631744,
+      "failures": {
+       "slow": 523
+      },
+      "ok": 775,
+      "p95_s": 0.2897145000000014,
+      "requests": 1298
+     },
+     "routes_agree": true,
+     "sound": false,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    }
+   },
+   "complete": false,
+   "dir": "/var/tmp/ddos_campaigns/drift_20261110b_q1",
+   "drift_json_exists": false,
+   "runs": {
+    "cheap_static_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261110b_q1/drift/attack_cheap_static_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-10T16:54:10+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 126.8,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.3
+      },
+      "env": {
+       "checked_utc": "2026-11-10T16:52:05+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 0.8,
+        "met": null,
+        "uptime_s": 2779.88,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 0.73,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 4.923386000191385,
+         "p50_ms": 0.48916599984295295,
+         "p99_ms": 4.217302150041173,
+         "passed": true,
+         "utc": "2026-11-10T16:52:03+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.3
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 2.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "cheap_static_flood",
+       "seed": 42,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 3,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 32,
+       "level": 2.0,
+       "role": "attack",
+       "scenario": "cheap_static_flood",
+       "seed": 42,
+       "setup_retries": 0,
+       "started_utc": "2026-11-10T16:52:19+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.3
+      }
+     },
+     "route1_committed": {
+      "Q": 82.52516010978957,
+      "p95_s": 0.2557134000000033,
+      "requests": 1093
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 72.16216216216216,
+        "n": 370,
+        "ok": 267,
+        "p95_s": 0.08840619999999963
+       },
+       "C1": {
+        "Q": 85.5421686746988,
+        "n": 249,
+        "ok": 213,
+        "p95_s": 0.2236550000000022
+       },
+       "C2": {
+        "Q": 85.58558558558559,
+        "n": 333,
+        "ok": 285,
+        "p95_s": 0.2024976000000053
+       },
+       "C3": {
+        "Q": 97.70992366412214,
+        "n": 131,
+        "ok": 128,
+        "p95_s": 0.725213500000002
+       },
+       "C5": {
+        "Q": 90.0,
+        "n": 10,
+        "ok": 9,
+        "p95_s": 1.2759409999999973
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 82.10526315789474,
+        "judged": true,
+        "n": 570,
+        "ok": 468,
+        "p95_s": 0.25887024999999875
+       },
+       "mobile_3g": {
+        "Q": 42.610837438423644,
+        "judged": false,
+        "n": 406,
+        "ok": 173,
+        "p95_s": 0.7065524000000015
+       },
+       "mobile_bad": {
+        "Q": 11.32596685082873,
+        "judged": false,
+        "n": 362,
+        "ok": 41,
+        "p95_s": 0.8518749999999997
+       },
+       "perfect": {
+        "Q": 82.98279158699809,
+        "judged": true,
+        "n": 523,
+        "ok": 434,
+        "p95_s": 0.23249375000000044
+       }
+      },
+      "failures": {
+       "slow": 191
+      },
+      "judged_share": 0.5873186458893068,
+      "lost": 191,
+      "ok": 902,
+      "p50_s": 0.05553950000000185,
+      "p99_s": 0.748872179999993,
+      "slip_p99_s": 0.04724609000000241
+     },
+     "route2_own": {
+      "Q": 82.52516010978957,
+      "failures": {
+       "slow": 191
+      },
+      "ok": 902,
+      "p95_s": 0.2557134000000033,
+      "requests": 1093
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "costly_export_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261110b_q1/drift/attack_costly_export_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-10T16:58:50+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 124.5,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      },
+      "env": {
+       "checked_utc": "2026-11-10T16:56:48+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 2.75,
+        "met": null,
+        "uptime_s": 3062.3,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 2.75,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 5.985638999609364,
+         "p50_ms": 0.6118959997729687,
+         "p99_ms": 4.769294529733086,
+         "passed": true,
+         "utc": "2026-11-10T16:56:45+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 4.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "costly_export_sub_threshold",
+       "seed": 43,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 4,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 31,
+       "level": 4.0,
+       "role": "attack",
+       "scenario": "costly_export_sub_threshold",
+       "seed": 43,
+       "setup_retries": 0,
+       "started_utc": "2026-11-10T16:57:01+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      }
+     },
+     "route1_committed": {
+      "Q": 76.23762376237623,
+      "p95_s": 0.32815399999999784,
+      "requests": 1313
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 73.75886524822695,
+        "n": 423,
+        "ok": 312,
+        "p95_s": 0.07887119999999645
+       },
+       "C1": {
+        "Q": 79.84496124031008,
+        "n": 258,
+        "ok": 206,
+        "p95_s": 0.26482524999999946
+       },
+       "C2": {
+        "Q": 70.69351230425056,
+        "n": 447,
+        "ok": 316,
+        "p95_s": 0.2239832500000034
+       },
+       "C3": {
+        "Q": 89.41176470588235,
+        "n": 170,
+        "ok": 152,
+        "p95_s": 0.7538476499999998
+       },
+       "C5": {
+        "Q": 100.0,
+        "n": 15,
+        "ok": 15,
+        "p95_s": 2.115900899999998
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 76.37292464878672,
+        "judged": true,
+        "n": 783,
+        "ok": 598,
+        "p95_s": 0.2886753499999982
+       },
+       "mobile_3g": {
+        "Q": 21.680216802168022,
+        "judged": false,
+        "n": 369,
+        "ok": 80,
+        "p95_s": 0.9528096000000029
+       },
+       "mobile_bad": {
+        "Q": 18.75,
+        "judged": false,
+        "n": 144,
+        "ok": 27,
+        "p95_s": 0.8301875999999992
+       },
+       "perfect": {
+        "Q": 76.0377358490566,
+        "judged": true,
+        "n": 530,
+        "ok": 403,
+        "p95_s": 0.4050640999999996
+       }
+      },
+      "failures": {
+       "slow": 312
+      },
+      "judged_share": 0.7190580503833516,
+      "lost": 312,
+      "ok": 1001,
+      "p50_s": 0.0587200000000081,
+      "p99_s": 0.9933149999999955,
+      "slip_p99_s": 0.03795596999999938
+     },
+     "route2_own": {
+      "Q": 76.23762376237623,
+      "failures": {
+       "slow": 312
+      },
+      "ok": 1001,
+      "p95_s": 0.32815399999999784,
+      "requests": 1313
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "costly_search_flood": {
+     "complete": false,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261110b_q1/drift/attack_costly_search_flood/U",
+     "facts": {
+      "DONE": null,
+      "env": {
+       "checked_utc": "2026-11-10T16:58:53+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 1.81,
+        "met": null,
+        "uptime_s": 3187.16,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 1.81,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 5.842149000036443,
+         "p50_ms": 0.9064929999931335,
+         "p99_ms": 4.329268340129597,
+         "passed": true,
+         "utc": "2026-11-10T16:58:50+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      },
+      "files": [
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 4.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "costly_search_sub_threshold",
+       "seed": 44,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": null
+     }
+    },
+    "legit": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261110b_q1/drift/legit/C",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-10T16:52:03+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 145.1,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      },
+      "env": {
+       "checked_utc": "2026-11-10T16:49:42+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "limit_load1": 0.3,
+        "limit_uptime_s": 1800,
+        "load1": 0.22,
+        "met": true,
+        "uptime_s": 2635.23,
+        "waited_s": 0.0
+       },
+       "gate_mode": "full",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 0.21,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 8.128183000044373,
+         "p50_ms": 2.193496999771014,
+         "p99_ms": 6.652821799984845,
+         "passed": true,
+         "utc": "2026-11-10T16:49:38+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "C",
+       "level": null,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "drift_legit",
+       "seed": 41,
+       "streams": 32,
+       "timeline": {
+        "attack_s": 0.0,
+        "baseline_s": 120.0,
+        "recovery_s": 0.0,
+        "total_s": 120.0
+       }
+      },
+      "run": {
+       "attack_streams": 0,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 32,
+       "level": null,
+       "role": "control",
+       "scenario": "drift_legit",
+       "seed": 41,
+       "setup_retries": 0,
+       "started_utc": "2026-11-10T16:49:54+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      }
+     },
+     "route1_committed": {
+      "Q": 100.0,
+      "p95_s": 0.07876540000000025,
+      "requests": 3037
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 100.0,
+        "n": 1048,
+        "ok": 1048,
+        "p95_s": 0.028279900000008934
+       },
+       "C1": {
+        "Q": 100.0,
+        "n": 783,
+        "ok": 783,
+        "p95_s": 0.08901190000000092
+       },
+       "C2": {
+        "Q": 100.0,
+        "n": 856,
+        "ok": 856,
+        "p95_s": 0.05413725000000014
+       },
+       "C3": {
+        "Q": 100.0,
+        "n": 325,
+        "ok": 325,
+        "p95_s": 0.09909879999999945
+       },
+       "C5": {
+        "Q": 100.0,
+        "n": 25,
+        "ok": 25,
+        "p95_s": 0.46608120000000464
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 100.0,
+        "judged": true,
+        "n": 1469,
+        "ok": 1469,
+        "p95_s": 0.09223180000000324
+       },
+       "mobile_3g": {
+        "Q": 42.459605026929985,
+        "judged": false,
+        "n": 1114,
+        "ok": 473,
+        "p95_s": 0.8664676000000012
+       },
+       "mobile_bad": {
+        "Q": 22.448979591836736,
+        "judged": false,
+        "n": 490,
+        "ok": 110,
+        "p95_s": 1.2058428499999923
+       },
+       "perfect": {
+        "Q": 100.0,
+        "judged": true,
+        "n": 1568,
+        "ok": 1568,
+        "p95_s": 0.047895150000002176
+       }
+      },
+      "failures": {},
+      "judged_share": 0.6543848308554191,
+      "lost": 0,
+      "ok": 3037,
+      "p50_s": 0.022024999999999295,
+      "p99_s": 0.1446556799999962,
+      "slip_p99_s": 0.051938740000001496
+     },
+     "route2_own": {
+      "Q": 100.0,
+      "failures": {},
+      "ok": 3037,
+      "p95_s": 0.07876540000000025,
+      "requests": 3037
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      10.0,
+      120.0
+     ]
+    }
+   }
+  },
+  "AP-7 q1 attempt 1": {
+   "aside": {},
+   "complete": true,
+   "dir": "/var/tmp/ddos_campaigns/drift_20261111c_q1",
+   "drift_json_exists": true,
+   "runs": {
+    "cheap_static_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261111c_q1/drift/attack_cheap_static_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-11T18:47:41+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 122.5,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.6
+      },
+      "env": {
+       "checked_utc": "2026-11-11T18:45:41+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 2.4,
+        "met": null,
+        "uptime_s": 9652.29,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 2.21,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 8.528640999647905,
+         "p50_ms": 2.303637000513845,
+         "p99_ms": 7.5597278093118785,
+         "passed": true,
+         "utc": "2026-11-11T18:45:38+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.6
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 2.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "cheap_static_flood",
+       "seed": 42,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 3,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 32,
+       "level": 2.0,
+       "role": "attack",
+       "scenario": "cheap_static_flood",
+       "seed": 42,
+       "setup_retries": 0,
+       "started_utc": "2026-11-11T18:45:51+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.6
+      }
+     },
+     "route1_committed": {
+      "Q": 10.714285714285714,
+      "p95_s": 0.6101729999999971,
+      "requests": 1092
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 3.5135135135135136,
+        "n": 370,
+        "ok": 13,
+        "p95_s": 0.09365979999999893
+       },
+       "C1": {
+        "Q": 7.258064516129032,
+        "n": 248,
+        "ok": 18,
+        "p95_s": 0.28699344999999726
+       },
+       "C2": {
+        "Q": 16.216216216216218,
+        "n": 333,
+        "ok": 54,
+        "p95_s": 0.21456229999999948
+       },
+       "C3": {
+        "Q": 23.66412213740458,
+        "n": 131,
+        "ok": 31,
+        "p95_s": 0.7186005000000009
+       },
+       "C5": {
+        "Q": 10.0,
+        "n": 10,
+        "ok": 1,
+        "p95_s": 1.3191679999999977
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 11.228070175438596,
+        "judged": true,
+        "n": 570,
+        "ok": 64,
+        "p95_s": 0.6469303499999934
+       },
+       "mobile_3g": {
+        "Q": 5.925925925925926,
+        "judged": false,
+        "n": 405,
+        "ok": 24,
+        "p95_s": 1.3836845500000001
+       },
+       "mobile_bad": {
+        "Q": 1.9337016574585635,
+        "judged": false,
+        "n": 362,
+        "ok": 7,
+        "p95_s": 0.8764309000000003
+       },
+       "perfect": {
+        "Q": 10.153256704980842,
+        "judged": true,
+        "n": 522,
+        "ok": 53,
+        "p95_s": 0.4933054000000026
+       }
+      },
+      "failures": {
+       "slow": 601,
+       "timeout": 374
+      },
+      "judged_share": 0.5874125874125874,
+      "lost": 975,
+      "ok": 117,
+      "p50_s": 0.09748300000000043,
+      "p99_s": 0.7716717600000003,
+      "slip_p99_s": 0.028118799999997623
+     },
+     "route2_own": {
+      "Q": 10.714285714285714,
+      "failures": {
+       "slow": 601,
+       "timeout": 374
+      },
+      "ok": 117,
+      "p95_s": 0.6101729999999971,
+      "requests": 1092
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "costly_export_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261111c_q1/drift/attack_costly_export_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-11T18:49:44+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 123.0,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.9
+      },
+      "env": {
+       "checked_utc": "2026-11-11T18:47:44+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 7.58,
+        "met": null,
+        "uptime_s": 9775.21,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 6.98,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 146.75549399929878,
+         "p50_ms": 2.8447135002716095,
+         "p99_ms": 7.662838691121569,
+         "passed": true,
+         "utc": "2026-11-11T18:47:41+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.9
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 4.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "costly_export_sub_threshold",
+       "seed": 43,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 4,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 31,
+       "level": 4.0,
+       "role": "attack",
+       "scenario": "costly_export_sub_threshold",
+       "seed": 43,
+       "setup_retries": 0,
+       "started_utc": "2026-11-11T18:47:55+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.9
+      }
+     },
+     "route1_committed": {
+      "Q": 68.67378048780488,
+      "p95_s": 0.27658699999999925,
+      "requests": 1312
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 67.53554502369668,
+        "n": 422,
+        "ok": 285,
+        "p95_s": 0.07697060000000562
+       },
+       "C1": {
+        "Q": 68.21705426356588,
+        "n": 258,
+        "ok": 176,
+        "p95_s": 0.23258799999999802
+       },
+       "C2": {
+        "Q": 67.11409395973155,
+        "n": 447,
+        "ok": 300,
+        "p95_s": 0.2224346999999963
+       },
+       "C3": {
+        "Q": 74.11764705882354,
+        "n": 170,
+        "ok": 126,
+        "p95_s": 0.6870445000000043
+       },
+       "C5": {
+        "Q": 93.33333333333333,
+        "n": 15,
+        "ok": 14,
+        "p95_s": 2.8250268500000013
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 69.09323116219667,
+        "judged": true,
+        "n": 783,
+        "ok": 541,
+        "p95_s": 0.27629799999999705
+       },
+       "mobile_3g": {
+        "Q": 23.513513513513512,
+        "judged": false,
+        "n": 370,
+        "ok": 87,
+        "p95_s": 0.8034658000000016
+       },
+       "mobile_bad": {
+        "Q": 17.36111111111111,
+        "judged": false,
+        "n": 144,
+        "ok": 25,
+        "p95_s": 2.1369473999999964
+       },
+       "perfect": {
+        "Q": 68.05293005671078,
+        "judged": true,
+        "n": 529,
+        "ok": 360,
+        "p95_s": 0.2775522000000061
+       }
+      },
+      "failures": {
+       "slow": 411
+      },
+      "judged_share": 0.7185104052573932,
+      "lost": 411,
+      "ok": 901,
+      "p50_s": 0.04717199999999977,
+      "p99_s": 0.999642999999999,
+      "slip_p99_s": 0.056269949999996724
+     },
+     "route2_own": {
+      "Q": 68.67378048780488,
+      "failures": {
+       "slow": 411
+      },
+      "ok": 901,
+      "p95_s": 0.27658699999999925,
+      "requests": 1312
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "costly_search_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261111c_q1/drift/attack_costly_search_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-11T18:51:45+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 120.0,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      },
+      "env": {
+       "checked_utc": "2026-11-11T18:49:47+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 2.18,
+        "met": null,
+        "uptime_s": 9898.44,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 2.18,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 9.156280000970582,
+         "p50_ms": 3.197032501011563,
+         "p99_ms": 6.863651149942586,
+         "passed": true,
+         "utc": "2026-11-11T18:49:45+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 4.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "costly_search_sub_threshold",
+       "seed": 44,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 4,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 31,
+       "level": 4.0,
+       "role": "attack",
+       "scenario": "costly_search_sub_threshold",
+       "seed": 44,
+       "setup_retries": 0,
+       "started_utc": "2026-11-11T18:49:56+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.7
+      }
+     },
+     "route1_committed": {
+      "Q": 74.9632892804699,
+      "p95_s": 0.29805099999999385,
+      "requests": 1362
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 68.42105263157895,
+        "n": 456,
+        "ok": 312,
+        "p95_s": 0.08051164999999826
+       },
+       "C1": {
+        "Q": 58.862876254180605,
+        "n": 299,
+        "ok": 176,
+        "p95_s": 0.2723895000000045
+       },
+       "C2": {
+        "Q": 83.98268398268398,
+        "n": 462,
+        "ok": 388,
+        "p95_s": 0.2702831999999969
+       },
+       "C3": {
+        "Q": 100.0,
+        "n": 136,
+        "ok": 136,
+        "p95_s": 0.538639749999998
+       },
+       "C5": {
+        "Q": 100.0,
+        "n": 9,
+        "ok": 9,
+        "p95_s": 1.2243319999999995
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 73.07692307692308,
+        "judged": true,
+        "n": 676,
+        "ok": 494,
+        "p95_s": 0.32813639999999983
+       },
+       "mobile_3g": {
+        "Q": 20.0,
+        "judged": false,
+        "n": 425,
+        "ok": 85,
+        "p95_s": 0.6960522000000025
+       },
+       "mobile_bad": {
+        "Q": 20.689655172413794,
+        "judged": false,
+        "n": 87,
+        "ok": 18,
+        "p95_s": 2.262758249999999
+       },
+       "perfect": {
+        "Q": 76.82215743440233,
+        "judged": true,
+        "n": 686,
+        "ok": 527,
+        "p95_s": 0.29079350000000087
+       }
+      },
+      "failures": {
+       "slow": 341
+      },
+      "judged_share": 0.7267876200640342,
+      "lost": 341,
+      "ok": 1021,
+      "p50_s": 0.07265599999999495,
+      "p99_s": 0.5565194000000041,
+      "slip_p99_s": 0.06405204000000483
+     },
+     "route2_own": {
+      "Q": 74.9632892804699,
+      "failures": {
+       "slow": 341
+      },
+      "ok": 1021,
+      "p95_s": 0.29805099999999385,
+      "requests": 1362
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "legit": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261111c_q1/drift/legit/C",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-11T18:45:38+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 393.4,
+       "setup_retries": 0,
+       "timer_refused_probes": 1,
+       "timer_waited_s": 36.0
+      },
+      "env": {
+       "checked_utc": "2026-11-11T18:43:21+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "limit_load1": 0.3,
+        "limit_uptime_s": 1800,
+        "load1": 0.29,
+        "met": true,
+        "uptime_s": 9478.7,
+        "waited_s": 220.1
+       },
+       "gate_mode": "full",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 0.16,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 12.308319001240307,
+         "p50_ms": 5.946822500154667,
+         "p99_ms": 11.629894890720601,
+         "passed": false,
+         "utc": "2026-11-11T18:42:45+00:00"
+        },
+        {
+         "max_ms": 8.250925000756979,
+         "p50_ms": 2.776437500178872,
+         "p99_ms": 7.7505076204761245,
+         "passed": true,
+         "utc": "2026-11-11T18:43:18+00:00"
+        }
+       ],
+       "timer_refused_probes": 1,
+       "timer_waited_s": 36.0
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "C",
+       "level": null,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "drift_legit",
+       "seed": 41,
+       "streams": 32,
+       "timeline": {
+        "attack_s": 0.0,
+        "baseline_s": 120.0,
+        "recovery_s": 0.0,
+        "total_s": 120.0
+       }
+      },
+      "run": {
+       "attack_streams": 0,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 32,
+       "level": null,
+       "role": "control",
+       "scenario": "drift_legit",
+       "seed": 41,
+       "setup_retries": 0,
+       "started_utc": "2026-11-11T18:43:33+00:00",
+       "timer_refused_probes": 1,
+       "timer_waited_s": 36.0
+      }
+     },
+     "route1_committed": {
+      "Q": 97.001647446458,
+      "p95_s": 0.09694469999999987,
+      "requests": 3035
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 95.98853868194843,
+        "n": 1047,
+        "ok": 1005,
+        "p95_s": 0.0322206000000051
+       },
+       "C1": {
+        "Q": 96.41485275288092,
+        "n": 781,
+        "ok": 753,
+        "p95_s": 0.10215639999999833
+       },
+       "C2": {
+        "Q": 97.66627771295217,
+        "n": 857,
+        "ok": 837,
+        "p95_s": 0.07875700000000163
+       },
+       "C3": {
+        "Q": 100.0,
+        "n": 325,
+        "ok": 325,
+        "p95_s": 0.31168800000000096
+       },
+       "C5": {
+        "Q": 96.0,
+        "n": 25,
+        "ok": 24,
+        "p95_s": 0.7158920500000009
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 96.31901840490798,
+        "judged": true,
+        "n": 1467,
+        "ok": 1413,
+        "p95_s": 0.10696540000000121
+       },
+       "mobile_3g": {
+        "Q": 39.35309973045822,
+        "judged": false,
+        "n": 1113,
+        "ok": 438,
+        "p95_s": 0.8698307000000033
+       },
+       "mobile_bad": {
+        "Q": 24.032586558044805,
+        "judged": false,
+        "n": 491,
+        "ok": 118,
+        "p95_s": 1.095682849999994
+       },
+       "perfect": {
+        "Q": 97.64030612244898,
+        "judged": true,
+        "n": 1568,
+        "ok": 1531,
+        "p95_s": 0.07810849999999192
+       }
+      },
+      "failures": {
+       "slow": 91
+      },
+      "judged_share": 0.6542358266867859,
+      "lost": 91,
+      "ok": 2944,
+      "p50_s": 0.023070500000006433,
+      "p99_s": 0.2975055000000031,
+      "slip_p99_s": 0.051598219999998
+     },
+     "route2_own": {
+      "Q": 97.001647446458,
+      "failures": {
+       "slow": 91
+      },
+      "ok": 2944,
+      "p95_s": 0.09694469999999987,
+      "requests": 3035
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      10.0,
+      120.0
+     ]
+    }
+   },
+   "single_check_D062": {
+    "own_ok": false,
+    "rows": {
+     "cheap_static_flood": {
+      "Q": 10.714285714285714,
+      "dQ_pp": -85.09459944916777,
+      "log2_p95_ratio": 1.568661118766635,
+      "ok": false,
+      "ok_Q": false,
+      "ok_p95": false,
+      "p95_s": 0.6101729999999971,
+      "ref_Q": 95.80888516345348,
+      "ref_p95_s": 0.20570220000000097,
+      "tol_log2": 1.0,
+      "tol_pp": 10.0
+     },
+     "costly_export_flood": {
+      "Q": 68.67378048780488,
+      "dQ_pp": -6.647320429626319,
+      "log2_p95_ratio": 0.1346417026224507,
+      "ok": true,
+      "ok_Q": true,
+      "ok_p95": true,
+      "p95_s": 0.27658699999999925,
+      "ref_Q": 75.3211009174312,
+      "ref_p95_s": 0.25194199999999967,
+      "tol_log2": 1.0,
+      "tol_pp": 10.0
+     },
+     "costly_search_flood": {
+      "Q": 74.9632892804699,
+      "dQ_pp": 11.593325910506522,
+      "log2_p95_ratio": -1.0816531782176568,
+      "ok": false,
+      "ok_Q": false,
+      "ok_p95": false,
+      "p95_s": 0.29805099999999385,
+      "ref_Q": 63.36996336996337,
+      "ref_p95_s": 0.6308129999999972,
+      "tol_log2": 1.0,
+      "tol_pp": 10.0
+     },
+     "legit": {
+      "Q": 97.001647446458,
+      "dQ_pp": -2.9983525535420057,
+      "ok": false,
+      "p95_rel": 0.22037655615958318,
+      "p95_s": 0.09694469999999987,
+      "ref_Q": 100.0,
+      "ref_p95_s": 0.0794383500000002,
+      "tol_pp": 2.0,
+      "tol_rel": 0.25
+     }
+    },
+    "tool_and_own_agree": true,
+    "tool_ok": false,
+    "tool_reasons": [
+     "legit probe: Q 97.0016 against 100 frozen (more than 2 pp)",
+     "cheap_static_flood: Q 10.7143 against 95.8089 frozen (more than the gate's floor_pp, 10 pp)",
+     "cheap_static_flood: p95 0.610173 against 0.205702 frozen (more than the gate's floor_log2_p95, a factor of 2)",
+     "costly_search_flood: Q 74.9633 against 63.37 frozen (more than the gate's floor_pp, 10 pp)",
+     "costly_search_flood: p95 0.298051 against 0.630813 frozen (more than the gate's floor_log2_p95, a factor of 2)"
+    ]
+   }
+  },
+  "AP-7 q1 attempt 2": {
+   "aside": {
+    "costly_search_flood/U.failed1": {
+     "complete": false,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261111c_q1.second/drift/attack_costly_search_flood/U.failed1",
+     "facts": {
+      "DONE": null,
+      "env": {
+       "checked_utc": "2026-11-11T19:00:46+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 1.21,
+        "met": null,
+        "uptime_s": 10557.31,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 1.12,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 5.0409449997823685,
+         "p50_ms": 0.9061799994378814,
+         "p99_ms": 4.733881981210288,
+         "passed": true,
+         "utc": "2026-11-11T19:00:43+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      },
+      "files": [
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 4.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "costly_search_sub_threshold",
+       "seed": 44,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 4,
+       "executor_ok": false,
+       "executor_reasons": [
+        "the attack began +0.50 s from the end of the baseline (limit 0.5 s)"
+       ],
+       "legit_streams": 31,
+       "level": 4.0,
+       "role": "attack",
+       "scenario": "costly_search_sub_threshold",
+       "seed": 44,
+       "setup_retries": 0,
+       "started_utc": "2026-11-11T19:00:55+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      }
+     },
+     "route1_committed": {
+      "Q": 68.8970588235294,
+      "p95_s": 0.3512343999999997,
+      "requests": 1360
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 61.75824175824176,
+        "n": 455,
+        "ok": 281,
+        "p95_s": 0.08223199999999764
+       },
+       "C1": {
+        "Q": 57.19063545150502,
+        "n": 299,
+        "ok": 171,
+        "p95_s": 0.27978049999999755
+       },
+       "C2": {
+        "Q": 74.18655097613883,
+        "n": 461,
+        "ok": 342,
+        "p95_s": 0.26084744999999604
+       },
+       "C3": {
+        "Q": 99.26470588235294,
+        "n": 136,
+        "ok": 135,
+        "p95_s": 0.6323401000000004
+       },
+       "C5": {
+        "Q": 88.88888888888889,
+        "n": 9,
+        "ok": 8,
+        "p95_s": 1.5985633500000005
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 67.35905044510386,
+        "judged": true,
+        "n": 674,
+        "ok": 454,
+        "p95_s": 0.37059420000000015
+       },
+       "mobile_3g": {
+        "Q": 21.41176470588235,
+        "judged": false,
+        "n": 425,
+        "ok": 91,
+        "p95_s": 0.7650529999999982
+       },
+       "mobile_bad": {
+        "Q": 21.839080459770116,
+        "judged": false,
+        "n": 87,
+        "ok": 19,
+        "p95_s": 2.1289863999999903
+       },
+       "perfect": {
+        "Q": 70.40816326530613,
+        "judged": true,
+        "n": 686,
+        "ok": 483,
+        "p95_s": 0.3123367999999971
+       }
+      },
+      "failures": {
+       "slow": 423
+      },
+      "judged_share": 0.7264957264957265,
+      "lost": 423,
+      "ok": 937,
+      "p50_s": 0.06201200000000995,
+      "p99_s": 0.6529606399999996,
+      "slip_p99_s": 0.03670395999999954
+     },
+     "route2_own": {
+      "Q": 68.8970588235294,
+      "failures": {
+       "slow": 423
+      },
+      "ok": 937,
+      "p95_s": 0.3512343999999997,
+      "requests": 1360
+     },
+     "routes_agree": true,
+     "sound": false,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    }
+   },
+   "complete": true,
+   "dir": "/var/tmp/ddos_campaigns/drift_20261111c_q1.second",
+   "drift_json_exists": true,
+   "runs": {
+    "cheap_static_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261111c_q1.second/drift/attack_cheap_static_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-11T18:58:06+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 120.9,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.5
+      },
+      "env": {
+       "checked_utc": "2026-11-11T18:56:07+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 0.67,
+        "met": null,
+        "uptime_s": 10278.72,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 0.67,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 7.677828000159934,
+         "p50_ms": 1.9557860007262204,
+         "p99_ms": 7.263865481272656,
+         "passed": true,
+         "utc": "2026-11-11T18:56:05+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.5
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 2.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "cheap_static_flood",
+       "seed": 42,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 3,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 32,
+       "level": 2.0,
+       "role": "attack",
+       "scenario": "cheap_static_flood",
+       "seed": 42,
+       "setup_retries": 0,
+       "started_utc": "2026-11-11T18:56:16+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.5
+      }
+     },
+     "route1_committed": {
+      "Q": 95.89416058394161,
+      "p95_s": 0.20824899999999857,
+      "requests": 1096
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 94.08602150537635,
+        "n": 372,
+        "ok": 350,
+        "p95_s": 0.05463385000000472
+       },
+       "C1": {
+        "Q": 96.78714859437751,
+        "n": 249,
+        "ok": 241,
+        "p95_s": 0.2042470000000023
+       },
+       "C2": {
+        "Q": 95.50898203592814,
+        "n": 334,
+        "ok": 319,
+        "p95_s": 0.21068119999999754
+       },
+       "C3": {
+        "Q": 100.0,
+        "n": 131,
+        "ok": 131,
+        "p95_s": 0.2637205000000016
+       },
+       "C5": {
+        "Q": 100.0,
+        "n": 10,
+        "ok": 10,
+        "p95_s": 0.864371599999994
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 95.27972027972028,
+        "judged": true,
+        "n": 572,
+        "ok": 545,
+        "p95_s": 0.2244032000000017
+       },
+       "mobile_3g": {
+        "Q": 49.37965260545906,
+        "judged": false,
+        "n": 403,
+        "ok": 199,
+        "p95_s": 0.4361513999999995
+       },
+       "mobile_bad": {
+        "Q": 15.193370165745856,
+        "judged": false,
+        "n": 362,
+        "ok": 55,
+        "p95_s": 0.7572376000000003
+       },
+       "perfect": {
+        "Q": 96.56488549618321,
+        "judged": true,
+        "n": 524,
+        "ok": 506,
+        "p95_s": 0.195159999999996
+       }
+      },
+      "failures": {
+       "slow": 45
+      },
+      "judged_share": 0.5889306824288018,
+      "lost": 45,
+      "ok": 1051,
+      "p50_s": 0.035929000000002986,
+      "p99_s": 0.40097949999999827,
+      "slip_p99_s": 0.04909471000000454
+     },
+     "route2_own": {
+      "Q": 95.89416058394161,
+      "failures": {
+       "slow": 45
+      },
+      "ok": 1051,
+      "p95_s": 0.20824899999999857,
+      "requests": 1096
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "costly_export_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261111c_q1.second/drift/attack_costly_export_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-11T19:00:43+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 156.9,
+       "setup_retries": 0,
+       "timer_refused_probes": 1,
+       "timer_waited_s": 35.9
+      },
+      "env": {
+       "checked_utc": "2026-11-11T18:58:42+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 1.48,
+        "met": null,
+        "uptime_s": 10400.17,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 0.82,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 13.578061000080197,
+         "p50_ms": 5.848271000322711,
+         "p99_ms": 12.612202089912891,
+         "passed": false,
+         "utc": "2026-11-11T18:58:06+00:00"
+        },
+        {
+         "max_ms": 7.943652999747428,
+         "p50_ms": 2.6973335000002407,
+         "p99_ms": 7.549722410985851,
+         "passed": true,
+         "utc": "2026-11-11T18:58:40+00:00"
+        }
+       ],
+       "timer_refused_probes": 1,
+       "timer_waited_s": 35.9
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 4.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "costly_export_sub_threshold",
+       "seed": 43,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 4,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 31,
+       "level": 4.0,
+       "role": "attack",
+       "scenario": "costly_export_sub_threshold",
+       "seed": 43,
+       "setup_retries": 0,
+       "started_utc": "2026-11-11T18:58:54+00:00",
+       "timer_refused_probes": 1,
+       "timer_waited_s": 35.9
+      }
+     },
+     "route1_committed": {
+      "Q": 86.06245239908607,
+      "p95_s": 0.22596925000000417,
+      "requests": 1313
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 85.34278959810875,
+        "n": 423,
+        "ok": 361,
+        "p95_s": 0.06420100000001128
+       },
+       "C1": {
+        "Q": 89.14728682170542,
+        "n": 258,
+        "ok": 230,
+        "p95_s": 0.24324465000000184
+       },
+       "C2": {
+        "Q": 82.99776286353467,
+        "n": 447,
+        "ok": 371,
+        "p95_s": 0.15509500000000287
+       },
+       "C3": {
+        "Q": 90.0,
+        "n": 170,
+        "ok": 153,
+        "p95_s": 0.44117660000000153
+       },
+       "C5": {
+        "Q": 100.0,
+        "n": 15,
+        "ok": 15,
+        "p95_s": 2.0625235000000033
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 85.82375478927203,
+        "judged": true,
+        "n": 783,
+        "ok": 672,
+        "p95_s": 0.21952404999999836
+       },
+       "mobile_3g": {
+        "Q": 29.81029810298103,
+        "judged": false,
+        "n": 369,
+        "ok": 110,
+        "p95_s": 0.4976820000000003
+       },
+       "mobile_bad": {
+        "Q": 23.61111111111111,
+        "judged": false,
+        "n": 144,
+        "ok": 34,
+        "p95_s": 2.2422167999999916
+       },
+       "perfect": {
+        "Q": 86.41509433962264,
+        "judged": true,
+        "n": 530,
+        "ok": 458,
+        "p95_s": 0.2274815500000037
+       }
+      },
+      "failures": {
+       "slow": 183
+      },
+      "judged_share": 0.7190580503833516,
+      "lost": 183,
+      "ok": 1130,
+      "p50_s": 0.038469499999997936,
+      "p99_s": 0.7687708000000024,
+      "slip_p99_s": 0.04532578000000037
+     },
+     "route2_own": {
+      "Q": 86.06245239908607,
+      "failures": {
+       "slow": 183
+      },
+      "ok": 1130,
+      "p95_s": 0.22596925000000417,
+      "requests": 1313
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "costly_search_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261111c_q1.second/drift/attack_costly_search_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-11T19:04:44+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 119.9,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      },
+      "env": {
+       "checked_utc": "2026-11-11T19:02:47+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 1.1,
+        "met": null,
+        "uptime_s": 10678.03,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 1.1,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 5.3716499989968725,
+         "p50_ms": 0.7263620002413516,
+         "p99_ms": 4.392992388275157,
+         "passed": true,
+         "utc": "2026-11-11T19:02:44+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 4.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "costly_search_sub_threshold",
+       "seed": 44,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 4,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 31,
+       "level": 4.0,
+       "role": "attack",
+       "scenario": "costly_search_sub_threshold",
+       "seed": 44,
+       "setup_retries": 0,
+       "started_utc": "2026-11-11T19:02:55+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      }
+     },
+     "route1_committed": {
+      "Q": 57.551319648093845,
+      "p95_s": 0.49377999999999367,
+      "requests": 1364
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 49.12663755458515,
+        "n": 458,
+        "ok": 225,
+        "p95_s": 0.07576439999999846
+       },
+       "C1": {
+        "Q": 48.16053511705686,
+        "n": 299,
+        "ok": 144,
+        "p95_s": 0.27704179999999745
+       },
+       "C2": {
+        "Q": 59.74025974025974,
+        "n": 462,
+        "ok": 276,
+        "p95_s": 0.27466350000000084
+       },
+       "C3": {
+        "Q": 97.79411764705883,
+        "n": 136,
+        "ok": 133,
+        "p95_s": 0.8249611999999984
+       },
+       "C5": {
+        "Q": 77.77777777777777,
+        "n": 9,
+        "ok": 7,
+        "p95_s": 1.7299499000000003
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 54.50516986706056,
+        "judged": true,
+        "n": 677,
+        "ok": 369,
+        "p95_s": 0.5393009999999995
+       },
+       "mobile_3g": {
+        "Q": 20.99056603773585,
+        "judged": false,
+        "n": 424,
+        "ok": 89,
+        "p95_s": 0.831946999999998
+       },
+       "mobile_bad": {
+        "Q": 21.839080459770116,
+        "judged": false,
+        "n": 87,
+        "ok": 19,
+        "p95_s": 2.501525299999999
+       },
+       "perfect": {
+        "Q": 60.55312954876273,
+        "judged": true,
+        "n": 687,
+        "ok": 416,
+        "p95_s": 0.41992950000000207
+       }
+      },
+      "failures": {
+       "slow": 579
+      },
+      "judged_share": 0.7274666666666667,
+      "lost": 579,
+      "ok": 785,
+      "p50_s": 0.06223999999999563,
+      "p99_s": 0.8439005200000022,
+      "slip_p99_s": 0.04105448000000031
+     },
+     "route2_own": {
+      "Q": 57.551319648093845,
+      "failures": {
+       "slow": 579
+      },
+      "ok": 785,
+      "p95_s": 0.49377999999999367,
+      "requests": 1364
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "legit": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261111c_q1.second/drift/legit/C",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-11T18:56:05+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 259.5,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 6.8
+      },
+      "env": {
+       "checked_utc": "2026-11-11T18:53:52+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "limit_load1": 0.3,
+        "limit_uptime_s": 1800,
+        "load1": 0.23,
+        "met": true,
+        "uptime_s": 10138.92,
+        "waited_s": 120.1
+       },
+       "gate_mode": "full",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 0.21,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 3988.9727859992854,
+         "p50_ms": 3.2343824989220593,
+         "p99_ms": 7.384691760635175,
+         "passed": true,
+         "utc": "2026-11-11T18:53:45+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 6.8
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "C",
+       "level": null,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "drift_legit",
+       "seed": 41,
+       "streams": 32,
+       "timeline": {
+        "attack_s": 0.0,
+        "baseline_s": 120.0,
+        "recovery_s": 0.0,
+        "total_s": 120.0
+       }
+      },
+      "run": {
+       "attack_streams": 0,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 32,
+       "level": null,
+       "role": "control",
+       "scenario": "drift_legit",
+       "seed": 41,
+       "setup_retries": 0,
+       "started_utc": "2026-11-11T18:54:00+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 6.8
+      }
+     },
+     "route1_committed": {
+      "Q": 100.0,
+      "p95_s": 0.07422749999999888,
+      "requests": 3038
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 100.0,
+        "n": 1047,
+        "ok": 1047,
+        "p95_s": 0.028477300000005798
+       },
+       "C1": {
+        "Q": 100.0,
+        "n": 782,
+        "ok": 782,
+        "p95_s": 0.08280344999999939
+       },
+       "C2": {
+        "Q": 100.0,
+        "n": 858,
+        "ok": 858,
+        "p95_s": 0.05435860000000155
+       },
+       "C3": {
+        "Q": 100.0,
+        "n": 325,
+        "ok": 325,
+        "p95_s": 0.09317079999999865
+       },
+       "C5": {
+        "Q": 100.0,
+        "n": 26,
+        "ok": 26,
+        "p95_s": 0.4545364999999961
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 100.0,
+        "judged": true,
+        "n": 1469,
+        "ok": 1469,
+        "p95_s": 0.08519319999999765
+       },
+       "mobile_3g": {
+        "Q": 41.88340807174888,
+        "judged": false,
+        "n": 1115,
+        "ok": 467,
+        "p95_s": 0.8311232000000037
+       },
+       "mobile_bad": {
+        "Q": 23.014256619144604,
+        "judged": false,
+        "n": 491,
+        "ok": 113,
+        "p95_s": 1.1407573999999965
+       },
+       "perfect": {
+        "Q": 100.0,
+        "judged": true,
+        "n": 1569,
+        "ok": 1569,
+        "p95_s": 0.04252060000000313
+       }
+      },
+      "failures": {},
+      "judged_share": 0.6541774332472007,
+      "lost": 0,
+      "ok": 3038,
+      "p50_s": 0.022096000000001226,
+      "p99_s": 0.12313702999999807,
+      "slip_p99_s": 0.06005996000000141
+     },
+     "route2_own": {
+      "Q": 100.0,
+      "failures": {},
+      "ok": 3038,
+      "p95_s": 0.07422749999999888,
+      "requests": 3038
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      10.0,
+      120.0
+     ]
+    }
+   },
+   "single_check_D062": {
+    "own_ok": false,
+    "rows": {
+     "cheap_static_flood": {
+      "Q": 95.89416058394161,
+      "dQ_pp": 0.08527542048813075,
+      "log2_p95_ratio": 0.01775234419307384,
+      "ok": true,
+      "ok_Q": true,
+      "ok_p95": true,
+      "p95_s": 0.20824899999999857,
+      "ref_Q": 95.80888516345348,
+      "ref_p95_s": 0.20570220000000097,
+      "tol_log2": 1.0,
+      "tol_pp": 10.0
+     },
+     "costly_export_flood": {
+      "Q": 86.06245239908607,
+      "dQ_pp": 10.741351481654874,
+      "log2_p95_ratio": -0.15696518325970937,
+      "ok": false,
+      "ok_Q": false,
+      "ok_p95": true,
+      "p95_s": 0.22596925000000417,
+      "ref_Q": 75.3211009174312,
+      "ref_p95_s": 0.25194199999999967,
+      "tol_log2": 1.0,
+      "tol_pp": 10.0
+     },
+     "costly_search_flood": {
+      "Q": 57.551319648093845,
+      "dQ_pp": -5.8186437218695275,
+      "log2_p95_ratio": -0.3533439890302293,
+      "ok": true,
+      "ok_Q": true,
+      "ok_p95": true,
+      "p95_s": 0.49377999999999367,
+      "ref_Q": 63.36996336996337,
+      "ref_p95_s": 0.6308129999999972,
+      "tol_log2": 1.0,
+      "tol_pp": 10.0
+     },
+     "legit": {
+      "Q": 100.0,
+      "dQ_pp": 0.0,
+      "ok": true,
+      "p95_rel": -0.06559615097747262,
+      "p95_s": 0.07422749999999888,
+      "ref_Q": 100.0,
+      "ref_p95_s": 0.0794383500000002,
+      "tol_pp": 2.0,
+      "tol_rel": 0.25
+     }
+    },
+    "tool_and_own_agree": true,
+    "tool_ok": false,
+    "tool_reasons": [
+     "costly_export_flood: Q 86.0625 against 75.3211 frozen (more than the gate's floor_pp, 10 pp)"
+    ]
+   }
+  },
+  "AP-7 q2 attempt 1": {
+   "aside": {
+    "costly_search_flood/U.failed1": {
+     "complete": false,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261111c_q2/drift/attack_costly_search_flood/U.failed1",
+     "facts": {
+      "DONE": null,
+      "env": {
+       "checked_utc": "2026-11-11T19:14:31+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 3.62,
+        "met": null,
+        "uptime_s": 11382.68,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 3.33,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 2.926954999784357,
+         "p50_ms": 0.3797765004856044,
+         "p99_ms": 2.7949066306791788,
+         "passed": true,
+         "utc": "2026-11-11T19:14:29+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.3
+      },
+      "files": [
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 4.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "costly_search_sub_threshold",
+       "seed": 44,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 4,
+       "executor_ok": false,
+       "executor_reasons": [
+        "the origin exited with 3 at T+0.0 s after the launch, before the end of the run; gunicorn.log says: origin.CalibrationError: C2: 2.81 ms against 1.77 ms frozen; C3: 43.5 ms against 29.8 ms frozen; C5: 215 ms against 160 ms frozen",
+        "the attack began -1.09 s from the end of the baseline (limit 0.5 s)"
+       ],
+       "legit_streams": 31,
+       "level": 4.0,
+       "role": "attack",
+       "scenario": "costly_search_sub_threshold",
+       "seed": 44,
+       "setup_retries": 0,
+       "started_utc": "2026-11-11T19:14:40+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.3
+      }
+     },
+     "route1_committed": {
+      "Q": 0.0,
+      "p95_s": null,
+      "requests": 1357
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 0.0,
+        "n": 451,
+        "ok": 0,
+        "p95_s": null
+       },
+       "C1": {
+        "Q": 0.0,
+        "n": 299,
+        "ok": 0,
+        "p95_s": null
+       },
+       "C2": {
+        "Q": 0.0,
+        "n": 462,
+        "ok": 0,
+        "p95_s": null
+       },
+       "C3": {
+        "Q": 0.0,
+        "n": 136,
+        "ok": 0,
+        "p95_s": null
+       },
+       "C5": {
+        "Q": 0.0,
+        "n": 9,
+        "ok": 0,
+        "p95_s": null
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 0.0,
+        "judged": true,
+        "n": 671,
+        "ok": 0,
+        "p95_s": null
+       },
+       "mobile_3g": {
+        "Q": 0.0,
+        "judged": false,
+        "n": 423,
+        "ok": 0,
+        "p95_s": null
+       },
+       "mobile_bad": {
+        "Q": 0.0,
+        "judged": false,
+        "n": 87,
+        "ok": 0,
+        "p95_s": null
+       },
+       "perfect": {
+        "Q": 0.0,
+        "judged": true,
+        "n": 686,
+        "ok": 0,
+        "p95_s": null
+       }
+      },
+      "failures": {
+       "non_2xx": 1357
+      },
+      "judged_share": 0.7268344938403857,
+      "lost": 1357,
+      "ok": 0,
+      "p50_s": null,
+      "p99_s": null,
+      "slip_p99_s": 0.048847400000000506
+     },
+     "route2_own": {
+      "Q": 0.0,
+      "failures": {
+       "non_2xx": 1357
+      },
+      "ok": 0,
+      "p95_s": null,
+      "requests": 1357
+     },
+     "routes_agree": true,
+     "sound": false,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    }
+   },
+   "complete": false,
+   "dir": "/var/tmp/ddos_campaigns/drift_20261111c_q2",
+   "drift_json_exists": false,
+   "runs": {
+    "cheap_static_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261111c_q2/drift/attack_cheap_static_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-11T19:11:40+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 123.5,
+       "setup_retries": 0,
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      },
+      "env": {
+       "checked_utc": "2026-11-11T19:09:39+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 0.7,
+        "met": null,
+        "uptime_s": 11090.6,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 0.7,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 5.981897999154171,
+         "p50_ms": 1.2828004994298678,
+         "p99_ms": 4.78551992040593,
+         "passed": true,
+         "utc": "2026-11-11T19:09:37+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 2.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "cheap_static_flood",
+       "seed": 42,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 3,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 32,
+       "level": 2.0,
+       "role": "attack",
+       "scenario": "cheap_static_flood",
+       "seed": 42,
+       "setup_retries": 0,
+       "started_utc": "2026-11-11T19:09:51+00:00",
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.4
+      }
+     },
+     "route1_committed": {
+      "Q": 72.12065813528336,
+      "p95_s": 0.2014333999999995,
+      "requests": 1094
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 64.86486486486487,
+        "n": 370,
+        "ok": 240,
+        "p95_s": 0.06994695000000022
+       },
+       "C1": {
+        "Q": 71.4859437751004,
+        "n": 249,
+        "ok": 178,
+        "p95_s": 0.17622845000000142
+       },
+       "C2": {
+        "Q": 77.8443113772455,
+        "n": 334,
+        "ok": 260,
+        "p95_s": 0.20637460000000213
+       },
+       "C3": {
+        "Q": 80.1526717557252,
+        "n": 131,
+        "ok": 105,
+        "p95_s": 0.3193722000000036
+       },
+       "C5": {
+        "Q": 60.0,
+        "n": 10,
+        "ok": 6,
+        "p95_s": 1.048999499999999
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 72.80701754385964,
+        "judged": true,
+        "n": 570,
+        "ok": 415,
+        "p95_s": 0.21104119999999812
+       },
+       "mobile_3g": {
+        "Q": 40.49382716049383,
+        "judged": false,
+        "n": 405,
+        "ok": 164,
+        "p95_s": 0.4514053499999977
+       },
+       "mobile_bad": {
+        "Q": 12.430939226519337,
+        "judged": false,
+        "n": 362,
+        "ok": 45,
+        "p95_s": 0.7775569999999978
+       },
+       "perfect": {
+        "Q": 71.37404580152672,
+        "judged": true,
+        "n": 524,
+        "ok": 374,
+        "p95_s": 0.17851639999999871
+       }
+      },
+      "failures": {
+       "slow": 305
+      },
+      "judged_share": 0.5878559914024718,
+      "lost": 305,
+      "ok": 789,
+      "p50_s": 0.04066199999999753,
+      "p99_s": 0.5120516399999988,
+      "slip_p99_s": 0.0588882600000007
+     },
+     "route2_own": {
+      "Q": 72.12065813528336,
+      "failures": {
+       "slow": 305
+      },
+      "ok": 789,
+      "p95_s": 0.2014333999999995,
+      "requests": 1094
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "costly_export_flood": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261111c_q2/drift/attack_costly_export_flood/U",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-11T19:14:29+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 167.9,
+       "setup_retries": 1,
+       "timer_refused_probes": 1,
+       "timer_waited_s": 36.6
+      },
+      "env": {
+       "checked_utc": "2026-11-11T19:12:17+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 2.22,
+        "met": null,
+        "uptime_s": 11214.49,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 1.3,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 576.3334770001529,
+         "p50_ms": 5.794576499502,
+         "p99_ms": 13.31027374970286,
+         "passed": false,
+         "utc": "2026-11-11T19:11:41+00:00"
+        },
+        {
+         "max_ms": 8.439491001117858,
+         "p50_ms": 2.8199060000042664,
+         "p99_ms": 7.7017890214665385,
+         "passed": true,
+         "utc": "2026-11-11T19:12:15+00:00"
+        }
+       ],
+       "timer_refused_probes": 1,
+       "timer_waited_s": 36.6
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 4.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "costly_export_sub_threshold",
+       "seed": 43,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": {
+       "attack_streams": 4,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 31,
+       "level": 4.0,
+       "role": "attack",
+       "scenario": "costly_export_sub_threshold",
+       "seed": 43,
+       "setup_retries": 1,
+       "started_utc": "2026-11-11T19:12:39+00:00",
+       "timer_refused_probes": 1,
+       "timer_waited_s": 36.6
+      }
+     },
+     "route1_committed": {
+      "Q": 25.133282559025133,
+      "p95_s": 0.5827209499999992,
+      "requests": 1313
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 21.513002364066192,
+        "n": 423,
+        "ok": 91,
+        "p95_s": 0.08428099999999716
+       },
+       "C1": {
+        "Q": 14.728682170542635,
+        "n": 258,
+        "ok": 38,
+        "p95_s": 0.2729152999999965
+       },
+       "C2": {
+        "Q": 30.648769574944073,
+        "n": 447,
+        "ok": 137,
+        "p95_s": 0.25910340000000076
+       },
+       "C3": {
+        "Q": 33.529411764705884,
+        "n": 170,
+        "ok": 57,
+        "p95_s": 0.8668065999999995
+       },
+       "C5": {
+        "Q": 46.666666666666664,
+        "n": 15,
+        "ok": 7,
+        "p95_s": 2.729020700000001
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 22.1656050955414,
+        "judged": true,
+        "n": 785,
+        "ok": 174,
+        "p95_s": 0.5080944500000029
+       },
+       "mobile_3g": {
+        "Q": 7.336956521739131,
+        "judged": false,
+        "n": 368,
+        "ok": 27,
+        "p95_s": 0.8796415000000023
+       },
+       "mobile_bad": {
+        "Q": 6.25,
+        "judged": false,
+        "n": 144,
+        "ok": 9,
+        "p95_s": 0.7935975999999967
+       },
+       "perfect": {
+        "Q": 29.545454545454547,
+        "judged": true,
+        "n": 528,
+        "ok": 156,
+        "p95_s": 0.561034249999997
+       }
+      },
+      "failures": {
+       "slow": 983
+      },
+      "judged_share": 0.7194520547945206,
+      "lost": 983,
+      "ok": 330,
+      "p50_s": 0.06048149999999808,
+      "p99_s": 2.064820660000003,
+      "slip_p99_s": 0.03207599999999983
+     },
+     "route2_own": {
+      "Q": 25.133282559025133,
+      "failures": {
+       "slow": 983
+      },
+      "ok": 330,
+      "p95_s": 0.5827209499999992,
+      "requests": 1313
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      30.0,
+      75.0
+     ]
+    },
+    "costly_search_flood": {
+     "complete": false,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261111c_q2/drift/attack_costly_search_flood/U",
+     "facts": {
+      "DONE": null,
+      "env": {
+       "checked_utc": "2026-11-11T19:16:34+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "load1": 0.67,
+        "met": null,
+        "uptime_s": 11505.61,
+        "waited_s": 0.0
+       },
+       "gate_mode": "timer",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 0.67,
+       "stack_cpus": {},
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 2.9537110005912837,
+         "p50_ms": 0.36619850037823176,
+         "p99_ms": 2.309383600641008,
+         "passed": true,
+         "utc": "2026-11-11T19:16:32+00:00"
+        }
+       ],
+       "timer_refused_probes": 0,
+       "timer_waited_s": 2.3
+      },
+      "files": [
+       "FAILED",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "U",
+       "level": 4.0,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "costly_search_sub_threshold",
+       "seed": 44,
+       "streams": 35,
+       "timeline": {
+        "attack_s": 45.0,
+        "baseline_s": 30.0,
+        "recovery_s": 30.0,
+        "total_s": 105.0
+       }
+      },
+      "run": null
+     }
+    },
+    "legit": {
+     "complete": true,
+     "dir": "/var/tmp/ddos_campaigns/drift_20261111c_q2/drift/legit/C",
+     "facts": {
+      "DONE": {
+       "finished_utc": "2026-11-11T19:09:37+00:00",
+       "ok": true,
+       "reasons": [],
+       "seconds": 290.1,
+       "setup_retries": 0,
+       "timer_refused_probes": 1,
+       "timer_waited_s": 37.1
+      },
+      "env": {
+       "checked_utc": "2026-11-11T19:07:24+00:00",
+       "facts": {
+        "cpus": 8,
+        "gunicorn": "gunicorn (version 26.2.0)",
+        "mem_mib": 7422,
+        "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+        "python": "3.14.4",
+        "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+       },
+       "gate": {
+        "limit_load1": 0.3,
+        "limit_uptime_s": 1800,
+        "load1": 0.24,
+        "met": true,
+        "uptime_s": 10920.3,
+        "waited_s": 120.0
+       },
+       "gate_mode": "full",
+       "git": {
+        "branch": "HEAD",
+        "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+        "dirty": false,
+        "dirty_files": []
+       },
+       "load1_after_timer_gate": 0.13,
+       "stack_cpus": {
+        "nginx": [
+         "0-1"
+        ],
+        "origin": [
+         "0-1"
+        ]
+       },
+       "steal_jiffies": 0,
+       "timer_probes": [
+        {
+         "max_ms": 13.775659001330496,
+         "p50_ms": 5.778478000356699,
+         "p99_ms": 13.15897279046112,
+         "passed": false,
+         "utc": "2026-11-11T19:06:46+00:00"
+        },
+        {
+         "max_ms": 1146.960580001396,
+         "p50_ms": 2.434262000169838,
+         "p99_ms": 7.801137031146934,
+         "passed": true,
+         "utc": "2026-11-11T19:07:20+00:00"
+        }
+       ],
+       "timer_refused_probes": 1,
+       "timer_waited_s": 37.1
+      },
+      "files": [
+       "DONE",
+       "environment.json",
+       "executor.log",
+       "gunicorn.log",
+       "nginx.conf",
+       "nginx_access.log.gz",
+       "nginx_error.log",
+       "nginx_start.log",
+       "plan.json",
+       "run.json",
+       "server.csv",
+       "server_requests.csv",
+       "streams"
+      ],
+      "plan": {
+       "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+       "kind": "C",
+       "level": null,
+       "pins": {
+        "attack": "3-6",
+        "daemon": "2",
+        "legit": "7",
+        "server": "0-1"
+       },
+       "scenario": "drift_legit",
+       "seed": 41,
+       "streams": 32,
+       "timeline": {
+        "attack_s": 0.0,
+        "baseline_s": 120.0,
+        "recovery_s": 0.0,
+        "total_s": 120.0
+       }
+      },
+      "run": {
+       "attack_streams": 0,
+       "executor_ok": true,
+       "executor_reasons": [],
+       "legit_streams": 32,
+       "level": null,
+       "role": "control",
+       "scenario": "drift_legit",
+       "seed": 41,
+       "setup_retries": 0,
+       "started_utc": "2026-11-11T19:07:32+00:00",
+       "timer_refused_probes": 1,
+       "timer_waited_s": 37.1
+      }
+     },
+     "route1_committed": {
+      "Q": 100.0,
+      "p95_s": 0.07566785000000012,
+      "requests": 3034
+     },
+     "route1_more": {
+      "by_class": {
+       "C0": {
+        "Q": 100.0,
+        "n": 1043,
+        "ok": 1043,
+        "p95_s": 0.027452999999992754
+       },
+       "C1": {
+        "Q": 100.0,
+        "n": 783,
+        "ok": 783,
+        "p95_s": 0.08362929999999834
+       },
+       "C2": {
+        "Q": 100.0,
+        "n": 858,
+        "ok": 858,
+        "p95_s": 0.05631729999999635
+       },
+       "C3": {
+        "Q": 100.0,
+        "n": 325,
+        "ok": 325,
+        "p95_s": 0.09982559999999553
+       },
+       "C5": {
+        "Q": 100.0,
+        "n": 25,
+        "ok": 25,
+        "p95_s": 0.46387320000000015
+       }
+      },
+      "by_profile": {
+       "broadband": {
+        "Q": 100.0,
+        "judged": true,
+        "n": 1466,
+        "ok": 1466,
+        "p95_s": 0.086557
+       },
+       "mobile_3g": {
+        "Q": 41.55374887082204,
+        "judged": false,
+        "n": 1107,
+        "ok": 460,
+        "p95_s": 0.7359618999999875
+       },
+       "mobile_bad": {
+        "Q": 24.693877551020407,
+        "judged": false,
+        "n": 490,
+        "ok": 121,
+        "p95_s": 0.7669709999999981
+       },
+       "perfect": {
+        "Q": 100.0,
+        "judged": true,
+        "n": 1568,
+        "ok": 1568,
+        "p95_s": 0.04451090000000044
+       }
+      },
+      "failures": {},
+      "judged_share": 0.655150075577629,
+      "lost": 0,
+      "ok": 3034,
+      "p50_s": 0.022038000000002,
+      "p99_s": 0.13402174999999977,
+      "slip_p99_s": 0.11425087999999334
+     },
+     "route2_own": {
+      "Q": 100.0,
+      "failures": {},
+      "ok": 3034,
+      "p95_s": 0.07566785000000012,
+      "requests": 3034
+     },
+     "routes_agree": true,
+     "sound": true,
+     "window_s": [
+      10.0,
+      120.0
+     ]
+    }
+   }
+  }
+ },
+ "code": {
+  "commit_expected": "1cdda9b",
+  "worktree": "/home/artur/agent_workspace/worktrees/T-088-verify-main"
+ },
+ "complete_attempts": [
+  "AP-4 attempt 1",
+  "AP-4 attempt 2",
+  "AP-5 q1 attempt 1",
+  "AP-7 q1 attempt 1",
+  "AP-7 q1 attempt 2"
+ ],
+ "constants": {
+  "DRIFT_P95": 0.25,
+  "DRIFT_Q_PP": 2.0,
+  "PROBE_S": 120.0,
+  "PROBE_WINDOW": [
+   10.0,
+   120.0
+  ],
+  "SEEDS_drift": 41
+ },
+ "descriptive_complete_attempts": {
+  "Q": {
+   "cheap_static_flood": {
+    "max": 95.89416058394161,
+    "mean": 75.01945123238177,
+    "min": 10.714285714285714,
+    "n": 5,
+    "sd_population": 32.80210114627096,
+    "sd_sample": 36.673863983942816,
+    "values": [
+     94.70319634703196,
+     78.53881278538813,
+     95.24680073126143,
+     10.714285714285714,
+     95.89416058394161
+    ]
+   },
+   "costly_export_flood": {
+    "max": 86.06245239908607,
+    "mean": 74.85168806385948,
+    "min": 55.25114155251141,
+    "n": 5,
+    "sd_population": 11.621503708624832,
+    "sd_sample": 12.993236146625517,
+    "values": [
+     55.25114155251141,
+     78.88293802601378,
+     85.38812785388127,
+     68.67378048780488,
+     86.06245239908607
+    ]
+   },
+   "costly_search_flood": {
+    "max": 74.9632892804699,
+    "mean": 62.76155181346902,
+    "min": 54.224834680382074,
+    "n": 5,
+    "sd_population": 7.143347296402364,
+    "sd_sample": 7.9865050708225125,
+    "values": [
+     65.12141280353201,
+     54.224834680382074,
+     61.94690265486726,
+     74.9632892804699,
+     57.551319648093845
+    ]
+   },
+   "legit": {
+    "max": 100.0,
+    "mean": 99.33443163097199,
+    "min": 97.001647446458,
+    "n": 5,
+    "sd_population": 1.173352032371925,
+    "sd_sample": 1.311847452960579,
+    "values": [
+     99.67051070840198,
+     100.0,
+     100.0,
+     97.001647446458,
+     100.0
+    ]
+   }
+  },
+  "log2_p95_ratio": {
+   "cheap_static_flood": {
+    "max": 1.568661118766635,
+    "mean": 0.42467306521227866,
+    "min": -0.05724909592142052,
+    "n": 5,
+    "sd_population": 0.6009966286434918,
+    "sd_sample": 0.6719346579475225,
+    "values": [
+     0.11421650030912463,
+     0.47998445871398027,
+     -0.05724909592142052,
+     1.568661118766635,
+     0.01775234419307384
+    ]
+   },
+   "costly_export_flood": {
+    "max": 0.1346417026224507,
+    "mean": 0.006105434331171561,
+    "min": -0.15696518325970937,
+    "n": 5,
+    "sd_population": 0.10988818399559053,
+    "sd_sample": 0.12285872466907244,
+    "values": [
+     -0.03963728726354452,
+     -0.031050485672715265,
+     0.12353842522937626,
+     0.1346417026224507,
+     -0.15696518325970937
+    ]
+   },
+   "costly_search_flood": {
+    "max": -0.3533439890302293,
+    "mean": -0.6265080784152628,
+    "min": -1.0816531782176568,
+    "n": 5,
+    "sd_population": 0.24390369977654763,
+    "sd_sample": 0.2726926263320304,
+    "values": [
+     -0.567631532596463,
+     -0.5168643189508298,
+     -0.6130473732811346,
+     -1.0816531782176568,
+     -0.3533439890302293
+    ]
+   },
+   "legit": {
+    "max": 0.28732637064279615,
+    "mean": 0.021264102976643023,
+    "min": -0.14438976595742203,
+    "n": 5,
+    "sd_population": 0.1568586118817991,
+    "sd_sample": 0.1753732595119795,
+    "values": [
+     0.10281832468161277,
+     -0.14438976595742203,
+     -0.041552536616432434,
+     0.28732637064279615,
+     -0.09788187786733933
+    ]
+   }
+  },
+  "note": "DESCRIPTIVE ONLY over the complete attempts; whether this is a pre-registered reading is decided by rule 5, not here",
+  "p95_s": {
+   "cheap_static_flood": {
+    "max": 0.6101729999999971,
+    "mean": 0.3051339000000005,
+    "min": 0.19769934999999939,
+    "n": 5,
+    "sd_population": 0.15563671311505758,
+    "sd_sample": 0.1740071351599509,
+    "values": [
+     0.2226493999999974,
+     0.2868987500000101,
+     0.19769934999999939,
+     0.6101729999999971,
+     0.20824899999999857
+    ]
+   },
+   "costly_export_flood": {
+    "max": 0.27658699999999925,
+    "mean": 0.2537429000000001,
+    "min": 0.22596925000000417,
+    "n": 5,
+    "sd_population": 0.01922754635451369,
+    "sd_sample": 0.02149705034461044,
+    "values": [
+     0.24511424999999853,
+     0.24657749999999723,
+     0.27446650000000156,
+     0.27658699999999925,
+     0.22596925000000417
+    ]
+   },
+   "costly_search_flood": {
+    "max": 0.49377999999999367,
+    "mean": 0.414151659999998,
+    "min": 0.29805099999999385,
+    "n": 5,
+    "sd_population": 0.06429368924146846,
+    "sd_sample": 0.07188252983408518,
+    "values": [
+     0.4256244000000008,
+     0.44086840000000266,
+     0.4124344999999989,
+     0.29805099999999385,
+     0.49377999999999367
+    ]
+   },
+   "legit": {
+    "max": 0.09694469999999987,
+    "mean": 0.08110687999999952,
+    "min": 0.07187279999999703,
+    "n": 5,
+    "sd_population": 0.009126482865464438,
+    "sd_sample": 0.010203718041332776,
+    "values": [
+     0.08530640000000175,
+     0.07187279999999703,
+     0.07718300000000013,
+     0.09694469999999987,
+     0.07422749999999888
+    ]
+   }
+  }
+ },
+ "record": {
+  "drift_reference": {
+   "attack": {
+    "cheap_static_flood": {
+     "level": 2.0,
+     "p95_s": 0.20570220000000097,
+     "q_pct": 95.80888516345348
+    },
+    "costly_export_flood": {
+     "level": 4.0,
+     "p95_s": 0.25194199999999967,
+     "q_pct": 75.3211009174312
+    },
+    "costly_search_flood": {
+     "level": 4.0,
+     "p95_s": 0.6308129999999972,
+     "q_pct": 63.36996336996337
+    }
+   },
+   "p95_s": 0.0794383500000002,
+   "q_pct": 100.0,
+   "rho_rps": 42.25
+  },
+  "gate": {
+   "ci_level": 0.95,
+   "control_q_min": 99.0,
+   "floor_log2_p95": 1.0,
+   "floor_pp": 10.0,
+   "max_reruns": 2,
+   "min_blocks": 10,
+   "same_sign_share": 0.8
+  },
+  "host": {
+   "cpus": 8,
+   "gunicorn": {
+    "nofile": 524288,
+    "threads": 8,
+    "version": "26.2.0",
+    "workers": 2
+   },
+   "loadgen_sha256": "91aab0837ce688982c30cc2f8b9e867482f830d5ff49b9ec703888ac80ba92a1",
+   "mem_mib": 9426,
+   "nginx": {
+    "conf_sha256": "55f867904d18615b3f5405e3017ab17d425106d2e34d1b265ac4cf352135dfdb",
+    "version": "1.28.3"
+   },
+   "origin_seed": 1,
+   "origin_sha256": "4cb5e276c04e8a4c003729170112c8b21000aa5bc89901681f7c07cc268ff2b2",
+   "pins": {
+    "attack": "3-6",
+    "daemon": "2",
+    "legit": "7",
+    "server": "0-1"
+   },
+   "uname": "Linux ddos-mitigation 7.0.0-38-generic #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:10:14 UTC 2026 x86_64 "
+  },
+  "judged_profiles": [
+   "perfect",
+   "broadband"
+  ],
+  "path": "/home/artur/agent_workspace/worktrees/T-088-verify-main/bench/calibration/ddos-mitigation-2026-11-04.json",
+  "sha256_field": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+  "slo_ms": {
+   "C0": 100,
+   "C1": 300,
+   "C2": 300,
+   "C3": 1000,
+   "C4": 1000,
+   "C5": 3000,
+   "C6": 1000
+  }
+ },
+ "rule1_arithmetic_over_complete_attempts_NOT_A_READING": {
+  "cheap_static_flood": {
+   "mean_Q": 75.01945123238177,
+   "mean_dQ_pp": -20.789433931071713,
+   "mean_log2_p95_ratio": 0.42467306521227866,
+   "ref_Q": 95.80888516345348,
+   "sd_over_5pp": true,
+   "sd_sample_Q": 36.673863983942816,
+   "within_floor_log2_1": true,
+   "within_floor_pp_10": false
+  },
+  "costly_export_flood": {
+   "mean_Q": 74.85168806385948,
+   "mean_dQ_pp": -0.46941285357171125,
+   "mean_log2_p95_ratio": 0.006105434331171561,
+   "ref_Q": 75.3211009174312,
+   "sd_over_5pp": true,
+   "sd_sample_Q": 12.993236146625517,
+   "within_floor_log2_1": true,
+   "within_floor_pp_10": true
+  },
+  "costly_search_flood": {
+   "mean_Q": 62.76155181346902,
+   "mean_dQ_pp": -0.6084115564943531,
+   "mean_log2_p95_ratio": -0.6265080784152628,
+   "ref_Q": 63.36996336996337,
+   "sd_over_5pp": true,
+   "sd_sample_Q": 7.9865050708225125,
+   "within_floor_log2_1": true,
+   "within_floor_pp_10": true
+  },
+  "legit": {
+   "mean_Q": 99.33443163097199,
+   "mean_p95_rel": 0.021004086817001166,
+   "mean_p95_s": 0.08110687999999952,
+   "ref_Q": 100.0,
+   "ref_p95_s": 0.0794383500000002,
+   "within_25pct": true,
+   "within_2pp": true
+  }
+ },
+ "task": "T-088",
+ "worker": "W-VERIFY"
+}
