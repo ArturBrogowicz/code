@@ -1,11 +1,17 @@
 # HG1c: the executor, the gate campaign and the calibration runner (design note, written before the code)
 
-**Status (2026-10-26): approved (D18 to D26 as recommended, including option (b) and A1) and built offline on `feat/hg1c`; the VM
+**Status (2026-11-12): built and on `main`. HG2's calibration was frozen on 2026-11-04
+(`bench/calibration/ddos-mitigation-2026-11-04.json`, record hash `cff6e515`). The drift check that must pass before HG3
+failed or gave no reading in four tries: on 2026-11-08 it failed twice, and the three repeats of 2026-11-10 and
+2026-11-11 were cut or stopped before their reading. All 5 of its 5 complete attempts fall outside the single-run rule
+(departure 33), some above and some below the reference. So no confirmation campaign has run and no harm-benchmark
+result exists; a re-calibration is planned (the user's direction of 2026-11-12), with its own pre-registration.**
+History: Status (2026-10-26): approved (D18 to D26 as recommended, including option (b) and A1) and built offline on `feat/hg1c`; the VM
 has run S1 and S1b (no root, loopback), S2 (root, in namespaces) and S3 twice (root; the first stopped at the Nginx start, the second ran to the end and was found unsound) and nothing else.
-Section 14 records what was built, what S1, S1b, S2 and S3 found and what came of it, and where it departs from this note, which is otherwise left as it was written (2026-10-23).** This note is on `design/hg1c`, off `feat/hg1b-minimal` (7528089); it changed no code. It is the follow-up that `docs/HG1B_MINIMAL_DESIGN.md`
+Section 14 records what was built, what S1, S1b, S2 and S3 found and what came of it, and where it departs from this note, which is otherwise left as it was written (2026-10-23). This note was written on `design/hg1c`, off `feat/hg1b-minimal` (7528089); it changed no code. It is the follow-up that `docs/HG1B_MINIMAL_DESIGN.md`
 promised in its section 7 (decision D16): the part that runs a scenario in the namespaces and writes the run contract that
 `eval/harm_gate.py` reads; the loop that makes blocks of three runs under the re-run rule; and the runner that measures and freezes
-the calibration. "design N" is a section of `docs/BENCHMARK_HARM_DESIGN.md` (branch `design/benchmark-harm`), "HG1b N" a section of
+the calibration. "design N" is a section of `docs/BENCHMARK_HARM_DESIGN.md` (its 7.2 step 7 is changed by departure 33), "HG1b N" a section of
 the note above. Tags: **[FACT]** read from a file or a command (`path:line` at 7528089); **[ARITHMETIC]**; **[ESTIMATE]**;
 **[INFERENCE]**; **[PROPOSAL]** a value or rule fixed here and frozen before the data it will judge; **[RISK]**; **[UNVERIFIED]** not
 checked yet, with the step that will check it.

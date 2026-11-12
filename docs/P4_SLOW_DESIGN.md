@@ -1,9 +1,9 @@
 # P4: slow-connection attacks that harm a realistic server, mitigated per connection without CGNAT collateral (design note, written before the code)
 
-**Status (2026-11-07): T-071's extension of the loris ladder, the halving rule's controls, the CPU layout, the cut to Slowloris and the
+**Status (2026-11-12): no P4 run exists; `feat/p4-runner` is on `main`.** **Status (2026-11-07): T-071's extension of the loris ladder, the halving rule's controls, the CPU layout, the cut to Slowloris and the
 grouped generator are approved (D-069, D-073 to D-075) and re-registered below, before any ladder data.** **Status (2026-11-02): approved, and built offline on `feat/p4-runner`; nothing has run on the VM. The text below is the design as
-approved, with its dated re-registrations.** **Status (2026-10-30): a design for approval. Nothing in it is built or run.** It is on `design/priority-p1-p4`, branched from
-`feat/hg1c` at e413a34, and changes no code. It details priority P4 of the approved direction
+approved, with its dated re-registrations.** **Status (2026-10-30): a design for approval. Nothing in it is built or run.** It was written on `design/priority-p1-p4`, branched from
+`feat/hg1c` at e413a34, and changed no code. It details priority P4 of the approved direction
 (`/home/artur/agent_workspace/final/PRIORITY_PLAN.md` §4). It uses the L7 v2 runner as its harm vehicle
 (`docs/L7V2_DESIGN.md` §5, §6). The tags and the citation forms are those of `docs/L7V2_DESIGN.md` (header):
 - `path:line` refers to e413a34;

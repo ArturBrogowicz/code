@@ -1,7 +1,9 @@
 # EXP-C protocol, written down before the blocks run
 
-**Status (2026-10-23): proposed with the run command, committed before the first block.** The experiment is
-`docs/BENCHMARK_HARM_DESIGN.md` 8.5 (on `design/benchmark-harm`): EXP-A's design on EXP-A's server with only the
+**Status (2026-11-12): run on 2026-10-23 after this protocol was committed (095684d), 120 runs, and published in
+`results/2026-10-23_expc-open-vs-closed-loop/`, whose README reads the hypotheses by section 3.** History: Status
+(2026-10-23): proposed with the run command, committed before the first block. The experiment is
+`docs/BENCHMARK_HARM_DESIGN.md` 8.5: EXP-A's design on EXP-A's server with only the
 attacker's load model changed. This file fixes what that section leaves open: the three open-loop rates, how they
 sit against the per-IP rules, how each hypothesis is read, and what is reported whatever the outcome. The tools are
 `docs/EXPC_ATTACKER_SETTING_DESIGN.md` (the setting, the probe, amendment A) and `eval/` (`docs/EVALUATION.md`).

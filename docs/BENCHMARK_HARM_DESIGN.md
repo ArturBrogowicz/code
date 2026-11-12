@@ -1,5 +1,11 @@
 # Design plan: a benchmark in which attacks cause measurable harm
 
+**Status (2026-11-12): the text below is as last written on 2026-10-22 (6678ca5, branch `docs/harm-benchmark-f8`),
+merged into this line unchanged; the status paragraph that follows is of that date. Later departures from this design
+are dated in `docs/HG1C_DESIGN.md` section 14. One of them changes a rule stated here: since 2026-11-04 (departure 33,
+ledger D-062) an attack run of the drift check in 7.2 step 7 passes within the frozen record's gate floors (10 pp in
+`Q`, a factor of 2 in p95), while the 2-minute legit probe keeps 2 pp and 25 %. Step 7 itself is left as written.**
+
 **Status (2026-10-22): the design is approved; HG1a is written; its first run (a pilot) found faults in
 the harness, the harness was corrected, and the corrected run was approved and made the same day:
 k6 and the in-repo engine pass V1-V6, vegeta fails V3 and V5; on your decision the manifest now marks
