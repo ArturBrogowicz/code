@@ -36,7 +36,7 @@ setting. *Partly supported*: one half holds. *Inconclusive*: the data cannot dec
 | M1 | The rules ban all 10 testbed attack types, and XDP enforces the bans | Supported with scope |
 | M2 | XDP outperforms iptables | Partly supported |
 | M3 | The daemon preserves availability under an HTTP flood | Supported with scope |
-| M4 | Rate limiting alone is harmful | Supported with scope (closed-loop attacker only) |
+| M4 | Nginx rate limiting alone lowered legitimate success under a closed-loop HTTP flood (one operating point) | Supported with scope (closed-loop attacker only) |
 | M5 | Zero false positives | Contradicted as a general claim |
 | M6 | Time to mitigate is X seconds | Supported as bounds per rule |
 | M7 | Slow attacks are mitigated | Not supported |
@@ -54,6 +54,17 @@ Numbers below come from `results/`; "the audit-derived directory" is
 `2026-10-19_baseline-before-audit-defaults` and `2026-10-20_regression-after-audit-defaults`
 (the first run on the change set of 2026-10-19). `2026-10-20_expb-tolerant-profile-suite` holds
 three more complete runs under the tolerant profile, and `2026-10-20_expa-knee-10-blocks` is EXP-A.
+
+**Scope of every availability claim.** Every availability contrast (M3, M4) rests on one scenario (the
+HTTP flood) at one server operating point (the knee). Only one complete suite run,
+`2026-10-20_regression-after-audit-defaults` (one run, commit 618b2fc), evaluated the defaults of
+2026-10-19 end to end.
+
+**Labels.** The suite's "Yo-Yo" scenario (S9) is a pulsing flood: `wrk` for 2 s, then 6 s of pause
+(`test_distributed_suite.py:1829-1832`). The Yo-Yo attack of the literature targets autoscaling, and this
+testbed has no autoscaler. The "60-asset browser" (M5, L2, L4) is one device loading an ordinary page (in
+the HTTP Archive's Web Almanac 2024 the median page makes 71 requests on desktop and 66 on mobile), not a
+flash crowd; a flash crowd raises the number of clients, not the rate per client.
 
 ## Mitigation claims
 
@@ -79,7 +90,10 @@ The three XDP runs of `2026-10-12_exp1-default-4modes_prototype` (an older code 
 XDP-fed GRU on, recorded with the prototype harness) agree: ban events show all 5 bots banned in each
 of the 30 scenario-runs, with the same engines, no legitimate client banned and no GRU ban among 150
 first bans. One ACK flood was banned only 10.32 s after its start (finding F-45, since fixed): the
-harness reported 0/5 and FAIL.
+harness reported 0/5 and FAIL. A second ACK flood (XDP run 3) is also FAIL in the harness although
+its 5 bots were banned at 1.35 s: the prototype harness's ping check listed one legitimate client
+(10.0.1.9) as banned, while no ban event names it, and the HTTP check passed 15/15 (the campaign's
+`README.md` and `xdp/run3/console.log`).
 
 **It does not show.**
 * Detection by anything other than the rules: no GRU ban occurs in these runs.
@@ -131,7 +145,7 @@ the IP stack."
 * Outside the HTTP flood, neither backend is consistently faster to ban in that suite. The median
   time to mitigate is lower with XDP in 5 of the 10 scenarios (SYN flood, Low & Slow SYN, UDP flood,
   HTTP flood, Yo-Yo) and lower with iptables in the other 5 (ACK flood, fragmentation, Slowloris,
-  R.U.D.Y., multi-vector), by 0.04-0.74 s, from three unpaired runs per mode. Legitimate success is
+  R.U.D.Y., multi-vector), by 0.03-0.74 s, from three unpaired runs per mode. Legitimate success is
   100 % in both modes in all ten scenarios.
 
 **It does not show.**
@@ -149,7 +163,8 @@ the IP stack."
 **Wording.** "At the HTTP-flood knee, legitimate success during the attack was 100 % with the
 daemon (XDP or iptables) in all 19 runs of four campaigns, and between 50 % and 93 % unprotected.
 In EXP-A, ten paired blocks, the daemon served 33.2 pp more than no protection [+26.1, +40.2], with
-the same sign in 10 of 10 blocks."
+the same sign in 10 of 10 blocks; in the closed-loop cell of EXP-C, on the same seeds, it served
+22.5 pp more [+16.0, +29.0], because the unprotected server did better there (77.5 % against 66.8 %)."
 
 **Evidence [FACT]** (`analysis/availability.csv`, success during the attack, per run):
 
@@ -166,8 +181,15 @@ EXP-2a +10.2 pp [+2.7, +17.6] (unpaired, 3 against 3); **EXP-A +33.2 pp [+26.1, 
 paired blocks, same sign in 10 of 10, exact sign-flip p = 0.002, decision "supported (+)"** under the
 rule of `eval/run_level_stats.py`, which was committed (8d26335) six hours before the first run.
 
-**Size and scope.** The size is estimated by EXP-A: +33.2 pp at this operating point, for this
-scenario and this attacker. The three-block campaigns are consistent with it and do not decide.
+**Size and scope.** The protected arm holds legitimate success at about 100 % in both campaigns of
+this cell (EXP-A, and the closed-loop cell of EXP-C: same scenario, operating point and ten
+`PROFILE_SEED`s). Its gain over the unprotected arm is +33.2 pp [+26.1, +40.2] in EXP-A and +22.5 pp
+[+16.0, +29.0] in EXP-C. The two differ (Welch p = 0.021 on the per-block differences) because the
+unprotected baseline moved, 66.8 % against 77.5 %; five suite commits lie between the campaigns, and
+EXP-C interleaves its closed-loop runs with 90 open-loop runs. Each interval covers only the variation
+within its campaign, so quote the size as a range across campaigns (+22.5 to +33.2 pp) [FACT,
+recomputed from `availability_raw.csv` of both campaigns]. The three-block campaigns are consistent
+with both and do not decide.
 Nine of the earlier runs are not nine independent blocks (R3 and R4 reuse the same three
 `PROFILE_SEED`s, EXP-2a was unseeded), so the review draft's sign test over them ("p = 0.002")
 stays withdrawn; the ten blocks of EXP-A are independent.
@@ -184,15 +206,16 @@ per-source rules (EXP-C's lowest rate is 2.5 times the daemon's 50 rps rule).
 calibrated for the HTTP flood only), rates below the per-source thresholds from more sources, and an
 adaptive attacker.
 
-### M4. Rate limiting alone is harmful
+### M4. Nginx rate limiting alone lowered legitimate success under a closed-loop HTTP flood (one operating point)
 
 **Verdict: supported with scope (a closed-loop attacker only); contradicted for an open-loop attacker at the
 rates tried.** It was inconclusive until EXP-A, and EXP-C (2026-10-23) showed where the harm comes from.
 
 **Wording.** "Against a closed-loop attacker (`wrk`, 400 connections per bot), Nginx `limit_req` and `limit_conn`
-alone left legitimate success during the knee flood 22.5 pp below no protection at all in EXP-A (44.4 % against
+alone left legitimate success during the knee flood 22.5 pp below no protection at all in EXP-A (44.3 % against
 66.8 % on average; 95 % interval [-32.0, -13.1], the same sign in 10 of 10 blocks) and 34.3 pp below in EXP-C
-[-45.4, -23.2]. Against an open-loop attacker at 125, 250 and 500 requests/s per bot the same limits served 100 % in
+[-45.4, -23.2]. In EXP-A most of the penalty fell in the first seconds of the flood; in EXP-C it persisted after
+them. Against an open-loop attacker at 125, 250 and 500 requests/s per bot the same limits served 100 % in
 every block, 57.9 pp (250) and 88.6 pp (500) more than no protection where the unprotected server was harmed. The
 penalty belongs to the closed-loop attacker, which sent 29.6 k requests/s into `limit_req`, almost all rejected with
 503, against 1.6 k/s without it."
@@ -204,6 +227,15 @@ it (-37.6 pp unpaired, -6.4 [-33.8, +21.0] in R3, -34.9 [-85.4, +15.7] in R4) di
 size and did not decide; ten blocks put it at about -22 pp. The report's estimate of 26 blocks
 came from R3's small effect; at -22.5 pp the power calculation gives 5. The requests it answered in
 EXP-A were far slower (all-client median 6.6 s against 1.0 s) and its Nginx CPU was 96 % against 33 %.
+
+**Onset [FACT]** (recomputed from `availability_raw.csv` and `scenario_results.csv`; onset is the run's
+`Attack_Start`, and the left-out requests are those labelled `during` that started in the first seconds;
+the cuts are post hoc). In EXP-A the penalty sits at flood onset and depends on the counting window.
+Requests started in the first 2 s succeeded 11.4 % under limits only against 94.4 % unprotected (mean of
+runs). Counted from 1 s after onset the contrast is -16.4 pp [-27.2, -5.6] (9 of 10 blocks negative), and
+from 2 s it is -8.1 pp [-19.9, +3.8] (6 of 10), which the rule would not call supported. EXP-C does not
+hinge on the onset: from 2 s after onset it is still -21.6 pp [-32.6, -10.5] (9 of 10). So EXP-C is the
+estimate of a penalty that lasts, and EXP-A's -22.5 pp must not be presented as a steady-state effect.
 
 EXP-C (`2026-10-23_expc-open-vs-closed-loop`, same server and legit profiles, 10 paired blocks), limits only
 against unprotected: closed loop (`wrk`) -34.3 pp [-45.4, -23.2], "supported (-)", unprotected arm 77.5 % (EXP-A:
@@ -237,7 +269,7 @@ made in the recorded ban-event logs hit a legitimate client."
 
 **Evidence [FACT].** `events_census.md` in the audit-derived directory lists 4 bans of legitimate
 clients in 52 distinct ban-event logs (710 bans): in `2026-10-16_l7-p5c-baseline` a browser with a 60-asset
-page (10.0.1.16, `l7_rate` at 7.0 s) and two carrier-grade NAT gateways (10.0.1.17 and 10.0.1.18,
+page (10.0.1.16, `l7_rate`, 7.3 s after the daemon started) and two carrier-grade NAT gateways (10.0.1.17 and 10.0.1.18,
 `l4_slowconn`); in `2026-10-20_omitted-runs/p1_smoke_20261014T152428Z` client 10.0.1.6 by the GRU
 (p = 0.999013, 127 s after the daemon started, 56 s after the burst's bans).
 
@@ -285,8 +317,8 @@ threshold of 180: 0 of 15 bots each in three runs (EXP-B). Slowloris opens exact
 threshold of 8 concurrent connections, so the default-profile scenario shows detection at the
 threshold."
 
-**Evidence [FACT].** `test_distributed_suite.py:1560` (`N = 8`) and `:1603` (`N = 10`);
-`control_plane.py:95-97` (at least 8 established connections, under 250 bytes per interval, 3
+**Evidence [FACT].** `test_distributed_suite.py:1742` (`N = 8`) and `:1785` (`N = 10`);
+`control_plane.py:133-135` (at least 8 established connections, under 250 bytes per interval, 3
 consecutive polls); the bans in M6; `2026-10-20_expb-tolerant-profile-suite` (the other eight
 scenarios stay at 5/5, so the loss is exactly the two slow attacks, as predicted before the run).
 
@@ -294,8 +326,20 @@ scenarios stay at 5/5, so the loss is exactly the two slow attacks, as predicted
 `docs/REPORT.md` F-10 reports that Nginx's own timeouts and body limit neutralise both scenarios
 even unprotected [CLAIMED]; EXP-B is consistent with it: during the two unbanned attacks the
 legitimate clients were not hurt (1019 and 1000 requests, all served). The tolerant profile raises
-the SlowConn threshold to 180 (`control_plane.py:143`) and bans neither scenario [FACT, EXP-B]. The
+the SlowConn threshold to 180 (`control_plane.py:181`) and bans neither scenario [FACT, EXP-B]. The
 L7 track's 6-socket slow families were caught by no engine (`docs/L7_GRU_DESIGN.md`, audit note 8).
+
+**The daemon's R.U.D.Y. error-log rule (`l7_rudy`) is inert with nginx 1.28.3** [FACT, `docs/EVALUATION.md`,
+H-26]. It matches a "while reading client request body" line that nginx 1.28.3 never writes: the string
+is in neither its sources nor the installed `/usr/sbin/nginx` (0 matches, against 1 for "reading client
+request headers"), an HTTP/1.1 body timeout ends in a 408 with no error-log line, and none of the VM's 15
+Nginx error logs has such a line. It made none of the 710 bans of the census (52 logs) and none of all
+1,487 bans in the 115 distinct non-empty ban-event logs under `results/`. Every R.U.D.Y. bot that was
+banned (50, in the daemon runs of five campaigns) was banned by SlowConn (8 or more connections); under
+the tolerant profile none was banned (EXP-B). The suite's R.U.D.Y. also declares a 1 MB body
+(`test_distributed_suite.py:1793`) against `client_max_body_size 64k` (`nginx.conf:75`), which Nginx
+answers with 413 before it reads the body [INFERENCE from the configuration; not seen in a published
+log]. The suite therefore never exercised this rule.
 
 **Would settle it.** Slow attacks around and below the threshold, at default Nginx timeouts.
 
@@ -318,7 +362,13 @@ existed, when it was the default, and the pre-change baseline), 14 are L7-track 
 is empty; the 12 logs and 330 bans added by the prototype campaigns hold no GRU ban. `docs/ML_INVESTIGATION.md` §1: the GRU never decides before a heuristic bans
 the same IP; with only the request size changed, held-out R.U.D.Y. detection goes from 19-29 % to
 100 %; the CIC-IDS2017 AUC of about 0.1 depends on how benign hosts are sampled (0.115 per host,
-0.52 per flow). `control_plane.py:84`: `XDP_GRU` defaults to off.
+0.52 per flow). `control_plane.py:122`: `XDP_GRU` defaults to off.
+
+**Never run alone [FACT]** (all published start events). Of the 233 `start` events under `results/`,
+161 carry `gru_only` and all of them have it false; the 72 without the field are the converted
+prototype campaigns of 2026-10-12, and every one of the 236 `provenance.json` files that name
+`GRU_ONLY` says false. The GRU's standalone detection is therefore untested; in the deployed
+configuration the rules banned every attacker first.
 
 ### L2. The Nginx-log GRU adds detection value
 
@@ -336,6 +386,15 @@ budget; 1.8 against 1.0 false positives per client-hour in the soak)."
 **Scope of the negative result.**
 * The baselines are tuned on the evaluation runs (oracle), which favours them; B4 at the deployed
   setting still flags fewer benign IPs than the GRU (3 against 9).
+* Tuned the same way, the GRU does no better. A continuous threshold sweep, whose replay reproduces the
+  live would-ban IPs in 5 of 5 runs, gives 0 of 20 attackers at 2 or fewer benign flags, 10 of 20 at 3
+  (15 of 20 with a consecutive count of 1), and 20 of 20 only at 5 flags, which are the held-out
+  `api_bulk` client in every run [FACT, computed from `results/2026-10-16_l7-p5c4-eval` by the
+  independent verification of 2026-10-29; its replay script is not in this repository].
+* The rules' win is a knife edge. Of the 54 B2 and 48 B3 settings, one each reaches 20 of 20 at 2 or
+  fewer benign flags (`key:mean60s>10` and `key:r=10,b=100`) [FACT, recomputed from the runs'
+  `baselines.json` and `manifest.json`]. For the 60 s mean per key, any threshold in [9.75, 11.15) rps
+  does it, a window 1.4 rps wide [FACT, same verification].
 * The attackers do not harm anyone: benign success is 1.0 and the median server time 2.0 ms with
   and without a fast attacker active, in all five runs (`l7_harm_p5c4.md`). The result shows that
   a model can classify labelled clients, not that it mitigates anything.
@@ -373,7 +432,14 @@ supported (the GRU's lead over the HGB at P5c.3 is one credstuff client, six (IP
 
 **Evidence [FACT].** The benign side is measured for per-IP peak and connection-count rules (M5:
 the 60-asset browser under the rate rule, NAT gateways under SlowConn). The evasion side is true by
-construction: the attacks were calibrated at most 45 rps against a tolerant rule of 108 rps. Rules
+construction: the attacks were calibrated at most 45 rps against a tolerant rule of 108 rps
+(`docs/L7_GRU_DESIGN.md:125` and `:612`, a design figure [CLAIMED]; in the recorded P5c.4 traffic the
+fast attackers' `l7_rate` rule rate peaked at 15.8-34.0 rps, so none is caught at 50 or 108). The
+lowest per-IP threshold that catches a fast sub-threshold attacker also bans legitimate 60-asset browsers
+and CGNAT pools: in the plan simulation a threshold low enough for the 45 rps attacker (below about
+44 rps) bans 6 configurations of 2 benign kinds, not 6 kinds, and in the recorded traffic any threshold
+below 34.0 rps bans 13 benign IP-runs of the same 2 kinds [FACT, independent verification of
+2026-10-29, from `results/2026-10-16_l7-p5c4-eval` and `ml/l7_admissibility`]. Rules
 keyed on (IP, UA) with a sustained rate escape the dilemma: B2 caught 20 of 20 at 2 benign flags.
 For the connection-count rule both sides are now measured: raising SlowConn from 8 to 180, which
 stops the false bans of CGNAT gateways, loses the suite's Slowloris and R.U.D.Y. in 3 of 3 runs
@@ -391,7 +457,13 @@ harm (`docs/L7_GRU_DESIGN.md` §7 admission rule).
 **Evidence [FACT].** Every published campaign except `2026-10-11_superseded-dup-mac` has a
 `SHA256SUMS` that verifies. Analyses regenerate byte for byte. The second review also re-ran the
 verdict reports and retrained the P5c.3 model (seed 0, 25 epochs, about 80 s on CPU) and got
-identical files. The audit-derived directory regenerates from `results/` alone.
+identical files. The audit-derived directory regenerates from `results/` alone. All published figures
+regenerate byte for byte with matplotlib 3.11.2, the version `requirements.txt` pins (checked
+2026-10-29). Two exceptions: `2026-10-16_l7-p5c-baseline/p5c1_report.json` gains one key
+(`heuristics`) when regenerated with the current report code (`ml/p5c_baseline_report.py:139`, changed
+at 6d6f0e6 after the file was published; no number changes), and two loadtool-validation campaigns
+(`2026-10-22_loadtool-validation-run2` and `-v3-repeat`) carry a `NOTES.md` that their `SHA256SUMS`
+does not list.
 
 **Limits.**
 * The prototype campaigns of 2026-10-12 behind the addendum's cross-mode claims have been published
