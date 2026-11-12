@@ -1,6 +1,14 @@
 # What the thesis can claim
 
-**Status (2026-10-20).** Written after the second independent review (2026-10-19). The review
+**Status (2026-11-12).** Checked against the chapters "Wyniki" and "Wnioski" of `thesis/main.tex` as
+corrected on 2026-11-12 and against the files under `results/`. No mitigation campaign has been
+published since 2026-10-23, and no verdict of M1-M7, L2-L4 or Q2 changes direction. The corrections reconciled on
+2026-10-30 are applied (M1-M5, M7, L1, L2, L4, Q1, the labels and one scope note); L1, L3 and Q1 are
+narrowed to what the thesis now says. The only new data is the harm benchmark's drift check of
+2026-11-08 to 11 (HB1): it confirmed nothing, and **no harm-benchmark claim exists**. Nothing is claimed
+for the experiments registered but not run (P1-P4).
+
+**Written 2026-10-20.** Written after the second independent review (2026-10-19). The review
 re-ran every published analysis, verdict report and model and reproduced them bit for bit, so
 no published number is retracted. This page fixes the *wording*. For each claim it gives the
 strongest sentence the evidence supports, the evidence, what the evidence does not show, and
@@ -30,6 +38,7 @@ data in `results/`. **[NOT RUN]** needs a VM workload and explicit approval.
 **Verdicts.** *Supported*: holds as worded. *Supported with scope*: holds only in the stated
 setting. *Partly supported*: one half holds. *Inconclusive*: the data cannot decide.
 *Not supported*: no evidence for it. *Contradicted*: the evidence points the other way.
+*Not confirmed*: the check that would confirm it failed or gave no reading.
 
 | # | Claim | Verdict |
 |---|---|---|
@@ -40,12 +49,13 @@ setting. *Partly supported*: one half holds. *Inconclusive*: the data cannot dec
 | M5 | Zero false positives | Contradicted as a general claim |
 | M6 | Time to mitigate is X seconds | Supported as bounds per rule |
 | M7 | Slow attacks are mitigated | Not supported |
-| L1 | The XDP-fed GRU adds detection value | Contradicted |
+| L1 | The XDP-fed GRU adds detection value | Contradicted for the suite's attacks in the deployed configuration; never run alone |
 | L2 | The Nginx-log GRU adds detection value | Not supported |
 | L3 | A sequence model is needed | Not supported |
 | L4 | Static thresholds face a collateral-damage-versus-evasion dilemma | Partly supported; scope it |
 | Q1 | The results are reproducible | Supported for what is published |
 | Q2 | The L7 track was pre-registered | Supported with scope |
+| HB1 | The harm benchmark's frozen calibration record (2026-11-04) holds on the current host | Not confirmed: the drift check failed twice, then gave no reading; no harm-benchmark claim exists |
 
 Numbers below come from `results/`; "the audit-derived directory" is
 `results/2026-10-20_audit-derived/`. The four complete suite runs at the default profile are
@@ -58,7 +68,10 @@ three more complete runs under the tolerant profile, and `2026-10-20_expa-knee-1
 **Scope of every availability claim.** Every availability contrast (M3, M4) rests on one scenario (the
 HTTP flood) at one server operating point (the knee). Only one complete suite run,
 `2026-10-20_regression-after-audit-defaults` (one run, commit 618b2fc), evaluated the defaults of
-2026-10-19 end to end.
+2026-10-19 end to end. The daemon has changed since that run: `control_plane.py` has 22 commits after
+618b2fc (among them a guarded telemetry poll and supervised worker threads, the R.U.D.Y. client-field
+fix, and the per-connection and L7 v2 modules, both off by default), and no published run exercises it
+as it is now.
 
 **Labels.** The suite's "Yo-Yo" scenario (S9) is a pulsing flood: `wrk` for 2 s, then 6 s of pause
 (`test_distributed_suite.py:1829-1832`). The Yo-Yo attack of the literature targets autoscaling, and this
@@ -347,7 +360,10 @@ log]. The suite therefore never exercised this rule.
 
 ### L1. The XDP-fed GRU adds detection value
 
-**Verdict: contradicted.**
+**Verdict: contradicted for the suite's attacks in the deployed configuration,** where a rule banned
+every attacker first. The GRU was never run alone and the suite has no attack the rules miss, so its
+value on such an attack is untested. The thesis answers G1 the same way: negative for the attacks of
+the suite (`sec:wyniki_gru` and `tab:odpowiedzi_g` in `thesis/main.tex`).
 
 **Wording.** "The GRU fed with XDP flow telemetry banned no attacker in any recorded run: in the 37
 distinct ban-event logs recorded with it on (52 logs and 710 bans in all) it made no true ban and
@@ -422,9 +438,10 @@ depend on order."
 **Evidence [FACT].** `order_ablation.md` and `.json` (audit-derived directory; tool
 `ml/order_ablation.py`). Single windows can still move by up to 0.98 in probability (mean 0.003),
 so the effect is negligible, not zero. This tests the trained model on this data; it does not
-show that no model could use order. The P4 sentence "sequence modelling earns its place" is not
-supported (the GRU's lead over the HGB at P5c.3 is one credstuff client, six (IP, UA) groups;
-`docs/L7_GRU_DESIGN.md`, audit note 3).
+show that no model could use order. It tests the Nginx-log GRU only: no published result tests the
+XDP-fed GRU's dependence on order (the thesis's G5 answer for it is "not studied"). The P4 sentence
+"sequence modelling earns its place" is not supported (the GRU's lead over the HGB at P5c.3 is one
+credstuff client, six (IP, UA) groups; `docs/L7_GRU_DESIGN.md`, audit note 3).
 
 ### L4. Static thresholds face a collateral-damage-versus-evasion dilemma
 
@@ -475,6 +492,15 @@ does not list.
   runners record commit, branch and dirty state and refuse a dirty tree.
 * The deployed XDP-GRU cannot be rebuilt from the repository alone: its training flows and the
   CIC data are not in `results/`.
+* Also outside `results/` (the thesis lists the same in `sec:wyniki_wiarygodnosc`): the output
+  behind the L7 pipeline's measured costs (`bench/l7_ingest_bench.py`), the data of the XDP-fed GRU's counterfactual
+  experiments (`docs/ML_INVESTIGATION.md` section 3), and the raw data of the harm benchmark's
+  calibration session of 2026-11-04, so the frozen record
+  (`bench/calibration/ddos-mitigation-2026-11-04.json`) cannot be re-derived from the repository.
+* Re-checked on 2026-11-12: all 33 campaigns with a `SHA256SUMS` verify, the drift check of HB1
+  included (3,696 files). Sixteen of its step files are published redacted (hardware addresses of the
+  VM's network cards, the app's command lines); `steps/REDACTIONS.tsv` gives each one's hash before and
+  after.
 
 ### Q2. The L7 track was pre-registered
 
@@ -484,6 +510,43 @@ after a negative verdict (P5, then P5b, then P5c), each step changing the test; 
 their direction of bias are listed in the review report §6.2.1. Say "pre-registered per
 iteration, with the post-hoc iterations listed". Most of those iterations favoured the GRU, so
 the negative verdict is not an artefact of bias against it.
+
+## Harm-benchmark claims
+
+### HB1. The frozen calibration record of 2026-11-04 holds on the current host
+
+**Verdict: not confirmed.** The drift check failed twice, and its three repeats gave no reading.
+**No harm-benchmark claim exists**: no campaign has been judged against the record, and none may be.
+
+**What it judged.** Before any campaign, `bench/calibrate.py drift` checks that the host still reproduces
+the `drift_reference` of `bench/calibration/ddos-mitigation-2026-11-04.json` (status `frozen`, record hash
+`cff6e515...`, measured on kernel 7.0.0-38 with 9,426 MiB of guest memory): a 120 s legit-only probe (Q
+100 %, p95 0.079 s) and one attack run per family at its knee (cheap static flood at level 2, Q 95.81 %;
+costly export flood at level 4, 75.32 %; costly search flood at level 4, 63.37 %). Q is the share of
+legit requests answered 2xx within their route's SLO. The single-run rule (chosen post hoc on
+2026-11-04, before any campaign data) passes the probe within 2 pp of Q and 25 % of p95, and an attack run
+within 10 pp of Q and a factor of 2 of p95. The check judges the record, not a mitigation.
+
+**Result [FACT]** (`results/2026-11-11_harm-drift-check/`: `README.md`, and `analysis/drift.json`,
+which judges every run again from the published files and agrees with each recorded verdict). AP-4
+(2026-11-08) failed twice: export Q -20.07 pp, then cheap Q -17.27 pp. Its three repeats, governed by a
+quiet-repeatability pre-registration written after AP-4 failed (`preregistration/`, labelled post hoc),
+gave no reading: host resets cut AP-5 and AP-5b, and in AP-7 the second invocation stopped when the
+origin refused its own start-up cost check (routes 26-68 % above the frozen costs on a slowed host) and
+the third never started. All 5 complete attempts (5 `drift.json`, every one `ok=false`) are outside the
+single-run rule, in both directions: export -20.07, cheap -17.27, export +10.07, cheap -85.09 (an attempt
+that the session's own activity disturbed, which the rule keeps), export +10.74 pp. The record is not
+confirmed on the current host.
+
+**Configuration [FACT]** (`environment.json` of every run): kernel 7.0.0-42 in every attempt, against
+7.0.0-38 in the record; guest memory 9,426 MiB in AP-4 and 7,422 MiB from AP-5 on; every run at commit
+1cdda9b with a clean tree.
+
+**It does not show** which of the kernel, the memory, the host's slow stretches (a few minutes to about
+50 minutes at a time, measured with an idle guest) or the spread of single runs at a knee made the
+attempts fail. Each attack reference is one run, and the drift runs use other seeds.
+
+**Would settle it.** A new calibration and its drift check, each pre-registered before its data.
 
 ## Corrections to the review report (2026-10-19)
 
@@ -535,3 +598,7 @@ Run on 2026-10-22 and 23 with your approval: the open-loop probe and its refinem
 `sudo timeout -s INT 28800 python3 eval/run_campaign.py --operating-point knee --scenarios 4 --attack-duration 30
 --modes unprotected,nginxlimits,xdp --runs 10 --seed-base 100 --loads wrk,loadgen:125,loadgen:250,loadgen:500`,
 published as `2026-10-23_expc-open-vs-closed-loop` (M3, M4; protocol `docs/EXPC_PROTOCOL.md`).
+
+Run on 2026-11-08 to 11: the harm benchmark's drift check (AP-4, AP-5, AP-5b, AP-7), published as
+`2026-11-11_harm-drift-check` (HB1). No campaign of the harm benchmark and none of the registered
+experiments P1-P4 has run (the thesis, `tab:zarejestrowane`).
