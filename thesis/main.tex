@@ -1655,7 +1655,10 @@ Zagrożenia trafności wyników są następujące.
 \end{itemize}
 
 \section{Wnioski}\label{sec:wnioski}
-Wnioski sformułowano jako ocenę spełnienia wymagań W1--W7 z tabeli~\ref{tab:wymagania} (tab.~\ref{tab:ocena_wymagan}), na podstawie wyników z rozdziału~\ref{sec:wyniki} i z zachowaniem podanych tam zakresów obowiązywania. Ocena odpowiada stanowi z 12~listopada 2026~r.: eksperymenty P1 i P4 nie zostały przeprowadzone, a benchmark szkody nie ma wyników, więc nie są one podstawą żadnej oceny. W tym zakresie reguły deterministyczne z egzekwowaniem blokad w punkcie XDP zablokowały, przy domyślnym profilu progów, wszystkie warianty ataków zestawu, a w punkcie \textit{knee} zalewania HTTP zwiększyły dostępność usługi względem konfiguracji bez ochrony (+33,2~pp, ten sam znak w 10 z 10 bloków). Ochrony przed atakami powolnymi nie wykazano, a żaden z ocenianych modeli GRU nie wniósł wartości detekcyjnej ponad reguły.
+Wnioski sformułowano jako ocenę spełnienia wymagań W1--W7 z tabeli~\ref{tab:wymagania} (tab.~\ref{tab:ocena_wymagan}), na podstawie wyników z rozdziału~\ref{sec:wyniki} i z zachowaniem podanych tam zakresów obowiązywania. Ocena odpowiada stanowi z 12~listopada 2026~r.: eksperymenty P1 i P4 nie zostały przeprowadzone, a benchmark szkody nie ma wyników, więc nie są one podstawą żadnej oceny. W tym zakresie reguły deterministyczne z egzekwowaniem blokad w punkcie XDP zablokowały, przy domyślnym profilu progów, wszystkie warianty ataków zestawu, a w punkcie \textit{knee} zalewania HTTP zwiększyły dostępność usługi względem konfiguracji bez ochrony (+33,2~pp, ten sam znak w 10 z 10 bloków). Ochrony przed atakami powolnymi nie wykazano, a żaden z ocenianych modeli GRU nie wniósł wartości detekcyjnej ponad reguły. Rozdział zawiera ocenę wymagań i odpowiedzi na pytania G1--G5 (sekcja~\ref{sec:ocena_wymagan}), wnioski główne (sekcja~\ref{sec:wnioski_glowne}), ograniczenia wyników (sekcja~\ref{sec:wnioski_ograniczenia}) oraz kierunki dalszych prac (sekcja~\ref{sec:plan}).
+
+\subsection{Ocena wymagań i odpowiedzi na pytania badawcze}\label{sec:ocena_wymagan}
+Tabela~\ref{tab:ocena_wymagan} zawiera ocenę każdego wymagania. W wierszach W2 i W4 ostatnie zdanie podaje stan eksperymentu, którego zarejestrowany wynik zastąpi w nim zapis ,,nie przeprowadzono'' (P4 dla W2 oraz P3 i P1 dla W4). Pozostała część oceny opiera się na wynikach dostępnych dziś.
 
 \begin{table}[H]
 \centering
@@ -1666,9 +1669,9 @@ Wnioski sformułowano jako ocenę spełnienia wymagań W1--W7 z tabeli~\ref{tab:
 ID & Podstawa oceny & Ocena \\
 \midrule
 W1 & sekcja~\ref{sec:wyniki_xdp} & Spełnione w części. Odrzucanie przed alokacją \textit{sk\_buff} zmierzono: przy 0,84--1,66~mln pakietów/s na interfejsie do warstwy IP trafiało nie więcej niż 227 pakietów/s (interfejs \texttt{veth}, jeden host). Stałego kosztu wyszukiwania nie mierzono. Dostępnością XDP nie różnił się od iptables, a szybsze blokady (o 0,075~s) wykazano tylko dla zalewania HTTP, w analizie \textit{post hoc}. \\
-W2 & sekcja~\ref{sec:wyniki_slow} & Niespełnione w zbadanym zakresie. Reguła \texttt{l4\_slowconn} wykrywała ataki powolne zestawu tylko przy domyślnym progu 8 połączeń (Slowloris otwiera dokładnie 8); przy progu 180 nie zablokowała żadnego z 15 botów w żadnym z obu scenariuszy. Reguła \texttt{l7\_rudy} nie nałożyła żadnej z 710 blokad, a rodzin utrzymujących 6 gniazd nie wykrył żaden silnik. Ochrony przed atakiem powolnym nie wykazano; reguła per połączenie nie była uruchamiana w środowisku testowym (eksperyment P4 nie został przeprowadzony). \\
+W2 & sekcja~\ref{sec:wyniki_slow} & Niespełnione w zbadanym zakresie. Reguła \texttt{l4\_slowconn} wykrywała ataki powolne zestawu tylko przy domyślnym progu 8 połączeń (Slowloris otwiera dokładnie 8); przy progu 180 nie zablokowała żadnego z 15 botów w żadnym z obu scenariuszy. Reguła \texttt{l7\_rudy} nie nałożyła żadnej z 710 blokad, a rodzin utrzymujących 6 gniazd nie wykrył żaden silnik. Ochrony przed atakiem powolnym nie wykazano. Reguła per połączenie, eksperyment P4 (Slowloris, profil R; tab.~\ref{tab:zarejestrowane}): nie przeprowadzono. \\
 W3 & sekcje~\ref{sec:wyniki_reguly}--\ref{sec:wyniki_dostepnosc} & Spełnione z ograniczeniem zakresu. Reguły nałożyły wszystkie blokady botów w punkcie \textit{default} (200 z 200 w 40 przebiegach scenariuszy), a w punkcie \textit{knee} zalewania HTTP demon zwiększył dostępność o 33,2~pp względem braku ochrony (10 z 10 bloków). Czas do mitygacji opisują ograniczenia dla poszczególnych reguł. Jako punkt odniesienia reguły nie zostały pokonane przez żaden model GRU; z realistycznymi klientami nałożyły 3 fałszywe blokady. \\
-W4 & sekcja~\ref{sec:wyniki_gru} & Spełnione w części proceduralnej, z wynikiem negatywnym. Model jest domyślnie wyłączony, a potok L7 działa tylko w trybie cienia; trybu izolacji (\texttt{GRU\_ONLY}) nie użyto w żadnym opublikowanym przebiegu. Względem reguł model nie wniósł wartości: potok \textit{Tier-1} nałożył 0 trafnych blokad i 1 fałszywą, a potok L7 oznaczył 9 ze 100 adresów prawowitych wobec 2 dla reguł i modelu HGB (zarejestrowany werdykt: brak przewagi); kolejność żądań prawie nie wpływała na decyzje. Tor L7 v2 (eksperyment P1) nie ma wyników. \\
+W4 & sekcja~\ref{sec:wyniki_gru} & Spełnione w części proceduralnej, z wynikiem negatywnym. Model jest domyślnie wyłączony, a potok L7 działa tylko w trybie cienia; trybu izolacji (\texttt{GRU\_ONLY}) nie użyto w żadnym opublikowanym przebiegu. Względem reguł model nie wniósł wartości: potok \textit{Tier-1} nałożył 0 trafnych blokad i 1 fałszywą, a potok L7 oznaczył 9 ze 100 adresów prawowitych wobec 2 dla reguł i modelu HGB (zarejestrowany werdykt: brak przewagi); kolejność żądań prawie nie wpływała na decyzje. Tor L7 v2, eksperymenty P3 i P1 (klasy C2, C3a, C3b; tab.~\ref{tab:zarejestrowane}): nie przeprowadzono. \\
 W5 & rozdział~\ref{sec:testbed} & Spełnione dla wyników opublikowanych. Opublikowane kampanie (poza zastąpioną) mają weryfikowalne sumy kontrolne, a analizy odtwarzają się bajt w bajt. Sparowane bloki z regułą decyzyjną zapisaną przed zebraniem danych dotyczą jednak tylko EXP-A i EXP-C (jeden scenariusz, jeden punkt pracy); pozostałe wyniki pochodzą z 3--7 przebiegów i mają charakter opisowy. Ruch prawowity jest syntetyczny, a środowisko wyłącznie laboratoryjne. \\
 W6 & sekcja~\ref{sec:impl_events} & Spełnione dla blokad. Każda z 710 blokad w 52 opublikowanych rejestrach zdarzeń ma przypisany silnik, a zdarzenia \texttt{ban} bieżącej wersji zawierają zmierzoną wartość i próg; kampanie prototypowe z 12~października 2026~r. przekształcono do tego formatu z udokumentowanymi przybliżeniami. Nie każda decyzja demona jest rejestrowana: włączenie ciasteczek SYN nie tworzy zdarzenia. \\
 W7 & sekcja~\ref{sec:ograniczenia} & Spełnione jako założenie zakresu: system działa na jednym hoście, bez współpracy operatora sieci. Ograniczenia wskazano w sekcji~\ref{sec:ograniczenia}: interfejsy \texttt{veth} zamiast fizycznej karty sieciowej, brak ataków odbiciowych i wysycenia łącza, wyłącznie IPv4 i HTTP/1.1 na porcie 80, atakujący nieadaptacyjny i syntetyczny ruch prawowity. \\
@@ -1676,28 +1679,83 @@ W7 & sekcja~\ref{sec:ograniczenia} & Spełnione jako założenie zakresu: system
 \end{tabularx}
 \end{table}
 
-\subsection{Plan dalszych badań}\label{sec:plan}
-Tabela~\ref{tab:plan} zestawia otwarte zagadnienia, eksperymenty potrzebne do ich rozstrzygnięcia oraz sekcje, które zostaną uzupełnione ich wynikami.
+Tabela~\ref{tab:odpowiedzi_g} podaje odpowiedzi na pytania G1--G5 z sekcji~\ref{sec:wyniki_gru} osobno dla każdego potoku modelu GRU. Kolumna toru L7 v2 jest stałym miejscem na wyniki eksperymentów P3 i P1.
 
 \begin{table}[H]
 \centering
 \scriptsize
-\caption{Otwarte zagadnienia i planowane eksperymenty}\label{tab:plan}
+\caption{Odpowiedzi na pytania G1--G5 (stan na 12~listopada 2026~r.)}\label{tab:odpowiedzi_g}
+\begin{tabularx}{\linewidth}{@{}L{0.7cm}YYL{1.8cm}@{}}
+\toprule
+Pytanie & Potok \textit{Tier-1} & Potok L7 (P5c.4) & Tor L7 v2 (P3, P1) \\
+\midrule
+G1 & Nie. Brak trafnych blokad; model nigdy nie decydował przed regułą blokującą ten sam adres, a zestaw nie zawiera ataku, którego reguły nie wykrywają. & Nie. Model wykrył 20 z 20 atakujących, których nie wykryły reguły demona w profilu \texttt{tolerant}, ale reguły oparte na kluczu (IP, \textit{User-Agent}) i częstotliwości utrzymywanej oraz model HGB wykryły tych samych 20 przy 2 zamiast 9 oznaczonych adresach prawowitych. & nie przeprowadzono \\
+G2 & Nie wyznaczono przy ustalonym budżecie: w działaniu na żywo brak trafnych blokad (adresy zablokowane przez reguły nie są oceniane), a jedyna blokada była fałszywa. & Kryteria niespełnione: 20 z 20 atakujących przy 9\% oznaczonych adresów prawowitych (budżet 5\%) i 1,8 fałszywego alarmu na godzinę pracy klienta (budżet 1,0). & nie przeprowadzono \\
+G3 & Nie: model uczony bez rodziny R.U.D.Y. wykrywał 19--29\% jej okien (3 ziarna). & Nierozstrzygnięte: rodziny wstrzymane z treningu posłużyły do wyboru wariantu cech; wstrzymany z treningu rodzaj ruchu prawowitego (klient API) był oznaczany w każdym przebiegu. & nie przeprowadzono \\
+G4 & Nie: decyzje zależą głównie od rozmiaru żądania (19--29\% wobec 100\% albo 2--6\% po zmianie samego rozmiaru). & Częściowo: wybrany model przeszedł testy niezmienniczości, w tym względem dopełnienia żądań (0 zmian decyzji); niezmienniczości względem opóźnień sieci nie badano, a przeglądarkę z 60 zasobami model oznaczył w 4 z 4 przebiegów z profilem \texttt{perfect} i w żadnym z 6 pozostałych. & nie przeprowadzono \\
+G5 & Nie badano w opublikowanych wynikach. & Wpływ pomijalny: przemieszanie kolejności zmieniło 60 z 29\,171 decyzji na poziomie okna (0,21\%) i żadnej decyzji na poziomie adresu. & nie przeprowadzono \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Hipoteza H1 (sekcja~\ref{sec:wyniki_xdp}) wiązała szybsze blokady XDP w zalewaniu HTTP z kosztem sekwencyjnych wywołań procesu \texttt{iptables} w porównaniu z pojedynczą aktualizacją mapy. Pozostaje niezweryfikowana: kosztu ścieżki blokady nie zmierzono w żadnym z mechanizmów, a sama różnica (0,075~s [0,030; 0,120] w 10 blokach EXP-A) pochodzi z analizy \textit{post hoc} i nie wystąpiła konsekwentnie w pozostałych scenariuszach zestawu.
+
+\subsection{Wnioski główne}\label{sec:wnioski_glowne}
+Z wyników w zakresie opisanym w rozdziale~\ref{sec:wyniki} wynikają następujące wnioski.
+\begin{enumerate}
+    \item \textbf{Reguły deterministyczne z egzekwowaniem blokad w XDP.} Przy domyślnym profilu progów reguły zablokowały wszystkie boty w każdym z 10 scenariuszy zestawu w czterech pełnych przebiegach. W punkcie \textit{knee} zalewania HTTP demon utrzymał dostępność 100\% w każdym bloku EXP-A i EXP-C, co dało przewagę nad brakiem ochrony o 33,2~pp w EXP-A i o 22,5~pp w EXP-C przy atakującym w modelu zamkniętej pętli, a przy atakującym w modelu otwartej pętli o 57,9 i 88,6~pp (250 i 500 żądań/s na bota). W punkcie \textit{default} żaden atak nie obniżał dostępności, więc tam skuteczność oznacza zablokowanie, a nie ochronę dostępności (sekcje~\ref{sec:wyniki_reguly} i~\ref{sec:wyniki_dostepnosc}).
+    \item \textbf{O ocenie samych limitów serwera decyduje model atakującego.} Wbudowane limity Nginx bez demona obniżyły dostępność względem braku ochrony o 22,5~pp w EXP-A i o 34,3~pp w EXP-C przy atakującym w modelu zamkniętej pętli, który kierował do limitu około 29,6~tys. żądań/s. Przy atakującym w modelu otwartej pętli te same limity utrzymały dostępność 100\% w każdym bloku. Ocena mechanizmów ograniczania częstotliwości wymaga więc jawnie określonego modelu atakującego; żaden z badanych modeli nie był adaptacyjny (sekcja~\ref{sec:wyniki_dostepnosc}).
+    \item \textbf{XDP i iptables.} XDP odrzucał pakiety zablokowanych źródeł przed warstwą IP: przy 0,84--1,66~mln pakietów/s na interfejsie \texttt{veth} trafiało do niej nie więcej niż 227 pakietów/s, podczas gdy iptables przekazywał do niej w pomiarach wcześniejszą wersją zestawu, w scenariuszach UDP, ACK i fragmentacji, 1,07--1,44~mln pakietów/s. W zbadanym zakresie nie przełożyło się to na dostępność: obie konfiguracje z demonem utrzymały 100\%. Szybsze blokady XDP wykazano tylko dla zalewania HTTP, w analizie \textit{post hoc}, a ich przyczyna (H1) pozostaje niezweryfikowana (sekcja~\ref{sec:wyniki_xdp}).
+    \item \textbf{Ataki powolne.} Ochrony przed atakami powolnymi nie wykazano. Reguła oparta na liczbie połączeń per adres wykrywała ataki zestawu tylko przy domyślnym progu, a próg, przy którym ustają fałszywe blokady bram CGNAT, usuwa detekcję obu ataków (żaden z 15 botów w każdym z dwóch scenariuszy). W przebiegach EXP-B ataki te nie obniżyły jednak dostępności także bez blokad, co jest zgodne z obserwacją, że neutralizują je limity serwera Nginx, niezweryfikowaną osobnym eksperymentem (sekcje~\ref{sec:wyniki_fp} i~\ref{sec:wyniki_slow}).
+    \item \textbf{Modele GRU: wynik negatywny o określonym zakresie.} W kontrolowanym środowisku testowym żaden z dwóch ocenianych wariantów modelu GRU, zasilany cechami przepływów z punktu XDP ani zasilany logiem żądań serwera Nginx, nie wniósł wartości detekcyjnej ponad reguły deterministyczne. Potok \textit{Tier-1} nie nałożył trafnej blokady, a jego decyzje zależały głównie od rozmiaru żądania, czyli cechy narzędzia. Potok L7 wykrył tych samych atakujących co proste reguły oparte na kluczu (IP, \textit{User-Agent}) i częstotliwości utrzymywanej, przy większej liczbie oznaczonych klientów prawowitych, a kolejność żądań prawie nie wpływała na jego decyzje. Dla klas zagrożeń obecnych w środowisku model uczony okazał się niepotrzebny. Wynik nie dotyczy klas, w których reguły oparte na kluczu i częstotliwości utrzymywanej zawodzą, ponieważ takiej klasy z mierzalną szkodą nie zbadano (sekcja~\ref{sec:wyniki_gru}).
+    \item \textbf{Metodyka.} Sparowane bloki z regułą decyzyjną zapisaną przed zebraniem danych rozstrzygnęły kontrast, którego kampanie z trzema przebiegami nie rozstrzygały: wpływ samych limitów Nginx wynosił w nich od $-6{,}4$ do $-37{,}6$~pp bez rozstrzygnięcia, a w 10 blokach EXP-A $-22{,}5$~pp [$-32{,}0$; $-13{,}1$]. Ocena ochrony wymaga przy tym punktu pracy, w którym atak szkodzi: w punkcie \textit{default} wszystkie konfiguracje, także bez ochrony, obsłużyły wszystkie poza jednym z 17\,363 żądań prawowitych rozpoczętych w trakcie ataków (sekcje~\ref{sec:statystyka} i~\ref{sec:wyniki_reguly}).
+\end{enumerate}
+
+Wnioski te nie obejmują programów zarejestrowanych, lecz nieprzeprowadzonych (tab.~\ref{tab:zarejestrowane}). Ich stan, w postaci, w której zastąpi go zarejestrowany wynik, jest następujący:
+\begin{itemize}
+    \item czy reguła per połączenie łagodzi atak Slowloris utrzymujący mniej połączeń niż próg \texttt{l4\_slowconn}, w profilu R (P4): nie przeprowadzono;
+    \item porównanie ramion modułu L7 v2 (reguły R*, HGB, GRU) w klasach C2, C3a i C3b, z danymi i krzywymi uczenia P3 (P1): nie przeprowadzono;
+    \item czy atak w benchmarku szkody szkodzi serwerowi bez ochrony i czy demon z egzekwowaniem w XDP tę szkodę usuwa (P2): nie przeprowadzono; potwierdzenie rekordu kalibracji kontrolą dryfu (V0): brak odczytu.
+\end{itemize}
+
+\subsection{Ograniczenia}\label{sec:wnioski_ograniczenia}
+Wnioski obowiązują w środowisku opisanym w sekcji~\ref{sec:ograniczenia} i z następującymi ograniczeniami samych wyników:
+\begin{enumerate}
+    \item Ochronę dostępności zmierzono dla jednego scenariusza (zalewanie HTTP) i jednego punktu pracy. Punktów pracy pozostałych scenariuszy nie skalibrowano, a w punkcie \textit{default} nie było szkody, której można by zapobiec.
+    \item Atakujący był nieadaptacyjny, a jego częstotliwości przekraczały progi reguł per adres (w EXP-C co najmniej 2,5-krotnie). Ataków z wielu źródeł poniżej tych progów nie badano.
+    \item Ruch prawowity zestawu to pojedyncze żądania \texttt{curl}, więc wynik ,,brak fałszywych blokad'' dotyczy tej mieszanki ruchu. Z bogatszym ruchem prawowitym reguły nałożyły 3 fałszywe blokady, a rejestry zdarzeń nie pozwalają wyznaczyć odsetka fałszywych alarmów.
+    \item Czas do mitygacji opisano jako zakresy dla poszczególnych reguł z 7 pełnych przebiegów, bez rozkładu.
+    \item Pomiary wykonano na interfejsach \texttt{veth} jednej maszyny wirtualnej. Wartości bezwzględne przepustowości i obciążenia nie przenoszą się na fizyczną kartę sieciową, a zakres wektorów nie obejmuje ataków odbiciowych, wysycenia łącza, HTTP/2 ani IPv6 (wymaganie W7).
+    \item Wyniki dla modeli GRU dotyczą danych tego środowiska. W ewaluacji P5c.4 20 adresów atakujących to 4 role w 5 ziarnach, atakujący nie obniżali jakości obsługi klientów prawowitych, a reguły odniesienia dostrojono na przebiegach ewaluacyjnych. Wynik pokazuje, że w tych klasach zagrożeń model nie był potrzebny, a nie że model sekwencyjny nie może być przydatny.
+    \item Benchmark szkody nie ma wyników: rekord kalibracji nie został potwierdzony na obecnym hoście, a host maszyny wirtualnej podlegał w okresie kontroli nieplanowanym restartom i spowolnieniom (sekcja~\ref{sec:wyniki_kalibracja}).
+\end{enumerate}
+
+\subsection{Dalsze prace}\label{sec:plan}
+Dalsze prace obejmują dwie grupy zadań. Pierwszą są programy zarejestrowane przed zebraniem danych (tab.~\ref{tab:zarejestrowane}), których kod i reguły werdyktu są gotowe. Wszystkie zależą od benchmarku szkody: P1, P2 i P4 oceniają szkodę jego bramką, a przechwycenia P3 korzystają z poziomów ataku wyznaczonych drabiną P1. Pierwszym krokiem jest więc nowa kalibracja z regułami zapisanymi przed zebraniem danych i jej kontrola dryfu, wykonane na hoście, którego szybkość jest mierzona obok każdego przebiegu, a nie tylko przed nim. Pięć prób z 8--11~listopada 2026~r. wskazuje też, że kontrola porównująca pojedynczy przebieg z odniesieniem z pojedynczego przebiegu przechodzi zbyt rzadko, by mogła być warunkiem kampanii (sekcja~\ref{sec:wyniki_kalibracja}); zmiana tej reguły wymaga nowej rejestracji przed zebraniem danych. Następnie można uruchomić kampanię P2, eksperyment P4 oraz przechwycenia P3 i eksperyment P1, w kolejności ich zależności. Wyniki tych programów zastąpią zapisy ,,nie przeprowadzono'' w tabelach~\ref{tab:benchmark_stan} i~\ref{tab:zarejestrowane}, w wierszach W2 i W4 tabeli~\ref{tab:ocena_wymagan}, w kolumnie toru L7 v2 tabeli~\ref{tab:odpowiedzi_g}, w wierszu L7 v2 tabeli~\ref{tab:gru_iteracje} i w sekcji~\ref{sec:wnioski_glowne}, bez zmiany reguł ich werdyktu.
+
+Drugą grupę tworzą zagadnienia otwarte poza tymi programami, zestawione w tabeli~\ref{tab:plan} razem z programami, które ich dotyczą (Z2, Z9, Z10). Są to: rozkład czasu do mitygacji (Z1), rola limitów Nginx w neutralizacji ataków powolnych (Z3), zalewanie z losowymi adresami źródłowymi (Z4), kompletność analizy nagłówków w XDP (Z5), punkty pracy dla scenariuszy wolumetrycznych (Z6), przenoszalność na fizyczną kartę sieciową (Z7), ataki z wielu źródeł i atakujący adaptacyjny (Z8), wektory specyficzne dla HTTP/2 (Z11) oraz przyczyna różnicy czasu blokady między XDP i iptables (Z12, hipoteza H1). Dla modelu sekwencyjnego warunkiem dalszych iteracji pozostaje reguła dopuszczenia z sekcji~\ref{sec:wyniki_gru}: klasa zagrożeń, w której reguły oparte na kluczu i częstotliwości utrzymywanej zawodzą, a szkoda dla klientów prawowitych jest mierzalna.
+
+\begin{table}[H]
+\centering
+\scriptsize
+\caption{Otwarte zagadnienia i dalsze prace}\label{tab:plan}
 \begin{tabularx}{\linewidth}{@{}L{0.6cm}L{4.0cm}YL{1.7cm}@{}}
 \toprule
 ID & Zagadnienie & Wymagany eksperyment lub prace & Sekcja \\
 \midrule
 Z1 & rozkład czasu do mitygacji & $\geq 10$ pełnych przebiegów zestawu w punkcie \textit{default} & \ref{sec:wyniki_ttm} \\
-Z2 & ataki powolne poniżej progu \texttt{l4\_slowconn} & eksperyment P4 (Slowloris): drabina liczby źródeł, a po wyznaczeniu punktu przegięcia wybór punktu $(T, F, K)$ na ziarnach walidacyjnych i kampania 10 bloków w profilu R & \ref{sec:exp_p4} \\
+Z2 & ataki powolne poniżej progu \texttt{l4\_slowconn} & eksperyment P4 (Slowloris; zarejestrowany, tab.~\ref{tab:zarejestrowane}): drabina liczby źródeł, a po wyznaczeniu punktu przegięcia wybór punktu $(T, F, K)$ na ziarnach walidacyjnych i kampania 10 bloków w profilu R & \ref{sec:exp_p4} \\
 Z3 & wpływ limitów Nginx na ataki powolne bez ochrony & weryfikacja roli \texttt{client\_body\_timeout} i \texttt{client\_max\_body\_size} w konfiguracji zahartowanej & \ref{sec:wyniki_slow} \\
 Z4 & zalewanie z losowymi adresami źródłowymi & \texttt{hping3 -{}-rand-source} przy działającym demonie; zachowanie map LRU i ciasteczek SYN & \ref{sec:impl_l4} \\
 Z5 & kompletność analizy nagłówków w XDP & kontrole \texttt{doff}, \texttt{tot\_len}, fragmentów IP, IPv6 i 802.1Q & \ref{sec:impl_xdp} \\
 Z6 & punkty pracy dla scenariuszy wolumetrycznych & kalibracja punktu przegięcia dla scenariuszy 1, 3, 5, 6, 10 & \ref{sec:tryby_porownawcze} \\
 Z7 & przenoszalność na fizyczną kartę sieciową & powtórzenie pomiarów odrzucania przed stosem i TTM na sterowniku z natywnym XDP & \ref{sec:wyniki_narzut} \\
 Z8 & ataki z wielu źródeł, atakujący adaptacyjny & ataki poniżej progów per adres z wielu źródeł; atakujący reagujący na odrzucenia (klasy C2 i C3b eksperymentu P1 obejmują część tego zakresu) & \ref{sec:wyniki_dostepnosc} \\
-Z9 & kolejna iteracja modelu GRU & eksperyment P1: przechwycenie danych, wybór punktów pracy ramion, kampania 10 bloków; kryteria G1--G5 & \ref{sec:exp_p1} \\
-Z10 & punkt pracy benchmarku szkody & nowa kalibracja z regułami zapisanymi przed zebraniem danych; rekord z 4~listopada 2026~r. nie został potwierdzony kontrolą dryfu & \ref{sec:wyniki_kalibracja} \\
+Z9 & kolejna iteracja modelu GRU & eksperymenty P3 i P1 (zarejestrowane, tab.~\ref{tab:zarejestrowane}): przechwycenie danych i krzywe uczenia, drabiny szkody klas, wybór punktów pracy ramion, kampania 10 bloków; kryteria G1--G5 & \ref{sec:exp_p1} \\
+Z10 & punkt pracy benchmarku szkody & nowa kalibracja z regułami zapisanymi przed zebraniem danych, na hoście o mierzonej szybkości; rekord z 4~listopada 2026~r. nie został potwierdzony kontrolą dryfu; następnie kampania P2 (zarejestrowana) & \ref{sec:wyniki_kalibracja} \\
 Z11 & wektory specyficzne dla HTTP/2 & scenariusze na porcie 443 (np. Rapid Reset) & \ref{sec:ograniczenia} \\
+Z12 & przyczyna szybszych blokad XDP w zalewaniu HTTP (H1) & pomiar kosztu ścieżki blokady w obu mechanizmach & \ref{sec:wyniki_xdp} \\
+\bottomrule
 \end{tabularx}
 \end{table}
 
