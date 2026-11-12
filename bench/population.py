@@ -93,7 +93,7 @@ class AttackFamily:
     name: str
     route_class: str
     process: str                     # the arrival process of every source
-    grounding: str                   # the external reference, or "assumed" (docs/BENCHMARK_HARM_DESIGN.md 11.2)
+    grounding: str                   # the external reference, or "assumed" (docs/BENCHMARK_HARM_DESIGN.md 10, condition 1, and Appendix B)
     note: str
 
 
