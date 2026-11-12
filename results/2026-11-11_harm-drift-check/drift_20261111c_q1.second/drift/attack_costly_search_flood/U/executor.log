@@ -1,0 +1,18 @@
+    2.413 timer probe 1 on CPU 7 at 2026-11-11T19:02:44+00:00: p50 0.726362, p99 4.39299, max 5.37165 ms: passed
+    2.505 run U of costly_search_sub_threshold, seed 44: preflight and environment passed
+    7.343 topology: 4 namespaces, 300 addresses, verified in 4.8 s
+    7.364 started the origin as pid 296334
+    7.441 started Nginx (its launcher returned after 0.07 s)
+   10.518 stack ready: 5 routes answer with their own class under calibration frozen:cff6e515; warmed up
+   10.722 launched 31 legit streams
+   43.294 launched 4 attack streams
+  119.468 timeline over after 108.9 s
+  119.786 stopped 1 process(es) of this run in 0.30 s
+  119.799 wall time of 8 stream(s) raised to what their records need, by up to 0.16 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  119.799 1 legit stream(s) began outside the pack of the others, by up to 0.53 s, and are placed by their own offsets: L-poisson-C0-perfect-0
+  119.884 nginx access log: 5986 lines (0 unparsed), server_requests.csv written, log compressed
+  119.885 run.json written; the run is sound
+  119.951 teardown: 0 process(es) in 5 namespace(s): listed in 0.07 s, ended in 0.00 s
+  119.988 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.01 s, hg_2_mobile_3g 0.01 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  120.143 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.04 s, vo_hg_2_mobile_ 0.03 s, vo_hg_3_mobile_ 0.04 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  120.166 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.3 s in all)

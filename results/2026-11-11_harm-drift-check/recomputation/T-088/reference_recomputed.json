@@ -1,0 +1,393 @@
+{
+ "knee_ladder_repeats": {
+  "cheap_static_flood": [
+   {
+    "agree": true,
+    "commit": "8030506",
+    "committed": {
+     "Q": 92.04946996466431,
+     "p95_s": 0.17855809999999434,
+     "requests": 1132
+    },
+    "cpus": 8,
+    "dir": "/var/tmp/ddos_campaigns/hg2_3/ladder_cheap_static_flood/08_L2_r2/U",
+    "dirty": false,
+    "kernel": "7.0.0-38-generic",
+    "label": "08_L2_r2",
+    "level": 2.0,
+    "mem_mib": 9426,
+    "own": {
+     "Q": 92.04946996466431,
+     "p95_s": 0.17855809999999434,
+     "requests": 1132
+    },
+    "pins": {
+     "attack": "3-6",
+     "daemon": "2",
+     "legit": "7",
+     "server": "0-1"
+    },
+    "seed": 21,
+    "sound": true,
+    "started_utc": "2026-11-03T10:50:24+00:00"
+   },
+   {
+    "agree": true,
+    "commit": "8030506",
+    "committed": {
+     "Q": 89.50617283950618,
+     "p95_s": 0.2036669999999949,
+     "requests": 1134
+    },
+    "cpus": 8,
+    "dir": "/var/tmp/ddos_campaigns/hg2_3/ladder_cheap_static_flood/12_L2_r1/U",
+    "dirty": false,
+    "kernel": "7.0.0-38-generic",
+    "label": "12_L2_r1",
+    "level": 2.0,
+    "mem_mib": 9426,
+    "own": {
+     "Q": 89.50617283950618,
+     "p95_s": 0.2036669999999949,
+     "requests": 1134
+    },
+    "pins": {
+     "attack": "3-6",
+     "daemon": "2",
+     "legit": "7",
+     "server": "0-1"
+    },
+    "seed": 21,
+    "sound": true,
+    "started_utc": "2026-11-04T10:42:51+00:00"
+   }
+  ],
+  "costly_export_flood": [
+   {
+    "agree": true,
+    "commit": "8030506",
+    "committed": {
+     "Q": 70.77625570776256,
+     "p95_s": 0.2720831999999958,
+     "requests": 1314
+    },
+    "cpus": 8,
+    "dir": "/var/tmp/ddos_campaigns/hg2_3/ladder_costly_export_flood/03_L4_r1/U",
+    "dirty": false,
+    "kernel": "7.0.0-38-generic",
+    "label": "03_L4_r1",
+    "level": 4.0,
+    "mem_mib": 9426,
+    "own": {
+     "Q": 70.77625570776256,
+     "p95_s": 0.2720831999999958,
+     "requests": 1314
+    },
+    "pins": {
+     "attack": "3-6",
+     "daemon": "2",
+     "legit": "7",
+     "server": "0-1"
+    },
+    "seed": 22,
+    "sound": true,
+    "started_utc": "2026-11-03T09:54:15+00:00"
+   },
+   {
+    "agree": true,
+    "commit": "8030506",
+    "committed": {
+     "Q": 74.22053231939164,
+     "p95_s": 0.28067324999999954,
+     "requests": 1315
+    },
+    "cpus": 8,
+    "dir": "/var/tmp/ddos_campaigns/hg2_3/ladder_costly_export_flood/09_L4_r2/U",
+    "dirty": false,
+    "kernel": "7.0.0-38-generic",
+    "label": "09_L4_r2",
+    "level": 4.0,
+    "mem_mib": 9426,
+    "own": {
+     "Q": 74.22053231939164,
+     "p95_s": 0.28067324999999954,
+     "requests": 1315
+    },
+    "pins": {
+     "attack": "3-6",
+     "daemon": "2",
+     "legit": "7",
+     "server": "0-1"
+    },
+    "seed": 22,
+    "sound": true,
+    "started_utc": "2026-11-03T10:06:59+00:00"
+   }
+  ],
+  "costly_search_flood": [
+   {
+    "agree": true,
+    "commit": "8030506",
+    "committed": {
+     "Q": 61.98412698412698,
+     "p95_s": 0.41934499999999986,
+     "requests": 1260
+    },
+    "cpus": 8,
+    "dir": "/var/tmp/ddos_campaigns/hg2_3/ladder_costly_search_flood/01_L4_r2/U",
+    "dirty": false,
+    "kernel": "7.0.0-38-generic",
+    "label": "01_L4_r2",
+    "level": 4.0,
+    "mem_mib": 9426,
+    "own": {
+     "Q": 61.98412698412698,
+     "p95_s": 0.41934499999999986,
+     "requests": 1260
+    },
+    "pins": {
+     "attack": "3-6",
+     "daemon": "2",
+     "legit": "7",
+     "server": "0-1"
+    },
+    "seed": 23,
+    "sound": true,
+    "started_utc": "2026-11-03T09:06:00+00:00"
+   },
+   {
+    "agree": true,
+    "commit": "8030506",
+    "committed": {
+     "Q": 69.75455265241489,
+     "p95_s": 0.3432430000000011,
+     "requests": 1263
+    },
+    "cpus": 8,
+    "dir": "/var/tmp/ddos_campaigns/hg2_3/ladder_costly_search_flood/06_L4_r1/U",
+    "dirty": false,
+    "kernel": "7.0.0-38-generic",
+    "label": "06_L4_r1",
+    "level": 4.0,
+    "mem_mib": 9426,
+    "own": {
+     "Q": 69.75455265241489,
+     "p95_s": 0.3432430000000011,
+     "requests": 1263
+    },
+    "pins": {
+     "attack": "3-6",
+     "daemon": "2",
+     "legit": "7",
+     "server": "0-1"
+    },
+    "seed": 23,
+    "sound": true,
+    "started_utc": "2026-11-03T09:16:06+00:00"
+   }
+  ]
+ },
+ "reference_from_raw": {
+  "cheap_static_flood": {
+   "agree": true,
+   "commit": "8030506",
+   "committed": {
+    "Q": 95.80888516345348,
+    "p95_s": 0.20570220000000097,
+    "requests": 1193
+   },
+   "cpus": 8,
+   "dir": "/var/tmp/ddos_campaigns/hg2_3/reference/attack_cheap_static_flood/U",
+   "dirty": false,
+   "kernel": "7.0.0-38-generic",
+   "level": 2.0,
+   "mem_mib": 9426,
+   "own": {
+    "Q": 95.80888516345348,
+    "p95_s": 0.20570220000000097,
+    "requests": 1193
+   },
+   "pins": {
+    "attack": "3-6",
+    "daemon": "2",
+    "legit": "7",
+    "server": "0-1"
+   },
+   "record": {
+    "level": 2.0,
+    "p95_s": 0.20570220000000097,
+    "q_pct": 95.80888516345348
+   },
+   "same_as_record": true,
+   "seed": 34,
+   "sound": true,
+   "started_utc": "2026-11-04T11:07:50+00:00"
+  },
+  "costly_export_flood": {
+   "agree": true,
+   "commit": "8030506",
+   "committed": {
+    "Q": 75.3211009174312,
+    "p95_s": 0.25194199999999967,
+    "requests": 1090
+   },
+   "cpus": 8,
+   "dir": "/var/tmp/ddos_campaigns/hg2_3/reference/attack_costly_export_flood/U",
+   "dirty": false,
+   "kernel": "7.0.0-38-generic",
+   "level": 4.0,
+   "mem_mib": 9426,
+   "own": {
+    "Q": 75.3211009174312,
+    "p95_s": 0.25194199999999967,
+    "requests": 1090
+   },
+   "pins": {
+    "attack": "3-6",
+    "daemon": "2",
+    "legit": "7",
+    "server": "0-1"
+   },
+   "record": {
+    "level": 4.0,
+    "p95_s": 0.25194199999999967,
+    "q_pct": 75.3211009174312
+   },
+   "same_as_record": true,
+   "seed": 35,
+   "sound": true,
+   "started_utc": "2026-11-04T11:10:25+00:00"
+  },
+  "costly_search_flood": {
+   "agree": true,
+   "commit": "8030506",
+   "committed": {
+    "Q": 63.36996336996337,
+    "p95_s": 0.6308129999999972,
+    "requests": 1092
+   },
+   "cpus": 8,
+   "dir": "/var/tmp/ddos_campaigns/hg2_3/reference/attack_costly_search_flood/U",
+   "dirty": false,
+   "kernel": "7.0.0-38-generic",
+   "level": 4.0,
+   "mem_mib": 9426,
+   "own": {
+    "Q": 63.36996336996337,
+    "p95_s": 0.6308129999999972,
+    "requests": 1092
+   },
+   "pins": {
+    "attack": "3-6",
+    "daemon": "2",
+    "legit": "7",
+    "server": "0-1"
+   },
+   "record": {
+    "level": 4.0,
+    "p95_s": 0.6308129999999972,
+    "q_pct": 63.36996336996337
+   },
+   "same_as_record": true,
+   "seed": 36,
+   "sound": true,
+   "started_utc": "2026-11-04T11:12:27+00:00"
+  },
+  "legit_median": {
+   "Q": 100.0,
+   "p95_s": 0.0794383500000002,
+   "record_Q": 100.0,
+   "record_p95_s": 0.0794383500000002,
+   "same": true
+  },
+  "legit_runs": [
+   {
+    "agree": true,
+    "commit": "8030506",
+    "committed": {
+     "Q": 100.0,
+     "p95_s": 0.07345949999999934,
+     "requests": 2826
+    },
+    "cpus": 8,
+    "dir": "/var/tmp/ddos_campaigns/hg2_3/reference/legit_1/C",
+    "dirty": false,
+    "kernel": "7.0.0-38-generic",
+    "level": null,
+    "mem_mib": 9426,
+    "own": {
+     "Q": 100.0,
+     "p95_s": 0.07345949999999934,
+     "requests": 2826
+    },
+    "pins": {
+     "attack": "3-6",
+     "daemon": "2",
+     "legit": "7",
+     "server": "0-1"
+    },
+    "seed": 31,
+    "sound": true,
+    "started_utc": "2026-11-04T11:01:00+00:00"
+   },
+   {
+    "agree": true,
+    "commit": "8030506",
+    "committed": {
+     "Q": 100.0,
+     "p95_s": 0.0794383500000002,
+     "requests": 2894
+    },
+    "cpus": 8,
+    "dir": "/var/tmp/ddos_campaigns/hg2_3/reference/legit_2/C",
+    "dirty": false,
+    "kernel": "7.0.0-38-generic",
+    "level": null,
+    "mem_mib": 9426,
+    "own": {
+     "Q": 100.0,
+     "p95_s": 0.0794383500000002,
+     "requests": 2894
+    },
+    "pins": {
+     "attack": "3-6",
+     "daemon": "2",
+     "legit": "7",
+     "server": "0-1"
+    },
+    "seed": 32,
+    "sound": true,
+    "started_utc": "2026-11-04T11:03:15+00:00"
+   },
+   {
+    "agree": true,
+    "commit": "8030506",
+    "committed": {
+     "Q": 100.0,
+     "p95_s": 0.08625999999999578,
+     "requests": 2681
+    },
+    "cpus": 8,
+    "dir": "/var/tmp/ddos_campaigns/hg2_3/reference/legit_3/C",
+    "dirty": false,
+    "kernel": "7.0.0-38-generic",
+    "level": null,
+    "mem_mib": 9426,
+    "own": {
+     "Q": 100.0,
+     "p95_s": 0.08625999999999578,
+     "requests": 2681
+    },
+    "pins": {
+     "attack": "3-6",
+     "daemon": "2",
+     "legit": "7",
+     "server": "0-1"
+    },
+    "seed": 33,
+    "sound": true,
+    "started_utc": "2026-11-04T11:05:35+00:00"
+   }
+  ]
+ }
+}

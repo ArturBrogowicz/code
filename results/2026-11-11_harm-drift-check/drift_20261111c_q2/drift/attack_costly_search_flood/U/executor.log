@@ -1,0 +1,33 @@
+    2.365 timer probe 1 on CPU 7 at 2026-11-11T19:16:32+00:00: p50 0.366199, p99 2.30938, max 2.95371 ms: passed
+    2.526 run U of costly_search_sub_threshold, seed 44: preflight and environment passed
+    8.601 topology: 4 namespaces, 300 addresses, verified in 6.1 s
+    8.664 started the origin as pid 298807
+    8.727 started Nginx (its launcher returned after 0.05 s)
+   12.112 setup failed: the origin exited with 1 (see gunicorn.log)
+   12.286 teardown: 9 process(es) in 5 namespace(s): listed in 0.04 s, ended in 0.12 s
+   12.384 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.01 s, hg_2_mobile_3g 0.01 s, hg_3_mobile_bad 0.01 s, server_ns 0.06 s
+   12.800 teardown: links deleted: vo_hg_0_perfect 0.29 s, vo_hg_1_broadba 0.03 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.02 s, veth_srv_br 0.03 s, ddos_br0 0.03 s
+   12.834 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.7 s in all)
+   12.835 retrying the setup (1 of 2)
+   18.351 topology: 4 namespaces, 300 addresses, verified in 5.5 s
+   18.395 started the origin as pid 299039
+   18.455 started Nginx (its launcher returned after 0.05 s)
+   21.797 setup failed: the origin exited with 1 (see gunicorn.log)
+   21.977 teardown: 9 process(es) in 5 namespace(s): listed in 0.06 s, ended in 0.11 s
+   22.117 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.02 s, hg_2_mobile_3g 0.02 s, hg_3_mobile_bad 0.05 s, server_ns 0.04 s
+   22.607 teardown: links deleted: vo_hg_0_perfect 0.18 s, vo_hg_1_broadba 0.20 s, vo_hg_2_mobile_ 0.04 s, vo_hg_3_mobile_ 0.02 s, veth_srv_br 0.02 s, ddos_br0 0.03 s
+   22.642 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.8 s in all)
+   22.642 retrying the setup (2 of 2)
+   28.318 topology: 4 namespaces, 300 addresses, verified in 5.7 s
+   28.387 started the origin as pid 299283
+   28.443 started Nginx (its launcher returned after 0.05 s)
+   31.876 setup failed: the origin exited with 1 (see gunicorn.log)
+   32.040 teardown: 9 process(es) in 5 namespace(s): listed in 0.05 s, ended in 0.10 s
+   32.158 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.02 s, hg_2_mobile_3g 0.04 s, hg_3_mobile_bad 0.02 s, server_ns 0.03 s
+   32.506 teardown: links deleted: vo_hg_0_perfect 0.12 s, vo_hg_1_broadba 0.06 s, vo_hg_2_mobile_ 0.08 s, vo_hg_3_mobile_ 0.02 s, veth_srv_br 0.02 s, ddos_br0 0.04 s
+   32.539 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.7 s in all)
+   32.539 failed: SetupFailed('the origin exited with 1 (see gunicorn.log)')
+   32.581 teardown: 0 process(es) in 5 namespace(s): listed in 0.04 s, ended in 0.00 s
+   32.617 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.01 s, hg_2_mobile_3g 0.01 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+   32.713 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.02 s, veth_srv_br 0.02 s, ddos_br0 0.02 s
+   32.740 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.2 s in all)

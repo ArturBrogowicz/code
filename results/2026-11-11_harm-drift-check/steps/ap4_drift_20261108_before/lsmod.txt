@@ -1,0 +1,59 @@
+ac97_bus               12288  1 snd_ac97_codec
+aesni_intel            98304  0
+ahci                   57344  2
+autofs4                61440  2
+binfmt_misc            24576  1
+cfg80211             1564672  0
+dmi_sysfs              28672  0
+dm_log                 20480  2 dm_region_hash,dm_mirror
+dm_mirror              32768  0
+dm_multipath           45056  0
+dm_region_hash         24576  1 dm_mirror
+drm_ttm_helper         20480  2 vmwgfx
+e1000                 188416  0
+efi_pstore             12288  0
+ghash_clmulni_intel    12288  0
+hid                   286720  2 usbhid,hid_generic
+hid_generic            12288  0
+i2c_piix4              36864  0
+i2c_smbus              20480  1 i2c_piix4
+input_leds             12288  0
+intel_pmc_core        151552  0
+intel_pmc_ssram_telemetry    16384  1 intel_pmc_core
+intel_rapl_common      57344  1 intel_rapl_msr
+intel_rapl_msr         20480  0
+intel_uncore_frequency_common    20480  0
+intel_vsec             24576  2 intel_pmc_ssram_telemetry,pmt_telemetry
+joydev                 32768  0
+libahci                57344  1 ahci
+mac_hid                12288  0
+Module                  Size  Used by
+msr                    12288  0
+nfnetlink              20480  1
+pata_acpi              12288  0
+pmt_class              20480  2 pmt_telemetry,pmt_discovery
+pmt_discovery          24576  1 pmt_telemetry
+pmt_telemetry          16384  1 intel_pmc_core
+psmouse               225280  0
+qrtr                   53248  2
+rapl                   20480  0
+sch_fq_codel           28672  1
+serio_raw              20480  0
+snd                   147456  4 snd_intel8x0,snd_timer,snd_ac97_codec,snd_pcm
+snd_ac97_codec        200704  1 snd_intel8x0
+snd_intel8x0           57344  0
+snd_pcm               212992  2 snd_intel8x0,snd_ac97_codec
+snd_timer              53248  1 snd_pcm
+soundcore              16384  1 snd
+ttm                   139264  2 vmwgfx,drm_ttm_helper
+usbhid                 86016  0
+vboxguest              57344  0
+vga16fb                36864  0
+vgastate               20480  1 vga16fb
+video                  77824  0
+virtiofs               40960  0
+vmwgfx                479232  0
+vmw_vsock_virtio_transport    20480  0
+vmw_vsock_virtio_transport_common    61440  1 vmw_vsock_virtio_transport
+vsock                  69632  2 vmw_vsock_virtio_transport_common,vmw_vsock_virtio_transport
+wmi                    36864  1 video

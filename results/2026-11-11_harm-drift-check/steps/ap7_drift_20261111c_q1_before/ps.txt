@@ -1,0 +1,220 @@
+    PID    PPID USER     COMMAND
+      1       0 root     /usr/lib/systemd/systemd --switched-root --system --deserialize=54
+      2       0 root     [kthreadd]
+      3       2 root     [pool_workqueue_release]
+      4       2 root     [kworker/R-rcu_gp]
+      5       2 root     [kworker/R-sync_wq]
+      6       2 root     [kworker/R-kvfree_rcu_reclaim]
+      7       2 root     [kworker/R-slub_flushwq]
+      8       2 root     [kworker/R-netns]
+     12       2 root     [kworker/u32:0-ipv6_addrconf]
+     13       2 root     [kworker/R-mm_percpu_wq]
+     14       2 root     [ksoftirqd/0]
+     15       2 root     [rcu_preempt]
+     16       2 root     [rcu_exp_par_gp_kthread_worker/0]
+     17       2 root     [rcu_exp_gp_kthread_worker]
+     18       2 root     [migration/0]
+     19       2 root     [kprobe-optimizer]
+     20       2 root     [idle_inject/0]
+     21       2 root     [cpuhp/0]
+     22       2 root     [cpuhp/1]
+     23       2 root     [idle_inject/1]
+     24       2 root     [migration/1]
+     25       2 root     [ksoftirqd/1]
+     28       2 root     [cpuhp/2]
+     29       2 root     [idle_inject/2]
+     30       2 root     [migration/2]
+     31       2 root     [ksoftirqd/2]
+     34       2 root     [cpuhp/3]
+     35       2 root     [idle_inject/3]
+     36       2 root     [migration/3]
+     37       2 root     [ksoftirqd/3]
+     40       2 root     [cpuhp/4]
+     41       2 root     [idle_inject/4]
+     42       2 root     [migration/4]
+     43       2 root     [ksoftirqd/4]
+     46       2 root     [cpuhp/5]
+     47       2 root     [idle_inject/5]
+     48       2 root     [migration/5]
+     49       2 root     [ksoftirqd/5]
+     52       2 root     [cpuhp/6]
+     53       2 root     [idle_inject/6]
+     54       2 root     [migration/6]
+     55       2 root     [ksoftirqd/6]
+     57       2 root     [kworker/6:0H-kblockd]
+     58       2 root     [cpuhp/7]
+     59       2 root     [idle_inject/7]
+     60       2 root     [migration/7]
+     61       2 root     [ksoftirqd/7]
+     67       2 root     [kworker/u36:0-events_power_efficient]
+     68       2 root     [kworker/u37:0-events_power_efficient]
+     72       2 root     [kdevtmpfs]
+     73       2 root     [kworker/R-inet_frag_wq]
+     74       2 root     [rcu_tasks_kthread]
+     75       2 root     [rcu_tasks_rude_kthread]
+     76       2 root     [kauditd]
+     77       2 root     [khungtaskd]
+     78       2 root     [oom_reaper]
+     79       2 root     [kworker/u33:1-flush-252:0]
+     80       2 root     [kworker/R-writeback]
+     82       2 root     [kcompactd0]
+     83       2 root     [ksmd]
+     84       2 root     [khugepaged]
+     85       2 root     [kworker/R-kblockd]
+     86       2 root     [kworker/R-blkcg_punt_bio]
+     87       2 root     [kworker/R-kintegrityd]
+     88       2 root     [irq/9-acpi]
+     90       2 root     [kworker/5:1-events]
+     91       2 root     [kworker/R-tpm_dev_wq]
+     92       2 root     [kworker/R-ata_sff]
+     93       2 root     [kworker/R-md_bitmap]
+     94       2 root     [kworker/R-md_llbitmap_io]
+     95       2 root     [kworker/R-md_llbitmap_unplug]
+     96       2 root     [kworker/R-edac-poller]
+     97       2 root     [kworker/R-devfreq_wq]
+     98       2 root     [watchdogd]
+    100       2 root     [kworker/R-quota_events_unbound]
+    101       2 root     [kswapd0]
+    104       2 root     [ecryptfs-kthread]
+    105       2 root     [kworker/R-kthrotld]
+    106       2 root     [kworker/u34:1-events_power_efficient]
+    109       2 root     [kworker/R-acpi_thermal_pm]
+    110       2 root     [scsi_eh_0]
+    111       2 root     [kworker/R-scsi_tmf_0]
+    112       2 root     [scsi_eh_1]
+    113       2 root     [kworker/R-scsi_tmf_1]
+    121       2 root     [kworker/R-mld]
+    122       2 root     [kworker/u37:1-flush-252:0]
+    124       2 root     [kworker/R-ipv6_addrconf]
+    125       2 root     [kworker/u32:1-ipv6_addrconf]
+    126       2 root     [kworker/R-kstrp]
+    127       2 root     [kworker/u38:1-events_freezable_pwr_efficient]
+    129       2 root     [kworker/6:2-events]
+    130       2 root     [kworker/u41:0]
+    131       2 root     [kworker/u42:0]
+    132       2 root     [kworker/u43:0]
+    133       2 root     [kworker/u44:0]
+    134       2 root     [kworker/u45:0]
+    135       2 root     [kworker/u46:0]
+    136       2 root     [kworker/u47:0]
+    137       2 root     [kworker/u48:0]
+    138       2 root     [kworker/u49:0]
+    151       2 root     [kworker/R-charger_manager]
+    154       2 root     [kworker/u40:2-events_unbound]
+    407       2 root     [scsi_eh_2]
+    408       2 root     [kworker/R-scsi_tmf_2]
+    414       2 root     [kworker/4:1H-kblockd]
+    491       2 root     [kworker/R-kdmflush/252:0]
+    523       2 root     [kworker/1:1H-kblockd]
+    536       2 root     [jbd2/dm-0-8]
+    537       2 root     [kworker/R-ext4-rsv-conversion]
+    545       2 root     [kworker/u35:2-events_power_efficient]
+    647       1 root     /usr/lib/systemd/systemd-journald
+    682       2 root     [kworker/R-kmpathd]
+    683       2 root     [kworker/R-kmpath_handlerd]
+    685       1 root     /usr/sbin/multipathd -d -s
+    701       1 systemd+ /usr/lib/systemd/systemd-resolved
+    711       1 root     /usr/lib/systemd/systemd-udevd
+    724       2 root     [psimon]
+    817       2 root     [irq/18-vmwgfx]
+    818       2 root     [kworker/R-ttm]
+    988       2 root     [jbd2/sda2-8]
+    989       2 root     [kworker/R-ext4-rsv-conversion]
+   1009       2 root     [kworker/u33:3-flush-252:0]
+   1039       1 systemd+ /usr/lib/systemd/systemd-networkd
+   1212       2 root     [kworker/R-cfg80211]
+   1253       1 root     /bin/sh /usr/lib/systemd/scripts/chronyd-starter.sh -n -F 1
+   1254       1 root     /usr/sbin/cron -f -P
+   1255       1 message+ @dbus-daemon --system --address=systemd: --nofork --nopidfile --systemd-activation --syslog-only
+   1268       1 root     /usr/bin/python3 /usr/bin/networkd-dispatcher --run-startup-triggers
+   1269       1 polkitd  /usr/lib/polkit-1/polkitd --no-debug --log-level=notice
+   1274       1 root     /snap/snapd/current/usr/lib/snapd/snapd
+   1276       1 root     /usr/lib/systemd/systemd-logind
+   1278       1 root     /usr/libexec/udisks2/udisksd
+   1310       1 root     /usr/sbin/agetty --noreset --noclear --issue-file=/etc/issue:/etc/issue.d:/run/issue.d:/usr/lib/issue.d - linux
+   1314       1 syslog   /usr/sbin/rsyslogd -n -iNONE
+   1342    1253 _chrony  /usr/sbin/chronyd -n -F 1
+   1345       1 root     /usr/bin/python3 /usr/share/unattended-upgrades/unattended-upgrade-shutdown --wait-for-signal
+   1376    1342 _chrony  /usr/sbin/chronyd -n -F 1
+   1486       1 root     /usr/sbin/ModemManager
+   1564       1 root     /snap/keepalived/3198/usr/sbin/keepalived-519
+   1573       1 root     sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups
+   1582       1 artur    /usr/lib/systemd/systemd --user
+   1584    1582 artur    (sd-pam)
+   1836       2 root     [kworker/u38:3-events_unbound]
+   1874       1 artur    [a process of the Claude app's remote session on this VM: command line removed]
+   2121    1874 artur    [a process of the Claude app's remote session on this VM: command line removed]
+  10993       2 root     [kworker/u37:2-events_power_efficient]
+  38791       2 root     [kworker/5:2H-kblockd]
+  54956       2 root     [kworker/u39:0-ext4-rsv-conversion]
+  57520       2 root     [kworker/u33:0-events_unbound]
+  68041       2 root     [kworker/u40:3-events_power_efficient]
+  68044       1 root     /usr/libexec/fwupd/fwupd
+  69032       1 root     /usr/libexec/upowerd
+  78251       2 root     [kworker/u36:1-events_unbound]
+  80571       2 root     [kworker/4:0H-kblockd]
+  87787       2 root     [kworker/6:2H-kblockd]
+  95400       2 root     [kworker/0:2H-kblockd]
+  95798       2 root     [kworker/7:0H]
+ 112431       2 root     [kworker/7:2-events]
+ 112571       2 root     [kworker/u40:0-events_unbound]
+ 117557       2 root     [kworker/3:0H-kblockd]
+ 121898    1573 root     sshd-session: artur [priv]
+ 122008  121898 artur    sshd-session: artur@notty
+ 122011  122008 artur    /usr/lib/openssh/sftp-server
+ 122154    1573 root     sshd-session: artur [priv]
+ 122643       2 root     [kworker/6:1-mm_percpu_wq]
+ 123210  122154 artur    sshd-session: artur@pts/0
+ 123245  123210 artur    /bin/bash -l
+ 149940       2 root     [kworker/7:1-events]
+ 155445       2 root     [kworker/1:2H-kblockd]
+ 155838       2 root     [kworker/7:2H-kblockd]
+ 174135       2 root     [kworker/u35:1-flush-252:0]
+ 185657       2 root     [kworker/u39:2-events_power_efficient]
+ 194623       2 root     [kworker/u34:0-events_power_efficient]
+ 195171       2 root     [kworker/3:1-cgroup_free]
+ 195227       2 root     [kworker/u34:2-flush-252:0]
+ 196762       2 root     [kworker/u35:0-ext4-rsv-conversion]
+ 197232       2 root     [kworker/4:2-events]
+ 197233       2 root     [kworker/5:0-events]
+ 199133       2 root     [kworker/3:2H]
+ 199135       2 root     [kworker/2:1H-kblockd]
+ 201424       2 root     [kworker/5:0H]
+ 210471       2 root     [kworker/1:0-events]
+ 216802       2 root     [kworker/3:2-events]
+ 229936       2 root     [kworker/u39:1]
+ 229937       2 root     [kworker/4:0-events]
+ 230193       2 root     [kworker/2:0-events]
+ 244618       2 root     [kworker/1:2-events]
+ 245855       2 root     [kworker/2:0H]
+ 245862       2 root     [kworker/0:0H-kblockd]
+ 251515       2 root     [kworker/0:1-mm_percpu_wq]
+ 254486       2 root     [kworker/2:1-events]
+ 265448       2 root     [kworker/0:2-cgroup_free]
+ 265966       2 root     [kworker/0:0-events]
+ 266387       2 root     [kworker/2:2-mm_percpu_wq]
+ 268952       2 root     [kworker/1:1-events]
+ 272215       2 root     [kworker/u33:2]
+ 272263       2 root     [psimon]
+ 272310    1573 root     sshd-session: artur [priv]
+ 272312       2 root     [kworker/3:0]
+ 272324    1573 root     sshd-session: artur [priv]
+ 272531  272310 artur    sshd-session: artur@notty
+ 272532  272324 artur    sshd-session: artur@notty
+ 272533  272531 artur    [a process of the Claude app's remote session on this VM: command line removed]
+ 272534  272532 artur    /usr/lib/openssh/sftp-server
+ 272738       2 root     [kworker/u36:2-events_power_efficient]
+ 272754       2 root     [kworker/2:2H-kblockd]
+ 275010       2 root     [kworker/u35:3-events_power_efficient]
+ 277272    2121 artur    [a process of the Claude app's remote session on this VM: command line removed]
+ 277273  277272 artur    [a process of the Claude app's remote session on this VM: command line removed]
+ 277274  277272 artur    sleep 8
+ 277276  277273 artur    bash tasks/T-091/ap7.sh
+ 277328  277276 artur    mpstat -P ALL 5
+ 277329  277276 artur    pidstat -u 10
+ 277330  277276 artur    bash tasks/T-091/ap7.sh
+ 277331  277276 artur    bash /home/artur/agent_workspace/tasks/T-091/ap7/vm_step_ap5.sh ap7_drift_20261111c_q1 -- sudo -n env PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 ./venv/bin/python -B bench/calibrate.py drift --calibration bench/calibration/ddos-mitigation-2026-11-04.json --wait-gate 30 --out /var/tmp/ddos_campaigns/drift_20261111c_q1 --family cheap_static_flood --family costly_export_flood --family costly_search_flood
+ 277333  277331 artur    bash /home/artur/agent_workspace/tasks/T-091/ap7/s3_snapshot_ap5.sh /var/tmp/hg1c_scratch/ap7_drift_20261111c_q1_before
+ 277334  277331 artur    cut -c1-300
+ 277338  277330 artur    sleep 30
+ 277344  277333 artur    ps -eo pid,ppid,user,args --sort=pid

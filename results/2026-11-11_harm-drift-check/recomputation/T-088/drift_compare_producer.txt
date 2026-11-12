@@ -1,0 +1,55 @@
+== AP-4 attempt 1: raw drift.json sha 1672a4ba3482e35d copy sha 1672a4ba3482e35d identical=True
+   tool: ok = False | reasons = ["costly_export_flood: Q 55.2511 against 75.3211 frozen (more than the gate's floor_pp, 10 pp)"] | created_utc = 2026-11-08T09:43:49+00:00 | smoke = False | calibration_sha256 = cff6e515 | waits = {"refused_probes": 0, "runs": 4, "waited": {}, "waited_s": 9.7}
+   legit                  Q        tool=99.67051070840198      mine=99.67051070840198      SAME
+   legit                  p95_s    tool=0.08530640000000175    mine=0.08530640000000175    SAME
+   legit                  requests tool=3035                   mine=3035                   SAME
+   cheap_static_flood     Q        tool=94.70319634703196      mine=94.70319634703196      SAME
+   cheap_static_flood     p95_s    tool=0.2226493999999974     mine=0.2226493999999974     SAME
+   cheap_static_flood     requests tool=1095                   mine=1095                   SAME
+   cheap_static_flood     level    tool=2.0 record=2.0
+   costly_export_flood    Q        tool=55.25114155251141      mine=55.25114155251141      SAME
+   costly_export_flood    p95_s    tool=0.24511424999999853    mine=0.24511424999999853    SAME
+   costly_export_flood    requests tool=1314                   mine=1314                   SAME
+   costly_export_flood    level    tool=4.0 record=4.0
+   costly_search_flood    Q        tool=65.12141280353201      mine=65.12141280353201      SAME
+   costly_search_flood    p95_s    tool=0.4256244000000008     mine=0.4256244000000008     SAME
+   costly_search_flood    requests tool=1359                   mine=1359                   SAME
+   costly_search_flood    level    tool=4.0 record=4.0
+   single check: tool ok False mine False | reasons equal: True
+== AP-4 attempt 2: raw drift.json sha 7d61eeabc76cd9b2 copy sha 7d61eeabc76cd9b2 identical=True
+   tool: ok = False | reasons = ["cheap_static_flood: Q 78.5388 against 95.8089 frozen (more than the gate's floor_pp, 10 pp)"] | created_utc = 2026-11-08T09:53:54+00:00 | smoke = False | calibration_sha256 = cff6e515 | waits = {"refused_probes": 0, "runs": 4, "waited": {}, "waited_s": 10.2}
+   legit                  Q        tool=100.0                  mine=100.0                  SAME
+   legit                  p95_s    tool=0.07187279999999703    mine=0.07187279999999703    SAME
+   legit                  requests tool=3037                   mine=3037                   SAME
+   cheap_static_flood     Q        tool=78.53881278538813      mine=78.53881278538813      SAME
+   cheap_static_flood     p95_s    tool=0.2868987500000101     mine=0.2868987500000101     SAME
+   cheap_static_flood     requests tool=1095                   mine=1095                   SAME
+   cheap_static_flood     level    tool=2.0 record=2.0
+   costly_export_flood    Q        tool=78.88293802601378      mine=78.88293802601378      SAME
+   costly_export_flood    p95_s    tool=0.24657749999999723    mine=0.24657749999999723    SAME
+   costly_export_flood    requests tool=1307                   mine=1307                   SAME
+   costly_export_flood    level    tool=4.0 record=4.0
+   costly_search_flood    Q        tool=54.224834680382074     mine=54.224834680382074     SAME
+   costly_search_flood    p95_s    tool=0.44086840000000266    mine=0.44086840000000266    SAME
+   costly_search_flood    requests tool=1361                   mine=1361                   SAME
+   costly_search_flood    level    tool=4.0 record=4.0
+   single check: tool ok False mine False | reasons equal: True
+== AP-5 q1 attempt 1: raw drift.json sha dc018d63723c1a3d copy sha dc018d63723c1a3d identical=True
+   tool: ok = False | reasons = ["costly_export_flood: Q 85.3881 against 75.3211 frozen (more than the gate's floor_pp, 10 pp)"] | created_utc = 2026-11-10T15:42:50+00:00 | smoke = False | calibration_sha256 = cff6e515 | waits = {"refused_probes": 0, "runs": 4, "waited": {}, "waited_s": 10.0}
+   legit                  Q        tool=100.0                  mine=100.0                  SAME
+   legit                  p95_s    tool=0.07718300000000013    mine=0.07718300000000013    SAME
+   legit                  requests tool=3039                   mine=3039                   SAME
+   cheap_static_flood     Q        tool=95.24680073126143      mine=95.24680073126143      SAME
+   cheap_static_flood     p95_s    tool=0.19769934999999939    mine=0.19769934999999939    SAME
+   cheap_static_flood     requests tool=1094                   mine=1094                   SAME
+   cheap_static_flood     level    tool=2.0 record=2.0
+   costly_export_flood    Q        tool=85.38812785388127      mine=85.38812785388127      SAME
+   costly_export_flood    p95_s    tool=0.27446650000000156    mine=0.27446650000000156    SAME
+   costly_export_flood    requests tool=1314                   mine=1314                   SAME
+   costly_export_flood    level    tool=4.0 record=4.0
+   costly_search_flood    Q        tool=61.94690265486726      mine=61.94690265486726      SAME
+   costly_search_flood    p95_s    tool=0.4124344999999989     mine=0.4124344999999989     SAME
+   costly_search_flood    requests tool=1356                   mine=1356                   SAME
+   costly_search_flood    level    tool=4.0 record=4.0
+   single check: tool ok False mine False | reasons equal: True
+differences between the tool's drift.json and my recomputation: 0

@@ -1,0 +1,4 @@
+{"timestamp":"2026-11-11T19:17:00+00:00","client_ip":"10.0.0.1","request_method":"GET","request_uri":"/static/1","status":502,"request_time":0.000,"request_length":80,"bytes_sent":314,"user_agent":"curl/8.18.0"}
+{"timestamp":"2026-11-11T19:17:02+00:00","client_ip":"10.0.0.1","request_method":"GET","request_uri":"/static/1","status":499,"request_time":2.004,"request_length":80,"bytes_sent":0,"user_agent":"curl/8.18.0"}
+{"timestamp":"2026-11-11T19:17:03+00:00","client_ip":"10.0.0.1","request_method":"GET","request_uri":"/static/1","status":502,"request_time":0.411,"request_length":80,"bytes_sent":314,"user_agent":"curl/8.18.0"}
+{"timestamp":"2026-11-11T19:17:04+00:00","client_ip":"10.0.0.1","request_method":"GET","request_uri":"/static/1","status":502,"request_time":0.000,"request_length":80,"bytes_sent":314,"user_agent":"curl/8.18.0"}

@@ -1,0 +1,483 @@
+2026/11/11 18:43:30 [error] 282150#282150: *1 connect() failed (111: Connection refused) while connecting to upstream, client: 10.0.0.1, server: twojadomena.pl, request: "GET /static/1 HTTP/1.1", upstream: "http://127.0.0.1:8080/static/1", host: "10.0.0.1"
+2026/11/11 18:43:30 [info] 282150#282150: *1 client 10.0.0.1 closed keepalive connection
+2026/11/11 18:43:32 [info] 282150#282150: *3 client 10.0.0.1 closed keepalive connection
+2026/11/11 18:43:32 [info] 282150#282150: *5 client 10.0.0.1 closed keepalive connection
+2026/11/11 18:43:32 [info] 282150#282150: *7 client 10.0.0.1 closed keepalive connection
+2026/11/11 18:43:32 [info] 282150#282150: *9 client 10.0.0.1 closed keepalive connection
+2026/11/11 18:43:32 [info] 282150#282150: *11 client 10.0.0.1 closed keepalive connection
+2026/11/11 18:43:32 [info] 282150#282150: *13 client 10.0.0.1 closed keepalive connection
+2026/11/11 18:43:32 [info] 282150#282150: *15 client 10.0.0.1 closed keepalive connection
+2026/11/11 18:43:32 [info] 282150#282150: *17 client 10.0.0.1 closed keepalive connection
+2026/11/11 18:43:32 [info] 282150#282150: *19 client 10.0.0.1 closed keepalive connection
+2026/11/11 18:43:32 [info] 282150#282150: *21 client 10.0.0.1 closed keepalive connection
+2026/11/11 18:43:32 [info] 282150#282150: *23 client 10.0.0.1 closed keepalive connection
+2026/11/11 18:43:32 [info] 282150#282150: *25 client 10.0.0.1 closed keepalive connection
+2026/11/11 18:43:32 [info] 282150#282150: *27 client 10.0.0.1 closed keepalive connection
+2026/11/11 18:43:32 [info] 282150#282150: *29 client 10.0.0.1 closed keepalive connection
+2026/11/11 18:43:33 [info] 282150#282150: *31 client 10.0.0.1 closed keepalive connection
+2026/11/11 18:43:33 [info] 282150#282150: *33 client 10.0.0.1 closed keepalive connection
+2026/11/11 18:43:37 [warn] 282150#282150: *100 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/00/0000000001 while reading upstream, client: 10.0.1.2, server: twojadomena.pl, request: "GET /export?r=1 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=1", host: "10.0.0.1"
+2026/11/11 18:43:40 [warn] 282150#282150: *378 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/00/0000000002 while reading upstream, client: 10.0.1.34, server: twojadomena.pl, request: "GET /export?r=835 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=835", host: "10.0.0.1"
+2026/11/11 18:43:42 [warn] 282150#282150: *515 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/00/0000000003 while reading upstream, client: 10.0.1.20, server: twojadomena.pl, request: "GET /export?r=72 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=72", host: "10.0.0.1"
+2026/11/11 18:43:45 [warn] 282150#282150: *803 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/00/0000000004 while reading upstream, client: 10.0.1.56, server: twojadomena.pl, request: "GET /export?r=203 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=203", host: "10.0.0.1"
+2026/11/11 18:43:46 [warn] 282150#282150: *845 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/00/0000000005 while reading upstream, client: 10.0.1.50, server: twojadomena.pl, request: "GET /export?r=395 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=395", host: "10.0.0.1"
+2026/11/11 18:43:53 [warn] 282150#282150: *1185 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/00/0000000006 while reading upstream, client: 10.0.1.77, server: twojadomena.pl, request: "GET /export?r=841 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=841", host: "10.0.0.1"
+2026/11/11 18:43:53 [warn] 282150#282150: *1212 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/00/0000000007 while reading upstream, client: 10.0.1.93, server: twojadomena.pl, request: "GET /export?r=913 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=913", host: "10.0.0.1"
+2026/11/11 18:43:54 [warn] 282150#282150: *1259 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/00/0000000008 while reading upstream, client: 10.0.1.97, server: twojadomena.pl, request: "GET /export?r=400 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=400", host: "10.0.0.1"
+2026/11/11 18:43:55 [warn] 282150#282150: *1359 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/00/0000000009 while reading upstream, client: 10.0.1.98, server: twojadomena.pl, request: "GET /export?r=655 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=655", host: "10.0.0.1"
+2026/11/11 18:43:56 [warn] 282157#282157: *1377 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/01/0000000010 while reading upstream, client: 10.0.1.79, server: twojadomena.pl, request: "GET /export?r=140 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=140", host: "10.0.0.1"
+2026/11/11 18:43:56 [warn] 282150#282150: *1397 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/01/0000000011 while reading upstream, client: 10.0.1.137, server: twojadomena.pl, request: "GET /export?r=876 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=876", host: "10.0.0.1"
+2026/11/11 18:43:57 [warn] 282150#282150: *1427 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/01/0000000012 while reading upstream, client: 10.0.1.101, server: twojadomena.pl, request: "GET /export?r=998 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=998", host: "10.0.0.1"
+2026/11/11 18:43:58 [warn] 282150#282150: *1462 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/01/0000000013 while reading upstream, client: 10.0.1.115, server: twojadomena.pl, request: "GET /export?r=839 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=839", host: "10.0.0.1"
+2026/11/11 18:43:58 [warn] 282150#282150: *1469 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/01/0000000014 while reading upstream, client: 10.0.1.8, server: twojadomena.pl, request: "GET /export?r=277 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=277", host: "10.0.0.1"
+2026/11/11 18:43:59 [warn] 282150#282150: *1499 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/01/0000000015 while reading upstream, client: 10.0.1.116, server: twojadomena.pl, request: "GET /export?r=902 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=902", host: "10.0.0.1"
+2026/11/11 18:44:00 [warn] 282150#282150: *1519 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/01/0000000016 while reading upstream, client: 10.0.1.146, server: twojadomena.pl, request: "GET /export?r=164 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=164", host: "10.0.0.1"
+2026/11/11 18:44:04 [warn] 282150#282150: *1739 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/01/0000000017 while reading upstream, client: 10.0.1.104, server: twojadomena.pl, request: "GET /export?r=264 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=264", host: "10.0.0.1"
+2026/11/11 18:44:07 [warn] 282150#282150: *1882 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/01/0000000018 while reading upstream, client: 10.0.1.131, server: twojadomena.pl, request: "GET /export?r=264 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=264", host: "10.0.0.1"
+2026/11/11 18:44:07 [warn] 282150#282150: *1891 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/01/0000000019 while reading upstream, client: 10.0.1.154, server: twojadomena.pl, request: "GET /export?r=623 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=623", host: "10.0.0.1"
+2026/11/11 18:44:07 [warn] 282150#282150: *1898 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/02/0000000020 while reading upstream, client: 10.0.1.167, server: twojadomena.pl, request: "GET /export?r=734 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=734", host: "10.0.0.1"
+2026/11/11 18:44:08 [warn] 282150#282150: *1917 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/02/0000000021 while reading upstream, client: 10.0.1.177, server: twojadomena.pl, request: "GET /export?r=954 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=954", host: "10.0.0.1"
+2026/11/11 18:44:08 [warn] 282150#282150: *1960 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/02/0000000022 while reading upstream, client: 10.0.1.149, server: twojadomena.pl, request: "GET /export?r=673 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=673", host: "10.0.0.1"
+2026/11/11 18:44:16 [warn] 282150#282150: *2340 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/02/0000000023 while reading upstream, client: 10.0.1.140, server: twojadomena.pl, request: "GET /export?r=212 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=212", host: "10.0.0.1"
+2026/11/11 18:44:17 [warn] 282150#282150: *2374 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/02/0000000024 while reading upstream, client: 10.0.1.199, server: twojadomena.pl, request: "GET /export?r=763 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=763", host: "10.0.0.1"
+2026/11/11 18:44:19 [warn] 282150#282150: *2484 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/02/0000000025 while reading upstream, client: 10.0.1.70, server: twojadomena.pl, request: "GET /export?r=523 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=523", host: "10.0.0.1"
+2026/11/11 18:44:20 [warn] 282150#282150: *2531 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/02/0000000026 while reading upstream, client: 10.0.1.163, server: twojadomena.pl, request: "GET /export?r=865 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=865", host: "10.0.0.1"
+2026/11/11 18:44:22 [warn] 282150#282150: *2625 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/02/0000000027 while reading upstream, client: 10.0.1.82, server: twojadomena.pl, request: "GET /export?r=138 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=138", host: "10.0.0.1"
+2026/11/11 18:44:23 [warn] 282150#282150: *2687 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/02/0000000028 while reading upstream, client: 10.0.1.84, server: twojadomena.pl, request: "GET /export?r=523 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=523", host: "10.0.0.1"
+2026/11/11 18:44:25 [warn] 282150#282150: *2806 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/02/0000000029 while reading upstream, client: 10.0.1.182, server: twojadomena.pl, request: "GET /export?r=533 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=533", host: "10.0.0.1"
+2026/11/11 18:44:26 [warn] 282150#282150: *2866 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/03/0000000030 while reading upstream, client: 10.0.1.202, server: twojadomena.pl, request: "GET /export?r=257 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=257", host: "10.0.0.1"
+2026/11/11 18:44:27 [warn] 282150#282150: *2925 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/03/0000000031 while reading upstream, client: 10.0.1.176, server: twojadomena.pl, request: "GET /export?r=325 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=325", host: "10.0.0.1"
+2026/11/11 18:44:35 [warn] 282150#282150: *3252 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/03/0000000032 while reading upstream, client: 10.0.1.189, server: twojadomena.pl, request: "GET /export?r=435 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=435", host: "10.0.0.1"
+2026/11/11 18:44:39 [warn] 282150#282150: *3479 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/03/0000000033 while reading upstream, client: 10.0.1.197, server: twojadomena.pl, request: "GET /export?r=210 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=210", host: "10.0.0.1"
+2026/11/11 18:44:41 [warn] 282157#282157: *3635 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/03/0000000034 while reading upstream, client: 10.0.1.105, server: twojadomena.pl, request: "GET /export?r=650 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=650", host: "10.0.0.1"
+2026/11/11 18:44:42 [warn] 282150#282150: *3684 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/03/0000000035 while reading upstream, client: 10.0.1.203, server: twojadomena.pl, request: "GET /export?r=10 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=10", host: "10.0.0.1"
+2026/11/11 18:44:44 [warn] 282154#282154: *3729 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/03/0000000036 while reading upstream, client: 10.0.1.245, server: twojadomena.pl, request: "GET /export?r=710 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=710", host: "10.0.0.1"
+2026/11/11 18:44:47 [warn] 282150#282150: *3856 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/03/0000000037 while reading upstream, client: 10.0.1.253, server: twojadomena.pl, request: "GET /export?r=435 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=435", host: "10.0.0.1"
+2026/11/11 18:44:49 [warn] 282150#282150: *3963 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/03/0000000038 while reading upstream, client: 10.0.1.2, server: twojadomena.pl, request: "GET /export?r=476 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=476", host: "10.0.0.1"
+2026/11/11 18:44:50 [warn] 282157#282157: *4006 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/03/0000000039 while reading upstream, client: 10.0.1.20, server: twojadomena.pl, request: "GET /export?r=409 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=409", host: "10.0.0.1"
+2026/11/11 18:44:51 [warn] 282150#282150: *4047 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/04/0000000040 while reading upstream, client: 10.0.1.50, server: twojadomena.pl, request: "GET /export?r=492 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=492", host: "10.0.0.1"
+2026/11/11 18:44:54 [warn] 282150#282150: *4253 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/04/0000000041 while reading upstream, client: 10.0.1.93, server: twojadomena.pl, request: "GET /export?r=648 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=648", host: "10.0.0.1"
+2026/11/11 18:44:57 [warn] 282150#282150: *4441 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/04/0000000042 while reading upstream, client: 10.0.1.98, server: twojadomena.pl, request: "GET /export?r=806 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=806", host: "10.0.0.1"
+2026/11/11 18:44:57 [warn] 282150#282150: *4464 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/04/0000000043 while reading upstream, client: 10.0.1.101, server: twojadomena.pl, request: "GET /export?r=978 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=978", host: "10.0.0.1"
+2026/11/11 18:44:59 [warn] 282150#282150: *4547 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/04/0000000044 while reading upstream, client: 10.0.1.115, server: twojadomena.pl, request: "GET /export?r=878 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=878", host: "10.0.0.1"
+2026/11/11 18:45:00 [warn] 282150#282150: *4566 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/04/0000000045 while reading upstream, client: 10.0.1.209, server: twojadomena.pl, request: "GET /export?r=200 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=200", host: "10.0.0.1"
+2026/11/11 18:45:03 [warn] 282157#282157: *4639 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/04/0000000046 while reading upstream, client: 10.0.1.126, server: twojadomena.pl, request: "GET /export?r=656 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=656", host: "10.0.0.1"
+2026/11/11 18:45:06 [warn] 282157#282157: *4682 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/04/0000000047 while reading upstream, client: 10.0.1.165, server: twojadomena.pl, request: "GET /export?r=37 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=37", host: "10.0.0.1"
+2026/11/11 18:45:06 [warn] 282157#282157: *4684 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/04/0000000048 while reading upstream, client: 10.0.1.116, server: twojadomena.pl, request: "GET /export?r=710 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=710", host: "10.0.0.1"
+2026/11/11 18:45:07 [warn] 282150#282150: *4924 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/04/0000000049 while reading upstream, client: 10.0.1.131, server: twojadomena.pl, request: "GET /export?r=212 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=212", host: "10.0.0.1"
+2026/11/11 18:45:08 [warn] 282150#282150: *4959 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/05/0000000050 while reading upstream, client: 10.0.1.180, server: twojadomena.pl, request: "GET /export?r=808 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=808", host: "10.0.0.1"
+2026/11/11 18:45:09 [warn] 282150#282150: *5037 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/05/0000000051 while reading upstream, client: 10.0.1.208, server: twojadomena.pl, request: "GET /export?r=993 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=993", host: "10.0.0.1"
+2026/11/11 18:45:09 [warn] 282150#282150: *5049 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/05/0000000052 while reading upstream, client: 10.0.1.140, server: twojadomena.pl, request: "GET /export?r=274 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=274", host: "10.0.0.1"
+2026/11/11 18:45:10 [info] 282150#282150: *4924 client 10.0.1.131 closed keepalive connection
+2026/11/11 18:45:10 [info] 282150#282150: *4441 client 10.0.1.98 closed keepalive connection
+2026/11/11 18:45:10 [info] 282150#282150: *5049 client 10.0.1.140 closed keepalive connection
+2026/11/11 18:45:10 [info] 282157#282157: *4684 client 10.0.1.116 closed keepalive connection
+2026/11/11 18:45:10 [info] 282150#282150: *4464 client 10.0.1.101 closed keepalive connection
+2026/11/11 18:45:10 [info] 282150#282150: *4547 client 10.0.1.115 closed keepalive connection
+2026/11/11 18:45:12 [warn] 282150#282150: *5188 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/05/0000000053 while reading upstream, client: 10.0.1.217, server: twojadomena.pl, request: "GET /export?r=572 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=572", host: "10.0.0.1"
+2026/11/11 18:45:13 [warn] 282150#282150: *5268 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/05/0000000054 while reading upstream, client: 10.0.1.235, server: twojadomena.pl, request: "GET /export?r=167 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=167", host: "10.0.0.1"
+2026/11/11 18:45:14 [warn] 282150#282150: *5298 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/05/0000000055 while reading upstream, client: 10.0.1.34, server: twojadomena.pl, request: "GET /export?r=673 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=673", host: "10.0.0.1"
+2026/11/11 18:45:16 [info] 282150#282150: *5298 client 10.0.1.34 closed keepalive connection
+2026/11/11 18:45:21 [info] 282150#282150: *5619 client 10.0.1.232 closed keepalive connection
+2026/11/11 18:45:21 [info] 282157#282157: *4866 client 10.0.1.136 closed keepalive connection
+2026/11/11 18:45:21 [info] 282150#282150: *5622 client 10.0.1.184 closed keepalive connection
+2026/11/11 18:45:22 [info] 282150#282150: *5657 client 10.0.1.183 closed keepalive connection
+2026/11/11 18:45:23 [info] 282150#282150: *5669 client 10.0.1.186 closed keepalive connection
+2026/11/11 18:45:23 [info] 282150#282150: *69 client 10.0.1.95 closed keepalive connection
+2026/11/11 18:45:23 [info] 282150#282150: *162 client 10.0.1.192 closed keepalive connection
+2026/11/11 18:45:23 [info] 282150#282150: *257 client 10.0.1.242 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *5744 client 10.0.1.75 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *5797 client 10.0.1.107 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *5628 client 10.0.1.152 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *5684 client 10.0.1.249 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *103 client 10.0.1.65 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *322 client 10.0.1.160 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *79 client 10.0.1.152 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *65 client 10.0.1.107 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *38 client 10.0.1.75 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *106 client 10.0.1.249 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *47 client 10.0.1.86 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *73 client 10.0.1.109 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *89 client 10.0.1.184 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *57 client 10.0.1.95 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *75 client 10.0.1.136 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *93 client 10.0.1.192 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *119 client 10.0.1.232 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *134 client 10.0.1.242 closed keepalive connection
+2026/11/11 18:45:24 [info] 282150#282150: *253 client 10.0.1.120 closed keepalive connection
+2026/11/11 18:45:25 [info] 282150#282150: *108 client 10.0.1.23 closed keepalive connection
+2026/11/11 18:45:25 [info] 282150#282150: *172 client 10.0.1.160 closed keepalive connection
+2026/11/11 18:45:25 [info] 282150#282150: *158 client 10.0.1.129 closed keepalive connection
+2026/11/11 18:45:25 [info] 282150#282150: *117 client 10.0.1.65 closed keepalive connection
+2026/11/11 18:45:25 [info] 282150#282150: *208 client 10.0.1.183 closed keepalive connection
+2026/11/11 18:45:25 [info] 282150#282150: *122 client 10.0.1.141 closed keepalive connection
+2026/11/11 18:45:25 [info] 282157#282157: *294 client 10.0.1.119 closed keepalive connection
+2026/11/11 18:45:25 [info] 282150#282150: *3461 client 10.0.1.186 closed keepalive connection
+2026/11/11 18:45:25 [info] 282150#282150: *5121 client 10.0.1.200 closed keepalive connection
+2026/11/11 18:45:25 [info] 282157#282157: *286 client 10.0.1.200 closed keepalive connection
+2026/11/11 18:45:25 [info] 282150#282150: *91 client 10.0.1.141 closed keepalive connection
+2026/11/11 18:45:29 [warn] 282150#282150: *6042 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/05/0000000056 while reading upstream, client: 10.0.1.237, server: twojadomena.pl, request: "GET /export?r=47 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=47", host: "10.0.0.1"
+2026/11/11 18:45:29 [info] 282150#282150: *6042 client 10.0.1.237 closed keepalive connection
+2026/11/11 18:45:33 [warn] 282150#282150: *6195 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/05/0000000057 while reading upstream, client: 10.0.1.231, server: twojadomena.pl, request: "GET /export?r=397 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=397", host: "10.0.0.1"
+2026/11/11 18:45:33 [info] 282150#282150: *6195 client 10.0.1.231 closed keepalive connection
+2026/11/11 18:45:34 [info] 282150#282150: *1003 client 10.0.1.252 closed keepalive connection
+2026/11/11 18:45:34 [info] 282150#282150: *643 client 10.0.1.78 closed keepalive connection
+2026/11/11 18:45:34 [info] 282150#282150: *913 client 10.0.1.193 closed keepalive connection
+2026/11/11 18:45:34 [info] 282157#282157: *4372 client 10.0.1.57 closed keepalive connection
+2026/11/11 18:45:34 [info] 282150#282150: *732 client 10.0.1.142 closed keepalive connection
+2026/11/11 18:45:34 [info] 282150#282150: *4841 client 10.0.1.13 closed keepalive connection
+2026/11/11 18:45:34 [info] 282150#282150: *4672 client 10.0.1.161 closed keepalive connection
+2026/11/11 18:45:34 [info] 282150#282150: *4705 client 10.0.1.187 closed keepalive connection
+2026/11/11 18:45:34 [info] 282150#282150: *327 client 10.0.1.37 closed keepalive connection
+2026/11/11 18:45:34 [info] 282150#282150: *927 client 10.0.1.194 closed keepalive connection
+2026/11/11 18:45:34 [info] 282150#282150: *4939 client 10.0.1.35 closed keepalive connection
+2026/11/11 18:45:34 [info] 282150#282150: *596 client 10.0.1.63 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5709 client 10.0.1.227 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5853 client 10.0.1.3 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5421 client 10.0.1.143 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5214 client 10.0.1.29 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5343 client 10.0.1.85 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5229 client 10.0.1.44 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5375 client 10.0.1.118 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5366 client 10.0.1.108 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5318 client 10.0.1.59 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5516 client 10.0.1.170 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5469 client 10.0.1.158 closed keepalive connection
+2026/11/11 18:45:35 [info] 282157#282157: *5397 client 10.0.1.125 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5792 client 10.0.1.234 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5238 client 10.0.1.47 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5464 client 10.0.1.155 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5859 client 10.0.1.15 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5142 client 10.0.1.28 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5223 client 10.0.1.30 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5715 client 10.0.1.228 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5289 client 10.0.1.54 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5880 client 10.0.1.21 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6298 client 10.0.1.173 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5614 client 10.0.1.211 closed keepalive connection
+2026/11/11 18:45:35 [info] 282157#282157: *5635 client 10.0.1.216 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5450 client 10.0.1.153 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5694 client 10.0.1.221 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6015 client 10.0.1.48 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5486 client 10.0.1.162 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5612 client 10.0.1.206 closed keepalive connection
+2026/11/11 18:45:35 [info] 282157#282157: *5801 client 10.0.1.240 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5225 client 10.0.1.43 closed keepalive connection
+2026/11/11 18:45:35 [info] 282157#282157: *5510 client 10.0.1.164 closed keepalive connection
+2026/11/11 18:45:35 [info] 282157#282157: *5335 client 10.0.1.74 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5832 client 10.0.1.250 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5699 client 10.0.1.226 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5649 client 10.0.1.218 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5672 client 10.0.1.220 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *4238 client 10.0.1.165 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *650 client 10.0.1.234 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *37 client 10.0.1.3 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *426 client 10.0.1.180 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *4267 client 10.0.1.170 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *574 client 10.0.1.211 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *623 client 10.0.1.220 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *2421 client 10.0.1.240 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *130 client 10.0.1.28 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *592 client 10.0.1.217 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *2453 client 10.0.1.250 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *4306 client 10.0.1.178 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *190 client 10.0.1.59 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *313 client 10.0.1.105 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *102 client 10.0.1.21 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *652 client 10.0.1.235 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *2736 client 10.0.1.84 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *4131 client 10.0.1.153 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *4277 client 10.0.1.173 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *183 client 10.0.1.48 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *145 client 10.0.1.29 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *228 client 10.0.1.70 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *4195 client 10.0.1.162 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *85 client 10.0.1.15 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *4109 client 10.0.1.118 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *636 client 10.0.1.228 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *625 client 10.0.1.226 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *4064 client 10.0.1.108 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *2415 client 10.0.1.238 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *656 client 10.0.1.237 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *432 client 10.0.1.206 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *2437 client 10.0.1.243 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *578 client 10.0.1.216 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *39 client 10.0.1.8 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *4113 client 10.0.1.126 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *597 client 10.0.1.218 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *477 client 10.0.1.208 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *230 client 10.0.1.74 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *629 client 10.0.1.227 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *2555 client 10.0.1.30 closed keepalive connection
+2026/11/11 18:45:35 [info] 282157#282157: *295 client 10.0.1.85 closed keepalive connection
+2026/11/11 18:45:35 [info] 282157#282157: *4213 client 10.0.1.164 closed keepalive connection
+2026/11/11 18:45:35 [info] 282157#282157: *285 client 10.0.1.82 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *4175 client 10.0.1.155 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *2584 client 10.0.1.43 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6212 client 10.0.1.73 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5592 client 10.0.1.134 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6174 client 10.0.1.50 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5974 client 10.0.1.229 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6164 client 10.0.1.7 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6241 client 10.0.1.16 closed keepalive connection
+2026/11/11 18:45:35 [info] 282157#282157: *540 client 10.0.1.145 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6244 client 10.0.1.32 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6252 client 10.0.1.40 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *300 client 10.0.1.49 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *397 client 10.0.1.64 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *440 client 10.0.1.80 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *536 client 10.0.1.90 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *548 client 10.0.1.151 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *654 client 10.0.1.175 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6028 client 10.0.1.190 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *722 client 10.0.1.205 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *734 client 10.0.1.210 closed keepalive connection
+2026/11/11 18:45:35 [info] 282157#282157: *5640 client 10.0.1.140 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6011 client 10.0.1.244 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6121 client 10.0.1.14 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6017 client 10.0.1.245 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6125 client 10.0.1.13 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6253 client 10.0.1.99 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6118 client 10.0.1.10 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6146 client 10.0.1.20 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6078 client 10.0.1.1 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5844 client 10.0.1.197 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6200 client 10.0.1.96 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6259 client 10.0.1.103 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5874 client 10.0.1.201 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5840 client 10.0.1.176 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5729 client 10.0.1.144 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6191 client 10.0.1.93 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6150 client 10.0.1.25 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6304 client 10.0.1.111 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6265 client 10.0.1.101 closed keepalive connection
+2026/11/11 18:45:35 [info] 282157#282157: *5935 client 10.0.1.222 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5821 client 10.0.1.166 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6098 client 10.0.1.2 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6199 client 10.0.1.31 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5827 client 10.0.1.171 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5786 client 10.0.1.163 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5779 client 10.0.1.147 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6217 client 10.0.1.98 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5850 client 10.0.1.189 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *6176 client 10.0.1.91 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *59 client 10.0.1.9 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *95 client 10.0.1.26 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *188 client 10.0.1.32 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *206 client 10.0.1.36 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *303 client 10.0.1.41 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *350 client 10.0.1.56 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *399 client 10.0.1.58 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *419 client 10.0.1.60 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *434 client 10.0.1.68 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *438 client 10.0.1.69 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *454 client 10.0.1.77 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *457 client 10.0.1.90 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *461 client 10.0.1.97 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *491 client 10.0.1.102 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *492 client 10.0.1.106 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *493 client 10.0.1.112 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *530 client 10.0.1.127 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *4964 client 10.0.1.130 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *4983 client 10.0.1.137 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5021 client 10.0.1.146 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5073 client 10.0.1.154 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5087 client 10.0.1.167 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5116 client 10.0.1.168 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5126 client 10.0.1.177 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5140 client 10.0.1.185 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5158 client 10.0.1.198 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5164 client 10.0.1.199 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5174 client 10.0.1.205 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5178 client 10.0.1.207 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5185 client 10.0.1.209 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5196 client 10.0.1.210 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5250 client 10.0.1.219 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5261 client 10.0.1.224 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5281 client 10.0.1.225 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *935 client 10.0.1.231 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *949 client 10.0.1.239 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *956 client 10.0.1.247 closed keepalive connection
+2026/11/11 18:45:35 [info] 282157#282157: *195 client 10.0.1.33 closed keepalive connection
+2026/11/11 18:45:35 [info] 282157#282157: *347 client 10.0.1.46 closed keepalive connection
+2026/11/11 18:45:35 [info] 282157#282157: *5132 client 10.0.1.179 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *293 client 10.0.1.71 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *3826 client 10.0.1.236 closed keepalive connection
+2026/11/11 18:45:35 [info] 282150#282150: *5554 client 10.0.1.195 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *937 client 10.0.1.206 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *884 client 10.0.1.143 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *1011 client 10.0.1.240 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *894 client 10.0.1.174 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *842 client 10.0.1.125 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *470 client 10.0.1.44 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *702 client 10.0.1.54 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *984 client 10.0.1.221 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *1662 client 10.0.1.19 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *694 client 10.0.1.47 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5327 client 10.0.1.22 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5604 client 10.0.1.230 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5533 client 10.0.1.191 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5764 client 10.0.1.251 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5419 client 10.0.1.122 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5471 client 10.0.1.181 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5932 client 10.0.1.203 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *576 client 10.0.1.216 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *335 client 10.0.1.85 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *488 client 10.0.1.173 closed keepalive connection
+2026/11/11 18:45:36 [info] 282157#282157: *42 client 10.0.1.15 closed keepalive connection
+2026/11/11 18:45:36 [info] 282157#282157: *409 client 10.0.1.155 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *35 client 10.0.1.3 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *111 client 10.0.1.29 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *630 client 10.0.1.227 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *447 client 10.0.1.162 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *174 client 10.0.1.48 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *619 client 10.0.1.226 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *51 client 10.0.1.21 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *638 client 10.0.1.234 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *587 client 10.0.1.220 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *81 client 10.0.1.28 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *634 client 10.0.1.228 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *193 client 10.0.1.59 closed keepalive connection
+2026/11/11 18:45:36 [info] 282157#282157: *267 client 10.0.1.74 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *507 client 10.0.1.206 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *670 client 10.0.1.240 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *358 client 10.0.1.108 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *580 client 10.0.1.218 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *126 client 10.0.1.30 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *459 client 10.0.1.164 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *379 client 10.0.1.118 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *395 client 10.0.1.153 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *165 client 10.0.1.43 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *690 client 10.0.1.250 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *503 client 10.0.1.178 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *565 client 10.0.1.211 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *468 client 10.0.1.170 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6022 client 10.0.1.253 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6090 client 10.0.1.166 closed keepalive connection
+2026/11/11 18:45:36 [info] 282157#282157: *49 client 10.0.1.9 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *53 client 10.0.1.26 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *61 client 10.0.1.32 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *87 client 10.0.1.36 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *97 client 10.0.1.41 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *156 client 10.0.1.46 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *160 client 10.0.1.58 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *175 client 10.0.1.69 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *220 client 10.0.1.90 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *233 client 10.0.1.102 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *236 client 10.0.1.106 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *277 client 10.0.1.112 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *279 client 10.0.1.127 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *324 client 10.0.1.130 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *338 client 10.0.1.168 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *362 client 10.0.1.179 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *364 client 10.0.1.185 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *370 client 10.0.1.205 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *372 client 10.0.1.207 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *385 client 10.0.1.210 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *390 client 10.0.1.224 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *401 client 10.0.1.225 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *452 client 10.0.1.239 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6085 client 10.0.1.161 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5876 client 10.0.1.103 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5644 client 10.0.1.63 closed keepalive connection
+2026/11/11 18:45:36 [info] 282157#282157: *5961 client 10.0.1.132 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6229 client 10.0.1.194 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5617 client 10.0.1.57 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5889 client 10.0.1.111 closed keepalive connection
+2026/11/11 18:45:36 [info] 282157#282157: *6019 client 10.0.1.144 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5969 client 10.0.1.134 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5900 client 10.0.1.114 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5759 client 10.0.1.73 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5795 client 10.0.1.96 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5780 client 10.0.1.78 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6269 client 10.0.1.222 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6069 client 10.0.1.147 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5872 client 10.0.1.99 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6189 client 10.0.1.193 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5915 client 10.0.1.121 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5749 client 10.0.1.67 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6256 client 10.0.1.201 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6296 client 10.0.1.229 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6132 client 10.0.1.171 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5981 client 10.0.1.142 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5793 client 10.0.1.91 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6334 client 10.0.1.244 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6162 client 10.0.1.187 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6273 client 10.0.1.7 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6280 client 10.0.1.16 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6292 client 10.0.1.26 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6300 client 10.0.1.27 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6312 client 10.0.1.32 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6318 client 10.0.1.36 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6321 client 10.0.1.40 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *388 client 10.0.1.41 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *415 client 10.0.1.46 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *417 client 10.0.1.49 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *465 client 10.0.1.64 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *481 client 10.0.1.69 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5847 client 10.0.1.72 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5894 client 10.0.1.80 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5920 client 10.0.1.90 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5950 client 10.0.1.102 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5956 client 10.0.1.106 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *570 client 10.0.1.112 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *610 client 10.0.1.113 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *5994 client 10.0.1.127 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6001 client 10.0.1.130 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6061 client 10.0.1.145 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6064 client 10.0.1.151 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6109 client 10.0.1.156 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6113 client 10.0.1.168 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6127 client 10.0.1.175 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6187 client 10.0.1.185 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6206 client 10.0.1.190 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6215 client 10.0.1.205 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6224 client 10.0.1.210 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6239 client 10.0.1.224 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6248 client 10.0.1.225 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *6257 client 10.0.1.239 closed keepalive connection
+2026/11/11 18:45:36 [info] 282157#282157: *6277 client 10.0.1.9 closed keepalive connection
+2026/11/11 18:45:36 [info] 282157#282157: *443 client 10.0.1.58 closed keepalive connection
+2026/11/11 18:45:36 [info] 282157#282157: *6184 client 10.0.1.179 closed keepalive connection
+2026/11/11 18:45:36 [info] 282157#282157: *6220 client 10.0.1.207 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *353 client 10.0.1.31 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *479 client 10.0.1.96 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *560 client 10.0.1.111 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *113 client 10.0.1.1 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *262 client 10.0.1.13 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *265 client 10.0.1.14 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *608 client 10.0.1.144 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *682 client 10.0.1.166 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *583 client 10.0.1.121 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *646 client 10.0.1.147 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *464 client 10.0.1.91 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *199 client 10.0.1.10 closed keepalive connection
+2026/11/11 18:45:36 [info] 282157#282157: *750 client 10.0.1.222 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *716 client 10.0.1.171 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *603 client 10.0.1.134 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *430 client 10.0.1.73 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *808 client 10.0.1.229 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *820 client 10.0.1.244 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *551 client 10.0.1.103 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *517 client 10.0.1.99 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *728 client 10.0.1.201 closed keepalive connection
+2026/11/11 18:45:36 [info] 282150#282150: *308 client 10.0.1.25 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *5245 client 10.0.1.251 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *5370 client 10.0.1.22 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *5129 client 10.0.1.202 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *5377 client 10.0.1.34 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *6295 client 10.0.1.149 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *6338 client 10.0.1.181 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *474 client 10.0.1.195 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *471 client 10.0.1.191 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *5473 client 10.0.1.104 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *572 client 10.0.1.114 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *6193 client 10.0.1.79 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *5529 client 10.0.1.122 closed keepalive connection
+2026/11/11 18:45:37 [info] 282157#282157: *331 client 10.0.1.122 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *486 client 10.0.1.230 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *5963 client 10.0.1.230 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *249 client 10.0.1.22 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *490 client 10.0.1.251 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *428 client 10.0.1.181 closed keepalive connection
+2026/11/11 18:45:37 [info] 282150#282150: *6344 client 10.0.1.236 closed keepalive connection
