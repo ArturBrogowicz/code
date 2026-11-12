@@ -1,7 +1,9 @@
 # L7 track v2: a costed, enforcing L7 harness for P1, shared with P3 and P4 (design note, written before the code)
 
-**Status (2026-10-30): a design for approval. Nothing in it is built or run.** It is on `design/priority-p1-p4`, branched
-from `feat/hg1c` at e413a34, and changes no code. It carries out harness architecture B of the priority plan (P1, P3 and P4 on
+**Status (2026-11-12): approved on 2026-10-30 (ledger D-021) and built offline (the seven `feat/l7v2-*` branches, on
+`main`); the re-registrations up to 2026-11-10 are dated in the text; no P1 run exists.** History: Status (2026-10-30): a
+design for approval. Nothing in it is built or run. It was written on `design/priority-p1-p4`, branched
+from `feat/hg1c` at e413a34, and changed no code. It carries out harness architecture B of the priority plan (P1, P3 and P4 on
 "L7 track v2", P2 on the harm benchmark), which you approved on 2026-10-30 (ledger D-015), for the 2-4 week deadline (D-014). Two
 companion notes reuse the harness defined here: `docs/P4_SLOW_DESIGN.md` (slow attacks) and `docs/P3_DATASET_DESIGN.md` (the
 capture pipeline and the learning curves). The form follows `docs/HG1C_DESIGN.md`.

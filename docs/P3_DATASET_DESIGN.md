@@ -1,7 +1,9 @@
 # P3: multi-seed, entity-disjoint L7 datasets and learning curves (design note, written before the code)
 
-**Status (2026-10-30): a design for approval. Nothing in it is built or run.** It is on `design/priority-p1-p4`, branched from
-`feat/hg1c` at e413a34, and changes no code. It details priority P3 of the approved direction
+**Status (2026-11-12): approved on 2026-10-30 (ledger D-021) and built offline (`feat/p3-dataset-pipeline`, on `main`); no
+capture has run on the VM. The text below is the design as approved, with its dated re-registrations.** History: Status
+(2026-10-30): a design for approval. Nothing in it is built or run. It was written on `design/priority-p1-p4`, branched from
+`feat/hg1c` at e413a34, and changed no code. It details priority P3 of the approved direction
 (`/home/artur/agent_workspace/final/PRIORITY_PLAN.md` §5), refining T-005's learning-curve protocol
 (`S1:T-005/learning_curve_protocol.md`). It supplies P1's training and validation data (`docs/L7V2_DESIGN.md`). The tags and
 citation forms are those of `docs/L7V2_DESIGN.md` (header): `path:line` refers to e413a34, `S1:T-00x/<file>` is an accepted S1

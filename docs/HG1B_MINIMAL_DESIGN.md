@@ -1,9 +1,11 @@
 # HG1b minimal cut: design delta (written before the code)
 
-**Status (2026-10-23): built, offline, unmerged and unpushed; section 9 says how it differs from this note.** The user
+**Status (2026-11-12): built and on `main`; section 9 says how it differs from this note.** History: Status (2026-10-23):
+built, offline, unmerged and unpushed. The user
 approved deltas 1-10, O4 as D14 and the full cut (D17) on 2026-10-23: eight commits on `feat/hg1b-minimal`, off
 `feat/expc-attacker-setting`, offline only (ten were made, section 9). The base is
-`docs/BENCHMARK_HARM_DESIGN.md` on `design/benchmark-harm`; its section numbers are cited as "design N". This file is its
+`docs/BENCHMARK_HARM_DESIGN.md` (written on `design/benchmark-harm`; this line has its later copy, from
+`docs/harm-benchmark-f8`); its section numbers are cited as "design N". This file is its
 delta, to be folded into it by whoever merges that branch. Nothing here changes `bench/loadgen.py` (its sha256 stays as
 pinned in `bench/loadtools.json`), `test_distributed_suite.py`, the Nginx configurations, the daemon, or a published result.
 Tags: **[FACT]** read from a file; **[ARITHMETIC]** computed from facts; **[PROPOSAL]** a value fixed here and frozen before

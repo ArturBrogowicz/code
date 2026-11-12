@@ -121,7 +121,8 @@ recorded per scenario (`Exposure_s`).
 
 ## Defaults changed on 2026-10-19
 
-The second independent audit (`/root/project_analysis_v2/REPORT.md`, root-only, SHA-256
+The second independent audit (`docs/project_analysis_v2/REPORT.md`, the same bytes as the root-only
+`/root/project_analysis_v2/REPORT.md`, SHA-256
 `4d37f1dfc6b5f7dd4167afcffa4628f4c9a7713d39eccd7ba6f06d7ae438d3c9`; §10.5, §12 lead 15,
 §13 G-16/G-17/G-18/G-23, §14.1 item 1) led to four changes, made together. They change
 what a default run executes, so a run recorded before them is not a like-for-like
@@ -820,7 +821,7 @@ processes of an earlier run remain. The L7 runners (`ml/capture_l7.py`, `ml/eval
 
 ## The harm benchmark's offline tools (HG1b)
 
-`docs/BENCHMARK_HARM_DESIGN.md` (branch `design/benchmark-harm`) asks that an attack cause measurable harm on an
+`docs/BENCHMARK_HARM_DESIGN.md` asks that an attack cause measurable harm on an
 unprotected server before any mitigation is judged against it; `docs/HG1B_MINIMAL_DESIGN.md` is the part built
 so far. These tools send no traffic and need no root. The executor that runs a scenario in the namespaces, the
 campaign runner and the calibration runner (HG1c) are built and described in the next section, but have not run on
