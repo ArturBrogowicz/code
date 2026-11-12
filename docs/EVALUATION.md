@@ -824,10 +824,12 @@ processes of an earlier run remain. The L7 runners (`ml/capture_l7.py`, `ml/eval
 `docs/BENCHMARK_HARM_DESIGN.md` asks that an attack cause measurable harm on an
 unprotected server before any mitigation is judged against it; `docs/HG1B_MINIMAL_DESIGN.md` is the part built
 so far. These tools send no traffic and need no root. The executor that runs a scenario in the namespaces, the
-campaign runner and the calibration runner (HG1c) are built and described in the next section, but have not run on
-the testbed; until the calibration runner has measured one, the calibration is `bench/calibration/placeholder.json`,
-the design's illustrative numbers, and the gate refuses a verdict on it (`--dry-run` allows one and labels everything
-it prints). **Nothing in this section is a statement about the testbed.**
+campaign runner and the calibration runner (HG1c) are described in the next section. The tools' default calibration
+is still `bench/calibration/placeholder.json`, the design's illustrative numbers, and the gate refuses a verdict on it
+(`--dry-run` allows one and labels everything it prints). A measured record exists since 2026-11-04: the calibration
+runner froze `bench/calibration/ddos-mitigation-2026-11-04.json` (status `frozen`). Its drift check of 2026-11-08 to
+11 never passed, so the record is not confirmed on the current host and no campaign has been judged against it
+(`results/2026-11-11_harm-drift-check/`). **Nothing in this section is a statement about the testbed.**
 
 | Tool | What it is |
 |---|---|
