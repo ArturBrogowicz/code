@@ -103,7 +103,8 @@ own 25 % check accepted 22 and refused 24. Both CPUs accepted at 8 sample times,
 routes C3 and C5 were +18 to +38 % above the frozen costs where both refused and -2 to +11 % where both accepted: slow until 19:37,
 normal at 19:42, slow 19:47-19:53, normal 19:58-20:23, slow 20:28-21:09, normal 21:14-21:19. The guest was idle throughout: its own
 10-minute records show 99.76-99.82 % idle and a 1-minute load of at most 0.22 in every interval between 19:40 and 21:10Z
-(`speed_series/sar_evening_20261111.txt`). So the host's speed comes and goes for 10-40 minutes at a time, and a check made before
+(`speed_series/sar_evening_20261111.txt`). So the host's speed comes and goes for a few minutes to about 50 minutes at a time (the probe times bound the slow stretches
+at 27-32, 6-16 and 41-51 minutes; ledger C-135), and a check made before
 a run cannot vouch for the run.
 
 ## What the result means
