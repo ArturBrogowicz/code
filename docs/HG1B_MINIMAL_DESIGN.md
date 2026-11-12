@@ -6,7 +6,9 @@ approved deltas 1-10, O4 as D14 and the full cut (D17) on 2026-10-23: eight comm
 `feat/expc-attacker-setting`, offline only (ten were made, section 9). The base is
 `docs/BENCHMARK_HARM_DESIGN.md` (written on `design/benchmark-harm`; this line has its later copy, from
 `docs/harm-benchmark-f8`); its section numbers are cited as "design N". This file is its
-delta, to be folded into it by whoever merges that branch. Nothing here changes `bench/loadgen.py` (its sha256 stays as
+delta and stays a separate file: `design/benchmark-harm` is not to be merged, and the design on this line is
+`docs/BENCHMARK_HARM_DESIGN.md`, merged unchanged from `docs/harm-benchmark-f8` with a status note added on
+2026-11-12. Nothing here changes `bench/loadgen.py` (its sha256 stays as
 pinned in `bench/loadtools.json`), `test_distributed_suite.py`, the Nginx configurations, the daemon, or a published result.
 Tags: **[FACT]** read from a file; **[ARITHMETIC]** computed from facts; **[PROPOSAL]** a value fixed here and frozen before
 the data it will judge; **[RISK]** a hazard with its mitigation.
