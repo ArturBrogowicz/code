@@ -1,0 +1,17 @@
+    2.392 timer probe 1 on CPU 7 at 2026-11-11T19:14:29+00:00: p50 0.379777, p99 2.79491, max 2.92695 ms: passed
+    2.572 run U of costly_search_sub_threshold, seed 44: preflight and environment passed
+    7.784 topology: 4 namespaces, 300 addresses, verified in 5.2 s
+    7.864 started the origin as pid 298414
+    7.921 started Nginx (its launcher returned after 0.05 s)
+   11.064 stack ready: 5 routes answer with their own class under calibration frozen:cff6e515; warmed up
+   11.422 launched 31 legit streams
+   43.855 launched 4 attack streams
+  122.174 timeline over after 111.1 s
+  122.210 wall time of 12 stream(s) raised to what their records need, by up to 0.26 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  122.211 5 legit stream(s) began outside the pack of the others, by up to 1.27 s, and are placed by their own offsets: L-poisson-C0-broadband-1, L-poisson-C0-mobile_3g-2, L-poisson-C0-mobile_bad-3, L-poisson-C0-perfect-0, L-poisson-C1-broadband-1
+  122.307 nginx access log: 5987 lines (0 unparsed), server_requests.csv written, log compressed
+  122.309 run.json written; the run is UNSOUND: the origin exited with 3 at T+0.0 s after the launch, before the end of the run; gunicorn.log says: origin.CalibrationError: C2: 2.81 ms against 1.77 ms frozen; C3: 43.5 ms against 29.8 ms frozen; C5: 215 ms against 160 ms frozen; the attack began -1.09 s from the end of the baseline (limit 0.5 s)
+  122.366 teardown: 0 process(es) in 5 namespace(s): listed in 0.06 s, ended in 0.00 s
+  122.503 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.04 s, hg_2_mobile_3g 0.02 s, hg_3_mobile_bad 0.05 s, server_ns 0.01 s
+  122.903 teardown: links deleted: vo_hg_0_perfect 0.11 s, vo_hg_1_broadba 0.15 s, vo_hg_2_mobile_ 0.06 s, vo_hg_3_mobile_ 0.02 s, veth_srv_br 0.02 s, ddos_br0 0.05 s
+  122.940 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.04 s; 0.6 s in all)

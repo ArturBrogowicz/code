@@ -1,0 +1,741 @@
+2026/11/08 09:39:54 [error] 11917#11917: *1 connect() failed (111: Connection refused) while connecting to upstream, client: 10.0.0.1, server: twojadomena.pl, request: "GET /static/1 HTTP/1.1", upstream: "http://127.0.0.1:8080/static/1", host: "10.0.0.1"
+2026/11/08 09:39:54 [info] 11917#11917: *1 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:39:56 [info] 11917#11917: *3 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:39:56 [info] 11917#11917: *5 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:39:56 [info] 11917#11917: *7 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:39:56 [info] 11917#11917: *9 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:39:56 [info] 11917#11917: *11 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:39:56 [info] 11917#11917: *13 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:39:56 [info] 11917#11917: *15 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:39:56 [info] 11917#11917: *17 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:39:56 [info] 11917#11917: *19 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:39:56 [info] 11917#11917: *21 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:39:57 [info] 11917#11917: *23 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:39:57 [info] 11917#11917: *25 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:39:57 [info] 11917#11917: *27 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:39:57 [info] 11917#11917: *29 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:39:57 [info] 11917#11917: *31 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:39:57 [info] 11917#11917: *33 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:40:01 [warn] 11917#11917: *186 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/00/0000000001 while reading upstream, client: 10.0.1.26, server: twojadomena.pl, request: "GET /export?r=226 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=226", host: "10.0.0.1"
+2026/11/08 09:40:04 [warn] 11917#11917: *424 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/00/0000000002 while reading upstream, client: 10.0.1.50, server: twojadomena.pl, request: "GET /export?r=449 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=449", host: "10.0.0.1"
+2026/11/08 09:40:05 [warn] 11917#11917: *527 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/00/0000000003 while reading upstream, client: 10.0.1.39, server: twojadomena.pl, request: "GET /export?r=806 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=806", host: "10.0.0.1"
+2026/11/08 09:40:11 [warn] 11917#11917: *843 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/00/0000000004 while reading upstream, client: 10.0.1.71, server: twojadomena.pl, request: "GET /export?r=302 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=302", host: "10.0.0.1"
+2026/11/08 09:40:12 [warn] 11917#11917: *897 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/00/0000000005 while reading upstream, client: 10.0.1.135, server: twojadomena.pl, request: "GET /export?r=550 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=550", host: "10.0.0.1"
+2026/11/08 09:40:14 [warn] 11917#11917: *1017 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/00/0000000006 while reading upstream, client: 10.0.1.5, server: twojadomena.pl, request: "GET /export?r=529 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=529", host: "10.0.0.1"
+2026/11/08 09:40:17 [warn] 11917#11917: *1215 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/00/0000000007 while reading upstream, client: 10.0.1.13, server: twojadomena.pl, request: "GET /export?r=55 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=55", host: "10.0.0.1"
+2026/11/08 09:40:19 [warn] 11917#11917: *1332 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/00/0000000008 while reading upstream, client: 10.0.1.27, server: twojadomena.pl, request: "GET /export?r=260 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=260", host: "10.0.0.1"
+2026/11/08 09:40:19 [warn] 11917#11917: *1371 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/00/0000000009 while reading upstream, client: 10.0.1.142, server: twojadomena.pl, request: "GET /export?r=749 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=749", host: "10.0.0.1"
+2026/11/08 09:40:21 [warn] 11917#11917: *1430 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/01/0000000010 while reading upstream, client: 10.0.1.51, server: twojadomena.pl, request: "GET /export?r=232 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=232", host: "10.0.0.1"
+2026/11/08 09:40:22 [warn] 11917#11917: *1490 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/01/0000000011 while reading upstream, client: 10.0.1.144, server: twojadomena.pl, request: "GET /export?r=521 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=521", host: "10.0.0.1"
+2026/11/08 09:40:23 [warn] 11917#11917: *1523 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/01/0000000012 while reading upstream, client: 10.0.1.146, server: twojadomena.pl, request: "GET /export?r=439 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=439", host: "10.0.0.1"
+2026/11/08 09:40:24 [warn] 11917#11917: *1578 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/01/0000000013 while reading upstream, client: 10.0.1.58, server: twojadomena.pl, request: "GET /export?r=386 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=386", host: "10.0.0.1"
+2026/11/08 09:40:28 [warn] 11917#11917: *1761 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/01/0000000014 while reading upstream, client: 10.0.1.83, server: twojadomena.pl, request: "GET /export?r=128 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=128", host: "10.0.0.1"
+2026/11/08 09:40:29 [warn] 11917#11917: *1790 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/01/0000000015 while reading upstream, client: 10.0.1.67, server: twojadomena.pl, request: "GET /export?r=205 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=205", host: "10.0.0.1"
+2026/11/08 09:40:30 [warn] 11917#11917: *1837 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/01/0000000016 while reading upstream, client: 10.0.1.149, server: twojadomena.pl, request: "GET /export?r=574 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=574", host: "10.0.0.1"
+2026/11/08 09:40:31 [warn] 11917#11917: *1862 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/01/0000000017 while reading upstream, client: 10.0.2.9, server: twojadomena.pl, request: "GET /export?r=819 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=819", host: "10.0.0.1"
+2026/11/08 09:40:31 [warn] 11917#11917: *1882 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/01/0000000018 while reading upstream, client: 10.0.2.1, server: twojadomena.pl, request: "GET /export?r=594 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=594", host: "10.0.0.1"
+2026/11/08 09:40:31 [warn] 11917#11917: *1874 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/01/0000000019 while reading upstream, client: 10.0.1.81, server: twojadomena.pl, request: "GET /export?r=288 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=288", host: "10.0.0.1"
+2026/11/08 09:40:31 [warn] 11919#11919: *1891 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/02/0000000020 while reading upstream, client: 10.0.2.11, server: twojadomena.pl, request: "GET /export?r=783 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=783", host: "10.0.0.1"
+2026/11/08 09:40:31 [warn] 11917#11917: *1911 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/02/0000000021 while reading upstream, client: 10.0.2.32, server: twojadomena.pl, request: "GET /export?r=795 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=795", host: "10.0.0.1"
+2026/11/08 09:40:31 [warn] 11917#11917: *1934 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/02/0000000022 while reading upstream, client: 10.0.2.2, server: twojadomena.pl, request: "GET /export?r=458 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=458", host: "10.0.0.1"
+2026/11/08 09:40:32 [warn] 11917#11917: *1962 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/02/0000000023 while reading upstream, client: 10.0.2.34, server: twojadomena.pl, request: "GET /export?r=923 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=923", host: "10.0.0.1"
+2026/11/08 09:40:32 [warn] 11917#11917: *1970 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/02/0000000024 while reading upstream, client: 10.0.2.12, server: twojadomena.pl, request: "GET /export?r=686 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=686", host: "10.0.0.1"
+2026/11/08 09:40:32 [warn] 11917#11917: *1972 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/02/0000000025 while reading upstream, client: 10.0.2.19, server: twojadomena.pl, request: "GET /export?r=792 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=792", host: "10.0.0.1"
+2026/11/08 09:40:32 [warn] 11917#11917: *1991 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/02/0000000026 while reading upstream, client: 10.0.2.36, server: twojadomena.pl, request: "GET /export?r=42 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=42", host: "10.0.0.1"
+2026/11/08 09:40:33 [warn] 11917#11917: *2003 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/02/0000000027 while reading upstream, client: 10.0.2.20, server: twojadomena.pl, request: "GET /export?r=615 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=615", host: "10.0.0.1"
+2026/11/08 09:40:33 [warn] 11917#11917: *2017 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/02/0000000028 while reading upstream, client: 10.0.2.6, server: twojadomena.pl, request: "GET /export?r=158 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=158", host: "10.0.0.1"
+2026/11/08 09:40:33 [warn] 11919#11919: *2061 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/02/0000000029 while reading upstream, client: 10.0.2.13, server: twojadomena.pl, request: "GET /export?r=254 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=254", host: "10.0.0.1"
+2026/11/08 09:40:33 [warn] 11917#11917: *2056 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/03/0000000030 while reading upstream, client: 10.0.2.24, server: twojadomena.pl, request: "GET /export?r=836 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=836", host: "10.0.0.1"
+2026/11/08 09:40:33 [warn] 11917#11917: *2068 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/03/0000000031 while reading upstream, client: 10.0.2.52, server: twojadomena.pl, request: "GET /export?r=637 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=637", host: "10.0.0.1"
+2026/11/08 09:40:33 [warn] 11917#11917: *2057 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/03/0000000032 while reading upstream, client: 10.0.2.27, server: twojadomena.pl, request: "GET /export?r=520 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=520", host: "10.0.0.1"
+2026/11/08 09:40:34 [warn] 11917#11917: *2091 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/03/0000000033 while reading upstream, client: 10.0.2.14, server: twojadomena.pl, request: "GET /export?r=368 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=368", host: "10.0.0.1"
+2026/11/08 09:40:34 [warn] 11917#11917: *2096 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/03/0000000034 while reading upstream, client: 10.0.2.47, server: twojadomena.pl, request: "GET /export?r=636 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=636", host: "10.0.0.1"
+2026/11/08 09:40:34 [warn] 11917#11917: *2103 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/03/0000000035 while reading upstream, client: 10.0.2.56, server: twojadomena.pl, request: "GET /export?r=973 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=973", host: "10.0.0.1"
+2026/11/08 09:40:34 [warn] 11917#11917: *2122 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/03/0000000036 while reading upstream, client: 10.0.2.66, server: twojadomena.pl, request: "GET /export?r=708 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=708", host: "10.0.0.1"
+2026/11/08 09:40:34 [warn] 11917#11917: *2114 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/03/0000000037 while reading upstream, client: 10.0.2.71, server: twojadomena.pl, request: "GET /export?r=577 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=577", host: "10.0.0.1"
+2026/11/08 09:40:34 [warn] 11917#11917: *2105 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/03/0000000038 while reading upstream, client: 10.0.2.61, server: twojadomena.pl, request: "GET /export?r=458 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=458", host: "10.0.0.1"
+2026/11/08 09:40:35 [warn] 11917#11917: *2129 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/03/0000000039 while reading upstream, client: 10.0.2.73, server: twojadomena.pl, request: "GET /export?r=265 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=265", host: "10.0.0.1"
+2026/11/08 09:40:35 [warn] 11917#11917: *2149 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/04/0000000040 while reading upstream, client: 10.0.2.79, server: twojadomena.pl, request: "GET /export?r=517 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=517", host: "10.0.0.1"
+2026/11/08 09:40:35 [warn] 11917#11917: *2145 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/04/0000000041 while reading upstream, client: 10.0.2.70, server: twojadomena.pl, request: "GET /export?r=71 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=71", host: "10.0.0.1"
+2026/11/08 09:40:35 [warn] 11917#11917: *2153 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/04/0000000042 while reading upstream, client: 10.0.1.113, server: twojadomena.pl, request: "GET /export?r=62 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=62", host: "10.0.0.1"
+2026/11/08 09:40:35 [warn] 11917#11917: *2142 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/04/0000000043 while reading upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /export?r=400 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=400", host: "10.0.0.1"
+2026/11/08 09:40:35 [warn] 11917#11917: *2180 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/04/0000000044 while reading upstream, client: 10.0.2.54, server: twojadomena.pl, request: "GET /export?r=968 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=968", host: "10.0.0.1"
+2026/11/08 09:40:36 [warn] 11917#11917: *2162 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/04/0000000045 while reading upstream, client: 10.0.2.80, server: twojadomena.pl, request: "GET /export?r=792 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=792", host: "10.0.0.1"
+2026/11/08 09:40:36 [warn] 11919#11919: *2164 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/04/0000000046 while reading upstream, client: 10.0.2.81, server: twojadomena.pl, request: "GET /export?r=953 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=953", host: "10.0.0.1"
+2026/11/08 09:40:36 [warn] 11917#11917: *2239 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/04/0000000047 while reading upstream, client: 10.0.2.72, server: twojadomena.pl, request: "GET /export?r=915 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=915", host: "10.0.0.1"
+2026/11/08 09:40:36 [warn] 11919#11919: *2185 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/04/0000000048 while reading upstream, client: 10.0.2.60, server: twojadomena.pl, request: "GET /export?r=430 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=430", host: "10.0.0.1"
+2026/11/08 09:40:36 [warn] 11917#11917: *2264 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/04/0000000049 while reading upstream, client: 10.0.2.103, server: twojadomena.pl, request: "GET /export?r=101 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=101", host: "10.0.0.1"
+2026/11/08 09:40:37 [warn] 11917#11917: *2157 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/05/0000000050 while reading upstream, client: 10.0.2.40, server: twojadomena.pl, request: "GET /export?r=541 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=541", host: "10.0.0.1"
+2026/11/08 09:40:37 [warn] 11917#11917: *2204 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/05/0000000051 while reading upstream, client: 10.0.2.63, server: twojadomena.pl, request: "GET /export?r=152 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=152", host: "10.0.0.1"
+2026/11/08 09:40:37 [warn] 11917#11917: *2220 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/05/0000000052 while reading upstream, client: 10.0.2.92, server: twojadomena.pl, request: "GET /export?r=686 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=686", host: "10.0.0.1"
+2026/11/08 09:40:37 [warn] 11917#11917: *2272 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/05/0000000053 while reading upstream, client: 10.0.2.77, server: twojadomena.pl, request: "GET /export?r=277 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=277", host: "10.0.0.1"
+2026/11/08 09:40:37 [warn] 11917#11917: *2274 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/05/0000000054 while reading upstream, client: 10.0.2.86, server: twojadomena.pl, request: "GET /export?r=622 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=622", host: "10.0.0.1"
+2026/11/08 09:40:38 [warn] 11917#11917: *2316 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/05/0000000055 while reading upstream, client: 10.0.2.97, server: twojadomena.pl, request: "GET /export?r=26 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=26", host: "10.0.0.1"
+2026/11/08 09:40:38 [warn] 11917#11917: *2334 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/05/0000000056 while reading upstream, client: 10.0.2.176, server: twojadomena.pl, request: "GET /export?r=523 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=523", host: "10.0.0.1"
+2026/11/08 09:40:38 [warn] 11917#11917: *2245 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/05/0000000057 while reading upstream, client: 10.0.2.83, server: twojadomena.pl, request: "GET /export?r=8 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=8", host: "10.0.0.1"
+2026/11/08 09:40:38 [warn] 11917#11917: *2321 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/05/0000000058 while reading upstream, client: 10.0.2.98, server: twojadomena.pl, request: "GET /export?r=726 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=726", host: "10.0.0.1"
+2026/11/08 09:40:38 [warn] 11919#11919: *2336 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/05/0000000059 while reading upstream, client: 10.0.2.117, server: twojadomena.pl, request: "GET /export?r=656 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=656", host: "10.0.0.1"
+2026/11/08 09:40:38 [warn] 11919#11919: *2361 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/06/0000000060 while reading upstream, client: 10.0.2.88, server: twojadomena.pl, request: "GET /export?r=580 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=580", host: "10.0.0.1"
+2026/11/08 09:40:39 [warn] 11917#11917: *2367 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/06/0000000061 while reading upstream, client: 10.0.2.110, server: twojadomena.pl, request: "GET /export?r=251 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=251", host: "10.0.0.1"
+2026/11/08 09:40:39 [warn] 11917#11917: *2391 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/06/0000000062 while reading upstream, client: 10.0.2.129, server: twojadomena.pl, request: "GET /export?r=226 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=226", host: "10.0.0.1"
+2026/11/08 09:40:39 [warn] 11917#11917: *2378 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/06/0000000063 while reading upstream, client: 10.0.2.127, server: twojadomena.pl, request: "GET /export?r=42 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=42", host: "10.0.0.1"
+2026/11/08 09:40:39 [warn] 11917#11917: *2373 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/06/0000000064 while reading upstream, client: 10.0.2.126, server: twojadomena.pl, request: "GET /export?r=805 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=805", host: "10.0.0.1"
+2026/11/08 09:40:39 [warn] 11917#11917: *2414 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/06/0000000065 while reading upstream, client: 10.0.2.130, server: twojadomena.pl, request: "GET /export?r=539 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=539", host: "10.0.0.1"
+2026/11/08 09:40:40 [warn] 11917#11917: *2438 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/06/0000000066 while reading upstream, client: 10.0.2.107, server: twojadomena.pl, request: "GET /export?r=381 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=381", host: "10.0.0.1"
+2026/11/08 09:40:40 [warn] 11917#11917: *2449 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/06/0000000067 while reading upstream, client: 10.0.2.135, server: twojadomena.pl, request: "GET /export?r=954 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=954", host: "10.0.0.1"
+2026/11/08 09:40:40 [warn] 11917#11917: *2473 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/06/0000000068 while reading upstream, client: 10.0.2.132, server: twojadomena.pl, request: "GET /export?r=764 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=764", host: "10.0.0.1"
+2026/11/08 09:40:40 [warn] 11919#11919: *2488 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/06/0000000069 while reading upstream, client: 10.0.2.141, server: twojadomena.pl, request: "GET /export?r=819 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=819", host: "10.0.0.1"
+2026/11/08 09:40:41 [warn] 11917#11917: *2490 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/07/0000000070 while reading upstream, client: 10.0.2.193, server: twojadomena.pl, request: "GET /export?r=924 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=924", host: "10.0.0.1"
+2026/11/08 09:40:41 [warn] 11917#11917: *2498 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/07/0000000071 while reading upstream, client: 10.0.2.154, server: twojadomena.pl, request: "GET /export?r=702 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=702", host: "10.0.0.1"
+2026/11/08 09:40:41 [warn] 11917#11917: *2501 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/07/0000000072 while reading upstream, client: 10.0.2.156, server: twojadomena.pl, request: "GET /export?r=503 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=503", host: "10.0.0.1"
+2026/11/08 09:40:41 [warn] 11917#11917: *2495 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/07/0000000073 while reading upstream, client: 10.0.2.152, server: twojadomena.pl, request: "GET /export?r=652 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=652", host: "10.0.0.1"
+2026/11/08 09:40:41 [warn] 11919#11919: *2513 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/07/0000000074 while reading upstream, client: 10.0.2.163, server: twojadomena.pl, request: "GET /export?r=822 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=822", host: "10.0.0.1"
+2026/11/08 09:40:41 [warn] 11917#11917: *2542 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/07/0000000075 while reading upstream, client: 10.0.2.170, server: twojadomena.pl, request: "GET /export?r=296 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=296", host: "10.0.0.1"
+2026/11/08 09:40:41 [warn] 11917#11917: *2538 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/07/0000000076 while reading upstream, client: 10.0.2.168, server: twojadomena.pl, request: "GET /export?r=702 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=702", host: "10.0.0.1"
+2026/11/08 09:40:42 [warn] 11917#11917: *2555 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/07/0000000077 while reading upstream, client: 10.0.2.139, server: twojadomena.pl, request: "GET /export?r=821 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=821", host: "10.0.0.1"
+2026/11/08 09:40:42 [warn] 11917#11917: *2560 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/07/0000000078 while reading upstream, client: 10.0.2.177, server: twojadomena.pl, request: "GET /export?r=497 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=497", host: "10.0.0.1"
+2026/11/08 09:40:42 [warn] 11919#11919: *2563 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/07/0000000079 while reading upstream, client: 10.0.2.167, server: twojadomena.pl, request: "GET /export?r=254 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=254", host: "10.0.0.1"
+2026/11/08 09:40:42 [warn] 11919#11919: *2562 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/08/0000000080 while reading upstream, client: 10.0.2.144, server: twojadomena.pl, request: "GET /export?r=261 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=261", host: "10.0.0.1"
+2026/11/08 09:40:42 [warn] 11917#11917: *2580 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/08/0000000081 while reading upstream, client: 10.0.2.153, server: twojadomena.pl, request: "GET /export?r=726 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=726", host: "10.0.0.1"
+2026/11/08 09:40:43 [warn] 11917#11917: *2586 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/08/0000000082 while reading upstream, client: 10.0.2.155, server: twojadomena.pl, request: "GET /export?r=507 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=507", host: "10.0.0.1"
+2026/11/08 09:40:43 [warn] 11917#11917: *2597 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/08/0000000083 while reading upstream, client: 10.0.2.183, server: twojadomena.pl, request: "GET /export?r=503 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=503", host: "10.0.0.1"
+2026/11/08 09:40:43 [warn] 11917#11917: *2599 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/08/0000000084 while reading upstream, client: 10.0.2.158, server: twojadomena.pl, request: "GET /export?r=780 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=780", host: "10.0.0.1"
+2026/11/08 09:40:43 [warn] 11917#11917: *2602 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/08/0000000085 while reading upstream, client: 10.0.1.117, server: twojadomena.pl, request: "GET /export?r=547 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=547", host: "10.0.0.1"
+2026/11/08 09:40:43 [warn] 11917#11917: *2606 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/08/0000000086 while reading upstream, client: 10.0.2.175, server: twojadomena.pl, request: "GET /export?r=611 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=611", host: "10.0.0.1"
+2026/11/08 09:40:43 [warn] 11917#11917: *2593 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/08/0000000087 while reading upstream, client: 10.0.1.11, server: twojadomena.pl, request: "GET /export?r=161 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=161", host: "10.0.0.1"
+2026/11/08 09:40:44 [warn] 11919#11919: *2642 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/08/0000000088 while reading upstream, client: 10.0.2.184, server: twojadomena.pl, request: "GET /export?r=349 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=349", host: "10.0.0.1"
+2026/11/08 09:40:44 [warn] 11917#11917: *2621 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/08/0000000089 while reading upstream, client: 10.0.2.191, server: twojadomena.pl, request: "GET /export?r=54 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=54", host: "10.0.0.1"
+2026/11/08 09:40:44 [warn] 11917#11917: *2686 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/09/0000000090 while reading upstream, client: 10.0.2.235, server: twojadomena.pl, request: "GET /export?r=925 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=925", host: "10.0.0.1"
+2026/11/08 09:40:44 [warn] 11917#11917: *2647 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/09/0000000091 while reading upstream, client: 10.0.2.205, server: twojadomena.pl, request: "GET /export?r=60 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=60", host: "10.0.0.1"
+2026/11/08 09:40:44 [warn] 11917#11917: *2628 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/09/0000000092 while reading upstream, client: 10.0.2.199, server: twojadomena.pl, request: "GET /export?r=576 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=576", host: "10.0.0.1"
+2026/11/08 09:40:44 [warn] 11917#11917: *2680 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/09/0000000093 while reading upstream, client: 10.0.2.204, server: twojadomena.pl, request: "GET /export?r=350 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=350", host: "10.0.0.1"
+2026/11/08 09:40:45 [warn] 11917#11917: *2658 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/09/0000000094 while reading upstream, client: 10.0.2.231, server: twojadomena.pl, request: "GET /export?r=763 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=763", host: "10.0.0.1"
+2026/11/08 09:40:45 [warn] 11917#11917: *2692 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/09/0000000095 while reading upstream, client: 10.0.2.207, server: twojadomena.pl, request: "GET /export?r=862 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=862", host: "10.0.0.1"
+2026/11/08 09:40:45 [warn] 11919#11919: *2652 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/09/0000000096 while reading upstream, client: 10.0.2.192, server: twojadomena.pl, request: "GET /export?r=220 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=220", host: "10.0.0.1"
+2026/11/08 09:40:45 [warn] 11917#11917: *2716 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/09/0000000097 while reading upstream, client: 10.0.2.229, server: twojadomena.pl, request: "GET /export?r=21 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=21", host: "10.0.0.1"
+2026/11/08 09:40:46 [warn] 11917#11917: *1991 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/09/0000000098 while reading upstream, client: 10.0.2.36, server: twojadomena.pl, request: "GET /export?r=296 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=296", host: "10.0.0.1"
+2026/11/08 09:40:46 [warn] 11917#11917: *2718 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/09/0000000099 while reading upstream, client: 10.0.2.216, server: twojadomena.pl, request: "GET /export?r=342 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=342", host: "10.0.0.1"
+2026/11/08 09:40:47 [warn] 11917#11917: *2777 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/10/0000000100 while reading upstream, client: 10.0.2.253, server: twojadomena.pl, request: "GET /export?r=539 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=539", host: "10.0.0.1"
+2026/11/08 09:40:47 [warn] 11917#11917: *2762 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/10/0000000101 while reading upstream, client: 10.0.1.125, server: twojadomena.pl, request: "GET /export?r=260 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=260", host: "10.0.0.1"
+2026/11/08 09:40:47 [warn] 11919#11919: *2727 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/10/0000000102 while reading upstream, client: 10.0.2.197, server: twojadomena.pl, request: "GET /export?r=464 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=464", host: "10.0.0.1"
+2026/11/08 09:40:47 [warn] 11917#11917: *2779 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/10/0000000103 while reading upstream, client: 10.0.2.245, server: twojadomena.pl, request: "GET /export?r=403 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=403", host: "10.0.0.1"
+2026/11/08 09:40:47 [warn] 11917#11917: *2730 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/10/0000000104 while reading upstream, client: 10.0.2.213, server: twojadomena.pl, request: "GET /export?r=322 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=322", host: "10.0.0.1"
+2026/11/08 09:40:48 [warn] 11917#11917: *1862 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/10/0000000105 while reading upstream, client: 10.0.2.9, server: twojadomena.pl, request: "GET /export?r=595 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=595", host: "10.0.0.1"
+2026/11/08 09:40:48 [warn] 11917#11917: *2795 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/10/0000000106 while reading upstream, client: 10.0.2.217, server: twojadomena.pl, request: "GET /export?r=973 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=973", host: "10.0.0.1"
+2026/11/08 09:40:48 [warn] 11917#11917: *2790 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/10/0000000107 while reading upstream, client: 10.0.2.208, server: twojadomena.pl, request: "GET /export?r=846 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=846", host: "10.0.0.1"
+2026/11/08 09:40:49 [warn] 11917#11917: *1934 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/10/0000000108 while reading upstream, client: 10.0.2.2, server: twojadomena.pl, request: "GET /export?r=220 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=220", host: "10.0.0.1"
+2026/11/08 09:40:49 [warn] 11917#11917: *2791 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/10/0000000109 while reading upstream, client: 10.0.2.225, server: twojadomena.pl, request: "GET /export?r=540 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=540", host: "10.0.0.1"
+2026/11/08 09:40:49 [warn] 11919#11919: *2061 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/11/0000000110 while reading upstream, client: 10.0.2.13, server: twojadomena.pl, request: "GET /export?r=821 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=821", host: "10.0.0.1"
+2026/11/08 09:40:50 [warn] 11919#11919: *2772 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/11/0000000111 while reading upstream, client: 10.0.2.214, server: twojadomena.pl, request: "GET /export?r=618 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=618", host: "10.0.0.1"
+2026/11/08 09:40:50 [warn] 11917#11917: *2880 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/11/0000000112 while reading upstream, client: 10.0.2.11, server: twojadomena.pl, request: "GET /export?r=815 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=815", host: "10.0.0.1"
+2026/11/08 09:40:50 [warn] 11919#11919: *2232 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/11/0000000113 while reading upstream, client: 10.0.2.76, server: twojadomena.pl, request: "GET /export?r=445 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=445", host: "10.0.0.1"
+2026/11/08 09:40:51 [warn] 11917#11917: *2299 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/11/0000000114 while reading upstream, client: 10.0.2.94, server: twojadomena.pl, request: "GET /export?r=839 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=839", host: "10.0.0.1"
+2026/11/08 09:40:51 [warn] 11917#11917: *2332 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/11/0000000115 while reading upstream, client: 10.0.2.108, server: twojadomena.pl, request: "GET /export?r=41 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=41", host: "10.0.0.1"
+2026/11/08 09:40:51 [warn] 11917#11917: *3052 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/11/0000000116 while reading upstream, client: 10.0.2.222, server: twojadomena.pl, request: "GET /export?r=929 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=929", host: "10.0.0.1"
+2026/11/08 09:40:51 [warn] 11917#11917: *3129 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/11/0000000117 while reading upstream, client: 10.0.2.24, server: twojadomena.pl, request: "GET /export?r=937 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=937", host: "10.0.0.1"
+2026/11/08 09:40:51 [warn] 11917#11917: *2284 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/11/0000000118 while reading upstream, client: 10.0.2.90, server: twojadomena.pl, request: "GET /export?r=31 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=31", host: "10.0.0.1"
+2026/11/08 09:40:52 [warn] 11917#11917: *3141 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/11/0000000119 while reading upstream, client: 10.0.2.52, server: twojadomena.pl, request: "GET /export?r=164 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=164", host: "10.0.0.1"
+2026/11/08 09:40:52 [warn] 11917#11917: *3068 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/12/0000000120 while reading upstream, client: 10.0.2.12, server: twojadomena.pl, request: "GET /export?r=243 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=243", host: "10.0.0.1"
+2026/11/08 09:40:52 [warn] 11917#11917: *3058 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/12/0000000121 while reading upstream, client: 10.0.1.151, server: twojadomena.pl, request: "GET /export?r=524 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=524", host: "10.0.0.1"
+2026/11/08 09:40:52 [warn] 11917#11917: *2114 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/12/0000000122 while reading upstream, client: 10.0.2.71, server: twojadomena.pl, request: "GET /export?r=59 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=59", host: "10.0.0.1"
+2026/11/08 09:40:52 [warn] 11917#11917: *3081 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/12/0000000123 while reading upstream, client: 10.0.2.19, server: twojadomena.pl, request: "GET /export?r=507 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=507", host: "10.0.0.1"
+2026/11/08 09:40:52 [warn] 11917#11917: *2418 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/12/0000000124 while reading upstream, client: 10.0.2.137, server: twojadomena.pl, request: "GET /export?r=708 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=708", host: "10.0.0.1"
+2026/11/08 09:40:53 [warn] 11919#11919: *3079 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/12/0000000125 while reading upstream, client: 10.0.2.246, server: twojadomena.pl, request: "GET /export?r=410 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=410", host: "10.0.0.1"
+2026/11/08 09:40:53 [warn] 11917#11917: *2316 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/12/0000000126 while reading upstream, client: 10.0.2.97, server: twojadomena.pl, request: "GET /export?r=517 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=517", host: "10.0.0.1"
+2026/11/08 09:40:53 [warn] 11917#11917: *2272 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/12/0000000127 while reading upstream, client: 10.0.2.77, server: twojadomena.pl, request: "GET /export?r=810 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=810", host: "10.0.0.1"
+2026/11/08 09:40:53 [warn] 11917#11917: *3169 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/12/0000000128 while reading upstream, client: 10.0.2.27, server: twojadomena.pl, request: "GET /export?r=806 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=806", host: "10.0.0.1"
+2026/11/08 09:40:53 [warn] 11917#11917: *3165 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/12/0000000129 while reading upstream, client: 10.0.2.73, server: twojadomena.pl, request: "GET /export?r=172 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=172", host: "10.0.0.1"
+2026/11/08 09:40:53 [warn] 11917#11917: *2373 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/13/0000000130 while reading upstream, client: 10.0.2.126, server: twojadomena.pl, request: "GET /export?r=60 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=60", host: "10.0.0.1"
+2026/11/08 09:40:53 [warn] 11917#11917: *2378 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/13/0000000131 while reading upstream, client: 10.0.2.127, server: twojadomena.pl, request: "GET /export?r=237 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=237", host: "10.0.0.1"
+2026/11/08 09:40:54 [warn] 11919#11919: *3216 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/13/0000000132 while reading upstream, client: 10.0.1.167, server: twojadomena.pl, request: "GET /export?r=48 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=48", host: "10.0.0.1"
+2026/11/08 09:40:54 [warn] 11919#11919: *3085 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/13/0000000133 while reading upstream, client: 10.0.2.20, server: twojadomena.pl, request: "GET /export?r=71 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=71", host: "10.0.0.1"
+2026/11/08 09:40:54 [warn] 11917#11917: *2438 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/13/0000000134 while reading upstream, client: 10.0.2.107, server: twojadomena.pl, request: "GET /export?r=493 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=493", host: "10.0.0.1"
+2026/11/08 09:40:55 [warn] 11919#11919: *3276 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/13/0000000135 while reading upstream, client: 10.0.2.72, server: twojadomena.pl, request: "GET /export?r=251 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=251", host: "10.0.0.1"
+2026/11/08 09:40:55 [warn] 11917#11917: *2449 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/13/0000000136 while reading upstream, client: 10.0.2.135, server: twojadomena.pl, request: "GET /export?r=658 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=658", host: "10.0.0.1"
+2026/11/08 09:40:55 [warn] 11917#11917: *3083 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/13/0000000137 while reading upstream, client: 10.0.1.128, server: twojadomena.pl, request: "GET /export?r=681 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=681", host: "10.0.0.1"
+2026/11/08 09:40:55 [warn] 11917#11917: *2469 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/13/0000000138 while reading upstream, client: 10.0.2.150, server: twojadomena.pl, request: "GET /export?r=576 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=576", host: "10.0.0.1"
+2026/11/08 09:40:55 [warn] 11917#11917: *2501 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/13/0000000139 while reading upstream, client: 10.0.2.156, server: twojadomena.pl, request: "GET /export?r=25 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=25", host: "10.0.0.1"
+2026/11/08 09:40:56 [warn] 11917#11917: *3370 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/14/0000000140 while reading upstream, client: 10.0.2.70, server: twojadomena.pl, request: "GET /export?r=461 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=461", host: "10.0.0.1"
+2026/11/08 09:40:56 [warn] 11917#11917: *3250 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/14/0000000141 while reading upstream, client: 10.0.2.66, server: twojadomena.pl, request: "GET /export?r=177 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=177", host: "10.0.0.1"
+2026/11/08 09:40:56 [warn] 11919#11919: *2361 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/14/0000000142 while reading upstream, client: 10.0.2.88, server: twojadomena.pl, request: "GET /export?r=8 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=8", host: "10.0.0.1"
+2026/11/08 09:40:56 [warn] 11917#11917: *3386 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/14/0000000143 while reading upstream, client: 10.0.2.176, server: twojadomena.pl, request: "GET /export?r=149 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=149", host: "10.0.0.1"
+2026/11/08 09:40:58 [warn] 11917#11917: *3393 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/14/0000000144 while reading upstream, client: 10.0.2.79, server: twojadomena.pl, request: "GET /export?r=951 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=951", host: "10.0.0.1"
+2026/11/08 09:40:58 [warn] 11917#11917: *3312 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/14/0000000145 while reading upstream, client: 10.0.2.56, server: twojadomena.pl, request: "GET /export?r=95 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=95", host: "10.0.0.1"
+2026/11/08 09:40:58 [warn] 11919#11919: *2566 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/14/0000000146 while reading upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /export?r=240 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=240", host: "10.0.0.1"
+2026/11/08 09:40:58 [warn] 11917#11917: *3333 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/14/0000000147 while reading upstream, client: 10.0.1.168, server: twojadomena.pl, request: "GET /export?r=546 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=546", host: "10.0.0.1"
+2026/11/08 09:40:59 [warn] 11917#11917: *3327 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/14/0000000148 while reading upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /export?r=39 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=39", host: "10.0.0.1"
+2026/11/08 09:40:59 [warn] 11919#11919: *3350 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/14/0000000149 while reading upstream, client: 10.0.1.169, server: twojadomena.pl, request: "GET /export?r=244 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=244", host: "10.0.0.1"
+2026/11/08 09:40:59 [warn] 11917#11917: *2647 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/15/0000000150 while reading upstream, client: 10.0.2.205, server: twojadomena.pl, request: "GET /export?r=665 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=665", host: "10.0.0.1"
+2026/11/08 09:40:59 [warn] 11917#11917: *3406 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/15/0000000151 while reading upstream, client: 10.0.2.81, server: twojadomena.pl, request: "GET /export?r=624 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=624", host: "10.0.0.1"
+2026/11/08 09:40:59 [warn] 11917#11917: *3438 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/15/0000000152 while reading upstream, client: 10.0.2.193, server: twojadomena.pl, request: "GET /export?r=392 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=392", host: "10.0.0.1"
+2026/11/08 09:40:59 [warn] 11919#11919: *3433 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/15/0000000153 while reading upstream, client: 10.0.1.170, server: twojadomena.pl, request: "GET /export?r=194 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=194", host: "10.0.0.1"
+2026/11/08 09:41:00 [warn] 11917#11917: *2692 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/15/0000000154 while reading upstream, client: 10.0.2.207, server: twojadomena.pl, request: "GET /export?r=469 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=469", host: "10.0.0.1"
+2026/11/08 09:41:00 [warn] 11917#11917: *3503 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/15/0000000155 while reading upstream, client: 10.0.2.103, server: twojadomena.pl, request: "GET /export?r=503 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=503", host: "10.0.0.1"
+2026/11/08 09:41:00 [warn] 11917#11917: *3404 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/15/0000000156 while reading upstream, client: 10.0.2.80, server: twojadomena.pl, request: "GET /export?r=792 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=792", host: "10.0.0.1"
+2026/11/08 09:41:01 [warn] 11917#11917: *2621 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/15/0000000157 while reading upstream, client: 10.0.2.191, server: twojadomena.pl, request: "GET /export?r=238 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=238", host: "10.0.0.1"
+2026/11/08 09:41:01 [warn] 11917#11917: *3573 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/15/0000000158 while reading upstream, client: 10.0.2.141, server: twojadomena.pl, request: "GET /export?r=356 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=356", host: "10.0.0.1"
+2026/11/08 09:41:01 [warn] 11917#11917: *2718 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/15/0000000159 while reading upstream, client: 10.0.2.216, server: twojadomena.pl, request: "GET /export?r=658 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=658", host: "10.0.0.1"
+2026/11/08 09:41:01 [warn] 11917#11917: *2688 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/16/0000000160 while reading upstream, client: 10.0.2.238, server: twojadomena.pl, request: "GET /export?r=334 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=334", host: "10.0.0.1"
+2026/11/08 09:41:01 [warn] 11917#11917: *3527 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/16/0000000161 while reading upstream, client: 10.0.1.57, server: twojadomena.pl, request: "GET /export?r=649 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=649", host: "10.0.0.1"
+2026/11/08 09:41:02 [warn] 11917#11917: *3487 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/16/0000000162 while reading upstream, client: 10.0.2.92, server: twojadomena.pl, request: "GET /export?r=474 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=474", host: "10.0.0.1"
+2026/11/08 09:41:02 [warn] 11917#11917: *3579 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/16/0000000163 while reading upstream, client: 10.0.1.177, server: twojadomena.pl, request: "GET /export?r=330 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=330", host: "10.0.0.1"
+2026/11/08 09:41:02 [warn] 11917#11917: *3523 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/16/0000000164 while reading upstream, client: 10.0.2.129, server: twojadomena.pl, request: "GET /export?r=624 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=624", host: "10.0.0.1"
+2026/11/08 09:41:02 [warn] 11917#11917: *3569 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/16/0000000165 while reading upstream, client: 10.0.2.132, server: twojadomena.pl, request: "GET /export?r=837 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=837", host: "10.0.0.1"
+2026/11/08 09:41:03 [warn] 11917#11917: *1962 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/16/0000000166 while reading upstream, client: 10.0.2.34, server: twojadomena.pl, request: "GET /export?r=25 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=25", host: "10.0.0.1"
+2026/11/08 09:41:03 [warn] 11917#11917: *3712 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/16/0000000167 while reading upstream, client: 10.0.2.158, server: twojadomena.pl, request: "GET /export?r=690 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=690", host: "10.0.0.1"
+2026/11/08 09:41:03 [warn] 11917#11917: *3641 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/16/0000000168 while reading upstream, client: 10.0.2.155, server: twojadomena.pl, request: "GET /export?r=164 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=164", host: "10.0.0.1"
+2026/11/08 09:41:03 [warn] 11917#11917: *3739 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/16/0000000169 while reading upstream, client: 10.0.1.191, server: twojadomena.pl, request: "GET /export?r=177 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=177", host: "10.0.0.1"
+2026/11/08 09:41:04 [warn] 11917#11917: *3636 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/17/0000000170 while reading upstream, client: 10.0.2.153, server: twojadomena.pl, request: "GET /export?r=517 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=517", host: "10.0.0.1"
+2026/11/08 09:41:04 [warn] 11917#11917: *2180 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/17/0000000171 while reading upstream, client: 10.0.2.54, server: twojadomena.pl, request: "GET /export?r=193 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=193", host: "10.0.0.1"
+2026/11/08 09:41:04 [warn] 11918#11918: *3748 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/17/0000000172 while reading upstream, client: 10.0.2.184, server: twojadomena.pl, request: "GET /export?r=841 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=841", host: "10.0.0.1"
+2026/11/08 09:41:04 [warn] 11917#11917: *1998 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/17/0000000173 while reading upstream, client: 10.0.2.37, server: twojadomena.pl, request: "GET /export?r=292 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=292", host: "10.0.0.1"
+2026/11/08 09:41:05 [warn] 11919#11919: *2232 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/17/0000000174 while reading upstream, client: 10.0.2.76, server: twojadomena.pl, request: "GET /export?r=170 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=170", host: "10.0.0.1"
+2026/11/08 09:41:05 [warn] 11919#11919: *2727 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/17/0000000175 while reading upstream, client: 10.0.2.197, server: twojadomena.pl, request: "GET /export?r=511 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=511", host: "10.0.0.1"
+2026/11/08 09:41:05 [warn] 11917#11917: *3726 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/17/0000000176 while reading upstream, client: 10.0.2.175, server: twojadomena.pl, request: "GET /export?r=226 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=226", host: "10.0.0.1"
+2026/11/08 09:41:05 [warn] 11917#11917: *3882 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/17/0000000177 while reading upstream, client: 10.0.2.213, server: twojadomena.pl, request: "GET /export?r=836 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=836", host: "10.0.0.1"
+2026/11/08 09:41:06 [warn] 11917#11917: *3848 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/17/0000000178 while reading upstream, client: 10.0.2.60, server: twojadomena.pl, request: "GET /export?r=898 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=898", host: "10.0.0.1"
+2026/11/08 09:41:06 [warn] 11917#11917: *3946 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/17/0000000179 while reading upstream, client: 10.0.2.217, server: twojadomena.pl, request: "GET /export?r=783 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=783", host: "10.0.0.1"
+2026/11/08 09:41:06 [warn] 11917#11917: *3954 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/18/0000000180 while reading upstream, client: 10.0.2.225, server: twojadomena.pl, request: "GET /export?r=571 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=571", host: "10.0.0.1"
+2026/11/08 09:41:06 [warn] 11917#11917: *3997 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/18/0000000181 while reading upstream, client: 10.0.1.198, server: twojadomena.pl, request: "GET /export?r=715 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=715", host: "10.0.0.1"
+2026/11/08 09:41:07 [warn] 11917#11917: *3250 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/18/0000000182 while reading upstream, client: 10.0.2.66, server: twojadomena.pl, request: "GET /export?r=782 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=782", host: "10.0.0.1"
+2026/11/08 09:41:07 [warn] 11917#11917: *3970 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/18/0000000183 while reading upstream, client: 10.0.2.9, server: twojadomena.pl, request: "GET /export?r=399 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=399", host: "10.0.0.1"
+2026/11/08 09:41:07 [warn] 11917#11917: *3052 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/18/0000000184 while reading upstream, client: 10.0.2.222, server: twojadomena.pl, request: "GET /export?r=627 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=627", host: "10.0.0.1"
+2026/11/08 09:41:07 [warn] 11917#11917: *3068 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/18/0000000185 while reading upstream, client: 10.0.2.12, server: twojadomena.pl, request: "GET /export?r=896 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=896", host: "10.0.0.1"
+2026/11/08 09:41:07 [warn] 11917#11917: *3169 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/18/0000000186 while reading upstream, client: 10.0.2.27, server: twojadomena.pl, request: "GET /export?r=951 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=951", host: "10.0.0.1"
+2026/11/08 09:41:07 [warn] 11917#11917: *4033 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/18/0000000187 while reading upstream, client: 10.0.2.117, server: twojadomena.pl, request: "GET /export?r=125 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=125", host: "10.0.0.1"
+2026/11/08 09:41:08 [warn] 11917#11917: *4055 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/18/0000000188 while reading upstream, client: 10.0.1.180, server: twojadomena.pl, request: "GET /export?r=369 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=369", host: "10.0.0.1"
+2026/11/08 09:41:08 [warn] 11917#11917: *4041 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/18/0000000189 while reading upstream, client: 10.0.1.175, server: twojadomena.pl, request: "GET /export?r=389 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=389", host: "10.0.0.1"
+2026/11/08 09:41:08 [warn] 11917#11917: *3165 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/19/0000000190 while reading upstream, client: 10.0.2.73, server: twojadomena.pl, request: "GET /export?r=527 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=527", host: "10.0.0.1"
+2026/11/08 09:41:08 [warn] 11917#11917: *4021 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/19/0000000191 while reading upstream, client: 10.0.2.108, server: twojadomena.pl, request: "GET /export?r=663 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=663", host: "10.0.0.1"
+2026/11/08 09:41:08 [warn] 11917#11917: *3974 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/19/0000000192 while reading upstream, client: 10.0.2.11, server: twojadomena.pl, request: "GET /export?r=737 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=737", host: "10.0.0.1"
+2026/11/08 09:41:09 [warn] 11917#11917: *4092 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/19/0000000193 while reading upstream, client: 10.0.2.19, server: twojadomena.pl, request: "GET /export?r=95 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=95", host: "10.0.0.1"
+2026/11/08 09:41:09 [warn] 11917#11917: *4100 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/19/0000000194 while reading upstream, client: 10.0.2.24, server: twojadomena.pl, request: "GET /export?r=79 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=79", host: "10.0.0.1"
+2026/11/08 09:41:10 [warn] 11917#11917: *4160 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/19/0000000195 while reading upstream, client: 10.0.2.127, server: twojadomena.pl, request: "GET /export?r=177 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=177", host: "10.0.0.1"
+2026/11/08 09:41:10 [warn] 11917#11917: *4136 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/19/0000000196 while reading upstream, client: 10.0.2.52, server: twojadomena.pl, request: "GET /export?r=381 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=381", host: "10.0.0.1"
+2026/11/08 09:41:11 [warn] 11917#11917: *3370 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/19/0000000197 while reading upstream, client: 10.0.2.70, server: twojadomena.pl, request: "GET /export?r=349 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=349", host: "10.0.0.1"
+2026/11/08 09:41:11 [warn] 11917#11917: *4226 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/19/0000000198 while reading upstream, client: 10.0.2.140, server: twojadomena.pl, request: "GET /export?r=31 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=31", host: "10.0.0.1"
+2026/11/08 09:41:11 [warn] 11917#11917: *4216 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/19/0000000199 while reading upstream, client: 10.0.2.137, server: twojadomena.pl, request: "GET /export?r=651 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=651", host: "10.0.0.1"
+2026/11/08 09:41:11 [warn] 11917#11917: *4244 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/20/0000000200 while reading upstream, client: 10.0.2.150, server: twojadomena.pl, request: "GET /export?r=346 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=346", host: "10.0.0.1"
+2026/11/08 09:41:12 [warn] 11917#11917: *4270 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/20/0000000201 while reading upstream, client: 10.0.2.156, server: twojadomena.pl, request: "GET /export?r=702 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=702", host: "10.0.0.1"
+2026/11/08 09:41:12 [warn] 11917#11917: *4274 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/20/0000000202 while reading upstream, client: 10.0.2.163, server: twojadomena.pl, request: "GET /export?r=430 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=430", host: "10.0.0.1"
+2026/11/08 09:41:13 [warn] 11917#11917: *4292 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/20/0000000203 while reading upstream, client: 10.0.2.168, server: twojadomena.pl, request: "GET /export?r=414 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=414", host: "10.0.0.1"
+2026/11/08 09:41:13 [warn] 11917#11917: *3404 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/20/0000000204 while reading upstream, client: 10.0.2.80, server: twojadomena.pl, request: "GET /export?r=400 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=400", host: "10.0.0.1"
+2026/11/08 09:41:14 [warn] 11917#11917: *4329 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/20/0000000205 while reading upstream, client: 10.0.2.170, server: twojadomena.pl, request: "GET /export?r=170 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=170", host: "10.0.0.1"
+2026/11/08 09:41:14 [warn] 11917#11917: *4336 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/20/0000000206 while reading upstream, client: 10.0.2.177, server: twojadomena.pl, request: "GET /export?r=83 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=83", host: "10.0.0.1"
+2026/11/08 09:41:14 [warn] 11917#11917: *4366 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/20/0000000207 while reading upstream, client: 10.0.1.101, server: twojadomena.pl, request: "GET /export?r=937 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=937", host: "10.0.0.1"
+2026/11/08 09:41:15 [warn] 11917#11917: *4388 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/20/0000000208 while reading upstream, client: 10.0.2.182, server: twojadomena.pl, request: "GET /export?r=650 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=650", host: "10.0.0.1"
+2026/11/08 09:41:15 [warn] 11917#11917: *3503 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/20/0000000209 while reading upstream, client: 10.0.2.103, server: twojadomena.pl, request: "GET /export?r=841 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=841", host: "10.0.0.1"
+2026/11/08 09:41:15 [warn] 11917#11917: *4397 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/21/0000000210 while reading upstream, client: 10.0.2.110, server: twojadomena.pl, request: "GET /export?r=402 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=402", host: "10.0.0.1"
+2026/11/08 09:41:15 [info] 11919#11919: *2652 client 10.0.2.192 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2555 client 10.0.2.139 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2438 client 10.0.2.107 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2091 client 10.0.2.14 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2680 client 10.0.2.204 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2692 client 10.0.2.207 closed keepalive connection
+2026/11/08 09:41:15 [info] 11919#11919: *2563 client 10.0.2.167 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2096 client 10.0.2.47 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2718 client 10.0.2.216 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2017 client 10.0.2.6 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2449 client 10.0.2.135 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *1934 client 10.0.2.2 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2105 client 10.0.2.61 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2777 client 10.0.2.253 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2716 client 10.0.2.229 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2245 client 10.0.2.83 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *3165 client 10.0.2.73 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2779 client 10.0.2.245 closed keepalive connection
+2026/11/08 09:41:15 [info] 11919#11919: *2562 client 10.0.2.144 closed keepalive connection
+2026/11/08 09:41:15 [info] 11919#11919: *2361 client 10.0.2.88 closed keepalive connection
+2026/11/08 09:41:15 [info] 11919#11919: *2061 client 10.0.2.13 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2114 client 10.0.2.71 closed keepalive connection
+2026/11/08 09:41:15 [info] 11919#11919: *2232 client 10.0.2.76 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *1882 client 10.0.2.1 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *1911 client 10.0.2.32 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *1962 client 10.0.2.34 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *1991 client 10.0.2.36 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *1998 client 10.0.2.37 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2157 client 10.0.2.40 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2180 client 10.0.2.54 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *3848 client 10.0.2.60 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2204 client 10.0.2.63 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2272 client 10.0.2.77 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2274 client 10.0.2.86 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2284 client 10.0.2.90 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2299 client 10.0.2.94 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2316 client 10.0.2.97 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2321 client 10.0.2.98 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *4021 client 10.0.2.108 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *4033 client 10.0.2.117 closed keepalive connection
+2026/11/08 09:41:15 [info] 11919#11919: *2694 client 10.0.2.252 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2373 client 10.0.2.126 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *4160 client 10.0.2.127 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *4176 client 10.0.2.130 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *4216 client 10.0.2.137 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *4226 client 10.0.2.140 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *4244 client 10.0.2.150 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *4248 client 10.0.2.152 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *4255 client 10.0.2.154 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *4270 client 10.0.2.156 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *4274 client 10.0.2.163 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *4292 client 10.0.2.168 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *4329 client 10.0.2.170 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *4336 client 10.0.2.177 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *4357 client 10.0.2.180 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *4388 client 10.0.2.182 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2597 client 10.0.2.183 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2621 client 10.0.2.191 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2686 client 10.0.2.235 closed keepalive connection
+2026/11/08 09:41:15 [info] 11917#11917: *2688 client 10.0.2.238 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *4366 client 10.0.1.101 closed keepalive connection
+2026/11/08 09:41:16 [warn] 11917#11917: *4420 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/21/0000000211 while reading upstream, client: 10.0.2.176, server: twojadomena.pl, request: "GET /export?r=978 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=978", host: "10.0.0.1"
+2026/11/08 09:41:16 [warn] 11917#11917: *3523 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/21/0000000212 while reading upstream, client: 10.0.2.129, server: twojadomena.pl, request: "GET /export?r=164 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=164", host: "10.0.0.1"
+2026/11/08 09:41:16 [info] 11917#11917: *3527 client 10.0.1.57 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3636 client 10.0.2.153 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3404 client 10.0.2.80 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3726 client 10.0.2.175 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *4136 client 10.0.2.52 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3974 client 10.0.2.11 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3393 client 10.0.2.79 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3573 client 10.0.2.141 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3370 client 10.0.2.70 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3970 client 10.0.2.9 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3523 client 10.0.2.129 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3503 client 10.0.2.103 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *4100 client 10.0.2.24 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3712 client 10.0.2.158 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3641 client 10.0.2.155 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3882 client 10.0.2.213 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3312 client 10.0.2.56 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3954 client 10.0.2.225 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *4092 client 10.0.2.19 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3068 client 10.0.2.12 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3569 client 10.0.2.132 closed keepalive connection
+2026/11/08 09:41:16 [info] 11919#11919: *3085 client 10.0.2.20 closed keepalive connection
+2026/11/08 09:41:16 [info] 11919#11919: *2772 client 10.0.2.214 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3487 client 10.0.2.92 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3406 client 10.0.2.81 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3327 client 10.0.2.65 closed keepalive connection
+2026/11/08 09:41:16 [info] 11918#11918: *3748 client 10.0.2.184 closed keepalive connection
+2026/11/08 09:41:16 [info] 11917#11917: *3946 client 10.0.2.217 closed keepalive connection
+2026/11/08 09:41:16 [info] 11919#11919: *2727 client 10.0.2.197 closed keepalive connection
+2026/11/08 09:41:17 [info] 11917#11917: *3169 client 10.0.2.27 closed keepalive connection
+2026/11/08 09:41:17 [info] 11919#11919: *3276 client 10.0.2.72 closed keepalive connection
+2026/11/08 09:41:17 [info] 11917#11917: *3052 client 10.0.2.222 closed keepalive connection
+2026/11/08 09:41:17 [info] 11917#11917: *4420 client 10.0.2.176 closed keepalive connection
+2026/11/08 09:41:17 [info] 11919#11919: *3079 client 10.0.2.246 closed keepalive connection
+2026/11/08 09:41:17 [info] 11917#11917: *4397 client 10.0.2.110 closed keepalive connection
+2026/11/08 09:41:17 [info] 11917#11917: *3250 client 10.0.2.66 closed keepalive connection
+2026/11/08 09:41:18 [warn] 11917#11917: *4601 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/21/0000000213 while reading upstream, client: 10.0.1.213, server: twojadomena.pl, request: "GET /export?r=43 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=43", host: "10.0.0.1"
+2026/11/08 09:41:28 [warn] 11917#11917: *5050 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/21/0000000214 while reading upstream, client: 10.0.1.204, server: twojadomena.pl, request: "GET /export?r=62 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=62", host: "10.0.0.1"
+2026/11/08 09:41:30 [info] 11917#11917: *4401 client 10.0.1.49 closed keepalive connection
+2026/11/08 09:41:30 [info] 11917#11917: *5164 client 10.0.1.56 closed keepalive connection
+2026/11/08 09:41:30 [info] 11919#11919: *4408 client 10.0.1.206 closed keepalive connection
+2026/11/08 09:41:30 [info] 11917#11917: *5171 client 10.0.1.18 closed keepalive connection
+2026/11/08 09:41:30 [info] 11917#11917: *5185 client 10.0.1.22 closed keepalive connection
+2026/11/08 09:41:31 [info] 11917#11917: *5210 client 10.0.1.8 closed keepalive connection
+2026/11/08 09:41:31 [info] 11917#11917: *5215 client 10.0.1.184 closed keepalive connection
+2026/11/08 09:41:32 [info] 11917#11917: *61 client 10.0.1.21 closed keepalive connection
+2026/11/08 09:41:32 [info] 11917#11917: *162 client 10.0.1.74 closed keepalive connection
+2026/11/08 09:41:32 [info] 11917#11917: *280 client 10.0.1.209 closed keepalive connection
+2026/11/08 09:41:32 [warn] 11917#11917: *5308 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/21/0000000215 while reading upstream, client: 10.0.1.221, server: twojadomena.pl, request: "GET /export?r=395 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=395", host: "10.0.0.1"
+2026/11/08 09:41:32 [info] 11917#11917: *67 client 10.0.1.2 closed keepalive connection
+2026/11/08 09:41:32 [info] 11917#11917: *164 client 10.0.1.96 closed keepalive connection
+2026/11/08 09:41:32 [info] 11917#11917: *212 client 10.0.1.130 closed keepalive connection
+2026/11/08 09:41:32 [info] 11919#11919: *288 client 10.0.1.155 closed keepalive connection
+2026/11/08 09:41:32 [info] 11917#11917: *115 client 10.0.1.94 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *2958 client 10.0.1.22 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *151 client 10.0.1.68 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *2991 client 10.0.1.21 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *75 client 10.0.1.49 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *3796 client 10.0.1.56 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *89 client 10.0.1.59 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *104 client 10.0.1.74 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *111 client 10.0.1.82 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *3769 client 10.0.1.176 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *129 client 10.0.1.209 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *3822 client 10.0.1.2 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *91 client 10.0.1.79 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *2977 client 10.0.1.206 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *106 client 10.0.1.94 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *2954 client 10.0.1.130 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *2964 client 10.0.1.155 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *3833 client 10.0.1.18 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *120 client 10.0.1.96 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *3881 client 10.0.1.95 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *2973 client 10.0.1.8 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *339 client 10.0.1.184 closed keepalive connection
+2026/11/08 09:41:33 [info] 11917#11917: *241 client 10.0.1.192 closed keepalive connection
+2026/11/08 09:41:33 [warn] 11917#11917: *5393 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/21/0000000216 while reading upstream, client: 10.0.1.235, server: twojadomena.pl, request: "GET /export?r=856 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=856", host: "10.0.0.1"
+2026/11/08 09:41:34 [info] 11917#11917: *5308 client 10.0.1.221 closed keepalive connection
+2026/11/08 09:41:34 [info] 11917#11917: *5050 client 10.0.1.204 closed keepalive connection
+2026/11/08 09:41:34 [info] 11917#11917: *5393 client 10.0.1.235 closed keepalive connection
+2026/11/08 09:41:36 [warn] 11917#11917: *5500 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/21/0000000217 while reading upstream, client: 10.0.1.210, server: twojadomena.pl, request: "GET /export?r=134 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=134", host: "10.0.0.1"
+2026/11/08 09:41:37 [info] 11917#11917: *5500 client 10.0.1.210 closed keepalive connection
+2026/11/08 09:41:42 [warn] 11917#11917: *5806 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/21/0000000218 while reading upstream, client: 10.0.1.246, server: twojadomena.pl, request: "GET /export?r=167 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=167", host: "10.0.0.1"
+2026/11/08 09:41:43 [info] 11919#11919: *3218 client 10.0.1.85 closed keepalive connection
+2026/11/08 09:41:43 [info] 11917#11917: *711 client 10.0.1.228 closed keepalive connection
+2026/11/08 09:41:43 [info] 11917#11917: *480 client 10.0.1.226 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *77 client 10.0.1.33 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *116 client 10.0.1.42 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *189 client 10.0.1.48 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *228 client 10.0.1.53 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *262 client 10.0.1.62 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *356 client 10.0.1.66 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *396 client 10.0.1.72 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *398 client 10.0.1.111 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *472 client 10.0.1.118 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *476 client 10.0.1.127 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *546 client 10.0.1.137 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *557 client 10.0.1.150 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *600 client 10.0.1.154 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *602 client 10.0.1.195 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *628 client 10.0.1.197 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *637 client 10.0.1.211 closed keepalive connection
+2026/11/08 09:41:44 [info] 11919#11919: *641 client 10.0.1.230 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *647 client 10.0.1.232 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *654 client 10.0.1.234 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *656 client 10.0.1.236 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *680 client 10.0.1.239 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *221 client 10.0.1.160 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *312 client 10.0.1.245 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *277 client 10.0.1.218 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *351 client 10.0.1.247 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *73 client 10.0.1.109 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *167 client 10.0.1.138 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *378 client 10.0.1.252 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *109 client 10.0.1.110 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *135 client 10.0.1.119 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *376 client 10.0.1.249 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *302 client 10.0.1.244 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *43 client 10.0.1.44 closed keepalive connection
+2026/11/08 09:41:44 [info] 11919#11919: *39 client 10.0.1.36 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *264 client 10.0.1.193 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *216 client 10.0.1.157 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *51 client 10.0.1.84 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *274 client 10.0.1.203 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *53 client 10.0.1.98 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *260 client 10.0.1.179 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *285 client 10.0.1.237 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *37 client 10.0.1.24 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *282 client 10.0.1.224 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *146 client 10.0.1.129 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *137 client 10.0.1.121 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *194 client 10.0.1.141 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *47 client 10.0.1.70 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *208 client 10.0.1.153 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *133 client 10.0.1.114 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *206 client 10.0.1.143 closed keepalive connection
+2026/11/08 09:41:44 [info] 11919#11919: *38 client 10.0.1.32 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *249 client 10.0.1.171 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *49 client 10.0.1.75 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *35 client 10.0.1.17 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *45 client 10.0.1.60 closed keepalive connection
+2026/11/08 09:41:44 [warn] 11917#11917: *5865 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/21/0000000219 while reading upstream, client: 10.0.1.251, server: twojadomena.pl, request: "GET /export?r=31 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=31", host: "10.0.0.1"
+2026/11/08 09:41:44 [info] 11917#11917: *5806 client 10.0.1.246 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5865 client 10.0.1.251 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *352 client 10.0.1.120 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5732 client 10.0.1.33 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5740 client 10.0.1.42 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5743 client 10.0.1.45 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5775 client 10.0.1.48 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5778 client 10.0.1.52 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5786 client 10.0.1.53 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5798 client 10.0.1.62 closed keepalive connection
+2026/11/08 09:41:44 [info] 11919#11919: *5810 client 10.0.1.66 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5822 client 10.0.1.72 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5876 client 10.0.1.76 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5878 client 10.0.1.77 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4598 client 10.0.1.147 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4635 client 10.0.1.150 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4649 client 10.0.1.154 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4653 client 10.0.1.164 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4655 client 10.0.1.165 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4661 client 10.0.1.185 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5521 client 10.0.1.190 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5523 client 10.0.1.194 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5530 client 10.0.1.195 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5538 client 10.0.1.196 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5564 client 10.0.1.197 closed keepalive connection
+2026/11/08 09:41:44 [info] 11919#11919: *5575 client 10.0.1.199 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5583 client 10.0.1.211 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5592 client 10.0.1.223 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5627 client 10.0.1.230 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5640 client 10.0.1.231 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5645 client 10.0.1.232 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5671 client 10.0.1.234 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5708 client 10.0.1.236 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5718 client 10.0.1.239 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *325 client 10.0.1.88 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *150 client 10.0.1.10 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *498 client 10.0.1.219 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *204 client 10.0.1.20 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *324 client 10.0.1.92 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *237 client 10.0.1.64 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *190 client 10.0.1.19 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *509 client 10.0.1.212 closed keepalive connection
+2026/11/08 09:41:44 [info] 11919#11919: *372 client 10.0.1.132 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *148 client 10.0.1.6 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *328 client 10.0.1.61 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *259 client 10.0.1.73 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *443 client 10.0.1.182 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *400 client 10.0.1.93 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *500 client 10.0.1.186 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *422 client 10.0.1.134 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5277 client 10.0.1.84 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5363 client 10.0.1.140 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5467 client 10.0.1.148 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5298 client 10.0.1.116 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5485 client 10.0.1.162 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5596 client 10.0.1.202 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5642 client 10.0.1.12 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5590 client 10.0.1.179 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5617 client 10.0.1.207 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5085 client 10.0.1.35 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5270 client 10.0.1.75 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5117 client 10.0.1.70 closed keepalive connection
+2026/11/08 09:41:44 [info] 11919#11919: *5369 client 10.0.1.143 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5480 client 10.0.1.158 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5334 client 10.0.1.138 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *511 client 10.0.1.250 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *3411 client 10.0.1.215 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *1648 client 10.0.1.186 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *671 client 10.0.1.86 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *773 client 10.0.1.115 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *804 client 10.0.1.123 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4902 client 10.0.1.116 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2467 client 10.0.1.109 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *1336 client 10.0.1.47 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2377 client 10.0.1.17 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *823 client 10.0.1.207 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2254 client 10.0.1.245 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4983 client 10.0.1.140 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2400 client 10.0.1.36 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5100 client 10.0.1.157 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5134 client 10.0.1.171 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2241 client 10.0.1.244 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4725 client 10.0.1.35 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2309 client 10.0.1.252 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2187 client 10.0.1.218 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5114 client 10.0.1.160 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4822 client 10.0.1.98 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4763 client 10.0.1.43 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4807 client 10.0.1.75 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *795 client 10.0.1.193 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2417 client 10.0.1.44 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2216 client 10.0.1.224 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4787 client 10.0.1.60 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5132 client 10.0.1.162 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4996 client 10.0.1.141 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4944 client 10.0.1.121 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *792 client 10.0.1.189 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2289 client 10.0.1.247 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5102 client 10.0.1.158 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2386 client 10.0.1.31 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *800 client 10.0.1.202 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2388 client 10.0.1.32 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2228 client 10.0.1.237 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4871 client 10.0.1.114 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4805 client 10.0.1.70 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *816 client 10.0.1.203 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2354 client 10.0.1.12 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4714 client 10.0.1.24 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4974 client 10.0.1.138 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5032 client 10.0.1.148 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5138 client 10.0.1.174 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4968 client 10.0.1.129 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5092 client 10.0.1.153 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *782 client 10.0.1.179 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *5030 client 10.0.1.143 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2478 client 10.0.1.110 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4942 client 10.0.1.119 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *4815 client 10.0.1.84 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2293 client 10.0.1.249 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *93 client 10.0.1.4 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *55 client 10.0.1.52 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *144 client 10.0.1.76 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *156 client 10.0.1.99 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *210 client 10.0.1.118 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *233 client 10.0.1.147 closed keepalive connection
+2026/11/08 09:41:44 [info] 11919#11919: *555 client 10.0.1.199 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *255 client 10.0.1.164 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *401 client 10.0.1.165 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *414 client 10.0.1.190 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *537 client 10.0.1.194 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *550 client 10.0.1.196 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *573 client 10.0.1.223 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *604 client 10.0.1.231 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *430 client 10.0.1.161 closed keepalive connection
+2026/11/08 09:41:44 [info] 11919#11919: *866 client 10.0.1.244 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2506 client 10.0.1.51 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *632 client 10.0.1.160 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2666 client 10.0.1.117 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2575 client 10.0.1.81 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *784 client 10.0.1.224 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2623 client 10.0.1.109 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2631 client 10.0.1.110 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2492 client 10.0.1.44 closed keepalive connection
+2026/11/08 09:41:44 [info] 11919#11919: *2582 client 10.0.1.84 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *699 client 10.0.1.171 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *606 client 10.0.1.157 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *3241 client 10.0.1.13 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2675 client 10.0.1.119 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *713 client 10.0.1.179 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2455 client 10.0.1.24 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2440 client 10.0.1.17 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *3187 client 10.0.1.252 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *893 client 10.0.1.247 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2645 client 10.0.1.114 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2485 client 10.0.1.36 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *754 client 10.0.1.204 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *721 client 10.0.1.193 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *858 client 10.0.1.237 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *3231 client 10.0.1.5 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *492 client 10.0.1.129 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2595 client 10.0.1.98 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *914 client 10.0.1.253 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *663 client 10.0.1.167 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2570 client 10.0.1.75 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *3176 client 10.0.1.249 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *742 client 10.0.1.203 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *575 client 10.0.1.151 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2536 client 10.0.1.70 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *580 client 10.0.1.153 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2522 client 10.0.1.60 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *487 client 10.0.1.125 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2457 client 10.0.1.27 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2744 client 10.0.1.141 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *731 client 10.0.1.198 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *868 client 10.0.1.242 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2524 client 10.0.1.67 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *687 client 10.0.1.168 closed keepalive connection
+2026/11/08 09:41:44 [info] 11919#11919: *760 client 10.0.1.218 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *463 client 10.0.1.121 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2474 client 10.0.1.32 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *2508 client 10.0.1.58 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *874 client 10.0.1.245 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *776 client 10.0.1.221 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *709 client 10.0.1.177 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *543 client 10.0.1.143 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *789 client 10.0.1.235 closed keepalive connection
+2026/11/08 09:41:44 [info] 11917#11917: *494 client 10.0.1.138 closed keepalive connection
+2026/11/08 09:41:44 [info] 11919#11919: *2635 client 10.0.1.113 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *679 client 10.0.1.91 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5233 client 10.0.1.53 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5235 client 10.0.1.55 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5312 client 10.0.1.62 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5323 client 10.0.1.63 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5332 client 10.0.1.65 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5344 client 10.0.1.66 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5406 client 10.0.1.72 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5423 client 10.0.1.83 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5433 client 10.0.1.97 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5444 client 10.0.1.105 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5464 client 10.0.1.111 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5476 client 10.0.1.118 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5492 client 10.0.1.126 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5506 client 10.0.1.127 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5511 client 10.0.1.128 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5513 client 10.0.1.137 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5540 client 10.0.1.150 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5566 client 10.0.1.154 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5568 client 10.0.1.163 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5620 client 10.0.1.191 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5625 client 10.0.1.195 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5683 client 10.0.1.197 closed keepalive connection
+2026/11/08 09:41:45 [info] 11919#11919: *5745 client 10.0.1.213 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5737 client 10.0.1.211 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5757 client 10.0.1.225 closed keepalive connection
+2026/11/08 09:41:45 [info] 11919#11919: *5792 client 10.0.1.233 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5763 client 10.0.1.230 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5771 client 10.0.1.232 closed keepalive connection
+2026/11/08 09:41:45 [info] 11919#11919: *5812 client 10.0.1.234 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5832 client 10.0.1.236 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5834 client 10.0.1.239 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5871 client 10.0.1.246 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5882 client 10.0.1.251 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5906 client 10.0.1.254 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *4884 client 10.0.1.169 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *4966 client 10.0.1.219 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *2483 client 10.0.1.61 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *744 client 10.0.1.134 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *4851 client 10.0.1.161 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *2529 client 10.0.1.73 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5074 client 10.0.1.20 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *765 client 10.0.1.135 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *2549 client 10.0.1.88 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *4817 client 10.0.1.149 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *4923 client 10.0.1.186 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5047 client 10.0.1.6 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *820 client 10.0.1.146 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *4959 client 10.0.1.216 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *4882 client 10.0.1.170 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *2516 client 10.0.1.71 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *4948 client 10.0.1.180 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *4905 client 10.0.1.175 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5061 client 10.0.1.10 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *634 client 10.0.1.92 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *4990 client 10.0.1.250 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5057 client 10.0.1.19 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *2487 client 10.0.1.64 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *4993 client 10.0.1.4 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *794 client 10.0.1.144 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *4906 client 10.0.1.182 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *645 client 10.0.1.93 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *786 client 10.0.1.142 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *660 client 10.0.1.120 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *719 client 10.0.1.132 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5107 client 10.0.1.50 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *4932 client 10.0.1.212 closed keepalive connection
+2026/11/08 09:41:45 [info] 11919#11919: *5494 client 10.0.1.88 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5402 client 10.0.1.64 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5667 client 10.0.1.123 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5459 client 10.0.1.86 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5258 client 10.0.1.10 closed keepalive connection
+2026/11/08 09:41:45 [info] 11919#11919: *5900 client 10.0.1.215 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5580 client 10.0.1.93 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5327 client 10.0.1.20 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5606 client 10.0.1.115 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5690 client 10.0.1.134 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5685 client 10.0.1.132 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5446 client 10.0.1.73 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5894 client 10.0.1.212 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5367 client 10.0.1.61 closed keepalive connection
+2026/11/08 09:41:45 [info] 11919#11919: *5902 client 10.0.1.219 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5649 client 10.0.1.120 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5556 client 10.0.1.92 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5201 client 10.0.1.6 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5552 client 10.0.1.91 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5839 client 10.0.1.182 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5347 client 10.0.1.47 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5910 client 10.0.1.222 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5887 client 10.0.1.186 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5818 client 10.0.1.161 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5437 client 10.0.1.228 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *2920 client 10.0.1.54 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *2979 client 10.0.1.248 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5913 client 10.0.1.54 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5487 client 10.0.1.240 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5261 client 10.0.1.226 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *705 client 10.0.1.240 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *627 client 10.0.1.201 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *2894 client 10.0.1.136 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *661 client 10.0.1.217 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *695 client 10.0.1.220 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *590 client 10.0.1.178 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5560 client 10.0.1.248 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *3008 client 10.0.1.166 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5195 client 10.0.1.220 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *4925 client 10.0.1.210 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5346 client 10.0.1.217 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5849 client 10.0.1.166 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5755 client 10.0.1.136 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5880 client 10.0.1.178 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5601 client 10.0.1.57 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5543 client 10.0.1.248 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5283 client 10.0.1.19 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5602 client 10.0.1.54 closed keepalive connection
+2026/11/08 09:41:45 [info] 11917#11917: *5636 client 10.0.1.101 closed keepalive connection
+2026/11/08 09:41:46 [info] 11917#11917: *5503 client 10.0.1.240 closed keepalive connection
+2026/11/08 09:41:46 [info] 11917#11917: *5371 client 10.0.1.220 closed keepalive connection
+2026/11/08 09:41:46 [info] 11917#11917: *5908 client 10.0.1.201 closed keepalive connection
+2026/11/08 09:41:46 [info] 11917#11917: *5588 client 10.0.1.11 closed keepalive connection

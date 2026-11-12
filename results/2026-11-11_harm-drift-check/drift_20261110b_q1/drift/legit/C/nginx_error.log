@@ -1,0 +1,480 @@
+2026/11/10 16:49:50 [error] 4832#4832: *1 connect() failed (111: Connection refused) while connecting to upstream, client: 10.0.0.1, server: twojadomena.pl, request: "GET /static/1 HTTP/1.1", upstream: "http://127.0.0.1:8080/static/1", host: "10.0.0.1"
+2026/11/10 16:49:50 [info] 4832#4832: *1 client 10.0.0.1 closed keepalive connection
+2026/11/10 16:49:52 [info] 4832#4832: *3 client 10.0.0.1 closed keepalive connection
+2026/11/10 16:49:52 [info] 4832#4832: *5 client 10.0.0.1 closed keepalive connection
+2026/11/10 16:49:52 [info] 4832#4832: *7 client 10.0.0.1 closed keepalive connection
+2026/11/10 16:49:52 [info] 4832#4832: *9 client 10.0.0.1 closed keepalive connection
+2026/11/10 16:49:52 [info] 4832#4832: *11 client 10.0.0.1 closed keepalive connection
+2026/11/10 16:49:53 [info] 4832#4832: *13 client 10.0.0.1 closed keepalive connection
+2026/11/10 16:49:53 [info] 4832#4832: *15 client 10.0.0.1 closed keepalive connection
+2026/11/10 16:49:53 [info] 4832#4832: *17 client 10.0.0.1 closed keepalive connection
+2026/11/10 16:49:53 [info] 4832#4832: *19 client 10.0.0.1 closed keepalive connection
+2026/11/10 16:49:53 [info] 4832#4832: *21 client 10.0.0.1 closed keepalive connection
+2026/11/10 16:49:53 [info] 4832#4832: *23 client 10.0.0.1 closed keepalive connection
+2026/11/10 16:49:53 [info] 4832#4832: *25 client 10.0.0.1 closed keepalive connection
+2026/11/10 16:49:53 [info] 4832#4832: *27 client 10.0.0.1 closed keepalive connection
+2026/11/10 16:49:53 [info] 4832#4832: *29 client 10.0.0.1 closed keepalive connection
+2026/11/10 16:49:53 [info] 4832#4832: *31 client 10.0.0.1 closed keepalive connection
+2026/11/10 16:49:54 [info] 4832#4832: *33 client 10.0.0.1 closed keepalive connection
+2026/11/10 16:50:01 [warn] 4832#4832: *185 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/00/0000000001 while reading upstream, client: 10.0.1.2, server: twojadomena.pl, request: "GET /export?r=1 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=1", host: "10.0.0.1"
+2026/11/10 16:50:02 [warn] 4832#4832: *301 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/00/0000000002 while reading upstream, client: 10.0.1.33, server: twojadomena.pl, request: "GET /export?r=752 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=752", host: "10.0.0.1"
+2026/11/10 16:50:03 [warn] 4832#4832: *374 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/00/0000000003 while reading upstream, client: 10.0.1.34, server: twojadomena.pl, request: "GET /export?r=835 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=835", host: "10.0.0.1"
+2026/11/10 16:50:05 [warn] 4832#4832: *509 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/00/0000000004 while reading upstream, client: 10.0.1.20, server: twojadomena.pl, request: "GET /export?r=72 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=72", host: "10.0.0.1"
+2026/11/10 16:50:09 [warn] 4832#4832: *813 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/00/0000000005 while reading upstream, client: 10.0.1.56, server: twojadomena.pl, request: "GET /export?r=203 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=203", host: "10.0.0.1"
+2026/11/10 16:50:09 [warn] 4832#4832: *834 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/00/0000000006 while reading upstream, client: 10.0.1.50, server: twojadomena.pl, request: "GET /export?r=395 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=395", host: "10.0.0.1"
+2026/11/10 16:50:09 [warn] 4832#4832: *841 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/00/0000000007 while reading upstream, client: 10.0.1.60, server: twojadomena.pl, request: "GET /export?r=928 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=928", host: "10.0.0.1"
+2026/11/10 16:50:16 [warn] 4832#4832: *1186 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/00/0000000008 while reading upstream, client: 10.0.1.93, server: twojadomena.pl, request: "GET /export?r=913 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=913", host: "10.0.0.1"
+2026/11/10 16:50:18 [warn] 4832#4832: *1333 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/00/0000000009 while reading upstream, client: 10.0.1.98, server: twojadomena.pl, request: "GET /export?r=655 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=655", host: "10.0.0.1"
+2026/11/10 16:50:19 [warn] 4832#4832: *1373 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/01/0000000010 while reading upstream, client: 10.0.1.79, server: twojadomena.pl, request: "GET /export?r=140 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=140", host: "10.0.0.1"
+2026/11/10 16:50:20 [warn] 4832#4832: *1394 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/01/0000000011 while reading upstream, client: 10.0.1.137, server: twojadomena.pl, request: "GET /export?r=876 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=876", host: "10.0.0.1"
+2026/11/10 16:50:20 [warn] 4832#4832: *1405 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/01/0000000012 while reading upstream, client: 10.0.1.101, server: twojadomena.pl, request: "GET /export?r=998 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=998", host: "10.0.0.1"
+2026/11/10 16:50:21 [warn] 4832#4832: *1442 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/01/0000000013 while reading upstream, client: 10.0.1.8, server: twojadomena.pl, request: "GET /export?r=277 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=277", host: "10.0.0.1"
+2026/11/10 16:50:21 [warn] 4835#4835: *1439 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/01/0000000014 while reading upstream, client: 10.0.1.115, server: twojadomena.pl, request: "GET /export?r=839 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=839", host: "10.0.0.1"
+2026/11/10 16:50:22 [warn] 4832#4832: *1478 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/01/0000000015 while reading upstream, client: 10.0.1.116, server: twojadomena.pl, request: "GET /export?r=902 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=902", host: "10.0.0.1"
+2026/11/10 16:50:23 [warn] 4832#4832: *1516 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/01/0000000016 while reading upstream, client: 10.0.1.146, server: twojadomena.pl, request: "GET /export?r=164 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=164", host: "10.0.0.1"
+2026/11/10 16:50:27 [warn] 4832#4832: *1730 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/01/0000000017 while reading upstream, client: 10.0.1.104, server: twojadomena.pl, request: "GET /export?r=264 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=264", host: "10.0.0.1"
+2026/11/10 16:50:30 [warn] 4832#4832: *1845 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/01/0000000018 while reading upstream, client: 10.0.1.131, server: twojadomena.pl, request: "GET /export?r=264 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=264", host: "10.0.0.1"
+2026/11/10 16:50:31 [warn] 4832#4832: *1895 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/01/0000000019 while reading upstream, client: 10.0.1.167, server: twojadomena.pl, request: "GET /export?r=734 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=734", host: "10.0.0.1"
+2026/11/10 16:50:31 [warn] 4832#4832: *1921 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/02/0000000020 while reading upstream, client: 10.0.1.177, server: twojadomena.pl, request: "GET /export?r=954 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=954", host: "10.0.0.1"
+2026/11/10 16:50:31 [warn] 4832#4832: *1939 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/02/0000000021 while reading upstream, client: 10.0.1.149, server: twojadomena.pl, request: "GET /export?r=673 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=673", host: "10.0.0.1"
+2026/11/10 16:50:39 [warn] 4832#4832: *2314 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/02/0000000022 while reading upstream, client: 10.0.1.140, server: twojadomena.pl, request: "GET /export?r=212 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=212", host: "10.0.0.1"
+2026/11/10 16:50:40 [warn] 4835#4835: *2364 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/02/0000000023 while reading upstream, client: 10.0.1.199, server: twojadomena.pl, request: "GET /export?r=763 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=763", host: "10.0.0.1"
+2026/11/10 16:50:42 [warn] 4832#4832: *2450 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/02/0000000024 while reading upstream, client: 10.0.1.70, server: twojadomena.pl, request: "GET /export?r=523 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=523", host: "10.0.0.1"
+2026/11/10 16:50:43 [warn] 4832#4832: *2494 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/02/0000000025 while reading upstream, client: 10.0.1.163, server: twojadomena.pl, request: "GET /export?r=865 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=865", host: "10.0.0.1"
+2026/11/10 16:50:45 [warn] 4832#4832: *2573 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/02/0000000026 while reading upstream, client: 10.0.1.82, server: twojadomena.pl, request: "GET /export?r=138 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=138", host: "10.0.0.1"
+2026/11/10 16:50:45 [warn] 4832#4832: *2646 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/02/0000000027 while reading upstream, client: 10.0.1.84, server: twojadomena.pl, request: "GET /export?r=523 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=523", host: "10.0.0.1"
+2026/11/10 16:50:48 [warn] 4832#4832: *2781 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/02/0000000028 while reading upstream, client: 10.0.1.182, server: twojadomena.pl, request: "GET /export?r=533 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=533", host: "10.0.0.1"
+2026/11/10 16:50:49 [warn] 4832#4832: *2832 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/02/0000000029 while reading upstream, client: 10.0.1.202, server: twojadomena.pl, request: "GET /export?r=257 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=257", host: "10.0.0.1"
+2026/11/10 16:50:50 [warn] 4832#4832: *2893 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/03/0000000030 while reading upstream, client: 10.0.1.176, server: twojadomena.pl, request: "GET /export?r=325 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=325", host: "10.0.0.1"
+2026/11/10 16:50:59 [warn] 4832#4832: *3229 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/03/0000000031 while reading upstream, client: 10.0.1.189, server: twojadomena.pl, request: "GET /export?r=435 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=435", host: "10.0.0.1"
+2026/11/10 16:51:02 [warn] 4832#4832: *3445 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/03/0000000032 while reading upstream, client: 10.0.1.197, server: twojadomena.pl, request: "GET /export?r=210 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=210", host: "10.0.0.1"
+2026/11/10 16:51:04 [warn] 4832#4832: *3596 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/03/0000000033 while reading upstream, client: 10.0.1.105, server: twojadomena.pl, request: "GET /export?r=650 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=650", host: "10.0.0.1"
+2026/11/10 16:51:05 [warn] 4832#4832: *3655 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/03/0000000034 while reading upstream, client: 10.0.1.203, server: twojadomena.pl, request: "GET /export?r=10 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=10", host: "10.0.0.1"
+2026/11/10 16:51:07 [warn] 4835#4835: *3709 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/03/0000000035 while reading upstream, client: 10.0.1.245, server: twojadomena.pl, request: "GET /export?r=710 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=710", host: "10.0.0.1"
+2026/11/10 16:51:10 [warn] 4832#4832: *3824 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/03/0000000036 while reading upstream, client: 10.0.1.253, server: twojadomena.pl, request: "GET /export?r=435 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=435", host: "10.0.0.1"
+2026/11/10 16:51:12 [warn] 4832#4832: *3932 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/03/0000000037 while reading upstream, client: 10.0.1.2, server: twojadomena.pl, request: "GET /export?r=476 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=476", host: "10.0.0.1"
+2026/11/10 16:51:13 [warn] 4832#4832: *3968 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/03/0000000038 while reading upstream, client: 10.0.1.20, server: twojadomena.pl, request: "GET /export?r=409 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=409", host: "10.0.0.1"
+2026/11/10 16:51:14 [warn] 4832#4832: *4006 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/03/0000000039 while reading upstream, client: 10.0.1.50, server: twojadomena.pl, request: "GET /export?r=492 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=492", host: "10.0.0.1"
+2026/11/10 16:51:17 [warn] 4832#4832: *4220 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/04/0000000040 while reading upstream, client: 10.0.1.93, server: twojadomena.pl, request: "GET /export?r=648 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=648", host: "10.0.0.1"
+2026/11/10 16:51:20 [warn] 4832#4832: *4412 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/04/0000000041 while reading upstream, client: 10.0.1.98, server: twojadomena.pl, request: "GET /export?r=806 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=806", host: "10.0.0.1"
+2026/11/10 16:51:21 [warn] 4832#4832: *4436 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/04/0000000042 while reading upstream, client: 10.0.1.101, server: twojadomena.pl, request: "GET /export?r=978 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=978", host: "10.0.0.1"
+2026/11/10 16:51:22 [warn] 4832#4832: *4512 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/04/0000000043 while reading upstream, client: 10.0.1.115, server: twojadomena.pl, request: "GET /export?r=878 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=878", host: "10.0.0.1"
+2026/11/10 16:51:23 [warn] 4832#4832: *4552 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/04/0000000044 while reading upstream, client: 10.0.1.209, server: twojadomena.pl, request: "GET /export?r=200 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=200", host: "10.0.0.1"
+2026/11/10 16:51:24 [warn] 4832#4832: *4612 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/04/0000000045 while reading upstream, client: 10.0.1.126, server: twojadomena.pl, request: "GET /export?r=656 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=656", host: "10.0.0.1"
+2026/11/10 16:51:25 [warn] 4832#4832: *4650 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/04/0000000046 while reading upstream, client: 10.0.1.165, server: twojadomena.pl, request: "GET /export?r=37 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=37", host: "10.0.0.1"
+2026/11/10 16:51:25 [warn] 4832#4832: *4648 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/04/0000000047 while reading upstream, client: 10.0.1.116, server: twojadomena.pl, request: "GET /export?r=710 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=710", host: "10.0.0.1"
+2026/11/10 16:51:30 [warn] 4832#4832: *4890 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/04/0000000048 while reading upstream, client: 10.0.1.131, server: twojadomena.pl, request: "GET /export?r=212 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=212", host: "10.0.0.1"
+2026/11/10 16:51:31 [warn] 4832#4832: *4920 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/04/0000000049 while reading upstream, client: 10.0.1.180, server: twojadomena.pl, request: "GET /export?r=808 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=808", host: "10.0.0.1"
+2026/11/10 16:51:32 [warn] 4832#4832: *4988 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/05/0000000050 while reading upstream, client: 10.0.1.208, server: twojadomena.pl, request: "GET /export?r=993 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=993", host: "10.0.0.1"
+2026/11/10 16:51:32 [warn] 4832#4832: *5009 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/05/0000000051 while reading upstream, client: 10.0.1.140, server: twojadomena.pl, request: "GET /export?r=274 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=274", host: "10.0.0.1"
+2026/11/10 16:51:33 [info] 4832#4832: *4512 client 10.0.1.115 closed keepalive connection
+2026/11/10 16:51:33 [info] 4832#4832: *4890 client 10.0.1.131 closed keepalive connection
+2026/11/10 16:51:33 [info] 4832#4832: *4648 client 10.0.1.116 closed keepalive connection
+2026/11/10 16:51:33 [info] 4832#4832: *5009 client 10.0.1.140 closed keepalive connection
+2026/11/10 16:51:33 [info] 4832#4832: *4412 client 10.0.1.98 closed keepalive connection
+2026/11/10 16:51:33 [info] 4832#4832: *4436 client 10.0.1.101 closed keepalive connection
+2026/11/10 16:51:34 [warn] 4832#4832: *5132 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/05/0000000052 while reading upstream, client: 10.0.1.219, server: twojadomena.pl, request: "GET /export?r=243 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=243", host: "10.0.0.1"
+2026/11/10 16:51:35 [warn] 4832#4832: *5154 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/05/0000000053 while reading upstream, client: 10.0.1.217, server: twojadomena.pl, request: "GET /export?r=572 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=572", host: "10.0.0.1"
+2026/11/10 16:51:36 [warn] 4832#4832: *5233 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/05/0000000054 while reading upstream, client: 10.0.1.235, server: twojadomena.pl, request: "GET /export?r=167 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=167", host: "10.0.0.1"
+2026/11/10 16:51:37 [warn] 4832#4832: *5279 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/05/0000000055 while reading upstream, client: 10.0.1.34, server: twojadomena.pl, request: "GET /export?r=673 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=673", host: "10.0.0.1"
+2026/11/10 16:51:40 [info] 4832#4832: *5279 client 10.0.1.34 closed keepalive connection
+2026/11/10 16:51:44 [info] 4832#4832: *4837 client 10.0.1.136 closed keepalive connection
+2026/11/10 16:51:44 [info] 4832#4832: *5593 client 10.0.1.232 closed keepalive connection
+2026/11/10 16:51:44 [info] 4832#4832: *5599 client 10.0.1.184 closed keepalive connection
+2026/11/10 16:51:45 [info] 4832#4832: *5611 client 10.0.1.183 closed keepalive connection
+2026/11/10 16:51:46 [info] 4832#4832: *5632 client 10.0.1.186 closed keepalive connection
+2026/11/10 16:51:46 [info] 4832#4832: *47 client 10.0.1.95 closed keepalive connection
+2026/11/10 16:51:46 [info] 4832#4832: *132 client 10.0.1.192 closed keepalive connection
+2026/11/10 16:51:46 [info] 4835#4835: *245 client 10.0.1.242 closed keepalive connection
+2026/11/10 16:51:46 [info] 4832#4832: *155 client 10.0.1.160 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *81 client 10.0.1.65 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *5717 client 10.0.1.75 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *5659 client 10.0.1.249 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *5601 client 10.0.1.152 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *5762 client 10.0.1.107 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *85 client 10.0.1.141 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *199 client 10.0.1.200 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *43 client 10.0.1.95 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *73 client 10.0.1.136 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *90 client 10.0.1.192 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *113 client 10.0.1.232 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *126 client 10.0.1.242 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *77 client 10.0.1.107 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *107 client 10.0.1.184 closed keepalive connection
+2026/11/10 16:51:47 [info] 4835#4835: *52 client 10.0.1.75 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *117 client 10.0.1.249 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *61 client 10.0.1.86 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *96 client 10.0.1.152 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *86 client 10.0.1.109 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *71 client 10.0.1.23 closed keepalive connection
+2026/11/10 16:51:47 [info] 4835#4835: *172 client 10.0.1.183 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *134 client 10.0.1.120 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *93 client 10.0.1.65 closed keepalive connection
+2026/11/10 16:51:47 [info] 4832#4832: *129 client 10.0.1.129 closed keepalive connection
+2026/11/10 16:51:48 [info] 4832#4832: *147 client 10.0.1.160 closed keepalive connection
+2026/11/10 16:51:48 [info] 4832#4832: *3472 client 10.0.1.186 closed keepalive connection
+2026/11/10 16:51:48 [info] 4832#4832: *2660 client 10.0.1.119 closed keepalive connection
+2026/11/10 16:51:48 [info] 4835#4835: *218 client 10.0.1.200 closed keepalive connection
+2026/11/10 16:51:48 [info] 4832#4832: *277 client 10.0.1.141 closed keepalive connection
+2026/11/10 16:51:52 [warn] 4832#4832: *6002 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/05/0000000056 while reading upstream, client: 10.0.1.237, server: twojadomena.pl, request: "GET /export?r=47 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=47", host: "10.0.0.1"
+2026/11/10 16:51:52 [info] 4832#4832: *6002 client 10.0.1.237 closed keepalive connection
+2026/11/10 16:51:56 [warn] 4832#4832: *6188 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/05/0000000057 while reading upstream, client: 10.0.1.231, server: twojadomena.pl, request: "GET /export?r=397 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=397", host: "10.0.0.1"
+2026/11/10 16:51:56 [info] 4832#4832: *6188 client 10.0.1.231 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *1007 client 10.0.1.252 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *613 client 10.0.1.63 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *4366 client 10.0.1.57 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *4665 client 10.0.1.161 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *4693 client 10.0.1.187 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *4834 client 10.0.1.13 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *908 client 10.0.1.193 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *4941 client 10.0.1.35 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *641 client 10.0.1.78 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *347 client 10.0.1.37 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *923 client 10.0.1.194 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *749 client 10.0.1.142 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5114 client 10.0.1.28 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5826 client 10.0.1.15 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5983 client 10.0.1.48 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5458 client 10.0.1.162 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5670 client 10.0.1.221 closed keepalive connection
+2026/11/10 16:51:58 [info] 4835#4835: *5203 client 10.0.1.44 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5586 client 10.0.1.211 closed keepalive connection
+2026/11/10 16:51:58 [info] 4835#4835: *5188 client 10.0.1.29 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5843 client 10.0.1.21 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5430 client 10.0.1.153 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5468 client 10.0.1.164 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5368 client 10.0.1.125 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5210 client 10.0.1.47 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5823 client 10.0.1.3 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5438 client 10.0.1.155 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5807 client 10.0.1.250 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5293 client 10.0.1.59 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5584 client 10.0.1.206 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5675 client 10.0.1.226 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *6236 client 10.0.1.170 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5613 client 10.0.1.216 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5342 client 10.0.1.108 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5394 client 10.0.1.143 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5199 client 10.0.1.43 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5264 client 10.0.1.54 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5689 client 10.0.1.228 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5313 client 10.0.1.85 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5349 client 10.0.1.118 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5296 client 10.0.1.74 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5767 client 10.0.1.240 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5198 client 10.0.1.30 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5446 client 10.0.1.158 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5682 client 10.0.1.227 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *6280 client 10.0.1.173 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5625 client 10.0.1.218 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5760 client 10.0.1.234 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5645 client 10.0.1.220 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *6135 client 10.0.1.7 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *6217 client 10.0.1.16 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *6221 client 10.0.1.32 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *6228 client 10.0.1.40 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *281 client 10.0.1.49 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *377 client 10.0.1.64 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *419 client 10.0.1.80 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *524 client 10.0.1.90 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *530 client 10.0.1.145 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *536 client 10.0.1.151 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *633 client 10.0.1.175 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5999 client 10.0.1.190 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *710 client 10.0.1.205 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *717 client 10.0.1.210 closed keepalive connection
+2026/11/10 16:51:58 [info] 4832#4832: *5400 client 10.0.1.122 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5494 client 10.0.1.191 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *3869 client 10.0.1.251 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *827 client 10.0.1.125 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *660 client 10.0.1.47 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *460 client 10.0.1.44 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *882 client 10.0.1.174 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *868 client 10.0.1.143 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *964 client 10.0.1.221 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *992 client 10.0.1.240 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *918 client 10.0.1.206 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *669 client 10.0.1.54 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5412 client 10.0.1.181 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5372 client 10.0.1.71 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *4217 client 10.0.1.164 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *219 client 10.0.1.48 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *65 client 10.0.1.3 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *170 client 10.0.1.29 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *4305 client 10.0.1.178 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *636 client 10.0.1.226 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *489 client 10.0.1.208 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *2549 client 10.0.1.30 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *4083 client 10.0.1.108 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *4200 client 10.0.1.162 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *115 client 10.0.1.15 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *231 client 10.0.1.59 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *128 client 10.0.1.21 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *279 client 10.0.1.74 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *628 client 10.0.1.220 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *4281 client 10.0.1.173 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *4121 client 10.0.1.118 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *4125 client 10.0.1.126 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *316 client 10.0.1.82 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *447 client 10.0.1.180 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *326 client 10.0.1.85 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *2412 client 10.0.1.238 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *4276 client 10.0.1.170 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *611 client 10.0.1.217 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *4355 client 10.0.1.211 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *680 client 10.0.1.237 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *616 client 10.0.1.218 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *592 client 10.0.1.216 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *2447 client 10.0.1.250 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *4249 client 10.0.1.165 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *338 client 10.0.1.105 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *4175 client 10.0.1.155 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *662 client 10.0.1.234 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *2417 client 10.0.1.240 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *187 client 10.0.1.43 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *639 client 10.0.1.227 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *2430 client 10.0.1.243 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *451 client 10.0.1.206 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *2732 client 10.0.1.84 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *157 client 10.0.1.28 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *4137 client 10.0.1.153 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *67 client 10.0.1.8 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *653 client 10.0.1.228 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *262 client 10.0.1.70 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *672 client 10.0.1.235 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *5607 client 10.0.1.236 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5662 client 10.0.1.230 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5792 client 10.0.1.163 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6102 client 10.0.1.10 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6233 client 10.0.1.93 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6013 client 10.0.1.245 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5319 client 10.0.1.22 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6142 client 10.0.1.25 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6148 client 10.0.1.31 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6196 client 10.0.1.96 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6303 client 10.0.1.111 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6160 client 10.0.1.50 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6264 client 10.0.1.103 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5892 client 10.0.1.189 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6114 client 10.0.1.14 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5834 client 10.0.1.197 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *69 client 10.0.1.9 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *111 client 10.0.1.26 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *202 client 10.0.1.32 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *211 client 10.0.1.33 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *309 client 10.0.1.41 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *350 client 10.0.1.46 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *355 client 10.0.1.56 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *399 client 10.0.1.58 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *417 client 10.0.1.60 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *225 client 10.0.1.36 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *433 client 10.0.1.68 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *437 client 10.0.1.69 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *454 client 10.0.1.77 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *458 client 10.0.1.90 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *471 client 10.0.1.97 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *499 client 10.0.1.102 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *500 client 10.0.1.106 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *503 client 10.0.1.112 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *4918 client 10.0.1.127 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *4952 client 10.0.1.130 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *4972 client 10.0.1.137 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5016 client 10.0.1.146 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5067 client 10.0.1.154 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5075 client 10.0.1.167 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5100 client 10.0.1.168 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *5120 client 10.0.1.185 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5105 client 10.0.1.177 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5112 client 10.0.1.179 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5138 client 10.0.1.198 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5144 client 10.0.1.199 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5157 client 10.0.1.205 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5161 client 10.0.1.207 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5168 client 10.0.1.209 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5176 client 10.0.1.210 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5237 client 10.0.1.219 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5244 client 10.0.1.224 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5262 client 10.0.1.225 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *929 client 10.0.1.231 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *941 client 10.0.1.239 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *948 client 10.0.1.247 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6252 client 10.0.1.101 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6004 client 10.0.1.244 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5728 client 10.0.1.144 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *6062 client 10.0.1.1 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5821 client 10.0.1.171 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5582 client 10.0.1.134 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6016 client 10.0.1.253 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6260 client 10.0.1.98 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *1644 client 10.0.1.19 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6084 client 10.0.1.2 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6131 client 10.0.1.20 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6166 client 10.0.1.73 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5927 client 10.0.1.203 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6247 client 10.0.1.99 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5534 client 10.0.1.195 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5634 client 10.0.1.140 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5970 client 10.0.1.229 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5837 client 10.0.1.176 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5864 client 10.0.1.201 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5816 client 10.0.1.166 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6167 client 10.0.1.91 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5935 client 10.0.1.222 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5777 client 10.0.1.147 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *495 client 10.0.1.99 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6238 client 10.0.1.7 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6241 client 10.0.1.9 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6243 client 10.0.1.16 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6262 client 10.0.1.26 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6267 client 10.0.1.27 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6274 client 10.0.1.32 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6283 client 10.0.1.36 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6290 client 10.0.1.40 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *334 client 10.0.1.41 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *379 client 10.0.1.46 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *381 client 10.0.1.49 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *409 client 10.0.1.58 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *441 client 10.0.1.64 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *469 client 10.0.1.69 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *6072 client 10.0.1.168 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5809 client 10.0.1.72 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5848 client 10.0.1.80 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5890 client 10.0.1.90 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5909 client 10.0.1.102 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5923 client 10.0.1.106 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *544 client 10.0.1.112 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *576 client 10.0.1.113 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5956 client 10.0.1.127 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5968 client 10.0.1.130 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6029 client 10.0.1.145 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6034 client 10.0.1.151 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6068 client 10.0.1.156 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6095 client 10.0.1.175 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6153 client 10.0.1.179 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6155 client 10.0.1.185 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6172 client 10.0.1.190 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6184 client 10.0.1.205 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6186 client 10.0.1.207 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6190 client 10.0.1.210 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6201 client 10.0.1.224 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6211 client 10.0.1.225 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6223 client 10.0.1.239 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *541 client 10.0.1.114 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *389 client 10.0.1.73 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *521 client 10.0.1.111 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *261 client 10.0.1.25 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *257 client 10.0.1.14 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *788 client 10.0.1.244 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *152 client 10.0.1.10 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *688 client 10.0.1.201 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *306 client 10.0.1.31 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *450 client 10.0.1.96 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *573 client 10.0.1.144 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *626 client 10.0.1.134 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *702 client 10.0.1.222 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *668 client 10.0.1.171 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *223 client 10.0.1.13 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *730 client 10.0.1.166 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *776 client 10.0.1.229 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *604 client 10.0.1.147 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *82 client 10.0.1.1 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *522 client 10.0.1.103 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *565 client 10.0.1.121 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *387 client 10.0.1.108 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *221 client 10.0.1.59 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *474 client 10.0.1.164 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *483 client 10.0.1.170 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *574 client 10.0.1.211 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *204 client 10.0.1.48 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *584 client 10.0.1.216 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *75 client 10.0.1.21 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *600 client 10.0.1.220 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *296 client 10.0.1.74 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *57 client 10.0.1.15 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *103 client 10.0.1.28 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *456 client 10.0.1.162 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *631 client 10.0.1.227 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *506 client 10.0.1.173 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *39 client 10.0.1.3 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *620 client 10.0.1.226 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *139 client 10.0.1.30 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *395 client 10.0.1.118 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *684 client 10.0.1.240 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *587 client 10.0.1.218 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *186 client 10.0.1.43 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *528 client 10.0.1.206 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *406 client 10.0.1.153 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *421 client 10.0.1.155 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *700 client 10.0.1.250 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *644 client 10.0.1.234 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *99 client 10.0.1.41 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *45 client 10.0.1.9 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *49 client 10.0.1.26 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *180 client 10.0.1.69 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *59 client 10.0.1.32 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *88 client 10.0.1.36 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *145 client 10.0.1.46 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *150 client 10.0.1.58 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *233 client 10.0.1.90 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *241 client 10.0.1.102 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *250 client 10.0.1.106 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *273 client 10.0.1.112 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *283 client 10.0.1.127 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *360 client 10.0.1.185 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *312 client 10.0.1.130 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *330 client 10.0.1.168 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *352 client 10.0.1.179 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *368 client 10.0.1.205 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *372 client 10.0.1.207 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *383 client 10.0.1.210 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *385 client 10.0.1.224 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *391 client 10.0.1.225 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *443 client 10.0.1.239 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *516 client 10.0.1.178 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *124 client 10.0.1.29 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *642 client 10.0.1.228 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *345 client 10.0.1.85 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6111 client 10.0.1.13 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5640 client 10.0.1.63 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6179 client 10.0.1.193 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6269 client 10.0.1.222 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5774 client 10.0.1.96 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6066 client 10.0.1.161 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6245 client 10.0.1.201 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *5902 client 10.0.1.121 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5847 client 10.0.1.103 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6288 client 10.0.1.229 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *5779 client 10.0.1.91 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5749 client 10.0.1.73 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5616 client 10.0.1.57 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6214 client 10.0.1.194 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5741 client 10.0.1.67 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6320 client 10.0.1.244 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5852 client 10.0.1.99 closed keepalive connection
+2026/11/10 16:51:59 [info] 4835#4835: *6073 client 10.0.1.166 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5964 client 10.0.1.142 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5869 client 10.0.1.111 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6109 client 10.0.1.171 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5757 client 10.0.1.78 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5884 client 10.0.1.114 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5953 client 10.0.1.134 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6146 client 10.0.1.187 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *6050 client 10.0.1.147 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *5950 client 10.0.1.132 closed keepalive connection
+2026/11/10 16:51:59 [info] 4832#4832: *431 client 10.0.1.91 closed keepalive connection
+2026/11/10 16:52:00 [info] 4832#4832: *275 client 10.0.1.122 closed keepalive connection
+2026/11/10 16:52:00 [info] 4832#4832: *479 client 10.0.1.230 closed keepalive connection
+2026/11/10 16:52:00 [info] 4832#4832: *2862 client 10.0.1.195 closed keepalive connection
+2026/11/10 16:52:00 [info] 4832#4832: *478 client 10.0.1.251 closed keepalive connection
+2026/11/10 16:52:00 [info] 4832#4832: *215 client 10.0.1.22 closed keepalive connection
+2026/11/10 16:52:00 [info] 4832#4832: *445 client 10.0.1.191 closed keepalive connection
+2026/11/10 16:52:00 [info] 4832#4832: *397 client 10.0.1.181 closed keepalive connection
+2026/11/10 16:52:00 [info] 4832#4832: *6006 client 10.0.1.144 closed keepalive connection
+2026/11/10 16:52:00 [info] 4832#4832: *6323 client 10.0.1.236 closed keepalive connection
+2026/11/10 16:52:02 [info] 4832#4832: *6285 client 10.0.1.149 closed keepalive connection
+2026/11/10 16:52:02 [info] 4832#4832: *5353 client 10.0.1.22 closed keepalive connection
+2026/11/10 16:52:02 [info] 4832#4832: *5452 client 10.0.1.104 closed keepalive connection
+2026/11/10 16:52:02 [info] 4832#4832: *5363 client 10.0.1.34 closed keepalive connection
+2026/11/10 16:52:02 [info] 4832#4832: *6161 client 10.0.1.79 closed keepalive connection
+2026/11/10 16:52:02 [info] 4832#4832: *6325 client 10.0.1.181 closed keepalive connection
+2026/11/10 16:52:02 [info] 4832#4832: *5509 client 10.0.1.122 closed keepalive connection

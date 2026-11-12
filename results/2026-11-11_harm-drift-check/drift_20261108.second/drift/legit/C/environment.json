@@ -1,0 +1,99 @@
+{
+ "allow_dirty": false,
+ "calibration_sha256": "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf",
+ "checked_utc": "2026-11-08T09:45:33+00:00",
+ "facts": {
+  "cpus": 8,
+  "gunicorn": "gunicorn (version 26.2.0)",
+  "mem_mib": 9426,
+  "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+  "python": "3.14.4",
+  "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+ },
+ "gate": {
+  "limit_load1": 0.3,
+  "limit_uptime_s": 1800,
+  "load1": 0.26,
+  "met": true,
+  "uptime_s": 4083.01,
+  "waited_s": 101.8
+ },
+ "gate_mode": "full",
+ "git": {
+  "branch": "HEAD",
+  "commit": "1cdda9b3a9fac360850a9ad4da3a923ad9e66ec1",
+  "dirty": false,
+  "dirty_files": []
+ },
+ "governor": null,
+ "jiffies": 3013967,
+ "load1_after_timer_gate": 0.26,
+ "nofile_soft": 524288,
+ "provenance": {
+  "engine_is_pinned": true,
+  "engine_pinned_sha256": "91aab0837ce688982c30cc2f8b9e867482f830d5ff49b9ec703888ac80ba92a1",
+  "files": {
+   "executor.py": "76c49654a80a8fedffc1ee707a84b19be2adaaeeb38cc0a64ee0906a19aa2653",
+   "loadgen.py": "91aab0837ce688982c30cc2f8b9e867482f830d5ff49b9ec703888ac80ba92a1",
+   "loadtools.json": "cf3a3ee072d5b817f2ece019d6ef1955cae78e0b69959bd70b76e7e9e9f9036d",
+   "origin.py": "4cb5e276c04e8a4c003729170112c8b21000aa5bc89901681f7c07cc268ff2b2",
+   "population.py": "d3ef31db41215476146d7d3c6eb95961efd1e0061b31aa3dab35390f3bb9ec14",
+   "scenario.py": "65e44f46b905b99c42f89b3dbeec7e85b68fc2a37a651a5a0a6ceba36566a599"
+  },
+  "nginx_rendered_sha256": "0222291cefbf6d19e57d630faed63b1da0d78d8e48c0ccc0e652b86ea056a549",
+  "nginx_source": "nginx_unprotected.conf",
+  "nginx_source_sha256": "55f867904d18615b3f5405e3017ab17d425106d2e34d1b265ac4cf352135dfdb"
+ },
+ "scenario_sha256": "",
+ "stack": {
+  "nginx": {
+   "cpus_allowed": [
+    "0-1"
+   ],
+   "nofile_soft_hard": [
+    [
+     65535,
+     65535
+    ],
+    [
+     524288,
+     524288
+    ]
+   ],
+   "processes": 9
+  },
+  "origin": {
+   "cpus_allowed": [
+    "0-1"
+   ],
+   "nofile_soft_hard": [
+    [
+     524288,
+     524288
+    ]
+   ],
+   "processes": 3
+  }
+ },
+ "steal_jiffies": 0,
+ "timer_legit": {
+  "interval_s": 0.01,
+  "max_ms": 7.720370999995794,
+  "p50_ms": 2.477511500037508,
+  "p99_ms": 7.045179450133218,
+  "samples": 200
+ },
+ "timer_limit_is_override": false,
+ "timer_limit_ms": 10.0,
+ "timer_probes": [
+  {
+   "max_ms": 7.720370999995794,
+   "p50_ms": 2.477511500037508,
+   "p99_ms": 7.045179450133218,
+   "passed": true,
+   "utc": "2026-11-08T09:45:31+00:00"
+  }
+ ],
+ "timer_refused_probes": 0,
+ "timer_waited_s": 2.7
+}

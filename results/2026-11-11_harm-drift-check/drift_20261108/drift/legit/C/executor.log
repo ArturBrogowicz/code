@@ -1,0 +1,18 @@
+    0.630 gate: uptime 3326 s, load 0.31; waiting up to 30 min for uptime 1800 s and load below 0.3
+   23.341 timer probe 1 on CPU 7 at 2026-11-08T09:33:14+00:00: p50 0.673511, p99 4.2595, max 4.76573 ms: passed
+   23.602 run C of drift_legit, seed 41: preflight and environment passed
+   30.411 topology: 4 namespaces, 200 addresses, verified in 6.8 s
+   30.473 started the origin as pid 9747
+   30.563 started Nginx (its launcher returned after 0.09 s)
+   33.835 stack ready: 5 routes answer with their own class under calibration frozen:cff6e515; warmed up
+   34.058 launched 32 legit streams
+  158.034 timeline over after 124.2 s
+  158.465 stopped 1 process(es) of this run in 0.42 s
+  158.475 wall time of 15 stream(s) raised to what their records need, by up to 0.12 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  158.476 2 legit stream(s) began outside the pack of the others, by up to 0.63 s, and are placed by their own offsets: L-poisson-C0-mobile_3g-2, L-poisson-C0-perfect-0
+  158.549 nginx access log: 5132 lines (0 unparsed), server_requests.csv written, log compressed
+  158.550 run.json written; the run is sound
+  158.589 teardown: 0 process(es) in 5 namespace(s): listed in 0.04 s, ended in 0.00 s
+  158.625 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.01 s, hg_2_mobile_3g 0.01 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  158.766 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.04 s, vo_hg_2_mobile_ 0.04 s, vo_hg_3_mobile_ 0.02 s, veth_srv_br 0.02 s, ddos_br0 0.02 s
+  158.792 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.2 s in all)

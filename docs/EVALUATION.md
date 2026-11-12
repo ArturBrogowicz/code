@@ -970,6 +970,21 @@ size or has a capacity (requests fail in the share that does not fit it). The di
 the knees and the harms that the steps find agree with what the model says they are. That shows the protocol working and says nothing
 about any server.
 
+**Publishing.** `eval/publish_campaign.py` also takes directories of the run contract (a calibration step, the drift check, a gate
+campaign): one or more of them, each copied as it is, every file, into one `results/<name>/<its name>/`, with the runs cut before their
+`run.json`, the runs kept aside (`U.failed1`) and empty files included; `--with PATH` copies a further file or directory beside them (the
+entry's README, step logs, pre-registration texts). These directories have no `provenance.json`: `analysis/runs.json` lists what each
+run records instead, its state (complete, ended without `DONE`, failed with the executor's `FAILED`, cut), the executor's verdict, and
+the commit, tree state, host and calibration hash of its `environment.json`, `run.json` and `plan.json`. A drift check is judged again from the published runs with
+`bench/calibrate.py`'s own functions against the frozen record the runs name (found under `bench/calibration/` by its sha256, or
+`--calibration`); `analysis/drift.json` puts that verdict beside the recorded `drift.json` and names every field in which they differ
+(`created_utc`, `waits` and `smoke` are not compared). A drift directory without `drift.json` gets no verdict, and the Q and p95 of its
+complete runs are marked descriptive. Gate campaigns and calibration steps are copied and listed but not judged here (`eval/harm_gate.py`
+and `bench/calibrate.py freeze` do that). This mode imports no matplotlib, so it runs in the VM's venv; the 100 MB limit holds as for a
+campaign. The first entry made this way is `results/2026-11-11_harm-drift-check/`:
+
+    venv/bin/python eval/publish_campaign.py DIR [DIR ...] --name <yyyy-mm-dd_what> [--with PATH ...] [--calibration FILE]
+
 ## Tests
 
     venv/bin/python -m unittest discover -s tests -v

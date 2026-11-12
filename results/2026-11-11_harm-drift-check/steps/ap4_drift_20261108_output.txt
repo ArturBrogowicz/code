@@ -1,0 +1,175 @@
+drift/legit/C: attempt 1
+    0.630 gate: uptime 3326 s, load 0.31; waiting up to 30 min for uptime 1800 s and load below 0.3
+   23.341 timer probe 1 on CPU 7 at 2026-11-08T09:33:14+00:00: p50 0.673511, p99 4.2595, max 4.76573 ms: passed
+   23.602 run C of drift_legit, seed 41: preflight and environment passed
+   30.411 topology: 4 namespaces, 200 addresses, verified in 6.8 s
+   30.473 started the origin as pid 9747
+   30.563 started Nginx (its launcher returned after 0.09 s)
+   33.835 stack ready: 5 routes answer with their own class under calibration frozen:cff6e515; warmed up
+   34.058 launched 32 legit streams
+  158.034 timeline over after 124.2 s
+  158.465 stopped 1 process(es) of this run in 0.42 s
+  158.475 wall time of 15 stream(s) raised to what their records need, by up to 0.12 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  158.476 2 legit stream(s) began outside the pack of the others, by up to 0.63 s, and are placed by their own offsets: L-poisson-C0-mobile_3g-2, L-poisson-C0-perfect-0
+  158.549 nginx access log: 5132 lines (0 unparsed), server_requests.csv written, log compressed
+  158.550 run.json written; the run is sound
+  158.589 teardown: 0 process(es) in 5 namespace(s): listed in 0.04 s, ended in 0.00 s
+  158.625 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.01 s, hg_2_mobile_3g 0.01 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  158.766 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.04 s, vo_hg_2_mobile_ 0.04 s, vo_hg_3_mobile_ 0.02 s, veth_srv_br 0.02 s, ddos_br0 0.02 s
+  158.792 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.2 s in all)
+drift/attack_cheap_static_flood/U: attempt 1
+    2.736 timer probe 1 on CPU 7 at 2026-11-08T09:35:32+00:00: p50 2.80308, p99 7.6688, max 7.75538 ms: passed
+    2.834 run U of cheap_static_flood, seed 42: preflight and environment passed
+   13.645 topology: 4 namespaces, 205 addresses, verified in 10.8 s
+   13.668 started the origin as pid 10793
+   13.725 started Nginx (its launcher returned after 0.06 s)
+   17.395 stack ready: 5 routes answer with their own class under calibration frozen:cff6e515; warmed up
+   17.595 launched 32 legit streams
+   50.199 launched 3 attack streams
+  125.303 timeline over after 107.9 s
+  125.634 stopped 1 process(es) of this run in 0.32 s
+  125.651 wall time of 20 stream(s) raised to what their records need, by up to 2.06 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  125.651 20 legit stream(s) began outside the pack of the others, by up to 2.26 s, and are placed by their own offsets: L-poisson-C0-mobile_3g-2, L-poisson-C0-mobile_bad-3, L-poisson-C0-perfect-0, L-poisson-C1-broadband-1, L-poisson-C1-mobile_3g-2, L-poisson-C1-mobile_bad-3, L-poisson-C1-perfect-0, L-poisson-C2-broadband-1, L-poisson-C3-mobile_3g-2, L-poisson-C3-mobile_bad-3, L-poisson-C3-perfect-0, L-poisson-C5-broadband-1, L-poisson-C5-mobile_3g-2, L-poisson-C5-mobile_bad-3, L-poisson-C5-perfect-0, L-pulse-C1-broadband-1, L-pulse-C1-mobile_3g-2, L-pulse-C1-mobile_bad-3, L-pulse-C1-perfect-0, L-pulse-C2-mobile_bad-3
+  125.785 nginx access log: 11423 lines (0 unparsed), server_requests.csv written, log compressed
+  125.787 run.json written; the run is UNSOUND: the legit streams began 2.28 s apart (limit 0.5 s; 20 of 32 are outside the pack, at most 15 may be)
+  125.830 teardown: 0 process(es) in 5 namespace(s): listed in 0.04 s, ended in 0.00 s
+  125.881 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.02 s, hg_2_mobile_3g 0.01 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  126.047 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.08 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.02 s, ddos_br0 0.02 s
+  126.069 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.3 s in all)
+drift/attack_cheap_static_flood/U: attempt 2
+    2.732 timer probe 1 on CPU 7 at 2026-11-08T09:37:38+00:00: p50 2.76668, p99 7.53603, max 8.58891 ms: passed
+    2.823 run U of cheap_static_flood, seed 42: preflight and environment passed
+    9.609 topology: 4 namespaces, 205 addresses, verified in 6.8 s
+    9.634 started the origin as pid 11322
+    9.697 started Nginx (its launcher returned after 0.06 s)
+   13.247 stack ready: 5 routes answer with their own class under calibration frozen:cff6e515; warmed up
+   13.483 launched 32 legit streams
+   46.067 launched 3 attack streams
+  123.647 timeline over after 110.3 s
+  124.047 stopped 1 process(es) of this run in 0.38 s
+  124.063 wall time of 7 stream(s) raised to what their records need, by up to 0.11 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  124.063 2 legit stream(s) began outside the pack of the others, by up to 0.91 s, and are placed by their own offsets: L-poisson-C0-broadband-1, L-poisson-C0-mobile_3g-2
+  124.195 nginx access log: 11423 lines (0 unparsed), server_requests.csv written, log compressed
+  124.196 run.json written; the run is sound
+  124.235 teardown: 0 process(es) in 5 namespace(s): listed in 0.04 s, ended in 0.00 s
+  124.271 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.01 s, hg_2_mobile_3g 0.01 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  124.472 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.11 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.02 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  124.499 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.3 s in all)
+drift/attack_costly_export_flood/U: attempt 1
+    2.429 timer probe 1 on CPU 7 at 2026-11-08T09:39:43+00:00: p50 0.544862, p99 4.83058, max 5.95255 ms: passed
+    2.525 run U of costly_export_sub_threshold, seed 43: preflight and environment passed
+   11.413 topology: 4 namespaces, 300 addresses, verified in 8.9 s
+   11.441 started the origin as pid 11912
+   11.497 started Nginx (its launcher returned after 0.05 s)
+   14.786 stack ready: 5 routes answer with their own class under calibration frozen:cff6e515; warmed up
+   14.973 launched 31 legit streams
+   47.556 launched 4 attack streams
+  123.860 timeline over after 109.1 s
+  124.183 stopped 1 process(es) of this run in 0.30 s
+  124.193 wall time of 10 stream(s) raised to what their records need, by up to 0.16 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  124.193 1 legit stream(s) began outside the pack of the others, by up to 0.98 s, and are placed by their own offsets: L-poisson-C0-broadband-1
+  124.261 nginx access log: 4665 lines (0 unparsed), server_requests.csv written, log compressed
+  124.263 run.json written; the run is sound
+  124.289 teardown: 0 process(es) in 5 namespace(s): listed in 0.03 s, ended in 0.00 s
+  124.325 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.01 s, hg_2_mobile_3g 0.01 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  124.493 teardown: links deleted: vo_hg_0_perfect 0.04 s, vo_hg_1_broadba 0.06 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.03 s
+  124.709 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.22 s; 0.4 s in all)
+drift/attack_costly_search_flood/U: attempt 1
+    2.802 timer probe 1 on CPU 7 at 2026-11-08T09:41:48+00:00: p50 0.502325, p99 5.08387, max 5.9947 ms: passed
+    2.900 run U of costly_search_sub_threshold, seed 44: preflight and environment passed
+    9.480 topology: 4 namespaces, 300 addresses, verified in 6.6 s
+    9.507 started the origin as pid 12460
+    9.560 started Nginx (its launcher returned after 0.05 s)
+   12.934 stack ready: 5 routes answer with their own class under calibration frozen:cff6e515; warmed up
+   13.122 launched 31 legit streams
+   45.711 launched 4 attack streams
+  120.729 timeline over after 107.8 s
+  121.052 stopped 1 process(es) of this run in 0.31 s
+  121.064 wall time of 8 stream(s) raised to what their records need, by up to 0.10 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  121.064 2 legit stream(s) began outside the pack of the others, by up to 0.75 s, and are placed by their own offsets: L-poisson-C0-broadband-1, L-poisson-C0-mobile_3g-2
+  121.143 nginx access log: 5987 lines (0 unparsed), server_requests.csv written, log compressed
+  121.144 run.json written; the run is sound
+  121.293 teardown: 0 process(es) in 5 namespace(s): listed in 0.15 s, ended in 0.00 s
+  121.349 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.01 s, hg_2_mobile_3g 0.01 s, hg_3_mobile_bad 0.01 s, server_ns 0.02 s
+  121.539 teardown: links deleted: vo_hg_0_perfect 0.06 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.02 s, veth_srv_br 0.05 s, ddos_br0 0.02 s
+  121.581 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.04 s; 0.4 s in all)
+drift: OUT of it: costly_export_flood: Q 55.2511 against 75.3211 frozen (more than the gate's floor_pp, 10 pp)
+drift check 1 of 2 failed; making it once more
+drift/legit/C: attempt 1
+    0.065 gate: uptime 3981 s, load 1.51; waiting up to 30 min for uptime 1800 s and load below 0.3
+  104.528 timer probe 1 on CPU 7 at 2026-11-08T09:45:31+00:00: p50 2.47751, p99 7.04518, max 7.72037 ms: passed
+  104.623 run C of drift_legit, seed 41: preflight and environment passed
+  111.392 topology: 4 namespaces, 200 addresses, verified in 6.8 s
+  111.414 started the origin as pid 13167
+  111.471 started Nginx (its launcher returned after 0.06 s)
+  114.762 stack ready: 5 routes answer with their own class under calibration frozen:cff6e515; warmed up
+  114.970 launched 32 legit streams
+  238.304 timeline over after 123.5 s
+  238.633 stopped 1 process(es) of this run in 0.31 s
+  238.646 wall time of 12 stream(s) raised to what their records need, by up to 0.10 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  238.646 1 legit stream(s) began outside the pack of the others, by up to 0.50 s, and are placed by their own offsets: L-poisson-C0-perfect-0
+  238.724 nginx access log: 5132 lines (0 unparsed), server_requests.csv written, log compressed
+  238.725 run.json written; the run is sound
+  238.751 teardown: 0 process(es) in 5 namespace(s): listed in 0.03 s, ended in 0.00 s
+  238.790 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.01 s, hg_2_mobile_3g 0.01 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  238.925 teardown: links deleted: vo_hg_0_perfect 0.03 s, vo_hg_1_broadba 0.03 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.02 s, veth_srv_br 0.02 s, ddos_br0 0.02 s
+  238.949 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.2 s in all)
+drift/attack_cheap_static_flood/U: attempt 1
+    2.478 timer probe 1 on CPU 7 at 2026-11-08T09:47:48+00:00: p50 0.581618, p99 4.87449, max 5.17344 ms: passed
+    2.573 run U of cheap_static_flood, seed 42: preflight and environment passed
+    8.644 topology: 4 namespaces, 205 addresses, verified in 6.1 s
+    8.670 started the origin as pid 13638
+    8.738 started Nginx (its launcher returned after 0.07 s)
+   11.918 stack ready: 5 routes answer with their own class under calibration frozen:cff6e515; warmed up
+   12.124 launched 32 legit streams
+   44.700 launched 3 attack streams
+  121.875 timeline over after 109.9 s
+  122.218 stopped 1 process(es) of this run in 0.32 s
+  122.236 wall time of 7 stream(s) raised to what their records need, by up to 0.14 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  122.236 14 legit stream(s) began outside the pack of the others, by up to 1.21 s, and are placed by their own offsets: L-poisson-C0-broadband-1, L-poisson-C0-perfect-0, L-poisson-C1-broadband-1, L-poisson-C1-mobile_3g-2, L-poisson-C2-perfect-0, L-poisson-C3-mobile_bad-3, L-poisson-C5-perfect-0, L-pulse-C1-broadband-1, L-pulse-C1-perfect-0, L-pulse-C2-mobile_bad-3, L-pulse-C2-perfect-0, L-pulse-C3-broadband-1, L-pulse-C3-mobile_3g-2, L-pulse-C3-perfect-0
+  122.369 nginx access log: 11423 lines (0 unparsed), server_requests.csv written, log compressed
+  122.371 run.json written; the run is sound
+  122.413 teardown: 0 process(es) in 5 namespace(s): listed in 0.04 s, ended in 0.00 s
+  122.452 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.01 s, hg_2_mobile_3g 0.01 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  122.589 teardown: links deleted: vo_hg_0_perfect 0.07 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  122.639 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.05 s; 0.3 s in all)
+drift/attack_costly_export_flood/U: attempt 1
+    2.525 timer probe 1 on CPU 7 at 2026-11-08T09:49:51+00:00: p50 1.20844, p99 4.87475, max 5.28479 ms: passed
+    2.621 run U of costly_export_sub_threshold, seed 43: preflight and environment passed
+    8.192 topology: 4 namespaces, 300 addresses, verified in 5.6 s
+    8.239 started the origin as pid 14429
+    8.294 started Nginx (its launcher returned after 0.05 s)
+   11.370 stack ready: 5 routes answer with their own class under calibration frozen:cff6e515; warmed up
+   11.584 launched 31 legit streams
+   44.153 launched 4 attack streams
+  121.189 timeline over after 109.8 s
+  121.478 stopped 1 process(es) of this run in 0.27 s
+  121.489 wall time of 11 stream(s) raised to what their records need, by up to 0.11 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  121.489 1 legit stream(s) began outside the pack of the others, by up to 0.55 s, and are placed by their own offsets: L-poisson-C0-mobile_bad-3
+  121.559 nginx access log: 4665 lines (0 unparsed), server_requests.csv written, log compressed
+  121.560 run.json written; the run is sound
+  121.590 teardown: 0 process(es) in 5 namespace(s): listed in 0.03 s, ended in 0.00 s
+  121.625 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.01 s, hg_2_mobile_3g 0.01 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  121.774 teardown: links deleted: vo_hg_0_perfect 0.02 s, vo_hg_1_broadba 0.06 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.03 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  121.837 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.06 s; 0.3 s in all)
+drift/attack_costly_search_flood/U: attempt 1
+    2.846 timer probe 1 on CPU 7 at 2026-11-08T09:51:52+00:00: p50 1.26396, p99 4.97626, max 323.654 ms: passed
+    2.939 run U of costly_search_sub_threshold, seed 44: preflight and environment passed
+    8.708 topology: 4 namespaces, 300 addresses, verified in 5.8 s
+    8.761 started the origin as pid 15674
+    8.814 started Nginx (its launcher returned after 0.05 s)
+   11.942 stack ready: 5 routes answer with their own class under calibration frozen:cff6e515; warmed up
+   12.126 launched 31 legit streams
+   44.717 launched 4 attack streams
+  120.522 timeline over after 108.6 s
+  120.859 stopped 1 process(es) of this run in 0.32 s
+  120.872 wall time of 9 stream(s) raised to what their records need, by up to 0.12 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  120.872 2 legit stream(s) began outside the pack of the others, by up to 0.84 s, and are placed by their own offsets: L-poisson-C0-broadband-1, L-poisson-C0-mobile_bad-3
+  120.963 nginx access log: 5987 lines (0 unparsed), server_requests.csv written, log compressed
+  120.965 run.json written; the run is sound
+  121.001 teardown: 0 process(es) in 5 namespace(s): listed in 0.04 s, ended in 0.00 s
+  121.032 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.01 s, hg_2_mobile_3g 0.01 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  121.194 teardown: links deleted: vo_hg_0_perfect 0.02 s, vo_hg_1_broadba 0.07 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.02 s, ddos_br0 0.03 s
+  121.296 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.10 s; 0.3 s in all)
+drift: OUT of it: cheap_static_flood: Q 78.5388 against 95.8089 frozen (more than the gate's floor_pp, 10 pp)
+drift check 2 of 2 failed; it stops here

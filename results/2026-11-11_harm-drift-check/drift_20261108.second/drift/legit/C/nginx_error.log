@@ -1,0 +1,482 @@
+2026/11/08 09:45:40 [error] 13174#13174: *1 connect() failed (111: Connection refused) while connecting to upstream, client: 10.0.0.1, server: twojadomena.pl, request: "GET /static/1 HTTP/1.1", upstream: "http://127.0.0.1:8080/static/1", host: "10.0.0.1"
+2026/11/08 09:45:40 [info] 13174#13174: *1 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:45:42 [info] 13174#13174: *3 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:45:42 [info] 13174#13174: *5 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:45:42 [info] 13174#13174: *7 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:45:42 [info] 13174#13174: *9 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:45:42 [info] 13174#13174: *11 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:45:43 [info] 13174#13174: *13 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:45:43 [info] 13174#13174: *15 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:45:43 [info] 13174#13174: *17 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:45:43 [info] 13174#13174: *19 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:45:43 [info] 13174#13174: *21 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:45:43 [info] 13174#13174: *23 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:45:43 [info] 13174#13174: *25 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:45:43 [info] 13174#13174: *27 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:45:43 [info] 13174#13174: *29 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:45:43 [info] 13174#13174: *31 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:45:44 [info] 13174#13174: *33 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:45:47 [warn] 13174#13174: *99 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/00/0000000001 while reading upstream, client: 10.0.1.2, server: twojadomena.pl, request: "GET /export?r=1 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=1", host: "10.0.0.1"
+2026/11/08 09:45:50 [warn] 13174#13174: *439 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/00/0000000002 while reading upstream, client: 10.0.1.34, server: twojadomena.pl, request: "GET /export?r=835 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=835", host: "10.0.0.1"
+2026/11/08 09:45:52 [warn] 13174#13174: *520 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/00/0000000003 while reading upstream, client: 10.0.1.20, server: twojadomena.pl, request: "GET /export?r=72 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=72", host: "10.0.0.1"
+2026/11/08 09:45:56 [warn] 13174#13174: *820 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/00/0000000004 while reading upstream, client: 10.0.1.56, server: twojadomena.pl, request: "GET /export?r=203 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=203", host: "10.0.0.1"
+2026/11/08 09:45:56 [warn] 13174#13174: *845 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/00/0000000005 while reading upstream, client: 10.0.1.50, server: twojadomena.pl, request: "GET /export?r=395 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=395", host: "10.0.0.1"
+2026/11/08 09:45:56 [warn] 13174#13174: *849 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/00/0000000006 while reading upstream, client: 10.0.1.60, server: twojadomena.pl, request: "GET /export?r=928 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=928", host: "10.0.0.1"
+2026/11/08 09:46:00 [warn] 13174#13174: *993 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/00/0000000007 while reading upstream, client: 10.0.1.68, server: twojadomena.pl, request: "GET /export?r=73 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=73", host: "10.0.0.1"
+2026/11/08 09:46:03 [warn] 13174#13174: *1203 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/00/0000000008 while reading upstream, client: 10.0.1.93, server: twojadomena.pl, request: "GET /export?r=913 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=913", host: "10.0.0.1"
+2026/11/08 09:46:03 [warn] 13174#13174: *1207 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/00/0000000009 while reading upstream, client: 10.0.1.77, server: twojadomena.pl, request: "GET /export?r=841 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=841", host: "10.0.0.1"
+2026/11/08 09:46:04 [warn] 13174#13174: *1275 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/01/0000000010 while reading upstream, client: 10.0.1.97, server: twojadomena.pl, request: "GET /export?r=400 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=400", host: "10.0.0.1"
+2026/11/08 09:46:05 [warn] 13174#13174: *1354 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/01/0000000011 while reading upstream, client: 10.0.1.98, server: twojadomena.pl, request: "GET /export?r=655 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=655", host: "10.0.0.1"
+2026/11/08 09:46:06 [warn] 13174#13174: *1372 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/01/0000000012 while reading upstream, client: 10.0.1.79, server: twojadomena.pl, request: "GET /export?r=140 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=140", host: "10.0.0.1"
+2026/11/08 09:46:07 [warn] 13174#13174: *1409 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/01/0000000013 while reading upstream, client: 10.0.1.137, server: twojadomena.pl, request: "GET /export?r=876 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=876", host: "10.0.0.1"
+2026/11/08 09:46:07 [warn] 13174#13174: *1424 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/01/0000000014 while reading upstream, client: 10.0.1.101, server: twojadomena.pl, request: "GET /export?r=998 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=998", host: "10.0.0.1"
+2026/11/08 09:46:08 [warn] 13174#13174: *1456 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/01/0000000015 while reading upstream, client: 10.0.1.8, server: twojadomena.pl, request: "GET /export?r=277 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=277", host: "10.0.0.1"
+2026/11/08 09:46:08 [warn] 13174#13174: *1460 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/01/0000000016 while reading upstream, client: 10.0.1.115, server: twojadomena.pl, request: "GET /export?r=839 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=839", host: "10.0.0.1"
+2026/11/08 09:46:09 [warn] 13174#13174: *1498 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/01/0000000017 while reading upstream, client: 10.0.1.116, server: twojadomena.pl, request: "GET /export?r=902 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=902", host: "10.0.0.1"
+2026/11/08 09:46:14 [warn] 13174#13174: *1734 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/01/0000000018 while reading upstream, client: 10.0.1.104, server: twojadomena.pl, request: "GET /export?r=264 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=264", host: "10.0.0.1"
+2026/11/08 09:46:17 [warn] 13172#13172: *1872 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/01/0000000019 while reading upstream, client: 10.0.1.131, server: twojadomena.pl, request: "GET /export?r=264 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=264", host: "10.0.0.1"
+2026/11/08 09:46:17 [warn] 13174#13174: *1908 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/02/0000000020 while reading upstream, client: 10.0.1.154, server: twojadomena.pl, request: "GET /export?r=623 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=623", host: "10.0.0.1"
+2026/11/08 09:46:18 [warn] 13174#13174: *1911 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/02/0000000021 while reading upstream, client: 10.0.1.167, server: twojadomena.pl, request: "GET /export?r=734 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=734", host: "10.0.0.1"
+2026/11/08 09:46:18 [warn] 13174#13174: *1958 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/02/0000000022 while reading upstream, client: 10.0.1.149, server: twojadomena.pl, request: "GET /export?r=673 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=673", host: "10.0.0.1"
+2026/11/08 09:46:26 [warn] 13174#13174: *2338 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/02/0000000023 while reading upstream, client: 10.0.1.140, server: twojadomena.pl, request: "GET /export?r=212 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=212", host: "10.0.0.1"
+2026/11/08 09:46:29 [warn] 13174#13174: *2478 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/02/0000000024 while reading upstream, client: 10.0.1.70, server: twojadomena.pl, request: "GET /export?r=523 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=523", host: "10.0.0.1"
+2026/11/08 09:46:30 [warn] 13174#13174: *2528 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/02/0000000025 while reading upstream, client: 10.0.1.163, server: twojadomena.pl, request: "GET /export?r=865 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=865", host: "10.0.0.1"
+2026/11/08 09:46:31 [warn] 13174#13174: *2599 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/02/0000000026 while reading upstream, client: 10.0.1.82, server: twojadomena.pl, request: "GET /export?r=138 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=138", host: "10.0.0.1"
+2026/11/08 09:46:32 [warn] 13174#13174: *2670 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/02/0000000027 while reading upstream, client: 10.0.1.84, server: twojadomena.pl, request: "GET /export?r=523 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=523", host: "10.0.0.1"
+2026/11/08 09:46:35 [warn] 13174#13174: *2820 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/02/0000000028 while reading upstream, client: 10.0.1.182, server: twojadomena.pl, request: "GET /export?r=533 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=533", host: "10.0.0.1"
+2026/11/08 09:46:36 [warn] 13174#13174: *2864 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/02/0000000029 while reading upstream, client: 10.0.1.202, server: twojadomena.pl, request: "GET /export?r=257 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=257", host: "10.0.0.1"
+2026/11/08 09:46:38 [warn] 13174#13174: *2918 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/03/0000000030 while reading upstream, client: 10.0.1.176, server: twojadomena.pl, request: "GET /export?r=325 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=325", host: "10.0.0.1"
+2026/11/08 09:46:45 [warn] 13174#13174: *3253 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/03/0000000031 while reading upstream, client: 10.0.1.189, server: twojadomena.pl, request: "GET /export?r=435 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=435", host: "10.0.0.1"
+2026/11/08 09:46:49 [warn] 13174#13174: *3478 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/03/0000000032 while reading upstream, client: 10.0.1.197, server: twojadomena.pl, request: "GET /export?r=210 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=210", host: "10.0.0.1"
+2026/11/08 09:46:51 [warn] 13174#13174: *3620 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/03/0000000033 while reading upstream, client: 10.0.1.105, server: twojadomena.pl, request: "GET /export?r=650 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=650", host: "10.0.0.1"
+2026/11/08 09:46:53 [warn] 13174#13174: *3681 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/03/0000000034 while reading upstream, client: 10.0.1.203, server: twojadomena.pl, request: "GET /export?r=10 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=10", host: "10.0.0.1"
+2026/11/08 09:46:54 [warn] 13174#13174: *3736 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/03/0000000035 while reading upstream, client: 10.0.1.245, server: twojadomena.pl, request: "GET /export?r=710 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=710", host: "10.0.0.1"
+2026/11/08 09:46:57 [warn] 13174#13174: *3856 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/03/0000000036 while reading upstream, client: 10.0.1.253, server: twojadomena.pl, request: "GET /export?r=435 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=435", host: "10.0.0.1"
+2026/11/08 09:46:59 [warn] 13174#13174: *3953 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/03/0000000037 while reading upstream, client: 10.0.1.2, server: twojadomena.pl, request: "GET /export?r=476 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=476", host: "10.0.0.1"
+2026/11/08 09:47:00 [warn] 13174#13174: *3996 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/03/0000000038 while reading upstream, client: 10.0.1.20, server: twojadomena.pl, request: "GET /export?r=409 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=409", host: "10.0.0.1"
+2026/11/08 09:47:01 [warn] 13174#13174: *4023 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/03/0000000039 while reading upstream, client: 10.0.1.50, server: twojadomena.pl, request: "GET /export?r=492 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=492", host: "10.0.0.1"
+2026/11/08 09:47:04 [warn] 13174#13174: *4250 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/04/0000000040 while reading upstream, client: 10.0.1.93, server: twojadomena.pl, request: "GET /export?r=648 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=648", host: "10.0.0.1"
+2026/11/08 09:47:07 [warn] 13174#13174: *4439 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/04/0000000041 while reading upstream, client: 10.0.1.98, server: twojadomena.pl, request: "GET /export?r=806 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=806", host: "10.0.0.1"
+2026/11/08 09:47:07 [warn] 13174#13174: *4466 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/04/0000000042 while reading upstream, client: 10.0.1.101, server: twojadomena.pl, request: "GET /export?r=978 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=978", host: "10.0.0.1"
+2026/11/08 09:47:09 [warn] 13174#13174: *4546 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/04/0000000043 while reading upstream, client: 10.0.1.115, server: twojadomena.pl, request: "GET /export?r=878 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=878", host: "10.0.0.1"
+2026/11/08 09:47:10 [warn] 13174#13174: *4575 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/04/0000000044 while reading upstream, client: 10.0.1.209, server: twojadomena.pl, request: "GET /export?r=200 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=200", host: "10.0.0.1"
+2026/11/08 09:47:11 [warn] 13174#13174: *4633 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/04/0000000045 while reading upstream, client: 10.0.1.126, server: twojadomena.pl, request: "GET /export?r=656 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=656", host: "10.0.0.1"
+2026/11/08 09:47:12 [warn] 13174#13174: *4671 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/04/0000000046 while reading upstream, client: 10.0.1.165, server: twojadomena.pl, request: "GET /export?r=37 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=37", host: "10.0.0.1"
+2026/11/08 09:47:12 [warn] 13174#13174: *4682 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/04/0000000047 while reading upstream, client: 10.0.1.116, server: twojadomena.pl, request: "GET /export?r=710 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=710", host: "10.0.0.1"
+2026/11/08 09:47:17 [warn] 13174#13174: *4928 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/04/0000000048 while reading upstream, client: 10.0.1.131, server: twojadomena.pl, request: "GET /export?r=212 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=212", host: "10.0.0.1"
+2026/11/08 09:47:17 [warn] 13174#13174: *4942 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/04/0000000049 while reading upstream, client: 10.0.1.180, server: twojadomena.pl, request: "GET /export?r=808 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=808", host: "10.0.0.1"
+2026/11/08 09:47:19 [warn] 13174#13174: *5020 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/05/0000000050 while reading upstream, client: 10.0.1.208, server: twojadomena.pl, request: "GET /export?r=993 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=993", host: "10.0.0.1"
+2026/11/08 09:47:19 [warn] 13174#13174: *5049 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/05/0000000051 while reading upstream, client: 10.0.1.140, server: twojadomena.pl, request: "GET /export?r=274 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=274", host: "10.0.0.1"
+2026/11/08 09:47:20 [info] 13174#13174: *4439 client 10.0.1.98 closed keepalive connection
+2026/11/08 09:47:20 [info] 13174#13174: *4466 client 10.0.1.101 closed keepalive connection
+2026/11/08 09:47:20 [info] 13174#13174: *5049 client 10.0.1.140 closed keepalive connection
+2026/11/08 09:47:20 [info] 13174#13174: *4682 client 10.0.1.116 closed keepalive connection
+2026/11/08 09:47:20 [info] 13174#13174: *4928 client 10.0.1.131 closed keepalive connection
+2026/11/08 09:47:20 [info] 13174#13174: *4546 client 10.0.1.115 closed keepalive connection
+2026/11/08 09:47:21 [warn] 13174#13174: *5150 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/05/0000000052 while reading upstream, client: 10.0.1.219, server: twojadomena.pl, request: "GET /export?r=243 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=243", host: "10.0.0.1"
+2026/11/08 09:47:21 [warn] 13174#13174: *5176 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/05/0000000053 while reading upstream, client: 10.0.1.217, server: twojadomena.pl, request: "GET /export?r=572 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=572", host: "10.0.0.1"
+2026/11/08 09:47:23 [warn] 13174#13174: *5248 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/05/0000000054 while reading upstream, client: 10.0.1.235, server: twojadomena.pl, request: "GET /export?r=167 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=167", host: "10.0.0.1"
+2026/11/08 09:47:24 [warn] 13174#13174: *5295 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/05/0000000055 while reading upstream, client: 10.0.1.34, server: twojadomena.pl, request: "GET /export?r=673 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=673", host: "10.0.0.1"
+2026/11/08 09:47:26 [info] 13174#13174: *5295 client 10.0.1.34 closed keepalive connection
+2026/11/08 09:47:31 [info] 13174#13174: *5614 client 10.0.1.232 closed keepalive connection
+2026/11/08 09:47:31 [info] 13174#13174: *5621 client 10.0.1.184 closed keepalive connection
+2026/11/08 09:47:32 [info] 13174#13174: *5641 client 10.0.1.183 closed keepalive connection
+2026/11/08 09:47:33 [info] 13174#13174: *5678 client 10.0.1.186 closed keepalive connection
+2026/11/08 09:47:33 [info] 13174#13174: *53 client 10.0.1.95 closed keepalive connection
+2026/11/08 09:47:33 [info] 13174#13174: *149 client 10.0.1.192 closed keepalive connection
+2026/11/08 09:47:33 [info] 13174#13174: *250 client 10.0.1.242 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *5733 client 10.0.1.75 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *5786 client 10.0.1.107 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *5624 client 10.0.1.152 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *5682 client 10.0.1.249 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *79 client 10.0.1.65 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *115 client 10.0.1.141 closed keepalive connection
+2026/11/08 09:47:34 [info] 13172#13172: *111 client 10.0.1.232 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *51 client 10.0.1.95 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *73 client 10.0.1.136 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *91 client 10.0.1.192 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *142 client 10.0.1.242 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *207 client 10.0.1.200 closed keepalive connection
+2026/11/08 09:47:34 [info] 13172#13172: *170 client 10.0.1.160 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *77 client 10.0.1.107 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *105 client 10.0.1.184 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *95 client 10.0.1.152 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *85 client 10.0.1.109 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *63 client 10.0.1.75 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *120 client 10.0.1.249 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *69 client 10.0.1.86 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *180 client 10.0.1.183 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *162 client 10.0.1.160 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *147 client 10.0.1.129 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *116 client 10.0.1.120 closed keepalive connection
+2026/11/08 09:47:34 [info] 13172#13172: *89 client 10.0.1.23 closed keepalive connection
+2026/11/08 09:47:34 [info] 13174#13174: *82 client 10.0.1.65 closed keepalive connection
+2026/11/08 09:47:35 [info] 13174#13174: *137 client 10.0.1.119 closed keepalive connection
+2026/11/08 09:47:35 [info] 13174#13174: *5747 client 10.0.1.186 closed keepalive connection
+2026/11/08 09:47:35 [info] 13174#13174: *2000 client 10.0.1.141 closed keepalive connection
+2026/11/08 09:47:35 [info] 13174#13174: *198 client 10.0.1.186 closed keepalive connection
+2026/11/08 09:47:35 [info] 13174#13174: *5107 client 10.0.1.200 closed keepalive connection
+2026/11/08 09:47:39 [warn] 13174#13174: *6027 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/05/0000000056 while reading upstream, client: 10.0.1.237, server: twojadomena.pl, request: "GET /export?r=47 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=47", host: "10.0.0.1"
+2026/11/08 09:47:39 [info] 13174#13174: *6027 client 10.0.1.237 closed keepalive connection
+2026/11/08 09:47:43 [warn] 13174#13174: *6204 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/05/0000000057 while reading upstream, client: 10.0.1.231, server: twojadomena.pl, request: "GET /export?r=397 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=397", host: "10.0.0.1"
+2026/11/08 09:47:43 [info] 13174#13174: *6204 client 10.0.1.231 closed keepalive connection
+2026/11/08 09:47:44 [info] 13174#13174: *613 client 10.0.1.63 closed keepalive connection
+2026/11/08 09:47:44 [info] 13174#13174: *819 client 10.0.1.142 closed keepalive connection
+2026/11/08 09:47:44 [info] 13174#13174: *4957 client 10.0.1.35 closed keepalive connection
+2026/11/08 09:47:44 [info] 13172#13172: *4710 client 10.0.1.187 closed keepalive connection
+2026/11/08 09:47:44 [info] 13174#13174: *932 client 10.0.1.194 closed keepalive connection
+2026/11/08 09:47:44 [info] 13174#13174: *649 client 10.0.1.78 closed keepalive connection
+2026/11/08 09:47:44 [info] 13174#13174: *4826 client 10.0.1.252 closed keepalive connection
+2026/11/08 09:47:44 [info] 13174#13174: *363 client 10.0.1.37 closed keepalive connection
+2026/11/08 09:47:44 [info] 13174#13174: *921 client 10.0.1.193 closed keepalive connection
+2026/11/08 09:47:44 [info] 13174#13174: *4378 client 10.0.1.57 closed keepalive connection
+2026/11/08 09:47:44 [info] 13174#13174: *4855 client 10.0.1.13 closed keepalive connection
+2026/11/08 09:47:44 [info] 13174#13174: *4678 client 10.0.1.161 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6158 client 10.0.1.7 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6241 client 10.0.1.16 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6244 client 10.0.1.32 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6255 client 10.0.1.40 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *288 client 10.0.1.49 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *382 client 10.0.1.64 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *424 client 10.0.1.80 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *527 client 10.0.1.90 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *533 client 10.0.1.145 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *540 client 10.0.1.151 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *641 client 10.0.1.175 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6021 client 10.0.1.190 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *713 client 10.0.1.205 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *728 client 10.0.1.210 closed keepalive connection
+2026/11/08 09:47:45 [info] 13172#13172: *4142 client 10.0.1.153 closed keepalive connection
+2026/11/08 09:47:45 [info] 13172#13172: *166 client 10.0.1.29 closed keepalive connection
+2026/11/08 09:47:45 [info] 13172#13172: *103 client 10.0.1.15 closed keepalive connection
+2026/11/08 09:47:45 [info] 13172#13172: *2470 client 10.0.1.250 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *260 client 10.0.1.70 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *226 client 10.0.1.59 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *696 client 10.0.1.240 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *2450 client 10.0.1.243 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *152 client 10.0.1.28 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *667 client 10.0.1.235 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *2428 client 10.0.1.238 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *216 client 10.0.1.48 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *344 client 10.0.1.105 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *2610 client 10.0.1.43 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *4310 client 10.0.1.178 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *677 client 10.0.1.237 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *61 client 10.0.1.8 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *4224 client 10.0.1.164 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *124 client 10.0.1.21 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *592 client 10.0.1.216 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *4370 client 10.0.1.211 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *635 client 10.0.1.226 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *610 client 10.0.1.217 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *4192 client 10.0.1.155 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *4246 client 10.0.1.165 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *4210 client 10.0.1.162 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *4288 client 10.0.1.173 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *646 client 10.0.1.228 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *4128 client 10.0.1.126 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *633 client 10.0.1.220 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *4280 client 10.0.1.170 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *309 client 10.0.1.82 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *487 client 10.0.1.208 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *4125 client 10.0.1.118 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *2561 client 10.0.1.30 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *618 client 10.0.1.218 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *440 client 10.0.1.206 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *2747 client 10.0.1.84 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *4077 client 10.0.1.108 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *59 client 10.0.1.3 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *637 client 10.0.1.227 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *267 client 10.0.1.74 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *437 client 10.0.1.180 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *661 client 10.0.1.234 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *665 client 10.0.1.47 closed keepalive connection
+2026/11/08 09:47:45 [info] 13175#13175: *315 client 10.0.1.85 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *873 client 10.0.1.143 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *456 client 10.0.1.44 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *675 client 10.0.1.54 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *886 client 10.0.1.174 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *925 client 10.0.1.206 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *832 client 10.0.1.125 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *971 client 10.0.1.221 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *997 client 10.0.1.240 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5419 client 10.0.1.181 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5956 client 10.0.1.203 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5845 client 10.0.1.171 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5674 client 10.0.1.195 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6155 client 10.0.1.20 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6161 client 10.0.1.25 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5810 client 10.0.1.147 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5851 client 10.0.1.189 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5818 client 10.0.1.163 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6030 client 10.0.1.244 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6206 client 10.0.1.93 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5842 client 10.0.1.166 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5865 client 10.0.1.197 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5955 client 10.0.1.222 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6190 client 10.0.1.91 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6183 client 10.0.1.50 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5410 client 10.0.1.122 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6284 client 10.0.1.101 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6129 client 10.0.1.10 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5607 client 10.0.1.134 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *331 client 10.0.1.71 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6041 client 10.0.1.253 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6224 client 10.0.1.96 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6234 client 10.0.1.98 closed keepalive connection
+2026/11/08 09:47:45 [info] 13172#13172: *6140 client 10.0.1.14 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6278 client 10.0.1.99 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6286 client 10.0.1.103 closed keepalive connection
+2026/11/08 09:47:45 [info] 13172#13172: *6321 client 10.0.1.111 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *35 client 10.0.1.9 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5692 client 10.0.1.218 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5234 client 10.0.1.29 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *36 client 10.0.1.26 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *39 client 10.0.1.32 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *47 client 10.0.1.36 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *67 client 10.0.1.41 closed keepalive connection
+2026/11/08 09:47:45 [info] 13172#13172: *108 client 10.0.1.46 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5481 client 10.0.1.155 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *113 client 10.0.1.58 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *144 client 10.0.1.69 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *188 client 10.0.1.90 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *196 client 10.0.1.102 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *202 client 10.0.1.106 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *236 client 10.0.1.112 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *239 client 10.0.1.127 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *269 client 10.0.1.130 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *282 client 10.0.1.168 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *300 client 10.0.1.179 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *304 client 10.0.1.185 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *321 client 10.0.1.205 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6295 client 10.0.1.170 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *326 client 10.0.1.207 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *334 client 10.0.1.210 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *337 client 10.0.1.224 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *352 client 10.0.1.225 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *409 client 10.0.1.239 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6331 client 10.0.1.173 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5473 client 10.0.1.153 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5889 client 10.0.1.15 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5894 client 10.0.1.201 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6184 client 10.0.1.73 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5756 client 10.0.1.144 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5731 client 10.0.1.221 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5854 client 10.0.1.250 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5527 client 10.0.1.164 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5516 client 10.0.1.162 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5707 client 10.0.1.220 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5307 client 10.0.1.54 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5163 client 10.0.1.28 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5246 client 10.0.1.44 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5256 client 10.0.1.47 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5243 client 10.0.1.43 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5744 client 10.0.1.227 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5826 client 10.0.1.234 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5351 client 10.0.1.74 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5651 client 10.0.1.206 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5653 client 10.0.1.211 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5680 client 10.0.1.216 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5735 client 10.0.1.226 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5885 client 10.0.1.3 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5903 client 10.0.1.21 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6043 client 10.0.1.48 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5749 client 10.0.1.228 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5450 client 10.0.1.143 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5344 client 10.0.1.59 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5240 client 10.0.1.30 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5383 client 10.0.1.108 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5365 client 10.0.1.85 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5388 client 10.0.1.118 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5485 client 10.0.1.158 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5832 client 10.0.1.240 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5421 client 10.0.1.125 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5672 client 10.0.1.140 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6035 client 10.0.1.245 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *5992 client 10.0.1.229 closed keepalive connection
+2026/11/08 09:47:45 [info] 13174#13174: *6112 client 10.0.1.2 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6172 client 10.0.1.31 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6085 client 10.0.1.1 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6134 client 10.0.1.13 closed keepalive connection
+2026/11/08 09:47:46 [info] 13172#13172: *1668 client 10.0.1.19 closed keepalive connection
+2026/11/08 09:47:46 [info] 13172#13172: *5858 client 10.0.1.176 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5783 client 10.0.1.251 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5613 client 10.0.1.236 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5346 client 10.0.1.22 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5598 client 10.0.1.230 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *432 client 10.0.1.162 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *41 client 10.0.1.3 closed keepalive connection
+2026/11/08 09:47:46 [info] 13172#13172: *118 client 10.0.1.30 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *468 client 10.0.1.170 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *498 client 10.0.1.178 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *75 client 10.0.1.28 closed keepalive connection
+2026/11/08 09:47:46 [info] 13172#13172: *622 client 10.0.1.227 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *355 client 10.0.1.108 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *193 client 10.0.1.59 closed keepalive connection
+2026/11/08 09:47:46 [info] 13175#13175: *318 client 10.0.1.85 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *380 client 10.0.1.153 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *263 client 10.0.1.74 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *608 client 10.0.1.226 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *399 client 10.0.1.155 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *154 client 10.0.1.43 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *176 client 10.0.1.48 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *679 client 10.0.1.250 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *489 client 10.0.1.173 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *569 client 10.0.1.216 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *571 client 10.0.1.218 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *97 client 10.0.1.29 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *630 client 10.0.1.234 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *556 client 10.0.1.211 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *627 client 10.0.1.228 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *659 client 10.0.1.240 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *587 client 10.0.1.220 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *449 client 10.0.1.164 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *45 client 10.0.1.21 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *504 client 10.0.1.206 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *43 client 10.0.1.15 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *375 client 10.0.1.118 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *71 client 10.0.1.9 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *107 client 10.0.1.26 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *222 client 10.0.1.32 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *241 client 10.0.1.36 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *329 client 10.0.1.41 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *373 client 10.0.1.46 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *377 client 10.0.1.56 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *405 client 10.0.1.58 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *426 client 10.0.1.60 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *447 client 10.0.1.69 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *462 client 10.0.1.77 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *465 client 10.0.1.90 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *475 client 10.0.1.97 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *506 client 10.0.1.102 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *510 client 10.0.1.106 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *512 client 10.0.1.112 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *547 client 10.0.1.127 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *4975 client 10.0.1.130 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *4996 client 10.0.1.137 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5041 client 10.0.1.146 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5088 client 10.0.1.154 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5096 client 10.0.1.167 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5122 client 10.0.1.168 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5133 client 10.0.1.177 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5136 client 10.0.1.179 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5143 client 10.0.1.185 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5160 client 10.0.1.198 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5166 client 10.0.1.199 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5178 client 10.0.1.205 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5181 client 10.0.1.207 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5194 client 10.0.1.209 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5203 client 10.0.1.210 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5250 client 10.0.1.219 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5270 client 10.0.1.224 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5286 client 10.0.1.225 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *942 client 10.0.1.231 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *957 client 10.0.1.247 closed keepalive connection
+2026/11/08 09:47:46 [info] 13172#13172: *228 client 10.0.1.33 closed keepalive connection
+2026/11/08 09:47:46 [info] 13172#13172: *444 client 10.0.1.68 closed keepalive connection
+2026/11/08 09:47:46 [info] 13172#13172: *952 client 10.0.1.239 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5526 client 10.0.1.191 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *81 client 10.0.1.1 closed keepalive connection
+2026/11/08 09:47:46 [info] 13172#13172: *681 client 10.0.1.171 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *575 client 10.0.1.144 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *529 client 10.0.1.114 closed keepalive connection
+2026/11/08 09:47:46 [info] 13172#13172: *218 client 10.0.1.13 closed keepalive connection
+2026/11/08 09:47:46 [info] 13172#13172: *578 client 10.0.1.134 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *561 client 10.0.1.121 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *787 client 10.0.1.244 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *508 client 10.0.1.99 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *442 client 10.0.1.91 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *165 client 10.0.1.10 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *265 client 10.0.1.25 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *519 client 10.0.1.103 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *615 client 10.0.1.147 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *524 client 10.0.1.111 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *249 client 10.0.1.14 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *454 client 10.0.1.96 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *684 client 10.0.1.201 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *712 client 10.0.1.222 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *302 client 10.0.1.31 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *653 client 10.0.1.166 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *384 client 10.0.1.73 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6267 client 10.0.1.7 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6270 client 10.0.1.9 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6274 client 10.0.1.16 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6291 client 10.0.1.26 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6300 client 10.0.1.27 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6302 client 10.0.1.32 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6310 client 10.0.1.36 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6317 client 10.0.1.40 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *371 client 10.0.1.41 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *389 client 10.0.1.46 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *390 client 10.0.1.49 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *418 client 10.0.1.58 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *459 client 10.0.1.64 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *480 client 10.0.1.69 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5883 client 10.0.1.80 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5922 client 10.0.1.90 closed keepalive connection
+2026/11/08 09:47:46 [info] 13172#13172: *5839 client 10.0.1.72 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5949 client 10.0.1.102 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5957 client 10.0.1.106 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *554 client 10.0.1.112 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *595 client 10.0.1.113 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5989 client 10.0.1.127 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *603 client 10.0.1.130 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6059 client 10.0.1.145 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6062 client 10.0.1.151 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6098 client 10.0.1.156 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6101 client 10.0.1.168 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6123 client 10.0.1.175 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6178 client 10.0.1.179 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6181 client 10.0.1.185 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6199 client 10.0.1.190 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6213 client 10.0.1.205 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6216 client 10.0.1.207 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6220 client 10.0.1.210 closed keepalive connection
+2026/11/08 09:47:46 [info] 13172#13172: *6252 client 10.0.1.239 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6231 client 10.0.1.224 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6247 client 10.0.1.225 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *771 client 10.0.1.229 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5802 client 10.0.1.96 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6169 client 10.0.1.187 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6024 client 10.0.1.144 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5869 client 10.0.1.99 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5974 client 10.0.1.134 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5875 client 10.0.1.103 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5662 client 10.0.1.63 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6096 client 10.0.1.166 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6196 client 10.0.1.193 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5893 client 10.0.1.111 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5991 client 10.0.1.142 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5781 client 10.0.1.78 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6236 client 10.0.1.194 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5628 client 10.0.1.57 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6133 client 10.0.1.171 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6307 client 10.0.1.229 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6287 client 10.0.1.222 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5926 client 10.0.1.121 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5794 client 10.0.1.91 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5759 client 10.0.1.67 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6261 client 10.0.1.201 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5970 client 10.0.1.132 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6091 client 10.0.1.161 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6076 client 10.0.1.147 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5763 client 10.0.1.73 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *5908 client 10.0.1.114 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *6340 client 10.0.1.244 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *294 client 10.0.1.122 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *492 client 10.0.1.230 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *452 client 10.0.1.195 closed keepalive connection
+2026/11/08 09:47:46 [info] 13172#13172: *401 client 10.0.1.181 closed keepalive connection
+2026/11/08 09:47:46 [info] 13174#13174: *483 client 10.0.1.251 closed keepalive connection
+2026/11/08 09:47:47 [info] 13174#13174: *497 client 10.0.1.191 closed keepalive connection
+2026/11/08 09:47:47 [info] 13174#13174: *336 client 10.0.1.22 closed keepalive connection
+2026/11/08 09:47:47 [info] 13174#13174: *5436 client 10.0.1.34 closed keepalive connection
+2026/11/08 09:47:47 [info] 13174#13174: *5519 client 10.0.1.122 closed keepalive connection
+2026/11/08 09:47:47 [info] 13174#13174: *5435 client 10.0.1.22 closed keepalive connection
+2026/11/08 09:47:47 [info] 13174#13174: *5259 client 10.0.1.251 closed keepalive connection
+2026/11/08 09:47:47 [info] 13172#13172: *6344 client 10.0.1.236 closed keepalive connection
+2026/11/08 09:47:47 [info] 13174#13174: *5587 client 10.0.1.149 closed keepalive connection
+2026/11/08 09:47:47 [info] 13174#13174: *5493 client 10.0.1.104 closed keepalive connection
+2026/11/08 09:47:47 [info] 13174#13174: *5947 client 10.0.1.230 closed keepalive connection
+2026/11/08 09:47:47 [info] 13174#13174: *6343 client 10.0.1.181 closed keepalive connection
+2026/11/08 09:47:47 [info] 13174#13174: *5141 client 10.0.1.202 closed keepalive connection

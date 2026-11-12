@@ -1,0 +1,478 @@
+2026/11/08 09:33:24 [error] 9752#9752: *1 connect() failed (111: Connection refused) while connecting to upstream, client: 10.0.0.1, server: twojadomena.pl, request: "GET /static/1 HTTP/1.1", upstream: "http://127.0.0.1:8080/static/1", host: "10.0.0.1"
+2026/11/08 09:33:24 [info] 9752#9752: *1 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:33:26 [info] 9752#9752: *3 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:33:26 [info] 9752#9752: *5 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:33:26 [info] 9752#9752: *7 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:33:26 [info] 9752#9752: *9 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:33:26 [info] 9752#9752: *11 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:33:26 [info] 9752#9752: *13 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:33:26 [info] 9752#9752: *15 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:33:26 [info] 9752#9752: *17 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:33:26 [info] 9752#9752: *19 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:33:26 [info] 9752#9752: *21 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:33:26 [info] 9752#9752: *23 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:33:26 [info] 9752#9752: *25 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:33:26 [info] 9752#9752: *27 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:33:26 [info] 9752#9752: *29 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:33:27 [info] 9752#9752: *31 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:33:27 [info] 9752#9752: *33 client 10.0.0.1 closed keepalive connection
+2026/11/08 09:33:31 [warn] 9752#9752: *199 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/00/0000000001 while reading upstream, client: 10.0.1.2, server: twojadomena.pl, request: "GET /export?r=1 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=1", host: "10.0.0.1"
+2026/11/08 09:33:32 [warn] 9752#9752: *325 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/00/0000000002 while reading upstream, client: 10.0.1.33, server: twojadomena.pl, request: "GET /export?r=752 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=752", host: "10.0.0.1"
+2026/11/08 09:33:33 [warn] 9752#9752: *374 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/00/0000000003 while reading upstream, client: 10.0.1.34, server: twojadomena.pl, request: "GET /export?r=835 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=835", host: "10.0.0.1"
+2026/11/08 09:33:35 [warn] 9755#9755: *526 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/00/0000000004 while reading upstream, client: 10.0.1.20, server: twojadomena.pl, request: "GET /export?r=72 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=72", host: "10.0.0.1"
+2026/11/08 09:33:39 [warn] 9752#9752: *825 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/00/0000000005 while reading upstream, client: 10.0.1.56, server: twojadomena.pl, request: "GET /export?r=203 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=203", host: "10.0.0.1"
+2026/11/08 09:33:41 [warn] 9752#9752: *888 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/00/0000000006 while reading upstream, client: 10.0.1.50, server: twojadomena.pl, request: "GET /export?r=395 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=395", host: "10.0.0.1"
+2026/11/08 09:33:46 [warn] 9752#9752: *1207 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/00/0000000007 while reading upstream, client: 10.0.1.93, server: twojadomena.pl, request: "GET /export?r=913 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=913", host: "10.0.0.1"
+2026/11/08 09:33:47 [warn] 9752#9752: *1210 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/00/0000000008 while reading upstream, client: 10.0.1.77, server: twojadomena.pl, request: "GET /export?r=841 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=841", host: "10.0.0.1"
+2026/11/08 09:33:49 [warn] 9752#9752: *1361 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/00/0000000009 while reading upstream, client: 10.0.1.98, server: twojadomena.pl, request: "GET /export?r=655 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=655", host: "10.0.0.1"
+2026/11/08 09:33:50 [warn] 9753#9753: *1372 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/01/0000000010 while reading upstream, client: 10.0.1.79, server: twojadomena.pl, request: "GET /export?r=140 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=140", host: "10.0.0.1"
+2026/11/08 09:33:50 [warn] 9752#9752: *1430 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/01/0000000011 while reading upstream, client: 10.0.1.101, server: twojadomena.pl, request: "GET /export?r=998 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=998", host: "10.0.0.1"
+2026/11/08 09:33:51 [warn] 9752#9752: *1461 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/01/0000000012 while reading upstream, client: 10.0.1.8, server: twojadomena.pl, request: "GET /export?r=277 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=277", host: "10.0.0.1"
+2026/11/08 09:33:51 [warn] 9752#9752: *1464 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/01/0000000013 while reading upstream, client: 10.0.1.115, server: twojadomena.pl, request: "GET /export?r=839 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=839", host: "10.0.0.1"
+2026/11/08 09:33:52 [warn] 9752#9752: *1501 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/01/0000000014 while reading upstream, client: 10.0.1.116, server: twojadomena.pl, request: "GET /export?r=902 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=902", host: "10.0.0.1"
+2026/11/08 09:33:57 [warn] 9752#9752: *1735 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/01/0000000015 while reading upstream, client: 10.0.1.104, server: twojadomena.pl, request: "GET /export?r=264 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=264", host: "10.0.0.1"
+2026/11/08 09:34:00 [warn] 9752#9752: *1873 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/01/0000000016 while reading upstream, client: 10.0.1.131, server: twojadomena.pl, request: "GET /export?r=264 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=264", host: "10.0.0.1"
+2026/11/08 09:34:01 [warn] 9752#9752: *1909 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/01/0000000017 while reading upstream, client: 10.0.1.154, server: twojadomena.pl, request: "GET /export?r=623 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=623", host: "10.0.0.1"
+2026/11/08 09:34:02 [warn] 9752#9752: *1961 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/01/0000000018 while reading upstream, client: 10.0.1.149, server: twojadomena.pl, request: "GET /export?r=673 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=673", host: "10.0.0.1"
+2026/11/08 09:34:04 [warn] 9752#9752: *2087 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/01/0000000019 while reading upstream, client: 10.0.1.198, server: twojadomena.pl, request: "GET /export?r=73 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=73", host: "10.0.0.1"
+2026/11/08 09:34:10 [warn] 9752#9752: *2337 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/02/0000000020 while reading upstream, client: 10.0.1.140, server: twojadomena.pl, request: "GET /export?r=212 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=212", host: "10.0.0.1"
+2026/11/08 09:34:11 [warn] 9752#9752: *2392 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/02/0000000021 while reading upstream, client: 10.0.1.199, server: twojadomena.pl, request: "GET /export?r=763 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=763", host: "10.0.0.1"
+2026/11/08 09:34:12 [warn] 9752#9752: *2477 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/02/0000000022 while reading upstream, client: 10.0.1.70, server: twojadomena.pl, request: "GET /export?r=523 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=523", host: "10.0.0.1"
+2026/11/08 09:34:14 [warn] 9752#9752: *2529 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/02/0000000023 while reading upstream, client: 10.0.1.163, server: twojadomena.pl, request: "GET /export?r=865 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=865", host: "10.0.0.1"
+2026/11/08 09:34:15 [warn] 9752#9752: *2598 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/02/0000000024 while reading upstream, client: 10.0.1.82, server: twojadomena.pl, request: "GET /export?r=138 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=138", host: "10.0.0.1"
+2026/11/08 09:34:16 [warn] 9752#9752: *2669 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/02/0000000025 while reading upstream, client: 10.0.1.84, server: twojadomena.pl, request: "GET /export?r=523 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=523", host: "10.0.0.1"
+2026/11/08 09:34:19 [warn] 9752#9752: *2842 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/02/0000000026 while reading upstream, client: 10.0.1.182, server: twojadomena.pl, request: "GET /export?r=533 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=533", host: "10.0.0.1"
+2026/11/08 09:34:19 [warn] 9752#9752: *2871 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/02/0000000027 while reading upstream, client: 10.0.1.202, server: twojadomena.pl, request: "GET /export?r=257 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=257", host: "10.0.0.1"
+2026/11/08 09:34:21 [warn] 9752#9752: *2920 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/02/0000000028 while reading upstream, client: 10.0.1.176, server: twojadomena.pl, request: "GET /export?r=325 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=325", host: "10.0.0.1"
+2026/11/08 09:34:28 [warn] 9752#9752: *3254 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/02/0000000029 while reading upstream, client: 10.0.1.189, server: twojadomena.pl, request: "GET /export?r=435 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=435", host: "10.0.0.1"
+2026/11/08 09:34:32 [warn] 9752#9752: *3475 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/03/0000000030 while reading upstream, client: 10.0.1.197, server: twojadomena.pl, request: "GET /export?r=210 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=210", host: "10.0.0.1"
+2026/11/08 09:34:34 [warn] 9752#9752: *3625 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/03/0000000031 while reading upstream, client: 10.0.1.105, server: twojadomena.pl, request: "GET /export?r=650 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=650", host: "10.0.0.1"
+2026/11/08 09:34:36 [warn] 9752#9752: *3686 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/03/0000000032 while reading upstream, client: 10.0.1.203, server: twojadomena.pl, request: "GET /export?r=10 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=10", host: "10.0.0.1"
+2026/11/08 09:34:37 [warn] 9752#9752: *3740 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/03/0000000033 while reading upstream, client: 10.0.1.245, server: twojadomena.pl, request: "GET /export?r=710 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=710", host: "10.0.0.1"
+2026/11/08 09:34:40 [warn] 9752#9752: *3860 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/03/0000000034 while reading upstream, client: 10.0.1.253, server: twojadomena.pl, request: "GET /export?r=435 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=435", host: "10.0.0.1"
+2026/11/08 09:34:42 [warn] 9752#9752: *3960 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/03/0000000035 while reading upstream, client: 10.0.1.2, server: twojadomena.pl, request: "GET /export?r=476 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=476", host: "10.0.0.1"
+2026/11/08 09:34:43 [warn] 9752#9752: *4009 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/03/0000000036 while reading upstream, client: 10.0.1.20, server: twojadomena.pl, request: "GET /export?r=409 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=409", host: "10.0.0.1"
+2026/11/08 09:34:44 [warn] 9752#9752: *4030 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/03/0000000037 while reading upstream, client: 10.0.1.50, server: twojadomena.pl, request: "GET /export?r=492 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=492", host: "10.0.0.1"
+2026/11/08 09:34:47 [warn] 9752#9752: *4255 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/03/0000000038 while reading upstream, client: 10.0.1.93, server: twojadomena.pl, request: "GET /export?r=648 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=648", host: "10.0.0.1"
+2026/11/08 09:34:50 [warn] 9752#9752: *4449 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/03/0000000039 while reading upstream, client: 10.0.1.98, server: twojadomena.pl, request: "GET /export?r=806 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=806", host: "10.0.0.1"
+2026/11/08 09:34:51 [warn] 9752#9752: *4472 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/04/0000000040 while reading upstream, client: 10.0.1.101, server: twojadomena.pl, request: "GET /export?r=978 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=978", host: "10.0.0.1"
+2026/11/08 09:34:53 [warn] 9752#9752: *4549 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/04/0000000041 while reading upstream, client: 10.0.1.115, server: twojadomena.pl, request: "GET /export?r=878 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=878", host: "10.0.0.1"
+2026/11/08 09:34:53 [warn] 9752#9752: *4580 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/04/0000000042 while reading upstream, client: 10.0.1.209, server: twojadomena.pl, request: "GET /export?r=200 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=200", host: "10.0.0.1"
+2026/11/08 09:34:55 [warn] 9752#9752: *4639 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/04/0000000043 while reading upstream, client: 10.0.1.126, server: twojadomena.pl, request: "GET /export?r=656 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=656", host: "10.0.0.1"
+2026/11/08 09:34:56 [warn] 9752#9752: *4683 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/04/0000000044 while reading upstream, client: 10.0.1.165, server: twojadomena.pl, request: "GET /export?r=37 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=37", host: "10.0.0.1"
+2026/11/08 09:34:56 [warn] 9752#9752: *4689 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/04/0000000045 while reading upstream, client: 10.0.1.116, server: twojadomena.pl, request: "GET /export?r=710 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=710", host: "10.0.0.1"
+2026/11/08 09:35:01 [warn] 9752#9752: *4927 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/04/0000000046 while reading upstream, client: 10.0.1.131, server: twojadomena.pl, request: "GET /export?r=212 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=212", host: "10.0.0.1"
+2026/11/08 09:35:01 [warn] 9752#9752: *4943 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/04/0000000047 while reading upstream, client: 10.0.1.180, server: twojadomena.pl, request: "GET /export?r=808 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=808", host: "10.0.0.1"
+2026/11/08 09:35:02 [warn] 9752#9752: *5021 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/04/0000000048 while reading upstream, client: 10.0.1.208, server: twojadomena.pl, request: "GET /export?r=993 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=993", host: "10.0.0.1"
+2026/11/08 09:35:02 [warn] 9752#9752: *5042 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/04/0000000049 while reading upstream, client: 10.0.1.140, server: twojadomena.pl, request: "GET /export?r=274 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=274", host: "10.0.0.1"
+2026/11/08 09:35:03 [info] 9752#9752: *4449 client 10.0.1.98 closed keepalive connection
+2026/11/08 09:35:03 [info] 9752#9752: *4689 client 10.0.1.116 closed keepalive connection
+2026/11/08 09:35:03 [info] 9752#9752: *4927 client 10.0.1.131 closed keepalive connection
+2026/11/08 09:35:03 [info] 9752#9752: *4549 client 10.0.1.115 closed keepalive connection
+2026/11/08 09:35:03 [info] 9752#9752: *4472 client 10.0.1.101 closed keepalive connection
+2026/11/08 09:35:03 [info] 9752#9752: *5042 client 10.0.1.140 closed keepalive connection
+2026/11/08 09:35:05 [warn] 9752#9752: *5183 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/05/0000000050 while reading upstream, client: 10.0.1.217, server: twojadomena.pl, request: "GET /export?r=572 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=572", host: "10.0.0.1"
+2026/11/08 09:35:06 [warn] 9752#9752: *5248 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/05/0000000051 while reading upstream, client: 10.0.1.235, server: twojadomena.pl, request: "GET /export?r=167 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=167", host: "10.0.0.1"
+2026/11/08 09:35:07 [warn] 9752#9752: *5304 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/05/0000000052 while reading upstream, client: 10.0.1.34, server: twojadomena.pl, request: "GET /export?r=673 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=673", host: "10.0.0.1"
+2026/11/08 09:35:09 [info] 9752#9752: *5304 client 10.0.1.34 closed keepalive connection
+2026/11/08 09:35:15 [info] 9752#9752: *5619 client 10.0.1.232 closed keepalive connection
+2026/11/08 09:35:15 [info] 9752#9752: *5621 client 10.0.1.184 closed keepalive connection
+2026/11/08 09:35:15 [info] 9752#9752: *4869 client 10.0.1.86 closed keepalive connection
+2026/11/08 09:35:15 [info] 9752#9752: *5645 client 10.0.1.183 closed keepalive connection
+2026/11/08 09:35:16 [info] 9752#9752: *5670 client 10.0.1.186 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *57 client 10.0.1.95 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *143 client 10.0.1.192 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *255 client 10.0.1.242 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *157 client 10.0.1.160 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *78 client 10.0.1.65 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *5788 client 10.0.1.107 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *5685 client 10.0.1.249 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *5629 client 10.0.1.152 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *5737 client 10.0.1.75 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *208 client 10.0.1.200 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *59 client 10.0.1.95 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *75 client 10.0.1.136 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *109 client 10.0.1.232 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *132 client 10.0.1.242 closed keepalive connection
+2026/11/08 09:35:17 [info] 9753#9753: *89 client 10.0.1.192 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *107 client 10.0.1.184 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *99 client 10.0.1.152 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *123 client 10.0.1.249 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *71 client 10.0.1.86 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *77 client 10.0.1.107 closed keepalive connection
+2026/11/08 09:35:17 [info] 9753#9753: *64 client 10.0.1.75 closed keepalive connection
+2026/11/08 09:35:17 [info] 9752#9752: *81 client 10.0.1.109 closed keepalive connection
+2026/11/08 09:35:18 [info] 9752#9752: *83 client 10.0.1.23 closed keepalive connection
+2026/11/08 09:35:18 [info] 9752#9752: *178 client 10.0.1.183 closed keepalive connection
+2026/11/08 09:35:18 [info] 9752#9752: *139 client 10.0.1.129 closed keepalive connection
+2026/11/08 09:35:18 [info] 9752#9752: *166 client 10.0.1.160 closed keepalive connection
+2026/11/08 09:35:18 [info] 9752#9752: *87 client 10.0.1.65 closed keepalive connection
+2026/11/08 09:35:18 [info] 9752#9752: *3578 client 10.0.1.141 closed keepalive connection
+2026/11/08 09:35:18 [info] 9752#9752: *5111 client 10.0.1.200 closed keepalive connection
+2026/11/08 09:35:18 [info] 9752#9752: *3494 client 10.0.1.141 closed keepalive connection
+2026/11/08 09:35:18 [info] 9752#9752: *5101 client 10.0.1.119 closed keepalive connection
+2026/11/08 09:35:18 [info] 9752#9752: *142 client 10.0.1.120 closed keepalive connection
+2026/11/08 09:35:18 [info] 9753#9753: *222 client 10.0.1.186 closed keepalive connection
+2026/11/08 09:35:22 [warn] 9752#9752: *6031 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/05/0000000053 while reading upstream, client: 10.0.1.237, server: twojadomena.pl, request: "GET /export?r=47 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=47", host: "10.0.0.1"
+2026/11/08 09:35:22 [info] 9752#9752: *6031 client 10.0.1.237 closed keepalive connection
+2026/11/08 09:35:27 [warn] 9752#9752: *6216 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/05/0000000054 while reading upstream, client: 10.0.1.231, server: twojadomena.pl, request: "GET /export?r=397 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=397", host: "10.0.0.1"
+2026/11/08 09:35:27 [info] 9752#9752: *6216 client 10.0.1.231 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *643 client 10.0.1.78 closed keepalive connection
+2026/11/08 09:35:28 [info] 9753#9753: *4953 client 10.0.1.35 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *4859 client 10.0.1.13 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *939 client 10.0.1.194 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *4377 client 10.0.1.57 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *603 client 10.0.1.63 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *4734 client 10.0.1.161 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *748 client 10.0.1.142 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *4829 client 10.0.1.252 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *911 client 10.0.1.193 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *364 client 10.0.1.37 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *4721 client 10.0.1.187 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *6158 client 10.0.1.7 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *6244 client 10.0.1.16 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *6251 client 10.0.1.32 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *6260 client 10.0.1.40 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *292 client 10.0.1.49 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *379 client 10.0.1.64 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *430 client 10.0.1.80 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *533 client 10.0.1.90 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *541 client 10.0.1.151 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *651 client 10.0.1.175 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *6025 client 10.0.1.190 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *716 client 10.0.1.205 closed keepalive connection
+2026/11/08 09:35:28 [info] 9752#9752: *731 client 10.0.1.210 closed keepalive connection
+2026/11/08 09:35:28 [info] 9753#9753: *536 client 10.0.1.145 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *584 client 10.0.1.216 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *4085 client 10.0.1.108 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *439 client 10.0.1.206 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *489 client 10.0.1.208 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *4140 client 10.0.1.153 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *211 client 10.0.1.59 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *2746 client 10.0.1.84 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *660 client 10.0.1.235 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *4310 client 10.0.1.178 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *307 client 10.0.1.82 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *53 client 10.0.1.8 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *2449 client 10.0.1.243 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *2558 client 10.0.1.30 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *203 client 10.0.1.48 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *2431 client 10.0.1.240 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *4214 client 10.0.1.162 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *627 client 10.0.1.226 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *649 client 10.0.1.228 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *316 client 10.0.1.85 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *111 client 10.0.1.21 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *262 client 10.0.1.70 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *159 client 10.0.1.29 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *338 client 10.0.1.105 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *2465 client 10.0.1.250 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *670 client 10.0.1.237 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *4370 client 10.0.1.211 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *632 client 10.0.1.227 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *4129 client 10.0.1.126 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *4286 client 10.0.1.170 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *625 client 10.0.1.220 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *4189 client 10.0.1.155 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *436 client 10.0.1.180 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *2602 client 10.0.1.43 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *4248 client 10.0.1.165 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *93 client 10.0.1.15 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *2428 client 10.0.1.238 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *4126 client 10.0.1.118 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *612 client 10.0.1.218 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *4288 client 10.0.1.173 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *4227 client 10.0.1.164 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *145 client 10.0.1.28 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *49 client 10.0.1.3 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *658 client 10.0.1.234 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *607 client 10.0.1.217 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *270 client 10.0.1.74 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *35 client 10.0.1.9 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *36 client 10.0.1.26 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *39 client 10.0.1.32 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *43 client 10.0.1.36 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *47 client 10.0.1.41 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *97 client 10.0.1.46 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *101 client 10.0.1.58 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *125 client 10.0.1.69 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *173 client 10.0.1.90 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *183 client 10.0.1.102 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *187 client 10.0.1.106 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *224 client 10.0.1.112 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *258 client 10.0.1.130 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *274 client 10.0.1.168 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *296 client 10.0.1.179 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *299 client 10.0.1.185 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *303 client 10.0.1.205 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *309 client 10.0.1.207 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *320 client 10.0.1.210 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *327 client 10.0.1.224 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *336 client 10.0.1.225 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *399 client 10.0.1.239 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *232 client 10.0.1.127 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5424 client 10.0.1.122 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *926 client 10.0.1.206 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *1003 client 10.0.1.240 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *972 client 10.0.1.221 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *894 client 10.0.1.174 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *463 client 10.0.1.44 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *685 client 10.0.1.54 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *833 client 10.0.1.125 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *875 client 10.0.1.143 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *676 client 10.0.1.47 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5433 client 10.0.1.181 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5547 client 10.0.1.195 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5339 client 10.0.1.22 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5778 client 10.0.1.251 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5603 client 10.0.1.230 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5638 client 10.0.1.236 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5741 client 10.0.1.221 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *5255 client 10.0.1.43 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5240 client 10.0.1.29 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5831 client 10.0.1.234 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5719 client 10.0.1.220 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5318 client 10.0.1.54 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5478 client 10.0.1.153 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5662 client 10.0.1.211 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5360 client 10.0.1.74 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5392 client 10.0.1.118 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6298 client 10.0.1.170 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5258 client 10.0.1.44 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5744 client 10.0.1.226 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5529 client 10.0.1.191 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5906 client 10.0.1.21 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5175 client 10.0.1.28 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5494 client 10.0.1.158 closed keepalive connection
+2026/11/08 09:35:29 [info] 9755#9755: *5866 client 10.0.1.250 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5349 client 10.0.1.59 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5657 client 10.0.1.206 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5252 client 10.0.1.30 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5538 client 10.0.1.164 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5517 client 10.0.1.162 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5895 client 10.0.1.15 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5456 client 10.0.1.143 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6047 client 10.0.1.48 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5750 client 10.0.1.227 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *6333 client 10.0.1.173 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5428 client 10.0.1.125 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5386 client 10.0.1.108 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5891 client 10.0.1.3 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5701 client 10.0.1.218 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5370 client 10.0.1.85 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5688 client 10.0.1.216 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5267 client 10.0.1.47 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5487 client 10.0.1.155 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *313 client 10.0.1.71 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5754 client 10.0.1.228 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5835 client 10.0.1.240 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *1656 client 10.0.1.19 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *773 client 10.0.1.229 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *554 client 10.0.1.121 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *512 client 10.0.1.111 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *662 client 10.0.1.201 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *516 client 10.0.1.103 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *73 client 10.0.1.9 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *103 client 10.0.1.26 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *242 client 10.0.1.36 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *215 client 10.0.1.32 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *227 client 10.0.1.33 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *329 client 10.0.1.41 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *360 client 10.0.1.46 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *366 client 10.0.1.56 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *403 client 10.0.1.58 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *423 client 10.0.1.60 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *444 client 10.0.1.68 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *447 client 10.0.1.69 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *509 client 10.0.1.112 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *457 client 10.0.1.77 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *461 client 10.0.1.90 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *468 client 10.0.1.97 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *505 client 10.0.1.102 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *506 client 10.0.1.106 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *549 client 10.0.1.127 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *4977 client 10.0.1.130 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *4998 client 10.0.1.137 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5046 client 10.0.1.146 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5091 client 10.0.1.154 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5103 client 10.0.1.167 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5128 client 10.0.1.168 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5137 client 10.0.1.177 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *5171 client 10.0.1.199 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5143 client 10.0.1.179 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5149 client 10.0.1.185 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5164 client 10.0.1.198 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5186 client 10.0.1.205 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5192 client 10.0.1.207 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5204 client 10.0.1.209 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5212 client 10.0.1.210 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5246 client 10.0.1.219 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5271 client 10.0.1.224 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5289 client 10.0.1.225 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *941 client 10.0.1.231 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *952 client 10.0.1.239 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *960 client 10.0.1.247 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *440 client 10.0.1.96 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *426 client 10.0.1.91 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *236 client 10.0.1.14 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *373 client 10.0.1.73 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *559 client 10.0.1.134 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *201 client 10.0.1.13 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *637 client 10.0.1.166 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *703 client 10.0.1.222 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *782 client 10.0.1.244 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *610 client 10.0.1.147 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *493 client 10.0.1.99 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *267 client 10.0.1.25 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *561 client 10.0.1.144 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *290 client 10.0.1.31 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *672 client 10.0.1.171 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *151 client 10.0.1.10 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *69 client 10.0.1.1 closed keepalive connection
+2026/11/08 09:35:29 [info] 9755#9755: *525 client 10.0.1.114 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *628 client 10.0.1.227 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *683 client 10.0.1.240 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *641 client 10.0.1.234 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *578 client 10.0.1.218 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *593 client 10.0.1.220 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *67 client 10.0.1.21 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *565 client 10.0.1.211 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *45 client 10.0.1.15 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *521 client 10.0.1.206 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *115 client 10.0.1.29 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *394 client 10.0.1.153 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *175 client 10.0.1.43 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *190 client 10.0.1.48 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *580 client 10.0.1.216 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *413 client 10.0.1.155 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *700 client 10.0.1.250 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *480 client 10.0.1.170 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *41 client 10.0.1.3 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *347 client 10.0.1.85 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *384 client 10.0.1.118 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *639 client 10.0.1.228 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *371 client 10.0.1.108 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *136 client 10.0.1.30 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *287 client 10.0.1.74 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *498 client 10.0.1.173 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *622 client 10.0.1.226 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *84 client 10.0.1.28 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *459 client 10.0.1.164 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *451 client 10.0.1.162 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *517 client 10.0.1.178 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *213 client 10.0.1.59 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6269 client 10.0.1.7 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6277 client 10.0.1.16 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6291 client 10.0.1.26 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6295 client 10.0.1.27 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *6274 client 10.0.1.9 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6304 client 10.0.1.32 closed keepalive connection
+2026/11/08 09:35:29 [info] 9755#9755: *6319 client 10.0.1.40 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6308 client 10.0.1.36 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *358 client 10.0.1.41 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *386 client 10.0.1.46 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *388 client 10.0.1.49 closed keepalive connection
+2026/11/08 09:35:29 [info] 9753#9753: *6102 client 10.0.1.168 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *420 client 10.0.1.58 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *455 client 10.0.1.64 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *478 client 10.0.1.69 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5840 client 10.0.1.72 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5883 client 10.0.1.80 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5920 client 10.0.1.90 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5953 client 10.0.1.102 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *5959 client 10.0.1.106 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *555 client 10.0.1.112 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *589 client 10.0.1.113 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *597 client 10.0.1.127 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *601 client 10.0.1.130 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6063 client 10.0.1.145 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6064 client 10.0.1.151 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6096 client 10.0.1.156 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6125 client 10.0.1.175 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6180 client 10.0.1.179 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6182 client 10.0.1.185 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6204 client 10.0.1.190 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6214 client 10.0.1.205 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6218 client 10.0.1.207 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6223 client 10.0.1.210 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6235 client 10.0.1.224 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6247 client 10.0.1.225 closed keepalive connection
+2026/11/08 09:35:29 [info] 9752#9752: *6257 client 10.0.1.239 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *483 client 10.0.1.230 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *446 client 10.0.1.191 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *428 client 10.0.1.195 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *472 client 10.0.1.181 closed keepalive connection
+2026/11/08 09:35:30 [info] 9753#9753: *240 client 10.0.1.22 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *487 client 10.0.1.251 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5901 client 10.0.1.111 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6169 client 10.0.1.187 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6285 client 10.0.1.222 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6206 client 10.0.1.193 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6140 client 10.0.1.171 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5771 client 10.0.1.67 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6314 client 10.0.1.229 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5976 client 10.0.1.132 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6237 client 10.0.1.194 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5769 client 10.0.1.73 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6079 client 10.0.1.147 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5634 client 10.0.1.57 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5914 client 10.0.1.114 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5934 client 10.0.1.121 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5792 client 10.0.1.78 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5886 client 10.0.1.103 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5979 client 10.0.1.134 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5994 client 10.0.1.142 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5806 client 10.0.1.91 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6089 client 10.0.1.161 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5874 client 10.0.1.99 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6027 client 10.0.1.144 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6344 client 10.0.1.244 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5803 client 10.0.1.96 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6095 client 10.0.1.166 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6279 client 10.0.1.201 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5668 client 10.0.1.63 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *291 client 10.0.1.122 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6227 client 10.0.1.96 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6118 client 10.0.1.2 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6281 client 10.0.1.99 closed keepalive connection
+2026/11/08 09:35:30 [info] 9753#9753: *6287 client 10.0.1.103 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5862 client 10.0.1.189 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6165 client 10.0.1.25 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5763 client 10.0.1.144 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6212 client 10.0.1.93 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5899 client 10.0.1.201 closed keepalive connection
+2026/11/08 09:35:30 [info] 9753#9753: *5864 client 10.0.1.176 closed keepalive connection
+2026/11/08 09:35:30 [info] 9753#9753: *5868 client 10.0.1.197 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6049 client 10.0.1.253 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5819 client 10.0.1.163 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6162 client 10.0.1.20 closed keepalive connection
+2026/11/08 09:35:30 [info] 9753#9753: *6338 client 10.0.1.101 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5955 client 10.0.1.171 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5694 client 10.0.1.134 closed keepalive connection
+2026/11/08 09:35:30 [info] 9753#9753: *5998 client 10.0.1.229 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6176 client 10.0.1.31 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6185 client 10.0.1.50 closed keepalive connection
+2026/11/08 09:35:30 [info] 9753#9753: *6039 client 10.0.1.245 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6145 client 10.0.1.14 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6328 client 10.0.1.111 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6033 client 10.0.1.244 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5677 client 10.0.1.140 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5967 client 10.0.1.222 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6142 client 10.0.1.13 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6188 client 10.0.1.73 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6091 client 10.0.1.1 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6301 client 10.0.1.149 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5962 client 10.0.1.203 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6133 client 10.0.1.10 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5579 client 10.0.1.122 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5817 client 10.0.1.147 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6192 client 10.0.1.79 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5426 client 10.0.1.34 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6343 client 10.0.1.181 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5946 client 10.0.1.230 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5439 client 10.0.1.22 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5541 client 10.0.1.104 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6197 client 10.0.1.91 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *6241 client 10.0.1.98 closed keepalive connection
+2026/11/08 09:35:30 [info] 9752#9752: *5848 client 10.0.1.166 closed keepalive connection
+2026/11/08 09:35:31 [info] 9752#9752: *5250 client 10.0.1.251 closed keepalive connection
