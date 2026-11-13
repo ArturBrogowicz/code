@@ -1,7 +1,21 @@
-bcc==0.1.10
-joblib==1.6.0
-matplotlib==3.11.2
-numpy==2.5.2
-pandas==3.0.5
-scikit_learn==1.9.0
-torch==2.14.0
+# The Python packages the code imports, at the versions of the testbed VM's virtual environment
+# (Python 3.14.4, created with `python3 -m venv --system-site-packages`), read on 2026-11-13 with
+# `pip list --format=freeze`. Their own dependencies come with them.
+#
+# BCC is not here. `import bcc` (control_plane.py, capture_testbed_dataset.py,
+# bench/xdp_test_run.py) comes from apt, python3-bpfcc 0.35.0 (0.35.0+ds-1ubuntu2 on the VM), which
+# the venv sees through --system-site-packages.
+# psutil, requests and urllib3 also come from apt on the VM (python3-psutil, python3-requests,
+# python3-urllib3); the pins below are those versions.
+#
+# The figures need matplotlib, which the VM does not have: requirements-plot.txt (optional).
+gunicorn==26.2.0
+joblib==1.5.3
+numpy==2.4.6
+pandas==3.0.3
+psutil==7.1.0
+requests==2.32.5
+scikit-learn==1.8.0
+scipy==1.17.1
+torch==2.12.0
+urllib3==2.6.3

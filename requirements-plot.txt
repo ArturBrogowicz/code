@@ -1,0 +1,5 @@
+# Optional, for the figures only: eval/plot_campaign.py and plot_availability.py import matplotlib.
+# Without it eval/publish_campaign.py publishes a campaign without analysis/figures/.
+# The testbed VM has no matplotlib. 3.11.2 is the version recorded in the PNGs under docs/figures/
+# (the campaign figures are saved without that tag). Install after requirements.txt.
+matplotlib==3.11.2

@@ -45,13 +45,20 @@ where everything is, what can be checked without root, and what has not been run
 
 ## Environment
 
-The measurements were made on one VirtualBox guest: Ubuntu 26.04 LTS, kernel 7.0.0-42, 8 vCPUs,
-Python 3.14.4. BCC comes from the distribution, not from pip, so the virtual environment sees the
-system packages:
+The testbed is one VirtualBox guest, today Ubuntu 26.04 LTS, kernel 7.0.0-42, 8 vCPUs and Python
+3.14.4; every run records its own kernel and Python. BCC comes from the distribution, not from pip,
+so the virtual environment sees the system packages:
 
     sudo apt install python3-venv python3-bpfcc bpfcc-tools nginx hping3 wrk iproute2 ethtool
     python3 -m venv --system-site-packages venv
     venv/bin/pip install -r requirements.txt
+    venv/bin/pip install -r requirements-plot.txt    # optional: the figures only
+
+`requirements.txt` pins what the code imports at the versions of the VM's environment, and its
+header names the packages that came from apt there; BCC (python3-bpfcc 0.35.0) comes only from
+apt and is not in the file. The VM has no matplotlib: the figures are the only step that needs it
+(`requirements-plot.txt`), and `eval/publish_campaign.py` publishes a campaign without them when
+it is missing.
 
 The commands in `docs/EVALUATION.md` call `venv/bin/python` from the repository root, so create
 `venv` there. The unit tests need only the Python packages; Nginx, hping3 and wrk are for the
