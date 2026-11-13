@@ -33,6 +33,15 @@ frozen before the data it judges; **[RISK]**.
 4. [FACT] Rule 2 of the prereg of 2026-11-08 ("Otherwise the record does not stand. Re-calibrating on -42 is then the next proposal, as its own packet") follows a rule 1 that never gave a reading: AP-5, AP-5b and AP-7 each ended under rule 5, and the second addendum's point 7 requires a new decision by you. This re-calibration is labelled accordingly (8.1): the consequence rule 2 names, taken by your decision of 2026-11-12, not a reading of rule 1.
 5. [ARITHMETIC] The re-calibration alone takes 4.0-5.4 h of packets, against SCHEDULE 4's "3-4 VM h", because the reference grows from 6 runs to 20 and every run gains a speed bracket; with its confirmation (12 runs, not 4) and P2's smoke and MVP the path is 6.7-8.9 h, about four windows of 3-4 h (6.3).
 
+## 1a. The user's decisions of 2026-11-13 (recorded verbatim in the orchestrator's ledger, APPROVALS.md)
+
+| # | Answer | Effect on this design |
+|---|---|---|
+| D1, D4, D6, D7 | "Approve as written (Recommended)" | Sections 4, 6 and 7 stand: n = 5, m = 3, the tolerances of section 4, the confirmation in a later window after a reboot, a wide-spread family frozen and labelled, K1-K8 built and reviewed before any run, section 8 committed with its hash before R1. |
+| D2, D3 | "Not the app closing" | D2 holds (8 GiB, kernel 7.0.0-42, the PC's sleep and hibernation off, nothing heavy on the PC during a window). D3 takes its alternative: **the Claude app stays open but idle** during a packet (5.3 below, as amended). |
+| D5 | "Accept (Recommended)" | In P2's campaigns a host-invalid run is made again in place and uses none of the gate's two re-runs. This is a dated amendment to P2's pre-registered rules (HG4), made on 2026-11-13 before any P2 data exist; the failed run is kept and published. |
+| D8 | "2026-12-03" | The hard date for the text: the whole path (re-calibration, confirmation, P2's smoke and MVP) is planned, with one window to spare (6.3). |
+
 ## 2. Why the record is measured again
 
 * [FACT] The record was made on kernel 7.0.0-38 with 9,426 MiB (its `host` block); the host now runs 7.0.0-42 with 7,422 MiB (the drift
@@ -151,9 +160,9 @@ two in a row agree within 5 % and lie between -5 % and +12 % of them (the normal
 
 1. **Before the window.** The PC's sleep and hibernation are off and nothing heavy runs on it (the VM's 8 vCPUs share the host's 8 cores;
    R-032). The orchestrator and every agent are stopped; no unit suite, no offline job.
-2. **Start.** You open a plain terminal (the VM's console, or SSH from a terminal program, not the Claude app) and run the packet script
+2. **Start.** [Amended 2026-11-13, D3's alternative] You open a plain terminal (the VM's console, or SSH from a terminal program) and run the packet script
    (K7), which runs the pre-checks, starts the monitors and the step detached (`setsid nohup`), and prints where its output goes.
-3. **During.** The Claude app is closed; nobody logs into the VM; nothing else runs on the PC. If you must stop: `kill -INT` the step's
+3. **During.** [Amended 2026-11-13] The Claude app may stay open but idle: no message is typed into any session, no `/compact`, no session is opened or resumed, and the orchestrator ends its turn right after it has handed over the command. Nobody else logs into the VM; nothing else runs on the PC. (Originally: the app closed. The user chose the alternative; the cost is that runs the app's load reaches are voided by H6 and made again.) If you must stop: `kill -INT` the step's
    process (printed at its start); the testbed is taken down and the same command resumes.
 4. **After.** The script ends with a one-line summary (runs made, host-invalid, paused or done). You may open the app again; an agent
    reads the outputs offline and the next packet is yours to start.
