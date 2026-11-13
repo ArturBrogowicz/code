@@ -56,10 +56,14 @@ HEALTHY_Q, SATURATED_Q, SATURATED_REPEATS = 99.0, 50.0, 2
 # step 3: the screening of a family, two repeats of an attack run per level and a control after every fourth run
 LADDER_REPEATS, CONTROL_EVERY, CONTROL_SPREAD_PP = 2, 4, 2.0
 # steps 5 and 7: a legit probe at rho, and an attack run at a family's knee
-PROBE_S, PROBE_WINDOW, REFERENCE_PROBES = 120.0, (10.0, 120.0), 3
-# the populations of the calibration are drawn from seeds the gates' blocks (1-10) do not use
-SEEDS = {"capacity": 11, "ladder": 21, "reference": 31, "drift": 41}
-RUN_ESTIMATE_S = 150.0                      # a run, docs/HG1C_DESIGN.md 6.2; S4 replaces it with a measurement
+PROBE_S, PROBE_WINDOW = 120.0, (10.0, 120.0)
+# step 5: the reference is N_REF rounds on the drift check's own seeds, each a legit probe and one attack run per family at its knee
+# (docs/RECALIBRATION_2026-11_DESIGN.md 4, K1); the check (step 7) is M_DRIFT such rounds
+N_REF, M_DRIFT = C.N_REF, C.M_DRIFT
+# the populations of the calibration are drawn from seeds the gates' blocks (1-10) do not use; the reference and the drift check share
+# theirs (41, then 42, 43 and 44 for the families in sorted order: calibration.drift_seeds), so that their spreads are the host's
+SEEDS = {"capacity": 11, "ladder": 21, "drift": C.DRIFT_SEED}
+RUN_ESTIMATE_S = 130.0                      # a run: docs/RECALIBRATION_2026-11_DESIGN.md 6.1 (119.5 s after its gate, 131.8 s with re-probes)
 EXIT_OK, EXIT_USAGE, EXIT_STOPPED, EXIT_INVALID, EXIT_INTERRUPTED = 0, 1, 2, 3, 130
 
 
@@ -437,10 +441,39 @@ def ladder_scenario(family, level=None):
     return scn if level is None else dataclasses.replace(scn, intensity={**scn.intensity, "level": level})
 
 
+INVALID_ASIDE = ".invalid1"                 # where a session that is not valid goes before it is made once more (K1, 8.3)
+
+
 def ladder_step(runner, cal, cal_path, family, out, under, levels=None, timeline=None, say=print):
     """The screening of one family on the unprotected stack at rho (design 7.2 step 3). `cal` is the record with the session's
     measured costs and capacity, so that rho and S are the calibration's own; `under` says what it was made of (under_of).
-    `levels` and `timeline` are for a smoke test, which cannot be frozen."""
+    `levels` and `timeline` are for a smoke test, which cannot be frozen. A session that is not valid is moved aside as
+    `ladder_<family>.invalid1` and made once more in a new directory; a second one that is not valid is the step's end, and the
+    calibration is NOT FROZEN (docs/RECALIBRATION_2026-11_DESIGN.md 8.3, K1). Both stay, and the freeze reads `ladder_<family>`."""
+    base = os.path.join(out, f"ladder_{family}")
+    aside, prior = base + INVALID_ASIDE, os.path.join(base, "ladder.json")
+    if os.path.exists(prior) and not read_json(prior)["valid"]:          # an earlier call ended on a session that is not valid
+        if os.path.exists(aside):
+            raise CalibrationStop(f"the screening of {family} was not valid twice ({aside} and {base}): the calibration is NOT "
+                                  "FROZEN (docs/RECALIBRATION_2026-11_DESIGN.md 8.3); nothing is made a third time")
+        os.rename(base, aside)
+        say(f"ladder {family}: the session that was not valid is kept as {os.path.basename(aside)}; making it once more")
+    result = ladder_session(runner, cal, cal_path, family, out, under, levels, timeline, say)
+    if result["valid"]:
+        return result
+    if os.path.exists(aside):
+        say(f"ladder {family}: the second session is not valid either: the calibration is NOT FROZEN (8.3)")
+        return result
+    os.rename(base, aside)
+    say(f"ladder {family}: the session is kept as {os.path.basename(aside)} and made once more in a new directory")
+    result = ladder_session(runner, cal, cal_path, family, out, under, levels, timeline, say)
+    if not result["valid"]:
+        say(f"ladder {family}: the second session is not valid either: the calibration is NOT FROZEN (8.3)")
+    return result
+
+
+def ladder_session(runner, cal, cal_path, family, out, under, levels=None, timeline=None, say=print):
+    """One session of the screening of `family` in `ladder_<family>` (ladder_step makes it, and once more if it is not valid)."""
     if family not in FAMILY_SPECS:
         raise CalibrationStop(f"family: one of {', '.join(FAMILY_SPECS)}, got {family!r}")
     scn = ladder_scenario(family)
@@ -494,8 +527,9 @@ def attack_metrics(plan, cal):
 
 
 def reference_of(rho_rps, legit, attacks):
-    """The drift reference: the median Q and p95 of the legit probes at rho, and for each family with a knee the Q and p95 of one
-    attack run at it. `attacks` maps a family to {"level", "Q", "p95_s"}."""
+    """The drift reference of schema 1, as the record of 2026-11-04 has it (made by this code until K1): the median Q and p95 of the
+    legit probes at rho, and for each family with a knee the Q and p95 of one attack run at it. `attacks` maps a family to {"level",
+    "Q", "p95_s"}. A new reference is schema 2's (reference_step, calibration.drift_reference_of)."""
     return {"rho_rps": rho_rps, "q_pct": statistics.median(m["Q"] for m in legit),
             "p95_s": statistics.median(m["p95_s"] for m in legit),
             "attack": {f: {"level": a["level"], "q_pct": a["Q"], "p95_s": a["p95_s"]} for f, a in sorted(attacks.items())}}
@@ -509,29 +543,59 @@ def attack_run(runner, cal, cal_path, family, level, seed, out, timeline=None, s
     return attack_metrics(plan, cal)
 
 
-def reference_step(runner, draft, cal_path, knees, out, under, timeline=None, say=print):
-    """The legit probes and the attack runs that the drift check must reproduce, with the measured record `draft` (its rho is the
-    one the calibration will have) and what it was made of (`under`, as the screenings')."""
-    legit = []
-    for j in range(REFERENCE_PROBES):
-        plan = probe_plan(draft, cal_path, "reference_legit", SEEDS["reference"] + j,
-                          os.path.join(out, "reference", f"legit_{j + 1}", "C"), runner.settings)
+def reference_round_dir(out, r):
+    return os.path.join(out, "reference", f"r{r}")
+
+
+def reference_step(runner, draft, cal_path, knees, out, under, timeline=None, say=print, rounds=N_REF):
+    """The reference the drift check must reproduce (docs/RECALIBRATION_2026-11_DESIGN.md 4, K1): N_REF rounds, each the legit probe
+    at rho and one attack run per family at its knee in sorted order, on the drift check's own seeds (calibration.drift_seeds), with the
+    measured record `draft` (its rho is the one the calibration will have) and what it was made of (`under`, as the screenings'). Every
+    run is kept and listed; the freeze takes the means, SDs and tolerances from them. `rounds` fewer than N_REF is a smoke test's."""
+    families = [f for f, k in sorted(knees.items()) if k is not None]
+    seeds = C.drift_seeds(families)
+    rows, plan = [], None
+    for r in range(1, rounds + 1):
+        base = reference_round_dir(out, r)
+        plan = probe_plan(draft, cal_path, "reference_legit", seeds["legit"], os.path.join(base, "legit", "C"), runner.settings)
         runner.run(plan, say)
-        legit.append(probe_metrics(H.read_run(plan.out), draft))
-    attacks = {}
-    for i, (family, knee) in enumerate(sorted(knees.items())):
-        if knee is None:
-            continue
-        m = attack_run(runner, draft, cal_path, family, knee, SEEDS["reference"] + REFERENCE_PROBES + i,
-                       os.path.join(out, "reference", f"attack_{family}"), timeline, say)
-        attacks[family] = {"level": knee, **m}
-    if any(m["Q"] is None or m["p95_s"] is None for m in legit) or any(a["Q"] is None or a["p95_s"] is None for a in attacks.values()):
-        raise CalibrationStop("a reference probe had no judged request or no successful one: it cannot be a reference")
-    result = {"step": "reference", "created_utc": now(), "legit": legit, "attacks": attacks, "smoke": timeline is not None,
-              "under": under, "pins": plan.pins, "waits": runner.take_waits(),
-              "reference": reference_of(C.rho_rps(draft), legit, attacks)}
+        legit = {**probe_metrics(H.read_run(plan.out), draft), "seed": seeds["legit"], "run": os.path.relpath(plan.out, out)}
+        attacks = {}
+        for family in families:
+            where = os.path.join(base, f"attack_{family}")
+            m = attack_run(runner, draft, cal_path, family, knees[family], seeds["attack"][family], where, timeline, say)
+            attacks[family] = {"level": knees[family], **m, "seed": seeds["attack"][family],
+                               "run": os.path.relpath(os.path.join(where, "U"), out)}
+        rows.append({"round": r, "legit": legit, "attacks": attacks})
+    result = {"step": "reference", "created_utc": now(), "rho_rps": C.rho_rps(draft), "rounds": rows, "seeds": seeds,
+              "knees": {f: knees[f] for f in families}, "smoke": timeline is not None or rounds != N_REF, "under": under,
+              "pins": plan.pins if plan else None, "waits": runner.take_waits()}
+    missing = [f"round {row['round']} {name}" for row in rows for name, m in (("legit", row["legit"]), *row["attacks"].items())
+               if m["Q"] is None or m["p95_s"] is None]
+    if missing:
+        result["stopped"] = f"no judged request or no successful one in {', '.join(missing)}: they cannot be a reference"
     write_json(os.path.join(out, "reference", "reference.json"), result)
+    if missing:
+        raise CalibrationStop("a reference run had no judged request or no successful one: it cannot be a reference "
+                              f"({', '.join(missing)})")
     return result
+
+
+def reference_of_rounds(reference, gate):
+    """The drift reference of schema 2 from reference.json: the first N_REF rounds (calibration.drift_reference_of). CalibrationStop
+    when there are fewer than N_REF complete rounds."""
+    rows = [row for row in reference.get("rounds") or [] if row["legit"].get("Q") is not None]
+    complete = [row for row in rows if set(row["attacks"]) == set(reference["knees"])]
+    if len(complete) < N_REF:
+        raise CalibrationStop(f"the reference has {len(complete)} complete rounds, and a freeze needs {N_REF} "
+                              "(docs/RECALIBRATION_2026-11_DESIGN.md 4): nothing is frozen from fewer")
+    sample = complete[:N_REF]
+    try:
+        return C.drift_reference_of(reference["rho_rps"], [row["legit"] for row in sample],
+                                    {f: {"level": level, "runs": [row["attacks"][f] for row in sample]}
+                                     for f, level in reference["knees"].items()}, gate)
+    except ValueError as exc:
+        raise CalibrationStop(str(exc)) from exc
 
 
 # --- the record -------------------------------------------------------------------------------------
@@ -634,9 +698,11 @@ def freeze_problems(session, template):
         if not ladder["valid"]:
             reasons.append(f"the screening of {f} is not valid: " + "; ".join(ladder["reasons"]))
     knees = {f: ladder["knee"]["level"] for f, ladder in session["ladders"].items()}
-    attacks = session["reference"]["reference"]["attack"]
-    if {f for f, k in knees.items() if k is not None} != set(attacks) or any(attacks[f]["level"] != knees[f] for f in attacks):
+    taken = session["reference"].get("knees") or {}
+    if {f: k for f, k in knees.items() if k is not None} != taken:
         reasons.append("the reference's attack runs are not at the knees of the screenings")
+    if session["reference"].get("stopped"):
+        reasons.append(f"the reference stopped: {session['reference']['stopped']}")
     return reasons
 
 
@@ -649,10 +715,12 @@ def freeze_step(directory, template, env, created_utc=None):
         raise CalibrationStop("cannot freeze: " + "; ".join(problems))
     knees = {f: ladder["knee"]["level"] for f, ladder in session["ladders"].items()}
     draft = draft_record(template, session["origin"], session["capacity"], knees)
-    reference = session["reference"]["reference"]
-    if reference["rho_rps"] != C.rho_rps(draft):
-        raise CalibrationStop(f"the reference was taken at rho {reference['rho_rps']:g}, the capacity gives {C.rho_rps(draft):g}")
-    return C.freeze(draft, created_utc or now(), host=host_of(env, session["capacity"]["pins"]), drift_reference=reference)
+    if session["reference"]["rho_rps"] != C.rho_rps(draft):
+        raise CalibrationStop(f"the reference was taken at rho {session['reference']['rho_rps']:g}, the capacity gives "
+                              f"{C.rho_rps(draft):g}")
+    draft["schema"] = C.SCHEMA                  # schema 2: the multi-run reference (docs/RECALIBRATION_2026-11_DESIGN.md K1)
+    return C.freeze(draft, created_utc or now(), host=host_of(env, session["capacity"]["pins"]),
+                    drift_reference=reference_of_rounds(session["reference"], draft["gate"]))
 
 
 # --- step 7: drift ----------------------------------------------------------------------------------
@@ -673,6 +741,8 @@ def drift_step(runner, cal, cal_path, out, families=None, timeline=None, say=pri
     the first family that has one."""
     if cal["status"] != "frozen":
         raise CalibrationStop("a drift check needs a frozen calibration")
+    if cal.get("schema") != 1:
+        raise CalibrationStop("a record of schema 2 is checked on means, which this code does not do yet")
     ref = cal["drift_reference"]
     families = families or sorted(ref["attack"])[:1]
     plan = probe_plan(cal, cal_path, "drift_legit", SEEDS["drift"], os.path.join(out, "drift", "legit", "C"), runner.settings)
@@ -791,7 +861,7 @@ class Runner:
 def plan_text(template):
     """The steps, their runs and their time, as text. Pure."""
     levels = capacity_levels()
-    runs = {"capacity": CAPACITY_REPEATS, "screening": 3 * (LADDER_REPEATS * 7 + 4), "reference": REFERENCE_PROBES + 3}
+    runs = {"capacity": CAPACITY_REPEATS, "screening": 3 * (LADDER_REPEATS * 7 + 4), "reference": N_REF * (1 + len(FAMILY_SPECS))}
     sha = (template.get("sha256") or C.digest(template))[:8]
     out = [f"== calibration of the harm benchmark, template sha256:{sha} ==", ""]
     out.append("step 1  origin     three sessions of 21 timed batches per route (each at least 1 ms, the routes in turn), each its own "
@@ -808,8 +878,9 @@ def plan_text(template):
                f"healthy and within {CONTROL_SPREAD_PP:g} pp")
     out.append("step 4  knee       calibration.knee at 1 over the harms; none passing is 'cannot harm this server within the "
                "generator limit', and nothing is tuned")
-    out.append(f"step 5  reference  {REFERENCE_PROBES} legit probes of {PROBE_S:g} s at rho and one attack run per family at its knee; "
-               "their medians are the drift reference")
+    out.append(f"step 5  reference  {N_REF} rounds, each a legit probe of {PROBE_S:g} s at rho and one attack run per family at its "
+               "knee, on the drift check's seeds;")
+    out.append("                   every run kept; the means and SDs of Q and log2 p95 and the tolerances are frozen in the record")
     out.append("        freeze     reads the directories, never the VM; refuses smoke tests, invalid screenings and mixed sessions")
     out.append(f"step 7  drift      a legit probe within {C.DRIFT_Q_PP:g} pp and {100 * C.DRIFT_P95:g} % of the reference, and an attack run within the gate's "
                f"floors, {template['gate']['floor_pp']:g} pp and a factor of {2 ** template['gate']['floor_log2_p95']:g}; before a later campaign")
@@ -819,7 +890,8 @@ def plan_text(template):
                f"{RUN_ESTIMATE_S:.0f} s that is {total * RUN_ESTIMATE_S / 3600:.1f} h (the origin step is 0.1 h more)")
     out.append(f"timer   every run, on CPU {P.PIN_PLAN['legit']}: a refused probe is made again every {X.TIMER_REPROBE_S:g} s, up to --wait-gate "
                "minutes from the run's first probe (0: one probe); a last refusal stops the step; waits are not in the time above")
-    out.append("seeds   " + ", ".join(f"{k} {v}+" for k, v in SEEDS.items()) + " in calib (the gate's blocks use 1-10)")
+    out.append("seeds   " + ", ".join(f"{k} {v}+" for k, v in SEEDS.items()) + " in calib (the gate's blocks use 1-10); the reference "
+               "takes the drift's: " + ", ".join(f"{k} {v}" for k, v in C.drift_seeds()["attack"].items()))
     return "\n".join(out) + "\n"
 
 

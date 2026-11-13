@@ -28,13 +28,15 @@ import json
 import math
 import os
 import re
+import statistics
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import origin as O
 
-SCHEMA = 1
+SCHEMA = 2                               # a record frozen by this code; schema 1 (the record of 2026-11-04, the placeholder) stays loadable
+SCHEMAS = (1, 2)
 STATUSES = ("placeholder", "frozen")
 PROFILES = ("relative", "strict")
 LINK_PROFILES = ("perfect", "broadband", "mobile_3g", "mobile_bad")      # the suite's netem profiles (population.NETEM_MIX)
@@ -54,6 +56,15 @@ VALIDITY_KEYS = ("profile", "slip_pooled_s", "slip_delta_s", "strict_slip_p99_s"
 CANNOT_HARM = "cannot harm this server within the generator limit"
 RHO_SHARE = 0.5                          # the legit load is this share of the SLO capacity (design 6.1)
 DRIFT_Q_PP, DRIFT_P95 = 2.0, 0.25        # design 7.2 step 7, for the legit probe; an attack run has the record's gate floors (drift_attack_ok)
+# the reference and the check on means (docs/RECALIBRATION_2026-11_DESIGN.md 4, D1): n reference rounds, m check rounds, and a band of
+# C_TOL standard errors of the difference of two means, clamped to [half the gate's floor, the floor]
+N_REF, M_DRIFT, C_TOL = 5, 3, 3.0
+# the drift check's own seeds, which the reference of schema 2 uses too: the legit probe 41, then one attack run per family in sorted order
+DRIFT_SEED = 41
+DRIFT_FAMILIES = ("cheap_static_flood", "costly_export_flood", "costly_search_flood")
+REFERENCE_V2_KEYS = ("rho_rps", "n", "seeds", "rule", "legit", "attack")
+SUMMARY_KEYS = ("q_pct", "log2_p95", "mean_q_pct", "mean_log2_p95", "sd_q_pp", "sd_log2_p95")
+ATTACK_V2_KEYS = ("level", *SUMMARY_KEYS, "tol_q_pp", "tol_log2", "wide_spread")
 
 
 class RecordError(ValueError):
@@ -121,13 +132,128 @@ def _drift_problems(ref):
     return p
 
 
+def drift_seeds(families=DRIFT_FAMILIES):
+    """The seeds of a round of the drift check, and of the reference of schema 2: the legit probe's, and each family's attack run's."""
+    return {"legit": DRIFT_SEED, "attack": {f: DRIFT_SEED + 1 + DRIFT_FAMILIES.index(f) for f in families}}
+
+
+def drift_rule(gate):
+    """The constants of the check on means, as a record of schema 2 keeps them: n, m, c and k = c sqrt(1/n + 1/m), the gate's floors
+    that cap the tolerances (half of each is their lower bound), the legit probe's 2 pp and 25 %, and D6's line for a wide spread."""
+    return {"n": N_REF, "m": M_DRIFT, "c": C_TOL, "k": C_TOL * math.sqrt(1 / N_REF + 1 / M_DRIFT),
+            "floor_pp": gate["floor_pp"], "floor_log2_p95": gate["floor_log2_p95"], "legit_q_pp": DRIFT_Q_PP,
+            "legit_p95": DRIFT_P95, "wide_sd_q_pp": gate["floor_pp"] / 2}
+
+
+def drift_tolerance(sd, floor, k):
+    """min(floor, max(floor / 2, k sd)): the band of the check on means for a spread `sd` (docs/RECALIBRATION_2026-11_DESIGN.md 4)."""
+    return min(floor, max(floor / 2, k * sd))
+
+
+def mean_sd(values):
+    """The mean and the sample standard deviation (n - 1 in the denominator)."""
+    return statistics.fmean(values), statistics.stdev(values)
+
+
+def summary_of(runs):
+    """Q and log2 p95 of reference runs ({"Q", "p95_s"} each), their means and SDs."""
+    q = [float(r["Q"]) for r in runs]
+    lg = [math.log2(r["p95_s"]) for r in runs]
+    (mq, sq), (ml, sl) = mean_sd(q), mean_sd(lg)
+    return {"q_pct": q, "log2_p95": lg, "mean_q_pct": mq, "mean_log2_p95": ml, "sd_q_pp": sq, "sd_log2_p95": sl}
+
+
+def drift_reference_of(rho_rps, legit, attacks, gate):
+    """The drift reference of schema 2 from the runs of N_REF rounds: `legit` the legit probes ({"Q", "p95_s"}), `attacks` a family ->
+    {"level", "runs": [{"Q", "p95_s"}]}; per family the means and SDs of Q and of log2 p95 and the tolerances the check reads, computed
+    here at the freeze and never again. A run without a Q or a p95 cannot be in a reference: ValueError."""
+    rule = drift_rule(gate)
+    runs = [*legit, *[r for a in attacks.values() for r in a["runs"]]]
+    if any(r.get("Q") is None or not r.get("p95_s") or r["p95_s"] <= 0 for r in runs):
+        raise ValueError("a reference run had no judged request or no successful one: it cannot be in a reference")
+    if len(legit) != N_REF or any(len(a["runs"]) != N_REF for a in attacks.values()):
+        raise ValueError(f"a reference of schema 2 is {N_REF} rounds, no more and no fewer")
+    out = {"rho_rps": rho_rps, "n": N_REF, "seeds": drift_seeds(sorted(attacks)), "rule": rule, "legit": summary_of(legit),
+           "attack": {}}
+    for family, a in sorted(attacks.items()):
+        s = summary_of(a["runs"])
+        out["attack"][family] = {"level": a["level"], **s,
+                                 "tol_q_pp": drift_tolerance(s["sd_q_pp"], rule["floor_pp"], rule["k"]),
+                                 "tol_log2": drift_tolerance(s["sd_log2_p95"], rule["floor_log2_p95"], rule["k"]),
+                                 "wide_spread": s["sd_q_pp"] > rule["wide_sd_q_pp"]}
+    return out
+
+
+def _close(a, b):
+    return isinstance(a, (int, float)) and not isinstance(a, bool) and abs(a - b) <= 1e-9
+
+
+def _summary_problems(p, where, item, n):
+    """A summary block of schema 2: n values of Q (0 to 100) and of log2 p95 (finite), and means and SDs that are theirs."""
+    q, lg = item["q_pct"], item["log2_p95"]
+    if not (isinstance(q, list) and len(q) == n and all(isinstance(v, (int, float)) and not isinstance(v, bool)
+                                                         and math.isfinite(v) and 0 <= v <= 100 for v in q)):
+        p.append(f"{where}.q_pct: {n} values of Q between 0 and 100")
+        return
+    if not (isinstance(lg, list) and len(lg) == n and all(isinstance(v, (int, float)) and not isinstance(v, bool)
+                                                          and math.isfinite(v) for v in lg)):
+        p.append(f"{where}.log2_p95: {n} finite numbers")
+        return
+    (mq, sq), (ml, sl) = mean_sd(q), mean_sd(lg)
+    for key, want in (("mean_q_pct", mq), ("sd_q_pp", sq), ("mean_log2_p95", ml), ("sd_log2_p95", sl)):
+        if not _close(item[key], want):
+            p.append(f"{where}.{key}: {item[key]!r} is not that of its runs ({want!r})")
+
+
+def _drift_v2_problems(ref, gate):
+    """The drift reference of schema 2 (docs/RECALIBRATION_2026-11_DESIGN.md 4, K1): N_REF rounds on the drift's own seeds, every
+    run's Q and log2 p95, their means and SDs, the rule's constants and the tolerances they give."""
+    if not isinstance(ref, dict) or set(ref) != set(REFERENCE_V2_KEYS):
+        return [f"drift_reference: {', '.join(REFERENCE_V2_KEYS)} (schema 2)"]
+    p = []
+    _positive(p, "drift_reference.rho_rps", ref["rho_rps"])
+    n = ref["n"]
+    if not (isinstance(n, int) and not isinstance(n, bool) and n == N_REF):
+        return p + [f"drift_reference.n: {N_REF} rounds, no more and no fewer, got {n!r}"]
+    rule = drift_rule(gate) if isinstance(gate, dict) and {"floor_pp", "floor_log2_p95"} <= set(gate) else None
+    if ref["rule"] != rule:
+        p.append(f"drift_reference.rule: {rule!r}, got {ref['rule']!r}")
+    legit, attack = ref["legit"], ref["attack"]
+    if not isinstance(legit, dict) or set(legit) != set(SUMMARY_KEYS):
+        p.append(f"drift_reference.legit: {', '.join(SUMMARY_KEYS)}")
+    else:
+        _summary_problems(p, "drift_reference.legit", legit, n)
+    if not isinstance(attack, dict):
+        return p + ["drift_reference.attack: an object of family -> its runs, means, SDs and tolerances"]
+    if set(attack) - set(DRIFT_FAMILIES):
+        return p + [f"drift_reference.attack: families of the drift check only ({', '.join(DRIFT_FAMILIES)})"]
+    if ref["seeds"] != drift_seeds(sorted(attack)):
+        p.append(f"drift_reference.seeds: the drift check's own, {drift_seeds(sorted(attack))!r}, got {ref['seeds']!r}")
+    for family, item in attack.items():
+        where = f"drift_reference.attack.{family}"
+        if not isinstance(item, dict) or set(item) != set(ATTACK_V2_KEYS):
+            p.append(f"{where}: {', '.join(ATTACK_V2_KEYS)}")
+            continue
+        before = len(p)
+        _positive(p, where + ".level", item["level"])
+        _summary_problems(p, where, item, n)
+        if rule and len(p) == before:
+            for key, sd, floor in (("tol_q_pp", item["sd_q_pp"], rule["floor_pp"]),
+                                   ("tol_log2", item["sd_log2_p95"], rule["floor_log2_p95"])):
+                if not _close(item[key], drift_tolerance(sd, floor, rule["k"])):
+                    p.append(f"{where}.{key}: {item[key]!r} is not the rule's for its SD")
+            if item["wide_spread"] is not (item["sd_q_pp"] > rule["wide_sd_q_pp"]):
+                p.append(f"{where}.wide_spread: true exactly when the SD of Q is above {rule['wide_sd_q_pp']:g} pp (D6)")
+    return p
+
+
 def problems_of(cal):
     """Every way in which `cal` departs from the schema (not the hash)."""
     p = []
     if not isinstance(cal, dict):
         return ["the record is not an object"]
-    if cal.get("schema") != SCHEMA:
-        p.append(f"schema: {SCHEMA}, got {cal.get('schema')!r}")
+    if cal.get("schema") not in SCHEMAS:
+        p.append(f"schema: one of {', '.join(map(str, SCHEMAS))}, got {cal.get('schema')!r}")
     if cal.get("status") not in STATUSES:
         p.append(f"status: one of {', '.join(STATUSES)}, got {cal.get('status')!r}")
     if not isinstance(cal.get("created_utc"), str) or not cal.get("created_utc"):
@@ -202,6 +328,8 @@ def problems_of(cal):
     if ref is None:
         if frozen:
             p.append("drift_reference: a frozen record carries the Q and p95 its drift check must reproduce")
+    elif cal.get("schema") == 2:
+        p += _drift_v2_problems(ref, gate)
     else:
         p += _drift_problems(ref)
     if frozen and isinstance(cal.get("host"), dict):

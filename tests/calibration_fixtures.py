@@ -45,3 +45,23 @@ def frozen(cal=None, created="2026-10-24T08:00:00Z", host=None, drift_reference=
     if drift_reference is None and cal.get("drift_reference") is None:
         drift_reference = SAMPLE_DRIFT
     return C.freeze(cal, created, host=host, drift_reference=drift_reference)
+
+
+# five rounds of the reference of schema 2 (docs/RECALIBRATION_2026-11_DESIGN.md 4, K1): made-up runs, not results
+SAMPLE_ROUNDS_LEGIT = [{"Q": q, "p95_s": p} for q, p in ((100.0, 0.05), (99.5, 0.06), (100.0, 0.055), (99.8, 0.05), (100.0, 0.065))]
+SAMPLE_ROUNDS_ATTACK = {"costly_search_flood": {"level": 2.0, "runs": [{"Q": q, "p95_s": 0.2 * 2 ** (i / 10)}
+                                                                       for i, q in enumerate((60.0, 62.0, 64.0, 66.0, 68.0))]}}
+
+
+def drift_reference_v2(cal=None, rho_rps=90.0, legit=None, attacks=None):
+    """A drift reference of schema 2 for `cal`'s gate (default the placeholder's)."""
+    gate = (cal if cal is not None else placeholder())["gate"]
+    return C.drift_reference_of(rho_rps, legit or SAMPLE_ROUNDS_LEGIT, attacks or SAMPLE_ROUNDS_ATTACK, gate)
+
+
+def frozen_v2(cal=None, created="2026-11-20T08:00:00Z", host=None, drift_reference=None):
+    """`cal` (default the placeholder) as a frozen record of schema 2 with a sample host and a reference of five rounds."""
+    cal = copy.deepcopy(cal if cal is not None else placeholder())
+    cal["schema"] = 2
+    cal.pop("sha256", None)
+    return C.freeze(cal, created, host=host or SAMPLE_HOST, drift_reference=drift_reference or drift_reference_v2(cal))
