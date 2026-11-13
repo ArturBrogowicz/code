@@ -7,6 +7,7 @@
 \usepackage{geometry}
 \usepackage{parskip}
 \usepackage{tabularx} % Dodano do tabeli ryzyka
+\usepackage{longtable}
 \usepackage{booktabs} % Dodano dla estetyki tabel
  \usepackage{hyperref}
 \usepackage{pdfpages}
@@ -1685,14 +1686,19 @@ Wnioski sformułowano jako ocenę spełnienia wymagań W1--W7 z tabeli~\ref{tab:
 \subsection{Ocena wymagań i odpowiedzi na pytania badawcze}\label{sec:ocena_wymagan}
 Tabela~\ref{tab:ocena_wymagan} zawiera ocenę każdego wymagania. W wierszach W2 i W4 ostatnie zdanie podaje stan eksperymentu, którego zarejestrowany wynik zastąpi w nim zapis ,,nie przeprowadzono'' (P4 dla W2 oraz P3 i P1 dla W4). Pozostała część oceny opiera się na wynikach dostępnych dziś.
 
-\begin{table}[H]
-\centering
+\begingroup
 \small
-\caption{Ocena spełnienia wymagań projektowych (stan na 12~listopada 2026~r.)}\label{tab:ocena_wymagan}
-\begin{tabularx}{\linewidth}{@{}L{0.8cm}YL{6.2cm}@{}}
+\setlength{\LTcapwidth}{\linewidth}
+\begin{longtable}{@{}L{0.8cm}L{\dimexpr\linewidth-7cm-4\tabcolsep\relax}L{6.2cm}@{}}
+\caption{Ocena spełnienia wymagań projektowych (stan na 12~listopada 2026~r.)}\label{tab:ocena_wymagan} \\
 \toprule
 ID & Podstawa oceny & Ocena \\
 \midrule
+\endfirsthead
+\toprule
+ID & Podstawa oceny & Ocena \\
+\midrule
+\endhead
 W1 & sekcja~\ref{sec:wyniki_xdp} & Spełnione w części. Odrzucanie przed alokacją \textit{sk\_buff} zmierzono: przy 0,84--1,66~mln pakietów/s na interfejsie do warstwy IP trafiało nie więcej niż 227 pakietów/s (interfejs \texttt{veth}, jeden host). Stałego kosztu wyszukiwania nie mierzono. Dostępnością XDP nie różnił się od iptables, a szybsze blokady (o 0,075~s) wykazano tylko dla zalewania HTTP, w analizie \textit{post hoc}. \\
 W2 & sekcja~\ref{sec:wyniki_slow} & Niespełnione w zbadanym zakresie. Reguła \texttt{l4\_slowconn} wykrywała ataki powolne zestawu tylko przy domyślnym progu 8 połączeń (Slowloris otwiera dokładnie 8); przy progu 180 nie zablokowała żadnego z 15 botów w żadnym z obu scenariuszy. Reguła \texttt{l7\_rudy} nie nałożyła żadnej z 710 blokad spisu zdarzeń, a rodzin utrzymujących 6 gniazd nie wykrył żaden silnik. Ochrony przed atakiem powolnym nie wykazano. Reguła per połączenie, eksperyment P4 (Slowloris, profil R; tab.~\ref{tab:zarejestrowane}): nie przeprowadzono. \\
 W3 & sekcje~\ref{sec:wyniki_reguly}--\ref{sec:wyniki_dostepnosc} & Spełnione z ograniczeniem zakresu. Reguły nałożyły wszystkie blokady botów w punkcie \textit{default} (200 z 200 w 40 przebiegach scenariuszy), a w punkcie \textit{knee} zalewania HTTP demon zwiększył dostępność względem braku ochrony o 33,2~pp w EXP-A i o 22,5~pp w EXP-C (w obu po 10 z 10 bloków). Czas do mitygacji opisują ograniczenia dla poszczególnych reguł. Jako punkt odniesienia reguły nie zostały pokonane przez żaden model GRU; z realistycznymi klientami nałożyły 3 fałszywe blokady. \\
@@ -1701,8 +1707,8 @@ W5 & rozdział~\ref{sec:testbed} & Spełnione dla wyników opublikowanych. Opubl
 W6 & sekcja~\ref{sec:impl_events} & Spełnione dla blokad. Każda z 710 blokad spisu zdarzeń (sekcja~\ref{sec:wyniki_fp}) ma przypisany silnik, a zdarzenia \texttt{ban} bieżącej wersji zawierają zmierzoną wartość i próg; kampanie prototypowe z 12~października 2026~r. przekształcono do tego formatu z udokumentowanymi przybliżeniami. Nie każda decyzja demona jest rejestrowana: włączenie ciasteczek SYN nie tworzy zdarzenia. \\
 W7 & sekcja~\ref{sec:ograniczenia} & Spełnione jako założenie zakresu: system działa na jednym hoście, bez współpracy operatora sieci. Ograniczenia wskazano w sekcji~\ref{sec:ograniczenia}: interfejsy \texttt{veth} zamiast fizycznej karty sieciowej, brak ataków odbiciowych i wysycenia łącza, wyłącznie IPv4 i HTTP/1.1 na porcie 80, atakujący nieadaptacyjny i syntetyczny ruch prawowity. \\
 \bottomrule
-\end{tabularx}
-\end{table}
+\end{longtable}
+\endgroup
 
 Tabela~\ref{tab:odpowiedzi_g} podaje odpowiedzi na pytania G1--G5 z sekcji~\ref{sec:wyniki_gru} osobno dla każdego potoku modelu GRU. Kolumna toru L7 v2 jest stałym miejscem na wyniki eksperymentów P3 i P1.
 
