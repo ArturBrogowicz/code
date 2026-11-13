@@ -1,7 +1,8 @@
 #!/bin/bash
 # Read-only snapshot of the host and the tree, for comparing before and after an S3 run. usage: s3_snapshot.sh DIR
+# The tree is the checkout this script lies in (its bench/vm/). DIR is deleted first and written again.
 set -u
-WT=/home/artur/DDoS-mitigation/code/.claude/worktrees/audit-must-do-2-5
+WT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
 B=$1
 rm -rf "$B" && mkdir -p "$B"
 cd "$WT" || exit 1
