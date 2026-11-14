@@ -462,6 +462,10 @@ def run_campaign(scn, cal, cal_path, scenario_sha, out, host, opts=None, say=pri
     opts = opts or Options()
     check_calibration(cal, opts)
     check_options(opts)
+    try:                                         # a frozen record is used only on the host it was measured on (K5)
+        C.require_host(cal, host.facts())
+    except C.RecordError as exc:
+        raise CampaignError(str(exc)) from exc
     if spec_problem(scn, opts):
         raise CampaignError(spec_problem(scn, opts))
     scn = at_campaign_level(scn, cal, opts)

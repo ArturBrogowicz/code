@@ -2426,6 +2426,11 @@ def main(argv=None, host=None):
             return EXIT_OK if result["reported"] else EXIT_FAILED
         plan = _plan_from_args(args)
         real = host or RealHost()
+        if args.command == "run" and plan.calibration_status == "frozen":
+            try:                                 # a frozen record is used only on the host it was measured on (K5)
+                C.require_host(C.load(plan.calibration_path), real.facts())
+            except C.RecordError as exc:
+                raise PreflightRefused(str(exc)) from exc
         real.pin(P.executor_cpus(plan.pins))
         _install_signal_handlers()
         if args.command == "smoke-topology":

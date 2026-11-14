@@ -958,6 +958,26 @@ class Runner:
 
 # --- the command line -------------------------------------------------------------------------------
 
+SESSION_HOST = "host.json"
+
+
+def session_host(directory, host, step):
+    """A calibration session is made on one host (K5, as departure 31 for pins): the first step to run in `directory` records the
+    kernel release and MemTotal in host.json, and a later step on a host with another kernel or a MemTotal more than 1 % away
+    refuses before any run."""
+    facts = host.facts()
+    path = os.path.join(directory, SESSION_HOST)
+    if not os.path.exists(path):
+        write_json(path, {"uname": facts["uname"], "kernel": C.kernel_release(facts["uname"]), "mem_mib": facts["mem_mib"],
+                          "first_step": step, "created_utc": now()})
+        return
+    first = read_json(path)
+    problems = C.host_problems(first, facts, f"the session's first step ({first['first_step']})")
+    if problems:
+        raise CalibrationStop(f"{directory}: this host is not the one the session began on: " + "; ".join(problems)
+                              + ". A calibration is made on one host (docs/RECALIBRATION_2026-11_DESIGN.md D2, K5): it stops here")
+
+
 def host_check(host, speed, out, cal):
     """H1 and H3-H7 for the runs of this invocation (K4): the monitors on the executor's CPU (the daemon's in the calibration's pin plan,
     which _host_for pins the executor to), their records in `out`/monitors/<n>, the slip limit of the record's validity block."""
@@ -1132,6 +1152,10 @@ def _dispatch(args, host):
         timeline = args.timeline
         host = host or _host_for(args, cal, timeline)
         out = os.path.abspath(args.out)
+        try:                                    # a frozen record is used only on the host it was measured on (K5)
+            C.require_host(cal, host.facts())
+        except C.RecordError as exc:
+            raise CalibrationStop(str(exc)) from exc
         if cal.get("schema") != 1:              # schema 2: M_DRIFT rounds on means, read per family; no second attempt (K2)
             speed = HC.SpeedBracket(os.path.abspath(args.calibration), cal["route_costs_ms"], f"the frozen record {cal['sha256'][:8]}")
             runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate, check=host_check(host, speed, out, cal))
@@ -1153,10 +1177,12 @@ def _dispatch(args, host):
     timeline = getattr(args, "timeline", None)
     host = host or _host_for(args, template, timeline)
     if args.command == "origin":
+        session_host(out, host, "origin")
         origin_step(Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate), template, cal_path, out)
         return EXIT_OK
     runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate,
                     check=host_check(host, session_speed(out, cal_path), out, template))
+    session_host(out, host, args.command)
     try:
         return _run_step(args, runner, template, cal_path, out, timeline)
     finally:

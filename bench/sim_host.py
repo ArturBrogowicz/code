@@ -147,7 +147,7 @@ class SimHost(X.Host):
                  ping_drops=None, daemon_holds_pipes=True, run_cost_s=None, daemon_startup_s=DAEMON_STARTUP_S,
                  daemon_ban_rps=DAEMON_BAN_RPS, daemon_ban_delay_s=DAEMON_BAN_DELAY_S, h01_fix_in_history=False,
                  max_inflight=None, host_feed=None, timer_p99_by_cpu=None, origin_exit=None, nginx_exit=None, origin_slow=None,
-                 other_load=None, clock_offset=None, journal=(), monitor_dies=None, mpstat_gap=None):
+                 other_load=None, clock_offset=None, journal=(), monitor_dies=None, mpstat_gap=None, facts=None):
         self.t = 0.0
         self.inodes = itertools.count(7000)
         self.max_inflight = max_inflight      # a lower in-flight cap for the engines than their --max-inflight (a test of F-02)
@@ -187,6 +187,10 @@ class SimHost(X.Host):
         # for an mpstat sample the guest did not take (a pause)
         self.other_load, self.clock_offset, self.journal_lines = other_load, clock_offset, tuple(journal)
         self.monitor_dies, self.mpstat_gap = monitor_dies, mpstat_gap
+        # what `facts` reports (uname, MemTotal...): the record's host of 2026-11-04 by default (kernel 7.0.0-38, 9,426 MiB), which the
+        # tests' records name too; `facts` overrides keys, e.g. a host on 7.0.0-42 with 7,422 MiB (K5)
+        self.host_facts = {"uname": "Linux fake 7.0.0-38-generic x86_64", "cpus": CPUS, "mem_mib": 9426, "python": "3.14.4",
+                           "nginx": "nginx version: nginx/1.28.3", "gunicorn": "gunicorn (version 26.2.0)", **(facts or {})}
         self.log_lines, self.tag, self.python_exists, self.steal_share = log_lines, tag, python_exists, steal_share
         self.on_sleep, self.server = on_sleep, server
         self.table_extra = []                 # (pid, ppid, args) of processes that are not the model's: an editor, a shell
@@ -888,7 +892,7 @@ class SimHost(X.Host):
         if path == "/proc/loadavg":
             return f"{self.load1:.2f} 0.10 0.05 1/100 1234\n"
         if path == "/proc/meminfo":
-            return "MemTotal:        9652224 kB\nMemFree:         8000000 kB\n"
+            return f"MemTotal:        {self.host_facts['mem_mib'] * 1024} kB\nMemFree:         8000000 kB\n"
         if path == "/proc/stat":
             return self._stat()
         if path.startswith("/sys/"):
@@ -964,8 +968,7 @@ class SimHost(X.Host):
         return 100
 
     def facts(self):
-        return {"uname": "Linux fake 7.0.0 x86_64", "cpus": CPUS, "mem_mib": 9426, "python": "3.14.4",
-                "nginx": "nginx version: nginx/1.28.3", "gunicorn": "gunicorn (version 26.2.0)"}
+        return dict(self.host_facts)
 
     def pin(self, cpus):
         self.pinned = cpus

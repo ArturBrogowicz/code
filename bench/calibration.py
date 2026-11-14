@@ -384,6 +384,39 @@ def freeze(cal, created_utc=None, host=None, drift_reference=None):
     return validate(with_hash(out))
 
 
+HOST_MEM_SHARE = 0.01                   # a host's MemTotal within 1 % of a record's (docs/RECALIBRATION_2026-11_DESIGN.md K5, D2)
+
+
+def kernel_release(uname):
+    """The kernel release in a uname line ("Linux <node> <release> ..."), as the record's `host.uname` and executor.facts give it."""
+    words = (uname or "").split()
+    return words[2] if len(words) >= 3 else None
+
+
+def host_problems(record_host, facts, what="the frozen record"):
+    """Why the running host (`facts`: uname and mem_mib, as executor.Host.facts gives them) is not the one `record_host` was measured
+    on: another kernel release, or a MemTotal more than 1 % away (K5; D2 holds the host fixed). Empty when it is the same."""
+    out = []
+    want, got = kernel_release(record_host.get("uname")), kernel_release(facts.get("uname"))
+    if want is None or got != want:
+        out.append(f"kernel {got}, and {what} was measured on {want}")
+    mem, have = record_host.get("mem_mib"), facts.get("mem_mib")
+    if not isinstance(mem, int) or not isinstance(have, int) or abs(have - mem) > HOST_MEM_SHARE * mem:
+        out.append(f"MemTotal {have} MiB, and {what} was measured with {mem} MiB (more than {HOST_MEM_SHARE:.0%} apart)")
+    return out
+
+
+def require_host(cal, facts):
+    """A VM step on a frozen record refuses a host that is not the record's (K5): RecordError naming what differs."""
+    if cal.get("status") != "frozen":
+        return
+    problems = host_problems(cal["host"], facts, f"the record {cal['sha256'][:8]}")
+    if problems:
+        raise RecordError("this host is not the one the record was measured on: " + "; ".join(problems)
+                          + ". A record is used only on its own host (docs/RECALIBRATION_2026-11_DESIGN.md D2, K5): calibrate this "
+                          "host anew")
+
+
 def require_frozen(cal):
     """The gate's precondition: no verdict on a placeholder."""
     if cal.get("status") != "frozen":
