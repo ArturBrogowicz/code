@@ -996,8 +996,12 @@ class RunnerTest(unittest.TestCase):
         self.assertEqual(sum("timer-probe" in argv for _, _, argv in host.commands), 2, "one attempt: no retry of a refusal")
 
     def test_the_plan_states_both_drift_tolerances(self):
+        text = K.plan_text(TEMPLATE)
         self.assertIn("a legit probe within 2 pp and 25 % of the reference, and an attack run within the gate's floors, 10 pp and a factor of 2",
-                      K.plan_text(TEMPLATE))
+                      text)
+        self.assertIn("step 7  drift      3 rounds before a later campaign, judged on means per family", text)
+        self.assertIn("T = min(floor, max(floor / 2, 3 sqrt(1/5 + 1/3) SD)) frozen in the record (floors 10 pp and 1 in log2)", text)
+        self.assertIn("the legit probe's means within 2 pp and 25 %; no second attempt", text)
 
     def test_the_plan_states_the_wait(self):
         self.assertIn("a refused probe is made again every 30 s, up to --wait-gate minutes from the run's first probe (0: one probe)",
@@ -1271,6 +1275,108 @@ class SimulatedCalibrationTest(unittest.TestCase):
         self.assertFalse(bad["ok"])
         self.assertTrue(bad["reasons"][0].startswith("legit probe: Q"), bad["reasons"])
         self.assertTrue(os.path.exists(os.path.join(self.tmp.name, "d2", "drift", "drift.json")))
+
+    def test_the_check_on_means_passes_on_the_same_server_and_fails_on_a_slower_one(self):
+        """K2: three rounds of the legit probe and every family on the drift's seeds, judged on means, read per family; no .second."""
+        path = os.path.join(self.tmp.name, "means_cal.json")
+        C.dump(self.frozen, path)
+        say = []
+        same = S.SimHost(server=S.SyntheticServer(self.frozen, (30, 45, 30), capacity_cpu=CAPACITY_CPU), tag=S.origin_tag(self.frozen))
+        ok = K.drift_step(K.Runner(same), self.frozen, path, os.path.join(self.tmp.name, "m1"), None, None, say.append)
+        self.assertTrue(ok["ok"], ok["reasons"])
+        self.assertEqual(ok["confirmed"], {f: True for f in sorted(K.FAMILY_SPECS)})
+        self.assertEqual([r["round"] for r in ok["rounds"]], [1, 2, 3])
+        recorded = K.read_json(os.path.join(self.tmp.name, "m1", "drift", "drift.json"))
+        self.assertEqual(recorded["check"], ok["check"])
+        for family, row in recorded["check"]["families"].items():
+            self.assertEqual(row["n"], 3)
+            self.assertEqual(row["tol_q_pp"], self.frozen["drift_reference"]["attack"][family]["tol_q_pp"])
+        for row in recorded["rounds"]:
+            self.assertEqual(K.read_json(os.path.join(self.tmp.name, "m1", row["legit"]["run"], "plan.json"))["seed"], 41)
+            for family, run in row["attacks"].items():
+                self.assertEqual(K.read_json(os.path.join(self.tmp.name, "m1", run["run"], "plan.json"))["seed"],
+                                 C.drift_seeds()["attack"][family])
+        self.assertEqual(K.judge_drift(self.frozen, recorded)["confirmed"], ok["confirmed"], "judged again from drift.json")
+        slow = S.SimHost(server=S.SyntheticServer(self.frozen, (30, 45, 30), capacity_cpu=CAPACITY_CPU * 0.25),
+                         tag=S.origin_tag(self.frozen))
+        bad = K.drift_step(K.Runner(slow), self.frozen, path, os.path.join(self.tmp.name, "m2"), None, None, say.append)
+        self.assertFalse(bad["ok"])
+        self.assertEqual(bad["confirmed"], {f: False for f in sorted(K.FAMILY_SPECS)})
+        self.assertTrue(bad["reasons"][0].startswith("legit probe: mean Q"), bad["reasons"])
+        self.assertFalse(os.path.exists(os.path.join(self.tmp.name, "m2.second")))
+
+    def test_the_drift_command_on_a_schema_2_record_makes_one_check_and_exits_by_it(self):
+        path = os.path.join(self.tmp.name, "means_cli.json")
+        C.dump(self.frozen, path)
+        code, out, err = self.cli("drift", "--calibration", path, "--out", os.path.join(self.tmp.name, "mc1"), "--simulate",
+                                  "--sim-capacity-cpu", str(CAPACITY_CPU * 0.25), "--family", "costly_search_flood")
+        self.assertEqual((code, err), (K.EXIT_INVALID, ""), out)
+        self.assertIn("drift costly_search_flood: NOT confirmed", out)
+        self.assertNotIn("making it once more", out)
+        self.assertFalse(os.path.exists(os.path.join(self.tmp.name, "mc1.second")))
+        recorded = K.read_json(os.path.join(self.tmp.name, "mc1", "drift", "drift.json"))
+        self.assertEqual(recorded["families"], ["costly_search_flood"])
+        self.assertEqual(recorded["rounds"][0]["attacks"]["costly_search_flood"]["seed"], 44, "the family's own seed, alone or not")
+
+    def test_a_cut_check_resumes_with_its_finished_runs(self):
+        path = os.path.join(self.tmp.name, "cut_cal.json")
+        C.dump(self.frozen, path)
+        out = os.path.join(self.tmp.name, "cut")
+
+        def host():
+            return S.SimHost(server=S.SyntheticServer(self.frozen, (30, 45, 30), capacity_cpu=CAPACITY_CPU), tag=S.origin_tag(self.frozen))
+        made = []
+        real = K.Runner.run
+
+        def cut_after_five(runner, plan, say=print):
+            if len(made) == 5:
+                raise KeyboardInterrupt
+            made.append(plan.out)
+            return real(runner, plan, say)
+        with mock.patch.object(K.Runner, "run", cut_after_five), self.assertRaises(KeyboardInterrupt):
+            K.drift_step(K.Runner(host()), self.frozen, path, out, None, None, lambda m: None)
+        with mock.patch.object(K.X, "execute", wraps=X.execute) as spy:
+            result = K.drift_step(K.Runner(host()), self.frozen, path, out, None, None, lambda m: None)
+        self.assertEqual(spy.call_count, 3 * 4 - 5, "the five finished runs are not made again")
+        self.assertTrue(result["ok"], result["reasons"])
+        self.assertEqual(set(made) & {c.args[0].out for c in spy.call_args_list}, set())
+
+    def test_runs_set_aside_never_enter_the_sample(self):
+        """A run made again (its first attempt kept beside it as .failed1, as a host-invalid one is kept as .hostinvalid<k>) is in
+        the sample once, by the run that stands; what lies beside it is never read."""
+        path = os.path.join(self.tmp.name, "aside_cal.json")
+        C.dump(self.frozen, path)
+        started = []
+
+        def startup(sid, index, kind):
+            started.append(sid)
+            base = S.LEGIT_STARTUP_S if kind == "legit" else S.ATTACK_STARTUP_S
+            return base + (2.8 if len(started) == 3 else 0.0)                        # the first run's first attempt is unsound
+        host = S.SimHost(server=S.SyntheticServer(self.frozen, (30, 45, 30), capacity_cpu=CAPACITY_CPU), tag=S.origin_tag(self.frozen),
+                         startup_s=startup)
+        out = os.path.join(self.tmp.name, "aside")
+        with mock.patch.object(K.H, "read_run", wraps=H.read_run) as read:
+            result = K.drift_step(K.Runner(host), self.frozen, path, out, None, None, lambda m: None)
+        self.assertTrue(os.path.isdir(os.path.join(out, "drift", "r1", "legit", "C.failed1")))
+        self.assertEqual(len(read.call_args_list), 12)
+        self.assertFalse([c for c in read.call_args_list if "." in os.path.basename(c.args[0])])
+        shutil.copytree(os.path.join(out, "drift", "r2", "attack_costly_search_flood", "U"),
+                        os.path.join(out, "drift", "r2", "attack_costly_search_flood", "U.hostinvalid1"))
+        self.assertEqual(K.judge_drift(self.frozen, K.read_json(os.path.join(out, "drift", "drift.json")))["check"], result["check"])
+
+    def test_the_five_published_attempts_judged_again_by_the_old_path_give_their_verdicts(self):
+        """The record of 2026-11-04 is schema 1: its five complete drift attempts (results/2026-11-11_harm-drift-check) keep the
+        single-run rule they were judged under (departure 33), verdicts and reasons word for word."""
+        cal = C.load(os.path.join(REPO, "bench", "calibration", "ddos-mitigation-2026-11-04.json"))
+        root = os.path.join(REPO, "results", "2026-11-11_harm-drift-check")
+        names = ("drift_20261108", "drift_20261108.second", "drift_20261108_q1", "drift_20261111c_q1", "drift_20261111c_q1.second")
+        for name in names:
+            with self.subTest(attempt=name):
+                recorded = K.read_json(os.path.join(root, name, "drift", "drift.json"))
+                self.assertEqual(K.judge_drift(cal, recorded), {"ok": recorded["ok"], "reasons": recorded["reasons"]})
+                self.assertFalse(recorded["ok"])
+        self.assertEqual(sorted(d for d in os.listdir(root) if os.path.exists(os.path.join(root, d, "drift", "drift.json"))),
+                         sorted(names))
 
     def cli(self, *args, host=None):
         out, err = io.StringIO(), io.StringIO()
@@ -1705,6 +1811,17 @@ class RulesPinnedTest(unittest.TestCase):
         for phrase in ("D-062", '"Yes, widen it"', "post hoc", "from 6 runs", "before any campaign data", "`gate.floor_pp` (10)",
                        "`gate.floor_log2_p95` (1.0, a factor of 2)", "`DRIFT_Q_PP` 2.0", "`DRIFT_P95` 0.25", "no longer detects"):
             self.assertIn(phrase, rows[0])
+
+    def test_the_check_on_means_is_5_reference_rounds_3_check_rounds_3_standard_errors_and_half_to_whole_floor(self):
+        """docs/RECALIBRATION_2026-11_DESIGN.md 4 (D1, approved 2026-11-13)."""
+        self.assertEqual((C.N_REF, C.M_DRIFT, C.C_TOL, K.N_REF, K.M_DRIFT), (5, 3, 3.0, 5, 3))
+        gate = TEMPLATE["gate"]
+        rule = C.drift_rule(gate)
+        self.assertEqual(rule["k"], 3.0 * math.sqrt(1 / 5 + 1 / 3))
+        for floor in (gate["floor_pp"], gate["floor_log2_p95"]):
+            self.assertEqual(C.drift_tolerance(0.0, floor, rule["k"]), floor / 2, "half the floor below")
+            self.assertEqual(C.drift_tolerance(1e9, floor, rule["k"]), floor, "the whole floor above")
+        self.assertEqual((rule["legit_q_pp"], rule["legit_p95"], rule["wide_sd_q_pp"]), (2.0, 0.25, 5.0))
 
     def test_the_drift_tolerances_are_2_points_of_q_and_25_percent_of_p95(self):
         self.assertEqual((C.DRIFT_Q_PP, C.DRIFT_P95), (2.0, 0.25))

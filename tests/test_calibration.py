@@ -313,6 +313,70 @@ class ReferenceV2Test(unittest.TestCase):
         self.assertTrue(any("drift_reference.rule" in line for line in C.problems_of({**placeholder(), "schema": 2, "drift_reference": ref})))
 
 
+MEANS_LEGIT = [{"Q": 100.0, "p95_s": 0.0625}] * 5                                     # mean Q 100, mean log2 p95 -4, both SDs 0
+MEANS_TIGHT = {"level": 2.0, "runs": [{"Q": q, "p95_s": 0.25} for q in (63.0, 64.0, 65.0, 64.0, 64.0)]}   # SD 0.71: T_Q 5; SD 0: T_L 0.5
+MEANS_WIDE = {"level": 4.0, "runs": [{"Q": q, "p95_s": 0.5} for q in (50.0, 60.0, 70.0, 55.0, 65.0)]}     # SD 7.9: T_Q 10 (the cap)
+
+
+class DriftMeansTest(unittest.TestCase):
+    """The check on means against a reference of schema 2 (docs/RECALIBRATION_2026-11_DESIGN.md 4, K2)."""
+
+    def ref(self):
+        return F.drift_reference_v2(legit=MEANS_LEGIT, attacks={"cheap_static_flood": MEANS_TIGHT, "costly_search_flood": MEANS_WIDE})
+
+    @staticmethod
+    def runs(q, p95, n=3):
+        return [{"Q": q, "p95_s": p95}] * n
+
+    def check(self, legit=None, cheap=None, search=None):
+        return C.drift_means_check(self.ref(), legit or self.runs(100.0, 0.0625),
+                                   {"cheap_static_flood": cheap or self.runs(64.0, 0.25),
+                                    "costly_search_flood": search or self.runs(60.0, 0.5)})
+
+    def test_the_tolerances_are_the_clamps_here(self):
+        ref = self.ref()
+        self.assertEqual((ref["attack"]["cheap_static_flood"]["tol_q_pp"], ref["attack"]["cheap_static_flood"]["tol_log2"]), (5.0, 0.5))
+        self.assertEqual(ref["attack"]["costly_search_flood"]["tol_q_pp"], 10.0)
+        self.assertEqual(ref["attack"]["cheap_static_flood"]["sd_log2_p95"], 0.0, "s = 0: the band is half the floor, not zero")
+        self.assertEqual(self.check()["confirmed"], {"cheap_static_flood": True, "costly_search_flood": True})
+
+    def test_the_bounds_are_inclusive_t_passes_and_t_plus_1e_9_fails(self):
+        for q, ok in ((69.0, True), (59.0, True), (69.0 + 1e-9, False), (59.0 - 1e-9, False)):
+            with self.subTest(cheap_q=q):
+                self.assertIs(self.check(cheap=self.runs(q, 0.25))["families"]["cheap_static_flood"]["ok"], ok)
+        for q, ok in ((70.0, True), (50.0, True), (70.0 + 1e-9, False), (50.0 - 1e-9, False)):
+            with self.subTest(search_q=q):
+                self.assertIs(self.check(search=self.runs(q, 0.5))["families"]["costly_search_flood"]["ok"], ok)
+        for shift, ok in ((0.5 - 1e-9, True), (-0.5 + 1e-9, True), (0.5 + 1e-9, False), (-0.5 - 1e-9, False)):
+            with self.subTest(log2_shift=shift):
+                self.assertIs(self.check(cheap=self.runs(64.0, 0.25 * 2 ** shift))["families"]["cheap_static_flood"]["ok"], ok)
+
+    def test_the_legit_probes_means_within_2_pp_and_25_percent_inclusive(self):
+        for legit, ok in ((self.runs(98.0, 0.0625), True), (self.runs(98.0 - 1e-9, 0.0625), False),
+                          (self.runs(100.0, 0.0625 * 1.25 * (1 - 1e-9)), True), (self.runs(100.0, 0.0625 * 1.25 * (1 + 1e-9)), False),
+                          (self.runs(100.0, 0.0625 * 0.75 * (1 + 1e-9)), True), (self.runs(100.0, 0.0625 * 0.75 * (1 - 1e-9)), False)):
+            with self.subTest(legit=legit[0]):
+                self.assertIs(self.check(legit=legit)["legit"]["ok"], ok)
+
+    def test_a_failed_legit_probe_confirms_no_family(self):
+        r = self.check(legit=self.runs(97.0, 0.0625))
+        self.assertEqual(r["confirmed"], {"cheap_static_flood": False, "costly_search_flood": False})
+        self.assertTrue(r["families"]["cheap_static_flood"]["ok"] and r["families"]["costly_search_flood"]["ok"])
+
+    def test_a_missing_p95_fails_its_family_only(self):
+        r = self.check(search=[{"Q": 60.0, "p95_s": 0.5}, {"Q": 0.0, "p95_s": None}, {"Q": 60.0, "p95_s": 0.5}])
+        self.assertEqual(r["confirmed"], {"cheap_static_flood": True, "costly_search_flood": False})
+        self.assertIn("cannot be compared", r["families"]["costly_search_flood"]["reasons"][0])
+        r = self.check(legit=[{"Q": None, "p95_s": None}, *self.runs(100.0, 0.0625, 2)])
+        self.assertEqual(r["confirmed"], {"cheap_static_flood": False, "costly_search_flood": False})
+
+    def test_the_comparison_carries_its_numbers_and_the_wide_label(self):
+        row = self.check(search=self.runs(65.0, 0.5))["families"]["costly_search_flood"]
+        self.assertEqual({k: row[k] for k in ("n", "level", "mean_q_pct", "ref_mean_q_pct", "dq_pp", "tol_q_pp", "tol_log2")},
+                         {"n": 3, "level": 4.0, "mean_q_pct": 65.0, "ref_mean_q_pct": 60.0, "dq_pp": 5.0, "tol_q_pp": 10.0, "tol_log2": 0.5})
+        self.assertTrue(row["wide_spread"])
+
+
 class HostTest(unittest.TestCase):
     def freeze_with(self, host):
         return F.frozen(placeholder(), host=host)

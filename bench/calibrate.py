@@ -737,12 +737,78 @@ def drift_check(cal, legit, attacks):
 
 
 def drift_step(runner, cal, cal_path, out, families=None, timeline=None, say=print):
-    """A legit probe at rho and an attack run at a family's knee against the frozen record's reference. `families` defaults to
-    the first family that has one."""
+    """The drift check of a frozen record, by the rule of its schema: on means for schema 2 (drift_step_means), the single-run check of
+    departure 33 for schema 1 (drift_step_single), which the record of 2026-11-04 keeps."""
     if cal["status"] != "frozen":
         raise CalibrationStop("a drift check needs a frozen calibration")
-    if cal.get("schema") != 1:
-        raise CalibrationStop("a record of schema 2 is checked on means, which this code does not do yet")
+    if cal.get("schema") == 1:
+        return drift_step_single(runner, cal, cal_path, out, families, timeline, say)
+    return drift_step_means(runner, cal, cal_path, out, families, timeline, say)
+
+
+def drift_round_dir(out, r):
+    return os.path.join(out, "drift", f"r{r}")
+
+
+def drift_step_means(runner, cal, cal_path, out, families=None, timeline=None, say=print, rounds=M_DRIFT):
+    """M_DRIFT rounds, each the legit probe at rho and one attack run per family at its knee on the drift check's own seeds (the
+    reference's), judged on means against the record's reference of schema 2 (calibration.drift_means_check; docs/RECALIBRATION_2026-11
+    _DESIGN.md 4, K2): read per family, no second attempt. `families` defaults to every family with a reference. A cut check resumes
+    with its finished runs (Runner.run); drift.json lists each comparison with its numbers and the runs in the sample."""
+    ref = cal["drift_reference"]
+    families = sorted(families or ref["attack"])
+    for family in families:
+        if family not in ref["attack"]:
+            raise CalibrationStop(f"the frozen record has no attack reference for {family}")
+    seeds = C.drift_seeds(families)
+    rows = []
+    for r in range(1, rounds + 1):
+        base = drift_round_dir(out, r)
+        plan = probe_plan(cal, cal_path, "drift_legit", seeds["legit"], os.path.join(base, "legit", "C"), runner.settings)
+        runner.run(plan, say)
+        legit = {**probe_metrics(H.read_run(plan.out), cal), "seed": seeds["legit"], "run": os.path.relpath(plan.out, out)}
+        attacks = {}
+        for family in families:
+            level, where = ref["attack"][family]["level"], os.path.join(base, f"attack_{family}")
+            attacks[family] = {"level": level, **attack_run(runner, cal, cal_path, family, level, seeds["attack"][family], where,
+                                                            timeline, say),
+                               "seed": seeds["attack"][family], "run": os.path.relpath(os.path.join(where, "U"), out)}
+        rows.append({"round": r, "legit": legit, "attacks": attacks})
+    result = {"step": "drift", "schema": 2, "created_utc": now(), "calibration_sha256": cal["sha256"], "families": families,
+              "rounds": rows, "waits": runner.take_waits(), "smoke": timeline is not None or rounds != M_DRIFT,
+              **judge_rounds(cal, rows, families)}
+    for family in families:
+        row = result["check"]["families"][family]
+        say(f"drift {family}: " + ("confirmed" if result["confirmed"][family] else "NOT confirmed: " + "; ".join(
+            result["check"]["legit"]["reasons"] + row["reasons"])) + (" (wide spread at its knee, D6)" if row["wide_spread"] else ""))
+    say("drift: " + ("within the frozen reference" if result["ok"] else "OUT of it: " + "; ".join(result["reasons"])))
+    write_json(os.path.join(out, "drift", "drift.json"), result)
+    return result
+
+
+def judge_rounds(cal, rows, families):
+    """The check on means of `rows` (the rounds as drift.json lists them) against `cal`'s reference: the comparisons, the reading per
+    family, ok (every family confirmed) and the reasons."""
+    check = C.drift_means_check(cal["drift_reference"], [row["legit"] for row in rows],
+                                {f: [row["attacks"][f] for row in rows] for f in families})
+    reasons = [f"legit probe: {r}" for r in check["legit"]["reasons"]]
+    reasons += [f"{f}: {r}" for f in families for r in check["families"][f]["reasons"]]
+    return {"check": check, "confirmed": check["confirmed"], "ok": all(check["confirmed"].values()), "reasons": reasons}
+
+
+def judge_drift(cal, recorded):
+    """A recorded drift.json judged again by the rule of its record's schema: schema 1 by the single-run check (drift_check, departure
+    33), which the five published attempts of 2026-11-08 to 11 were judged under; schema 2 on means. Returns ok and the reasons (and
+    for schema 2 the comparisons and the reading per family)."""
+    if cal.get("schema") == 1:
+        attacks = {f: {"Q": m["Q"], "p95_s": m["p95_s"]} for f, m in recorded["attacks"].items()}
+        return drift_check(cal, {"Q": recorded["legit"]["Q"], "p95_s": recorded["legit"]["p95_s"]}, attacks)
+    return judge_rounds(cal, recorded["rounds"], recorded["families"])
+
+
+def drift_step_single(runner, cal, cal_path, out, families=None, timeline=None, say=print):
+    """A legit probe at rho and an attack run at a family's knee against the frozen record's reference of schema 1, as before K2.
+    `families` defaults to the first family that has one."""
     ref = cal["drift_reference"]
     families = families or sorted(ref["attack"])[:1]
     plan = probe_plan(cal, cal_path, "drift_legit", SEEDS["drift"], os.path.join(out, "drift", "legit", "C"), runner.settings)
@@ -882,8 +948,15 @@ def plan_text(template):
                "knee, on the drift check's seeds;")
     out.append("                   every run kept; the means and SDs of Q and log2 p95 and the tolerances are frozen in the record")
     out.append("        freeze     reads the directories, never the VM; refuses smoke tests, invalid screenings and mixed sessions")
-    out.append(f"step 7  drift      a legit probe within {C.DRIFT_Q_PP:g} pp and {100 * C.DRIFT_P95:g} % of the reference, and an attack run within the gate's "
-               f"floors, {template['gate']['floor_pp']:g} pp and a factor of {2 ** template['gate']['floor_log2_p95']:g}; before a later campaign")
+    floor_pp, floor_log2 = template["gate"]["floor_pp"], template["gate"]["floor_log2_p95"]
+    out.append(f"step 7  drift      {M_DRIFT} rounds before a later campaign, judged on means per family: the mean Q within T_Q and the "
+               "mean log2 p95 within T_L of the reference's,")
+    out.append(f"                   T = min(floor, max(floor / 2, {C.C_TOL:g} sqrt(1/{N_REF} + 1/{M_DRIFT}) SD)) frozen in the record "
+               f"(floors {floor_pp:g} pp and {floor_log2:g} in log2);")
+    out.append(f"                   the legit probe's means within {C.DRIFT_Q_PP:g} pp and {100 * C.DRIFT_P95:g} %; no second attempt. "
+               "A record of schema 1 keeps the single-run check:")
+    out.append(f"                   a legit probe within {C.DRIFT_Q_PP:g} pp and {100 * C.DRIFT_P95:g} % of the reference, and an attack "
+               f"run within the gate's floors, {floor_pp:g} pp and a factor of {2 ** floor_log2:g}")
     out.append("")
     total = sum(runs.values())
     out.append(f"runs    {runs['capacity']} capacity + {runs['screening']} screening + {runs['reference']} reference = {total}; at about "
@@ -998,6 +1071,10 @@ def _dispatch(args, host):
         timeline = args.timeline
         host = host or _host_for(args, cal, timeline)
         out = os.path.abspath(args.out)
+        if cal.get("schema") != 1:              # schema 2: M_DRIFT rounds on means, read per family; no second attempt (K2)
+            result = drift_step(Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate), cal,
+                                os.path.abspath(args.calibration), out, args.family, timeline)
+            return EXIT_OK if result["ok"] else EXIT_INVALID
         for attempt in (1, 2):                  # a failure is made once more after the environment gate; twice stops (design 7.5)
             runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate)       # a new runner waits for the full gate
             result = drift_step(runner, cal, os.path.abspath(args.calibration), out if attempt == 1 else out + ".second",

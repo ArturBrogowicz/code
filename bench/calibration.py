@@ -453,6 +453,59 @@ def drift_attack_ok(gate, frozen_q, frozen_p95, q, p95):
     return not reasons, reasons
 
 
+def _means(runs):
+    """Mean Q and mean log2 p95 of check runs, or None when a run has no Q or no p95 (no served request): it cannot be compared."""
+    if not runs or any(r.get("Q") is None or not r.get("p95_s") or r["p95_s"] <= 0 for r in runs):
+        return None
+    return statistics.fmean(float(r["Q"]) for r in runs), statistics.fmean(math.log2(r["p95_s"]) for r in runs)
+
+
+def drift_means_check(ref, legit, attacks):
+    """The drift check on means against a reference of schema 2 (docs/RECALIBRATION_2026-11_DESIGN.md 4, K2). `legit` is the check's
+    legit probes ({"Q", "p95_s"} each), `attacks` a family -> its check runs. A family passes when |mean Q - the reference's| <= its
+    tol_q_pp and |mean log2 p95 - the reference's| <= its tol_log2, the tolerances as frozen in the record; the legit probe when its mean
+    Q is within the rule's legit_q_pp and 2^(the difference of the mean log2 p95) within [1 - legit_p95, 1 + legit_p95]. Every bound is
+    inclusive. A run without a Q or a p95 fails its family; a failed legit probe confirms no family. Read per family: `confirmed`."""
+    rule = ref["rule"]
+    out = {"rule": rule, "legit": None, "families": {}, "confirmed": {}}
+    got = _means(legit)
+    leg = {"n": len(legit), "ref_mean_q_pct": ref["legit"]["mean_q_pct"], "ref_mean_log2_p95": ref["legit"]["mean_log2_p95"],
+           "tol_q_pp": rule["legit_q_pp"], "p95_ratio_band": [1 - rule["legit_p95"], 1 + rule["legit_p95"]], "reasons": []}
+    if got is None:
+        leg.update(mean_q_pct=None, mean_log2_p95=None, ok=False)
+        leg["reasons"].append("a legit probe without a Q or a p95: it cannot be compared")
+    else:
+        dq, dl = got[0] - leg["ref_mean_q_pct"], got[1] - leg["ref_mean_log2_p95"]
+        ratio = 2 ** dl
+        leg.update(mean_q_pct=got[0], mean_log2_p95=got[1], dq_pp=dq, p95_ratio=ratio)
+        if not abs(dq) <= rule["legit_q_pp"]:
+            leg["reasons"].append(f"mean Q {got[0]:.4g} against {leg['ref_mean_q_pct']:.4g} (more than {rule['legit_q_pp']:g} pp)")
+        if not leg["p95_ratio_band"][0] <= ratio <= leg["p95_ratio_band"][1]:
+            leg["reasons"].append(f"mean p95 a factor of {ratio:.4g} of the reference's (outside {leg['p95_ratio_band'][0]:g} to "
+                                  f"{leg['p95_ratio_band'][1]:g})")
+        leg["ok"] = not leg["reasons"]
+    out["legit"] = leg
+    for family, runs in sorted(attacks.items()):
+        r = ref["attack"][family]
+        got = _means(runs)
+        row = {"n": len(runs), "level": r["level"], "ref_mean_q_pct": r["mean_q_pct"], "ref_mean_log2_p95": r["mean_log2_p95"],
+               "tol_q_pp": r["tol_q_pp"], "tol_log2": r["tol_log2"], "wide_spread": r["wide_spread"], "reasons": []}
+        if got is None:
+            row.update(mean_q_pct=None, mean_log2_p95=None)
+            row["reasons"].append("a run without a Q or a p95 (no served request): it cannot be compared")
+        else:
+            dq, dl = got[0] - r["mean_q_pct"], got[1] - r["mean_log2_p95"]
+            row.update(mean_q_pct=got[0], mean_log2_p95=got[1], dq_pp=dq, dlog2_p95=dl)
+            if not abs(dq) <= r["tol_q_pp"]:
+                row["reasons"].append(f"mean Q {got[0]:.4g} against {r['mean_q_pct']:.4g} (more than {r['tol_q_pp']:.4g} pp)")
+            if not abs(dl) <= r["tol_log2"]:
+                row["reasons"].append(f"mean log2 p95 {dl:+.4g} from the reference's (more than {r['tol_log2']:.4g})")
+        row["ok"] = not row["reasons"]
+        out["families"][family] = row
+        out["confirmed"][family] = leg["ok"] and row["ok"]
+    return out
+
+
 def summary(cal):
     return {"status": cal["status"], "sha256": cal.get("sha256"), "rho_rps": rho_rps(cal),
             "mean_cost_ms": mean_cost_ms(cal), "spare_capacity_cpu_s_per_s": spare_capacity(cal),
