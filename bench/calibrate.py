@@ -66,6 +66,7 @@ N_REF, M_DRIFT = C.N_REF, C.M_DRIFT
 SEEDS = {"capacity": 11, "ladder": 21, "drift": C.DRIFT_SEED}
 RUN_ESTIMATE_S = 130.0                      # a run: docs/RECALIBRATION_2026-11_DESIGN.md 6.1 (119.5 s after its gate, 131.8 s with re-probes)
 EXIT_OK, EXIT_USAGE, EXIT_STOPPED, EXIT_INVALID, EXIT_INTERRUPTED = 0, 1, 2, 3, 130
+EXIT_HOST_UNFIT = HC.EXIT_HOST_UNFIT             # 5: the packet paused, host unfit (docs/RECALIBRATION_2026-11_DESIGN.md 5.1, K4)
 
 
 class CalibrationStop(RuntimeError):
@@ -859,10 +860,11 @@ class Runner:
     once. A run that is done is not made again, so that a step resumes, unless it was made with another pin plan: that refuses
     (docs/HG1C_DESIGN.md departure 31)."""
 
-    def __init__(self, host, settings=None, allow_dirty=False, clean=False, wait_gate_min=30.0, tries=2, speed=None):
+    def __init__(self, host, settings=None, allow_dirty=False, clean=False, wait_gate_min=30.0, tries=2, speed=None, check=None):
         self.host, self.settings = host, dict(settings or {})
         self.allow_dirty, self.clean, self.wait_gate_min, self.tries = allow_dirty, clean, wait_gate_min, tries
-        self.speed = speed                      # a hostcheck.SpeedBracket: H1 around every run it makes (K3); None makes none
+        self.check = check                      # a hostcheck.HostCheck: H1 and H3-H7 after every run it makes (K4); None judges none
+        self.speed = check.speed if check else speed     # a hostcheck.SpeedBracket: H1 around every run (K3); None makes none
         self.gate = "full"
         self.waits = {}
 
@@ -897,8 +899,10 @@ class Runner:
             if why:
                 raise CalibrationStop(why)
             return self.remember(plan, record)
-        reasons = []
-        for attempt in range(1, self.tries + 1):
+        if self.check:
+            self.check.start()
+        reasons, attempt = [], 1
+        while attempt <= self.tries:
             if os.path.exists(plan.out):
                 if reasons:                      # an attempt of this call failed: it stays beside the run as evidence
                     os.rename(plan.out, f"{plan.out}.failed{attempt - 1}")
@@ -920,12 +924,25 @@ class Runner:
                     record = GC.run_record(result)
                     if self.speed:
                         record["speed"] = self.bracket_done(plan, say)
+                    if self.check:
+                        record["host"] = self.check.judge(plan.out, record["speed"])
+                        if not record["host"]["ok"]:            # set aside, held, made again: it uses none of the tries (5.1)
+                            self.check.set_aside(plan.out, {**record, "finished_utc": now()}, say)
+                            reasons = []
+                            continue
+                        self.check.valid()
                     GC.mark_done(plan.out, record)
                     return self.remember(plan, GC.read_done(plan.out))
                 reasons = result.reasons
             self.gate = "timer"
+            attempt += 1
         raise CalibrationStop(f"{plan.out}: the run was not sound in {self.tries} attempts ({'; '.join(reasons)[:300]}); "
                               "a calibration made of runs that are not valid is not one")
+
+    def close(self):
+        """The monitors stop (a step's end, a stop, an interrupt)."""
+        if self.check:
+            self.check.close()
 
     def bracket_done(self, plan, say=print):
         """The speed bracket's second probe, after the run's teardown, and H1's verdict (hostcheck.SpeedBracket.finish), kept in
@@ -940,6 +957,16 @@ class Runner:
 
 
 # --- the command line -------------------------------------------------------------------------------
+
+def host_check(host, speed, out, cal):
+    """H1 and H3-H7 for the runs of this invocation (K4): the monitors on the executor's CPU (the daemon's in the calibration's pin plan,
+    which _host_for pins the executor to), their records in `out`/monitors/<n>, the slip limit of the record's validity block."""
+    base = os.path.join(out, "monitors")
+    n = 1
+    while os.path.exists(os.path.join(base, str(n))):
+        n += 1
+    return HC.HostCheck(host, speed, os.path.join(base, str(n)), P.PIN_PLAN["daemon"], cal["validity"]["slip_pooled_s"])
+
 
 def session_speed(directory, cal_path):
     """The speed bracket of a calibration session's runs (H1, K3): against the costs its own origin step measured, which must exist and
@@ -1073,6 +1100,9 @@ def main(argv=None, host=None):
     except KeyboardInterrupt:
         print("interrupted; the testbed was taken down. The same command resumes the step.", file=sys.stderr)
         return EXIT_INTERRUPTED
+    except HC.HostUnfit as exc:
+        print(f"HostUnfit: {exc}", file=sys.stderr)
+        return EXIT_HOST_UNFIT
     except (CalibrationStop, GC.CampaignError, X.RunFailed) as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
         return EXIT_STOPPED
@@ -1104,8 +1134,11 @@ def _dispatch(args, host):
         out = os.path.abspath(args.out)
         if cal.get("schema") != 1:              # schema 2: M_DRIFT rounds on means, read per family; no second attempt (K2)
             speed = HC.SpeedBracket(os.path.abspath(args.calibration), cal["route_costs_ms"], f"the frozen record {cal['sha256'][:8]}")
-            result = drift_step(Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate, speed=speed), cal,
-                                os.path.abspath(args.calibration), out, args.family, timeline)
+            runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate, check=host_check(host, speed, out, cal))
+            try:
+                result = drift_step(runner, cal, os.path.abspath(args.calibration), out, args.family, timeline)
+            finally:
+                runner.close()
             return EXIT_OK if result["ok"] else EXIT_INVALID
         for attempt in (1, 2):                  # a failure is made once more after the environment gate; twice stops (design 7.5)
             runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate)       # a new runner waits for the full gate
@@ -1122,7 +1155,15 @@ def _dispatch(args, host):
     if args.command == "origin":
         origin_step(Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate), template, cal_path, out)
         return EXIT_OK
-    runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate, speed=session_speed(out, cal_path))
+    runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate,
+                    check=host_check(host, session_speed(out, cal_path), out, template))
+    try:
+        return _run_step(args, runner, template, cal_path, out, timeline)
+    finally:
+        runner.close()
+
+
+def _run_step(args, runner, template, cal_path, out, timeline):
     if args.command == "capacity":
         capacity_step(runner, template, cal_path, out, args.levels, args.step_s, args.repeats)
         return EXIT_OK
