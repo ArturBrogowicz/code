@@ -38,6 +38,7 @@ import calibration as C
 import executor as X
 import gate_campaign as GC
 import harm_gate as H
+import hostcheck as HC
 import loadtools as LT
 import origin as O
 import population as P
@@ -858,9 +859,10 @@ class Runner:
     once. A run that is done is not made again, so that a step resumes, unless it was made with another pin plan: that refuses
     (docs/HG1C_DESIGN.md departure 31)."""
 
-    def __init__(self, host, settings=None, allow_dirty=False, clean=False, wait_gate_min=30.0, tries=2):
+    def __init__(self, host, settings=None, allow_dirty=False, clean=False, wait_gate_min=30.0, tries=2, speed=None):
         self.host, self.settings = host, dict(settings or {})
         self.allow_dirty, self.clean, self.wait_gate_min, self.tries = allow_dirty, clean, wait_gate_min, tries
+        self.speed = speed                      # a hostcheck.SpeedBracket: H1 around every run it makes (K3); None makes none
         self.gate = "full"
         self.waits = {}
 
@@ -905,8 +907,9 @@ class Runner:
                     say(f"{os.sep.join(plan.out.split(os.sep)[-3:])}: removing the unfinished run{kept}")
                     shutil.rmtree(plan.out)
             say(f"{os.sep.join(plan.out.split(os.sep)[-3:])}: attempt {attempt}")
+            hook = {"before_stack": self.speed.before} if self.speed else {}
             try:
-                result = X.execute(plan, self.host, self.gate, self.allow_dirty, self.clean, self.wait_gate_min, say)
+                result = X.execute(plan, self.host, self.gate, self.allow_dirty, self.clean, self.wait_gate_min, say, **hook)
             except GC.STOP_ERRORS:
                 raise
             except X.RunFailed as exc:
@@ -914,15 +917,43 @@ class Runner:
             else:
                 if result.ok:
                     self.gate = "timer"
-                    GC.mark_done(plan.out, GC.run_record(result))
+                    record = GC.run_record(result)
+                    if self.speed:
+                        record["speed"] = self.bracket_done(plan, say)
+                    GC.mark_done(plan.out, record)
                     return self.remember(plan, GC.read_done(plan.out))
                 reasons = result.reasons
             self.gate = "timer"
         raise CalibrationStop(f"{plan.out}: the run was not sound in {self.tries} attempts ({'; '.join(reasons)[:300]}); "
                               "a calibration made of runs that are not valid is not one")
 
+    def bracket_done(self, plan, say=print):
+        """The speed bracket's second probe, after the run's teardown, and H1's verdict (hostcheck.SpeedBracket.finish), kept in
+        run.json beside the run's other records and returned for DONE."""
+        speed = self.speed.finish(self.host, plan.out)
+        path = os.path.join(plan.out, "run.json")
+        write_json(path, {**read_json(path), "speed": speed})
+        d = [("?" if x is None else f"{x:+.1%}") for x in (speed["d_before"], speed["d_after"])]
+        say(f"{os.sep.join(plan.out.split(os.sep)[-3:])}: speed bracket {d[0]} before, {d[1]} after: "
+            + ("within H1" if speed["ok"] else "HOST-INVALID: " + "; ".join(speed["reasons"])))
+        return speed
+
 
 # --- the command line -------------------------------------------------------------------------------
+
+def session_speed(directory, cal_path):
+    """The speed bracket of a calibration session's runs (H1, K3): against the costs its own origin step measured, which must exist and
+    be of this code's estimator; the probe takes the template's knobs."""
+    path = os.path.join(directory, "origin", "origin.json")
+    if not os.path.exists(path):
+        raise CalibrationStop(f"{directory}: no origin step ({path}): the steps are made in order, and every run's speed bracket is "
+                              "taken against the session's own route costs")
+    origin = read_json(path)
+    why = origin_estimator_problem(origin)
+    if why:
+        raise CalibrationStop(why)
+    return HC.SpeedBracket(cal_path, origin["route_costs_ms"], "the session's origin step (origin/origin.json)")
+
 
 def plan_text(template):
     """The steps, their runs and their time, as text. Pure."""
@@ -1072,7 +1103,8 @@ def _dispatch(args, host):
         host = host or _host_for(args, cal, timeline)
         out = os.path.abspath(args.out)
         if cal.get("schema") != 1:              # schema 2: M_DRIFT rounds on means, read per family; no second attempt (K2)
-            result = drift_step(Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate), cal,
+            speed = HC.SpeedBracket(os.path.abspath(args.calibration), cal["route_costs_ms"], f"the frozen record {cal['sha256'][:8]}")
+            result = drift_step(Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate, speed=speed), cal,
                                 os.path.abspath(args.calibration), out, args.family, timeline)
             return EXIT_OK if result["ok"] else EXIT_INVALID
         for attempt in (1, 2):                  # a failure is made once more after the environment gate; twice stops (design 7.5)
@@ -1087,10 +1119,10 @@ def _dispatch(args, host):
     cal_path, out = os.path.abspath(args.template), os.path.abspath(args.out)
     timeline = getattr(args, "timeline", None)
     host = host or _host_for(args, template, timeline)
-    runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate)
     if args.command == "origin":
-        origin_step(runner, template, cal_path, out)
+        origin_step(Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate), template, cal_path, out)
         return EXIT_OK
+    runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate, speed=session_speed(out, cal_path))
     if args.command == "capacity":
         capacity_step(runner, template, cal_path, out, args.levels, args.step_s, args.repeats)
         return EXIT_OK

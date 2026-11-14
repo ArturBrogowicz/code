@@ -2043,10 +2043,13 @@ def _failed(out, exc):
         fh.write(f"{type(exc).__name__}: {exc}\n")
 
 
-def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_min=30.0, say=None, sampler=None):
+def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_min=30.0, say=None, sampler=None, before_stack=None):
     """Carry out `plan`. Returns a RunResult and leaves the run contract in plan.out; ok is false when the executor found the
     run unsound (the gate then calls its block invalid). Raises RunFailed when the run could not be carried out, after the
-    teardown; the campaign stops on that. A directory that already holds something is refused: one run, one directory."""
+    teardown; the campaign stops on that. A directory that already holds something is refused: one run, one directory.
+    `before_stack(host)`, if given, is called once the environment gate has passed and before the topology and the stack are built,
+    and what it returns is kept in environment.json as `speed_before`: the first probe of the speed bracket (bench/hostcheck.py, H1;
+    the caller takes the second after this returns, the testbed taken down)."""
     out = plan.out
     if os.path.isdir(out) and os.listdir(out):
         raise PreflightRefused(f"{out} is not empty: a run directory is made for one run")
@@ -2071,6 +2074,12 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
     write_json(f"{out}/environment.json", record)
     write_json(f"{out}/plan.json", as_json(plan))
     log(f"run {plan.kind} of {plan.scenario}, seed {plan.seed}: preflight and environment passed")
+    if before_stack is not None:
+        record["speed_before"] = before_stack(host)
+        write_json(f"{out}/environment.json", record)
+        log("speed probe before the stack: " + ", ".join(f"CPU {cpu} " + ("unreadable" if c is None else
+                                                                          f"C3 {c.get('C3', 0):.4g} ms, C5 {c.get('C5', 0):.4g} ms")
+                                                         for cpu, c in record["speed_before"]["cpus"].items()))
     if plan.daemon is not None and not record["provenance"]["daemon"]["h01"]["has_fix"]:
         log(f"WARNING: this checkout's daemon lacks the H-01 fix ({DAEMON_FIX_H01[:7]}, fix/daemon-robustness): one request with a "
             "byte that is not UTF-8 can end it and lift every ban during the run. Recorded in environment.json (provenance.daemon.h01)")

@@ -1687,7 +1687,10 @@ class CommandLineTest(unittest.TestCase):
         self.assertEqual(ctx.exception.code, 2)
 
     def test_a_refusal_of_the_executor_exits_two(self):
-        code, _, err = self.cli("capacity", "--out", os.path.join(self.tmp.name, "r"), host=S.SimHost(root=False))
+        out = os.path.join(self.tmp.name, "r")              # the origin step first: the capacity's runs are bracketed against it (K3)
+        K.write_json(os.path.join(out, "origin", "origin.json"), {"route_costs_ms": dict(TEMPLATE["route_costs_ms"]),
+                                                                  "estimator": K.origin_estimator()})
+        code, _, err = self.cli("capacity", "--out", out, host=S.SimHost(root=False))
         self.assertEqual(code, K.EXIT_STOPPED)
         self.assertIn("PreflightRefused", err)
 

@@ -119,7 +119,8 @@ class SimHost(X.Host):
     captured, so that call returns only at its timeout, as the one in S3 did three times (why a real Nginx does that is an inference:
     docs/HG1C_DESIGN.md 14); started like the suite starts it, with no pipe, the launcher returns a moment after the daemon forks.
     `run_cost_s(argv)` is how long a command takes on the virtual clock (none, by default), so that a time the executor logs for a
-    step can be told from another's.
+    step can be told from another's. `origin_slow(t)` is how much slower than its costs the host runs at the virtual time t: every
+    session of the origin's estimator (the calibrator's step 1 and the speed probes of bench/hostcheck.py) reads that much more.
     The mitigation daemon (control_plane.py, the protected arms) is a model of what the executor sees of it: it needs the repository
     as its working directory and `server_ns` to attach to; `daemon_startup_s` after its start it attaches an XDP program to
     veth_server, writes its start event to BAN_EVENTS and prints the line it listens with; it bans each source of an attack stream
@@ -145,7 +146,7 @@ class SimHost(X.Host):
                  fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,), wall_late_s=None, silent=None, nonzero=None,
                  ping_drops=None, daemon_holds_pipes=True, run_cost_s=None, daemon_startup_s=DAEMON_STARTUP_S,
                  daemon_ban_rps=DAEMON_BAN_RPS, daemon_ban_delay_s=DAEMON_BAN_DELAY_S, h01_fix_in_history=False,
-                 max_inflight=None, host_feed=None, timer_p99_by_cpu=None, origin_exit=None, nginx_exit=None):
+                 max_inflight=None, host_feed=None, timer_p99_by_cpu=None, origin_exit=None, nginx_exit=None, origin_slow=None):
         self.t = 0.0
         self.inodes = itertools.count(7000)
         self.max_inflight = max_inflight      # a lower in-flight cap for the engines than their --max-inflight (a test of F-02)
@@ -178,6 +179,7 @@ class SimHost(X.Host):
         self.fault_schedule, self.topologies, self.dies = dict(fault_schedule or {}), 0, dies
         self.registry = {}                    # run directory -> the streams started in it, for a server that has a load
         self.origin_costs, self.origin_noise, self.origin_calls = origin_costs, tuple(origin_noise), 0
+        self.origin_slow = origin_slow        # t on the virtual clock -> how much slower the host runs then (0.3: 30 %), for every session
         self.log_lines, self.tag, self.python_exists, self.steal_share = log_lines, tag, python_exists, steal_share
         self.on_sleep, self.server = on_sleep, server
         self.table_extra = []                 # (pid, ppid, args) of processes that are not the model's: an editor, a shell
@@ -714,7 +716,7 @@ class SimHost(X.Host):
         route would be timed in at that cost (origin.batch_size)."""
         costs = self.origin_costs or ({k: v * 1000.0 for k, v in self.server.cost.items()} if self.server else
                                       {klass: 1.0 for klass in O.CLASSES})
-        factor = 1.0 + self.origin_noise[self.origin_calls % len(self.origin_noise)]
+        factor = (1.0 + self.origin_noise[self.origin_calls % len(self.origin_noise)]) * (1.0 + (self.origin_slow(self.t) if self.origin_slow else 0.0))
         self.origin_calls += 1
         if self.fault("origin_session_fails"):
             return X.Result(1, "", "Traceback: the simulated session failed")
