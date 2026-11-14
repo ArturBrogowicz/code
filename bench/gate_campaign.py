@@ -38,6 +38,7 @@ sys.path.insert(0, os.path.join(REPO, "eval"))
 import calibration as C
 import executor as X
 import harm_gate as H
+import hostcheck as HC
 import loadtools as LT
 import population as P
 import scenario as SC
@@ -50,6 +51,7 @@ STOP_ERRORS = (X.PreflightRefused, X.EnvironmentRefused, X.SetupFailed, X.Leftov
 KEPT_OF_UNFINISHED = ((H.BAN_FILE, "ban file"), ("environment.json", "gate's record"), ("executor.log", "log"))
 EXIT_OK, EXIT_USAGE, EXIT_STOPPED, EXIT_INTERRUPTED = 0, 1, 2, 130
 EXIT_PAUSED = 4                             # --stop-after: the packet's time is used; the same command resumes (K6)
+EXIT_HOST_UNFIT = HC.EXIT_HOST_UNFIT        # 5: the packet paused, host unfit (docs/RECALIBRATION_2026-11_DESIGN.md 5.1, K9)
 
 
 class Paused(RuntimeError):
@@ -84,6 +86,8 @@ class Options:
     modes: tuple = ()                       # the protected arms, M_<mode> in every block beside C, Cp and U (HG4)
     confirm_2x_knee: bool = False           # the one further confirmation of design 7.2 step 6, after one at the knee has failed
     stop_after_min: float | None = None     # --stop-after: start no run after this many minutes (K6); not in the fingerprint
+    host_check: bool = False                # H1, H3-H7 on every run; a host-invalid one made again in place (K9, D5); the command line's
+                                            # `run` sets it unless --no-host-check
 
 
 def kinds_of(opts):
@@ -141,7 +145,7 @@ def fingerprint(scn, cal, scenario_sha, opts):
             "blocks": block_count(scn, opts), "timeline": timeline_of(scn, opts), "rho_rps": opts.rho,
             "timer_limit_ms": opts.timer_limit_ms, "settings": {**X.SETTINGS, **dict(opts.settings)}, "gate": cal["gate"],
             "warmup": opts.warmup, "simulate": opts.simulate, "modes": list(opts.modes), "pins": pins_of(opts),
-            "confirmation": confirmation_of(opts)}
+            "confirmation": confirmation_of(opts), "host_check": opts.host_check}
 
 
 # --- the plan ---------------------------------------------------------------------------------
@@ -182,6 +186,11 @@ def describe(scn, cal, scenario_sha, opts):
                + ", ".join(kinds_of(opts)) + " in the order shown; a failed block is re-run once with its seed and a new order")
     out.append(f"re-runs      at most {gate['max_reruns']} in the campaign; a valid block is never re-run"
                + ("; a block whose protected run is not valid is not valid either" if opts.modes else ""))
+    if opts.host_check:
+        out.append(f"host check   every run: the speed bracket on CPUs 0 and 1 (H1, {HC.SPEED_DEV:.0%}) and the monitors' rules H3-H7 on CPU "
+                   f"{P.executor_cpus(pins_of(opts))}; a host-invalid run is kept as <run>{HC.ASIDE}<k> and made again in place after a "
+                   f"speed hold, using no re-run (D5, departure 41); {HC.INVALID_IN_A_ROW} in a row or {HC.INVALID_IN_PACKET} in a packet "
+                   "pause it (exit 5)")
     if opts.modes:
         pins = pins_of(opts)
         o = H.P2_OUTCOME
@@ -240,7 +249,8 @@ def load_state(out, fp):
                             f"of before 2026-10-31 (D-032), {pins_text(P.PIN_PLAN_BEFORE_D032)}, while this campaign would run "
                             f"with {pins_text(fp['pins'])}; a campaign resumes only as it began. Use another directory for "
                             "another campaign.")
-    before = {"modes": [], "confirmation": None, **state["fingerprint"]}      # a campaign of before HG4 had no modes (nor pins: refused above)
+    before = {"modes": [], "confirmation": None, "host_check": False,         # a campaign of before HG4 had no modes (nor pins: refused
+              **state["fingerprint"]}                                       # above), one of before K9 no host check
     differ = sorted(k for k in fp if before.get(k) != fp[k])
     if differ:
         raise CampaignError(f"{out} was started with other settings ({', '.join(differ)}); a campaign resumes only as it "
@@ -333,7 +343,48 @@ def keep_unfinished(parent, name, run_path):
     return "".join(said)
 
 
-def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opts, gate, say, deadline=None):
+def execute_checked(plan, host, gate, opts, say, check=None, deadline=None):
+    """One run through the executor; with a host check (K9, D5) the speed bracket goes around it, the run is judged by H1 and H3-H7,
+    and a host-invalid run is set aside as <run>.hostinvalid<k>, the host held until its speed is back, and the run made again in its
+    place, as a run cut by a reset is: it uses none of the gate's re-runs. A run the executor found unsound is not judged: it ends its
+    attempt as before. Returns the run's record for DONE; RunFailed becomes a record that is not ok."""
+    while True:
+        hook = {"before_stack": check.speed.before} if check else {}
+        try:
+            result = X.execute(plan, host, gate, opts.allow_dirty, opts.clean, opts.wait_gate_min, say, **hook)
+        except STOP_ERRORS:
+            raise
+        except X.RunFailed as exc:
+            return {"ok": False, "failed": str(exc), "reasons": [str(exc)]}
+        record = run_record(result)
+        if check is None or not result.ok:
+            return record
+        speed = check.speed.finish(host, plan.out)
+        path = os.path.join(plan.out, "run.json")
+        X.write_json(path, {**read_json(path), "speed": speed})
+        record.update(speed=speed, host=check.judge(plan.out, speed))
+        if record["host"]["ok"]:
+            check.valid()
+            return record
+        check.set_aside(plan.out, {**record, "finished_utc": now()}, say)
+        check_budget(host, deadline, opts.stop_after_min)                 # the remake is a run like any other (K6)
+        gate = "timer"
+
+
+def host_check_of(host, cal, cal_path, out, opts):
+    """The host check of this invocation (K9): the speed bracket against the record's costs with its knobs, the monitors on the
+    executor's CPU in <out>/monitors/<n>, the record's slip limit."""
+    if not opts.host_check:
+        return None
+    base, n = os.path.join(out, "monitors"), 1
+    while os.path.exists(os.path.join(base, str(n))):
+        n += 1
+    speed = HC.SpeedBracket(os.path.abspath(cal_path), cal["route_costs_ms"],
+                            f"the {'frozen record' if cal['status'] == 'frozen' else 'placeholder'} {(cal.get('sha256') or C.digest(cal))[:8]}")
+    return HC.HostCheck(host, speed, os.path.join(base, str(n)), P.executor_cpus(pins_of(opts)), cal["validity"]["slip_pooled_s"])
+
+
+def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opts, gate, say, deadline=None, check=None):
     """Make the runs of one attempt that are not made yet, write its block.json, and return the gate's assessment of it and
     the gate mode the next run should use. A run that fails or is found unsound ends the attempt: the block is invalid
     whatever the other runs say, and finishing it would spend VM time on nothing."""
@@ -355,14 +406,9 @@ def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opt
                 say(f"block {block} attempt {attempt} {kind}: removing the unfinished run{keep_unfinished(d, kind, run_path)}")
                 shutil.rmtree(run_path)
             say(f"block {block} attempt {attempt} seed {seed}: run {kind}")
-            try:
-                result = X.execute(plans[kind], host, gate, opts.allow_dirty, opts.clean, opts.wait_gate_min, say)
-            except STOP_ERRORS:
-                raise
-            except X.RunFailed as exc:
-                record = {"ok": False, "failed": str(exc), "reasons": [str(exc)]}
-            else:
-                record = run_record(result)
+            if check:
+                check.start()
+            record = execute_checked(plans[kind], host, gate, opts, say, check, deadline)
             mark_done(run_path, record)
             gate = "timer"
         records[kind] = record
@@ -391,7 +437,7 @@ def attempt_row(a):
             "valid_all": a["valid_all"], "arm_reasons": a["arm_reasons"], "waits": a.get("waits")}
 
 
-def warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate, say, deadline=None):
+def warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate, say, deadline=None, check=None):
     """One unscored C run at the first block's seed, apart from the blocks (HG1c D25): the first run on a cold stack is not like
     the others and must not be the control of a block. Returns its record and the gate mode of the next run."""
     path = os.path.join(out, WARMUP, "C")
@@ -406,12 +452,11 @@ def warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate, say, deadli
                       rho=opts.rho, timeline=opts.timeline, timer_limit_ms=opts.timer_limit_ms, pins=pins_of(opts),
                       confirmation=confirmation_of(opts))
     say(f"warm-up run C at seed {scn.first_seed}")
-    try:
-        record = run_record(X.execute(plan, host, gate, opts.allow_dirty, opts.clean, opts.wait_gate_min, say))
-    except STOP_ERRORS:
-        raise
-    except X.RunFailed as exc:
-        raise CampaignError(f"the warm-up run failed ({exc}); a stack that cannot do that is not ready for blocks") from exc
+    if check:
+        check.start()
+    record = execute_checked(plan, host, gate, opts, say, check, deadline)
+    if record.get("failed"):
+        raise CampaignError(f"the warm-up run failed ({record['failed']}); a stack that cannot do that is not ready for blocks")
     mark_done(path, record)
     return record, "timer"
 
@@ -533,15 +578,16 @@ def run_campaign(scn, cal, cal_path, scenario_sha, out, host, opts=None, say=pri
     gate_mode, gate, reruns, valid, attempts = "full", cal["gate"], 0, 0, []
     n = fp["blocks"]
     deadline = None if opts.stop_after_min is None else host.monotonic() + 60.0 * opts.stop_after_min
+    check = host_check_of(host, cal, cal_path, out, opts)
     try:
         if opts.warmup:
-            state["warmup"], gate_mode = warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate_mode, say, deadline)
+            state["warmup"], gate_mode = warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate_mode, say, deadline, check)
             save_state(out, state)
         for block in range(1, n + 1):
             attempt = 1
             while True:
                 a, gate_mode = run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opts, gate_mode, say,
-                                           deadline)
+                                           deadline, check)
                 attempts.append(attempt_row(a))
                 state.update(attempts=attempts, reruns=reruns)
                 save_state(out, state)
@@ -564,7 +610,7 @@ def run_campaign(scn, cal, cal_path, scenario_sha, out, host, opts=None, say=pri
         state.update(state="interrupted", stopped="interrupted; the same command resumes it")
         save_state(out, state)
         raise
-    except Paused as exc:
+    except (Paused, HC.HostUnfit) as exc:
         state.update(state="paused", stopped=str(exc), attempts=attempts, reruns=reruns)
         save_state(out, state)
         raise
@@ -572,6 +618,9 @@ def run_campaign(scn, cal, cal_path, scenario_sha, out, host, opts=None, say=pri
         state.update(state="stopped", stopped=f"{type(exc).__name__}: {exc}")
         save_state(out, state)
         raise
+    finally:
+        if check:
+            check.close()
     state["reruns"] = reruns
     state["gate"] = analyse_into(out, cal, state, say, allow_overrides=bool(getattr(host, "simulated", False)))
     save_state(out, state)
@@ -670,6 +719,7 @@ def options_of(args):
                    allow_dirty=getattr(args, "allow_dirty", False), clean=getattr(args, "clean", False),
                    wait_gate_min=getattr(args, "wait_gate", 30.0), keep_going=getattr(args, "keep_going", False),
                    confirm_2x_knee=args.confirm_2x_knee, stop_after_min=getattr(args, "stop_after", None),
+                   host_check=not getattr(args, "no_host_check", False),
                    rho=args.rho, timeline=args.timeline, timer_limit_ms=args.timer_limit_ms,
                    simulate=getattr(args, "simulate", None), modes=args.modes)
 
@@ -691,6 +741,8 @@ def main(argv=None, host=None):
     p.add_argument("--keep-going", action="store_true", help="go on although the gate can no longer reach its valid blocks")
     p.add_argument("--stop-after", type=float, default=None, metavar="MIN",
                    help="start no run after MIN minutes: the campaign pauses (exit 4) and the same command resumes it (a packet's budget)")
+    p.add_argument("--no-host-check", action="store_true",
+                   help="no speed bracket and no monitors' rules (a smoke test's; P2 runs with them, D5)")
     p.add_argument("--simulate", choices=sorted(S.EFFECT_PRESETS), help="run on the simulated host with this effect")
     p.add_argument("--simulate-fault", action="append", metavar="NAME[:N]", help="a fault of the simulated host, N times")
     p = sub.add_parser("status", help="print the state of a campaign directory")
@@ -728,6 +780,9 @@ def main(argv=None, host=None):
     except Paused as exc:
         print(str(exc), file=sys.stderr)
         return EXIT_PAUSED
+    except HC.HostUnfit as exc:
+        print(f"HostUnfit: {exc}", file=sys.stderr)
+        return EXIT_HOST_UNFIT
     except (CampaignError, X.RunFailed) as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
         return EXIT_STOPPED

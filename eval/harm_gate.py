@@ -76,6 +76,7 @@ CONTROL_CLASS_Q_MIN = 95.0        # "the class's p95 within its SLO" over all it
 HRR_DRAWS, HRR_SEED = 10_000, 20261023
 BAN_FILE = "ban_events.jsonl"                      # a protected run's daemon writes its events there (bench/executor.py daemon_plan)
 UNFINISHED = ".unfinished."                        # bench/gate_campaign.py keeps an unfinished run's ban file as <run>.unfinished.<k>.<BAN_FILE>
+HOSTINVALID = ".hostinvalid"                       # and a host-invalid run, whole, as <run>.hostinvalid<k> (D5, docs/HG1C_DESIGN.md departure 41)
 BLOCK_DIR = re.compile(r"^b(\d+)_a(\d+)$")
 REFUSED_STATUSES = (429, 503)                      # what Nginx's limit_req and limit_conn answer a request they refuse
 
@@ -453,6 +454,8 @@ def assess_block(block_dir, cal, slo_scale=1.0):
     meta = read_block_meta(block_dir)
     runs, problems = {}, []
     for name in sorted(os.listdir(block_dir)):
+        if HOSTINVALID in name:                    # set aside and made again in place: published, never judged (departure 41)
+            continue
         if os.path.isfile(os.path.join(block_dir, name, "run.json")):
             runs[name] = read_run(os.path.join(block_dir, name))
     for need in (CONTROL, PLACEBO, ATTACK):
@@ -672,9 +675,10 @@ def p2_verdict(unprotected, protected):
 
 def campaign_benign_bans(root, attempts, name):
     """Every ban of a legit identity by a daemon of the protected run `name` (M_<mode>) anywhere in the campaign `root` (F-01 of
-    T-028): in the run of every attempt, final or superseded, valid or not, with or without a run record, and in the ban files that
-    bench/gate_campaign.py kept of the unfinished runs it removed. One row per (file, address): ip, block, attempt, where it was found
-    and whether that run was valid (None when it has no record)."""
+    T-028): in the run of every attempt, final or superseded, valid or not, with or without a run record, in the ban files that
+    bench/gate_campaign.py kept of the unfinished runs it removed, and in the runs it set aside as host-invalid (departure 41). One row
+    per (file, address): ip, block, attempt, where it was found and whether that run was valid (None when it has no record or was set
+    aside)."""
     valid = {(a["block"], a["attempt"]): a["runs"][name]["valid"] for a in attempts if name in a["runs"]}
     rows = []
     for d in sorted(os.listdir(root)):
@@ -682,8 +686,9 @@ def campaign_benign_bans(root, attempts, name):
         if not m or not os.path.isdir(os.path.join(root, d)):
             continue
         block, attempt = int(m.group(1)), int(m.group(2))
-        files = [os.path.join(name, BAN_FILE)] + sorted(f for f in os.listdir(os.path.join(root, d))
-                                                        if f.startswith(name + UNFINISHED) and f.endswith(BAN_FILE))
+        there = os.listdir(os.path.join(root, d))
+        files = [os.path.join(name, BAN_FILE)] + sorted(f for f in there if f.startswith(name + UNFINISHED) and f.endswith(BAN_FILE))
+        files += sorted(os.path.join(f, BAN_FILE) for f in there if f.startswith(name + HOSTINVALID))
         for rel in files:
             path = os.path.join(root, d, rel)
             if not os.path.isfile(path):
