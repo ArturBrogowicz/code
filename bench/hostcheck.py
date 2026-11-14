@@ -18,6 +18,8 @@ same seed after a speed hold; three in a row, or the fourth of a packet, pause t
 
     python3 bench/hostcheck.py chrony-sampler --every 30          # the sampler the runner starts (chronyc -c tracking and sources)
     python3 bench/hostcheck.py judge RUN_DIR --monitors DIR --start ISO --end ISO     # the rules on a finished run, offline
+    sudo ./venv/bin/python bench/hostcheck.py speed-hold --calibration CAL --reference FILE --lo -0.05 --hi 0.12 --agree 0.05 --max-min 45
+                                                                    # a packet's speed hold (5.2; bench/packets/packet.sh)
 """
 import argparse
 import csv
@@ -596,6 +598,19 @@ def chrony_sampler(every_s, out=sys.stdout, run=None, sleep=time.sleep, count=No
             sleep(every_s)
 
 
+def speed_hold_main(args, host=None):
+    """The speed hold of a packet on this host (executor.RealHost): exit 0 when it held, EXIT_HOST_UNFIT when it did not."""
+    with open(args.reference, encoding="utf-8") as fh:
+        costs = json.load(fh)["route_costs_ms"]
+    if host is None:
+        import executor as X
+        host = X.RealHost()
+    r = speed_hold(host, os.path.abspath(args.calibration), costs, print, args.lo, args.hi, args.agree, args.every_s, args.max_min)
+    print(f"speed hold: {'held' if r['held'] else 'NOT held'} after {len(r['pairs'])} probe pairs, {r['waited_s']:.0f} s "
+          f"(band {args.lo:+.0%} to {args.hi:+.0%}" + (f", agreeing within {args.agree:.0%}" if args.agree is not None else "") + ")")
+    return 0 if r["held"] else EXIT_HOST_UNFIT
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="command", required=True)
@@ -607,6 +622,14 @@ def main(argv=None):
     p.add_argument("--start", required=True, help="the window's start, ISO UTC")
     p.add_argument("--end", required=True)
     p.add_argument("--slip-limit-s", type=float, default=0.1)
+    p = sub.add_parser("speed-hold", help="probe pairs every 5 min until two in a row lie in the band (a packet's pre-condition)")
+    p.add_argument("--calibration", required=True, help="the record whose knobs the probe takes")
+    p.add_argument("--reference", required=True, help="a JSON file with route_costs_ms: the 2026-11-04 record, origin.json or a record")
+    p.add_argument("--lo", type=float, default=-SPEED_DEV)
+    p.add_argument("--hi", type=float, default=SPEED_DEV)
+    p.add_argument("--agree", type=float, default=None)
+    p.add_argument("--max-min", type=float, default=HOLD_MAX_MIN)
+    p.add_argument("--every-s", type=float, default=HOLD_EVERY_S)
     args = ap.parse_args(argv)
     if args.command == "chrony-sampler":
         try:
@@ -614,6 +637,8 @@ def main(argv=None):
         except KeyboardInterrupt:
             pass
         return 0
+    if args.command == "speed-hold":
+        return speed_hold_main(args)
     t0, t1 = (datetime.datetime.fromisoformat(x).timestamp() for x in (args.start, args.end))
     with open(os.path.join(args.run_dir, "run.json"), encoding="utf-8") as fh:
         speed = json.load(fh).get("speed")

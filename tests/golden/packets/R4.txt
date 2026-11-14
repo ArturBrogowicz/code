@@ -1,0 +1,11 @@
+== packet R4: the confirmation: 3 rounds, in a later window after a reboot (D4) ==
+session     /S
+budget      85 min: no run starts after it (--stop-after the minutes left), so the packet ends within 90 min
+pre-checks  ./venv/bin/python bench/packets/prechecks.py --packet R4 --session /S --minutes 90 --record /R
+            (clean tree at the pinned commit, kernel and MemTotal the session's, uptime 1800 s, chrony within H4, no apt, dpkg or
+            daily timer due within 90 + 10 min, no package job, no testbed left, no other process above 5 % of a CPU)
+detached    setsid nohup bash bench/packets/packet.sh R4 --stage ... > /S/confirmation/packets/R4_<UTC>.log 2>&1 < /dev/null &
+step 1      ./venv/bin/python bench/hostcheck.py speed-hold --calibration /R --reference /R --lo -0.10 --hi 0.10 --max-min 30
+step 2      ./venv/bin/python bench/calibrate.py drift --calibration /R --out /S/confirmation --stop-after REMAINING
+after       tar -czf /S/confirmation/packets/R4_<UTC>.tar.gz /S/confirmation; sha256sum of it into R4_<UTC>.sha256
+summary     one line at the end of the log: PACKET R4 <done|paused|host unfit|stopped> (exit N): runs made, host-invalid
