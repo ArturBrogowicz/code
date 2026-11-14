@@ -49,6 +49,18 @@ RUN_ESTIMATE_S = 150.0                      # one run, docs/HG1C_DESIGN.md 6.2; 
 STOP_ERRORS = (X.PreflightRefused, X.EnvironmentRefused, X.SetupFailed, X.LeftoverError, X.TableUnreadable)
 KEPT_OF_UNFINISHED = ((H.BAN_FILE, "ban file"), ("environment.json", "gate's record"), ("executor.log", "log"))
 EXIT_OK, EXIT_USAGE, EXIT_STOPPED, EXIT_INTERRUPTED = 0, 1, 2, 130
+EXIT_PAUSED = 4                             # --stop-after: the packet's time is used; the same command resumes (K6)
+
+
+class Paused(RuntimeError):
+    """The packet's time budget (--stop-after) is used: nothing more starts, and the same command resumes from the finished runs
+    (docs/RECALIBRATION_2026-11_DESIGN.md 6.2, K6)."""
+
+
+def check_budget(host, deadline, minutes):
+    """Between runs: Paused once the host's monotonic clock has reached `deadline` (None: no budget)."""
+    if deadline is not None and host.monotonic() >= deadline:
+        raise Paused(f"paused: the packet's time budget of {minutes:g} min is used (--stop-after); the same command resumes it")
 
 
 class CampaignError(RuntimeError):
@@ -71,6 +83,7 @@ class Options:
     simulate: str | None = None             # the name of an effect preset of bench/sim_host.py
     modes: tuple = ()                       # the protected arms, M_<mode> in every block beside C, Cp and U (HG4)
     confirm_2x_knee: bool = False           # the one further confirmation of design 7.2 step 6, after one at the knee has failed
+    stop_after_min: float | None = None     # --stop-after: start no run after this many minutes (K6); not in the fingerprint
 
 
 def kinds_of(opts):
@@ -214,7 +227,14 @@ def load_state(out, fp):
         if os.path.isdir(out) and os.listdir(out):
             raise CampaignError(f"{out} holds something that is not a campaign (no {CAMPAIGN})")
         return None
-    state = read_json(path)
+    try:
+        state = read_json(path)
+        if not isinstance(state, dict) or not isinstance(state.get("fingerprint"), dict):
+            raise TypeError("not a campaign record")
+    except (OSError, ValueError, TypeError) as exc:
+        raise CampaignError(f"{path} cannot be read ({os.path.getsize(path)} bytes, {type(exc).__name__}: {exc}): the campaign's state "
+                            "is lost, so it is not resumed; set the directory aside (T-092 R-1) and start the campaign anew in "
+                            "another") from exc
     if "pins" not in state["fingerprint"]:
         raise CampaignError(f"{out} records no pin plan: it was started before campaigns recorded theirs, and is read as the plan "
                             f"of before 2026-10-31 (D-032), {pins_text(P.PIN_PLAN_BEFORE_D032)}, while this campaign would run "
@@ -247,9 +267,34 @@ def read_json(path):
         return json.load(fh)
 
 
-def read_done(run_path):
+def read_done(run_path, say=None):
+    """A finished run's record, or None. An empty or unreadable DONE (a host reset in the half minute after it was written, T-092
+    finding 2) is read as absent and said: the run is made again (K6)."""
     path = os.path.join(run_path, DONE)
-    return read_json(path) if os.path.exists(path) else None
+    if not os.path.exists(path):
+        return None
+    try:
+        record = read_json(path)
+        if not isinstance(record, dict):
+            raise TypeError("not an object")
+    except (OSError, ValueError, TypeError) as exc:
+        (say or print)(f"{path} cannot be read ({os.path.getsize(path)} bytes, {type(exc).__name__}): read as absent, the run is made "
+                       "again")
+        return None
+    return record
+
+
+def block_complete(meta_path, say=None):
+    """Whether an attempt's block.json says it is complete. An empty or unreadable one is read as absent and said (K6): the runs of the
+    attempt with a DONE are kept, the others made, and block.json is written again."""
+    if not os.path.exists(meta_path):
+        return False
+    try:
+        return bool(read_json(meta_path).get("complete"))
+    except (OSError, ValueError, AttributeError) as exc:
+        (say or print)(f"{meta_path} cannot be read ({os.path.getsize(meta_path)} bytes, {type(exc).__name__}): read as absent, the "
+                       "attempt's finished runs are kept and block.json is written again")
+        return False
 
 
 # --- one attempt ------------------------------------------------------------------------------
@@ -288,14 +333,14 @@ def keep_unfinished(parent, name, run_path):
     return "".join(said)
 
 
-def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opts, gate, say):
+def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opts, gate, say, deadline=None):
     """Make the runs of one attempt that are not made yet, write its block.json, and return the gate's assessment of it and
     the gate mode the next run should use. A run that fails or is found unsound ends the attempt: the block is invalid
     whatever the other runs say, and finishing it would spend VM time on nothing."""
     seed = scn.first_seed + block - 1
     d = block_dir(out, block, attempt)
     meta_path = os.path.join(d, "block.json")
-    if os.path.exists(meta_path) and read_json(meta_path).get("complete"):
+    if block_complete(meta_path, say):
         say(f"block {block} attempt {attempt}: made already")
         return H.assess_block(d, cal), gate
     plans = plans_of(scn, cal, cal_path, scenario_sha, d, seed, opts)
@@ -303,8 +348,9 @@ def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opt
     planned, made, records, aborted = run_order(scn, block, attempt, opts.modes), [], {}, None
     for kind in planned:
         run_path = plans[kind].out
-        record = read_done(run_path)
+        record = read_done(run_path, say)
         if record is None:
+            check_budget(host, deadline, opts.stop_after_min)
             if os.path.exists(run_path):
                 say(f"block {block} attempt {attempt} {kind}: removing the unfinished run{keep_unfinished(d, kind, run_path)}")
                 shutil.rmtree(run_path)
@@ -345,13 +391,14 @@ def attempt_row(a):
             "valid_all": a["valid_all"], "arm_reasons": a["arm_reasons"], "waits": a.get("waits")}
 
 
-def warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate, say):
+def warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate, say, deadline=None):
     """One unscored C run at the first block's seed, apart from the blocks (HG1c D25): the first run on a cold stack is not like
     the others and must not be the control of a block. Returns its record and the gate mode of the next run."""
     path = os.path.join(out, WARMUP, "C")
-    record = read_done(path)
+    record = read_done(path, say)
     if record is not None:
         return record, gate
+    check_budget(host, deadline, opts.stop_after_min)
     if os.path.exists(path):
         say(f"warm-up: removing the unfinished run{keep_unfinished(os.path.dirname(path), os.path.basename(path), path)}")
         shutil.rmtree(path)
@@ -485,14 +532,16 @@ def run_campaign(scn, cal, cal_path, scenario_sha, out, host, opts=None, say=pri
     save_state(out, state)
     gate_mode, gate, reruns, valid, attempts = "full", cal["gate"], 0, 0, []
     n = fp["blocks"]
+    deadline = None if opts.stop_after_min is None else host.monotonic() + 60.0 * opts.stop_after_min
     try:
         if opts.warmup:
-            state["warmup"], gate_mode = warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate_mode, say)
+            state["warmup"], gate_mode = warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate_mode, say, deadline)
             save_state(out, state)
         for block in range(1, n + 1):
             attempt = 1
             while True:
-                a, gate_mode = run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opts, gate_mode, say)
+                a, gate_mode = run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opts, gate_mode, say,
+                                           deadline)
                 attempts.append(attempt_row(a))
                 state.update(attempts=attempts, reruns=reruns)
                 save_state(out, state)
@@ -513,6 +562,10 @@ def run_campaign(scn, cal, cal_path, scenario_sha, out, host, opts=None, say=pri
             state["state"] = "complete"
     except KeyboardInterrupt:
         state.update(state="interrupted", stopped="interrupted; the same command resumes it")
+        save_state(out, state)
+        raise
+    except Paused as exc:
+        state.update(state="paused", stopped=str(exc), attempts=attempts, reruns=reruns)
         save_state(out, state)
         raise
     except (CampaignError, *STOP_ERRORS) as exc:
@@ -559,7 +612,10 @@ def status_text(out):
     path = os.path.join(out, CAMPAIGN)
     if not os.path.exists(path):
         raise CampaignError(f"{out}: no {CAMPAIGN}")
-    state = read_json(path)
+    try:
+        state = read_json(path)
+    except (OSError, ValueError) as exc:
+        raise CampaignError(f"{path} cannot be read ({os.path.getsize(path)} bytes, {type(exc).__name__})") from exc
     fp = state["fingerprint"]
     lines = [f"campaign {fp['scenario']} ({fp['seed_namespace']}), {fp['blocks']} blocks, calibration "
              f"{fp['calibration_sha256'][:8]} {fp['calibration_status']}" + (", SIMULATED" if state.get("simulated") else "")
@@ -613,7 +669,7 @@ def options_of(args):
     return Options(blocks=args.blocks, dry_run=getattr(args, "dry_run", False), warmup=not args.no_warmup,
                    allow_dirty=getattr(args, "allow_dirty", False), clean=getattr(args, "clean", False),
                    wait_gate_min=getattr(args, "wait_gate", 30.0), keep_going=getattr(args, "keep_going", False),
-                   confirm_2x_knee=args.confirm_2x_knee,
+                   confirm_2x_knee=args.confirm_2x_knee, stop_after_min=getattr(args, "stop_after", None),
                    rho=args.rho, timeline=args.timeline, timer_limit_ms=args.timer_limit_ms,
                    simulate=getattr(args, "simulate", None), modes=args.modes)
 
@@ -633,6 +689,8 @@ def main(argv=None, host=None):
     p.add_argument("--clean", action="store_true", help="take down the namespaces and links of an earlier testbed first")
     p.add_argument("--wait-gate", type=float, default=30.0, metavar="MIN", help=wait_help)
     p.add_argument("--keep-going", action="store_true", help="go on although the gate can no longer reach its valid blocks")
+    p.add_argument("--stop-after", type=float, default=None, metavar="MIN",
+                   help="start no run after MIN minutes: the campaign pauses (exit 4) and the same command resumes it (a packet's budget)")
     p.add_argument("--simulate", choices=sorted(S.EFFECT_PRESETS), help="run on the simulated host with this effect")
     p.add_argument("--simulate-fault", action="append", metavar="NAME[:N]", help="a fault of the simulated host, N times")
     p = sub.add_parser("status", help="print the state of a campaign directory")
@@ -667,6 +725,9 @@ def main(argv=None, host=None):
     except KeyboardInterrupt:
         print("interrupted; the testbed was taken down. The same command resumes the campaign.", file=sys.stderr)
         return EXIT_INTERRUPTED
+    except Paused as exc:
+        print(str(exc), file=sys.stderr)
+        return EXIT_PAUSED
     except (CampaignError, X.RunFailed) as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
         return EXIT_STOPPED

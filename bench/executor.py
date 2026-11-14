@@ -1028,11 +1028,24 @@ def _utc(t):
 
 
 def write_json(path, obj):
+    """`obj` as JSON at `path`, crash-safe (K6, T-092 finding 2): written to a temporary file that is synced to the disk, renamed over
+    `path`, and the directory synced, so that a host reset leaves the old file or the new one, never an empty one."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path + ".tmp", "w", encoding="utf-8") as fh:
         json.dump(obj, fh, indent=1, sort_keys=True)
         fh.write("\n")
+        fh.flush()
+        os.fsync(fh.fileno())
     os.replace(path + ".tmp", path)
+    fsync_dir(os.path.dirname(path))
+
+
+def fsync_dir(directory):
+    fd = os.open(directory or ".", os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 # --- preflight and the environment ----------------------------------------------------------------

@@ -67,6 +67,7 @@ SEEDS = {"capacity": 11, "ladder": 21, "drift": C.DRIFT_SEED}
 RUN_ESTIMATE_S = 130.0                      # a run: docs/RECALIBRATION_2026-11_DESIGN.md 6.1 (119.5 s after its gate, 131.8 s with re-probes)
 EXIT_OK, EXIT_USAGE, EXIT_STOPPED, EXIT_INVALID, EXIT_INTERRUPTED = 0, 1, 2, 3, 130
 EXIT_HOST_UNFIT = HC.EXIT_HOST_UNFIT             # 5: the packet paused, host unfit (docs/RECALIBRATION_2026-11_DESIGN.md 5.1, K4)
+EXIT_PAUSED = GC.EXIT_PAUSED                     # 4: the packet's time budget is used (--stop-after, K6)
 
 
 class CalibrationStop(RuntimeError):
@@ -860,8 +861,11 @@ class Runner:
     once. A run that is done is not made again, so that a step resumes, unless it was made with another pin plan: that refuses
     (docs/HG1C_DESIGN.md departure 31)."""
 
-    def __init__(self, host, settings=None, allow_dirty=False, clean=False, wait_gate_min=30.0, tries=2, speed=None, check=None):
+    def __init__(self, host, settings=None, allow_dirty=False, clean=False, wait_gate_min=30.0, tries=2, speed=None, check=None,
+                 stop_after_min=None):
         self.host, self.settings = host, dict(settings or {})
+        self.stop_after_min = stop_after_min    # --stop-after: no run starts once this many minutes have passed since now (K6)
+        self.deadline = None if stop_after_min is None else host.monotonic() + 60.0 * stop_after_min
         self.allow_dirty, self.clean, self.wait_gate_min, self.tries = allow_dirty, clean, wait_gate_min, tries
         self.check = check                      # a hostcheck.HostCheck: H1 and H3-H7 after every run it makes (K4); None judges none
         self.speed = check.speed if check else speed     # a hostcheck.SpeedBracket: H1 around every run (K3); None makes none
@@ -893,12 +897,13 @@ class Runner:
         return X.quiet_gate(self.host, self.wait_gate_min, say)
 
     def run(self, plan, say=print):
-        record = GC.read_done(plan.out)
+        record = GC.read_done(plan.out, say)
         if record is not None:
             why = done_with_other_pins(plan)
             if why:
                 raise CalibrationStop(why)
             return self.remember(plan, record)
+        GC.check_budget(self.host, self.deadline, self.stop_after_min)
         if self.check:
             self.check.start()
         reasons, attempt = [], 1
@@ -929,6 +934,7 @@ class Runner:
                         if not record["host"]["ok"]:            # set aside, held, made again: it uses none of the tries (5.1)
                             self.check.set_aside(plan.out, {**record, "finished_utc": now()}, say)
                             reasons = []
+                            GC.check_budget(self.host, self.deadline, self.stop_after_min)     # a remake is a run like any other
                             continue
                         self.check.valid()
                     GC.mark_done(plan.out, record)
@@ -1053,6 +1059,8 @@ def _add_run_args(p):
     p.add_argument("--wait-gate", type=float, default=30.0, metavar="MIN", help="minutes to wait for uptime and load at the start and, from each run's first probe, for a refused timer probe to pass; 0: one probe")
     p.add_argument("--simulate", action="store_true", help="run on the simulated host, with a server of a known capacity")
     p.add_argument("--sim-capacity-cpu", type=float, default=None, help="the simulated server's capacity in CPU-seconds a second")
+    p.add_argument("--stop-after", type=float, default=None, metavar="MIN",
+                   help="start no run after MIN minutes: the step pauses (exit 4) and the same command resumes it (a packet's budget)")
 
 
 def _host_for(args, cal, timeline=None):
@@ -1123,6 +1131,9 @@ def main(argv=None, host=None):
     except HC.HostUnfit as exc:
         print(f"HostUnfit: {exc}", file=sys.stderr)
         return EXIT_HOST_UNFIT
+    except GC.Paused as exc:
+        print(str(exc), file=sys.stderr)
+        return EXIT_PAUSED
     except (CalibrationStop, GC.CampaignError, X.RunFailed) as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
         return EXIT_STOPPED
@@ -1158,14 +1169,18 @@ def _dispatch(args, host):
             raise CalibrationStop(str(exc)) from exc
         if cal.get("schema") != 1:              # schema 2: M_DRIFT rounds on means, read per family; no second attempt (K2)
             speed = HC.SpeedBracket(os.path.abspath(args.calibration), cal["route_costs_ms"], f"the frozen record {cal['sha256'][:8]}")
-            runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate, check=host_check(host, speed, out, cal))
+            runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate, check=host_check(host, speed, out, cal),
+                            stop_after_min=args.stop_after)
             try:
                 result = drift_step(runner, cal, os.path.abspath(args.calibration), out, args.family, timeline)
             finally:
                 runner.close()
             return EXIT_OK if result["ok"] else EXIT_INVALID
+        deadline = None
         for attempt in (1, 2):                  # a failure is made once more after the environment gate; twice stops (design 7.5)
-            runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate)       # a new runner waits for the full gate
+            runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate,       # a new runner waits for the full gate
+                            stop_after_min=args.stop_after)
+            deadline = runner.deadline = deadline or runner.deadline                    # one budget for both attempts
             result = drift_step(runner, cal, os.path.abspath(args.calibration), out if attempt == 1 else out + ".second",
                                 args.family, timeline)
             if result["ok"]:
@@ -1181,7 +1196,7 @@ def _dispatch(args, host):
         origin_step(Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate), template, cal_path, out)
         return EXIT_OK
     runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate,
-                    check=host_check(host, session_speed(out, cal_path), out, template))
+                    check=host_check(host, session_speed(out, cal_path), out, template), stop_after_min=args.stop_after)
     session_host(out, host, args.command)
     try:
         return _run_step(args, runner, template, cal_path, out, timeline)

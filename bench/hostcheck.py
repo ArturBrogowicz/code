@@ -562,10 +562,18 @@ class HostCheck:
 
 
 def _write_json(path, obj):
+    """As executor.write_json: synced, renamed, the directory synced (K6)."""
     with open(path + ".tmp", "w", encoding="utf-8") as fh:
         json.dump(obj, fh, indent=1, sort_keys=True)
         fh.write("\n")
+        fh.flush()
+        os.fsync(fh.fileno())
     os.replace(path + ".tmp", path)
+    fd = os.open(os.path.dirname(path) or ".", os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 # --- the command line ----------------------------------------------------------------------------------------------------------------
