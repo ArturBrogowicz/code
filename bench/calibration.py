@@ -11,7 +11,8 @@ committed, hashed). The gate refuses a verdict on anything but a frozen one.
 Two things in it come from the first look at the real links (docs/HG1C_DESIGN.md 4.1, 4.2): `judged_profiles`,
 the link profiles whose clients vote on the gate's Q and p95 (the others are reported: their own links exceed
 the SLOs), and `drift_reference`, the Q and p95 that the drift check before every later campaign must
-reproduce. A frozen record must carry the second and a complete `host`; a placeholder may leave them out.
+reproduce. A frozen record must carry the second and a complete `host` (in schema 2 with the PC: its CPU model and
+VirtualBox host version, K10); a placeholder may leave them out.
 
 The hash is the sha256 of the canonical JSON (sorted keys, no whitespace) without the `sha256` field.
 This module measures nothing and runs nothing: the runner that fills a record is bench/calibrate.py.
@@ -47,6 +48,11 @@ HOST_SHAPE = {"uname": str, "cpus": int, "mem_mib": int, "origin_seed": int, "or
               "loadgen_sha256": "sha", "pins": {k: str for k in PINS},
               "gunicorn": {"version": str, "workers": int, "threads": int, "nofile": int},
               "nginx": {"version": str, "conf_sha256": "sha"}}
+# the PC the VM ran on (K10, D-096): the VM has run on two PCs with the same kernel and MemTotal, which K5's check cannot tell apart.
+# A record of schema 2 names its PC by the guest's CPU model (/proc/cpuinfo's "model name") and VirtualBox's host version (the kernel
+# line "vboxguest: host-version: ..."); a record of schema 1 (the record of 2026-11-04) names none and is not judged on it
+PC_KEYS = ("cpu_model", "vbox_host_version")
+HOST_SHAPE_V2 = {**HOST_SHAPE, **{key: str for key in PC_KEYS}}
 SLO_CLASSES = ("C0", "C1", "C2", "C3", "C4", "C5", "C6")      # C4 and C6 (POST) are not served yet
 PLACEHOLDER = os.path.join(HERE, "calibration", "placeholder.json")
 GATE_KEYS = ("floor_pp", "floor_log2_p95", "min_blocks", "same_sign_share", "ci_level", "control_q_min",
@@ -333,7 +339,7 @@ def problems_of(cal):
     else:
         p += _drift_problems(ref)
     if frozen and isinstance(cal.get("host"), dict):
-        p += _shape_problems(cal["host"], HOST_SHAPE, "host")
+        p += _shape_problems(cal["host"], HOST_SHAPE_V2 if cal.get("schema") == 2 else HOST_SHAPE, "host")
     return p
 
 
@@ -393,9 +399,58 @@ def kernel_release(uname):
     return words[2] if len(words) >= 3 else None
 
 
+def cpu_model(cpuinfo):
+    """The CPU model the guest sees: the first "model name" of /proc/cpuinfo's text, its blanks collapsed; None when it has none."""
+    for line in (cpuinfo or "").splitlines():
+        key, sep, value = line.partition(":")
+        if sep and key.strip() == "model name" and value.strip():
+            return " ".join(value.split())
+    return None
+
+
+VBOX_LINE = re.compile(r"vboxguest: host-version: (\S+)")
+
+
+def vbox_host_version(kernel_log):
+    """VirtualBox's host version as the guest's kernel logged it at boot: "vboxguest: host-version: 7.2.10r174163 0x8000000f" gives
+    "7.2.10r174163". The last such line of the text (the boot's kernel log: journalctl -k -b 0, or dmesg); None when it has none."""
+    found = VBOX_LINE.findall(kernel_log or "")
+    return found[-1] if found else None
+
+
+PC_WORDS = {"cpu_model": ("CPU", "on"), "vbox_host_version": ("VirtualBox host", "under")}
+
+
+def _pc_value(value):
+    """A PC field as it is compared: its blanks collapsed; None for no value, an empty one or one that is not a string."""
+    if not isinstance(value, str):
+        return None
+    return " ".join(value.split()) or None
+
+
+def pc_unnamed(facts):
+    """The PC keys that `facts` (or a record's host) does not name: missing, empty or not a string."""
+    return [key for key in PC_KEYS if _pc_value(facts.get(key)) is None]
+
+
+def pc_problems(reference, facts, what):
+    """Why the running host's PC (`facts`' cpu_model and vbox_host_version) is not the one `reference` names (a record's host, a
+    session's host.json): another CPU model or VirtualBox host version (K10, D-096). A key the reference does not carry is not judged
+    (a record of schema 1 names no PC); one it carries that this host cannot read, or that is empty, is a difference."""
+    out = []
+    for key, (label, prep) in PC_WORDS.items():
+        if key not in reference:
+            continue
+        want, got = _pc_value(reference.get(key)), _pc_value(facts.get(key))
+        if want is None or got != want:
+            out.append(f"{label} {got or 'not read'}, and {what} was measured {prep} {want or 'nothing named'}")
+    return out
+
+
 def host_problems(record_host, facts, what="the frozen record"):
-    """Why the running host (`facts`: uname and mem_mib, as executor.Host.facts gives them) is not the one `record_host` was measured
-    on: another kernel release, or a MemTotal more than 1 % away (K5; D2 holds the host fixed). Empty when it is the same."""
+    """Why the running host (`facts`: uname, mem_mib and the PC, as executor.Host.facts gives them) is not the one `record_host` was
+    measured on: another kernel release, or a MemTotal more than 1 % away (K5; D2 holds the host fixed), or, where `record_host` names
+    its PC, another CPU model or VirtualBox host version (K10, pc_problems). Empty when it is the same."""
     out = []
     want, got = kernel_release(record_host.get("uname")), kernel_release(facts.get("uname"))
     if want is None or got != want:
@@ -403,11 +458,12 @@ def host_problems(record_host, facts, what="the frozen record"):
     mem, have = record_host.get("mem_mib"), facts.get("mem_mib")
     if not isinstance(mem, int) or not isinstance(have, int) or abs(have - mem) > HOST_MEM_SHARE * mem:
         out.append(f"MemTotal {have} MiB, and {what} was measured with {mem} MiB (more than {HOST_MEM_SHARE:.0%} apart)")
-    return out
+    return out + pc_problems(record_host, facts, what)
 
 
 def require_host(cal, facts):
-    """A VM step on a frozen record refuses a host that is not the record's (K5): RecordError naming what differs."""
+    """A VM step on a frozen record refuses a host that is not the record's (K5; and, for a record of schema 2, a PC that is not the
+    record's, K10): RecordError naming what differs, the running host's value and the record's."""
     if cal.get("status") != "frozen":
         return
     problems = host_problems(cal["host"], facts, f"the record {cal['sha256'][:8]}")

@@ -18,6 +18,9 @@ SAMPLE_HOST = {
     "gunicorn": {"version": "26.2.0", "workers": 2, "threads": 8, "nofile": 524288},
     "nginx": {"version": "1.28.3", "conf_sha256": "c" * 64},
 }
+# a host of schema 2 names its PC (K10): the desktop of the record of 2026-11-04, which the simulated host reports by default (SIM_PC)
+SAMPLE_PC = {"cpu_model": "Intel(R) Core(TM) i7-10700F CPU @ 2.90GHz", "vbox_host_version": "7.2.4r170995"}
+SAMPLE_HOST_V2 = {**SAMPLE_HOST, **SAMPLE_PC}
 SAMPLE_DRIFT = {"rho_rps": 90.0, "q_pct": 100.0, "p95_s": 0.053,
                 "attack": {"costly_search_flood": {"level": 2.0, "q_pct": 71.0, "p95_s": 0.060}}}
 
@@ -60,8 +63,9 @@ def drift_reference_v2(cal=None, rho_rps=90.0, legit=None, attacks=None):
 
 
 def frozen_v2(cal=None, created="2026-11-20T08:00:00Z", host=None, drift_reference=None):
-    """`cal` (default the placeholder) as a frozen record of schema 2 with a sample host and a reference of five rounds."""
+    """`cal` (default the placeholder) as a frozen record of schema 2 with a sample host that names its PC and a reference of five
+    rounds."""
     cal = copy.deepcopy(cal if cal is not None else placeholder())
     cal["schema"] = 2
     cal.pop("sha256", None)
-    return C.freeze(cal, created, host=host or SAMPLE_HOST, drift_reference=drift_reference or drift_reference_v2(cal))
+    return C.freeze(cal, created, host=host or SAMPLE_HOST_V2, drift_reference=drift_reference or drift_reference_v2(cal))

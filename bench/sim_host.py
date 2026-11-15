@@ -60,6 +60,9 @@ OK_FLAGS ={"slip": False, "sent_short": False, "cpu": False, "descriptors": Fals
 RECORD_HEADER = "i,t_intended,t_sent,t_done,status,bytes,err,ident,reused\n"
 CLASS_OF_PATH = {path: klass for klass, path in O.SAMPLE_URLS.items()}
 CPUS = 8
+# the PC the simulated host reports by default: the desktop the record of 2026-11-04 was measured on (the guest's kernel log of the
+# boots of 2026-11-03 and 04: "smpboot: CPU0: Intel(R) Core(TM) i7-10700F CPU @ 2.90GHz", "vboxguest: host-version: 7.2.4r170995")
+SIM_PC = {"cpu_model": "Intel(R) Core(TM) i7-10700F CPU @ 2.90GHz", "vbox_host_version": "7.2.4r170995"}
 
 
 def exec_args(argv):
@@ -187,9 +190,10 @@ class SimHost(X.Host):
         # for an mpstat sample the guest did not take (a pause)
         self.other_load, self.clock_offset, self.journal_lines = other_load, clock_offset, tuple(journal)
         self.monitor_dies, self.mpstat_gap = monitor_dies, mpstat_gap
-        # what `facts` reports (uname, MemTotal...): the record's host of 2026-11-04 by default (kernel 7.0.0-38, 9,426 MiB), which the
-        # tests' records name too; `facts` overrides keys, e.g. a host on 7.0.0-42 with 7,422 MiB (K5)
-        self.host_facts = {"uname": "Linux fake 7.0.0-38-generic x86_64", "cpus": CPUS, "mem_mib": 9426, "python": "3.14.4",
+        # what `facts` reports (uname, MemTotal, the PC...): the record's host of 2026-11-04 by default (kernel 7.0.0-38, 9,426 MiB, the
+        # desktop PC: SIM_PC), which the tests' records name too; `facts` overrides keys, e.g. a host on 7.0.0-42 with 7,422 MiB (K5) or
+        # the laptop's PC (K10)
+        self.host_facts = {"uname": "Linux fake 7.0.0-38-generic x86_64", "cpus": CPUS, "mem_mib": 9426, **SIM_PC, "python": "3.14.4",
                            "nginx": "nginx version: nginx/1.28.3", "gunicorn": "gunicorn (version 26.2.0)", **(facts or {})}
         self.log_lines, self.tag, self.python_exists, self.steal_share = log_lines, tag, python_exists, steal_share
         self.on_sleep, self.server = on_sleep, server

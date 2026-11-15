@@ -819,7 +819,7 @@ class ReferenceTest(unittest.TestCase):
 
 ORIGIN = {"route_costs_ms": {"C0": 0.06, "C1": 3.3, "C2": 2.2, "C3": 31.0, "C5": 155.0}, "template_sha256": TEMPLATE["sha256"]}
 CAPACITY = {"c_slo_rps": 150.0, "c_sat_rps": 300.0, "template_sha256": TEMPLATE["sha256"]}
-ENV = {"facts": {"uname": "Linux testbed 7.0.0-38-generic x86_64", "cpus": 8, "mem_mib": 9426, "python": "3.14.4",
+ENV = {"facts": {"uname": "Linux testbed 7.0.0-38-generic x86_64", "cpus": 8, "mem_mib": 9426, **CF.SAMPLE_PC, "python": "3.14.4",
                  "nginx": "nginx version: nginx/1.28.3", "gunicorn": "gunicorn (version 26.2.0)"},
        "provenance": {"files": {"origin.py": "a" * 64, "loadgen.py": "b" * 64}, "nginx_source_sha256": "c" * 64},
        "stack": {"origin": {"nofile_soft_hard": [[524288, 524288]]}}}

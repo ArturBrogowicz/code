@@ -98,8 +98,9 @@ if [ "$PRINT" = 1 ]; then
   echo "session     $SESSION"
   echo "budget      $BUDGET_MIN min: no run starts after it (--stop-after the minutes left), so the packet ends within $PACKET_MIN min"
   echo "pre-checks  $PRECHECK"
-  echo "            (clean tree at the pinned commit, kernel and MemTotal the session's, uptime 1800 s, chrony within H4, no apt, dpkg or"
-  echo "            daily timer due within $PACKET_MIN + 10 min, no package job, no testbed left, no other process above 5 % of a CPU)"
+  echo "            (clean tree at the pinned commit; kernel, MemTotal, CPU model and VirtualBox host version the session's, before its"
+  echo "            first step the laptop's (D-096), all four reported; uptime 1800 s, chrony within H4, no apt, dpkg or daily timer due"
+  echo "            within $PACKET_MIN + 10 min, no package job, no testbed left, no other process above 5 % of a CPU)"
   echo "detached    setsid nohup bash bench/packets/packet.sh $PACKET --stage ... > $LOGDIR/${PACKET}_<UTC>.log 2>&1 < /dev/null &"
   n=1
   while IFS= read -r line; do echo "step $n      $line"; n=$((n + 1)); done < <(steps "$PACKET")

@@ -713,7 +713,8 @@ class Host:
         raise NotImplementedError
 
     def facts(self):
-        """uname, CPUs, memory, and the versions of Python, Nginx and gunicorn."""
+        """uname, CPUs, memory, the PC (cpu_model and vbox_host_version, K10; None when unreadable), and the versions of Python, Nginx
+        and gunicorn."""
         raise NotImplementedError
 
     def pin(self, cpus):
@@ -848,9 +849,20 @@ class RealHost(Host):
             r = self.run(argv)
             lines = (r.out or r.err).strip().splitlines()
             return lines[0] if lines else None
+        def vbox_host_version():                 # the boot's kernel log: the journal keeps it, dmesg needs root (dmesg_restrict)
+            for argv in (["journalctl", "-k", "-b", "0", "-o", "cat", "--no-pager"], ["dmesg"]):
+                version = C.vbox_host_version(self.run(argv).out)
+                if version:
+                    return version
+            return None
         mem = next((int(line.split()[1]) // 1024 for line in self.read_text("/proc/meminfo").splitlines()
                     if line.startswith("MemTotal:")), None)
+        try:
+            cpu = C.cpu_model(self.read_text("/proc/cpuinfo"))
+        except OSError:
+            cpu = None
         return {"uname": " ".join(platform.uname()), "cpus": os.cpu_count(), "mem_mib": mem,
+                "cpu_model": cpu, "vbox_host_version": vbox_host_version(),
                 "python": sys.version.split()[0], "nginx": first_line(["nginx", "-v"]),
                 "gunicorn": first_line([os.path.join(REPO, "venv", "bin", "python"), "-m", "gunicorn", "--version"])}
 

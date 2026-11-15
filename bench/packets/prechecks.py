@@ -25,9 +25,11 @@ DUE_UNITS = re.compile(r"apt|dpkg|daily|man-db|logrotate|unattended|fwupd")
 JOB_PROGRAMS = re.compile(r"(^|/)(apt|apt-get|aptitude|dpkg|unattended-upgr\S*|unattended-upgrade)(\s|$)")
 TESTBED_LEFT = re.compile(r"(^|/)(nginx|gunicorn)(:|\s|$)|loadgen\.py|control_plane\.py")
 QUIET_PCT = 5.0                              # no process that is not the testbed's above 5 % of a CPU over a 60-s sample
-# the host the programme holds fixed (D2): kernel 7.0.0-42, 8 GiB of guest memory (MemTotal 7,422 MiB); R1 is checked against it,
-# every later packet against the session's first step (host.json, K5)
-PROGRAMME_HOST = {"uname": "Linux ddos-mitigation 7.0.0-42-generic x86_64", "mem_mib": 7422}
+# the host the programme holds fixed (D2): kernel 7.0.0-42, 8 GiB of guest memory (MemTotal 7,422 MiB), and the PC that runs every
+# measurement until 2026-12-03, the laptop (D-096, K10: the CPU model and VirtualBox host version its guest saw at the boot of
+# 2026-11-14 11:41Z); R1 is checked against it, every later packet against the session's first step (host.json, K5, K10)
+PROGRAMME_HOST = {"uname": "Linux ddos-mitigation 7.0.0-42-generic x86_64", "mem_mib": 7422,
+                  "cpu_model": "AMD Ryzen 7 7730U with Radeon Graphics", "vbox_host_version": "7.2.10r174163"}
 PACKETS = ("R1", "R2a", "R2b", "R2c", "R3", "R4", "P2-1", "P2-2")
 
 
@@ -40,8 +42,15 @@ def check_tree(porcelain, head=None, commit=None):
 
 
 def check_host(facts, first):
-    """The kernel release and MemTotal are the session's (or, before its first step, the programme's): calibration.host_problems."""
-    return C.host_problems(first, facts, "the session" if "first_step" in first else "the programme's host (D2)")
+    """The kernel release, MemTotal and the PC (CPU model, VirtualBox host version) are the session's (or, before its first step, the
+    programme's): calibration.host_problems."""
+    return C.host_problems(first, facts, "the session" if "first_step" in first else "the programme's host (D2, D-096)")
+
+
+def describe_host(facts):
+    """What the host check reports of this host, whether it passes or not: its kernel, MemTotal and PC (K10)."""
+    return (f"kernel {C.kernel_release(facts.get('uname'))}, MemTotal {facts.get('mem_mib')} MiB, "
+            f"CPU {facts.get('cpu_model') or 'not read'}, VirtualBox host {facts.get('vbox_host_version') or 'not read'}")
 
 
 def check_uptime(uptime_s):
@@ -104,11 +113,19 @@ def _sh(argv, timeout=90):
         return f"# {argv[0]}: {exc}"
 
 
+def _read(path):
+    with open(path, encoding="utf-8") as fh:
+        return fh.read()
+
+
 def _facts():
+    """This host as executor.RealHost.facts gives it: uname, MemTotal and the PC (the CPU model from /proc/cpuinfo; VirtualBox's host
+    version from the boot's kernel log, the journal's, else dmesg's)."""
     uname = " ".join(os.uname())
-    with open("/proc/meminfo", encoding="utf-8") as fh:
-        mem = next(int(line.split()[1]) // 1024 for line in fh if line.startswith("MemTotal:"))
-    return {"uname": uname, "mem_mib": mem}
+    mem = next(int(line.split()[1]) // 1024 for line in _read("/proc/meminfo").splitlines() if line.startswith("MemTotal:"))
+    vbox = (C.vbox_host_version(_sh(["journalctl", "-k", "-b", "0", "-o", "cat", "--no-pager"]))
+            or C.vbox_host_version(_sh(["dmesg"])))
+    return {"uname": uname, "mem_mib": mem, "cpu_model": C.cpu_model(_read("/proc/cpuinfo")), "vbox_host_version": vbox}
 
 
 def run_all(packet, session, minutes, record=None, commit=None):
@@ -118,12 +135,12 @@ def run_all(packet, session, minutes, record=None, commit=None):
     if os.path.exists(first_path):
         with open(first_path, encoding="utf-8") as fh:
             first = json.load(fh)
-    with open("/proc/uptime", encoding="utf-8") as fh:
-        uptime = float(fh.read().split()[0])
+    uptime = float(_read("/proc/uptime").split()[0])
     git = ["git", "-c", f"safe.directory={REPO}", "-C", REPO]
+    facts = _facts()
     checks = [("tree", check_tree(_sh([*git, "status", "--porcelain", "--untracked-files=no"]),
                                   _sh([*git, "rev-parse", "HEAD"]).strip(), commit)),
-              ("host", check_host(_facts(), first)),
+              (f"host ({describe_host(facts)})", check_host(facts, first)),
               ("uptime", check_uptime(uptime)),
               ("chrony", check_chrony(_sh(["chronyc", "-n", "-c", "tracking"]), _sh(["chronyc", "-n", "-c", "sources"]))),
               ("timers", check_timers(_sh(["systemctl", "list-timers", "--all", "--output=json"]) or "[]",
@@ -134,7 +151,7 @@ def run_all(packet, session, minutes, record=None, commit=None):
               ("quiet", check_quiet(_sh(["pidstat", "-u", "-l", "60", "1"], timeout=120)))]
     if record:
         try:
-            C.require_host(C.load(record), _facts())
+            C.require_host(C.load(record), facts)
             checks.append(("record", []))
         except (C.RecordError, OSError, ValueError) as exc:
             checks.append(("record", [str(exc)]))

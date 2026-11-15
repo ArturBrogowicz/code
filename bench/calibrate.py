@@ -658,12 +658,18 @@ def _version(text):
 
 def host_of(env, pins):
     """The frozen record's `host` from the environment.json of one of the runs (design 4.2) and the pin plan the session's runs were
-    made with (`pins`, as its steps recorded it; not this code's plan, which may be another by now): what the numbers were measured on."""
+    made with (`pins`, as its steps recorded it; not this code's plan, which may be another by now): what the numbers were measured on,
+    the PC too (its CPU model and VirtualBox host version, K10), which a run's environment.json must name."""
     facts, prov, stack = env["facts"], env["provenance"], env.get("stack") or {}
     limits = ((stack.get("origin") or {}).get("nofile_soft_hard") or [[None]])[0]
     if not isinstance(limits[0], int):
         raise CalibrationStop("the origin's open-file limit was not read as a number: environment.json has no stack record")
-    return {"uname": facts["uname"], "cpus": facts["cpus"], "mem_mib": facts["mem_mib"], "origin_seed": X.ORIGIN_SEED,
+    unnamed = C.pc_unnamed(facts)
+    if unnamed:
+        raise CalibrationStop(f"environment.json does not name the PC the runs were made on ({', '.join(unnamed)}): a record names "
+                              "its PC (K10)")
+    return {"uname": facts["uname"], "cpus": facts["cpus"], "mem_mib": facts["mem_mib"],
+            **{key: facts[key] for key in C.PC_KEYS}, "origin_seed": X.ORIGIN_SEED,
             "origin_sha256": prov["files"]["origin.py"], "loadgen_sha256": prov["files"]["loadgen.py"], "pins": dict(pins),
             "gunicorn": {"version": _version(facts["gunicorn"]), "workers": X.GUNICORN["workers"],
                          "threads": X.GUNICORN["threads"], "nofile": limits[0]},
@@ -968,20 +974,26 @@ SESSION_HOST = "host.json"
 
 
 def session_host(directory, host, step):
-    """A calibration session is made on one host (K5, as departure 31 for pins): the first step to run in `directory` records the
-    kernel release and MemTotal in host.json, and a later step on a host with another kernel or a MemTotal more than 1 % away
-    refuses before any run."""
+    """A calibration session is made on one host (K5, as departure 31 for pins) and on one PC (K10, D-096): the first step to run in
+    `directory` records the kernel release, MemTotal, the CPU model and VirtualBox's host version in host.json (and refuses when it
+    cannot read the PC: the record it leads to must name it), and a later step on a host with another kernel, a MemTotal more than 1 %
+    away, another CPU model or another VirtualBox host version refuses before any run."""
     facts = host.facts()
     path = os.path.join(directory, SESSION_HOST)
     if not os.path.exists(path):
+        unread = C.pc_unnamed(facts)
+        if unread:
+            raise CalibrationStop(f"{directory}: this host's PC cannot be read ({', '.join(unread)}): a session names its PC in its "
+                                  "first step (K10); it stops here")
         write_json(path, {"uname": facts["uname"], "kernel": C.kernel_release(facts["uname"]), "mem_mib": facts["mem_mib"],
-                          "first_step": step, "created_utc": now()})
+                          **{key: facts[key] for key in C.PC_KEYS}, "first_step": step, "created_utc": now()})
         return
     first = read_json(path)
     problems = C.host_problems(first, facts, f"the session's first step ({first['first_step']})")
     if problems:
         raise CalibrationStop(f"{directory}: this host is not the one the session began on: " + "; ".join(problems)
-                              + ". A calibration is made on one host (docs/RECALIBRATION_2026-11_DESIGN.md D2, K5): it stops here")
+                              + ". A calibration is made on one host and one PC (docs/RECALIBRATION_2026-11_DESIGN.md D2, K5; K10): it "
+                              "stops here")
 
 
 def host_check(host, speed, out, cal):

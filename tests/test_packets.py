@@ -87,8 +87,11 @@ class PrecheckTest(unittest.TestCase):
         self.assertEqual(PC.check_tree("", "123456789abc", "abcdef0"), ["HEAD is 123456789abc, the packet is pinned to abcdef0"])
 
     def test_host(self):
-        here = {"uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP x86_64", "mem_mib": 7422}
+        here = {"uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP x86_64", "mem_mib": 7422,
+                "cpu_model": "AMD Ryzen 7 7730U with Radeon Graphics", "vbox_host_version": "7.2.10r174163"}       # the laptop (K10)
         self.assertEqual(PC.check_host(here, PC.PROGRAMME_HOST), [])
+        self.assertEqual(len(PC.check_host({**here, "cpu_model": "Intel(R) Core(TM) i7-10700F CPU @ 2.90GHz",
+                                            "vbox_host_version": "7.2.4r170995"}, PC.PROGRAMME_HOST)), 2, "the desktop")
         self.assertEqual(len(PC.check_host({**here, "uname": "Linux h 7.0.0-43-generic x86_64"}, PC.PROGRAMME_HOST)), 1)
         self.assertIn("the session", PC.check_host({**here, "mem_mib": 9426}, {**PC.PROGRAMME_HOST, "first_step": "origin"})[0])
 

@@ -2,8 +2,9 @@
 session     /S
 budget      85 min: no run starts after it (--stop-after the minutes left), so the packet ends within 90 min
 pre-checks  ./venv/bin/python bench/packets/prechecks.py --packet R1 --session /S --minutes 90 --record /R
-            (clean tree at the pinned commit, kernel and MemTotal the session's, uptime 1800 s, chrony within H4, no apt, dpkg or
-            daily timer due within 90 + 10 min, no package job, no testbed left, no other process above 5 % of a CPU)
+            (clean tree at the pinned commit; kernel, MemTotal, CPU model and VirtualBox host version the session's, before its
+            first step the laptop's (D-096), all four reported; uptime 1800 s, chrony within H4, no apt, dpkg or daily timer due
+            within 90 + 10 min, no package job, no testbed left, no other process above 5 % of a CPU)
 detached    setsid nohup bash bench/packets/packet.sh R1 --stage ... > /S/packets/R1_<UTC>.log 2>&1 < /dev/null &
 step 1      ./venv/bin/python bench/hostcheck.py speed-hold --calibration bench/calibration/ddos-mitigation-2026-11-04.json --reference bench/calibration/ddos-mitigation-2026-11-04.json --lo -0.05 --hi 0.12 --agree 0.05 --max-min 45
 step 2      ./venv/bin/python bench/calibrate.py origin --out /S
