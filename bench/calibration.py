@@ -231,6 +231,8 @@ def _drift_v2_problems(ref, gate):
         _summary_problems(p, "drift_reference.legit", legit, n)
     if not isinstance(attack, dict):
         return p + ["drift_reference.attack: an object of family -> its runs, means, SDs and tolerances"]
+    if not attack:                                  # T-105 F7: a check on means with no family would confirm nothing and pass
+        return p + ["drift_reference.attack: at least one family (a session in which no family has a knee is not frozen)"]
     if set(attack) - set(DRIFT_FAMILIES):
         return p + [f"drift_reference.attack: families of the drift check only ({', '.join(DRIFT_FAMILIES)})"]
     if ref["seeds"] != drift_seeds(sorted(attack)):

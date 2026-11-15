@@ -336,6 +336,36 @@ class RuleTest(unittest.TestCase):
         self.assertFalse(HC.rule_evidence({**cover, "mpstat": [at(k * 5) for k in range(10)]}, {}, at(0), at(100))["ok"],
                          "a record that ends 55 s before the run does")
 
+    def test_h7_needs_each_monitors_first_sample_within_an_interval_and_the_slack_of_the_start(self):
+        """T-105 F6: a sample from before the window (an earlier run's) does not cover its start; one at or after the start, no later
+        than one interval plus COVER_SLACK_S (5 s) after it, does."""
+        self.assertEqual(HC.COVER_SLACK_S, 5.0)
+        t0, t1 = at(0), at(150)
+        silent = {"mpstat": [t0 - 3 + 5 * i for i in range(33)], "pidstat": [t0 - 600, t1], "chrony": [t0 - 600, t1 - 5], "journal": []}
+        r = HC.rule_evidence(silent, {}, t0, t1)
+        self.assertEqual(r["reasons"], ["H7: the pidstat record has no sample in the first 15 s of the run (from 2026-11-13T10:00:00+00:00)",
+                                        "H7: the chrony record has no sample in the first 35 s of the run (from 2026-11-13T10:00:00+00:00)"])
+        cover = {"mpstat": [t0 + 10 - 1e-6, *[t0 + 10 + 5 * i for i in range(30)]], "pidstat": [t0 + 15, *[t0 + 15 + 10 * i for i in range(14)]],
+                 "chrony": [t0 + 35, t0 + 65, t0 + 95, t0 + 125], "journal": []}
+        self.assertTrue(HC.rule_evidence(cover, {}, t0, t1)["ok"], "at the bound")
+        for name, every in (("mpstat", 5.0), ("pidstat", 10.0), ("chrony", 30.0)):
+            with self.subTest(late=name):
+                late = {**cover, name: [t for t in cover[name] if t > t0 + every + HC.COVER_SLACK_S]}
+                self.assertFalse(HC.rule_evidence(late, {}, t0, t1)["ok"])
+        v = HC.judge_host({"reasons": []}, 0.01, 0.1, {**silent, "pidstat": [{"t": t0 - 600, "rows": []}, {"t": t1, "rows": []}],
+                                                       "chrony": [{"t": t0 - 600, "tracking": {"system_time_s": 0.0, "leap": "Normal"},
+                                                                   "sources": []}, {"t": t1 - 5, "tracking": {"system_time_s": 0.0,
+                                                                                                             "leap": "Normal"}, "sources": []}]},
+                          {"mpstat": True, "pidstat": True, "chrony": True, "journal": True}, t0, t1)
+        self.assertFalse(v["ok"], "T-105's demonstration (D): two monitors silent for 145 s of a 150-s window")
+        t1 = at(12.5)                                   # a smoke test's window, shorter than the chrony sampler's interval
+        short = {"mpstat": [at(-3), at(2), at(7), at(12)], "pidstat": [at(-7.5), at(2.5), at(12.5)], "journal": []}
+        self.assertTrue(HC.rule_evidence({**short, "chrony": [at(-17.5)]}, {}, t0, t1)["ok"], "one interval before its end")
+        self.assertEqual(HC.rule_evidence({**short, "chrony": [at(-20.0)]}, {}, t0, t1)["reasons"],
+                         ["H7: the chrony record does not cover the run (2026-11-13T10:00:00+00:00 to 2026-11-13T10:00:12+00:00)"])
+        self.assertEqual(HC.rule_evidence({**short, "chrony": [at(-23.0)]}, {}, t0, t1)["reasons"],
+                         ["H7: the chrony record has no sample in the last 35 s before the end of this short run (2026-11-13T10:00:12+00:00)"])
+
 
 class ClassifyTest(unittest.TestCase):
     def test_the_apps_server_sshd_and_the_agents_are_not_the_testbed(self):

@@ -119,7 +119,7 @@ class ReadTest(unittest.TestCase):
                 checks = dict(PC.run_all("R1", tmp, 90))
                 said = io.StringIO()
                 with contextlib.redirect_stdout(said):
-                    PC.main(["--packet", "R1", "--session", tmp])
+                    PC.main(["--packet", "R1", "--session", tmp, "--commit", "abcdef0"])     # a packet's pinned commit (K14)
         host = ("host (kernel 7.0.0-42-generic, MemTotal 7422 MiB, CPU AMD Ryzen 7 7730U with Radeon Graphics, VirtualBox host "
                 "7.2.10r174163)")
         self.assertEqual(checks[host], [], "the laptop is the programme's PC (D-096)")

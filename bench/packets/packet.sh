@@ -3,7 +3,7 @@
 # speed hold and the step(s) detached from the terminal (setsid nohup) with the packet's time budget, a tar and the sha256 of the
 # outputs, and a one-line summary at the end of the packet's log. The step's own runner starts the monitors (K4) and judges every run.
 #
-#   sudo bench/packets/packet.sh PACKET [--session DIR] [--record FILE] [--campaign DIR] [--commit SHA] [--medians FILE]
+#   sudo bench/packets/packet.sh PACKET --commit SHA [--session DIR] [--record FILE] [--campaign DIR] [--medians FILE]
 #   bench/packets/packet.sh PACKET --print [...]          # what it would do; runs nothing, needs no root
 #
 # PACKET: R1 (speed hold against HS1's medians on this PC, K11: --medians FILE or HS1_MEDIANS=FILE; origin; capacity), R2a, R2b,
@@ -90,6 +90,9 @@ if ! steps "$PACKET" >/dev/null 2>&1; then
 fi
 case "$PACKET" in R4|P2-1|P2-2) if [ -z "$RECORD" ] && [ "$PRINT" = 0 ]; then
   echo "packet.sh: $PACKET runs on the new frozen record: --record FILE" >&2; exit 2; fi;; esac
+if [ -z "$COMMIT" ] && [ "$PRINT" = 0 ]; then
+  echo "packet.sh: a packet runs at a pinned commit, which its pre-checks hold the tree and the frozen hashes to: --commit SHA" >&2; exit 2
+fi
 if [ "$PACKET" = R1 ] && [ -z "$MEDIANS" ] && [ "$PRINT" = 0 ]; then
   echo "packet.sh: R1 holds against HS1's medians on this PC (K11): --medians FILE or HS1_MEDIANS=FILE" >&2; exit 2
 fi
@@ -98,16 +101,18 @@ fi
 # the packet's log, tar and sha256: beside the campaign for P2-2 (a campaign directory holds nothing that is not the campaign's),
 # in the step's output directory otherwise
 case "$PACKET" in P2-2) LOGDIR=$CAMPAIGN.packets;; *) LOGDIR=$(outputs "$PACKET")/packets;; esac
-PRECHECK="$PY bench/packets/prechecks.py --packet $PACKET --session $SESSION --minutes $PACKET_MIN${RECORD:+ --record $RECORD}${COMMIT:+ --commit $COMMIT}"
+PRECHECK="$PY bench/packets/prechecks.py --packet $PACKET --session $SESSION --minutes $PACKET_MIN --commit ${COMMIT:-COMMIT}${RECORD:+ --record $RECORD}"
 
 if [ "$PRINT" = 1 ]; then
   echo "== packet $PACKET: $(what "$PACKET") =="
   echo "session     $SESSION"
   echo "budget      $BUDGET_MIN min: no run starts after it (--stop-after the minutes left), so the packet ends within $PACKET_MIN min"
   echo "pre-checks  $PRECHECK"
-  echo "            (clean tree at the pinned commit; kernel, MemTotal, CPU model and VirtualBox host version the session's, before its"
+  echo "            (clean tree at the pinned commit, and its frozen hashes: bench/, eval/, the testbed's files and the record hash to"
+  echo "            its blobs; kernel, MemTotal, CPU model and VirtualBox host version the session's, before its"
   echo "            first step the laptop's (D-096), all four reported; uptime 1800 s, chrony within H4, no apt, dpkg or daily timer due"
-  echo "            within $PACKET_MIN + 10 min, no package job, no testbed left, no other process above 5 % of a CPU)"
+  echo "            within $PACKET_MIN + 10 min, no package job, no testbed left, no other process above 5 % of a CPU; each check fails"
+  echo "            closed on a command that failed or printed nothing)"
   if [ "$PACKET" = R1 ]; then
     echo "reference   HS1's medians ${MEDIANS:-HS1_MEDIANS} on this PC: its sha256 printed by the hold and kept in $SESSION/speed_reference.json"
   fi

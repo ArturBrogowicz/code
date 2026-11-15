@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -23,6 +24,7 @@ import sim_host as S
 SCRIPT = os.path.join(REPO, "bench", "packets", "packet.sh")
 GOLDEN = os.path.join(HERE, "golden", "packets")
 NOW = datetime.datetime(2026, 11, 16, 9, 0, tzinfo=datetime.UTC).timestamp()
+HEAD = "abcdef0" + "1" * 33                 # a commit id as `git rev-parse HEAD` prints it
 
 
 def script(*args):
@@ -70,10 +72,15 @@ class ScriptTest(unittest.TestCase):
         r = script("R4", "--session", "/S")
         self.assertEqual(r.returncode, 2)
         self.assertIn("R4 runs on the new frozen record: --record FILE", r.stderr)
+        r = script("R2a", "--session", "/S")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("a packet runs at a pinned commit, which its pre-checks hold the tree and the frozen hashes to: --commit SHA", r.stderr)
         if os.geteuid() != 0:
-            r = script("R2a", "--session", "/S")
+            r = script("R2a", "--session", "/S", "--commit", HEAD)
             self.assertEqual(r.returncode, 2)
             self.assertIn("the steps need root", r.stderr)
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            PC.main(["--packet", "R2a", "--session", "/S"])           # the pre-checks need the pinned commit too
 
 
 def tracking(offset=0.000123, leap="Normal"):
@@ -82,9 +89,73 @@ def tracking(offset=0.000123, leap="Normal"):
 
 class PrecheckTest(unittest.TestCase):
     def test_tree(self):
-        self.assertEqual(PC.check_tree("", "abcdef0123", "abcdef0"), [])
-        self.assertEqual(PC.check_tree(" M bench/calibrate.py\n", "abc", None), ["uncommitted change: M bench/calibrate.py"])
-        self.assertEqual(PC.check_tree("", "123456789abc", "abcdef0"), ["HEAD is 123456789abc, the packet is pinned to abcdef0"])
+        self.assertEqual(PC.check_tree("", HEAD, "abcdef0"), [])
+        self.assertEqual(PC.check_tree(" M bench/calibrate.py\n", HEAD, "abcdef0"), ["uncommitted change: M bench/calibrate.py"])
+        self.assertEqual(PC.check_tree("", "123456789abc" + "0" * 28, "abcdef0"), ["HEAD is 123456789abc, the packet is pinned to abcdef0"])
+
+    def test_a_command_that_failed_or_printed_nothing_is_a_problem_never_a_pass(self):
+        """T-105 F5: git, systemctl, bpftool, ps and pidstat each print something when they work; nothing (or a failure, None) is a
+        problem, and a packet needs its pinned commit."""
+        self.assertEqual(PC.check_tree("", "", "abc1234"), ["HEAD cannot be read (git printed '')"])
+        self.assertEqual(PC.check_tree(None, HEAD, "abcdef0"), ["git status failed: whether the tree is clean cannot be read"])
+        for commit in (None, "", "abc", "not-a-sha"):
+            with self.subTest(commit=commit):
+                self.assertEqual(PC.check_tree("", HEAD, commit),
+                                 [f"no pinned commit ({commit!r}): a packet runs at one (--commit SHA, 7 to 40 hex digits)"])
+        for text in (None, "", "  \n"):
+            with self.subTest(timers=text):
+                self.assertEqual(PC.check_timers(text, NOW, 90), ["systemctl list-timers printed nothing: it cannot be read"])
+            with self.subTest(bpftool=text):
+                self.assertEqual(PC.check_testbed_free("", "bash\n", text), ["bpftool -j prog show printed nothing: it cannot be read"])
+            with self.subTest(ps=text):
+                self.assertEqual(PC.check_jobs(text), ["ps printed nothing: the running jobs cannot be read"])
+                self.assertEqual(PC.check_testbed_free("", text, "[]"), ["ps printed nothing: the processes cannot be read"])
+            with self.subTest(pidstat=text):
+                self.assertEqual(PC.check_quiet(text), ["pidstat gave no sample: whether the host is quiet cannot be read"])
+        self.assertEqual(PC.check_timers("Failed to connect to bus", NOW, 90),
+                         ["systemctl list-timers did not print JSON: 'Failed to connect to bus'"])
+        self.assertEqual(PC.check_testbed_free(None, "bash\n", "[]"), ["ip netns list failed: the namespaces cannot be read"])
+        self.assertEqual(PC.check_quiet("Linux 7.0.0-42-generic (h) \t2026-11-16 \t_x86_64_\t(8 CPU)\n\n"),
+                         ["pidstat gave no sample: whether the host is quiet cannot be read"], "a header and no sample")
+        self.assertEqual(PC.check_chrony(None, None), ["chronyc gave no tracking record"])
+        with mock.patch.object(PC.subprocess, "run", return_value=subprocess.CompletedProcess([], 128, "", "fatal: not a git repository")):
+            self.assertIsNone(PC._sh(["git", "status"]), "a failed command is not empty output")
+
+    def test_the_frozen_hashes(self):
+        """5.2's frozen hashes match (T-105 F5): every file of the pinned commit under bench/, eval/ and the testbed's own files, and the
+        frozen record, hashes here to the commit's blob."""
+        blob, other = "1" * 40, "2" * 40
+        self.assertEqual(PC.check_frozen({"bench/a.py": blob, "bench/r.json": other}, {"bench/a.py": blob, "bench/r.json": other},
+                                         "bench/r.json"), [])
+        self.assertEqual(PC.check_frozen({"bench/a.py": blob}, {"bench/a.py": other}),
+                         ["bench/a.py is 222222222222 here, 111111111111 at the pinned commit"])
+        self.assertEqual(PC.check_frozen({"bench/a.py": blob}, {}), ["bench/a.py is missing here, 111111111111 at the pinned commit"])
+        self.assertEqual(PC.check_frozen({"bench/a.py": blob}, {"bench/a.py": blob}, "/tmp/r.json"),
+                         ["the record /tmp/r.json is not a file of the pinned commit: a frozen record is committed before it is used"])
+        for listing in (None, {}):
+            self.assertEqual(PC.check_frozen(listing, {}), ["git ls-tree of the pinned commit listed nothing: the frozen hashes cannot be read"])
+        self.assertEqual(PC.FROZEN, ("bench", "eval", "nginx.conf", "nginx_unprotected.conf", "control_plane.py", "xdp_ddos_filter.c",
+                                     "test_distributed_suite.py"))
+
+    def test_the_frozen_hashes_through_git(self):
+        """parse_ls_tree and frozen_here on a small repository: they agree on a committed file and see a change to it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            git = ["git", "-c", f"safe.directory={tmp}", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-C", tmp]
+            os.makedirs(os.path.join(tmp, "bench"))
+            with open(os.path.join(tmp, "bench", "a.py"), "w", encoding="utf-8") as fh:
+                fh.write("A = 1\n")
+            for argv in (["init", "-q"], ["add", "bench/a.py"], ["commit", "-q", "-m", "x"]):
+                subprocess.run([*git, *argv], check=True, capture_output=True)
+            head = PC._sh([*git, "rev-parse", "HEAD"]).strip()
+            with mock.patch.object(PC, "REPO", tmp):
+                at = PC.parse_ls_tree(PC._sh([*git, "ls-tree", "-r", head, "--", *PC.FROZEN]))
+                self.assertEqual(sorted(at), ["bench/a.py"])
+                self.assertEqual(PC.check_frozen(at, PC.frozen_here(git, at)), [])
+                with open(os.path.join(tmp, "bench", "a.py"), "a", encoding="utf-8") as fh:
+                    fh.write("B = 2\n")
+                self.assertEqual(len(PC.check_frozen(at, PC.frozen_here(git, at))), 1)
+                os.remove(os.path.join(tmp, "bench", "a.py"))
+                self.assertIn("missing here", PC.check_frozen(at, PC.frozen_here(git, at))[0])
 
     def test_host(self):
         here = {"uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP x86_64", "mem_mib": 7422,

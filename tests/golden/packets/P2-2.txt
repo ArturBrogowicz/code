@@ -1,10 +1,12 @@
 == packet P2-2: AP-9 rebuilt: the MVP campaign, warm-up + 10 blocks of C, Cp, U, M_xdp, over two or three packets ==
 session     /S
 budget      85 min: no run starts after it (--stop-after the minutes left), so the packet ends within 90 min
-pre-checks  ./venv/bin/python bench/packets/prechecks.py --packet P2-2 --session /S --minutes 90 --record /R
-            (clean tree at the pinned commit; kernel, MemTotal, CPU model and VirtualBox host version the session's, before its
+pre-checks  ./venv/bin/python bench/packets/prechecks.py --packet P2-2 --session /S --minutes 90 --commit COMMIT --record /R
+            (clean tree at the pinned commit, and its frozen hashes: bench/, eval/, the testbed's files and the record hash to
+            its blobs; kernel, MemTotal, CPU model and VirtualBox host version the session's, before its
             first step the laptop's (D-096), all four reported; uptime 1800 s, chrony within H4, no apt, dpkg or daily timer due
-            within 90 + 10 min, no package job, no testbed left, no other process above 5 % of a CPU)
+            within 90 + 10 min, no package job, no testbed left, no other process above 5 % of a CPU; each check fails
+            closed on a command that failed or printed nothing)
 detached    setsid nohup bash bench/packets/packet.sh P2-2 --stage ... > /C.packets/P2-2_<UTC>.log 2>&1 < /dev/null &
 step 1      ./venv/bin/python bench/hostcheck.py speed-hold --calibration /R --reference /R --lo -0.10 --hi 0.10 --max-min 30
 step 2      ./venv/bin/python bench/gate_campaign.py run bench/scenarios/cheap_static_flood_hg4.json --calibration /R --modes xdp --out /C --stop-after REMAINING

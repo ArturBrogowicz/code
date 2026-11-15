@@ -198,6 +198,8 @@ CLOCK_LINES = ("Forward time jump", "Can't synchronise", "Long readout interval"
 STAGED_SCENARIO = "capacity"
 H3_EXEMPT = "H3 does not judge a staged capacity run (D-099, 2026-11-14, pre-data); its slip is recorded, not judged"
 INVALID_IN_A_ROW, INVALID_IN_PACKET = 3, 4      # a packet pauses ("host unfit") at the third host-invalid run in a row or the fourth
+COVER_SLACK_S = 5.0                 # H7: a monitor's first sample in a run's window at most one interval plus this after its start
+                                    # (T-105 F6; the lateness H5's 10-s line allows mpstat, one 5-s interval)
 HOLD_EVERY_S, HOLD_MAX_MIN = 300.0, 30.0        # the speed hold after a host-invalid run: a probe pair every 5 min, at most 30 min
 ASIDE = ".hostinvalid"
 MONITOR_ENV = {"TZ": "UTC", "LC_ALL": "C", "S_TIME_FORMAT": "ISO"}
@@ -481,8 +483,11 @@ def rule_other_cpu(pidstat, t_start, t_end):
 
 
 def rule_evidence(records, alive, t_start, t_end):
-    """H7: every monitor alive when the run is judged, and the records of the sampling ones cover the window to their resolution (a
-    sample no later than one interval after its start and none earlier than one interval before its end). Fails closed."""
+    """H7: every monitor alive when the run is judged, and the records of the sampling ones cover the window to their resolution: a
+    sample at or after its start and no later than one interval plus COVER_SLACK_S after it (an earlier sample, of a run before, does
+    not do: T-105 F6), and one no earlier than one interval before its end. A window shorter than one interval plus the slack (a smoke
+    test's; a run of the programme lasts about two minutes) may have no sample of its own: there the first needs one no earlier than
+    one interval plus the slack before its end. Fails closed."""
     reasons = []
     for name, ok in sorted((alive or {}).items()):
         if not ok:
@@ -491,7 +496,12 @@ def rule_evidence(records, alive, t_start, t_end):
                                ("chrony", records.get("chrony"), CHRONY_S)):
         if times is None:
             reasons.append(f"H7: no {name} record")
-        elif not any(t <= t_start + every for t in times) or not any(t >= t_end - every for t in times):
+        elif not any(min(t_start, t_end - every - COVER_SLACK_S) <= t <= t_start + every + COVER_SLACK_S for t in times):
+            reasons.append(f"H7: the {name} record has no sample in the first {every + COVER_SLACK_S:g} s of the run (from {utc(t_start)})"
+                           if t_end - t_start >= every + COVER_SLACK_S else
+                           f"H7: the {name} record has no sample in the last {every + COVER_SLACK_S:g} s before the end of this short run "
+                           f"({utc(t_end)})")
+        elif not any(t >= t_end - every for t in times):
             reasons.append(f"H7: the {name} record does not cover the run ({utc(t_start)} to {utc(t_end)})")
     if records.get("journal") is None:
         reasons.append("H7: no journal record")

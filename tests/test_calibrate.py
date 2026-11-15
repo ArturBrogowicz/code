@@ -1554,6 +1554,27 @@ class SimulatedCalibrationTest(unittest.TestCase):
         dest = self.copy_session()
         self.assertEqual({**self.freeze(dest), "created_utc": 0}, {**self.frozen, "created_utc": 0} | {"sha256": self.freeze(dest)["sha256"]})
 
+    def test_a_session_in_which_no_family_has_a_knee_is_not_frozen_and_the_finding_is_said(self):
+        """T-105 F7: when no family has a knee, freeze refuses with the design's finding, "cannot harm this server within the generator
+        limit" (7.2 step 4), reported from the screenings, rather than freezing a record whose drift check has nothing to confirm."""
+        dest = self.copy_session()
+        for family in K.FAMILY_SPECS:
+            self.edit(dest, f"ladder_{family}", "ladder.json", change=lambda d: d["knee"].update(level=None))
+        self.edit(dest, "reference", "reference.json", change=lambda d: d.update(knees={}))
+        with self.assertRaisesRegex(K.CalibrationStop, r"^no family has a knee: every family cannot harm this server within the generator "
+                                                       r"limit \(design 7.2 step 4\).*cheap_static_flood: no level up to [0-9.]+ passed \(.*"
+                                                       r"ladder_cheap_static_flood/ladder.json\).*No record is frozen"):
+            self.freeze(dest)
+
+    def test_a_check_on_means_with_no_family_or_a_failed_legit_probe_is_not_ok(self):
+        """T-105 F7: all() of no family is True; a check that confirms no family, or whose legit probe failed, is never ok."""
+        ref = self.frozen["drift_reference"]["legit"]
+        good = {"Q": ref["mean_q_pct"], "p95_s": 2 ** ref["mean_log2_p95"]}
+        self.assertTrue(K.judge_rounds(self.frozen, [{"legit": good, "attacks": {}}] * 3, [])["check"]["legit"]["ok"])
+        self.assertFalse(K.judge_rounds(self.frozen, [{"legit": good, "attacks": {}}] * 3, [])["ok"], "no family confirms nothing")
+        bad = {**good, "Q": ref["mean_q_pct"] - 50.0}
+        self.assertFalse(K.judge_rounds(self.frozen, [{"legit": bad, "attacks": {}}] * 3, [])["ok"])
+
     def test_a_smoke_step_cannot_be_frozen(self):
         dest = self.copy_session()
         self.edit(dest, "capacity", "capacity.json", change=lambda d: d.update(smoke=True))

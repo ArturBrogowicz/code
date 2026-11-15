@@ -258,7 +258,7 @@ class PacketTest(unittest.TestCase):
                               env={**clean, **(env or {})})
 
     def test_r1_needs_the_medians_and_takes_them_from_the_command_line_or_the_environment(self):
-        r = self.script("R1", "--session", "/S")
+        r = self.script("R1", "--session", "/S", "--commit", "abcdef0")       # the pinned commit is asked for first (K14)
         self.assertEqual(r.returncode, 2)
         self.assertIn("packet.sh: R1 holds against HS1's medians on this PC (K11): --medians FILE or HS1_MEDIANS=FILE", r.stderr)
         r = self.script("R1", "--print", "--session", "/S", "--medians", "/M")
@@ -269,7 +269,7 @@ class PacketTest(unittest.TestCase):
         r = self.script("R1", "--print", "--session", "/S", env={"HS1_MEDIANS": "/E"})
         self.assertIn("--medians /E --session /S", r.stdout)
         if os.geteuid() != 0:
-            r = self.script("R1", "--session", "/S", env={"HS1_MEDIANS": "/E"})
+            r = self.script("R1", "--session", "/S", "--commit", "abcdef0", env={"HS1_MEDIANS": "/E"})
             self.assertEqual(r.returncode, 2)
             self.assertIn("the steps need root", r.stderr, "past the medians' check")
         r = self.script("R2a", "--print", "--session", "/S")

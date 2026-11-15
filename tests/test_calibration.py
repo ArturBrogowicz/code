@@ -257,6 +257,15 @@ class ReferenceV2Test(unittest.TestCase):
         old_shape = C.problems_of({**placeholder(), "schema": 2, "drift_reference": F.SAMPLE_DRIFT})
         self.assertTrue(any("(schema 2)" in line for line in old_shape), "a single-run reference is not schema 2's")
 
+    def test_a_schema_2_reference_with_no_family_is_refused(self):
+        """T-105 F7: a check on means with no family would confirm nothing and pass; such a reference is never a record's."""
+        ref = C.drift_reference_of(100.0, F.SAMPLE_ROUNDS_LEGIT, {}, placeholder()["gate"])
+        self.assertEqual(C._drift_v2_problems(ref, placeholder()["gate"]),
+                         ["drift_reference.attack: at least one family (a session in which no family has a knee is not frozen)"])
+        self.assertTrue(C.problems_of({**placeholder(), "schema": 2, "drift_reference": ref}))
+        with self.assertRaisesRegex(C.RecordError, "at least one family"):
+            C.freeze({**placeholder(), "schema": 2}, host=F.SAMPLE_HOST_V2, drift_reference=ref)
+
     def test_n_below_5_or_seeds_other_than_the_drifts_are_refused(self):
         four = [r for r in F.SAMPLE_ROUNDS_LEGIT[:4]]
         with self.assertRaisesRegex(ValueError, "5 rounds, no more and no fewer"):

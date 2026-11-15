@@ -715,6 +715,16 @@ def freeze_problems(session, template):
     return reasons
 
 
+def no_knee_text(directory, ladders):
+    """What freeze says when no family has a knee (T-105 F7): the design's finding "cannot harm this server within the generator
+    limit" (7.2 step 4, 8.3) for every family, reported from the screenings, and why no record is frozen from it."""
+    said = "; ".join(f"{f}: no level up to {max(ladder.get('levels_run') or [0]):g} passed "
+                     f"({os.path.join(directory, f'ladder_{f}', 'ladder.json')})" for f, ladder in sorted(ladders.items()))
+    return ("no family has a knee: every family cannot harm this server within the generator limit (design 7.2 step 4), a finding "
+            f"of the screenings, reported from them ({said}). No record is frozen: its drift check would have no family to "
+            "confirm (a drift reference of schema 2 needs one)")
+
+
 def freeze_step(directory, template, env, created_utc=None):
     """The frozen record from a session's directories: the template with the measured costs, capacity, knees, drift reference
     and host. Reads and writes nothing; calibration.freeze checks the result."""
@@ -723,6 +733,8 @@ def freeze_step(directory, template, env, created_utc=None):
     if problems:
         raise CalibrationStop("cannot freeze: " + "; ".join(problems))
     knees = {f: ladder["knee"]["level"] for f, ladder in session["ladders"].items()}
+    if all(k is None for k in knees.values()):
+        raise CalibrationStop(no_knee_text(directory, session["ladders"]))
     draft = draft_record(template, session["origin"], session["capacity"], knees)
     if session["reference"]["rho_rps"] != C.rho_rps(draft):
         raise CalibrationStop(f"the reference was taken at rho {session['reference']['rho_rps']:g}, the capacity gives "
@@ -802,7 +814,8 @@ def judge_rounds(cal, rows, families):
                                 {f: [row["attacks"][f] for row in rows] for f in families})
     reasons = [f"legit probe: {r}" for r in check["legit"]["reasons"]]
     reasons += [f"{f}: {r}" for f in families for r in check["families"][f]["reasons"]]
-    return {"check": check, "confirmed": check["confirmed"], "ok": all(check["confirmed"].values()), "reasons": reasons}
+    ok = check["legit"]["ok"] and bool(check["confirmed"]) and all(check["confirmed"].values())     # no family confirms nothing (F7)
+    return {"check": check, "confirmed": check["confirmed"], "ok": ok, "reasons": reasons}
 
 
 def judge_drift(cal, recorded):
