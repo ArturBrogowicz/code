@@ -560,10 +560,15 @@ def ladder_session(runner, cal, cal_path, family, out, under, levels=None, timel
         raise CalibrationStop(f"family: one of {', '.join(FAMILY_SPECS)}, got {family!r}")
     scn = ladder_scenario(family)
     usable, left_out = runnable_levels(scn, cal)
-    if levels is not None:
-        usable = [lvl for lvl in sorted(levels) if lvl in usable]
-    if not usable:
+    if not usable:                              # the ladder's own levels: the step's rule (NOT FROZEN)
         raise StepRuleStop(f"no level of {family} can be run within the generator's limits: {left_out}")
+    if levels is not None:                      # a smoke test's --levels: a usage error when none is one of them (T-117 L-7)
+        chosen = [lvl for lvl in sorted(levels) if lvl in usable]
+        if not chosen:
+            raise CalibrationStop(f"--levels {', '.join(f'{lvl:g}' for lvl in sorted(levels))}: none is a level of {family}'s ladder "
+                                  f"that the generator can carry ({', '.join(f'{lvl:g}' for lvl in usable)}): a smoke test takes "
+                                  "the ladder's own levels")
+        usable = chosen
     seed = SEEDS["ladder"] + sorted(FAMILY_SPECS).index(family)
     sequence = ladder_sequence(usable, f"{family}|{seed}")
     base = os.path.join(out, f"ladder_{family}")

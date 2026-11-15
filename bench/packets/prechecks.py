@@ -2,7 +2,7 @@
 command printed, so that it can be tried on fixtures, and a command line that runs the commands on this host and prints one line a
 check. Nothing here starts, stops or changes anything; bpftool and the journal need root to see everything.
 
-    python3 bench/packets/prechecks.py --packet R2a --session DIR --minutes 90 --commit SHA [--record FILE]
+    python3 bench/packets/prechecks.py --packet R2a --session DIR --minutes 180 --commit SHA [--record FILE]
 
 Every check fails closed (T-105 F5): a command that failed or printed nothing where it always prints something is a problem, never a
 clean reading.
@@ -253,7 +253,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--packet", required=True, choices=PACKETS)
     ap.add_argument("--session", required=True)
-    ap.add_argument("--minutes", type=float, default=90.0)
+    ap.add_argument("--minutes", type=float, default=180.0, help="how late the packet can end: packet.sh's PACKET_MIN (T-117 N-2)")
     ap.add_argument("--record", default=None, help="the frozen record a packet after the freeze uses")
     ap.add_argument("--commit", required=True, help="the pinned commit (a packet runs at one: T-105 F5)")
     args = ap.parse_args(argv)

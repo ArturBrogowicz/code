@@ -9,9 +9,11 @@
 # PACKET: R1 (speed hold against HS1's medians on this PC, K11: --medians FILE or HS1_MEDIANS=FILE; origin; capacity), R2a, R2b,
 # R2c (one family's ladder each), R3 (the
 # reference), R4 (the confirmation, a later window), P2-1 (the smoke runs of HG4 at twice the new knee), P2-2 (the MVP campaign; it
-# takes two or three packets). Stop it with `kill -TERM` of the pid the terminal prints, the detached stage's (T-115 H-2): the stage
-# passes the TERM to the step's process, waits for it to end (the step's own teardown takes the testbed down), starts no further step,
-# and still writes the tar, its sha256 and the summary ("stopped by TERM"); the same command resumes. (The step runs as `cmd &` in a
+# takes two or three packets). Stop it with `sudo kill -TERM` of the pid the terminal prints, the detached stage's (T-115 H-2; the stage
+# runs as root, so a kill without sudo is refused: T-117 N-1): the stage passes the TERM to the step's process, waits for it to end (the
+# step's own teardown takes the testbed down), starts no further step, and still writes the tar, its sha256 and the summary ("stopped by
+# TERM" when the step ended on it); the same command resumes. No run starts after 85 min; the packet can end about 3 h after its start
+# at worst (PACKET_MIN below, T-117 N-2). (The step runs as `cmd &` in a
 # non-interactive bash, which starts it with SIGINT ignored; each Python main puts the default handler back, so an INT to the step's
 # process stops it too, but TERM to the stage is the documented stop: T-105 F3.)
 set -euo pipefail
@@ -42,8 +44,12 @@ done
 case "$SESSION" in /*) ;; *) echo "packet.sh: --session takes an absolute path (the stage runs from the repository's root), got '$SESSION'" >&2; exit 2;; esac
 case "$CAMPAIGN" in /*) ;; *) echo "packet.sh: --campaign takes an absolute path (the stage runs from the repository's root), got '$CAMPAIGN'" >&2; exit 2;; esac
 
-BUDGET_MIN=85                       # no run starts after 85 min, so the run in progress ends the packet within 90 (6.2)
-PACKET_MIN=90
+BUDGET_MIN=85                       # no run starts after 85 min (--stop-after the minutes left, K6)
+# How late the packet can end (T-117 N-2): a run that starts just before 85 min may be the first run of its step, which takes the full gate
+# (uptime and load up to --wait-gate 30 min, then the timer gate up to 30 min more), then runs (2-5 min), and if it is host-invalid the
+# hold after it takes up to 30 min before the budget is checked again: 85 + 30 + 30 + 5 + 30 = 180 min, about 3 h. The pre-checks look
+# for timers due within it plus 10 min.
+PACKET_MIN=180
 PY="./venv/bin/python -B"           # root writes no bytecode into the repository (T-105 F10); its children inherit this:
 export PYTHONDONTWRITEBYTECODE=1
 # R1's paired check of the two probe contexts (T-105 F8): HS1's probe is not in this tree, so the packet names it as a manual step
@@ -116,7 +122,9 @@ PRECHECK="$PY bench/packets/prechecks.py --packet $PACKET --session $SESSION --m
 if [ "$PRINT" = 1 ]; then
   echo "== packet $PACKET: $(what "$PACKET") =="
   echo "session     $SESSION"
-  echo "budget      $BUDGET_MIN min: no run starts after it (--stop-after the minutes left), so the packet ends within $PACKET_MIN min"
+  echo "budget      $BUDGET_MIN min: no run starts after it (--stop-after the minutes left). The run in progress can end the packet up to"
+  echo "            $PACKET_MIN min after its start at worst: the first run of a step takes the full gate (uptime and load up to 30 min, then"
+  echo "            the timer up to 30 min more), the run 2-5 min, a host-invalid run's hold up to 30 min: 85 + 30 + 30 + 5 + 30 = $PACKET_MIN"
   echo "pre-checks  $PRECHECK"
   echo "            (clean tree at the pinned commit, and its frozen hashes: bench/, eval/, the testbed's files and the record hash to"
   echo "            its blobs; kernel, MemTotal, CPU model and VirtualBox host version the session's, before its"
@@ -131,11 +139,12 @@ if [ "$PRINT" = 1 ]; then
   n=1
   while IFS= read -r line; do echo "step $n      $line"; n=$((n + 1)); done < <(steps "$PACKET")
   echo "after       tar -czf $LOGDIR/${PACKET}_<UTC>.tar.gz $(outputs "$PACKET"); sha256sum of it into ${PACKET}_<UTC>.sha256"
-  echo "stop        kill -TERM <the stage's pid, printed at the start>: the TERM goes on to the step's process, the stage waits for"
+  echo "stop        sudo kill -TERM <the stage's pid, printed at the start>: the TERM goes on to the step's process, the stage waits for"
   echo "            its teardown, starts no further step and still writes the tar, the sha256 and the summary; the same command resumes"
   echo "summary     one line at the end of the log: PACKET $PACKET <done|paused|host unfit|not frozen|stopped|stopped by TERM> (exit N):"
   echo "            runs made, host-invalid. not frozen (exit 7) is a step's own rule (prereg 6); stopped (2) is a refusal of the host"
-  echo "            or the environment, unsound twice or a defect: no reading, the log's last error line says which"
+  echo "            or the environment, unsound twice or a defect: no reading, the log's last error line says which. stopped by TERM: the"
+  echo "            step ended on the TERM (130 or 143); a TERM the step did not end on adds a note to the step's own state"
   exit 0
 fi
 
@@ -190,31 +199,38 @@ step_wait() {
 # done 0, paused 4 (the budget), host unfit 5, not frozen 7 (a step's own rule, calibrate.py's StepRuleStop: T-115 H-1), stopped
 # otherwise (2: a refusal of the host or the environment, a run unsound twice or a defect; 1, 3, 130 and others)
 stage() {
-  local start stamp mark code=0 line left cmd stopped out tar made invalid state
+  local start stamp mark code=0 line left cmd stopped out tar made invalid state note="" i n
+  local -a lines
   trap 'on_stop TERM' TERM
   trap 'on_stop INT' INT
   start=$(date +%s)
   stamp=$(date -u +%Y%m%dT%H%M%SZ)
   mark=$(mktemp)
-  echo "packet $PACKET stage, pid $$, $(date -u +%FT%TZ); kill -TERM $$ stops it"
+  echo "packet $PACKET stage, pid $$, $(date -u +%FT%TZ); sudo kill -TERM $$ stops it"
   [ "$PACKET" = R1 ] && echo "paired check: $PAIRED"
-  while IFS= read -r line; do
-    if [ -n "$STOP" ]; then echo "$(date -u +%FT%TZ) stopped by $STOP: not started: $line"; break; fi
+  mapfile -t lines < <(steps "$PACKET")
+  n=${#lines[@]}
+  for (( i = 0; i < n; i++ )); do
+    line=${lines[i]}
+    [ -z "$STOP" ] || break
     left=$(budget_left "$start" "$(date +%s)") || { code=4; echo "the budget is used before: $line"; break; }
     cmd=${line//REMAINING/$left}
     echo "$(date -u +%FT%TZ) running: $cmd"
     set +e
     $cmd & STEP_PID=$!
-    echo "the step's process: $STEP_PID (the packet stops with kill -TERM $$, the stage)"
+    echo "the step's process: $STEP_PID (the packet stops with sudo kill -TERM $$, the stage)"
     [ -z "$STOP" ] || on_stop "$STOP"                       # a TERM that came before the step's pid was known
     step_wait "$STEP_PID"; code=$?
     set -e
     STEP_PID=""
     echo "$(date -u +%FT%TZ) exit $code"
-    [ -z "$STOP" ] || break
+    [ -z "$STOP" ] || { i=$(( i + 1 )); break; }
     [ "$code" = 0 ] || break
-  done < <(steps "$PACKET")
+  done
   stopped=$STOP
+  if [ -n "$stopped" ]; then
+    for (( ; i < n; i++ )); do echo "$(date -u +%FT%TZ) stopped by $stopped: not started: ${lines[i]}"; done
+  fi
   if [ -n "$stopped" ] && [ -z "$STOP_STEP" ]; then code=$(( 128 + $(kill -l "$stopped") )); fi
   out=$(outputs "$PACKET")
   tar="$LOGDIR/${PACKET}_${stamp}.tar.gz"
@@ -222,9 +238,14 @@ stage() {
   sha256sum "$tar" > "${tar%.tar.gz}.sha256" || true
   made=$( { find "$out" -name DONE -newer "$mark" -not -path '*hostinvalid*' 2>/dev/null || true; } | wc -l)
   invalid=$( { find "$out" -maxdepth 6 -type d -name '*.hostinvalid*' -newer "$mark" 2>/dev/null || true; } | wc -l)
-  if [ -n "$stopped" ]; then state="stopped by $stopped"
-  else case "$code" in 0) state=done;; 4) state=paused;; 5) state="host unfit";; 7) state="not frozen";; *) state=stopped;; esac; fi
-  echo "PACKET $PACKET $state (exit $code): runs made $made, host-invalid $invalid; $(( ($(date +%s) - start) / 60 )) min; tar $tar, sha256 $(cut -c1-16 "${tar%.tar.gz}.sha256")"
+  case "$code" in 0) state=done;; 4) state=paused;; 5) state="host unfit";; 7) state="not frozen";; *) state=stopped;; esac
+  if [ -n "$stopped" ]; then              # "stopped by TERM" only when the step ended on it (T-117 L-1): a TERM that came in the
+    case "$code" in                       # executor's shielded teardown is ignored there, and the step may end otherwise
+      130|143) state="stopped by $stopped";;
+      *) note=" (a $stopped was received and forwarded; the step was not interrupted: send it again)";;
+    esac
+  fi
+  echo "PACKET $PACKET $state (exit $code)$note: runs made $made, host-invalid $invalid; $(( ($(date +%s) - start) / 60 )) min; tar $tar, sha256 $(cut -c1-16 "${tar%.tar.gz}.sha256")"
   rm -f "$mark"
   return "$code"
 }
@@ -244,8 +265,8 @@ if [ "$STAGE" = 0 ]; then
     sleep 0.1
   done
   echo "packet $PACKET started (pid $STAGE_PID), detached; its log: $LOG"
-  echo "stop it with kill -TERM $STAGE_PID: the step's process gets the TERM and takes the testbed down, no further step starts, and"
-  echo "the tar, its sha256 and the summary are still written; the same command resumes"
+  echo "stop it with sudo kill -TERM $STAGE_PID: the step's process gets the TERM and takes the testbed down, no further step starts,"
+  echo "and the tar, its sha256 and the summary are still written; the same command resumes"
   exit 0
 fi
 

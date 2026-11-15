@@ -1656,6 +1656,20 @@ class SimulatedCalibrationTest(unittest.TestCase):
             K.ladder_session(mock.Mock(settings={}), self.draft, C.PLACEHOLDER, "nothing", self.tmp.name, self.under)
         self.assertIs(type(ctx.exception), K.CalibrationStop, "a family that is not one is a usage error")
 
+    def test_smoke_levels_outside_the_ladder_are_a_usage_error_not_the_screenings_rule(self):
+        """T-117 L-7: a smoke test's --levels of which none is a runnable level of the ladder is a usage error (CalibrationStop, exit 2);
+        it raised StepRuleStop (exit 7, NOT FROZEN). packet.sh never passes --levels; the ladder's own rule is unchanged."""
+        with self.assertRaises(K.CalibrationStop) as ctx:
+            K.ladder_session(mock.Mock(settings={}), self.draft, C.PLACEHOLDER, "cheap_static_flood", self.tmp.name, self.under,
+                             levels=[0.123, 9999.0])
+        self.assertIs(type(ctx.exception), K.CalibrationStop)
+        self.assertIn("--levels 0.123, 9999: none is a level of cheap_static_flood's ladder that the generator can carry", str(ctx.exception))
+        dest = self.copy_session()
+        shutil.rmtree(os.path.join(dest, "ladder_costly_search_flood"))
+        code, _, err = self.cli("ladder", "--out", dest, "--family", "costly_search_flood", "--levels", "0.123", "--simulate")
+        self.assertEqual(code, K.EXIT_STOPPED, err)
+        self.assertIn("CalibrationStop: --levels 0.123: none is a level", err)
+
     def test_a_check_on_means_with_no_family_or_a_failed_legit_probe_is_not_ok(self):
         """T-105 F7: all() of no family is True; a check that confirms no family, or whose legit probe failed, is never ok."""
         ref = self.frozen["drift_reference"]["legit"]

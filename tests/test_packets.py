@@ -50,13 +50,24 @@ class ScriptTest(unittest.TestCase):
                 with open(os.path.join(GOLDEN, packet + ".txt"), encoding="utf-8") as fh:
                     self.assertEqual(r.stdout, fh.read())
 
-    def test_every_step_that_makes_runs_has_the_packets_budget_and_the_budget_is_85_of_90_minutes(self):
+    def test_every_step_that_makes_runs_has_the_packets_budget_of_85_minutes_and_the_worst_case_is_180(self):
+        """T-117 N-2: no run starts after 85 min, but the run in progress can end the packet about 3 h after its start: the first run's
+        full gate (30 + 30 min), the run, a host-invalid run's hold (30 min). The pre-checks look for timers due within that + 10 min
+        (it said "ends within 90 min", and they looked 100 min ahead)."""
+        with open(SCRIPT, encoding="utf-8") as fh:
+            script_text = fh.read()
+        self.assertIn("\nBUDGET_MIN=85 ", script_text)
+        self.assertIn("\nPACKET_MIN=180\n", script_text)
+        self.assertNotIn("within 90", script_text)
         for packet in PC.PACKETS:
             with open(os.path.join(GOLDEN, packet + ".txt"), encoding="utf-8") as fh:
                 text = fh.read()
             with self.subTest(packet=packet):
-                self.assertIn("budget      85 min", text)
-                self.assertIn("ends within 90 min", text)
+                self.assertIn("budget      85 min: no run starts after it (--stop-after the minutes left). The run in progress can end the "
+                              "packet up to\n            180 min after its start at worst", text)
+                self.assertIn("a host-invalid run's hold up to 30 min: 85 + 30 + 30 + 5 + 30 = 180\n", text)
+                self.assertIn(f"prechecks.py --packet {packet} --session /S --minutes 180 ", text)
+                self.assertIn("within 180 + 10 min", text)
                 self.assertIn("bench/hostcheck.py speed-hold", text)
                 for line in text.splitlines():
                     if line.startswith("step") and ("calibrate.py" in line or "gate_campaign.py" in line) and " origin " not in line:
@@ -279,10 +290,16 @@ class StopTest(unittest.TestCase):
         with open(SCRIPT, encoding="utf-8") as fh:
             text = fh.read()
         self.assertNotIn("kill -INT", text)
-        # T-115 H-2: every stop instruction names the stage, whose pid the terminal prints and the stage's log names; none the step's
-        self.assertIn('echo "stop it with kill -TERM $STAGE_PID: ', text)
-        self.assertIn('echo "packet $PACKET stage, pid $$, $(date -u +%FT%TZ); kill -TERM $$ stops it"', text)
-        self.assertIn('echo "the step\'s process: $STEP_PID (the packet stops with kill -TERM $$, the stage)"', text)
+        # T-115 H-2: every stop instruction names the stage, whose pid the terminal prints and the stage's log names; none the step's.
+        # T-117 N-1: and says sudo: the stage runs as root, and a kill from the user's shell without it is refused (EPERM)
+        self.assertIn('echo "stop it with sudo kill -TERM $STAGE_PID: ', text)
+        self.assertIn('echo "packet $PACKET stage, pid $$, $(date -u +%FT%TZ); sudo kill -TERM $$ stops it"', text)
+        self.assertIn('echo "the step\'s process: $STEP_PID (the packet stops with sudo kill -TERM $$, the stage)"', text)
+        self.assertIn('echo "stop        sudo kill -TERM <the stage\'s pid, printed at the start>: ', text)
+        self.assertIn("# takes two or three packets). Stop it with `sudo kill -TERM` of the pid the terminal prints", text)
+        told = [line for line in text.splitlines() if "kill -TERM" in line and ("echo" in line or line.startswith("# takes"))]
+        self.assertEqual(len(told), 5, told)
+        self.assertTrue(all("sudo kill -TERM" in line for line in told), told)
         self.assertNotIn("kill -TERM $pid stops it", text)
 
     def test_a_step_launched_as_packet_sh_launches_it_stops_on_int(self):
@@ -407,7 +424,7 @@ stage
                 with open(log, encoding="utf-8") as fh:
                     first_line = fh.readline()
                 stage = int(first_line.split("stage, pid ")[1].split(",")[0])
-                self.assertIn(f"kill -TERM {stage} stops it", first_line)
+                self.assertIn(f"; sudo kill -TERM {stage} stops it", first_line)
                 with open(SCRIPT, encoding="utf-8") as fh:            # the foreground reads the pid it prints from that line
                     program = fh.read().split("said=$(sed -n '")[1].split("'")[0]
                 self.assertEqual(subprocess.run(["sed", "-n", program, log], capture_output=True, text=True, check=True).stdout.strip(),
@@ -441,6 +458,39 @@ stage
                 if step and alive(step):
                     os.kill(step, signal.SIGKILL)
 
+
+    def test_a_term_the_step_does_not_end_on_is_not_called_a_stop_and_the_steps_not_started_are_named(self):
+        """T-117 L-1: the executor ignores TERM in its shielded teardown, so a forwarded TERM can be lost and the step end 0 (or on with
+        its next run). The summary then gives the step's own state with a note, not "stopped by TERM", which is kept for a step that
+        ended on the TERM (130 or 143); the steps that did not start because of the TERM are named in the log."""
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(f"{tmp}/S/packets")
+            with open(f"{tmp}/deaf.py", "w", encoding="utf-8") as fh:      # takes the TERM as a shielded teardown does: not at all
+                fh.write(f"import signal, sys, time\nsignal.signal(signal.SIGTERM, signal.SIG_IGN)\nopen('{tmp}/deaf.started', 'w').close()\n"
+                         "time.sleep(1.5)\nprint('deaf: ended 0', flush=True)\n")
+            with open(f"{tmp}/stage.sh", "w", encoding="utf-8") as fh:
+                fh.write(f"""set -euo pipefail
+PACKET=T LOGDIR={tmp}/S/packets BUDGET_MIN=85 PAIRED=none
+steps() {{ echo "{sys.executable} -B {tmp}/deaf.py"; echo "bash {tmp}/second.sh"; echo "bash {tmp}/third.sh"; }}
+outputs() {{ echo "{tmp}/S"; }}
+{stage_block()}
+stage
+""")
+            log = f"{tmp}/S/packets/T.log"
+            launch = f"setsid nohup bash -c 'bash {tmp}/stage.sh; echo \"rc $?\" > {tmp}/rc.txt' > {log} 2>&1 < /dev/null &"
+            subprocess.run(["bash", "-c", launch], check=True, timeout=30)
+            self.assertTrue(wait_for(lambda: os.path.exists(f"{tmp}/deaf.started"), 30))
+            stage = int(read(log).split("stage, pid ")[1].split(",")[0])
+            os.kill(stage, signal.SIGTERM)
+            self.assertTrue(wait_for(lambda: os.path.exists(f"{tmp}/rc.txt"), 30))
+            text = read(log)
+            self.assertEqual(read(f"{tmp}/rc.txt").strip(), "rc 0", text)
+            self.assertIn("deaf: ended 0", text)
+            self.assertIn(f"stopped by TERM: not started: bash {tmp}/second.sh\n", text)
+            self.assertIn(f"stopped by TERM: not started: bash {tmp}/third.sh\n", text)
+            self.assertIn("\nPACKET T done (exit 0) (a TERM was received and forwarded; the step was not interrupted: send it again): runs "
+                          "made 0, host-invalid 0; ", text)
+            self.assertNotIn("stopped by TERM (exit", text)
 
     def test_the_summary_names_a_steps_own_rule_not_frozen_and_keeps_stopped_for_the_rest(self):
         """T-115 H-1: exit 7 is calibrate.py's StepRuleStop, a step's own rule (prereg 6: NOT FROZEN); 2 and the other codes are
