@@ -1,14 +1,14 @@
 == packet R2b: one family's ladder (18 runs: 14 attack runs at 7 levels, 4 controls) ==
 session     /S
 budget      85 min: no run starts after it (--stop-after the minutes left), so the packet ends within 90 min
-pre-checks  ./venv/bin/python bench/packets/prechecks.py --packet R2b --session /S --minutes 90 --commit COMMIT --record /R
+pre-checks  ./venv/bin/python -B bench/packets/prechecks.py --packet R2b --session /S --minutes 90 --commit COMMIT --record /R
             (clean tree at the pinned commit, and its frozen hashes: bench/, eval/, the testbed's files and the record hash to
             its blobs; kernel, MemTotal, CPU model and VirtualBox host version the session's, before its
             first step the laptop's (D-096), all four reported; uptime 1800 s, chrony within H4, no apt, dpkg or daily timer due
             within 90 + 10 min, no package job, no testbed left, no other process above 5 % of a CPU; each check fails
             closed on a command that failed or printed nothing)
 detached    setsid nohup bash bench/packets/packet.sh R2b --stage ... > /S/packets/R2b_<UTC>.log 2>&1 < /dev/null &
-step 1      ./venv/bin/python bench/hostcheck.py speed-hold --calibration bench/calibration/placeholder.json --reference /S/origin/origin.json --lo -0.10 --hi 0.10 --max-min 30
-step 2      ./venv/bin/python bench/calibrate.py ladder --family costly_export_flood --out /S --stop-after REMAINING
+step 1      ./venv/bin/python -B bench/hostcheck.py speed-hold --calibration bench/calibration/placeholder.json --reference /S/origin/origin.json --lo -0.10 --hi 0.10 --max-min 30
+step 2      ./venv/bin/python -B bench/calibrate.py ladder --family costly_export_flood --out /S --stop-after REMAINING
 after       tar -czf /S/packets/R2b_<UTC>.tar.gz /S; sha256sum of it into R2b_<UTC>.sha256
 summary     one line at the end of the log: PACKET R2b <done|paused|host unfit|stopped> (exit N): runs made, host-invalid

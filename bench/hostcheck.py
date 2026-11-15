@@ -31,6 +31,7 @@ import itertools
 import json
 import os
 import re
+import signal
 import statistics
 import sys
 import time
@@ -843,4 +844,5 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, signal.default_int_handler)  # a step started by packet.sh (`cmd &`) inherits SIGINT ignored (T-105 F3)
     sys.exit(main())

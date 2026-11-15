@@ -189,8 +189,10 @@ two in a row agree within 5 % and lie between -5 % and +12 % of them (the normal
    R-032). The orchestrator and every agent are stopped; no unit suite, no offline job.
 2. **Start.** [Amended 2026-11-13, D3's alternative] You open a plain terminal (the VM's console, or SSH from a terminal program) and run the packet script
    (K7), which runs the pre-checks, starts the monitors and the step detached (`setsid nohup`), and prints where its output goes.
-3. **During.** [Amended 2026-11-13] The Claude app may stay open but idle: no message is typed into any session, no `/compact`, no session is opened or resumed, and the orchestrator ends its turn right after it has handed over the command. Nobody else logs into the VM; nothing else runs on the PC. (Originally: the app closed. The user chose the alternative; the cost is that runs the app's load reaches are voided by H6 and made again.) If you must stop: `kill -INT` the step's
-   process (printed at its start); the testbed is taken down and the same command resumes.
+3. **During.** [Amended 2026-11-13] The Claude app may stay open but idle: no message is typed into any session, no `/compact`, no session is opened or resumed, and the orchestrator ends its turn right after it has handed over the command. Nobody else logs into the VM; nothing else runs on the PC. (Originally: the app closed. The user chose the alternative; the cost is that runs the app's load reaches are voided by H6 and made again.) If you must stop: `kill -TERM` the step's
+   process (printed at its start); the testbed is taken down and the same command resumes. [Amended 2026-11-14, K15: this said
+   `kill -INT`. The script starts the step as `cmd &` in a non-interactive bash, which starts it with SIGINT ignored, and Python kept
+   that, so INT did nothing (review T-105 F3). TERM always worked, and since K15 each Python main restores the default SIGINT handler.]
 4. **After.** The script ends with a one-line summary (runs made, host-invalid, paused or done). You may open the app again; an agent
    reads the outputs offline and the next packet is yours to start.
 5. **What protects the data if a rule is broken:** H6 voids the runs the load reaches, by its numbers; nothing is excluded by hand.

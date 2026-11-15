@@ -9,8 +9,9 @@
 # PACKET: R1 (speed hold against HS1's medians on this PC, K11: --medians FILE or HS1_MEDIANS=FILE; origin; capacity), R2a, R2b,
 # R2c (one family's ladder each), R3 (the
 # reference), R4 (the confirmation, a later window), P2-1 (the smoke runs of HG4 at twice the new knee), P2-2 (the MVP campaign; it
-# takes two or three packets). Stop it with `kill -INT` of the step's process (the log names it): the testbed is taken down and the
-# same command resumes.
+# takes two or three packets). Stop it with `kill -TERM` of the step's process (the log names it): the testbed is taken down and the
+# same command resumes. (The step runs as `cmd &` in a non-interactive bash, which starts it with SIGINT ignored; each Python main puts
+# the default handler back, so an INT stops it too, but TERM is the documented stop: T-105 F3.)
 set -euo pipefail
 
 SELF=$(realpath "$0")
@@ -36,9 +37,23 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+case "$SESSION" in /*) ;; *) echo "packet.sh: --session takes an absolute path (the stage runs from the repository's root), got '$SESSION'" >&2; exit 2;; esac
+case "$CAMPAIGN" in /*) ;; *) echo "packet.sh: --campaign takes an absolute path (the stage runs from the repository's root), got '$CAMPAIGN'" >&2; exit 2;; esac
+
 BUDGET_MIN=85                       # no run starts after 85 min, so the run in progress ends the packet within 90 (6.2)
 PACKET_MIN=90
-PY=./venv/bin/python
+PY="./venv/bin/python -B"           # root writes no bytecode into the repository (T-105 F10); its children inherit this:
+export PYTHONDONTWRITEBYTECODE=1
+# R1's paired check of the two probe contexts (T-105 F8): HS1's probe is not in this tree, so the packet names it as a manual step
+PAIRED="manual step, not run by this packet (T-105 F8): before R1's hold, one HS1 probe in HS1's own context (bench/vm/hs1_probe.py of feat/hs1-check, in sbx as uid 1000 with -I -B) and one hold probe (bench/calibrate.py origin-session as root) on the same CPU; record both contexts' costs"
+
+# the minutes of the packet's budget left at NOW for a packet that began at START (epoch seconds), to the hundredth, rounded down:
+# never more than is left (T-105 F15); nothing (status 1) when less than a minute is
+budget_left() {
+  local left_s=$(( BUDGET_MIN * 60 - ( $2 - $1 ) ))
+  [ "$left_s" -ge 60 ] || return 1
+  printf '%d.%02d\n' $(( left_s / 60 )) $(( left_s % 60 * 100 / 60 ))
+}
 HG4=bench/scenarios/cheap_static_flood_hg4.json
 
 # the steps of each packet, one command a line; REMAINING is the packet's budget left when the line starts
@@ -115,6 +130,7 @@ if [ "$PRINT" = 1 ]; then
   echo "            closed on a command that failed or printed nothing)"
   if [ "$PACKET" = R1 ]; then
     echo "reference   HS1's medians ${MEDIANS:-HS1_MEDIANS} on this PC: its sha256 printed by the hold and kept in $SESSION/speed_reference.json"
+    echo "paired      $PAIRED"
   fi
   echo "detached    setsid nohup bash bench/packets/packet.sh $PACKET --stage ... > $LOGDIR/${PACKET}_<UTC>.log 2>&1 < /dev/null &"
   n=1
@@ -138,7 +154,7 @@ if [ "$STAGE" = 0 ]; then
   setsid nohup bash "$SELF" "$PACKET" --stage --session "$SESSION" ${RECORD:+--record "$RECORD"} --campaign "$CAMPAIGN" \
     ${COMMIT:+--commit "$COMMIT"} ${MEDIANS:+--medians "$MEDIANS"} > "$LOG" 2>&1 < /dev/null &
   echo "packet $PACKET started (pid $!), detached; its log: $LOG"
-  echo "stop it with kill -INT of the step's process named in the log; the same command resumes"
+  echo "stop it with kill -TERM of the step's process named in the log; the same command resumes"
   exit 0
 fi
 
@@ -147,13 +163,13 @@ START=$(date +%s)
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 MARK=$(mktemp)
 echo "packet $PACKET stage, pid $$, $(date -u +%FT%TZ)"
+[ "$PACKET" = R1 ] && echo "paired check: $PAIRED"
 code=0
 while IFS= read -r line; do
-  left=$(( BUDGET_MIN - ( $(date +%s) - START ) / 60 ))
-  [ "$left" -lt 1 ] && { code=4; echo "the budget is used before: $line"; break; }
+  left=$(budget_left "$START" "$(date +%s)") || { code=4; echo "the budget is used before: $line"; break; }
   cmd=${line//REMAINING/$left}
   echo "$(date -u +%FT%TZ) running: $cmd"
-  set +e; $cmd & pid=$!; echo "the step's process: $pid (kill -INT $pid stops it)"; wait $pid; code=$?; set -e
+  set +e; $cmd & pid=$!; echo "the step's process: $pid (kill -TERM $pid stops it)"; wait $pid; code=$?; set -e
   echo "$(date -u +%FT%TZ) exit $code"
   [ "$code" = 0 ] || break
 done < <(steps "$PACKET")

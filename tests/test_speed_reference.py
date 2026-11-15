@@ -89,7 +89,7 @@ class PinnedTest(unittest.TestCase):
         self.assertEqual(HC.SPEED_REPEATS, 21, "HS1's probe takes the hold's repeats (docs/HS1_PREREG.md 3)")
         with open(os.path.join(GOLDEN, "R1.txt"), encoding="utf-8") as fh:
             text = fh.read()
-        self.assertIn("step 1      ./venv/bin/python bench/hostcheck.py speed-hold --calibration bench/calibration/placeholder.json "
+        self.assertIn("step 1      ./venv/bin/python -B bench/hostcheck.py speed-hold --calibration bench/calibration/placeholder.json "
                       "--medians HS1_MEDIANS --session /S --lo -0.10 --hi 0.10 --agree 0.05 --max-min 45\n", text)
 
     def test_the_old_record_is_never_a_speed_reference_in_a_packet(self):

@@ -27,6 +27,7 @@ import os
 import random
 import re
 import shutil
+import signal
 import statistics
 import sys
 
@@ -1146,7 +1147,9 @@ def main(argv=None, host=None):
     _add_run_args(p)
     p.add_argument("--calibration", required=True, help="the frozen record")
     p.add_argument("--out", required=True)
-    p.add_argument("--family", action="append", help="a family to run an attack for (default: the first with a reference)")
+    p.add_argument("--family", action="append",
+                   help="a family to check (repeatable). A record of schema 2: default every family of its reference, each read on "
+                        "its own (K2). Of schema 1 (the record of 2026-11-04): default the first with a reference")
     p.add_argument("--timeline", type=X._timeline_arg, default=None, metavar="B,A,R")
     args = ap.parse_args(argv)
     try:
@@ -1253,4 +1256,5 @@ def _run_step(args, runner, template, cal_path, out, timeline):
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, signal.default_int_handler)  # a step started by packet.sh (`cmd &`) inherits SIGINT ignored (T-105 F3)
     sys.exit(main())

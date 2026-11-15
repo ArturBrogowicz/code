@@ -29,6 +29,7 @@ import json
 import os
 import random
 import shutil
+import signal
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -792,4 +793,5 @@ def main(argv=None, host=None):
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, signal.default_int_handler)  # a step started by packet.sh (`cmd &`) inherits SIGINT ignored (T-105 F3)
     sys.exit(main())

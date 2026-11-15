@@ -1575,6 +1575,15 @@ class SimulatedCalibrationTest(unittest.TestCase):
         bad = {**good, "Q": ref["mean_q_pct"] - 50.0}
         self.assertFalse(K.judge_rounds(self.frozen, [{"legit": bad, "attacks": {}}] * 3, [])["ok"])
 
+    def test_the_drift_family_help_says_what_each_schema_does(self):
+        """T-105 F13: on a record of schema 2 the drift check takes every family of its reference by default, not the first."""
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), self.assertRaises(SystemExit):
+            K.main(["drift", "--help"])
+        text = " ".join(out.getvalue().split())
+        self.assertIn("A record of schema 2: default every family of its reference, each read on its own (K2). Of schema 1 (the "
+                      "record of 2026-11-04): default the first with a reference", text)
+
     def test_a_smoke_step_cannot_be_frozen(self):
         dest = self.copy_session()
         self.edit(dest, "capacity", "capacity.json", change=lambda d: d.update(smoke=True))

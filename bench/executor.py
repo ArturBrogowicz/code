@@ -2527,4 +2527,5 @@ def clock_text(result, out):
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, signal.default_int_handler)  # a step started by packet.sh (`cmd &`) inherits SIGINT ignored (T-105 F3)
     sys.exit(main())

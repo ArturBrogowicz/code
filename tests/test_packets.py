@@ -5,9 +5,11 @@ import datetime
 import io
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -57,6 +59,54 @@ class ScriptTest(unittest.TestCase):
                 for line in text.splitlines():
                     if line.startswith("step") and ("calibrate.py" in line or "gate_campaign.py" in line) and " origin " not in line:
                         self.assertIn("--stop-after REMAINING", line)
+
+    def test_root_runs_python_without_bytecode_and_takes_absolute_paths_only(self):
+        """T-105 F10: root's Python writes no bytecode into the repository (-B, and PYTHONDONTWRITEBYTECODE for what it starts), and a
+        relative --session or --campaign, which the stage would resolve under the repository's root, is refused."""
+        for packet in PC.PACKETS:
+            with open(os.path.join(GOLDEN, packet + ".txt"), encoding="utf-8") as fh:
+                lines = [line for line in fh.read().splitlines() if line.startswith(("step", "pre-checks"))]
+            with self.subTest(packet=packet):
+                self.assertTrue(lines)
+                for line in lines:
+                    self.assertIn("./venv/bin/python -B bench/", line)
+        with open(SCRIPT, encoding="utf-8") as fh:
+            self.assertIn("\nexport PYTHONDONTWRITEBYTECODE=1\n", fh.read())
+        for flag in ("--session", "--campaign"):
+            with self.subTest(flag=flag):
+                r = script("R2a", "--print", flag, "rel/dir")
+                self.assertEqual(r.returncode, 2)
+                self.assertIn(f"packet.sh: {flag} takes an absolute path (the stage runs from the repository's root), got 'rel/dir'",
+                              r.stderr)
+
+    def test_the_budget_left_is_counted_in_seconds(self):
+        """T-105 F15: the minutes left to the hundredth, rounded down, never more than is left (the floored minutes gave up to 59 s
+        more); less than a minute left is none."""
+        with open(SCRIPT, encoding="utf-8") as fh:
+            text = fh.read()
+        fn = text[text.index("budget_left() {"):text.index("\n}\n", text.index("budget_left() {")) + 3]
+
+        def left(elapsed):
+            r = subprocess.run(["bash", "-c", f"BUDGET_MIN=85\n{fn}\nbudget_left 1000 {1000 + elapsed}"], capture_output=True, text=True,
+                               check=False)
+            return r.returncode, r.stdout.strip()
+        self.assertEqual(left(0), (0, "85.00"))
+        self.assertEqual(left(119), (0, "83.01"), "83 min 1 s left (the floored minutes said 84)")
+        self.assertEqual(left(85 * 60 - 60), (0, "1.00"))
+        self.assertEqual(left(85 * 60 - 59), (1, ""))
+        self.assertEqual(left(85 * 60 + 5), (1, ""))
+
+    def test_r1_names_the_paired_check_of_the_two_probe_contexts_as_a_manual_step(self):
+        """T-105 F8 (part 2, reported only): HS1's probe is not in this tree, so R1 names the paired check as a manual step, in its
+        --print and in its log."""
+        with open(os.path.join(GOLDEN, "R1.txt"), encoding="utf-8") as fh:
+            self.assertIn("paired      manual step, not run by this packet (T-105 F8): before R1's hold, one HS1 probe in HS1's own "
+                          "context", fh.read())
+        for packet in PC.PACKETS[1:]:
+            with open(os.path.join(GOLDEN, packet + ".txt"), encoding="utf-8") as fh:
+                self.assertNotIn("paired", fh.read())
+        with open(SCRIPT, encoding="utf-8") as fh:
+            self.assertIn('[ "$PACKET" = R1 ] && echo "paired check: $PAIRED"', fh.read())
 
     def test_r1_holds_against_hs1s_medians_on_this_pc_and_later_packets_against_r1s(self):
         """K11: R1's hold takes HS1's medians on the PC that runs the programme, never the 2026-11-04 costs (another PC's)."""
@@ -207,6 +257,64 @@ class PrecheckTest(unittest.TestCase):
                 "09:01:00  1000      2121    4.00    0.00    0.00    0.00    4.00     2  sshd-session: artur@notty\n"
                 "09:01:00     0       918   90.00    0.00    0.00    0.00   90.00     4  [kworker/4:1-events]\n")
         self.assertEqual(PC.check_quiet(text), ["/home/u/.claude/remote/srv/x/server --serve (uid 1000) used 5.1 % of a CPU"])
+
+
+MAINS = ("bench/hostcheck.py", "bench/calibrate.py", "bench/executor.py", "bench/gate_campaign.py", "bench/packets/prechecks.py")
+RESTORE = "signal.signal(signal.SIGINT, signal.default_int_handler)"
+
+
+class StopTest(unittest.TestCase):
+    """T-105 F3: packet.sh starts its stage with `setsid nohup bash ... &` and the step as `$cmd &`. A non-interactive bash starts an
+    asynchronous command with SIGINT ignored, and Python keeps an ignored SIGINT, so `kill -INT` did nothing. Each Python main reached
+    from packet.sh now restores the default handler at entry; `kill -TERM`, which the script and design 5.3 say, works as before."""
+
+    def test_every_main_reached_from_packet_sh_restores_the_default_sigint_handler_at_entry(self):
+        for path in MAINS:
+            with open(os.path.join(REPO, path), encoding="utf-8") as fh:
+                entry = fh.read().split('\nif __name__ == "__main__":\n')[-1]
+            with self.subTest(path=path):
+                self.assertTrue(entry.lstrip().startswith(RESTORE), entry[:200])
+        with open(SCRIPT, encoding="utf-8") as fh:
+            text = fh.read()
+        self.assertNotIn("kill -INT", text)
+        self.assertEqual(text.count("kill -TERM"), 3)
+
+    def test_a_step_launched_as_packet_sh_launches_it_stops_on_int(self):
+        """The chrony sampler (bench/hostcheck.py, a main the packet's steps start) as the step of a stage launched as packet.sh
+        launches it: it runs with SIGINT ignored before its main, and `kill -INT` ends it within seconds, exit 0 (its main catches
+        the interrupt)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            stage = os.path.join(tmp, "stage.sh")
+            with open(stage, "w", encoding="utf-8") as fh:
+                fh.write(f"""set -u
+echo "stage ignores: $(awk '/^SigIgn/ {{print $2}}' /proc/$$/status)"
+{sys.executable} -B {os.path.join(REPO, "bench", "hostcheck.py")} chrony-sampler --every 30 > {tmp}/sampler.txt 2>&1 & pid=$!
+echo $pid > {tmp}/step.pid; wait $pid; echo "exit $?" > {tmp}/exit.txt
+""")
+            subprocess.run(["bash", "-c", f"setsid nohup bash {stage} > {tmp}/stage.log 2>&1 < /dev/null &"], check=True, timeout=30)
+            pid = None
+            try:
+                deadline = time.monotonic() + 30
+                while time.monotonic() < deadline and not (os.path.exists(f"{tmp}/step.pid") and os.path.getsize(f"{tmp}/sampler.txt")):
+                    time.sleep(0.1)
+                with open(f"{tmp}/step.pid", encoding="utf-8") as fh:
+                    pid = int(fh.read())
+                with open(f"{tmp}/stage.log", encoding="utf-8") as fh:
+                    ignored = int(fh.read().split("stage ignores: ")[1].split()[0], 16)
+                self.assertTrue(ignored & (1 << (signal.SIGINT - 1)), "the stage runs with SIGINT ignored, as packet.sh's does")
+                os.kill(pid, signal.SIGINT)
+                deadline = time.monotonic() + 15
+                while time.monotonic() < deadline and not os.path.exists(f"{tmp}/exit.txt"):
+                    time.sleep(0.1)
+                self.assertTrue(os.path.exists(f"{tmp}/exit.txt"), "the step is still alive 15 s after kill -INT")
+                with open(f"{tmp}/exit.txt", encoding="utf-8") as fh:
+                    self.assertEqual(fh.read().strip(), "exit 0")
+            finally:
+                if pid and not os.path.exists(f"{tmp}/exit.txt"):
+                    os.kill(pid, signal.SIGTERM)
+                    deadline = time.monotonic() + 10
+                    while time.monotonic() < deadline and not os.path.exists(f"{tmp}/exit.txt"):
+                        time.sleep(0.1)
 
 
 class SpeedHoldCommandTest(unittest.TestCase):
