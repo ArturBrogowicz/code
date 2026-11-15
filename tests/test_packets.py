@@ -56,10 +56,10 @@ class ScriptTest(unittest.TestCase):
                     if line.startswith("step") and ("calibrate.py" in line or "gate_campaign.py" in line) and " origin " not in line:
                         self.assertIn("--stop-after REMAINING", line)
 
-    def test_r1_holds_against_the_2026_11_04_costs_in_the_normal_band_and_later_packets_against_r1s(self):
+    def test_r1_holds_against_hs1s_medians_on_this_pc_and_later_packets_against_r1s(self):
+        """K11: R1's hold takes HS1's medians on the PC that runs the programme, never the 2026-11-04 costs (another PC's)."""
         with open(os.path.join(GOLDEN, "R1.txt"), encoding="utf-8") as fh:
-            self.assertIn("--reference bench/calibration/ddos-mitigation-2026-11-04.json --lo -0.05 --hi 0.12 --agree 0.05 --max-min 45",
-                          fh.read())
+            self.assertIn("--medians HS1_MEDIANS --session /S --lo -0.10 --hi 0.10 --agree 0.05 --max-min 45", fh.read())
         with open(os.path.join(GOLDEN, "R3.txt"), encoding="utf-8") as fh:
             self.assertIn("--reference /S/origin/origin.json --lo -0.10 --hi 0.10 --max-min 30", fh.read())
 

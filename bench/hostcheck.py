@@ -18,12 +18,15 @@ same seed after a speed hold; three in a row, or the fourth of a packet, pause t
 
     python3 bench/hostcheck.py chrony-sampler --every 30          # the sampler the runner starts (chronyc -c tracking and sources)
     python3 bench/hostcheck.py judge RUN_DIR --monitors DIR --start ISO --end ISO     # the rules on a finished run, offline
-    sudo ./venv/bin/python bench/hostcheck.py speed-hold --calibration CAL --reference FILE --lo -0.05 --hi 0.12 --agree 0.05 --max-min 45
+    sudo ./venv/bin/python bench/hostcheck.py speed-hold --calibration CAL --reference FILE --lo -0.10 --hi 0.10 --max-min 30
                                                                     # a packet's speed hold (5.2; bench/packets/packet.sh)
+    sudo ./venv/bin/python bench/hostcheck.py speed-hold --calibration CAL --medians HS1_MEDIANS --session DIR \
+        --lo -0.10 --hi 0.10 --agree 0.05 --max-min 45              # R1's, against HS1's medians on this PC (K11)
 """
 import argparse
 import csv
 import datetime
+import hashlib
 import itertools
 import json
 import os
@@ -40,6 +43,20 @@ SPEED_ROUTES = ("C3", "C5")          # the CPU-bound routes the speed series of 
 SPEED_CPUS = ("0", "1")              # the server's CPUs (population.PIN_PLAN and PIN_PLAN_DAEMON)
 SPEED_REPEATS = 21                   # as a session of the origin step
 PROBE_TIMEOUT_S = 600
+EXIT_REFUSED = 2                     # speed-hold: a reference it does not take (another PC, another estimator, a record that names no PC)
+# R1's speed hold (K11; a proposal the user approves before it is committed; D-096): the costs of 2026-11-04 were measured on another
+# PC than the one that runs the programme, so R1 holds against the medians of HS1's series on this PC instead (docs/HS1_PREREG.md 7),
+# each CPU against its own, with H1's band, two pairs in a row agreeing within 5 % (as the hold of 5.2 asked) and at most 45 min. The
+# old record is never a speed reference. The medians file is HS1's medians.json (schema hs1-medians/1); what the hold reads of it:
+#   "usable_as_reference": true (HS1's PASS)        "host": {"cpu_model", "vbox_host_version", ...}  the PC (K10's comparison)
+#   "estimator": {"repeats": 21, "origin_sha256", "knobs_from", "record_sha256", ...}   the probe's own: the hold's estimator, code
+#                and knobs must be the same (this checkout's bench/origin.py; knobs_from's file at record_sha256, its knobs the hold's)
+#   "medians_ms": {"0": {"C3": {"median_ms": ms, ...}, "C5": {...}, ...}, "1": {...}}  per CPU and route, the series' median cost
+# Its sha256 is printed and kept, with the costs, the rule and every hold against it, in the session's speed_reference.json.
+R1_HOLD = {"lo": -0.10, "hi": 0.10, "agree": 0.05, "max_min": 45.0}
+MEDIANS_SCHEMA = "hs1-medians/1"
+SPEED_REFERENCE = "speed_reference.json"
+REPO = os.path.dirname(HERE)
 
 
 def utc(t):
@@ -68,15 +85,22 @@ def speed_probe(host, cal_path):
     return out
 
 
+def cpu_reference(reference_costs, cpu):
+    """The reference costs of `cpu`: a flat {route: ms} (a record's, origin.json's) is every CPU's; HS1's medians are per CPU (K11)."""
+    own = reference_costs.get(cpu)
+    return own if isinstance(own, dict) else reference_costs
+
+
 def speed_deviation(probe, reference_costs, routes=SPEED_ROUTES):
-    """d of one probe pair: the mean over the CPUs of the mean over `routes` of cost / reference - 1. None when a CPU's probe could
-    not be read or a route is missing: a probe that says nothing cannot vouch for the run."""
+    """d of one probe pair: the mean over the CPUs of the mean over `routes` of cost / reference - 1, each CPU against its own reference
+    when the reference is per CPU. None when a CPU's probe could not be read or a route is missing: a probe that says nothing cannot
+    vouch for the run."""
     per_cpu = []
     for cpu in SPEED_CPUS:
-        costs = (probe or {}).get("cpus", {}).get(cpu)
-        if not costs or any(costs.get(k) is None or not reference_costs.get(k) for k in routes):
+        costs, ref = (probe or {}).get("cpus", {}).get(cpu), cpu_reference(reference_costs, cpu)
+        if not costs or any(costs.get(k) is None or not isinstance(ref.get(k), (int, float)) or not ref.get(k) for k in routes):
             return None
-        per_cpu.append(statistics.fmean(costs[k] / reference_costs[k] - 1.0 for k in routes))
+        per_cpu.append(statistics.fmean(costs[k] / ref[k] - 1.0 for k in routes))
     return statistics.fmean(per_cpu)
 
 
@@ -598,14 +622,154 @@ def chrony_sampler(every_s, out=sys.stdout, run=None, sleep=time.sleep, count=No
             sleep(every_s)
 
 
+class SpeedReferenceError(ValueError):
+    """A speed reference the hold does not take: a medians file that is not of the assumed shape, another PC's, other knobs."""
+
+
+def _positive_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and 0 < value < float("inf")
+
+
+def _sha256_file(path):
+    with open(path, "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
+
+
+def load_medians(path):
+    """HS1's medians file (K11; docs/HS1_PREREG.md 7): its sha256, verdict, PC, estimator and, for the CPUs the hold probes, each
+    route's median cost in ms. SpeedReferenceError naming what is missing."""
+    with open(path, "rb") as fh:
+        raw = fh.read()
+    try:
+        doc = json.loads(raw)
+    except ValueError as exc:
+        raise SpeedReferenceError(f"{path}: not JSON ({exc})") from exc
+    if not isinstance(doc, dict):
+        raise SpeedReferenceError(f"{path}: the medians file is a JSON object of schema {MEDIANS_SCHEMA}")
+    p = [] if doc.get("schema") == MEDIANS_SCHEMA else [f"schema {MEDIANS_SCHEMA}"]
+    host, estimator, medians = doc.get("host"), doc.get("estimator"), doc.get("medians_ms")
+    import calibration as C
+    p += ["host"] if not isinstance(host, dict) else [f"host.{key}" for key in C.pc_unnamed(host)]
+    if not isinstance(estimator, dict):
+        p.append("estimator")
+    if not isinstance(doc.get("usable_as_reference"), bool):
+        p.append("usable_as_reference")
+    for cpu in SPEED_CPUS:
+        routes = medians.get(cpu) if isinstance(medians, dict) else None
+        if not isinstance(routes, dict):
+            p.append(f"medians_ms.{cpu}")
+            continue
+        p += [f"medians_ms.{cpu}.{k}.median_ms (a positive number of ms)" for k in SPEED_ROUTES
+              if not (isinstance(routes.get(k), dict) and _positive_number(routes[k].get("median_ms")))]
+    if p:
+        raise SpeedReferenceError(f"{path}: the medians file lacks " + ", ".join(p))
+    costs = {cpu: {k: float(v["median_ms"]) for k, v in medians[cpu].items()
+                   if isinstance(v, dict) and _positive_number(v.get("median_ms"))} for cpu in SPEED_CPUS}
+    return {"path": os.path.abspath(path), "sha256": hashlib.sha256(raw).hexdigest(), "verdict": doc.get("verdict"),
+            "usable": doc["usable_as_reference"], "host": dict(host), "estimator": dict(estimator), "costs": costs}
+
+
+def medians_problems(ref, facts, knobs, repo=REPO):
+    """Why HS1's medians are not R1's speed reference on this host: a series that is not usable as one (no PASS), another PC
+    (calibration.pc_problems, K10), or an estimator other than the hold's: other repeats, another bench/origin.py, or knobs other than
+    `knobs` (the hold's --calibration's), as read from the file the series named at the hash it recorded."""
+    import calibration as C
+    p = [] if ref["usable"] is True else [f"HS1's series was judged {ref['verdict']}: its medians are not usable as a reference"]
+    p += C.pc_problems(ref["host"], facts, f"HS1's series ({ref['sha256'][:8]})")
+    est = ref["estimator"]
+    if est.get("repeats") != SPEED_REPEATS:
+        p.append(f"HS1's probe took {est.get('repeats')!r} repeats, the hold {SPEED_REPEATS}")
+    here = _sha256_file(os.path.join(repo, "bench", "origin.py"))
+    if est.get("origin_sha256") != here:
+        p.append(f"HS1's probe ran bench/origin.py {str(est.get('origin_sha256'))[:8]}, this checkout's is {here[:8]}")
+    source = os.path.join(repo, str(est.get("knobs_from") or ""))
+    try:
+        sha = _sha256_file(source)
+        with open(source, encoding="utf-8") as fh:
+            theirs = json.load(fh)["knobs"]
+    except (OSError, ValueError, KeyError, TypeError):
+        p.append(f"the knobs HS1's probe took cannot be read ({est.get('knobs_from')!r})")
+        return p
+    if sha != est.get("record_sha256"):
+        p.append(f"{est.get('knobs_from')} is {sha[:8]} here, HS1's probe read {str(est.get('record_sha256'))[:8]}")
+    other = sorted(k for k in set(theirs) | set(knobs) if theirs.get(k) != knobs.get(k))
+    if other:
+        p.append(f"HS1's probe took other knobs than the hold's ({', '.join(other)})")
+    return p
+
+
+def record_reference_problems(doc, facts):
+    """A calibration record as a speed reference (`--reference`): one of schema 1 names no PC and is never one (K11: the record of
+    2026-11-04 was measured on another PC); a frozen one of schema 2 only on its own host and PC (K5, K10)."""
+    if not isinstance(doc, dict) or "status" not in doc or "schema" not in doc:
+        return []                                          # origin.json: the session's own costs (its host.json names the PC)
+    import calibration as C
+    sha = str(doc.get("sha256") or "")[:8]
+    if doc.get("schema") == 1:
+        return [f"the record {sha} is of schema 1 and names no PC: it is never a speed reference (K11)"]
+    try:
+        C.require_host(doc, facts)
+    except C.RecordError as exc:
+        return [str(exc)]
+    return []
+
+
+def _session_reference(session, ref, rule, calibration):
+    """The session's speed reference: written before the first hold against it; a session has one, so another file is refused."""
+    path = os.path.join(session, SPEED_REFERENCE)
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            have = json.load(fh)
+        if have.get("sha256") != ref["sha256"]:
+            raise SpeedReferenceError(f"the session holds against the HS1 medians {str(have.get('sha256'))[:8]} ({have.get('path')}); "
+                                      f"this file is {ref['sha256'][:8]}: a session has one speed reference")
+        return path, have
+    os.makedirs(session, exist_ok=True)
+    have = {"reference": "HS1's medians on this PC (K11)", "path": ref["path"], "sha256": ref["sha256"], "host": ref["host"],
+            "estimator": ref["estimator"], "calibration": os.path.abspath(calibration), "reference_costs_ms": ref["costs"],
+            "rule": rule, "holds": []}
+    _write_json(path, have)
+    return path, have
+
+
 def speed_hold_main(args, host=None):
-    """The speed hold of a packet on this host (executor.RealHost): exit 0 when it held, EXIT_HOST_UNFIT when it did not."""
-    with open(args.reference, encoding="utf-8") as fh:
-        costs = json.load(fh)["route_costs_ms"]
+    """The speed hold of a packet on this host (executor.RealHost): exit 0 when it held, EXIT_HOST_UNFIT when it did not, EXIT_REFUSED
+    for a reference it does not take. With --medians (R1, K11) the reference is HS1's medians on this PC, each CPU against its own;
+    their sha256 is printed and, with --session, kept with every hold in the session's speed_reference.json."""
     if host is None:
         import executor as X
         host = X.RealHost()
+    medians, session = getattr(args, "medians", None), getattr(args, "session", None)
+    rule = {"lo": args.lo, "hi": args.hi, "agree": args.agree, "max_min": args.max_min}
+    record = None
+    try:
+        if medians:
+            ref = load_medians(medians)
+            with open(args.calibration, encoding="utf-8") as fh:
+                knobs = json.load(fh)["knobs"]
+            problems = medians_problems(ref, host.facts(), knobs)
+            if problems:
+                raise SpeedReferenceError("; ".join(problems))
+            print(f"speed hold: reference HS1's medians {ref['path']}, sha256 {ref['sha256']}, PC {ref['host']['cpu_model']}, "
+                  f"VirtualBox host {ref['host']['vbox_host_version']}")
+            costs = ref["costs"]
+            if session:
+                record = _session_reference(session, ref, rule, args.calibration)
+        else:
+            with open(args.reference, encoding="utf-8") as fh:
+                doc = json.load(fh)
+            problems = record_reference_problems(doc, host.facts())
+            if problems:
+                raise SpeedReferenceError("; ".join(problems))
+            costs = doc["route_costs_ms"]
+    except SpeedReferenceError as exc:
+        print(f"speed hold: refused: {exc}")
+        return EXIT_REFUSED
     r = speed_hold(host, os.path.abspath(args.calibration), costs, print, args.lo, args.hi, args.agree, args.every_s, args.max_min)
+    if record:
+        path, have = record
+        have["holds"].append(r)
+        _write_json(path, have)
     print(f"speed hold: {'held' if r['held'] else 'NOT held'} after {len(r['pairs'])} probe pairs, {r['waited_s']:.0f} s "
           f"(band {args.lo:+.0%} to {args.hi:+.0%}" + (f", agreeing within {args.agree:.0%}" if args.agree is not None else "") + ")")
     return 0 if r["held"] else EXIT_HOST_UNFIT
@@ -624,7 +788,10 @@ def main(argv=None):
     p.add_argument("--slip-limit-s", type=float, default=0.1)
     p = sub.add_parser("speed-hold", help="probe pairs every 5 min until two in a row lie in the band (a packet's pre-condition)")
     p.add_argument("--calibration", required=True, help="the record whose knobs the probe takes")
-    p.add_argument("--reference", required=True, help="a JSON file with route_costs_ms: the 2026-11-04 record, origin.json or a record")
+    ref = p.add_mutually_exclusive_group(required=True)
+    ref.add_argument("--reference", help="a JSON file with route_costs_ms: the session's origin.json, or a frozen record of this PC")
+    ref.add_argument("--medians", help="HS1's medians on this PC (R1, K11): per CPU and route, the series' median cost")
+    p.add_argument("--session", default=None, help="with --medians: keep the file's sha256 and every hold in DIR/speed_reference.json")
     p.add_argument("--lo", type=float, default=-SPEED_DEV)
     p.add_argument("--hi", type=float, default=SPEED_DEV)
     p.add_argument("--agree", type=float, default=None)
