@@ -3,10 +3,11 @@
 # speed hold and the step(s) detached from the terminal (setsid nohup) with the packet's time budget, a tar and the sha256 of the
 # outputs, and a one-line summary at the end of the packet's log. The step's own runner starts the monitors (K4) and judges every run.
 #
-#   sudo bench/packets/packet.sh PACKET --commit SHA [--session DIR] [--record FILE] [--campaign DIR] [--medians FILE]
+#   sudo bench/packets/packet.sh PACKET --commit SHA [--session DIR] [--record FILE] [--campaign DIR] [--medians FILE] [--paired DIR]
 #   bench/packets/packet.sh PACKET --print [...]          # what it would do; runs nothing, needs no root
 #
-# PACKET: R1 (speed hold against HS1's medians on this PC, K11: --medians FILE or HS1_MEDIANS=FILE; origin; capacity), R2a, R2b,
+# PACKET: R1 (P-1's paired check went on, K20b: --paired DIR; speed hold against HS1's medians on this PC, K11: --medians FILE or
+# HS1_MEDIANS=FILE; origin; capacity), R2a, R2b,
 # R2c (one family's ladder each), R3 (the
 # reference), R4 (the confirmation, a later window), P2-1 (the smoke runs of HG4 at twice the new knee), P2-2 (the MVP campaign; it
 # takes two or three packets). Stop it with `sudo kill -TERM` of the pid the terminal prints, the detached stage's (T-115 H-2; the stage
@@ -19,6 +20,7 @@
 set -euo pipefail
 
 SELF=$(realpath "$0")
+STARTED=$(date +%s)                 # the packet's start, which P-1's paired check must be at most 30 min before (K20b)
 PACKET=${1:-}
 shift || true
 SESSION=/var/tmp/ddos_campaigns/recal_2026-11
@@ -26,6 +28,7 @@ RECORD=""
 CAMPAIGN=/var/tmp/ddos_campaigns/hg4_mvp_xdp_recal
 COMMIT=""
 MEDIANS=${HS1_MEDIANS:-}             # R1's speed reference: HS1's medians.json on this PC (K11)
+PAIRED_DIR=""                        # R1: the OUT_DIR of P-1's paired check (bench/vm/paired_check.py run OUT_DIR), K20b
 PRINT=0
 STAGE=0
 while [ $# -gt 0 ]; do
@@ -35,6 +38,7 @@ while [ $# -gt 0 ]; do
     --campaign) CAMPAIGN=$2; shift 2;;
     --commit) COMMIT=$2; shift 2;;
     --medians) MEDIANS=$2; shift 2;;
+    --paired) PAIRED_DIR=$2; shift 2;;
     --print) PRINT=1; shift;;
     --stage) STAGE=1; shift;;
     *) echo "packet.sh: unknown argument $1" >&2; exit 2;;
@@ -52,8 +56,9 @@ BUDGET_MIN=85                       # no run starts after 85 min (--stop-after t
 PACKET_MIN=180
 PY="./venv/bin/python -B"           # root writes no bytecode into the repository (T-105 F10); its children inherit this:
 export PYTHONDONTWRITEBYTECODE=1
-# R1's paired check of the two probe contexts (T-105 F8): HS1's probe is not in this tree, so the packet names it as a manual step
-PAIRED="manual step, not run by this packet (T-105 F8): before R1's hold, one HS1 probe in HS1's own context (bench/vm/hs1_probe.py of feat/hs1-check, in sbx as uid 1000 with -I -B) and one hold probe (bench/calibrate.py origin-session as root) on the same CPU; record both contexts' costs"
+# R1's paired check of the two probe contexts, P-1 (prereg 5.3; T-105 F8, T-115 M-1; K20b, a candidate until the user approves P-1): the
+# user runs it right before R1, and the packet refuses R1 unless its paired.json says go on, from this boot, at most 30 min old
+PAIRED="P-1 (prereg 5.3), run by the user right before R1: bench/vm/paired_check.py run OUT_DIR --medians FILE (HS1's context A in sbx as uid 1000, the hold's context B as root, CPU 0 then 1, A B B A; D = the mean of B/A - 1 over the CPUs and C3, C5). R1 starts only if OUT_DIR/paired.json has schema paired-check/1, exit 0 (|D| <= 5 %, every probe read), this boot's boot_id, a judged_utc at most 30 min before the packet starts and an uptime_s_at_start (written by run, not by a later judge) (--paired OUT_DIR); otherwise packet.sh refuses, exit 2, before the hold and the pre-checks, and the user decides"
 
 HG4=bench/scenarios/cheap_static_flood_hg4.json
 
@@ -112,12 +117,21 @@ fi
 if [ "$PACKET" = R1 ] && [ -z "$MEDIANS" ] && [ "$PRINT" = 0 ]; then
   echo "packet.sh: R1 holds against HS1's medians on this PC (K11): --medians FILE or HS1_MEDIANS=FILE" >&2; exit 2
 fi
+if [ -n "$PAIRED_DIR" ] && [ "$PACKET" != R1 ]; then
+  echo "packet.sh: --paired is R1's: P-1's paired check is checked before R1's hold only" >&2; exit 2
+fi
+if [ "$PACKET" = R1 ] && [ -z "$PAIRED_DIR" ] && [ "$PRINT" = 0 ]; then
+  echo "packet.sh: R1 starts only after P-1's paired check went on (prereg 5.3, K20b): --paired OUT_DIR, the directory of" \
+    "bench/vm/paired_check.py run OUT_DIR --medians FILE" >&2; exit 2
+fi
 [ -n "$MEDIANS" ] && [ -e "$MEDIANS" ] && MEDIANS=$(realpath "$MEDIANS")      # the stage runs from the repository's root
+[ -n "$PAIRED_DIR" ] && [ -e "$PAIRED_DIR" ] && PAIRED_DIR=$(realpath "$PAIRED_DIR")
 
 # the packet's log, tar and sha256: beside the campaign for P2-2 (a campaign directory holds nothing that is not the campaign's),
 # in the step's output directory otherwise
 case "$PACKET" in P2-2) LOGDIR=$CAMPAIGN.packets;; *) LOGDIR=$(outputs "$PACKET")/packets;; esac
 PRECHECK="$PY bench/packets/prechecks.py --packet $PACKET --session $SESSION --minutes $PACKET_MIN --commit ${COMMIT:-COMMIT}${RECORD:+ --record $RECORD}"
+PAIRED_GATE="$PY bench/packets/prechecks.py paired ${PAIRED_DIR:-PAIRED_DIR} --started"      # + the packet's start (K20b)
 
 if [ "$PRINT" = 1 ]; then
   echo "== packet $PACKET: $(what "$PACKET") =="
@@ -134,6 +148,7 @@ if [ "$PRINT" = 1 ]; then
   if [ "$PACKET" = R1 ]; then
     echo "reference   HS1's medians ${MEDIANS:-HS1_MEDIANS} on this PC: its sha256 printed by the hold and kept in $SESSION/speed_reference.json"
     echo "paired      $PAIRED"
+    echo "p-1 gate    $PAIRED_GATE <the packet's start, epoch s>   (exit 2: R1 refused, nothing started)"
   fi
   echo "detached    setsid nohup bash bench/packets/packet.sh $PACKET --stage ... > $LOGDIR/${PACKET}_<UTC>.log 2>&1 < /dev/null &"
   n=1
@@ -208,6 +223,7 @@ stage() {
   mark=$(mktemp)
   echo "packet $PACKET stage, pid $$, $(date -u +%FT%TZ); sudo kill -TERM $$ stops it"
   [ "$PACKET" = R1 ] && echo "paired check: $PAIRED"
+  [ -n "${PAIRED_DIR:-}" ] && echo "paired check's record: $PAIRED_DIR/paired.json, sha256 $(sha256sum "$PAIRED_DIR/paired.json" 2>/dev/null | cut -c1-64)"
   mapfile -t lines < <(steps "$PACKET")
   n=${#lines[@]}
   for (( i = 0; i < n; i++ )); do
@@ -252,12 +268,15 @@ stage() {
 # --- end of the stage's functions -------------------------------------------------------------------------------------------------------
 
 if [ "$STAGE" = 0 ]; then
+  if [ "$PACKET" = R1 ]; then             # P-1 first: a refusal is the user's decision, and costs no pre-check's minute (K20b)
+    $PAIRED_GATE "$STARTED" || { echo "packet.sh: P-1's paired check does not let R1 start (prereg 5.3); nothing was started" >&2; exit 2; }
+  fi
   $PRECHECK || { echo "packet.sh: a pre-check refused the packet; nothing was started" >&2; exit 3; }
   mkdir -p "$LOGDIR"
   STAMP=$(date -u +%Y%m%dT%H%M%SZ)
   LOG="$LOGDIR/${PACKET}_${STAMP}.log"
   setsid nohup bash "$SELF" "$PACKET" --stage --session "$SESSION" ${RECORD:+--record "$RECORD"} --campaign "$CAMPAIGN" \
-    ${COMMIT:+--commit "$COMMIT"} ${MEDIANS:+--medians "$MEDIANS"} > "$LOG" 2>&1 < /dev/null &
+    ${COMMIT:+--commit "$COMMIT"} ${MEDIANS:+--medians "$MEDIANS"} ${PAIRED_DIR:+--paired "$PAIRED_DIR"} > "$LOG" 2>&1 < /dev/null &
   STAGE_PID=$!
   for _ in $(seq 50); do                # the pid the stage says it has, in its log's first line (else setsid's, which is the same here)
     said=$(sed -n '1s/^packet .* stage, pid \([0-9][0-9]*\),.*/\1/p' "$LOG" 2>/dev/null || true)

@@ -109,17 +109,29 @@ class ScriptTest(unittest.TestCase):
         self.assertEqual(left(85 * 60 - 59), (1, ""))
         self.assertEqual(left(85 * 60 + 5), (1, ""))
 
-    def test_r1_names_the_paired_check_of_the_two_probe_contexts_as_a_manual_step(self):
-        """T-105 F8 (part 2, reported only): HS1's probe is not in this tree, so R1 names the paired check as a manual step, in its
-        --print and in its log."""
+    def test_r1_names_p1s_paired_check_and_its_gate(self):
+        """T-115 M-1 (K20b): R1's --print and log name bench/vm/paired_check.py and the rule (the frozen text described another check
+        before), and the gate that refuses R1 unless P-1 went on."""
         with open(os.path.join(GOLDEN, "R1.txt"), encoding="utf-8") as fh:
-            self.assertIn("paired      manual step, not run by this packet (T-105 F8): before R1's hold, one HS1 probe in HS1's own "
-                          "context", fh.read())
+            text = fh.read()
+        self.assertIn("paired      P-1 (prereg 5.3), run by the user right before R1: bench/vm/paired_check.py run OUT_DIR --medians FILE "
+                      "(HS1's context A in sbx as uid 1000, the hold's context B as root, CPU 0 then 1, A B B A;", text)
+        self.assertIn("R1 starts only if OUT_DIR/paired.json has schema paired-check/1, exit 0 (|D| <= 5 %, every probe read), this "
+                      "boot's boot_id, a judged_utc at most 30 min before the packet starts and an uptime_s_at_start (written by run, "
+                      "not by a later judge) (--paired OUT_DIR); otherwise packet.sh refuses, exit 2, before the hold and the pre-checks, "
+                      "and the user decides", text)
+        self.assertIn("p-1 gate    ./venv/bin/python -B bench/packets/prechecks.py paired PAIRED_DIR --started <the packet's start, "
+                      "epoch s>   (exit 2: R1 refused, nothing started)", text)
+        self.assertNotIn("manual step", text)
         for packet in PC.PACKETS[1:]:
             with open(os.path.join(GOLDEN, packet + ".txt"), encoding="utf-8") as fh:
                 self.assertNotIn("paired", fh.read())
         with open(SCRIPT, encoding="utf-8") as fh:
-            self.assertIn('[ "$PACKET" = R1 ] && echo "paired check: $PAIRED"', fh.read())
+            script_text = fh.read()
+        self.assertIn('[ "$PACKET" = R1 ] && echo "paired check: $PAIRED"', script_text)
+        self.assertIn('PAIRED="P-1 (prereg 5.3), run by the user right before R1: bench/vm/paired_check.py run OUT_DIR --medians FILE ',
+                      script_text, "the stage's log says the same as --print")
+        self.assertIn('echo "paired check\'s record: $PAIRED_DIR/paired.json, sha256 ', script_text)
 
     def test_r1_holds_against_hs1s_medians_on_this_pc_and_later_packets_against_r1s(self):
         """K11: R1's hold takes HS1's medians on the PC that runs the programme, never the 2026-11-04 costs (another PC's)."""
@@ -144,6 +156,128 @@ class ScriptTest(unittest.TestCase):
             self.assertIn("the steps need root", r.stderr)
         with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
             PC.main(["--packet", "R2a", "--session", "/S"])           # the pre-checks need the pinned commit too
+
+
+BOOT = "0f1e2d3c-4b5a-4978-8796-a5b4c3d2e1f0"            # /proc/sys/kernel/random/boot_id of the fixtures' boot
+
+
+def paired_doc(**kw):
+    """OUT_DIR/paired.json as bench/vm/paired_check.py writes it (schema paired-check/1, its judge's fields), with the "boot_id",
+    "judged_utc" and "uptime_s_at_start" its `run` writes (feat/paired-check, the coordinator's interface note); a check that went on,
+    judged 10 min before NOW."""
+    doc = {"schema": "paired-check/1", "limit": 0.05, "routes": ["C3", "C5"], "cpus": ["0", "1"], "order": ["A", "B", "B", "A"],
+           "repeats": 21, "per_cpu": {}, "D": 0.012, "ok": True, "exit": 0, "reasons": [], "medians_file": None,
+           "judged_utc": "2026-11-16T08:50:00.123456Z", "boot_id": BOOT, "uptime_s_at_start": 7215.4}
+    doc.update(kw)
+    return doc
+
+
+class PairedTest(unittest.TestCase):
+    """T-115 M-1 (K20b, a candidate until the user approves P-1): `packet.sh R1` takes --paired DIR and refuses, exit 2 and before the
+    hold and the pre-checks, unless DIR/paired.json says P-1 went on, in this boot, at most 30 min before the packet starts."""
+
+    def test_the_rule(self):
+        self.assertEqual((PC.PAIRED_SCHEMA, PC.PAIRED_FILE, PC.PAIRED_MAX_AGE_S, PC.PAIRED_AHEAD_S, PC.EXIT_PAIRED_REFUSED),
+                         ("paired-check/1", "paired.json", 1800, 60, 2))
+        self.assertEqual(PC.BOOT_ID, "/proc/sys/kernel/random/boot_id")
+
+    def test_a_check_that_went_on_in_this_boot_within_30_min_lets_r1_start(self):
+        self.assertEqual(PC.check_paired(paired_doc(), BOOT + "\n", NOW), [])
+        self.assertEqual(PC.check_paired(paired_doc(judged_utc="2026-11-16T08:30:00Z"), BOOT, NOW), [], "30 min is inclusive")
+        self.assertEqual(PC.check_paired(paired_doc(judged_utc="2026-11-16T09:00:59+00:00"), BOOT, NOW), [],
+                         "the packet's start is in whole seconds")
+
+    def test_every_other_paired_json_refuses(self):
+        cases = ((paired_doc(exit=6, ok=False, D=0.071, reasons=[("the contexts differ by D = +7.10%, beyond 5%: R1 stops before the "
+                                                                  "hold (P-1)")]),
+                  "P-1 said exit 6, not 0 (go on): the contexts differ by D = +7.10%, beyond 5%"),
+                 (paired_doc(exit=3, ok=False, D=None, reasons=["probe 5 (CPU 1, B) could not be read: timeout"]), "P-1 said exit 3"),
+                 (paired_doc(ok=False), "P-1 said exit 0, not 0 (go on)"),
+                 (paired_doc(exit=False), "P-1 said exit False"),
+                 (paired_doc(boot_id="ffffffff-0000-4000-8000-000000000000"),
+                  "P-1 ran in boot ffffffff, this boot is 0f1e2d3c: it is repeated after a reboot"),
+                 ({k: v for k, v in paired_doc().items() if k != "boot_id"}, "paired.json names no boot_id"),
+                 (paired_doc(judged_utc="2026-11-16T08:29:00Z"), "P-1 was judged 31.0 min before the packet started, more than 30 min"),
+                 (paired_doc(judged_utc="2026-11-16T09:05:00Z"), "P-1's judged_utc is 5.0 min after the packet started"),
+                 (paired_doc(judged_utc="2026-11-16 08:50"), "judged_utc '2026-11-16 08:50' cannot be read as a UTC time"),
+                 ({k: v for k, v in paired_doc().items() if k != "judged_utc"}, "judged_utc None cannot be read"),
+                 (paired_doc(schema="paired-check/2"), "paired.json is of schema 'paired-check/2', not paired-check/1"),
+                 (paired_doc(uptime_s_at_start=None), "paired.json has no uptime_s_at_start: it was not written by `paired_check.py run`"),
+                 ({k: v for k, v in paired_doc().items() if k != "uptime_s_at_start"}, "has no uptime_s_at_start"),
+                 ([1, 2], "paired.json is not a JSON object"))
+        for doc, said in cases:
+            with self.subTest(said=said):
+                reasons = PC.check_paired(doc, BOOT, NOW)
+                self.assertTrue(any(said in r for r in reasons), reasons)
+
+    def test_the_interface_paired_check_py_writes(self):
+        """paired_check.py writes judged_utc with dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ") and boot_id as the stripped
+        /proc/sys/kernel/random/boot_id: the gate reads exactly that (the file's boot_id has no newline, /proc's has one)."""
+        stamp = datetime.datetime.fromtimestamp(NOW - 600.5, datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        self.assertEqual(stamp, "2026-11-16T08:49:59.500000Z")
+        self.assertAlmostEqual(PC._utc_epoch(stamp), NOW - 600.5, places=6)
+        self.assertEqual(PC.check_paired(paired_doc(judged_utc=stamp, boot_id=BOOT), BOOT + "\n", NOW), [])
+        old = datetime.datetime.fromtimestamp(NOW - 1800.5, datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        self.assertEqual(PC.check_paired(paired_doc(judged_utc=old), BOOT, NOW),
+                         [("P-1 was judged 30.0 min before the packet started, more than 30 min: it is not right before the hold; run it "
+                           "again")], "half a second over the 30 min")
+        self.assertIsNone(PC._utc_epoch("2026-11-16T08:49:59.500000"), "a time without its zone is not read as UTC")
+
+    def gate(self, directory, boot=BOOT, started=NOW):
+        said = io.StringIO()
+        with mock.patch.object(PC, "_read", return_value=boot + "\n"), contextlib.redirect_stdout(said):
+            code = PC.main(["paired", directory, "--started", str(started)])
+        return code, said.getvalue()
+
+    def test_the_gate_on_fixture_directories(self):
+        """ok, exit 6, another boot, too old, missing, not JSON: what `prechecks.py paired` (packet.sh's gate) says and exits."""
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, doc in (("ok", paired_doc()), ("six", paired_doc(exit=6, ok=False, D=0.071))):
+                os.makedirs(os.path.join(tmp, name))
+                with open(os.path.join(tmp, name, "paired.json"), "w", encoding="utf-8") as fh:
+                    json.dump(doc, fh)
+            os.makedirs(os.path.join(tmp, "torn"))
+            with open(os.path.join(tmp, "torn", "paired.json"), "w", encoding="utf-8") as fh:
+                fh.write('{"schema": "paired-check/1", "ex')
+            ok = os.path.join(tmp, "ok")
+            with open(os.path.join(ok, "paired.json"), "rb") as fh:
+                sha = hashlib.sha256(fh.read()).hexdigest()
+            self.assertEqual(self.gate(ok), (0, (f"OK  paired check (P-1): {ok}/paired.json sha256 {sha[:16]}, D +1.20%, judged "
+                                                "2026-11-16T08:50:00.123456Z in boot 0f1e2d3c\n")))
+            for label, (code, said), want in (
+                    ("exit 6", self.gate(os.path.join(tmp, "six")), "P-1 said exit 6, not 0 (go on)"),
+                    ("another boot", self.gate(ok, boot="ffffffff-0000-4000-8000-000000000000"), ("P-1 ran in boot 0f1e2d3c, this boot "
+                                                                                                    "is ffffffff")),
+                    ("too old", self.gate(ok, started=NOW + 3600), "P-1 was judged 70.0 min before the packet started"),
+                    ("missing", self.gate(os.path.join(tmp, "none")), (f"no paired.json in {tmp}/none (FileNotFoundError): run "
+                                                                      f"bench/vm/paired_check.py run {tmp}/none --medians FILE first")),
+                    ("not JSON", self.gate(os.path.join(tmp, "torn")), "paired.json is not JSON")):
+                with self.subTest(label):
+                    self.assertEqual(code, 2, said)
+                    self.assertTrue(said.startswith("NO  paired check (P-1): "), said)
+                    self.assertIn(want, said)
+
+    def test_r1_needs_it_and_the_packet_checks_it_before_the_pre_checks_and_the_hold(self):
+        r = script("R1", "--session", "/S", "--commit", HEAD[:7], "--medians", "/M")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("packet.sh: R1 starts only after P-1's paired check went on (prereg 5.3, K20b): --paired OUT_DIR, the directory of "
+                      "bench/vm/paired_check.py run OUT_DIR --medians FILE", r.stderr)
+        r = script("R2a", "--session", "/S", "--commit", HEAD[:7], "--paired", "/P")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("packet.sh: --paired is R1's", r.stderr)
+        if os.geteuid() != 0:
+            r = script("R1", "--session", "/S", "--commit", HEAD[:7], "--medians", "/M", "--paired", "/P")
+            self.assertEqual(r.returncode, 2)
+            self.assertIn("the steps need root", r.stderr, "past the argument's check")
+        with open(SCRIPT, encoding="utf-8") as fh:
+            text = fh.read()
+        foreground = text[text.index('if [ "$STAGE" = 0 ]; then'):]
+        gate = foreground.index('$PAIRED_GATE "$STARTED" || { echo "packet.sh: P-1\'s paired check does not let R1 start (prereg 5.3); '
+                                'nothing was started" >&2; exit 2; }')
+        self.assertLess(gate, foreground.index("$PRECHECK ||"))
+        self.assertLess(gate, foreground.index("setsid nohup bash"))
+        self.assertIn('PAIRED_GATE="$PY bench/packets/prechecks.py paired ${PAIRED_DIR:-PAIRED_DIR} --started"', text)
+        self.assertIn('STARTED=$(date +%s)', text)
 
 
 def tracking(offset=0.000123, leap="Normal"):

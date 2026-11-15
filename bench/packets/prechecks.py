@@ -3,12 +3,14 @@ command printed, so that it can be tried on fixtures, and a command line that ru
 check. Nothing here starts, stops or changes anything; bpftool and the journal need root to see everything.
 
     python3 bench/packets/prechecks.py --packet R2a --session DIR --minutes 180 --commit SHA [--record FILE]
+    python3 bench/packets/prechecks.py paired OUT_DIR --started EPOCH     # R1's gate on P-1's paired check (K20b; exit 0 or 2)
 
 Every check fails closed (T-105 F5): a command that failed or printed nothing where it always prints something is a problem, never a
 clean reading.
 """
 import argparse
 import datetime
+import hashlib
 import json
 import os
 import re
@@ -38,6 +40,19 @@ PACKETS = ("R1", "R2a", "R2b", "R2c", "R3", "R4", "P2-1", "P2-2")
 # 5.2's frozen hashes: what the steps run from, by content against the pinned commit (with the frozen record, wherever in the tree)
 FROZEN = ("bench", "eval", "nginx.conf", "nginx_unprotected.conf", "control_plane.py", "xdp_ddos_filter.c", "test_distributed_suite.py")
 COMMIT_ID = re.compile(r"[0-9a-f]{7,40}")
+# R1's gate on P-1, the paired check of the two probe contexts (prereg 5.3 [PROPOSAL P-1]; T-115 M-1; K20b, a candidate until the user
+# approves P-1): R1 starts only if bench/vm/paired_check.py's OUT_DIR/paired.json is of its schema, says exit 0 and ok (|D| within 5 %,
+# every probe read), was judged in this boot (its "boot_id", /proc/sys/kernel/random/boot_id) and at most PAIRED_MAX_AGE_S before the
+# packet starts ("judged_utc", written as %Y-%m-%dT%H:%M:%S.%fZ in UTC): "right before the hold"; and was written by `paired_check.py
+# run`, which alone records "uptime_s_at_start" (a `judge` of older probes writes a new judged_utc and boot_id, and no uptime). A
+# judged_utc up to PAIRED_AHEAD_S after the start is the clock's granularity (the packet's start is in whole seconds); more is a clock
+# that cannot be trusted. Anything else, or a file that is not there, refuses.
+PAIRED_SCHEMA = "paired-check/1"
+PAIRED_FILE = "paired.json"
+PAIRED_MAX_AGE_S = 1800
+PAIRED_AHEAD_S = 60
+BOOT_ID = "/proc/sys/kernel/random/boot_id"
+EXIT_PAIRED_REFUSED = 2
 
 
 def check_tree(porcelain, head, commit):
@@ -174,6 +189,82 @@ def check_quiet(pidstat_text):
     return out
 
 
+def _utc_epoch(text):
+    """Seconds since the epoch of an ISO UTC time as paired_check.py writes it ("2026-11-16T09:00:00.123456Z"), or None."""
+    try:
+        when = datetime.datetime.fromisoformat(str(text))           # a trailing Z is UTC (Python 3.11 on)
+    except ValueError:
+        return None
+    return when.timestamp() if when.tzinfo is not None else None
+
+
+def check_paired(doc, boot_id, started_s):
+    """P-1 lets R1 start (K20b): `doc` is paired.json, `boot_id` this boot's, `started_s` the packet's start (epoch seconds). The reasons
+    it does not (none: R1 may start). Fails closed: a field that is missing or cannot be read is a reason."""
+    if not isinstance(doc, dict):
+        return ["paired.json is not a JSON object"]
+    out = []
+    if doc.get("schema") != PAIRED_SCHEMA:
+        out.append(f"paired.json is of schema {doc.get('schema')!r}, not {PAIRED_SCHEMA}")
+    if doc.get("exit") != 0 or isinstance(doc.get("exit"), bool) or doc.get("ok") is not True:
+        why = "; ".join(str(r) for r in doc.get("reasons") or [])[:200]
+        out.append(f"P-1 said exit {doc.get('exit')!r}, not 0 (go on)" + (f": {why}" if why else ""))
+    theirs = str(doc.get("boot_id") or "").strip()
+    if not theirs:
+        out.append("paired.json names no boot_id: whether P-1 ran in this boot cannot be read")
+    elif theirs != (boot_id or "").strip():
+        out.append(f"P-1 ran in boot {theirs[:8]}, this boot is {(boot_id or '?').strip()[:8]}: it is repeated after a reboot")
+    up = doc.get("uptime_s_at_start")
+    if not isinstance(up, (int, float)) or isinstance(up, bool):
+        out.append("paired.json has no uptime_s_at_start: it was not written by `paired_check.py run` (a `judge` of older probes "
+                   "writes a new judged_utc and boot_id, and no uptime)")
+    judged = _utc_epoch(doc.get("judged_utc"))
+    if judged is None:
+        out.append(f"paired.json's judged_utc {doc.get('judged_utc')!r} cannot be read as a UTC time")
+    elif started_s - judged > PAIRED_MAX_AGE_S:
+        out.append(f"P-1 was judged {(started_s - judged) / 60:.1f} min before the packet started, more than "
+                   f"{PAIRED_MAX_AGE_S / 60:g} min: it is not right before the hold; run it again")
+    elif judged - started_s > PAIRED_AHEAD_S:
+        out.append(f"P-1's judged_utc is {(judged - started_s) / 60:.1f} min after the packet started: the clock cannot be trusted")
+    return out
+
+
+def read_paired(directory):
+    """OUT_DIR/paired.json: (its object or None, its sha256 or None, the reasons it cannot be read)."""
+    path = os.path.join(directory, PAIRED_FILE)
+    try:
+        with open(path, "rb") as fh:
+            raw = fh.read()
+    except OSError as exc:
+        missing = (f"no {PAIRED_FILE} in {directory} ({type(exc).__name__}): run bench/vm/paired_check.py run {directory} "
+                   "--medians FILE first")
+        return None, None, [missing]
+    try:
+        return json.loads(raw), hashlib.sha256(raw).hexdigest(), []
+    except ValueError as exc:
+        return None, hashlib.sha256(raw).hexdigest(), [f"{path} is not JSON ({exc})"]
+
+
+def paired_main(argv):
+    """`prechecks.py paired OUT_DIR [--started EPOCH]`: one line, OK or NO; exit 0, or 2 (EXIT_PAIRED_REFUSED: R1 does not start)."""
+    ap = argparse.ArgumentParser(prog="prechecks.py paired", description="R1's gate on P-1's paired check (K20b)")
+    ap.add_argument("out_dir")
+    ap.add_argument("--started", type=float, default=None, help="the packet's start, epoch seconds (default: now)")
+    args = ap.parse_args(argv)
+    started = args.started if args.started is not None else datetime.datetime.now(datetime.UTC).timestamp()
+    doc, sha, reasons = read_paired(args.out_dir)
+    if not reasons:
+        reasons = check_paired(doc, _read(BOOT_ID), started)
+    where = os.path.join(os.path.abspath(args.out_dir), PAIRED_FILE)
+    if reasons:
+        print(f"NO  paired check (P-1): {where}" + (f" sha256 {sha[:16]}" if sha else "") + ": " + "; ".join(reasons))
+        return EXIT_PAIRED_REFUSED
+    d = doc.get("D")
+    said = f", D {d:+.2%}" if isinstance(d, (int, float)) and not isinstance(d, bool) else ""
+    print(f"OK  paired check (P-1): {where} sha256 {sha[:16]}{said}, judged {doc['judged_utc']} in boot {str(doc['boot_id'])[:8]}")
+    return 0
+
+
 # --- on this host ---------------------------------------------------------------------------------------------------------------------
 
 def _sh(argv, timeout=90, stdin=None):
@@ -250,6 +341,9 @@ def run_all(packet, session, minutes, record=None, commit=None):
 
 
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if argv[:1] == ["paired"]:                  # R1's gate on P-1 (K20b)
+        return paired_main(argv[1:])
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--packet", required=True, choices=PACKETS)
     ap.add_argument("--session", required=True)

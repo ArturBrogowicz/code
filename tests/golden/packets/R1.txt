@@ -10,7 +10,8 @@ pre-checks  ./venv/bin/python -B bench/packets/prechecks.py --packet R1 --sessio
             within 180 + 10 min, no package job, no testbed left, no other process above 5 % of a CPU; each check fails
             closed on a command that failed or printed nothing)
 reference   HS1's medians HS1_MEDIANS on this PC: its sha256 printed by the hold and kept in /S/speed_reference.json
-paired      manual step, not run by this packet (T-105 F8): before R1's hold, one HS1 probe in HS1's own context (bench/vm/hs1_probe.py of feat/hs1-check, in sbx as uid 1000 with -I -B) and one hold probe (bench/calibrate.py origin-session as root) on the same CPU; record both contexts' costs
+paired      P-1 (prereg 5.3), run by the user right before R1: bench/vm/paired_check.py run OUT_DIR --medians FILE (HS1's context A in sbx as uid 1000, the hold's context B as root, CPU 0 then 1, A B B A; D = the mean of B/A - 1 over the CPUs and C3, C5). R1 starts only if OUT_DIR/paired.json has schema paired-check/1, exit 0 (|D| <= 5 %, every probe read), this boot's boot_id, a judged_utc at most 30 min before the packet starts and an uptime_s_at_start (written by run, not by a later judge) (--paired OUT_DIR); otherwise packet.sh refuses, exit 2, before the hold and the pre-checks, and the user decides
+p-1 gate    ./venv/bin/python -B bench/packets/prechecks.py paired PAIRED_DIR --started <the packet's start, epoch s>   (exit 2: R1 refused, nothing started)
 detached    setsid nohup bash bench/packets/packet.sh R1 --stage ... > /S/packets/R1_<UTC>.log 2>&1 < /dev/null &
 step 1      ./venv/bin/python -B bench/hostcheck.py speed-hold --calibration bench/calibration/placeholder.json --medians HS1_MEDIANS --session /S --lo -0.10 --hi 0.10 --agree 0.05 --max-min 45
 step 2      ./venv/bin/python -B bench/calibrate.py origin --out /S
