@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -232,6 +233,60 @@ class HoldTest(Case):
         self.assertIn(f"the session holds against the HS1 medians {sha[:8]} ({path}); this file is {other_sha[:8]}: a session has one "
                       "speed reference", said)
         self.assertEqual(self.stored()["sha256"], sha)
+
+    def test_a_hold_stopped_by_term_keeps_the_pairs_it_made_in_the_session(self):
+        """T-115 LOW 10: TERM (which the hold's main turns into the interrupt, as the executor's does) or INT stops the hold; the probe
+        pairs it made are kept in speed_reference.json with the stop, and it exits 130. Before, they were only in the log."""
+        path, sha = self.write(medians_doc())
+
+        class Stopped(S.SimHost):                   # TERM arrives in the wait after the second pair (the host 20 % slow: no hold yet)
+            def sleep(self, seconds):
+                if self.origin_calls >= 4:
+                    raise KeyboardInterrupt("signal 15")
+                super().sleep(seconds)
+        code, said = self.hold(Stopped(facts=LAPTOP, origin_costs=COSTS, origin_slow=lambda t: 0.2), medians=path)
+        self.assertEqual((code, HC.EXIT_INTERRUPTED), (130, 130), said)
+        stop = self.stored()["holds"][-1]
+        self.assertEqual((stop["held"], stop["stopped"]), (False, "interrupted (signal 15) after 2 probe pairs"))
+        self.assertEqual([round(p["d"], 6) for p in stop["pairs"]], [0.2, 0.2])
+        self.assertEqual(self.stored()["sha256"], sha)
+        self.assertIn(f"speed hold: stopped, interrupted (signal 15) after 2 probe pairs; they are kept in "
+                      f"{os.path.join(self.session, HC.SPEED_REFERENCE)}", said)
+        with mock.patch.object(HC, "speed_hold", side_effect=KeyboardInterrupt), contextlib.redirect_stdout(io.StringIO()):
+            code, _ = self.hold(S.SimHost(facts=LAPTOP, origin_costs=COSTS), medians=path)
+        self.assertEqual(code, 130)
+        self.assertEqual(self.stored()["holds"][-1]["stopped"], "interrupted (INT) after 0 probe pairs", "an INT before any pair")
+
+    def test_the_holds_main_turns_term_into_the_interrupt(self):
+        with open(os.path.join(REPO, "bench", "hostcheck.py"), encoding="utf-8") as fh:
+            text = fh.read()
+        body = text[text.index("def speed_hold_main("):text.index("\ndef main(")]
+        self.assertIn("host = X.RealHost()\n        X._install_signal_handlers()", body)
+
+    def test_a_file_that_is_not_there_or_not_a_reference_is_refused_before_any_probe(self):
+        """T-116 (from T-115's list of speed-hold's exits): a --medians, --reference or --calibration that is not there, or a --reference
+        with no route costs, is a refusal (exit 2, a line naming the file) before any probe. It was a traceback (exit 1); and under
+        --reference a missing --calibration was not read at all: the probes failed on it and the hold waited out its 30 min."""
+        path, _ = self.write(medians_doc())
+        missing = os.path.join(self.tmp.name, "nothing.json")
+        origin, nocosts, bare = (os.path.join(self.tmp.name, n) for n in ("origin.json", "nocosts.json", "bare.json"))
+        for p, doc in ((origin, {"route_costs_ms": COSTS}), (nocosts, {"step": "origin"}), (bare, {"status": "placeholder"})):
+            with open(p, "w", encoding="utf-8") as fh:
+                json.dump(doc, fh)
+        cases = (("--medians", {"medians": missing}, f"{missing}: cannot be read (FileNotFoundError: No such file or directory)"),
+                 ("--reference", {"reference": missing}, f"--reference {missing} cannot be read (FileNotFoundError"),
+                 ("--calibration with --medians", {"medians": path, "calibration": missing}, f"--calibration {missing} cannot be read"),
+                 ("--calibration with --reference", {"reference": origin, "calibration": missing},
+                  f"--calibration {missing} cannot be read"),
+                 ("--calibration without knobs", {"reference": origin, "calibration": bare}, f"--calibration {bare} has no knobs"),
+                 ("--reference without costs", {"reference": nocosts}, f"--reference {nocosts} has no route_costs_ms"))
+        for label, kw, said in cases:
+            with self.subTest(label):
+                host = S.SimHost(facts=LAPTOP, origin_costs=COSTS)
+                code, out = self.hold(host, **{"agree": None, "max_min": 30.0, **kw})
+                self.assertEqual(code, HC.EXIT_REFUSED, out)
+                self.assertIn("speed hold: refused: " + said, out)
+                self.assertEqual(host.origin_calls, 0, "nothing was probed")
 
     def test_a_record_that_names_no_pc_is_never_a_speed_reference(self):
         code, said = self.hold(S.SimHost(facts=LAPTOP, origin_costs=COSTS), reference=RECORD, calibration=RECORD)

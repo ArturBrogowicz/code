@@ -1,7 +1,9 @@
 """The packets of the re-calibration (bench/packets; docs/RECALIBRATION_2026-11_DESIGN.md 5.2, 5.3, 6.2 and K7): the script's syntax,
-its --print output for every packet (pinned), its refusals, and each pre-check on fixture inputs. Nothing here runs a step."""
+its --print output for every packet (pinned), its refusals, and each pre-check on fixture inputs. Nothing here runs a step; the stage's
+own functions run with stand-in steps (StageStopTest)."""
 import contextlib
 import datetime
+import hashlib
 import io
 import json
 import os
@@ -277,7 +279,11 @@ class StopTest(unittest.TestCase):
         with open(SCRIPT, encoding="utf-8") as fh:
             text = fh.read()
         self.assertNotIn("kill -INT", text)
-        self.assertEqual(text.count("kill -TERM"), 3)
+        # T-115 H-2: every stop instruction names the stage, whose pid the terminal prints and the stage's log names; none the step's
+        self.assertIn('echo "stop it with kill -TERM $STAGE_PID: ', text)
+        self.assertIn('echo "packet $PACKET stage, pid $$, $(date -u +%FT%TZ); kill -TERM $$ stops it"', text)
+        self.assertIn('echo "the step\'s process: $STEP_PID (the packet stops with kill -TERM $$, the stage)"', text)
+        self.assertNotIn("kill -TERM $pid stops it", text)
 
     def test_a_step_launched_as_packet_sh_launches_it_stops_on_int(self):
         """The chrony sampler (bench/hostcheck.py, a main the packet's steps start) as the step of a stage launched as packet.sh
@@ -315,6 +321,125 @@ echo $pid > {tmp}/step.pid; wait $pid; echo "exit $?" > {tmp}/exit.txt
                     deadline = time.monotonic() + 10
                     while time.monotonic() < deadline and not os.path.exists(f"{tmp}/exit.txt"):
                         time.sleep(0.1)
+
+
+STEP = """import os, signal, sys, time
+tmp, name = sys.argv[1], sys.argv[2]
+
+
+def stop(signum, frame):                 # as executor._install_signal_handlers: TERM ends the step through its teardown
+    raise KeyboardInterrupt(f"signal {signum}")
+
+
+signal.signal(signal.SIGTERM, stop)
+print(f"{name}: started, pid {os.getpid()}", flush=True)
+with open(os.path.join(tmp, name + ".pid"), "w") as fh:
+    fh.write(str(os.getpid()))
+try:
+    time.sleep(60)
+except KeyboardInterrupt:
+    print(f"{name}: TERM, taking the testbed down", flush=True)
+    time.sleep(1.0)
+    open(os.path.join(tmp, name + ".teardown"), "w").close()
+    print(f"{name}: teardown done", flush=True)
+    sys.exit(130)
+"""
+
+
+def stage_block():
+    """The stage's functions as packet.sh has them, between its two markers."""
+    with open(SCRIPT, encoding="utf-8") as fh:
+        text = fh.read()
+    return text[text.index("# --- the stage's functions"):text.index("# --- end of the stage's functions")]
+
+
+def alive(pid):
+    """Whether `pid` runs (a zombie, ended but not yet reaped, does not)."""
+    try:
+        with open(f"/proc/{pid}/stat", encoding="utf-8") as fh:
+            return fh.read().rsplit(")", 1)[1].split()[0] != "Z"
+    except OSError:
+        return False
+
+
+def read(path):
+    with open(path, encoding="utf-8") as fh:
+        return fh.read()
+
+
+def wait_for(predicate, seconds):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline and not predicate():
+        time.sleep(0.05)
+    return predicate()
+
+
+class StageStopTest(unittest.TestCase):
+    """T-115 H-2: the terminal prints the detached stage's pid and says to stop the packet with kill -TERM of it. Before, TERM to that pid
+    killed the stage alone: the step went on orphaned (the testbed up), and no tar, sha256 or summary was written.
+    The stage's own functions (packet.sh's block between its markers) run here as a stage launched the way packet.sh launches one
+    (setsid nohup bash ... &, so with SIGINT ignored), with two stand-in steps that take the TERM as the executor does."""
+
+    def test_kill_term_of_the_stage_reaches_the_step_waits_for_its_teardown_skips_the_rest_and_writes_the_tar_and_summary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(f"{tmp}/S/packets")
+            with open(f"{tmp}/S/data.txt", "w", encoding="utf-8") as fh:
+                fh.write("a run's record\n")
+            with open(f"{tmp}/step.py", "w", encoding="utf-8") as fh:
+                fh.write(STEP)
+            with open(f"{tmp}/stage.sh", "w", encoding="utf-8") as fh:
+                fh.write(f"""set -euo pipefail
+PACKET=T LOGDIR={tmp}/S/packets BUDGET_MIN=85 PAIRED=none
+steps() {{ echo "{sys.executable} -B {tmp}/step.py {tmp} first"; echo "{sys.executable} -B {tmp}/step.py {tmp} second"; }}
+outputs() {{ echo "{tmp}/S"; }}
+{stage_block()}
+stage
+""")
+            log = f"{tmp}/S/packets/T.log"
+            launch = f"setsid nohup bash -c 'bash {tmp}/stage.sh; echo \"rc $?\" > {tmp}/rc.txt' > {log} 2>&1 < /dev/null &"
+            subprocess.run(["bash", "-c", launch], check=True, timeout=30)       # as packet.sh launches its stage, SIGINT ignored
+            step = None
+            try:
+                self.assertTrue(wait_for(lambda: os.path.exists(f"{tmp}/first.pid") and "first: started" in read(log), 30),
+                                "the first step did not start")
+                with open(f"{tmp}/first.pid", encoding="utf-8") as fh:
+                    step = int(fh.read())
+                with open(log, encoding="utf-8") as fh:
+                    first_line = fh.readline()
+                stage = int(first_line.split("stage, pid ")[1].split(",")[0])
+                self.assertIn(f"kill -TERM {stage} stops it", first_line)
+                with open(SCRIPT, encoding="utf-8") as fh:            # the foreground reads the pid it prints from that line
+                    program = fh.read().split("said=$(sed -n '")[1].split("'")[0]
+                self.assertEqual(subprocess.run(["sed", "-n", program, log], capture_output=True, text=True, check=True).stdout.strip(),
+                                 str(stage))
+                os.kill(stage, signal.SIGTERM)
+                self.assertTrue(wait_for(lambda: os.path.exists(f"{tmp}/rc.txt"), 30), "the stage did not end within 30 s of the TERM")
+                with open(log, encoding="utf-8") as fh:
+                    text = fh.read()
+                with open(f"{tmp}/rc.txt", encoding="utf-8") as fh:
+                    self.assertEqual(fh.read().strip(), "rc 130", text)
+                self.assertIn(f"TERM: passing TERM to the step's process {step} and waiting for it to end", text)
+                order = [text.index(s) for s in ("first: TERM, taking the testbed down", "first: teardown done", " exit 130\n",
+                                                 "PACKET T stopped by TERM (exit 130): runs made 0, host-invalid 0; ")]
+                self.assertEqual(order, sorted(order), "the summary comes after the step's teardown")
+                self.assertTrue(os.path.exists(f"{tmp}/first.teardown"))
+                self.assertFalse(os.path.exists(f"{tmp}/second.pid"), "no further step starts")
+                self.assertFalse(alive(step), "the step's process is not left running")
+                self.assertTrue(wait_for(lambda: not alive(stage), 10))
+                tars = [f for f in os.listdir(f"{tmp}/S/packets") if f.endswith(".tar.gz")]
+                self.assertEqual(len(tars), 1)
+                tar = f"{tmp}/S/packets/{tars[0]}"
+                with open(tar, "rb") as fh:
+                    digest = hashlib.sha256(fh.read()).hexdigest()
+                with open(tar[:-len(".tar.gz")] + ".sha256", encoding="utf-8") as fh:
+                    self.assertEqual(fh.read().split()[0], digest)
+                self.assertIn(f"tar {tar}, sha256 {digest[:16]}", text)
+                names = subprocess.run(["tar", "-tzf", tar], capture_output=True, text=True, check=True).stdout.split()
+                self.assertIn("S/data.txt", names)
+                self.assertFalse([n for n in names if "packets" in n], "the packet's own log stays out of its tar")
+            finally:
+                if step and alive(step):
+                    os.kill(step, signal.SIGKILL)
 
 
 class SpeedHoldCommandTest(unittest.TestCase):

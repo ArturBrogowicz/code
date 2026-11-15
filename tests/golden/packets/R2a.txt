@@ -11,4 +11,7 @@ detached    setsid nohup bash bench/packets/packet.sh R2a --stage ... > /S/packe
 step 1      ./venv/bin/python -B bench/hostcheck.py speed-hold --calibration bench/calibration/placeholder.json --reference /S/origin/origin.json --lo -0.10 --hi 0.10 --max-min 30
 step 2      ./venv/bin/python -B bench/calibrate.py ladder --family cheap_static_flood --out /S --stop-after REMAINING
 after       tar -czf /S/packets/R2a_<UTC>.tar.gz /S; sha256sum of it into R2a_<UTC>.sha256
-summary     one line at the end of the log: PACKET R2a <done|paused|host unfit|stopped> (exit N): runs made, host-invalid
+stop        kill -TERM <the stage's pid, printed at the start>: the TERM goes on to the step's process, the stage waits for
+            its teardown, starts no further step and still writes the tar, the sha256 and the summary; the same command resumes
+summary     one line at the end of the log: PACKET R2a <done|paused|host unfit|stopped|stopped by TERM> (exit N): runs made,
+            host-invalid

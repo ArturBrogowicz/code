@@ -45,6 +45,7 @@ SPEED_CPUS = ("0", "1")              # the server's CPUs (population.PIN_PLAN an
 SPEED_REPEATS = 21                   # as a session of the origin step
 PROBE_TIMEOUT_S = 600
 EXIT_REFUSED = 2                     # speed-hold: a reference it does not take (another PC, another estimator, a record that names no PC)
+EXIT_INTERRUPTED = 130               # speed-hold: stopped by TERM, HUP or INT; the pairs it had are kept (T-115 LOW 10), as calibrate.py's 130
 # R1's speed hold (K11; a proposal the user approves before it is committed; D-096): the costs of 2026-11-04 were measured on another
 # PC than the one that runs the programme, so R1 holds against the medians of HS1's series on this PC instead (docs/HS1_PREREG.md 7),
 # each CPU against its own, with H1's band, two pairs in a row agreeing within 5 % (as the hold of 5.2 asked) and at most 45 min. The
@@ -537,16 +538,17 @@ def judge_host(speed, slip_p99_s, slip_limit_s, records, alive, t_start, t_end, 
 
 
 def speed_hold(host, cal_path, reference_costs, say=None, lo=-SPEED_DEV, hi=SPEED_DEV, agree=None, every_s=HOLD_EVERY_S,
-               max_min=HOLD_MAX_MIN):
+               max_min=HOLD_MAX_MIN, note=None):
     """A probe pair every `every_s` until two in a row lie within [lo, hi] of the reference costs (and, with `agree`, within `agree` of
     each other), at most `max_min` minutes: after a host-invalid run with H1's band (5.1), before R1 with -5 % to +12 % and 5 % (5.2).
-    Returns held (whether it ended so) and every pair's d."""
-    say = say or (lambda m: None)
+    Returns held (whether it ended so) and every pair's d. `note` is given each pair as it is made, so that a stop keeps them."""
+    say, note = say or (lambda m: None), note or (lambda pair: None)
     first, pairs = host.monotonic(), []
     while True:
         p = speed_probe(host, cal_path)
         d = speed_deviation(p, reference_costs)
         pairs.append({"utc": p["utc_start"], "d": d})
+        note(pairs[-1])
         say(f"speed hold: probe pair {len(pairs)}: " + ("unreadable" if d is None else f"{d:+.1%}"))
         good = [x["d"] is not None and lo <= x["d"] <= hi for x in pairs[-2:]]
         if len(pairs) >= 2 and all(good) and (agree is None or abs(pairs[-1]["d"] - pairs[-2]["d"]) <= agree):
@@ -666,8 +668,11 @@ def _sha256_file(path):
 def load_medians(path):
     """HS1's medians file (K11; docs/HS1_PREREG.md 7): its sha256, verdict, PC, estimator and, for the CPUs the hold probes, each
     route's median cost in ms. SpeedReferenceError naming what is missing."""
-    with open(path, "rb") as fh:
-        raw = fh.read()
+    try:
+        with open(path, "rb") as fh:
+            raw = fh.read()
+    except OSError as exc:                      # a refusal, not a traceback (T-116)
+        raise SpeedReferenceError(f"{path}: cannot be read ({type(exc).__name__}: {exc.strerror or exc})") from exc
     try:
         doc = json.loads(raw)
     except ValueError as exc:
@@ -742,6 +747,18 @@ def record_reference_problems(doc, facts):
     return []
 
 
+def _read_json(path, what):
+    """A JSON file the hold is given (--calibration, --reference): SpeedReferenceError naming it when it is not there or is not JSON,
+    rather than a traceback (T-116)."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    except OSError as exc:
+        raise SpeedReferenceError(f"{what} {path} cannot be read ({type(exc).__name__}: {exc.strerror or exc})") from exc
+    except ValueError as exc:
+        raise SpeedReferenceError(f"{what} {path} is not JSON ({exc})") from exc
+
+
 def _session_reference(session, ref, rule, calibration):
     """The session's speed reference: written before the first hold against it; a session has one, so another file is refused."""
     path = os.path.join(session, SPEED_REFERENCE)
@@ -762,20 +779,23 @@ def _session_reference(session, ref, rule, calibration):
 
 def speed_hold_main(args, host=None):
     """The speed hold of a packet on this host (executor.RealHost): exit 0 when it held, EXIT_HOST_UNFIT when it did not, EXIT_REFUSED
-    for a reference it does not take. With --medians (R1, K11) the reference is HS1's medians on this PC, each CPU against its own;
-    their sha256 is printed and, with --session, kept with every hold in the session's speed_reference.json."""
+    for a reference it does not take or a file it cannot read (T-116), EXIT_INTERRUPTED when TERM, HUP or INT stopped it. With --medians (R1, K11) the reference is HS1's
+    medians on this PC, each CPU against its own; their sha256 is printed and, with --session, kept with every hold in the session's
+    speed_reference.json, a stopped one with the pairs it made (T-115 LOW 10)."""
     if host is None:
         import executor as X
         host = X.RealHost()
+        X._install_signal_handlers()                 # TERM and HUP end the hold as an INT does, through the record below
     medians, session = getattr(args, "medians", None), getattr(args, "session", None)
     rule = {"lo": args.lo, "hi": args.hi, "agree": args.agree, "max_min": args.max_min}
     record = None
     try:
+        cal = _read_json(args.calibration, "--calibration")      # the record whose knobs the probe takes, also under --reference
+        if not isinstance(cal, dict) or not isinstance(cal.get("knobs"), dict):
+            raise SpeedReferenceError(f"--calibration {args.calibration} has no knobs: the probe takes a record's knobs")
         if medians:
             ref = load_medians(medians)
-            with open(args.calibration, encoding="utf-8") as fh:
-                knobs = json.load(fh)["knobs"]
-            problems = medians_problems(ref, host.facts(), knobs)
+            problems = medians_problems(ref, host.facts(), cal["knobs"])
             if problems:
                 raise SpeedReferenceError("; ".join(problems))
             print(f"speed hold: reference HS1's medians {ref['path']}, sha256 {ref['sha256']}, PC {ref['host']['cpu_model']}, "
@@ -784,16 +804,29 @@ def speed_hold_main(args, host=None):
             if session:
                 record = _session_reference(session, ref, rule, args.calibration)
         else:
-            with open(args.reference, encoding="utf-8") as fh:
-                doc = json.load(fh)
+            doc = _read_json(args.reference, "--reference")
             problems = record_reference_problems(doc, host.facts())
             if problems:
                 raise SpeedReferenceError("; ".join(problems))
-            costs = doc["route_costs_ms"]
+            costs = doc.get("route_costs_ms") if isinstance(doc, dict) else None
+            if not isinstance(costs, dict) or not costs:
+                raise SpeedReferenceError(f"--reference {args.reference} has no route_costs_ms: it is not a speed reference")
     except SpeedReferenceError as exc:
         print(f"speed hold: refused: {exc}")
         return EXIT_REFUSED
-    r = speed_hold(host, os.path.abspath(args.calibration), costs, print, args.lo, args.hi, args.agree, args.every_s, args.max_min)
+    made, began = [], host.monotonic()
+    try:
+        r = speed_hold(host, os.path.abspath(args.calibration), costs, print, args.lo, args.hi, args.agree, args.every_s, args.max_min,
+                       note=made.append)
+    except KeyboardInterrupt as exc:
+        r = {"held": False, "stopped": f"interrupted ({str(exc) or 'INT'}) after {len(made)} probe pairs", "pairs": made,
+             "waited_s": round(host.monotonic() - began, 1)}
+        if record:
+            path, have = record
+            have["holds"].append(r)
+            _write_json(path, have)
+        print(f"speed hold: stopped, {r['stopped']}" + (f"; they are kept in {record[0]}" if record else ""))
+        return EXIT_INTERRUPTED
     if record:
         path, have = record
         have["holds"].append(r)
