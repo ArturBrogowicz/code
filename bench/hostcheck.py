@@ -177,7 +177,15 @@ class SpeedBracket:
 # --- H3-H7: the monitors and their rules (K4) ----------------------------------------------------------------------------------------
 
 MPSTAT_S, PIDSTAT_S, CHRONY_S = 5.0, 10.0, 30.0
-MPSTAT_GAP_S = 6.0                   # H5: no gap above this between consecutive mpstat samples
+MPSTAT_GAP_S = 10.0                  # H5: no gap above this between consecutive mpstat samples (D-099 2, 2026-11-14, pre-data; was 6)
+# The sampling monitors run at real-time priority (D-099 2): SCHED_FIFO at the lowest real-time priority, 1, which is above every
+# SCHED_OTHER task (all of the testbed's load: nothing in it asks for another policy) and below the kernel's own real-time threads (the
+# interrupt threads and watchdogd at 50, migration at 99), so testbed load cannot delay a sample and a sample cannot delay an
+# interrupt. The step runs as root (the packet's sudo), which may set it. A sample of mpstat or pidstat takes a few ms of CPU and then
+# blocks until the next; the kernel's real-time throttling (sched_rt_runtime_us 950000 of 1000000) caps real-time tasks at 95 % of a
+# CPU in any case. The journal follower stays SCHED_OTHER: journald stamps its lines, so a late read moves no time in the record, and
+# a flood of lines must not hold a CPU.
+REALTIME = ("chrt", "--fifo", "1")
 OTHER_CPU_MEAN_PCT = 5.0             # H6: the non-testbed processes, % of one CPU on average over the run's window
 OTHER_CPU_PEAK_PCT = 50.0            # and in any 10-s sample
 CLOCK_OFFSET_S = 0.1                 # H4: |System time| below this in every chrony sample overlapping the run
@@ -203,10 +211,11 @@ class HostUnfit(RuntimeError):
 
 def monitor_commands(python=sys.executable):
     """The four monitors: name -> argv (each started under `taskset -c <the executor's CPU>`). sysstat's tools buffer their output when
-    it is a file, so they run under `stdbuf -oL`: a sample reaches the record when it is taken, and a run can be judged right after."""
-    return {"mpstat": ["stdbuf", "-oL", "mpstat", "-P", "ALL", f"{MPSTAT_S:g}"],
-            "pidstat": ["stdbuf", "-oL", "pidstat", "-u", "-l", f"{PIDSTAT_S:g}"],
-            "chrony": [python, os.path.abspath(__file__), "chrony-sampler", "--every", f"{CHRONY_S:g}"],
+    it is a file, so they run under `stdbuf -oL`: a sample reaches the record when it is taken, and a run can be judged right after. The
+    three sampling ones run at real-time priority (REALTIME, D-099); a monitor that cannot get it exits, and H7 voids the run."""
+    return {"mpstat": [*REALTIME, "stdbuf", "-oL", "mpstat", "-P", "ALL", f"{MPSTAT_S:g}"],
+            "pidstat": [*REALTIME, "stdbuf", "-oL", "pidstat", "-u", "-l", f"{PIDSTAT_S:g}"],
+            "chrony": [*REALTIME, python, os.path.abspath(__file__), "chrony-sampler", "--every", f"{CHRONY_S:g}"],
             "journal": ["stdbuf", "-oL", "journalctl", "-f", "-n", "0", "-o", "short-iso-precise", "--no-pager"]}
 
 
@@ -433,7 +442,8 @@ def rule_clock(chrony, journal, t_start, t_end):
 
 
 def rule_pause(mpstat, t_start, t_end):
-    """H5: no gap above 6 s between consecutive mpstat samples over the run's window (the samples in it and the one on either side)."""
+    """H5: no gap above MPSTAT_GAP_S (10 s, D-099) between consecutive mpstat samples over the run's window (the samples in it and the
+    one on either side)."""
     times = sorted(mpstat)
     before = [t for t in times if t < t_start][-1:]
     after = [t for t in times if t > t_end][:1]

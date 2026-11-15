@@ -301,11 +301,13 @@ class RuleTest(unittest.TestCase):
                 self.assertIs(HC.rule_clock([], [(at(50), line)], at(0), at(100))["ok"], ok)
         self.assertTrue(HC.rule_clock([], [(at(101), "kernel: Long readout interval")], at(0), at(100))["ok"], "after the run")
 
-    def test_h5_no_gap_above_6_s(self):
+    def test_h5_no_gap_above_10_s(self):
+        """D-099 2 (2026-11-14, pre-data): the line is 10 s (was 6 s), the monitors at real-time priority."""
         self.assertTrue(HC.rule_pause([at(k * 5) for k in range(-1, 22)], at(0), at(100))["ok"])
-        self.assertTrue(HC.rule_pause([at(0), at(6), at(12)], at(1), at(11))["ok"], "6 s is not above 6 s")
-        r = HC.rule_pause([at(0), at(6.5), at(12)], at(1), at(11))
-        self.assertEqual(r["reasons"], ["H5: no mpstat sample for 6 s from 2026-11-13T10:00:00+00:00"])
+        self.assertTrue(HC.rule_pause([at(0), at(10), at(20)], at(1), at(19))["ok"], "10 s is not above 10 s")
+        self.assertTrue(HC.rule_pause([at(0), at(9), at(18)], at(1), at(17))["ok"], "AP-7's longest gaps under load, 9 s")
+        r = HC.rule_pause([at(0), at(10.6), at(20)], at(1), at(19))
+        self.assertEqual(r["reasons"], ["H5: no mpstat sample for 11 s from 2026-11-13T10:00:00+00:00"])
         self.assertFalse(HC.rule_pause([at(-5), at(30), at(35)], at(0), at(20))["ok"], "a pause across the start")
         self.assertTrue(HC.rule_pause([at(-100), at(-50), at(0), at(5), at(10)], at(1), at(9))["ok"], "gaps before the window")
 
@@ -361,11 +363,18 @@ class ClassifyTest(unittest.TestCase):
                 self.assertTrue(HC.is_testbed(command, uid))
 
 
+AFTER_PAIR_S = 15.0         # the speed bracket's time (design 6.1: about 15 s a run), all of it put after DONE: it over-reaches
+
+
 def window(run_dir):
-    """A published run's window: from when its environment gate passed (environment.json) to its DONE."""
+    """The window the runner judges (from its first speed probe's start to its second's end), on a published run that had no speed
+    bracket: from when its environment gate passed (environment.json; the first probe starts then, before the stack) to its DONE plus
+    the after-probe pair, which the runner makes after the teardown (T-105 F2: a window that ends at DONE is narrower than the
+    runner's)."""
     def ts(x):
         return datetime.datetime.fromisoformat(x).timestamp()
-    return ts(K.read_json(os.path.join(run_dir, "environment.json"))["checked_utc"]), ts(K.read_json(os.path.join(run_dir, "DONE"))["finished_utc"])
+    return (ts(K.read_json(os.path.join(run_dir, "environment.json"))["checked_utc"]),
+            ts(K.read_json(os.path.join(run_dir, "DONE"))["finished_utc"]) + AFTER_PAIR_S)
 
 
 RUNS = ("legit/C", "attack_cheap_static_flood/U", "attack_costly_export_flood/U", "attack_costly_search_flood/U")
@@ -411,6 +420,11 @@ class PublishedMonitorsTest(unittest.TestCase):
                 self.assertTrue(self.rules(self.ap7, os.path.join(DRIFT, "drift_20261111c_q1", "drift", run))["H6"]["ok"])
 
     def test_ap7_the_runs_of_the_second_attempt_are_valid(self):
+        """Over the runner's window (T-105 F2) and with H5's line at 10 s (D-099 2): AP-7's mpstat, under the testbed's load, had 21
+        gaps of 7-9 s in 38 min."""
+        self.assertEqual(window(os.path.join(DRIFT, "drift_20261111c_q1.second", "drift", RUNS[1]))[1]
+                         - datetime.datetime.fromisoformat(K.read_json(os.path.join(DRIFT, "drift_20261111c_q1.second", "drift", RUNS[1],
+                                                                                    "DONE"))["finished_utc"]).timestamp(), AFTER_PAIR_S)
         for run in RUNS:
             with self.subTest(run=run):
                 r = self.rules(self.ap7, os.path.join(DRIFT, "drift_20261111c_q1.second", "drift", run))
@@ -454,6 +468,8 @@ class HostCheckOnSimTest(unittest.TestCase):
         started = [c[2] for c in host.commands if c[0] == "popen" and c[2][:3] == ("taskset", "-c", "2")]
         self.assertEqual([a[3:] for a in started], [tuple(argv) for argv in HC.monitor_commands().values()],
                          "four monitors on the executor's CPU")
+        self.assertEqual([a[3:6] == HC.REALTIME for a in started], [True, True, True, False],
+                         "mpstat, pidstat and the chrony sampler at real-time priority, still pinned (D-099 2)")
 
     def test_load_of_another_process_makes_the_run_host_invalid_and_it_is_made_again_after_a_hold(self):
         app = [(1000, 1874, 60.0, "/home/artur/.claude/remote/srv/x/server --serve")]
@@ -579,11 +595,13 @@ class HostCheckOnSimTest(unittest.TestCase):
     def test_the_counting_constants(self):
         self.assertEqual((HC.INVALID_IN_A_ROW, HC.INVALID_IN_PACKET, HC.HOLD_EVERY_S, HC.HOLD_MAX_MIN), (3, 4, 300.0, 30.0))
         self.assertEqual((HC.MPSTAT_GAP_S, HC.OTHER_CPU_MEAN_PCT, HC.OTHER_CPU_PEAK_PCT, HC.CLOCK_OFFSET_S, HC.SOURCE_OFFSET_S),
-                         (6.0, 5.0, 50.0, 0.1, 1.0))
-        self.assertEqual(HC.monitor_commands("/py")["pidstat"], ["stdbuf", "-oL", "pidstat", "-u", "-l", "10"])
-        self.assertEqual(HC.monitor_commands("/py")["mpstat"], ["stdbuf", "-oL", "mpstat", "-P", "ALL", "5"])
-        self.assertEqual(HC.monitor_commands("/py")["chrony"][1:], [os.path.join(REPO, "bench", "hostcheck.py"), "chrony-sampler",
-                                                                    "--every", "30"])
+                         (10.0, 5.0, 50.0, 0.1, 1.0))
+        self.assertEqual(HC.REALTIME, ("chrt", "--fifo", "1"))
+        self.assertEqual(HC.monitor_commands("/py")["pidstat"], ["chrt", "--fifo", "1", "stdbuf", "-oL", "pidstat", "-u", "-l", "10"])
+        self.assertEqual(HC.monitor_commands("/py")["mpstat"], ["chrt", "--fifo", "1", "stdbuf", "-oL", "mpstat", "-P", "ALL", "5"])
+        self.assertEqual(HC.monitor_commands("/py")["chrony"], ["chrt", "--fifo", "1", "/py", os.path.join(REPO, "bench", "hostcheck.py"),
+                                                                "chrony-sampler", "--every", "30"])
+        self.assertEqual(HC.monitor_commands("/py")["journal"][:3], ["stdbuf", "-oL", "journalctl"], "the follower is not real-time")
 
 
 if __name__ == "__main__":

@@ -132,7 +132,7 @@ None of these reads a Q, a p95 or a harm: they read the host's records only, so 
 | H2 | Timer gate | as now: p99 below 10 ms on CPU 7 before every run, re-probed every 30 s up to `--wait-gate` | departure 30; a refusal stops, it does not void |
 | H3 | Pause in the generators | pooled legit slip p99 at most 100 ms (`validity.slip_pooled_s`, the gate's rule, `eval/harm_gate.py:392-393`); not for the staged capacity runs (amendment of 2026-11-14 below) | [FACT] calibration runs are judged today by the executor's soundness only (`bench/calibrate.py:755-786`); the gate's slip rule never sees them |
 | H4 | Clock | every 30-s chrony sample overlapping the run: `|System time| < 0.1 s` and no selected source more than 1 s off; no chronyd "Forward time jump" or "Can't synchronise" line and no kernel "Long readout interval" line in the run's window | second addendum, point 4; R-030 (a slewing clock runs up to 8.3 % fast and no run can see it) |
-| H5 | Pause of the guest | no gap above 6 s between consecutive 5-s `mpstat` samples in the run's window | second addendum, point 4 (its resolution) |
+| H5 | Pause of the guest | no gap above 10 s (first written: 6 s) between consecutive 5-s `mpstat` samples in the run's window, the monitors at real-time priority (amendment of 2026-11-14 below) | second addendum, point 4 (its resolution) |
 | H6 | Non-testbed CPU | the processes that are not the testbed's (`pidstat -u -l 10`; the testbed is Nginx, gunicorn, the engines, the executor, the calibrator, the probes, `ip`, `tc`, `taskset`, `sudo`, the monitors and kernel threads) use **at most 5 % of one CPU on average** over the run's window and **at most 50 % in any 10-s sample** | R-031's 5 % line; [CLAIMED] AP-5's quiet runs had under 0.2 % on CPUs 0-1 (R-025); AP-7's compaction put the app's server and sshd at 40-60 % of a CPU in 15-s bursts (C-129) |
 | H7 | Evidence present | the monitors' records cover the run's window | fails closed: a run with no evidence is not valid |
 
@@ -142,6 +142,26 @@ still judges every ladder, reference, confirmation and P2 run. Why: the three st
 a pooled legit slip p99 of 255, 179 and 291 ms, and the ladder runs of the same session 25-51 ms (review T-105, finding F1). Under
 the rule as first written, every capacity run would have been host-invalid, and R1 would have paused as "host unfit". The user
 decided this before any calibration data existed.
+
+**Amendment to H5 (2026-11-14, D-099, pre-data; K13).** The sampling monitors (`mpstat`, `pidstat` and the chrony sampler) run at
+real-time priority, so testbed load cannot delay them. A run is void by H5 only on an `mpstat` gap above **10 s** (first written: 6 s).
+- **Mechanism.** The runner starts each of the three as `taskset -c <the executor's CPU> chrt --fifo 1 ...`. They stay pinned where
+  they were. The step runs as root under the packet's `sudo`, so it may set the policy. A monitor that cannot get it exits at once,
+  and H7 then voids the run (fails closed).
+- **Why priority 1.** It is the lowest real-time priority. It is above every SCHED_OTHER task, which is all of the testbed's load:
+  nothing in `bench/` or `eval/` asks for another policy. It is below the kernel's own real-time threads (on the VM, the interrupt
+  threads and `watchdogd` at 50, `migration/*` at 99), so a sample cannot delay an interrupt.
+- **Why it cannot starve the testbed.** A sample of `mpstat` or `pidstat` takes a few ms of CPU and then blocks until the next one
+  (on the VM, `pidstat -u -l 1 1` used 10 ms of system time with about 180 processes running, and `mpstat -P ALL 1 1` less than the 10 ms
+  that `time` resolves). The chrony sampler wakes once every 30 s for two `chronyc` calls. The kernel's real-time throttling
+  (`sched_rt_runtime_us` 950000 of 1000000 on the VM) caps real-time tasks at 95 % of a CPU in any case.
+- **The journal follower stays at normal priority.** journald stamps its lines, so a late read moves no time in the record, and a
+  flood of lines must not hold a CPU.
+- **Why 10 s.** AP-7's `mpstat`, with the testbed under load, had 21 gaps of 7-9 s in 38 min and none above 9 s. Over the runner's
+  real window (to the end of the after-probe pair, review T-105 F2), 2 of the 4 runs of `drift_20261111c_q1.second` failed the 6-s line.
+  At 10 s, every finished run of AP-7 passes H5 over that window. H5 still catches a pause of the guest that holds back a sample by more
+  than one interval.
+- The user decided this before any calibration data existed.
 
 The executor's own soundness stays as it is (an unsound run is made once more; a second stops the step: `bench/calibrate.py:755-786`).
 

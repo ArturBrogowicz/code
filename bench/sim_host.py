@@ -66,10 +66,10 @@ SIM_PC = {"cpu_model": "Intel(R) Core(TM) i7-10700F CPU @ 2.90GHz", "vbox_host_v
 
 
 def exec_args(argv):
-    """The command line a process shows once the wrappers that exec into it (taskset, prlimit) are gone."""
+    """The command line a process shows once the wrappers that exec into it (taskset, chrt, prlimit) are gone."""
     argv = list(argv)
-    while argv and argv[0] in ("taskset", "prlimit"):
-        argv = argv[3:] if argv[0] == "taskset" else argv[argv.index("--") + 1:]
+    while argv and argv[0] in ("taskset", "chrt", "prlimit"):
+        argv = argv[3:] if argv[0] in ("taskset", "chrt") else argv[argv.index("--") + 1:]
     return argv
 
 
