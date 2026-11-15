@@ -70,11 +70,25 @@ RUN_ESTIMATE_S = 130.0                      # a run: docs/RECALIBRATION_2026-11_
 EXIT_OK, EXIT_USAGE, EXIT_STOPPED, EXIT_INVALID, EXIT_INTERRUPTED = 0, 1, 2, 3, 130
 EXIT_HOST_UNFIT = HC.EXIT_HOST_UNFIT             # 5: the packet paused, host unfit (docs/RECALIBRATION_2026-11_DESIGN.md 5.1, K4)
 EXIT_PAUSED = GC.EXIT_PAUSED                     # 4: the packet's time budget is used (--stop-after, K6)
+EXIT_NOT_FROZEN = 7                              # a step stopped by its own rule: the calibration is NOT FROZEN (prereg 6; T-115 H-1)
 
 
 class CalibrationStop(RuntimeError):
     """The host cannot be calibrated as it is, or a step cannot be trusted; the message says what that means (design 7.5).
-    Nothing is tuned to get past it."""
+    Nothing is tuned to get past it. This class itself is a refusal or a defect (exit 2, "stopped"): no reading, and the step resumes
+    or the user decides; a stop by a step's own rule is the subclass StepRuleStop (exit 7)."""
+
+
+class StepRuleStop(CalibrationStop):
+    """A step stopped by its own rule, the stops that read NOT FROZEN (prereg 6, design 8.3; T-115 H-1, M-5): the origin's sessions
+    disagree twice, the capacity probe's three rules, a screening not valid twice or with no level that can be run, a reference run
+    with no Q or p95, and a freeze refused for a rule's reason (no knee, a screening not valid, a reference that stopped). Exit 7, so
+    that a reading never has to be told from a refusal by the host (2) by the log's words. Nothing is made again to get past it."""
+
+
+class RunUnsoundTwice(CalibrationStop):
+    """A run was not sound in either attempt of this call (design 7.5, prereg 8): the packet stops (exit 2, as before) and the step
+    resumes in a later packet, which gives the run two attempts again; the log names the class."""
 
 
 def now():
@@ -204,18 +218,34 @@ def combine_origin(sessions):
     return {klass: statistics.median([s[klass] for s in sessions]) for klass in sessions[0]}
 
 
-def save_stopped_origin(out, cal, rounds, partial, reason, gate=None, partial_timing=None):
+def save_stopped_origin(out, cal, rounds, partial, reason, gate=None, partial_timing=None, own_rule=False):
     """What a stopped origin step measured, which would otherwise be lost with the exception: the rounds made and the sessions of
     the round it was in (with how each timed the routes), and what the environment gate saw before them. It goes beside where
     origin.json would be, under the first free number so that a second stop does not replace the first, and origin.json itself is
-    never written for a stop (docs/HG1C_DESIGN.md 27)."""
+    never written for a stop (docs/HG1C_DESIGN.md 27). `own_rule`: the step's own rule stopped it (StepRuleStop), which a resumed step
+    reads (stopped_by_own_rule)."""
     n = 1
     while os.path.exists(os.path.join(out, "origin", f"stopped_{n}.json")):
         n += 1
     path = os.path.join(out, "origin", f"stopped_{n}.json")
     write_json(path, {"step": "origin", "stopped": reason, "created_utc": now(), "gate": gate, "rounds": rounds,
-                      "partial_sessions": partial, "partial_timing": partial_timing or [], **origin_identity(cal)})
+                      "partial_sessions": partial, "partial_timing": partial_timing or [], "own_rule": own_rule,
+                      **origin_identity(cal)})
     return path
+
+
+def stopped_by_own_rule(out):
+    """The record of an earlier origin step in `out` that its own rule stopped (save_stopped_origin's own_rule), or None. A step that
+    stopped so read NOT FROZEN, and is not made again by a resume (prereg 8)."""
+    n = 1
+    while os.path.exists(path := os.path.join(out, "origin", f"stopped_{n}.json")):
+        try:
+            if read_json(path).get("own_rule") is True:
+                return path
+        except (OSError, ValueError, AttributeError):
+            pass
+        n += 1
+    return None
 
 
 def origin_session(cal, repeats=ORIGIN_REPEATS):
@@ -262,9 +292,9 @@ def origin_step(runner, cal, cal_path, out, say=print):
     else:
         reason = (f"the unloaded cost of the routes differs by more than {ORIGIN_SPREAD:.0%} between sessions, twice: "
                   "the host's timing is not stable enough to calibrate on")
-        path = save_stopped_origin(out, cal, rounds, [], reason, gate)
+        path = save_stopped_origin(out, cal, rounds, [], reason, gate, own_rule=True)
         where = "; ".join(f"round {i}: {origin_said(rnd)}" for i, rnd in enumerate(rounds, 1))
-        raise CalibrationStop(f"{reason} ({where}; the sessions of both rounds are in {path})")
+        raise StepRuleStop(f"{reason} ({where}; the sessions of both rounds are in {path})")
     result = {"step": "origin", "created_utc": now(), "gate": gate, "route_costs_ms": combine_origin(rounds[-1]["sessions"]),
               "rounds": rounds, **origin_identity(cal)}
     write_json(os.path.join(out, "origin", "origin.json"), result)
@@ -281,17 +311,17 @@ def capacity_levels(first=50.0, ratio=1.3, count=10):
 def capacity_of(levels, q, healthy=HEALTHY_Q, saturated=SATURATED_Q, saturated_repeats=SATURATED_REPEATS):
     """C_slo and C_sat from `q`, the Q of each repeat (a row) at each level (a column): C_slo is the last level before the first
     at which any repeat is below `healthy`, C_sat the lowest at which at least `saturated_repeats` repeats are below
-    `saturated`. A host for which either does not exist cannot be calibrated this way: CalibrationStop says why."""
+    `saturated`. A host for which either does not exist cannot be calibrated this way: StepRuleStop (NOT FROZEN) says why."""
     bad = [k for k in range(len(levels)) if any(row[k] < healthy for row in q)]
     if not bad:
-        raise CalibrationStop(f"every level up to {levels[-1]:g} req/s keeps Q at {healthy:g} % or more: the capacity is above "
+        raise StepRuleStop(f"every level up to {levels[-1]:g} req/s keeps Q at {healthy:g} % or more: the capacity is above "
                               "the range of the probe, which has to be extended before the stack can be calibrated")
     if bad[0] == 0:
-        raise CalibrationStop(f"the first level, {levels[0]:g} req/s, is already below {healthy:g} % in a repeat: the stack is "
+        raise StepRuleStop(f"the first level, {levels[0]:g} req/s, is already below {healthy:g} % in a repeat: the stack is "
                               "unhealthy before it is loaded, and a capacity cannot be defined on it")
     sat = [k for k in range(len(levels)) if sum(row[k] < saturated for row in q) >= saturated_repeats]
     if not sat:
-        raise CalibrationStop(f"no level up to {levels[-1]:g} req/s brings Q below {saturated:g} % in {saturated_repeats} repeats: "
+        raise StepRuleStop(f"no level up to {levels[-1]:g} req/s brings Q below {saturated:g} % in {saturated_repeats} repeats: "
                               "the server is not saturated within the range, so C_sat is not known")
     return {"c_slo_rps": levels[bad[0] - 1], "c_sat_rps": levels[sat[0]], "first_unhealthy_rps": levels[bad[0]]}
 
@@ -500,27 +530,28 @@ def ladder_step(runner, cal, cal_path, family, out, under, levels=None, timeline
     measured costs and capacity, so that rho and S are the calibration's own; `under` says what it was made of (under_of).
     `levels` and `timeline` are for a smoke test, which cannot be frozen. A session that is not valid is moved aside as
     `ladder_<family>.invalid1` and made once more in a new directory; a second one that is not valid is the step's end, and the
-    calibration is NOT FROZEN (docs/RECALIBRATION_2026-11_DESIGN.md 8.3, K1). Both stay, and the freeze reads `ladder_<family>`."""
+    calibration is NOT FROZEN (docs/RECALIBRATION_2026-11_DESIGN.md 8.3, K1): StepRuleStop, exit 7 (before T-116 K18 it returned the
+    result and the command exited 3). Both stay, and the freeze reads `ladder_<family>`."""
     base = os.path.join(out, f"ladder_{family}")
     aside, prior = base + INVALID_ASIDE, os.path.join(base, "ladder.json")
     if os.path.exists(prior) and not read_json(prior)["valid"]:          # an earlier call ended on a session that is not valid
         if os.path.exists(aside):
-            raise CalibrationStop(f"the screening of {family} was not valid twice ({aside} and {base}): the calibration is NOT "
+            raise StepRuleStop(f"the screening of {family} was not valid twice ({aside} and {base}): the calibration is NOT "
                                   "FROZEN (docs/RECALIBRATION_2026-11_DESIGN.md 8.3); nothing is made a third time")
         os.rename(base, aside)
         say(f"ladder {family}: the session that was not valid is kept as {os.path.basename(aside)}; making it once more")
     result = ladder_session(runner, cal, cal_path, family, out, under, levels, timeline, say)
     if result["valid"]:
         return result
-    if os.path.exists(aside):
-        say(f"ladder {family}: the second session is not valid either: the calibration is NOT FROZEN (8.3)")
-        return result
-    os.rename(base, aside)
-    say(f"ladder {family}: the session is kept as {os.path.basename(aside)} and made once more in a new directory")
-    result = ladder_session(runner, cal, cal_path, family, out, under, levels, timeline, say)
-    if not result["valid"]:
-        say(f"ladder {family}: the second session is not valid either: the calibration is NOT FROZEN (8.3)")
-    return result
+    if not os.path.exists(aside):
+        os.rename(base, aside)
+        say(f"ladder {family}: the session is kept as {os.path.basename(aside)} and made once more in a new directory")
+        result = ladder_session(runner, cal, cal_path, family, out, under, levels, timeline, say)
+        if result["valid"]:
+            return result
+    say(f"ladder {family}: the second session is not valid either: the calibration is NOT FROZEN (8.3)")
+    raise StepRuleStop(f"the screening of {family} was not valid twice ({aside} and {base}): the calibration is NOT FROZEN "
+                       "(docs/RECALIBRATION_2026-11_DESIGN.md 8.3); nothing is made a third time")
 
 
 def ladder_session(runner, cal, cal_path, family, out, under, levels=None, timeline=None, say=print):
@@ -532,7 +563,7 @@ def ladder_session(runner, cal, cal_path, family, out, under, levels=None, timel
     if levels is not None:
         usable = [lvl for lvl in sorted(levels) if lvl in usable]
     if not usable:
-        raise CalibrationStop(f"no level of {family} can be run: {left_out}")
+        raise StepRuleStop(f"no level of {family} can be run within the generator's limits: {left_out}")
     seed = SEEDS["ladder"] + sorted(FAMILY_SPECS).index(family)
     sequence = ladder_sequence(usable, f"{family}|{seed}")
     base = os.path.join(out, f"ladder_{family}")
@@ -627,7 +658,7 @@ def reference_step(runner, draft, cal_path, knees, out, under, timeline=None, sa
         result["stopped"] = f"no judged request or no successful one in {', '.join(missing)}: they cannot be a reference"
     write_json(os.path.join(out, "reference", "reference.json"), result)
     if missing:
-        raise CalibrationStop("a reference run had no judged request or no successful one: it cannot be a reference "
+        raise StepRuleStop("a reference run had no judged request or no successful one: it cannot be a reference "
                               f"({', '.join(missing)})")
     return result
 
@@ -737,6 +768,13 @@ def freeze_problems(session, template):
     """Reasons for which `session` cannot be frozen: an origin measured with another estimator, a smoke step, a screening that is
     not valid, steps made under another template or other measured costs and capacity, or a reference that was taken for another
     set of knees."""
+    defects, rules = freeze_problem_classes(session, template)
+    return defects + rules
+
+
+def freeze_problem_classes(session, template):
+    """freeze_problems in two lists: what says the session was made wrongly or mixed (a defect, or a step started out of order: no
+    reading), and what a step's own rule decided (a screening not valid twice, a reference that stopped by its rule: NOT FROZEN)."""
     reasons = [why] if (why := origin_estimator_problem(session["origin"])) else []
     under = under_of(template, session["origin"], session["capacity"])
     named = (("origin", session["origin"]), ("capacity", session["capacity"]), ("reference", session["reference"]),
@@ -751,16 +789,17 @@ def freeze_problems(session, template):
             reasons.append(f"{name} was made under another template")
         if name not in ("origin", "capacity") and step["under"] != under:
             reasons.append(f"{name} was made under other measured costs or capacity than the ones being frozen")
+    rules = []
     for f, ladder in session["ladders"].items():
         if not ladder["valid"]:
-            reasons.append(f"the screening of {f} is not valid: " + "; ".join(ladder["reasons"]))
+            rules.append(f"the screening of {f} is not valid: " + "; ".join(ladder["reasons"]))
     knees = {f: ladder["knee"]["level"] for f, ladder in session["ladders"].items()}
     taken = session["reference"].get("knees") or {}
     if {f: k for f, k in knees.items() if k is not None} != taken:
         reasons.append("the reference's attack runs are not at the knees of the screenings")
     if session["reference"].get("stopped"):
-        reasons.append(f"the reference stopped: {session['reference']['stopped']}")
-    return reasons
+        rules.append(f"the reference stopped: {session['reference']['stopped']}")
+    return reasons, rules
 
 
 def no_knee_text(directory, ladders):
@@ -777,12 +816,12 @@ def freeze_step(directory, template, env, created_utc=None):
     """The frozen record from a session's directories: the template with the measured costs, capacity, knees, drift reference
     and host. Reads and writes nothing; calibration.freeze checks the result."""
     session = read_session(directory)
-    problems = freeze_problems(session, template)
-    if problems:
-        raise CalibrationStop("cannot freeze: " + "; ".join(problems))
+    defects, rules = freeze_problem_classes(session, template)
+    if defects or rules:                        # a defect beside a rule's reason is no reading: the user looks first (T-115 H-1)
+        raise (CalibrationStop if defects else StepRuleStop)("cannot freeze: " + "; ".join(defects + rules))
     knees = {f: ladder["knee"]["level"] for f, ladder in session["ladders"].items()}
     if all(k is None for k in knees.values()):
-        raise CalibrationStop(no_knee_text(directory, session["ladders"]))
+        raise StepRuleStop(no_knee_text(directory, session["ladders"]))
     draft = draft_record(template, session["origin"], session["capacity"], knees)
     if session["reference"]["rho_rps"] != C.rho_rps(draft):
         raise CalibrationStop(f"the reference was taken at rho {session['reference']['rho_rps']:g}, the capacity gives "
@@ -1025,7 +1064,7 @@ class Runner:
             aside = first_free(plan.out, ".failed")
             os.rename(plan.out, aside)
             kept = f"; the last is kept as {os.path.basename(aside)}"
-        raise CalibrationStop(f"{plan.out}: the run was not sound in {self.tries} attempts ({'; '.join(reasons)[:300]}){kept}; "
+        raise RunUnsoundTwice(f"{plan.out}: the run was not sound in {self.tries} attempts ({'; '.join(reasons)[:300]}){kept}; "
                               "a calibration made of runs that are not valid is not one")
 
     def close(self):
@@ -1225,6 +1264,9 @@ def main(argv=None, host=None):
     except GC.Paused as exc:
         print(str(exc), file=sys.stderr)
         return EXIT_PAUSED
+    except StepRuleStop as exc:                 # a step's own rule: NOT FROZEN (prereg 6), a code of its own (T-115 H-1)
+        print(f"StepRuleStop: {exc} [NOT FROZEN, exit {EXIT_NOT_FROZEN}]", file=sys.stderr)
+        return EXIT_NOT_FROZEN
     except (CalibrationStop, GC.CampaignError, X.RunFailed) as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
         return EXIT_STOPPED
@@ -1288,6 +1330,10 @@ def _dispatch(args, host):
         if kept:
             print(f"origin kept: {kept[0]} {kept[1]}")
             return EXIT_OK
+        ruled = stopped_by_own_rule(out)        # and does not make again one that its own rule stopped (NOT FROZEN, prereg 8)
+        if ruled:
+            raise StepRuleStop(f"the origin step stopped by its own rule ({read_json(ruled)['stopped']}; {ruled}): the calibration is "
+                               "NOT FROZEN, and the step is not made again")
         origin_step(Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate), template, cal_path, out)
         return EXIT_OK
     runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate,
@@ -1305,8 +1351,8 @@ def _run_step(args, runner, template, cal_path, out, timeline):
         return EXIT_OK
     draft, under = session_draft(out, template)
     if args.command == "ladder":
-        result = ladder_step(runner, draft, cal_path, args.family, out, under, args.levels, timeline)
-        return EXIT_OK if result["valid"] else EXIT_INVALID
+        ladder_step(runner, draft, cal_path, args.family, out, under, args.levels, timeline)     # not valid twice: StepRuleStop
+        return EXIT_OK
     knees = {}                                  # reference: the screenings must all be made, and valid
     for family in FAMILY_SPECS:
         path = os.path.join(out, f"ladder_{family}", "ladder.json")

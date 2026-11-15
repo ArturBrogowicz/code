@@ -27,6 +27,7 @@ import calibration_fixtures as CF
 import executor as X
 import gate_campaign as GC
 import harm_gate as H
+import hostcheck as HC
 import loadtool_validate as V
 import origin as O
 import population as P
@@ -539,7 +540,7 @@ class OriginGateTest(unittest.TestCase):
 
     def test_a_step_that_stops_after_the_gate_keeps_what_the_gate_saw(self):
         host = self.Clocked(origin_noise=(-0.1, 0.0, 0.2))
-        self.assertEqual(self.origin(host)[0], K.EXIT_STOPPED)
+        self.assertEqual(self.origin(host)[0], K.EXIT_NOT_FROZEN, "its own rule (K18)")
         saved = K.read_json(os.path.join(self.out, "origin", "stopped_1.json"))
         self.assertEqual((saved["gate"]["met"], saved["gate"]["uptime_s"]), (True, 7200.0))
 
@@ -1475,12 +1476,16 @@ class SimulatedCalibrationTest(unittest.TestCase):
         self.assertIn("drift check 2 of 2 failed; it stops here", out)
         self.assertFalse(K.read_json(os.path.join(self.tmp.name, "c6.second", "drift", "drift.json"))["ok"])
 
-    def test_a_screening_whose_controls_are_unhealthy_is_invalid_and_exits_three(self):
+    def test_a_screening_whose_controls_are_unhealthy_twice_is_not_frozen_and_exits_seven(self):
+        """Its second session not valid either is the ladder's own rule: NOT FROZEN, exit 7 (T-115 H-1; before K18 it exited 3, which
+        packet.sh's summary called "stopped")."""
         dest = self.copy_session()                      # not the session itself: this overwrites a screening
         shutil.rmtree(os.path.join(dest, "ladder_costly_search_flood"))
-        code, out, _ = self.cli("ladder", "--out", dest, "--family", "costly_search_flood", "--levels", "1,2", "--simulate",
-                                "--sim-capacity-cpu", str(CAPACITY_CPU * 0.2))
-        self.assertEqual(code, K.EXIT_INVALID)
+        code, out, err = self.cli("ladder", "--out", dest, "--family", "costly_search_flood", "--levels", "1,2", "--simulate",
+                                  "--sim-capacity-cpu", str(CAPACITY_CPU * 0.2))
+        self.assertEqual(code, K.EXIT_NOT_FROZEN)
+        self.assertIn("StepRuleStop: the screening of costly_search_flood was not valid twice", err)
+        self.assertIn("[NOT FROZEN, exit 7]", err)
         self.assertIn("session NOT valid", out)
         ladder = K.read_json(os.path.join(dest, "ladder_costly_search_flood", "ladder.json"))
         self.assertFalse(ladder["valid"])
@@ -1518,7 +1523,7 @@ class SimulatedCalibrationTest(unittest.TestCase):
             os.makedirs(os.path.join(dest, name), exist_ok=True)
             K.write_json(os.path.join(dest, name, "ladder.json"), {"valid": False, "reasons": ["x"]})
         draft, under = K.session_draft(dest, self.template)
-        with mock.patch.object(K, "ladder_session") as session, self.assertRaisesRegex(K.CalibrationStop, "not valid twice"):
+        with mock.patch.object(K, "ladder_session") as session, self.assertRaisesRegex(K.StepRuleStop, "not valid twice"):
             K.ladder_step(K.Runner(S.SimHost()), draft, C.PLACEHOLDER, "costly_search_flood", dest, under)
         session.assert_not_called()
 
@@ -1605,6 +1610,51 @@ class SimulatedCalibrationTest(unittest.TestCase):
                                                        r"limit \(design 7.2 step 4\).*cheap_static_flood: no level up to [0-9.]+ passed \(.*"
                                                        r"ladder_cheap_static_flood/ladder.json\).*No record is frozen"):
             self.freeze(dest)
+
+    def test_the_freeze_reads_a_rules_reason_as_not_frozen_and_a_defect_as_no_reading(self):
+        """T-115 H-1, M-5: the freeze's refusals for a rule's reason (no knee, a screening not valid, a reference that stopped) are
+        StepRuleStop, exit 7; one that says the session was made wrongly or mixed (here the reference not at the knees, another rho)
+        stays CalibrationStop, exit 2, also when a rule's reason is beside it: the user looks before anything is read."""
+        def stop(*edits):
+            dest = self.copy_session()
+            for parts, change in edits:
+                self.edit(dest, *parts, change=change)
+            with self.assertRaises(K.CalibrationStop) as ctx:
+                self.freeze(dest)
+            return ctx.exception
+        no_knee = [((f"ladder_{f}", "ladder.json"), lambda d: d["knee"].update(level=None)) for f in K.FAMILY_SPECS]
+        no_knee.append((("reference", "reference.json"), lambda d: d.update(knees={})))
+        invalid = (("ladder_costly_search_flood", "ladder.json"), lambda d: d.update(valid=False, reasons=["x"]))
+        stopped = (("reference", "reference.json"), lambda d: d.update(stopped="no judged request in round 1 legit"))
+        off_knee = (("reference", "reference.json"), lambda d: d["knees"].pop("costly_search_flood"))
+        rho = (("reference", "reference.json"), lambda d: d.update(rho_rps=d["rho_rps"] + 1))
+        for label, edits, rule in (("no knee", no_knee, True), ("a screening not valid", [invalid], True),
+                                   ("the reference stopped", [stopped], True), ("not at the knees", [off_knee], False),
+                                   ("not valid and not at the knees", [invalid, off_knee], False), ("another rho", [rho], False)):
+            with self.subTest(label):
+                exc = stop(*edits)
+                self.assertIs(type(exc), K.StepRuleStop if rule else K.CalibrationStop, str(exc))
+
+    def test_a_reference_run_with_no_q_or_p95_is_the_references_own_rule(self):
+        runner = mock.Mock(settings={})
+        runner.take_waits.return_value = {}
+        knees = {f: ladder["knee"]["level"] for f, ladder in self.ladders.items()}
+        draft = K.draft_record(self.template, self.origin, self.capacity, knees)
+        out = os.path.join(self.tmp.name, f"ref{len(os.listdir(self.tmp.name))}")
+        with mock.patch.object(K.H, "read_run", return_value={}), \
+                mock.patch.object(K, "probe_metrics", return_value={"Q": None, "p95_s": None, "requests": 0}), \
+                mock.patch.object(K, "attack_run", return_value={"Q": 40.0, "p95_s": 0.3, "requests": 50}), \
+                self.assertRaisesRegex(K.StepRuleStop, "it cannot be a reference"):
+            K.reference_step(runner, draft, C.PLACEHOLDER, knees, out, self.under, rounds=1, say=lambda m: None)
+        self.assertIn("no judged request", K.read_json(os.path.join(out, "reference", "reference.json"))["stopped"])
+
+    def test_a_family_with_no_level_the_generator_can_carry_is_the_screenings_own_rule(self):
+        with mock.patch.object(K, "runnable_levels", return_value=([], {0.5: ["a stream plans 900 req/s"]})), \
+                self.assertRaisesRegex(K.StepRuleStop, "no level of cheap_static_flood can be run within the generator's limits"):
+            K.ladder_session(mock.Mock(settings={}), self.draft, C.PLACEHOLDER, "cheap_static_flood", self.tmp.name, self.under)
+        with self.assertRaises(K.CalibrationStop) as ctx:
+            K.ladder_session(mock.Mock(settings={}), self.draft, C.PLACEHOLDER, "nothing", self.tmp.name, self.under)
+        self.assertIs(type(ctx.exception), K.CalibrationStop, "a family that is not one is a usage error")
 
     def test_a_check_on_means_with_no_family_or_a_failed_legit_probe_is_not_ok(self):
         """T-105 F7: all() of no family is True; a check that confirms no family, or whose legit probe failed, is never ok."""
@@ -1712,7 +1762,7 @@ class CommandLineTest(unittest.TestCase):
         out = os.path.join(self.tmp.name, "stopped")
         host = S.SimHost(origin_costs=dict(TEMPLATE["route_costs_ms"]), origin_noise=(-0.1, 0.0, 0.2))
         code, stdout, stderr = self.cli("origin", "--out", out, host=host)
-        self.assertEqual(code, K.EXIT_STOPPED)
+        self.assertEqual(code, K.EXIT_NOT_FROZEN)
         self.assertIn("not stable enough", stderr)
         self.assertIn(os.path.join(out, "origin", "stopped_1.json"), stderr)
         self.assertIn("origin round 2", stdout)
@@ -1738,7 +1788,7 @@ class CommandLineTest(unittest.TestCase):
         sim = ("--simulate", "--sim-capacity-cpu", str(CAPACITY_CPU))
         self.cli("origin", "--out", out, *sim)
         code, _, err = self.cli("capacity", "--out", out, "--levels", "80,160,240,280", "--step-s", "10", *sim)
-        self.assertEqual(code, K.EXIT_STOPPED)
+        self.assertEqual(code, K.EXIT_NOT_FROZEN)
         self.assertIn("no level up to 280 req/s brings Q below 50 %", err)
         record = K.read_json(os.path.join(out, "capacity", "capacity.json"))
         self.assertIn("not saturated", record["stopped"])
@@ -1880,6 +1930,115 @@ class CommandLineTest(unittest.TestCase):
         self.assertEqual(sorted(os.listdir(out)), ["capacity", "origin"], "no run was made")
 
 
+class StopClassTest(unittest.TestCase):
+    """T-115 H-1: a step that stops by its own rule (the stops that read NOT FROZEN, prereg 6) exits 7 through StepRuleStop; a refusal
+    of the host or the environment (the gates, a session on another host or PC, an origin of another estimator), a run unsound twice
+    (RunUnsoundTwice) and a defect keep exit 2 and are never StepRuleStop. The full list, with every site and its class, is
+    tasks/T-116/artifacts/K18_stop_classes.md."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.out = os.path.join(self.tmp.name, "s")
+
+    def cli(self, *args, host=None):
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(X.signal, "signal"), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = K.main(list(args), host=host)
+        return code, out.getvalue(), err.getvalue()
+
+    def test_the_codes_and_the_classes(self):
+        self.assertEqual((K.EXIT_NOT_FROZEN, K.EXIT_STOPPED, K.EXIT_PAUSED, K.EXIT_HOST_UNFIT), (7, 2, 4, 5))
+        self.assertNotIn(K.EXIT_NOT_FROZEN, (K.EXIT_OK, K.EXIT_USAGE, K.EXIT_STOPPED, K.EXIT_INVALID, K.EXIT_INTERRUPTED,
+                                             HC.EXIT_REFUSED, HC.EXIT_HOST_UNFIT, HC.EXIT_INTERRUPTED, X.EXIT_FAILED, X.EXIT_UNSOUND))
+        self.assertTrue(issubclass(K.StepRuleStop, K.CalibrationStop))
+        self.assertTrue(issubclass(K.RunUnsoundTwice, K.CalibrationStop))
+        self.assertFalse(issubclass(K.RunUnsoundTwice, K.StepRuleStop))
+        with mock.patch.object(K, "_dispatch", side_effect=K.StepRuleStop("a rule")):
+            self.assertEqual(self.cli("origin", "--out", self.out), (7, "", "StepRuleStop: a rule [NOT FROZEN, exit 7]\n"))
+        with mock.patch.object(K, "_dispatch", side_effect=K.RunUnsoundTwice("twice")):
+            self.assertEqual(self.cli("origin", "--out", self.out), (2, "", "RunUnsoundTwice: twice\n"))
+
+    def test_the_capacity_probes_three_rules_are_step_rule_stops(self):
+        levels = [50.0, 65.0, 84.5]
+        for label, q in (("above the range", [[100.0] * 3] * 3), ("the first level", [[98.0, 90.0, 40.0]] * 3),
+                         ("not saturated", [[100.0, 95.0, 60.0]] * 3)):
+            with self.subTest(label), self.assertRaises(K.StepRuleStop):
+                K.capacity_of(levels, q)
+
+    def test_the_origins_rule_exits_7_and_a_resume_measures_nothing_more(self):
+        """Its sessions disagree twice: exit 7, and stopped_1.json says it was the rule. The same command again (a resumed R1) says so
+        again and measures nothing: the step is not made again (prereg 8)."""
+        bad = S.SimHost(origin_costs=dict(TEMPLATE["route_costs_ms"]), origin_noise=(-0.1, 0.0, 0.2))
+        code, _, err = self.cli("origin", "--out", self.out, host=bad)
+        self.assertEqual(code, K.EXIT_NOT_FROZEN, err)
+        self.assertTrue(K.read_json(os.path.join(self.out, "origin", "stopped_1.json"))["own_rule"])
+        good = S.SimHost(origin_costs=dict(TEMPLATE["route_costs_ms"]))
+        code, _, err = self.cli("origin", "--out", self.out, host=good)
+        self.assertEqual(code, K.EXIT_NOT_FROZEN, err)
+        self.assertIn("the origin step stopped by its own rule (the unloaded cost of the routes differs by more than 10% between sessions, twice", err)
+        self.assertEqual(good.origin_calls, 0)
+        self.assertFalse(os.path.exists(os.path.join(self.out, "origin", "origin.json")))
+
+    def test_refusals_of_the_host_or_the_environment_exit_2_and_are_not_step_rule_stops(self):
+        cases = []
+        code, _, err = self.cli("origin", "--out", os.path.join(self.tmp.name, "up"), "--wait-gate", "0",
+                                host=S.SimHost(uptime_s=60.0))                              # the origin step's uptime/load gate
+        cases.append(("uptime gate", code, err, "EnvironmentRefused: the machine is not quiet enough"))
+        code, _, err = self.cli("origin", "--out", os.path.join(self.tmp.name, "read"),
+                                host=S.SimHost(origin_costs=dict(TEMPLATE["route_costs_ms"]), faults={"origin_session_fails": None}))
+        cases.append(("an unreadable session", code, err, "CalibrationStop: an origin session gave nothing readable"))
+        self.assertEqual(self.cli("origin", "--out", self.out, "--simulate")[0], K.EXIT_OK)
+        code, _, err = self.cli("capacity", "--out", self.out, host=S.SimHost(facts={"mem_mib": 7422}))
+        cases.append(("another host", code, err, "CalibrationStop: " + self.out + ": this host is not the one the session began on"))
+        K.write_json(os.path.join(self.out, "origin", "origin.json"),
+                     {**K.read_json(os.path.join(self.out, "origin", "origin.json")), "repeats": 5})
+        code, _, err = self.cli("origin", "--out", self.out, host=S.SimHost())
+        cases.append(("an origin of another estimator", code, err, "was not made by this invocation's estimator"))
+        for label, code, err, said in cases:
+            with self.subTest(label):
+                self.assertEqual(code, K.EXIT_STOPPED, err)
+                self.assertIn(said, err)
+                self.assertNotIn("StepRuleStop", err)
+
+    def test_a_timer_refusal_and_a_run_unsound_twice_are_not_step_rule_stops(self):
+        ctl = SC.load(K.spec_path(K.CONTROL_SPEC))
+        plan = X.plan_population(P.draw(ctl.seed_namespace, 11, 20.0, ctl.benign_identities, None, P.Timeline(8.0, 0.0, 0.0),
+                                        ctl.per_profile), "probe", "C", 11, os.path.join(self.tmp.name, "a", "C"), TEMPLATE,
+                                 C.PLACEHOLDER, P.Timeline(8.0, 0.0, 0.0), settings={"readiness_timeout_s": 5.0})
+        with self.assertRaises(X.EnvironmentRefused) as ctx:
+            K.Runner(S.SimHost(timer_p99_ms=25.0), wait_gate_min=0.0).run(plan, lambda m: None)
+        self.assertNotIsInstance(ctx.exception, K.CalibrationStop)
+        with self.assertRaises(K.RunUnsoundTwice) as ctx:
+            K.Runner(S.SimHost(startup_s=lambda sid, index, kind: S.LEGIT_STARTUP_S + (2.8 if index == 3 else 0.0))).run(
+                plan, lambda m: None)
+        self.assertNotIsInstance(ctx.exception, K.StepRuleStop)
+
+    def test_every_raise_of_a_stop_in_calibrate_py_is_classed_in_the_table(self):
+        """Each `raise ...Stop(` in bench/calibrate.py is one of the sites K18_stop_classes.md lists by its function: StepRuleStop
+        only in the functions whose rule reads NOT FROZEN, plain CalibrationStop elsewhere, RunUnsoundTwice only in Runner.run."""
+        import ast
+        with open(os.path.join(REPO, "bench", "calibrate.py"), encoding="utf-8") as fh:
+            tree = ast.parse(fh.read())
+        sites = {}
+        for fn in ast.walk(tree):
+            if isinstance(fn, ast.FunctionDef):
+                for node in ast.walk(fn):
+                    if isinstance(node, ast.Raise) and node.exc is not None:
+                        call = node.exc.func if isinstance(node.exc, ast.Call) else node.exc
+                        for c in (call.body, call.orelse) if isinstance(call, ast.IfExp) else (call,):   # (A if x else B)(...)
+                            name = c.id if isinstance(c, ast.Name) else getattr(c, "attr", None)
+                            if name in ("CalibrationStop", "StepRuleStop", "RunUnsoundTwice"):
+                                sites.setdefault(name, set()).add(fn.name)
+        self.assertEqual(sites["StepRuleStop"], {"origin_step", "capacity_of", "ladder_step", "ladder_session", "reference_step",
+                                                 "freeze_step", "_dispatch"})
+        self.assertEqual(sites["RunUnsoundTwice"], {"run"})
+        self.assertEqual(sites["CalibrationStop"], {
+            "kept_origin", "origin_step", "metrics_by_step", "ladder_session", "reference_of_rounds", "session_draft", "_version",
+            "host_of", "freeze_step", "drift_step", "drift_step_means", "drift_step_single", "run", "session_host", "session_speed",
+            "_dispatch", "_run_step"})
+
+
 class RulesPinnedTest(unittest.TestCase):
     """The rules and thresholds of the calibration and of the runs, as they stood when the origin step's measurement was changed
     after HG2b's stops (docs/HG1C_DESIGN.md departures 28 and 29). That change is to how a route is timed and when the step may
@@ -1907,7 +2066,7 @@ class RulesPinnedTest(unittest.TestCase):
     def test_a_round_over_the_limit_is_made_once_more_and_a_second_one_stops_the_step(self):
         self.assertEqual(self.origin((-0.04, 0.0, 0.04)), (K.EXIT_OK, 3), "8 % passes in the first round")
         self.assertEqual(self.origin((-0.1, 0.0, 0.2, 0.0, 0.01, -0.01)), (K.EXIT_OK, 6), "30 %, then 2 %: one retry")
-        self.assertEqual(self.origin((-0.1, 0.0, 0.2)), (K.EXIT_STOPPED, 6), "30 % twice: it stops after two rounds")
+        self.assertEqual(self.origin((-0.1, 0.0, 0.2)), (K.EXIT_NOT_FROZEN, 6), "30 % twice: it stops after two rounds (exit 7, K18)")
 
     def test_the_start_up_self_check_of_the_origin_allows_25_percent_over_5_repeats(self):
         frozen = {k: 1.0 for k in O.CLASSES}

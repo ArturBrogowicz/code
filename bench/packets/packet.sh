@@ -133,8 +133,9 @@ if [ "$PRINT" = 1 ]; then
   echo "after       tar -czf $LOGDIR/${PACKET}_<UTC>.tar.gz $(outputs "$PACKET"); sha256sum of it into ${PACKET}_<UTC>.sha256"
   echo "stop        kill -TERM <the stage's pid, printed at the start>: the TERM goes on to the step's process, the stage waits for"
   echo "            its teardown, starts no further step and still writes the tar, the sha256 and the summary; the same command resumes"
-  echo "summary     one line at the end of the log: PACKET $PACKET <done|paused|host unfit|stopped|stopped by TERM> (exit N): runs made,"
-  echo "            host-invalid"
+  echo "summary     one line at the end of the log: PACKET $PACKET <done|paused|host unfit|not frozen|stopped|stopped by TERM> (exit N):"
+  echo "            runs made, host-invalid. not frozen (exit 7) is a step's own rule (prereg 6); stopped (2) is a refusal of the host"
+  echo "            or the environment, unsound twice or a defect: no reading, the log's last error line says which"
   exit 0
 fi
 
@@ -185,7 +186,9 @@ step_wait() {
 }
 
 # the detached stage: the steps in turn with the budget left, then the tar of the outputs, its sha256 and the one-line summary at the
-# end of the log; its exit code is the last step's (128 + the signal's number for a stop that found no step running)
+# end of the log; its exit code is the last step's (128 + the signal's number for a stop that found no step running). The states:
+# done 0, paused 4 (the budget), host unfit 5, not frozen 7 (a step's own rule, calibrate.py's StepRuleStop: T-115 H-1), stopped
+# otherwise (2: a refusal of the host or the environment, a run unsound twice or a defect; 1, 3, 130 and others)
 stage() {
   local start stamp mark code=0 line left cmd stopped out tar made invalid state
   trap 'on_stop TERM' TERM
@@ -220,7 +223,7 @@ stage() {
   made=$( { find "$out" -name DONE -newer "$mark" -not -path '*hostinvalid*' 2>/dev/null || true; } | wc -l)
   invalid=$( { find "$out" -maxdepth 6 -type d -name '*.hostinvalid*' -newer "$mark" 2>/dev/null || true; } | wc -l)
   if [ -n "$stopped" ]; then state="stopped by $stopped"
-  else case "$code" in 0) state=done;; 4) state=paused;; 5) state="host unfit";; *) state=stopped;; esac; fi
+  else case "$code" in 0) state=done;; 4) state=paused;; 5) state="host unfit";; 7) state="not frozen";; *) state=stopped;; esac; fi
   echo "PACKET $PACKET $state (exit $code): runs made $made, host-invalid $invalid; $(( ($(date +%s) - start) / 60 )) min; tar $tar, sha256 $(cut -c1-16 "${tar%.tar.gz}.sha256")"
   rm -f "$mark"
   return "$code"

@@ -13,5 +13,6 @@ step 2      ./venv/bin/python -B bench/calibrate.py drift --calibration /R --out
 after       tar -czf /S/confirmation/packets/R4_<UTC>.tar.gz /S/confirmation; sha256sum of it into R4_<UTC>.sha256
 stop        kill -TERM <the stage's pid, printed at the start>: the TERM goes on to the step's process, the stage waits for
             its teardown, starts no further step and still writes the tar, the sha256 and the summary; the same command resumes
-summary     one line at the end of the log: PACKET R4 <done|paused|host unfit|stopped|stopped by TERM> (exit N): runs made,
-            host-invalid
+summary     one line at the end of the log: PACKET R4 <done|paused|host unfit|not frozen|stopped|stopped by TERM> (exit N):
+            runs made, host-invalid. not frozen (exit 7) is a step's own rule (prereg 6); stopped (2) is a refusal of the host
+            or the environment, unsound twice or a defect: no reading, the log's last error line says which

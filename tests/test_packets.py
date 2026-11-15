@@ -442,6 +442,32 @@ stage
                     os.kill(step, signal.SIGKILL)
 
 
+    def test_the_summary_names_a_steps_own_rule_not_frozen_and_keeps_stopped_for_the_rest(self):
+        """T-115 H-1: exit 7 is calibrate.py's StepRuleStop, a step's own rule (prereg 6: NOT FROZEN); 2 and the other codes are
+        refusals of the host or the environment, a run unsound twice or defects ("stopped": no reading). Before K18 a 7 did not
+        exist and every own-rule stop was a 2, as the refusals are."""
+        for code, state in ((0, "done"), (4, "paused"), (5, "host unfit"), (7, "not frozen"), (2, "stopped"), (3, "stopped"),
+                            (130, "stopped")):
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as tmp:
+                os.makedirs(f"{tmp}/S/packets")
+                with open(f"{tmp}/stage.sh", "w", encoding="utf-8") as fh:
+                    fh.write(f"""set -euo pipefail
+PACKET=T LOGDIR={tmp}/S/packets BUDGET_MIN=85 PAIRED=none
+steps() {{ echo "bash {tmp}/step.sh"; echo "bash {tmp}/never.sh"; }}
+outputs() {{ echo "{tmp}/S"; }}
+{stage_block()}
+stage
+""")
+                with open(f"{tmp}/step.sh", "w", encoding="utf-8") as fh:
+                    fh.write(f"exit {code}\n")
+                with open(f"{tmp}/never.sh", "w", encoding="utf-8") as fh:
+                    fh.write(f"touch {tmp}/never.ran\n")
+                r = subprocess.run(["bash", f"{tmp}/stage.sh"], capture_output=True, text=True, check=False, timeout=30)
+                self.assertEqual(r.returncode, code, r.stdout + r.stderr)
+                self.assertIn(f"\nPACKET T {state} (exit {code}): runs made 0, host-invalid 0; ", r.stdout)
+                self.assertEqual(os.path.exists(f"{tmp}/never.ran"), code == 0, "a step that did not end 0 is the packet's last")
+
+
 class SpeedHoldCommandTest(unittest.TestCase):
     def test_it_exits_0_when_the_host_holds_and_5_when_it_does_not(self):
         costs = dict(C.load(C.PLACEHOLDER)["route_costs_ms"])
