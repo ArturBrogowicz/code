@@ -11,9 +11,9 @@ and judged by nothing.
 
 H3-H7 (K4): the runner starts `mpstat -P ALL 5`, `pidstat -u -l 10`, a 30-s chrony sampler (`hostcheck.py chrony-sampler`) and a
 journal follower on the executor's CPU, keeps their records in the session, and after each run judges over the run's window (from the
-first speed probe to the end of the second): H3 the legit streams' pooled slip p99, H4 the clock (chrony and the journal), H5 the gaps
-between mpstat's samples, H6 the CPU of the processes that are not the testbed's, H7 that the monitors were alive and their records
-cover the window (fails closed). A host-invalid run is set aside as `<run>.hostinvalid<k>` with its reasons and made again with the
+first speed probe to the end of the second): H3 the legit streams' pooled slip p99 (not on a staged capacity run, D-099), H4 the
+clock (chrony and the journal), H5 the gaps between mpstat's samples, H6 the CPU of the processes that are not the testbed's, H7 that
+the monitors were alive and their records cover the window (fails closed). A host-invalid run is set aside as `<run>.hostinvalid<k>` with its reasons and made again with the
 same seed after a speed hold; three in a row, or the fourth of a packet, pause the packet ("host unfit").
 
     python3 bench/hostcheck.py chrony-sampler --every 30          # the sampler the runner starts (chronyc -c tracking and sources)
@@ -183,6 +183,12 @@ OTHER_CPU_PEAK_PCT = 50.0            # and in any 10-s sample
 CLOCK_OFFSET_S = 0.1                 # H4: |System time| below this in every chrony sample overlapping the run
 SOURCE_OFFSET_S = 1.0                # and no selected source (state * or +) more than this off
 CLOCK_LINES = ("Forward time jump", "Can't synchronise", "Long readout interval")      # H4: none in the journal in the run's window
+# H3 does not judge the staged capacity runs (D-099 1, the user's amendment of 2026-11-14, before any calibration data): the scenario of
+# calibrate.py's capacity plan. They keep H1 and H4-H7; every ladder, reference, confirmation and P2 run keeps H3. Their slip is still
+# recorded beside the verdict. (T-105 F1: the three staged runs of 2026-11-03 gave a pooled legit slip p99 of 255, 179 and 291 ms, the
+# ladder runs of the same session 25-51 ms.)
+STAGED_SCENARIO = "capacity"
+H3_EXEMPT = "H3 does not judge a staged capacity run (D-099, 2026-11-14, pre-data); its slip is recorded, not judged"
 INVALID_IN_A_ROW, INVALID_IN_PACKET = 3, 4      # a packet pauses ("host unfit") at the third host-invalid run in a row or the fourth
 HOLD_EVERY_S, HOLD_MAX_MIN = 300.0, 30.0        # the speed hold after a host-invalid run: a probe pair every 5 min, at most 30 min
 ASIDE = ".hostinvalid"
@@ -491,13 +497,13 @@ def read_monitors(directory):
             "chrony": None if ch is None else parse_chrony(ch), "journal": None if jo is None else parse_journal(jo)}
 
 
-def judge_host(speed, slip_p99_s, slip_limit_s, records, alive, t_start, t_end):
+def judge_host(speed, slip_p99_s, slip_limit_s, records, alive, t_start, t_end, staged=False):
     """A run's host validity from what the host recorded (5.1): H1 from its speed bracket (judge_speed's result, or None), H3 from its
-    legit streams' pooled slip, H4-H6 from the monitors' records, H7 from their presence. Reads no Q, p95 or harm. Returns ok, the
-    reasons and each rule's own verdict."""
+    legit streams' pooled slip (not for a staged capacity run, `staged`: D-099), H4-H6 from the monitors' records, H7 from their
+    presence. Reads no Q, p95 or harm. Returns ok, the reasons and each rule's own verdict."""
     pid = records.get("pidstat") or []
     rules = {"H1": _rule(list(speed["reasons"])) if speed else _rule(["H1: no speed bracket"]),
-             "H3": rule_slip(slip_p99_s, slip_limit_s),
+             "H3": {**_rule([]), "exempt": H3_EXEMPT} if staged else rule_slip(slip_p99_s, slip_limit_s),
              "H4": rule_clock(records.get("chrony") or [], records.get("journal"), t_start, t_end),
              "H5": rule_pause(records.get("mpstat") or [], t_start, t_end),
              "H6": rule_other_cpu(pid, t_start, t_end),
@@ -544,14 +550,15 @@ class HostCheck:
             self.monitors.start()
             self.started = True
 
-    def judge(self, run_dir, speed):
+    def judge(self, run_dir, speed, staged=False):
+        """H1 and H3-H7 on a finished run; `staged`: a staged capacity run, which H3 does not judge (D-099)."""
         w = speed["window"]
         records = read_monitors(self.monitors.directory)
         try:
             slip = pooled_legit_slip_p99(run_dir)
         except Exception as exc:                         # noqa: BLE001 (a record that cannot be read is a run that cannot be judged)
             slip, records["slip_error"] = None, f"{type(exc).__name__}: {exc}"
-        return judge_host(speed, slip, self.slip_limit_s, records, self.monitors.alive(), w["t_start"], w["t_end"])
+        return judge_host(speed, slip, self.slip_limit_s, records, self.monitors.alive(), w["t_start"], w["t_end"], staged)
 
     def set_aside(self, run_dir, record, say=None):
         """The host-invalid run goes beside its place as <run>.hostinvalid<k>, with its record (DONE) and its reasons; counts it and
@@ -808,8 +815,9 @@ def main(argv=None):
         return speed_hold_main(args)
     t0, t1 = (datetime.datetime.fromisoformat(x).timestamp() for x in (args.start, args.end))
     with open(os.path.join(args.run_dir, "run.json"), encoding="utf-8") as fh:
-        speed = json.load(fh).get("speed")
-    verdict = judge_host(speed, pooled_legit_slip_p99(args.run_dir), args.slip_limit_s, read_monitors(args.monitors), None, t0, t1)
+        run = json.load(fh)
+    verdict = judge_host(run.get("speed"), pooled_legit_slip_p99(args.run_dir), args.slip_limit_s, read_monitors(args.monitors), None,
+                         t0, t1, staged=run.get("scenario") == STAGED_SCENARIO)
     print(json.dumps(verdict, indent=1, sort_keys=True))
     return 0 if verdict["ok"] else 3
 

@@ -272,7 +272,7 @@ def capacity_plan(cal, cal_path, repeat, out, levels, step_s, settings=None):
     ctl = SC.load(spec_path(CONTROL_SPEC))
     seed = SEEDS["capacity"] + repeat
     pop = P.staged(ctl.seed_namespace, seed, levels, step_s, ctl.benign_identities, ctl.per_profile)
-    return X.plan_population(pop, "capacity", "C", seed, out, cal, cal_path, pop.timeline,
+    return X.plan_population(pop, HC.STAGED_SCENARIO, "C", seed, out, cal, cal_path, pop.timeline,
                              settings={**staged_limits(step_s), **(settings or {})})
 
 
@@ -936,7 +936,8 @@ class Runner:
                     if self.speed:
                         record["speed"] = self.bracket_done(plan, say)
                     if self.check:
-                        record["host"] = self.check.judge(plan.out, record["speed"])
+                        record["host"] = self.check.judge(plan.out, record["speed"],      # H3 not on a staged run (D-099)
+                                                          staged=plan.scenario == HC.STAGED_SCENARIO)
                         if not record["host"]["ok"]:            # set aside, held, made again: it uses none of the tries (5.1)
                             self.check.set_aside(plan.out, {**record, "finished_utc": now()}, say)
                             reasons = []

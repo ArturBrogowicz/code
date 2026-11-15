@@ -263,6 +263,25 @@ class RuleTest(unittest.TestCase):
         self.assertFalse(HC.rule_slip(None, 0.1)["ok"])
         self.assertEqual(TEMPLATE["validity"]["slip_pooled_s"], 0.1)
 
+    def test_h3_does_not_judge_a_staged_capacity_run_and_judges_every_other(self):
+        """D-099 1 (2026-11-14, pre-data; T-105 F1): a staged capacity run keeps H1 and H4-H7, and its slip is recorded, not judged."""
+        speed = {"reasons": []}
+        cover = {"mpstat": [at(k * 5) for k in range(-1, 22)], "pidstat": [{"t": at(k * 10), "rows": []} for k in range(1, 11)],
+                 "chrony": [{"t": at(k * 30), "tracking": {"system_time_s": 0.0, "leap": "Normal"}, "sources": []} for k in range(4)],
+                 "journal": []}
+        staged = HC.judge_host(speed, 0.291, 0.1, cover, {}, at(0), at(100), staged=True)
+        self.assertTrue(staged["ok"], staged["reasons"])
+        self.assertEqual(staged["rules"]["H3"], {"ok": True, "reasons": [], "exempt": HC.H3_EXEMPT})
+        self.assertEqual(staged["slip_p99_s"], 0.291)
+        self.assertEqual(sorted(staged["rules"]), ["H1", "H3", "H4", "H5", "H6", "H7"])
+        other = HC.judge_host(speed, 0.291, 0.1, cover, {}, at(0), at(100))
+        self.assertEqual(other["reasons"], ["H3: pooled legit slip p99 291 ms above 100 ms"])
+        late = HC.judge_host(speed, 0.291, 0.1, {**cover, "mpstat": [at(0), at(60)]}, {}, at(0), at(100), staged=True)
+        self.assertFalse(late["ok"], "the other rules still judge it")
+        self.assertEqual(HC.STAGED_SCENARIO, "capacity")
+        plan = K.capacity_plan(TEMPLATE, C.PLACEHOLDER, 0, "/tmp/x/capacity/r1/C", [80.0, 160.0], 10.0)
+        self.assertEqual(plan.scenario, HC.STAGED_SCENARIO, "the calibrator's staged runs are the ones exempt")
+
     def test_h4_the_clock(self):
         quiet = [(at(k * 30), 0.0999, "Normal", [("*", 1.0), ("+", -1.0), ("-", 5000.0)]) for k in range(-1, 5)]
         self.assertTrue(HC.rule_clock(HC.parse_chrony(chrony_text(quiet)), [], at(0), at(100))["ok"])
@@ -481,8 +500,8 @@ class HostCheckOnSimTest(unittest.TestCase):
         verdicts = iter([False, True, False, True, False, True, False])
         real = HC.HostCheck.judge
 
-        def scripted(check, run_dir, speed):
-            v = real(check, run_dir, speed)
+        def scripted(check, run_dir, speed, **kw):
+            v = real(check, run_dir, speed, **kw)
             ok = next(verdicts)
             return v if ok else {**v, "ok": False, "reasons": ["H6: scripted"]}
         with mock.patch.object(HC.HostCheck, "judge", scripted), \
@@ -491,6 +510,21 @@ class HostCheckOnSimTest(unittest.TestCase):
                 self.assertTrue(runner.run(self.plan(name), lambda m: None)["host"]["ok"])
             with self.assertRaisesRegex(HC.HostUnfit, "1 host-invalid runs in a row, 4 in this packet"):
                 runner.run(self.plan("d"), lambda m: None)
+
+    def test_the_runner_exempts_its_staged_capacity_runs_from_h3_and_no_other(self):
+        """D-099 1 (2026-11-14, pre-data; T-105 F1): with a pooled legit slip p99 of 291 ms (hg2_3's capacity run r3), the staged run
+        of the capacity step is valid and a legit probe, as a reference's or a confirmation's, is host-invalid by H3."""
+        with mock.patch.object(HC, "pooled_legit_slip_p99", return_value=0.291):
+            staged = K.capacity_plan(TEMPLATE, C.PLACEHOLDER, 0, os.path.join(self.tmp.name, "capacity", "r1", "C"), [80.0, 160.0],
+                                     10.0, settings={"readiness_timeout_s": 5.0})
+            done = self.runner(S.SimHost(origin_costs=COSTS)).run(staged, lambda m: None)
+            self.assertTrue(done["host"]["ok"], done["host"]["reasons"])
+            self.assertEqual((done["host"]["rules"]["H3"]["exempt"], done["host"]["slip_p99_s"]), (HC.H3_EXEMPT, 0.291))
+            plan = self.plan()
+            with self.assertRaises(HC.HostUnfit):
+                self.runner(S.SimHost(origin_costs=COSTS), n=2).run(plan, lambda m: None)
+        reasons = K.read_json(os.path.join(plan.out + ".hostinvalid1", "DONE"))["host"]["reasons"]
+        self.assertEqual(reasons, ["H3: pooled legit slip p99 291 ms above 100 ms"])
 
     def test_a_hold_that_finds_no_two_good_pairs_in_30_minutes_pauses(self):
         host = S.SimHost(origin_costs=COSTS, other_load=lambda t: [(1000, 1, 60.0, "server")] if t < S.BASE_EPOCH + 50 else [])

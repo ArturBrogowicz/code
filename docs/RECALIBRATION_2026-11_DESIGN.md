@@ -130,11 +130,18 @@ None of these reads a Q, a p95 or a harm: they read the host's records only, so 
 |---|---|---|---|
 | H1 | **Speed bracket.** Before the stack starts and after the teardown, the origin's estimator (`time_routes`, 21 repeats, thread CPU time) on CPU 0 and on CPU 1 with the record's knobs; `d` = the mean over the two CPUs of the mean of C3's and C5's deviations from the reference costs (in the calibration session: R1's costs; afterwards: the record's) | `|d_before| <= 10 %` and `|d_after| <= 10 %` | [FACT] speed series of 2026-11-11: normal -2.0..+10.8 %, slow +18.0..+38.2 % against the 2026-11-04 costs (finding 2). [ARITHMETIC] Against a reference in the middle of the normal band (about +4 %), normal lies within about +-7 % and slow begins near +13 %. [INFERENCE] The slow stretches lasted 6 to 51 min (C-135), so a run of about 2 min inside one has at least one end of its bracket inside it, unless a stretch shorter than the run exists unseen between the series' 5-min samples |
 | H2 | Timer gate | as now: p99 below 10 ms on CPU 7 before every run, re-probed every 30 s up to `--wait-gate` | departure 30; a refusal stops, it does not void |
-| H3 | Pause in the generators | pooled legit slip p99 at most 100 ms (`validity.slip_pooled_s`, the gate's rule, `eval/harm_gate.py:392-393`) | [FACT] calibration runs are judged today by the executor's soundness only (`bench/calibrate.py:755-786`); the gate's slip rule never sees them |
+| H3 | Pause in the generators | pooled legit slip p99 at most 100 ms (`validity.slip_pooled_s`, the gate's rule, `eval/harm_gate.py:392-393`); not for the staged capacity runs (amendment of 2026-11-14 below) | [FACT] calibration runs are judged today by the executor's soundness only (`bench/calibrate.py:755-786`); the gate's slip rule never sees them |
 | H4 | Clock | every 30-s chrony sample overlapping the run: `|System time| < 0.1 s` and no selected source more than 1 s off; no chronyd "Forward time jump" or "Can't synchronise" line and no kernel "Long readout interval" line in the run's window | second addendum, point 4; R-030 (a slewing clock runs up to 8.3 % fast and no run can see it) |
 | H5 | Pause of the guest | no gap above 6 s between consecutive 5-s `mpstat` samples in the run's window | second addendum, point 4 (its resolution) |
 | H6 | Non-testbed CPU | the processes that are not the testbed's (`pidstat -u -l 10`; the testbed is Nginx, gunicorn, the engines, the executor, the calibrator, the probes, `ip`, `tc`, `taskset`, `sudo`, the monitors and kernel threads) use **at most 5 % of one CPU on average** over the run's window and **at most 50 % in any 10-s sample** | R-031's 5 % line; [CLAIMED] AP-5's quiet runs had under 0.2 % on CPUs 0-1 (R-025); AP-7's compaction put the app's server and sshd at 40-60 % of a CPU in 15-s bursts (C-129) |
 | H7 | Evidence present | the monitors' records cover the run's window | fails closed: a run with no evidence is not valid |
+
+**Amendment to H3 (2026-11-14, D-099, pre-data; K12).** H3 does not judge the staged capacity runs (R1's `capacity` step, the
+calibrator's scenario `capacity`). Those runs keep H1 and H4-H7, and their pooled legit slip is still recorded beside the verdict. H3
+still judges every ladder, reference, confirmation and P2 run. Why: the three staged runs of 2026-11-03 (`hg2_3/capacity/r1-r3`) had
+a pooled legit slip p99 of 255, 179 and 291 ms, and the ladder runs of the same session 25-51 ms (review T-105, finding F1). Under
+the rule as first written, every capacity run would have been host-invalid, and R1 would have paused as "host unfit". The user
+decided this before any calibration data existed.
 
 The executor's own soundness stays as it is (an unsound run is made once more; a second stops the step: `bench/calibrate.py:755-786`).
 
