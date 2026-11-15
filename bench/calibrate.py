@@ -67,6 +67,7 @@ N_REF, M_DRIFT = C.N_REF, C.M_DRIFT
 # theirs (41, then 42, 43 and 44 for the families in sorted order: calibration.drift_seeds), so that their spreads are the host's
 SEEDS = {"capacity": 11, "ladder": 21, "drift": C.DRIFT_SEED}
 RUN_ESTIMATE_S = 130.0                      # a run: docs/RECALIBRATION_2026-11_DESIGN.md 6.1 (119.5 s after its gate, 131.8 s with re-probes)
+STAGED_EXTRA_S = 63.0                       # a staged capacity run beyond its steps: design 6.1, 263 s on average (n = 4) for 10 x 20 s
 EXIT_OK, EXIT_USAGE, EXIT_STOPPED, EXIT_INVALID, EXIT_INTERRUPTED = 0, 1, 2, 3, 130
 EXIT_HOST_UNFIT = HC.EXIT_HOST_UNFIT             # 5: the packet paused, host unfit (docs/RECALIBRATION_2026-11_DESIGN.md 5.1, K4)
 EXIT_PAUSED = GC.EXIT_PAUSED                     # 4: the packet's time budget is used (--stop-after, K6)
@@ -303,9 +304,11 @@ def origin_step(runner, cal, cal_path, out, say=print):
 
 # --- step 2: the capacity ---------------------------------------------------------------------------
 
-def capacity_levels(first=50.0, ratio=1.3, count=10):
-    """The levels of the capacity probe in requests/s: 50 x 1.3^k, 50 to 530."""
-    return [round(first * ratio ** k, 1) for k in range(count)]
+def capacity_levels(first=50.0, ratio=1.3, low=-2, high=9):
+    """The levels of the capacity probe in requests/s: 50 x 1.3^k for k from -2 to 9, 29.6 to 530.2, each to 0.1 (P-2 option B,
+    prereg 5.5; T-115 LOW 14: on the laptop 50 req/s sits only about 12-35 % below the boundary of 99 %, and a first level below
+    99 % in a repeat is NOT FROZEN). Until P-2 they were k from 0 to 9, 50 to 530.2."""
+    return [round(first * ratio ** k, 1) for k in range(low, high + 1)]
 
 
 def capacity_of(levels, q, healthy=HEALTHY_Q, saturated=SATURATED_Q, saturated_repeats=SATURATED_REPEATS):
@@ -1176,8 +1179,11 @@ def plan_text(template):
                f"run within the gate's floors, {floor_pp:g} pp and a factor of {2 ** floor_log2:g}")
     out.append("")
     total = sum(runs.values())
-    out.append(f"runs    {runs['capacity']} capacity + {runs['screening']} screening + {runs['reference']} reference = {total}; at about "
-               f"{RUN_ESTIMATE_S:.0f} s that is {total * RUN_ESTIMATE_S / 3600:.1f} h (the origin step is 0.1 h more)")
+    staged = len(levels) * STEP_S + STAGED_EXTRA_S          # a staged capacity run: its steps and what a run takes beyond them
+    seconds = runs["capacity"] * staged + (total - runs["capacity"]) * RUN_ESTIMATE_S
+    out.append(f"runs    {runs['capacity']} capacity + {runs['screening']} screening + {runs['reference']} reference = {total}; a capacity "
+               f"run about {staged:.0f} s ({len(levels)} levels x {STEP_S:g} s + {STAGED_EXTRA_S:.0f} s), the others about "
+               f"{RUN_ESTIMATE_S:.0f} s: {seconds / 3600:.1f} h (the origin step is 0.1 h more)")
     out.append(f"timer   every run, on CPU {P.PIN_PLAN['legit']}: a refused probe is made again every {X.TIMER_REPROBE_S:g} s, up to --wait-gate "
                "minutes from the run's first probe (0: one probe); a last refusal stops the step; waits are not in the time above")
     out.append("seeds   " + ", ".join(f"{k} {v}+" for k, v in SEEDS.items()) + " in calib (the gate's blocks use 1-10); the reference "

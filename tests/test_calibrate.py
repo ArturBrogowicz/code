@@ -46,17 +46,19 @@ def metrics(q=100.0, p95=0.05, by_class=None):
 
 class CapacityOfTest(unittest.TestCase):
     LEVELS = K.capacity_levels()
+    LAST = len(LEVELS) - 1                      # the rules' tests do not depend on how many levels there are (P-2)
 
     def rows(self, healthy_to, saturated_from=None, repeats=3):
         """Q per repeat and level: 100 up to level `healthy_to` (an index), 90 after, 40 from `saturated_from`."""
-        q = [100.0 if k <= healthy_to else 90.0 for k in range(10)]
+        q = [100.0 if k <= healthy_to else 90.0 for k in range(len(self.LEVELS))]
         if saturated_from is not None:
             q = [40.0 if k >= saturated_from else x for k, x in enumerate(q)]
         return [list(q) for _ in range(repeats)]
 
     def test_the_levels_are_fifty_times_one_point_three_to_the_k(self):
-        self.assertEqual(len(self.LEVELS), 10)
-        self.assertEqual((self.LEVELS[0], self.LEVELS[-1]), (50.0, 530.2))
+        """k from -2 to 9 (P-2 option B): 12 levels, 29.6 to 530.2, 50 the third."""
+        self.assertEqual(len(self.LEVELS), 12)
+        self.assertEqual((self.LEVELS[0], self.LEVELS[1], self.LEVELS[2], self.LEVELS[-1]), (29.6, 38.5, 50.0, 530.2))
         for a, b in zip(self.LEVELS, self.LEVELS[1:], strict=False):
             self.assertAlmostEqual(b / a, 1.3, delta=0.01)
 
@@ -65,18 +67,18 @@ class CapacityOfTest(unittest.TestCase):
         self.assertEqual((r["c_slo_rps"], r["c_sat_rps"], r["first_unhealthy_rps"]), (self.LEVELS[4], self.LEVELS[8], self.LEVELS[5]))
 
     def test_one_repeat_below_ninety_nine_is_enough_to_end_the_healthy_range(self):
-        q = self.rows(9)
+        q = self.rows(self.LAST)
         q[1][3] = 98.99
         self.assertEqual(K.capacity_of(self.LEVELS, [row[:] for row in q] if False else self.with_saturation(q))["c_slo_rps"],
                          self.LEVELS[2])
 
     def with_saturation(self, q):
-        return [[40.0 if k == 9 else x for k, x in enumerate(row)] for row in q]
+        return [[40.0 if k == self.LAST else x for k, x in enumerate(row)] for row in q]
 
     def test_ninety_nine_exactly_is_healthy(self):
-        q = self.with_saturation(self.rows(9))
+        q = self.with_saturation(self.rows(self.LAST))
         q[0][3] = 99.0
-        self.assertEqual(K.capacity_of(self.LEVELS, q)["c_slo_rps"], self.LEVELS[8])
+        self.assertEqual(K.capacity_of(self.LEVELS, q)["c_slo_rps"], self.LEVELS[self.LAST - 1])
 
     def test_saturation_needs_two_repeats_and_fifty_exactly_is_not_below(self):
         q = self.rows(4, saturated_from=9)
@@ -101,12 +103,12 @@ class CapacityOfTest(unittest.TestCase):
 
     def test_a_first_level_that_is_already_unhealthy_stops_the_calibration(self):
         q = self.rows(-1, saturated_from=5)
-        with self.assertRaisesRegex(K.CalibrationStop, "first level, 50 req/s, is already below 99 %"):
+        with self.assertRaisesRegex(K.StepRuleStop, "first level, 29.6 req/s, is already below 99 %"):     # its own value
             K.capacity_of(self.LEVELS, q)
 
     def test_a_server_that_never_fails_in_the_range_stops_it_and_says_to_extend_the_range(self):
         with self.assertRaisesRegex(K.CalibrationStop, "capacity is above the range of the probe"):
-            K.capacity_of(self.LEVELS, self.rows(9))
+            K.capacity_of(self.LEVELS, self.rows(self.LAST))
 
     def test_a_server_that_is_never_saturated_stops_it(self):
         with self.assertRaisesRegex(K.CalibrationStop, "no level up to 530.2 req/s brings Q below 50 %"):
@@ -1757,7 +1759,7 @@ class CommandLineTest(unittest.TestCase):
         code, out, _ = self.cli("plan")
         self.assertEqual(code, K.EXIT_OK)
         self.assertIn("3 capacity + 54 screening + 20 reference = 77", out)
-        self.assertIn("at about 130 s that is 2.8 h", out)
+        self.assertIn("a capacity run about 303 s (12 levels x 20 s + 63 s), the others about 130 s: 2.9 h", out)
         self.assertIn("step 5  reference  5 rounds, each a legit probe of 120 s at rho and one attack run per family", out)
         self.assertIn("the reference takes the drift's: cheap_static_flood 42, costly_export_flood 43, costly_search_flood 44", out)
         for word in ("origin", "capacity", "ladder", "knee", "reference", "freeze", "drift"):
@@ -2119,7 +2121,8 @@ class RulesPinnedTest(unittest.TestCase):
             "straggler_tail_s": 0.1})
 
     def test_the_capacity_levels_and_rho_s_share_of_c_slo(self):
-        self.assertEqual(K.capacity_levels(), [50.0, 65.0, 84.5, 109.9, 142.8, 185.6, 241.3, 313.7, 407.9, 530.2])
+        self.assertEqual(K.capacity_levels(), [29.6, 38.5, 50.0, 65.0, 84.5, 109.9, 142.8, 185.6, 241.3, 313.7, 407.9, 530.2])
+        self.assertEqual(K.STAGED_EXTRA_S, 63.0)
         self.assertEqual(C.RHO_SHARE, 0.5)
 
     def test_the_knee_is_a_harm_of_1_in_each_of_two_repeats(self):
