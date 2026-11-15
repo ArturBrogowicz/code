@@ -13,7 +13,8 @@ H3-H7 (K4): the runner starts `mpstat -P ALL 5`, `pidstat -u -l 10`, a 30-s chro
 journal follower on the executor's CPU, keeps their records in the session, and after each run judges over the run's window (from the
 first speed probe to the end of the second): H3 the legit streams' pooled slip p99 (not on a staged capacity run, D-099), H4 the
 clock (chrony and the journal), H5 the gaps between mpstat's samples, H6 the CPU of the processes that are not the testbed's, H7 that
-the monitors were alive and their records cover the window (fails closed). A host-invalid run is set aside as `<run>.hostinvalid<k>` with its reasons and made again with the
+the monitors were alive and their records cover the window (fails closed). The judge reads the records JUDGE_WAIT_S (2 s) after the
+window's end, not at it (D-108, 2026-11-15, post hoc: C-156). A host-invalid run is set aside as `<run>.hostinvalid<k>` with its reasons and made again with the
 same seed after a speed hold; three in a row, or the fourth of a packet, pause the packet ("host unfit").
 
     python3 bench/hostcheck.py chrony-sampler --every 30          # the sampler the runner starts (chronyc -c tracking and sources)
@@ -202,6 +203,15 @@ H3_EXEMPT = "H3 does not judge a staged capacity run (D-099, 2026-11-14, pre-dat
 INVALID_IN_A_ROW, INVALID_IN_PACKET = 3, 4      # a packet pauses ("host unfit") at the third host-invalid run in a row or the fourth
 COVER_SLACK_S = 5.0                 # H7: a monitor's first sample in a run's window at most one interval plus this after its start
                                     # (T-105 F6; the lateness H5's 10-s line allows mpstat, one 5-s interval)
+JUDGE_WAIT_S = 2.0                  # H7: the judge reads the monitors' records no earlier than this after the window's end. D-108,
+                                    # 2026-11-15, a departure labelled POST HOC: made after R1 and R2a's first 11 runs, which were
+                                    # judged at the end itself. The records stamp whole seconds, so when a monitor's next sample is
+                                    # due in the second after the end, that sample is the one the end needs, and it was not written
+                                    # yet: R2a set aside 4 of 15 runs by H7 alone (C-156). The rules' text and bounds are unchanged.
+                                    # H4-H6 read the same records, so they too see a sample written in those 2 s, as their text
+                                    # already asks: H4 the chrony samples within one interval of the run, H5 the mpstat sample after
+                                    # its end, H6 the pidstat samples that overlap it (T-120 review). The wait is at most this long,
+                                    # even when the wall clock has gone back since the window ended
 HOLD_EVERY_S, HOLD_MAX_MIN = 300.0, 30.0        # the speed hold after a host-invalid run: a probe pair every 5 min, at most 30 min
 ASIDE = ".hostinvalid"
 MONITOR_ENV = {"TZ": "UTC", "LC_ALL": "C", "S_TIME_FORMAT": "ISO"}
@@ -215,7 +225,8 @@ class HostUnfit(RuntimeError):
 
 def monitor_commands(python=sys.executable):
     """The four monitors: name -> argv (each started under `taskset -c <the executor's CPU>`). sysstat's tools buffer their output when
-    it is a file, so they run under `stdbuf -oL`: a sample reaches the record when it is taken, and a run can be judged right after. The
+    it is a file, so they run under `stdbuf -oL`: a sample reaches the record when it is taken, and a run is judged JUDGE_WAIT_S after
+    its window ends (D-108: right after it was too early by up to a second, C-156). The
     three sampling ones run at real-time priority (REALTIME, D-099); a monitor that cannot get it exits, and H7 voids the run."""
     return {"mpstat": [*REALTIME, "stdbuf", "-oL", "mpstat", "-P", "ALL", f"{MPSTAT_S:g}"],
             "pidstat": [*REALTIME, "stdbuf", "-oL", "pidstat", "-u", "-l", f"{PIDSTAT_S:g}"],
@@ -574,8 +585,13 @@ class HostCheck:
             self.started = True
 
     def judge(self, run_dir, speed, staged=False):
-        """H1 and H3-H7 on a finished run; `staged`: a staged capacity run, which H3 does not judge (D-099)."""
+        """H1 and H3-H7 on a finished run; `staged`: a staged capacity run, which H3 does not judge (D-099). Reads the monitors' records
+        no earlier than JUDGE_WAIT_S after the window's end (D-108, post hoc; C-156), so that a sample due in the second after it is
+        in them; a judge that comes later does not wait, and none waits longer than JUDGE_WAIT_S."""
         w = speed["window"]
+        wait = min(JUDGE_WAIT_S, w["t_end"] + JUDGE_WAIT_S - self.host.time())
+        if wait > 0:
+            self.host.sleep(wait)
         records = read_monitors(self.monitors.directory)
         try:
             slip = pooled_legit_slip_p99(run_dir)

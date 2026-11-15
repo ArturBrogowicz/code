@@ -367,6 +367,84 @@ class RuleTest(unittest.TestCase):
                          ["H7: the chrony record has no sample in the last 35 s before the end of this short run (2026-11-13T10:00:12+00:00)"])
 
 
+class JudgeWaitTest(unittest.TestCase):
+    """D-108 (2026-11-15, a departure labelled post hoc; C-156): the judge reads the monitors' records JUDGE_WAIT_S after the window's
+    end. The records stamp whole seconds, so when a monitor's next sample is due in the second after the end, that sample is the one
+    H7's end needs. Read at the end itself, it was not yet written, and R2a set aside 4 of 15 runs by H7 alone. The case here is the
+    first of them: the window ends at .398 of a second, and mpstat samples at .6 of every fifth second."""
+
+    class Host:
+        """A clock that writes the monitors' records as their samples fall due: a sample is in its file from the moment it is taken,
+        as under `stdbuf -oL`."""
+
+        def __init__(self, directory, now, mpstat, pidstat, chrony):
+            self.directory, self.t, self.sleeps = directory, now, []
+            self.times = {"mpstat": mpstat, "pidstat": pidstat, "chrony": chrony}
+            self.write()
+
+        def time(self):
+            return self.t
+
+        def sleep(self, seconds):
+            self.sleeps.append(seconds)
+            self.t += seconds
+            self.write()
+
+        def write(self):
+            due = {name: [t for t in times if t <= self.t] for name, times in self.times.items()}
+            texts = {"mpstat": mpstat_text(due["mpstat"]), "pidstat": pidstat_text([(t, []) for t in due["pidstat"]]),
+                     "chrony": chrony_text([(t, 0.0, "Normal", []) for t in due["chrony"]]), "journal": ""}
+            for name, text in texts.items():
+                with open(os.path.join(self.directory, name + ".txt"), "w", encoding="utf-8") as fh:
+                    fh.write(text)
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.t0, self.t1 = at(0.5), at(155.398)
+        self.times = {"mpstat": [at(0.6 + 5 * k) for k in range(-1, 40)], "pidstat": [at(0.2 + 10 * k) for k in range(20)],
+                      "chrony": [at(0.1 + 30 * k) for k in range(7)]}
+
+    def judge(self, now, **times):
+        host = self.Host(self.tmp.name, now, **{**self.times, **times})
+        check = HC.HostCheck(host, None, self.tmp.name, "2", 0.1)
+        speed = {"reasons": [], "window": {"t_start": self.t0, "t_end": self.t1}}
+        with mock.patch.object(HC, "pooled_legit_slip_p99", return_value=0.01):
+            return check.judge(self.tmp.name, speed), host
+
+    def test_the_sample_due_in_the_second_after_the_end_is_waited_for(self):
+        v, host = self.judge(self.t1)
+        self.assertTrue(v["rules"]["H7"]["ok"], v["rules"]["H7"]["reasons"])
+        self.assertTrue(v["ok"], v["reasons"])
+        self.assertEqual(len(host.sleeps), 1)
+        self.assertAlmostEqual(host.sleeps[0], 2.0, places=6)
+
+    def test_a_monitor_that_stopped_still_voids_the_run(self):
+        v, host = self.judge(self.t1, mpstat=[t for t in self.times["mpstat"] if t < at(151)])
+        self.assertEqual(v["rules"]["H7"]["reasons"],
+                         ["H7: the mpstat record does not cover the run (2026-11-13T10:00:00+00:00 to 2026-11-13T10:02:35+00:00)"])
+        self.assertEqual(len(host.sleeps), 1, "it waited, and the sample still was not there")
+
+    def test_a_judge_that_comes_later_does_not_wait(self):
+        v, host = self.judge(self.t1 + 7.0)
+        self.assertEqual(host.sleeps, [])
+        self.assertTrue(v["ok"], v["reasons"])
+
+    def test_it_waits_only_what_is_left_of_the_two_seconds_and_never_more(self):
+        """T-120 review: half a second after the end, it sleeps the other 1.5 s; with the wall clock gone back 100 s since the window
+        ended, it still sleeps 2 s, not 102."""
+        v, host = self.judge(self.t1 + 0.5)
+        self.assertEqual(len(host.sleeps), 1)
+        self.assertAlmostEqual(host.sleeps[0], 1.5, places=6)
+        self.assertTrue(v["ok"], v["reasons"])
+        v, host = self.judge(self.t1 - 100.0)
+        self.assertEqual(len(host.sleeps), 1)
+        self.assertAlmostEqual(host.sleeps[0], 2.0, places=6)
+
+    def test_the_wait_is_two_seconds(self):
+        self.assertEqual(HC.JUDGE_WAIT_S, 2.0)
+
+
 class ClassifyTest(unittest.TestCase):
     def test_the_apps_server_sshd_and_the_agents_are_not_the_testbed(self):
         for command, uid in (("server", 1000), ("/home/artur/.claude/remote/srv/4c11/server --serve --socket x", 1000),
