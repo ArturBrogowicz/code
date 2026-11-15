@@ -4,6 +4,7 @@ find can be compared with what the model says they are. Nothing here needs root 
 for the steps of docs/HG1C_DESIGN.md 10."""
 import contextlib
 import copy
+import hashlib
 import inspect
 import io
 import json
@@ -1052,6 +1053,45 @@ class RunnerTest(unittest.TestCase):
         with self.assertRaises(X.PreflightRefused):
             runner.run(self.plan(), lambda m: None)
 
+    @staticmethod
+    def third_stream_late(started):
+        """A startup on which only the first run's third stream starts late, beyond the range limit: that attempt is unsound."""
+        def startup(sid, index, kind):
+            started.append(sid)
+            return S.LEGIT_STARTUP_S + (2.8 if len(started) == 3 else 0.0)
+        return startup
+
+    def test_an_unsound_attempt_goes_aside_under_the_first_free_number_when_an_earlier_packets_are_there(self):
+        """T-115 M-6: a packet stopped by a run unsound twice leaves <run>.failed1 (and now .failed2); the resumed step's first unsound
+        attempt was renamed to the fixed .failed1, which Linux refuses onto a directory that is not empty (OSError 39, exit 1)."""
+        plan = self.plan()
+        os.makedirs(plan.out + ".failed1")
+        with open(os.path.join(plan.out + ".failed1", "run.json"), "w", encoding="utf-8") as fh:
+            fh.write("an earlier packet's attempt\n")
+        record = K.Runner(S.SimHost(startup_s=self.third_stream_late([]))).run(plan, lambda m: None)
+        self.assertTrue(record["ok"])
+        with open(os.path.join(plan.out + ".failed1", "run.json"), encoding="utf-8") as fh:
+            self.assertEqual(fh.read(), "an earlier packet's attempt\n", "kept as it was")
+        self.assertTrue(os.path.exists(os.path.join(plan.out + ".failed2", "run.json")), "this call's unsound attempt")
+        self.assertFalse(os.path.exists(plan.out + ".failed3"))
+        self.assertEqual(K.first_free("/nonexistent/x", ".failed"), "/nonexistent/x.failed1")
+
+    def test_both_unsound_attempts_are_kept_and_a_later_packet_gives_the_run_two_attempts_again(self):
+        """The count of attempts is the call's (one more after an unsound one; a second stops the packet), and every attempt stays as
+        <run>.failed<k>: the last one too, which before stayed in the run's place and a resume removed as an unfinished run."""
+        def always(sid, index, kind):                   # every attempt's third stream starts late: unsound every time
+            return S.LEGIT_STARTUP_S + (2.8 if index == 3 else 0.0)
+        plan = self.plan()
+        for packet, last in ((1, 2), (2, 4)):
+            with self.subTest(packet=packet):
+                host = S.SimHost(startup_s=always)
+                with self.assertRaisesRegex(K.CalibrationStop, rf"not sound in 2 attempts .*; the last is kept as C\.failed{last}; "):
+                    K.Runner(host).run(plan, lambda m: None)
+                self.assertFalse(os.path.exists(plan.out), "nothing left in the run's place for a resume to remove")
+                self.assertEqual(sorted(f for f in os.listdir(os.path.dirname(plan.out)) if f.startswith("C.failed")),
+                                 [f"C.failed{k}" for k in range(1, last + 1)])
+                self.assertTrue(all(os.path.exists(os.path.join(f"{plan.out}.failed{k}", "run.json")) for k in range(1, last + 1)))
+
     def test_an_unfinished_run_of_an_earlier_call_is_removed_and_made_again(self):
         plan = self.plan()
         os.makedirs(plan.out)
@@ -1705,6 +1745,90 @@ class CommandLineTest(unittest.TestCase):
         self.assertTrue(os.path.exists(os.path.join(out, "capacity", "r1", "C", "run.json")))
         with self.assertRaisesRegex(K.CalibrationStop, "capacity step stopped"):
             K.session_draft(out, TEMPLATE)
+
+    # --- a resumed origin step (T-115 H-3) ---
+
+    def test_a_resumed_origin_step_keeps_a_complete_one_of_this_estimator_byte_for_byte_and_h1s_reference(self):
+        """R1 runs `origin` whenever it resumes, and a pause (exit 4) or a host-unfit stop (exit 5) can come inside capacity, after the
+        origin step is complete. Before, the origin step measured again and wrote over origin.json: H1's reference moved between
+        capacity's runs, and a good R1 could stop on a re-measurement (prereg 8: a complete step is not made again)."""
+        out = os.path.join(self.tmp.name, "s")
+        sim = ("--simulate", "--sim-capacity-cpu", str(CAPACITY_CPU))
+        steps = ("--levels", "80,160,240,320,400,480", "--step-s", "10")
+        self.assertEqual(self.cli("origin", "--out", out, *sim)[0], K.EXIT_OK)
+        path = os.path.join(out, "origin", "origin.json")
+        with open(path, "rb") as fh:
+            raw = fh.read()
+        code, _, err = self.cli("capacity", "--out", out, *steps, "--stop-after", "0.01", *sim)
+        self.assertEqual(code, K.EXIT_PAUSED, err)
+        self.assertIsNotNone(GC.read_done(os.path.join(out, "capacity", "r1", "C")))
+        self.assertIsNone(GC.read_done(os.path.join(out, "capacity", "r2", "C")), "paused inside capacity")
+        other = S.SimHost(origin_costs=dict(TEMPLATE["route_costs_ms"]), origin_noise=(0.03, 0.04, 0.05))    # would measure 4 % more
+        code, said, err = self.cli("origin", "--out", out, host=other)
+        self.assertEqual((code, err), (K.EXIT_OK, ""))
+        self.assertEqual(said, f"origin kept: {path} {hashlib.sha256(raw).hexdigest()}\n")
+        self.assertEqual(other.origin_calls, 0, "nothing was measured")
+        with open(path, "rb") as fh:
+            self.assertEqual(fh.read(), raw, "origin.json byte for byte")
+        code, _, err = self.cli("capacity", "--out", out, *steps, *sim)
+        self.assertEqual(code, K.EXIT_OK, err)
+        costs = json.loads(raw)["route_costs_ms"]
+        self.assertEqual(K.session_speed(out, C.PLACEHOLDER).reference_costs, costs)
+        for r in ("r1", "r2", "r3"):
+            with self.subTest(run=r):
+                self.assertEqual(GC.read_done(os.path.join(out, "capacity", r, "C"))["speed"]["reference_costs_ms"], costs,
+                                 "every capacity run bracketed against the one origin step")
+
+    def test_a_resumed_origin_step_refuses_a_complete_one_of_another_estimator_and_leaves_it(self):
+        out = os.path.join(self.tmp.name, "s")
+        self.assertEqual(self.cli("origin", "--out", out, "--simulate")[0], K.EXIT_OK)
+        path = os.path.join(out, "origin", "origin.json")
+        good = K.read_json(path)
+        self.assertEqual({k: good[k] for k in K.origin_identity(TEMPLATE)}, K.origin_identity(TEMPLATE), "origin.json records it")
+        with open(os.path.join(REPO, "bench", "origin.py"), "rb") as fh:
+            self.assertEqual(good["origin_sha256"], hashlib.sha256(fh.read()).hexdigest())
+        cases = (("origin.py", {**good, "origin_sha256": "f" * 64}, f"origin_sha256 ffffffff (this invocation's {good['origin_sha256'][:8]})"),
+                 ("repeats", {**good, "repeats": 5}, "repeats 5 (this invocation's 21)"),
+                 ("knobs", {**good, "knobs": {**good["knobs"], "search_rows": 1}}, "knobs {"),
+                 ("estimator", {**good, "estimator": {**good["estimator"], "version": 1}}, "estimator {"),
+                 ("template", {**good, "template_sha256": "0" * 64}, "template_sha256 00000000"),
+                 ("made before K17", {k: v for k, v in good.items() if k not in ("origin_sha256", "knobs")},
+                  "it does not record origin_sha256, knobs"))
+        for label, doc, said in cases:
+            with self.subTest(label):
+                K.write_json(path, doc)
+                with open(path, "rb") as fh:
+                    raw = fh.read()
+                host = S.SimHost(origin_costs=dict(TEMPLATE["route_costs_ms"]))
+                code, _, err = self.cli("origin", "--out", out, host=host)
+                self.assertEqual(code, K.EXIT_STOPPED, err)
+                self.assertIn(f"CalibrationStop: {path} was not made by this invocation's estimator (", err)
+                self.assertIn(said, err)
+                self.assertIn("use a new session directory", err)
+                self.assertEqual(host.origin_calls, 0, "nothing was measured")
+                with open(path, "rb") as fh:
+                    self.assertEqual(fh.read(), raw, "not written over")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("")
+        code, _, err = self.cli("origin", "--out", out, host=S.SimHost(origin_costs=dict(TEMPLATE["route_costs_ms"])))
+        self.assertEqual(code, K.EXIT_STOPPED)
+        self.assertIn("cannot be read as a complete origin step (0 bytes", err)
+
+    def test_a_cut_origin_step_is_made_again_whole(self):
+        """Design 6.2: a cut origin step leaves no origin.json (a stop keeps its sessions in stopped_<n>.json; a TERM leaves nothing),
+        and the same command makes it again whole: three sessions, and the record of the cut one stays."""
+        out = os.path.join(self.tmp.name, "s")
+        code, _, err = self.cli("origin", "--out", out, host=S.SimHost(origin_costs=dict(TEMPLATE["route_costs_ms"]),
+                                                                         faults={"origin_session_fails": 1}))
+        self.assertEqual(code, K.EXIT_STOPPED)
+        self.assertIn("gave nothing readable", err)
+        host = S.SimHost(origin_costs=dict(TEMPLATE["route_costs_ms"]), origin_noise=(0.0, 0.01, -0.01))
+        code, said, _ = self.cli("origin", "--out", out, host=host)
+        self.assertEqual(code, K.EXIT_OK)
+        self.assertNotIn("origin kept", said)
+        self.assertEqual(host.origin_calls, 3)
+        self.assertEqual(K.read_json(os.path.join(out, "origin", "origin.json"))["route_costs_ms"], TEMPLATE["route_costs_ms"])
+        self.assertTrue(os.path.exists(os.path.join(out, "origin", "stopped_1.json")))
 
     def test_a_freeze_of_an_empty_directory_is_refused(self):
         code, _, err = self.cli("freeze", "--dir", self.tmp.name, "--out", os.path.join(self.tmp.name, "x.json"))

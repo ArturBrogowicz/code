@@ -21,6 +21,7 @@ import copy
 import csv
 import dataclasses
 import datetime
+import hashlib
 import json
 import math
 import os
@@ -131,6 +132,55 @@ def origin_estimator():
             "order": "the routes in turn, one batch each, per repeat", "cost": "the median over the repeats of a batch's time per call"}
 
 
+def origin_sha256():
+    """The sha256 of this checkout's bench/origin.py, whose time_routes and routes the sessions run."""
+    with open(os.path.join(HERE, "origin.py"), "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
+
+
+def origin_identity(cal):
+    """What makes an origin step this invocation's measurement (T-115 H-3): the estimator (origin_estimator), this checkout's
+    bench/origin.py, the knobs the sessions build the origin with and the template they come from, and the step's sessions, repeats and
+    CPU. origin.json records each of them; a resumed origin step keeps a complete one only when all are equal (kept_origin)."""
+    return {"estimator": origin_estimator(), "origin_sha256": origin_sha256(), "knobs": dict(cal["knobs"]),
+            "template_sha256": cal.get("sha256") or C.digest(cal), "sessions": ORIGIN_SESSIONS, "repeats": ORIGIN_REPEATS,
+            "cpu": ORIGIN_CPU}
+
+
+def _said(value):
+    text = json.dumps(value, sort_keys=True) if isinstance(value, (dict, list)) else str(value)
+    return text[:8] if isinstance(value, str) and len(value) == 64 else text[:60]
+
+
+def kept_origin(out, cal):
+    """A resumed origin step (T-115 H-3; design 6.2): R1 runs `origin` again whenever it resumes, and a pause or a host-unfit stop can
+    come inside capacity, after the origin step is complete. A complete origin.json of this estimator (origin_identity) is kept as it is,
+    byte for byte, so that the session's costs, which every later run's speed bracket (H1) is taken against, are measured once: returns
+    its path and sha256. None when there is none: a cut step leaves no origin.json and is made again whole. CalibrationStop when the one
+    there was made otherwise, or cannot be read: it is neither kept (its costs are not this estimator's) nor measured over (a complete
+    step is not made again, prereg 8)."""
+    path = os.path.join(out, "origin", "origin.json")
+    if not os.path.exists(path):
+        return None
+    with open(path, "rb") as fh:
+        raw = fh.read()
+    try:
+        have = json.loads(raw)
+        if not isinstance(have, dict) or not isinstance(have.get("route_costs_ms"), dict) or not have["route_costs_ms"]:
+            raise ValueError("no route_costs_ms")
+    except ValueError as exc:
+        raise CalibrationStop(f"{path} cannot be read as a complete origin step ({len(raw)} bytes, {exc}): it is neither kept nor "
+                              "made again over; the user decides") from exc
+    want = origin_identity(cal)
+    missing = [k for k in want if k not in have]
+    other = [f"{k} {_said(have[k])} (this invocation's {_said(want[k])})" for k in want if k in have and have[k] != want[k]]
+    if missing or other:
+        said = "; ".join(([f"it does not record {', '.join(missing)}"] if missing else []) + other)
+        raise CalibrationStop(f"{path} was not made by this invocation's estimator ({said}): a complete origin step is not made again "
+                              "over (prereg 8), and its costs are not this estimator's; use a new session directory")
+    return path, hashlib.sha256(raw).hexdigest()
+
+
 def origin_estimator_problem(origin):
     """Why the costs of an origin record cannot be used with this code, or None: they were measured with another estimator than
     this code's (origin.ESTIMATOR_VERSION), or the record does not say with which, as one made before the version was recorded
@@ -164,9 +214,7 @@ def save_stopped_origin(out, cal, rounds, partial, reason, gate=None, partial_ti
         n += 1
     path = os.path.join(out, "origin", f"stopped_{n}.json")
     write_json(path, {"step": "origin", "stopped": reason, "created_utc": now(), "gate": gate, "rounds": rounds,
-                      "partial_sessions": partial, "partial_timing": partial_timing or [], "sessions": ORIGIN_SESSIONS,
-                      "repeats": ORIGIN_REPEATS, "cpu": ORIGIN_CPU, "estimator": origin_estimator(),
-                      "template_sha256": cal.get("sha256") or C.digest(cal)})
+                      "partial_sessions": partial, "partial_timing": partial_timing or [], **origin_identity(cal)})
     return path
 
 
@@ -218,8 +266,7 @@ def origin_step(runner, cal, cal_path, out, say=print):
         where = "; ".join(f"round {i}: {origin_said(rnd)}" for i, rnd in enumerate(rounds, 1))
         raise CalibrationStop(f"{reason} ({where}; the sessions of both rounds are in {path})")
     result = {"step": "origin", "created_utc": now(), "gate": gate, "route_costs_ms": combine_origin(rounds[-1]["sessions"]),
-              "rounds": rounds, "sessions": ORIGIN_SESSIONS, "repeats": ORIGIN_REPEATS, "cpu": ORIGIN_CPU,
-              "estimator": origin_estimator(), "template_sha256": cal.get("sha256") or C.digest(cal)}
+              "rounds": rounds, **origin_identity(cal)}
     write_json(os.path.join(out, "origin", "origin.json"), result)
     return result
 
@@ -874,12 +921,22 @@ def done_with_other_pins(plan):
             f"{said_pins(plan.pins)}: a calibration mixes no two layouts. Use another session directory.")
 
 
+def first_free(base, suffix):
+    """`<base><suffix><k>` for the first k from 1 that is not there (as hostcheck.HostCheck.set_aside numbers its runs)."""
+    k = 1
+    while os.path.exists(f"{base}{suffix}{k}"):
+        k += 1
+    return f"{base}{suffix}{k}"
+
+
 class Runner:
     """Carries out plans through the executor for the steps of a calibration. The first run of the process waits for the full
     environment gate, the others for the timer; a run that is found unsound, or fails in its timeline, is made once more in its
-    place (the first goes aside as `<run>.failed1`) and a second time stops the calibration; the executor's refusals stop it at
-    once. A run that is done is not made again, so that a step resumes, unless it was made with another pin plan: that refuses
-    (docs/HG1C_DESIGN.md departure 31)."""
+    place and a second time stops the calibration; the executor's refusals stop it at once. Each unsound attempt goes aside as
+    `<run>.failed<k>`, the first free k, the last one too (T-115 M-6): a resume after an earlier packet's stop finds .failed1 there,
+    and the fixed name crashed on it (OSError 39), while the last attempt, left in place, was removed as an unfinished run. The count
+    of attempts is this call's: a resumed step gives the run two attempts again, and every .failed<k> stays. A run that is done is not
+    made again, so that a step resumes, unless it was made with another pin plan: that refuses (docs/HG1C_DESIGN.md departure 31)."""
 
     def __init__(self, host, settings=None, allow_dirty=False, clean=False, wait_gate_min=30.0, tries=2, speed=None, check=None,
                  stop_after_min=None):
@@ -929,8 +986,8 @@ class Runner:
         reasons, attempt = [], 1
         while attempt <= self.tries:
             if os.path.exists(plan.out):
-                if reasons:                      # an attempt of this call failed: it stays beside the run as evidence
-                    os.rename(plan.out, f"{plan.out}.failed{attempt - 1}")
+                if reasons:                      # an attempt of this call failed: it stays beside the run as evidence (T-115 M-6)
+                    os.rename(plan.out, first_free(plan.out, ".failed"))
                 else:                            # an unfinished run of an earlier call: what its gate saw stays beside it
                     kept = GC.keep_unfinished(os.path.dirname(plan.out), os.path.basename(plan.out), plan.out)
                     say(f"{os.sep.join(plan.out.split(os.sep)[-3:])}: removing the unfinished run{kept}")
@@ -963,7 +1020,12 @@ class Runner:
                 reasons = result.reasons
             self.gate = "timer"
             attempt += 1
-        raise CalibrationStop(f"{plan.out}: the run was not sound in {self.tries} attempts ({'; '.join(reasons)[:300]}); "
+        kept = ""
+        if os.path.exists(plan.out):            # the last attempt is evidence too: a resume would remove it as an unfinished run
+            aside = first_free(plan.out, ".failed")
+            os.rename(plan.out, aside)
+            kept = f"; the last is kept as {os.path.basename(aside)}"
+        raise CalibrationStop(f"{plan.out}: the run was not sound in {self.tries} attempts ({'; '.join(reasons)[:300]}){kept}; "
                               "a calibration made of runs that are not valid is not one")
 
     def close(self):
@@ -1222,6 +1284,10 @@ def _dispatch(args, host):
     host = host or _host_for(args, template, timeline)
     if args.command == "origin":
         session_host(out, host, "origin")
+        kept = kept_origin(out, template)       # a resumed R1 keeps a complete origin step of this estimator (T-115 H-3)
+        if kept:
+            print(f"origin kept: {kept[0]} {kept[1]}")
+            return EXIT_OK
         origin_step(Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate), template, cal_path, out)
         return EXIT_OK
     runner = Runner(host, {}, args.allow_dirty, args.clean, args.wait_gate,
