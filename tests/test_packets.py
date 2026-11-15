@@ -1,0 +1,674 @@
+"""The packets of the re-calibration (bench/packets; docs/RECALIBRATION_2026-11_DESIGN.md 5.2, 5.3, 6.2 and K7): the script's syntax,
+its --print output for every packet (pinned), its refusals, and each pre-check on fixture inputs. Nothing here runs a step; the stage's
+own functions run with stand-in steps (StageStopTest)."""
+import contextlib
+import datetime
+import hashlib
+import io
+import json
+import os
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+from unittest import mock
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
+for sub in ("bench", "bench/packets", "eval"):
+    sys.path.insert(0, os.path.join(REPO, sub))
+import calibration as C
+import hostcheck as HC
+import prechecks as PC
+import sim_host as S
+
+SCRIPT = os.path.join(REPO, "bench", "packets", "packet.sh")
+GOLDEN = os.path.join(HERE, "golden", "packets")
+NOW = datetime.datetime(2026, 11, 16, 9, 0, tzinfo=datetime.UTC).timestamp()
+HEAD = "abcdef0" + "1" * 33                 # a commit id as `git rev-parse HEAD` prints it
+
+
+def script(*args):
+    return subprocess.run(["bash", SCRIPT, *args], capture_output=True, text=True, check=False, timeout=60)
+
+
+class ScriptTest(unittest.TestCase):
+    def test_the_script_parses(self):
+        r = subprocess.run(["bash", "-n", SCRIPT], capture_output=True, text=True, check=False)
+        self.assertEqual((r.returncode, r.stderr), (0, ""))
+
+    def test_the_print_mode_of_every_packet_is_pinned(self):
+        """`--print` runs nothing and needs no root; the goldens are what it prints (regenerate them on purpose, never by habit)."""
+        self.assertEqual(sorted(f[:-4] for f in os.listdir(GOLDEN)), sorted(PC.PACKETS))
+        for packet in PC.PACKETS:
+            with self.subTest(packet=packet):
+                r = script(packet, "--print", "--session", "/S", "--record", "/R", "--campaign", "/C")
+                self.assertEqual(r.returncode, 0, r.stderr)
+                with open(os.path.join(GOLDEN, packet + ".txt"), encoding="utf-8") as fh:
+                    self.assertEqual(r.stdout, fh.read())
+
+    def test_every_step_that_makes_runs_has_the_packets_budget_of_85_minutes_and_the_worst_case_is_180(self):
+        """T-117 N-2: no run starts after 85 min, but the run in progress can end the packet about 3 h after its start: the first run's
+        full gate (30 + 30 min), the run, a host-invalid run's hold (30 min). The pre-checks look for timers due within that + 10 min
+        (it said "ends within 90 min", and they looked 100 min ahead)."""
+        with open(SCRIPT, encoding="utf-8") as fh:
+            script_text = fh.read()
+        self.assertIn("\nBUDGET_MIN=85 ", script_text)
+        self.assertIn("\nPACKET_MIN=180\n", script_text)
+        self.assertNotIn("within 90", script_text)
+        for packet in PC.PACKETS:
+            with open(os.path.join(GOLDEN, packet + ".txt"), encoding="utf-8") as fh:
+                text = fh.read()
+            with self.subTest(packet=packet):
+                self.assertIn("budget      85 min: no run starts after it (--stop-after the minutes left). The run in progress can end the "
+                              "packet up to\n            180 min after its start at worst", text)
+                self.assertIn("a host-invalid run's hold up to 30 min: 85 + 30 + 30 + 5 + 30 = 180\n", text)
+                self.assertIn(f"prechecks.py --packet {packet} --session /S --minutes 180 ", text)
+                self.assertIn("within 180 + 10 min", text)
+                self.assertIn("bench/hostcheck.py speed-hold", text)
+                for line in text.splitlines():
+                    if line.startswith("step") and ("calibrate.py" in line or "gate_campaign.py" in line) and " origin " not in line:
+                        self.assertIn("--stop-after REMAINING", line)
+
+    def test_root_runs_python_without_bytecode_and_takes_absolute_paths_only(self):
+        """T-105 F10: root's Python writes no bytecode into the repository (-B, and PYTHONDONTWRITEBYTECODE for what it starts), and a
+        relative --session or --campaign, which the stage would resolve under the repository's root, is refused."""
+        for packet in PC.PACKETS:
+            with open(os.path.join(GOLDEN, packet + ".txt"), encoding="utf-8") as fh:
+                lines = [line for line in fh.read().splitlines() if line.startswith(("step", "pre-checks"))]
+            with self.subTest(packet=packet):
+                self.assertTrue(lines)
+                for line in lines:
+                    self.assertIn("./venv/bin/python -B bench/", line)
+        with open(SCRIPT, encoding="utf-8") as fh:
+            self.assertIn("\nexport PYTHONDONTWRITEBYTECODE=1\n", fh.read())
+        for flag in ("--session", "--campaign"):
+            with self.subTest(flag=flag):
+                r = script("R2a", "--print", flag, "rel/dir")
+                self.assertEqual(r.returncode, 2)
+                self.assertIn(f"packet.sh: {flag} takes an absolute path (the stage runs from the repository's root), got 'rel/dir'",
+                              r.stderr)
+
+    def test_the_budget_left_is_counted_in_seconds(self):
+        """T-105 F15: the minutes left to the hundredth, rounded down, never more than is left (the floored minutes gave up to 59 s
+        more); less than a minute left is none."""
+        with open(SCRIPT, encoding="utf-8") as fh:
+            text = fh.read()
+        fn = text[text.index("budget_left() {"):text.index("\n}\n", text.index("budget_left() {")) + 3]
+
+        def left(elapsed):
+            r = subprocess.run(["bash", "-c", f"BUDGET_MIN=85\n{fn}\nbudget_left 1000 {1000 + elapsed}"], capture_output=True, text=True,
+                               check=False)
+            return r.returncode, r.stdout.strip()
+        self.assertEqual(left(0), (0, "85.00"))
+        self.assertEqual(left(119), (0, "83.01"), "83 min 1 s left (the floored minutes said 84)")
+        self.assertEqual(left(85 * 60 - 60), (0, "1.00"))
+        self.assertEqual(left(85 * 60 - 59), (1, ""))
+        self.assertEqual(left(85 * 60 + 5), (1, ""))
+
+    def test_r1_names_p1s_paired_check_and_its_gate(self):
+        """T-115 M-1 (K20b): R1's --print and log name bench/vm/paired_check.py and the rule (the frozen text described another check
+        before), and the gate that refuses R1 unless P-1 went on."""
+        with open(os.path.join(GOLDEN, "R1.txt"), encoding="utf-8") as fh:
+            text = fh.read()
+        self.assertIn("paired      P-1 (prereg 5.3), run by the user right before R1: bench/vm/paired_check.py run OUT_DIR --medians FILE "
+                      "(HS1's context A in sbx as uid 1000, the hold's context B as root, CPU 0 then 1, A B B A;", text)
+        self.assertIn("R1 starts only if OUT_DIR/paired.json has schema paired-check/1, exit 0 (|D| <= 5 %, every probe read), this "
+                      "boot's boot_id, a judged_utc at most 30 min before the packet starts and an uptime_s_at_start (written by run, "
+                      "not by a later judge) (--paired OUT_DIR); otherwise packet.sh refuses, exit 2, before the hold and the pre-checks, "
+                      "and the user decides", text)
+        self.assertIn("p-1 gate    ./venv/bin/python -B bench/packets/prechecks.py paired PAIRED_DIR --started <the packet's start, "
+                      "epoch s>   (exit 2: R1 refused, nothing started)", text)
+        self.assertNotIn("manual step", text)
+        for packet in PC.PACKETS[1:]:
+            with open(os.path.join(GOLDEN, packet + ".txt"), encoding="utf-8") as fh:
+                self.assertNotIn("paired", fh.read())
+        with open(SCRIPT, encoding="utf-8") as fh:
+            script_text = fh.read()
+        self.assertIn('[ "$PACKET" = R1 ] && echo "paired check: $PAIRED"', script_text)
+        self.assertIn('PAIRED="P-1 (prereg 5.3), run by the user right before R1: bench/vm/paired_check.py run OUT_DIR --medians FILE ',
+                      script_text, "the stage's log says the same as --print")
+        self.assertIn('echo "paired check\'s record: $PAIRED_DIR/paired.json, sha256 ', script_text)
+
+    def test_r1_holds_against_hs1s_medians_on_this_pc_and_later_packets_against_r1s(self):
+        """K11: R1's hold takes HS1's medians on the PC that runs the programme, never the 2026-11-04 costs (another PC's)."""
+        with open(os.path.join(GOLDEN, "R1.txt"), encoding="utf-8") as fh:
+            self.assertIn("--medians HS1_MEDIANS --session /S --lo -0.10 --hi 0.10 --agree 0.05 --max-min 45", fh.read())
+        with open(os.path.join(GOLDEN, "R3.txt"), encoding="utf-8") as fh:
+            self.assertIn("--reference /S/origin/origin.json --lo -0.10 --hi 0.10 --max-min 30", fh.read())
+
+    def test_refusals(self):
+        r = script("R9", "--print")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("PACKET is one of R1 R2a R2b R2c R3 R4 P2-1 P2-2", r.stderr)
+        r = script("R4", "--session", "/S")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("R4 runs on the new frozen record: --record FILE", r.stderr)
+        r = script("R2a", "--session", "/S")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("a packet runs at a pinned commit, which its pre-checks hold the tree and the frozen hashes to: --commit SHA", r.stderr)
+        if os.geteuid() != 0:
+            r = script("R2a", "--session", "/S", "--commit", HEAD)
+            self.assertEqual(r.returncode, 2)
+            self.assertIn("the steps need root", r.stderr)
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            PC.main(["--packet", "R2a", "--session", "/S"])           # the pre-checks need the pinned commit too
+
+
+BOOT = "0f1e2d3c-4b5a-4978-8796-a5b4c3d2e1f0"            # /proc/sys/kernel/random/boot_id of the fixtures' boot
+
+
+def paired_doc(**kw):
+    """OUT_DIR/paired.json as bench/vm/paired_check.py writes it (schema paired-check/1, its judge's fields), with the "boot_id",
+    "judged_utc" and "uptime_s_at_start" its `run` writes (feat/paired-check, the coordinator's interface note); a check that went on,
+    judged 10 min before NOW."""
+    doc = {"schema": "paired-check/1", "limit": 0.05, "routes": ["C3", "C5"], "cpus": ["0", "1"], "order": ["A", "B", "B", "A"],
+           "repeats": 21, "per_cpu": {}, "D": 0.012, "ok": True, "exit": 0, "reasons": [], "medians_file": None,
+           "judged_utc": "2026-11-16T08:50:00.123456Z", "boot_id": BOOT, "uptime_s_at_start": 7215.4}
+    doc.update(kw)
+    return doc
+
+
+class PairedTest(unittest.TestCase):
+    """T-115 M-1 (K20b, a candidate until the user approves P-1): `packet.sh R1` takes --paired DIR and refuses, exit 2 and before the
+    hold and the pre-checks, unless DIR/paired.json says P-1 went on, in this boot, at most 30 min before the packet starts."""
+
+    def test_the_rule(self):
+        self.assertEqual((PC.PAIRED_SCHEMA, PC.PAIRED_FILE, PC.PAIRED_MAX_AGE_S, PC.PAIRED_AHEAD_S, PC.EXIT_PAIRED_REFUSED),
+                         ("paired-check/1", "paired.json", 1800, 60, 2))
+        self.assertEqual(PC.BOOT_ID, "/proc/sys/kernel/random/boot_id")
+
+    def test_a_check_that_went_on_in_this_boot_within_30_min_lets_r1_start(self):
+        self.assertEqual(PC.check_paired(paired_doc(), BOOT + "\n", NOW), [])
+        self.assertEqual(PC.check_paired(paired_doc(judged_utc="2026-11-16T08:30:00Z"), BOOT, NOW), [], "30 min is inclusive")
+        self.assertEqual(PC.check_paired(paired_doc(judged_utc="2026-11-16T09:00:59+00:00"), BOOT, NOW), [],
+                         "the packet's start is in whole seconds")
+
+    def test_every_other_paired_json_refuses(self):
+        cases = ((paired_doc(exit=6, ok=False, D=0.071, reasons=[("the contexts differ by D = +7.10%, beyond 5%: R1 stops before the "
+                                                                  "hold (P-1)")]),
+                  "P-1 said exit 6, not 0 (go on): the contexts differ by D = +7.10%, beyond 5%"),
+                 (paired_doc(exit=3, ok=False, D=None, reasons=["probe 5 (CPU 1, B) could not be read: timeout"]), "P-1 said exit 3"),
+                 (paired_doc(ok=False), "P-1 said exit 0, not 0 (go on)"),
+                 (paired_doc(exit=False), "P-1 said exit False"),
+                 (paired_doc(boot_id="ffffffff-0000-4000-8000-000000000000"),
+                  "P-1 ran in boot ffffffff, this boot is 0f1e2d3c: it is repeated after a reboot"),
+                 ({k: v for k, v in paired_doc().items() if k != "boot_id"}, "paired.json names no boot_id"),
+                 (paired_doc(judged_utc="2026-11-16T08:29:00Z"), "P-1 was judged 31.0 min before the packet started, more than 30 min"),
+                 (paired_doc(judged_utc="2026-11-16T09:05:00Z"), "P-1's judged_utc is 5.0 min after the packet started"),
+                 (paired_doc(judged_utc="2026-11-16 08:50"), "judged_utc '2026-11-16 08:50' cannot be read as a UTC time"),
+                 ({k: v for k, v in paired_doc().items() if k != "judged_utc"}, "judged_utc None cannot be read"),
+                 (paired_doc(schema="paired-check/2"), "paired.json is of schema 'paired-check/2', not paired-check/1"),
+                 (paired_doc(uptime_s_at_start=None), "paired.json has no uptime_s_at_start: it was not written by `paired_check.py run`"),
+                 ({k: v for k, v in paired_doc().items() if k != "uptime_s_at_start"}, "has no uptime_s_at_start"),
+                 ([1, 2], "paired.json is not a JSON object"))
+        for doc, said in cases:
+            with self.subTest(said=said):
+                reasons = PC.check_paired(doc, BOOT, NOW)
+                self.assertTrue(any(said in r for r in reasons), reasons)
+
+    def test_the_interface_paired_check_py_writes(self):
+        """paired_check.py writes judged_utc with dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ") and boot_id as the stripped
+        /proc/sys/kernel/random/boot_id: the gate reads exactly that (the file's boot_id has no newline, /proc's has one)."""
+        stamp = datetime.datetime.fromtimestamp(NOW - 600.5, datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        self.assertEqual(stamp, "2026-11-16T08:49:59.500000Z")
+        self.assertAlmostEqual(PC._utc_epoch(stamp), NOW - 600.5, places=6)
+        self.assertEqual(PC.check_paired(paired_doc(judged_utc=stamp, boot_id=BOOT), BOOT + "\n", NOW), [])
+        old = datetime.datetime.fromtimestamp(NOW - 1800.5, datetime.UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        self.assertEqual(PC.check_paired(paired_doc(judged_utc=old), BOOT, NOW),
+                         [("P-1 was judged 30.0 min before the packet started, more than 30 min: it is not right before the hold; run it "
+                           "again")], "half a second over the 30 min")
+        self.assertIsNone(PC._utc_epoch("2026-11-16T08:49:59.500000"), "a time without its zone is not read as UTC")
+
+    def gate(self, directory, boot=BOOT, started=NOW):
+        said = io.StringIO()
+        with mock.patch.object(PC, "_read", return_value=boot + "\n"), contextlib.redirect_stdout(said):
+            code = PC.main(["paired", directory, "--started", str(started)])
+        return code, said.getvalue()
+
+    def test_the_gate_on_fixture_directories(self):
+        """ok, exit 6, another boot, too old, missing, not JSON: what `prechecks.py paired` (packet.sh's gate) says and exits."""
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, doc in (("ok", paired_doc()), ("six", paired_doc(exit=6, ok=False, D=0.071))):
+                os.makedirs(os.path.join(tmp, name))
+                with open(os.path.join(tmp, name, "paired.json"), "w", encoding="utf-8") as fh:
+                    json.dump(doc, fh)
+            os.makedirs(os.path.join(tmp, "torn"))
+            with open(os.path.join(tmp, "torn", "paired.json"), "w", encoding="utf-8") as fh:
+                fh.write('{"schema": "paired-check/1", "ex')
+            ok = os.path.join(tmp, "ok")
+            with open(os.path.join(ok, "paired.json"), "rb") as fh:
+                sha = hashlib.sha256(fh.read()).hexdigest()
+            self.assertEqual(self.gate(ok), (0, (f"OK  paired check (P-1): {ok}/paired.json sha256 {sha[:16]}, D +1.20%, judged "
+                                                "2026-11-16T08:50:00.123456Z in boot 0f1e2d3c\n")))
+            for label, (code, said), want in (
+                    ("exit 6", self.gate(os.path.join(tmp, "six")), "P-1 said exit 6, not 0 (go on)"),
+                    ("another boot", self.gate(ok, boot="ffffffff-0000-4000-8000-000000000000"), ("P-1 ran in boot 0f1e2d3c, this boot "
+                                                                                                    "is ffffffff")),
+                    ("too old", self.gate(ok, started=NOW + 3600), "P-1 was judged 70.0 min before the packet started"),
+                    ("missing", self.gate(os.path.join(tmp, "none")), (f"no paired.json in {tmp}/none (FileNotFoundError): run "
+                                                                      f"bench/vm/paired_check.py run {tmp}/none --medians FILE first")),
+                    ("not JSON", self.gate(os.path.join(tmp, "torn")), "paired.json is not JSON")):
+                with self.subTest(label):
+                    self.assertEqual(code, 2, said)
+                    self.assertTrue(said.startswith("NO  paired check (P-1): "), said)
+                    self.assertIn(want, said)
+
+    def test_r1_needs_it_and_the_packet_checks_it_before_the_pre_checks_and_the_hold(self):
+        r = script("R1", "--session", "/S", "--commit", HEAD[:7], "--medians", "/M")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("packet.sh: R1 starts only after P-1's paired check went on (prereg 5.3, K20b): --paired OUT_DIR, the directory of "
+                      "bench/vm/paired_check.py run OUT_DIR --medians FILE", r.stderr)
+        r = script("R2a", "--session", "/S", "--commit", HEAD[:7], "--paired", "/P")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("packet.sh: --paired is R1's", r.stderr)
+        if os.geteuid() != 0:
+            r = script("R1", "--session", "/S", "--commit", HEAD[:7], "--medians", "/M", "--paired", "/P")
+            self.assertEqual(r.returncode, 2)
+            self.assertIn("the steps need root", r.stderr, "past the argument's check")
+        with open(SCRIPT, encoding="utf-8") as fh:
+            text = fh.read()
+        foreground = text[text.index('if [ "$STAGE" = 0 ]; then'):]
+        gate = foreground.index('$PAIRED_GATE "$STARTED" || { echo "packet.sh: P-1\'s paired check does not let R1 start (prereg 5.3); '
+                                'nothing was started" >&2; exit 2; }')
+        self.assertLess(gate, foreground.index("$PRECHECK ||"))
+        self.assertLess(gate, foreground.index("setsid nohup bash"))
+        self.assertIn('PAIRED_GATE="$PY bench/packets/prechecks.py paired ${PAIRED_DIR:-PAIRED_DIR} --started"', text)
+        self.assertIn('STARTED=$(date +%s)', text)
+
+
+def tracking(offset=0.000123, leap="Normal"):
+    return f"B97DBE7B,185.125.190.123,3,1794422163.845455648,{offset:.9f},-0.000957563,2870.78,3.012,-0.111,3.214,0.0436,0.0024,258.4,{leap}"
+
+
+class PrecheckTest(unittest.TestCase):
+    def test_tree(self):
+        self.assertEqual(PC.check_tree("", HEAD, "abcdef0"), [])
+        self.assertEqual(PC.check_tree(" M bench/calibrate.py\n", HEAD, "abcdef0"), ["uncommitted change: M bench/calibrate.py"])
+        self.assertEqual(PC.check_tree("", "123456789abc" + "0" * 28, "abcdef0"), ["HEAD is 123456789abc, the packet is pinned to abcdef0"])
+
+    def test_a_command_that_failed_or_printed_nothing_is_a_problem_never_a_pass(self):
+        """T-105 F5: git, systemctl, bpftool, ps and pidstat each print something when they work; nothing (or a failure, None) is a
+        problem, and a packet needs its pinned commit."""
+        self.assertEqual(PC.check_tree("", "", "abc1234"), ["HEAD cannot be read (git printed '')"])
+        self.assertEqual(PC.check_tree(None, HEAD, "abcdef0"), ["git status failed: whether the tree is clean cannot be read"])
+        for commit in (None, "", "abc", "not-a-sha"):
+            with self.subTest(commit=commit):
+                self.assertEqual(PC.check_tree("", HEAD, commit),
+                                 [f"no pinned commit ({commit!r}): a packet runs at one (--commit SHA, 7 to 40 hex digits)"])
+        for text in (None, "", "  \n"):
+            with self.subTest(timers=text):
+                self.assertEqual(PC.check_timers(text, NOW, 90), ["systemctl list-timers printed nothing: it cannot be read"])
+            with self.subTest(bpftool=text):
+                self.assertEqual(PC.check_testbed_free("", "bash\n", text), ["bpftool -j prog show printed nothing: it cannot be read"])
+            with self.subTest(ps=text):
+                self.assertEqual(PC.check_jobs(text), ["ps printed nothing: the running jobs cannot be read"])
+                self.assertEqual(PC.check_testbed_free("", text, "[]"), ["ps printed nothing: the processes cannot be read"])
+            with self.subTest(pidstat=text):
+                self.assertEqual(PC.check_quiet(text), ["pidstat gave no sample: whether the host is quiet cannot be read"])
+        self.assertEqual(PC.check_timers("Failed to connect to bus", NOW, 90),
+                         ["systemctl list-timers did not print JSON: 'Failed to connect to bus'"])
+        self.assertEqual(PC.check_testbed_free(None, "bash\n", "[]"), ["ip netns list failed: the namespaces cannot be read"])
+        self.assertEqual(PC.check_quiet("Linux 7.0.0-42-generic (h) \t2026-11-16 \t_x86_64_\t(8 CPU)\n\n"),
+                         ["pidstat gave no sample: whether the host is quiet cannot be read"], "a header and no sample")
+        self.assertEqual(PC.check_chrony(None, None), ["chronyc gave no tracking record"])
+        with mock.patch.object(PC.subprocess, "run", return_value=subprocess.CompletedProcess([], 128, "", "fatal: not a git repository")):
+            self.assertIsNone(PC._sh(["git", "status"]), "a failed command is not empty output")
+
+    def test_the_frozen_hashes(self):
+        """5.2's frozen hashes match (T-105 F5): every file of the pinned commit under bench/, eval/ and the testbed's own files, and the
+        frozen record, hashes here to the commit's blob."""
+        blob, other = "1" * 40, "2" * 40
+        self.assertEqual(PC.check_frozen({"bench/a.py": blob, "bench/r.json": other}, {"bench/a.py": blob, "bench/r.json": other},
+                                         "bench/r.json"), [])
+        self.assertEqual(PC.check_frozen({"bench/a.py": blob}, {"bench/a.py": other}),
+                         ["bench/a.py is 222222222222 here, 111111111111 at the pinned commit"])
+        self.assertEqual(PC.check_frozen({"bench/a.py": blob}, {}), ["bench/a.py is missing here, 111111111111 at the pinned commit"])
+        self.assertEqual(PC.check_frozen({"bench/a.py": blob}, {"bench/a.py": blob}, "/tmp/r.json"),
+                         ["the record /tmp/r.json is not a file of the pinned commit: a frozen record is committed before it is used"])
+        for listing in (None, {}):
+            self.assertEqual(PC.check_frozen(listing, {}), ["git ls-tree of the pinned commit listed nothing: the frozen hashes cannot be read"])
+        self.assertEqual(PC.FROZEN, ("bench", "eval", "nginx.conf", "nginx_unprotected.conf", "control_plane.py", "xdp_ddos_filter.c",
+                                     "test_distributed_suite.py"))
+
+    def test_the_frozen_hashes_through_git(self):
+        """parse_ls_tree and frozen_here on a small repository: they agree on a committed file and see a change to it."""
+        with tempfile.TemporaryDirectory() as tmp:
+            git = ["git", "-c", f"safe.directory={tmp}", "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-C", tmp]
+            os.makedirs(os.path.join(tmp, "bench"))
+            with open(os.path.join(tmp, "bench", "a.py"), "w", encoding="utf-8") as fh:
+                fh.write("A = 1\n")
+            for argv in (["init", "-q"], ["add", "bench/a.py"], ["commit", "-q", "-m", "x"]):
+                subprocess.run([*git, *argv], check=True, capture_output=True)
+            head = PC._sh([*git, "rev-parse", "HEAD"]).strip()
+            with mock.patch.object(PC, "REPO", tmp):
+                at = PC.parse_ls_tree(PC._sh([*git, "ls-tree", "-r", head, "--", *PC.FROZEN]))
+                self.assertEqual(sorted(at), ["bench/a.py"])
+                self.assertEqual(PC.check_frozen(at, PC.frozen_here(git, at)), [])
+                with open(os.path.join(tmp, "bench", "a.py"), "a", encoding="utf-8") as fh:
+                    fh.write("B = 2\n")
+                self.assertEqual(len(PC.check_frozen(at, PC.frozen_here(git, at))), 1)
+                os.remove(os.path.join(tmp, "bench", "a.py"))
+                self.assertIn("missing here", PC.check_frozen(at, PC.frozen_here(git, at))[0])
+
+    def test_host(self):
+        here = {"uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP x86_64", "mem_mib": 7422,
+                "cpu_model": "AMD Ryzen 7 7730U with Radeon Graphics", "vbox_host_version": "7.2.10r174163"}       # the laptop (K10)
+        self.assertEqual(PC.check_host(here, PC.PROGRAMME_HOST), [])
+        self.assertEqual(len(PC.check_host({**here, "cpu_model": "Intel(R) Core(TM) i7-10700F CPU @ 2.90GHz",
+                                            "vbox_host_version": "7.2.4r170995"}, PC.PROGRAMME_HOST)), 2, "the desktop")
+        self.assertEqual(len(PC.check_host({**here, "uname": "Linux h 7.0.0-43-generic x86_64"}, PC.PROGRAMME_HOST)), 1)
+        self.assertIn("the session", PC.check_host({**here, "mem_mib": 9426}, {**PC.PROGRAMME_HOST, "first_step": "origin"})[0])
+
+    def test_uptime(self):
+        self.assertEqual(PC.check_uptime(1800.0), [])
+        self.assertEqual(PC.check_uptime(1799.0), ["up 1799 s, the packet waits for 1800 s"])
+
+    def test_a_chrony_record_out_of_bounds(self):
+        self.assertEqual(PC.check_chrony(tracking(), "^,*,185.125.190.123,2,6,377,22,-0.000123,-0.000130,0.012"), [])
+        self.assertEqual(PC.check_chrony(tracking(0.1), ""), ["the system clock was +0.100 s off (limit 0.1 s)"])
+        self.assertEqual(PC.check_chrony(tracking(0.0, "Not synchronised"), "^,*,185.125.190.123,2,6,377,22,-13836.6,-13836.6,0.012"),
+                         ["chrony was not synchronised", "the source 185.125.190.123 read -13836.600 s (limit 1 s)"])
+        self.assertEqual(PC.check_chrony("", ""), ["chronyc gave no tracking record"])
+
+    def test_a_timer_due(self):
+        timers = [{"unit": "apt-daily.timer", "activates": "apt-daily.service", "next": int((NOW + 95 * 60) * 1e6)},
+                  {"unit": "logrotate.timer", "activates": "logrotate.service", "next": int((NOW + 101 * 60) * 1e6)},
+                  {"unit": "fstrim.timer", "activates": "fstrim.service", "next": int((NOW + 60) * 1e6)},
+                  {"unit": "man-db.timer", "activates": "man-db.service", "next": None}]
+        self.assertEqual(PC.check_timers(json.dumps(timers), NOW, 90),
+                         ["apt-daily.timer is due at 2026-11-16T10:35:00+00:00, within the packet and 10 min"])
+        self.assertEqual(PC.check_timers("[]", NOW, 90), [])
+
+    def test_a_package_job_running(self):
+        self.assertEqual(PC.check_jobs("/usr/bin/python3 /usr/bin/unattended-upgrade --download-only\nbash\n"),
+                         ["a package job runs: /usr/bin/python3 /usr/bin/unattended-upgrade --download-only"])
+        self.assertEqual(PC.check_jobs("/usr/bin/dpkg --configure -a\n")[0][:20], "a package job runs: ")
+        self.assertEqual(PC.check_jobs("vim apt-notes.txt\n"), [])
+
+    def test_a_stray_process_or_namespace_or_program(self):
+        self.assertEqual(PC.check_testbed_free("", "bash\nsshd\n", "[]"), [])
+        got = PC.check_testbed_free("hg_0_perfect (id: 0)\n", "nginx: worker process\n/v/bin/python bench/loadgen.py --url x\n",
+                                    json.dumps([{"id": 41, "type": "xdp", "name": "xdp_ddos_mitiga"}, {"id": 7, "type": "cgroup_skb"}]))
+        self.assertEqual(got, ["a namespace is left: hg_0_perfect", "a testbed process is left: nginx: worker process",
+                               "a testbed process is left: /v/bin/python bench/loadgen.py --url x",
+                               "an XDP program is loaded: id 41 xdp_ddos_mitiga"])
+
+    def test_another_process_above_5_percent(self):
+        text = ("Linux 7.0.0-42-generic (h) \t2026-11-16 \t_x86_64_\t(8 CPU)\n\n"
+                "09:00:00   UID       PID    %usr %system  %guest   %wait    %CPU   CPU  Command\n"
+                "09:01:00  1000      1874    5.10    0.00    0.00    0.00    5.10     3  /home/u/.claude/remote/srv/x/server --serve\n"
+                "09:01:00  1000      2121    4.00    0.00    0.00    0.00    4.00     2  sshd-session: artur@notty\n"
+                "09:01:00     0       918   90.00    0.00    0.00    0.00   90.00     4  [kworker/4:1-events]\n")
+        self.assertEqual(PC.check_quiet(text), ["/home/u/.claude/remote/srv/x/server --serve (uid 1000) used 5.1 % of a CPU"])
+
+
+MAINS = ("bench/hostcheck.py", "bench/calibrate.py", "bench/executor.py", "bench/gate_campaign.py", "bench/packets/prechecks.py")
+RESTORE = "signal.signal(signal.SIGINT, signal.default_int_handler)"
+
+
+class StopTest(unittest.TestCase):
+    """T-105 F3: packet.sh starts its stage with `setsid nohup bash ... &` and the step as `$cmd &`. A non-interactive bash starts an
+    asynchronous command with SIGINT ignored, and Python keeps an ignored SIGINT, so `kill -INT` did nothing. Each Python main reached
+    from packet.sh now restores the default handler at entry; `kill -TERM`, which the script and design 5.3 say, works as before."""
+
+    def test_every_main_reached_from_packet_sh_restores_the_default_sigint_handler_at_entry(self):
+        for path in MAINS:
+            with open(os.path.join(REPO, path), encoding="utf-8") as fh:
+                entry = fh.read().split('\nif __name__ == "__main__":\n')[-1]
+            with self.subTest(path=path):
+                self.assertTrue(entry.lstrip().startswith(RESTORE), entry[:200])
+        with open(SCRIPT, encoding="utf-8") as fh:
+            text = fh.read()
+        self.assertNotIn("kill -INT", text)
+        # T-115 H-2: every stop instruction names the stage, whose pid the terminal prints and the stage's log names; none the step's.
+        # T-117 N-1: and says sudo: the stage runs as root, and a kill from the user's shell without it is refused (EPERM)
+        self.assertIn('echo "stop it with sudo kill -TERM $STAGE_PID: ', text)
+        self.assertIn('echo "packet $PACKET stage, pid $$, $(date -u +%FT%TZ); sudo kill -TERM $$ stops it"', text)
+        self.assertIn('echo "the step\'s process: $STEP_PID (the packet stops with sudo kill -TERM $$, the stage)"', text)
+        self.assertIn('echo "stop        sudo kill -TERM <the stage\'s pid, printed at the start>: ', text)
+        self.assertIn("# takes two or three packets). Stop it with `sudo kill -TERM` of the pid the terminal prints", text)
+        told = [line for line in text.splitlines() if "kill -TERM" in line and ("echo" in line or line.startswith("# takes"))]
+        self.assertEqual(len(told), 5, told)
+        self.assertTrue(all("sudo kill -TERM" in line for line in told), told)
+        self.assertNotIn("kill -TERM $pid stops it", text)
+
+    def test_a_step_launched_as_packet_sh_launches_it_stops_on_int(self):
+        """The chrony sampler (bench/hostcheck.py, a main the packet's steps start) as the step of a stage launched as packet.sh
+        launches it: it runs with SIGINT ignored before its main, and `kill -INT` ends it within seconds, exit 0 (its main catches
+        the interrupt)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            stage = os.path.join(tmp, "stage.sh")
+            with open(stage, "w", encoding="utf-8") as fh:
+                fh.write(f"""set -u
+echo "stage ignores: $(awk '/^SigIgn/ {{print $2}}' /proc/$$/status)"
+{sys.executable} -B {os.path.join(REPO, "bench", "hostcheck.py")} chrony-sampler --every 30 > {tmp}/sampler.txt 2>&1 & pid=$!
+echo $pid > {tmp}/step.pid; wait $pid; echo "exit $?" > {tmp}/exit.txt
+""")
+            subprocess.run(["bash", "-c", f"setsid nohup bash {stage} > {tmp}/stage.log 2>&1 < /dev/null &"], check=True, timeout=30)
+            pid = None
+            try:
+                deadline = time.monotonic() + 30
+                while time.monotonic() < deadline and not (os.path.exists(f"{tmp}/step.pid") and os.path.getsize(f"{tmp}/sampler.txt")):
+                    time.sleep(0.1)
+                with open(f"{tmp}/step.pid", encoding="utf-8") as fh:
+                    pid = int(fh.read())
+                with open(f"{tmp}/stage.log", encoding="utf-8") as fh:
+                    ignored = int(fh.read().split("stage ignores: ")[1].split()[0], 16)
+                self.assertTrue(ignored & (1 << (signal.SIGINT - 1)), "the stage runs with SIGINT ignored, as packet.sh's does")
+                os.kill(pid, signal.SIGINT)
+                deadline = time.monotonic() + 15
+                while time.monotonic() < deadline and not os.path.exists(f"{tmp}/exit.txt"):
+                    time.sleep(0.1)
+                self.assertTrue(os.path.exists(f"{tmp}/exit.txt"), "the step is still alive 15 s after kill -INT")
+                with open(f"{tmp}/exit.txt", encoding="utf-8") as fh:
+                    self.assertEqual(fh.read().strip(), "exit 0")
+            finally:
+                if pid and not os.path.exists(f"{tmp}/exit.txt"):
+                    os.kill(pid, signal.SIGTERM)
+                    deadline = time.monotonic() + 10
+                    while time.monotonic() < deadline and not os.path.exists(f"{tmp}/exit.txt"):
+                        time.sleep(0.1)
+
+
+STEP = """import os, signal, sys, time
+tmp, name = sys.argv[1], sys.argv[2]
+
+
+def stop(signum, frame):                 # as executor._install_signal_handlers: TERM ends the step through its teardown
+    raise KeyboardInterrupt(f"signal {signum}")
+
+
+signal.signal(signal.SIGTERM, stop)
+print(f"{name}: started, pid {os.getpid()}", flush=True)
+with open(os.path.join(tmp, name + ".pid"), "w") as fh:
+    fh.write(str(os.getpid()))
+try:
+    time.sleep(60)
+except KeyboardInterrupt:
+    print(f"{name}: TERM, taking the testbed down", flush=True)
+    time.sleep(1.0)
+    open(os.path.join(tmp, name + ".teardown"), "w").close()
+    print(f"{name}: teardown done", flush=True)
+    sys.exit(130)
+"""
+
+
+def stage_block():
+    """The stage's functions as packet.sh has them, between its two markers."""
+    with open(SCRIPT, encoding="utf-8") as fh:
+        text = fh.read()
+    return text[text.index("# --- the stage's functions"):text.index("# --- end of the stage's functions")]
+
+
+def alive(pid):
+    """Whether `pid` runs (a zombie, ended but not yet reaped, does not)."""
+    try:
+        with open(f"/proc/{pid}/stat", encoding="utf-8") as fh:
+            return fh.read().rsplit(")", 1)[1].split()[0] != "Z"
+    except OSError:
+        return False
+
+
+def read(path):
+    with open(path, encoding="utf-8") as fh:
+        return fh.read()
+
+
+def wait_for(predicate, seconds):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline and not predicate():
+        time.sleep(0.05)
+    return predicate()
+
+
+class StageStopTest(unittest.TestCase):
+    """T-115 H-2: the terminal prints the detached stage's pid and says to stop the packet with kill -TERM of it. Before, TERM to that pid
+    killed the stage alone: the step went on orphaned (the testbed up), and no tar, sha256 or summary was written.
+    The stage's own functions (packet.sh's block between its markers) run here as a stage launched the way packet.sh launches one
+    (setsid nohup bash ... &, so with SIGINT ignored), with two stand-in steps that take the TERM as the executor does."""
+
+    def test_kill_term_of_the_stage_reaches_the_step_waits_for_its_teardown_skips_the_rest_and_writes_the_tar_and_summary(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(f"{tmp}/S/packets")
+            with open(f"{tmp}/S/data.txt", "w", encoding="utf-8") as fh:
+                fh.write("a run's record\n")
+            with open(f"{tmp}/step.py", "w", encoding="utf-8") as fh:
+                fh.write(STEP)
+            with open(f"{tmp}/stage.sh", "w", encoding="utf-8") as fh:
+                fh.write(f"""set -euo pipefail
+PACKET=T LOGDIR={tmp}/S/packets BUDGET_MIN=85 PAIRED=none
+steps() {{ echo "{sys.executable} -B {tmp}/step.py {tmp} first"; echo "{sys.executable} -B {tmp}/step.py {tmp} second"; }}
+outputs() {{ echo "{tmp}/S"; }}
+{stage_block()}
+stage
+""")
+            log = f"{tmp}/S/packets/T.log"
+            launch = f"setsid nohup bash -c 'bash {tmp}/stage.sh; echo \"rc $?\" > {tmp}/rc.txt' > {log} 2>&1 < /dev/null &"
+            subprocess.run(["bash", "-c", launch], check=True, timeout=30)       # as packet.sh launches its stage, SIGINT ignored
+            step = None
+            try:
+                self.assertTrue(wait_for(lambda: os.path.exists(f"{tmp}/first.pid") and "first: started" in read(log), 30),
+                                "the first step did not start")
+                with open(f"{tmp}/first.pid", encoding="utf-8") as fh:
+                    step = int(fh.read())
+                with open(log, encoding="utf-8") as fh:
+                    first_line = fh.readline()
+                stage = int(first_line.split("stage, pid ")[1].split(",")[0])
+                self.assertIn(f"; sudo kill -TERM {stage} stops it", first_line)
+                with open(SCRIPT, encoding="utf-8") as fh:            # the foreground reads the pid it prints from that line
+                    program = fh.read().split("said=$(sed -n '")[1].split("'")[0]
+                self.assertEqual(subprocess.run(["sed", "-n", program, log], capture_output=True, text=True, check=True).stdout.strip(),
+                                 str(stage))
+                os.kill(stage, signal.SIGTERM)
+                self.assertTrue(wait_for(lambda: os.path.exists(f"{tmp}/rc.txt"), 30), "the stage did not end within 30 s of the TERM")
+                with open(log, encoding="utf-8") as fh:
+                    text = fh.read()
+                with open(f"{tmp}/rc.txt", encoding="utf-8") as fh:
+                    self.assertEqual(fh.read().strip(), "rc 130", text)
+                self.assertIn(f"TERM: passing TERM to the step's process {step} and waiting for it to end", text)
+                order = [text.index(s) for s in ("first: TERM, taking the testbed down", "first: teardown done", " exit 130\n",
+                                                 "PACKET T stopped by TERM (exit 130): runs made 0, host-invalid 0; ")]
+                self.assertEqual(order, sorted(order), "the summary comes after the step's teardown")
+                self.assertTrue(os.path.exists(f"{tmp}/first.teardown"))
+                self.assertFalse(os.path.exists(f"{tmp}/second.pid"), "no further step starts")
+                self.assertFalse(alive(step), "the step's process is not left running")
+                self.assertTrue(wait_for(lambda: not alive(stage), 10))
+                tars = [f for f in os.listdir(f"{tmp}/S/packets") if f.endswith(".tar.gz")]
+                self.assertEqual(len(tars), 1)
+                tar = f"{tmp}/S/packets/{tars[0]}"
+                with open(tar, "rb") as fh:
+                    digest = hashlib.sha256(fh.read()).hexdigest()
+                with open(tar[:-len(".tar.gz")] + ".sha256", encoding="utf-8") as fh:
+                    self.assertEqual(fh.read().split()[0], digest)
+                self.assertIn(f"tar {tar}, sha256 {digest[:16]}", text)
+                names = subprocess.run(["tar", "-tzf", tar], capture_output=True, text=True, check=True).stdout.split()
+                self.assertIn("S/data.txt", names)
+                self.assertFalse([n for n in names if "packets" in n], "the packet's own log stays out of its tar")
+            finally:
+                if step and alive(step):
+                    os.kill(step, signal.SIGKILL)
+
+
+    def test_a_term_the_step_does_not_end_on_is_not_called_a_stop_and_the_steps_not_started_are_named(self):
+        """T-117 L-1: the executor ignores TERM in its shielded teardown, so a forwarded TERM can be lost and the step end 0 (or on with
+        its next run). The summary then gives the step's own state with a note, not "stopped by TERM", which is kept for a step that
+        ended on the TERM (130 or 143); the steps that did not start because of the TERM are named in the log."""
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(f"{tmp}/S/packets")
+            with open(f"{tmp}/deaf.py", "w", encoding="utf-8") as fh:      # takes the TERM as a shielded teardown does: not at all
+                fh.write(f"import signal, sys, time\nsignal.signal(signal.SIGTERM, signal.SIG_IGN)\nopen('{tmp}/deaf.started', 'w').close()\n"
+                         "time.sleep(1.5)\nprint('deaf: ended 0', flush=True)\n")
+            with open(f"{tmp}/stage.sh", "w", encoding="utf-8") as fh:
+                fh.write(f"""set -euo pipefail
+PACKET=T LOGDIR={tmp}/S/packets BUDGET_MIN=85 PAIRED=none
+steps() {{ echo "{sys.executable} -B {tmp}/deaf.py"; echo "bash {tmp}/second.sh"; echo "bash {tmp}/third.sh"; }}
+outputs() {{ echo "{tmp}/S"; }}
+{stage_block()}
+stage
+""")
+            log = f"{tmp}/S/packets/T.log"
+            launch = f"setsid nohup bash -c 'bash {tmp}/stage.sh; echo \"rc $?\" > {tmp}/rc.txt' > {log} 2>&1 < /dev/null &"
+            subprocess.run(["bash", "-c", launch], check=True, timeout=30)
+            self.assertTrue(wait_for(lambda: os.path.exists(f"{tmp}/deaf.started"), 30))
+            stage = int(read(log).split("stage, pid ")[1].split(",")[0])
+            os.kill(stage, signal.SIGTERM)
+            self.assertTrue(wait_for(lambda: os.path.exists(f"{tmp}/rc.txt"), 30))
+            text = read(log)
+            self.assertEqual(read(f"{tmp}/rc.txt").strip(), "rc 0", text)
+            self.assertIn("deaf: ended 0", text)
+            self.assertIn(f"stopped by TERM: not started: bash {tmp}/second.sh\n", text)
+            self.assertIn(f"stopped by TERM: not started: bash {tmp}/third.sh\n", text)
+            self.assertIn("\nPACKET T done (exit 0) (a TERM was received and forwarded; the step was not interrupted: send it again): runs "
+                          "made 0, host-invalid 0; ", text)
+            self.assertNotIn("stopped by TERM (exit", text)
+
+    def test_the_summary_names_a_steps_own_rule_not_frozen_and_keeps_stopped_for_the_rest(self):
+        """T-115 H-1: exit 7 is calibrate.py's StepRuleStop, a step's own rule (prereg 6: NOT FROZEN); 2 and the other codes are
+        refusals of the host or the environment, a run unsound twice or defects ("stopped": no reading). Before K18 a 7 did not
+        exist and every own-rule stop was a 2, as the refusals are."""
+        for code, state in ((0, "done"), (4, "paused"), (5, "host unfit"), (7, "not frozen"), (2, "stopped"), (3, "stopped"),
+                            (130, "stopped")):
+            with self.subTest(code=code), tempfile.TemporaryDirectory() as tmp:
+                os.makedirs(f"{tmp}/S/packets")
+                with open(f"{tmp}/stage.sh", "w", encoding="utf-8") as fh:
+                    fh.write(f"""set -euo pipefail
+PACKET=T LOGDIR={tmp}/S/packets BUDGET_MIN=85 PAIRED=none
+steps() {{ echo "bash {tmp}/step.sh"; echo "bash {tmp}/never.sh"; }}
+outputs() {{ echo "{tmp}/S"; }}
+{stage_block()}
+stage
+""")
+                with open(f"{tmp}/step.sh", "w", encoding="utf-8") as fh:
+                    fh.write(f"exit {code}\n")
+                with open(f"{tmp}/never.sh", "w", encoding="utf-8") as fh:
+                    fh.write(f"touch {tmp}/never.ran\n")
+                r = subprocess.run(["bash", f"{tmp}/stage.sh"], capture_output=True, text=True, check=False, timeout=30)
+                self.assertEqual(r.returncode, code, r.stdout + r.stderr)
+                self.assertIn(f"\nPACKET T {state} (exit {code}): runs made 0, host-invalid 0; ", r.stdout)
+                self.assertEqual(os.path.exists(f"{tmp}/never.ran"), code == 0, "a step that did not end 0 is the packet's last")
+
+
+class SpeedHoldCommandTest(unittest.TestCase):
+    def test_it_exits_0_when_the_host_holds_and_5_when_it_does_not(self):
+        costs = dict(C.load(C.PLACEHOLDER)["route_costs_ms"])
+        with tempfile.TemporaryDirectory() as tmp:
+            ref = os.path.join(tmp, "origin.json")
+            with open(ref, "w", encoding="utf-8") as fh:
+                json.dump({"route_costs_ms": costs}, fh)
+            args = HC.main.__globals__["argparse"].Namespace(calibration=C.PLACEHOLDER, reference=ref, lo=-0.05, hi=0.12, agree=0.05,
+                                                             every_s=300.0, max_min=45.0)
+            said = io.StringIO()
+            with contextlib.redirect_stdout(said):
+                self.assertEqual(HC.speed_hold_main(args, S.SimHost(origin_costs=costs)), 0)
+                slow = S.SimHost(origin_costs=costs, origin_slow=lambda t: 0.2)
+                self.assertEqual(HC.speed_hold_main(args, slow), HC.EXIT_HOST_UNFIT)
+            self.assertIn("speed hold: held after 2 probe pairs, 300 s (band -5% to +12%, agreeing within 5%)", said.getvalue())
+            self.assertIn("speed hold: NOT held after 10 probe pairs, 2700 s", said.getvalue())
+
+
+if __name__ == "__main__":
+    unittest.main()

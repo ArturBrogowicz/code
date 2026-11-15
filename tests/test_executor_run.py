@@ -2895,13 +2895,44 @@ class RealHostTest(unittest.TestCase):
         proc.kill()                          # already gone: not an error
 
     def test_a_process_can_be_interrupted_as_ctrl_c_would(self):
-        proc = X.RealHost().popen(["sleep", "30"])
+        """interrupt() sends SIGINT, and the process ends on it as on Ctrl-C. RealHost.popen does not set a child's SIGINT: the child
+        inherits the executor process's (next test). Every main the packets start puts the default handler back at entry (K15;
+        tests/test_packets.py StopTest pins it), and this test does the same in its own process for its duration, so that its result
+        no longer depends on how the suite was launched: a shell's `&` starts it with SIGINT ignored, and then `sleep` ignored it."""
+        old = signal.signal(signal.SIGINT, signal.default_int_handler)      # as the mains reached from packet.sh do at entry (K15)
+        try:
+            proc = X.RealHost().popen(["sleep", "30"])
+        finally:
+            signal.signal(signal.SIGINT, old)
         proc.interrupt()
         deadline = time.time() + 10
         while proc.poll() is None and time.time() < deadline:
             time.sleep(0.01)
         self.assertEqual(proc.poll(), -signal.SIGINT)
         proc.interrupt()                     # already gone: not an error
+
+    def test_a_child_inherits_an_ignored_sigint_so_the_executors_own_process_must_not_ignore_it(self):
+        """The dependency the test above rests on, kept visible (T-116): RealHost.popen passes the executor process's SIGINT on to the
+        child. With SIGINT ignored there (a step started as `cmd &` by a non-interactive bash, before K15's restore at each main's entry),
+        the child ignores it too, and interrupt() does not end it: stop_daemon's SIGINT, the daemon's clean stop (its finally detaches
+        XDP), would end in KILL after DAEMON_STOP_GRACE_S."""
+        old = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            proc = X.RealHost().popen(["sleep", "30"])
+        finally:
+            signal.signal(signal.SIGINT, old)
+        try:
+            with open(f"/proc/{proc.pid}/status", encoding="utf-8") as fh:
+                ignored = int(next(line.split()[1] for line in fh if line.startswith("SigIgn:")), 16)
+            self.assertTrue(ignored & (1 << (signal.SIGINT - 1)), "the child inherits SIGINT ignored")
+            proc.interrupt()
+            time.sleep(0.3)
+            self.assertIsNone(proc.poll(), "and SIGINT does not end it")
+        finally:
+            proc.kill()
+            deadline = time.time() + 10
+            while proc.poll() is None and time.time() < deadline:
+                time.sleep(0.01)
 
     def test_a_file_is_stat_by_its_inode_and_size(self):
         with tempfile.TemporaryDirectory() as tmp:

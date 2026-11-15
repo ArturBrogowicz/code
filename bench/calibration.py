@@ -11,7 +11,8 @@ committed, hashed). The gate refuses a verdict on anything but a frozen one.
 Two things in it come from the first look at the real links (docs/HG1C_DESIGN.md 4.1, 4.2): `judged_profiles`,
 the link profiles whose clients vote on the gate's Q and p95 (the others are reported: their own links exceed
 the SLOs), and `drift_reference`, the Q and p95 that the drift check before every later campaign must
-reproduce. A frozen record must carry the second and a complete `host`; a placeholder may leave them out.
+reproduce. A frozen record must carry the second and a complete `host` (in schema 2 with the PC: its CPU model and
+VirtualBox host version, K10); a placeholder may leave them out.
 
 The hash is the sha256 of the canonical JSON (sorted keys, no whitespace) without the `sha256` field.
 This module measures nothing and runs nothing: the runner that fills a record is bench/calibrate.py.
@@ -28,13 +29,15 @@ import json
 import math
 import os
 import re
+import statistics
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import origin as O
 
-SCHEMA = 1
+SCHEMA = 2                               # a record frozen by this code; schema 1 (the record of 2026-11-04, the placeholder) stays loadable
+SCHEMAS = (1, 2)
 STATUSES = ("placeholder", "frozen")
 PROFILES = ("relative", "strict")
 LINK_PROFILES = ("perfect", "broadband", "mobile_3g", "mobile_bad")      # the suite's netem profiles (population.NETEM_MIX)
@@ -45,6 +48,11 @@ HOST_SHAPE = {"uname": str, "cpus": int, "mem_mib": int, "origin_seed": int, "or
               "loadgen_sha256": "sha", "pins": {k: str for k in PINS},
               "gunicorn": {"version": str, "workers": int, "threads": int, "nofile": int},
               "nginx": {"version": str, "conf_sha256": "sha"}}
+# the PC the VM ran on (K10, D-096): the VM has run on two PCs with the same kernel and MemTotal, which K5's check cannot tell apart.
+# A record of schema 2 names its PC by the guest's CPU model (/proc/cpuinfo's "model name") and VirtualBox's host version (the kernel
+# line "vboxguest: host-version: ..."); a record of schema 1 (the record of 2026-11-04) names none and is not judged on it
+PC_KEYS = ("cpu_model", "vbox_host_version")
+HOST_SHAPE_V2 = {**HOST_SHAPE, **{key: str for key in PC_KEYS}}
 SLO_CLASSES = ("C0", "C1", "C2", "C3", "C4", "C5", "C6")      # C4 and C6 (POST) are not served yet
 PLACEHOLDER = os.path.join(HERE, "calibration", "placeholder.json")
 GATE_KEYS = ("floor_pp", "floor_log2_p95", "min_blocks", "same_sign_share", "ci_level", "control_q_min",
@@ -54,6 +62,15 @@ VALIDITY_KEYS = ("profile", "slip_pooled_s", "slip_delta_s", "strict_slip_p99_s"
 CANNOT_HARM = "cannot harm this server within the generator limit"
 RHO_SHARE = 0.5                          # the legit load is this share of the SLO capacity (design 6.1)
 DRIFT_Q_PP, DRIFT_P95 = 2.0, 0.25        # design 7.2 step 7, for the legit probe; an attack run has the record's gate floors (drift_attack_ok)
+# the reference and the check on means (docs/RECALIBRATION_2026-11_DESIGN.md 4, D1): n reference rounds, m check rounds, and a band of
+# C_TOL standard errors of the difference of two means, clamped to [half the gate's floor, the floor]
+N_REF, M_DRIFT, C_TOL = 5, 3, 3.0
+# the drift check's own seeds, which the reference of schema 2 uses too: the legit probe 41, then one attack run per family in sorted order
+DRIFT_SEED = 41
+DRIFT_FAMILIES = ("cheap_static_flood", "costly_export_flood", "costly_search_flood")
+REFERENCE_V2_KEYS = ("rho_rps", "n", "seeds", "rule", "legit", "attack")
+SUMMARY_KEYS = ("q_pct", "log2_p95", "mean_q_pct", "mean_log2_p95", "sd_q_pp", "sd_log2_p95")
+ATTACK_V2_KEYS = ("level", *SUMMARY_KEYS, "tol_q_pp", "tol_log2", "wide_spread")
 
 
 class RecordError(ValueError):
@@ -121,13 +138,130 @@ def _drift_problems(ref):
     return p
 
 
+def drift_seeds(families=DRIFT_FAMILIES):
+    """The seeds of a round of the drift check, and of the reference of schema 2: the legit probe's, and each family's attack run's."""
+    return {"legit": DRIFT_SEED, "attack": {f: DRIFT_SEED + 1 + DRIFT_FAMILIES.index(f) for f in families}}
+
+
+def drift_rule(gate):
+    """The constants of the check on means, as a record of schema 2 keeps them: n, m, c and k = c sqrt(1/n + 1/m), the gate's floors
+    that cap the tolerances (half of each is their lower bound), the legit probe's 2 pp and 25 %, and D6's line for a wide spread."""
+    return {"n": N_REF, "m": M_DRIFT, "c": C_TOL, "k": C_TOL * math.sqrt(1 / N_REF + 1 / M_DRIFT),
+            "floor_pp": gate["floor_pp"], "floor_log2_p95": gate["floor_log2_p95"], "legit_q_pp": DRIFT_Q_PP,
+            "legit_p95": DRIFT_P95, "wide_sd_q_pp": gate["floor_pp"] / 2}
+
+
+def drift_tolerance(sd, floor, k):
+    """min(floor, max(floor / 2, k sd)): the band of the check on means for a spread `sd` (docs/RECALIBRATION_2026-11_DESIGN.md 4)."""
+    return min(floor, max(floor / 2, k * sd))
+
+
+def mean_sd(values):
+    """The mean and the sample standard deviation (n - 1 in the denominator)."""
+    return statistics.fmean(values), statistics.stdev(values)
+
+
+def summary_of(runs):
+    """Q and log2 p95 of reference runs ({"Q", "p95_s"} each), their means and SDs."""
+    q = [float(r["Q"]) for r in runs]
+    lg = [math.log2(r["p95_s"]) for r in runs]
+    (mq, sq), (ml, sl) = mean_sd(q), mean_sd(lg)
+    return {"q_pct": q, "log2_p95": lg, "mean_q_pct": mq, "mean_log2_p95": ml, "sd_q_pp": sq, "sd_log2_p95": sl}
+
+
+def drift_reference_of(rho_rps, legit, attacks, gate):
+    """The drift reference of schema 2 from the runs of N_REF rounds: `legit` the legit probes ({"Q", "p95_s"}), `attacks` a family ->
+    {"level", "runs": [{"Q", "p95_s"}]}; per family the means and SDs of Q and of log2 p95 and the tolerances the check reads, computed
+    here at the freeze and never again. A run without a Q or a p95 cannot be in a reference: ValueError."""
+    rule = drift_rule(gate)
+    runs = [*legit, *[r for a in attacks.values() for r in a["runs"]]]
+    if any(r.get("Q") is None or not r.get("p95_s") or r["p95_s"] <= 0 for r in runs):
+        raise ValueError("a reference run had no judged request or no successful one: it cannot be in a reference")
+    if len(legit) != N_REF or any(len(a["runs"]) != N_REF for a in attacks.values()):
+        raise ValueError(f"a reference of schema 2 is {N_REF} rounds, no more and no fewer")
+    out = {"rho_rps": rho_rps, "n": N_REF, "seeds": drift_seeds(sorted(attacks)), "rule": rule, "legit": summary_of(legit),
+           "attack": {}}
+    for family, a in sorted(attacks.items()):
+        s = summary_of(a["runs"])
+        out["attack"][family] = {"level": a["level"], **s,
+                                 "tol_q_pp": drift_tolerance(s["sd_q_pp"], rule["floor_pp"], rule["k"]),
+                                 "tol_log2": drift_tolerance(s["sd_log2_p95"], rule["floor_log2_p95"], rule["k"]),
+                                 "wide_spread": s["sd_q_pp"] > rule["wide_sd_q_pp"]}
+    return out
+
+
+def _close(a, b):
+    return isinstance(a, (int, float)) and not isinstance(a, bool) and abs(a - b) <= 1e-9
+
+
+def _summary_problems(p, where, item, n):
+    """A summary block of schema 2: n values of Q (0 to 100) and of log2 p95 (finite), and means and SDs that are theirs."""
+    q, lg = item["q_pct"], item["log2_p95"]
+    if not (isinstance(q, list) and len(q) == n and all(isinstance(v, (int, float)) and not isinstance(v, bool)
+                                                         and math.isfinite(v) and 0 <= v <= 100 for v in q)):
+        p.append(f"{where}.q_pct: {n} values of Q between 0 and 100")
+        return
+    if not (isinstance(lg, list) and len(lg) == n and all(isinstance(v, (int, float)) and not isinstance(v, bool)
+                                                          and math.isfinite(v) for v in lg)):
+        p.append(f"{where}.log2_p95: {n} finite numbers")
+        return
+    (mq, sq), (ml, sl) = mean_sd(q), mean_sd(lg)
+    for key, want in (("mean_q_pct", mq), ("sd_q_pp", sq), ("mean_log2_p95", ml), ("sd_log2_p95", sl)):
+        if not _close(item[key], want):
+            p.append(f"{where}.{key}: {item[key]!r} is not that of its runs ({want!r})")
+
+
+def _drift_v2_problems(ref, gate):
+    """The drift reference of schema 2 (docs/RECALIBRATION_2026-11_DESIGN.md 4, K1): N_REF rounds on the drift's own seeds, every
+    run's Q and log2 p95, their means and SDs, the rule's constants and the tolerances they give."""
+    if not isinstance(ref, dict) or set(ref) != set(REFERENCE_V2_KEYS):
+        return [f"drift_reference: {', '.join(REFERENCE_V2_KEYS)} (schema 2)"]
+    p = []
+    _positive(p, "drift_reference.rho_rps", ref["rho_rps"])
+    n = ref["n"]
+    if not (isinstance(n, int) and not isinstance(n, bool) and n == N_REF):
+        return p + [f"drift_reference.n: {N_REF} rounds, no more and no fewer, got {n!r}"]
+    rule = drift_rule(gate) if isinstance(gate, dict) and {"floor_pp", "floor_log2_p95"} <= set(gate) else None
+    if ref["rule"] != rule:
+        p.append(f"drift_reference.rule: {rule!r}, got {ref['rule']!r}")
+    legit, attack = ref["legit"], ref["attack"]
+    if not isinstance(legit, dict) or set(legit) != set(SUMMARY_KEYS):
+        p.append(f"drift_reference.legit: {', '.join(SUMMARY_KEYS)}")
+    else:
+        _summary_problems(p, "drift_reference.legit", legit, n)
+    if not isinstance(attack, dict):
+        return p + ["drift_reference.attack: an object of family -> its runs, means, SDs and tolerances"]
+    if not attack:                                  # T-105 F7: a check on means with no family would confirm nothing and pass
+        return p + ["drift_reference.attack: at least one family (a session in which no family has a knee is not frozen)"]
+    if set(attack) - set(DRIFT_FAMILIES):
+        return p + [f"drift_reference.attack: families of the drift check only ({', '.join(DRIFT_FAMILIES)})"]
+    if ref["seeds"] != drift_seeds(sorted(attack)):
+        p.append(f"drift_reference.seeds: the drift check's own, {drift_seeds(sorted(attack))!r}, got {ref['seeds']!r}")
+    for family, item in attack.items():
+        where = f"drift_reference.attack.{family}"
+        if not isinstance(item, dict) or set(item) != set(ATTACK_V2_KEYS):
+            p.append(f"{where}: {', '.join(ATTACK_V2_KEYS)}")
+            continue
+        before = len(p)
+        _positive(p, where + ".level", item["level"])
+        _summary_problems(p, where, item, n)
+        if rule and len(p) == before:
+            for key, sd, floor in (("tol_q_pp", item["sd_q_pp"], rule["floor_pp"]),
+                                   ("tol_log2", item["sd_log2_p95"], rule["floor_log2_p95"])):
+                if not _close(item[key], drift_tolerance(sd, floor, rule["k"])):
+                    p.append(f"{where}.{key}: {item[key]!r} is not the rule's for its SD")
+            if item["wide_spread"] is not (item["sd_q_pp"] > rule["wide_sd_q_pp"]):
+                p.append(f"{where}.wide_spread: true exactly when the SD of Q is above {rule['wide_sd_q_pp']:g} pp (D6)")
+    return p
+
+
 def problems_of(cal):
     """Every way in which `cal` departs from the schema (not the hash)."""
     p = []
     if not isinstance(cal, dict):
         return ["the record is not an object"]
-    if cal.get("schema") != SCHEMA:
-        p.append(f"schema: {SCHEMA}, got {cal.get('schema')!r}")
+    if cal.get("schema") not in SCHEMAS:
+        p.append(f"schema: one of {', '.join(map(str, SCHEMAS))}, got {cal.get('schema')!r}")
     if cal.get("status") not in STATUSES:
         p.append(f"status: one of {', '.join(STATUSES)}, got {cal.get('status')!r}")
     if not isinstance(cal.get("created_utc"), str) or not cal.get("created_utc"):
@@ -202,10 +336,12 @@ def problems_of(cal):
     if ref is None:
         if frozen:
             p.append("drift_reference: a frozen record carries the Q and p95 its drift check must reproduce")
+    elif cal.get("schema") == 2:
+        p += _drift_v2_problems(ref, gate)
     else:
         p += _drift_problems(ref)
     if frozen and isinstance(cal.get("host"), dict):
-        p += _shape_problems(cal["host"], HOST_SHAPE, "host")
+        p += _shape_problems(cal["host"], HOST_SHAPE_V2 if cal.get("schema") == 2 else HOST_SHAPE, "host")
     return p
 
 
@@ -254,6 +390,89 @@ def freeze(cal, created_utc=None, host=None, drift_reference=None):
     if drift_reference is not None:
         out["drift_reference"] = copy.deepcopy(drift_reference)
     return validate(with_hash(out))
+
+
+HOST_MEM_SHARE = 0.01                   # a host's MemTotal within 1 % of a record's (docs/RECALIBRATION_2026-11_DESIGN.md K5, D2)
+
+
+def kernel_release(uname):
+    """The kernel release in a uname line ("Linux <node> <release> ..."), as the record's `host.uname` and executor.facts give it."""
+    words = (uname or "").split()
+    return words[2] if len(words) >= 3 else None
+
+
+def cpu_model(cpuinfo):
+    """The CPU model the guest sees: the first "model name" of /proc/cpuinfo's text, its blanks collapsed; None when it has none."""
+    for line in (cpuinfo or "").splitlines():
+        key, sep, value = line.partition(":")
+        if sep and key.strip() == "model name" and value.strip():
+            return " ".join(value.split())
+    return None
+
+
+VBOX_LINE = re.compile(r"vboxguest: host-version: (\S+)")
+
+
+def vbox_host_version(kernel_log):
+    """VirtualBox's host version as the guest's kernel logged it at boot: "vboxguest: host-version: 7.2.10r174163 0x8000000f" gives
+    "7.2.10r174163". The last such line of the text (the boot's kernel log: journalctl -k -b 0, or dmesg); None when it has none."""
+    found = VBOX_LINE.findall(kernel_log or "")
+    return found[-1] if found else None
+
+
+PC_WORDS = {"cpu_model": ("CPU", "on"), "vbox_host_version": ("VirtualBox host", "under")}
+
+
+def _pc_value(value):
+    """A PC field as it is compared: its blanks collapsed; None for no value, an empty one or one that is not a string."""
+    if not isinstance(value, str):
+        return None
+    return " ".join(value.split()) or None
+
+
+def pc_unnamed(facts):
+    """The PC keys that `facts` (or a record's host) does not name: missing, empty or not a string."""
+    return [key for key in PC_KEYS if _pc_value(facts.get(key)) is None]
+
+
+def pc_problems(reference, facts, what):
+    """Why the running host's PC (`facts`' cpu_model and vbox_host_version) is not the one `reference` names (a record's host, a
+    session's host.json): another CPU model or VirtualBox host version (K10, D-096). A key the reference does not carry is not judged
+    (a record of schema 1 names no PC); one it carries that this host cannot read, or that is empty, is a difference."""
+    out = []
+    for key, (label, prep) in PC_WORDS.items():
+        if key not in reference:
+            continue
+        want, got = _pc_value(reference.get(key)), _pc_value(facts.get(key))
+        if want is None or got != want:
+            out.append(f"{label} {got or 'not read'}, and {what} was measured {prep} {want or 'nothing named'}")
+    return out
+
+
+def host_problems(record_host, facts, what="the frozen record"):
+    """Why the running host (`facts`: uname, mem_mib and the PC, as executor.Host.facts gives them) is not the one `record_host` was
+    measured on: another kernel release, or a MemTotal more than 1 % away (K5; D2 holds the host fixed), or, where `record_host` names
+    its PC, another CPU model or VirtualBox host version (K10, pc_problems). Empty when it is the same."""
+    out = []
+    want, got = kernel_release(record_host.get("uname")), kernel_release(facts.get("uname"))
+    if want is None or got != want:
+        out.append(f"kernel {got}, and {what} was measured on {want}")
+    mem, have = record_host.get("mem_mib"), facts.get("mem_mib")
+    if not isinstance(mem, int) or not isinstance(have, int) or abs(have - mem) > HOST_MEM_SHARE * mem:
+        out.append(f"MemTotal {have} MiB, and {what} was measured with {mem} MiB (more than {HOST_MEM_SHARE:.0%} apart)")
+    return out + pc_problems(record_host, facts, what)
+
+
+def require_host(cal, facts):
+    """A VM step on a frozen record refuses a host that is not the record's (K5; and, for a record of schema 2, a PC that is not the
+    record's, K10): RecordError naming what differs, the running host's value and the record's."""
+    if cal.get("status") != "frozen":
+        return
+    problems = host_problems(cal["host"], facts, f"the record {cal['sha256'][:8]}")
+    if problems:
+        raise RecordError("this host is not the one the record was measured on: " + "; ".join(problems)
+                          + ". A record is used only on its own host (docs/RECALIBRATION_2026-11_DESIGN.md D2, K5): calibrate this "
+                          "host anew")
 
 
 def require_frozen(cal):
@@ -323,6 +542,59 @@ def drift_attack_ok(gate, frozen_q, frozen_p95, q, p95):
     elif abs(math.log2(p95 / frozen_p95)) > floor_log2 + 1e-9:
         reasons.append(f"p95 {p95:g} against {frozen_p95:g} frozen (more than the gate's floor_log2_p95, a factor of {2 ** floor_log2:g})")
     return not reasons, reasons
+
+
+def _means(runs):
+    """Mean Q and mean log2 p95 of check runs, or None when a run has no Q or no p95 (no served request): it cannot be compared."""
+    if not runs or any(r.get("Q") is None or not r.get("p95_s") or r["p95_s"] <= 0 for r in runs):
+        return None
+    return statistics.fmean(float(r["Q"]) for r in runs), statistics.fmean(math.log2(r["p95_s"]) for r in runs)
+
+
+def drift_means_check(ref, legit, attacks):
+    """The drift check on means against a reference of schema 2 (docs/RECALIBRATION_2026-11_DESIGN.md 4, K2). `legit` is the check's
+    legit probes ({"Q", "p95_s"} each), `attacks` a family -> its check runs. A family passes when |mean Q - the reference's| <= its
+    tol_q_pp and |mean log2 p95 - the reference's| <= its tol_log2, the tolerances as frozen in the record; the legit probe when its mean
+    Q is within the rule's legit_q_pp and 2^(the difference of the mean log2 p95) within [1 - legit_p95, 1 + legit_p95]. Every bound is
+    inclusive. A run without a Q or a p95 fails its family; a failed legit probe confirms no family. Read per family: `confirmed`."""
+    rule = ref["rule"]
+    out = {"rule": rule, "legit": None, "families": {}, "confirmed": {}}
+    got = _means(legit)
+    leg = {"n": len(legit), "ref_mean_q_pct": ref["legit"]["mean_q_pct"], "ref_mean_log2_p95": ref["legit"]["mean_log2_p95"],
+           "tol_q_pp": rule["legit_q_pp"], "p95_ratio_band": [1 - rule["legit_p95"], 1 + rule["legit_p95"]], "reasons": []}
+    if got is None:
+        leg.update(mean_q_pct=None, mean_log2_p95=None, ok=False)
+        leg["reasons"].append("a legit probe without a Q or a p95: it cannot be compared")
+    else:
+        dq, dl = got[0] - leg["ref_mean_q_pct"], got[1] - leg["ref_mean_log2_p95"]
+        ratio = 2 ** dl
+        leg.update(mean_q_pct=got[0], mean_log2_p95=got[1], dq_pp=dq, p95_ratio=ratio)
+        if not abs(dq) <= rule["legit_q_pp"]:
+            leg["reasons"].append(f"mean Q {got[0]:.4g} against {leg['ref_mean_q_pct']:.4g} (more than {rule['legit_q_pp']:g} pp)")
+        if not leg["p95_ratio_band"][0] <= ratio <= leg["p95_ratio_band"][1]:
+            leg["reasons"].append(f"mean p95 a factor of {ratio:.4g} of the reference's (outside {leg['p95_ratio_band'][0]:g} to "
+                                  f"{leg['p95_ratio_band'][1]:g})")
+        leg["ok"] = not leg["reasons"]
+    out["legit"] = leg
+    for family, runs in sorted(attacks.items()):
+        r = ref["attack"][family]
+        got = _means(runs)
+        row = {"n": len(runs), "level": r["level"], "ref_mean_q_pct": r["mean_q_pct"], "ref_mean_log2_p95": r["mean_log2_p95"],
+               "tol_q_pp": r["tol_q_pp"], "tol_log2": r["tol_log2"], "wide_spread": r["wide_spread"], "reasons": []}
+        if got is None:
+            row.update(mean_q_pct=None, mean_log2_p95=None)
+            row["reasons"].append("a run without a Q or a p95 (no served request): it cannot be compared")
+        else:
+            dq, dl = got[0] - r["mean_q_pct"], got[1] - r["mean_log2_p95"]
+            row.update(mean_q_pct=got[0], mean_log2_p95=got[1], dq_pp=dq, dlog2_p95=dl)
+            if not abs(dq) <= r["tol_q_pp"]:
+                row["reasons"].append(f"mean Q {got[0]:.4g} against {r['mean_q_pct']:.4g} (more than {r['tol_q_pp']:.4g} pp)")
+            if not abs(dl) <= r["tol_log2"]:
+                row["reasons"].append(f"mean log2 p95 {dl:+.4g} from the reference's (more than {r['tol_log2']:.4g})")
+        row["ok"] = not row["reasons"]
+        out["families"][family] = row
+        out["confirmed"][family] = leg["ok"] and row["ok"]
+    return out
 
 
 def summary(cal):

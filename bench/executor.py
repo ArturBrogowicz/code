@@ -713,7 +713,8 @@ class Host:
         raise NotImplementedError
 
     def facts(self):
-        """uname, CPUs, memory, and the versions of Python, Nginx and gunicorn."""
+        """uname, CPUs, memory, the PC (cpu_model and vbox_host_version, K10; None when unreadable), and the versions of Python, Nginx
+        and gunicorn."""
         raise NotImplementedError
 
     def pin(self, cpus):
@@ -848,9 +849,20 @@ class RealHost(Host):
             r = self.run(argv)
             lines = (r.out or r.err).strip().splitlines()
             return lines[0] if lines else None
+        def vbox_host_version():                 # the boot's kernel log: the journal keeps it, dmesg needs root (dmesg_restrict)
+            for argv in (["journalctl", "-k", "-b", "0", "-o", "cat", "--no-pager"], ["dmesg"]):
+                version = C.vbox_host_version(self.run(argv).out)
+                if version:
+                    return version
+            return None
         mem = next((int(line.split()[1]) // 1024 for line in self.read_text("/proc/meminfo").splitlines()
                     if line.startswith("MemTotal:")), None)
+        try:
+            cpu = C.cpu_model(self.read_text("/proc/cpuinfo"))
+        except OSError:
+            cpu = None
         return {"uname": " ".join(platform.uname()), "cpus": os.cpu_count(), "mem_mib": mem,
+                "cpu_model": cpu, "vbox_host_version": vbox_host_version(),
                 "python": sys.version.split()[0], "nginx": first_line(["nginx", "-v"]),
                 "gunicorn": first_line([os.path.join(REPO, "venv", "bin", "python"), "-m", "gunicorn", "--version"])}
 
@@ -1028,11 +1040,24 @@ def _utc(t):
 
 
 def write_json(path, obj):
+    """`obj` as JSON at `path`, crash-safe (K6, T-092 finding 2): written to a temporary file that is synced to the disk, renamed over
+    `path`, and the directory synced, so that a host reset leaves the old file or the new one, never an empty one."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path + ".tmp", "w", encoding="utf-8") as fh:
         json.dump(obj, fh, indent=1, sort_keys=True)
         fh.write("\n")
+        fh.flush()
+        os.fsync(fh.fileno())
     os.replace(path + ".tmp", path)
+    fsync_dir(os.path.dirname(path))
+
+
+def fsync_dir(directory):
+    fd = os.open(directory or ".", os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 # --- preflight and the environment ----------------------------------------------------------------
@@ -2043,10 +2068,13 @@ def _failed(out, exc):
         fh.write(f"{type(exc).__name__}: {exc}\n")
 
 
-def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_min=30.0, say=None, sampler=None):
+def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_min=30.0, say=None, sampler=None, before_stack=None):
     """Carry out `plan`. Returns a RunResult and leaves the run contract in plan.out; ok is false when the executor found the
     run unsound (the gate then calls its block invalid). Raises RunFailed when the run could not be carried out, after the
-    teardown; the campaign stops on that. A directory that already holds something is refused: one run, one directory."""
+    teardown; the campaign stops on that. A directory that already holds something is refused: one run, one directory.
+    `before_stack(host)`, if given, is called once the environment gate has passed and before the topology and the stack are built,
+    and what it returns is kept in environment.json as `speed_before`: the first probe of the speed bracket (bench/hostcheck.py, H1;
+    the caller takes the second after this returns, the testbed taken down)."""
     out = plan.out
     if os.path.isdir(out) and os.listdir(out):
         raise PreflightRefused(f"{out} is not empty: a run directory is made for one run")
@@ -2071,6 +2099,12 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
     write_json(f"{out}/environment.json", record)
     write_json(f"{out}/plan.json", as_json(plan))
     log(f"run {plan.kind} of {plan.scenario}, seed {plan.seed}: preflight and environment passed")
+    if before_stack is not None:
+        record["speed_before"] = before_stack(host)
+        write_json(f"{out}/environment.json", record)
+        log("speed probe before the stack: " + ", ".join(f"CPU {cpu} " + ("unreadable" if c is None else
+                                                                          f"C3 {c.get('C3', 0):.4g} ms, C5 {c.get('C5', 0):.4g} ms")
+                                                         for cpu, c in record["speed_before"]["cpus"].items()))
     if plan.daemon is not None and not record["provenance"]["daemon"]["h01"]["has_fix"]:
         log(f"WARNING: this checkout's daemon lacks the H-01 fix ({DAEMON_FIX_H01[:7]}, fix/daemon-robustness): one request with a "
             "byte that is not UTF-8 can end it and lift every ban during the run. Recorded in environment.json (provenance.daemon.h01)")
@@ -2417,6 +2451,11 @@ def main(argv=None, host=None):
             return EXIT_OK if result["reported"] else EXIT_FAILED
         plan = _plan_from_args(args)
         real = host or RealHost()
+        if args.command == "run" and plan.calibration_status == "frozen":
+            try:                                 # a frozen record is used only on the host it was measured on (K5)
+                C.require_host(C.load(plan.calibration_path), real.facts())
+            except C.RecordError as exc:
+                raise PreflightRefused(str(exc)) from exc
         real.pin(P.executor_cpus(plan.pins))
         _install_signal_handlers()
         if args.command == "smoke-topology":
@@ -2488,4 +2527,5 @@ def clock_text(result, out):
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, signal.default_int_handler)  # a step started by packet.sh (`cmd &`) inherits SIGINT ignored (T-105 F3)
     sys.exit(main())

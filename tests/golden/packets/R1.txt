@@ -1,0 +1,25 @@
+== packet R1: speed hold against HS1's medians on this PC (K11); origin step; capacity (3 staged runs) ==
+session     /S
+budget      85 min: no run starts after it (--stop-after the minutes left). The run in progress can end the packet up to
+            180 min after its start at worst: the first run of a step takes the full gate (uptime and load up to 30 min, then
+            the timer up to 30 min more), the run 2-5 min, a host-invalid run's hold up to 30 min: 85 + 30 + 30 + 5 + 30 = 180
+pre-checks  ./venv/bin/python -B bench/packets/prechecks.py --packet R1 --session /S --minutes 180 --commit COMMIT --record /R
+            (clean tree at the pinned commit, and its frozen hashes: bench/, eval/, the testbed's files and the record hash to
+            its blobs; kernel, MemTotal, CPU model and VirtualBox host version the session's, before its
+            first step the laptop's (D-096), all four reported; uptime 1800 s, chrony within H4, no apt, dpkg or daily timer due
+            within 180 + 10 min, no package job, no testbed left, no other process above 5 % of a CPU; each check fails
+            closed on a command that failed or printed nothing)
+reference   HS1's medians HS1_MEDIANS on this PC: its sha256 printed by the hold and kept in /S/speed_reference.json
+paired      P-1 (prereg 5.3), run by the user right before R1: bench/vm/paired_check.py run OUT_DIR --medians FILE (HS1's context A in sbx as uid 1000, the hold's context B as root, CPU 0 then 1, A B B A; D = the mean of B/A - 1 over the CPUs and C3, C5). R1 starts only if OUT_DIR/paired.json has schema paired-check/1, exit 0 (|D| <= 5 %, every probe read), this boot's boot_id, a judged_utc at most 30 min before the packet starts and an uptime_s_at_start (written by run, not by a later judge) (--paired OUT_DIR); otherwise packet.sh refuses, exit 2, before the hold and the pre-checks, and the user decides
+p-1 gate    ./venv/bin/python -B bench/packets/prechecks.py paired PAIRED_DIR --started <the packet's start, epoch s>   (exit 2: R1 refused, nothing started)
+detached    setsid nohup bash bench/packets/packet.sh R1 --stage ... > /S/packets/R1_<UTC>.log 2>&1 < /dev/null &
+step 1      ./venv/bin/python -B bench/hostcheck.py speed-hold --calibration bench/calibration/placeholder.json --medians HS1_MEDIANS --session /S --lo -0.10 --hi 0.10 --agree 0.05 --max-min 45
+step 2      ./venv/bin/python -B bench/calibrate.py origin --out /S
+step 3      ./venv/bin/python -B bench/calibrate.py capacity --out /S --stop-after REMAINING
+after       tar -czf /S/packets/R1_<UTC>.tar.gz /S; sha256sum of it into R1_<UTC>.sha256
+stop        sudo kill -TERM <the stage's pid, printed at the start>: the TERM goes on to the step's process, the stage waits for
+            its teardown, starts no further step and still writes the tar, the sha256 and the summary; the same command resumes
+summary     one line at the end of the log: PACKET R1 <done|paused|host unfit|not frozen|stopped|stopped by TERM> (exit N):
+            runs made, host-invalid. not frozen (exit 7) is a step's own rule (prereg 6); stopped (2) is a refusal of the host
+            or the environment, unsound twice or a defect: no reading, the log's last error line says which. stopped by TERM: the
+            step ended on the TERM (130 or 143); a TERM the step did not end on adds a note to the step's own state
