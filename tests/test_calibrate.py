@@ -245,9 +245,11 @@ class StagedLimitsTest(unittest.TestCase):
 
     @staticmethod
     def skewed_host(**kw):
-        """Groups that begin late and spread, as the first staged runs on the VM did (2026-10-28): from the second step on 0.5 s late,
-        and the streams of a step spread over 1.6 s, so that no 0.5 s pack of them is a majority."""
-        return S.SimHost(startup_s=lambda sid, index, kind: S.LEGIT_STARTUP_S + (0.0 if sid.startswith("S00-") else 0.5)
+        """Groups that begin late and spread, as the first staged runs on the VM did (2026-10-28): from the second step on 0.6 s late
+        (the VM's were about 0.5 s; at exactly the block's limit of 0.5 s the case was decided by the rounding of the simulated epoch,
+        0.50000024 s on 688594a and 0.5 s once K23's 10 ms looks changed the clock's sums, T-125), and the streams of a step spread
+        over 1.6 s, so that no 0.5 s pack of them is a majority."""
+        return S.SimHost(startup_s=lambda sid, index, kind: S.LEGIT_STARTUP_S + (0.0 if sid.startswith("S00-") else 0.6)
                          + 1.6 * ((index % 10) / 9), **kw)
 
     def test_such_a_run_is_sound_at_the_probes_limits_and_not_at_a_blocks(self):

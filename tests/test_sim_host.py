@@ -207,7 +207,8 @@ class StreamExitTest(unittest.TestCase):
             return json.load(fh)["wall_s"]
 
     LAST = (600 - 0.5) * 30.0 / 600                  # the last of 600 requests in 30 s is due then, after the schedule's zero
-    START = S.LEGIT_STARTUP_S                        # an engine's loop begins this long after its launch (the first of its batch)
+    START = S.LEGIT_STARTUP_S - X.ENGINE_T0_OFFSET_S  # an engine's loop begins this long after its launch (the first of its batch):
+                                                     # its schedule's zero is LEGIT_STARTUP_S after it, as S1 measured (K23, review M1)
 
     def exit_at(self, wall, requests):
         """When an engine exits, after the launch: its loop begins, lasts `wall`, and it takes its exit delay, a little more for each request."""
@@ -625,7 +626,7 @@ class DaemonModelTest(unittest.TestCase):
         host.sleep(10.0)
         bans = self.events_of("ban")
         self.assertEqual(sorted(e["ip"] for e in bans), ["10.0.2.1", "10.0.2.2", "10.0.2.3"])
-        loop_start = began + S.ATTACK_STARTUP_S
+        loop_start = began + S.ATTACK_STARTUP_S - X.ENGINE_T0_OFFSET_S          # the schedule's zero is ATTACK_STARTUP_S after the launch
         for e in bans:
             self.assertEqual((e["engine"], e["enforced"], e["value"]), ("l7_rate", True, 100.0))
             self.assertAlmostEqual(e["t_wall"] - S.BASE_EPOCH, loop_start + X.ENGINE_T0_OFFSET_S + S.DAEMON_BAN_DELAY_S, delta=0.01)

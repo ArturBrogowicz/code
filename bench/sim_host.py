@@ -34,8 +34,10 @@ import origin as O
 import population as P
 
 BASE_EPOCH = 1_798_000_000.0              # the virtual clock's wall time at its zero
-# what S1 and S1b measured on loopback and S4 with the real launch chain (docs/HG1C_DESIGN.md 14, 25), which the executor's settings cover
-LEGIT_STARTUP_S = 2.8                     # a legit engine's loop begins this long after its launch when 29 are launched at once on one CPU
+# what S1 and S1b measured on loopback and S4 with the real launch chain (docs/HG1C_DESIGN.md 14, 25), which the executor's settings cover:
+# from a launch to the engine's schedule's zero (S1's truth, the first arrival less the first send). Its loop, which K23's watch sees,
+# begins ENGINE_T0_OFFSET_S before that (bench/loadgen.py), so the model starts it there (review M1, T-125)
+LEGIT_STARTUP_S = 2.8                     # a legit engine's schedule begins this long after its launch when 29 are launched at once on one CPU
 ATTACK_STARTUP_S = 0.14                   # an attack engine's, on CPUs of its own
 EXIT_DELAY_PER_REQUEST_S = 8e-6           # an engine exits this much later for each request it sent
 NGINX_FORK_S = 0.05                       # the launcher of the Nginx daemon returns this long after the daemon has forked
@@ -86,6 +88,7 @@ class SimProc:
         self.pid = next(host.pids)
         self.cpus = allowed_cpus(self.argv)
         self.started = host.t
+        self.loop_start = None               # a stream's engine: when its loop starts (K23: SimHost.loop_started)
         self.returncode = None
         self.exit_time = None
         self.ignores_term = False            # survives TERM, dies on KILL
@@ -229,6 +232,11 @@ class SimHost(X.Host):
         self.t = end
         if self.on_sleep and not self.shield:        # a shielded stretch cannot be interrupted
             self.on_sleep(self)
+
+    def loop_started(self, proc):
+        """K23: a stream's engine has started its loop ENGINE_T0_OFFSET_S before its schedule's zero (`startup_s` after its launch);
+        a stream that hangs or dies before its loop never starts one, and no other process is an engine."""
+        return proc.loop_start is not None and self.t >= proc.loop_start - 1e-9
 
     # --- faults ----------------------------------------------------------------------------------
 
@@ -400,7 +408,9 @@ class SimHost(X.Host):
         self.launch_times[sid] = self.t
         if self.fault("stream_hangs"):
             return proc
-        loop_start = self.t + self.startup_s(sid, index, kind)
+        # startup_s is to the schedule's zero, the loop starts ENGINE_T0_OFFSET_S before it; a startup_s below that offset (no test
+        # uses one) is taken as the offset, since a loop cannot start before its launch
+        loop_start = self.t + max(0.0, self.startup_s(sid, index, kind) - X.ENGINE_T0_OFFSET_S)
         duration, rate = float(opts["--duration"]), float(opts["--rate"])
         n = max(1, round(rate * duration))
         run_dir = _run_dir(opts)
@@ -411,6 +421,7 @@ class SimHost(X.Host):
                 stderr.write(b"Traceback: the simulated engine died\n")
             self.schedule(loop_start + 3.0, lambda: self.end(proc, 2))
             return proc
+        proc.loop_start = loop_start                   # an engine that dies above never starts its loop
         entry = {"kind": kind, "begin": loop_start, "end": loop_start + X.ENGINE_T0_OFFSET_S + duration, "rate": rate,
                  "route": parse_stream_id(sid)[1], "addresses": tuple(local)}
         self.registry.setdefault(run_dir, []).append(entry)
