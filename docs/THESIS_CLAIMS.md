@@ -2,12 +2,13 @@
 
 **Status (2026-11-16).** Checked against the chapters "Wyniki" and "Wnioski" of `thesis/main.tex` as
 updated on 2026-11-16 (the laptop re-calibration and P2) and against the files under `results/`. Since
-2026-10-23 one mitigation campaign has run: P2 of the harm benchmark (HB3), published as
-`results/2026-11-16_harm-p2-hg4/`. No verdict of M1-M7, L2-L4 or Q2 changes direction. The harm
-benchmark's drift check of 2026-11-08 to 11 (HB1) confirmed nothing; the VM then moved to the laptop, where
-the re-calibration froze a new record and confirmed it (HB2), and P2 gives the first harm-benchmark claim
-(HB3): gate PASS, P2 outcome of M_xdp **NOT MET**. Nothing is claimed for the experiments registered but
-not run (P1, P3, P4).
+2026-10-23 the only mitigation campaigns run are those of P2 of the harm benchmark (HB3): two smoke runs
+(P2-1, not a result), P2-2 (INVALID) and, after a post hoc fix of the attack's launch (K23), P2-2b,
+published as `results/2026-11-16_harm-p2-hg4/`. No verdict of M1-M7, L2-L4 or Q2 changes direction. The
+harm benchmark's drift check of 2026-11-08 to 11 (HB1) confirmed nothing; the VM then moved to the laptop,
+where the re-calibration froze a new record and confirmed it (HB2), and P2 gives the first harm-benchmark
+claim (HB3): gate PASS, P2 outcome of M_xdp **NOT MET**, obtained after the post hoc fix of the attack's
+launch. Nothing is claimed for the experiments registered but not run (P1, P3, P4).
 
 **Status (2026-11-12), superseded by the above.** The corrections reconciled on 2026-10-30 are applied
 (M1-M5, M7, L1, L2, L4, Q1, the labels and one scope note); L1, L3 and Q1 are narrowed to what the thesis
@@ -60,7 +61,7 @@ setting. *Partly supported*: one half holds. *Inconclusive*: the data cannot dec
 | L4 | Static thresholds face a collateral-damage-versus-evasion dilemma | Partly supported; scope it |
 | Q1 | The results are reproducible | Supported for what is published |
 | Q2 | The L7 track was pre-registered | Supported with scope |
-| HB1 | The harm benchmark's frozen calibration record (2026-11-04) holds on the current host | Not confirmed: the drift check failed twice, then gave no reading; no claim rests on that record |
+| HB1 | The harm benchmark's frozen calibration record (2026-11-04) holds on the host of that time (the desktop, 2026-11-08 to 11) | Not confirmed: the drift check failed twice, then gave no reading; no claim rests on that record |
 | HB2 | The harm benchmark was re-calibrated on the laptop under its pre-registration, and the record holds in a later window | Supported with scope (the laptop only; one confirmation window; departure 1 post hoc) |
 | HB3 | P2: where the attack harms the unprotected server, the daemon with XDP enforcement keeps legit service quality at the control's level without banning legit clients | Contradicted at the pre-registered 0.99 ratio (P2 NOT MET; gate PASS); one family, one level, one host, M_xdp only, after a post hoc launch fix |
 
@@ -300,7 +301,7 @@ run had.
 
 **Verdict: supported as bounds per rule, not as one number.**
 
-**Wording.** "Per bot, the L7 rate rule banned in 0.06-1.13 s, the L4 volumetric rule in
+**Wording.** "Per bot, in the suite's seven complete runs, the L7 rate rule banned in 0.06-1.13 s, the L4 volumetric rule in
 0.41-1.25 s, the L4 SYN rule in 0.50-3.82 s (0.50-1.97 s but for one bot), and the SlowConn and
 low-SYN rules in 3.5-4.7 s. The slow-rule times are set by the number of consecutive one-second
 polls the rule requires (3 and 4), plus where in the poll the attack began."
@@ -317,6 +318,8 @@ of `2026-10-20_audit-derived/suite_compare.md`):
 | `l4_slowconn` | 40 | 3.52-4.66 |
 | `l4_lowsyn` | 35 | 3.46-3.99 |
 
+These bounds are the suite's. In the harm benchmark's P2 (HB3: another setting, about 119 req/s a source
+on route C1) the same `l7_rate` rule banned the 50 attack identities in 0.603-1.723 s (median 0.868 s).
 SlowConn banned nothing under the tolerant profile, so its row is the four default runs. The median
 of the same flood scenario differs between runs by up to a factor 3.1 (SYN flood: 0.50 to 1.56 s;
 IP fragmentation 2.6, UDP 2.4). The slow scenarios differ by at most 1.3 (R.U.D.Y.: 3.57 to 4.64 s).
@@ -478,8 +481,8 @@ harm (`docs/L7_GRU_DESIGN.md` §7 admission rule).
 
 **Verdict: supported for what is published.**
 
-**Evidence [FACT].** Every published campaign except `2026-10-11_superseded-dup-mac` has a
-`SHA256SUMS` that verifies. Analyses regenerate byte for byte. The second review also re-ran the
+**Evidence [FACT].** Every campaign published by 2026-11-11 except `2026-10-11_superseded-dup-mac` has a
+`SHA256SUMS` that verifies. Their analyses regenerate byte for byte. The second review also re-ran the
 verdict reports and retrained the P5c.3 model (seed 0, 25 epochs, about 80 s on CPU) and got
 identical files. The audit-derived directory regenerates from `results/` alone. All published figures
 regenerate byte for byte with matplotlib 3.11.2, the version `requirements.txt` pins (checked
@@ -508,6 +511,13 @@ does not list.
   yet: the frozen record `bench/calibration/ddos-mitigation-2026-11-16.json` is in the repository and R4's
   confirmation is published with P2 (`results/2026-11-16_harm-p2-hg4/`), but the record's capacity,
   knees and reference cannot be re-derived from the repository (HB2).
+* P2 and R4 (`results/2026-11-16_harm-p2-hg4/`, published 2026-11-16) are scoped differently. For P2-2b
+  the project's judge (`eval/harm_gate.py` at 18386ed), re-run on the raw run files, reproduces gate.md
+  byte for byte and gate.json up to one final newline that the command line adds; an independent
+  pure-Python recomputation from the raw request records, ban files and run metadata gives the gate's
+  figures with 0 mismatches. Both are published with the data (`recomputation/`). No such re-run was
+  made for R4: its means and differences were recomputed from the per-round values in its `drift.json`
+  only (0 mismatches).
 * Re-checked on 2026-11-12: all 33 campaigns with a `SHA256SUMS` verify, the drift check of HB1
   included (3,696 files). Sixteen of its step files are published redacted (hardware addresses of the
   VM's network cards, the app's command lines); `steps/REDACTIONS.tsv` gives each one's hash before and
@@ -524,7 +534,7 @@ the negative verdict is not an artefact of bias against it.
 
 ## Harm-benchmark claims
 
-### HB1. The frozen calibration record of 2026-11-04 holds on the current host
+### HB1. The frozen calibration record of 2026-11-04 holds on the host of that time (the desktop, 2026-11-08 to 11)
 
 **Verdict: not confirmed.** The drift check failed twice, and its three repeats gave no reading.
 **No claim rests on this record**: no campaign has been judged against it, and none may be. (HB2 and HB3
@@ -548,7 +558,7 @@ origin refused its own start-up cost check (routes 26-68 % above the frozen cost
 the third never started. All 5 complete attempts (5 `drift.json`, every one `ok=false`) are outside the
 single-run rule, in both directions: export -20.07, cheap -17.27, export +10.07, cheap -85.09 (an attempt
 that the session's own activity disturbed, which the rule keeps), export +10.74 pp. The record is not
-confirmed on the current host.
+confirmed on the desktop host of 2026-11-08 to 11.
 
 **Configuration [FACT]** (`environment.json` of every run): kernel 7.0.0-42 in every attempt, against
 7.0.0-38 in the record; guest memory 9,426 MiB in AP-4 and 7,422 MiB from AP-5 on; every run at commit
@@ -579,19 +589,19 @@ C5 231.96 ms (1.43-1.50 times the 2026-11-04 record's on C1-C5); C_slo 84.5 and 
 same grid levels as on 2026-11-04); rho 42.25 req/s; knees cheap 4, export 4, search 2 (2, 4 and 4 on
 2026-11-04). Reference, 5 rounds (mean Q; geometric mean p95): legit 99.99 %, 81 ms; cheap 4.66 %
 (SD 1.58 pp), 872 ms; export 45.48 % (SD 5.77 pp: frozen with the wide-spread label), 585 ms; search
-98.12 % (SD 0.60 pp), 197 ms. Tolerances (Q pp / log2 p95): cheap 5 / 0.5, export 10 / 0.61, search
-5 / 0.5; legit 2 pp and p95 within 25 %. R4, 3 rounds (`results/2026-11-16_harm-p2-hg4/`, R4's
+98.12 % (SD 0.60 pp), 197 ms. Tolerances (Q pp / log2 p95): cheap 5 / 0.5, export 10 / 0.61 (10 pp is
+the formula's cap; k s = 12.6 pp), search 5 / 0.5; legit 2 pp and p95 within 25 %. R4, 3 rounds (`results/2026-11-16_harm-p2-hg4/`, R4's
 `drift.json`): legit Q 100.00 %, p95 1.02 times the reference; cheap -0.30 pp / -0.08; export
 +2.48 pp / -0.43; search -1.67 pp / +0.07: confirmed for every family. Rules:
 `docs/RECALIBRATION_2026-11_PREREG.md` (sha256 `5c22334d...`; approved 2026-11-15, before R1), the host
-check `docs/HS1_PREREG.md` (passed 2026-11-14, its pause rule at the boundary: three 6-s gaps, the rule
-counts gaps above 6 s).
+check `docs/HS1_PREREG.md` (passed 2026-11-14, its pause rule at the boundary: three 6-s spacings between
+samples that are normally 5 s apart, and the rule counts gaps above 6 s).
 
 **Labels.** The re-calibration itself and its tolerance rule were written after the drift check's data
 (HB1), and the pre-registration says so (post hoc in that sense). Departure 1
 (`docs/RECALIBRATION_2026-11_DEPARTURE_1.md`, post hoc, approved before R2a resumed): H7 reads the
-monitors 2 s after a run's window; R1 and the first 11 runs of the cheap ladder were judged before it,
-every later run after it; the four runs it would have kept were set aside and never used.
+monitors 2 s after a run's window; R1 and the first 15 runs of the cheap ladder (11 valid, 4 set aside
+by the race) were judged before it, every later run after it; the four set-aside runs were never used.
 
 **It does not show** anything about the desktop, the 2026-11-04 record, or the laptop in a window after
 a later reboot without a new drift check. The raw data of R1-R3 are not in `results/` yet (Q1), so the
@@ -623,24 +633,42 @@ or p95 ratio >= 2 for the unprotected server; Q(M) >= 0.99 Q(C) and no legit ide
 protected one) was fixed before any protected run and not changed. The spec
 `bench/scenarios/cheap_static_flood_hg4.json` (sha256 `aa43c844...`) is at level 8, about 119 req/s a
 source, above the L7 rule's 50 req/s and limit_req's 30 r/s; it was written on the new record after the
-freeze and before P2-1, as the pre-registration allows.
+freeze and before P2-1, as the pre-registration allows. R-3's NO READING conditions do not hold: kernel,
+MemTotal, commit and record hash constant over the 41 runs, chrony within 3 ms, one resume (two packets),
+about 2 h, no legit ban. The strict validity profile (computed, not judged; the record's profile is
+`relative`) would fail the 4 runs of block 1 (one `mobile_bad` stream, not counted in Q: slip p99 54-55 ms
+against 50 ms).
+
+**No drift check of its own [FACT].** P2-2 and P2-2b ran in the same boot of the VM as R4 (from
+2026-11-16 11:19:37Z), 2-7 h after it, in a window that the author set by decisions recorded before each
+campaign's data (D-113, D-116), instead of a later drift check; H1 checked the host's speed against the
+record in every run.
 
 **Descriptive, not judged [FACT].** HRR 0.96 [0.95, 0.97] on Q and 0.92 [0.88, 0.96] on log2 p95.
 Per-second Q of M_xdp (judged links): 31-59 % in second 0, 17-79 % in second 1, 92-100 % in second 2,
 100 % in 418 of the 420 run-seconds from 3 to 44; 31-77 requests lost per run, every one answered 2xx over
 its class's SLO, none refused or failed. P2-2's four valid blocks, read only after P2-2b ended: Q(M)/Q(C)
-0.956-0.979, no legit ban, median time to mitigate 0.857 s. [INFERENCE] The 0.99 ratio leaves about 0.45 s
-of full loss in a 45-s window, and the L7 rule needs more than 50 requests of a source over a window of at
-least 1 s before it bans, so the pre-ban loss and its backlog exceed the margin. A simulation on the fake
-host on 2026-11-11, before any P2 data, gave NOT MET with a daemon banning every source at 0.96 s
-(Q(M)/Q(C) 0.984-0.993, 4 of 10 blocks), so the outcome was foreseen as possible.
+0.956-0.979, no legit ban, median time to mitigate 0.857 s; but in those M_xdp runs the attack began
+0.21-0.44 s before the window, so part of the pre-ban loss may fall outside it. The 0.99 ratio leaves
+about 0.45 s of full loss in a 45-s window. [FACT, control_plane.py:1528-1531] The L7 rule bans a source
+when the requests it has seen in its window divided by max(elapsed, 1 s) exceed 50, i.e. at the 51st
+request inside the first second, which at about 119 req/s can come after about 0.43 s; the measured time
+to mitigate was 0.603-1.723 s (median 0.868 s). [INFERENCE] The pre-ban loss and its backlog exceed the
+margin. A simulation on the fake host on 2026-11-11, before any P2 data, gave NOT MET with a daemon
+banning every source at 0.96 s (Q(M)/Q(C) 0.984-0.993, 4 of 10 blocks), so the outcome was foreseen as
+possible; its attack was weaker (the unprotected server lost about 30 % there, against dQ about 98.5 pp
+here), so its ratios are no prediction for this level.
 
-**Labels.** P2-2 (the first campaign) was INVALID by its own rule: 4 valid blocks, 3 runs unsound because
-the attack began 0.51-0.52 s before the baseline's end (limit 0.5 s). [INFERENCE from the run files and the
-code] the fixed 2.9 s start-up assumed for the legit engines was too short (P2-2b saw 3.06-3.46 s). K23
-(`docs/HG1C_DESIGN.md` departure 42) launches the attack from the engines' observed start; it was made
-post hoc, after P2-2, from which only the verdict, the reasons, run soundness and the attack's start errors
-were read. P2-2b was the one repeat allowed after an INVALID; after NOT MET no further P2 campaign runs.
+**Labels.** P2-2 (the first campaign) was INVALID by its own rule: it stopped after 5 blocks, 4 of them
+valid, with both block re-runs spent; 3 runs were unsound because the attack began 0.51-0.52 s before the
+baseline's end (limit 0.5 s). The cause was a defect of the executor's attack launch: [INFERENCE from the
+run files and the code] the fixed 2.9 s start-up assumed for the legit engines was too short (P2-2b saw
+3.06-3.46 s). The pre-data rule R-5 allowed one repeat campaign after an INVALID only for environmental
+reasons, decided before any arm figure of the invalid one is read; this cause was not environmental.
+Before any arm figure of P2-2 was read, the author decided to fix the launch and repeat once (D-114,
+D-116): a post hoc decision. K23 (`docs/HG1C_DESIGN.md` departure 42) launches the attack from the engines'
+observed start; only the verdict, the reasons, run soundness and the attack's start errors of P2-2 were
+read before it. P2-2b is that single repeat; after NOT MET no further P2 campaign runs.
 
 **It does not show** anything about other families, levels, hosts, the limits-only arm or the GRU. It does
 not concern the bans themselves (every attacker was banned, no legit client was): the quality criterion is
