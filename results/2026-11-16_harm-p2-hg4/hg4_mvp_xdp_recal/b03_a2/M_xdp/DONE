@@ -1,0 +1,314 @@
+{
+ "finished_utc": "2026-11-16T15:23:17+00:00",
+ "host": {
+  "ok": true,
+  "other_cpu": [
+   {
+    "pct": 0.8,
+    "t": 1794842438.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.7999999999999999,
+    "t": 1794842448.0,
+    "top": [
+     [
+      0.7,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "chrt --fifo 1 stdbuf -oL mpstat -P ALL 5"
+     ]
+    ]
+   },
+   {
+    "pct": 3.0,
+    "t": 1794842458.0,
+    "top": [
+     [
+      0.7,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.4,
+      "/usr/lib/systemd/systemd --user"
+     ],
+     [
+      0.3,
+      "/usr/lib/systemd/systemd-udevd"
+     ]
+    ]
+   },
+   {
+    "pct": 0.7999999999999999,
+    "t": 1794842468.0,
+    "top": [
+     [
+      0.7,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+     ]
+    ]
+   },
+   {
+    "pct": 1.0,
+    "t": 1794842478.0,
+    "top": [
+     [
+      1.0,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.7,
+    "t": 1794842488.0,
+    "top": [
+     [
+      0.7,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.8,
+    "t": 1794842498.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.7999999999999999,
+    "t": 1794842508.0,
+    "top": [
+     [
+      0.7,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/usr/lib/systemd/systemd --switched-root --system --deserial"
+     ]
+    ]
+   },
+   {
+    "pct": 0.9,
+    "t": 1794842518.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+     ]
+    ]
+   },
+   {
+    "pct": 0.8,
+    "t": 1794842528.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.6,
+    "t": 1794842538.0,
+    "top": [
+     [
+      0.6,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.6,
+    "t": 1794842548.0,
+    "top": [
+     [
+      0.6,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.8,
+    "t": 1794842558.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.8,
+    "t": 1794842568.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 2.1,
+    "t": 1794842578.0,
+    "top": [
+     [
+      0.7,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.3,
+      "/usr/lib/systemd/systemd-udevd"
+     ],
+     [
+      0.2,
+      "@dbus-daemon --system --address=systemd: --nofork --nopidfil"
+     ]
+    ]
+   },
+   {
+    "pct": 0.7999999999999999,
+    "t": 1794842588.0,
+    "top": [
+     [
+      0.7,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "chrt --fifo 1 stdbuf -oL mpstat -P ALL 5"
+     ]
+    ]
+   }
+  ],
+  "reasons": [],
+  "rules": {
+   "H1": {
+    "ok": true,
+    "reasons": []
+   },
+   "H3": {
+    "ok": true,
+    "reasons": []
+   },
+   "H4": {
+    "ok": true,
+    "reasons": []
+   },
+   "H5": {
+    "ok": true,
+    "reasons": []
+   },
+   "H6": {
+    "ok": true,
+    "reasons": []
+   },
+   "H7": {
+    "ok": true,
+    "reasons": []
+   }
+  },
+  "slip_p99_s": 0.013127899999999592,
+  "window": {
+   "end": "2026-11-16T15:23:15+00:00",
+   "start": "2026-11-16T15:20:33+00:00"
+  }
+ },
+ "ok": true,
+ "reasons": [],
+ "seconds": 148.2,
+ "setup_retries": 0,
+ "speed": {
+  "after": {
+   "cpus": {
+    "0": {
+     "C0": 0.005500117187501319,
+     "C1": 5.113166000000113,
+     "C2": 2.655798999999348,
+     "C3": 42.71685500000011,
+     "C5": 231.81270899999973
+    },
+    "1": {
+     "C0": 0.0056584179687485525,
+     "C1": 5.100121999999985,
+     "C2": 2.6710080000000858,
+     "C3": 42.87684500000033,
+     "C5": 232.0578489999998
+    }
+   },
+   "errors": {},
+   "t_end": 1794842595.4075162,
+   "t_start": 1794842577.227377,
+   "utc_end": "2026-11-16T15:23:15+00:00",
+   "utc_start": "2026-11-16T15:22:57+00:00"
+  },
+  "before": {
+   "cpus": {
+    "0": {
+     "C0": 0.005506691406250569,
+     "C1": 5.12151200000055,
+     "C2": 2.663022000000126,
+     "C3": 42.44934300000036,
+     "C5": 231.86920499999974
+    },
+    "1": {
+     "C0": 0.005544144531251238,
+     "C1": 5.1001010000000235,
+     "C2": 2.6611989999993924,
+     "C3": 43.50151600000007,
+     "C5": 231.34204099999954
+    }
+   },
+   "errors": {},
+   "t_end": 1794842451.6840272,
+   "t_start": 1794842433.5694773,
+   "utc_end": "2026-11-16T15:20:51+00:00",
+   "utc_start": "2026-11-16T15:20:33+00:00"
+  },
+  "d_after": 0.0009428657952933184,
+  "d_before": 0.002322802357087178,
+  "in_run": {
+   "frozen_cost_s": 42.92337548486792,
+   "index": 1.1467074628683867,
+   "origin_cpu_s": 49.220555
+  },
+  "limit": 0.1,
+  "ok": true,
+  "reasons": [],
+  "reference": "the frozen record 7005a2ed",
+  "reference_costs_ms": {
+   "C0": 0.005546960937498346,
+   "C1": 5.112814999999937,
+   "C2": 2.6510200000000594,
+   "C3": 42.71167500000139,
+   "C5": 231.9604360000005
+  },
+  "window": {
+   "end": "2026-11-16T15:23:15+00:00",
+   "start": "2026-11-16T15:20:33+00:00",
+   "t_end": 1794842595.4075162,
+   "t_start": 1794842433.5694773
+  }
+ },
+ "timer_refused_probes": 0,
+ "timer_waited_s": 2.2
+}

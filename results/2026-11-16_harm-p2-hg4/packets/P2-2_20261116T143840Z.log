@@ -1,0 +1,460 @@
+packet P2-2 stage, pid 258858, 2026-11-16T14:38:40Z; sudo kill -TERM 258858 stops it
+2026-11-16T14:38:40Z running: ./venv/bin/python -B bench/hostcheck.py speed-hold --calibration bench/calibration/ddos-mitigation-2026-11-16.json --reference bench/calibration/ddos-mitigation-2026-11-16.json --lo -0.10 --hi 0.10 --max-min 30
+the step's process: 258875 (the packet stops with sudo kill -TERM 258858, the stage)
+speed hold: probe pair 1: -0.1%
+speed hold: probe pair 2: -0.6%
+speed hold: held after 2 probe pairs, 336 s (band -10% to +10%)
+2026-11-16T14:44:17Z exit 0
+2026-11-16T14:44:17Z running: ./venv/bin/python -B bench/gate_campaign.py run bench/scenarios/cheap_static_flood_hg4.json --calibration bench/calibration/ddos-mitigation-2026-11-16.json --modes xdp --out /var/tmp/ddos_campaigns/hg4_mvp_xdp_recal --stop-after 79.38
+the step's process: 259017 (the packet stops with sudo kill -TERM 258858, the stage)
+warm-up run C at seed 1
+    0.129 gate: uptime 12283 s, load 0.52; waiting up to 30 min for uptime 1800 s and load below 0.3
+   42.312 timer probe 1 on CPU 7 at 2026-11-16T14:44:58+00:00: p50 0.0414475, p99 0.54495, max 0.556896 ms: passed
+   44.707 run C of cheap_static_flood_hg4, seed 1: preflight and environment passed
+   62.715 speed probe before the stack: CPU 0 C3 42.43 ms, C5 231.1 ms, CPU 1 C3 42.68 ms, C5 231.3 ms
+   67.367 topology: 4 namespaces, 200 addresses, verified in 4.7 s
+   67.385 started the origin as pid 259276
+   67.437 started Nginx (its launcher returned after 0.05 s)
+   72.253 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   72.353 launched 29 legit streams
+  181.728 timeline over after 109.5 s
+  182.043 stopped 1 process(es) of this run in 0.30 s
+  182.055 wall time of 5 stream(s) raised to what their records need, by up to 0.09 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  182.128 nginx access log: 4473 lines (0 unparsed), server_requests.csv written, log compressed
+  182.132 run.json written; the run is sound
+  182.158 teardown: 0 process(es) in 5 namespace(s): listed in 0.03 s, ended in 0.00 s
+  182.178 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.01 s
+  182.237 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  182.262 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+block 1 attempt 1 seed 1: run Cp
+    2.212 timer probe 1 on CPU 7 at 2026-11-16T14:47:41+00:00: p50 0.034054, p99 0.501373, max 0.53158 ms: passed
+    4.633 run Cp of cheap_static_flood_hg4, seed 1: preflight and environment passed
+   22.730 speed probe before the stack: CPU 0 C3 42.37 ms, C5 232.5 ms, CPU 1 C3 42.93 ms, C5 231.1 ms
+   27.578 topology: 4 namespaces, 200 addresses, verified in 4.8 s
+   27.596 started the origin as pid 259709
+   27.648 started Nginx (its launcher returned after 0.05 s)
+   32.443 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   32.546 launched 29 legit streams
+  142.973 timeline over after 110.5 s
+  143.389 stopped 1 process(es) of this run in 0.40 s
+  143.404 wall time of 4 stream(s) raised to what their records need, by up to 0.06 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  143.475 nginx access log: 4473 lines (0 unparsed), server_requests.csv written, log compressed
+  143.487 run.json written; the run is sound
+  143.510 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  143.529 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  143.591 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  143.613 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+block 1 attempt 1 seed 1: run M_xdp
+    2.228 timer probe 1 on CPU 7 at 2026-11-16T14:50:25+00:00: p50 0.0372945, p99 0.545651, max 0.554131 ms: passed
+    4.657 run M_xdp of cheap_static_flood_hg4, seed 1: preflight and environment passed
+   22.725 speed probe before the stack: CPU 0 C3 42.41 ms, C5 232.1 ms, CPU 1 C3 42.87 ms, C5 230.9 ms
+   27.286 topology: 4 namespaces, 205 addresses, verified in 4.6 s
+   27.311 started the origin as pid 260168
+   27.363 started Nginx (its launcher returned after 0.05 s)
+   32.128 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   35.700 started the daemon as pid 260205: ready after 3.6 s, XDP program 89 on veth_server
+   35.774 launched 29 legit streams
+   68.474 launched 3 attack streams
+  144.692 timeline over after 109.0 s
+  145.817 stopped the daemon (pid 260205) in 1.12 s: exit 0; XDP off veth_server: done
+  146.135 stopped 1 process(es) of this run in 0.31 s
+  146.190 wall time of 1 stream(s) raised to what their records need, by up to 0.05 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  146.268 nginx access log: 4992 lines (0 unparsed), server_requests.csv written, log compressed
+  146.281 run.json written; the run is sound
+  146.306 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  146.325 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.01 s
+  146.404 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.03 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.02 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  146.434 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.2 s in all)
+block 1 attempt 1 seed 1: run U
+    2.236 timer probe 1 on CPU 7 at 2026-11-16T14:53:11+00:00: p50 0.0520315, p99 0.544779, max 0.615983 ms: passed
+    4.659 run U of cheap_static_flood_hg4, seed 1: preflight and environment passed
+   22.870 speed probe before the stack: CPU 0 C3 42.94 ms, C5 233 ms, CPU 1 C3 42.81 ms, C5 232.1 ms
+   30.181 topology: 4 namespaces, 205 addresses, verified in 7.3 s
+   30.201 started the origin as pid 260744
+   30.253 started Nginx (its launcher returned after 0.05 s)
+   35.018 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   35.108 launched 29 legit streams
+   67.788 launched 3 attack streams
+  144.009 timeline over after 109.0 s
+  144.324 stopped 1 process(es) of this run in 0.30 s
+  144.381 wall time of 2 stream(s) raised to what their records need, by up to 0.08 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  144.802 nginx access log: 31220 lines (0 unparsed), server_requests.csv written, log compressed
+  144.817 run.json written; the run is sound
+  144.840 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  144.858 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  144.941 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.02 s, ddos_br0 0.02 s
+  144.963 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+block 1 attempt 1 seed 1: run C
+    2.228 timer probe 1 on CPU 7 at 2026-11-16T14:55:57+00:00: p50 0.044342, p99 0.557479, max 0.827463 ms: passed
+    4.606 run C of cheap_static_flood_hg4, seed 1: preflight and environment passed
+   22.688 speed probe before the stack: CPU 0 C3 43.49 ms, C5 231.7 ms, CPU 1 C3 42.67 ms, C5 231.1 ms
+   29.898 topology: 4 namespaces, 200 addresses, verified in 7.2 s
+   29.917 started the origin as pid 261192
+   29.969 started Nginx (its launcher returned after 0.05 s)
+   34.710 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   34.800 launched 29 legit streams
+  144.217 timeline over after 109.5 s
+  144.534 stopped 1 process(es) of this run in 0.30 s
+  144.548 wall time of 5 stream(s) raised to what their records need, by up to 0.11 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  144.619 nginx access log: 4473 lines (0 unparsed), server_requests.csv written, log compressed
+  144.631 run.json written; the run is sound
+  144.654 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  144.673 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  144.748 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.03 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  144.767 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+block 2 attempt 1 seed 2: run C
+    2.231 timer probe 1 on CPU 7 at 2026-11-16T14:58:42+00:00: p50 0.0434555, p99 0.542461, max 0.68206 ms: passed
+    4.642 run C of cheap_static_flood_hg4, seed 2: preflight and environment passed
+   22.639 speed probe before the stack: CPU 0 C3 43.24 ms, C5 230.9 ms, CPU 1 C3 43.26 ms, C5 231.4 ms
+   28.162 topology: 4 namespaces, 200 addresses, verified in 5.5 s
+   28.181 started the origin as pid 261620
+   28.233 started Nginx (its launcher returned after 0.05 s)
+   32.975 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   33.082 launched 31 legit streams
+  142.539 timeline over after 109.5 s
+  142.856 stopped 1 process(es) of this run in 0.30 s
+  142.871 wall time of 8 stream(s) raised to what their records need, by up to 0.11 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  142.942 nginx access log: 4480 lines (0 unparsed), server_requests.csv written, log compressed
+  142.956 run.json written; the run is sound
+  142.980 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  143.001 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.01 s, server_ns 0.00 s
+  143.047 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  143.069 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+block 2 attempt 1 seed 2: run M_xdp
+    2.241 timer probe 1 on CPU 7 at 2026-11-16T15:01:25+00:00: p50 0.089407, p99 0.547308, max 1.06562 ms: passed
+    4.675 run M_xdp of cheap_static_flood_hg4, seed 2: preflight and environment passed
+   22.789 speed probe before the stack: CPU 0 C3 43.24 ms, C5 231.8 ms, CPU 1 C3 43.09 ms, C5 232.1 ms
+   28.227 topology: 4 namespaces, 205 addresses, verified in 5.4 s
+   28.250 started the origin as pid 262074
+   28.302 started Nginx (its launcher returned after 0.05 s)
+   33.060 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   36.635 started the daemon as pid 262111: ready after 3.6 s, XDP program 92 on veth_server
+   36.730 launched 31 legit streams
+   69.407 launched 3 attack streams
+  145.611 timeline over after 109.0 s
+  146.736 stopped the daemon (pid 262111) in 1.12 s: exit 0; XDP off veth_server: done
+  147.051 stopped 1 process(es) of this run in 0.30 s
+  147.107 wall time of 5 stream(s) raised to what their records need, by up to 0.13 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  147.185 nginx access log: 4972 lines (0 unparsed), server_requests.csv written, log compressed
+  147.197 run.json written; the run is sound
+  147.220 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  147.238 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  147.321 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  147.349 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.2 s in all)
+block 2 attempt 1 seed 2: run Cp
+    2.224 timer probe 1 on CPU 7 at 2026-11-16T15:04:13+00:00: p50 0.0372645, p99 0.538619, max 0.541468 ms: passed
+    4.616 run Cp of cheap_static_flood_hg4, seed 2: preflight and environment passed
+   22.710 speed probe before the stack: CPU 0 C3 42.91 ms, C5 231.6 ms, CPU 1 C3 42.53 ms, C5 232 ms
+   27.411 topology: 4 namespaces, 200 addresses, verified in 4.7 s
+   27.429 started the origin as pid 262640
+   27.482 started Nginx (its launcher returned after 0.05 s)
+   32.258 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   32.365 launched 31 legit streams
+  141.914 timeline over after 109.6 s
+  142.230 stopped 1 process(es) of this run in 0.30 s
+  142.245 wall time of 3 stream(s) raised to what their records need, by up to 0.12 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  142.316 nginx access log: 4482 lines (0 unparsed), server_requests.csv written, log compressed
+  142.321 run.json written; the run is sound
+  142.344 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  142.364 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  142.429 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  142.450 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+block 2 attempt 1 seed 2: run U
+    2.225 timer probe 1 on CPU 7 at 2026-11-16T15:06:55+00:00: p50 0.0386745, p99 0.526269, max 0.532247 ms: passed
+    4.658 run U of cheap_static_flood_hg4, seed 2: preflight and environment passed
+   22.783 speed probe before the stack: CPU 0 C3 42.53 ms, C5 230.1 ms, CPU 1 C3 43.79 ms, C5 232.3 ms
+   30.092 topology: 4 namespaces, 205 addresses, verified in 7.3 s
+   30.109 started the origin as pid 263080
+   30.161 started Nginx (its launcher returned after 0.05 s)
+   34.933 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   35.035 launched 31 legit streams
+   67.713 launched 3 attack streams
+  153.953 timeline over after 119.0 s
+  154.267 stopped 1 process(es) of this run in 0.30 s
+  154.325 wall time of 4 stream(s) raised to what their records need, by up to 0.09 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  154.753 nginx access log: 31170 lines (0 unparsed), server_requests.csv written, log compressed
+  154.768 run.json written; the run is sound
+  154.791 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  154.815 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  154.878 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  154.902 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+block 3 attempt 1 seed 3: run Cp
+    2.217 timer probe 1 on CPU 7 at 2026-11-16T15:09:51+00:00: p50 0.034311, p99 0.527283, max 0.873796 ms: passed
+    4.623 run Cp of cheap_static_flood_hg4, seed 3: preflight and environment passed
+   22.798 speed probe before the stack: CPU 0 C3 42.44 ms, C5 234.8 ms, CPU 1 C3 43.45 ms, C5 233.8 ms
+   27.290 topology: 4 namespaces, 200 addresses, verified in 4.5 s
+   27.309 started the origin as pid 263535
+   27.362 started Nginx (its launcher returned after 0.05 s)
+   32.156 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   32.266 launched 32 legit streams
+  141.690 timeline over after 109.5 s
+  142.007 stopped 1 process(es) of this run in 0.31 s
+  142.023 wall time of 3 stream(s) raised to what their records need, by up to 0.12 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  142.095 nginx access log: 4509 lines (0 unparsed), server_requests.csv written, log compressed
+  142.108 run.json written; the run is sound
+  142.132 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  142.154 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.01 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  142.220 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  142.240 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+block 3 attempt 1 seed 3: run C
+    2.215 timer probe 1 on CPU 7 at 2026-11-16T15:12:33+00:00: p50 0.0343915, p99 0.513429, max 0.533649 ms: passed
+    4.606 run C of cheap_static_flood_hg4, seed 3: preflight and environment passed
+   22.727 speed probe before the stack: CPU 0 C3 42.72 ms, C5 232.9 ms, CPU 1 C3 43.26 ms, C5 230.7 ms
+   29.922 topology: 4 namespaces, 200 addresses, verified in 7.2 s
+   29.940 started the origin as pid 263971
+   29.992 started Nginx (its launcher returned after 0.05 s)
+   34.760 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   34.873 launched 32 legit streams
+  144.249 timeline over after 109.5 s
+  144.565 stopped 1 process(es) of this run in 0.30 s
+  144.580 wall time of 5 stream(s) raised to what their records need, by up to 0.14 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  144.652 nginx access log: 4509 lines (0 unparsed), server_requests.csv written, log compressed
+  144.656 run.json written; the run is sound
+  144.678 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  144.700 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.01 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  144.774 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.03 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  144.794 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+block 3 attempt 1 seed 3: run U
+    2.238 timer probe 1 on CPU 7 at 2026-11-16T15:15:18+00:00: p50 0.040909, p99 0.540439, max 0.553557 ms: passed
+    4.647 run U of cheap_static_flood_hg4, seed 3: preflight and environment passed
+   22.711 speed probe before the stack: CPU 0 C3 42.88 ms, C5 233.7 ms, CPU 1 C3 42.55 ms, C5 231.9 ms
+   30.082 topology: 4 namespaces, 205 addresses, verified in 7.4 s
+   30.101 started the origin as pid 264412
+   30.153 started Nginx (its launcher returned after 0.05 s)
+   34.910 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   35.022 launched 32 legit streams
+   67.687 launched 2 attack streams
+  144.961 timeline over after 110.0 s
+  145.275 stopped 1 process(es) of this run in 0.30 s
+  145.333 wall time of 6 stream(s) raised to what their records need, by up to 0.09 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  145.766 nginx access log: 31551 lines (0 unparsed), server_requests.csv written, log compressed
+  145.781 run.json written; the run is UNSOUND: the attack began -0.52 s from the end of the baseline (limit 0.5 s)
+  145.805 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  145.832 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  145.909 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.02 s, ddos_br0 0.01 s
+  145.931 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+block 3 attempt 1: run U is not sound (the attack began -0.52 s from the end of the baseline (limit 0.5 s)): the attempt ends here
+block 3 attempt 1 is not valid: U: executor: the attack began -0.52 s from the end of the baseline (limit 0.5 s)
+block 3 attempt 2 seed 3: run Cp
+    2.220 timer probe 1 on CPU 7 at 2026-11-16T15:17:44+00:00: p50 0.0332395, p99 0.524883, max 0.534982 ms: passed
+    4.643 run Cp of cheap_static_flood_hg4, seed 3: preflight and environment passed
+   22.910 speed probe before the stack: CPU 0 C3 43.18 ms, C5 233.7 ms, CPU 1 C3 42.85 ms, C5 233.3 ms
+   27.728 topology: 4 namespaces, 200 addresses, verified in 4.8 s
+   27.746 started the origin as pid 264849
+   27.799 started Nginx (its launcher returned after 0.05 s)
+   32.645 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   32.732 launched 32 legit streams
+  143.191 timeline over after 110.5 s
+  143.505 stopped 1 process(es) of this run in 0.30 s
+  143.523 wall time of 7 stream(s) raised to what their records need, by up to 0.11 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  143.595 nginx access log: 4509 lines (0 unparsed), server_requests.csv written, log compressed
+  143.599 run.json written; the run is sound
+  143.622 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  143.639 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  143.718 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.04 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  143.740 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+block 3 attempt 2 seed 3: run M_xdp
+    2.231 timer probe 1 on CPU 7 at 2026-11-16T15:20:28+00:00: p50 0.0368105, p99 0.528135, max 0.540242 ms: passed
+    4.641 run M_xdp of cheap_static_flood_hg4, seed 3: preflight and environment passed
+   22.767 speed probe before the stack: CPU 0 C3 42.45 ms, C5 231.9 ms, CPU 1 C3 43.5 ms, C5 231.3 ms
+   29.298 topology: 4 namespaces, 205 addresses, verified in 6.5 s
+   29.321 started the origin as pid 265299
+   29.374 started Nginx (its launcher returned after 0.05 s)
+   34.129 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   37.693 started the daemon as pid 265336: ready after 3.6 s, XDP program 95 on veth_server
+   37.802 launched 32 legit streams
+   70.470 launched 2 attack streams
+  146.677 timeline over after 109.0 s
+  147.699 stopped the daemon (pid 265336) in 1.02 s: exit 0; XDP off veth_server: done
+  148.015 stopped 1 process(es) of this run in 0.30 s
+  148.072 wall time of 4 stream(s) raised to what their records need, by up to 0.10 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  148.151 nginx access log: 5054 lines (0 unparsed), server_requests.csv written, log compressed
+  148.165 run.json written; the run is sound
+  148.189 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  148.209 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  148.268 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  148.298 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.1 s in all)
+block 3 attempt 2 seed 3: run U
+    2.232 timer probe 1 on CPU 7 at 2026-11-16T15:23:17+00:00: p50 0.052613, p99 0.533494, max 0.545251 ms: passed
+    4.636 run U of cheap_static_flood_hg4, seed 3: preflight and environment passed
+   22.785 speed probe before the stack: CPU 0 C3 42.73 ms, C5 231.5 ms, CPU 1 C3 43.36 ms, C5 234.4 ms
+   27.441 topology: 4 namespaces, 205 addresses, verified in 4.7 s
+   27.459 started the origin as pid 265877
+   27.512 started Nginx (its launcher returned after 0.05 s)
+   32.312 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   32.411 launched 32 legit streams
+   65.079 launched 2 attack streams
+  141.278 timeline over after 109.0 s
+  141.592 stopped 1 process(es) of this run in 0.30 s
+  141.651 wall time of 8 stream(s) raised to what their records need, by up to 0.12 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  142.070 nginx access log: 31551 lines (0 unparsed), server_requests.csv written, log compressed
+  142.084 run.json written; the run is sound
+  142.108 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  142.129 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  142.234 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.03 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.03 s, ddos_br0 0.02 s
+  142.255 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.2 s in all)
+block 3 attempt 2 seed 3: run C
+    2.220 timer probe 1 on CPU 7 at 2026-11-16T15:26:00+00:00: p50 0.0377375, p99 0.534901, max 0.550802 ms: passed
+    4.626 run C of cheap_static_flood_hg4, seed 3: preflight and environment passed
+   22.793 speed probe before the stack: CPU 0 C3 42.28 ms, C5 231.9 ms, CPU 1 C3 42.86 ms, C5 233.7 ms
+   28.391 topology: 4 namespaces, 200 addresses, verified in 5.6 s
+   28.409 started the origin as pid 266311
+   28.461 started Nginx (its launcher returned after 0.05 s)
+   33.309 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   33.419 launched 32 legit streams
+  143.884 timeline over after 110.6 s
+  144.199 stopped 1 process(es) of this run in 0.30 s
+  144.214 wall time of 2 stream(s) raised to what their records need, by up to 0.09 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  144.285 nginx access log: 4509 lines (0 unparsed), server_requests.csv written, log compressed
+  144.298 run.json written; the run is sound
+  144.323 teardown: 0 process(es) in 5 namespace(s): listed in 0.03 s, ended in 0.00 s
+  144.344 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  144.434 teardown: links deleted: vo_hg_0_perfect 0.03 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.03 s
+  144.457 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.2 s in all)
+block 4 attempt 1 seed 4: run Cp
+    2.231 timer probe 1 on CPU 7 at 2026-11-16T15:28:45+00:00: p50 0.050397, p99 0.541806, max 0.622126 ms: passed
+    4.638 run Cp of cheap_static_flood_hg4, seed 4: preflight and environment passed
+   22.864 speed probe before the stack: CPU 0 C3 44.14 ms, C5 232.6 ms, CPU 1 C3 42.64 ms, C5 234.9 ms
+   27.526 topology: 4 namespaces, 200 addresses, verified in 4.7 s
+   27.544 started the origin as pid 266752
+   27.596 started Nginx (its launcher returned after 0.05 s)
+   32.377 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   32.484 launched 31 legit streams
+  141.897 timeline over after 109.5 s
+  142.215 stopped 1 process(es) of this run in 0.31 s
+  142.230 wall time of 7 stream(s) raised to what their records need, by up to 0.12 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  142.301 nginx access log: 4447 lines (0 unparsed), server_requests.csv written, log compressed
+  142.307 run.json written; the run is sound
+  142.329 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  142.345 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  142.403 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  142.426 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+block 4 attempt 1 seed 4: run U
+    2.238 timer probe 1 on CPU 7 at 2026-11-16T15:31:28+00:00: p50 0.190699, p99 0.539859, max 0.54904 ms: passed
+    4.653 run U of cheap_static_flood_hg4, seed 4: preflight and environment passed
+   22.711 speed probe before the stack: CPU 0 C3 42.73 ms, C5 230.4 ms, CPU 1 C3 42.47 ms, C5 233.4 ms
+   27.187 topology: 4 namespaces, 205 addresses, verified in 4.5 s
+   27.205 started the origin as pid 267190
+   27.257 started Nginx (its launcher returned after 0.05 s)
+   32.084 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   32.181 launched 31 legit streams
+   64.855 launched 3 attack streams
+  145.111 timeline over after 113.0 s
+  145.423 stopped 1 process(es) of this run in 0.30 s
+  145.480 wall time of 5 stream(s) raised to what their records need, by up to 0.12 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  145.480 3 legit stream(s) began outside the pack of the others, by up to 0.40 s, and are placed by their own offsets: L-poisson-C0-broadband-1, L-poisson-C2-mobile_3g-2, L-poisson-C3-perfect-0
+  145.889 nginx access log: 31268 lines (0 unparsed), server_requests.csv written, log compressed
+  145.895 run.json written; the run is sound
+  145.921 teardown: 0 process(es) in 5 namespace(s): listed in 0.03 s, ended in 0.00 s
+  145.945 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.01 s
+  146.008 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  146.028 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+block 4 attempt 1 seed 4: run M_xdp
+    2.233 timer probe 1 on CPU 7 at 2026-11-16T15:34:14+00:00: p50 0.0456385, p99 0.539572, max 0.684985 ms: passed
+    4.667 run M_xdp of cheap_static_flood_hg4, seed 4: preflight and environment passed
+   22.839 speed probe before the stack: CPU 0 C3 42.59 ms, C5 234.5 ms, CPU 1 C3 42.66 ms, C5 232 ms
+   27.386 topology: 4 namespaces, 205 addresses, verified in 4.5 s
+   27.410 started the origin as pid 267643
+   27.462 started Nginx (its launcher returned after 0.05 s)
+   32.276 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   35.853 started the daemon as pid 267686: ready after 3.6 s, XDP program 98 on veth_server
+   35.952 launched 31 legit streams
+   68.624 launched 3 attack streams
+  144.827 timeline over after 109.0 s
+  145.957 stopped the daemon (pid 267686) in 1.12 s: exit 0; XDP off veth_server: done
+  146.274 stopped 1 process(es) of this run in 0.30 s
+  146.330 wall time of 3 stream(s) raised to what their records need, by up to 0.07 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  146.407 nginx access log: 4947 lines (0 unparsed), server_requests.csv written, log compressed
+  146.420 run.json written; the run is sound
+  146.444 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  146.461 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  146.540 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  146.571 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.2 s in all)
+block 4 attempt 1 seed 4: run C
+    2.234 timer probe 1 on CPU 7 at 2026-11-16T15:37:01+00:00: p50 0.0548105, p99 0.539241, max 0.561874 ms: passed
+    4.641 run C of cheap_static_flood_hg4, seed 4: preflight and environment passed
+   22.823 speed probe before the stack: CPU 0 C3 42.23 ms, C5 230.7 ms, CPU 1 C3 42.82 ms, C5 235.5 ms
+   27.306 topology: 4 namespaces, 200 addresses, verified in 4.5 s
+   27.323 started the origin as pid 268220
+   27.376 started Nginx (its launcher returned after 0.05 s)
+   32.171 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   32.268 launched 31 legit streams
+  141.592 timeline over after 109.4 s
+  141.908 stopped 1 process(es) of this run in 0.30 s
+  141.923 wall time of 4 stream(s) raised to what their records need, by up to 0.09 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  141.994 nginx access log: 4447 lines (0 unparsed), server_requests.csv written, log compressed
+  142.006 run.json written; the run is sound
+  142.030 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  142.050 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  142.115 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  142.137 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+block 5 attempt 1 seed 5: run M_xdp
+    2.237 timer probe 1 on CPU 7 at 2026-11-16T15:39:44+00:00: p50 0.0460255, p99 0.532831, max 0.541929 ms: passed
+    4.678 run M_xdp of cheap_static_flood_hg4, seed 5: preflight and environment passed
+   22.759 speed probe before the stack: CPU 0 C3 43.14 ms, C5 230.5 ms, CPU 1 C3 42.71 ms, C5 231.7 ms
+   27.398 topology: 4 namespaces, 205 addresses, verified in 4.6 s
+   27.422 started the origin as pid 268663
+   27.474 started Nginx (its launcher returned after 0.05 s)
+   32.329 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   35.902 started the daemon as pid 268708: ready after 3.6 s, XDP program 101 on veth_server
+   35.992 launched 32 legit streams
+   68.680 launched 2 attack streams
+  145.891 timeline over after 110.0 s
+  147.014 stopped the daemon (pid 268708) in 1.12 s: exit 0; XDP off veth_server: done
+  147.328 stopped 1 process(es) of this run in 0.30 s
+  147.384 wall time of 2 stream(s) raised to what their records need, by up to 0.12 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  147.460 nginx access log: 4919 lines (0 unparsed), server_requests.csv written, log compressed
+  147.465 run.json written; the run is UNSOUND: the attack began -0.52 s from the end of the baseline (limit 0.5 s)
+  147.488 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  147.507 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  147.576 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  147.607 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.1 s in all)
+block 5 attempt 1: run M_xdp is not sound (the attack began -0.52 s from the end of the baseline (limit 0.5 s)): the attempt ends here
+block 5 attempt 1 is not valid: run C is missing; run Cp is missing; run U is missing
+block 5 attempt 2 seed 5: run U
+    2.225 timer probe 1 on CPU 7 at 2026-11-16T15:42:11+00:00: p50 0.0382915, p99 0.530763, max 0.549192 ms: passed
+    4.646 run U of cheap_static_flood_hg4, seed 5: preflight and environment passed
+   22.832 speed probe before the stack: CPU 0 C3 43.11 ms, C5 236.8 ms, CPU 1 C3 42.77 ms, C5 230.7 ms
+   30.150 topology: 4 namespaces, 205 addresses, verified in 7.3 s
+   30.167 started the origin as pid 269233
+   30.219 started Nginx (its launcher returned after 0.05 s)
+   35.018 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   35.119 launched 32 legit streams
+   67.788 launched 2 attack streams
+  144.019 timeline over after 109.0 s
+  144.334 stopped 1 process(es) of this run in 0.30 s
+  144.394 wall time of 2 stream(s) raised to what their records need, by up to 0.09 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  144.815 nginx access log: 31208 lines (0 unparsed), server_requests.csv written, log compressed
+  144.831 run.json written; the run is sound
+  144.856 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  144.885 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  144.985 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.02 s, veth_srv_br 0.02 s, ddos_br0 0.01 s
+  145.006 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.2 s in all)
+block 5 attempt 2 seed 5: run M_xdp
+    2.225 timer probe 1 on CPU 7 at 2026-11-16T15:44:57+00:00: p50 0.036253, p99 0.513884, max 0.547941 ms: passed
+    4.649 run M_xdp of cheap_static_flood_hg4, seed 5: preflight and environment passed
+   22.832 speed probe before the stack: CPU 0 C3 42.99 ms, C5 233 ms, CPU 1 C3 42.84 ms, C5 232.5 ms
+   29.249 topology: 4 namespaces, 205 addresses, verified in 6.4 s
+   29.273 started the origin as pid 269680
+   29.325 started Nginx (its launcher returned after 0.05 s)
+   34.113 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   37.684 started the daemon as pid 269718: ready after 3.6 s, XDP program 104 on veth_server
+   37.795 launched 32 legit streams
+   70.463 launched 2 attack streams
+  146.681 timeline over after 109.0 s
+  147.701 stopped the daemon (pid 269718) in 1.01 s: exit 0; XDP off veth_server: done
+  148.014 stopped 1 process(es) of this run in 0.30 s
+  148.069 wall time of 4 stream(s) raised to what their records need, by up to 0.14 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  148.069 1 legit stream(s) began outside the pack of the others, by up to 0.35 s, and are placed by their own offsets: L-poisson-C0-mobile_3g-2
+  148.147 nginx access log: 4925 lines (0 unparsed), server_requests.csv written, log compressed
+  148.160 run.json written; the run is UNSOUND: the attack began -0.51 s from the end of the baseline (limit 0.5 s)
+  148.183 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  148.202 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  148.263 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  148.290 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.1 s in all)
+block 5 attempt 2: run M_xdp is not sound (the attack began -0.51 s from the end of the baseline (limit 0.5 s)): the attempt ends here
+block 5 attempt 2 is not valid: run C is missing; run Cp is missing
+gate: INVALID, 4 valid blocks of 5, 2 re-run(s)
+P2 outcome of M_xdp: INVALID (4 blocks valid for the gate, fewer than the 10 the outcome needs; 4 blocks with a valid M_xdp run, fewer than the 10 the outcome needs)
+2026-11-16T15:47:27Z exit 2
+PACKET P2-2 stopped (exit 2): runs made 23, host-invalid 0; 68 min; tar /var/tmp/ddos_campaigns/hg4_mvp_xdp_recal.packets/P2-2_20261116T143840Z.tar.gz, sha256 91137a53600bc702

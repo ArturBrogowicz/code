@@ -1,0 +1,19 @@
+    2.227 timer probe 1 on CPU 7 at 2026-11-16T19:26:51+00:00: p50 0.067139, p99 0.539683, max 0.555949 ms: passed
+    4.638 run Cp of cheap_static_flood_hg4, seed 9: preflight and environment passed
+   22.741 speed probe before the stack: CPU 0 C3 42.43 ms, C5 231.1 ms, CPU 1 C3 42.83 ms, C5 232 ms
+   27.342 topology: 4 namespaces, 200 addresses, verified in 4.6 s
+   27.359 started the origin as pid 701087
+   27.412 started Nginx (its launcher returned after 0.05 s)
+   32.356 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   32.466 launched 31 legit streams
+   35.729 the legit loops were seen to start 3.33 s after their launch (31 of 31)
+  141.748 timeline over after 109.4 s
+  142.066 stopped 1 process(es) of this run in 0.30 s
+  142.081 wall time of 10 stream(s) raised to what their records need, by up to 0.14 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  142.081 1 legit stream(s) began outside the pack of the others, by up to 0.42 s, and are placed by their own offsets: L-poisson-C0-broadband-1
+  142.152 nginx access log: 4456 lines (0 unparsed), server_requests.csv written, log compressed
+  142.165 run.json written; the run is sound
+  142.190 teardown: 0 process(es) in 5 namespace(s): listed in 0.03 s, ended in 0.00 s
+  142.208 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  142.300 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.03 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  142.323 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.2 s in all)

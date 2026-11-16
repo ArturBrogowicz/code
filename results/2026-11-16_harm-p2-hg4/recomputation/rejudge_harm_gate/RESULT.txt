@@ -1,0 +1,3 @@
+rejudge 2026-11-16 eval/harm_gate.py at 18386ed on /var/tmp/ddos_campaigns/hg4_mvp_xdp_recal2 (read-only): rc 0, "PASS: 10 valid blocks of 10"
+gate.md identical (efe36cbd...)
+gate.json: identical content; the re-judge file ends with one newline more (184076 vs 184075 bytes; the CLI writes a trailing newline, the campaign writer does not)
