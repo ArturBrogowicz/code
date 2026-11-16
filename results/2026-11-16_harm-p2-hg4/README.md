@@ -37,7 +37,14 @@ one, but the protected arm kept only 93.7-97.4 % of the control's Q, below the p
   (TTM: an attack identity's first ban after the attack began) is reported, not judged. Neither the gate nor `P2_OUTCOME` changed
   between the approval packets and the data.
 * **Known before any data** (AP-17, AP-18): with the 0.99 ratio NOT MET is a live outcome even for a daemon that works as designed:
-  the ratio lets the protected arm lose about 0.45 s of the 45-s window, and the rule cannot ban before about 1 s.
+  the ratio lets the protected arm lose about 0.45 s of the 45-s window (1 % of it), while no source can be banned before it has
+  sent enough requests to cross the rate rule. AP-17 adds that "the rule cannot ban before about 1 s"; at level 8 that is wrong
+  (found by an independent review, T-129, after this folder was first written). The L7 rate rule (`l7_rate`,
+  `control_plane.py:1528` at `18386ed`, default profile) bans a source when its requests in the 10-s window divided by
+  max(elapsed, 1 s) exceed 50, elapsed being the time since the oldest of them: within its first second a source is banned at its
+  51st request, which a source planned at 119.25 requests/s sends about 0.42 s after its first. In P2-2b 49 of the 50 first bans
+  carry the value 51.0 (the other 50.779, the last of them), 36 of the 50 TTMs are under 1 s, and they run from 0.603 to 1.723 s
+  (median 0.868 s); the protected arm's loss lies almost wholly in seconds 0-2 of the attack (below).
 * **Rules carried from D-086** (D-113, D-116): no reading before `gate.json` exists (R-2); NO READING if the kernel, MemTotal, HEAD
   or a frozen hash changes, a run overlaps |System time| >= 0.1 s, there are more than 6 resumes or 72 h, or a legit ban falls in
   a run with a pause of 10 s or more (R-3); after INVALID at most one repeat, decided before any arm figure of the invalid campaign
@@ -141,6 +148,14 @@ arranged from the reboot at 11:19:37Z through their packets that day (D-113, D-1
   Q(M), dQ, dL, the two halves of the outcome, the legit bans and the TTM, and compares them with `gate.json`: **0 mismatches**.
   `recompute_p22b.out` is its output when it was first run on the campaign directory on the VM; `recompute_p22b_published.out` is
   its output on this published copy, byte-identical to it.
+* `recomputation/rejudge_harm_gate/`: the project's own judge run again. `eval/harm_gate.py <P2-2b dir> --calibration
+  bench/calibration/ddos-mitigation-2026-11-16.json --json gate.json --md gate.md` at `18386ed`, on the raw campaign directory on
+  the VM (orchestrator's task T-126), gave rc 0 and "PASS: 10 valid blocks of 10"; its `gate.md` is byte-identical to the
+  campaign's and its `gate.json` identical but for one trailing newline (184,076 against 184,075 bytes: the command line writes
+  one, the campaign runner does not). `RESULT.txt` says so; the three files are copied byte for byte. The same command on this
+  published copy (in a sandbox, at the same code) also gave rc 0 and "PASS: 10 valid blocks of 10", with `gate.md` and
+  `gate.json` byte-identical to these: the compressed logs do not matter, since the judge reads the request records, `run.json`,
+  `plan.json`, `block.json` and the ban files.
 
 ## Contents
 
@@ -170,7 +185,7 @@ arranged from the reboot at 11:19:37Z through their packets that day (D-113, D-1
   (about 7.9 MB each), the `M_xdp` runs' `feed_before/ddos_ml_access.log` (about 1.1 MB each), P2-1's `M_limits/nginx_error.log`
   and the three `pidstat.txt`. `GZIPPED.tsv` gives each one's original size and sha256 (`gzip -dc <file> | sha256sum` returns it)
   and the published sha256. The request records and access logs were compressed by the tools themselves. Nothing else is changed.
-  The folder is 7,289 files (with `SHA256SUMS`) and about 76 MB; the publisher warns above 20 MB and refuses over 100 MB.
+  The folder is 7,292 files (with `SHA256SUMS`) and about 76 MB; the publisher warns above 20 MB and refuses over 100 MB.
 * **Redactions:** in the three `pidstat.txt` (before their compression) the command of every line naming a path under `~/.claude`,
   the Claude app's processes on the VM with their session ids, socket paths and token-file names, is replaced by a marker; the time,
   UID, PID and CPU columns stay. `REDACTIONS.tsv` gives each file's sha256 in the packet tar, after the redaction and as published.
@@ -184,8 +199,13 @@ arranged from the reboot at 11:19:37Z through their packets that day (D-113, D-1
     cd results/2026-11-16_harm-p2-hg4 && sha256sum -c SHA256SUMS
     python3 -I recomputation/recompute_p22b.py hg4_mvp_xdp_recal2 ../../bench/calibration/ddos-mitigation-2026-11-16.json \
         | diff - recomputation/recompute_p22b_published.out
+    cd ../.. && venv/bin/python eval/harm_gate.py results/2026-11-16_harm-p2-hg4/hg4_mvp_xdp_recal2 \
+        --calibration bench/calibration/ddos-mitigation-2026-11-16.json --json /tmp/gate.json --md /tmp/gate.md
+    cmp /tmp/gate.md results/2026-11-16_harm-p2-hg4/recomputation/rejudge_harm_gate/gate.md
+    cmp /tmp/gate.json results/2026-11-16_harm-p2-hg4/recomputation/rejudge_harm_gate/gate.json
 
-The second prints nothing when the recomputation reproduces (it needs only Python 3). `gzip -dc` any `.gz` and compare with
+The second prints nothing when the recomputation reproduces (it needs only Python 3); the judge (at `18386ed`) prints "PASS: 10
+valid blocks of 10" and both `cmp` print nothing. `gzip -dc` any `.gz` and compare with
 `GZIPPED.tsv`. To rebuild `analysis/`, run `venv/bin/python eval/publish_campaign.py results/2026-11-16_harm-p2-hg4/hg4_mvp_xdp_recal2
 results/2026-11-16_harm-p2-hg4/hg4_mvp_xdp_recal results/2026-11-16_harm-p2-hg4/hg4_mvp_xdp_recal.smoke --name <scratch>` (it
 writes `results/<scratch>/`).
