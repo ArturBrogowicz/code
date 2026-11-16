@@ -1,0 +1,733 @@
+{
+ "attempts": [
+  {
+   "arm_reasons": [],
+   "attempt": 1,
+   "block": 1,
+   "dL": 4.202622202494673,
+   "dQ": 99.33020763563296,
+   "dQ_placebo": 0.0,
+   "order": [
+    "Cp",
+    "M_xdp",
+    "U",
+    "C"
+   ],
+   "reasons": [],
+   "seed": 1,
+   "valid": true,
+   "valid_all": true,
+   "waits": {
+    "runs": {
+     "C": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 498.0,
+      "waited_s": 2.2
+     },
+     "Cp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 0.0,
+      "waited_s": 2.2
+     },
+     "M_xdp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 166.9,
+      "waited_s": 2.2
+     },
+     "U": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 332.9,
+      "waited_s": 2.2
+     }
+    },
+    "t0_span_s": 498.0
+   }
+  },
+  {
+   "arm_reasons": [],
+   "attempt": 1,
+   "block": 2,
+   "dL": 3.984094763598141,
+   "dQ": 99.26948051948052,
+   "dQ_placebo": 0.0,
+   "order": [
+    "C",
+    "M_xdp",
+    "Cp",
+    "U"
+   ],
+   "reasons": [],
+   "seed": 2,
+   "valid": true,
+   "valid_all": true,
+   "waits": {
+    "runs": {
+     "C": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 0.0,
+      "waited_s": 2.2
+     },
+     "Cp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 330.0,
+      "waited_s": 2.2
+     },
+     "M_xdp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 166.8,
+      "waited_s": 2.2
+     },
+     "U": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 495.2,
+      "waited_s": 2.2
+     }
+    },
+    "t0_span_s": 495.2
+   }
+  },
+  {
+   "arm_reasons": [
+    "run M_xdp is missing"
+   ],
+   "attempt": 1,
+   "block": 3,
+   "dL": 4.782407268509539,
+   "dQ": 99.6548748921484,
+   "dQ_placebo": 0.0,
+   "order": [
+    "Cp",
+    "C",
+    "U"
+   ],
+   "reasons": [
+    "U: executor: the attack began -0.52 s from the end of the baseline (limit 0.5 s)"
+   ],
+   "seed": 3,
+   "valid": false,
+   "valid_all": false,
+   "waits": {
+    "runs": {
+     "C": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 165.2,
+      "waited_s": 2.2
+     },
+     "Cp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 0.0,
+      "waited_s": 2.2
+     },
+     "U": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 330.3,
+      "waited_s": 2.2
+     }
+    },
+    "t0_span_s": 330.3
+   }
+  },
+  {
+   "arm_reasons": [],
+   "attempt": 2,
+   "block": 3,
+   "dL": 4.949646428066148,
+   "dQ": 99.91364421416235,
+   "dQ_placebo": 0.0,
+   "order": [
+    "Cp",
+    "M_xdp",
+    "U",
+    "C"
+   ],
+   "reasons": [],
+   "seed": 3,
+   "valid": true,
+   "valid_all": true,
+   "waits": {
+    "runs": {
+     "C": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 495.9,
+      "waited_s": 2.2
+     },
+     "Cp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 0.0,
+      "waited_s": 2.2
+     },
+     "M_xdp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 168.9,
+      "waited_s": 2.2
+     },
+     "U": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 332.2,
+      "waited_s": 2.2
+     }
+    },
+    "t0_span_s": 495.9
+   }
+  },
+  {
+   "arm_reasons": [],
+   "attempt": 1,
+   "block": 4,
+   "dL": 3.385155702871164,
+   "dQ": 99.48364888123925,
+   "dQ_placebo": 0.0,
+   "order": [
+    "Cp",
+    "U",
+    "M_xdp",
+    "C"
+   ],
+   "reasons": [],
+   "seed": 4,
+   "valid": true,
+   "valid_all": true,
+   "waits": {
+    "runs": {
+     "C": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 495.8,
+      "waited_s": 2.2
+     },
+     "Cp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 0.0,
+      "waited_s": 2.2
+     },
+     "M_xdp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 332.7,
+      "waited_s": 2.2
+     },
+     "U": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 162.4,
+      "waited_s": 2.2
+     }
+    },
+    "t0_span_s": 495.8
+   }
+  },
+  {
+   "arm_reasons": [
+    "M_xdp: executor: the attack began -0.52 s from the end of the baseline (limit 0.5 s)"
+   ],
+   "attempt": 1,
+   "block": 5,
+   "dL": null,
+   "dQ": null,
+   "dQ_placebo": null,
+   "order": [
+    "M_xdp"
+   ],
+   "reasons": [
+    "run C is missing",
+    "run Cp is missing",
+    "run U is missing"
+   ],
+   "seed": 5,
+   "valid": false,
+   "valid_all": false,
+   "waits": {
+    "runs": {
+     "M_xdp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 0.0,
+      "waited_s": 2.2
+     }
+    },
+    "t0_span_s": 0.0
+   }
+  },
+  {
+   "arm_reasons": [
+    "M_xdp: executor: the attack began -0.51 s from the end of the baseline (limit 0.5 s)"
+   ],
+   "attempt": 2,
+   "block": 5,
+   "dL": null,
+   "dQ": null,
+   "dQ_placebo": null,
+   "order": [
+    "U",
+    "M_xdp"
+   ],
+   "reasons": [
+    "run C is missing",
+    "run Cp is missing"
+   ],
+   "seed": 5,
+   "valid": false,
+   "valid_all": false,
+   "waits": {
+    "runs": {
+     "M_xdp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 168.3,
+      "waited_s": 2.2
+     },
+     "U": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 0.0,
+      "waited_s": 2.2
+     }
+    },
+    "t0_span_s": 168.3
+   }
+  }
+ ],
+ "created_utc": "2026-11-16T14:44:18+00:00",
+ "fingerprint": {
+  "blocks": 10,
+  "calibration_sha256": "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c",
+  "calibration_status": "frozen",
+  "confirmation": null,
+  "first_seed": 1,
+  "gate": {
+   "ci_level": 0.95,
+   "control_q_min": 99.0,
+   "floor_log2_p95": 1.0,
+   "floor_pp": 10.0,
+   "max_reruns": 2,
+   "min_blocks": 10,
+   "same_sign_share": 0.8
+  },
+  "host_check": true,
+  "modes": [
+   "xdp"
+  ],
+  "pins": {
+   "attack": "3-5",
+   "daemon": "2",
+   "executor": "6",
+   "legit": "7",
+   "server": "0-1"
+  },
+  "rho_rps": null,
+  "scenario": "cheap_static_flood_hg4",
+  "scenario_sha256": "aa43c8444ea6097681cb8da1d3174c070ccaf74b141cb989e636dd2a602e644c",
+  "seed_namespace": "calib",
+  "settings": {
+   "attack_start_limit_s": 0.5,
+   "exit_delay_per_request_s": 8e-06,
+   "group_start_limit_s": 0.5,
+   "min_nofile": 16384,
+   "readiness_timeout_s": 30.0,
+   "startup_delay_attack_s": 0.15,
+   "startup_delay_legit_s": 2.9,
+   "straggler_share": 0.5,
+   "straggler_tail_s": 0.1,
+   "t0_range_limit_s": 2.5,
+   "t0_spread_limit_s": 0.5,
+   "term_grace_s": 2.0,
+   "warmup_requests": 2
+  },
+  "simulate": null,
+  "timeline": {
+   "attack_s": 45.0,
+   "baseline_s": 30.0,
+   "recovery_s": 30.0
+  },
+  "timer_limit_ms": null,
+  "warmup": true
+ },
+ "gate": {
+  "blocks_total": 5,
+  "blocks_valid": 4,
+  "dry_run": false,
+  "overrides": {},
+  "protected": [
+   {
+    "mode": "xdp",
+    "reasons": [
+     "4 blocks valid for the gate, fewer than the 10 the outcome needs",
+     "4 blocks with a valid M_xdp run, fewer than the 10 the outcome needs"
+    ],
+    "verdict": "INVALID"
+   }
+  ],
+  "reasons": [
+   "4 valid blocks, fewer than the 10 the gate needs"
+  ],
+  "reruns": 2,
+  "verdict": "INVALID"
+ },
+ "git": {
+  "branch": "HEAD",
+  "commit": "688594a74093464ea69cd3ddb03da8afd528265c",
+  "dirty": false,
+  "dirty_files": []
+ },
+ "reruns": 2,
+ "simulated": null,
+ "state": "stopped",
+ "stopped": "4 valid blocks and 5 to go cannot reach the 10 the gate needs; --keep-going continues anyway",
+ "warmup": {
+  "host": {
+   "ok": true,
+   "other_cpu": [
+    {
+     "pct": 1.3,
+     "t": 1794840308.0,
+     "top": [
+      [
+       0.8,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ],
+      [
+       0.4,
+       "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+      ],
+      [
+       0.1,
+       "chrt --fifo 1 stdbuf -oL mpstat -P ALL 5"
+      ]
+     ]
+    },
+    {
+     "pct": 0.9,
+     "t": 1794840318.0,
+     "top": [
+      [
+       0.8,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ],
+      [
+       0.1,
+       "/usr/lib/systemd/systemd-networkd"
+      ]
+     ]
+    },
+    {
+     "pct": 2.7,
+     "t": 1794840328.0,
+     "top": [
+      [
+       0.6,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ],
+      [
+       0.4,
+       "/usr/lib/systemd/systemd-udevd"
+      ],
+      [
+       0.3,
+       "/usr/lib/systemd/systemd --user"
+      ]
+     ]
+    },
+    {
+     "pct": 0.8,
+     "t": 1794840338.0,
+     "top": [
+      [
+       0.8,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ]
+     ]
+    },
+    {
+     "pct": 0.6,
+     "t": 1794840348.0,
+     "top": [
+      [
+       0.5,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ],
+      [
+       0.1,
+       "sshd-session: artur@notty"
+      ]
+     ]
+    },
+    {
+     "pct": 0.7,
+     "t": 1794840358.0,
+     "top": [
+      [
+       0.7,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ]
+     ]
+    },
+    {
+     "pct": 1.1,
+     "t": 1794840368.0,
+     "top": [
+      [
+       1.0,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ],
+      [
+       0.1,
+       "/usr/sbin/multipathd -d -s"
+      ]
+     ]
+    },
+    {
+     "pct": 0.9,
+     "t": 1794840378.0,
+     "top": [
+      [
+       0.9,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ]
+     ]
+    },
+    {
+     "pct": 0.8999999999999999,
+     "t": 1794840388.0,
+     "top": [
+      [
+       0.7,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ],
+      [
+       0.1,
+       "/usr/sbin/chronyd -n -F 1"
+      ],
+      [
+       0.1,
+       "/usr/lib/polkit-1/polkitd --no-debug --log-level=notice"
+      ]
+     ]
+    },
+    {
+     "pct": 0.8,
+     "t": 1794840398.0,
+     "top": [
+      [
+       0.8,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ]
+     ]
+    },
+    {
+     "pct": 0.8,
+     "t": 1794840408.0,
+     "top": [
+      [
+       0.8,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ]
+     ]
+    },
+    {
+     "pct": 0.7,
+     "t": 1794840418.0,
+     "top": [
+      [
+       0.7,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ]
+     ]
+    },
+    {
+     "pct": 1.0,
+     "t": 1794840428.0,
+     "top": [
+      [
+       0.8,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ],
+      [
+       0.2,
+       "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+      ]
+     ]
+    },
+    {
+     "pct": 1.2000000000000002,
+     "t": 1794840438.0,
+     "top": [
+      [
+       0.8,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ],
+      [
+       0.2,
+       "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+      ],
+      [
+       0.1,
+       "/snap/snapd/current/usr/lib/snapd/snapd"
+      ]
+     ]
+    },
+    {
+     "pct": 2.3000000000000003,
+     "t": 1794840448.0,
+     "top": [
+      [
+       0.8,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ],
+      [
+       0.3,
+       "/usr/lib/systemd/systemd-udevd"
+      ],
+      [
+       0.3,
+       "/usr/lib/systemd/systemd --switched-root --system --deserial"
+      ]
+     ]
+    },
+    {
+     "pct": 1.1,
+     "t": 1794840458.0,
+     "top": [
+      [
+       0.9,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ],
+      [
+       0.1,
+       "sshd-session: artur@pts/0"
+      ],
+      [
+       0.1,
+       "sshd-session: artur@notty"
+      ]
+     ]
+    }
+   ],
+   "reasons": [],
+   "rules": {
+    "H1": {
+     "ok": true,
+     "reasons": []
+    },
+    "H3": {
+     "ok": true,
+     "reasons": []
+    },
+    "H4": {
+     "ok": true,
+     "reasons": []
+    },
+    "H5": {
+     "ok": true,
+     "reasons": []
+    },
+    "H6": {
+     "ok": true,
+     "reasons": []
+    },
+    "H7": {
+     "ok": true,
+     "reasons": []
+    }
+   },
+   "slip_p99_s": 0.01258099999999928,
+   "window": {
+    "end": "2026-11-16T14:47:39+00:00",
+    "start": "2026-11-16T14:45:03+00:00"
+   }
+  },
+  "ok": true,
+  "reasons": [],
+  "seconds": 182.1,
+  "setup_retries": 0,
+  "speed": {
+   "after": {
+    "cpus": {
+     "0": {
+      "C0": 0.005529976562499914,
+      "C1": 5.381127999999791,
+      "C2": 2.8337920000005568,
+      "C3": 42.29269999999996,
+      "C5": 247.5718750000002
+     },
+     "1": {
+      "C0": 0.005502464843751276,
+      "C1": 5.19696400000047,
+      "C2": 2.6688730000001826,
+      "C3": 42.657333000000186,
+      "C5": 234.15660299999973
+     }
+    },
+    "errors": {},
+    "t_end": 1794840459.2968924,
+    "t_start": 1794840440.75342,
+    "utc_end": "2026-11-16T14:47:39+00:00",
+    "utc_start": "2026-11-16T14:47:20+00:00"
+   },
+   "before": {
+    "cpus": {
+     "0": {
+      "C0": 0.005521406250000305,
+      "C1": 5.064164000000204,
+      "C2": 2.6343789999998535,
+      "C3": 42.4297460000016,
+      "C5": 231.05023899999998
+     },
+     "1": {
+      "C0": 0.005518820312501449,
+      "C1": 5.081737000000253,
+      "C2": 2.652161999999514,
+      "C3": 42.678604000000675,
+      "C5": 231.33131699999953
+     }
+    },
+    "errors": {},
+    "t_end": 1794840321.1943367,
+    "t_start": 1794840303.1978343,
+    "utc_end": "2026-11-16T14:45:21+00:00",
+    "utc_start": "2026-11-16T14:45:03+00:00"
+   },
+   "d_after": 0.016422084257962544,
+   "d_before": -0.003502786787435319,
+   "in_run": {
+    "frozen_cost_s": 41.110114868086626,
+    "index": 1.094066512446438,
+    "origin_cpu_s": 44.97719999999999
+   },
+   "limit": 0.1,
+   "ok": true,
+   "reasons": [],
+   "reference": "the frozen record 7005a2ed",
+   "reference_costs_ms": {
+    "C0": 0.005546960937498346,
+    "C1": 5.112814999999937,
+    "C2": 2.6510200000000594,
+    "C3": 42.71167500000139,
+    "C5": 231.9604360000005
+   },
+   "window": {
+    "end": "2026-11-16T14:47:39+00:00",
+    "start": "2026-11-16T14:45:03+00:00",
+    "t_end": 1794840459.2968924,
+    "t_start": 1794840303.1978343
+   }
+  },
+  "timer_refused_probes": 0,
+  "timer_waited_s": 2.2
+ }
+}

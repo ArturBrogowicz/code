@@ -1,0 +1,41 @@
+[*] Compiling and loading eBPF code from file: xdp_ddos_filter.c...
+[+] Successfully attached XDP program to interface veth_server.
+[*] Loading data scaler (training_results/scaler_testbed.save)...
+/home/artur/agent_workspace/worktrees/run-recal/venv/lib/python3.14/site-packages/sklearn/base.py:463: InconsistentVersionWarning: Trying to unpickle estimator StandardScaler from version 1.9.0 when using version 1.8.0. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:
+https://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations
+  warnings.warn(
+[*] Loading trained GRU model (training_results/gru_testbed_model.pth, input_size=8)...
+[*] Starting tri-engine Anti-DDoS integration (XDP Telemetry + GRU ML + L7 Heuristics)...
+[*] Starting L3/L4 telemetry monitor (Interval: 1.0s)
+[+] Inference worker thread started.
+[*] Listening for Nginx error logs (RUDY detection): /var/log/nginx/error.log
+[+] RUDY detection thread started.
+[*] Listening for Nginx logs (heuristic engine): /var/log/nginx/ddos_ml_access.log
+
+[HEURISTIC] L7 anomaly detected - IP: 10.0.2.186 | RPS: 51.0 | Error ratio: 0%
+[XDP] BLOCKED IP: 10.0.2.186. Rule is active on hardware.
+[BAN] 10.0.2.186 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+[OS] Killed hanging TCP sessions for address 10.0.2.186.
+
+[HEURISTIC] L7 anomaly detected - IP: 10.0.2.56 | RPS: 51.0 | Error ratio: 0%
+[XDP] BLOCKED IP: 10.0.2.56. Rule is active on hardware.
+[BAN] 10.0.2.56 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+[OS] Killed hanging TCP sessions for address 10.0.2.56.
+
+[HEURISTIC] L7 anomaly detected - IP: 10.0.2.76 | RPS: 51.0 | Error ratio: 0%
+[XDP] BLOCKED IP: 10.0.2.76. Rule is active on hardware.
+[BAN] 10.0.2.76 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+[OS] Killed hanging TCP sessions for address 10.0.2.76.
+
+[HEURISTIC] L7 anomaly detected - IP: 10.0.2.176 | RPS: 51.0 | Error ratio: 0%
+[XDP] BLOCKED IP: 10.0.2.176. Rule is active on hardware.
+[BAN] 10.0.2.176 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+[OS] Killed hanging TCP sessions for address 10.0.2.176.
+
+[HEURISTIC] L7 anomaly detected - IP: 10.0.2.138 | RPS: 51.0 | Error ratio: 0%
+[XDP] BLOCKED IP: 10.0.2.138. Rule is active on hardware.
+[BAN] 10.0.2.138 banned for 300s. Reason: Heuristic (RPS=51.0, errors=0%)
+[OS] Killed hanging TCP sessions for address 10.0.2.138.
+
+[*] Execution interrupted by user. Cleaning up environment...
+[+] XDP program detached from veth_server. Finished.

@@ -1,0 +1,11 @@
+{
+ "finished_utc": "2026-11-16T15:17:44+00:00",
+ "ok": false,
+ "reasons": [
+  "the attack began -0.52 s from the end of the baseline (limit 0.5 s)"
+ ],
+ "seconds": 145.8,
+ "setup_retries": 0,
+ "timer_refused_probes": 0,
+ "timer_waited_s": 2.2
+}

@@ -1,0 +1,64 @@
+packet P2-1 stage, pid 220600, 2026-11-16T14:17:38Z; sudo kill -TERM 220600 stops it
+2026-11-16T14:17:38Z running: ./venv/bin/python -B bench/hostcheck.py speed-hold --calibration bench/calibration/ddos-mitigation-2026-11-16.json --reference bench/calibration/ddos-mitigation-2026-11-16.json --lo -0.10 --hi 0.10 --max-min 30
+the step's process: 220618 (the packet stops with sudo kill -TERM 220600, the stage)
+speed hold: probe pair 1: -0.3%
+speed hold: probe pair 2: +1.5%
+speed hold: held after 2 probe pairs, 337 s (band -10% to +10%)
+2026-11-16T14:23:15Z exit 0
+2026-11-16T14:23:15Z running: ./venv/bin/python -B bench/executor.py run bench/scenarios/cheap_static_flood_hg4.json --calibration bench/calibration/ddos-mitigation-2026-11-16.json --kind M_xdp --seed 1 --out /var/tmp/ddos_campaigns/hg4_mvp_xdp_recal.smoke/M_xdp
+the step's process: 220758 (the packet stops with sudo kill -TERM 220600, the stage)
+    0.116 gate: uptime 11020 s, load 0.30; waiting up to 30 min for uptime 1800 s and load below 0.3
+   22.296 timer probe 1 on CPU 7 at 2026-11-16T14:23:35+00:00: p50 0.064405, p99 0.555942, max 0.727674 ms: passed
+   24.702 run M_xdp of cheap_static_flood_hg4, seed 1: preflight and environment passed
+   34.670 topology: 4 namespaces, 205 addresses, verified in 10.0 s
+   34.693 started the origin as pid 220963
+   34.745 started Nginx (its launcher returned after 0.05 s)
+   39.675 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   43.746 started the daemon as pid 221000: ready after 4.1 s, XDP program 86 on veth_server
+   43.849 launched 29 legit streams
+   76.526 launched 3 attack streams
+  153.774 timeline over after 110.0 s
+  154.900 stopped the daemon (pid 221000) in 1.12 s: exit 0; XDP off veth_server: done
+  155.214 stopped 1 process(es) of this run in 0.30 s
+  155.271 wall time of 3 stream(s) raised to what their records need, by up to 0.09 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  155.352 nginx access log: 4998 lines (0 unparsed), server_requests.csv written, log compressed
+  155.365 run.json written; the run is sound
+  155.388 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  155.406 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  155.496 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.03 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  155.525 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.2 s in all)
+run M_xdp of cheap_static_flood_hg4: sound (155 s, 0 setup retries) in /var/tmp/ddos_campaigns/hg4_mvp_xdp_recal.smoke/M_xdp
+figures over 30-75 s, the judged links (perfect, broadband): Q 96.04 % of 1491 requests, p95 117 ms, slip p99 13 ms
+  perfect     judged        761 requests, Q 95.5 %
+  broadband   judged        730 requests, Q 96.6 %
+  mobile_3g   not judged    349 requests, Q 36.7 %
+  mobile_bad  not judged    119 requests, Q 11.8 %
+2026-11-16T14:25:52Z exit 0
+2026-11-16T14:25:52Z running: ./venv/bin/python -B bench/executor.py run bench/scenarios/cheap_static_flood_hg4.json --calibration bench/calibration/ddos-mitigation-2026-11-16.json --kind M_limits --seed 1 --out /var/tmp/ddos_campaigns/hg4_mvp_xdp_recal.smoke/M_limits
+the step's process: 221346 (the packet stops with sudo kill -TERM 220600, the stage)
+    0.098 gate: uptime 11177 s, load 1.08; waiting up to 30 min for uptime 1800 s and load below 0.3
+   82.287 timer probe 1 on CPU 7 at 2026-11-16T14:27:12+00:00: p50 0.065206, p99 0.546708, max 2.58856 ms: passed
+   82.428 run M_limits of cheap_static_flood_hg4, seed 1: preflight and environment passed
+   87.712 topology: 4 namespaces, 205 addresses, verified in 5.3 s
+   87.730 started the origin as pid 221563
+   87.784 started Nginx (its launcher returned after 0.05 s)
+   92.633 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   92.744 launched 29 legit streams
+  125.412 launched 3 attack streams
+  202.598 timeline over after 109.9 s
+  202.913 stopped 1 process(es) of this run in 0.30 s
+  202.970 wall time of 3 stream(s) raised to what their records need, by up to 0.08 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  203.380 nginx access log: 31220 lines (0 unparsed), server_requests.csv written, log compressed
+  203.385 run.json written; the run is sound
+  203.408 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  203.431 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.01 s, server_ns 0.00 s
+  203.500 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  203.520 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+run M_limits of cheap_static_flood_hg4: sound (203 s, 0 setup retries) in /var/tmp/ddos_campaigns/hg4_mvp_xdp_recal.smoke/M_limits
+figures over 30-75 s, the judged links (perfect, broadband): Q 89.81 % of 1492 requests, p95 186 ms, slip p99 13 ms
+  perfect     judged        761 requests, Q 89.6 %
+  broadband   judged        731 requests, Q 90.0 %
+  mobile_3g   not judged    348 requests, Q 35.9 %
+  mobile_bad  not judged    120 requests, Q 10.0 %
+2026-11-16T14:29:17Z exit 0
+PACKET P2-1 done (exit 0): runs made 0, host-invalid 0; 11 min; tar /var/tmp/ddos_campaigns/hg4_mvp_xdp_recal.smoke/packets/P2-1_20261116T141738Z.tar.gz, sha256 934bed2fd05aca17

@@ -1,0 +1,216 @@
+{
+ "calibration_sha256": "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c",
+ "check": {
+  "confirmed": {
+   "cheap_static_flood": true,
+   "costly_export_flood": true,
+   "costly_search_flood": true
+  },
+  "families": {
+   "cheap_static_flood": {
+    "dlog2_p95": -0.07589089866832896,
+    "dq_pp": -0.30066684672418464,
+    "level": 4.0,
+    "mean_log2_p95": -0.27370863311987764,
+    "mean_q_pct": 4.358939191453229,
+    "n": 3,
+    "ok": true,
+    "reasons": [],
+    "ref_mean_log2_p95": -0.19781773445154868,
+    "ref_mean_q_pct": 4.659606038177413,
+    "tol_log2": 0.5,
+    "tol_q_pp": 5.0,
+    "wide_spread": false
+   },
+   "costly_export_flood": {
+    "dlog2_p95": -0.42696372115936787,
+    "dq_pp": 2.4836247436373426,
+    "level": 4.0,
+    "mean_log2_p95": -1.1999285200725291,
+    "mean_q_pct": 47.96559936182973,
+    "n": 3,
+    "ok": true,
+    "reasons": [],
+    "ref_mean_log2_p95": -0.7729647989131613,
+    "ref_mean_q_pct": 45.48197461819239,
+    "tol_log2": 0.6086236498818961,
+    "tol_q_pp": 10.0,
+    "wide_spread": true
+   },
+   "costly_search_flood": {
+    "dlog2_p95": 0.06520811092245182,
+    "dq_pp": -1.668659292680573,
+    "level": 2.0,
+    "mean_log2_p95": -2.2773115929751513,
+    "mean_q_pct": 96.44946292478069,
+    "n": 3,
+    "ok": true,
+    "reasons": [],
+    "ref_mean_log2_p95": -2.342519703897603,
+    "ref_mean_q_pct": 98.11812221746126,
+    "tol_log2": 0.5,
+    "tol_q_pp": 5.0,
+    "wide_spread": false
+   }
+  },
+  "legit": {
+   "dq_pp": 0.0065789473684105815,
+   "mean_log2_p95": -3.6062961117080157,
+   "mean_q_pct": 100.0,
+   "n": 3,
+   "ok": true,
+   "p95_ratio": 1.0192488206110637,
+   "p95_ratio_band": [
+    0.75,
+    1.25
+   ],
+   "reasons": [],
+   "ref_mean_log2_p95": -3.6338023991701847,
+   "ref_mean_q_pct": 99.99342105263159,
+   "tol_q_pp": 2.0
+  },
+  "rule": {
+   "c": 3.0,
+   "floor_log2_p95": 1.0,
+   "floor_pp": 10.0,
+   "k": 2.1908902300206643,
+   "legit_p95": 0.25,
+   "legit_q_pp": 2.0,
+   "m": 3,
+   "n": 5,
+   "wide_sd_q_pp": 5.0
+  }
+ },
+ "confirmed": {
+  "cheap_static_flood": true,
+  "costly_export_flood": true,
+  "costly_search_flood": true
+ },
+ "created_utc": "2026-11-16T12:33:08+00:00",
+ "families": [
+  "cheap_static_flood",
+  "costly_export_flood",
+  "costly_search_flood"
+ ],
+ "ok": true,
+ "reasons": [],
+ "rounds": [
+  {
+   "attacks": {
+    "cheap_static_flood": {
+     "Q": 6.038426349496798,
+     "level": 4.0,
+     "p95_s": 0.7900134999999961,
+     "requests": 1093,
+     "run": "drift/r1/attack_cheap_static_flood/U",
+     "seed": 42
+    },
+    "costly_export_flood": {
+     "Q": 45.46147978642258,
+     "level": 4.0,
+     "p95_s": 0.6354424999999981,
+     "requests": 1311,
+     "run": "drift/r1/attack_costly_export_flood/U",
+     "seed": 43
+    },
+    "costly_search_flood": {
+     "Q": 95.44452608376194,
+     "level": 2.0,
+     "p95_s": 0.21436649999999755,
+     "requests": 1361,
+     "run": "drift/r1/attack_costly_search_flood/U",
+     "seed": 44
+    }
+   },
+   "legit": {
+    "Q": 100.0,
+    "p95_s": 0.07899250000000103,
+    "requests": 3039,
+    "run": "drift/r1/legit/C",
+    "seed": 41
+   },
+   "round": 1
+  },
+  {
+   "attacks": {
+    "cheap_static_flood": {
+     "Q": 2.83363802559415,
+     "level": 4.0,
+     "p95_s": 0.8920169999999992,
+     "requests": 1094,
+     "run": "drift/r2/attack_cheap_static_flood/U",
+     "seed": 42
+    },
+    "costly_export_flood": {
+     "Q": 49.73302822273074,
+     "level": 4.0,
+     "p95_s": 0.3016774000000002,
+     "requests": 1311,
+     "run": "drift/r2/attack_costly_export_flood/U",
+     "seed": 43
+    },
+    "costly_search_flood": {
+     "Q": 96.84287812041116,
+     "level": 2.0,
+     "p95_s": 0.2088883999999963,
+     "requests": 1362,
+     "run": "drift/r2/attack_costly_search_flood/U",
+     "seed": 44
+    }
+   },
+   "legit": {
+    "Q": 100.0,
+    "p95_s": 0.08238544999999986,
+    "requests": 3040,
+    "run": "drift/r2/legit/C",
+    "seed": 41
+   },
+   "round": 2
+  },
+  {
+   "attacks": {
+    "cheap_static_flood": {
+     "Q": 4.204753199268739,
+     "level": 4.0,
+     "p95_s": 0.8031724999999978,
+     "requests": 1094,
+     "run": "drift/r3/attack_cheap_static_flood/U",
+     "seed": 42
+    },
+    "costly_export_flood": {
+     "Q": 48.70229007633588,
+     "level": 4.0,
+     "p95_s": 0.43026649999999744,
+     "requests": 1310,
+     "run": "drift/r3/attack_costly_export_flood/U",
+     "seed": 43
+    },
+    "costly_search_flood": {
+     "Q": 97.060984570169,
+     "level": 2.0,
+     "p95_s": 0.19602499999999878,
+     "requests": 1361,
+     "run": "drift/r3/attack_costly_search_flood/U",
+     "seed": 44
+    }
+   },
+   "legit": {
+    "Q": 100.0,
+    "p95_s": 0.08506554999999412,
+    "requests": 3040,
+    "run": "drift/r3/legit/C",
+    "seed": 41
+   },
+   "round": 3
+  }
+ ],
+ "schema": 2,
+ "smoke": false,
+ "step": "drift",
+ "waits": {
+  "refused_probes": 0,
+  "runs": 12,
+  "waited": {},
+  "waited_s": 26.3
+ }
+}

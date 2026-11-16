@@ -1,0 +1,169 @@
+{
+ "allow_dirty": false,
+ "calibration_sha256": "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c",
+ "checked_utc": "2026-11-16T14:50:29+00:00",
+ "facts": {
+  "cpu_model": "AMD Ryzen 7 7730U with Radeon Graphics",
+  "cpus": 8,
+  "gunicorn": "gunicorn (version 26.2.0)",
+  "mem_mib": 7422,
+  "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+  "python": "3.14.4",
+  "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 ",
+  "vbox_host_version": "7.2.10r174163"
+ },
+ "gate": {
+  "load1": 0.63,
+  "met": null,
+  "uptime_s": 12649.22,
+  "waited_s": 0.0
+ },
+ "gate_mode": "timer",
+ "git": {
+  "branch": "HEAD",
+  "commit": "688594a74093464ea69cd3ddb03da8afd528265c",
+  "dirty": false,
+  "dirty_files": []
+ },
+ "governor": null,
+ "jiffies": 10033746,
+ "load1_after_timer_gate": 0.63,
+ "nofile_soft": 524288,
+ "provenance": {
+  "daemon": {
+   "feed_before": {
+    "/var/log/nginx/ddos_ml_access.log": {
+     "bytes": 1084714,
+     "moved_to": "feed_before/ddos_ml_access.log"
+    },
+    "/var/log/nginx/error.log": {
+     "bytes": 160821,
+     "moved_to": "feed_before/error.log"
+    }
+   },
+   "files": {
+    "GRU_ML_model.py": "95d35a299cbc8f15f82a4aebf558aad42427a08f300e47c67aa31fe675c352ec",
+    "ban_events.py": "f3a1e3466ad784dd1f8a2fad8d2def1195dd2503cff9e81d820279c3d11c6aa5",
+    "control_plane.py": "4a8ba68c66b149309f07754292959d70fd19bba5e6fdc90aa146b42f70348df4",
+    "l7_engine.py": "e6cc1d6e842b6f139d301d5e7adad252e783b9030f85531a2be1eca98454478a",
+    "l7_ingest.py": "26aa6ec932529a5d0b367e7ed203fcf39e5187b63eb8db9f92b483a35debe080",
+    "training_results/feature_config_testbed.json": "f24709772bdfdd2a97916fd81965f5e064d552842eee5a61379d27dec7a1740c",
+    "xdp_ddos_filter.c": "1f9e86067ca3890d762e25912ae494389466c77494e0a10a4dcb0067a2650cfe"
+   },
+   "h01": {
+    "fix_commit": "8db9827a2a0f78e29c689f8520ccc9f5482fcc92",
+    "fix_is_ancestor": true,
+    "has_fix": true,
+    "tailers_replace_undecodable": 2
+   }
+  },
+  "engine_is_pinned": true,
+  "engine_pinned_sha256": "91aab0837ce688982c30cc2f8b9e867482f830d5ff49b9ec703888ac80ba92a1",
+  "files": {
+   "executor.py": "0b5248e138e35048af509c83e314303874e2c82239e2815029c9d80d4c646457",
+   "loadgen.py": "91aab0837ce688982c30cc2f8b9e867482f830d5ff49b9ec703888ac80ba92a1",
+   "loadtools.json": "cf3a3ee072d5b817f2ece019d6ef1955cae78e0b69959bd70b76e7e9e9f9036d",
+   "origin.py": "4cb5e276c04e8a4c003729170112c8b21000aa5bc89901681f7c07cc268ff2b2",
+   "population.py": "fdacad6da17761c1e615607478ab900828278ec5ee151ca16b9d8ea17c660806",
+   "scenario.py": "a5edbfc73a41eba9031d19522cf6b4c7d2b2a26350087a75a935bcd3fd4bf889"
+  },
+  "nginx_rendered_sha256": "d8971a07691df6511131ea314c4909ac4f51ad748a5d31109aa1e29989f8dc99",
+  "nginx_source": "nginx.conf",
+  "nginx_source_sha256": "2eca9903be80d874b281a78dc0573223d31103e51d4d1c263064410d06375e7f"
+ },
+ "scenario_sha256": "aa43c8444ea6097681cb8da1d3174c070ccaf74b141cb989e636dd2a602e644c",
+ "speed_before": {
+  "cpus": {
+   "0": {
+    "C0": 0.005490648437501966,
+    "C1": 5.136430000000303,
+    "C2": 2.6628930000001105,
+    "C3": 42.41282500000043,
+    "C5": 232.0997880000002
+   },
+   "1": {
+    "C0": 0.0055566679687500675,
+    "C1": 5.1327130000000665,
+    "C2": 2.657521999999801,
+    "C3": 42.865904999999316,
+    "C5": 230.89758299999997
+   }
+  },
+  "errors": {},
+  "t_end": 1794840647.7758126,
+  "t_start": 1794840629.71132,
+  "utc_end": "2026-11-16T14:50:47+00:00",
+  "utc_start": "2026-11-16T14:50:29+00:00"
+ },
+ "stack": {
+  "daemon": {
+   "cpus_allowed": [
+    "2"
+   ],
+   "nofile_soft_hard": [
+    [
+     524288,
+     524288
+    ]
+   ],
+   "processes": 1
+  },
+  "nginx": {
+   "cpus_allowed": [
+    "0-1"
+   ],
+   "nofile_soft_hard": [
+    [
+     65535,
+     65535
+    ],
+    [
+     524288,
+     524288
+    ]
+   ],
+   "processes": 9
+  },
+  "origin": {
+   "cpus_allowed": [
+    "0-1"
+   ],
+   "nofile_soft_hard": [
+    [
+     524288,
+     524288
+    ]
+   ],
+   "processes": 3
+  }
+ },
+ "steal_jiffies": 0,
+ "timer_executor": {
+  "interval_s": 0.01,
+  "max_ms": 1.952553999435622,
+  "p50_ms": 0.5212099997515904,
+  "p99_ms": 1.515935958814225,
+  "samples": 200
+ },
+ "timer_executor_cpus": "6",
+ "timer_legit": {
+  "interval_s": 0.01,
+  "max_ms": 0.5541310003900433,
+  "p50_ms": 0.03729450076207265,
+  "p99_ms": 0.5456513809440364,
+  "samples": 200
+ },
+ "timer_limit_is_override": false,
+ "timer_limit_ms": 10.0,
+ "timer_probes": [
+  {
+   "max_ms": 0.5541310003900433,
+   "p50_ms": 0.03729450076207265,
+   "p99_ms": 0.5456513809440364,
+   "passed": true,
+   "utc": "2026-11-16T14:50:25+00:00"
+  }
+ ],
+ "timer_refused_probes": 0,
+ "timer_waited_s": 2.2
+}
