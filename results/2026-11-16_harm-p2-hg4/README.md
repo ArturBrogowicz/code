@@ -26,10 +26,13 @@ one, but the protected arm kept only 93.7-97.4 % of the control's Q, below the p
   1-10, each of four runs in a drawn order: `C` (the control, no attack), `Cp` (the placebo, a second attack-free run), `U` (the
   attack, unprotected) and `M_xdp` (the attack, protected). A run is 30 s baseline, 45 s attack, 30 s recovery. Q is the share of
   the legit requests on the judged links (perfect, broadband) intended in the 45 s of the attack that were answered 2xx within their
-  route class's SLO; p95 is the service time of those. At most 2 re-runs of a failed block; every run is host-checked (H1, H3-H7).
+  route class's SLO; p95 is the service time of those. A failed block is re-run once with its seed and a new order, at most 2
+  re-runs in the whole campaign (the record's `gate.max_reruns`); a valid block is never re-run. Every run is host-checked (H1,
+  H3-H7).
 * **The gate** (`eval/harm_gate.py`, criteria from the record's `gate` block): 10 valid blocks; dQ = Q(C) - Q(U) and dL = log2 of
   p95(U)/p95(C), each passes when its mean over the blocks is at least its floor (10 pp; 1.0), the lower end of its 95 % interval
-  is above 0 and at least 80 % of the blocks have its sign; PASS, FAIL or INVALID. The placebo (Cp against C) must not pass.
+  is above 0 and at least 80 % of the blocks have its sign; the gate PASSes when either dQ or dL passes (here both did), FAILs
+  otherwise, and is INVALID with fewer than 10 valid blocks or a broken re-run rule. The placebo (Cp against C) must not pass.
 * **The P2 outcome** (`harm_gate.P2_OUTCOME`, fixed on 2026-10-30 in `029a202` before any protected run, the same at `688594a` and
   `18386ed`; quoted in `preregistration/decisions.md`): "the unprotected server fails" when, in at least 9 of 10 blocks, dQ >= 10 pp
   or p95(U) >= 2 x p95(C); "the protected server works" when Q(M) >= 0.99 x Q(C) in at least 9 of 10 blocks **and** no legit
@@ -44,7 +47,9 @@ one, but the protected arm kept only 93.7-97.4 % of the control's Q, below the p
   max(elapsed, 1 s) exceed 50, elapsed being the time since the oldest of them: within its first second a source is banned at its
   51st request, which a source planned at 119.25 requests/s sends about 0.42 s after its first. In P2-2b 49 of the 50 first bans
   carry the value 51.0 (the other 50.779, the last of them), 36 of the 50 TTMs are under 1 s, and they run from 0.603 to 1.723 s
-  (median 0.868 s); the protected arm's loss lies almost wholly in seconds 0-2 of the attack (below).
+  (median 0.868 s); the protected arm's loss lies almost wholly in seconds 0-2 of the attack (below). The rule's other branch
+  (an error ratio above 0.8 at more than 10 requests/s) could ban earlier, but it fired for no first ban: every first ban in
+  P2-2b (50), P2-2 (30) and P2-1 (5) has an error ratio of 0.0.
 * **Rules carried from D-086** (D-113, D-116): no reading before `gate.json` exists (R-2); NO READING if the kernel, MemTotal, HEAD
   or a frozen hash changes, a run overlaps |System time| >= 0.1 s, there are more than 6 resumes or 72 h, or a legit ban falls in
   a run with a pause of 10 s or more (R-3); after INVALID at most one repeat, decided before any arm figure of the invalid campaign
@@ -83,6 +88,9 @@ dQ' -0.00 pp [-0.03, +0.03], dL' +0.01 [-0.03, +0.05]. The block table of `hg4_m
   50**, every ban by the L7 rate rule (`l7_rate`) into XDP. **TTM** (reported, not judged): median **0.868 s**, max **1.723 s**
   (n 50). Legit requests refused (503/429) in the window: 0.
 * HRR, the share of the harm the protected arm takes back (descriptive): 0.96 [0.95, 0.97] on Q, 0.92 [0.88, 0.96] on log2 p95.
+* The strict generator-validity profile (every stream's slip p99 under 50 ms) is computed and not judged (the record's profile is
+  `relative`): `gate.md` reports that 4 runs would fail it, the four of block 1, each on stream `L-poisson-C5-mobile_bad-3` with a
+  slip p99 of 54-55 ms (`gate.json`, `blocks[0].runs.*.validity.strict`).
 
 **R-3 (NO READING) does not apply.** Kernel 7.0.0-42, MemTotal 7,422 MiB, HEAD `18386ed` with a clean tree and the record
 `7005a2ed` are the same in all 41 runs; chrony's 226 tracking samples from 17:38:27Z to 19:40:00Z are all "Normal", with a largest
@@ -145,7 +153,9 @@ arranged from the reboot at 11:19:37Z through their packets that day (D-113, D-1
   of AP-16, AP-17 and AP-18 (each with the user's answer), and `P2_OUTCOME` at the pin.
 * `recomputation/recompute_p22b.py`: an independent recomputation of P2-2b in pure Python that imports nothing of the project.
   From each run's request records, `run.json`, `plan.json`, `block.json` and ban files it recomputes per block Q(C), Q(Cp), Q(U),
-  Q(M), dQ, dL, the two halves of the outcome, the legit bans and the TTM, and compares them with `gate.json`: **0 mismatches**.
+  Q(M), dQ, dL, the two halves of the outcome, the legit bans and the TTM. It compares dQ, dL, Q(C) and Q(M) of every block with
+  `gate.json` (**0 mismatches**) and prints the rest, which equals `gate.json` too (checked by the independent review T-131); it
+  does not compute the placebo's dQ'.
   `recompute_p22b.out` is its output when it was first run on the campaign directory on the VM; `recompute_p22b_published.out` is
   its output on this published copy, byte-identical to it.
 * `recomputation/rejudge_harm_gate/`: the project's own judge run again. `eval/harm_gate.py <P2-2b dir> --calibration
