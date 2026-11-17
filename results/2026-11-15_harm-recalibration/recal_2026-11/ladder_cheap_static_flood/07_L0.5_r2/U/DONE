@@ -1,0 +1,338 @@
+{
+ "finished_utc": "2026-11-15T19:28:12+00:00",
+ "host": {
+  "ok": true,
+  "other_cpu": [
+   {
+    "pct": 1.0,
+    "t": 1794770739.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "sshd-session: artur@notty"
+     ],
+     [
+      0.1,
+      "/usr/sbin/multipathd -d -s"
+     ]
+    ]
+   },
+   {
+    "pct": 0.9,
+    "t": 1794770749.0,
+    "top": [
+     [
+      0.9,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 4.4,
+    "t": 1794770759.0,
+    "top": [
+     [
+      0.7,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.5,
+      "/usr/lib/systemd/systemd-udevd"
+     ],
+     [
+      0.4,
+      "/usr/lib/systemd/systemd --user"
+     ]
+    ]
+   },
+   {
+    "pct": 0.8,
+    "t": 1794770769.0,
+    "top": [
+     [
+      0.6,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/snap/snapd/current/usr/lib/snapd/snapd"
+     ],
+     [
+      0.1,
+      "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+     ]
+    ]
+   },
+   {
+    "pct": 1.0,
+    "t": 1794770779.0,
+    "top": [
+     [
+      0.9,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "sshd-session: artur@notty"
+     ]
+    ]
+   },
+   {
+    "pct": 0.8,
+    "t": 1794770789.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 1.0,
+    "t": 1794770799.0,
+    "top": [
+     [
+      0.9,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+     ]
+    ]
+   },
+   {
+    "pct": 1.0,
+    "t": 1794770809.0,
+    "top": [
+     [
+      0.9,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/usr/lib/openssh/sftp-server"
+     ]
+    ]
+   },
+   {
+    "pct": 0.6,
+    "t": 1794770819.0,
+    "top": [
+     [
+      0.3,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/usr/lib/systemd/systemd --switched-root --system --deserial"
+     ],
+     [
+      0.1,
+      "/usr/lib/openssh/sftp-server"
+     ]
+    ]
+   },
+   {
+    "pct": 0.9,
+    "t": 1794770829.0,
+    "top": [
+     [
+      0.9,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.9,
+    "t": 1794770839.0,
+    "top": [
+     [
+      0.9,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 1.0,
+    "t": 1794770849.0,
+    "top": [
+     [
+      0.9,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+     ]
+    ]
+   },
+   {
+    "pct": 0.8,
+    "t": 1794770859.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.4,
+    "t": 1794770869.0,
+    "top": [
+     [
+      0.3,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "sshd-session: artur@notty"
+     ]
+    ]
+   },
+   {
+    "pct": 2.0,
+    "t": 1794770879.0,
+    "top": [
+     [
+      0.9,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.2,
+      "/usr/lib/systemd/systemd-udevd"
+     ],
+     [
+      0.1,
+      "@dbus-daemon --system --address=systemd: --nofork --nopidfil"
+     ]
+    ]
+   },
+   {
+    "pct": 0.9,
+    "t": 1794770889.0,
+    "top": [
+     [
+      0.9,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   }
+  ],
+  "reasons": [],
+  "rules": {
+   "H1": {
+    "ok": true,
+    "reasons": []
+   },
+   "H3": {
+    "ok": true,
+    "reasons": []
+   },
+   "H4": {
+    "ok": true,
+    "reasons": []
+   },
+   "H5": {
+    "ok": true,
+    "reasons": []
+   },
+   "H6": {
+    "ok": true,
+    "reasons": []
+   },
+   "H7": {
+    "ok": true,
+    "reasons": []
+   }
+  },
+  "slip_p99_s": 0.012866280000000757,
+  "window": {
+   "end": "2026-11-15T19:28:12+00:00",
+   "start": "2026-11-15T19:25:38+00:00"
+  }
+ },
+ "ok": true,
+ "reasons": [],
+ "seconds": 138.0,
+ "setup_retries": 0,
+ "speed": {
+  "after": {
+   "cpus": {
+    "0": {
+     "C0": 0.005561480468752739,
+     "C1": 5.155445000000203,
+     "C2": 2.686376999999851,
+     "C3": 42.785493999999424,
+     "C5": 235.2426999999997
+    },
+    "1": {
+     "C0": 0.005562378906247278,
+     "C1": 5.131300000000394,
+     "C2": 2.6839819999997516,
+     "C3": 42.79064300000002,
+     "C5": 233.71616799999995
+    }
+   },
+   "errors": {},
+   "t_end": 1794770892.3547432,
+   "t_start": 1794770874.2502213,
+   "utc_end": "2026-11-15T19:28:12+00:00",
+   "utc_start": "2026-11-15T19:27:54+00:00"
+  },
+  "before": {
+   "cpus": {
+    "0": {
+     "C0": 0.00561537109374996,
+     "C1": 5.109399000000181,
+     "C2": 2.6598960000008276,
+     "C3": 42.745118000000026,
+     "C5": 231.29701199999974
+    },
+    "1": {
+     "C0": 0.0055088828125014755,
+     "C1": 5.094401000000026,
+     "C2": 2.6558489999999324,
+     "C3": 43.59640300000001,
+     "C5": 231.6749109999998
+    }
+   },
+   "errors": {},
+   "t_end": 1794770756.4932458,
+   "t_start": 1794770738.4782236,
+   "utc_end": "2026-11-15T19:25:56+00:00",
+   "utc_start": "2026-11-15T19:25:38+00:00"
+  },
+  "d_after": 0.006324093922137175,
+  "d_before": 0.004351490243364148,
+  "in_run": {
+   "frozen_cost_s": 47.354132112008365,
+   "index": 1.1110606963622922,
+   "origin_cpu_s": 52.61331499999999
+  },
+  "limit": 0.1,
+  "ok": true,
+  "reasons": [],
+  "reference": "the session's origin step (origin/origin.json)",
+  "reference_costs_ms": {
+   "C0": 0.005546960937498346,
+   "C1": 5.112814999999937,
+   "C2": 2.6510200000000594,
+   "C3": 42.71167500000139,
+   "C5": 231.9604360000005
+  },
+  "window": {
+   "end": "2026-11-15T19:28:12+00:00",
+   "start": "2026-11-15T19:25:38+00:00",
+   "t_end": 1794770892.3547432,
+   "t_start": 1794770738.4782236
+  }
+ },
+ "timer_refused_probes": 0,
+ "timer_waited_s": 2.2
+}

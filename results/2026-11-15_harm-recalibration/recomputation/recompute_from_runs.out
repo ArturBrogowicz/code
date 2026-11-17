@@ -1,0 +1,21 @@
+template bench/calibration/placeholder.json (digest ac4e3156db5eacb6...); record ddos-mitigation-2026-11-16.json; the session's files as published (paths are not printed, so that the output does not depend on where the copy is)
+capacity: C_slo 84.5, C_sat 241.3, first unhealthy 109.9 (recomputed from the 3 staged runs, 36 steps)
+capacity, Q of 36 steps and C_slo/C_sat against capacity.json: 0 mismatches
+ladder cheap_static_flood: 18 runs; valid True, knee {'level': 4.0, 'passing': [4.0, 8.0], 'monotone': True}
+ladder cheap_static_flood: controls, every attack run's Q, p95 and harm, validity and knee against ladder.json: 0 mismatches
+ladder costly_export_flood: 18 runs; valid True, knee {'level': 4.0, 'passing': [4.0, 8.0], 'monotone': False}
+ladder costly_export_flood: controls, every attack run's Q, p95 and harm, validity and knee against ladder.json: 0 mismatches
+ladder costly_search_flood: 18 runs; valid True, knee {'level': 2.0, 'passing': [2.0, 4.0, 8.0], 'monotone': True}
+ladder costly_search_flood: controls, every attack run's Q, p95 and harm, validity and knee against ladder.json: 0 mismatches
+set aside (descriptive only, never used): ladder_cheap_static_flood/05_control1/C.hostinvalid1: Q 100.00 %, p95 79.8 ms, 1134 judged requests
+set aside (descriptive only, never used): ladder_cheap_static_flood/05_control1/C.hostinvalid2: Q 100.00 %, p95 82.7 ms, 1134 judged requests
+set aside (descriptive only, never used): ladder_cheap_static_flood/11_L0.125_r2/U.hostinvalid1: Q 99.91 %, p95 83.6 ms, 1134 judged requests
+set aside (descriptive only, never used): ladder_cheap_static_flood/12_L2_r1/U.hostinvalid1: Q 99.56 %, p95 138.7 ms, 1134 judged requests
+reference: 5 rounds (legit probe and 3 attack runs each), Q, p95 and requests against reference.json: 0 mismatches
+freeze_step with created_utc 2026-11-16T10:05:07+00:00: sha256 field 7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c; the committed record's 7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c; dumped file byte-identical to the committed file: True
+freeze: every field of the record against the committed record: 0 mismatches
+R4: 3 rounds' Q, p95 and requests from the runs against drift.json: 0 mismatches
+R4 judged again: ok True, confirmed {'cheap_static_flood': True, 'costly_export_flood': True, 'costly_search_flood': True}, reasons []
+R4: the verdict (check, confirmed, ok, reasons) judged again, from the runs and from drift.json's rows: 0 mismatches
+compared: 737 numbers (0 not bit-equal, all within a relative 1e-09 or listed below) and 88 other values (strings, booleans, None)
+TOTAL: 0 mismatches

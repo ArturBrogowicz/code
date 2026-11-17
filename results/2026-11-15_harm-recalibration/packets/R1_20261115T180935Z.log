@@ -1,0 +1,117 @@
+packet R1 stage, pid 326662, 2026-11-15T18:09:35Z; sudo kill -TERM 326662 stops it
+paired check: P-1 (prereg 5.3), run by the user right before R1: bench/vm/paired_check.py run OUT_DIR --medians FILE (HS1's context A in sbx as uid 1000, the hold's context B as root, CPU 0 then 1, A B B A; D = the mean of B/A - 1 over the CPUs and C3, C5). R1 starts only if OUT_DIR/paired.json has schema paired-check/1, exit 0 (|D| <= 5 %, every probe read), this boot's boot_id, a judged_utc at most 30 min before the packet starts and an uptime_s_at_start (written by run, not by a later judge) (--paired OUT_DIR); otherwise packet.sh refuses, exit 2, before the hold and the pre-checks, and the user decides
+paired check's record: /home/artur/agent_workspace/host/paired_20261115T180727Z/paired.json, sha256 506da22f52dcb086e2add1bf9cc06979948918122010d426fea1f0af889771bf
+2026-11-15T18:09:35Z running: ./venv/bin/python -B bench/hostcheck.py speed-hold --calibration bench/calibration/placeholder.json --medians /home/artur/agent_workspace/host/hs1_20261114T155933Z/medians.json --session /var/tmp/ddos_campaigns/recal_2026-11 --lo -0.10 --hi 0.10 --agree 0.05 --max-min 45
+the step's process: 326685 (the packet stops with sudo kill -TERM 326662, the stage)
+speed hold: reference HS1's medians /home/artur/agent_workspace/host/hs1_20261114T155933Z/medians.json, sha256 c899bdeee67ff3d6c7d21e149165c0c3e587ea0d72105a570d46ae0402d547eb, PC AMD Ryzen 7 7730U with Radeon Graphics, VirtualBox host 7.2.10r174163
+speed hold: probe pair 1: +1.1%
+speed hold: probe pair 2: +0.7%
+speed hold: held after 2 probe pairs, 336 s (band -10% to +10%, agreeing within 5%)
+2026-11-15T18:15:12Z exit 0
+2026-11-15T18:15:12Z running: ./venv/bin/python -B bench/calibrate.py origin --out /var/tmp/ddos_campaigns/recal_2026-11
+the step's process: 326828 (the packet stops with sudo kill -TERM 326662, the stage)
+origin round 1: widest spread 14.4% (limit 10%), C0, session 1 measured 0.006263 ms against a median of 0.005518 ms
+origin round 2: widest spread 1.8% (limit 10%), C0, session 3 measured 0.005483 ms against a median of 0.005547 ms
+2026-11-15T18:16:08Z exit 0
+2026-11-15T18:16:08Z running: ./venv/bin/python -B bench/calibrate.py capacity --out /var/tmp/ddos_campaigns/recal_2026-11 --stop-after 78.45
+the step's process: 326875 (the packet stops with sudo kill -TERM 326662, the stage)
+capacity/r1/C: attempt 1
+    0.081 gate: uptime 99509 s, load 0.72; waiting up to 30 min for uptime 1800 s and load below 0.3
+   62.245 timer probe 1 on CPU 7 at 2026-11-15T18:17:09+00:00: p50 0.0318505, p99 0.513898, max 0.52097 ms: passed
+   62.499 run C of capacity, seed 11: preflight and environment passed
+   80.739 speed probe before the stack: CPU 0 C3 42.67 ms, C5 233 ms, CPU 1 C3 42.86 ms, C5 234.5 ms
+   85.233 topology: 4 namespaces, 200 addresses, verified in 4.5 s
+   85.252 started the origin as pid 327129
+   85.304 started Nginx (its launcher returned after 0.05 s)
+   88.054 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   88.153 launched 31 legit streams
+  108.162 launched 31 legit streams
+  128.159 launched 31 legit streams
+  148.181 launched 31 legit streams
+  168.178 launched 31 legit streams
+  188.181 launched 31 legit streams
+  208.152 launched 31 legit streams
+  228.163 launched 31 legit streams
+  248.182 launched 31 legit streams
+  268.183 launched 31 legit streams
+  288.152 launched 31 legit streams
+  308.161 launched 31 legit streams
+  343.262 timeline over after 255.2 s
+  345.293 KILL pid 327129
+  345.293 stopped 1 process(es) of this run in 2.02 s
+  345.443 wall time of 99 stream(s) raised to what their records need, by up to 0.47 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  346.225 nginx access log: 46532 lines (0 unparsed), server_requests.csv written, log compressed
+  346.254 run.json written; the run is sound
+  348.297 KILL 2 processes of the namespaces that ignored TERM for 2 s
+  348.503 teardown: 2 process(es) in 5 namespace(s): listed in 0.02 s, ended in 2.22 s
+  348.525 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.01 s, server_ns 0.00 s
+  348.611 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  348.637 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 2.4 s in all)
+capacity/r1/C: speed bracket +0.4% before, +1.3% after: within H1
+capacity/r2/C: attempt 1
+    2.240 timer probe 1 on CPU 7 at 2026-11-15T18:22:19+00:00: p50 0.086613, p99 0.536113, max 0.557318 ms: passed
+    2.493 run C of capacity, seed 12: preflight and environment passed
+   20.723 speed probe before the stack: CPU 0 C3 42.35 ms, C5 232.6 ms, CPU 1 C3 43.9 ms, C5 235 ms
+   28.517 topology: 4 namespaces, 200 addresses, verified in 7.8 s
+   28.535 started the origin as pid 328338
+   28.587 started Nginx (its launcher returned after 0.05 s)
+   31.365 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   31.467 launched 29 legit streams
+   51.470 launched 29 legit streams
+   71.463 launched 29 legit streams
+   91.463 launched 29 legit streams
+  111.474 launched 29 legit streams
+  131.496 launched 29 legit streams
+  151.472 launched 29 legit streams
+  171.452 launched 29 legit streams
+  191.479 launched 29 legit streams
+  211.476 launched 29 legit streams
+  231.473 launched 29 legit streams
+  251.454 launched 29 legit streams
+  286.581 timeline over after 255.2 s
+  288.610 KILL pid 328338
+  288.610 stopped 1 process(es) of this run in 2.02 s
+  288.747 wall time of 85 stream(s) raised to what their records need, by up to 0.36 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  289.546 nginx access log: 47159 lines (0 unparsed), server_requests.csv written, log compressed
+  289.565 run.json written; the run is sound
+  291.606 KILL 2 processes of the namespaces that ignored TERM for 2 s
+  291.810 teardown: 2 process(es) in 5 namespace(s): listed in 0.02 s, ended in 2.22 s
+  291.831 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.01 s
+  291.925 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  291.950 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 2.4 s in all)
+capacity/r2/C: speed bracket +0.9% before, +2.2% after: within H1
+capacity/r3/C: attempt 1
+    2.234 timer probe 1 on CPU 7 at 2026-11-15T18:27:33+00:00: p50 0.0630785, p99 0.575077, max 0.843974 ms: passed
+    2.498 run C of capacity, seed 13: preflight and environment passed
+   20.769 speed probe before the stack: CPU 0 C3 43.19 ms, C5 235.4 ms, CPU 1 C3 43.05 ms, C5 237 ms
+   26.022 topology: 4 namespaces, 200 addresses, verified in 5.3 s
+   26.041 started the origin as pid 329467
+   26.093 started Nginx (its launcher returned after 0.05 s)
+   28.854 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   28.965 launched 32 legit streams
+   48.973 launched 32 legit streams
+   68.954 launched 32 legit streams
+   88.972 launched 32 legit streams
+  108.963 launched 32 legit streams
+  128.996 launched 32 legit streams
+  148.976 launched 32 legit streams
+  168.976 launched 32 legit streams
+  188.956 launched 32 legit streams
+  208.983 launched 32 legit streams
+  228.974 launched 32 legit streams
+  248.977 launched 32 legit streams
+  285.092 timeline over after 256.2 s
+  287.129 KILL pid 329467
+  287.129 stopped 1 process(es) of this run in 2.02 s
+  287.276 wall time of 101 stream(s) raised to what their records need, by up to 0.47 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  288.090 nginx access log: 47240 lines (0 unparsed), server_requests.csv written, log compressed
+  288.173 run.json written; the run is sound
+  290.223 KILL 2 processes of the namespaces that ignored TERM for 2 s
+  290.427 teardown: 2 process(es) in 5 namespace(s): listed in 0.02 s, ended in 2.23 s
+  290.449 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.01 s, server_ns 0.00 s
+  290.535 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.02 s, ddos_br0 0.01 s
+  290.560 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 2.4 s in all)
+capacity/r3/C: speed bracket +1.4% before, +1.5% after: within H1
+capacity: C_slo 84.5 req/s, C_sat 241.3 req/s
+2026-11-15T18:32:45Z exit 0
+PACKET R1 done (exit 0): runs made 3, host-invalid 0; 23 min; tar /var/tmp/ddos_campaigns/recal_2026-11/packets/R1_20261115T180935Z.tar.gz, sha256 d06548a06a796e6b

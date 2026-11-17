@@ -1,0 +1,60 @@
+{
+ "calibration": "/home/artur/agent_workspace/worktrees/run-recal/bench/calibration/placeholder.json",
+ "estimator": {
+  "function": "bench/origin.py time_routes (thread CPU time, median of the repeats' batches)",
+  "knobs_from": "bench/calibration/ddos-mitigation-2026-11-04.json",
+  "origin_sha256": "4cb5e276c04e8a4c003729170112c8b21000aa5bc89901681f7c07cc268ff2b2",
+  "probe_sha256": "242d754f5709ebadabf668c6f873176add90bdce3a20467c2fe68c04bb0b6ef0",
+  "record_sha256": "55d84b004d9f61ca0ff1735fa6a7b11192bfe91d2cba2da7aa9c1b12cb72d016",
+  "repeats": 21
+ },
+ "holds": [
+  {
+   "held": true,
+   "pairs": [
+    {
+     "d": 0.010910864891483435,
+     "utc": "2026-11-15T18:09:36+00:00"
+    },
+    {
+     "d": 0.007121365848214795,
+     "utc": "2026-11-15T18:14:54+00:00"
+    }
+   ],
+   "waited_s": 336.1
+  }
+ ],
+ "host": {
+  "boot_id": "3e99b2cc-13f7-4112-ae52-9d03631f0e3e",
+  "cpu_model": "AMD Ryzen 7 7730U with Radeon Graphics",
+  "kernel": "7.0.0-42-generic",
+  "memtotal_kb": "7600856",
+  "tsc_mhz": "1996.250",
+  "vbox_host_version": "7.2.10r174163"
+ },
+ "path": "/home/artur/agent_workspace/host/hs1_20261114T155933Z/medians.json",
+ "reference": "HS1's medians on this PC (K11)",
+ "reference_costs_ms": {
+  "0": {
+   "C0": 0.005488416015626135,
+   "C1": 5.056805499999983,
+   "C2": 2.642544000000302,
+   "C3": 42.38593899999987,
+   "C5": 230.2942119999998
+  },
+  "1": {
+   "C0": 0.005506298828126047,
+   "C1": 5.058418499999995,
+   "C2": 2.646361499999861,
+   "C3": 42.348875499999885,
+   "C5": 230.15227599999963
+  }
+ },
+ "rule": {
+  "agree": 0.05,
+  "hi": 0.1,
+  "lo": -0.1,
+  "max_min": 45.0
+ },
+ "sha256": "c899bdeee67ff3d6c7d21e149165c0c3e587ea0d72105a570d46ae0402d547eb"
+}

@@ -1,0 +1,14 @@
+r_launch pid 476385 start 2026-11-15T21:33:08Z AP-13 pin 9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f packets: R2a R2b; waiting 180 s for the orchestrator's turn to end
+== R2a start 2026-11-15T21:36:08Z load 0.03 0.47 0.80
+OK  tree
+OK  frozen hashes
+OK  host (kernel 7.0.0-42-generic, MemTotal 7422 MiB, CPU AMD Ryzen 7 7730U with Radeon Graphics, VirtualBox host 7.2.10r174163)
+OK  uptime
+OK  chrony
+NO  timers: dpkg-db-backup.timer is due at 2026-11-16T00:00:00+00:00, within the packet and 10 min
+OK  jobs
+OK  testbed
+OK  quiet
+packet.sh: a pre-check refused the packet; nothing was started
+R2a foreground exit 3 2026-11-15T21:37:08Z
+R2a NOT STARTED: foreground exit 3; no further packet

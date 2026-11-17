@@ -1,0 +1,40 @@
+r_launch pid 545982 start 2026-11-16T08:02:11Z AP-14 pin 9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f packets: R2c R3; waiting 180 s for the orchestrator's turn to end
+== R2c start 2026-11-16T08:05:11Z load 0.05 0.08 0.04
+OK  tree
+OK  frozen hashes
+OK  host (kernel 7.0.0-42-generic, MemTotal 7422 MiB, CPU AMD Ryzen 7 7730U with Radeon Graphics, VirtualBox host 7.2.10r174163)
+OK  uptime
+OK  chrony
+OK  timers
+OK  jobs
+OK  testbed
+OK  quiet
+packet R2c started (pid 548271), detached; its log: /var/tmp/ddos_campaigns/recal_2026-11/packets/R2c_20261116T080612Z.log
+stop it with sudo kill -TERM 548271: the step's process gets the TERM and takes the testbed down, no further step starts,
+and the tar, its sha256 and the summary are still written; the same command resumes
+R2c foreground exit 0 2026-11-16T08:06:12Z
+R2c running: stage pid 548271, log /var/tmp/ddos_campaigns/recal_2026-11/packets/R2c_20261116T080612Z.log; stop with: sudo kill -TERM 548271
+R2c stage ended 2026-11-16T09:00:12Z
+ladder costly_search_flood: session valid; knee 2.0
+2026-11-16T09:00:05Z exit 0
+PACKET R2c done (exit 0): runs made 18, host-invalid 0; 53 min; tar /var/tmp/ddos_campaigns/recal_2026-11/packets/R2c_20261116T080612Z.tar.gz, sha256 216c0357ba56477a
+== R3 start 2026-11-16T09:00:12Z load 1.15 1.72 1.55
+OK  tree
+OK  frozen hashes
+OK  host (kernel 7.0.0-42-generic, MemTotal 7422 MiB, CPU AMD Ryzen 7 7730U with Radeon Graphics, VirtualBox host 7.2.10r174163)
+OK  uptime
+OK  chrony
+OK  timers
+OK  jobs
+OK  testbed
+OK  quiet
+packet R3 started (pid 557579), detached; its log: /var/tmp/ddos_campaigns/recal_2026-11/packets/R3_20261116T090112Z.log
+stop it with sudo kill -TERM 557579: the step's process gets the TERM and takes the testbed down, no further step starts,
+and the tar, its sha256 and the summary are still written; the same command resumes
+R3 foreground exit 0 2026-11-16T09:01:12Z
+R3 running: stage pid 557579, log /var/tmp/ddos_campaigns/recal_2026-11/packets/R3_20261116T090112Z.log; stop with: sudo kill -TERM 557579
+R3 stage ended 2026-11-16T10:02:13Z
+r5/attack_costly_search_flood/U: speed bracket +0.1% before, +0.1% after: within H1
+2026-11-16T10:01:11Z exit 0
+PACKET R3 done (exit 0): runs made 20, host-invalid 0; 60 min; tar /var/tmp/ddos_campaigns/recal_2026-11/packets/R3_20261116T090112Z.tar.gz, sha256 041ab1791b7914e5
+r_launch all done 2026-11-16T10:02:13Z

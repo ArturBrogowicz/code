@@ -1,0 +1,553 @@
+2026/11/16 01:35:01 [error] 508183#508183: *1 connect() failed (111: Connection refused) while connecting to upstream, client: 10.0.0.1, server: twojadomena.pl, request: "GET /static/1 HTTP/1.1", upstream: "http://127.0.0.1:8080/static/1", host: "10.0.0.1"
+2026/11/16 01:35:01 [info] 508183#508183: *1 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:35:02 [info] 508183#508183: *3 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:35:02 [info] 508183#508183: *5 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:35:02 [info] 508183#508183: *7 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:35:02 [info] 508183#508183: *9 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:35:03 [info] 508183#508183: *11 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:35:03 [info] 508183#508183: *13 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:35:03 [info] 508183#508183: *15 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:35:03 [info] 508183#508183: *17 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:35:03 [info] 508183#508183: *19 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:35:03 [info] 508183#508183: *21 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:35:03 [info] 508183#508183: *23 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:35:03 [info] 508183#508183: *25 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:35:03 [info] 508183#508183: *27 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:35:03 [info] 508183#508183: *29 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:35:04 [info] 508183#508183: *31 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:35:04 [info] 508183#508183: *33 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:35:08 [warn] 508183#508183: *169 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/00/0000000001 while reading upstream, client: 10.0.1.2, server: twojadomena.pl, request: "GET /export?r=485 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=485", host: "10.0.0.1"
+2026/11/16 01:35:09 [warn] 508183#508183: *177 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/00/0000000002 while reading upstream, client: 10.0.1.14, server: twojadomena.pl, request: "GET /export?r=218 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=218", host: "10.0.0.1"
+2026/11/16 01:35:15 [warn] 508183#508183: *672 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/00/0000000003 while reading upstream, client: 10.0.1.31, server: twojadomena.pl, request: "GET /export?r=592 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=592", host: "10.0.0.1"
+2026/11/16 01:35:15 [warn] 508183#508183: *703 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/00/0000000004 while reading upstream, client: 10.0.1.81, server: twojadomena.pl, request: "GET /export?r=428 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=428", host: "10.0.0.1"
+2026/11/16 01:35:16 [warn] 508183#508183: *732 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/00/0000000005 while reading upstream, client: 10.0.1.17, server: twojadomena.pl, request: "GET /export?r=52 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=52", host: "10.0.0.1"
+2026/11/16 01:35:21 [warn] 508183#508183: *997 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/00/0000000006 while reading upstream, client: 10.0.1.34, server: twojadomena.pl, request: "GET /export?r=209 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=209", host: "10.0.0.1"
+2026/11/16 01:35:22 [warn] 508183#508183: *1034 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/00/0000000007 while reading upstream, client: 10.0.1.8, server: twojadomena.pl, request: "GET /export?r=304 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=304", host: "10.0.0.1"
+2026/11/16 01:35:22 [warn] 508183#508183: *1045 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/00/0000000008 while reading upstream, client: 10.0.1.33, server: twojadomena.pl, request: "GET /export?r=257 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=257", host: "10.0.0.1"
+2026/11/16 01:35:22 [warn] 508183#508183: *1062 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/00/0000000009 while reading upstream, client: 10.0.1.153, server: twojadomena.pl, request: "GET /export?r=305 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=305", host: "10.0.0.1"
+2026/11/16 01:35:24 [warn] 508183#508183: *1192 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/01/0000000010 while reading upstream, client: 10.0.1.126, server: twojadomena.pl, request: "GET /export?r=473 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=473", host: "10.0.0.1"
+2026/11/16 01:35:31 [warn] 508183#508183: *1512 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/01/0000000011 while reading upstream, client: 10.0.1.46, server: twojadomena.pl, request: "GET /export?r=814 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=814", host: "10.0.0.1"
+2026/11/16 01:35:32 [warn] 508183#508183: *1523 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/01/0000000012 while reading upstream, client: 10.0.1.13, server: twojadomena.pl, request: "GET /export?r=867 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=867", host: "10.0.0.1"
+2026/11/16 01:35:38 [warn] 508183#508183: *1853 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/01/0000000013 while reading upstream, client: 10.0.2.6, server: twojadomena.pl, request: "GET /export?r=873 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=873", host: "10.0.0.1"
+2026/11/16 01:35:39 [warn] 508183#508183: *1871 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/01/0000000014 while reading upstream, client: 10.0.2.23, server: twojadomena.pl, request: "GET /export?r=332 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=332", host: "10.0.0.1"
+2026/11/16 01:35:40 [warn] 508183#508183: *2001 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/01/0000000015 while reading upstream, client: 10.0.2.5, server: twojadomena.pl, request: "GET /export?r=630 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=630", host: "10.0.0.1"
+2026/11/16 01:35:41 [warn] 508183#508183: *2038 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/01/0000000016 while reading upstream, client: 10.0.2.29, server: twojadomena.pl, request: "GET /export?r=331 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=331", host: "10.0.0.1"
+2026/11/16 01:35:41 [warn] 508183#508183: *2068 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/01/0000000017 while reading upstream, client: 10.0.2.31, server: twojadomena.pl, request: "GET /export?r=720 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=720", host: "10.0.0.1"
+2026/11/16 01:35:43 [warn] 508183#508183: *2139 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/01/0000000018 while reading upstream, client: 10.0.2.7, server: twojadomena.pl, request: "GET /export?r=811 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=811", host: "10.0.0.1"
+2026/11/16 01:35:44 [warn] 508183#508183: *2227 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/01/0000000019 while reading upstream, client: 10.0.2.40, server: twojadomena.pl, request: "GET /export?r=98 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=98", host: "10.0.0.1"
+2026/11/16 01:35:45 [warn] 508183#508183: *2254 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/02/0000000020 while reading upstream, client: 10.0.2.20, server: twojadomena.pl, request: "GET /export?r=289 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=289", host: "10.0.0.1"
+2026/11/16 01:35:45 [warn] 508184#508184: *2263 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/02/0000000021 while reading upstream, client: 10.0.2.24, server: twojadomena.pl, request: "GET /export?r=404 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=404", host: "10.0.0.1"
+2026/11/16 01:35:45 [warn] 508183#508183: *2257 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/02/0000000022 while reading upstream, client: 10.0.2.46, server: twojadomena.pl, request: "GET /export?r=564 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=564", host: "10.0.0.1"
+2026/11/16 01:35:47 [warn] 508183#508183: *2341 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/02/0000000023 while reading upstream, client: 10.0.2.47, server: twojadomena.pl, request: "GET /export?r=603 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=603", host: "10.0.0.1"
+2026/11/16 01:35:47 [warn] 508183#508183: *2345 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/02/0000000024 while reading upstream, client: 10.0.2.54, server: twojadomena.pl, request: "GET /export?r=864 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=864", host: "10.0.0.1"
+2026/11/16 01:35:47 [warn] 508183#508183: *2347 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/02/0000000025 while reading upstream, client: 10.0.2.56, server: twojadomena.pl, request: "GET /export?r=564 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=564", host: "10.0.0.1"
+2026/11/16 01:35:48 [warn] 508183#508183: *2421 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/02/0000000026 while reading upstream, client: 10.0.2.58, server: twojadomena.pl, request: "GET /export?r=253 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=253", host: "10.0.0.1"
+2026/11/16 01:35:48 [warn] 508183#508183: *2431 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/02/0000000027 while reading upstream, client: 10.0.2.67, server: twojadomena.pl, request: "GET /export?r=104 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=104", host: "10.0.0.1"
+2026/11/16 01:35:48 [warn] 508183#508183: *2438 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/02/0000000028 while reading upstream, client: 10.0.2.83, server: twojadomena.pl, request: "GET /export?r=873 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=873", host: "10.0.0.1"
+2026/11/16 01:35:49 [warn] 508183#508183: *2458 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/02/0000000029 while reading upstream, client: 10.0.2.97, server: twojadomena.pl, request: "GET /export?r=969 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=969", host: "10.0.0.1"
+2026/11/16 01:35:49 [warn] 508183#508183: *2464 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/03/0000000030 while reading upstream, client: 10.0.2.90, server: twojadomena.pl, request: "GET /export?r=793 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=793", host: "10.0.0.1"
+2026/11/16 01:35:50 [warn] 508183#508183: *2493 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/03/0000000031 while reading upstream, client: 10.0.2.27, server: twojadomena.pl, request: "GET /export?r=77 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=77", host: "10.0.0.1"
+2026/11/16 01:35:51 [warn] 508183#508183: *2554 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/03/0000000032 while reading upstream, client: 10.0.2.38, server: twojadomena.pl, request: "GET /export?r=105 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=105", host: "10.0.0.1"
+2026/11/16 01:35:53 [warn] 508183#508183: *2668 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/03/0000000033 while reading upstream, client: 10.0.1.135, server: twojadomena.pl, request: "GET /export?r=611 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=611", host: "10.0.0.1"
+2026/11/16 01:35:54 [warn] 508183#508183: *2702 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/03/0000000034 while reading upstream, client: 10.0.2.93, server: twojadomena.pl, request: "GET /export?r=168 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=168", host: "10.0.0.1"
+2026/11/16 01:35:55 [warn] 508183#508183: *2797 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/03/0000000035 while reading upstream, client: 10.0.2.99, server: twojadomena.pl, request: "GET /export?r=521 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=521", host: "10.0.0.1"
+2026/11/16 01:35:56 [warn] 508183#508183: *2848 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/03/0000000036 while reading upstream, client: 10.0.2.59, server: twojadomena.pl, request: "GET /export?r=289 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=289", host: "10.0.0.1"
+2026/11/16 01:35:57 [warn] 508183#508183: *2859 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/03/0000000037 while reading upstream, client: 10.0.2.101, server: twojadomena.pl, request: "GET /export?r=242 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=242", host: "10.0.0.1"
+2026/11/16 01:35:57 [warn] 508183#508183: *2862 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/03/0000000038 while reading upstream, client: 10.0.2.102, server: twojadomena.pl, request: "GET /export?r=684 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=684", host: "10.0.0.1"
+2026/11/16 01:35:57 [warn] 508183#508183: *2874 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/03/0000000039 while reading upstream, client: 10.0.2.107, server: twojadomena.pl, request: "GET /export?r=1 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=1", host: "10.0.0.1"
+2026/11/16 01:35:59 [warn] 508183#508183: *2948 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/04/0000000040 while reading upstream, client: 10.0.2.111, server: twojadomena.pl, request: "GET /export?r=930 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=930", host: "10.0.0.1"
+2026/11/16 01:35:59 [warn] 508183#508183: *2967 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/04/0000000041 while reading upstream, client: 10.0.2.117, server: twojadomena.pl, request: "GET /export?r=98 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=98", host: "10.0.0.1"
+2026/11/16 01:35:59 [warn] 508183#508183: *2989 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/04/0000000042 while reading upstream, client: 10.0.1.47, server: twojadomena.pl, request: "GET /export?r=61 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=61", host: "10.0.0.1"
+2026/11/16 01:36:00 [warn] 508183#508183: *3017 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/04/0000000043 while reading upstream, client: 10.0.2.122, server: twojadomena.pl, request: "GET /export?r=242 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=242", host: "10.0.0.1"
+2026/11/16 01:36:02 [warn] 508183#508183: *3084 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/04/0000000044 while reading upstream, client: 10.0.2.145, server: twojadomena.pl, request: "GET /export?r=71 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=71", host: "10.0.0.1"
+2026/11/16 01:36:02 [warn] 508183#508183: *3081 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/04/0000000045 while reading upstream, client: 10.0.2.128, server: twojadomena.pl, request: "GET /export?r=457 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=457", host: "10.0.0.1"
+2026/11/16 01:36:03 [warn] 508183#508183: *3087 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/04/0000000046 while reading upstream, client: 10.0.2.159, server: twojadomena.pl, request: "GET /export?r=966 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=966", host: "10.0.0.1"
+2026/11/16 01:36:03 [warn] 508183#508183: *3118 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/04/0000000047 while reading upstream, client: 10.0.2.64, server: twojadomena.pl, request: "GET /export?r=442 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=442", host: "10.0.0.1"
+2026/11/16 01:36:03 [warn] 508183#508183: *3134 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/04/0000000048 while reading upstream, client: 10.0.2.164, server: twojadomena.pl, request: "GET /export?r=471 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=471", host: "10.0.0.1"
+2026/11/16 01:36:03 [warn] 508184#508184: *3148 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/04/0000000049 while reading upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /export?r=712 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=712", host: "10.0.0.1"
+2026/11/16 01:36:04 [warn] 508183#508183: *3168 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/05/0000000050 while reading upstream, client: 10.0.2.76, server: twojadomena.pl, request: "GET /export?r=124 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=124", host: "10.0.0.1"
+2026/11/16 01:36:04 [warn] 508183#508183: *3164 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/05/0000000051 while reading upstream, client: 10.0.1.136, server: twojadomena.pl, request: "GET /export?r=545 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=545", host: "10.0.0.1"
+2026/11/16 01:36:04 [warn] 508183#508183: *3177 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/05/0000000052 while reading upstream, client: 10.0.2.165, server: twojadomena.pl, request: "GET /export?r=789 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=789", host: "10.0.0.1"
+2026/11/16 01:36:05 [warn] 508183#508183: *3217 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/05/0000000053 while reading upstream, client: 10.0.1.65, server: twojadomena.pl, request: "GET /export?r=138 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=138", host: "10.0.0.1"
+2026/11/16 01:36:05 [warn] 508183#508183: *3219 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/05/0000000054 while reading upstream, client: 10.0.2.168, server: twojadomena.pl, request: "GET /export?r=856 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=856", host: "10.0.0.1"
+2026/11/16 01:36:06 [warn] 508183#508183: *3282 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/05/0000000055 while reading upstream, client: 10.0.2.100, server: twojadomena.pl, request: "GET /export?r=390 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=390", host: "10.0.0.1"
+2026/11/16 01:36:06 [warn] 508183#508183: *3296 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/05/0000000056 while reading upstream, client: 10.0.2.112, server: twojadomena.pl, request: "GET /export?r=274 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=274", host: "10.0.0.1"
+2026/11/16 01:36:08 [warn] 508183#508183: *3411 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/05/0000000057 while reading upstream, client: 10.0.1.156, server: twojadomena.pl, request: "GET /export?r=947 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=947", host: "10.0.0.1"
+2026/11/16 01:36:08 [warn] 508183#508183: *3443 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/05/0000000058 while reading upstream, client: 10.0.2.177, server: twojadomena.pl, request: "GET /export?r=314 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=314", host: "10.0.0.1"
+2026/11/16 01:36:09 [warn] 508183#508183: *3476 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/05/0000000059 while reading upstream, client: 10.0.2.114, server: twojadomena.pl, request: "GET /export?r=378 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=378", host: "10.0.0.1"
+2026/11/16 01:36:09 [warn] 508183#508183: *3428 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/06/0000000060 while reading upstream, client: 10.0.2.173, server: twojadomena.pl, request: "GET /export?r=104 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=104", host: "10.0.0.1"
+2026/11/16 01:36:10 [warn] 508183#508183: *3543 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/06/0000000061 while reading upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /export?r=518 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=518", host: "10.0.0.1"
+2026/11/16 01:36:10 [warn] 508183#508183: *3581 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/06/0000000062 while reading upstream, client: 10.0.2.28, server: twojadomena.pl, request: "GET /export?r=621 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=621", host: "10.0.0.1"
+2026/11/16 01:36:10 [warn] 508183#508183: *3605 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/06/0000000063 while reading upstream, client: 10.0.2.118, server: twojadomena.pl, request: "GET /export?r=325 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=325", host: "10.0.0.1"
+2026/11/16 01:36:11 [warn] 508184#508184: *3653 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/06/0000000064 while reading upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /export?r=788 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=788", host: "10.0.0.1"
+2026/11/16 01:36:11 [warn] 508183#508183: *3660 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/06/0000000065 while reading upstream, client: 10.0.2.186, server: twojadomena.pl, request: "GET /export?r=581 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=581", host: "10.0.0.1"
+2026/11/16 01:36:11 [warn] 508183#508183: *3665 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/06/0000000066 while reading upstream, client: 10.0.2.188, server: twojadomena.pl, request: "GET /export?r=572 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=572", host: "10.0.0.1"
+2026/11/16 01:36:12 [warn] 508183#508183: *3685 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/06/0000000067 while reading upstream, client: 10.0.2.190, server: twojadomena.pl, request: "GET /export?r=564 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=564", host: "10.0.0.1"
+2026/11/16 01:36:12 [warn] 508183#508183: *3695 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/06/0000000068 while reading upstream, client: 10.0.2.203, server: twojadomena.pl, request: "GET /export?r=781 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=781", host: "10.0.0.1"
+2026/11/16 01:36:12 [warn] 508183#508183: *3704 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/06/0000000069 while reading upstream, client: 10.0.2.148, server: twojadomena.pl, request: "GET /export?r=985 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=985", host: "10.0.0.1"
+2026/11/16 01:36:13 [info] 508183#508183: *3581 client 10.0.2.28 closed keepalive connection
+2026/11/16 01:36:13 [warn] 508183#508183: *3745 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/07/0000000070 while reading upstream, client: 10.0.2.204, server: twojadomena.pl, request: "GET /export?r=168 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=168", host: "10.0.0.1"
+2026/11/16 01:36:13 [warn] 508183#508183: *3759 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/07/0000000071 while reading upstream, client: 10.0.1.161, server: twojadomena.pl, request: "GET /export?r=94 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=94", host: "10.0.0.1"
+2026/11/16 01:36:14 [warn] 508183#508183: *3789 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/07/0000000072 while reading upstream, client: 10.0.2.215, server: twojadomena.pl, request: "GET /export?r=366 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=366", host: "10.0.0.1"
+2026/11/16 01:36:15 [warn] 508183#508183: *3859 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/07/0000000073 while reading upstream, client: 10.0.1.176, server: twojadomena.pl, request: "GET /export?r=524 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=524", host: "10.0.0.1"
+2026/11/16 01:36:16 [warn] 508183#508183: *3913 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/07/0000000074 while reading upstream, client: 10.0.2.216, server: twojadomena.pl, request: "GET /export?r=633 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=633", host: "10.0.0.1"
+2026/11/16 01:36:16 [info] 508183#508183: *3255 client 10.0.2.136 closed keepalive connection
+2026/11/16 01:36:16 [info] 508183#508183: *3373 client 10.0.2.138 closed keepalive connection
+2026/11/16 01:36:16 [info] 508183#508183: *3413 client 10.0.2.142 closed keepalive connection
+2026/11/16 01:36:16 [info] 508183#508183: *3435 client 10.0.2.144 closed keepalive connection
+2026/11/16 01:36:16 [info] 508184#508184: *3801 client 10.0.2.147 closed keepalive connection
+2026/11/16 01:36:16 [info] 508183#508183: *3830 client 10.0.2.149 closed keepalive connection
+2026/11/16 01:36:16 [info] 508183#508183: *3932 client 10.0.2.153 closed keepalive connection
+2026/11/16 01:36:18 [warn] 508183#508183: *4010 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/07/0000000075 while reading upstream, client: 10.0.2.221, server: twojadomena.pl, request: "GET /export?r=871 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=871", host: "10.0.0.1"
+2026/11/16 01:36:19 [warn] 508183#508183: *4034 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/07/0000000076 while reading upstream, client: 10.0.2.231, server: twojadomena.pl, request: "GET /export?r=383 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=383", host: "10.0.0.1"
+2026/11/16 01:36:19 [warn] 508183#508183: *4030 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/07/0000000077 while reading upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /export?r=540 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=540", host: "10.0.0.1"
+2026/11/16 01:36:19 [warn] 508183#508183: *4050 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/07/0000000078 while reading upstream, client: 10.0.2.235, server: twojadomena.pl, request: "GET /export?r=240 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=240", host: "10.0.0.1"
+2026/11/16 01:36:20 [warn] 508183#508183: *4092 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/07/0000000079 while reading upstream, client: 10.0.2.150, server: twojadomena.pl, request: "GET /export?r=675 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=675", host: "10.0.0.1"
+2026/11/16 01:36:21 [warn] 508183#508183: *4119 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/08/0000000080 while reading upstream, client: 10.0.2.151, server: twojadomena.pl, request: "GET /export?r=702 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=702", host: "10.0.0.1"
+2026/11/16 01:36:21 [warn] 508183#508183: *4145 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/08/0000000081 while reading upstream, client: 10.0.2.163, server: twojadomena.pl, request: "GET /export?r=455 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=455", host: "10.0.0.1"
+2026/11/16 01:36:22 [warn] 508183#508183: *4157 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/08/0000000082 while reading upstream, client: 10.0.2.6, server: twojadomena.pl, request: "GET /export?r=341 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=341", host: "10.0.0.1"
+2026/11/16 01:36:22 [info] 508183#508183: *3660 client 10.0.2.186 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *3443 client 10.0.2.177 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *4010 client 10.0.2.221 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *3543 client 10.0.2.180 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *4030 client 10.0.2.227 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *3685 client 10.0.2.190 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *3789 client 10.0.2.215 closed keepalive connection
+2026/11/16 01:36:22 [info] 508184#508184: *3653 client 10.0.2.181 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *4157 client 10.0.2.6 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *4034 client 10.0.2.231 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *3428 client 10.0.2.173 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *3695 client 10.0.2.203 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *3913 client 10.0.2.216 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *3665 client 10.0.2.188 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *4050 client 10.0.2.235 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *3745 client 10.0.2.204 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *3476 client 10.0.2.114 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *3605 client 10.0.2.118 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *4145 client 10.0.2.163 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *3704 client 10.0.2.148 closed keepalive connection
+2026/11/16 01:36:22 [info] 508183#508183: *4092 client 10.0.2.150 closed keepalive connection
+2026/11/16 01:36:23 [info] 508183#508183: *4119 client 10.0.2.151 closed keepalive connection
+2026/11/16 01:36:23 [warn] 508183#508183: *4235 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/08/0000000083 while reading upstream, client: 10.0.1.166, server: twojadomena.pl, request: "GET /export?r=275 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=275", host: "10.0.0.1"
+2026/11/16 01:36:25 [warn] 508183#508183: *4276 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/08/0000000084 while reading upstream, client: 10.0.1.174, server: twojadomena.pl, request: "GET /export?r=16 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=16", host: "10.0.0.1"
+2026/11/16 01:36:25 [warn] 508183#508183: *4377 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/08/0000000085 while reading upstream, client: 10.0.1.93, server: twojadomena.pl, request: "GET /export?r=936 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=936", host: "10.0.0.1"
+2026/11/16 01:36:27 [warn] 508183#508183: *4463 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/08/0000000086 while reading upstream, client: 10.0.1.96, server: twojadomena.pl, request: "GET /export?r=698 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=698", host: "10.0.0.1"
+2026/11/16 01:36:28 [warn] 508183#508183: *4504 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/08/0000000087 while reading upstream, client: 10.0.1.100, server: twojadomena.pl, request: "GET /export?r=61 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=61", host: "10.0.0.1"
+2026/11/16 01:36:29 [warn] 508183#508183: *4522 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/08/0000000088 while reading upstream, client: 10.0.1.207, server: twojadomena.pl, request: "GET /export?r=328 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=328", host: "10.0.0.1"
+2026/11/16 01:36:31 [warn] 508183#508183: *4618 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/08/0000000089 while reading upstream, client: 10.0.1.219, server: twojadomena.pl, request: "GET /export?r=629 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=629", host: "10.0.0.1"
+2026/11/16 01:36:32 [warn] 508183#508183: *4665 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/09/0000000090 while reading upstream, client: 10.0.1.233, server: twojadomena.pl, request: "GET /export?r=217 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=217", host: "10.0.0.1"
+2026/11/16 01:36:37 [info] 508183#508183: *4924 client 10.0.1.77 closed keepalive connection
+2026/11/16 01:36:37 [info] 508183#508183: *4926 client 10.0.1.4 closed keepalive connection
+2026/11/16 01:36:38 [info] 508183#508183: *3453 client 10.0.1.179 closed keepalive connection
+2026/11/16 01:36:38 [info] 508183#508183: *4945 client 10.0.1.113 closed keepalive connection
+2026/11/16 01:36:39 [info] 508183#508183: *196 client 10.0.1.41 closed keepalive connection
+2026/11/16 01:36:39 [info] 508183#508183: *82 client 10.0.1.9 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *45 client 10.0.1.27 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *142 client 10.0.1.90 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *219 client 10.0.1.168 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *306 client 10.0.1.178 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *4356 client 10.0.1.146 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *4933 client 10.0.1.211 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *5037 client 10.0.1.127 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *5097 client 10.0.1.132 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *4987 client 10.0.1.30 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *233 client 10.0.1.179 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *39 client 10.0.1.27 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *59 client 10.0.1.77 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *71 client 10.0.1.90 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *91 client 10.0.1.168 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *111 client 10.0.1.178 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *139 client 10.0.1.184 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *183 client 10.0.1.211 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *171 client 10.0.1.146 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *105 client 10.0.1.67 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *129 client 10.0.1.91 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *141 client 10.0.1.127 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *73 client 10.0.1.20 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *63 client 10.0.1.7 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *96 client 10.0.1.51 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *159 client 10.0.1.132 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *55 client 10.0.1.4 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *77 client 10.0.1.30 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *278 client 10.0.1.122 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *132 client 10.0.1.41 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *85 client 10.0.1.9 closed keepalive connection
+2026/11/16 01:36:40 [info] 508183#508183: *123 client 10.0.1.113 closed keepalive connection
+2026/11/16 01:36:41 [warn] 508183#508183: *5176 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/09/0000000091 while reading upstream, client: 10.0.1.240, server: twojadomena.pl, request: "GET /export?r=196 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=196", host: "10.0.0.1"
+2026/11/16 01:36:42 [warn] 508183#508183: *5196 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/09/0000000092 while reading upstream, client: 10.0.1.31, server: twojadomena.pl, request: "GET /export?r=213 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=213", host: "10.0.0.1"
+2026/11/16 01:36:42 [warn] 508183#508183: *5214 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/09/0000000093 while reading upstream, client: 10.0.1.33, server: twojadomena.pl, request: "GET /export?r=655 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=655", host: "10.0.0.1"
+2026/11/16 01:36:43 [info] 508183#508183: *4665 client 10.0.1.233 closed keepalive connection
+2026/11/16 01:36:43 [info] 508183#508183: *4618 client 10.0.1.219 closed keepalive connection
+2026/11/16 01:36:43 [info] 508183#508183: *5196 client 10.0.1.31 closed keepalive connection
+2026/11/16 01:36:43 [info] 508183#508183: *5214 client 10.0.1.33 closed keepalive connection
+2026/11/16 01:36:43 [info] 508183#508183: *5176 client 10.0.1.240 closed keepalive connection
+2026/11/16 01:36:44 [info] 508183#508183: *4522 client 10.0.1.207 closed keepalive connection
+2026/11/16 01:36:49 [warn] 508183#508183: *5511 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/09/0000000094 while reading upstream, client: 10.0.1.129, server: twojadomena.pl, request: "GET /export?r=52 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=52", host: "10.0.0.1"
+2026/11/16 01:36:49 [info] 508183#508183: *5511 client 10.0.1.129 closed keepalive connection
+2026/11/16 01:36:50 [warn] 508183#508183: *5544 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/09/0000000095 while reading upstream, client: 10.0.1.183, server: twojadomena.pl, request: "GET /export?r=999 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=999", host: "10.0.0.1"
+2026/11/16 01:36:51 [info] 508183#508183: *5544 client 10.0.1.183 closed keepalive connection
+2026/11/16 01:36:51 [info] 508183#508183: *325 client 10.0.1.102 closed keepalive connection
+2026/11/16 01:36:51 [info] 508183#508183: *644 client 10.0.1.157 closed keepalive connection
+2026/11/16 01:36:52 [info] 508184#508184: *857 client 10.0.1.166 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *69 client 10.0.1.1 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *2486 client 10.0.1.8 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *2489 client 10.0.1.13 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *2502 client 10.0.1.16 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *2505 client 10.0.1.19 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *313 client 10.0.1.21 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *321 client 10.0.1.22 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *381 client 10.0.1.39 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *390 client 10.0.1.53 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *413 client 10.0.1.66 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *420 client 10.0.1.69 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *499 client 10.0.1.76 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *533 client 10.0.1.78 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *559 client 10.0.1.89 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *592 client 10.0.1.94 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *608 client 10.0.1.107 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *610 client 10.0.1.117 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *656 client 10.0.1.125 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *668 client 10.0.1.143 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *725 client 10.0.1.144 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *2135 client 10.0.1.147 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *2148 client 10.0.1.155 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *787 client 10.0.1.159 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *2169 client 10.0.1.163 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *868 client 10.0.1.170 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *882 client 10.0.1.180 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *897 client 10.0.1.195 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *908 client 10.0.1.198 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *914 client 10.0.1.208 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *917 client 10.0.1.209 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *923 client 10.0.1.214 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *926 client 10.0.1.227 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *967 client 10.0.1.237 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *1026 client 10.0.1.239 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *1030 client 10.0.1.246 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *1039 client 10.0.1.247 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *1042 client 10.0.1.249 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *1048 client 10.0.1.254 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *427 client 10.0.1.121 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *561 client 10.0.1.215 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *335 client 10.0.1.70 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4720 client 10.0.1.42 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4507 client 10.0.1.206 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4698 client 10.0.1.28 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4642 client 10.0.1.3 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4708 client 10.0.1.38 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4600 client 10.0.1.230 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4459 client 10.0.1.193 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4852 client 10.0.1.55 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4595 client 10.0.1.226 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *1613 client 10.0.1.190 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4680 client 10.0.1.24 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4543 client 10.0.1.218 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4914 client 10.0.1.99 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *1581 client 10.0.1.151 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4666 client 10.0.1.10 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5092 client 10.0.1.138 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4869 client 10.0.1.60 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3608 client 10.0.1.109 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5307 client 10.0.1.224 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5060 client 10.0.1.111 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4564 client 10.0.1.223 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4616 client 10.0.1.241 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4532 client 10.0.1.217 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4904 client 10.0.1.88 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4478 client 10.0.1.199 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4899 client 10.0.1.82 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4907 client 10.0.1.92 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4631 client 10.0.1.251 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4467 client 10.0.1.196 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5080 client 10.0.1.134 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4807 client 10.0.1.50 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *1561 client 10.0.1.139 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4790 client 10.0.1.48 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *1599 client 10.0.1.182 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4862 client 10.0.1.56 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4603 client 10.0.1.235 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4550 client 10.0.1.221 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5016 client 10.0.1.105 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4670 client 10.0.1.23 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4770 client 10.0.1.44 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5485 client 10.0.1.43 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5046 client 10.0.1.110 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4480 client 10.0.1.201 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4977 client 10.0.1.101 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *1617 client 10.0.1.192 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5228 client 10.0.1.205 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *1517 client 10.0.1.124 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4485 client 10.0.1.202 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4901 client 10.0.1.87 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4876 client 10.0.1.73 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4639 client 10.0.1.252 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4717 client 10.0.1.40 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4874 client 10.0.1.63 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *352 client 10.0.1.120 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *583 client 10.0.1.231 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *336 client 10.0.1.108 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *297 client 10.0.1.98 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *334 client 10.0.1.112 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *291 client 10.0.1.80 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *443 client 10.0.1.148 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *86 client 10.0.1.15 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *429 client 10.0.1.123 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *256 client 10.0.1.72 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *424 client 10.0.1.133 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *465 client 10.0.1.154 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *474 client 10.0.1.165 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *283 client 10.0.1.97 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *482 client 10.0.1.186 closed keepalive connection
+2026/11/16 01:36:52 [info] 508184#508184: *80 client 10.0.1.35 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5305 client 10.0.1.167 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5208 client 10.0.1.148 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4961 client 10.0.1.98 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4838 client 10.0.1.74 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4893 client 10.0.1.97 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5431 client 10.0.1.6 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5474 client 10.0.1.26 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5418 client 10.0.1.215 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5403 client 10.0.1.187 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5488 client 10.0.1.35 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5469 client 10.0.1.15 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4951 client 10.0.1.108 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5421 client 10.0.1.248 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5416 client 10.0.1.231 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5206 client 10.0.1.133 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4984 client 10.0.1.120 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4756 client 10.0.1.68 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5355 client 10.0.1.186 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5289 client 10.0.1.165 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4972 client 10.0.1.112 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5267 client 10.0.1.154 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4873 client 10.0.1.85 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5322 client 10.0.1.175 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4815 client 10.0.1.72 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4785 client 10.0.1.70 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5170 client 10.0.1.123 closed keepalive connection
+2026/11/16 01:36:52 [info] 508184#508184: *5025 client 10.0.1.121 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3249 client 10.0.1.28 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3065 client 10.0.1.199 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3286 client 10.0.1.48 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3010 client 10.0.1.109 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *2869 client 10.0.1.92 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3276 client 10.0.1.42 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3289 client 10.0.1.60 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3029 client 10.0.1.124 closed keepalive connection
+2026/11/16 01:36:52 [info] 508184#508184: *2880 client 10.0.1.99 closed keepalive connection
+2026/11/16 01:36:52 [info] 508184#508184: *2909 client 10.0.1.105 closed keepalive connection
+2026/11/16 01:36:52 [info] 508184#508184: *3240 client 10.0.1.224 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3379 client 10.0.1.88 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3243 client 10.0.1.235 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3308 client 10.0.1.82 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3174 client 10.0.1.206 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *2884 client 10.0.1.101 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *541 client 10.0.1.116 closed keepalive connection
+2026/11/16 01:36:52 [warn] 508183#508183: *5618 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/09/0000000096 while reading upstream, client: 10.0.1.198, server: twojadomena.pl, request: "GET /export?r=230 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=230", host: "10.0.0.1"
+2026/11/16 01:36:52 [info] 508183#508183: *37 client 10.0.1.10 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *115 client 10.0.1.43 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5601 client 10.0.1.170 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5618 client 10.0.1.198 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *477 client 10.0.1.221 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *116 client 10.0.1.44 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *304 client 10.0.1.134 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *550 client 10.0.1.252 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *35 client 10.0.1.3 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *150 client 10.0.1.56 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *259 client 10.0.1.88 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *48 client 10.0.1.24 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *221 client 10.0.1.63 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *519 client 10.0.1.230 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *384 client 10.0.1.151 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *400 client 10.0.1.182 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *67 client 10.0.1.40 closed keepalive connection
+2026/11/16 01:36:52 [info] 508184#508184: *237 client 10.0.1.73 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *268 client 10.0.1.111 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *480 client 10.0.1.223 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *463 client 10.0.1.193 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *167 client 10.0.1.60 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *264 client 10.0.1.101 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *99 client 10.0.1.42 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *543 client 10.0.1.251 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *137 client 10.0.1.55 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *529 client 10.0.1.241 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *375 client 10.0.1.139 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *471 client 10.0.1.202 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *270 client 10.0.1.110 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *466 client 10.0.1.201 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *416 client 10.0.1.190 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *500 client 10.0.1.226 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *422 client 10.0.1.192 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *51 client 10.0.1.38 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *118 client 10.0.1.50 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *315 client 10.0.1.138 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *437 client 10.0.1.62 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *89 client 10.0.1.1 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *93 client 10.0.1.16 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *147 client 10.0.1.22 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *154 client 10.0.1.39 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *190 client 10.0.1.66 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *192 client 10.0.1.69 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *239 client 10.0.1.78 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *253 client 10.0.1.89 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *275 client 10.0.1.107 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *298 client 10.0.1.117 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *348 client 10.0.1.143 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *357 client 10.0.1.155 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *369 client 10.0.1.163 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *373 client 10.0.1.180 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *394 client 10.0.1.195 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *439 client 10.0.1.209 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *449 client 10.0.1.214 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *451 client 10.0.1.227 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *453 client 10.0.1.239 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *455 client 10.0.1.246 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *492 client 10.0.1.247 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *527 client 10.0.1.254 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3815 client 10.0.1.137 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5642 client 10.0.1.40 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5568 client 10.0.1.10 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5325 client 10.0.1.189 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5562 client 10.0.1.3 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3798 client 10.0.1.111 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4295 client 10.0.1.55 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5429 client 10.0.1.201 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4287 client 10.0.1.50 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5589 client 10.0.1.17 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3780 client 10.0.1.110 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3827 client 10.0.1.139 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5370 client 10.0.1.192 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5477 client 10.0.1.234 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3743 client 10.0.1.100 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5534 client 10.0.1.2 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5493 client 10.0.1.241 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3738 client 10.0.1.96 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5614 client 10.0.1.38 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3750 client 10.0.1.101 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5335 client 10.0.1.190 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5598 client 10.0.1.34 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3824 client 10.0.1.138 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5461 client 10.0.1.226 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3625 client 10.0.1.63 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3833 client 10.0.1.151 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5407 client 10.0.1.194 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5383 client 10.0.1.193 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3632 client 10.0.1.73 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3659 client 10.0.1.93 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3809 client 10.0.1.129 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4306 client 10.0.1.56 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5265 client 10.0.1.172 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5455 client 10.0.1.221 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5577 client 10.0.1.14 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3636 client 10.0.1.88 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5467 client 10.0.1.230 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5278 client 10.0.1.182 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3591 client 10.0.1.60 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5514 client 10.0.1.250 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5520 client 10.0.1.252 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3813 client 10.0.1.134 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5452 client 10.0.1.202 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5516 client 10.0.1.251 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5591 client 10.0.1.24 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5459 client 10.0.1.223 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5259 client 10.0.1.164 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3680 client 10.0.1.66 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3712 client 10.0.1.71 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *354 client 10.0.1.104 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *388 client 10.0.1.114 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *490 client 10.0.1.130 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *521 client 10.0.1.140 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *531 client 10.0.1.143 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *548 client 10.0.1.169 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3513 client 10.0.1.177 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3638 client 10.0.1.185 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3655 client 10.0.1.214 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3628 client 10.0.1.65 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *653 client 10.0.1.212 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *199 client 10.0.1.12 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *473 client 10.0.1.175 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *751 client 10.0.1.236 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4922 client 10.0.1.37 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5041 client 10.0.1.39 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5062 client 10.0.1.66 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5202 client 10.0.1.69 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5220 client 10.0.1.71 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5225 client 10.0.1.78 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5246 client 10.0.1.89 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5255 client 10.0.1.104 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5261 client 10.0.1.107 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5268 client 10.0.1.114 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5273 client 10.0.1.117 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5285 client 10.0.1.130 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5300 client 10.0.1.140 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5309 client 10.0.1.143 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5312 client 10.0.1.155 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5317 client 10.0.1.163 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5329 client 10.0.1.169 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5331 client 10.0.1.177 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5352 client 10.0.1.180 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5373 client 10.0.1.185 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5379 client 10.0.1.195 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5412 client 10.0.1.209 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5434 client 10.0.1.214 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5465 client 10.0.1.227 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5565 client 10.0.1.239 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5638 client 10.0.1.246 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5644 client 10.0.1.247 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *5650 client 10.0.1.254 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *605 client 10.0.1.171 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4858 client 10.0.1.80 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *670 client 10.0.1.167 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4647 client 10.0.1.248 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *517 client 10.0.1.74 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *459 client 10.0.1.68 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *576 client 10.0.1.112 closed keepalive connection
+2026/11/16 01:36:52 [info] 508184#508184: *4661 client 10.0.1.6 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *539 client 10.0.1.85 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *4773 client 10.0.1.26 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *691 client 10.0.1.187 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *2204 client 10.0.1.80 closed keepalive connection
+2026/11/16 01:36:52 [info] 508183#508183: *3151 client 10.0.1.126 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *4691 client 10.0.1.148 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3097 client 10.0.1.121 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3303 client 10.0.1.156 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3673 client 10.0.1.15 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3534 client 10.0.1.219 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3041 client 10.0.1.108 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3554 client 10.0.1.231 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3305 client 10.0.1.161 closed keepalive connection
+2026/11/16 01:36:53 [info] 508184#508184: *2260 client 10.0.1.98 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3777 client 10.0.1.72 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3137 client 10.0.1.120 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3323 client 10.0.1.175 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3213 client 10.0.1.133 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3711 client 10.0.1.70 closed keepalive connection
+2026/11/16 01:36:53 [info] 508184#508184: *3642 client 10.0.1.240 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3331 client 10.0.1.176 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3363 client 10.0.1.186 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3616 client 10.0.1.233 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3325 client 10.0.1.165 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3407 client 10.0.1.207 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *4496 client 10.0.1.97 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3686 client 10.0.1.35 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3678 client 10.0.1.33 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3048 client 10.0.1.112 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3260 client 10.0.1.136 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *4746 client 10.0.1.154 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3676 client 10.0.1.31 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3510 client 10.0.1.215 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *3100 client 10.0.1.123 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *769 client 10.0.1.243 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *701 client 10.0.1.212 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *415 client 10.0.1.152 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *258 client 10.0.1.62 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *537 client 10.0.1.171 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *739 client 10.0.1.236 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *771 client 10.0.1.243 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *136 client 10.0.1.12 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *212 client 10.0.1.59 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *468 client 10.0.1.116 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *312 client 10.0.1.102 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *602 client 10.0.1.210 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *5652 client 10.0.1.243 closed keepalive connection
+2026/11/16 01:36:53 [info] 508183#508183: *497 client 10.0.1.157 closed keepalive connection

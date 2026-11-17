@@ -1,0 +1,23 @@
+r4_launch pid 5566 start 2026-11-16T11:21:06Z AP-15 pin ec819fb8894101a4fccd780217efc02703b1eeb6 record bench/calibration/ddos-mitigation-2026-11-16.json; uptime 90.92 s
+2026-11-16T11:50:37Z uptime 1861.47 s; waiting 180 s for the orchestrator's turn to end
+== R4 start 2026-11-16T11:53:37Z load 0.02 0.01 0.00
+OK  tree
+OK  frozen hashes
+OK  host (kernel 7.0.0-42-generic, MemTotal 7422 MiB, CPU AMD Ryzen 7 7730U with Radeon Graphics, VirtualBox host 7.2.10r174163)
+OK  uptime
+OK  chrony
+OK  timers
+OK  jobs
+OK  testbed
+OK  quiet
+OK  record
+packet R4 started (pid 8550), detached; its log: /var/tmp/ddos_campaigns/recal_2026-11/confirmation/packets/R4_20261116T115437Z.log
+stop it with sudo kill -TERM 8550: the step's process gets the TERM and takes the testbed down, no further step starts,
+and the tar, its sha256 and the summary are still written; the same command resumes
+R4 foreground exit 0 2026-11-16T11:54:37Z
+R4 running: stage pid 8550, log /var/tmp/ddos_campaigns/recal_2026-11/confirmation/packets/R4_20261116T115437Z.log; stop with: sudo kill -TERM 8550
+R4 stage ended 2026-11-16T12:33:38Z
+drift: within the frozen reference
+2026-11-16T12:33:08Z exit 0
+PACKET R4 done (exit 0): runs made 12, host-invalid 0; 38 min; tar /var/tmp/ddos_campaigns/recal_2026-11/confirmation/packets/R4_20261116T115437Z.tar.gz, sha256 323f5c8e7b2458c4
+r4_launch all done 2026-11-16T12:33:38Z
