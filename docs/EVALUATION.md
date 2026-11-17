@@ -209,7 +209,7 @@ G-17 checks (`doff`, fragments, IPv6 / 802.1Q, `tot_len`), which the program sti
 
 ## Defaults changed on 2026-10-30
 
-The orchestrated review of 2026-10-29 (`/home/artur/agent_workspace/final/REPORT.md`, H-03; security
+The orchestrated review of 2026-10-29 (the orchestrator's report, not in the repository, H-03; security
 review S11 of task T-007) led to one change in what a suite run executes:
 
 | Change | Before | Now | Why |
@@ -228,7 +228,7 @@ R.U.D.Y. scripts `PORT = 80`. Not changed: `setup.sh` (the legacy two-namespace 
 
 ## Daemon robustness (2026-10-30)
 
-Three defects from the review of 2026-10-29 (`/home/artur/agent_workspace/final/REPORT.md`) are fixed on
+Three defects from the review of 2026-10-29 (the orchestrator's report, not in the repository) are fixed on
 `fix/daemon-robustness`. Detection and enforcement are unchanged, and `tests/test_daemon_rules.py` passes
 unchanged.
 
@@ -834,7 +834,12 @@ is still `bench/calibration/placeholder.json`, the design's illustrative numbers
 (`--dry-run` allows one and labels everything it prints). A measured record exists since 2026-11-04: the calibration
 runner froze `bench/calibration/ddos-mitigation-2026-11-04.json` (status `frozen`). Its drift check of 2026-11-08 to
 11 never passed, so the record is not confirmed on the current host and no campaign has been judged against it
-(`results/2026-11-11_harm-drift-check/`). **Nothing in this section is a statement about the testbed.**
+(`results/2026-11-11_harm-drift-check/`). On the laptop host, a pre-registered re-calibration froze
+`bench/calibration/ddos-mitigation-2026-11-16.json` on 2026-11-16, with one departure labelled post hoc (the end-of-window
+check H7 waits 2 s, `docs/RECALIBRATION_2026-11_DEPARTURE_1.md`), and its confirmation (R4) upheld it
+(`results/2026-11-15_harm-recalibration/`); P2 was judged against that record after a post hoc fix of the attack's launch
+(K23, `docs/HG1C_DESIGN.md` departure 42): gate PASS, P2 outcome of `M_xdp` NOT MET (`results/2026-11-16_harm-p2-hg4/`).
+**Nothing in this section is a statement about the testbed.**
 
 | Tool | What it is |
 |---|---|
@@ -884,7 +889,8 @@ not pass and is reported when it does; HRR, with a block-bootstrap interval, exi
 
 **Limits.** The p95 is over the successes, so a server that fails its slowest requests looks faster (Q counts the
 failures and is the primary number); the pooled p95 weighs the route classes by their share of the mix; the
-benign classes and the attack families are assumptions; every cost is a placeholder until HG2 measures it; a
+benign classes and the attack families are assumptions; the costs of `placeholder.json` are illustrative (the frozen
+records hold measured ones); a
 population of class-pure streams is coarser than sessions. `docs/HG1B_MINIMAL_DESIGN.md` section 9 lists what the
 build found.
 
@@ -894,7 +900,10 @@ build found.
 adds the three runners that turn a scenario into the run contract above, the run contract into a verdict, and measurements into a
 frozen calibration. **They were built offline. On the testbed, the calibration runner froze `bench/calibration/ddos-mitigation-2026-11-04.json`
 on 2026-11-04, and its drift check of 2026-11-08 to 11 failed (5 of 5 `drift.json`, `ok=false`) or gave no reading, so no campaign has
-been judged against the record (`results/2026-11-11_harm-drift-check/`).** The first contact is a ladder of four small steps
+been judged against the record (`results/2026-11-11_harm-drift-check/`). On the laptop host the re-calibration froze
+`bench/calibration/ddos-mitigation-2026-11-16.json` on 2026-11-16 (departure 1, post hoc), R4 confirmed it, and P2 was judged
+against it after the post hoc launch fix K23 (gate PASS, P2 outcome NOT MET; `results/2026-11-15_harm-recalibration/`,
+`results/2026-11-16_harm-p2-hg4/`).** The first contact is a ladder of four small steps
 (S1 to S4, section 10 of the note), each approved on its own with its exact command; what follows says what the code asks of
 the machine and what the tests show a simulated machine doing, not what the testbed does.
 

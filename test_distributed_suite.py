@@ -4,8 +4,8 @@ Distributed DDoS Mitigation Testing Suite
 ==========================================
 Creates a realistic multi-namespace network topology:
   - 1 server namespace (10.0.0.1) with Nginx + Gunicorn + control_plane.py
-  - 40 legitimate client namespaces (10.0.1.1-10.0.1.40) with tc-simulated quality
-  - 10 botnet attacker namespaces  (10.0.2.1-10.0.2.10)
+  - 20 legitimate client namespaces (10.0.1.1-10.0.1.20, LEGIT_COUNT) with tc-simulated quality
+  - botnet attacker namespaces (10.0.2.x, BOTNET_COUNT: 5 at OPERATING_POINT=default, 10 at knee)
 
 Topology:
   All namespaces connect through a Linux bridge (ddos_br0) in the DEFAULT namespace.
@@ -44,7 +44,7 @@ SERVER_NS = "server_ns"
 BRIDGE_NAME = "ddos_br0"      # Bridge lives in the DEFAULT namespace
 
 LEGIT_COUNT = 20               # Number of legitimate client namespaces
-LEGIT_IP_PREFIX = "10.0.1"     # Legit IPs: 10.0.1.1 – 10.0.1.40
+LEGIT_IP_PREFIX = "10.0.1"     # Legit IPs: 10.0.1.1 – 10.0.1.20 (count: LEGIT_COUNT above)
 
 BOTNET_IP_PREFIX = "10.0.2"    # Botnet IPs: 10.0.2.1 – 10.0.2.10 (count: BOTNET_COUNT below)
 
