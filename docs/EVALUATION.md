@@ -909,13 +909,13 @@ the machine and what the tests show a simulated machine doing, not what the test
     sudo ./venv/bin/python bench/executor.py run SPEC --kind C --seed 1 --out DIR/C [--rho R --timeline B,A,R]
     ./venv/bin/python bench/executor.py clock-probe SPEC --duration 30 [--attack] --out DIR           # S1: no root, loopback
     sudo ./venv/bin/python bench/executor.py smoke-topology SPEC --out DIR/C                          # S2
-    python3 bench/gate_campaign.py plan SPEC --calibration FILE [--blocks N]
+    ./venv/bin/python bench/gate_campaign.py plan SPEC --calibration FILE [--blocks N]
     sudo ./venv/bin/python bench/gate_campaign.py run SPEC --calibration FILE --out DIR [--dry-run] [--blocks N] [--no-warmup]
-    python3 bench/gate_campaign.py run SPEC --calibration FILE --out DIR --simulate pass|fail|small|latency     # no root, no namespace
-    python3 bench/gate_campaign.py status DIR
-    python3 bench/calibrate.py plan                                       # the steps, their runs and their time
+    ./venv/bin/python bench/gate_campaign.py run SPEC --calibration FILE --out DIR --simulate pass|fail|small|latency     # no root, no namespace
+    ./venv/bin/python bench/gate_campaign.py status DIR
+    ./venv/bin/python bench/calibrate.py plan                             # the steps, their runs and their time
     sudo ./venv/bin/python bench/calibrate.py origin|capacity|reference --out SESSION                  # then `ladder --family F`
-    python3 bench/calibrate.py freeze --dir SESSION --out bench/calibration/<host>-<date>.json         # never touches the VM
+    ./venv/bin/python bench/calibrate.py freeze --dir SESSION --out bench/calibration/<host>-<date>.json   # never touches the VM
     sudo ./venv/bin/python bench/calibrate.py drift --calibration FILE --out DIR
 
 **A run directory** holds `run.json` and `streams/<id>/loadgen.{summary.json,records.csv.gz}` (the run contract), `plan.json` (every
