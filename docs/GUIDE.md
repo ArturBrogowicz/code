@@ -110,9 +110,11 @@ from the project's operation notes, not from a published file.
 
 1. **The VM's host must not sleep.** HS1 required the PC plugged in, sleep and hibernation off on AC power and the lid
    set to do nothing ([`HS1_PREREG.md`](HS1_PREREG.md) 2.6); the re-calibration held "on the PC sleep and hibernation
-   off" (D2). *Operator's observation*: on 2026-11-11 the host PC slept while nobody was at it; the guest froze with no
-   trace in its own logs, and afterwards its clock was hours behind true time while chrony slewed it back. The laptop
-   can sleep through Windows Modern Standby, so its sleep settings on AC power must be off for the whole window.
+   off" (D2); HS1 notes that "a full suspension (host sleep) moves the clock" ([`HS1_PREREG.md`](HS1_PREREG.md) 8.3).
+   *Operator's observation, in no published file*: on 2026-11-11 the host PC slept while nobody was at it; the guest
+   froze with no trace in its own logs, and afterwards its clock was hours behind true time while chrony slewed it back.
+   The laptop can also sleep through Windows Modern Standby, so its sleep settings on AC power must be off for the whole
+   window.
 2. **Check the guest clock against an outside source before a step** (HS1 2.3: within 1 s of an outside HTTPS `Date`
    header). For example `date -u` beside `curl -sI https://www.kernel.org | grep -i '^date:'`, and `chronyc tracking`.
    The packet pre-check and H4 require chrony synchronised: leap status normal, |System time| under 0.1 s, a selected
@@ -124,14 +126,18 @@ from the project's operation notes, not from a published file.
    refused R1 on a running package job
    ([`results/2026-11-15_harm-recalibration/README.md`](../results/2026-11-15_harm-recalibration/README.md), D-107). HS1
    also recommends masking `motd-news`, `update-notifier-*`, `dpkg-db-backup`, `fstrim`, `e2scrub_all`, `xfs_scrub_all`
-   and holding snap refreshes. With systemd's own commands that is, for example:
+   and holding snap refreshes. With systemd's and apt's own commands that is, for example (root, VM; not run for this
+   guide, and the repository does not record the exact commands the operator typed):
 
-       sudo systemctl mask apt-daily.timer apt-daily-upgrade.timer fwupd-refresh.timer logrotate.timer man-db.timer
+       sudo systemctl mask --now apt-daily.timer apt-daily-upgrade.timer fwupd-refresh.timer logrotate.timer man-db.timer
        sudo apt-mark hold linux-generic linux-headers-generic linux-image-generic
        sudo systemctl disable --now unattended-upgrades.service
+       systemctl list-timers --all                     # the five timers must not show a next run
 
-   **Undo all of it when the measurements are over** (`systemctl unmask ...`, `apt-mark unhold ...`,
-   `systemctl enable --now unattended-upgrades.service`): a VM left without updates and log rotation is not a VM to
+   `mask` alone only stops the timers from being started again; `--now` also stops those already active (systemctl(1)).
+   **Undo all of it when the measurements are over**: `sudo systemctl unmask ...` and then `sudo systemctl start ...`
+   for the same timers (or a reboot; unmasking does not start them), `sudo apt-mark unhold ...` and
+   `sudo systemctl enable --now unattended-upgrades.service`. A VM left without updates and log rotation is not a VM to
    keep. A rotated Nginx log in the middle of a campaign was seen once before the timers were masked: the first review
    found the access log of the 2026-10-11 campaign "rotated by logrotate at 12:34:25 mid-campaign"
    ([`REPORT.md`](REPORT.md), section 7).
@@ -165,9 +171,10 @@ from `mpstat`, `pidstat`, chrony and the journal, a host-invalid run kept as `<r
 [`bench/vm/hs1_series.sh`](../bench/vm/hs1_series.sh), [`hs1_probe.py`](../bench/vm/hs1_probe.py) and
 [`hs1_eval.py`](../bench/vm/hs1_eval.py) (a 3-h stability check of an idle host, [`HS1_PREREG.md`](HS1_PREREG.md)), and
 the paired check [`bench/vm/paired_check.py`](../bench/vm/paired_check.py) (P-1: the speed probe as the user and as root
-agree within 5 %). HS1's script writes only under a directory of the orchestrator's workspace that it names in
-`HOST_BASE`, and runs its probes through that workspace's sandbox runner (`HS1_SBX`): set both before using it
-elsewhere.
+agree within 5 %). HS1's script writes only under a directory of the orchestrator's workspace, hard-coded as the
+constant `HOST_BASE` (`hs1_series.sh` line 23), and runs its probes through that workspace's sandbox runner (the
+environment variable `HS1_SBX`, empty to run without it): on another machine the constant must be edited, which is a
+change of the pre-registered script.
 
 ## 3. Setup
 
@@ -213,9 +220,10 @@ The system `python3` has no numpy (Ubuntu's `python3-numpy` is not installed). I
 `eval/harm_gate.py`, `eval/publish_campaign.py`, `eval/analyze_campaign.py` and `eval/run_level_stats.py` under
 `python3` all stop with `ModuleNotFoundError: No module named 'numpy'`; `bench/scenario.py`, `bench/calibration.py`,
 `bench/origin.py`, `bench/executor.py plan`, `bench/loadgen.py`, `bench/packets/prechecks.py`, `bench/hostcheck.py`,
-`eval/expc_probe.py` and the pure-Python P2 recomputation run under it. Some docstrings still write `python3` for the
-first group (`bench/calibrate.py`, `bench/gate_campaign.py`, `bench/hg4_spec.py`); on the testbed VM a numpy in the
-user's own site directory hid this. Use `venv/bin/python` for everything but the suite and the campaign runner.
+`eval/expc_probe.py` and the pure-Python P2 recomputation run under it. On the testbed VM a numpy in the user's own site
+directory hid this, so some usage lines in the code were written with `python3`; where a tool needs numpy, use
+`venv/bin/python` whatever its usage line says. Use `venv/bin/python` for everything but the suite and the campaign
+runner.
 
 ### 3.4 Confirm it works
 
@@ -332,7 +340,7 @@ A gate campaign of ten blocks, its status and the judge (seconds):
     ...
     gate: PASS (simulated), 10 valid blocks of 10, 0 re-run(s)
     $ venv/bin/python bench/gate_campaign.py status /tmp/sim_gate
-    campaign cheap_static_flood (calib), 10 blocks, calibration 0cbe3898 frozen, SIMULATED
+    campaign cheap_static_flood (calib), 10 blocks, calibration 0cbe3898 frozen, SIMULATED   # the hash differs per freeze
     ...
     gate PASS: 10 valid blocks of 10
     $ venv/bin/python eval/harm_gate.py /tmp/sim_gate --calibration /tmp/sim_record.json --md gate.md --json gate.json
@@ -381,8 +389,10 @@ veth pair, starts Gunicorn and Nginx (`nginx.conf`) in `server_ns`, and runs the
 
     sudo bash setup.sh
 
-The measurements never used it (its Gunicorn listens on `0.0.0.0:8080`, the bind the suite closed on 2026-10-30), and it
-deletes any `server_ns` first. The daemon is ready when it prints the line that starts with
+The measurements never used it (its Gunicorn listens on `0.0.0.0:8080`, the bind the suite closed on 2026-10-30). It
+also kills any Nginx master, Gunicorn and `control_plane.py` on the machine, deletes any `server_ns` and `attacker_ns`
+first, rewrites `dummy_app.py` (with the same bytes) and runs `venv/bin/python -m pip install gunicorn`, which needs the
+network when Gunicorn is missing. The daemon is ready when it prints the line that starts with
 `[*] Listening for Nginx logs (heuristic engine)`. Traffic from the other side, for example a request and a short
 open-loop load above the L7 rate rule's 50 requests/s:
 
@@ -393,7 +403,12 @@ open-loop load above the L7 rate rule's 50 requests/s:
 detaches XDP, and with it every XDP ban ([`EVALUATION.md`, "Daemon
 robustness"](EVALUATION.md#daemon-robustness-2026-10-30)). SIGKILL, which the suite uses, leaves the program attached:
 detach it with `sudo ip netns exec server_ns ip link set dev veth_server xdp off`. The executor stops a protected run's
-daemon with SIGINT, then KILL after 10 s, then that same `xdp off`.
+daemon with SIGINT, then KILL after 10 s, then that same `xdp off`. Stopping the daemon leaves the rest of `setup.sh`'s
+lab running; take it down with (root, VM; not run for this guide; the suite's `cleanup_all` does not know
+`attacker_ns`):
+
+    sudo ip netns pids server_ns | xargs -r sudo kill     # the lab's Nginx and Gunicorn
+    sudo ip netns del server_ns && sudo ip netns del attacker_ns
 
 ### 5.2 The daemon's switches
 
@@ -542,7 +557,7 @@ its pre-registration [`RECALIBRATION_2026-11_PREREG.md`](RECALIBRATION_2026-11_P
 | gate campaign | [`bench/gate_campaign.py`](../bench/gate_campaign.py) | `plan`, `run` (root, or `--simulate`), `status` |
 | judge | [`eval/harm_gate.py`](../eval/harm_gate.py) | PASS / FAIL / INVALID of a campaign, `--block` for one block, the P2 outcome (`P2_OUTCOME`) |
 | calibrator | [`bench/calibrate.py`](../bench/calibrate.py) | `plan`, `origin`, `capacity`, `ladder --family F`, `reference`, `freeze`, `drift` |
-| HG4 spec | [`bench/hg4_spec.py`](../bench/hg4_spec.py) | sets `cheap_static_flood_hg4.json` to twice a new record's cheap knee (`--write`) |
+| HG4 spec | [`bench/hg4_spec.py`](../bench/hg4_spec.py) | sets the tracked `cheap_static_flood_hg4.json` to twice a new record's cheap knee (`--write`; commit it before any run) |
 | host check | [`bench/hostcheck.py`](../bench/hostcheck.py) | `speed-hold`, `judge`, `chrony-sampler` |
 | packet | [`bench/packets/packet.sh`](../bench/packets/packet.sh), [`prechecks.py`](../bench/packets/prechecks.py) | one approved step: pre-checks, speed hold, the step detached with a time budget, tar, sha256, one-line summary |
 | VM helpers | [`bench/vm/`](../bench/vm/README.md) | `vm_step.sh` (snapshots around a step; the steps of the first calibration and its drift checks ran through copies of it), HS1, P-1 |
@@ -573,13 +588,28 @@ directory"](EVALUATION.md#the-harm-benchmarks-runners-hg1c). The gate and the P2
 
 All but `freeze` are (root, VM). A step stops rather than tunes (exit 7, "not frozen", for a step's own rule; exit 5,
 host unfit; exit 4, paused by `--stop-after`), and the same command resumes. Commit the frozen record before any
-campaign uses it; the 2026-11-16 record was committed at `ec819fb` and confirmed by `drift` after a reboot. A campaign
-that does not start in the confirmation's window needs a drift check of its own first (the pre-registration).
+campaign uses it; the 2026-11-16 record was committed at `ec819fb` and confirmed by `drift` after a reboot. For the
+protected arms (HG4), `venv/bin/python bench/hg4_spec.py --calibration <record> --write` then rewrites the tracked
+`bench/scenarios/cheap_static_flood_hg4.json` whenever the new cheap knee is not 4; commit that spec too before any run,
+because the executor's preflight refuses uncommitted changes to tracked files (`bench/executor.py`, `preflight`;
+`--allow-dirty` would record them, and a packet's tree check refuses them outright). For example:
+
+    git add bench/calibration/<host>-<date>.json bench/scenarios/cheap_static_flood_hg4.json && git commit
+
+A campaign that does not start in the confirmation's window needs a drift check of its own first (the pre-registration).
 
 ### 7.4 The packet wrapper
 
-[`bench/packets/packet.sh`](../bench/packets/packet.sh) wraps one approved step: `R1`, `R2a`, `R2b`, `R2c`, `R3`, `R4`,
-`P2-1` or `P2-2`. `--print` shows what it would do (offline):
+[`bench/packets/packet.sh`](../bench/packets/packet.sh) is the **2026-11 programme's wrapper for its own host**, not a
+general tool. It wraps one approved step of that programme: `R1`, `R2a`, `R2b`, `R2c`, `R3`, `R4`, `P2-1` or `P2-2`. Its
+pre-check holds R1 to the programme's laptop (`PROGRAMME_HOST` in `bench/packets/prechecks.py`: kernel 7.0.0-42-generic,
+7,422 MiB, AMD Ryzen 7 7730U, VirtualBox 7.2.10r174163) and every later packet to the session's first step, so on any
+other host R1 prints `NO host` and nothing starts. Its default session and campaign directories are the programme's
+(`recal_2026-11`, `hg4_mvp_xdp_recal`), and R1 needs HS1's medians, which only `hs1_series.sh` makes, under its
+hard-coded workspace directory. **On another host, run the steps of [7.3](#73-calibrate-a-host) and
+[7.2](#72-one-run-and-one-gate-campaign) directly** (the pre-check's other rules, item by item, are in
+[2.2](#22-validity-checklist-for-a-measurement)); adapting the wrapper means changing `PROGRAMME_HOST`, the defaults and
+HS1's directory in a commit of its own, which starts a new programme. `--print` shows what it would do (offline):
 
     $ bash bench/packets/packet.sh R1 --print
     == packet R1: speed hold against HS1's medians on this PC (K11); origin step; capacity (3 staged runs) ==
@@ -591,18 +621,18 @@ that does not start in the confirmation's window needs a drift check of its own 
     step 2      ./venv/bin/python -B bench/calibrate.py origin --out /var/tmp/ddos_campaigns/recal_2026-11
     step 3      ./venv/bin/python -B bench/calibrate.py capacity --out /var/tmp/ddos_campaigns/recal_2026-11 --stop-after REMAINING
 
-Run (root, VM), each from a clean checkout at the pinned commit:
+As the programme ran it (root, VM, on the laptop only), each from a clean checkout at the pinned commit:
 
     sudo bench/packets/packet.sh R1 --commit SHA --medians HS1_MEDIANS.json --paired PAIRED_DIR
     sudo bench/packets/packet.sh R2a --commit SHA                       # likewise R2b, R2c, R3
     sudo bench/packets/packet.sh R4 --commit SHA --record bench/calibration/<record>.json
     sudo bench/packets/packet.sh P2-2 --commit SHA --record bench/calibration/<record>.json --campaign /var/tmp/ddos_campaigns/<dir>
 
-The foreground checks, prints one `OK` or `NO` line per pre-check (tree, frozen hashes, host, uptime, chrony, timers,
-jobs, testbed, quiet, record) and starts the stage detached (`setsid nohup`), printing its pid and its log. Stop it with
-`sudo kill -TERM <stage pid>`; the tar, its sha256 and the summary are still written, and the same command resumes. The
-log ends with one summary line, `PACKET <name> <state> (exit N): runs made ..., host-invalid ...`, the state being done,
-paused, host unfit, not frozen or stopped.
+The foreground runs the checks, prints one `OK` or `NO` line per pre-check (tree, frozen hashes, host, uptime, chrony,
+timers, jobs, testbed, quiet, record) and starts the stage detached (`setsid nohup`), printing its pid and its log. Stop
+it with `sudo kill -TERM <stage pid>`; the tar, its sha256 and the summary are still written, and the same command
+resumes. The log ends with one summary line, `PACKET <name> <state> (exit N): runs made ..., host-invalid ...`, the
+state being done, paused, host unfit, not frozen or stopped.
 
 ### 7.5 How the 2026-11 campaigns were actually run
 
@@ -610,25 +640,30 @@ Reconstructed from the published launcher and packet logs
 ([`results/2026-11-15_harm-recalibration/packets/`](../results/2026-11-15_harm-recalibration/packets/),
 [`results/2026-11-16_harm-p2-hg4/packets/`](../results/2026-11-16_harm-p2-hg4/packets/)) and the two READMEs. Every step
 had its own approval packet (AP-11 to AP-18, published in each entry's `preregistration/`). The orchestrator started
-each step with a small launcher script that is **not published**; what each launcher did, from its logs and from the
-scripts as read for this guide:
+each step with a small launcher script that is **not published**. What each launcher did; *[logs]* marks what the
+published launcher logs show, *[script only]* what only the unpublished scripts show (read for this guide, not
+published, so not checkable here):
 
-1. waited 180 s "for the orchestrator's turn to end", so that the agent session on the VM was idle when anything was
-   measured (the R4 and P2 launchers first waited until the uptime passed 1,860 s);
-2. changed into a dedicated clean checkout at the pinned commit and refused to go on unless `HEAD` was the pin (and,
-   after the freeze, the record existed);
-3. for R1 only, ran P-1, `bench/vm/paired_check.py run DIR --medians <HS1's medians.json>` (two probe contexts within 5
-   %), and went on only on "GO ON";
-4. ran `sudo -n bench/packets/packet.sh <packet> --commit <pin> ...` and logged its pre-check lines and the stage's pid;
-5. watched the stage's `/proc` entry once a minute and printed the packet log's last lines;
-6. for `P2-2`, started the same command again 120 s after a packet ended "paused (exit 4)" (its 85-min budget), up to
-   three packets, and stopped on any other ending.
+1. *[logs]* waited 180 s "for the orchestrator's turn to end", so that the agent session on the VM was idle when
+   anything was measured; R4's launcher, started 91 s after a reboot, first waited for the uptime (its log: 90.92 s at
+   the start, 1,861.47 s when it went on); *[script only]* the threshold, 1,860 s, in the R4 and P2 launchers;
+2. *[script only]* changed into a dedicated clean checkout at the pinned commit and refused to go on unless `HEAD` was
+   the pin (and, after the freeze, the record existed); *[logs]* the packet's own pre-checks `OK tree` and
+   `OK frozen hashes` check the same;
+3. *[logs]* for R1 only, ran P-1, `bench/vm/paired_check.py run DIR --medians <HS1's medians.json>` (two probe contexts
+   within 5 %), and went on only on "GO ON";
+4. *[logs]* ran `bench/packets/packet.sh <packet> --commit <pin> ...` as root and logged its pre-check lines and the
+   stage's pid;
+5. *[script only]* watched the stage's `/proc` entry once a minute; *[logs]* when the stage ended, printed the time and
+   the packet log's last lines;
+6. *[logs]* for `P2-2`, started the same command again 120 s after a packet ended "paused (exit 4)" (its 85-min budget),
+   up to three packets ("max packets 3"), and stopped on any other ending.
 
 | When (UTC) | What happened | Log |
 |---|---|---|
 | 2026-11-14 | HS1, the 3-h host check of the laptop: passed (its medians are R1's speed reference; the run itself is not published) | `recal_2026-11/speed_reference.json` in the re-calibration entry |
 | 2026-11-15 15:57 | the pre-registration approved | entry README |
-| 11-15 17:21-17:27 | R1, first launch: P-1 D +0.14 %, GO ON; pre-check `NO jobs: a package job runs` (unattended-upgrade); exit 3, nothing started; `unattended-upgrades.service` then disabled | `r1_launch_20261115T172154Z.log` |
+| 11-15 17:21-17:27 | R1, first launch: P-1 D +0.14 %, GO ON; pre-check `NO jobs: a package job runs`, the job being the service's idle helper `unattended-upgrade-shutdown --wait-for-signal`; exit 3, nothing started; `unattended-upgrades.service` was therefore disabled | `r1_launch_20261115T172154Z.log` |
 | 11-15 18:04-18:33 | R1: P-1 D +0.03 %; all pre-checks OK; speed hold, origin, capacity: C_slo 84.5, C_sat 241.3 req/s; done (exit 0) | `r1_launch_20261115T180427Z.log`, `R1_*.log` |
 | 11-15 18:43-19:49 | R2a, packet 1: 11 runs, 4 set aside by H7 (a race in reading the monitors); "host unfit (exit 5)"; R2b not started | `r2_launch_*.log`, `R2a_20261115T184751Z.log` |
 | 11-15 | departure 1 (K22, post hoc): the judge reads the monitors 2 s after a run's window; new pin `9c0c25a` | [`RECALIBRATION_2026-11_DEPARTURE_1.md`](RECALIBRATION_2026-11_DEPARTURE_1.md) |
@@ -672,7 +707,9 @@ All of this is off by default and none of it is part of a current claim of benef
   (offline). The published commands are in each `results/2026-10-1*_l7-*` README. Verdict: no advantage (P5c.4).
 * **L7 v2, P1, P3, P4** ([`L7V2_DESIGN.md`](L7V2_DESIGN.md), [`P3_DATASET_DESIGN.md`](P3_DATASET_DESIGN.md),
   [`P4_SLOW_DESIGN.md`](P4_SLOW_DESIGN.md)): built and tested offline, pre-registered (`ml/*prereg*.json`), never run on
-  the VM. `eval/p1_runner.py` and `eval/p4_runner.py` are VM workloads with an offline `--plan`.
+  the VM. `eval/p1_runner.py` and `eval/p4_runner.py` are VM workloads with an offline `--plan`, which also needs
+  `--phase` and `--seed` (`eval/p1_runner.py` lines 1158-1159; `eval/p4_runner.py` stops with "--phase and --seed are
+  required").
 
 ## 9. Reproducing published results
 
@@ -751,6 +788,7 @@ namespaces and links of an earlier testbed and nothing else. After a SIGKILLed d
 
 `tests.test_l7_train_default.DocumentedP5cCommandTest.test_reproduces_the_published_gru_report` retrains the published
 L7 GRU and requires the report to equal `results/2026-10-16_l7-p5c3-train/l7_metrics.json` exactly. On the laptop it
-differs in about the sixth significant digit; the same code passed on the desktop. The commit messages since 2026-11-14
-(for example `ab49d04`, `18386ed`) record it as the one failure of every full run on the laptop, "floating point of
-another CPU", identical on `main` at `efa8f54`, and treat it as environmental. Every other test passes.
+differs in the fifth significant digit: in this guide's runs the key `probes` holds 0.07812660769559443 against the
+published 0.07812802796252072. The commit messages since 2026-11-14 (for example `ab49d04`, `18386ed`) record it as the
+one failure of every full run on the laptop, identical on `main` at `efa8f54`, and attribute it to "floating point of
+another CPU"; they treat it as environmental. Every other test passes.
