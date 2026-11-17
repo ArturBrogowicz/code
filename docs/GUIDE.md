@@ -584,17 +584,18 @@ directory"](EVALUATION.md#the-harm-benchmarks-runners-hg1c). The gate and the P2
     sudo ./venv/bin/python bench/calibrate.py ladder    --out SESSION --family cheap_static_flood   # and the other two
     sudo ./venv/bin/python bench/calibrate.py reference --out SESSION        # 5 rounds at the knees
     venv/bin/python bench/calibrate.py freeze --dir SESSION --out bench/calibration/<host>-<date>.json   # offline
+    venv/bin/python bench/hg4_spec.py --calibration bench/calibration/<host>-<date>.json --write         # offline, HG4
+    git add bench/calibration/<host>-<date>.json bench/scenarios/cheap_static_flood_hg4.json && git commit
     sudo ./venv/bin/python bench/calibrate.py drift --calibration bench/calibration/<host>-<date>.json --out DIR
 
-All but `freeze` are (root, VM). A step stops rather than tunes (exit 7, "not frozen", for a step's own rule; exit 5,
-host unfit; exit 4, paused by `--stop-after`), and the same command resumes. Commit the frozen record before any
-campaign uses it; the 2026-11-16 record was committed at `ec819fb` and confirmed by `drift` after a reboot. For the
-protected arms (HG4), `venv/bin/python bench/hg4_spec.py --calibration <record> --write` then rewrites the tracked
-`bench/scenarios/cheap_static_flood_hg4.json` whenever the new cheap knee is not 4; commit that spec too before any run,
-because the executor's preflight refuses uncommitted changes to tracked files (`bench/executor.py`, `preflight`;
-`--allow-dirty` would record them, and a packet's tree check refuses them outright). For example:
-
-    git add bench/calibration/<host>-<date>.json bench/scenarios/cheap_static_flood_hg4.json && git commit
+All but `freeze`, `hg4_spec.py` and the commit are (root, VM). A step stops rather than tunes (exit 7, "not frozen", for
+a step's own rule; exit 5, host unfit; exit 4, paused by `--stop-after`), and the same command resumes. `hg4_spec.py
+--write` rewrites the tracked `bench/scenarios/cheap_static_flood_hg4.json` (the protected arms' spec, HG4) whenever the
+new cheap knee is not 4, and leaves it unchanged otherwise. Commit the frozen record and that spec before the drift check
+and before any campaign: the executor's preflight refuses uncommitted changes to tracked files (`bench/executor.py`,
+`preflight`; `--allow-dirty` would record them, and a packet's tree check refuses them outright), and the drift run then
+names a commit that contains its record. The programme committed the 2026-11-16 record at `ec819fb` before `drift`
+confirmed it after a reboot (R4), and the HG4 spec after that, at `688594a`; the drift check does not read the spec.
 
 A campaign that does not start in the confirmation's window needs a drift check of its own first (the pre-registration).
 
@@ -791,4 +792,5 @@ L7 GRU and requires the report to equal `results/2026-10-16_l7-p5c3-train/l7_met
 differs in the fifth significant digit: in this guide's runs the key `probes` holds 0.07812660769559443 against the
 published 0.07812802796252072. The commit messages since 2026-11-14 (for example `ab49d04`, `18386ed`) record it as the
 one failure of every full run on the laptop, identical on `main` at `efa8f54`, and attribute it to "floating point of
-another CPU"; they treat it as environmental. Every other test passes.
+another CPU"; they treat it as environmental. On the desktop host the full runs passed it: for example the commit
+messages of `6fc8ec5` and `73e960a` (2026-11-10) record "Gate: 3271 tests OK". Every other test passes.
