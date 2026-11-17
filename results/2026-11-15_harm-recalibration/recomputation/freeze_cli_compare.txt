@@ -1,0 +1,6 @@
+A freeze_cli_record.json
+B bench/calibration/ddos-mitigation-2026-11-16.json
+leaves: A 154, B 154; differing: 2
+  created_utc: A '2026-11-17T09:05:22+00:00'  B '2026-11-16T10:05:07+00:00'
+  sha256: A '987f1150b30126e30907cc9f6de78abdc841e9d1b7e9892de40e26f4e69d2855'  B '7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c'
+A's digest with created_utc set to B's (2026-11-16T10:05:07+00:00): 7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c; B's sha256 field: 7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c; equal: True

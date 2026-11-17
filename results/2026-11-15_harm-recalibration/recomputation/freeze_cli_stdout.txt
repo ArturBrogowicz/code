@@ -1,0 +1,17 @@
+{
+ "c_slo_rps": 84.5,
+ "judged_profiles": [
+  "perfect",
+  "broadband"
+ ],
+ "knees": {
+  "cheap_static_flood": 4.0,
+  "costly_export_flood": 4.0,
+  "costly_search_flood": 2.0
+ },
+ "mean_cost_ms": 9.019375007109538,
+ "rho_rps": 42.25,
+ "sha256": "987f1150b30126e30907cc9f6de78abdc841e9d1b7e9892de40e26f4e69d2855",
+ "spare_capacity_cpu_s_per_s": 0.38106859405037796,
+ "status": "frozen"
+}

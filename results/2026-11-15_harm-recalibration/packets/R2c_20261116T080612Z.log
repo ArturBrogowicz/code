@@ -1,0 +1,370 @@
+packet R2c stage, pid 548271, 2026-11-16T08:06:12Z; sudo kill -TERM 548271 stops it
+2026-11-16T08:06:12Z running: ./venv/bin/python -B bench/hostcheck.py speed-hold --calibration bench/calibration/placeholder.json --reference /var/tmp/ddos_campaigns/recal_2026-11/origin/origin.json --lo -0.10 --hi 0.10 --max-min 30
+the step's process: 548289 (the packet stops with sudo kill -TERM 548271, the stage)
+speed hold: probe pair 1: -0.9%
+speed hold: probe pair 2: -0.1%
+speed hold: held after 2 probe pairs, 336 s (band -10% to +10%)
+2026-11-16T08:11:48Z exit 0
+2026-11-16T08:11:48Z running: ./venv/bin/python -B bench/calibrate.py ladder --family costly_search_flood --out /var/tmp/ddos_campaigns/recal_2026-11 --stop-after 79.40
+the step's process: 548424 (the packet stops with sudo kill -TERM 548271, the stage)
+ladder_costly_search_flood/01_L4_r2/U: attempt 1
+    0.112 gate: uptime 149649 s, load 0.32; waiting up to 30 min for uptime 1800 s and load below 0.3
+   22.286 timer probe 1 on CPU 7 at 2026-11-16T08:12:09+00:00: p50 0.0423135, p99 0.532492, max 0.535707 ms: passed
+   22.427 run U of costly_search_sub_threshold, seed 23: preflight and environment passed
+   40.831 speed probe before the stack: CPU 0 C3 42.64 ms, C5 231.5 ms, CPU 1 C3 43 ms, C5 237 ms
+   45.386 topology: 4 namespaces, 300 addresses, verified in 4.6 s
+   45.404 started the origin as pid 548654
+   45.456 started Nginx (its launcher returned after 0.05 s)
+   48.200 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   48.303 launched 32 legit streams
+   80.979 launched 4 attack streams
+  157.162 timeline over after 108.9 s
+  157.478 stopped 1 process(es) of this run in 0.30 s
+  157.497 wall time of 3 stream(s) raised to what their records need, by up to 0.12 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  157.596 nginx access log: 5973 lines (0 unparsed), server_requests.csv written, log compressed
+  157.609 run.json written; the run is sound
+  157.634 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  157.656 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.01 s
+  157.739 teardown: links deleted: vo_hg_0_perfect 0.04 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  157.764 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.2 s in all)
+ladder_costly_search_flood/01_L4_r2/U: speed bracket +0.6% before, -0.0% after: within H1
+ladder_costly_search_flood/02_L0.25_r1/U: attempt 1
+    2.223 timer probe 1 on CPU 7 at 2026-11-16T08:14:47+00:00: p50 0.0392925, p99 0.533561, max 0.549532 ms: passed
+    2.370 run U of costly_search_sub_threshold, seed 23: preflight and environment passed
+   20.497 speed probe before the stack: CPU 0 C3 42.57 ms, C5 233.2 ms, CPU 1 C3 42.7 ms, C5 232.2 ms
+   26.011 topology: 4 namespaces, 300 addresses, verified in 5.5 s
+   26.030 started the origin as pid 549097
+   26.081 started Nginx (its launcher returned after 0.05 s)
+   28.844 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   28.957 launched 32 legit streams
+   61.625 launched 4 attack streams
+  138.830 timeline over after 110.0 s
+  139.146 stopped 1 process(es) of this run in 0.31 s
+  139.163 wall time of 7 stream(s) raised to what their records need, by up to 0.11 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  139.234 nginx access log: 4511 lines (0 unparsed), server_requests.csv written, log compressed
+  139.249 run.json written; the run is sound
+  139.274 teardown: 0 process(es) in 5 namespace(s): listed in 0.03 s, ended in 0.00 s
+  139.293 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  139.377 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.03 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  139.402 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.2 s in all)
+ladder_costly_search_flood/02_L0.25_r1/U: speed bracket +0.1% before, +1.3% after: within H1
+ladder_costly_search_flood/03_L2_r2/U: attempt 1
+    2.226 timer probe 1 on CPU 7 at 2026-11-16T08:17:27+00:00: p50 0.0367525, p99 0.5346, max 0.939572 ms: passed
+    2.367 run U of costly_search_sub_threshold, seed 23: preflight and environment passed
+   20.505 speed probe before the stack: CPU 0 C3 42.67 ms, C5 231.5 ms, CPU 1 C3 42.62 ms, C5 233.6 ms
+   25.211 topology: 4 namespaces, 300 addresses, verified in 4.7 s
+   25.229 started the origin as pid 549542
+   25.282 started Nginx (its launcher returned after 0.05 s)
+   28.070 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   28.183 launched 32 legit streams
+   60.848 launched 4 attack streams
+  137.034 timeline over after 108.9 s
+  137.349 stopped 1 process(es) of this run in 0.30 s
+  137.367 wall time of 6 stream(s) raised to what their records need, by up to 0.10 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  137.452 nginx access log: 5199 lines (0 unparsed), server_requests.csv written, log compressed
+  137.466 run.json written; the run is sound
+  137.489 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  137.510 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  137.593 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.03 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  137.620 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.2 s in all)
+ladder_costly_search_flood/03_L2_r2/U: speed bracket +0.0% before, +0.3% after: within H1
+ladder_costly_search_flood/04_L0.125_r1/U: attempt 1
+    2.219 timer probe 1 on CPU 7 at 2026-11-16T08:20:05+00:00: p50 0.0366655, p99 0.526064, max 0.539246 ms: passed
+    2.369 run U of costly_search_sub_threshold, seed 23: preflight and environment passed
+   20.651 speed probe before the stack: CPU 0 C3 42.79 ms, C5 234.3 ms, CPU 1 C3 42.73 ms, C5 237.2 ms
+   31.289 topology: 4 namespaces, 300 addresses, verified in 10.6 s
+   31.308 started the origin as pid 549996
+   31.360 started Nginx (its launcher returned after 0.05 s)
+   34.129 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   34.234 launched 32 legit streams
+   66.901 launched 4 attack streams
+  143.105 timeline over after 109.0 s
+  143.419 stopped 1 process(es) of this run in 0.30 s
+  143.437 wall time of 1 stream(s) raised to what their records need, by up to 0.10 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  143.515 nginx access log: 4463 lines (0 unparsed), server_requests.csv written, log compressed
+  143.529 run.json written; the run is sound
+  143.552 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  143.575 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.01 s
+  143.632 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  143.663 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.1 s in all)
+ladder_costly_search_flood/04_L0.125_r1/U: speed bracket +0.9% before, +0.2% after: within H1
+ladder_costly_search_flood/05_control1/C: attempt 1
+    2.221 timer probe 1 on CPU 7 at 2026-11-16T08:22:49+00:00: p50 0.03743, p99 0.538464, max 0.565164 ms: passed
+    2.363 run C of costly_search_sub_threshold, seed 23: preflight and environment passed
+   20.479 speed probe before the stack: CPU 0 C3 43.18 ms, C5 231 ms, CPU 1 C3 42.69 ms, C5 233.3 ms
+   25.064 topology: 4 namespaces, 200 addresses, verified in 4.6 s
+   25.081 started the origin as pid 550436
+   25.133 started Nginx (its launcher returned after 0.05 s)
+   27.938 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   28.039 launched 32 legit streams
+  137.386 timeline over after 109.4 s
+  137.701 stopped 1 process(es) of this run in 0.30 s
+  137.716 wall time of 6 stream(s) raised to what their records need, by up to 0.14 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  137.786 nginx access log: 4412 lines (0 unparsed), server_requests.csv written, log compressed
+  137.790 run.json written; the run is sound
+  137.814 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  137.836 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  137.890 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  137.917 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.1 s in all)
+ladder_costly_search_flood/05_control1/C: speed bracket +0.3% before, +1.4% after: within H1
+ladder_costly_search_flood/06_L4_r1/U: attempt 1
+    2.218 timer probe 1 on CPU 7 at 2026-11-16T08:25:27+00:00: p50 0.0339605, p99 0.501893, max 0.512816 ms: passed
+    2.365 run U of costly_search_sub_threshold, seed 23: preflight and environment passed
+   20.406 speed probe before the stack: CPU 0 C3 42.5 ms, C5 231.8 ms, CPU 1 C3 42.36 ms, C5 231.8 ms
+   27.770 topology: 4 namespaces, 300 addresses, verified in 7.4 s
+   27.788 started the origin as pid 550867
+   27.840 started Nginx (its launcher returned after 0.05 s)
+   30.625 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   30.730 launched 32 legit streams
+   63.397 launched 4 attack streams
+  139.578 timeline over after 108.9 s
+  139.893 stopped 1 process(es) of this run in 0.30 s
+  139.912 wall time of 6 stream(s) raised to what their records need, by up to 0.11 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  139.912 1 legit stream(s) began outside the pack of the others, by up to 0.31 s, and are placed by their own offsets: L-poisson-C0-broadband-1
+  140.010 nginx access log: 5973 lines (0 unparsed), server_requests.csv written, log compressed
+  140.022 run.json written; the run is sound
+  140.045 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  140.065 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  140.137 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  140.164 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.1 s in all)
+ladder_costly_search_flood/06_L4_r1/U: speed bracket -0.4% before, +2.6% after: within H1
+ladder_costly_search_flood/07_L8_r1/U: attempt 1
+    2.217 timer probe 1 on CPU 7 at 2026-11-16T08:28:08+00:00: p50 0.0333945, p99 1.49767, max 1.78388 ms: passed
+    2.369 run U of costly_search_sub_threshold, seed 23: preflight and environment passed
+   20.569 speed probe before the stack: CPU 0 C3 43.31 ms, C5 235.2 ms, CPU 1 C3 42.47 ms, C5 231.2 ms
+   27.964 topology: 4 namespaces, 300 addresses, verified in 7.4 s
+   27.982 started the origin as pid 551316
+   28.034 started Nginx (its launcher returned after 0.05 s)
+   30.875 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   30.989 launched 32 legit streams
+   63.657 launched 4 attack streams
+  146.863 timeline over after 116.0 s
+  147.179 stopped 1 process(es) of this run in 0.30 s
+  147.200 wall time of 8 stream(s) raised to what their records need, by up to 0.09 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  147.318 nginx access log: 7547 lines (0 unparsed), server_requests.csv written, log compressed
+  147.332 run.json written; the run is sound
+  147.355 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  147.374 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.01 s
+  147.460 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.02 s, veth_srv_br 0.02 s, ddos_br0 0.02 s
+  147.486 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.2 s in all)
+ladder_costly_search_flood/07_L8_r1/U: speed bracket +0.5% before, +1.5% after: within H1
+ladder_costly_search_flood/08_L0.125_r2/U: attempt 1
+    2.237 timer probe 1 on CPU 7 at 2026-11-16T08:30:56+00:00: p50 0.0687555, p99 0.542309, max 0.548072 ms: passed
+    2.386 run U of costly_search_sub_threshold, seed 23: preflight and environment passed
+   20.516 speed probe before the stack: CPU 0 C3 43.22 ms, C5 231.4 ms, CPU 1 C3 43.02 ms, C5 233.1 ms
+   24.937 topology: 4 namespaces, 300 addresses, verified in 4.4 s
+   24.956 started the origin as pid 551759
+   25.008 started Nginx (its launcher returned after 0.05 s)
+   27.767 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   27.882 launched 32 legit streams
+   60.548 launched 4 attack streams
+  136.764 timeline over after 109.0 s
+  137.079 stopped 1 process(es) of this run in 0.30 s
+  137.095 wall time of 3 stream(s) raised to what their records need, by up to 0.11 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  137.168 nginx access log: 4449 lines (0 unparsed), server_requests.csv written, log compressed
+  137.173 run.json written; the run is sound
+  137.197 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  137.217 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.01 s, server_ns 0.00 s
+  137.276 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  137.303 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.1 s in all)
+ladder_costly_search_flood/08_L0.125_r2/U: speed bracket +0.5% before, +0.3% after: within H1
+ladder_costly_search_flood/09_L2_r1/U: attempt 1
+    2.237 timer probe 1 on CPU 7 at 2026-11-16T08:33:34+00:00: p50 0.0452365, p99 0.535854, max 2.09367 ms: passed
+    2.388 run U of costly_search_sub_threshold, seed 23: preflight and environment passed
+   20.951 speed probe before the stack: CPU 0 C3 42.43 ms, C5 251.6 ms, CPU 1 C3 42.26 ms, C5 231.3 ms
+   25.559 topology: 4 namespaces, 300 addresses, verified in 4.6 s
+   25.575 started the origin as pid 552204
+   25.627 started Nginx (its launcher returned after 0.05 s)
+   28.409 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   28.516 launched 32 legit streams
+   61.188 launched 4 attack streams
+  137.391 timeline over after 109.0 s
+  137.705 stopped 1 process(es) of this run in 0.30 s
+  137.722 wall time of 5 stream(s) raised to what their records need, by up to 0.12 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  137.805 nginx access log: 5199 lines (0 unparsed), server_requests.csv written, log compressed
+  137.819 run.json written; the run is sound
+  137.841 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  137.863 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.01 s, server_ns 0.00 s
+  137.922 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  137.947 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+ladder_costly_search_flood/09_L2_r1/U: speed bracket +1.6% before, -0.2% after: within H1
+ladder_costly_search_flood/10_control2/C: attempt 1
+    2.231 timer probe 1 on CPU 7 at 2026-11-16T08:36:12+00:00: p50 0.04303, p99 0.527125, max 0.551799 ms: passed
+    2.379 run C of costly_search_sub_threshold, seed 23: preflight and environment passed
+   20.532 speed probe before the stack: CPU 0 C3 42.85 ms, C5 237.6 ms, CPU 1 C3 42.81 ms, C5 231 ms
+   24.994 topology: 4 namespaces, 200 addresses, verified in 4.5 s
+   25.014 started the origin as pid 552649
+   25.066 started Nginx (its launcher returned after 0.05 s)
+   27.815 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   27.915 launched 32 legit streams
+  136.250 timeline over after 108.4 s
+  136.567 stopped 1 process(es) of this run in 0.31 s
+  136.582 wall time of 8 stream(s) raised to what their records need, by up to 0.10 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  136.652 nginx access log: 4412 lines (0 unparsed), server_requests.csv written, log compressed
+  136.656 run.json written; the run is sound
+  136.681 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  136.702 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.01 s
+  136.777 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  136.800 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+ladder_costly_search_flood/10_control2/C: speed bracket +0.6% before, +0.5% after: within H1
+ladder_costly_search_flood/11_L1_r1/U: attempt 1
+    2.217 timer probe 1 on CPU 7 at 2026-11-16T08:38:49+00:00: p50 0.032401, p99 0.505989, max 0.529196 ms: passed
+    2.369 run U of costly_search_sub_threshold, seed 23: preflight and environment passed
+   20.504 speed probe before the stack: CPU 0 C3 42.55 ms, C5 231.7 ms, CPU 1 C3 42.87 ms, C5 232.8 ms
+   27.659 topology: 4 namespaces, 300 addresses, verified in 7.2 s
+   27.677 started the origin as pid 553080
+   27.729 started Nginx (its launcher returned after 0.05 s)
+   30.484 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   30.598 launched 32 legit streams
+   63.268 launched 4 attack streams
+  139.469 timeline over after 109.0 s
+  139.784 stopped 1 process(es) of this run in 0.30 s
+  139.801 wall time of 10 stream(s) raised to what their records need, by up to 0.13 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  139.877 nginx access log: 4796 lines (0 unparsed), server_requests.csv written, log compressed
+  139.891 run.json written; the run is sound
+  139.916 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  139.934 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.01 s
+  139.993 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  140.018 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+ladder_costly_search_flood/11_L1_r1/U: speed bracket +0.1% before, +0.5% after: within H1
+ladder_costly_search_flood/12_L1_r2/U: attempt 1
+    2.240 timer probe 1 on CPU 7 at 2026-11-16T08:41:30+00:00: p50 0.362666, p99 0.552947, max 0.949338 ms: passed
+    2.386 run U of costly_search_sub_threshold, seed 23: preflight and environment passed
+   20.657 speed probe before the stack: CPU 0 C3 42.52 ms, C5 234.3 ms, CPU 1 C3 42.9 ms, C5 234.7 ms
+   27.920 topology: 4 namespaces, 300 addresses, verified in 7.3 s
+   27.938 started the origin as pid 553535
+   27.991 started Nginx (its launcher returned after 0.05 s)
+   30.857 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   30.967 launched 32 legit streams
+   63.635 launched 4 attack streams
+  139.870 timeline over after 109.0 s
+  140.185 stopped 1 process(es) of this run in 0.30 s
+  140.203 wall time of 6 stream(s) raised to what their records need, by up to 0.11 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  140.283 nginx access log: 4796 lines (0 unparsed), server_requests.csv written, log compressed
+  140.289 run.json written; the run is sound
+  140.311 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  140.331 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.01 s, server_ns 0.01 s
+  140.387 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  140.412 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+ladder_costly_search_flood/12_L1_r2/U: speed bracket +0.5% before, +0.0% after: within H1
+ladder_costly_search_flood/13_L0.5_r2/U: attempt 1
+    2.221 timer probe 1 on CPU 7 at 2026-11-16T08:44:10+00:00: p50 0.0366335, p99 0.530207, max 0.54193 ms: passed
+    2.358 run U of costly_search_sub_threshold, seed 23: preflight and environment passed
+   20.480 speed probe before the stack: CPU 0 C3 42.96 ms, C5 231 ms, CPU 1 C3 42.76 ms, C5 235 ms
+   25.114 topology: 4 namespaces, 300 addresses, verified in 4.6 s
+   25.132 started the origin as pid 553971
+   25.184 started Nginx (its launcher returned after 0.05 s)
+   27.931 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   28.040 launched 32 legit streams
+   60.709 launched 4 attack streams
+  136.898 timeline over after 108.9 s
+  137.213 stopped 1 process(es) of this run in 0.30 s
+  137.230 wall time of 5 stream(s) raised to what their records need, by up to 0.12 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  137.303 nginx access log: 4613 lines (0 unparsed), server_requests.csv written, log compressed
+  137.309 run.json written; the run is sound
+  137.331 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  137.352 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  137.442 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.03 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  137.468 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.2 s in all)
+ladder_costly_search_flood/13_L0.5_r2/U: speed bracket +0.4% before, +0.2% after: within H1
+ladder_costly_search_flood/14_L0.25_r2/U: attempt 1
+    2.219 timer probe 1 on CPU 7 at 2026-11-16T08:46:48+00:00: p50 0.036418, p99 0.520812, max 0.533164 ms: passed
+    2.362 run U of costly_search_sub_threshold, seed 23: preflight and environment passed
+   20.222 speed probe before the stack: CPU 0 C3 42.71 ms, C5 230.7 ms, CPU 1 C3 42.54 ms, C5 231.3 ms
+   24.786 topology: 4 namespaces, 300 addresses, verified in 4.6 s
+   24.805 started the origin as pid 554409
+   24.857 started Nginx (its launcher returned after 0.05 s)
+   27.607 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   27.716 launched 32 legit streams
+   60.386 launched 4 attack streams
+  136.581 timeline over after 109.0 s
+  136.895 stopped 1 process(es) of this run in 0.30 s
+  136.911 wall time of 6 stream(s) raised to what their records need, by up to 0.11 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  136.982 nginx access log: 4511 lines (0 unparsed), server_requests.csv written, log compressed
+  136.995 run.json written; the run is sound
+  137.017 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  137.035 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  137.115 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  137.139 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+ladder_costly_search_flood/14_L0.25_r2/U: speed bracket -0.3% before, +0.7% after: within H1
+ladder_costly_search_flood/15_control3/C: attempt 1
+    2.226 timer probe 1 on CPU 7 at 2026-11-16T08:49:25+00:00: p50 0.0378755, p99 0.553099, max 0.974956 ms: passed
+    2.368 run C of costly_search_sub_threshold, seed 23: preflight and environment passed
+   20.317 speed probe before the stack: CPU 0 C3 42.69 ms, C5 230.3 ms, CPU 1 C3 43.47 ms, C5 231.9 ms
+   24.994 topology: 4 namespaces, 200 addresses, verified in 4.7 s
+   25.011 started the origin as pid 554850
+   25.063 started Nginx (its launcher returned after 0.05 s)
+   27.804 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   27.912 launched 32 legit streams
+  137.198 timeline over after 109.4 s
+  137.517 stopped 1 process(es) of this run in 0.31 s
+  137.532 wall time of 7 stream(s) raised to what their records need, by up to 0.14 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  137.601 nginx access log: 4412 lines (0 unparsed), server_requests.csv written, log compressed
+  137.614 run.json written; the run is sound
+  137.638 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  137.654 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  137.720 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.02 s, ddos_br0 0.01 s
+  137.744 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+ladder_costly_search_flood/15_control3/C: speed bracket +0.2% before, -0.1% after: within H1
+ladder_costly_search_flood/16_L8_r2/U: attempt 1
+    2.220 timer probe 1 on CPU 7 at 2026-11-16T08:52:03+00:00: p50 0.035378, p99 0.51896, max 0.557084 ms: passed
+    2.356 run U of costly_search_sub_threshold, seed 23: preflight and environment passed
+   20.484 speed probe before the stack: CPU 0 C3 42.63 ms, C5 233.1 ms, CPU 1 C3 43 ms, C5 236.5 ms
+   25.394 topology: 4 namespaces, 300 addresses, verified in 4.9 s
+   25.413 started the origin as pid 555292
+   25.465 started Nginx (its launcher returned after 0.05 s)
+   28.235 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   28.344 launched 32 legit streams
+   61.015 launched 4 attack streams
+  143.212 timeline over after 115.0 s
+  143.527 stopped 1 process(es) of this run in 0.30 s
+  143.548 wall time of 9 stream(s) raised to what their records need, by up to 0.13 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  143.667 nginx access log: 7543 lines (0 unparsed), server_requests.csv written, log compressed
+  143.680 run.json written; the run is sound
+  143.704 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  143.724 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.01 s
+  143.774 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  143.800 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.1 s in all)
+ladder_costly_search_flood/16_L8_r2/U: speed bracket +0.7% before, +2.3% after: within H1
+ladder_costly_search_flood/17_L0.5_r1/U: attempt 1
+    2.215 timer probe 1 on CPU 7 at 2026-11-16T08:54:48+00:00: p50 0.031977, p99 0.518851, max 0.533099 ms: passed
+    2.362 run U of costly_search_sub_threshold, seed 23: preflight and environment passed
+   20.519 speed probe before the stack: CPU 0 C3 42.82 ms, C5 237.2 ms, CPU 1 C3 43.15 ms, C5 232.6 ms
+   25.199 topology: 4 namespaces, 300 addresses, verified in 4.7 s
+   25.216 started the origin as pid 555734
+   25.269 started Nginx (its launcher returned after 0.05 s)
+   28.022 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   28.120 launched 32 legit streams
+   60.797 launched 4 attack streams
+  136.989 timeline over after 109.0 s
+  137.304 stopped 1 process(es) of this run in 0.30 s
+  137.321 wall time of 3 stream(s) raised to what their records need, by up to 0.11 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  137.395 nginx access log: 4613 lines (0 unparsed), server_requests.csv written, log compressed
+  137.400 run.json written; the run is sound
+  137.424 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  137.444 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.01 s, server_ns 0.00 s
+  137.522 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.02 s, veth_srv_br 0.02 s, ddos_br0 0.02 s
+  137.547 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+ladder_costly_search_flood/17_L0.5_r1/U: speed bracket +0.9% before, -0.2% after: within H1
+ladder_costly_search_flood/18_control4/C: attempt 1
+    2.222 timer probe 1 on CPU 7 at 2026-11-16T08:57:26+00:00: p50 0.0375925, p99 0.533224, max 0.612217 ms: passed
+    2.367 run C of costly_search_sub_threshold, seed 23: preflight and environment passed
+   20.482 speed probe before the stack: CPU 0 C3 42.74 ms, C5 231.1 ms, CPU 1 C3 42.82 ms, C5 232.5 ms
+   26.036 topology: 4 namespaces, 200 addresses, verified in 5.6 s
+   26.054 started the origin as pid 557241
+   26.106 started Nginx (its launcher returned after 0.05 s)
+   28.867 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   28.982 launched 32 legit streams
+  138.292 timeline over after 109.4 s
+  138.607 stopped 1 process(es) of this run in 0.30 s
+  138.622 wall time of 7 stream(s) raised to what their records need, by up to 0.12 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  138.692 nginx access log: 4412 lines (0 unparsed), server_requests.csv written, log compressed
+  138.704 run.json written; the run is sound
+  138.728 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  138.744 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  138.809 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  138.832 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+ladder_costly_search_flood/18_control4/C: speed bracket +0.1% before, +0.1% after: within H1
+ladder costly_search_flood: session valid; knee 2.0
+2026-11-16T09:00:05Z exit 0
+PACKET R2c done (exit 0): runs made 18, host-invalid 0; 53 min; tar /var/tmp/ddos_campaigns/recal_2026-11/packets/R2c_20261116T080612Z.tar.gz, sha256 216c0357ba56477a

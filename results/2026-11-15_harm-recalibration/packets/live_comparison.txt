@@ -1,0 +1,31 @@
+# The published final state (R3's tar + R4's tar) against the live session directory
+live: /var/tmp/ddos_campaigns/recal_2026-11 (read only, 13736 files outside packets/ and confirmation/packets/)
+final state: 13736 files (12354 from R3_20261116T090112Z, 1382 from R4_20261116T115437Z)
+byte-identical: 13736
+differ: 0
+only in the final state: 0
+only in the live directory: 0
+
+## The live packets/ and confirmation/packets/ against backup/recal_2026-11/packets/
+  confirmation/packets/R4_20261116T115437Z.log: equal to the backup
+  confirmation/packets/R4_20261116T115437Z.sha256: equal to the backup
+  confirmation/packets/R4_20261116T115437Z.tar.gz: equal to the backup
+  packets/R1_20261115T180935Z.log: equal to the backup
+  packets/R1_20261115T180935Z.sha256: equal to the backup
+  packets/R1_20261115T180935Z.tar.gz: equal to the backup
+  packets/R2a_20261115T184751Z.log: equal to the backup
+  packets/R2a_20261115T184751Z.sha256: equal to the backup
+  packets/R2a_20261115T184751Z.tar.gz: equal to the backup
+  packets/R2a_20261116T004408Z.log: equal to the backup
+  packets/R2a_20261116T004408Z.sha256: equal to the backup
+  packets/R2a_20261116T004408Z.tar.gz: equal to the backup
+  packets/R2b_20261116T011009Z.log: equal to the backup
+  packets/R2b_20261116T011009Z.sha256: equal to the backup
+  packets/R2b_20261116T011009Z.tar.gz: equal to the backup
+  packets/R2c_20261116T080612Z.log: equal to the backup
+  packets/R2c_20261116T080612Z.sha256: equal to the backup
+  packets/R2c_20261116T080612Z.tar.gz: equal to the backup
+  packets/R3_20261116T090112Z.log: equal to the backup
+  packets/R3_20261116T090112Z.sha256: equal to the backup
+  packets/R3_20261116T090112Z.tar.gz: equal to the backup
+backup packet files not in the live directory: 0

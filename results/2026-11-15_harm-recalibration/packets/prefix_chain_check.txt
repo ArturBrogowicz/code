@@ -1,0 +1,30 @@
+# The re-calibration's packet tars as snapshots of one session directory (sha256, file by file)
+
+Each tar is a snapshot of /var/tmp/ddos_campaigns/recal_2026-11 taken at the end of its packet (R1-R3: the whole
+session directory, without its packets/; R4: its confirmation/ subtree, without confirmation/packets/).
+A file of an earlier tar is expected byte-identical in the next unless a resume or a later step rewrites it.
+
+## R1_20261115T180935Z -> R2a_20261115T184751Z
+files: 3356 -> 5074; byte-identical in the next: 3356; differ: 0; missing from the next: 0; new in the next: 1718
+  new in the next, by directory: ladder_cheap_static_flood/01_L0.5_r1 117, ladder_cheap_static_flood/02_L1_r1 117, ladder_cheap_static_flood/03_L0.125_r1 117, ladder_cheap_static_flood/04_L4_r2 117, ladder_cheap_static_flood/05_control1 319, ladder_cheap_static_flood/06_L0.25_r1 117, ladder_cheap_static_flood/07_L0.5_r2 117, ladder_cheap_static_flood/08_L2_r2 117, ladder_cheap_static_flood/09_L8_r2 117, ladder_cheap_static_flood/10_control2 105, ladder_cheap_static_flood/11_L0.125_r2 236, ladder_cheap_static_flood/12_L2_r1 118, monitors/2 4
+
+## R2a_20261115T184751Z -> R2a_20261116T004408Z
+files: 5074 -> 5874; byte-identical in the next: 5074; differ: 0; missing from the next: 0; new in the next: 800
+  new in the next, by directory: ladder_cheap_static_flood/12_L2_r1 117, ladder_cheap_static_flood/13_L4_r1 117, ladder_cheap_static_flood/14_L0.25_r2 117, ladder_cheap_static_flood/15_control3 105, ladder_cheap_static_flood/16_L1_r2 117, ladder_cheap_static_flood/17_L8_r1 117, ladder_cheap_static_flood/18_control4 105, ladder_cheap_static_flood/ladder.json 1, monitors/3 4
+
+## R2a_20261116T004408Z -> R2b_20261116T011009Z
+files: 5874 -> 7937; byte-identical in the next: 5874; differ: 0; missing from the next: 0; new in the next: 2063
+  new in the next, by directory: ladder_costly_export_flood/01_L0.5_r2 117, ladder_costly_export_flood/02_L2_r2 117, ladder_costly_export_flood/03_L4_r1 117, ladder_costly_export_flood/04_L1_r1 117, ladder_costly_export_flood/05_control1 105, ladder_costly_export_flood/06_L8_r1 117, ladder_costly_export_flood/07_L2_r1 117, ladder_costly_export_flood/08_L1_r2 117, ladder_costly_export_flood/09_L4_r2 117, ladder_costly_export_flood/10_control2 105, ladder_costly_export_flood/11_L0.25_r2 117, ladder_costly_export_flood/12_L0.125_r2 117, ladder_costly_export_flood/13_L0.25_r1 117, ladder_costly_export_flood/14_L0.5_r1 117, ladder_costly_export_flood/15_control3 105, ladder_costly_export_flood/16_L0.125_r1 117, ladder_costly_export_flood/17_L8_r2 117, ladder_costly_export_flood/18_control4 105, ladder_costly_export_flood/ladder.json 1, monitors/4 4
+
+## R2b_20261116T011009Z -> R2c_20261116T080612Z
+files: 7937 -> 10054; byte-identical in the next: 7937; differ: 0; missing from the next: 0; new in the next: 2117
+  new in the next, by directory: ladder_costly_search_flood/01_L4_r2 120, ladder_costly_search_flood/02_L0.25_r1 120, ladder_costly_search_flood/03_L2_r2 120, ladder_costly_search_flood/04_L0.125_r1 120, ladder_costly_search_flood/05_control1 108, ladder_costly_search_flood/06_L4_r1 120, ladder_costly_search_flood/07_L8_r1 120, ladder_costly_search_flood/08_L0.125_r2 120, ladder_costly_search_flood/09_L2_r1 120, ladder_costly_search_flood/10_control2 108, ladder_costly_search_flood/11_L1_r1 120, ladder_costly_search_flood/12_L1_r2 120, ladder_costly_search_flood/13_L0.5_r2 120, ladder_costly_search_flood/14_L0.25_r2 120, ladder_costly_search_flood/15_control3 108, ladder_costly_search_flood/16_L8_r2 120, ladder_costly_search_flood/17_L0.5_r1 120, ladder_costly_search_flood/18_control4 108, ladder_costly_search_flood/ladder.json 1, monitors/5 4
+
+## R2c_20261116T080612Z -> R3_20261116T090112Z
+files: 10054 -> 12354; byte-identical in the next: 10054; differ: 0; missing from the next: 0; new in the next: 2300
+  new in the next, by directory: monitors/6 4, reference/r1 459, reference/r2 459, reference/r3 459, reference/r4 459, reference/r5 459, reference/reference.json 1
+
+## R3_20261116T090112Z -> R4_20261116T115437Z
+R4_20261116T115437Z holds 1382 files, all under confirmation/ (True); R3_20261116T090112Z holds 0 under confirmation/; paths in common: 0
+
+Summary: 0 differing file(s) along the chain; every other file of each tar is byte-identical in the next, and no file of a tar is missing from the next unless listed above.

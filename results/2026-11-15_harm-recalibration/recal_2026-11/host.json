@@ -1,0 +1,9 @@
+{
+ "cpu_model": "AMD Ryzen 7 7730U with Radeon Graphics",
+ "created_utc": "2026-11-15T18:15:13+00:00",
+ "first_step": "origin",
+ "kernel": "7.0.0-42-generic",
+ "mem_mib": 7422,
+ "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 ",
+ "vbox_host_version": "7.2.10r174163"
+}

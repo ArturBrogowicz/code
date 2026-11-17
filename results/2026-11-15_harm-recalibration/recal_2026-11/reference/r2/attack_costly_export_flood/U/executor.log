@@ -1,0 +1,18 @@
+    2.236 timer probe 1 on CPU 7 at 2026-11-16T09:23:17+00:00: p50 0.038832, p99 0.521248, max 0.524245 ms: passed
+    2.381 run U of costly_export_sub_threshold, seed 43: preflight and environment passed
+   20.391 speed probe before the stack: CPU 0 C3 42.73 ms, C5 231.6 ms, CPU 1 C3 43.11 ms, C5 233.3 ms
+   27.558 topology: 4 namespaces, 300 addresses, verified in 7.2 s
+   27.576 started the origin as pid 560616
+   27.628 started Nginx (its launcher returned after 0.05 s)
+   30.385 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   30.483 launched 31 legit streams
+   63.169 launched 4 attack streams
+  139.351 timeline over after 108.9 s
+  139.666 stopped 1 process(es) of this run in 0.30 s
+  139.683 wall time of 5 stream(s) raised to what their records need, by up to 0.10 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  139.758 nginx access log: 4665 lines (0 unparsed), server_requests.csv written, log compressed
+  139.771 run.json written; the run is sound
+  139.795 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  139.815 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  139.904 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.03 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  139.928 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.2 s in all)

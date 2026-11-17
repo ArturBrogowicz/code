@@ -1,0 +1,22 @@
+r1_launch pid 307980 start 2026-11-15T17:21:54Z; waiting 180 s for the orchestrator's turn to end
+P-1 start 2026-11-15T17:24:54Z dir /home/artur/agent_workspace/host/paired_20261115T172454Z load 0.00 0.00 0.01
+CPU 0: C3 A 42.801 ms B 43.154 ms off +0.82%, C5 A 232.185 ms B 230.937 ms off -0.54%
+CPU 1: C3 A 43.129 ms B 43.265 ms off +0.31%, C5 A 234.585 ms B 234.531 ms off -0.02%
+D = +0.14% (limit 5%, inclusive)
+context A: d against HS1's medians +1.39%
+context B: d against HS1's medians +1.54%
+P-1: GO ON (R1's hold may start)
+P-1 exit 0 2026-11-15T17:26:02Z
+OK  paired check (P-1): /home/artur/agent_workspace/host/paired_20261115T172454Z/paired.json sha256 3a71809485fccc52, D +0.14%, judged 2026-11-15T17:26:02.409458Z in boot 3e99b2cc
+OK  tree
+OK  frozen hashes
+OK  host (kernel 7.0.0-42-generic, MemTotal 7422 MiB, CPU AMD Ryzen 7 7730U with Radeon Graphics, VirtualBox host 7.2.10r174163)
+OK  uptime
+OK  chrony
+OK  timers
+NO  jobs: a package job runs: /usr/bin/python3 /usr/share/unattended-upgrades/unattended-upgrade-shutdown --wait-for-signal
+OK  testbed
+OK  quiet
+packet.sh: a pre-check refused the packet; nothing was started
+packet foreground exit 3 2026-11-15T17:27:02Z
+R1 NOT STARTED: the packet's foreground exit 3 (2 = P-1 gate or usage, 3 = a pre-check)

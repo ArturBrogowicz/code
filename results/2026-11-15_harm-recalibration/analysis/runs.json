@@ -1,0 +1,3296 @@
+{
+ "runs": [
+  {
+   "calibration_sha256": [
+    "ac4e3156db5eacb62fad6c39ebd24c9b5943c07662d231ac7070d9ed9d7e0716"
+   ],
+   "checked_utc": "2026-11-15T18:17:12+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/capacity/r1/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {
+    "plan.json": "absent"
+   },
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": null,
+   "level": null,
+   "role": "control",
+   "scenario": null,
+   "seed": null,
+   "started_utc": "2026-11-15T18:17:37+00:00",
+   "state": "complete",
+   "timeline": null
+  },
+  {
+   "calibration_sha256": [
+    "ac4e3156db5eacb62fad6c39ebd24c9b5943c07662d231ac7070d9ed9d7e0716"
+   ],
+   "checked_utc": "2026-11-15T18:22:22+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/capacity/r2/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {
+    "plan.json": "absent"
+   },
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": null,
+   "level": null,
+   "role": "control",
+   "scenario": null,
+   "seed": null,
+   "started_utc": "2026-11-15T18:22:51+00:00",
+   "state": "complete",
+   "timeline": null
+  },
+  {
+   "calibration_sha256": [
+    "ac4e3156db5eacb62fad6c39ebd24c9b5943c07662d231ac7070d9ed9d7e0716"
+   ],
+   "checked_utc": "2026-11-15T18:27:36+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/capacity/r3/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {
+    "plan.json": "absent"
+   },
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": null,
+   "level": null,
+   "role": "control",
+   "scenario": null,
+   "seed": null,
+   "started_utc": "2026-11-15T18:28:02+00:00",
+   "state": "complete",
+   "timeline": null
+  },
+  {
+   "calibration_sha256": [
+    "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c"
+   ],
+   "checked_utc": "2026-11-16T12:03:12+00:00",
+   "commit": "ec819fb8894101a4fccd780217efc02703b1eeb6",
+   "dir": "recal_2026-11/confirmation/drift/r1/attack_cheap_static_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 42,
+   "started_utc": "2026-11-16T12:03:43+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c"
+   ],
+   "checked_utc": "2026-11-16T12:05:56+00:00",
+   "commit": "ec819fb8894101a4fccd780217efc02703b1eeb6",
+   "dir": "recal_2026-11/confirmation/drift/r1/attack_costly_export_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 43,
+   "started_utc": "2026-11-16T12:06:24+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c"
+   ],
+   "checked_utc": "2026-11-16T12:08:36+00:00",
+   "commit": "ec819fb8894101a4fccd780217efc02703b1eeb6",
+   "dir": "recal_2026-11/confirmation/drift/r1/attack_costly_search_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 2.0,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 44,
+   "started_utc": "2026-11-16T12:09:03+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c"
+   ],
+   "checked_utc": "2026-11-16T12:00:18+00:00",
+   "commit": "ec819fb8894101a4fccd780217efc02703b1eeb6",
+   "dir": "recal_2026-11/confirmation/drift/r1/legit/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "drift_legit",
+   "seed": 41,
+   "started_utc": "2026-11-16T12:00:45+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 0.0,
+    "baseline_s": 120.0,
+    "recovery_s": 0.0,
+    "total_s": 120.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c"
+   ],
+   "checked_utc": "2026-11-16T12:14:10+00:00",
+   "commit": "ec819fb8894101a4fccd780217efc02703b1eeb6",
+   "dir": "recal_2026-11/confirmation/drift/r2/attack_cheap_static_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 42,
+   "started_utc": "2026-11-16T12:14:37+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c"
+   ],
+   "checked_utc": "2026-11-16T12:16:50+00:00",
+   "commit": "ec819fb8894101a4fccd780217efc02703b1eeb6",
+   "dir": "recal_2026-11/confirmation/drift/r2/attack_costly_export_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 43,
+   "started_utc": "2026-11-16T12:17:17+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c"
+   ],
+   "checked_utc": "2026-11-16T12:19:30+00:00",
+   "commit": "ec819fb8894101a4fccd780217efc02703b1eeb6",
+   "dir": "recal_2026-11/confirmation/drift/r2/attack_costly_search_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 2.0,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 44,
+   "started_utc": "2026-11-16T12:19:57+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c"
+   ],
+   "checked_utc": "2026-11-16T12:11:15+00:00",
+   "commit": "ec819fb8894101a4fccd780217efc02703b1eeb6",
+   "dir": "recal_2026-11/confirmation/drift/r2/legit/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "drift_legit",
+   "seed": 41,
+   "started_utc": "2026-11-16T12:11:43+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 0.0,
+    "baseline_s": 120.0,
+    "recovery_s": 0.0,
+    "total_s": 120.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c"
+   ],
+   "checked_utc": "2026-11-16T12:25:04+00:00",
+   "commit": "ec819fb8894101a4fccd780217efc02703b1eeb6",
+   "dir": "recal_2026-11/confirmation/drift/r3/attack_cheap_static_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 42,
+   "started_utc": "2026-11-16T12:25:31+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c"
+   ],
+   "checked_utc": "2026-11-16T12:27:45+00:00",
+   "commit": "ec819fb8894101a4fccd780217efc02703b1eeb6",
+   "dir": "recal_2026-11/confirmation/drift/r3/attack_costly_export_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 43,
+   "started_utc": "2026-11-16T12:28:12+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c"
+   ],
+   "checked_utc": "2026-11-16T12:30:25+00:00",
+   "commit": "ec819fb8894101a4fccd780217efc02703b1eeb6",
+   "dir": "recal_2026-11/confirmation/drift/r3/attack_costly_search_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 2.0,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 44,
+   "started_utc": "2026-11-16T12:30:58+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c"
+   ],
+   "checked_utc": "2026-11-16T12:22:09+00:00",
+   "commit": "ec819fb8894101a4fccd780217efc02703b1eeb6",
+   "dir": "recal_2026-11/confirmation/drift/r3/legit/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "drift_legit",
+   "seed": 41,
+   "started_utc": "2026-11-16T12:22:36+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 0.0,
+    "baseline_s": 120.0,
+    "recovery_s": 0.0,
+    "total_s": 120.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-15T18:53:31+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/01_L0.5_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.5,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-15T18:53:56+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-15T18:56:07+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/02_L1_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 1.0,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-15T18:56:36+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-15T18:58:46+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/03_L0.125_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.125,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-15T18:59:12+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-15T19:01:22+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/04_L4_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-15T19:01:48+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-15T19:20:26+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/05_control1/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-15T19:20:52+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-15T19:03:58+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/05_control1/C.hostinvalid1",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-15T19:04:24+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-15T19:12:11+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/05_control1/C.hostinvalid2",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-15T19:12:40+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-15T19:23:02+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/06_L0.25_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.25,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-15T19:23:27+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-15T19:25:38+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/07_L0.5_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.5,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-15T19:26:03+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-15T19:28:14+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/08_L2_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 2.0,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-15T19:28:40+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-15T19:30:50+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/09_L8_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 8.0,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-15T19:31:16+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-15T19:33:27+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/10_control2/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-15T19:33:55+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-15T19:44:17+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/11_L0.125_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.125,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-15T19:44:45+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-15T19:36:06+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/11_L0.125_r2/U.hostinvalid1",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.125,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-15T19:36:31+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T00:49:49+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/12_L2_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 2.0,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-16T00:50:17+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-15T19:46:56+00:00",
+   "commit": "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/12_L2_r1/U.hostinvalid1",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 2.0,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-15T19:47:21+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T00:52:30+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/13_L4_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-16T00:52:58+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T00:55:10+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/14_L0.25_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.25,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-16T00:55:35+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T00:57:47+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/15_control3/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-16T00:58:13+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:00:26+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/16_L1_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 1.0,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-16T01:00:54+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:03:08+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/17_L8_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 8.0,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-16T01:03:36+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:05:49+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_cheap_static_flood/18_control4/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "cheap_static_flood",
+   "seed": 21,
+   "started_utc": "2026-11-16T01:06:17+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:15:49+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/01_L0.5_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.5,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T01:16:17+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:18:30+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/02_L2_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 2.0,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T01:18:55+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:21:07+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/03_L4_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T01:21:34+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:23:46+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/04_L1_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 1.0,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T01:24:15+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:26:27+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/05_control1/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T01:26:52+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:29:04+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/06_L8_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 8.0,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T01:29:30+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:31:56+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/07_L2_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 2.0,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T01:32:25+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:34:37+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/08_L1_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 1.0,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T01:35:04+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:37:16+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/09_L4_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T01:37:41+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:39:53+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/10_control2/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T01:40:22+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:42:35+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/11_L0.25_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.25,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T01:43:01+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:45:13+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/12_L0.125_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.125,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T01:45:39+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:47:51+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/13_L0.25_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.25,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T01:48:22+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:50:34+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/14_L0.5_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.5,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T01:51:02+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:53:15+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/15_control3/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T01:53:41+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:55:53+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/16_L0.125_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.125,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T01:56:19+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T01:58:32+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/17_L8_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 8.0,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T01:58:58+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T02:01:24+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_export_flood/18_control4/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 22,
+   "started_utc": "2026-11-16T02:01:50+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:12:12+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/01_L4_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:12:38+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:14:50+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/02_L0.25_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.25,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:15:16+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:17:29+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/03_L2_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 2.0,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:17:55+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:20:07+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/04_L0.125_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.125,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:20:39+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:22:51+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/05_control1/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:23:17+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:25:30+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/06_L4_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:25:58+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:28:11+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/07_L8_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 8.0,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:28:39+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:30:59+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/08_L0.125_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.125,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:31:24+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:33:36+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/09_L2_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 2.0,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:34:02+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:36:15+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/10_control2/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:36:40+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:38:52+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/11_L1_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 1.0,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:39:20+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:41:32+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/12_L1_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 1.0,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:42:01+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:44:13+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/13_L0.5_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.5,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:44:38+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:46:50+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/14_L0.25_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.25,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:47:15+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:49:28+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/15_control3/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:49:53+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:52:06+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/16_L8_r2/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 8.0,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:52:31+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:54:50+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/17_L0.5_r1/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 0.5,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:55:16+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741"
+   ],
+   "checked_utc": "2026-11-16T08:57:28+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/ladder_costly_search_flood/18_control4/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 23,
+   "started_utc": "2026-11-16T08:57:55+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:09:45+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r1/attack_cheap_static_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 42,
+   "started_utc": "2026-11-16T09:10:11+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:12:24+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r1/attack_costly_export_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 43,
+   "started_utc": "2026-11-16T09:12:50+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:15:02+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r1/attack_costly_search_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 2.0,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 44,
+   "started_utc": "2026-11-16T09:15:33+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:06:52+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r1/legit/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "reference_legit",
+   "seed": 41,
+   "started_utc": "2026-11-16T09:07:18+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 0.0,
+    "baseline_s": 120.0,
+    "recovery_s": 0.0,
+    "total_s": 120.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:20:40+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r2/attack_cheap_static_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 42,
+   "started_utc": "2026-11-16T09:21:05+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:23:19+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r2/attack_costly_export_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 43,
+   "started_utc": "2026-11-16T09:23:47+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:25:59+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r2/attack_costly_search_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 2.0,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 44,
+   "started_utc": "2026-11-16T09:26:27+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:17:46+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r2/legit/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "reference_legit",
+   "seed": 41,
+   "started_utc": "2026-11-16T09:18:12+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 0.0,
+    "baseline_s": 120.0,
+    "recovery_s": 0.0,
+    "total_s": 120.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:31:33+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r3/attack_cheap_static_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 42,
+   "started_utc": "2026-11-16T09:32:01+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:34:13+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r3/attack_costly_export_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 43,
+   "started_utc": "2026-11-16T09:34:39+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:36:51+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r3/attack_costly_search_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 2.0,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 44,
+   "started_utc": "2026-11-16T09:37:16+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:28:39+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r3/legit/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "reference_legit",
+   "seed": 41,
+   "started_utc": "2026-11-16T09:29:05+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 0.0,
+    "baseline_s": 120.0,
+    "recovery_s": 0.0,
+    "total_s": 120.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:42:22+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r4/attack_cheap_static_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 42,
+   "started_utc": "2026-11-16T09:42:50+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:45:03+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r4/attack_costly_export_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 43,
+   "started_utc": "2026-11-16T09:45:32+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:47:44+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r4/attack_costly_search_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 2.0,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 44,
+   "started_utc": "2026-11-16T09:48:10+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:39:28+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r4/legit/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "reference_legit",
+   "seed": 41,
+   "started_utc": "2026-11-16T09:39:54+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 0.0,
+    "baseline_s": 120.0,
+    "recovery_s": 0.0,
+    "total_s": 120.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:53:18+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r5/attack_cheap_static_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "cheap_static_flood",
+   "seed": 42,
+   "started_utc": "2026-11-16T09:53:44+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:55:57+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r5/attack_costly_export_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 4.0,
+   "role": "attack",
+   "scenario": "costly_export_sub_threshold",
+   "seed": 43,
+   "started_utc": "2026-11-16T09:56:23+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:58:35+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r5/attack_costly_search_flood/U",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "U",
+   "level": 2.0,
+   "role": "attack",
+   "scenario": "costly_search_sub_threshold",
+   "seed": 44,
+   "started_utc": "2026-11-16T09:59:01+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 45.0,
+    "baseline_s": 30.0,
+    "recovery_s": 30.0,
+    "total_s": 105.0
+   }
+  },
+  {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589"
+   ],
+   "checked_utc": "2026-11-16T09:50:22+00:00",
+   "commit": "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+   "dir": "recal_2026-11/reference/r5/legit/C",
+   "dirty": false,
+   "dirty_files": [],
+   "executor_ok": true,
+   "executor_reasons": [],
+   "failed": null,
+   "files_missing_or_unreadable": {},
+   "host": {
+    "cpus": 8,
+    "gunicorn": "gunicorn (version 26.2.0)",
+    "mem_mib": 7422,
+    "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+    "python": "3.14.4",
+    "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+   },
+   "kind": "C",
+   "level": null,
+   "role": "control",
+   "scenario": "reference_legit",
+   "seed": 41,
+   "started_utc": "2026-11-16T09:50:50+00:00",
+   "state": "complete",
+   "timeline": {
+    "attack_s": 0.0,
+    "baseline_s": 120.0,
+    "recovery_s": 0.0,
+    "total_s": 120.0
+   }
+  }
+ ],
+ "sources": {
+  "recal_2026-11": {
+   "calibration_sha256": [
+    "69f736ee3ed4e5c8d253af5531509dca9f84827780e22f7c4e095266aa2f5589",
+    "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c",
+    "82d2b9cfd2f28b3a2be7776b40048836c701e521066d207a0086208a18354741",
+    "ac4e3156db5eacb62fad6c39ebd24c9b5943c07662d231ac7070d9ed9d7e0716"
+   ],
+   "checked_utc": [
+    "2026-11-15T18:17:12+00:00",
+    "2026-11-16T12:30:25+00:00"
+   ],
+   "commits": [
+    "5f3769cc8b8f1eaaadfd38fe79d1376ffb9fe3c5",
+    "9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f",
+    "ec819fb8894101a4fccd780217efc02703b1eeb6"
+   ],
+   "dirty": [
+    false
+   ],
+   "host": {
+    "cpus": [
+     8
+    ],
+    "gunicorn": [
+     "gunicorn (version 26.2.0)"
+    ],
+    "mem_mib": [
+     7422
+    ],
+    "nginx": [
+     "nginx version: nginx/1.28.3 (Ubuntu)"
+    ],
+    "python": [
+     "3.14.4"
+    ],
+    "uname": [
+     "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 "
+    ]
+   },
+   "runs": 93,
+   "states": {
+    "complete": 93
+   }
+  }
+ }
+}

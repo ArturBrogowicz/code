@@ -1,0 +1,10 @@
+[2026-11-16 09:29:02 +0000] [561503] [INFO] Starting gunicorn 26.2.0
+[2026-11-16 09:29:02 +0000] [561503] [INFO] Listening at: http://127.0.0.1:8080 (561503)
+[2026-11-16 09:29:02 +0000] [561503] [INFO] Using worker: gthread
+[2026-11-16 09:29:02 +0000] [561517] [INFO] Booting worker with pid: 561517
+[2026-11-16 09:29:02 +0000] [561518] [INFO] Booting worker with pid: 561518
+[2026-11-16 09:29:03 +0000] [561503] [INFO] Control socket listening at /root/.gunicorn/gunicorn.ctl
+[2026-11-16 09:31:10 +0000] [561503] [INFO] Handling signal: term
+[2026-11-16 09:31:10 +0000] [561517] [INFO] Worker exiting (pid: 561517)
+[2026-11-16 09:31:10 +0000] [561518] [INFO] Worker exiting (pid: 561518)
+[2026-11-16 09:31:10 +0000] [561503] [INFO] Shutting down: Master

@@ -1,0 +1,700 @@
+2026/11/16 01:37:39 [error] 508637#508637: *1 connect() failed (111: Connection refused) while connecting to upstream, client: 10.0.0.1, server: twojadomena.pl, request: "GET /static/1 HTTP/1.1", upstream: "http://127.0.0.1:8080/static/1", host: "10.0.0.1"
+2026/11/16 01:37:39 [info] 508637#508637: *1 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:37:40 [info] 508637#508637: *3 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:37:40 [info] 508637#508637: *5 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:37:40 [info] 508637#508637: *7 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:37:40 [info] 508637#508637: *9 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:37:40 [info] 508637#508637: *11 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:37:40 [info] 508637#508637: *13 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:37:40 [info] 508637#508637: *15 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:37:40 [info] 508637#508637: *17 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:37:41 [info] 508637#508637: *19 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:37:41 [info] 508637#508637: *21 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:37:41 [info] 508637#508637: *23 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:37:41 [info] 508637#508637: *25 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:37:41 [info] 508637#508637: *27 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:37:41 [info] 508637#508637: *29 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:37:41 [info] 508637#508637: *31 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:37:41 [info] 508637#508637: *33 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:37:46 [warn] 508637#508637: *168 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/00/0000000001 while reading upstream, client: 10.0.1.2, server: twojadomena.pl, request: "GET /export?r=485 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=485", host: "10.0.0.1"
+2026/11/16 01:37:46 [warn] 508637#508637: *174 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/00/0000000002 while reading upstream, client: 10.0.1.14, server: twojadomena.pl, request: "GET /export?r=218 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=218", host: "10.0.0.1"
+2026/11/16 01:37:53 [warn] 508637#508637: *674 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/00/0000000003 while reading upstream, client: 10.0.1.31, server: twojadomena.pl, request: "GET /export?r=592 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=592", host: "10.0.0.1"
+2026/11/16 01:37:53 [warn] 508637#508637: *701 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/00/0000000004 while reading upstream, client: 10.0.1.81, server: twojadomena.pl, request: "GET /export?r=428 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=428", host: "10.0.0.1"
+2026/11/16 01:37:53 [warn] 508637#508637: *726 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/00/0000000005 while reading upstream, client: 10.0.1.17, server: twojadomena.pl, request: "GET /export?r=52 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=52", host: "10.0.0.1"
+2026/11/16 01:37:58 [warn] 508637#508637: *996 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/00/0000000006 while reading upstream, client: 10.0.1.34, server: twojadomena.pl, request: "GET /export?r=209 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=209", host: "10.0.0.1"
+2026/11/16 01:37:59 [warn] 508637#508637: *1032 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/00/0000000007 while reading upstream, client: 10.0.1.8, server: twojadomena.pl, request: "GET /export?r=304 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=304", host: "10.0.0.1"
+2026/11/16 01:37:59 [warn] 508637#508637: *1049 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/00/0000000008 while reading upstream, client: 10.0.1.33, server: twojadomena.pl, request: "GET /export?r=257 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=257", host: "10.0.0.1"
+2026/11/16 01:38:00 [warn] 508637#508637: *1067 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/00/0000000009 while reading upstream, client: 10.0.1.153, server: twojadomena.pl, request: "GET /export?r=305 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=305", host: "10.0.0.1"
+2026/11/16 01:38:02 [warn] 508637#508637: *1206 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/01/0000000010 while reading upstream, client: 10.0.1.126, server: twojadomena.pl, request: "GET /export?r=473 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=473", host: "10.0.0.1"
+2026/11/16 01:38:09 [warn] 508637#508637: *1510 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/01/0000000011 while reading upstream, client: 10.0.1.46, server: twojadomena.pl, request: "GET /export?r=814 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=814", host: "10.0.0.1"
+2026/11/16 01:38:09 [warn] 508637#508637: *1524 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/01/0000000012 while reading upstream, client: 10.0.1.13, server: twojadomena.pl, request: "GET /export?r=867 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=867", host: "10.0.0.1"
+2026/11/16 01:38:15 [warn] 508637#508637: *1787 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/01/0000000013 while reading upstream, client: 10.0.2.6, server: twojadomena.pl, request: "GET /export?r=873 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=873", host: "10.0.0.1"
+2026/11/16 01:38:16 [warn] 508637#508637: *1796 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/01/0000000014 while reading upstream, client: 10.0.2.23, server: twojadomena.pl, request: "GET /export?r=332 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=332", host: "10.0.0.1"
+2026/11/16 01:38:16 [warn] 508637#508637: *1848 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/01/0000000015 while reading upstream, client: 10.0.2.5, server: twojadomena.pl, request: "GET /export?r=630 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=630", host: "10.0.0.1"
+2026/11/16 01:38:16 [warn] 508637#508637: *1851 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/01/0000000016 while reading upstream, client: 10.0.2.29, server: twojadomena.pl, request: "GET /export?r=331 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=331", host: "10.0.0.1"
+2026/11/16 01:38:16 [warn] 508637#508637: *1861 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/01/0000000017 while reading upstream, client: 10.0.2.31, server: twojadomena.pl, request: "GET /export?r=720 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=720", host: "10.0.0.1"
+2026/11/16 01:38:17 [warn] 508637#508637: *1889 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/01/0000000018 while reading upstream, client: 10.0.2.7, server: twojadomena.pl, request: "GET /export?r=811 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=811", host: "10.0.0.1"
+2026/11/16 01:38:17 [warn] 508637#508637: *1932 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/01/0000000019 while reading upstream, client: 10.0.2.46, server: twojadomena.pl, request: "GET /export?r=564 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=564", host: "10.0.0.1"
+2026/11/16 01:38:17 [warn] 508637#508637: *1915 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/02/0000000020 while reading upstream, client: 10.0.2.40, server: twojadomena.pl, request: "GET /export?r=98 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=98", host: "10.0.0.1"
+2026/11/16 01:38:17 [warn] 508637#508637: *1945 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/02/0000000021 while reading upstream, client: 10.0.2.20, server: twojadomena.pl, request: "GET /export?r=289 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=289", host: "10.0.0.1"
+2026/11/16 01:38:18 [warn] 508637#508637: *1961 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/02/0000000022 while reading upstream, client: 10.0.2.56, server: twojadomena.pl, request: "GET /export?r=564 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=564", host: "10.0.0.1"
+2026/11/16 01:38:18 [warn] 508637#508637: *1952 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/02/0000000023 while reading upstream, client: 10.0.2.24, server: twojadomena.pl, request: "GET /export?r=404 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=404", host: "10.0.0.1"
+2026/11/16 01:38:18 [warn] 508637#508637: *1963 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/02/0000000024 while reading upstream, client: 10.0.2.54, server: twojadomena.pl, request: "GET /export?r=864 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=864", host: "10.0.0.1"
+2026/11/16 01:38:18 [warn] 508637#508637: *2012 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/02/0000000025 while reading upstream, client: 10.0.2.90, server: twojadomena.pl, request: "GET /export?r=793 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=793", host: "10.0.0.1"
+2026/11/16 01:38:18 [warn] 508637#508637: *1998 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/02/0000000026 while reading upstream, client: 10.0.2.83, server: twojadomena.pl, request: "GET /export?r=873 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=873", host: "10.0.0.1"
+2026/11/16 01:38:19 [warn] 508637#508637: *1991 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/02/0000000027 while reading upstream, client: 10.0.2.58, server: twojadomena.pl, request: "GET /export?r=253 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=253", host: "10.0.0.1"
+2026/11/16 01:38:19 [warn] 508637#508637: *1994 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/02/0000000028 while reading upstream, client: 10.0.2.67, server: twojadomena.pl, request: "GET /export?r=104 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=104", host: "10.0.0.1"
+2026/11/16 01:38:19 [warn] 508637#508637: *2067 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/02/0000000029 while reading upstream, client: 10.0.2.38, server: twojadomena.pl, request: "GET /export?r=105 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=105", host: "10.0.0.1"
+2026/11/16 01:38:19 [warn] 508637#508637: *2041 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/03/0000000030 while reading upstream, client: 10.0.2.27, server: twojadomena.pl, request: "GET /export?r=77 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=77", host: "10.0.0.1"
+2026/11/16 01:38:19 [warn] 508637#508637: *1955 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/03/0000000031 while reading upstream, client: 10.0.2.47, server: twojadomena.pl, request: "GET /export?r=603 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=603", host: "10.0.0.1"
+2026/11/16 01:38:20 [warn] 508637#508637: *2137 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/03/0000000032 while reading upstream, client: 10.0.2.102, server: twojadomena.pl, request: "GET /export?r=684 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=684", host: "10.0.0.1"
+2026/11/16 01:38:20 [warn] 508636#508636: *2088 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/03/0000000033 while reading upstream, client: 10.0.2.93, server: twojadomena.pl, request: "GET /export?r=168 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=168", host: "10.0.0.1"
+2026/11/16 01:38:20 [warn] 508637#508637: *2135 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/03/0000000034 while reading upstream, client: 10.0.2.101, server: twojadomena.pl, request: "GET /export?r=242 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=242", host: "10.0.0.1"
+2026/11/16 01:38:20 [warn] 508637#508637: *2141 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/03/0000000035 while reading upstream, client: 10.0.2.107, server: twojadomena.pl, request: "GET /export?r=1 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=1", host: "10.0.0.1"
+2026/11/16 01:38:20 [warn] 508637#508637: *2120 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/03/0000000036 while reading upstream, client: 10.0.2.99, server: twojadomena.pl, request: "GET /export?r=521 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=521", host: "10.0.0.1"
+2026/11/16 01:38:20 [warn] 508637#508637: *2151 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/03/0000000037 while reading upstream, client: 10.0.2.59, server: twojadomena.pl, request: "GET /export?r=289 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=289", host: "10.0.0.1"
+2026/11/16 01:38:21 [warn] 508637#508637: *2159 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/03/0000000038 while reading upstream, client: 10.0.2.111, server: twojadomena.pl, request: "GET /export?r=930 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=930", host: "10.0.0.1"
+2026/11/16 01:38:21 [warn] 508637#508637: *2154 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/03/0000000039 while reading upstream, client: 10.0.2.131, server: twojadomena.pl, request: "GET /export?r=921 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=921", host: "10.0.0.1"
+2026/11/16 01:38:21 [warn] 508637#508637: *2203 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/04/0000000040 while reading upstream, client: 10.0.2.122, server: twojadomena.pl, request: "GET /export?r=242 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=242", host: "10.0.0.1"
+2026/11/16 01:38:21 [warn] 508637#508637: *2164 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/04/0000000041 while reading upstream, client: 10.0.2.117, server: twojadomena.pl, request: "GET /export?r=98 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=98", host: "10.0.0.1"
+2026/11/16 01:38:22 [warn] 508637#508637: *2271 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/04/0000000042 while reading upstream, client: 10.0.2.165, server: twojadomena.pl, request: "GET /export?r=789 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=789", host: "10.0.0.1"
+2026/11/16 01:38:23 [warn] 508637#508637: *2245 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/04/0000000043 while reading upstream, client: 10.0.2.159, server: twojadomena.pl, request: "GET /export?r=966 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=966", host: "10.0.0.1"
+2026/11/16 01:38:23 [warn] 508637#508637: *2240 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/04/0000000044 while reading upstream, client: 10.0.2.145, server: twojadomena.pl, request: "GET /export?r=71 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=71", host: "10.0.0.1"
+2026/11/16 01:38:23 [warn] 508637#508637: *2309 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/04/0000000045 while reading upstream, client: 10.0.2.100, server: twojadomena.pl, request: "GET /export?r=390 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=390", host: "10.0.0.1"
+2026/11/16 01:38:23 [warn] 508636#508636: *2280 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/04/0000000046 while reading upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /export?r=712 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=712", host: "10.0.0.1"
+2026/11/16 01:38:23 [warn] 508637#508637: *2287 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/04/0000000047 while reading upstream, client: 10.0.2.76, server: twojadomena.pl, request: "GET /export?r=124 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=124", host: "10.0.0.1"
+2026/11/16 01:38:23 [warn] 508637#508637: *2255 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/04/0000000048 while reading upstream, client: 10.0.2.164, server: twojadomena.pl, request: "GET /export?r=471 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=471", host: "10.0.0.1"
+2026/11/16 01:38:23 [warn] 508637#508637: *2326 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/04/0000000049 while reading upstream, client: 10.0.2.112, server: twojadomena.pl, request: "GET /export?r=274 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=274", host: "10.0.0.1"
+2026/11/16 01:38:24 [warn] 508637#508637: *2263 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/05/0000000050 while reading upstream, client: 10.0.2.64, server: twojadomena.pl, request: "GET /export?r=442 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=442", host: "10.0.0.1"
+2026/11/16 01:38:24 [warn] 508636#508636: *2336 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/05/0000000051 while reading upstream, client: 10.0.2.177, server: twojadomena.pl, request: "GET /export?r=314 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=314", host: "10.0.0.1"
+2026/11/16 01:38:24 [warn] 508637#508637: *2334 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/05/0000000052 while reading upstream, client: 10.0.2.173, server: twojadomena.pl, request: "GET /export?r=104 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=104", host: "10.0.0.1"
+2026/11/16 01:38:25 [warn] 508637#508637: *2332 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/05/0000000053 while reading upstream, client: 10.0.2.144, server: twojadomena.pl, request: "GET /export?r=949 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=949", host: "10.0.0.1"
+2026/11/16 01:38:25 [warn] 508637#508637: *2365 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/05/0000000054 while reading upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /export?r=518 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=518", host: "10.0.0.1"
+2026/11/16 01:38:25 [warn] 508637#508637: *2383 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/05/0000000055 while reading upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /export?r=788 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=788", host: "10.0.0.1"
+2026/11/16 01:38:25 [warn] 508636#508636: *2397 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/05/0000000056 while reading upstream, client: 10.0.2.190, server: twojadomena.pl, request: "GET /export?r=564 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=564", host: "10.0.0.1"
+2026/11/16 01:38:25 [warn] 508637#508637: *2412 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/05/0000000057 while reading upstream, client: 10.0.2.28, server: twojadomena.pl, request: "GET /export?r=621 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=621", host: "10.0.0.1"
+2026/11/16 01:38:25 [warn] 508637#508637: *2391 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/05/0000000058 while reading upstream, client: 10.0.2.118, server: twojadomena.pl, request: "GET /export?r=325 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=325", host: "10.0.0.1"
+2026/11/16 01:38:25 [warn] 508637#508637: *2399 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/05/0000000059 while reading upstream, client: 10.0.2.203, server: twojadomena.pl, request: "GET /export?r=781 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=781", host: "10.0.0.1"
+2026/11/16 01:38:25 [warn] 508637#508637: *2386 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/06/0000000060 while reading upstream, client: 10.0.2.186, server: twojadomena.pl, request: "GET /export?r=581 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=581", host: "10.0.0.1"
+2026/11/16 01:38:25 [warn] 508637#508637: *2290 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/06/0000000061 while reading upstream, client: 10.0.2.168, server: twojadomena.pl, request: "GET /export?r=856 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=856", host: "10.0.0.1"
+2026/11/16 01:38:26 [warn] 508636#508636: *2236 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/06/0000000062 while reading upstream, client: 10.0.2.128, server: twojadomena.pl, request: "GET /export?r=457 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=457", host: "10.0.0.1"
+2026/11/16 01:38:26 [warn] 508637#508637: *2389 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/06/0000000063 while reading upstream, client: 10.0.2.188, server: twojadomena.pl, request: "GET /export?r=572 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=572", host: "10.0.0.1"
+2026/11/16 01:38:26 [warn] 508637#508637: *2419 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/06/0000000064 while reading upstream, client: 10.0.2.204, server: twojadomena.pl, request: "GET /export?r=168 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=168", host: "10.0.0.1"
+2026/11/16 01:38:26 [warn] 508637#508637: *2360 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/06/0000000065 while reading upstream, client: 10.0.2.114, server: twojadomena.pl, request: "GET /export?r=378 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=378", host: "10.0.0.1"
+2026/11/16 01:38:26 [warn] 508637#508637: *2465 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/06/0000000066 while reading upstream, client: 10.0.2.216, server: twojadomena.pl, request: "GET /export?r=633 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=633", host: "10.0.0.1"
+2026/11/16 01:38:27 [warn] 508637#508637: *2528 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/06/0000000067 while reading upstream, client: 10.0.2.150, server: twojadomena.pl, request: "GET /export?r=675 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=675", host: "10.0.0.1"
+2026/11/16 01:38:27 [warn] 508637#508637: *2543 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/06/0000000068 while reading upstream, client: 10.0.2.151, server: twojadomena.pl, request: "GET /export?r=702 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=702", host: "10.0.0.1"
+2026/11/16 01:38:28 [warn] 508637#508637: *2512 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/06/0000000069 while reading upstream, client: 10.0.2.231, server: twojadomena.pl, request: "GET /export?r=383 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=383", host: "10.0.0.1"
+2026/11/16 01:38:28 [warn] 508637#508637: *2442 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/07/0000000070 while reading upstream, client: 10.0.2.215, server: twojadomena.pl, request: "GET /export?r=366 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=366", host: "10.0.0.1"
+2026/11/16 01:38:28 [warn] 508637#508637: *2435 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/07/0000000071 while reading upstream, client: 10.0.2.148, server: twojadomena.pl, request: "GET /export?r=985 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=985", host: "10.0.0.1"
+2026/11/16 01:38:28 [warn] 508636#508636: *2553 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/07/0000000072 while reading upstream, client: 10.0.2.163, server: twojadomena.pl, request: "GET /export?r=455 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=455", host: "10.0.0.1"
+2026/11/16 01:38:28 [warn] 508637#508637: *2500 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/07/0000000073 while reading upstream, client: 10.0.2.221, server: twojadomena.pl, request: "GET /export?r=871 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=871", host: "10.0.0.1"
+2026/11/16 01:38:28 [warn] 508637#508637: *2594 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/07/0000000074 while reading upstream, client: 10.0.2.183, server: twojadomena.pl, request: "GET /export?r=608 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=608", host: "10.0.0.1"
+2026/11/16 01:38:28 [warn] 508637#508637: *2517 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/07/0000000075 while reading upstream, client: 10.0.2.235, server: twojadomena.pl, request: "GET /export?r=240 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=240", host: "10.0.0.1"
+2026/11/16 01:38:29 [warn] 508637#508637: *2510 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/07/0000000076 while reading upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /export?r=540 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=540", host: "10.0.0.1"
+2026/11/16 01:38:29 [warn] 508637#508637: *1787 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/07/0000000077 while reading upstream, client: 10.0.2.6, server: twojadomena.pl, request: "GET /export?r=341 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=341", host: "10.0.0.1"
+2026/11/16 01:38:29 [warn] 508636#508636: *2581 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/07/0000000078 while reading upstream, client: 10.0.2.196, server: twojadomena.pl, request: "GET /export?r=216 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=216", host: "10.0.0.1"
+2026/11/16 01:38:29 [warn] 508637#508637: *2621 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/07/0000000079 while reading upstream, client: 10.0.2.202, server: twojadomena.pl, request: "GET /export?r=642 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=642", host: "10.0.0.1"
+2026/11/16 01:38:29 [warn] 508637#508637: *2602 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/08/0000000080 while reading upstream, client: 10.0.2.185, server: twojadomena.pl, request: "GET /export?r=425 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=425", host: "10.0.0.1"
+2026/11/16 01:38:29 [warn] 508637#508637: *1851 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/08/0000000081 while reading upstream, client: 10.0.2.29, server: twojadomena.pl, request: "GET /export?r=23 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=23", host: "10.0.0.1"
+2026/11/16 01:38:29 [warn] 508637#508637: *2577 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/08/0000000082 while reading upstream, client: 10.0.2.170, server: twojadomena.pl, request: "GET /export?r=942 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=942", host: "10.0.0.1"
+2026/11/16 01:38:30 [warn] 508637#508637: *2674 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/08/0000000083 while reading upstream, client: 10.0.2.42, server: twojadomena.pl, request: "GET /export?r=624 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=624", host: "10.0.0.1"
+2026/11/16 01:38:30 [warn] 508637#508637: *2660 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/08/0000000084 while reading upstream, client: 10.0.2.217, server: twojadomena.pl, request: "GET /export?r=747 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=747", host: "10.0.0.1"
+2026/11/16 01:38:30 [warn] 508637#508637: *2711 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/08/0000000085 while reading upstream, client: 10.0.2.48, server: twojadomena.pl, request: "GET /export?r=815 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=815", host: "10.0.0.1"
+2026/11/16 01:38:32 [warn] 508637#508637: *2662 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/08/0000000086 while reading upstream, client: 10.0.2.214, server: twojadomena.pl, request: "GET /export?r=949 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=949", host: "10.0.0.1"
+2026/11/16 01:38:32 [warn] 508637#508637: *2698 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/08/0000000087 while reading upstream, client: 10.0.2.220, server: twojadomena.pl, request: "GET /export?r=758 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=758", host: "10.0.0.1"
+2026/11/16 01:38:32 [warn] 508637#508637: *1961 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/08/0000000088 while reading upstream, client: 10.0.2.56, server: twojadomena.pl, request: "GET /export?r=23 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=23", host: "10.0.0.1"
+2026/11/16 01:38:32 [warn] 508637#508637: *1998 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/08/0000000089 while reading upstream, client: 10.0.2.83, server: twojadomena.pl, request: "GET /export?r=107 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=107", host: "10.0.0.1"
+2026/11/16 01:38:33 [warn] 508637#508637: *2823 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/09/0000000090 while reading upstream, client: 10.0.1.135, server: twojadomena.pl, request: "GET /export?r=611 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=611", host: "10.0.0.1"
+2026/11/16 01:38:34 [warn] 508637#508637: *2746 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/09/0000000091 while reading upstream, client: 10.0.2.251, server: twojadomena.pl, request: "GET /export?r=321 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=321", host: "10.0.0.1"
+2026/11/16 01:38:34 [warn] 508637#508637: *2137 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/09/0000000092 while reading upstream, client: 10.0.2.102, server: twojadomena.pl, request: "GET /export?r=1 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=1", host: "10.0.0.1"
+2026/11/16 01:38:34 [warn] 508637#508637: *1889 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/09/0000000093 while reading upstream, client: 10.0.2.7, server: twojadomena.pl, request: "GET /export?r=455 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=455", host: "10.0.0.1"
+2026/11/16 01:38:34 [warn] 508637#508637: *2854 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/09/0000000094 while reading upstream, client: 10.0.2.254, server: twojadomena.pl, request: "GET /export?r=648 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=648", host: "10.0.0.1"
+2026/11/16 01:38:34 [warn] 508637#508637: *2906 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/09/0000000095 while reading upstream, client: 10.0.2.5, server: twojadomena.pl, request: "GET /export?r=304 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=304", host: "10.0.0.1"
+2026/11/16 01:38:34 [warn] 508637#508637: *2999 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/09/0000000096 while reading upstream, client: 10.0.2.44, server: twojadomena.pl, request: "GET /export?r=449 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=449", host: "10.0.0.1"
+2026/11/16 01:38:35 [warn] 508637#508637: *2245 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/09/0000000097 while reading upstream, client: 10.0.2.159, server: twojadomena.pl, request: "GET /export?r=59 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=59", host: "10.0.0.1"
+2026/11/16 01:38:35 [warn] 508637#508637: *2159 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/09/0000000098 while reading upstream, client: 10.0.2.111, server: twojadomena.pl, request: "GET /export?r=985 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=985", host: "10.0.0.1"
+2026/11/16 01:38:36 [warn] 508637#508637: *2164 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/09/0000000099 while reading upstream, client: 10.0.2.117, server: twojadomena.pl, request: "GET /export?r=368 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=368", host: "10.0.0.1"
+2026/11/16 01:38:36 [warn] 508637#508637: *1952 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/10/0000000100 while reading upstream, client: 10.0.2.24, server: twojadomena.pl, request: "GET /export?r=216 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=216", host: "10.0.0.1"
+2026/11/16 01:38:37 [warn] 508637#508637: *3011 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/10/0000000101 while reading upstream, client: 10.0.2.77, server: twojadomena.pl, request: "GET /export?r=291 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=291", host: "10.0.0.1"
+2026/11/16 01:38:38 [warn] 508637#508637: *3154 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/10/0000000102 while reading upstream, client: 10.0.2.222, server: twojadomena.pl, request: "GET /export?r=291 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=291", host: "10.0.0.1"
+2026/11/16 01:38:38 [warn] 508637#508637: *3148 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/10/0000000103 while reading upstream, client: 10.0.2.125, server: twojadomena.pl, request: "GET /export?r=898 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=898", host: "10.0.0.1"
+2026/11/16 01:38:38 [warn] 508636#508636: *2280 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/10/0000000104 while reading upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /export?r=419 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=419", host: "10.0.0.1"
+2026/11/16 01:38:38 [warn] 508637#508637: *2240 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/10/0000000105 while reading upstream, client: 10.0.2.145, server: twojadomena.pl, request: "GET /export?r=253 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=253", host: "10.0.0.1"
+2026/11/16 01:38:38 [warn] 508636#508636: *3108 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/10/0000000106 while reading upstream, client: 10.0.2.207, server: twojadomena.pl, request: "GET /export?r=282 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=282", host: "10.0.0.1"
+2026/11/16 01:38:38 [warn] 508637#508637: *2334 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/10/0000000107 while reading upstream, client: 10.0.2.173, server: twojadomena.pl, request: "GET /export?r=521 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=521", host: "10.0.0.1"
+2026/11/16 01:38:39 [warn] 508637#508637: *3187 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/10/0000000108 while reading upstream, client: 10.0.1.47, server: twojadomena.pl, request: "GET /export?r=61 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=61", host: "10.0.0.1"
+2026/11/16 01:38:40 [warn] 508637#508637: *2365 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/10/0000000109 while reading upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /export?r=1 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=1", host: "10.0.0.1"
+2026/11/16 01:38:41 [warn] 508636#508636: *2336 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/11/0000000110 while reading upstream, client: 10.0.2.177, server: twojadomena.pl, request: "GET /export?r=96 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=96", host: "10.0.0.1"
+2026/11/16 01:38:41 [warn] 508637#508637: *2297 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/11/0000000111 while reading upstream, client: 10.0.2.136, server: twojadomena.pl, request: "GET /export?r=719 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=719", host: "10.0.0.1"
+2026/11/16 01:38:41 [warn] 508637#508637: *2543 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/11/0000000112 while reading upstream, client: 10.0.2.151, server: twojadomena.pl, request: "GET /export?r=716 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=716", host: "10.0.0.1"
+2026/11/16 01:38:42 [warn] 508637#508637: *2465 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/11/0000000113 while reading upstream, client: 10.0.2.216, server: twojadomena.pl, request: "GET /export?r=962 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=962", host: "10.0.0.1"
+2026/11/16 01:38:42 [warn] 508637#508637: *2383 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/11/0000000114 while reading upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /export?r=472 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=472", host: "10.0.0.1"
+2026/11/16 01:38:43 [warn] 508637#508637: *3431 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/11/0000000115 while reading upstream, client: 10.0.1.65, server: twojadomena.pl, request: "GET /export?r=138 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=138", host: "10.0.0.1"
+2026/11/16 01:38:43 [warn] 508637#508637: *2594 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/11/0000000116 while reading upstream, client: 10.0.2.183, server: twojadomena.pl, request: "GET /export?r=314 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=314", host: "10.0.0.1"
+2026/11/16 01:38:44 [warn] 508637#508637: *2602 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/11/0000000117 while reading upstream, client: 10.0.2.185, server: twojadomena.pl, request: "GET /export?r=632 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=632", host: "10.0.0.1"
+2026/11/16 01:38:45 [warn] 508637#508637: *2562 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/11/0000000118 while reading upstream, client: 10.0.2.166, server: twojadomena.pl, request: "GET /export?r=140 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=140", host: "10.0.0.1"
+2026/11/16 01:38:45 [warn] 508637#508637: *2528 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/11/0000000119 while reading upstream, client: 10.0.2.150, server: twojadomena.pl, request: "GET /export?r=427 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=427", host: "10.0.0.1"
+2026/11/16 01:38:45 [warn] 508637#508637: *2577 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/12/0000000120 while reading upstream, client: 10.0.2.170, server: twojadomena.pl, request: "GET /export?r=381 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=381", host: "10.0.0.1"
+2026/11/16 01:38:45 [warn] 508637#508637: *2662 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/12/0000000121 while reading upstream, client: 10.0.2.214, server: twojadomena.pl, request: "GET /export?r=211 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=211", host: "10.0.0.1"
+2026/11/16 01:38:45 [warn] 508637#508637: *2512 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/12/0000000122 while reading upstream, client: 10.0.2.231, server: twojadomena.pl, request: "GET /export?r=271 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=271", host: "10.0.0.1"
+2026/11/16 01:38:46 [warn] 508636#508636: *2553 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/12/0000000123 while reading upstream, client: 10.0.2.163, server: twojadomena.pl, request: "GET /export?r=987 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=987", host: "10.0.0.1"
+2026/11/16 01:38:46 [warn] 508637#508637: *2660 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/12/0000000124 while reading upstream, client: 10.0.2.217, server: twojadomena.pl, request: "GET /export?r=80 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=80", host: "10.0.0.1"
+2026/11/16 01:38:46 [warn] 508637#508637: *3382 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/12/0000000125 while reading upstream, client: 10.0.1.136, server: twojadomena.pl, request: "GET /export?r=545 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=545", host: "10.0.0.1"
+2026/11/16 01:38:47 [warn] 508637#508637: *3647 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/12/0000000126 while reading upstream, client: 10.0.1.156, server: twojadomena.pl, request: "GET /export?r=947 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=947", host: "10.0.0.1"
+2026/11/16 01:38:48 [warn] 508637#508637: *1861 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/12/0000000127 while reading upstream, client: 10.0.2.31, server: twojadomena.pl, request: "GET /export?r=341 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=341", host: "10.0.0.1"
+2026/11/16 01:38:48 [warn] 508637#508637: *2646 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/12/0000000128 while reading upstream, client: 10.0.2.210, server: twojadomena.pl, request: "GET /export?r=8 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=8", host: "10.0.0.1"
+2026/11/16 01:38:49 [warn] 508637#508637: *3538 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/12/0000000129 while reading upstream, client: 10.0.2.47, server: twojadomena.pl, request: "GET /export?r=612 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=612", host: "10.0.0.1"
+2026/11/16 01:38:49 [warn] 508636#508636: *2088 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/13/0000000130 while reading upstream, client: 10.0.2.93, server: twojadomena.pl, request: "GET /export?r=98 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=98", host: "10.0.0.1"
+2026/11/16 01:38:51 [warn] 508637#508637: *2203 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/13/0000000131 while reading upstream, client: 10.0.2.122, server: twojadomena.pl, request: "GET /export?r=625 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=625", host: "10.0.0.1"
+2026/11/16 01:38:51 [warn] 508637#508637: *2858 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/13/0000000132 while reading upstream, client: 10.0.2.253, server: twojadomena.pl, request: "GET /export?r=716 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=716", host: "10.0.0.1"
+2026/11/16 01:38:52 [warn] 508637#508637: *2151 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/13/0000000133 while reading upstream, client: 10.0.2.59, server: twojadomena.pl, request: "GET /export?r=221 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=221", host: "10.0.0.1"
+2026/11/16 01:38:53 [warn] 508637#508637: *3122 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/13/0000000134 while reading upstream, client: 10.0.2.97, server: twojadomena.pl, request: "GET /export?r=140 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=140", host: "10.0.0.1"
+2026/11/16 01:38:54 [warn] 508636#508636: *3983 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/13/0000000135 while reading upstream, client: 10.0.1.161, server: twojadomena.pl, request: "GET /export?r=94 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=94", host: "10.0.0.1"
+2026/11/16 01:38:55 [warn] 508637#508637: *4089 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/13/0000000136 while reading upstream, client: 10.0.1.176, server: twojadomena.pl, request: "GET /export?r=524 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=524", host: "10.0.0.1"
+2026/11/16 01:38:55 [warn] 508636#508636: *2280 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/13/0000000137 while reading upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /export?r=964 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=964", host: "10.0.0.1"
+2026/11/16 01:38:55 [warn] 508637#508637: *3198 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/13/0000000138 while reading upstream, client: 10.0.2.131, server: twojadomena.pl, request: "GET /export?r=695 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=695", host: "10.0.0.1"
+2026/11/16 01:38:55 [warn] 508637#508637: *2309 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/13/0000000139 while reading upstream, client: 10.0.2.100, server: twojadomena.pl, request: "GET /export?r=216 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=216", host: "10.0.0.1"
+2026/11/16 01:38:56 [warn] 508637#508637: *2399 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/14/0000000140 while reading upstream, client: 10.0.2.203, server: twojadomena.pl, request: "GET /export?r=962 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=962", host: "10.0.0.1"
+2026/11/16 01:38:56 [warn] 508637#508637: *4067 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/14/0000000141 while reading upstream, client: 10.0.1.144, server: twojadomena.pl, request: "GET /export?r=749 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=749", host: "10.0.0.1"
+2026/11/16 01:38:58 [warn] 508637#508637: *2386 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/14/0000000142 while reading upstream, client: 10.0.2.186, server: twojadomena.pl, request: "GET /export?r=445 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=445", host: "10.0.0.1"
+2026/11/16 01:38:58 [warn] 508637#508637: *2451 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/14/0000000143 while reading upstream, client: 10.0.2.149, server: twojadomena.pl, request: "GET /export?r=969 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=969", host: "10.0.0.1"
+2026/11/16 01:39:00 [warn] 508637#508637: *2899 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/14/0000000144 while reading upstream, client: 10.0.2.11, server: twojadomena.pl, request: "GET /export?r=715 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=715", host: "10.0.0.1"
+2026/11/16 01:39:00 [warn] 508637#508637: *2543 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/14/0000000145 while reading upstream, client: 10.0.2.151, server: twojadomena.pl, request: "GET /export?r=987 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=987", host: "10.0.0.1"
+2026/11/16 01:39:02 [warn] 508637#508637: *3538 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/14/0000000146 while reading upstream, client: 10.0.2.47, server: twojadomena.pl, request: "GET /export?r=625 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=625", host: "10.0.0.1"
+2026/11/16 01:39:03 [warn] 508637#508637: *2790 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/14/0000000147 while reading upstream, client: 10.0.2.233, server: twojadomena.pl, request: "GET /export?r=515 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=515", host: "10.0.0.1"
+2026/11/16 01:39:05 [warn] 508637#508637: *4743 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/14/0000000148 while reading upstream, client: 10.0.1.96, server: twojadomena.pl, request: "GET /export?r=698 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=698", host: "10.0.0.1"
+2026/11/16 01:39:05 [info] 508637#508637: *2263 client 10.0.2.64 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2309 client 10.0.2.100 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *1889 client 10.0.2.7 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *1952 client 10.0.2.24 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2360 client 10.0.2.114 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2577 client 10.0.2.170 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2854 client 10.0.2.254 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2906 client 10.0.2.5 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2435 client 10.0.2.148 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2594 client 10.0.2.183 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2391 client 10.0.2.118 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2660 client 10.0.2.217 closed keepalive connection
+2026/11/16 01:39:05 [info] 508636#508636: *2280 client 10.0.2.65 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *1945 client 10.0.2.20 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2151 client 10.0.2.59 closed keepalive connection
+2026/11/16 01:39:05 [info] 508636#508636: *2553 client 10.0.2.163 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2602 client 10.0.2.185 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2746 client 10.0.2.251 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2528 client 10.0.2.150 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2698 client 10.0.2.220 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2543 client 10.0.2.151 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2326 client 10.0.2.112 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2287 client 10.0.2.76 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2412 client 10.0.2.28 closed keepalive connection
+2026/11/16 01:39:05 [info] 508636#508636: *3108 client 10.0.2.207 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *3011 client 10.0.2.77 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2674 client 10.0.2.42 closed keepalive connection
+2026/11/16 01:39:05 [info] 508637#508637: *2711 client 10.0.2.48 closed keepalive connection
+2026/11/16 01:39:06 [warn] 508637#508637: *4782 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/14/0000000149 while reading upstream, client: 10.0.1.100, server: twojadomena.pl, request: "GET /export?r=61 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=61", host: "10.0.0.1"
+2026/11/16 01:39:06 [warn] 508637#508637: *4800 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/15/0000000150 while reading upstream, client: 10.0.1.207, server: twojadomena.pl, request: "GET /export?r=328 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=328", host: "10.0.0.1"
+2026/11/16 01:39:06 [warn] 508637#508637: *2999 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/15/0000000151 while reading upstream, client: 10.0.2.44, server: twojadomena.pl, request: "GET /export?r=171 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=171", host: "10.0.0.1"
+2026/11/16 01:39:06 [warn] 508637#508637: *1963 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/15/0000000152 while reading upstream, client: 10.0.2.54, server: twojadomena.pl, request: "GET /export?r=557 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=557", host: "10.0.0.1"
+2026/11/16 01:39:07 [info] 508637#508637: *3154 client 10.0.2.222 closed keepalive connection
+2026/11/16 01:39:07 [warn] 508637#508637: *3777 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/15/0000000153 while reading upstream, client: 10.0.2.240, server: twojadomena.pl, request: "GET /export?r=238 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=238", host: "10.0.0.1"
+2026/11/16 01:39:07 [info] 508637#508637: *2899 client 10.0.2.11 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2976 client 10.0.2.18 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2999 client 10.0.2.44 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *3036 client 10.0.2.55 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *3122 client 10.0.2.97 closed keepalive connection
+2026/11/16 01:39:07 [info] 508636#508636: *2444 client 10.0.2.147 closed keepalive connection
+2026/11/16 01:39:07 [info] 508636#508636: *2581 client 10.0.2.196 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *3135 client 10.0.2.105 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *3148 client 10.0.2.125 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *3168 client 10.0.2.126 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *3198 client 10.0.2.131 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *3218 client 10.0.2.133 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *3235 client 10.0.2.134 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2297 client 10.0.2.136 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *3268 client 10.0.2.138 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2328 client 10.0.2.142 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *3345 client 10.0.2.144 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2451 client 10.0.2.149 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2469 client 10.0.2.153 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2562 client 10.0.2.166 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2621 client 10.0.2.202 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2646 client 10.0.2.210 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2662 client 10.0.2.214 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2790 client 10.0.2.233 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2806 client 10.0.2.237 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *3777 client 10.0.2.240 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2858 client 10.0.2.253 closed keepalive connection
+2026/11/16 01:39:07 [warn] 508637#508637: *1961 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/15/0000000154 while reading upstream, client: 10.0.2.56, server: twojadomena.pl, request: "GET /export?r=98 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=98", host: "10.0.0.1"
+2026/11/16 01:39:07 [info] 508637#508637: *2290 client 10.0.2.168 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *3538 client 10.0.2.47 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2517 client 10.0.2.235 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2386 client 10.0.2.186 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *1787 client 10.0.2.6 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2500 client 10.0.2.221 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *1932 client 10.0.2.46 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *1961 client 10.0.2.56 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2419 client 10.0.2.204 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2465 client 10.0.2.216 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2399 client 10.0.2.203 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *1963 client 10.0.2.54 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *1991 client 10.0.2.58 closed keepalive connection
+2026/11/16 01:39:07 [info] 508636#508636: *2336 client 10.0.2.177 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2512 client 10.0.2.231 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2334 client 10.0.2.173 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *1915 client 10.0.2.40 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2271 client 10.0.2.165 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2245 client 10.0.2.159 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *1994 client 10.0.2.67 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *1796 client 10.0.2.23 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2510 client 10.0.2.227 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2389 client 10.0.2.188 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2442 client 10.0.2.215 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *1851 client 10.0.2.29 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2255 client 10.0.2.164 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2141 client 10.0.2.107 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2383 client 10.0.2.181 closed keepalive connection
+2026/11/16 01:39:07 [info] 508636#508636: *2397 client 10.0.2.190 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *2365 client 10.0.2.180 closed keepalive connection
+2026/11/16 01:39:07 [info] 508637#508637: *1861 client 10.0.2.31 closed keepalive connection
+2026/11/16 01:39:07 [warn] 508637#508637: *4532 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/15/0000000155 while reading upstream, client: 10.0.1.174, server: twojadomena.pl, request: "GET /export?r=16 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=16", host: "10.0.0.1"
+2026/11/16 01:39:07 [warn] 508637#508637: *4655 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/15/0000000156 while reading upstream, client: 10.0.1.93, server: twojadomena.pl, request: "GET /export?r=936 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=936", host: "10.0.0.1"
+2026/11/16 01:39:08 [warn] 508637#508637: *4894 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/15/0000000157 while reading upstream, client: 10.0.1.219, server: twojadomena.pl, request: "GET /export?r=629 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=629", host: "10.0.0.1"
+2026/11/16 01:39:09 [warn] 508637#508637: *4943 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/15/0000000158 while reading upstream, client: 10.0.1.233, server: twojadomena.pl, request: "GET /export?r=217 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=217", host: "10.0.0.1"
+2026/11/16 01:39:15 [info] 508637#508637: *5163 client 10.0.1.77 closed keepalive connection
+2026/11/16 01:39:15 [info] 508637#508637: *4458 client 10.0.1.184 closed keepalive connection
+2026/11/16 01:39:15 [info] 508637#508637: *5171 client 10.0.1.4 closed keepalive connection
+2026/11/16 01:39:15 [info] 508637#508637: *4467 client 10.0.1.91 closed keepalive connection
+2026/11/16 01:39:15 [info] 508637#508637: *5193 client 10.0.1.113 closed keepalive connection
+2026/11/16 01:39:15 [info] 508637#508637: *4480 client 10.0.1.122 closed keepalive connection
+2026/11/16 01:39:15 [info] 508637#508637: *2811 client 10.0.1.179 closed keepalive connection
+2026/11/16 01:39:17 [info] 508637#508637: *37 client 10.0.1.27 closed keepalive connection
+2026/11/16 01:39:17 [info] 508637#508637: *134 client 10.0.1.90 closed keepalive connection
+2026/11/16 01:39:17 [info] 508637#508637: *220 client 10.0.1.168 closed keepalive connection
+2026/11/16 01:39:17 [info] 508637#508637: *307 client 10.0.1.178 closed keepalive connection
+2026/11/16 01:39:17 [info] 508637#508637: *4632 client 10.0.1.146 closed keepalive connection
+2026/11/16 01:39:17 [info] 508637#508637: *4570 client 10.0.1.132 closed keepalive connection
+2026/11/16 01:39:17 [info] 508637#508637: *3596 client 10.0.1.127 closed keepalive connection
+2026/11/16 01:39:17 [info] 508637#508637: *4465 client 10.0.1.30 closed keepalive connection
+2026/11/16 01:39:17 [info] 508637#508637: *5169 client 10.0.1.211 closed keepalive connection
+2026/11/16 01:39:17 [info] 508637#508637: *85 client 10.0.1.9 closed keepalive connection
+2026/11/16 01:39:17 [info] 508637#508637: *2933 client 10.0.1.41 closed keepalive connection
+2026/11/16 01:39:17 [info] 508637#508637: *4627 client 10.0.1.41 closed keepalive connection
+2026/11/16 01:39:17 [info] 508637#508637: *2862 client 10.0.1.179 closed keepalive connection
+2026/11/16 01:39:17 [info] 508637#508637: *2955 client 10.0.1.179 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *3774 client 10.0.1.27 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *4549 client 10.0.1.77 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *4558 client 10.0.1.90 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *4646 client 10.0.1.168 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *97 client 10.0.1.168 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *3813 client 10.0.1.168 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *2836 client 10.0.1.178 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *117 client 10.0.1.178 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *4594 client 10.0.1.184 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *2843 client 10.0.1.184 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *2919 client 10.0.1.184 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *4666 client 10.0.1.184 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *2912 client 10.0.1.51 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *2852 client 10.0.1.132 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *95 client 10.0.1.51 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *165 client 10.0.1.146 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *4580 client 10.0.1.127 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *3799 client 10.0.1.91 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *3768 client 10.0.1.30 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *3759 client 10.0.1.20 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *2841 client 10.0.1.91 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *179 client 10.0.1.211 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *4670 client 10.0.1.146 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *4564 client 10.0.1.67 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *48 client 10.0.1.4 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *81 client 10.0.1.30 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *2835 client 10.0.1.67 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *3819 client 10.0.1.146 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *4534 client 10.0.1.7 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *57 client 10.0.1.7 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *2947 client 10.0.1.9 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *83 client 10.0.1.9 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *2926 client 10.0.1.113 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *101 client 10.0.1.41 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *2867 client 10.0.1.122 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *4615 client 10.0.1.113 closed keepalive connection
+2026/11/16 01:39:18 [info] 508637#508637: *2943 client 10.0.1.122 closed keepalive connection
+2026/11/16 01:39:19 [warn] 508637#508637: *5406 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/15/0000000159 while reading upstream, client: 10.0.1.240, server: twojadomena.pl, request: "GET /export?r=196 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=196", host: "10.0.0.1"
+2026/11/16 01:39:19 [warn] 508637#508637: *5429 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/16/0000000160 while reading upstream, client: 10.0.1.31, server: twojadomena.pl, request: "GET /export?r=213 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=213", host: "10.0.0.1"
+2026/11/16 01:39:20 [warn] 508637#508637: *5443 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/16/0000000161 while reading upstream, client: 10.0.1.33, server: twojadomena.pl, request: "GET /export?r=655 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=655", host: "10.0.0.1"
+2026/11/16 01:39:21 [info] 508637#508637: *5443 client 10.0.1.33 closed keepalive connection
+2026/11/16 01:39:21 [info] 508637#508637: *5429 client 10.0.1.31 closed keepalive connection
+2026/11/16 01:39:21 [info] 508637#508637: *4800 client 10.0.1.207 closed keepalive connection
+2026/11/16 01:39:21 [info] 508637#508637: *4943 client 10.0.1.233 closed keepalive connection
+2026/11/16 01:39:21 [info] 508637#508637: *5406 client 10.0.1.240 closed keepalive connection
+2026/11/16 01:39:21 [info] 508637#508637: *4894 client 10.0.1.219 closed keepalive connection
+2026/11/16 01:39:27 [warn] 508637#508637: *5737 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/16/0000000162 while reading upstream, client: 10.0.1.129, server: twojadomena.pl, request: "GET /export?r=52 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=52", host: "10.0.0.1"
+2026/11/16 01:39:27 [info] 508637#508637: *5737 client 10.0.1.129 closed keepalive connection
+2026/11/16 01:39:28 [warn] 508637#508637: *5778 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/16/0000000163 while reading upstream, client: 10.0.1.183, server: twojadomena.pl, request: "GET /export?r=999 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=999", host: "10.0.0.1"
+2026/11/16 01:39:29 [info] 508637#508637: *634 client 10.0.1.157 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5778 client 10.0.1.183 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *70 client 10.0.1.1 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *2612 client 10.0.1.8 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *2627 client 10.0.1.16 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *2631 client 10.0.1.19 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *312 client 10.0.1.21 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *322 client 10.0.1.22 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *381 client 10.0.1.39 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *391 client 10.0.1.53 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *421 client 10.0.1.66 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *423 client 10.0.1.69 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *492 client 10.0.1.76 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *524 client 10.0.1.78 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *547 client 10.0.1.89 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *589 client 10.0.1.94 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *603 client 10.0.1.107 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *606 client 10.0.1.117 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *656 client 10.0.1.125 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *664 client 10.0.1.143 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *720 client 10.0.1.144 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *2188 client 10.0.1.147 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *2201 client 10.0.1.155 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *786 client 10.0.1.159 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *2225 client 10.0.1.163 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *843 client 10.0.1.166 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *863 client 10.0.1.170 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *880 client 10.0.1.180 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *895 client 10.0.1.195 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *904 client 10.0.1.198 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *910 client 10.0.1.208 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *914 client 10.0.1.209 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *923 client 10.0.1.214 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *925 client 10.0.1.227 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *965 client 10.0.1.237 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1023 client 10.0.1.239 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1026 client 10.0.1.246 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1035 client 10.0.1.247 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1040 client 10.0.1.249 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1042 client 10.0.1.254 closed keepalive connection
+2026/11/16 01:39:29 [info] 508636#508636: *2615 client 10.0.1.13 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1614 client 10.0.1.192 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1185 client 10.0.1.251 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3846 client 10.0.1.110 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1558 client 10.0.1.139 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1192 client 10.0.1.252 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1715 client 10.0.1.206 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1355 client 10.0.1.44 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1234 client 10.0.1.10 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *426 client 10.0.1.123 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5530 client 10.0.1.224 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3757 client 10.0.1.88 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1726 client 10.0.1.218 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5456 client 10.0.1.205 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5712 client 10.0.1.43 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1195 client 10.0.1.3 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1537 client 10.0.1.134 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1174 client 10.0.1.241 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1672 client 10.0.1.201 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1480 client 10.0.1.101 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *4948 client 10.0.1.24 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1445 client 10.0.1.82 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1727 client 10.0.1.221 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1597 client 10.0.1.182 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1409 client 10.0.1.60 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1624 client 10.0.1.196 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1047 client 10.0.1.226 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1579 client 10.0.1.151 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1516 client 10.0.1.124 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1536 client 10.0.1.138 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3765 client 10.0.1.92 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1328 client 10.0.1.28 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1609 client 10.0.1.190 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1631 client 10.0.1.199 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5103 client 10.0.1.55 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1495 client 10.0.1.109 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1456 client 10.0.1.87 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1504 client 10.0.1.111 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *4982 client 10.0.1.40 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3807 client 10.0.1.105 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1340 client 10.0.1.42 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1721 client 10.0.1.217 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1078 client 10.0.1.230 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5112 client 10.0.1.56 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1699 client 10.0.1.202 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1240 client 10.0.1.23 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1151 client 10.0.1.235 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1372 client 10.0.1.50 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5046 client 10.0.1.48 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1335 client 10.0.1.38 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1618 client 10.0.1.193 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1430 client 10.0.1.73 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *1733 client 10.0.1.223 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3781 client 10.0.1.99 closed keepalive connection
+2026/11/16 01:39:29 [info] 508636#508636: *3599 client 10.0.1.63 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *303 client 10.0.1.108 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *272 client 10.0.1.80 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *4754 client 10.0.1.175 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *4724 client 10.0.1.215 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *325 client 10.0.1.112 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *89 client 10.0.1.35 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *433 client 10.0.1.133 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *328 client 10.0.1.120 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *464 client 10.0.1.154 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *67 client 10.0.1.15 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *242 client 10.0.1.72 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *567 client 10.0.1.231 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *199 client 10.0.1.70 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *4722 client 10.0.1.186 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *4858 client 10.0.1.97 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *4705 client 10.0.1.165 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *416 client 10.0.1.121 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *4834 client 10.0.1.98 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5198 client 10.0.1.108 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5647 client 10.0.1.215 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5228 client 10.0.1.120 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5528 client 10.0.1.167 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5521 client 10.0.1.165 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *644 client 10.0.1.102 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5551 client 10.0.1.175 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5138 client 10.0.1.97 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5711 client 10.0.1.35 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5068 client 10.0.1.72 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5435 client 10.0.1.133 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5127 client 10.0.1.85 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5656 client 10.0.1.6 closed keepalive connection
+2026/11/16 01:39:29 [info] 508636#508636: *5004 client 10.0.1.68 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5650 client 10.0.1.248 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5701 client 10.0.1.26 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5630 client 10.0.1.187 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5688 client 10.0.1.15 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5393 client 10.0.1.123 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5438 client 10.0.1.148 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5050 client 10.0.1.70 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5102 client 10.0.1.80 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5575 client 10.0.1.186 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5644 client 10.0.1.231 closed keepalive connection
+2026/11/16 01:39:29 [warn] 508637#508637: *5844 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/16/0000000164 while reading upstream, client: 10.0.1.198, server: twojadomena.pl, request: "GET /export?r=230 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=230", host: "10.0.0.1"
+2026/11/16 01:39:29 [info] 508637#508637: *5827 client 10.0.1.170 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5844 client 10.0.1.198 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3070 client 10.0.1.101 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5492 client 10.0.1.154 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3392 client 10.0.1.206 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3212 client 10.0.1.109 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3475 client 10.0.1.28 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3532 client 10.0.1.82 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3466 client 10.0.1.235 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3512 client 10.0.1.48 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3059 client 10.0.1.92 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3504 client 10.0.1.42 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3277 client 10.0.1.199 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3515 client 10.0.1.60 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3610 client 10.0.1.88 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3233 client 10.0.1.124 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3066 client 10.0.1.99 closed keepalive connection
+2026/11/16 01:39:29 [info] 508636#508636: *3097 client 10.0.1.105 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *3464 client 10.0.1.224 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5082 client 10.0.1.74 closed keepalive connection
+2026/11/16 01:39:29 [info] 508637#508637: *5191 client 10.0.1.98 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *78 client 10.0.1.1 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *87 client 10.0.1.16 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *125 client 10.0.1.22 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *129 client 10.0.1.39 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *181 client 10.0.1.66 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *185 client 10.0.1.69 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *224 client 10.0.1.78 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *243 client 10.0.1.89 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *257 client 10.0.1.107 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *290 client 10.0.1.117 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *340 client 10.0.1.143 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *346 client 10.0.1.155 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *357 client 10.0.1.163 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *366 client 10.0.1.180 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *389 client 10.0.1.195 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5253 client 10.0.1.121 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *431 client 10.0.1.209 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *434 client 10.0.1.214 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *436 client 10.0.1.227 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *452 client 10.0.1.239 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *458 client 10.0.1.246 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *474 client 10.0.1.247 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *512 client 10.0.1.254 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5217 client 10.0.1.112 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *529 client 10.0.1.116 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3905 client 10.0.1.66 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3932 client 10.0.1.71 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *359 client 10.0.1.104 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *393 client 10.0.1.114 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *483 client 10.0.1.130 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *514 client 10.0.1.140 closed keepalive connection
+2026/11/16 01:39:30 [info] 508636#508636: *3869 client 10.0.1.185 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *526 client 10.0.1.143 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *542 client 10.0.1.169 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3732 client 10.0.1.177 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3884 client 10.0.1.214 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *4102 client 10.0.1.182 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5816 client 10.0.1.17 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *4079 client 10.0.1.172 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *4056 client 10.0.1.138 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5804 client 10.0.1.14 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5689 client 10.0.1.226 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5612 client 10.0.1.193 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3856 client 10.0.1.63 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *4041 client 10.0.1.137 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *4037 client 10.0.1.129 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *4026 client 10.0.1.111 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3890 client 10.0.1.93 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *4061 client 10.0.1.139 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3699 client 10.0.1.55 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3817 client 10.0.1.60 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5489 client 10.0.1.164 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5599 client 10.0.1.192 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5762 client 10.0.1.2 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3689 client 10.0.1.50 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5741 client 10.0.1.250 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5696 client 10.0.1.230 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5824 client 10.0.1.34 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5720 client 10.0.1.241 closed keepalive connection
+2026/11/16 01:39:30 [info] 508636#508636: *5704 client 10.0.1.234 closed keepalive connection
+2026/11/16 01:39:30 [info] 508636#508636: *5562 client 10.0.1.190 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3975 client 10.0.1.101 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *4039 client 10.0.1.134 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3871 client 10.0.1.88 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5789 client 10.0.1.3 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5681 client 10.0.1.221 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *4063 client 10.0.1.151 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5553 client 10.0.1.189 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5743 client 10.0.1.251 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3969 client 10.0.1.100 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3867 client 10.0.1.73 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3858 client 10.0.1.65 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5749 client 10.0.1.252 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5686 client 10.0.1.223 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5654 client 10.0.1.201 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3956 client 10.0.1.96 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *4011 client 10.0.1.110 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5867 client 10.0.1.40 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5846 client 10.0.1.38 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5794 client 10.0.1.10 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5678 client 10.0.1.202 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5636 client 10.0.1.194 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3724 client 10.0.1.56 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5819 client 10.0.1.24 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *288 client 10.0.1.110 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *277 client 10.0.1.88 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *137 client 10.0.1.43 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *127 client 10.0.1.42 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *447 client 10.0.1.192 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *91 client 10.0.1.40 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *414 client 10.0.1.182 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *280 client 10.0.1.101 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *162 client 10.0.1.55 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *395 client 10.0.1.151 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *333 client 10.0.1.134 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *194 client 10.0.1.60 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *516 client 10.0.1.226 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *143 client 10.0.1.50 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *387 client 10.0.1.139 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *138 client 10.0.1.44 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *490 client 10.0.1.223 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *342 client 10.0.1.138 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *531 client 10.0.1.241 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *170 client 10.0.1.56 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *61 client 10.0.1.24 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *441 client 10.0.1.190 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *470 client 10.0.1.201 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *477 client 10.0.1.202 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *253 client 10.0.1.63 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *488 client 10.0.1.221 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *522 client 10.0.1.230 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *43 client 10.0.1.3 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *53 client 10.0.1.10 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *63 client 10.0.1.38 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *549 client 10.0.1.251 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *263 client 10.0.1.73 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *286 client 10.0.1.111 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *468 client 10.0.1.193 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *560 client 10.0.1.252 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *4685 client 10.0.1.148 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *2107 client 10.0.1.37 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5280 client 10.0.1.39 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *2125 client 10.0.1.66 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5433 client 10.0.1.69 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5447 client 10.0.1.71 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5458 client 10.0.1.78 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5477 client 10.0.1.89 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *2182 client 10.0.1.104 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *4015 client 10.0.1.107 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5500 client 10.0.1.114 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5502 client 10.0.1.117 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5514 client 10.0.1.130 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5531 client 10.0.1.140 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5538 client 10.0.1.143 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5541 client 10.0.1.155 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5544 client 10.0.1.163 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5556 client 10.0.1.169 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5558 client 10.0.1.177 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5581 client 10.0.1.180 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5603 client 10.0.1.185 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5608 client 10.0.1.195 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5639 client 10.0.1.209 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5659 client 10.0.1.214 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5694 client 10.0.1.227 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5791 client 10.0.1.239 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5863 client 10.0.1.246 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5868 client 10.0.1.247 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5876 client 10.0.1.254 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *742 client 10.0.1.236 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *204 client 10.0.1.12 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *535 client 10.0.1.85 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *562 client 10.0.1.112 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *647 client 10.0.1.212 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *767 client 10.0.1.243 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *573 client 10.0.1.74 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *667 client 10.0.1.167 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3802 client 10.0.1.26 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *411 client 10.0.1.62 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *688 client 10.0.1.187 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *719 client 10.0.1.248 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *449 client 10.0.1.68 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *4928 client 10.0.1.6 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *615 client 10.0.1.171 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *499 client 10.0.1.157 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *2196 client 10.0.1.33 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3535 client 10.0.1.156 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3293 client 10.0.1.120 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *1771 client 10.0.1.175 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3485 client 10.0.1.136 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *310 client 10.0.1.102 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3608 client 10.0.1.186 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *2314 client 10.0.1.97 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3637 client 10.0.1.207 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3901 client 10.0.1.31 closed keepalive connection
+2026/11/16 01:39:30 [info] 508636#508636: *2073 client 10.0.1.215 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3950 client 10.0.1.72 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3752 client 10.0.1.219 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3553 client 10.0.1.165 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3917 client 10.0.1.35 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3865 client 10.0.1.240 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3306 client 10.0.1.123 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3786 client 10.0.1.231 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3445 client 10.0.1.135 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3534 client 10.0.1.154 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3361 client 10.0.1.126 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3524 client 10.0.1.161 closed keepalive connection
+2026/11/16 01:39:30 [info] 508636#508636: *1802 client 10.0.1.176 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *735 client 10.0.1.236 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *265 client 10.0.1.62 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3898 client 10.0.1.15 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *2211 client 10.0.1.70 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *455 client 10.0.1.152 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3250 client 10.0.1.108 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *2266 client 10.0.1.80 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3842 client 10.0.1.233 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *384 client 10.0.1.116 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *2343 client 10.0.1.98 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3437 client 10.0.1.133 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3305 client 10.0.1.121 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3520 client 10.0.1.148 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *149 client 10.0.1.12 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *772 client 10.0.1.243 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *261 client 10.0.1.59 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *537 client 10.0.1.171 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *690 client 10.0.1.212 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *597 client 10.0.1.210 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *5837 client 10.0.1.229 closed keepalive connection
+2026/11/16 01:39:30 [info] 508637#508637: *3257 client 10.0.1.112 closed keepalive connection

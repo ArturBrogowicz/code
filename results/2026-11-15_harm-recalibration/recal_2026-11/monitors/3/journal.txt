@@ -1,0 +1,842 @@
+2026-11-16T00:50:00.385285+00:00 ddos-mitigation systemd[1]: Starting sysstat-collect.service - system activity accounting tool...
+2026-11-16T00:50:00.417759+00:00 ddos-mitigation systemd[1]: sysstat-collect.service: Deactivated successfully.
+2026-11-16T00:50:00.418194+00:00 ddos-mitigation systemd[1]: Finished sysstat-collect.service - system activity accounting tool.
+2026-11-16T00:50:07.301189+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 202 seen, reloading interface list
+2026-11-16T00:50:07.302721+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Link UP
+2026-11-16T00:50:07.302729+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained carrier
+2026-11-16T00:50:07.324098+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Lost carrier
+2026-11-16T00:50:07.325931+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered blocking state
+2026-11-16T00:50:07.326004+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T00:50:07.326021+00:00 ddos-mitigation kernel: veth_srv_br: entered allmulticast mode
+2026-11-16T00:50:07.326063+00:00 ddos-mitigation kernel: veth_srv_br: entered promiscuous mode
+2026-11-16T00:50:07.327182+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Link UP
+2026-11-16T00:50:07.328681+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 203 seen, reloading interface list
+2026-11-16T00:50:07.335379+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Gained carrier
+2026-11-16T00:50:07.335637+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained carrier
+2026-11-16T00:50:07.336893+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered blocking state
+2026-11-16T00:50:07.336938+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered forwarding state
+2026-11-16T00:50:07.342653+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 204 seen, reloading interface list
+2026-11-16T00:50:07.350241+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 204 seen even after reload
+2026-11-16T00:50:07.350526+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 204 seen, reloading interface list
+2026-11-16T00:50:07.369930+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered blocking state
+2026-11-16T00:50:07.370015+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T00:50:07.370042+00:00 ddos-mitigation kernel: vo_hg_0_perfect: entered allmulticast mode
+2026-11-16T00:50:07.370061+00:00 ddos-mitigation kernel: vo_hg_0_perfect: entered promiscuous mode
+2026-11-16T00:50:07.371723+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Link UP
+2026-11-16T00:50:07.372630+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 204 seen even after reload
+2026-11-16T00:50:07.376495+00:00 ddos-mitigation networkctl[501628]: Interface "veth_in" not found.
+2026-11-16T00:50:07.377477+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "veth_in" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'veth_in']' returned non-zero exit status 1.
+2026-11-16T00:50:07.379087+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Gained carrier
+2026-11-16T00:50:07.379246+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered blocking state
+2026-11-16T00:50:07.379283+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered forwarding state
+2026-11-16T00:50:07.397065+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 207 seen, reloading interface list
+2026-11-16T00:50:07.410729+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 207 seen even after reload
+2026-11-16T00:50:07.410897+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered blocking state
+2026-11-16T00:50:07.410940+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T00:50:07.410957+00:00 ddos-mitigation kernel: vo_hg_1_broadba: entered allmulticast mode
+2026-11-16T00:50:07.410974+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 207 seen, reloading interface list
+2026-11-16T00:50:07.411031+00:00 ddos-mitigation kernel: vo_hg_1_broadba: entered promiscuous mode
+2026-11-16T00:50:07.411796+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Link UP
+2026-11-16T00:50:07.415896+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 207 seen even after reload
+2026-11-16T00:50:07.421219+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Gained carrier
+2026-11-16T00:50:07.421422+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered blocking state
+2026-11-16T00:50:07.421453+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered forwarding state
+2026-11-16T00:50:07.441537+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 209 seen, reloading interface list
+2026-11-16T00:50:07.465948+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered blocking state
+2026-11-16T00:50:07.466040+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T00:50:07.466070+00:00 ddos-mitigation kernel: vo_hg_2_mobile_: entered allmulticast mode
+2026-11-16T00:50:07.466093+00:00 ddos-mitigation kernel: vo_hg_2_mobile_: entered promiscuous mode
+2026-11-16T00:50:07.466711+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 209 seen even after reload
+2026-11-16T00:50:07.467040+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 209 seen, reloading interface list
+2026-11-16T00:50:07.468026+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Link UP
+2026-11-16T00:50:07.472371+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 209 seen even after reload
+2026-11-16T00:50:07.477038+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered blocking state
+2026-11-16T00:50:07.477108+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered forwarding state
+2026-11-16T00:50:07.477330+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Gained carrier
+2026-11-16T00:50:07.498171+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 211 seen, reloading interface list
+2026-11-16T00:50:07.511926+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered blocking state
+2026-11-16T00:50:07.512004+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T00:50:07.512027+00:00 ddos-mitigation kernel: vo_hg_3_mobile_: entered allmulticast mode
+2026-11-16T00:50:07.512048+00:00 ddos-mitigation kernel: vo_hg_3_mobile_: entered promiscuous mode
+2026-11-16T00:50:07.513276+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 211 seen even after reload
+2026-11-16T00:50:07.513452+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 211 seen, reloading interface list
+2026-11-16T00:50:07.513600+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Link UP
+2026-11-16T00:50:07.520043+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 211 seen even after reload
+2026-11-16T00:50:07.520910+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered blocking state
+2026-11-16T00:50:07.521328+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered forwarding state
+2026-11-16T00:50:07.521005+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Gained carrier
+2026-11-16T00:50:08.482219+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Gained IPv6LL
+2026-11-16T00:50:08.610341+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Gained IPv6LL
+2026-11-16T00:50:08.674188+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Gained IPv6LL
+2026-11-16T00:50:08.802226+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Gained IPv6LL
+2026-11-16T00:50:08.994271+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained IPv6LL
+2026-11-16T00:50:08.994861+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Gained IPv6LL
+2026-11-16T00:52:07.739585+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Link DOWN
+2026-11-16T00:52:07.739623+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Lost carrier
+2026-11-16T00:52:07.740410+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T00:52:07.740466+00:00 ddos-mitigation kernel: vo_hg_0_perfect (unregistering): left allmulticast mode
+2026-11-16T00:52:07.740485+00:00 ddos-mitigation kernel: vo_hg_0_perfect (unregistering): left promiscuous mode
+2026-11-16T00:52:07.740505+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T00:52:07.742532+00:00 ddos-mitigation systemd[1]: run-netns-hg_0_perfect.mount: Deactivated successfully.
+2026-11-16T00:52:07.743427+00:00 ddos-mitigation networkctl[501909]: Interface "vo_hg_0_perfect" not found.
+2026-11-16T00:52:07.744308+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_0_perfect" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_0_perfect']' returned non-zero exit status 1.
+2026-11-16T00:52:07.745480+00:00 ddos-mitigation systemd[1]: run-netns-hg_1_broadband.mount: Deactivated successfully.
+2026-11-16T00:52:07.748402+00:00 ddos-mitigation systemd[1]: run-netns-hg_2_mobile_3g.mount: Deactivated successfully.
+2026-11-16T00:52:07.751673+00:00 ddos-mitigation systemd[1]: run-netns-hg_3_mobile_bad.mount: Deactivated successfully.
+2026-11-16T00:52:07.754597+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Link DOWN
+2026-11-16T00:52:07.754609+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Lost carrier
+2026-11-16T00:52:07.755108+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Link DOWN
+2026-11-16T00:52:07.755324+00:00 ddos-mitigation systemd[1]: run-netns-server_ns.mount: Deactivated successfully.
+2026-11-16T00:52:07.756018+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T00:52:07.755539+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Lost carrier
+2026-11-16T00:52:07.756093+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T00:52:07.758107+00:00 ddos-mitigation kernel: vo_hg_2_mobile_ (unregistering): left allmulticast mode
+2026-11-16T00:52:07.758152+00:00 ddos-mitigation kernel: vo_hg_2_mobile_ (unregistering): left promiscuous mode
+2026-11-16T00:52:07.758191+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T00:52:07.761332+00:00 ddos-mitigation kernel: vo_hg_1_broadba (unregistering): left allmulticast mode
+2026-11-16T00:52:07.761367+00:00 ddos-mitigation kernel: vo_hg_1_broadba (unregistering): left promiscuous mode
+2026-11-16T00:52:07.761395+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T00:52:07.779190+00:00 ddos-mitigation networkctl[501927]: Interface "vo_hg_2_mobile_" not found.
+2026-11-16T00:52:07.780651+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_2_mobile_" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_2_mobile_']' returned non-zero exit status 1.
+2026-11-16T00:52:07.787082+00:00 ddos-mitigation networkctl[501943]: Interface "vo_hg_1_broadba" not found.
+2026-11-16T00:52:07.788312+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_1_broadba" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_1_broadba']' returned non-zero exit status 1.
+2026-11-16T00:52:07.797498+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Link DOWN
+2026-11-16T00:52:07.797942+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T00:52:07.797514+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Lost carrier
+2026-11-16T00:52:07.798952+00:00 ddos-mitigation kernel: veth_srv_br (unregistering): left allmulticast mode
+2026-11-16T00:52:07.798998+00:00 ddos-mitigation kernel: veth_srv_br (unregistering): left promiscuous mode
+2026-11-16T00:52:07.799021+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T00:52:07.800066+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Link DOWN
+2026-11-16T00:52:07.800078+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Lost carrier
+2026-11-16T00:52:07.801593+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T00:52:07.801634+00:00 ddos-mitigation kernel: vo_hg_3_mobile_ (unregistering): left allmulticast mode
+2026-11-16T00:52:07.801651+00:00 ddos-mitigation kernel: vo_hg_3_mobile_ (unregistering): left promiscuous mode
+2026-11-16T00:52:07.801667+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T00:52:07.807792+00:00 ddos-mitigation networkctl[501953]: Interface "veth_srv_br" not found.
+2026-11-16T00:52:07.813302+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "veth_srv_br" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'veth_srv_br']' returned non-zero exit status 1.
+2026-11-16T00:52:07.816017+00:00 ddos-mitigation networkctl[501958]: Interface "vo_hg_3_mobile_" not found.
+2026-11-16T00:52:07.816838+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_3_mobile_" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_3_mobile_']' returned non-zero exit status 1.
+2026-11-16T00:52:07.824995+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Lost carrier
+2026-11-16T00:52:07.825442+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Link DOWN
+2026-11-16T00:52:07.828853+00:00 ddos-mitigation networkctl[501966]: Interface "ddos_br0" not found.
+2026-11-16T00:52:07.830498+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "ddos_br0" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'ddos_br0']' returned non-zero exit status 1.
+2026-11-16T00:52:48.473393+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 213 seen, reloading interface list
+2026-11-16T00:52:48.474789+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Link UP
+2026-11-16T00:52:48.474887+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained carrier
+2026-11-16T00:52:48.491080+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Lost carrier
+2026-11-16T00:52:48.492473+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered blocking state
+2026-11-16T00:52:48.492534+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T00:52:48.492552+00:00 ddos-mitigation kernel: veth_srv_br: entered allmulticast mode
+2026-11-16T00:52:48.492567+00:00 ddos-mitigation kernel: veth_srv_br: entered promiscuous mode
+2026-11-16T00:52:48.493924+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Link UP
+2026-11-16T00:52:48.495419+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 214 seen, reloading interface list
+2026-11-16T00:52:48.502554+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Gained carrier
+2026-11-16T00:52:48.502816+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained carrier
+2026-11-16T00:52:48.503128+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered blocking state
+2026-11-16T00:52:48.503156+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered forwarding state
+2026-11-16T00:52:48.507612+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 215 seen, reloading interface list
+2026-11-16T00:52:48.512019+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 215 seen even after reload
+2026-11-16T00:52:48.512221+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 215 seen, reloading interface list
+2026-11-16T00:52:48.524901+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 215 seen even after reload
+2026-11-16T00:52:48.549272+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered blocking state
+2026-11-16T00:52:48.549373+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T00:52:48.549408+00:00 ddos-mitigation kernel: vo_hg_0_perfect: entered allmulticast mode
+2026-11-16T00:52:48.549426+00:00 ddos-mitigation kernel: vo_hg_0_perfect: entered promiscuous mode
+2026-11-16T00:52:48.551049+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Link UP
+2026-11-16T00:52:48.559823+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered blocking state
+2026-11-16T00:52:48.559047+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Gained carrier
+2026-11-16T00:52:48.560023+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered forwarding state
+2026-11-16T00:52:48.578228+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 218 seen, reloading interface list
+2026-11-16T00:52:48.591919+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered blocking state
+2026-11-16T00:52:48.591998+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T00:52:48.592017+00:00 ddos-mitigation kernel: vo_hg_1_broadba: entered allmulticast mode
+2026-11-16T00:52:48.592032+00:00 ddos-mitigation kernel: vo_hg_1_broadba: entered promiscuous mode
+2026-11-16T00:52:48.592151+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 218 seen even after reload
+2026-11-16T00:52:48.592334+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 218 seen, reloading interface list
+2026-11-16T00:52:48.593089+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Link UP
+2026-11-16T00:52:48.597328+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 218 seen even after reload
+2026-11-16T00:52:48.599648+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Gained carrier
+2026-11-16T00:52:48.600023+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered blocking state
+2026-11-16T00:52:48.600061+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered forwarding state
+2026-11-16T00:52:48.623747+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 220 seen, reloading interface list
+2026-11-16T00:52:48.639008+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered blocking state
+2026-11-16T00:52:48.639087+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T00:52:48.639111+00:00 ddos-mitigation kernel: vo_hg_2_mobile_: entered allmulticast mode
+2026-11-16T00:52:48.639129+00:00 ddos-mitigation kernel: vo_hg_2_mobile_: entered promiscuous mode
+2026-11-16T00:52:48.639560+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 220 seen even after reload
+2026-11-16T00:52:48.639746+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 220 seen, reloading interface list
+2026-11-16T00:52:48.640065+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Link UP
+2026-11-16T00:52:48.644796+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 220 seen even after reload
+2026-11-16T00:52:48.646305+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Gained carrier
+2026-11-16T00:52:48.647455+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered blocking state
+2026-11-16T00:52:48.647484+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered forwarding state
+2026-11-16T00:52:48.668832+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 222 seen, reloading interface list
+2026-11-16T00:52:48.689983+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered blocking state
+2026-11-16T00:52:48.690080+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T00:52:48.690105+00:00 ddos-mitigation kernel: vo_hg_3_mobile_: entered allmulticast mode
+2026-11-16T00:52:48.690126+00:00 ddos-mitigation kernel: vo_hg_3_mobile_: entered promiscuous mode
+2026-11-16T00:52:48.691030+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 222 seen even after reload
+2026-11-16T00:52:48.691231+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 222 seen, reloading interface list
+2026-11-16T00:52:48.691561+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Link UP
+2026-11-16T00:52:48.697097+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 222 seen even after reload
+2026-11-16T00:52:48.697981+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Gained carrier
+2026-11-16T00:52:48.698146+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered blocking state
+2026-11-16T00:52:48.698174+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered forwarding state
+2026-11-16T00:52:49.698216+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained IPv6LL
+2026-11-16T00:52:49.762277+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Gained IPv6LL
+2026-11-16T00:52:49.826224+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Gained IPv6LL
+2026-11-16T00:52:49.826641+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Gained IPv6LL
+2026-11-16T00:52:49.890306+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Gained IPv6LL
+2026-11-16T00:52:50.275279+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Gained IPv6LL
+2026-11-16T00:54:48.088541+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Link DOWN
+2026-11-16T00:54:48.088570+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Lost carrier
+2026-11-16T00:54:48.089339+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T00:54:48.089401+00:00 ddos-mitigation kernel: vo_hg_0_perfect (unregistering): left allmulticast mode
+2026-11-16T00:54:48.089428+00:00 ddos-mitigation kernel: vo_hg_0_perfect (unregistering): left promiscuous mode
+2026-11-16T00:54:48.089449+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T00:54:48.091677+00:00 ddos-mitigation systemd[1]: run-netns-hg_0_perfect.mount: Deactivated successfully.
+2026-11-16T00:54:48.092329+00:00 ddos-mitigation networkctl[502344]: Interface "vo_hg_0_perfect" not found.
+2026-11-16T00:54:48.093492+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_0_perfect" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_0_perfect']' returned non-zero exit status 1.
+2026-11-16T00:54:48.095335+00:00 ddos-mitigation systemd[1]: run-netns-hg_1_broadband.mount: Deactivated successfully.
+2026-11-16T00:54:48.098167+00:00 ddos-mitigation systemd[1]: run-netns-hg_2_mobile_3g.mount: Deactivated successfully.
+2026-11-16T00:54:48.100922+00:00 ddos-mitigation systemd[1]: run-netns-hg_3_mobile_bad.mount: Deactivated successfully.
+2026-11-16T00:54:48.106398+00:00 ddos-mitigation systemd[1]: run-netns-server_ns.mount: Deactivated successfully.
+2026-11-16T00:54:48.116688+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Link DOWN
+2026-11-16T00:54:48.116704+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Lost carrier
+2026-11-16T00:54:48.117458+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T00:54:48.117874+00:00 ddos-mitigation kernel: vo_hg_1_broadba (unregistering): left allmulticast mode
+2026-11-16T00:54:48.117927+00:00 ddos-mitigation kernel: vo_hg_1_broadba (unregistering): left promiscuous mode
+2026-11-16T00:54:48.117957+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T00:54:48.121613+00:00 ddos-mitigation networkctl[502372]: Interface "vo_hg_1_broadba" not found.
+2026-11-16T00:54:48.123425+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_1_broadba" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_1_broadba']' returned non-zero exit status 1.
+2026-11-16T00:54:48.125445+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Link DOWN
+2026-11-16T00:54:48.125468+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Lost carrier
+2026-11-16T00:54:48.125862+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T00:54:48.125909+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T00:54:48.125875+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Link DOWN
+2026-11-16T00:54:48.126063+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T00:54:48.125896+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Lost carrier
+2026-11-16T00:54:48.126260+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Link DOWN
+2026-11-16T00:54:48.126270+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Lost carrier
+2026-11-16T00:54:48.127867+00:00 ddos-mitigation kernel: veth_srv_br (unregistering): left allmulticast mode
+2026-11-16T00:54:48.127904+00:00 ddos-mitigation kernel: veth_srv_br (unregistering): left promiscuous mode
+2026-11-16T00:54:48.127923+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T00:54:48.128967+00:00 ddos-mitigation kernel: vo_hg_3_mobile_ (unregistering): left allmulticast mode
+2026-11-16T00:54:48.129009+00:00 ddos-mitigation kernel: vo_hg_3_mobile_ (unregistering): left promiscuous mode
+2026-11-16T00:54:48.129036+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T00:54:48.129918+00:00 ddos-mitigation kernel: vo_hg_2_mobile_ (unregistering): left allmulticast mode
+2026-11-16T00:54:48.129957+00:00 ddos-mitigation kernel: vo_hg_2_mobile_ (unregistering): left promiscuous mode
+2026-11-16T00:54:48.129991+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T00:54:48.130306+00:00 ddos-mitigation networkctl[502376]: Interface "veth_srv_br" not found.
+2026-11-16T00:54:48.131292+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "veth_srv_br" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'veth_srv_br']' returned non-zero exit status 1.
+2026-11-16T00:54:48.137379+00:00 ddos-mitigation networkctl[502379]: Interface "vo_hg_3_mobile_" not found.
+2026-11-16T00:54:48.138541+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_3_mobile_" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_3_mobile_']' returned non-zero exit status 1.
+2026-11-16T00:54:48.144522+00:00 ddos-mitigation networkctl[502385]: Interface "vo_hg_2_mobile_" not found.
+2026-11-16T00:54:48.145608+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_2_mobile_" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_2_mobile_']' returned non-zero exit status 1.
+2026-11-16T00:54:48.159095+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Lost carrier
+2026-11-16T00:54:48.159395+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Link DOWN
+2026-11-16T00:54:48.163214+00:00 ddos-mitigation networkctl[502398]: Interface "ddos_br0" not found.
+2026-11-16T00:54:48.164247+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "ddos_br0" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'ddos_br0']' returned non-zero exit status 1.
+2026-11-16T00:55:28.578647+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 224 seen, reloading interface list
+2026-11-16T00:55:28.580210+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Link UP
+2026-11-16T00:55:28.580215+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained carrier
+2026-11-16T00:55:28.602725+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Lost carrier
+2026-11-16T00:55:28.604890+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered blocking state
+2026-11-16T00:55:28.605348+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T00:55:28.605380+00:00 ddos-mitigation kernel: veth_srv_br: entered allmulticast mode
+2026-11-16T00:55:28.605399+00:00 ddos-mitigation kernel: veth_srv_br: entered promiscuous mode
+2026-11-16T00:55:28.606216+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Link UP
+2026-11-16T00:55:28.607168+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 225 seen, reloading interface list
+2026-11-16T00:55:28.615180+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered blocking state
+2026-11-16T00:55:28.615256+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered forwarding state
+2026-11-16T00:55:28.616034+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Gained carrier
+2026-11-16T00:55:28.616255+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained carrier
+2026-11-16T00:55:28.624264+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 226 seen, reloading interface list
+2026-11-16T00:55:28.628924+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 226 seen even after reload
+2026-11-16T00:55:28.628924+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 226 seen, reloading interface list
+2026-11-16T00:55:28.643491+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 226 seen even after reload
+2026-11-16T00:55:28.643884+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered blocking state
+2026-11-16T00:55:28.643944+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T00:55:28.643965+00:00 ddos-mitigation kernel: vo_hg_0_perfect: entered allmulticast mode
+2026-11-16T00:55:28.643984+00:00 ddos-mitigation kernel: vo_hg_0_perfect: entered promiscuous mode
+2026-11-16T00:55:28.644140+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 227 seen, reloading interface list
+2026-11-16T00:55:28.644612+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Link UP
+2026-11-16T00:55:28.648663+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 227 seen even after reload
+2026-11-16T00:55:28.649023+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 227 seen, reloading interface list
+2026-11-16T00:55:28.655613+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered blocking state
+2026-11-16T00:55:28.655683+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 227 seen even after reload
+2026-11-16T00:55:28.654814+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Gained carrier
+2026-11-16T00:55:28.655793+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered forwarding state
+2026-11-16T00:55:28.671109+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 229 seen, reloading interface list
+2026-11-16T00:55:28.683889+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered blocking state
+2026-11-16T00:55:28.683970+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T00:55:28.683991+00:00 ddos-mitigation kernel: vo_hg_1_broadba: entered allmulticast mode
+2026-11-16T00:55:28.684008+00:00 ddos-mitigation kernel: vo_hg_1_broadba: entered promiscuous mode
+2026-11-16T00:55:28.684253+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 229 seen even after reload
+2026-11-16T00:55:28.684467+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 229 seen, reloading interface list
+2026-11-16T00:55:28.685301+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Link UP
+2026-11-16T00:55:28.688948+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 229 seen even after reload
+2026-11-16T00:55:28.696226+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Gained carrier
+2026-11-16T00:55:28.696879+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered blocking state
+2026-11-16T00:55:28.696930+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered forwarding state
+2026-11-16T00:55:28.716618+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 231 seen, reloading interface list
+2026-11-16T00:55:28.736162+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered blocking state
+2026-11-16T00:55:28.736243+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T00:55:28.736265+00:00 ddos-mitigation kernel: vo_hg_2_mobile_: entered allmulticast mode
+2026-11-16T00:55:28.736288+00:00 ddos-mitigation kernel: vo_hg_2_mobile_: entered promiscuous mode
+2026-11-16T00:55:28.736600+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 231 seen even after reload
+2026-11-16T00:55:28.736930+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 231 seen, reloading interface list
+2026-11-16T00:55:28.737333+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Link UP
+2026-11-16T00:55:28.741787+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 231 seen even after reload
+2026-11-16T00:55:28.743703+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Gained carrier
+2026-11-16T00:55:28.745136+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered blocking state
+2026-11-16T00:55:28.745172+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered forwarding state
+2026-11-16T00:55:28.764851+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 233 seen, reloading interface list
+2026-11-16T00:55:28.787926+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered blocking state
+2026-11-16T00:55:28.788012+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T00:55:28.788035+00:00 ddos-mitigation kernel: vo_hg_3_mobile_: entered allmulticast mode
+2026-11-16T00:55:28.788059+00:00 ddos-mitigation kernel: vo_hg_3_mobile_: entered promiscuous mode
+2026-11-16T00:55:28.788757+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 233 seen even after reload
+2026-11-16T00:55:28.789066+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 233 seen, reloading interface list
+2026-11-16T00:55:28.789508+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Link UP
+2026-11-16T00:55:28.794541+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 233 seen even after reload
+2026-11-16T00:55:28.797198+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Gained carrier
+2026-11-16T00:55:28.797924+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered blocking state
+2026-11-16T00:55:28.797987+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered forwarding state
+2026-11-16T00:55:29.762246+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained IPv6LL
+2026-11-16T00:55:29.890307+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Gained IPv6LL
+2026-11-16T00:55:30.210262+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Gained IPv6LL
+2026-11-16T00:55:30.338371+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Gained IPv6LL
+2026-11-16T00:55:30.594049+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Gained IPv6LL
+2026-11-16T00:55:30.722013+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Gained IPv6LL
+2026-11-16T00:57:25.374008+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Link DOWN
+2026-11-16T00:57:25.374028+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Lost carrier
+2026-11-16T00:57:25.375128+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T00:57:25.375183+00:00 ddos-mitigation kernel: vo_hg_0_perfect (unregistering): left allmulticast mode
+2026-11-16T00:57:25.375200+00:00 ddos-mitigation kernel: vo_hg_0_perfect (unregistering): left promiscuous mode
+2026-11-16T00:57:25.375221+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T00:57:25.376874+00:00 ddos-mitigation systemd[1]: run-netns-hg_0_perfect.mount: Deactivated successfully.
+2026-11-16T00:57:25.377800+00:00 ddos-mitigation networkctl[502782]: Interface "vo_hg_0_perfect" not found.
+2026-11-16T00:57:25.378718+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_0_perfect" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_0_perfect']' returned non-zero exit status 1.
+2026-11-16T00:57:25.379710+00:00 ddos-mitigation systemd[1]: run-netns-hg_1_broadband.mount: Deactivated successfully.
+2026-11-16T00:57:25.384486+00:00 ddos-mitigation systemd[1]: run-netns-hg_2_mobile_3g.mount: Deactivated successfully.
+2026-11-16T00:57:25.388124+00:00 ddos-mitigation systemd[1]: run-netns-hg_3_mobile_bad.mount: Deactivated successfully.
+2026-11-16T00:57:25.393486+00:00 ddos-mitigation systemd[1]: run-netns-server_ns.mount: Deactivated successfully.
+2026-11-16T00:57:25.394754+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Link DOWN
+2026-11-16T00:57:25.394768+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Lost carrier
+2026-11-16T00:57:25.395033+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T00:57:25.395073+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T00:57:25.395101+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T00:57:25.395210+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Link DOWN
+2026-11-16T00:57:25.395235+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Lost carrier
+2026-11-16T00:57:25.395549+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Link DOWN
+2026-11-16T00:57:25.395559+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Lost carrier
+2026-11-16T00:57:25.395942+00:00 ddos-mitigation kernel: veth_srv_br (unregistering): left allmulticast mode
+2026-11-16T00:57:25.395982+00:00 ddos-mitigation kernel: veth_srv_br (unregistering): left promiscuous mode
+2026-11-16T00:57:25.396016+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T00:57:25.398271+00:00 ddos-mitigation kernel: vo_hg_2_mobile_ (unregistering): left allmulticast mode
+2026-11-16T00:57:25.398320+00:00 ddos-mitigation kernel: vo_hg_2_mobile_ (unregistering): left promiscuous mode
+2026-11-16T00:57:25.398336+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T00:57:25.398352+00:00 ddos-mitigation kernel: vo_hg_1_broadba (unregistering): left allmulticast mode
+2026-11-16T00:57:25.398366+00:00 ddos-mitigation kernel: vo_hg_1_broadba (unregistering): left promiscuous mode
+2026-11-16T00:57:25.398381+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T00:57:25.399238+00:00 ddos-mitigation networkctl[502807]: Interface "veth_srv_br" not found.
+2026-11-16T00:57:25.401159+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "veth_srv_br" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'veth_srv_br']' returned non-zero exit status 1.
+2026-11-16T00:57:25.407751+00:00 ddos-mitigation networkctl[502812]: Interface "vo_hg_2_mobile_" not found.
+2026-11-16T00:57:25.409437+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_2_mobile_" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_2_mobile_']' returned non-zero exit status 1.
+2026-11-16T00:57:25.415964+00:00 ddos-mitigation networkctl[502819]: Interface "vo_hg_1_broadba" not found.
+2026-11-16T00:57:25.417111+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_1_broadba" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_1_broadba']' returned non-zero exit status 1.
+2026-11-16T00:57:25.425601+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Link DOWN
+2026-11-16T00:57:25.425613+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Lost carrier
+2026-11-16T00:57:25.425974+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T00:57:25.426088+00:00 ddos-mitigation kernel: vo_hg_3_mobile_ (unregistering): left allmulticast mode
+2026-11-16T00:57:25.426111+00:00 ddos-mitigation kernel: vo_hg_3_mobile_ (unregistering): left promiscuous mode
+2026-11-16T00:57:25.426132+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T00:57:25.429583+00:00 ddos-mitigation networkctl[502830]: Interface "vo_hg_3_mobile_" not found.
+2026-11-16T00:57:25.431083+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_3_mobile_" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_3_mobile_']' returned non-zero exit status 1.
+2026-11-16T00:57:25.447567+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Lost carrier
+2026-11-16T00:57:25.447846+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Link DOWN
+2026-11-16T00:57:25.451156+00:00 ddos-mitigation networkctl[502838]: Interface "ddos_br0" not found.
+2026-11-16T00:57:25.452154+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "ddos_br0" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'ddos_br0']' returned non-zero exit status 1.
+2026-11-16T00:58:05.983087+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 235 seen, reloading interface list
+2026-11-16T00:58:05.984498+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Link UP
+2026-11-16T00:58:05.984508+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained carrier
+2026-11-16T00:58:06.018996+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Lost carrier
+2026-11-16T00:58:06.021008+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered blocking state
+2026-11-16T00:58:06.021085+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T00:58:06.021106+00:00 ddos-mitigation kernel: veth_srv_br: entered allmulticast mode
+2026-11-16T00:58:06.021125+00:00 ddos-mitigation kernel: veth_srv_br: entered promiscuous mode
+2026-11-16T00:58:06.022695+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Link UP
+2026-11-16T00:58:06.024190+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 236 seen, reloading interface list
+2026-11-16T00:58:06.031014+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Gained carrier
+2026-11-16T00:58:06.031285+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained carrier
+2026-11-16T00:58:06.033668+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered blocking state
+2026-11-16T00:58:06.033717+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered forwarding state
+2026-11-16T00:58:06.038893+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 237 seen, reloading interface list
+2026-11-16T00:58:06.044565+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 237 seen even after reload
+2026-11-16T00:58:06.044862+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 237 seen, reloading interface list
+2026-11-16T00:58:06.059029+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered blocking state
+2026-11-16T00:58:06.059110+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T00:58:06.059142+00:00 ddos-mitigation kernel: vo_hg_0_perfect: entered allmulticast mode
+2026-11-16T00:58:06.059163+00:00 ddos-mitigation kernel: vo_hg_0_perfect: entered promiscuous mode
+2026-11-16T00:58:06.059461+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 237 seen even after reload
+2026-11-16T00:58:06.060001+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 238 seen, reloading interface list
+2026-11-16T00:58:06.060656+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Link UP
+2026-11-16T00:58:06.064504+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 238 seen even after reload
+2026-11-16T00:58:06.064724+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 238 seen, reloading interface list
+2026-11-16T00:58:06.069064+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered blocking state
+2026-11-16T00:58:06.069123+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered forwarding state
+2026-11-16T00:58:06.069230+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Gained carrier
+2026-11-16T00:58:06.075507+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 238 seen even after reload
+2026-11-16T00:58:06.089930+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 240 seen, reloading interface list
+2026-11-16T00:58:06.113394+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered blocking state
+2026-11-16T00:58:06.113484+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T00:58:06.113509+00:00 ddos-mitigation kernel: vo_hg_1_broadba: entered allmulticast mode
+2026-11-16T00:58:06.113532+00:00 ddos-mitigation kernel: vo_hg_1_broadba: entered promiscuous mode
+2026-11-16T00:58:06.114087+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 240 seen even after reload
+2026-11-16T00:58:06.114348+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 240 seen, reloading interface list
+2026-11-16T00:58:06.115576+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Link UP
+2026-11-16T00:58:06.120782+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 240 seen even after reload
+2026-11-16T00:58:06.126073+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Gained carrier
+2026-11-16T00:58:06.127191+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered blocking state
+2026-11-16T00:58:06.127218+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered forwarding state
+2026-11-16T00:58:06.147365+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 242 seen, reloading interface list
+2026-11-16T00:58:06.167925+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered blocking state
+2026-11-16T00:58:06.167998+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T00:58:06.168017+00:00 ddos-mitigation kernel: vo_hg_2_mobile_: entered allmulticast mode
+2026-11-16T00:58:06.168032+00:00 ddos-mitigation kernel: vo_hg_2_mobile_: entered promiscuous mode
+2026-11-16T00:58:06.168692+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 242 seen even after reload
+2026-11-16T00:58:06.168961+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 242 seen, reloading interface list
+2026-11-16T00:58:06.169407+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Link UP
+2026-11-16T00:58:06.173676+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 242 seen even after reload
+2026-11-16T00:58:06.176246+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Gained carrier
+2026-11-16T00:58:06.176391+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered blocking state
+2026-11-16T00:58:06.176421+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered forwarding state
+2026-11-16T00:58:06.196091+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 244 seen, reloading interface list
+2026-11-16T00:58:06.220778+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered blocking state
+2026-11-16T00:58:06.220918+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T00:58:06.220958+00:00 ddos-mitigation kernel: vo_hg_3_mobile_: entered allmulticast mode
+2026-11-16T00:58:06.220986+00:00 ddos-mitigation kernel: vo_hg_3_mobile_: entered promiscuous mode
+2026-11-16T00:58:06.222372+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 244 seen even after reload
+2026-11-16T00:58:06.222623+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 244 seen, reloading interface list
+2026-11-16T00:58:06.223416+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Link UP
+2026-11-16T00:58:06.227910+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 244 seen even after reload
+2026-11-16T00:58:06.232542+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Gained carrier
+2026-11-16T00:58:06.234155+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered blocking state
+2026-11-16T00:58:06.234266+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered forwarding state
+2026-11-16T00:58:07.394107+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained IPv6LL
+2026-11-16T00:58:07.394770+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Gained IPv6LL
+2026-11-16T00:58:07.842227+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Gained IPv6LL
+2026-11-16T00:58:07.906203+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Gained IPv6LL
+2026-11-16T00:58:08.034191+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Gained IPv6LL
+2026-11-16T00:58:08.162133+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Gained IPv6LL
+2026-11-16T01:00:00.385347+00:00 ddos-mitigation systemd[1]: Starting sysstat-collect.service - system activity accounting tool...
+2026-11-16T01:00:00.420336+00:00 ddos-mitigation systemd[1]: sysstat-collect.service: Deactivated successfully.
+2026-11-16T01:00:00.420931+00:00 ddos-mitigation systemd[1]: Finished sysstat-collect.service - system activity accounting tool.
+2026-11-16T01:00:04.381771+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Link DOWN
+2026-11-16T01:00:04.381789+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Lost carrier
+2026-11-16T01:00:04.382323+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T01:00:04.382861+00:00 ddos-mitigation kernel: vo_hg_0_perfect (unregistering): left allmulticast mode
+2026-11-16T01:00:04.382899+00:00 ddos-mitigation kernel: vo_hg_0_perfect (unregistering): left promiscuous mode
+2026-11-16T01:00:04.382917+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T01:00:04.384929+00:00 ddos-mitigation systemd[1]: run-netns-hg_0_perfect.mount: Deactivated successfully.
+2026-11-16T01:00:04.385708+00:00 ddos-mitigation networkctl[503214]: Interface "vo_hg_0_perfect" not found.
+2026-11-16T01:00:04.386644+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_0_perfect" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_0_perfect']' returned non-zero exit status 1.
+2026-11-16T01:00:04.388206+00:00 ddos-mitigation systemd[1]: run-netns-hg_1_broadband.mount: Deactivated successfully.
+2026-11-16T01:00:04.391123+00:00 ddos-mitigation systemd[1]: run-netns-hg_2_mobile_3g.mount: Deactivated successfully.
+2026-11-16T01:00:04.394030+00:00 ddos-mitigation systemd[1]: run-netns-hg_3_mobile_bad.mount: Deactivated successfully.
+2026-11-16T01:00:04.396870+00:00 ddos-mitigation systemd[1]: run-netns-server_ns.mount: Deactivated successfully.
+2026-11-16T01:00:04.401570+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Link DOWN
+2026-11-16T01:00:04.401586+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Lost carrier
+2026-11-16T01:00:04.402390+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T01:00:04.402075+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Link DOWN
+2026-11-16T01:00:04.402461+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T01:00:04.402082+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Lost carrier
+2026-11-16T01:00:04.402517+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T01:00:04.402556+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T01:00:04.402730+00:00 ddos-mitigation kernel: veth_srv_br (unregistering): left allmulticast mode
+2026-11-16T01:00:04.402757+00:00 ddos-mitigation kernel: veth_srv_br (unregistering): left promiscuous mode
+2026-11-16T01:00:04.402778+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T01:00:04.403158+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Link DOWN
+2026-11-16T01:00:04.403169+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Lost carrier
+2026-11-16T01:00:04.403679+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Link DOWN
+2026-11-16T01:00:04.403710+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Lost carrier
+2026-11-16T01:00:04.405964+00:00 ddos-mitigation kernel: vo_hg_3_mobile_ (unregistering): left allmulticast mode
+2026-11-16T01:00:04.406004+00:00 ddos-mitigation kernel: vo_hg_3_mobile_ (unregistering): left promiscuous mode
+2026-11-16T01:00:04.406087+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T01:00:04.406122+00:00 ddos-mitigation kernel: vo_hg_2_mobile_ (unregistering): left allmulticast mode
+2026-11-16T01:00:04.406141+00:00 ddos-mitigation kernel: vo_hg_2_mobile_ (unregistering): left promiscuous mode
+2026-11-16T01:00:04.406175+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T01:00:04.407425+00:00 ddos-mitigation networkctl[503240]: Interface "veth_srv_br" not found.
+2026-11-16T01:00:04.407912+00:00 ddos-mitigation kernel: vo_hg_1_broadba (unregistering): left allmulticast mode
+2026-11-16T01:00:04.407929+00:00 ddos-mitigation kernel: vo_hg_1_broadba (unregistering): left promiscuous mode
+2026-11-16T01:00:04.407944+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T01:00:04.408623+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "veth_srv_br" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'veth_srv_br']' returned non-zero exit status 1.
+2026-11-16T01:00:04.416512+00:00 ddos-mitigation networkctl[503247]: Interface "vo_hg_3_mobile_" not found.
+2026-11-16T01:00:04.417462+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_3_mobile_" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_3_mobile_']' returned non-zero exit status 1.
+2026-11-16T01:00:04.425106+00:00 ddos-mitigation networkctl[503255]: Interface "vo_hg_2_mobile_" not found.
+2026-11-16T01:00:04.426326+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_2_mobile_" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_2_mobile_']' returned non-zero exit status 1.
+2026-11-16T01:00:04.432554+00:00 ddos-mitigation networkctl[503264]: Interface "vo_hg_1_broadba" not found.
+2026-11-16T01:00:04.433578+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_1_broadba" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_1_broadba']' returned non-zero exit status 1.
+2026-11-16T01:00:04.440480+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Lost carrier
+2026-11-16T01:00:04.441318+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Link DOWN
+2026-11-16T01:00:04.444766+00:00 ddos-mitigation networkctl[503271]: Interface "ddos_br0" not found.
+2026-11-16T01:00:04.445609+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "ddos_br0" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'ddos_br0']' returned non-zero exit status 1.
+2026-11-16T01:00:44.834082+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 246 seen, reloading interface list
+2026-11-16T01:00:44.835743+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Link UP
+2026-11-16T01:00:44.835749+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained carrier
+2026-11-16T01:00:44.859859+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Lost carrier
+2026-11-16T01:00:44.862057+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered blocking state
+2026-11-16T01:00:44.862171+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T01:00:44.862194+00:00 ddos-mitigation kernel: veth_srv_br: entered allmulticast mode
+2026-11-16T01:00:44.862213+00:00 ddos-mitigation kernel: veth_srv_br: entered promiscuous mode
+2026-11-16T01:00:44.863405+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Link UP
+2026-11-16T01:00:44.864227+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 247 seen, reloading interface list
+2026-11-16T01:00:44.872258+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Gained carrier
+2026-11-16T01:00:44.872955+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered blocking state
+2026-11-16T01:00:44.873005+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered forwarding state
+2026-11-16T01:00:44.873131+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained carrier
+2026-11-16T01:00:44.879052+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 248 seen, reloading interface list
+2026-11-16T01:00:44.885056+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 248 seen even after reload
+2026-11-16T01:00:44.885285+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 248 seen, reloading interface list
+2026-11-16T01:00:44.891063+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 248 seen even after reload
+2026-11-16T01:00:44.910156+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered blocking state
+2026-11-16T01:00:44.910242+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T01:00:44.910265+00:00 ddos-mitigation kernel: vo_hg_0_perfect: entered allmulticast mode
+2026-11-16T01:00:44.910280+00:00 ddos-mitigation kernel: vo_hg_0_perfect: entered promiscuous mode
+2026-11-16T01:00:44.911990+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Link UP
+2026-11-16T01:00:44.919655+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Gained carrier
+2026-11-16T01:00:44.920324+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered blocking state
+2026-11-16T01:00:44.920370+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered forwarding state
+2026-11-16T01:00:44.937525+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 251 seen, reloading interface list
+2026-11-16T01:00:44.953004+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered blocking state
+2026-11-16T01:00:44.953087+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T01:00:44.953111+00:00 ddos-mitigation kernel: vo_hg_1_broadba: entered allmulticast mode
+2026-11-16T01:00:44.953131+00:00 ddos-mitigation kernel: vo_hg_1_broadba: entered promiscuous mode
+2026-11-16T01:00:44.953254+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 251 seen even after reload
+2026-11-16T01:00:44.953454+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 251 seen, reloading interface list
+2026-11-16T01:00:44.954287+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Link UP
+2026-11-16T01:00:44.958689+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 251 seen even after reload
+2026-11-16T01:00:44.963935+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered blocking state
+2026-11-16T01:00:44.964003+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered forwarding state
+2026-11-16T01:00:44.964407+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Gained carrier
+2026-11-16T01:00:44.985743+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 253 seen, reloading interface list
+2026-11-16T01:00:44.997162+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered blocking state
+2026-11-16T01:00:44.997260+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T01:00:44.997283+00:00 ddos-mitigation kernel: vo_hg_2_mobile_: entered allmulticast mode
+2026-11-16T01:00:44.997302+00:00 ddos-mitigation kernel: vo_hg_2_mobile_: entered promiscuous mode
+2026-11-16T01:00:44.997566+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 253 seen even after reload
+2026-11-16T01:00:44.997824+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 253 seen, reloading interface list
+2026-11-16T01:00:44.999194+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Link UP
+2026-11-16T01:00:45.003091+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 253 seen even after reload
+2026-11-16T01:00:45.006442+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Gained carrier
+2026-11-16T01:00:45.006976+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered blocking state
+2026-11-16T01:00:45.007020+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered forwarding state
+2026-11-16T01:00:45.029378+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 255 seen, reloading interface list
+2026-11-16T01:00:45.043104+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered blocking state
+2026-11-16T01:00:45.043198+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T01:00:45.043216+00:00 ddos-mitigation kernel: vo_hg_3_mobile_: entered allmulticast mode
+2026-11-16T01:00:45.043234+00:00 ddos-mitigation kernel: vo_hg_3_mobile_: entered promiscuous mode
+2026-11-16T01:00:45.043980+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 255 seen even after reload
+2026-11-16T01:00:45.044230+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 255 seen, reloading interface list
+2026-11-16T01:00:45.044879+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Link UP
+2026-11-16T01:00:45.051098+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 255 seen even after reload
+2026-11-16T01:00:45.055545+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered blocking state
+2026-11-16T01:00:45.055325+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Gained carrier
+2026-11-16T01:00:45.055688+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered forwarding state
+2026-11-16T01:00:46.178063+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Gained IPv6LL
+2026-11-16T01:00:46.498203+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Gained IPv6LL
+2026-11-16T01:00:46.499204+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained IPv6LL
+2026-11-16T01:00:46.562073+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Gained IPv6LL
+2026-11-16T01:00:46.946230+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Gained IPv6LL
+2026-11-16T01:00:46.947115+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Gained IPv6LL
+2026-11-16T01:02:46.430150+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Link DOWN
+2026-11-16T01:02:46.430168+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Lost carrier
+2026-11-16T01:02:46.431274+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T01:02:46.431332+00:00 ddos-mitigation kernel: vo_hg_0_perfect (unregistering): left allmulticast mode
+2026-11-16T01:02:46.431351+00:00 ddos-mitigation kernel: vo_hg_0_perfect (unregistering): left promiscuous mode
+2026-11-16T01:02:46.431373+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T01:02:46.433005+00:00 ddos-mitigation systemd[1]: run-netns-hg_0_perfect.mount: Deactivated successfully.
+2026-11-16T01:02:46.434171+00:00 ddos-mitigation networkctl[503658]: Interface "vo_hg_0_perfect" not found.
+2026-11-16T01:02:46.435118+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_0_perfect" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_0_perfect']' returned non-zero exit status 1.
+2026-11-16T01:02:46.435878+00:00 ddos-mitigation systemd[1]: run-netns-hg_1_broadband.mount: Deactivated successfully.
+2026-11-16T01:02:46.439344+00:00 ddos-mitigation systemd[1]: run-netns-hg_2_mobile_3g.mount: Deactivated successfully.
+2026-11-16T01:02:46.442990+00:00 ddos-mitigation systemd[1]: run-netns-hg_3_mobile_bad.mount: Deactivated successfully.
+2026-11-16T01:02:46.448470+00:00 ddos-mitigation systemd[1]: run-netns-server_ns.mount: Deactivated successfully.
+2026-11-16T01:02:46.449808+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Link DOWN
+2026-11-16T01:02:46.449832+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Lost carrier
+2026-11-16T01:02:46.450047+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T01:02:46.450076+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T01:02:46.450296+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Link DOWN
+2026-11-16T01:02:46.450310+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Lost carrier
+2026-11-16T01:02:46.450579+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Link DOWN
+2026-11-16T01:02:46.450603+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Lost carrier
+2026-11-16T01:02:46.450916+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Link DOWN
+2026-11-16T01:02:46.450926+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Lost carrier
+2026-11-16T01:02:46.451491+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T01:02:46.451532+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T01:02:46.451549+00:00 ddos-mitigation kernel: veth_srv_br (unregistering): left allmulticast mode
+2026-11-16T01:02:46.451564+00:00 ddos-mitigation kernel: veth_srv_br (unregistering): left promiscuous mode
+2026-11-16T01:02:46.451596+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T01:02:46.453025+00:00 ddos-mitigation kernel: vo_hg_3_mobile_ (unregistering): left allmulticast mode
+2026-11-16T01:02:46.453060+00:00 ddos-mitigation kernel: vo_hg_3_mobile_ (unregistering): left promiscuous mode
+2026-11-16T01:02:46.453085+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T01:02:46.455780+00:00 ddos-mitigation networkctl[503682]: Interface "veth_srv_br" not found.
+2026-11-16T01:02:46.456257+00:00 ddos-mitigation kernel: vo_hg_2_mobile_ (unregistering): left allmulticast mode
+2026-11-16T01:02:46.456337+00:00 ddos-mitigation kernel: vo_hg_2_mobile_ (unregistering): left promiscuous mode
+2026-11-16T01:02:46.456361+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T01:02:46.456380+00:00 ddos-mitigation kernel: vo_hg_1_broadba (unregistering): left allmulticast mode
+2026-11-16T01:02:46.456396+00:00 ddos-mitigation kernel: vo_hg_1_broadba (unregistering): left promiscuous mode
+2026-11-16T01:02:46.456414+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T01:02:46.457296+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "veth_srv_br" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'veth_srv_br']' returned non-zero exit status 1.
+2026-11-16T01:02:46.464483+00:00 ddos-mitigation networkctl[503688]: Interface "vo_hg_3_mobile_" not found.
+2026-11-16T01:02:46.465713+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_3_mobile_" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_3_mobile_']' returned non-zero exit status 1.
+2026-11-16T01:02:46.471618+00:00 ddos-mitigation networkctl[503696]: Interface "vo_hg_2_mobile_" not found.
+2026-11-16T01:02:46.473497+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_2_mobile_" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_2_mobile_']' returned non-zero exit status 1.
+2026-11-16T01:02:46.479525+00:00 ddos-mitigation networkctl[503704]: Interface "vo_hg_1_broadba" not found.
+2026-11-16T01:02:46.480571+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_1_broadba" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_1_broadba']' returned non-zero exit status 1.
+2026-11-16T01:02:46.497680+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Lost carrier
+2026-11-16T01:02:46.498166+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Link DOWN
+2026-11-16T01:02:46.501818+00:00 ddos-mitigation networkctl[503715]: Interface "ddos_br0" not found.
+2026-11-16T01:02:46.503086+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "ddos_br0" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'ddos_br0']' returned non-zero exit status 1.
+2026-11-16T01:03:27.108554+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 257 seen, reloading interface list
+2026-11-16T01:03:27.110001+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Link UP
+2026-11-16T01:03:27.110012+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained carrier
+2026-11-16T01:03:27.127594+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Lost carrier
+2026-11-16T01:03:27.128995+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered blocking state
+2026-11-16T01:03:27.129062+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T01:03:27.129079+00:00 ddos-mitigation kernel: veth_srv_br: entered allmulticast mode
+2026-11-16T01:03:27.129102+00:00 ddos-mitigation kernel: veth_srv_br: entered promiscuous mode
+2026-11-16T01:03:27.130263+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Link UP
+2026-11-16T01:03:27.132289+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 258 seen, reloading interface list
+2026-11-16T01:03:27.138157+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered blocking state
+2026-11-16T01:03:27.137184+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Gained carrier
+2026-11-16T01:03:27.138308+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered forwarding state
+2026-11-16T01:03:27.137388+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained carrier
+2026-11-16T01:03:27.146300+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 259 seen, reloading interface list
+2026-11-16T01:03:27.152313+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 259 seen even after reload
+2026-11-16T01:03:27.152516+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 259 seen, reloading interface list
+2026-11-16T01:03:27.170884+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 259 seen even after reload
+2026-11-16T01:03:27.171002+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered blocking state
+2026-11-16T01:03:27.171042+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T01:03:27.171062+00:00 ddos-mitigation kernel: vo_hg_0_perfect: entered allmulticast mode
+2026-11-16T01:03:27.171083+00:00 ddos-mitigation kernel: vo_hg_0_perfect: entered promiscuous mode
+2026-11-16T01:03:27.171523+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 260 seen, reloading interface list
+2026-11-16T01:03:27.172221+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Link UP
+2026-11-16T01:03:27.176947+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 260 seen even after reload
+2026-11-16T01:03:27.176947+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 260 seen, reloading interface list
+2026-11-16T01:03:27.180441+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Gained carrier
+2026-11-16T01:03:27.181982+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 260 seen even after reload
+2026-11-16T01:03:27.182572+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered blocking state
+2026-11-16T01:03:27.182674+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered forwarding state
+2026-11-16T01:03:27.195793+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 262 seen, reloading interface list
+2026-11-16T01:03:27.209975+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered blocking state
+2026-11-16T01:03:27.210056+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T01:03:27.210074+00:00 ddos-mitigation kernel: vo_hg_1_broadba: entered allmulticast mode
+2026-11-16T01:03:27.210091+00:00 ddos-mitigation kernel: vo_hg_1_broadba: entered promiscuous mode
+2026-11-16T01:03:27.210182+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 262 seen even after reload
+2026-11-16T01:03:27.210397+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 262 seen, reloading interface list
+2026-11-16T01:03:27.211473+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Link UP
+2026-11-16T01:03:27.214944+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 262 seen even after reload
+2026-11-16T01:03:27.223362+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Gained carrier
+2026-11-16T01:03:27.223954+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered blocking state
+2026-11-16T01:03:27.223997+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered forwarding state
+2026-11-16T01:03:27.243903+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 264 seen, reloading interface list
+2026-11-16T01:03:27.257080+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered blocking state
+2026-11-16T01:03:27.257155+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T01:03:27.257172+00:00 ddos-mitigation kernel: vo_hg_2_mobile_: entered allmulticast mode
+2026-11-16T01:03:27.257188+00:00 ddos-mitigation kernel: vo_hg_2_mobile_: entered promiscuous mode
+2026-11-16T01:03:27.257811+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 264 seen even after reload
+2026-11-16T01:03:27.258060+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 264 seen, reloading interface list
+2026-11-16T01:03:27.258629+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Link UP
+2026-11-16T01:03:27.263099+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 264 seen even after reload
+2026-11-16T01:03:27.266206+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Gained carrier
+2026-11-16T01:03:27.267181+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered blocking state
+2026-11-16T01:03:27.267284+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered forwarding state
+2026-11-16T01:03:27.288009+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 266 seen, reloading interface list
+2026-11-16T01:03:27.306909+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered blocking state
+2026-11-16T01:03:27.306998+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T01:03:27.307019+00:00 ddos-mitigation kernel: vo_hg_3_mobile_: entered allmulticast mode
+2026-11-16T01:03:27.307043+00:00 ddos-mitigation kernel: vo_hg_3_mobile_: entered promiscuous mode
+2026-11-16T01:03:27.308012+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 266 seen even after reload
+2026-11-16T01:03:27.308279+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 266 seen, reloading interface list
+2026-11-16T01:03:27.308368+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Link UP
+2026-11-16T01:03:27.313354+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 266 seen even after reload
+2026-11-16T01:03:27.314901+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Gained carrier
+2026-11-16T01:03:27.315372+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered blocking state
+2026-11-16T01:03:27.315406+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered forwarding state
+2026-11-16T01:03:28.290063+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Gained IPv6LL
+2026-11-16T01:03:28.418093+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Gained IPv6LL
+2026-11-16T01:03:28.738314+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Gained IPv6LL
+2026-11-16T01:03:28.802119+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Gained IPv6LL
+2026-11-16T01:03:28.930183+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Gained IPv6LL
+2026-11-16T01:03:29.122157+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained IPv6LL
+2026-11-16T01:04:41.955948+00:00 ddos-mitigation kernel: TCP: request_sock_TCP: Possible SYN flooding on port 127.0.0.1:8080. Sending cookies.
+2026-11-16T01:05:26.741523+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Link DOWN
+2026-11-16T01:05:26.741541+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Lost carrier
+2026-11-16T01:05:26.742354+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T01:05:26.742423+00:00 ddos-mitigation kernel: vo_hg_0_perfect (unregistering): left allmulticast mode
+2026-11-16T01:05:26.742445+00:00 ddos-mitigation kernel: vo_hg_0_perfect (unregistering): left promiscuous mode
+2026-11-16T01:05:26.742464+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T01:05:26.744345+00:00 ddos-mitigation systemd[1]: run-netns-hg_0_perfect.mount: Deactivated successfully.
+2026-11-16T01:05:26.745516+00:00 ddos-mitigation networkctl[504097]: Interface "vo_hg_0_perfect" not found.
+2026-11-16T01:05:26.746429+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_0_perfect" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_0_perfect']' returned non-zero exit status 1.
+2026-11-16T01:05:26.747637+00:00 ddos-mitigation systemd[1]: run-netns-hg_1_broadband.mount: Deactivated successfully.
+2026-11-16T01:05:26.750632+00:00 ddos-mitigation systemd[1]: run-netns-hg_2_mobile_3g.mount: Deactivated successfully.
+2026-11-16T01:05:26.753599+00:00 ddos-mitigation systemd[1]: run-netns-hg_3_mobile_bad.mount: Deactivated successfully.
+2026-11-16T01:05:26.756876+00:00 ddos-mitigation systemd[1]: run-netns-server_ns.mount: Deactivated successfully.
+2026-11-16T01:05:26.767365+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Link DOWN
+2026-11-16T01:05:26.767376+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Lost carrier
+2026-11-16T01:05:26.768128+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T01:05:26.768174+00:00 ddos-mitigation kernel: vo_hg_1_broadba (unregistering): left allmulticast mode
+2026-11-16T01:05:26.768195+00:00 ddos-mitigation kernel: vo_hg_1_broadba (unregistering): left promiscuous mode
+2026-11-16T01:05:26.768214+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T01:05:26.773576+00:00 ddos-mitigation networkctl[504126]: Interface "vo_hg_1_broadba" not found.
+2026-11-16T01:05:26.775537+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_1_broadba" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_1_broadba']' returned non-zero exit status 1.
+2026-11-16T01:05:26.787493+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Link DOWN
+2026-11-16T01:05:26.787507+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Lost carrier
+2026-11-16T01:05:26.788092+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T01:05:26.788141+00:00 ddos-mitigation kernel: vo_hg_2_mobile_ (unregistering): left allmulticast mode
+2026-11-16T01:05:26.788170+00:00 ddos-mitigation kernel: vo_hg_2_mobile_ (unregistering): left promiscuous mode
+2026-11-16T01:05:26.788191+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T01:05:26.791125+00:00 ddos-mitigation networkctl[504131]: Interface "vo_hg_2_mobile_" not found.
+2026-11-16T01:05:26.792032+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_2_mobile_" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_2_mobile_']' returned non-zero exit status 1.
+2026-11-16T01:05:26.793528+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Link DOWN
+2026-11-16T01:05:26.793539+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Lost carrier
+2026-11-16T01:05:26.793998+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T01:05:26.795039+00:00 ddos-mitigation kernel: vo_hg_3_mobile_ (unregistering): left allmulticast mode
+2026-11-16T01:05:26.795081+00:00 ddos-mitigation kernel: vo_hg_3_mobile_ (unregistering): left promiscuous mode
+2026-11-16T01:05:26.795098+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T01:05:26.798454+00:00 ddos-mitigation networkctl[504135]: Interface "vo_hg_3_mobile_" not found.
+2026-11-16T01:05:26.799467+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_3_mobile_" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_3_mobile_']' returned non-zero exit status 1.
+2026-11-16T01:05:26.811593+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Link DOWN
+2026-11-16T01:05:26.811605+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Lost carrier
+2026-11-16T01:05:26.811879+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T01:05:26.813084+00:00 ddos-mitigation kernel: veth_srv_br (unregistering): left allmulticast mode
+2026-11-16T01:05:26.813131+00:00 ddos-mitigation kernel: veth_srv_br (unregistering): left promiscuous mode
+2026-11-16T01:05:26.813156+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T01:05:26.815164+00:00 ddos-mitigation networkctl[504144]: Interface "veth_srv_br" not found.
+2026-11-16T01:05:26.816144+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "veth_srv_br" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'veth_srv_br']' returned non-zero exit status 1.
+2026-11-16T01:05:26.832319+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Lost carrier
+2026-11-16T01:05:26.832686+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Link DOWN
+2026-11-16T01:05:26.836595+00:00 ddos-mitigation networkctl[504149]: Interface "ddos_br0" not found.
+2026-11-16T01:05:26.837642+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "ddos_br0" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'ddos_br0']' returned non-zero exit status 1.
+2026-11-16T01:06:07.451410+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 268 seen, reloading interface list
+2026-11-16T01:06:07.453074+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Link UP
+2026-11-16T01:06:07.453079+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained carrier
+2026-11-16T01:06:07.469183+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Lost carrier
+2026-11-16T01:06:07.471033+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered blocking state
+2026-11-16T01:06:07.471123+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T01:06:07.471152+00:00 ddos-mitigation kernel: veth_srv_br: entered allmulticast mode
+2026-11-16T01:06:07.471173+00:00 ddos-mitigation kernel: veth_srv_br: entered promiscuous mode
+2026-11-16T01:06:07.472507+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Link UP
+2026-11-16T01:06:07.473365+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 269 seen, reloading interface list
+2026-11-16T01:06:07.483023+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered blocking state
+2026-11-16T01:06:07.482110+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Gained carrier
+2026-11-16T01:06:07.483176+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered forwarding state
+2026-11-16T01:06:07.482348+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained carrier
+2026-11-16T01:06:07.488028+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 270 seen, reloading interface list
+2026-11-16T01:06:07.494231+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 270 seen even after reload
+2026-11-16T01:06:07.494231+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 270 seen, reloading interface list
+2026-11-16T01:06:07.522992+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered blocking state
+2026-11-16T01:06:07.523082+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T01:06:07.523131+00:00 ddos-mitigation kernel: vo_hg_0_perfect: entered allmulticast mode
+2026-11-16T01:06:07.523153+00:00 ddos-mitigation kernel: vo_hg_0_perfect: entered promiscuous mode
+2026-11-16T01:06:07.524824+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Link UP
+2026-11-16T01:06:07.535797+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 270 seen even after reload
+2026-11-16T01:06:07.536105+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered blocking state
+2026-11-16T01:06:07.536144+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered forwarding state
+2026-11-16T01:06:07.538258+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Gained carrier
+2026-11-16T01:06:07.540996+00:00 ddos-mitigation networkctl[504264]: Interface "veth_in" not found.
+2026-11-16T01:06:07.542042+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "veth_in" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'veth_in']' returned non-zero exit status 1.
+2026-11-16T01:06:07.554304+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 273 seen, reloading interface list
+2026-11-16T01:06:07.568022+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 273 seen even after reload
+2026-11-16T01:06:07.568123+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered blocking state
+2026-11-16T01:06:07.568175+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T01:06:07.568192+00:00 ddos-mitigation kernel: vo_hg_1_broadba: entered allmulticast mode
+2026-11-16T01:06:07.568212+00:00 ddos-mitigation kernel: vo_hg_1_broadba: entered promiscuous mode
+2026-11-16T01:06:07.568291+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 273 seen, reloading interface list
+2026-11-16T01:06:07.570082+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Link UP
+2026-11-16T01:06:07.573739+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 273 seen even after reload
+2026-11-16T01:06:07.582601+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Gained carrier
+2026-11-16T01:06:07.583069+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered blocking state
+2026-11-16T01:06:07.583118+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered forwarding state
+2026-11-16T01:06:07.601457+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 275 seen, reloading interface list
+2026-11-16T01:06:07.617054+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered blocking state
+2026-11-16T01:06:07.617138+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T01:06:07.617156+00:00 ddos-mitigation kernel: vo_hg_2_mobile_: entered allmulticast mode
+2026-11-16T01:06:07.617169+00:00 ddos-mitigation kernel: vo_hg_2_mobile_: entered promiscuous mode
+2026-11-16T01:06:07.617927+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 275 seen even after reload
+2026-11-16T01:06:07.618123+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 275 seen, reloading interface list
+2026-11-16T01:06:07.618744+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Link UP
+2026-11-16T01:06:07.623677+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 275 seen even after reload
+2026-11-16T01:06:07.628567+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Gained carrier
+2026-11-16T01:06:07.629427+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered blocking state
+2026-11-16T01:06:07.629475+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered forwarding state
+2026-11-16T01:06:07.650623+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 277 seen, reloading interface list
+2026-11-16T01:06:07.667047+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered blocking state
+2026-11-16T01:06:07.667124+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T01:06:07.667145+00:00 ddos-mitigation kernel: vo_hg_3_mobile_: entered allmulticast mode
+2026-11-16T01:06:07.667167+00:00 ddos-mitigation kernel: vo_hg_3_mobile_: entered promiscuous mode
+2026-11-16T01:06:07.668126+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 277 seen even after reload
+2026-11-16T01:06:07.668322+00:00 ddos-mitigation networkd-dispatcher[1217]: WARNING:Unknown index 277 seen, reloading interface list
+2026-11-16T01:06:07.668906+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Link UP
+2026-11-16T01:06:07.674418+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Unknown interface index 277 seen even after reload
+2026-11-16T01:06:07.679871+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Gained carrier
+2026-11-16T01:06:07.680080+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered blocking state
+2026-11-16T01:06:07.680109+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered forwarding state
+2026-11-16T01:06:08.546332+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Gained IPv6LL
+2026-11-16T01:06:08.674510+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Gained IPv6LL
+2026-11-16T01:06:08.994014+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Gained IPv6LL
+2026-11-16T01:06:09.058006+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Gained IPv6LL
+2026-11-16T01:06:09.314053+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Gained IPv6LL
+2026-11-16T01:06:09.506027+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Gained IPv6LL
+2026-11-16T01:08:07.533547+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Link DOWN
+2026-11-16T01:08:07.533569+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_0_perfect: Lost carrier
+2026-11-16T01:08:07.534388+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T01:08:07.535751+00:00 ddos-mitigation systemd[1]: run-netns-hg_0_perfect.mount: Deactivated successfully.
+2026-11-16T01:08:07.537979+00:00 ddos-mitigation kernel: vo_hg_0_perfect (unregistering): left allmulticast mode
+2026-11-16T01:08:07.538032+00:00 ddos-mitigation kernel: vo_hg_0_perfect (unregistering): left promiscuous mode
+2026-11-16T01:08:07.538050+00:00 ddos-mitigation kernel: ddos_br0: port 2(vo_hg_0_perfect) entered disabled state
+2026-11-16T01:08:07.541743+00:00 ddos-mitigation networkctl[504529]: Interface "vo_hg_0_perfect" not found.
+2026-11-16T01:08:07.542799+00:00 ddos-mitigation systemd[1]: run-netns-hg_1_broadband.mount: Deactivated successfully.
+2026-11-16T01:08:07.543013+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_0_perfect" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_0_perfect']' returned non-zero exit status 1.
+2026-11-16T01:08:07.546427+00:00 ddos-mitigation systemd[1]: run-netns-hg_3_mobile_bad.mount: Deactivated successfully.
+2026-11-16T01:08:07.546540+00:00 ddos-mitigation systemd[1]: run-netns-hg_2_mobile_3g.mount: Deactivated successfully.
+2026-11-16T01:08:07.550406+00:00 ddos-mitigation systemd[1]: run-netns-server_ns.mount: Deactivated successfully.
+2026-11-16T01:08:07.559112+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Link DOWN
+2026-11-16T01:08:07.559127+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_1_broadba: Lost carrier
+2026-11-16T01:08:07.559859+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T01:08:07.559964+00:00 ddos-mitigation kernel: vo_hg_1_broadba (unregistering): left allmulticast mode
+2026-11-16T01:08:07.560010+00:00 ddos-mitigation kernel: vo_hg_1_broadba (unregistering): left promiscuous mode
+2026-11-16T01:08:07.560035+00:00 ddos-mitigation kernel: ddos_br0: port 3(vo_hg_1_broadba) entered disabled state
+2026-11-16T01:08:07.562929+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T01:08:07.562900+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Link DOWN
+2026-11-16T01:08:07.563086+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T01:08:07.563118+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T01:08:07.563166+00:00 ddos-mitigation systemd-networkd[1160]: veth_srv_br: Lost carrier
+2026-11-16T01:08:07.564179+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Link DOWN
+2026-11-16T01:08:07.564187+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_3_mobile_: Lost carrier
+2026-11-16T01:08:07.564743+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Link DOWN
+2026-11-16T01:08:07.564751+00:00 ddos-mitigation systemd-networkd[1160]: vo_hg_2_mobile_: Lost carrier
+2026-11-16T01:08:07.566952+00:00 ddos-mitigation kernel: veth_srv_br (unregistering): left allmulticast mode
+2026-11-16T01:08:07.566994+00:00 ddos-mitigation kernel: veth_srv_br (unregistering): left promiscuous mode
+2026-11-16T01:08:07.567020+00:00 ddos-mitigation kernel: ddos_br0: port 1(veth_srv_br) entered disabled state
+2026-11-16T01:08:07.569244+00:00 ddos-mitigation kernel: vo_hg_3_mobile_ (unregistering): left allmulticast mode
+2026-11-16T01:08:07.569279+00:00 ddos-mitigation kernel: vo_hg_3_mobile_ (unregistering): left promiscuous mode
+2026-11-16T01:08:07.569296+00:00 ddos-mitigation kernel: ddos_br0: port 5(vo_hg_3_mobile_) entered disabled state
+2026-11-16T01:08:07.577718+00:00 ddos-mitigation kernel: vo_hg_2_mobile_ (unregistering): left allmulticast mode
+2026-11-16T01:08:07.577961+00:00 ddos-mitigation kernel: vo_hg_2_mobile_ (unregistering): left promiscuous mode
+2026-11-16T01:08:07.577990+00:00 ddos-mitigation kernel: ddos_br0: port 4(vo_hg_2_mobile_) entered disabled state
+2026-11-16T01:08:07.586811+00:00 ddos-mitigation networkctl[504557]: Interface "vo_hg_1_broadba" not found.
+2026-11-16T01:08:07.588562+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_1_broadba" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_1_broadba']' returned non-zero exit status 1.
+2026-11-16T01:08:07.595508+00:00 ddos-mitigation networkctl[504570]: Interface "veth_srv_br" not found.
+2026-11-16T01:08:07.596742+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "veth_srv_br" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'veth_srv_br']' returned non-zero exit status 1.
+2026-11-16T01:08:07.603018+00:00 ddos-mitigation networkctl[504577]: Interface "vo_hg_3_mobile_" not found.
+2026-11-16T01:08:07.604258+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_3_mobile_" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_3_mobile_']' returned non-zero exit status 1.
+2026-11-16T01:08:07.609831+00:00 ddos-mitigation networkctl[504583]: Interface "vo_hg_2_mobile_" not found.
+2026-11-16T01:08:07.610740+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "vo_hg_2_mobile_" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'vo_hg_2_mobile_']' returned non-zero exit status 1.
+2026-11-16T01:08:07.612538+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Lost carrier
+2026-11-16T01:08:07.612912+00:00 ddos-mitigation systemd-networkd[1160]: ddos_br0: Link DOWN
+2026-11-16T01:08:07.616804+00:00 ddos-mitigation networkctl[504587]: Interface "ddos_br0" not found.
+2026-11-16T01:08:07.617778+00:00 ddos-mitigation networkd-dispatcher[1217]: ERROR:Failed to get interface "ddos_br0" status: Command '['/usr/bin/networkctl', 'status', '--no-pager', '--no-legend', '--lines=0', '--', 'ddos_br0']' returned non-zero exit status 1.
