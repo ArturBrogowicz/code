@@ -3,10 +3,10 @@
 A chronological record of the project from the first commit (2026-09-05) to the merge of pull request #5 (2026-11-17,
 `4f31066`): for each phase, what was built or measured, the outcome in the evidence's own words, the dates and where the
 evidence is. Every date and number below comes from a file of this repository or from its git history at `4f31066`
-(`git log --first-parent 4f31066`; commit dates are the committer's, most in UTC, the five pull-request merges in
-UTC+1). Nothing is softened: where a check failed or a hypothesis was not supported, it says so. How to run anything
-named here is in [`GUIDE.md`](GUIDE.md); what each result may be cited for is in [`THESIS_CLAIMS.md`](THESIS_CLAIMS.md);
-the published data are indexed in [`results/README.md`](../results/README.md).
+(`git log --first-parent 4f31066`; dates are author dates, most in UTC, some early ones in UTC+2, the five pull-request
+merges in UTC+1). Nothing is softened: where a check failed or a hypothesis was not supported, it says so. How to run
+anything named here is in [`GUIDE.md`](GUIDE.md); what each result may be cited for is in
+[`THESIS_CLAIMS.md`](THESIS_CLAIMS.md); the published data are indexed in [`results/README.md`](../results/README.md).
 
 | Phase | Dates | In one line |
 |---|---|---|
@@ -17,20 +17,19 @@ the published data are indexed in [`results/README.md`](../results/README.md).
 | [4](#phase-4-the-l7-gru-track-p1-to-p5c4-2026-10-14-to-10-16) | 10-14 to 10-16 | a GRU on Nginx's request log, pre-registered: no advantage |
 | [5](#phase-5-the-second-review-new-defaults-exp-a-2026-10-19-to-10-21) | 10-19 to 10-21 | second review, new defaults, run-level statistics, EXP-A, claims page |
 | [6](#phase-6-load-generators-exp-c-and-the-harm-benchmarks-offline-tools-2026-10-22-to-10-23) | 10-22 to 10-23 | verified load generators, EXP-C (open-loop attacker), HG1b |
-| [7](#phase-7-the-harm-benchmarks-runners-p1-p4-designs-and-the-first-calibration-2026-10-23-to-11-05) | 10-23 to 11-05 | HG1c runners, first VM contact, P1-P4 built offline, record of 2026-11-04 |
+| [7](#phase-7-the-harm-benchmarks-runners-p1-p4-designs-and-the-first-calibration-2026-10-23-to-11-05) | 10-23 to 11-05 | HG1c runners, first VM contact, P1, P3, P4 and HG4 built offline, record of 2026-11-04 |
 | [8](#phase-8-the-drift-check-fails-2026-11-05-to-11-12) | 11-05 to 11-12 | the drift check of that record fails, then gives no reading |
 | [9](#phase-9-the-laptop-re-calibration-and-p2-2026-11-13-to-11-17) | 11-13 to 11-17 | HS1, re-calibration R1-R4, P2: gate PASS, outcome NOT MET |
 
 ## Phase 0: the prototype (2026-09-05 to 10-03)
 
-**Built.** The first commit (`2229aa7`, 2026-09-05) and the CIC-IDS2017 line: `GRU_ML_init.py`,
-`build_cicids2017_dataset.py`, `merge_datasets.py`, a model in `training_results/` (2026-09-07). A single-attacker
-suite, `test_mitigation_suite.py`, with scenarios A to M added one by one from 2026-09-08 to 09-10 (among them
-Slowloris, a UDP flood, an ACK flood, R.U.D.Y., Yo-Yo and fragmentation), and from 2026-09-13 the namespace testbed
-`test_distributed_suite.py` with legit clients and bots on a bridge. Then the iptables backend (`eee8824`, 2026-09-23),
-the mode without a daemon (`MITIGATION_MODE=none`, 09-24), the unprotected Nginx configuration (09-25), performance
-metrics and softirq/hot-core metrics (09-23 to 10-01), and multi-queue veth pairs (10-03). An early two-VM layout
-(`server/`, `attacker/`) was last changed on 2026-10-03.
+**Built.** The first commit (`2229aa7`, 2026-09-05) and the CIC-IDS2017 line: `GRU_ML_init.py`, `merge_datasets.py` and
+a model in `training_results/` (2026-09-07). A single-attacker suite, `test_mitigation_suite.py`, with scenarios A to M
+added one by one from 2026-09-08 to 09-10 (among them Slowloris, a UDP flood, an ACK flood, R.U.D.Y., Yo-Yo and
+fragmentation), and from 2026-09-13 the namespace testbed `test_distributed_suite.py` with legit clients and bots on a
+bridge. Then the iptables backend (`eee8824`, 2026-09-23), the mode without a daemon (`MITIGATION_MODE=none`, 09-24),
+the unprotected Nginx configuration (09-25), performance metrics and softirq/hot-core metrics (09-23 to 10-01), and
+multi-queue veth pairs (10-03). An early two-VM layout (`server/`, `attacker/`) was last changed on 2026-10-03.
 
 **Outcome.** Console logs and CSVs only; nothing of this phase is a published result. The README calls these files
 legacy ([`README.md`](../README.md), "Repository layout").
@@ -44,9 +43,10 @@ availability metric before, during and after each attack (`00c0685`, 10-10).
 
 **The GRU.** [`ml_confounding_analysis.md`](ml_confounding_analysis.md) (2026-10-07): "The previously reported ~0.9999
 F1 is an artifact of **dataset/source confounding**, not DDoS-detection skill." The pipeline was rewritten on a
-de-confounded CIC-IDS2017 capture (`acdbf92`, 10-07) and then replaced by a testbed-native ("Tier-1") GRU trained on
-flows captured with the same XDP map that feeds it at inference (`2e93e0e`, 10-08; `capture_testbed_dataset.py`,
-`train_testbed_gru.py`, `b1f1ff0`, 10-09). That model is the one in `training_results/` today.
+de-confounded CIC-IDS2017 capture (`acdbf92`, 10-07, which added `build_cicids2017_dataset.py`) and then replaced by a
+testbed-native ("Tier-1") GRU trained on flows captured with the same XDP map that feeds it at inference (`2e93e0e`,
+10-08; `capture_testbed_dataset.py`, `train_testbed_gru.py`, `b1f1ff0`, 10-09). That model is the one in
+`training_results/` today.
 
 **Measured.** A campaign of 3 modes x 3 runs x 10 scenarios on 2026-10-11, published as
 [`results/2026-10-11_superseded-dup-mac/`](../results/2026-10-11_superseded-dup-mac/), **superseded** by the defect
@@ -96,7 +96,7 @@ is the direction ([`EVALUATION.md`, "Statistics"](EVALUATION.md#statistics)).
 **The GRU** ([`ML_INVESTIGATION.md`](ML_INVESTIGATION.md), 2026-10-13, final 2026-10-14). "**Zero GRU bans.** The GRU
 never reaches a decision before a heuristic bans the same IP"; it is "the slowest engine for every attack in the suite",
 paused by floods, blind to hping3 flows and not fed UDP. The model separates R.U.D.Y. by request size, "a tool
-fingerprint, not behavior"; the CIC-IDS2017 AUC of about 0.1 "depends on how benign hosts are sampled". The proposed
+fingerprint, not by behavior"; the CIC-IDS2017 AUC of about 0.1 "depends on how benign hosts are sampled". The proposed
 experiment EXP-3 was put on hold on 2026-10-14 (`3842efc`) and never ran.
 
 ## Phase 4: the L7 GRU track, P1 to P5c.4 (2026-10-14 to 10-16)
@@ -171,7 +171,10 @@ amendments labelled post hoc). Entries:
 
 > Closed loop: daemon +22.5 pp, limits only -34.3 pp against unprotected (77.5 %). Open loop (unprotected 100, 42.1 and
 > 11.4 %): daemon and limits only both serve 100 % in every block, +57.9 and +88.6 pp where the server is harmed; HYP-5
-> not contradicted and HYP-6 held. ([`2026-10-23_expc-open-vs-closed-loop`](../results/2026-10-23_expc-open-vs-closed-loop/))
+> not contradicted and HYP-6 held.
+
+(the index row of [`results/README.md`](../results/README.md) for
+[`2026-10-23_expc-open-vs-closed-loop`](../results/2026-10-23_expc-open-vs-closed-loop/))
 
 So EXP-A's "rate limiting alone is worse than no protection" holds for the closed-loop attacker only (claim M4).
 
@@ -215,9 +218,10 @@ frozen costs on a slowed host). All 5 complete attempts fall outside the single-
 record is not confirmed ... and **no harm-benchmark result exists**." The guest's kernel (7.0.0-42 against the record's
 -38) and memory (7,422 MiB from AP-5 on) had also changed. Claim HB1: **not confirmed**; no claim rests on that record.
 
-Meanwhile the thesis' practical chapters were written (2026-11-04 and 05, [`PROJECT_ROADMAP.md`](PROJECT_ROADMAP.md)),
-P1 and P4 gained ladder extensions and further review fixes, and **PR #3** (87 commits) merged on 2026-11-12
-(`efa8f54`), with the second review's report added at the path the evaluation manual cites (`c2b0324`).
+The thesis' practical chapters had been written just before this phase (2026-11-04 and 05,
+[`PROJECT_ROADMAP.md`](PROJECT_ROADMAP.md)), P1 and P4 gained ladder extensions and further review fixes, and **PR #3**
+(87 commits) merged on 2026-11-12 (`efa8f54`), with the second review's report added at the path the evaluation manual
+cites (`c2b0324`).
 
 ## Phase 9: the laptop re-calibration and P2 (2026-11-13 to 11-17)
 
@@ -294,7 +298,7 @@ with scope; HB1 not confirmed; HB2 supported with scope; HB3 contradicted at the
 |---|---|---|
 | P1, the L7 v2 arms ([`L7V2_DESIGN.md`](L7V2_DESIGN.md)) | built, pre-registered, tested offline; no run on the VM | its status line: "no P1 run exists"; the VM time from 2026-11-08 went to the drift check, the move to the laptop, the re-calibration and P2 (phases 8 and 9) [inference from the dates] |
 | P3, entity-disjoint datasets and learning curves ([`P3_DATASET_DESIGN.md`](P3_DATASET_DESIGN.md)) | built offline; "no capture has run on the VM" | as P1 |
-| P4, the per-connection slow rule ([`P4_SLOW_DESIGN.md`](P4_SLOW_DESIGN.md)) | built offline; "no P4 run exists" | as P1; its own VM budget is about 11.8 h ([`EVALUATION.md`](EVALUATION.md#p4-the-per-connection-slow-rule-and-profile-r-2026-10-30)) |
+| P4, the per-connection slow rule ([`P4_SLOW_DESIGN.md`](P4_SLOW_DESIGN.md)) | built offline; "no P4 run exists" | as P1; its own VM budget is about 12.9 h ([`EVALUATION.md`](EVALUATION.md#p4-the-per-connection-slow-rule-and-profile-r-2026-10-30)) |
 | P2 beyond `M_xdp` on the cheap flood at level 8 | not run | other families and levels, `M_limits` and the GRU arms are outside P2-2b; after NOT MET no further P2 campaign runs (R-5); a later campaign needs a drift check first ([`THESIS_CLAIMS.md`](THESIS_CLAIMS.md), HB3) |
 | HG3, the gate at the knee without protected arms | not run | the 2026-11-04 record was never confirmed; on the laptop only P2 (HG4) ran |
 | EXP-3, the XDP-GRU experiment | on hold since 2026-10-14, never run | the focus moved to the L7 track ([`ML_INVESTIGATION.md`](ML_INVESTIGATION.md)) |
