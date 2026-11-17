@@ -8,6 +8,7 @@ import copy
 import dataclasses
 import io
 import json
+import math
 import os
 import sys
 import tempfile
@@ -65,7 +66,7 @@ class RecordTest(unittest.TestCase):
 
     def test_every_departure_from_the_schema_is_named(self):
         broken = {
-            "schema": 2, "status": "draft", "created_utc": "", "host": [], "route_costs_ms": {"C0": 1},
+            "schema": 3, "status": "draft", "created_utc": "", "host": [], "route_costs_ms": {"C0": 1},
             "knobs": {"nonsense": 1}, "capacity": {"c_slo_rps": 100, "c_sat_rps": 90},
             "mix": {"C0": 0.5, "C1": 0.4}, "slo_ms": {"C0": 100}, "gate": {"floor_pp": 10},
             "validity": {"profile": "lax"}, "knees": [], "judged_profiles": [],
@@ -207,6 +208,182 @@ class DriftReferenceTest(unittest.TestCase):
 
     def test_no_attack_reference_is_a_valid_reference(self):
         self.assertEqual(C.problems_of({**placeholder(), "drift_reference": {**self.GOOD, "attack": {}}}), [])
+
+
+class ReferenceV2Test(unittest.TestCase):
+    """The reference of schema 2 (docs/RECALIBRATION_2026-11_DESIGN.md 4 and 7, K1): five rounds on the drift check's own seeds, every
+    run's Q and log2 p95, their means and SDs, and the tolerances computed at the freeze."""
+    RECORD = os.path.join(REPO, "bench", "calibration", "ddos-mitigation-2026-11-04.json")
+
+    def test_the_record_of_2026_11_04_still_loads_with_its_hash_as_schema_1(self):
+        cal = C.load(self.RECORD)
+        self.assertEqual((cal["schema"], cal["status"]), (1, "frozen"))
+        self.assertEqual(cal["sha256"], "cff6e515acf6f1969435e8843ea79c0c5338be13170a3dc052049928bf1aa0bf")
+        self.assertEqual(C.digest(cal), cal["sha256"])
+        self.assertEqual((C.SCHEMA, C.SCHEMAS), (2, (1, 2)))
+        self.assertEqual(set(cal["drift_reference"]), {"rho_rps", "q_pct", "p95_s", "attack"}, "the single-run shape")
+
+    def test_a_schema_2_record_round_trips(self):
+        cal = F.frozen_v2()
+        self.assertEqual((cal["schema"], C.problems_of(cal)), (2, []))
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "v2.json")
+            C.dump(cal, path)
+            self.assertEqual(C.load(path), cal)
+        ref = cal["drift_reference"]
+        self.assertEqual((ref["n"], ref["seeds"]), (5, {"legit": 41, "attack": {"costly_search_flood": 44}}))
+        self.assertEqual(ref["rule"], {"n": 5, "m": 3, "c": 3.0, "k": 3.0 * math.sqrt(1 / 5 + 1 / 3), "floor_pp": 10.0,
+                                       "floor_log2_p95": 1.0, "legit_q_pp": 2.0, "legit_p95": 0.25, "wide_sd_q_pp": 5.0})
+
+    def test_a_schema_2_record_without_any_of_the_new_fields_is_refused(self):
+        good = F.drift_reference_v2()
+        for key in C.REFERENCE_V2_KEYS:
+            with self.subTest(missing=key):
+                ref = {k: v for k, v in good.items() if k != key}
+                self.assertTrue(any(line.startswith("drift_reference") for line in C.problems_of({**placeholder(), "schema": 2,
+                                                                                                 "drift_reference": ref})))
+        for key in C.ATTACK_V2_KEYS:
+            with self.subTest(missing_attack=key):
+                ref = copy.deepcopy(good)
+                del ref["attack"]["costly_search_flood"][key]
+                self.assertTrue(C.problems_of({**placeholder(), "schema": 2, "drift_reference": ref}))
+        for key in C.SUMMARY_KEYS:
+            with self.subTest(missing_legit=key):
+                ref = copy.deepcopy(good)
+                del ref["legit"][key]
+                self.assertTrue(C.problems_of({**placeholder(), "schema": 2, "drift_reference": ref}))
+        with self.assertRaisesRegex(C.RecordError, "drift_reference: a frozen record carries"):
+            C.freeze({**placeholder(), "schema": 2}, host=F.SAMPLE_HOST)
+        old_shape = C.problems_of({**placeholder(), "schema": 2, "drift_reference": F.SAMPLE_DRIFT})
+        self.assertTrue(any("(schema 2)" in line for line in old_shape), "a single-run reference is not schema 2's")
+
+    def test_a_schema_2_reference_with_no_family_is_refused(self):
+        """T-105 F7: a check on means with no family would confirm nothing and pass; such a reference is never a record's."""
+        ref = C.drift_reference_of(100.0, F.SAMPLE_ROUNDS_LEGIT, {}, placeholder()["gate"])
+        self.assertEqual(C._drift_v2_problems(ref, placeholder()["gate"]),
+                         ["drift_reference.attack: at least one family (a session in which no family has a knee is not frozen)"])
+        self.assertTrue(C.problems_of({**placeholder(), "schema": 2, "drift_reference": ref}))
+        with self.assertRaisesRegex(C.RecordError, "at least one family"):
+            C.freeze({**placeholder(), "schema": 2}, host=F.SAMPLE_HOST_V2, drift_reference=ref)
+
+    def test_n_below_5_or_seeds_other_than_the_drifts_are_refused(self):
+        four = [r for r in F.SAMPLE_ROUNDS_LEGIT[:4]]
+        with self.assertRaisesRegex(ValueError, "5 rounds, no more and no fewer"):
+            C.drift_reference_of(90.0, four, F.SAMPLE_ROUNDS_ATTACK, placeholder()["gate"])
+        ref = F.drift_reference_v2()
+        for change, said in ((lambda r: r.update(n=4), "drift_reference.n: 5 rounds"),
+                             (lambda r: r["seeds"].update(legit=31), "drift_reference.seeds: the drift check's own"),
+                             (lambda r: r["seeds"]["attack"].update(costly_search_flood=36), "drift_reference.seeds"),
+                             (lambda r: r["attack"]["costly_search_flood"]["q_pct"].pop(), "q_pct: 5 values")):
+            with self.subTest(said=said):
+                bad = copy.deepcopy(ref)
+                change(bad)
+                problems = C.problems_of({**placeholder(), "schema": 2, "drift_reference": bad})
+                self.assertTrue(any(said in line for line in problems), problems)
+
+    def test_means_sds_and_both_clamps_to_1e_12(self):
+        k = C.drift_rule(placeholder()["gate"])["k"]
+        self.assertAlmostEqual(k, 2.1908902300206643, delta=1e-12)
+        ref = F.drift_reference_v2()
+        a = ref["attack"]["costly_search_flood"]
+        self.assertAlmostEqual(a["mean_q_pct"], 64.0, delta=1e-12)
+        self.assertAlmostEqual(a["sd_q_pp"], math.sqrt(10.0), delta=1e-12)
+        self.assertAlmostEqual(a["tol_q_pp"], math.sqrt(48.0), delta=1e-12, msg="k s = 3 sqrt(8/15) sqrt(10) = sqrt(48)")
+        self.assertAlmostEqual(a["mean_log2_p95"], math.log2(0.2) + 0.2, delta=1e-12)
+        self.assertAlmostEqual(a["sd_log2_p95"], math.sqrt(0.025), delta=1e-12)
+        self.assertEqual(a["tol_log2"], 0.5, "k t = 0.346 is below half the floor: the lower clamp")
+        self.assertFalse(a["wide_spread"])
+        for sd, floor, want in ((1.0, 10.0, 5.0), (10.0, 10.0, 10.0), (0.0, 10.0, 5.0), (0.1, 1.0, 0.5), (1.0, 1.0, 1.0)):
+            with self.subTest(sd=sd, floor=floor):
+                self.assertEqual(C.drift_tolerance(sd, floor, k), want)
+        legit = ref["legit"]
+        self.assertAlmostEqual(legit["mean_q_pct"], 99.86, delta=1e-12)
+        self.assertAlmostEqual(legit["sd_q_pp"], math.sqrt(sum((q - 99.86) ** 2 for q in (100.0, 99.5, 100.0, 99.8, 100.0)) / 4), delta=1e-12)
+
+    def test_a_family_whose_sd_of_q_is_above_5_pp_is_frozen_and_labelled(self):
+        """D6: frozen with the spread on record and labelled, the tolerance at its cap."""
+        wide = {"costly_search_flood": {"level": 4.0, "runs": [{"Q": q, "p95_s": 0.3} for q in (50.0, 60.0, 70.0, 55.0, 65.0)]}}
+        cal = F.frozen_v2(drift_reference=F.drift_reference_v2(attacks=wide))
+        a = cal["drift_reference"]["attack"]["costly_search_flood"]
+        self.assertTrue(a["wide_spread"])
+        self.assertEqual((a["tol_q_pp"], a["tol_log2"]), (10.0, 0.5))
+        bad = copy.deepcopy(cal["drift_reference"])
+        bad["attack"]["costly_search_flood"]["wide_spread"] = False
+        self.assertTrue(any("wide_spread" in line for line in C.problems_of({**placeholder(), "schema": 2, "drift_reference": bad})))
+
+    def test_tolerances_and_means_that_are_not_their_runs_are_refused(self):
+        for key, value in (("tol_q_pp", 7.0), ("mean_q_pct", 63.0), ("sd_log2_p95", 0.2)):
+            with self.subTest(key=key):
+                ref = F.drift_reference_v2()
+                ref["attack"]["costly_search_flood"][key] = value
+                self.assertTrue(any(key in line for line in C.problems_of({**placeholder(), "schema": 2, "drift_reference": ref})))
+        ref = F.drift_reference_v2()
+        ref["rule"]["c"] = 2.0
+        self.assertTrue(any("drift_reference.rule" in line for line in C.problems_of({**placeholder(), "schema": 2, "drift_reference": ref})))
+
+
+MEANS_LEGIT = [{"Q": 100.0, "p95_s": 0.0625}] * 5                                     # mean Q 100, mean log2 p95 -4, both SDs 0
+MEANS_TIGHT = {"level": 2.0, "runs": [{"Q": q, "p95_s": 0.25} for q in (63.0, 64.0, 65.0, 64.0, 64.0)]}   # SD 0.71: T_Q 5; SD 0: T_L 0.5
+MEANS_WIDE = {"level": 4.0, "runs": [{"Q": q, "p95_s": 0.5} for q in (50.0, 60.0, 70.0, 55.0, 65.0)]}     # SD 7.9: T_Q 10 (the cap)
+
+
+class DriftMeansTest(unittest.TestCase):
+    """The check on means against a reference of schema 2 (docs/RECALIBRATION_2026-11_DESIGN.md 4, K2)."""
+
+    def ref(self):
+        return F.drift_reference_v2(legit=MEANS_LEGIT, attacks={"cheap_static_flood": MEANS_TIGHT, "costly_search_flood": MEANS_WIDE})
+
+    @staticmethod
+    def runs(q, p95, n=3):
+        return [{"Q": q, "p95_s": p95}] * n
+
+    def check(self, legit=None, cheap=None, search=None):
+        return C.drift_means_check(self.ref(), legit or self.runs(100.0, 0.0625),
+                                   {"cheap_static_flood": cheap or self.runs(64.0, 0.25),
+                                    "costly_search_flood": search or self.runs(60.0, 0.5)})
+
+    def test_the_tolerances_are_the_clamps_here(self):
+        ref = self.ref()
+        self.assertEqual((ref["attack"]["cheap_static_flood"]["tol_q_pp"], ref["attack"]["cheap_static_flood"]["tol_log2"]), (5.0, 0.5))
+        self.assertEqual(ref["attack"]["costly_search_flood"]["tol_q_pp"], 10.0)
+        self.assertEqual(ref["attack"]["cheap_static_flood"]["sd_log2_p95"], 0.0, "s = 0: the band is half the floor, not zero")
+        self.assertEqual(self.check()["confirmed"], {"cheap_static_flood": True, "costly_search_flood": True})
+
+    def test_the_bounds_are_inclusive_t_passes_and_t_plus_1e_9_fails(self):
+        for q, ok in ((69.0, True), (59.0, True), (69.0 + 1e-9, False), (59.0 - 1e-9, False)):
+            with self.subTest(cheap_q=q):
+                self.assertIs(self.check(cheap=self.runs(q, 0.25))["families"]["cheap_static_flood"]["ok"], ok)
+        for q, ok in ((70.0, True), (50.0, True), (70.0 + 1e-9, False), (50.0 - 1e-9, False)):
+            with self.subTest(search_q=q):
+                self.assertIs(self.check(search=self.runs(q, 0.5))["families"]["costly_search_flood"]["ok"], ok)
+        for shift, ok in ((0.5 - 1e-9, True), (-0.5 + 1e-9, True), (0.5 + 1e-9, False), (-0.5 - 1e-9, False)):
+            with self.subTest(log2_shift=shift):
+                self.assertIs(self.check(cheap=self.runs(64.0, 0.25 * 2 ** shift))["families"]["cheap_static_flood"]["ok"], ok)
+
+    def test_the_legit_probes_means_within_2_pp_and_25_percent_inclusive(self):
+        for legit, ok in ((self.runs(98.0, 0.0625), True), (self.runs(98.0 - 1e-9, 0.0625), False),
+                          (self.runs(100.0, 0.0625 * 1.25 * (1 - 1e-9)), True), (self.runs(100.0, 0.0625 * 1.25 * (1 + 1e-9)), False),
+                          (self.runs(100.0, 0.0625 * 0.75 * (1 + 1e-9)), True), (self.runs(100.0, 0.0625 * 0.75 * (1 - 1e-9)), False)):
+            with self.subTest(legit=legit[0]):
+                self.assertIs(self.check(legit=legit)["legit"]["ok"], ok)
+
+    def test_a_failed_legit_probe_confirms_no_family(self):
+        r = self.check(legit=self.runs(97.0, 0.0625))
+        self.assertEqual(r["confirmed"], {"cheap_static_flood": False, "costly_search_flood": False})
+        self.assertTrue(r["families"]["cheap_static_flood"]["ok"] and r["families"]["costly_search_flood"]["ok"])
+
+    def test_a_missing_p95_fails_its_family_only(self):
+        r = self.check(search=[{"Q": 60.0, "p95_s": 0.5}, {"Q": 0.0, "p95_s": None}, {"Q": 60.0, "p95_s": 0.5}])
+        self.assertEqual(r["confirmed"], {"cheap_static_flood": True, "costly_search_flood": False})
+        self.assertIn("cannot be compared", r["families"]["costly_search_flood"]["reasons"][0])
+        r = self.check(legit=[{"Q": None, "p95_s": None}, *self.runs(100.0, 0.0625, 2)])
+        self.assertEqual(r["confirmed"], {"cheap_static_flood": False, "costly_search_flood": False})
+
+    def test_the_comparison_carries_its_numbers_and_the_wide_label(self):
+        row = self.check(search=self.runs(65.0, 0.5))["families"]["costly_search_flood"]
+        self.assertEqual({k: row[k] for k in ("n", "level", "mean_q_pct", "ref_mean_q_pct", "dq_pp", "tol_q_pp", "tol_log2")},
+                         {"n": 3, "level": 4.0, "mean_q_pct": 65.0, "ref_mean_q_pct": 60.0, "dq_pp": 5.0, "tol_q_pp": 10.0, "tol_log2": 0.5})
+        self.assertTrue(row["wide_spread"])
 
 
 class HostTest(unittest.TestCase):

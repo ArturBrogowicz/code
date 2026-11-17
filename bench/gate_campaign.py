@@ -29,6 +29,7 @@ import json
 import os
 import random
 import shutil
+import signal
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -38,6 +39,7 @@ sys.path.insert(0, os.path.join(REPO, "eval"))
 import calibration as C
 import executor as X
 import harm_gate as H
+import hostcheck as HC
 import loadtools as LT
 import population as P
 import scenario as SC
@@ -49,6 +51,19 @@ RUN_ESTIMATE_S = 150.0                      # one run, docs/HG1C_DESIGN.md 6.2; 
 STOP_ERRORS = (X.PreflightRefused, X.EnvironmentRefused, X.SetupFailed, X.LeftoverError, X.TableUnreadable)
 KEPT_OF_UNFINISHED = ((H.BAN_FILE, "ban file"), ("environment.json", "gate's record"), ("executor.log", "log"))
 EXIT_OK, EXIT_USAGE, EXIT_STOPPED, EXIT_INTERRUPTED = 0, 1, 2, 130
+EXIT_PAUSED = 4                             # --stop-after: the packet's time is used; the same command resumes (K6)
+EXIT_HOST_UNFIT = HC.EXIT_HOST_UNFIT        # 5: the packet paused, host unfit (docs/RECALIBRATION_2026-11_DESIGN.md 5.1, K9)
+
+
+class Paused(RuntimeError):
+    """The packet's time budget (--stop-after) is used: nothing more starts, and the same command resumes from the finished runs
+    (docs/RECALIBRATION_2026-11_DESIGN.md 6.2, K6)."""
+
+
+def check_budget(host, deadline, minutes):
+    """Between runs: Paused once the host's monotonic clock has reached `deadline` (None: no budget)."""
+    if deadline is not None and host.monotonic() >= deadline:
+        raise Paused(f"paused: the packet's time budget of {minutes:g} min is used (--stop-after); the same command resumes it")
 
 
 class CampaignError(RuntimeError):
@@ -71,6 +86,9 @@ class Options:
     simulate: str | None = None             # the name of an effect preset of bench/sim_host.py
     modes: tuple = ()                       # the protected arms, M_<mode> in every block beside C, Cp and U (HG4)
     confirm_2x_knee: bool = False           # the one further confirmation of design 7.2 step 6, after one at the knee has failed
+    stop_after_min: float | None = None     # --stop-after: start no run after this many minutes (K6); not in the fingerprint
+    host_check: bool = False                # H1, H3-H7 on every run; a host-invalid one made again in place (K9, D5); the command line's
+                                            # `run` sets it unless --no-host-check
 
 
 def kinds_of(opts):
@@ -128,7 +146,7 @@ def fingerprint(scn, cal, scenario_sha, opts):
             "blocks": block_count(scn, opts), "timeline": timeline_of(scn, opts), "rho_rps": opts.rho,
             "timer_limit_ms": opts.timer_limit_ms, "settings": {**X.SETTINGS, **dict(opts.settings)}, "gate": cal["gate"],
             "warmup": opts.warmup, "simulate": opts.simulate, "modes": list(opts.modes), "pins": pins_of(opts),
-            "confirmation": confirmation_of(opts)}
+            "confirmation": confirmation_of(opts), "host_check": opts.host_check}
 
 
 # --- the plan ---------------------------------------------------------------------------------
@@ -169,6 +187,11 @@ def describe(scn, cal, scenario_sha, opts):
                + ", ".join(kinds_of(opts)) + " in the order shown; a failed block is re-run once with its seed and a new order")
     out.append(f"re-runs      at most {gate['max_reruns']} in the campaign; a valid block is never re-run"
                + ("; a block whose protected run is not valid is not valid either" if opts.modes else ""))
+    if opts.host_check:
+        out.append(f"host check   every run: the speed bracket on CPUs 0 and 1 (H1, {HC.SPEED_DEV:.0%}) and the monitors' rules H3-H7 on CPU "
+                   f"{P.executor_cpus(pins_of(opts))}; a host-invalid run is kept as <run>{HC.ASIDE}<k> and made again in place after a "
+                   f"speed hold, using no re-run (D5, departure 41); {HC.INVALID_IN_A_ROW} in a row or {HC.INVALID_IN_PACKET} in a packet "
+                   "pause it (exit 5)")
     if opts.modes:
         pins = pins_of(opts)
         o = H.P2_OUTCOME
@@ -214,13 +237,21 @@ def load_state(out, fp):
         if os.path.isdir(out) and os.listdir(out):
             raise CampaignError(f"{out} holds something that is not a campaign (no {CAMPAIGN})")
         return None
-    state = read_json(path)
+    try:
+        state = read_json(path)
+        if not isinstance(state, dict) or not isinstance(state.get("fingerprint"), dict):
+            raise TypeError("not a campaign record")
+    except (OSError, ValueError, TypeError) as exc:
+        raise CampaignError(f"{path} cannot be read ({os.path.getsize(path)} bytes, {type(exc).__name__}: {exc}): the campaign's state "
+                            "is lost, so it is not resumed; set the directory aside (T-092 R-1) and start the campaign anew in "
+                            "another") from exc
     if "pins" not in state["fingerprint"]:
         raise CampaignError(f"{out} records no pin plan: it was started before campaigns recorded theirs, and is read as the plan "
                             f"of before 2026-10-31 (D-032), {pins_text(P.PIN_PLAN_BEFORE_D032)}, while this campaign would run "
                             f"with {pins_text(fp['pins'])}; a campaign resumes only as it began. Use another directory for "
                             "another campaign.")
-    before = {"modes": [], "confirmation": None, **state["fingerprint"]}      # a campaign of before HG4 had no modes (nor pins: refused above)
+    before = {"modes": [], "confirmation": None, "host_check": False,         # a campaign of before HG4 had no modes (nor pins: refused
+              **state["fingerprint"]}                                       # above), one of before K9 no host check
     differ = sorted(k for k in fp if before.get(k) != fp[k])
     if differ:
         raise CampaignError(f"{out} was started with other settings ({', '.join(differ)}); a campaign resumes only as it "
@@ -247,9 +278,34 @@ def read_json(path):
         return json.load(fh)
 
 
-def read_done(run_path):
+def read_done(run_path, say=None):
+    """A finished run's record, or None. An empty or unreadable DONE (a host reset in the half minute after it was written, T-092
+    finding 2) is read as absent and said: the run is made again (K6)."""
     path = os.path.join(run_path, DONE)
-    return read_json(path) if os.path.exists(path) else None
+    if not os.path.exists(path):
+        return None
+    try:
+        record = read_json(path)
+        if not isinstance(record, dict):
+            raise TypeError("not an object")
+    except (OSError, ValueError, TypeError) as exc:
+        (say or print)(f"{path} cannot be read ({os.path.getsize(path)} bytes, {type(exc).__name__}): read as absent, the run is made "
+                       "again")
+        return None
+    return record
+
+
+def block_complete(meta_path, say=None):
+    """Whether an attempt's block.json says it is complete. An empty or unreadable one is read as absent and said (K6): the runs of the
+    attempt with a DONE are kept, the others made, and block.json is written again."""
+    if not os.path.exists(meta_path):
+        return False
+    try:
+        return bool(read_json(meta_path).get("complete"))
+    except (OSError, ValueError, AttributeError) as exc:
+        (say or print)(f"{meta_path} cannot be read ({os.path.getsize(meta_path)} bytes, {type(exc).__name__}): read as absent, the "
+                       "attempt's finished runs are kept and block.json is written again")
+        return False
 
 
 # --- one attempt ------------------------------------------------------------------------------
@@ -288,14 +344,55 @@ def keep_unfinished(parent, name, run_path):
     return "".join(said)
 
 
-def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opts, gate, say):
+def execute_checked(plan, host, gate, opts, say, check=None, deadline=None):
+    """One run through the executor; with a host check (K9, D5) the speed bracket goes around it, the run is judged by H1 and H3-H7,
+    and a host-invalid run is set aside as <run>.hostinvalid<k>, the host held until its speed is back, and the run made again in its
+    place, as a run cut by a reset is: it uses none of the gate's re-runs. A run the executor found unsound is not judged: it ends its
+    attempt as before. Returns the run's record for DONE; RunFailed becomes a record that is not ok."""
+    while True:
+        hook = {"before_stack": check.speed.before} if check else {}
+        try:
+            result = X.execute(plan, host, gate, opts.allow_dirty, opts.clean, opts.wait_gate_min, say, **hook)
+        except STOP_ERRORS:
+            raise
+        except X.RunFailed as exc:
+            return {"ok": False, "failed": str(exc), "reasons": [str(exc)]}
+        record = run_record(result)
+        if check is None or not result.ok:
+            return record
+        speed = check.speed.finish(host, plan.out)
+        path = os.path.join(plan.out, "run.json")
+        X.write_json(path, {**read_json(path), "speed": speed})
+        record.update(speed=speed, host=check.judge(plan.out, speed))
+        if record["host"]["ok"]:
+            check.valid()
+            return record
+        check.set_aside(plan.out, {**record, "finished_utc": now()}, say)
+        check_budget(host, deadline, opts.stop_after_min)                 # the remake is a run like any other (K6)
+        gate = "timer"
+
+
+def host_check_of(host, cal, cal_path, out, opts):
+    """The host check of this invocation (K9): the speed bracket against the record's costs with its knobs, the monitors on the
+    executor's CPU in <out>/monitors/<n>, the record's slip limit."""
+    if not opts.host_check:
+        return None
+    base, n = os.path.join(out, "monitors"), 1
+    while os.path.exists(os.path.join(base, str(n))):
+        n += 1
+    speed = HC.SpeedBracket(os.path.abspath(cal_path), cal["route_costs_ms"],
+                            f"the {'frozen record' if cal['status'] == 'frozen' else 'placeholder'} {(cal.get('sha256') or C.digest(cal))[:8]}")
+    return HC.HostCheck(host, speed, os.path.join(base, str(n)), P.executor_cpus(pins_of(opts)), cal["validity"]["slip_pooled_s"])
+
+
+def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opts, gate, say, deadline=None, check=None):
     """Make the runs of one attempt that are not made yet, write its block.json, and return the gate's assessment of it and
     the gate mode the next run should use. A run that fails or is found unsound ends the attempt: the block is invalid
     whatever the other runs say, and finishing it would spend VM time on nothing."""
     seed = scn.first_seed + block - 1
     d = block_dir(out, block, attempt)
     meta_path = os.path.join(d, "block.json")
-    if os.path.exists(meta_path) and read_json(meta_path).get("complete"):
+    if block_complete(meta_path, say):
         say(f"block {block} attempt {attempt}: made already")
         return H.assess_block(d, cal), gate
     plans = plans_of(scn, cal, cal_path, scenario_sha, d, seed, opts)
@@ -303,20 +400,16 @@ def run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opt
     planned, made, records, aborted = run_order(scn, block, attempt, opts.modes), [], {}, None
     for kind in planned:
         run_path = plans[kind].out
-        record = read_done(run_path)
+        record = read_done(run_path, say)
         if record is None:
+            check_budget(host, deadline, opts.stop_after_min)
             if os.path.exists(run_path):
                 say(f"block {block} attempt {attempt} {kind}: removing the unfinished run{keep_unfinished(d, kind, run_path)}")
                 shutil.rmtree(run_path)
             say(f"block {block} attempt {attempt} seed {seed}: run {kind}")
-            try:
-                result = X.execute(plans[kind], host, gate, opts.allow_dirty, opts.clean, opts.wait_gate_min, say)
-            except STOP_ERRORS:
-                raise
-            except X.RunFailed as exc:
-                record = {"ok": False, "failed": str(exc), "reasons": [str(exc)]}
-            else:
-                record = run_record(result)
+            if check:
+                check.start()
+            record = execute_checked(plans[kind], host, gate, opts, say, check, deadline)
             mark_done(run_path, record)
             gate = "timer"
         records[kind] = record
@@ -345,13 +438,14 @@ def attempt_row(a):
             "valid_all": a["valid_all"], "arm_reasons": a["arm_reasons"], "waits": a.get("waits")}
 
 
-def warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate, say):
+def warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate, say, deadline=None, check=None):
     """One unscored C run at the first block's seed, apart from the blocks (HG1c D25): the first run on a cold stack is not like
     the others and must not be the control of a block. Returns its record and the gate mode of the next run."""
     path = os.path.join(out, WARMUP, "C")
-    record = read_done(path)
+    record = read_done(path, say)
     if record is not None:
         return record, gate
+    check_budget(host, deadline, opts.stop_after_min)
     if os.path.exists(path):
         say(f"warm-up: removing the unfinished run{keep_unfinished(os.path.dirname(path), os.path.basename(path), path)}")
         shutil.rmtree(path)
@@ -359,12 +453,11 @@ def warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate, say):
                       rho=opts.rho, timeline=opts.timeline, timer_limit_ms=opts.timer_limit_ms, pins=pins_of(opts),
                       confirmation=confirmation_of(opts))
     say(f"warm-up run C at seed {scn.first_seed}")
-    try:
-        record = run_record(X.execute(plan, host, gate, opts.allow_dirty, opts.clean, opts.wait_gate_min, say))
-    except STOP_ERRORS:
-        raise
-    except X.RunFailed as exc:
-        raise CampaignError(f"the warm-up run failed ({exc}); a stack that cannot do that is not ready for blocks") from exc
+    if check:
+        check.start()
+    record = execute_checked(plan, host, gate, opts, say, check, deadline)
+    if record.get("failed"):
+        raise CampaignError(f"the warm-up run failed ({record['failed']}); a stack that cannot do that is not ready for blocks")
     mark_done(path, record)
     return record, "timer"
 
@@ -462,6 +555,10 @@ def run_campaign(scn, cal, cal_path, scenario_sha, out, host, opts=None, say=pri
     opts = opts or Options()
     check_calibration(cal, opts)
     check_options(opts)
+    try:                                         # a frozen record is used only on the host it was measured on (K5)
+        C.require_host(cal, host.facts())
+    except C.RecordError as exc:
+        raise CampaignError(str(exc)) from exc
     if spec_problem(scn, opts):
         raise CampaignError(spec_problem(scn, opts))
     scn = at_campaign_level(scn, cal, opts)
@@ -481,14 +578,17 @@ def run_campaign(scn, cal, cal_path, scenario_sha, out, host, opts=None, say=pri
     save_state(out, state)
     gate_mode, gate, reruns, valid, attempts = "full", cal["gate"], 0, 0, []
     n = fp["blocks"]
+    deadline = None if opts.stop_after_min is None else host.monotonic() + 60.0 * opts.stop_after_min
+    check = host_check_of(host, cal, cal_path, out, opts)
     try:
         if opts.warmup:
-            state["warmup"], gate_mode = warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate_mode, say)
+            state["warmup"], gate_mode = warm_up(scn, cal, cal_path, scenario_sha, out, host, opts, gate_mode, say, deadline, check)
             save_state(out, state)
         for block in range(1, n + 1):
             attempt = 1
             while True:
-                a, gate_mode = run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opts, gate_mode, say)
+                a, gate_mode = run_attempt(scn, cal, cal_path, scenario_sha, out, block, attempt, host, opts, gate_mode, say,
+                                           deadline, check)
                 attempts.append(attempt_row(a))
                 state.update(attempts=attempts, reruns=reruns)
                 save_state(out, state)
@@ -511,10 +611,17 @@ def run_campaign(scn, cal, cal_path, scenario_sha, out, host, opts=None, say=pri
         state.update(state="interrupted", stopped="interrupted; the same command resumes it")
         save_state(out, state)
         raise
+    except (Paused, HC.HostUnfit) as exc:
+        state.update(state="paused", stopped=str(exc), attempts=attempts, reruns=reruns)
+        save_state(out, state)
+        raise
     except (CampaignError, *STOP_ERRORS) as exc:
         state.update(state="stopped", stopped=f"{type(exc).__name__}: {exc}")
         save_state(out, state)
         raise
+    finally:
+        if check:
+            check.close()
     state["reruns"] = reruns
     state["gate"] = analyse_into(out, cal, state, say, allow_overrides=bool(getattr(host, "simulated", False)))
     save_state(out, state)
@@ -555,7 +662,10 @@ def status_text(out):
     path = os.path.join(out, CAMPAIGN)
     if not os.path.exists(path):
         raise CampaignError(f"{out}: no {CAMPAIGN}")
-    state = read_json(path)
+    try:
+        state = read_json(path)
+    except (OSError, ValueError) as exc:
+        raise CampaignError(f"{path} cannot be read ({os.path.getsize(path)} bytes, {type(exc).__name__})") from exc
     fp = state["fingerprint"]
     lines = [f"campaign {fp['scenario']} ({fp['seed_namespace']}), {fp['blocks']} blocks, calibration "
              f"{fp['calibration_sha256'][:8]} {fp['calibration_status']}" + (", SIMULATED" if state.get("simulated") else "")
@@ -609,7 +719,8 @@ def options_of(args):
     return Options(blocks=args.blocks, dry_run=getattr(args, "dry_run", False), warmup=not args.no_warmup,
                    allow_dirty=getattr(args, "allow_dirty", False), clean=getattr(args, "clean", False),
                    wait_gate_min=getattr(args, "wait_gate", 30.0), keep_going=getattr(args, "keep_going", False),
-                   confirm_2x_knee=args.confirm_2x_knee,
+                   confirm_2x_knee=args.confirm_2x_knee, stop_after_min=getattr(args, "stop_after", None),
+                   host_check=not getattr(args, "no_host_check", False),
                    rho=args.rho, timeline=args.timeline, timer_limit_ms=args.timer_limit_ms,
                    simulate=getattr(args, "simulate", None), modes=args.modes)
 
@@ -629,6 +740,10 @@ def main(argv=None, host=None):
     p.add_argument("--clean", action="store_true", help="take down the namespaces and links of an earlier testbed first")
     p.add_argument("--wait-gate", type=float, default=30.0, metavar="MIN", help=wait_help)
     p.add_argument("--keep-going", action="store_true", help="go on although the gate can no longer reach its valid blocks")
+    p.add_argument("--stop-after", type=float, default=None, metavar="MIN",
+                   help="start no run after MIN minutes: the campaign pauses (exit 4) and the same command resumes it (a packet's budget)")
+    p.add_argument("--no-host-check", action="store_true",
+                   help="no speed bracket and no monitors' rules (a smoke test's; P2 runs with them, D5)")
     p.add_argument("--simulate", choices=sorted(S.EFFECT_PRESETS), help="run on the simulated host with this effect")
     p.add_argument("--simulate-fault", action="append", metavar="NAME[:N]", help="a fault of the simulated host, N times")
     p = sub.add_parser("status", help="print the state of a campaign directory")
@@ -663,6 +778,12 @@ def main(argv=None, host=None):
     except KeyboardInterrupt:
         print("interrupted; the testbed was taken down. The same command resumes the campaign.", file=sys.stderr)
         return EXIT_INTERRUPTED
+    except Paused as exc:
+        print(str(exc), file=sys.stderr)
+        return EXIT_PAUSED
+    except HC.HostUnfit as exc:
+        print(f"HostUnfit: {exc}", file=sys.stderr)
+        return EXIT_HOST_UNFIT
     except (CampaignError, X.RunFailed) as exc:
         print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
         return EXIT_STOPPED
@@ -672,4 +793,5 @@ def main(argv=None, host=None):
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, signal.default_int_handler)  # a step started by packet.sh (`cmd &`) inherits SIGINT ignored (T-105 F3)
     sys.exit(main())

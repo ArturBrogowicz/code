@@ -97,10 +97,18 @@ XDP_DEVICE = "veth_server"                # where the daemon attaches its progra
 DAEMON_MAPS = ("blacklist_map", "telemetry_map", "flow_map")      # the maps of xdp_ddos_filter.c: a teardown looks for them
 READY_PATH = O.SAMPLE_URLS["C0"]          # the origin has no route at "/": it answers 404 there
 # recorded in every plan. The attack's start-up delay and the exit delay per request are what S1 and S1b measured on loopback, without
-# namespaces (docs/HG1C_DESIGN.md 14). The legit start-up delay is S4's, with the real launch chain: the attack began 0.32 s early on 2.5 s,
-# so the legit loops began about 2.8 s after their launch (taking the attack's 0.15 s as known), and the setting is 2.9 s
-# (docs/HG1C_DESIGN.md 25). A legit stream's own launch does not depend on it (`launch_due`); the attack's launch, the stack-cost
-# telemetry offset and the deadline do. The legit streams of a
+# namespaces (docs/HG1C_DESIGN.md 14); both start-up delays are from a launch to the engine's schedule's zero (S1's truth, the first
+# arrival less the first send), which is ENGINE_T0_OFFSET_S after its loop starts. The legit start-up delay is S4's, with the real
+# launch chain: the attack began 0.32 s early on 2.5 s, so the legit schedules began about 2.8 s after their launch (taking the
+# attack's 0.15 s as known), and the setting is 2.9 s
+# (docs/HG1C_DESIGN.md 25). A legit stream's own launch does not depend on it (`launch_due`); the stack-cost telemetry offset and
+# the deadline do, and so did the attack's launch until K23. K23 (post hoc, D-114 of the orchestrator's ledger, 2026-11-16): in P2-2
+# the attack, launched on the fixed delay, began 0.16-0.52 s early by the exit-based estimate, and three runs passed the 0.5 s limit
+# ([INFERENCE] the legit engines took that much longer than 2.9 s to start their schedules, more with 32 on their one CPU than with 29
+# and later in the campaign). The executor now watches the first legit group's engines start (each one's event loop,
+# `Host.loop_started`) and launches the attack from the median of those starts, plus ENGINE_T0_OFFSET_S (`LoopWatch`); on a host that
+# cannot tell, or when fewer than a majority are seen in time, it keeps the fixed delay. A later legit step is launched as before.
+# The legit streams of a
 # group are sound when the most of them that began within `t0_spread_limit_s` of one another, the pack, is a majority of the group and
 # at most `straggler_share` of the group began outside it, provided the engines of those stragglers ended their loops with their last
 # request (to within `straggler_tail_s`): then the estimate of where they began is as good as the others' and the harm gate places
@@ -510,10 +518,18 @@ def launch_due(plan, stream):
 
 
 def launch_attack_after(plan):
-    """Seconds after the launch of the legit streams at which the attack streams are launched, so that their loops start
-    at the end of the baseline: the baseline plus the legit start-up delay less the attack's."""
+    """Seconds after the launch of the legit streams at which the attack streams are launched on the fixed delay, so that their
+    loops start at the end of the baseline: the baseline plus the legit start-up delay less the attack's. Since K23 the attack
+    is launched on it only when the legit loops cannot be seen to start (LoopWatch)."""
     s = plan.settings
     return plan.timeline["baseline_s"] + s["startup_delay_legit_s"] - s["startup_delay_attack_s"]
+
+
+def attack_due_after_zero(plan, stream, first=0.0):
+    """K23: seconds after the zero the LoopWatch took (the first legit group's schedules, which start at `first` on the run's
+    axis) at which an attack stream is launched, so that its schedule starts at its `start_s`: its start less the group's, less
+    its own start-up delay (from a launch to the schedule's zero)."""
+    return stream.start_s - first - plan.settings["startup_delay_attack_s"]
 
 
 def timeline_line(plan, legit, attack):
@@ -528,7 +544,9 @@ def timeline_line(plan, legit, attack):
         line = (f"timeline      the {len(legit)} legit streams are launched at L; their loops start about {delay:g} s later, "
                 f"which is T = 0, and run {t['total_s']:g} s")
     if attack:
-        line += (f"; the {len(attack)} attack streams are launched at L + {launch_attack_after(plan):g} s to start at "
+        line += (f"; the {len(attack)} attack streams are launched {t['baseline_s'] - plan.settings['startup_delay_attack_s']:g} s "
+                 f"after the legit schedules are seen to start (the median of their loops' starts, plus {ENGINE_T0_OFFSET_S:g} s; at "
+                 f"L + {launch_attack_after(plan):g} s if the host cannot see them or fewer than a majority are seen) to start at "
                  f"T = {t['baseline_s']:g} s and run {t['attack_s']:g} s")
     return line
 
@@ -607,6 +625,9 @@ DRAIN_S = 12.0                       # the engine waits for requests in flight f
 MAX_SETUP_RETRIES = 2
 DAEMON_FORK_WAIT_S = 10.0            # Nginx's launcher has returned by then: it forks once the configuration is read
 TICK_S = 1.0
+WATCH_POLL_S = 0.01                  # K23: how often the executor looks for the first legit engines' event loops while they start
+WATCH_MAX_S = 10.0                   # K23: it stops looking this long after their expected start (startup_delay_legit_s) at the latest,
+WATCH_MARGIN_S = 1.0                 # and this long before the attack's launch on the fixed delay, whichever comes first
 REATTACH_EVERY = 10                  # ticks between two looks at which processes the server namespace holds
 # what the suite reads from the environment when it is imported; tests/test_executor_run.py checks that this is
 # eval/run_campaign.EVAL_VARS
@@ -691,6 +712,11 @@ class Host:
     def sleep(self, seconds):
         raise NotImplementedError
 
+    def loop_started(self, proc):
+        """Whether the engine `proc` (a process from popen) has started its event loop: True or False, or None when this host
+        cannot tell, and the executor then launches the attack on the fixed delay (K23)."""
+        return None
+
     def read_text(self, path):
         """The text of a file; OSError when it is not there."""
         raise NotImplementedError
@@ -713,7 +739,8 @@ class Host:
         raise NotImplementedError
 
     def facts(self):
-        """uname, CPUs, memory, and the versions of Python, Nginx and gunicorn."""
+        """uname, CPUs, memory, the PC (cpu_model and vbox_host_version, K10; None when unreadable), and the versions of Python, Nginx
+        and gunicorn."""
         raise NotImplementedError
 
     def pin(self, cpus):
@@ -820,6 +847,24 @@ class RealHost(Host):
     def sleep(self, seconds):
         time.sleep(seconds)
 
+    def loop_started(self, proc):
+        """An engine has started its loop when its process holds an epoll descriptor: bench/loadgen.py makes none before
+        asyncio.run, which makes one as it creates the loop, just before the engine reads its clock for the schedule's zero
+        (probed on the laptop's VM, 2026-11-16, three engines alone: seen 0.09 s after the launch and 0.07 s before the exit-based
+        estimate of the zero, which adds the 0.05 s of ENGINE_T0_OFFSET_S and the exit). `ip netns exec` (without -batch), prlimit
+        and taskset each exec the next in place, so the pid is the engine's (tests/test_executor_run.py goes through prlimit and
+        taskset); were it not, no engine would be seen and the attack would go on the fixed delay, which the block says."""
+        base = f"/proc/{proc.pid}/fd"
+        try:
+            fds = os.listdir(base)
+        except OSError:
+            return False
+        for fd in fds:
+            with contextlib.suppress(OSError):
+                if os.readlink(f"{base}/{fd}") == "anon_inode:[eventpoll]":
+                    return True
+        return False
+
     def read_text(self, path):
         with open(path, encoding="utf-8") as fh:
             return fh.read()
@@ -848,9 +893,20 @@ class RealHost(Host):
             r = self.run(argv)
             lines = (r.out or r.err).strip().splitlines()
             return lines[0] if lines else None
+        def vbox_host_version():                 # the boot's kernel log: the journal keeps it, dmesg needs root (dmesg_restrict)
+            for argv in (["journalctl", "-k", "-b", "0", "-o", "cat", "--no-pager"], ["dmesg"]):
+                version = C.vbox_host_version(self.run(argv).out)
+                if version:
+                    return version
+            return None
         mem = next((int(line.split()[1]) // 1024 for line in self.read_text("/proc/meminfo").splitlines()
                     if line.startswith("MemTotal:")), None)
+        try:
+            cpu = C.cpu_model(self.read_text("/proc/cpuinfo"))
+        except OSError:
+            cpu = None
         return {"uname": " ".join(platform.uname()), "cpus": os.cpu_count(), "mem_mib": mem,
+                "cpu_model": cpu, "vbox_host_version": vbox_host_version(),
                 "python": sys.version.split()[0], "nginx": first_line(["nginx", "-v"]),
                 "gunicorn": first_line([os.path.join(REPO, "venv", "bin", "python"), "-m", "gunicorn", "--version"])}
 
@@ -1028,11 +1084,24 @@ def _utc(t):
 
 
 def write_json(path, obj):
+    """`obj` as JSON at `path`, crash-safe (K6, T-092 finding 2): written to a temporary file that is synced to the disk, renamed over
+    `path`, and the directory synced, so that a host reset leaves the old file or the new one, never an empty one."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path + ".tmp", "w", encoding="utf-8") as fh:
         json.dump(obj, fh, indent=1, sort_keys=True)
         fh.write("\n")
+        fh.flush()
+        os.fsync(fh.fileno())
     os.replace(path + ".tmp", path)
+    fsync_dir(os.path.dirname(path))
+
+
+def fsync_dir(directory):
+    fd = os.open(directory or ".", os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 # --- preflight and the environment ----------------------------------------------------------------
@@ -1867,21 +1936,123 @@ def left_output(stream):
     return os.path.exists(stream.summary) and os.path.exists(stream.records)
 
 
+class LoopWatch:
+    """K23: when the engines of the first legit group start their loops, as the executor sees them (Host.loop_started), and the
+    zero it takes from them for the attack's launch. The loops' start is the median of the starts seen, an engine not seen yet
+    counting as later than all. It is taken once the whole group is seen; or once a majority is and `t0_range_limit_s` has passed
+    since the first start (an engine that begins further than that from the others makes the run unsound anyway); or at the cap,
+    WATCH_MAX_S after the group's expected start (its launch plus startup_delay_legit_s) or WATCH_MARGIN_S before the attack's
+    launch on the fixed delay, whichever is first. The zero is ENGINE_T0_OFFSET_S after the loops' start: an engine's schedule
+    begins that long after its loop does (bench/loadgen.py), and startup_delay_attack_s, which the attack's launch takes off, is
+    from a launch to the schedule's zero (S1's "an attack loop begins after its own launch, 0.13 to 0.15 s", as the estimator sees
+    a start; review M1, T-125: S1's table calls it the "loop", but it is the schedule's zero). With fewer than a majority seen by
+    the cap, or on a host that cannot tell, `zero` stays None and
+    the attack is launched on the fixed delay (launch_due), as before K23. Every run has one, so that a control run is timed as the
+    runs with an attack. An engine is stamped at the look that sees it, so a look that comes late (the executor descheduled) makes
+    its starts late by up to the gap since the look before: the block keeps the largest gap and the one before the median."""
+
+    def __init__(self, host, plan, t_launch):
+        s = plan.settings
+        legit = [x for x in plan.streams if x.kind == "legit"]
+        self.first = min((x.start_s for x in legit), default=0.0)
+        self.host, self.t_launch, self.range_s = host, t_launch, s["t0_range_limit_s"]
+        self.ids = [x.id for x in legit if x.start_s == self.first]
+        self.seen, self.loops, self.zero, self.rule = {}, None, None, None
+        self.last, self.gaps = None, {}                # the time of the last look; the gap before each look, by its time
+        self.cap = t_launch + self.first + s["startup_delay_legit_s"] + WATCH_MAX_S
+        attack = [t_launch + launch_due(plan, x) for x in plan.streams if x.kind == "attack"]
+        if attack:
+            self.cap = min(self.cap, min(attack) - WATCH_MARGIN_S)
+        self.watching = bool(self.ids)
+
+    def look(self, now, procs):
+        """One look at the engines of the group not seen yet, each seen at `now`; takes the zero when it can."""
+        self.gaps[now] = 0.0 if self.last is None else now - self.last
+        self.last = now
+        for sid in self.ids:
+            if sid in self.seen or sid not in procs:
+                continue
+            started = self.host.loop_started(procs[sid])
+            if started is None:
+                self.watching, self.rule = False, "fixed delay: this host cannot tell when an engine's loop starts"
+                return
+            if started:
+                self.seen[sid] = now
+        n, times = len(self.ids), sorted(self.seen.values())
+        majority = n // 2 + 1
+        if len(times) == n or (len(times) >= majority and now >= times[0] + self.range_s) or now >= self.cap:
+            self.watching = False
+            if len(times) >= majority:
+                self.loops = statistics.median(times + [math.inf] * (n - len(times)))
+                self.zero, self.rule = self.loops + ENGINE_T0_OFFSET_S, "seen"
+            else:
+                self.rule = (f"fixed delay: {len(times)} of {n} legit loops seen to start by "
+                             f"{self.cap - self.t_launch:.2f} s after the launch, fewer than a majority")
+
+    def median_gap(self):
+        """The gap before the look(s) at which the median start was seen: how late the loops' start can be for a late look."""
+        n, times = len(self.ids), sorted(self.seen.values())
+        if self.loops is None:
+            return None
+        padded = times + [math.inf] * (n - len(times))
+        mid = [padded[(n - 1) // 2], padded[n // 2]]
+        return max(self.gaps.get(t, 0.0) for t in mid)
+
+    def block(self, exit_zero=None):
+        """What the executor block keeps of it, in seconds after run_timeline's start where it is a time (the legit launch, as
+        the first legit group starts at 0 in every plan so far): the rule the attack was launched by; how many engines were watched
+        and seen; the loops' start, the zero and the range of the starts seen; the largest gap between two looks and the one before
+        the median's; the constants; and, given the exit-based zero the run's alignment took for the first group (`exit_zero`), how
+        far after the watch's zero it fell. That difference is the exit's common delay, plus the time from an engine's epoll
+        descriptor to its reading of the clock for the schedule (beyond ENGINE_T0_OFFSET_S), less the look's lag, plus the
+        difference between the alignment's pack median and the watch's median over the whole group (unseen engines last): it
+        says how far the two frames fell apart in the run, not any one of these alone."""
+        times = sorted(self.seen.values())
+        rule = self.rule or ("no legit stream to watch" if not self.ids else "not taken: the timeline ended first")
+        gap = self.median_gap()
+        return {"rule": rule, "legit_watched": len(self.ids), "legit_seen": len(times),
+                "loops_after_launch_s": None if self.loops is None else round(self.loops - self.t_launch, 3),
+                "zero_after_launch_s": None if self.zero is None else round(self.zero - self.t_launch, 3),
+                "seen_range_s": round(times[-1] - times[0], 3) if times else None,
+                "max_look_gap_s": round(max(self.gaps.values()), 3) if self.gaps else None,
+                "median_look_gap_s": None if gap is None else round(gap, 3),
+                "exit_zero_after_watch_zero_s": (round(exit_zero - self.zero, 3)
+                                                 if exit_zero is not None and self.zero is not None else None),
+                "poll_s": WATCH_POLL_S, "max_s": WATCH_MAX_S, "margin_s": WATCH_MARGIN_S}
+
+
 def run_timeline(host, plan, log, procs, sampler):
     """Launch every stream at its time (launch_due), sample once a second, and wait for all of them to exit. Returns the
     times of the first launch of each kind and the reasons the timeline went wrong (a stream that died, one that never ended).
     An engine exits when its last request is done (S1b), so a stream of a few tenths of a request per second ends long before
-    its duration does; it has died only if it exits with an error, or leaving no output, more than EARLY_SLACK_S before its end."""
+    its duration does; it has died only if it exits with an error, or leaving no output, more than EARLY_SLACK_S before its end.
+    K23: from the legit launch until it takes the zero, a LoopWatch looks at the legit engines every WATCH_POLL_S; the attack is
+    launched from its zero, or on the fixed delay without one. The samples are a TICK_S apart from the launch, and a launch no
+    longer takes one of its own (before K23 every turn of the loop did). Also returns the watch."""
     s = plan.settings
     t_launch = host.time()
     waiting = sorted(plan.streams, key=lambda x: (launch_due(plan, x), x.id))
-    launched, ends, reasons = {}, {}, []
+    watch = LoopWatch(host, plan, t_launch)
+
+    def due_at(x):
+        if x.kind == "attack" and watch.zero is not None:
+            return watch.zero + attack_due_after_zero(plan, x, watch.first)
+        return t_launch + launch_due(plan, x)
+
+    attack = any(x.kind == "attack" for x in plan.streams)
+    launched, ends, reasons, next_sample = {}, {}, [], t_launch
     deadline = t_launch + s["startup_delay_legit_s"] + plan.timeline["total_s"] + DRAIN_S + s["term_grace_s"] + 10.0
     while True:
         now = host.time()
-        due = []
-        while waiting and t_launch + launch_due(plan, waiting[0]) <= now + 1e-9:
-            due.append(waiting.pop(0))
+        if watch.watching and "legit" in launched:      # before the launches are due, so that they follow what it takes (review L1)
+            watch.look(now, procs)
+            if not watch.watching and watch.zero is not None:
+                log(f"the legit loops were seen to start {watch.loops - t_launch:.2f} s after their launch "
+                    f"({len(watch.seen)} of {len(watch.ids)})" + ("; the attack is launched from there" if attack else ""))
+            elif not watch.watching and not watch.rule.startswith("fixed delay: this host"):
+                log(f"the legit loops' start was not taken ({watch.rule})" + ("; the attack goes on the fixed delay" if attack else ""))
+        due = [x for x in waiting if due_at(x) <= now + 1e-9]
+        waiting = [x for x in waiting if due_at(x) > now + 1e-9]
         for kind in ("legit", "attack"):
             group = [x for x in due if x.kind == kind]
             if group:
@@ -1891,7 +2062,9 @@ def run_timeline(host, plan, log, procs, sampler):
                 ends.update({x.id: now + own + x.duration_s for x in group})
                 if not sampler.pids:
                     sampler.attach()
-        sampler.sample(now - t_launch)
+        if now >= next_sample - 1e-9:                # one sample a TICK_S, however often the watch looks
+            sampler.sample(now - t_launch)
+            next_sample = now + TICK_S
         dead = [x for x in plan.streams if x.id in procs and procs[x.id].poll() is not None
                 and now < ends[x.id] - EARLY_SLACK_S and (procs[x.id].poll() != 0 or not left_output(x))]
         if dead:
@@ -1904,10 +2077,10 @@ def run_timeline(host, plan, log, procs, sampler):
         if now > deadline:
             reasons.append(f"{len(running)} streams were still running {now - t_launch:.0f} s after the launch")
             break
-        soonest = [t_launch + launch_due(plan, waiting[0]) - now] if waiting else []
-        host.sleep(max(0.01, min([TICK_S, *soonest])))
+        soonest = [min(due_at(x) for x in waiting) - now] if waiting else []
+        host.sleep(max(0.01, min([next_sample - now, *soonest, *([WATCH_POLL_S] if watch.watching else [])])))
     log(f"timeline over after {host.time() - t_launch:.1f} s" + (f"; {len(reasons)} problems" if reasons else ""))
-    return launched, reasons
+    return launched, reasons, watch
 
 
 def stop_all(host, procs, plan, log):
@@ -1939,14 +2112,16 @@ def _tail(path, n=1):
         return ""
 
 
-def collect(plan, procs, launched, problems):
+def collect(plan, procs, launched, problems, watch=None):
     """The run contract from what the streams left, with the executor's verdict on the run. Returns (the executor block, the
     stream rows of run.json, the zero of the axis). A run in which no legit stream left an output raises RunFailed:
     there is nothing to judge. Each stream's wall time is held to its records (consistent_wall) before its start is estimated;
     the block says by how much each was raised (`wall_gap_s`), how far the legit starts range (`t0_range_legit_s`) against how
     far the pack's do (`t0_spread_legit_s`), and which streams began outside the pack (`stragglers`). It keeps the exit stamp each
     start was estimated from (`exit_epoch_s`, seconds on the executor's clock, to the millisecond): with the time an engine last
-    wrote its summary it says how long the exit took, which the offsets cannot (docs/HG1C_DESIGN.md 26)."""
+    wrote its summary it says how long the exit took, which the offsets cannot (docs/HG1C_DESIGN.md 26). Since K23
+    `launch_attack_after_s` is the time from the legit launch to the attack's as it happened (it was the fixed delay before), and
+    `attack_launch` is the LoopWatch's block (None when `watch` is not given)."""
     found, streams, reasons, gaps, tails = {}, [], list(problems), {}, {}
     for s in plan.streams:
         p = procs.get(s.id)
@@ -1985,7 +2160,9 @@ def collect(plan, procs, launched, problems):
              "wall_gap_s": {sid: gaps[sid] for sid in sorted(gaps)},
              "exit_epoch_s": {sid: round(found[sid][0], 3) for sid in sorted(found)},
              "zero_epoch_s": None if al["zero"] is None else round(al["zero"], 4),
-             "launch_attack_after_s": launch_attack_after(plan) if "attack" in launched else None}
+             "launch_attack_after_s": (round(launched["attack"] - launched["legit"], 3)
+                                       if "attack" in launched and "legit" in launched else None),
+             "attack_launch": None if watch is None else watch.block(None if al["zero"] is None else al["zero"] + watch.first)}
     rows = [{"id": s.id, "kind": s.kind, "route_class": s.route_class, "netem": s.netem,
              "summary": os.path.relpath(s.summary, plan.out), "records": os.path.relpath(s.records, plan.out),
              "offset_s": round(al["offsets"][s.id], 4), "addresses": list(s.addresses)} for s in streams]
@@ -2043,10 +2220,13 @@ def _failed(out, exc):
         fh.write(f"{type(exc).__name__}: {exc}\n")
 
 
-def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_min=30.0, say=None, sampler=None):
+def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_min=30.0, say=None, sampler=None, before_stack=None):
     """Carry out `plan`. Returns a RunResult and leaves the run contract in plan.out; ok is false when the executor found the
     run unsound (the gate then calls its block invalid). Raises RunFailed when the run could not be carried out, after the
-    teardown; the campaign stops on that. A directory that already holds something is refused: one run, one directory."""
+    teardown; the campaign stops on that. A directory that already holds something is refused: one run, one directory.
+    `before_stack(host)`, if given, is called once the environment gate has passed and before the topology and the stack are built,
+    and what it returns is kept in environment.json as `speed_before`: the first probe of the speed bracket (bench/hostcheck.py, H1;
+    the caller takes the second after this returns, the testbed taken down)."""
     out = plan.out
     if os.path.isdir(out) and os.listdir(out):
         raise PreflightRefused(f"{out} is not empty: a run directory is made for one run")
@@ -2071,6 +2251,12 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
     write_json(f"{out}/environment.json", record)
     write_json(f"{out}/plan.json", as_json(plan))
     log(f"run {plan.kind} of {plan.scenario}, seed {plan.seed}: preflight and environment passed")
+    if before_stack is not None:
+        record["speed_before"] = before_stack(host)
+        write_json(f"{out}/environment.json", record)
+        log("speed probe before the stack: " + ", ".join(f"CPU {cpu} " + ("unreadable" if c is None else
+                                                                          f"C3 {c.get('C3', 0):.4g} ms, C5 {c.get('C5', 0):.4g} ms")
+                                                         for cpu, c in record["speed_before"]["cpus"].items()))
     if plan.daemon is not None and not record["provenance"]["daemon"]["h01"]["has_fix"]:
         log(f"WARNING: this checkout's daemon lacks the H-01 fix ({DAEMON_FIX_H01[:7]}, fix/daemon-robustness): one request with a "
             "byte that is not UTF-8 can end it and lift every ban during the run. Recorded in environment.json (provenance.daemon.h01)")
@@ -2098,7 +2284,7 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
                     raise                            # the last attempt's files stay: they say why it failed
                 _reset(out)
                 log(f"retrying the setup ({retries} of {MAX_SETUP_RETRIES})")
-        launched, problems = run_timeline(host, plan, log, procs, sampler)
+        launched, problems, watch = run_timeline(host, plan, log, procs, sampler)
         problems += origin_validity(plan, procs, launched.get("legit", host.time()))
         if daemon is not None:
             unsound, seen = daemon_validity(host, plan, procs, daemon, sampler, launched.get("legit", host.time()))
@@ -2107,7 +2293,7 @@ def execute(plan, host, gate="full", allow_dirty=False, clean=False, wait_gate_m
         stopped = stop_daemon(host, procs, log)
         problems += nginx_validity(host, plan)
         stop_all(host, procs, plan, log)
-        block, rows, zero = collect(plan, procs, launched, problems)
+        block, rows, zero = collect(plan, procs, launched, problems, watch)
         raised = {sid: gap for sid, gap in block["wall_gap_s"].items() if gap > WALL_GAP_NOTE_S}
         if raised:
             log(f"wall time of {len(raised)} stream(s) raised to what their records need, by up to {max(raised.values()):.2f} s: "
@@ -2417,6 +2603,11 @@ def main(argv=None, host=None):
             return EXIT_OK if result["reported"] else EXIT_FAILED
         plan = _plan_from_args(args)
         real = host or RealHost()
+        if args.command == "run" and plan.calibration_status == "frozen":
+            try:                                 # a frozen record is used only on the host it was measured on (K5)
+                C.require_host(C.load(plan.calibration_path), real.facts())
+            except C.RecordError as exc:
+                raise PreflightRefused(str(exc)) from exc
         real.pin(P.executor_cpus(plan.pins))
         _install_signal_handlers()
         if args.command == "smoke-topology":
@@ -2488,4 +2679,5 @@ def clock_text(result, out):
 
 
 if __name__ == "__main__":
+    signal.signal(signal.SIGINT, signal.default_int_handler)  # a step started by packet.sh (`cmd &`) inherits SIGINT ignored (T-105 F3)
     sys.exit(main())

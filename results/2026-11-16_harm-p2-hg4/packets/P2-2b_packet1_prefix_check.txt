@@ -1,0 +1,11 @@
+# P2-2b: packet 1's tar (P2-2_20261116T173249Z.tar.gz) against packet 2's (P2-2_20261116T190150Z.tar.gz), file by file (sha256)
+files in packet 1: 3169; in packet 2: 4498
+byte-identical in packet 2: 3168
+differ: 1
+  hg4_mvp_xdp_recal2/campaign.json
+missing from packet 2: 0
+only in packet 2 (made by packet 2): 1329
+hg4_mvp_xdp_recal2/campaign.json: packet 1 state 'paused', stopped "paused: the packet's time budget of 79.38 min is used (--stop-after); the same command resumes it", attempts 7, gate absent, warmup.finished_utc None
+hg4_mvp_xdp_recal2/campaign.json: packet 2 state 'complete', stopped None, attempts 10, gate present, warmup.finished_utc '2026-11-16T17:41:12+00:00'
+hg4_mvp_xdp_recal2/campaign.json: packet 1's 7 attempts equal packet 2's first 7: True
+Expected: only files a resume rewrites differ (bench/gate_campaign.py rewrites campaign.json on every attempt and at the end); no file of packet 1 is missing.

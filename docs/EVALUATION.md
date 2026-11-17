@@ -6,10 +6,15 @@ be regenerated from the repository. The test harness is `test_distributed_suite.
 
 ## Quick start
 
+Every `venv/bin/python` below is the environment of the "Environment" step of `README.md`: a
+`venv` in the repository root, made from `requirements.txt` (a clone has none).
+`eval/plot_campaign.py` also needs matplotlib, which is optional (`requirements-plot.txt`) and
+absent on the testbed VM.
+
 Reproduce the published analysis of EXP-2a (no root, seconds):
 
     venv/bin/python eval/analyze_campaign.py results/2026-10-12_exp2a-knee_prototype
-    venv/bin/python eval/plot_campaign.py results/2026-10-12_exp2a-knee_prototype
+    venv/bin/python eval/plot_campaign.py results/2026-10-12_exp2a-knee_prototype   # needs matplotlib
     git status        # clean: the analysis regenerates byte for byte
 
 Record the same experiment again with the current harness (root, ≈ 15 min, side
@@ -17,7 +22,7 @@ effects below):
 
     sudo python3 eval/run_campaign.py --operating-point knee --scenarios 4 --runs 3
     venv/bin/python eval/analyze_campaign.py /var/tmp/ddos_campaigns/<campaign>
-    venv/bin/python eval/plot_campaign.py   /var/tmp/ddos_campaigns/<campaign>
+    venv/bin/python eval/plot_campaign.py   /var/tmp/ddos_campaigns/<campaign>     # needs matplotlib
     venv/bin/python eval/publish_campaign.py /var/tmp/ddos_campaigns/<campaign> --name <yyyy-mm-dd_what>
     git add results/<yyyy-mm-dd_what> && git commit
 

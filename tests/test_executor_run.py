@@ -12,7 +12,9 @@ import json
 import math
 import os
 import re
+import shutil
 import signal
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -330,18 +332,25 @@ class TimelineTest(RunCase):
         self.assertTrue(result.ok, result.reasons)
         legit = host.launch_times["L-poisson-C0-perfect-0"]
         attack = host.launch_times["A-costly_search_flood-perfect-0"]
-        self.assertAlmostEqual(attack - legit, X.launch_attack_after(plan), delta=0.011)
-        self.assertAlmostEqual(X.launch_attack_after(plan), 10.0 + 2.9 - 0.15)
+        seen = self.run_json(plan)["executor"]["attack_launch"]
+        # K23: from the legit schedules' start as the executor saw it (the simulated schedules start 2.8 s + 2 ms an engine after
+        # their launch, so the median of 29 at 2.828 s, their loops 0.05 s before, seen at the next look), not from the fixed 2.9 s
+        self.assertEqual(seen["rule"], "seen")
+        self.assertAlmostEqual(seen["loops_after_launch_s"], 2.778, delta=X.WATCH_POLL_S + 0.001)
+        self.assertAlmostEqual(seen["zero_after_launch_s"], 2.828, delta=X.WATCH_POLL_S + 0.001)
+        self.assertAlmostEqual(attack - legit, seen["zero_after_launch_s"] + 10.0 - 0.15, delta=0.011)
+        self.assertAlmostEqual(X.launch_attack_after(plan), 10.0 + 2.9 - 0.15, msg="the fixed delay, kept for a host that cannot tell")
 
     def test_the_attack_streams_sit_at_the_baseline_on_the_runs_axis(self):
         plan, _, _ = self.go("U")
         run = self.run_json(plan)
         offsets = {s["kind"]: s["offset_s"] for s in run["streams"]}
-        # the simulated engines start as S4 and S1b measured them (2.8 s and 0.14 s), the settings are 2.9 s and 0.15 s: 0.07 s apart
+        # the simulated engines start as S4 and S1b measured them (2.8 s and 0.14 s), the settings are 2.9 s and 0.15 s; since K23
+        # the attack goes from where the legit loops were seen to start, so only the attack's own 0.01 s and a look are left
         self.assertAlmostEqual(offsets["attack"], 10.0, delta=0.1)
         self.assertAlmostEqual(offsets["legit"], 0.0, delta=0.1)
-        self.assertLess(abs(run["executor"]["attack_start_error_s"]), 0.1)
-        self.assertAlmostEqual(run["executor"]["launch_attack_after_s"], 12.75)
+        self.assertLess(abs(run["executor"]["attack_start_error_s"]), 0.05)
+        self.assertAlmostEqual(run["executor"]["launch_attack_after_s"], 12.68, delta=0.011)
 
     def test_a_control_run_launches_no_attack_stream(self):
         plan, host, _ = self.go("C")
@@ -583,6 +592,231 @@ class TimelineTest(RunCase):
         self.assertFalse(os.path.exists(os.path.join(plan.out, "run.json")))
         self.assertTrue(host.ran("ip", "netns", "del"))
         self.assertEqual(host.unshielded, [], "the namespaces were deleted inside the shield, out of reach of a second Ctrl-C")
+
+
+class LoopWatchTest(RunCase):
+    """K23 (post hoc, D-114): the attack is launched from the legit engines' loops as the executor sees them start, so that a
+    slower legit start-up than startup_delay_legit_s no longer leaves it early; the fixed delay stays for a host that cannot tell
+    and for a start that a majority of the engines does not make in time."""
+
+    class Blind(F.SimHost):
+        """A simulated host that cannot tell when an engine's loop starts, as every host could not before K23."""
+
+        def loop_started(self, proc):
+            return None
+
+    class SeesOnly(F.SimHost):
+        """A simulated host on which only the engines `visible` picks can be seen to start."""
+
+        def __init__(self, visible, **kw):
+            super().__init__(**kw)
+            self.visible = visible
+
+        def loop_started(self, proc):
+            return super().loop_started(proc) and self.visible(stream_of(proc))
+
+    @staticmethod
+    def slow_legit(legit_s):
+        """Start-ups with the legit loops `legit_s` (and 2 ms an engine) after their launch, the attack's as S1b measured."""
+        return lambda sid, index, kind: legit_s + 0.002 * index if kind == "legit" else F.ATTACK_STARTUP_S
+
+    def test_a_legit_start_up_slower_than_the_setting_no_longer_leaves_the_attack_early(self):
+        startup = self.slow_legit(3.4)                   # as in P2-2: about 0.5 s more than the setting of 2.9 s
+        plan, _, old = self.go("U", self.Blind(startup_s=startup), plan_args={"name": "fixed/U"})
+        err_old = self.run_json(plan)["executor"]["attack_start_error_s"]
+        self.assertFalse(old.ok, "on the fixed delay the attack begins about 0.5 s early, as in P2-2")
+        self.assertLess(err_old, -0.5)
+        self.assertTrue(any("the attack began -0.5" in r for r in old.reasons), old.reasons)
+        plan, _, new = self.go("U", F.SimHost(startup_s=startup), plan_args={"name": "seen/U"})
+        run = self.run_json(plan)
+        self.assertTrue(new.ok, new.reasons)
+        self.assertLess(abs(run["executor"]["attack_start_error_s"]), 0.05)
+        self.assertEqual(run["executor"]["attack_launch"]["rule"], "seen")
+        self.assertAlmostEqual(run["executor"]["attack_launch"]["zero_after_launch_s"], 3.428, delta=X.WATCH_POLL_S + 0.001)
+
+    def test_a_host_that_cannot_tell_keeps_the_fixed_delay(self):
+        host = self.Blind()
+        plan, _, result = self.go("U", host)
+        _, seeing, _ = self.go("U", plan_args={"name": "seeing/U"})
+        self.assertTrue(result.ok, result.reasons)
+        run = self.run_json(plan)
+        self.assertEqual(run["executor"]["launch_attack_after_s"], 12.75)
+        self.assertEqual(run["executor"]["attack_launch"]["rule"], "fixed delay: this host cannot tell when an engine's loop starts")
+        self.assertEqual(run["executor"]["attack_launch"]["legit_seen"], 0)
+        self.assertIsNone(run["executor"]["attack_launch"]["zero_after_launch_s"])
+        self.assertLess(len(host.sleeps), len(seeing.sleeps) - 100, "it does not look every 10 ms when it cannot see anything")
+
+    def test_fewer_than_a_majority_seen_keeps_the_fixed_delay(self):
+        plan = self.plan("U")
+        legit = sorted(x.id for x in plan.streams if x.kind == "legit")
+        picked = set(legit[:len(legit) // 2])
+        host = self.SeesOnly(lambda sid: sid in picked, startup_s=self.slow_legit(2.9))
+        result = X.execute(plan, host)
+        run = self.run_json(plan)
+        block = run["executor"]["attack_launch"]
+        self.assertEqual(block["rule"], f"fixed delay: {len(picked)} of {len(legit)} legit loops seen to start by 11.75 s after "
+                                        "the launch, fewer than a majority")
+        self.assertEqual(run["executor"]["launch_attack_after_s"], 12.75)
+        self.assertTrue(result.ok, result.reasons)
+
+    def test_a_bare_majority_is_enough_and_the_engines_not_seen_count_as_later_than_all(self):
+        plan = self.plan("U")
+        legit = sorted((x.id for x in plan.streams if x.kind == "legit"), key=lambda sid: host_order(plan, sid))
+        n, k = len(legit), len(legit) // 2 + 1
+        picked = set(legit[:k])                          # the first k launched, which start first
+        host = self.SeesOnly(lambda sid: sid in picked,
+                             startup_s=lambda sid, index, kind: 2.8 + 0.01 * index if kind == "legit" else F.ATTACK_STARTUP_S)
+        X.execute(plan, host)
+        block = self.run_json(plan)["executor"]["attack_launch"]
+        self.assertEqual(block["rule"], "seen")
+        self.assertEqual((block["legit_seen"], block["legit_watched"]), (k, n))
+        expected = statistics.median([2.8 + 0.01 * i for i in range(k)] + [math.inf] * (n - k))
+        self.assertTrue(math.isfinite(expected))
+        self.assertAlmostEqual(block["zero_after_launch_s"], expected, delta=X.WATCH_POLL_S + 0.001)
+        self.assertGreater(block["zero_after_launch_s"], statistics.median([2.8 + 0.01 * i for i in range(k)]),
+                           "later than the median of those seen alone")
+
+    def test_a_control_run_is_watched_as_the_runs_with_an_attack_are(self):
+        plan, host, result = self.go("C")
+        self.assertTrue(result.ok, result.reasons)
+        run = self.run_json(plan)
+        self.assertEqual(run["executor"]["attack_launch"]["rule"], "seen")
+        self.assertEqual(run["executor"]["attack_launch"]["legit_seen"], run["executor"]["attack_launch"]["legit_watched"])
+        self.assertIsNone(run["executor"]["launch_attack_after_s"])
+
+    def test_the_samples_stay_a_second_apart_while_the_executor_looks_every_10_ms(self):
+        plan, _, _ = self.go("U")
+        with open(os.path.join(plan.out, "server.csv"), encoding="utf-8", newline="") as fh:
+            ticks = [float(r["t_rel"]) for r in csv.DictReader(fh)]
+        early = [t for t in ticks if t < 4.0]
+        self.assertEqual(early[:4], [0.0, 1.0, 2.0, 3.0])
+        self.assertGreaterEqual(min(b - a for a, b in itertools.pairwise(ticks)), 0.0)
+        self.assertLess(max(b - a for a, b in itertools.pairwise(ticks)), 1.01)
+
+    def test_the_executor_log_says_where_the_attack_went_from(self):
+        plan, _, _ = self.go("U")
+        self.assertRegex(self.read(plan, "executor.log"),        # 2.778 s and the look's lag, up to 10 ms
+                         r"the legit loops were seen to start 2\.7[89] s after their launch \(29 of 29\); the attack is launched from there")
+        plan, _, _ = self.go("U", self.Blind(), plan_args={"name": "blind/U"})
+        self.assertNotIn("legit loops", self.read(plan, "executor.log"))
+
+    def test_the_zero_is_the_schedules_not_the_loops(self):
+        """Review M1: the watch sees a loop, whose schedule begins ENGINE_T0_OFFSET_S later, and startup_delay_attack_s is from a
+        launch to the schedule's zero; without the offset the attack would begin 0.05 s early. With no exit delay the exit-based
+        estimate is the schedule's zero itself, so the attack's start error is the look's lag alone."""
+        host = F.SimHost(exit_delay_s=0.0, exit_delay_per_request_s=0.0,
+                         startup_s=lambda sid, index, kind: 3.3 + 0.002 * index if kind == "legit" else X.SETTINGS["startup_delay_attack_s"])
+        plan, _, result = self.go("U", host, plan_args={"settings": {"exit_delay_per_request_s": 0.0}})
+        self.assertTrue(result.ok, result.reasons)
+        run = self.run_json(plan)["executor"]
+        self.assertLessEqual(abs(run["attack_start_error_s"]), X.WATCH_POLL_S + 0.002)
+        self.assertAlmostEqual(run["attack_launch"]["zero_after_launch_s"] - run["attack_launch"]["loops_after_launch_s"],
+                               X.ENGINE_T0_OFFSET_S, places=3)
+        self.assertLessEqual(run["attack_launch"]["exit_zero_after_watch_zero_s"], 0.001)
+        self.assertGreaterEqual(run["attack_launch"]["exit_zero_after_watch_zero_s"], -X.WATCH_POLL_S - 0.001)
+
+    def test_a_late_look_is_kept_in_the_block(self):
+        """Review M3: an engine is stamped at the look that sees it, so a look that comes late makes the starts late; the block
+        keeps the gap, so that a late attack can be told from a slow start afterwards."""
+
+        class Stalls(F.SimHost):
+            def sleep(self, seconds):                     # the executor descheduled for 0.3 s once, as its legit engines start
+                if not getattr(self, "stalled", False) and self.launch_times and self.t - min(self.launch_times.values()) > 2.6:
+                    self.stalled = True
+                    seconds += 0.3
+                super().sleep(seconds)
+
+        plan, _, _ = self.go("U", Stalls())
+        block = self.run_json(plan)["executor"]["attack_launch"]
+        self.assertEqual(block["rule"], "seen")
+        self.assertAlmostEqual(block["max_look_gap_s"], 0.31, delta=0.011)
+        self.assertAlmostEqual(block["median_look_gap_s"], 0.31, delta=0.011)
+        # every legit loop started inside the stall (2.75-2.81 s; the look before it at 2.61 s, the one after at 2.92 s), so the
+        # median is stamped 0.14 s late and the attack follows it
+        self.assertGreater(self.run_json(plan)["executor"]["attack_start_error_s"], 0.1, "the attack is late by what the stall hid")
+        plan, _, _ = self.go("U", plan_args={"name": "smooth/U"})
+        smooth = self.run_json(plan)["executor"]["attack_launch"]
+        self.assertAlmostEqual(smooth["max_look_gap_s"], X.WATCH_POLL_S, delta=0.001)
+        self.assertEqual(smooth["poll_s"], X.WATCH_POLL_S)
+
+    def test_on_the_simulated_host_a_process_without_a_loop_is_never_seen(self):
+        host = F.SimHost()
+        proc = F.SimProc(host, ["python3", "-c", "pass"], "", "python3", "stream")
+        self.assertFalse(host.loop_started(proc))
+        host.sleep(100.0)
+        self.assertFalse(host.loop_started(proc), "an engine that hangs or dies before its loop has no loop_start")
+
+
+def host_order(plan, sid):
+    """The order in which the executor launches the legit streams of a run: the simulated host's start-up index."""
+    return [x.id for x in sorted(plan.streams, key=lambda x: (X.launch_due(plan, x), x.id))].index(sid)
+
+
+class RealHostLoopTest(unittest.TestCase):
+    """K23 on this machine: RealHost.loop_started sees an engine's loop by its epoll descriptor. No test asserts punctuality: the
+    VM's timers wake late (docs/BENCHMARK_HARM_DESIGN.md, the late timer wake-ups of the load-generator verification), so the
+    margins are seconds, not milliseconds."""
+
+    @staticmethod
+    def wait_for(cond, limit_s):
+        deadline = time.monotonic() + limit_s
+        while not cond() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        return cond()
+
+    def test_a_python_process_is_seen_once_it_runs_an_asyncio_loop_and_not_while_it_sleeps_before_it(self):
+        host = X.RealHost()
+        proc = host.popen([sys.executable, "-I", "-c", "import asyncio, time; time.sleep(3.0); asyncio.run(asyncio.sleep(1.5))"])
+        self.addCleanup(proc.kill)
+        time.sleep(0.4)
+        self.assertFalse(host.loop_started(proc), "still in its 3 s sleep: no event loop yet")
+        self.assertTrue(self.wait_for(lambda: host.loop_started(proc), 15.0))
+
+    def test_a_process_whose_loop_was_seen_is_not_seen_once_it_has_exited(self):
+        host = X.RealHost()
+        proc = host.popen([sys.executable, "-I", "-c", "import asyncio; asyncio.run(asyncio.sleep(1.0))"])
+        self.addCleanup(proc.kill)
+        self.assertTrue(self.wait_for(lambda: host.loop_started(proc), 15.0))
+        self.assertTrue(self.wait_for(lambda: proc.poll() is not None, 15.0))
+        self.assertFalse(host.loop_started(proc))
+
+    @unittest.skipUnless(shutil.which("prlimit") and shutil.which("taskset"), "prlimit and taskset (util-linux) are needed")
+    def test_the_pid_is_the_engines_through_prlimit_and_taskset(self):
+        """Review L4: a stream's command is `ip netns exec NS prlimit --nofile=N -- taskset -c CPUS python ...`; each execs the next
+        in place, so the pid the executor holds is the Python process's. (ip netns exec needs root and a namespace: not here.)"""
+        host = X.RealHost()
+        cpu = str(sorted(os.sched_getaffinity(0))[0])
+        proc = host.popen(["prlimit", "--nofile=256", "--", "taskset", "-c", cpu, sys.executable, "-I", "-c",
+                           "import asyncio; asyncio.run(asyncio.sleep(2.0))"])
+        self.addCleanup(proc.kill)
+        self.assertTrue(self.wait_for(lambda: host.loop_started(proc), 15.0))
+
+    def test_the_engine_starts_its_loop_where_the_executor_looks(self):
+        """A real bench/loadgen.py engine (loopback, verification only) is seen after its launch and before it exits, and not long
+        before its exit-based zero: it makes its epoll descriptor as it starts its loop, not at import."""
+        host = X.RealHost()
+        with tempfile.TemporaryDirectory() as tmp:
+            argv = [sys.executable, "-B", os.path.join(REPO, "bench", "loadgen.py"), "--url", "http://127.0.0.1:9/", "--rate", "5",
+                    "--duration", "2", "--allow-loopback", "--timeout", "0.3", "--summary", os.path.join(tmp, "s.json"),
+                    "--records", os.path.join(tmp, "r.csv.gz")]
+            launched = time.time()
+            proc = host.popen(argv)
+            self.addCleanup(proc.kill)
+            seen = None
+            deadline = time.monotonic() + 30.0
+            while proc.poll() is None and time.monotonic() < deadline:
+                if host.loop_started(proc):
+                    seen = time.time()
+                    break
+                time.sleep(0.005)
+            self.assertTrue(self.wait_for(lambda: proc.poll() is not None, 30.0))
+            self.assertIsNotNone(seen, "the engine's loop was never seen")
+            self.assertGreater(seen, launched)
+            self.assertLess(seen, proc.exit_time)
+            with open(os.path.join(tmp, "s.json"), encoding="utf-8") as fh:
+                wall = json.load(fh)["wall_s"]
+            zero = proc.exit_time - wall + X.ENGINE_T0_OFFSET_S
+            self.assertLess(zero - seen, 0.5, "the descriptor is made as the loop starts, not long before the schedule")
 
 
 class RefusalTest(RunCase):
@@ -2895,13 +3129,44 @@ class RealHostTest(unittest.TestCase):
         proc.kill()                          # already gone: not an error
 
     def test_a_process_can_be_interrupted_as_ctrl_c_would(self):
-        proc = X.RealHost().popen(["sleep", "30"])
+        """interrupt() sends SIGINT, and the process ends on it as on Ctrl-C. RealHost.popen does not set a child's SIGINT: the child
+        inherits the executor process's (next test). Every main the packets start puts the default handler back at entry (K15;
+        tests/test_packets.py StopTest pins it), and this test does the same in its own process for its duration, so that its result
+        no longer depends on how the suite was launched: a shell's `&` starts it with SIGINT ignored, and then `sleep` ignored it."""
+        old = signal.signal(signal.SIGINT, signal.default_int_handler)      # as the mains reached from packet.sh do at entry (K15)
+        try:
+            proc = X.RealHost().popen(["sleep", "30"])
+        finally:
+            signal.signal(signal.SIGINT, old)
         proc.interrupt()
         deadline = time.time() + 10
         while proc.poll() is None and time.time() < deadline:
             time.sleep(0.01)
         self.assertEqual(proc.poll(), -signal.SIGINT)
         proc.interrupt()                     # already gone: not an error
+
+    def test_a_child_inherits_an_ignored_sigint_so_the_executors_own_process_must_not_ignore_it(self):
+        """The dependency the test above rests on, kept visible (T-116): RealHost.popen passes the executor process's SIGINT on to the
+        child. With SIGINT ignored there (a step started as `cmd &` by a non-interactive bash, before K15's restore at each main's entry),
+        the child ignores it too, and interrupt() does not end it: stop_daemon's SIGINT, the daemon's clean stop (its finally detaches
+        XDP), would end in KILL after DAEMON_STOP_GRACE_S."""
+        old = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        try:
+            proc = X.RealHost().popen(["sleep", "30"])
+        finally:
+            signal.signal(signal.SIGINT, old)
+        try:
+            with open(f"/proc/{proc.pid}/status", encoding="utf-8") as fh:
+                ignored = int(next(line.split()[1] for line in fh if line.startswith("SigIgn:")), 16)
+            self.assertTrue(ignored & (1 << (signal.SIGINT - 1)), "the child inherits SIGINT ignored")
+            proc.interrupt()
+            time.sleep(0.3)
+            self.assertIsNone(proc.poll(), "and SIGINT does not end it")
+        finally:
+            proc.kill()
+            deadline = time.time() + 10
+            while proc.poll() is None and time.time() < deadline:
+                time.sleep(0.01)
 
     def test_a_file_is_stat_by_its_inode_and_size(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -1,0 +1,130 @@
+{
+ "allow_dirty": false,
+ "calibration_sha256": "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c",
+ "checked_utc": "2026-11-16T18:36:21+00:00",
+ "facts": {
+  "cpu_model": "AMD Ryzen 7 7730U with Radeon Graphics",
+  "cpus": 8,
+  "gunicorn": "gunicorn (version 26.2.0)",
+  "mem_mib": 7422,
+  "nginx": "nginx version: nginx/1.28.3 (Ubuntu)",
+  "python": "3.14.4",
+  "uname": "Linux ddos-mitigation 7.0.0-42-generic #42-Ubuntu SMP PREEMPT_DYNAMIC Thu Oct 15 08:06:44 UTC 2026 x86_64 ",
+  "vbox_host_version": "7.2.10r174163"
+ },
+ "gate": {
+  "load1": 1.45,
+  "met": null,
+  "uptime_s": 26200.8,
+  "waited_s": 0.0
+ },
+ "gate_mode": "timer",
+ "git": {
+  "branch": "HEAD",
+  "commit": "18386ed1a505a8babb4f9dc6c86d19cb6ffe49b6",
+  "dirty": false,
+  "dirty_files": []
+ },
+ "governor": null,
+ "jiffies": 20735213,
+ "load1_after_timer_gate": 1.45,
+ "nofile_soft": 524288,
+ "provenance": {
+  "engine_is_pinned": true,
+  "engine_pinned_sha256": "91aab0837ce688982c30cc2f8b9e867482f830d5ff49b9ec703888ac80ba92a1",
+  "files": {
+   "executor.py": "72eb1aa73d6495e5641ed9adba00e1d991d8bfeada254382594ccb80585738e9",
+   "loadgen.py": "91aab0837ce688982c30cc2f8b9e867482f830d5ff49b9ec703888ac80ba92a1",
+   "loadtools.json": "cf3a3ee072d5b817f2ece019d6ef1955cae78e0b69959bd70b76e7e9e9f9036d",
+   "origin.py": "4cb5e276c04e8a4c003729170112c8b21000aa5bc89901681f7c07cc268ff2b2",
+   "population.py": "fdacad6da17761c1e615607478ab900828278ec5ee151ca16b9d8ea17c660806",
+   "scenario.py": "a5edbfc73a41eba9031d19522cf6b4c7d2b2a26350087a75a935bcd3fd4bf889"
+  },
+  "nginx_rendered_sha256": "05e6241d81f92761b2c4cbc45db888ba8ca08f94acf859d14e829c6d95a29811",
+  "nginx_source": "nginx_unprotected.conf",
+  "nginx_source_sha256": "55f867904d18615b3f5405e3017ab17d425106d2e34d1b265ac4cf352135dfdb"
+ },
+ "scenario_sha256": "aa43c8444ea6097681cb8da1d3174c070ccaf74b141cb989e636dd2a602e644c",
+ "speed_before": {
+  "cpus": {
+   "0": {
+    "C0": 0.005469117187500289,
+    "C1": 5.1179150000004725,
+    "C2": 2.6731910000004078,
+    "C3": 42.80415900000012,
+    "C5": 232.31057200000026
+   },
+   "1": {
+    "C0": 0.005473660156251475,
+    "C1": 5.103829000000282,
+    "C2": 2.6634830000000775,
+    "C3": 42.75559800000028,
+    "C5": 230.76049700000033
+   }
+  },
+  "errors": {},
+  "t_end": 1794854199.3772388,
+  "t_start": 1794854181.2890785,
+  "utc_end": "2026-11-16T18:36:39+00:00",
+  "utc_start": "2026-11-16T18:36:21+00:00"
+ },
+ "stack": {
+  "nginx": {
+   "cpus_allowed": [
+    "0-1"
+   ],
+   "nofile_soft_hard": [
+    [
+     65535,
+     65535
+    ],
+    [
+     524288,
+     524288
+    ]
+   ],
+   "processes": 9
+  },
+  "origin": {
+   "cpus_allowed": [
+    "0-1"
+   ],
+   "nofile_soft_hard": [
+    [
+     524288,
+     524288
+    ]
+   ],
+   "processes": 3
+  }
+ },
+ "steal_jiffies": 0,
+ "timer_executor": {
+  "interval_s": 0.01,
+  "max_ms": 1.9797320003272032,
+  "p50_ms": 0.5242259996884966,
+  "p99_ms": 1.5364539606161955,
+  "samples": 200
+ },
+ "timer_executor_cpus": "6",
+ "timer_legit": {
+  "interval_s": 0.01,
+  "max_ms": 0.5390440003247929,
+  "p50_ms": 0.036227002274244816,
+  "p99_ms": 0.5285638492205177,
+  "samples": 200
+ },
+ "timer_limit_is_override": false,
+ "timer_limit_ms": 10.0,
+ "timer_probes": [
+  {
+   "max_ms": 0.5390440003247929,
+   "p50_ms": 0.036227002274244816,
+   "p99_ms": 0.5285638492205177,
+   "passed": true,
+   "utc": "2026-11-16T18:36:16+00:00"
+  }
+ ],
+ "timer_refused_probes": 0,
+ "timer_waited_s": 2.2
+}

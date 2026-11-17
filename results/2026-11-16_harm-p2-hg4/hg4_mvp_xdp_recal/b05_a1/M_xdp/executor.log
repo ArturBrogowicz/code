@@ -1,0 +1,20 @@
+    2.237 timer probe 1 on CPU 7 at 2026-11-16T15:39:44+00:00: p50 0.0460255, p99 0.532831, max 0.541929 ms: passed
+    4.678 run M_xdp of cheap_static_flood_hg4, seed 5: preflight and environment passed
+   22.759 speed probe before the stack: CPU 0 C3 43.14 ms, C5 230.5 ms, CPU 1 C3 42.71 ms, C5 231.7 ms
+   27.398 topology: 4 namespaces, 205 addresses, verified in 4.6 s
+   27.422 started the origin as pid 268663
+   27.474 started Nginx (its launcher returned after 0.05 s)
+   32.329 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   35.902 started the daemon as pid 268708: ready after 3.6 s, XDP program 101 on veth_server
+   35.992 launched 32 legit streams
+   68.680 launched 2 attack streams
+  145.891 timeline over after 110.0 s
+  147.014 stopped the daemon (pid 268708) in 1.12 s: exit 0; XDP off veth_server: done
+  147.328 stopped 1 process(es) of this run in 0.30 s
+  147.384 wall time of 2 stream(s) raised to what their records need, by up to 0.12 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  147.460 nginx access log: 4919 lines (0 unparsed), server_requests.csv written, log compressed
+  147.465 run.json written; the run is UNSOUND: the attack began -0.52 s from the end of the baseline (limit 0.5 s)
+  147.488 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  147.507 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  147.576 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.01 s
+  147.607 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 0.1 s in all)

@@ -1,0 +1,41 @@
+{
+ "aborted": "M_xdp",
+ "attempt": 1,
+ "block": 5,
+ "calibration_sha256": "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c",
+ "complete": true,
+ "confirmation": null,
+ "finished_utc": "2026-11-16T15:42:11+00:00",
+ "order": [
+  "M_xdp"
+ ],
+ "overrides": {},
+ "plan_sha256": "b8a39255f651a092d45cb4577df56c926132650a606c800dd7113200422cc118",
+ "planned_order": [
+  "M_xdp",
+  "C",
+  "U",
+  "Cp"
+ ],
+ "runs": {
+  "M_xdp": {
+   "ok": false,
+   "reasons": [
+    "the attack began -0.52 s from the end of the baseline (limit 0.5 s)"
+   ],
+   "seconds": 147.5,
+   "setup_retries": 0,
+   "timer_refused_probes": 0,
+   "timer_waited_s": 2.2
+  }
+ },
+ "scenario": "cheap_static_flood_hg4",
+ "scenario_sha256": "aa43c8444ea6097681cb8da1d3174c070ccaf74b141cb989e636dd2a602e644c",
+ "seed": 5,
+ "seed_namespace": "calib",
+ "timeline": {
+  "attack_s": 45.0,
+  "baseline_s": 30.0,
+  "recovery_s": 30.0
+ }
+}

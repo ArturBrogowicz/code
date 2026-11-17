@@ -1,0 +1,45 @@
+p22b_launch pid 680860 start 2026-11-16T17:28:49Z AP-18 pin 18386ed1a505a8babb4f9dc6c86d19cb6ffe49b6 record bench/calibration/ddos-mitigation-2026-11-16.json campaign /var/tmp/ddos_campaigns/hg4_mvp_xdp_recal2 max packets 3; uptime 22153.47 s
+2026-11-16T17:28:49Z uptime 22153.49 s; waiting 180 s for the orchestrator's turn to end
+== P2-2 packet 1 start 2026-11-16T17:31:49Z load 0.07 0.37 0.74
+OK  tree
+OK  frozen hashes
+OK  host (kernel 7.0.0-42-generic, MemTotal 7422 MiB, CPU AMD Ryzen 7 7730U with Radeon Graphics, VirtualBox host 7.2.10r174163)
+OK  uptime
+OK  chrony
+OK  timers
+OK  jobs
+OK  testbed
+OK  quiet
+OK  record
+packet P2-2 started (pid 683214), detached; its log: /var/tmp/ddos_campaigns/hg4_mvp_xdp_recal2.packets/P2-2_20261116T173249Z.log
+stop it with sudo kill -TERM 683214: the step's process gets the TERM and takes the testbed down, no further step starts,
+and the tar, its sha256 and the summary are still written; the same command resumes
+P2-2 packet 1 foreground exit 0 2026-11-16T17:32:49Z
+P2-2 packet 1 running: stage pid 683214, log /var/tmp/ddos_campaigns/hg4_mvp_xdp_recal2.packets/P2-2_20261116T173249Z.log; stop with: sudo kill -TERM 683214, then pkill -f p22b_launch.sh
+P2-2 packet 1 stage ended 2026-11-16T18:58:50Z
+  146.403 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)
+2026-11-16T18:58:21Z exit 4
+PACKET P2-2 paused (exit 4): runs made 29, host-invalid 0; 85 min; tar /var/tmp/ddos_campaigns/hg4_mvp_xdp_recal2.packets/P2-2_20261116T173249Z.tar.gz, sha256 6e0f954802f5f2e3
+P2-2 paused by its budget: packet 2 in 120 s
+== P2-2 packet 2 start 2026-11-16T19:00:50Z load 0.52 2.29 2.30
+OK  tree
+OK  frozen hashes
+OK  host (kernel 7.0.0-42-generic, MemTotal 7422 MiB, CPU AMD Ryzen 7 7730U with Radeon Graphics, VirtualBox host 7.2.10r174163)
+OK  uptime
+OK  chrony
+OK  timers
+OK  jobs
+OK  testbed
+OK  quiet
+OK  record
+packet P2-2 started (pid 697359), detached; its log: /var/tmp/ddos_campaigns/hg4_mvp_xdp_recal2.packets/P2-2_20261116T190150Z.log
+stop it with sudo kill -TERM 697359: the step's process gets the TERM and takes the testbed down, no further step starts,
+and the tar, its sha256 and the summary are still written; the same command resumes
+P2-2 packet 2 foreground exit 0 2026-11-16T19:01:50Z
+P2-2 packet 2 running: stage pid 697359, log /var/tmp/ddos_campaigns/hg4_mvp_xdp_recal2.packets/P2-2_20261116T190150Z.log; stop with: sudo kill -TERM 697359, then pkill -f p22b_launch.sh
+P2-2 packet 2 stage ended 2026-11-16T19:40:50Z
+P2 outcome of M_xdp: NOT MET
+2026-11-16T19:40:31Z exit 0
+PACKET P2-2 done (exit 0): runs made 12, host-invalid 0; 38 min; tar /var/tmp/ddos_campaigns/hg4_mvp_xdp_recal2.packets/P2-2_20261116T190150Z.tar.gz, sha256 f8ebc32221d9b355
+P2-2 done after 2 packet(s)
+p22b_launch all done 2026-11-16T19:40:50Z

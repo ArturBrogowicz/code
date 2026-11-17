@@ -1,0 +1,873 @@
+{
+ "attempts": [
+  {
+   "arm_reasons": [],
+   "attempt": 1,
+   "block": 1,
+   "dL": 3.4535082782089805,
+   "dQ": 98.72568745808182,
+   "dQ_placebo": 0.0,
+   "order": [
+    "Cp",
+    "M_xdp",
+    "U",
+    "C"
+   ],
+   "reasons": [],
+   "seed": 1,
+   "valid": true,
+   "valid_all": true,
+   "waits": {
+    "runs": {
+     "C": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 496.2,
+      "waited_s": 2.2
+     },
+     "Cp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 0.0,
+      "waited_s": 2.2
+     },
+     "M_xdp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 169.8,
+      "waited_s": 2.2
+     },
+     "U": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 333.5,
+      "waited_s": 2.2
+     }
+    },
+    "t0_span_s": 496.2
+   }
+  },
+  {
+   "arm_reasons": [],
+   "attempt": 1,
+   "block": 2,
+   "dL": 3.2422517575465464,
+   "dQ": 97.82082324455206,
+   "dQ_placebo": 0.0,
+   "order": [
+    "C",
+    "M_xdp",
+    "Cp",
+    "U"
+   ],
+   "reasons": [],
+   "seed": 2,
+   "valid": true,
+   "valid_all": true,
+   "waits": {
+    "runs": {
+     "C": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 0.0,
+      "waited_s": 2.2
+     },
+     "Cp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 329.3,
+      "waited_s": 2.2
+     },
+     "M_xdp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 165.6,
+      "waited_s": 2.2
+     },
+     "U": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 491.9,
+      "waited_s": 2.2
+     }
+    },
+    "t0_span_s": 491.9
+   }
+  },
+  {
+   "arm_reasons": [],
+   "attempt": 1,
+   "block": 3,
+   "dL": 4.877529546876303,
+   "dQ": 98.79206212251941,
+   "dQ_placebo": 0.0,
+   "order": [
+    "Cp",
+    "C",
+    "U",
+    "M_xdp"
+   ],
+   "reasons": [],
+   "seed": 3,
+   "valid": true,
+   "valid_all": true,
+   "waits": {
+    "runs": {
+     "C": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 163.4,
+      "waited_s": 2.2
+     },
+     "Cp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 0.0,
+      "waited_s": 2.2
+     },
+     "M_xdp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 494.6,
+      "waited_s": 2.2
+     },
+     "U": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 326.8,
+      "waited_s": 2.2
+     }
+    },
+    "t0_span_s": 494.6
+   }
+  },
+  {
+   "arm_reasons": [],
+   "attempt": 1,
+   "block": 4,
+   "dL": 3.266338002009046,
+   "dQ": 98.96907216494846,
+   "dQ_placebo": 0.0,
+   "order": [
+    "Cp",
+    "U",
+    "M_xdp",
+    "C"
+   ],
+   "reasons": [],
+   "seed": 4,
+   "valid": true,
+   "valid_all": true,
+   "waits": {
+    "runs": {
+     "C": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 493.0,
+      "waited_s": 2.2
+     },
+     "Cp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 0.0,
+      "waited_s": 2.2
+     },
+     "M_xdp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 329.4,
+      "waited_s": 2.2
+     },
+     "U": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 162.5,
+      "waited_s": 2.2
+     }
+    },
+    "t0_span_s": 493.0
+   }
+  },
+  {
+   "arm_reasons": [],
+   "attempt": 1,
+   "block": 5,
+   "dL": 2.6755341714895806,
+   "dQ": 98.25581395348837,
+   "dQ_placebo": 0.07251631617113219,
+   "order": [
+    "M_xdp",
+    "C",
+    "U",
+    "Cp"
+   ],
+   "reasons": [],
+   "seed": 5,
+   "valid": true,
+   "valid_all": true,
+   "waits": {
+    "runs": {
+     "C": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 166.3,
+      "waited_s": 2.2
+     },
+     "Cp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 494.8,
+      "waited_s": 2.2
+     },
+     "M_xdp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 0.0,
+      "waited_s": 2.2
+     },
+     "U": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 329.9,
+      "waited_s": 2.2
+     }
+    },
+    "t0_span_s": 494.8
+   }
+  },
+  {
+   "arm_reasons": [],
+   "attempt": 1,
+   "block": 6,
+   "dL": 3.2131007168770482,
+   "dQ": 97.79338014042126,
+   "dQ_placebo": 0.0,
+   "order": [
+    "Cp",
+    "M_xdp",
+    "U",
+    "C"
+   ],
+   "reasons": [],
+   "seed": 6,
+   "valid": true,
+   "valid_all": true,
+   "waits": {
+    "runs": {
+     "C": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 495.7,
+      "waited_s": 2.2
+     },
+     "Cp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 0.0,
+      "waited_s": 2.2
+     },
+     "M_xdp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 168.8,
+      "waited_s": 2.2
+     },
+     "U": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 332.4,
+      "waited_s": 2.2
+     }
+    },
+    "t0_span_s": 495.7
+   }
+  },
+  {
+   "arm_reasons": [],
+   "attempt": 1,
+   "block": 7,
+   "dL": 3.105580397531168,
+   "dQ": 99.09539473684211,
+   "dQ_placebo": 0.0,
+   "order": [
+    "M_xdp",
+    "C",
+    "Cp",
+    "U"
+   ],
+   "reasons": [],
+   "seed": 7,
+   "valid": true,
+   "valid_all": true,
+   "waits": {
+    "runs": {
+     "C": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 167.3,
+      "waited_s": 2.2
+     },
+     "Cp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 329.8,
+      "waited_s": 2.2
+     },
+     "M_xdp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 0.0,
+      "waited_s": 2.2
+     },
+     "U": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 495.1,
+      "waited_s": 2.2
+     }
+    },
+    "t0_span_s": 495.1
+   }
+  },
+  {
+   "arm_reasons": [],
+   "attempt": 1,
+   "block": 8,
+   "dL": 3.0980706785701644,
+   "dQ": 98.32669322709164,
+   "dQ_placebo": 0.0,
+   "order": [
+    "Cp",
+    "M_xdp",
+    "U",
+    "C"
+   ],
+   "reasons": [],
+   "seed": 8,
+   "valid": true,
+   "valid_all": true,
+   "waits": {
+    "runs": {
+     "C": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 496.8,
+      "waited_s": 2.2
+     },
+     "Cp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 0.0,
+      "waited_s": 2.2
+     },
+     "M_xdp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 168.5,
+      "waited_s": 2.2
+     },
+     "U": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 333.8,
+      "waited_s": 2.2
+     }
+    },
+    "t0_span_s": 496.8
+   }
+  },
+  {
+   "arm_reasons": [],
+   "attempt": 1,
+   "block": 9,
+   "dL": 3.025053005774811,
+   "dQ": 98.69784124915533,
+   "dQ_placebo": -0.08688097306689713,
+   "order": [
+    "C",
+    "U",
+    "M_xdp",
+    "Cp"
+   ],
+   "reasons": [],
+   "seed": 9,
+   "valid": true,
+   "valid_all": true,
+   "waits": {
+    "runs": {
+     "C": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 0.0,
+      "waited_s": 2.2
+     },
+     "Cp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 496.5,
+      "waited_s": 2.2
+     },
+     "M_xdp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 332.8,
+      "waited_s": 2.2
+     },
+     "U": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 165.4,
+      "waited_s": 2.2
+     }
+    },
+    "t0_span_s": 496.5
+   }
+  },
+  {
+   "arm_reasons": [],
+   "attempt": 1,
+   "block": 10,
+   "dL": 3.383528554863533,
+   "dQ": 98.43860894251242,
+   "dQ_placebo": 0.0,
+   "order": [
+    "M_xdp",
+    "Cp",
+    "U",
+    "C"
+   ],
+   "reasons": [],
+   "seed": 10,
+   "valid": true,
+   "valid_all": true,
+   "waits": {
+    "runs": {
+     "C": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 488.4,
+      "waited_s": 2.2
+     },
+     "Cp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 163.8,
+      "waited_s": 2.2
+     },
+     "M_xdp": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 0.0,
+      "waited_s": 2.2
+     },
+     "U": {
+      "earlier": [],
+      "refused_probes": 0,
+      "t0_after_first_s": 325.1,
+      "waited_s": 2.2
+     }
+    },
+    "t0_span_s": 488.4
+   }
+  }
+ ],
+ "created_utc": "2026-11-16T17:38:27+00:00",
+ "fingerprint": {
+  "blocks": 10,
+  "calibration_sha256": "7005a2edfcbf0acae1737b0a384f52aaa28169f6193fdd56e53eb48d4f2fb01c",
+  "calibration_status": "frozen",
+  "confirmation": null,
+  "first_seed": 1,
+  "gate": {
+   "ci_level": 0.95,
+   "control_q_min": 99.0,
+   "floor_log2_p95": 1.0,
+   "floor_pp": 10.0,
+   "max_reruns": 2,
+   "min_blocks": 10,
+   "same_sign_share": 0.8
+  },
+  "host_check": true,
+  "modes": [
+   "xdp"
+  ],
+  "pins": {
+   "attack": "3-5",
+   "daemon": "2",
+   "executor": "6",
+   "legit": "7",
+   "server": "0-1"
+  },
+  "rho_rps": null,
+  "scenario": "cheap_static_flood_hg4",
+  "scenario_sha256": "aa43c8444ea6097681cb8da1d3174c070ccaf74b141cb989e636dd2a602e644c",
+  "seed_namespace": "calib",
+  "settings": {
+   "attack_start_limit_s": 0.5,
+   "exit_delay_per_request_s": 8e-06,
+   "group_start_limit_s": 0.5,
+   "min_nofile": 16384,
+   "readiness_timeout_s": 30.0,
+   "startup_delay_attack_s": 0.15,
+   "startup_delay_legit_s": 2.9,
+   "straggler_share": 0.5,
+   "straggler_tail_s": 0.1,
+   "t0_range_limit_s": 2.5,
+   "t0_spread_limit_s": 0.5,
+   "term_grace_s": 2.0,
+   "warmup_requests": 2
+  },
+  "simulate": null,
+  "timeline": {
+   "attack_s": 45.0,
+   "baseline_s": 30.0,
+   "recovery_s": 30.0
+  },
+  "timer_limit_ms": null,
+  "warmup": true
+ },
+ "gate": {
+  "blocks_total": 10,
+  "blocks_valid": 10,
+  "dry_run": false,
+  "overrides": {},
+  "protected": [
+   {
+    "mode": "xdp",
+    "reasons": [],
+    "verdict": "NOT MET"
+   }
+  ],
+  "reasons": [],
+  "reruns": 0,
+  "verdict": "PASS"
+ },
+ "git": {
+  "branch": "HEAD",
+  "commit": "18386ed1a505a8babb4f9dc6c86d19cb6ffe49b6",
+  "dirty": false,
+  "dirty_files": []
+ },
+ "reruns": 0,
+ "simulated": null,
+ "state": "complete",
+ "stopped": null,
+ "warmup": {
+  "finished_utc": "2026-11-16T17:41:12+00:00",
+  "host": {
+   "ok": true,
+   "other_cpu": [
+    {
+     "pct": 4.1,
+     "t": 1794850717.0,
+     "top": [
+      [
+       4.1,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ]
+     ]
+    },
+    {
+     "pct": 1.0,
+     "t": 1794850727.0,
+     "top": [
+      [
+       0.9,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ],
+      [
+       0.1,
+       "/usr/sbin/multipathd -d -s"
+      ]
+     ]
+    },
+    {
+     "pct": 3.1,
+     "t": 1794850737.0,
+     "top": [
+      [
+       1.0,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ],
+      [
+       0.4,
+       "/usr/lib/systemd/systemd-udevd"
+      ],
+      [
+       0.4,
+       "/usr/lib/systemd/systemd --switched-root --system --deserial"
+      ]
+     ]
+    },
+    {
+     "pct": 1.0,
+     "t": 1794850747.0,
+     "top": [
+      [
+       0.9,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ],
+      [
+       0.1,
+       "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+      ]
+     ]
+    },
+    {
+     "pct": 0.6,
+     "t": 1794850757.0,
+     "top": [
+      [
+       0.6,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ]
+     ]
+    },
+    {
+     "pct": 0.5,
+     "t": 1794850767.0,
+     "top": [
+      [
+       0.5,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ]
+     ]
+    },
+    {
+     "pct": 1.0,
+     "t": 1794850777.0,
+     "top": [
+      [
+       0.9,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ],
+      [
+       0.1,
+       "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+      ]
+     ]
+    },
+    {
+     "pct": 0.7,
+     "t": 1794850787.0,
+     "top": [
+      [
+       0.7,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ]
+     ]
+    },
+    {
+     "pct": 0.9,
+     "t": 1794850797.0,
+     "top": [
+      [
+       0.9,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ]
+     ]
+    },
+    {
+     "pct": 0.9,
+     "t": 1794850807.0,
+     "top": [
+      [
+       0.9,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ]
+     ]
+    },
+    {
+     "pct": 1.0,
+     "t": 1794850817.0,
+     "top": [
+      [
+       1.0,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ]
+     ]
+    },
+    {
+     "pct": 0.8,
+     "t": 1794850827.0,
+     "top": [
+      [
+       0.8,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ]
+     ]
+    },
+    {
+     "pct": 1.2,
+     "t": 1794850837.0,
+     "top": [
+      [
+       1.0,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ],
+      [
+       0.1,
+       "/usr/lib/systemd/systemd-journald"
+      ],
+      [
+       0.1,
+       "/usr/lib/systemd/systemd --switched-root --system --deserial"
+      ]
+     ]
+    },
+    {
+     "pct": 0.8,
+     "t": 1794850847.0,
+     "top": [
+      [
+       0.8,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ]
+     ]
+    },
+    {
+     "pct": 2.1,
+     "t": 1794850857.0,
+     "top": [
+      [
+       0.8,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ],
+      [
+       0.2,
+       "/usr/libexec/udisks2/udisksd"
+      ],
+      [
+       0.2,
+       "/usr/lib/systemd/systemd-udevd"
+      ]
+     ]
+    },
+    {
+     "pct": 1.1,
+     "t": 1794850867.0,
+     "top": [
+      [
+       1.0,
+       "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+      ],
+      [
+       0.1,
+       "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+      ]
+     ]
+    }
+   ],
+   "reasons": [],
+   "rules": {
+    "H1": {
+     "ok": true,
+     "reasons": []
+    },
+    "H3": {
+     "ok": true,
+     "reasons": []
+    },
+    "H4": {
+     "ok": true,
+     "reasons": []
+    },
+    "H5": {
+     "ok": true,
+     "reasons": []
+    },
+    "H6": {
+     "ok": true,
+     "reasons": []
+    },
+    "H7": {
+     "ok": true,
+     "reasons": []
+    }
+   },
+   "slip_p99_s": 0.012641019999998664,
+   "window": {
+    "end": "2026-11-16T17:41:10+00:00",
+    "start": "2026-11-16T17:38:32+00:00"
+   }
+  },
+  "ok": true,
+  "reasons": [],
+  "seconds": 144.9,
+  "setup_retries": 0,
+  "speed": {
+   "after": {
+    "cpus": {
+     "0": {
+      "C0": 0.00546176562500264,
+      "C1": 5.111893999999673,
+      "C2": 2.669925000000184,
+      "C3": 42.19434499999952,
+      "C5": 233.5902919999997
+     },
+     "1": {
+      "C0": 0.005479414062498772,
+      "C1": 5.048806000000017,
+      "C2": 2.6401100000015276,
+      "C3": 42.601118000000326,
+      "C5": 229.41611600000033
+     }
+    },
+    "errors": {},
+    "t_end": 1794850870.5564647,
+    "t_start": 1794850852.4641535,
+    "utc_end": "2026-11-16T17:41:10+00:00",
+    "utc_start": "2026-11-16T17:40:52+00:00"
+   },
+   "before": {
+    "cpus": {
+     "0": {
+      "C0": 0.005435542968747903,
+      "C1": 5.063161999999011,
+      "C2": 2.632846000000022,
+      "C3": 42.4956200000004,
+      "C5": 229.65509399999996
+     },
+     "1": {
+      "C0": 0.005503871093749668,
+      "C1": 5.205959999999621,
+      "C2": 2.700072000000109,
+      "C3": 43.24603700000029,
+      "C5": 236.28082600000067
+     }
+    },
+    "errors": {},
+    "t_end": 1794850730.2907276,
+    "t_start": 1794850712.0905252,
+    "utc_end": "2026-11-16T17:38:50+00:00",
+    "utc_start": "2026-11-16T17:38:32+00:00"
+   },
+   "d_after": -0.004660730408412972,
+   "d_before": 0.004034873001137834,
+   "in_run": {
+    "frozen_cost_s": 41.110114868086626,
+    "index": 1.0932091078852222,
+    "origin_cpu_s": 44.94195199999999
+   },
+   "limit": 0.1,
+   "ok": true,
+   "reasons": [],
+   "reference": "the frozen record 7005a2ed",
+   "reference_costs_ms": {
+    "C0": 0.005546960937498346,
+    "C1": 5.112814999999937,
+    "C2": 2.6510200000000594,
+    "C3": 42.71167500000139,
+    "C5": 231.9604360000005
+   },
+   "window": {
+    "end": "2026-11-16T17:41:10+00:00",
+    "start": "2026-11-16T17:38:32+00:00",
+    "t_end": 1794850870.5564647,
+    "t_start": 1794850712.0905252
+   }
+  },
+  "timer_refused_probes": 0,
+  "timer_waited_s": 2.2
+ }
+}

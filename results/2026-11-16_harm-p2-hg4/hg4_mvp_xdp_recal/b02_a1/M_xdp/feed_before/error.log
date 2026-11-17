@@ -1,0 +1,828 @@
+2026/11/16 14:50:52 [error] 260173#260173: *1 connect() failed (111: Connection refused) while connecting to upstream, client: 10.0.0.1, server: twojadomena.pl, request: "GET /static/1 HTTP/1.1", upstream: "http://127.0.0.1:8080/static/1", host: "10.0.0.1"
+2026/11/16 14:50:52 [info] 260173#260173: *1 client 10.0.0.1 closed keepalive connection
+2026/11/16 14:50:54 [info] 260173#260173: *3 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too while sending request to upstream, client: 10.0.0.1, server: twojadomena.pl, request: "GET /static/1 HTTP/1.1", upstream: "http://127.0.0.1:8080/static/1", host: "10.0.0.1"
+2026/11/16 14:50:55 [info] 260173#260173: *5 client 10.0.0.1 closed keepalive connection
+2026/11/16 14:50:55 [info] 260173#260173: *7 client 10.0.0.1 closed keepalive connection
+2026/11/16 14:50:55 [info] 260173#260173: *9 client 10.0.0.1 closed keepalive connection
+2026/11/16 14:50:55 [info] 260173#260173: *11 client 10.0.0.1 closed keepalive connection
+2026/11/16 14:50:55 [info] 260173#260173: *13 client 10.0.0.1 closed keepalive connection
+2026/11/16 14:50:56 [info] 260173#260173: *15 client 10.0.0.1 closed keepalive connection
+2026/11/16 14:50:56 [info] 260173#260173: *17 client 10.0.0.1 closed keepalive connection
+2026/11/16 14:50:56 [info] 260173#260173: *19 client 10.0.0.1 closed keepalive connection
+2026/11/16 14:50:56 [info] 260173#260173: *21 client 10.0.0.1 closed keepalive connection
+2026/11/16 14:50:56 [info] 260173#260173: *23 client 10.0.0.1 closed keepalive connection
+2026/11/16 14:50:56 [info] 260173#260173: *25 client 10.0.0.1 closed keepalive connection
+2026/11/16 14:50:56 [info] 260173#260173: *27 client 10.0.0.1 closed keepalive connection
+2026/11/16 14:50:56 [info] 260173#260173: *29 client 10.0.0.1 closed keepalive connection
+2026/11/16 14:50:56 [info] 260173#260173: *31 client 10.0.0.1 closed keepalive connection
+2026/11/16 14:50:56 [info] 260173#260173: *33 client 10.0.0.1 closed keepalive connection
+2026/11/16 14:50:57 [info] 260173#260173: *35 client 10.0.0.1 closed keepalive connection
+2026/11/16 14:51:05 [warn] 260173#260173: *184 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/00/0000000001 while reading upstream, client: 10.0.1.11, server: twojadomena.pl, request: "GET /export?r=880 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=880", host: "10.0.0.1"
+2026/11/16 14:51:05 [warn] 260173#260173: *178 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/00/0000000002 while reading upstream, client: 10.0.1.13, server: twojadomena.pl, request: "GET /export?r=260 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=260", host: "10.0.0.1"
+2026/11/16 14:51:09 [warn] 260173#260173: *482 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/00/0000000003 while reading upstream, client: 10.0.1.22, server: twojadomena.pl, request: "GET /export?r=95 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=95", host: "10.0.0.1"
+2026/11/16 14:51:12 [warn] 260173#260173: *677 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/00/0000000004 while reading upstream, client: 10.0.1.84, server: twojadomena.pl, request: "GET /export?r=515 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=515", host: "10.0.0.1"
+2026/11/16 14:51:22 [warn] 260173#260173: *1213 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/00/0000000005 while reading upstream, client: 10.0.1.14, server: twojadomena.pl, request: "GET /export?r=8 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=8", host: "10.0.0.1"
+2026/11/16 14:51:25 [warn] 260173#260173: *1337 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/00/0000000006 while reading upstream, client: 10.0.1.23, server: twojadomena.pl, request: "GET /export?r=550 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=550", host: "10.0.0.1"
+2026/11/16 14:51:27 [warn] 260173#260173: *1447 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/00/0000000007 while reading upstream, client: 10.0.1.80, server: twojadomena.pl, request: "GET /export?r=127 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=127", host: "10.0.0.1"
+2026/11/16 14:51:28 [warn] 260173#260173: *1481 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/00/0000000008 while reading upstream, client: 10.0.1.128, server: twojadomena.pl, request: "GET /export?r=497 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=497", host: "10.0.0.1"
+2026/11/16 14:51:29 [warn] 260173#260173: *1502 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/00/0000000009 while reading upstream, client: 10.0.1.46, server: twojadomena.pl, request: "GET /export?r=862 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=862", host: "10.0.0.1"
+2026/11/16 14:51:31 [warn] 260173#260173: *1591 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/01/0000000010 while reading upstream, client: 10.0.1.114, server: twojadomena.pl, request: "GET /export?r=868 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=868", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260176#260176: *2226 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/62461 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260176#260176: *2228 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/80339 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260173#260173: *2234 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/55463 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260174#260174: *1874 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/29890 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260174#260174: *1814 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/28464 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260176#260176: *2243 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/53809 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260173#260173: *2234 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/47397 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260176#260176: *2228 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/24148 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *2228 client 10.0.2.65 closed keepalive connection
+2026/11/16 14:51:34 [info] 260173#260173: *2234 client 10.0.2.65 closed keepalive connection
+2026/11/16 14:51:34 [error] 260174#260174: *1814 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/63080 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260176#260176: *2226 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/3830 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260174#260174: *1872 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/62461 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260173#260173: *1850 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/63080 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260173#260173: *2302 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/1386 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260174#260174: *2306 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/71982 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2302 client 10.0.2.65 closed keepalive connection
+2026/11/16 14:51:34 [info] 260173#260173: *2020 client 10.0.2.65 closed keepalive connection
+2026/11/16 14:51:34 [info] 260174#260174: *2306 client 10.0.2.65 closed keepalive connection
+2026/11/16 14:51:34 [info] 260173#260173: *1824 client 10.0.2.65 closed keepalive connection
+2026/11/16 14:51:34 [error] 260173#260173: *1729 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/55463 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260176#260176: *2226 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/39010 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260176#260176: *2226 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/3716 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260173#260173: *1729 limiting connections by zone "connlimit", client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/76799 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [alert] 260173#260173: *1729 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.65, server: 0.0.0.0:80
+2026/11/16 14:51:34 [info] 260174#260174: *1874 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/57856 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/57856", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1916 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/64886 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/64886", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2146 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/17064 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/17064", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1883 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/63080 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/63080", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2094 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/91582 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/91582", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1866 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/27610 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/27610", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1872 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/43307 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/43307", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1795 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/24148 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/24148", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2116 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/34636 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/34636", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2205 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/64886 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/64886", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2198 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/67814 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/67814", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1995 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while reading upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/59484 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/59484", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2118 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/17560 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/17560", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2014 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/91582 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/91582", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2121 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/55463 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/55463", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1814 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/29911 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/29911", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1807 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/83549 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/83549", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2199 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/94091 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/94091", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2058 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/53809 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/53809", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2206 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/50466 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/50466", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2128 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/94091 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/94091", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2000 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while reading upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/39010 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/39010", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2112 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/12166 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/12166", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260175#260175: *2258 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/81537 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/81537", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1768 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/6415 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/6415", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1913 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/53563 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/53563", host: "10.0.0.1"
+2026/11/16 14:51:34 [alert] 260173#260173: *1997 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.65, server: 0.0.0.0:80
+2026/11/16 14:51:34 [info] 260173#260173: *2193 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/59484 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/59484", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2192 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/23123 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/23123", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1816 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/82386 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/82386", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1736 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/7671 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/7671", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1825 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/69466 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/69466", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2045 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/43307 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/43307", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2040 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/32823 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/32823", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1980 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/98493 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/98493", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1735 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/94091 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/94091", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2151 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/6998 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/6998", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2060 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/50466 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/50466", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1798 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/18142 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/18142", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1850 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/76182 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/76182", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1993 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/84072 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/84072", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1751 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/11656 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/11656", host: "10.0.0.1"
+2026/11/16 14:51:34 [alert] 260173#260173: *1754 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.65, server: 0.0.0.0:80
+2026/11/16 14:51:34 [alert] 260173#260173: *1781 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.65, server: 0.0.0.0:80
+2026/11/16 14:51:34 [info] 260176#260176: *2307 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/62461 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/62461", host: "10.0.0.1"
+2026/11/16 14:51:34 [alert] 260176#260176: *2226 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.65, server: 0.0.0.0:80
+2026/11/16 14:51:34 [info] 260176#260176: *1812 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/57856 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/57856", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *2243 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/17064 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/17064", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *2222 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/12166 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/12166", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *2227 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/80932 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/80932", host: "10.0.0.1"
+2026/11/16 14:51:34 [alert] 260176#260176: *1983 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.65, server: 0.0.0.0:80
+2026/11/16 14:51:34 [info] 260176#260176: *1818 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/16083 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/16083", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *2051 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/74810 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/74810", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *2010 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.65, server: twojadomena.pl, request: "GET /page/64886 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/64886", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *2025 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/72343 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/72343", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2088 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/16596 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/16596", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *2319 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/19457 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/19457", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1933 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/40623 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/40623", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *2011 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/82635 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/82635", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2084 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/51175 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/51175", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1800 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/99413 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/99413", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260175#260175: *2388 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/72937 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/72937", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1739 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/34531 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/34531", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2182 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/66468 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/66468", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2270 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/69681 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/69681", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *2041 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/82905 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/82905", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2384 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/91299 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/91299", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *1902 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/667 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/667", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1981 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/91352 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/91352", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1762 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/33478 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/33478", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2322 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/73724 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/73724", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1747 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while reading upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/12420 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/12420", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2102 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/69978 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/69978", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2098 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/13981 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/13981", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2201 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/9010 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/9010", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1787 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/63170 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/63170", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2237 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/56543 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/56543", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1833 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/68345 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/68345", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1897 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/10339 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/10339", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2215 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/96569 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/96569", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1777 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/48398 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/48398", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1841 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/69681 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/69681", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1938 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/24909 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/24909", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1774 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/82697 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/82697", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1707 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/96569 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/96569", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1991 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/82905 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/82905", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1713 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/2484 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/2484", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2144 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/7830 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/7830", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2188 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/96569 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/96569", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1770 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/63170 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/63170", host: "10.0.0.1"
+2026/11/16 14:51:34 [alert] 260173#260173: *2034 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.181, server: 0.0.0.0:80
+2026/11/16 14:51:34 [info] 260173#260173: *1909 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/75517 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/75517", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1701 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/51814 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/51814", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1726 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/97581 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/97581", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1827 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/56543 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/56543", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2313 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/55334 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/55334", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1930 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/32947 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/32947", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1861 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/24034 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/24034", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2073 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/89257 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/89257", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2126 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/51175 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/51175", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1756 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/43700 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/43700", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2132 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.181, server: twojadomena.pl, request: "GET /page/28049 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/28049", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260173#260173: *2401 limiting connections by zone "connlimit", client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/68824 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260173#260173: *2401 limiting connections by zone "connlimit", client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/54925 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260173#260173: *2407 limiting connections by zone "connlimit", client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/59977 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260173#260173: *2407 limiting connections by zone "connlimit", client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/51814 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260173#260173: *2401 limiting connections by zone "connlimit", client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/46193 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260173#260173: *2401 limiting connections by zone "connlimit", client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/72937 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *2218 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/50025 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/50025", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260175#260175: *2260 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/97335 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/97335", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *2024 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/25647 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/25647", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260175#260175: *2387 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/40623 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/40623", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *1878 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/22634 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/22634", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *1776 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/75517 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/75517", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *2105 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/52237 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/52237", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1887 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/12420 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/12420", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2076 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/19457 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/19457", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1832 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/51814 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/51814", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2269 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/82697 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/82697", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2393 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/52306 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/52306", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2200 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/50791 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/50791", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2253 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/31969 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/31969", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2214 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/63894 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/63894", host: "10.0.0.1"
+2026/11/16 14:51:34 [alert] 260174#260174: *2018 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.227, server: 0.0.0.0:80
+2026/11/16 14:51:34 [info] 260174#260174: *1896 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/77959 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/77959", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1837 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/68824 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/68824", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2097 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/32140 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/32140", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1852 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/99334 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/99334", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1741 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/99334 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/99334", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2069 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/69978 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/69978", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1901 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/52237 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/52237", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1875 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/17923 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/17923", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2101 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/35226 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/35226", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1926 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/47729 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/47729", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1738 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/72715 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/72715", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2181 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/66672 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/66672", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1712 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/68345 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/68345", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1785 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/54925 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/54925", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1732 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/75517 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/75517", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2399 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/72343 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/72343", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2175 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/22634 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/22634", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1854 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/75517 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/75517", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2291 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/667 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/667", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2057 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/97581 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/97581", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2168 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/58238 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/58238", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2249 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/56543 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/56543", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2282 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/28049 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/28049", host: "10.0.0.1"
+2026/11/16 14:51:34 [alert] 260173#260173: *2407 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.227, server: 0.0.0.0:80
+2026/11/16 14:51:34 [info] 260173#260173: *2009 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/68345 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/68345", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2346 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/89257 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/89257", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1791 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/13981 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/13981", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1923 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/48686 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/48686", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1865 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/74058 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/74058", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1706 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/87517 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/87517", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2031 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/82697 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/82697", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1908 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/22634 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/22634", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1715 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/99334 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/99334", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2082 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/68824 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/68824", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1755 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.227, server: twojadomena.pl, request: "GET /page/51814 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/51814", host: "10.0.0.1"
+2026/11/16 14:51:34 [error] 260173#260173: *2401 limiting connections by zone "connlimit", client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/74058 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *2229 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/34239 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/34239", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *2339 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/46957 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/46957", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260176#260176: *1900 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/97581 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/97581", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260175#260175: *2386 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/63894 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/63894", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260175#260175: *2259 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/3682 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/3682", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2085 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/47729 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/47729", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1884 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/70229 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/70229", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1934 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/41560 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/41560", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1848 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/66468 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/66468", host: "10.0.0.1"
+2026/11/16 14:51:34 [alert] 260174#260174: *2017 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.219, server: 0.0.0.0:80
+2026/11/16 14:51:34 [info] 260174#260174: *2004 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/24034 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/24034", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1737 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/57225 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/57225", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2392 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/97581 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/97581", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2381 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/8961 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/8961", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1710 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/32947 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/32947", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2113 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/96569 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/96569", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2036 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while reading upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/28049 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/28049", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1985 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/57225 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/57225", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1853 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/76349 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/76349", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2252 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/13981 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/13981", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1836 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/72937 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/72937", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1740 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/52237 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/52237", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2145 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/91299 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/91299", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2079 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/52237 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/52237", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *2286 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/97335 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/97335", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260174#260174: *1903 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/33478 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/33478", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1703 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/62593 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/62593", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1842 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/66672 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/66672", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1828 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/25551 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/25551", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2143 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/73597 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/73597", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2074 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/73597 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/73597", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1783 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/86775 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/86775", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2092 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/39737 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/39737", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1722 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/34531 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/34531", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2297 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/68345 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/68345", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1890 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/9650 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/9650", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1870 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/50643 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/50643", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2345 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/47729 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/47729", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2030 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/39737 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/39737", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1809 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/99185 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/99185", host: "10.0.0.1"
+2026/11/16 14:51:34 [alert] 260173#260173: *2401 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.219, server: 0.0.0.0:80
+2026/11/16 14:51:34 [info] 260173#260173: *1788 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/48398 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/48398", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2209 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/24034 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/24034", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1893 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/7830 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/7830", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1863 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/66468 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/66468", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1802 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/66468 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/66468", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1975 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/9336 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/9336", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1714 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/19204 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/19204", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *2397 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/99334 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/99334", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1821 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/63894 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/63894", host: "10.0.0.1"
+2026/11/16 14:51:34 [info] 260173#260173: *1753 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.219, server: twojadomena.pl, request: "GET /page/72343 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/72343", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260174#260174: *2533 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/1693 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260173#260173: *2536 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/24326 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260173#260173: *2545 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/12578 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260173#260173: *2552 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/16682 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260173#260173: *2553 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/39223 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260173#260173: *2554 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/73700 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260173#260173: *2525 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/624 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260176#260176: *2562 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/23322 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260174#260174: *2546 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/39892 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260173#260173: *2564 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/75075 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260173#260173: *2109 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/24326 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260173#260173: *2567 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/72083 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260174#260174: *2569 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/80144 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260173#260173: *2556 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/12380 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260173#260173: *2571 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/60440 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260173#260173: *2558 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/82483 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260173#260173: *2550 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/69168 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260173#260173: *2585 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/23322 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260173#260173: *2586 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/20434 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260176#260176: *2600 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/88540 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260174#260174: *2604 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/91837 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [error] 260174#260174: *2605 limiting connections by zone "connlimit", client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/23322 HTTP/1.1", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260176#260176: *2562 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260174#260174: *1988 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/89277 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/89277", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260174#260174: *2448 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260174#260174: *2584 recv() failed (103: Software caused connection abort) while waiting for request, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260174#260174: *2156 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260174#260174: *2409 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/88509 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/88509", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260174#260174: *2604 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260174#260174: *2605 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260173#260173: *2550 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2510 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/37622 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/37622", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260173#260173: *2360 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260173#260173: *2433 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260173#260173: *2139 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2538 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/88509 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/88509", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260173#260173: *2335 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260173#260173: *2568 recv() failed (103: Software caused connection abort) while waiting for request, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2432 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/29887 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/29887", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2551 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/97343 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/97343", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2513 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/42718 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/42718", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2495 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/31190 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/31190", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260173#260173: *2536 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2478 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/23322 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/23322", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2439 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/11606 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/11606", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260173#260173: *2553 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2475 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/37622 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/37622", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260173#260173: *2585 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260175#260175: *2423 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/87446 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/87446", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260173#260173: *2594 recv() failed (103: Software caused connection abort) while waiting for request, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260173#260173: *2552 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2435 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/25977 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/25977", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260175#260175: *2261 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260173#260173: *2162 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260173#260173: *2426 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260173#260173: *2369 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2525 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/50786 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/50786", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260173#260173: *2573 recv() failed (103: Software caused connection abort) while waiting for request, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2453 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while reading upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/48805 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/48805", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2524 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/3921 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/3921", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260173#260173: *2109 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2479 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/90926 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/90926", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260173#260173: *2556 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2471 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while reading upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/42718 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/42718", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2500 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/54528 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/54528", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2529 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/20434 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/20434", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2501 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/40502 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/40502", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2530 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/26822 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/26822", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2545 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/78136 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/78136", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260175#260175: *2424 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260173#260173: *2571 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2486 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/624 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/624", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2358 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/5013 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/5013", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260173#260173: *2455 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2588 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/81484 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/81484", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260173#260173: *2415 recv() failed (103: Software caused connection abort) while waiting for request, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2504 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/39419 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/39419", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2496 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/58303 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/58303", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2463 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/81484 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/81484", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260173#260173: *2586 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260173#260173: *2137 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260173#260173: *2440 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260173#260173: *2371 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260173#260173: *2567 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260173#260173: *2554 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260173#260173: *2564 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2470 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/59962 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/59962", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2522 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/27390 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/27390", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2278 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/61498 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/61498", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260173#260173: *2598 recv() failed (103: Software caused connection abort) while waiting for request, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2191 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while reading upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/76192 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/76192", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260173#260173: *2587 recv() failed (103: Software caused connection abort) while waiting for request, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2296 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/97343 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/97343", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260173#260173: *2558 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2483 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/2286 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/2286", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260173#260173: *2310 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260173#260173: *2593 recv() failed (103: Software caused connection abort) while waiting for request, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260176#260176: *2600 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260176#260176: *2220 recv() failed (103: Software caused connection abort) while waiting for request, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260176#260176: *2221 recv() failed (103: Software caused connection abort) while waiting for request, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260176#260176: *2266 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260176#260176: *2508 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/11606 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/11606", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260176#260176: *2507 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/50725 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/50725", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260176#260176: *2318 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while reading upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/2840 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/2840", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260176#260176: *2242 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260174#260174: *2579 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/30245 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/30245", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260174#260174: *2365 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260174#260174: *2492 recv() failed (103: Software caused connection abort) while waiting for request, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260174#260174: *2095 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260174#260174: *2309 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260174#260174: *2294 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260174#260174: *2532 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/31190 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/31190", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260174#260174: *2515 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/19260 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/19260", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260174#260174: *2546 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260174#260174: *2569 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260174#260174: *2327 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260174#260174: *2458 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260174#260174: *2575 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/2840 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/2840", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260174#260174: *2533 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260174#260174: *2285 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260174#260174: *2403 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/86231 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/86231", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260174#260174: *2595 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/73700 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/73700", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260174#260174: *2468 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while reading upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/3921 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/3921", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260174#260174: *2464 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260174#260174: *2473 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/32262 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/32262", host: "10.0.0.1"
+2026/11/16 14:51:35 [alert] 260174#260174: *2580 recv() failed (103: Software caused connection abort) while waiting for request, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [alert] 260174#260174: *2466 recv() failed (103: Software caused connection abort) while keepalive, client: 10.0.2.180, server: 0.0.0.0:80
+2026/11/16 14:51:35 [info] 260173#260173: *2481 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/90926 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/90926", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2410 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/20434 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/20434", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2461 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while reading upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/82483 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/82483", host: "10.0.0.1"
+2026/11/16 14:51:35 [info] 260173#260173: *2590 epoll_wait() reported that client prematurely closed connection, so upstream connection is closed too (103: Software caused connection abort) while sending request to upstream, client: 10.0.2.180, server: twojadomena.pl, request: "GET /page/37622 HTTP/1.1", upstream: "http://127.0.0.1:8080/page/37622", host: "10.0.0.1"
+2026/11/16 14:51:37 [warn] 260173#260173: *2724 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/01/0000000011 while reading upstream, client: 10.0.1.170, server: twojadomena.pl, request: "GET /export?r=894 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=894", host: "10.0.0.1"
+2026/11/16 14:51:45 [warn] 260173#260173: *3070 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/01/0000000012 while reading upstream, client: 10.0.1.55, server: twojadomena.pl, request: "GET /export?r=769 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=769", host: "10.0.0.1"
+2026/11/16 14:51:47 [warn] 260173#260173: *3170 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/01/0000000013 while reading upstream, client: 10.0.1.183, server: twojadomena.pl, request: "GET /export?r=285 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=285", host: "10.0.0.1"
+2026/11/16 14:51:57 [warn] 260173#260173: *3645 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/01/0000000014 while reading upstream, client: 10.0.1.74, server: twojadomena.pl, request: "GET /export?r=68 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=68", host: "10.0.0.1"
+2026/11/16 14:51:58 [warn] 260173#260173: *3697 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/01/0000000015 while reading upstream, client: 10.0.1.103, server: twojadomena.pl, request: "GET /export?r=73 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=73", host: "10.0.0.1"
+2026/11/16 14:52:02 [warn] 260173#260173: *3847 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/01/0000000016 while reading upstream, client: 10.0.1.75, server: twojadomena.pl, request: "GET /export?r=482 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=482", host: "10.0.0.1"
+2026/11/16 14:52:03 [warn] 260173#260173: *3899 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/01/0000000017 while reading upstream, client: 10.0.1.130, server: twojadomena.pl, request: "GET /export?r=932 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=932", host: "10.0.0.1"
+2026/11/16 14:52:05 [warn] 260173#260173: *3990 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/01/0000000018 while reading upstream, client: 10.0.1.134, server: twojadomena.pl, request: "GET /export?r=550 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=550", host: "10.0.0.1"
+2026/11/16 14:52:05 [warn] 260173#260173: *4050 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/01/0000000019 while reading upstream, client: 10.0.1.139, server: twojadomena.pl, request: "GET /export?r=194 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=194", host: "10.0.0.1"
+2026/11/16 14:52:06 [warn] 260173#260173: *4053 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/02/0000000020 while reading upstream, client: 10.0.1.161, server: twojadomena.pl, request: "GET /export?r=79 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=79", host: "10.0.0.1"
+2026/11/16 14:52:08 [warn] 260173#260173: *4218 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/02/0000000021 while reading upstream, client: 10.0.1.200, server: twojadomena.pl, request: "GET /export?r=311 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=311", host: "10.0.0.1"
+2026/11/16 14:52:09 [info] 260173#260173: *4218 client 10.0.1.200 closed keepalive connection
+2026/11/16 14:52:14 [warn] 260173#260173: *4498 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/02/0000000022 while reading upstream, client: 10.0.1.164, server: twojadomena.pl, request: "GET /export?r=79 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=79", host: "10.0.0.1"
+2026/11/16 14:52:15 [warn] 260173#260173: *4536 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/02/0000000023 while reading upstream, client: 10.0.1.179, server: twojadomena.pl, request: "GET /export?r=990 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=990", host: "10.0.0.1"
+2026/11/16 14:52:17 [warn] 260173#260173: *4637 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/02/0000000024 while reading upstream, client: 10.0.1.189, server: twojadomena.pl, request: "GET /export?r=500 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=500", host: "10.0.0.1"
+2026/11/16 14:52:19 [warn] 260173#260173: *4754 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/02/0000000025 while reading upstream, client: 10.0.1.205, server: twojadomena.pl, request: "GET /export?r=64 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=64", host: "10.0.0.1"
+2026/11/16 14:52:28 [warn] 260173#260173: *5280 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/02/0000000026 while reading upstream, client: 10.0.1.226, server: twojadomena.pl, request: "GET /export?r=362 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=362", host: "10.0.0.1"
+2026/11/16 14:52:33 [info] 260173#260173: *5502 client 10.0.1.163 closed keepalive connection
+2026/11/16 14:52:34 [info] 260173#260173: *5532 client 10.0.1.185 closed keepalive connection
+2026/11/16 14:52:35 [info] 260173#260173: *5505 client 10.0.1.201 closed keepalive connection
+2026/11/16 14:52:35 [info] 260173#260173: *5575 client 10.0.1.211 closed keepalive connection
+2026/11/16 14:52:35 [info] 260173#260173: *5653 client 10.0.1.227 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *37 client 10.0.1.30 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *111 client 10.0.1.89 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *195 client 10.0.1.173 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *5508 client 10.0.1.3 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *5618 client 10.0.1.91 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *5556 client 10.0.1.67 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *5677 client 10.0.1.110 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *275 client 10.0.1.232 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *5528 client 10.0.1.41 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *4056 client 10.0.1.158 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *47 client 10.0.1.3 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *89 client 10.0.1.110 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *154 client 10.0.1.222 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *65 client 10.0.1.91 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *116 client 10.0.1.163 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *138 client 10.0.1.216 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *103 client 10.0.1.162 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *57 client 10.0.1.67 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *41 client 10.0.1.20 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *51 client 10.0.1.30 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *55 client 10.0.1.44 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *59 client 10.0.1.70 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *61 client 10.0.1.89 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *67 client 10.0.1.122 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *83 client 10.0.1.173 closed keepalive connection
+2026/11/16 14:52:36 [info] 260176#260176: *2561 client 10.0.1.201 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *2577 client 10.0.1.211 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *2606 client 10.0.1.227 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *109 client 10.0.1.158 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *76 client 10.0.1.41 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *136 client 10.0.1.185 closed keepalive connection
+2026/11/16 14:52:36 [info] 260173#260173: *171 client 10.0.1.232 closed keepalive connection
+2026/11/16 14:52:40 [warn] 260173#260173: *5878 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/02/0000000027 while reading upstream, client: 10.0.1.13, server: twojadomena.pl, request: "GET /export?r=500 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=500", host: "10.0.0.1"
+2026/11/16 14:52:41 [warn] 260173#260173: *5905 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/02/0000000028 while reading upstream, client: 10.0.1.142, server: twojadomena.pl, request: "GET /export?r=952 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=952", host: "10.0.0.1"
+2026/11/16 14:52:41 [info] 260173#260173: *3738 client 10.0.1.1 closed keepalive connection
+2026/11/16 14:52:41 [info] 260173#260173: *3289 client 10.0.1.148 closed keepalive connection
+2026/11/16 14:52:41 [info] 260173#260173: *2873 client 10.0.1.203 closed keepalive connection
+2026/11/16 14:52:41 [warn] 260173#260173: *5933 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/02/0000000029 while reading upstream, client: 10.0.1.14, server: twojadomena.pl, request: "GET /export?r=763 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=763", host: "10.0.0.1"
+2026/11/16 14:52:41 [info] 260173#260173: *5826 client 10.0.1.11 closed keepalive connection
+2026/11/16 14:52:41 [info] 260173#260173: *5933 client 10.0.1.14 closed keepalive connection
+2026/11/16 14:52:41 [info] 260173#260173: *5420 client 10.0.1.218 closed keepalive connection
+2026/11/16 14:52:41 [info] 260173#260173: *5436 client 10.0.1.234 closed keepalive connection
+2026/11/16 14:52:41 [info] 260173#260173: *5466 client 10.0.1.240 closed keepalive connection
+2026/11/16 14:52:41 [info] 260173#260173: *5482 client 10.0.1.251 closed keepalive connection
+2026/11/16 14:52:42 [info] 260173#260173: *5905 client 10.0.1.142 closed keepalive connection
+2026/11/16 14:52:44 [warn] 260173#260173: *6045 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/03/0000000030 while reading upstream, client: 10.0.1.22, server: twojadomena.pl, request: "GET /export?r=368 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=368", host: "10.0.0.1"
+2026/11/16 14:52:46 [warn] 260173#260173: *6133 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/03/0000000031 while reading upstream, client: 10.0.1.23, server: twojadomena.pl, request: "GET /export?r=376 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=376", host: "10.0.0.1"
+2026/11/16 14:52:46 [info] 260173#260173: *6133 client 10.0.1.23 closed keepalive connection
+2026/11/16 14:52:46 [info] 260173#260173: *5878 client 10.0.1.13 closed keepalive connection
+2026/11/16 14:52:46 [info] 260173#260173: *6045 client 10.0.1.22 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *5607 client 10.0.1.54 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *6079 client 10.0.1.245 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *462 client 10.0.1.86 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *856 client 10.0.1.210 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *446 client 10.0.1.75 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *508 client 10.0.1.131 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *321 client 10.0.1.73 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *850 client 10.0.1.205 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *645 client 10.0.1.164 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *557 client 10.0.1.161 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *283 client 10.0.1.46 closed keepalive connection
+2026/11/16 14:52:47 [info] 260174#260174: *547 client 10.0.1.139 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *307 client 10.0.1.64 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *944 client 10.0.1.236 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *933 client 10.0.1.233 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *549 client 10.0.1.141 closed keepalive connection
+2026/11/16 14:52:47 [info] 260174#260174: *752 client 10.0.1.189 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *709 client 10.0.1.179 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *192 client 10.0.1.22 closed keepalive connection
+2026/11/16 14:52:47 [info] 260174#260174: *401 client 10.0.1.74 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *1020 client 10.0.1.13 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *682 client 10.0.1.176 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *822 client 10.0.1.197 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *541 client 10.0.1.136 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *946 client 10.0.1.246 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *892 client 10.0.1.213 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *663 client 10.0.1.174 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *256 client 10.0.1.23 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *299 client 10.0.1.55 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *302 client 10.0.1.56 closed keepalive connection
+2026/11/16 14:52:47 [info] 260174#260174: *489 client 10.0.1.88 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *551 client 10.0.1.146 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *518 client 10.0.1.132 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *533 client 10.0.1.134 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *818 client 10.0.1.191 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *935 client 10.0.1.226 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *506 client 10.0.1.112 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *122 client 10.0.1.16 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *314 client 10.0.1.71 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *1016 client 10.0.1.12 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *835 client 10.0.1.202 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *895 client 10.0.1.223 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *5975 client 10.0.1.152 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *440 client 10.0.1.88 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *4349 client 10.0.1.228 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *4298 client 10.0.1.213 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *759 client 10.0.1.237 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *472 client 10.0.1.112 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *4475 client 10.0.1.15 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *313 client 10.0.1.58 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *448 client 10.0.1.106 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *591 client 10.0.1.180 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *4228 client 10.0.1.194 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *528 client 10.0.1.150 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *4719 client 10.0.1.115 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *409 client 10.0.1.76 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *684 client 10.0.1.195 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *289 client 10.0.1.29 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *6060 client 10.0.1.203 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *6097 client 10.0.1.1 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *6170 client 10.0.1.24 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *6061 client 10.0.1.244 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *5774 client 10.0.1.184 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *6087 client 10.0.1.17 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *5492 client 10.0.1.133 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *5784 client 10.0.1.187 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *5717 client 10.0.1.178 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *5594 client 10.0.1.149 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *5815 client 10.0.1.224 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *6029 client 10.0.1.4 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *5563 client 10.0.1.135 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *5817 client 10.0.1.225 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *6188 client 10.0.1.27 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *5950 client 10.0.1.242 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *5959 client 10.0.1.249 closed keepalive connection
+2026/11/16 14:52:47 [info] 260173#260173: *5659 client 10.0.1.159 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5853 client 10.0.1.148 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5777 client 10.0.1.60 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *101 client 10.0.1.16 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *389 client 10.0.1.176 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *240 client 10.0.1.86 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *294 client 10.0.1.112 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *476 client 10.0.1.236 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *346 client 10.0.1.146 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *169 client 10.0.1.71 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *132 client 10.0.1.56 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *457 client 10.0.1.223 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *246 client 10.0.1.88 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *343 client 10.0.1.141 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *331 client 10.0.1.131 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *459 client 10.0.1.233 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *63 client 10.0.1.12 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *341 client 10.0.1.136 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *152 client 10.0.1.64 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *487 client 10.0.1.246 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *419 client 10.0.1.202 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *212 client 10.0.1.73 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *375 client 10.0.1.174 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *429 client 10.0.1.213 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *421 client 10.0.1.210 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *337 client 10.0.1.132 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *415 client 10.0.1.197 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *411 client 10.0.1.191 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *53 client 10.0.1.5 closed keepalive connection
+2026/11/16 14:52:48 [info] 260174#260174: *87 client 10.0.1.7 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *95 client 10.0.1.19 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *142 client 10.0.1.31 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *149 client 10.0.1.36 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *186 client 10.0.1.37 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *187 client 10.0.1.39 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *197 client 10.0.1.50 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *202 client 10.0.1.77 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *206 client 10.0.1.93 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *222 client 10.0.1.95 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *227 client 10.0.1.96 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *265 client 10.0.1.97 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *297 client 10.0.1.107 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *335 client 10.0.1.111 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *339 client 10.0.1.119 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *355 client 10.0.1.120 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *359 client 10.0.1.124 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *361 client 10.0.1.127 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *391 client 10.0.1.156 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *397 client 10.0.1.157 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *407 client 10.0.1.165 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *416 client 10.0.1.171 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *426 client 10.0.1.177 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *428 client 10.0.1.198 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *434 client 10.0.1.204 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *442 client 10.0.1.208 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *444 client 10.0.1.217 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *474 client 10.0.1.219 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *501 client 10.0.1.230 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *538 client 10.0.1.231 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *572 client 10.0.1.253 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5620 client 10.0.1.170 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4259 client 10.0.1.5 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4274 client 10.0.1.7 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4291 client 10.0.1.11 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4307 client 10.0.1.14 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4318 client 10.0.1.18 closed keepalive connection
+2026/11/16 14:52:48 [info] 260174#260174: *4346 client 10.0.1.31 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4328 client 10.0.1.19 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4351 client 10.0.1.36 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4358 client 10.0.1.37 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4361 client 10.0.1.39 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4370 client 10.0.1.50 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4387 client 10.0.1.53 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4400 client 10.0.1.59 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4423 client 10.0.1.61 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4429 client 10.0.1.69 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4450 client 10.0.1.77 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4459 client 10.0.1.78 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4462 client 10.0.1.81 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4502 client 10.0.1.82 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4509 client 10.0.1.93 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4512 client 10.0.1.95 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4534 client 10.0.1.96 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4542 client 10.0.1.97 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4546 client 10.0.1.99 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4571 client 10.0.1.103 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4582 client 10.0.1.107 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4584 client 10.0.1.111 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4601 client 10.0.1.119 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4603 client 10.0.1.120 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4619 client 10.0.1.124 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *6112 client 10.0.1.127 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *6117 client 10.0.1.130 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *6124 client 10.0.1.137 closed keepalive connection
+2026/11/16 14:52:48 [info] 260174#260174: *4106 client 10.0.1.218 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *6126 client 10.0.1.143 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *6128 client 10.0.1.151 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *6135 client 10.0.1.156 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *6138 client 10.0.1.157 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4766 client 10.0.1.165 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *6155 client 10.0.1.167 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *6157 client 10.0.1.169 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *6186 client 10.0.1.171 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4837 client 10.0.1.177 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4848 client 10.0.1.186 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4884 client 10.0.1.198 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4896 client 10.0.1.204 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4900 client 10.0.1.208 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4906 client 10.0.1.217 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4161 client 10.0.1.219 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4185 client 10.0.1.230 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4189 client 10.0.1.231 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4192 client 10.0.1.234 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4206 client 10.0.1.240 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4239 client 10.0.1.251 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4249 client 10.0.1.253 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5561 client 10.0.1.159 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *737 client 10.0.1.152 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5875 client 10.0.1.4 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5630 client 10.0.1.183 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5429 client 10.0.1.121 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5757 client 10.0.1.200 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5828 client 10.0.1.235 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5846 client 10.0.1.248 closed keepalive connection
+2026/11/16 14:52:48 [info] 260174#260174: *5673 client 10.0.1.187 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5913 client 10.0.1.80 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5903 client 10.0.1.254 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5935 client 10.0.1.92 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5477 client 10.0.1.135 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5790 client 10.0.1.206 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5812 client 10.0.1.225 closed keepalive connection
+2026/11/16 14:52:48 [info] 260174#260174: *5898 client 10.0.1.49 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5974 client 10.0.1.101 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5650 client 10.0.1.184 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5965 client 10.0.1.57 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *6012 client 10.0.1.113 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *641 client 10.0.1.60 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5337 client 10.0.1.117 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5958 client 10.0.1.100 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5928 client 10.0.1.83 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5832 client 10.0.1.239 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5513 client 10.0.1.149 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5801 client 10.0.1.224 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5823 client 10.0.1.242 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *613 client 10.0.1.54 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *651 client 10.0.1.148 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *6057 client 10.0.1.114 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *72 client 10.0.1.2 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *93 client 10.0.1.5 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *134 client 10.0.1.7 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *159 client 10.0.1.19 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *165 client 10.0.1.25 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *231 client 10.0.1.26 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *252 client 10.0.1.31 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *348 client 10.0.1.32 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *363 client 10.0.1.36 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *387 client 10.0.1.37 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *395 client 10.0.1.39 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *399 client 10.0.1.50 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *405 client 10.0.1.52 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *438 client 10.0.1.66 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *470 client 10.0.1.77 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *491 client 10.0.1.87 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *503 client 10.0.1.93 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *520 client 10.0.1.95 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *522 client 10.0.1.96 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *3322 client 10.0.1.97 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *555 client 10.0.1.107 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *3358 client 10.0.1.111 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *580 client 10.0.1.118 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *596 client 10.0.1.119 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *2771 client 10.0.1.120 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *605 client 10.0.1.123 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *2803 client 10.0.1.124 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *2813 client 10.0.1.127 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *634 client 10.0.1.156 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *647 client 10.0.1.157 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *654 client 10.0.1.160 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *670 client 10.0.1.165 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *673 client 10.0.1.171 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *675 client 10.0.1.177 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *680 client 10.0.1.196 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *689 client 10.0.1.198 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *2924 client 10.0.1.204 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *723 client 10.0.1.208 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *731 client 10.0.1.214 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *772 client 10.0.1.217 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *778 client 10.0.1.219 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *785 client 10.0.1.230 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *795 client 10.0.1.231 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *797 client 10.0.1.243 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *838 client 10.0.1.253 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *480 client 10.0.1.34 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *125 client 10.0.1.24 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *287 client 10.0.1.113 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *725 client 10.0.1.244 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *788 client 10.0.1.242 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *576 client 10.0.1.35 closed keepalive connection
+2026/11/16 14:52:48 [info] 260174#260174: *234 client 10.0.1.92 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *157 client 10.0.1.49 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *251 client 10.0.1.100 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *182 client 10.0.1.57 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *611 client 10.0.1.149 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *781 client 10.0.1.225 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *85 client 10.0.1.4 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *200 client 10.0.1.83 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *707 client 10.0.1.187 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *748 client 10.0.1.224 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *686 client 10.0.1.184 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *537 client 10.0.1.135 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *267 client 10.0.1.101 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *128 client 10.0.1.2 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *208 client 10.0.1.7 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *281 client 10.0.1.50 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *493 client 10.0.1.66 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *499 client 10.0.1.87 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *526 client 10.0.1.118 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *565 client 10.0.1.123 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *639 client 10.0.1.196 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *698 client 10.0.1.214 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *767 client 10.0.1.243 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *383 client 10.0.1.121 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *877 client 10.0.1.245 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4692 client 10.0.1.213 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *3013 client 10.0.1.237 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *413 client 10.0.1.109 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4607 client 10.0.1.191 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4914 client 10.0.1.56 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4569 client 10.0.1.180 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4658 client 10.0.1.197 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *848 client 10.0.1.210 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4821 client 10.0.1.12 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4928 client 10.0.1.58 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4668 client 10.0.1.202 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *381 client 10.0.1.88 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4649 client 10.0.1.195 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4539 client 10.0.1.150 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *516 client 10.0.1.141 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *5032 client 10.0.1.71 closed keepalive connection
+2026/11/16 14:52:48 [info] 260174#260174: *4491 client 10.0.1.146 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4937 client 10.0.1.68 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *424 client 10.0.1.112 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4908 client 10.0.1.29 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *484 client 10.0.1.136 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *464 client 10.0.1.132 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4861 client 10.0.1.15 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4802 client 10.0.1.247 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4733 client 10.0.1.236 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4611 client 10.0.1.194 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *379 client 10.0.1.86 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *883 client 10.0.1.228 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4880 client 10.0.1.16 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *365 client 10.0.1.73 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *403 client 10.0.1.108 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *372 client 10.0.1.76 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4552 client 10.0.1.174 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4729 client 10.0.1.233 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4696 client 10.0.1.223 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *450 client 10.0.1.131 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *436 client 10.0.1.115 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4557 client 10.0.1.176 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4792 client 10.0.1.246 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *393 client 10.0.1.106 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *4932 client 10.0.1.64 closed keepalive connection
+2026/11/16 14:52:48 [info] 260173#260173: *304 client 10.0.1.117 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *385 client 10.0.1.27 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *585 client 10.0.1.133 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *583 client 10.0.1.178 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *953 client 10.0.1.249 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *311 client 10.0.1.17 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *357 client 10.0.1.28 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *560 client 10.0.1.104 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *468 client 10.0.1.83 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *370 client 10.0.1.33 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *452 client 10.0.1.57 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *649 client 10.0.1.159 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *5667 client 10.0.1.148 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *6140 client 10.0.1.245 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *6037 client 10.0.1.166 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *6033 client 10.0.1.193 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *5738 client 10.0.1.152 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *6048 client 10.0.1.244 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *6225 client 10.0.1.34 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *6173 client 10.0.1.24 closed keepalive connection
+2026/11/16 14:52:49 [info] 260173#260173: *5848 client 10.0.1.153 closed keepalive connection

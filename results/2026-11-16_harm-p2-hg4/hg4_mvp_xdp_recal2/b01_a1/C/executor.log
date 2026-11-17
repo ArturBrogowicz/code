@@ -1,0 +1,18 @@
+    2.233 timer probe 1 on CPU 7 at 2026-11-16T17:49:31+00:00: p50 0.0538235, p99 0.542648, max 0.552402 ms: passed
+    4.644 run C of cheap_static_flood_hg4, seed 1: preflight and environment passed
+   22.799 speed probe before the stack: CPU 0 C3 42.83 ms, C5 231.5 ms, CPU 1 C3 42.55 ms, C5 234.5 ms
+   27.552 topology: 4 namespaces, 200 addresses, verified in 4.8 s
+   27.570 started the origin as pid 685521
+   27.623 started Nginx (its launcher returned after 0.05 s)
+   32.365 stack ready: 5 routes answer with their own class under calibration frozen:7005a2ed; warmed up
+   32.469 launched 29 legit streams
+   35.506 the legit loops were seen to start 3.07 s after their launch (29 of 29)
+  141.870 timeline over after 109.5 s
+  142.184 stopped 1 process(es) of this run in 0.30 s
+  142.199 wall time of 4 stream(s) raised to what their records need, by up to 0.09 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  142.270 nginx access log: 4473 lines (0 unparsed), server_requests.csv written, log compressed
+  142.282 run.json written; the run is sound
+  142.306 teardown: 0 process(es) in 5 namespace(s): listed in 0.02 s, ended in 0.00 s
+  142.326 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  142.396 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.02 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  142.416 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 0.1 s in all)

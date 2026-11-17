@@ -82,13 +82,15 @@ class SpecsTest(unittest.TestCase):
                 self.assertEqual(scn.id, name)
                 self.assertEqual(S.problems_of(record(name)), [])
 
-    def test_hg4s_cheap_spec_is_hg3s_at_level_4_twice_the_frozen_knee(self):
+    def test_hg4s_cheap_spec_is_hg3s_at_twice_the_frozen_knee(self):
         """D-071 (the user's, 2026-11-06, before any HG4 data; R-020): at the knee of 2 a source sends 30.8 req/s, 3 % above limit_req's
-        30 r/s and under the L7 rule's 50, so the rules' control could not show the rules winning. HG3 stays at the knee (D-066)."""
+        30 r/s and under the L7 rule's 50, so the rules' control could not show the rules winning. HG3 stays at the knee (D-066).
+        K8 (T-122): the shipped spec is at level 8, twice the knee of 4 of the record of 2026-11-16; D-071's numbers on the record of
+        2026-11-04 are checked below at that record's level 4."""
         hg3, hg4 = record("cheap_static_flood"), record("cheap_static_flood_hg4")
         self.assertEqual(S.load(path_of("cheap_static_flood_hg4")).id, "cheap_static_flood_hg4")
         self.assertEqual(S.problems_of(hg4), [])
-        self.assertEqual((hg3["intensity"]["level"], hg4["intensity"]["level"]), ("knee", 4))
+        self.assertEqual((hg3["intensity"]["level"], hg4["intensity"]["level"]), ("knee", 8))
         self.assertEqual({k: v for k, v in hg4.items() if k not in ("id", "description", "intensity")},
                          {k: v for k, v in hg3.items() if k not in ("id", "description", "intensity")})
         self.assertEqual({k: v for k, v in hg4["intensity"].items() if k != "level"}, {k: v for k, v in hg3["intensity"].items() if k != "level"})
@@ -96,7 +98,7 @@ class SpecsTest(unittest.TestCase):
         self.assertEqual(S.pair_problems(S.load(path_of("cheap_static_flood_hg4")), S.load(path_of("benign_control"))), [])
         frozen = C.load(FROZEN)
         self.assertEqual(frozen["knees"]["cheap_static_flood"], 2.0)
-        p = S.plan(S.load(path_of("cheap_static_flood_hg4")), frozen)
+        p = S.plan(S.from_record({**hg4, "intensity": {**hg4["intensity"], "level": 4}}), frozen)
         a = p["attack"]
         self.assertEqual(a["level"], 2 * frozen["knees"]["cheap_static_flood"])
         self.assertAlmostEqual(a["per_source_rate"], 61.67, places=2, msg="D-071's 61.6 req/s a source")
@@ -104,6 +106,14 @@ class SpecsTest(unittest.TestCase):
         knee = S.plan(S.load(path_of("cheap_static_flood")), frozen)["attack"]
         self.assertAlmostEqual(knee["per_source_rate"], 30.83, places=2, msg="R-020's 30.8 req/s at the knee")
         self.assertEqual((knee["rules"]["limit_req_sheds"], knee["rules"]["l7_rule_bans"]), (True, False))
+        self.assertEqual(p["warnings"], ["the attack family's grounding is 'assumed': no external reference motivates it"])
+        new = C.load(os.path.join(REPO, "bench", "calibration", "ddos-mitigation-2026-11-16.json"))
+        self.assertEqual(new["knees"]["cheap_static_flood"], 4.0)
+        p = S.plan(S.load(path_of("cheap_static_flood_hg4")), new)
+        a = p["attack"]
+        self.assertEqual(a["level"], 2 * new["knees"]["cheap_static_flood"])
+        self.assertAlmostEqual(a["per_source_rate"], 119.25, places=2, msg="K8's 119.3 req/s a source")
+        self.assertEqual((a["rules"]["limit_req_sheds"], a["rules"]["l7_rule_bans"]), (True, True))
         self.assertEqual(p["warnings"], ["the attack family's grounding is 'assumed': no external reference motivates it"])
 
     def test_cheaps_description_says_what_holds_at_its_knee_on_the_frozen_record(self):

@@ -1,0 +1,15 @@
+block dir    QC      QCp     QU     QM      dQ     dL    harmed  works  benign  sound(all 4)  start_err(U,M)  launch(U,M)
+  1 b01_a1  100.00  100.00   1.27   97.38  98.73  3.45  True   False    0     True     +0.021,+0.035   seen,seen   mismatches vs gate: 0
+  2 b02_a1  100.00  100.00   2.18   95.71  97.82  3.24  True   False    0     True     +0.019,+0.042   seen,seen   mismatches vs gate: 0
+  3 b03_a1  100.00  100.00   1.21   95.95  98.79  4.88  True   False    0     True     +0.024,+0.049   seen,seen   mismatches vs gate: 0
+  4 b04_a1  100.00  100.00   1.03   96.90  98.97  3.27  True   False    0     True     +0.018,+0.017   seen,seen   mismatches vs gate: 0
+  5 b05_a1  100.00   99.93   1.74   95.58  98.26  2.68  True   False    0     True     +0.037,+0.039   seen,seen   mismatches vs gate: 0
+  6 b06_a1  100.00  100.00   2.21   96.90  97.79  3.21  True   False    0     True     +0.050,+0.036   seen,seen   mismatches vs gate: 0
+  7 b07_a1  100.00  100.00   0.90   93.68  99.10  3.11  True   False    0     True     +0.040,+0.024   seen,seen   mismatches vs gate: 0
+  8 b08_a1  100.00  100.00   1.67   97.21  98.33  3.10  True   False    0     True     +0.033,+0.036   seen,seen   mismatches vs gate: 0
+  9 b09_a1   99.91  100.00   1.22   95.05  98.70  3.03  True   False    0     True     -0.004,+0.023   seen,seen   mismatches vs gate: 0
+ 10 b10_a1  100.00  100.00   1.56   96.38  98.44  3.38  True   False    0     True     +0.052,+0.037   seen,seen   mismatches vs gate: 0
+
+blocks 10; protected held 0 of 10 (needs 9); benign banned []; attack banned 50 of 50; TTM median 0.868 max 1.723 n 50
+Q(M)/Q(C) per block: [0.9738, 0.9571, 0.9595, 0.969, 0.9558, 0.969, 0.9368, 0.9721, 0.9513, 0.9638]
+total mismatches vs gate.json: 0

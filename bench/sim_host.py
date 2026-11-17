@@ -34,8 +34,10 @@ import origin as O
 import population as P
 
 BASE_EPOCH = 1_798_000_000.0              # the virtual clock's wall time at its zero
-# what S1 and S1b measured on loopback and S4 with the real launch chain (docs/HG1C_DESIGN.md 14, 25), which the executor's settings cover
-LEGIT_STARTUP_S = 2.8                     # a legit engine's loop begins this long after its launch when 29 are launched at once on one CPU
+# what S1 and S1b measured on loopback and S4 with the real launch chain (docs/HG1C_DESIGN.md 14, 25), which the executor's settings cover:
+# from a launch to the engine's schedule's zero (S1's truth, the first arrival less the first send). Its loop, which K23's watch sees,
+# begins ENGINE_T0_OFFSET_S before that (bench/loadgen.py), so the model starts it there (review M1, T-125)
+LEGIT_STARTUP_S = 2.8                     # a legit engine's schedule begins this long after its launch when 29 are launched at once on one CPU
 ATTACK_STARTUP_S = 0.14                   # an attack engine's, on CPUs of its own
 EXIT_DELAY_PER_REQUEST_S = 8e-6           # an engine exits this much later for each request it sent
 NGINX_FORK_S = 0.05                       # the launcher of the Nginx daemon returns this long after the daemon has forked
@@ -60,13 +62,16 @@ OK_FLAGS ={"slip": False, "sent_short": False, "cpu": False, "descriptors": Fals
 RECORD_HEADER = "i,t_intended,t_sent,t_done,status,bytes,err,ident,reused\n"
 CLASS_OF_PATH = {path: klass for klass, path in O.SAMPLE_URLS.items()}
 CPUS = 8
+# the PC the simulated host reports by default: the desktop the record of 2026-11-04 was measured on (the guest's kernel log of the
+# boots of 2026-11-03 and 04: "smpboot: CPU0: Intel(R) Core(TM) i7-10700F CPU @ 2.90GHz", "vboxguest: host-version: 7.2.4r170995")
+SIM_PC = {"cpu_model": "Intel(R) Core(TM) i7-10700F CPU @ 2.90GHz", "vbox_host_version": "7.2.4r170995"}
 
 
 def exec_args(argv):
-    """The command line a process shows once the wrappers that exec into it (taskset, prlimit) are gone."""
+    """The command line a process shows once the wrappers that exec into it (taskset, chrt, prlimit) are gone."""
     argv = list(argv)
-    while argv and argv[0] in ("taskset", "prlimit"):
-        argv = argv[3:] if argv[0] == "taskset" else argv[argv.index("--") + 1:]
+    while argv and argv[0] in ("taskset", "chrt", "prlimit"):
+        argv = argv[3:] if argv[0] in ("taskset", "chrt") else argv[argv.index("--") + 1:]
     return argv
 
 
@@ -83,6 +88,7 @@ class SimProc:
         self.pid = next(host.pids)
         self.cpus = allowed_cpus(self.argv)
         self.started = host.t
+        self.loop_start = None               # a stream's engine: when its loop starts (K23: SimHost.loop_started)
         self.returncode = None
         self.exit_time = None
         self.ignores_term = False            # survives TERM, dies on KILL
@@ -119,7 +125,8 @@ class SimHost(X.Host):
     captured, so that call returns only at its timeout, as the one in S3 did three times (why a real Nginx does that is an inference:
     docs/HG1C_DESIGN.md 14); started like the suite starts it, with no pipe, the launcher returns a moment after the daemon forks.
     `run_cost_s(argv)` is how long a command takes on the virtual clock (none, by default), so that a time the executor logs for a
-    step can be told from another's.
+    step can be told from another's. `origin_slow(t)` is how much slower than its costs the host runs at the virtual time t: every
+    session of the origin's estimator (the calibrator's step 1 and the speed probes of bench/hostcheck.py) reads that much more.
     The mitigation daemon (control_plane.py, the protected arms) is a model of what the executor sees of it: it needs the repository
     as its working directory and `server_ns` to attach to; `daemon_startup_s` after its start it attaches an XDP program to
     veth_server, writes its start event to BAN_EVENTS and prints the line it listens with; it bans each source of an attack stream
@@ -145,7 +152,8 @@ class SimHost(X.Host):
                  fault_schedule=None, dies=None, origin_costs=None, origin_noise=(0.0,), wall_late_s=None, silent=None, nonzero=None,
                  ping_drops=None, daemon_holds_pipes=True, run_cost_s=None, daemon_startup_s=DAEMON_STARTUP_S,
                  daemon_ban_rps=DAEMON_BAN_RPS, daemon_ban_delay_s=DAEMON_BAN_DELAY_S, h01_fix_in_history=False,
-                 max_inflight=None, host_feed=None, timer_p99_by_cpu=None, origin_exit=None, nginx_exit=None):
+                 max_inflight=None, host_feed=None, timer_p99_by_cpu=None, origin_exit=None, nginx_exit=None, origin_slow=None,
+                 other_load=None, clock_offset=None, journal=(), monitor_dies=None, mpstat_gap=None, facts=None):
         self.t = 0.0
         self.inodes = itertools.count(7000)
         self.max_inflight = max_inflight      # a lower in-flight cap for the engines than their --max-inflight (a test of F-02)
@@ -178,6 +186,18 @@ class SimHost(X.Host):
         self.fault_schedule, self.topologies, self.dies = dict(fault_schedule or {}), 0, dies
         self.registry = {}                    # run directory -> the streams started in it, for a server that has a load
         self.origin_costs, self.origin_noise, self.origin_calls = origin_costs, tuple(origin_noise), 0
+        self.origin_slow = origin_slow        # t on the virtual clock -> how much slower the host runs then (0.3: 30 %), for every session
+        # the monitors of bench/hostcheck.py (K4), as the model writes their records: `other_load(t)` the rows (uid, pid, %CPU, command)
+        # of processes that are not the testbed's in pidstat's sample ending at t; `clock_offset(t)` chrony's System time then; `journal`
+        # (t, line) pairs the journal follower prints; `monitor_dies` (name, after s): that monitor exits then; `mpstat_gap(t)`: True
+        # for an mpstat sample the guest did not take (a pause)
+        self.other_load, self.clock_offset, self.journal_lines = other_load, clock_offset, tuple(journal)
+        self.monitor_dies, self.mpstat_gap = monitor_dies, mpstat_gap
+        # what `facts` reports (uname, MemTotal, the PC...): the record's host of 2026-11-04 by default (kernel 7.0.0-38, 9,426 MiB, the
+        # desktop PC: SIM_PC), which the tests' records name too; `facts` overrides keys, e.g. a host on 7.0.0-42 with 7,422 MiB (K5) or
+        # the laptop's PC (K10)
+        self.host_facts = {"uname": "Linux fake 7.0.0-38-generic x86_64", "cpus": CPUS, "mem_mib": 9426, **SIM_PC, "python": "3.14.4",
+                           "nginx": "nginx version: nginx/1.28.3", "gunicorn": "gunicorn (version 26.2.0)", **(facts or {})}
         self.log_lines, self.tag, self.python_exists, self.steal_share = log_lines, tag, python_exists, steal_share
         self.on_sleep, self.server = on_sleep, server
         self.table_extra = []                 # (pid, ppid, args) of processes that are not the model's: an editor, a shell
@@ -212,6 +232,11 @@ class SimHost(X.Host):
         self.t = end
         if self.on_sleep and not self.shield:        # a shielded stretch cannot be interrupted
             self.on_sleep(self)
+
+    def loop_started(self, proc):
+        """K23: a stream's engine has started its loop ENGINE_T0_OFFSET_S before its schedule's zero (`startup_s` after its launch);
+        a stream that hangs or dies before its loop never starts one, and no other process is an engine."""
+        return proc.loop_start is not None and self.t >= proc.loop_start - 1e-9
 
     # --- faults ----------------------------------------------------------------------------------
 
@@ -263,7 +288,78 @@ class SimHost(X.Host):
             return self._start_nginx(argv, ns, stderr)
         if "gunicorn" in text:
             return self._start_origin(argv, ns, stderr)
+        monitor = self._monitor_name(exec_args(argv))
+        if monitor:
+            return self._start_monitor(monitor, argv, stdout)
         raise AssertionError(f"the simulation has no process for {text[:100]}")
+
+    # --- the monitors of bench/hostcheck.py ------------------------------------------------------
+
+    @staticmethod
+    def _monitor_name(args):
+        if args[:2] == ["stdbuf", "-oL"]:
+            args = args[2:]
+        if not args:
+            return None
+        if os.path.basename(args[0]) in ("mpstat", "pidstat", "journalctl"):
+            return {"journalctl": "journal"}.get(os.path.basename(args[0]), os.path.basename(args[0]))
+        if len(args) > 2 and os.path.basename(args[1]) == "hostcheck.py" and args[2] == "chrony-sampler":
+            return "chrony"
+        return None
+
+    def _clock_text(self, t):
+        return datetime.datetime.fromtimestamp(t, datetime.UTC)
+
+    def _start_monitor(self, name, argv, stdout):
+        """A monitor as bench/hostcheck.py starts it: it writes its records to `stdout` on the virtual clock, as long as it lives."""
+        proc = self.spawn(argv, "", name, "monitor")
+        when = self._clock_text(self.time())
+        if name in ("mpstat", "pidstat"):
+            stdout.write(f"Linux 7.0.0-42-generic (fake) \t{when.date().isoformat()} \t_x86_64_\t({CPUS} CPU)\n\n")
+        every = {"mpstat": 5.0, "pidstat": 10.0, "chrony": 30.0, "journal": None}[name]
+        dies = self.monitor_dies[1] if self.monitor_dies and self.monitor_dies[0] == name else None
+        if dies is not None:
+            self.schedule(self.t + dies, lambda: self.end(proc, 1))
+
+        def write(text):
+            if proc.returncode is None and not stdout.closed:
+                stdout.write(text)
+                stdout.flush()
+
+        def tick(last):
+            if proc.returncode is not None or stdout.closed:
+                return
+            now = self.time()
+            stamp = self._clock_text(now).strftime("%H:%M:%S")
+            if name == "mpstat" and not (self.mpstat_gap and self.mpstat_gap(now)):
+                head = f"{self._clock_text(last).strftime('%H:%M:%S')}  CPU    %usr   %nice    %sys %iowait    %irq   %soft  %steal  %guest  %gnice   %idle\n"
+                rows = "".join(f"{stamp}  {cpu:>4}    1.00    0.00    1.00    0.00    0.00    0.00    0.00    0.00    0.00   98.00\n"
+                               for cpu in ["all", *range(CPUS)])
+                write(head + rows + "\n")
+            elif name == "pidstat":
+                rows = list(self.other_load(now) if self.other_load else [])
+                text = (f"{self._clock_text(last).strftime('%H:%M:%S')}   UID       PID    %usr %system  %guest   %wait    %CPU   CPU  "
+                        "Command\n")
+                text += "".join(f"{stamp}  {uid:>4}  {pid:>8}    {pct:.2f}    0.00    0.00    0.00    {pct:.2f}     2  {cmd}\n"
+                                for uid, pid, pct, cmd in rows)
+                write(text + "\n")
+            elif name == "chrony":
+                offset = self.clock_offset(now) if self.clock_offset else 0.0
+                write(self._clock_text(now).isoformat(timespec="seconds").replace("+00:00", "Z") + "\n"
+                      f"B97DBE7B,185.125.190.123,3,{now:.9f},{offset:.9f},0.000001,0.000002,1.0,0.0,0.1,0.04,0.002,64.0,Normal\n"
+                      f"^,*,185.125.190.123,2,6,377,22,{offset:.9f},{offset:.9f},0.010\n")
+            self.schedule(self.t + every, lambda: tick(now))
+
+        if name == "chrony":
+            tick(self.time())
+        elif name == "journal":
+            for t, line in self.journal_lines:
+                self.schedule(t - BASE_EPOCH, lambda t=t, line=line: write(
+                    f"{self._clock_text(t).isoformat(timespec='microseconds')} fake {line}\n"))
+        else:
+            began = self.time()
+            self.schedule(self.t + every, lambda: tick(began))
+        return proc
 
     def _start_nginx(self, argv, ns, stderr):
         """Nginx started with no pipe for the daemon to hold: the launcher returns 0 `NGINX_FORK_S` after the daemon has forked, or
@@ -312,7 +408,9 @@ class SimHost(X.Host):
         self.launch_times[sid] = self.t
         if self.fault("stream_hangs"):
             return proc
-        loop_start = self.t + self.startup_s(sid, index, kind)
+        # startup_s is to the schedule's zero, the loop starts ENGINE_T0_OFFSET_S before it; a startup_s below that offset (no test
+        # uses one) is taken as the offset, since a loop cannot start before its launch
+        loop_start = self.t + max(0.0, self.startup_s(sid, index, kind) - X.ENGINE_T0_OFFSET_S)
         duration, rate = float(opts["--duration"]), float(opts["--rate"])
         n = max(1, round(rate * duration))
         run_dir = _run_dir(opts)
@@ -323,6 +421,7 @@ class SimHost(X.Host):
                 stderr.write(b"Traceback: the simulated engine died\n")
             self.schedule(loop_start + 3.0, lambda: self.end(proc, 2))
             return proc
+        proc.loop_start = loop_start                   # an engine that dies above never starts its loop
         entry = {"kind": kind, "begin": loop_start, "end": loop_start + X.ENGINE_T0_OFFSET_S + duration, "rate": rate,
                  "route": parse_stream_id(sid)[1], "addresses": tuple(local)}
         self.registry.setdefault(run_dir, []).append(entry)
@@ -714,7 +813,7 @@ class SimHost(X.Host):
         route would be timed in at that cost (origin.batch_size)."""
         costs = self.origin_costs or ({k: v * 1000.0 for k, v in self.server.cost.items()} if self.server else
                                       {klass: 1.0 for klass in O.CLASSES})
-        factor = 1.0 + self.origin_noise[self.origin_calls % len(self.origin_noise)]
+        factor = (1.0 + self.origin_noise[self.origin_calls % len(self.origin_noise)]) * (1.0 + (self.origin_slow(self.t) if self.origin_slow else 0.0))
         self.origin_calls += 1
         if self.fault("origin_session_fails"):
             return X.Result(1, "", "Traceback: the simulated session failed")
@@ -808,7 +907,7 @@ class SimHost(X.Host):
         if path == "/proc/loadavg":
             return f"{self.load1:.2f} 0.10 0.05 1/100 1234\n"
         if path == "/proc/meminfo":
-            return "MemTotal:        9652224 kB\nMemFree:         8000000 kB\n"
+            return f"MemTotal:        {self.host_facts['mem_mib'] * 1024} kB\nMemFree:         8000000 kB\n"
         if path == "/proc/stat":
             return self._stat()
         if path.startswith("/sys/"):
@@ -884,8 +983,7 @@ class SimHost(X.Host):
         return 100
 
     def facts(self):
-        return {"uname": "Linux fake 7.0.0 x86_64", "cpus": CPUS, "mem_mib": 9426, "python": "3.14.4",
-                "nginx": "nginx version: nginx/1.28.3", "gunicorn": "gunicorn (version 26.2.0)"}
+        return dict(self.host_facts)
 
     def pin(self, cpus):
         self.pinned = cpus
