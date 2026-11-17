@@ -102,7 +102,7 @@ updates must be suspended (and restored afterwards).
 
 The suite, the campaign runner (`eval/run_campaign.py`), the L7 runners (`ml/capture_l7.py`,
 `ml/eval_l7.py`, `ml/smoke_l7.py`), the harm benchmark's runners (`bench/executor.py run`,
-`bench/gate_campaign.py run`, `bench/calibrate.py` but `freeze` and `plan`, and the packet wrapper
+`bench/gate_campaign.py run`, `bench/calibrate.py` except `freeze` and `plan`, and the packet wrapper
 `bench/packets/packet.sh`), `capture_testbed_dataset.py`, the legacy `setup.sh` and the daemon
 itself. Between them they kill processes (the suite and `setup.sh` by name, the harm benchmark's
 runners only those of their own namespaces), delete and re-create network namespaces and a
