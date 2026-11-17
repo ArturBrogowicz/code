@@ -4,8 +4,8 @@ gate_campaign.HG4_KNEE_MULTIPLE) and a description whose numbers are the scenari
 knee is the spec's half already, nothing changes, byte for byte. Offline: it reads the record and the spec and writes the spec only
 with --write.
 
-    python3 bench/hg4_spec.py --calibration bench/calibration/<host>-<date>.json            # what the spec would be
-    python3 bench/hg4_spec.py --calibration bench/calibration/<host>-<date>.json --write    # by hand, after F, before P2-1
+    ./venv/bin/python bench/hg4_spec.py --calibration bench/calibration/<host>-<date>.json            # what the spec would be
+    ./venv/bin/python bench/hg4_spec.py --calibration bench/calibration/<host>-<date>.json --write    # by hand, after F, before P2-1
 
 When the plan's rate a source at that level is not above the L7 rule's 50 r/s, the protected arm would ban nothing: --write refuses,
 and the user decides before P2-1 with no outcome seen (design 9).
