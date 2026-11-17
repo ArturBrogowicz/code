@@ -214,9 +214,17 @@ stream summaries; the compressed logs do not enter them.
 * `paired/`: the two paired checks P-1 (`paired.json`, `probes.jsonl`): 17:24:54Z, D +0.14 % (GO ON; R1 then refused by the
   pre-check), and 18:07:27Z, D +0.03 % (GO ON; R1 ran), each within the 5 % limit.
 * `preregistration/`: the approval packets AP-11 to AP-15 (`sha256.txt`; `approved_revisions.tsv` says, per file, whether it is the
-  revision the ledger records for the yes), and `decisions.md`, which quotes verbatim the ledger rows D-104, D-106, D-107, D-108,
-  D-109 and D-110 and the approval rows of the pre-registration, AP-11, the unattended-upgrades change, AP-12, "Fix H7 first", AP-13,
-  AP-14, the freeze and AP-15, each with the user's answer.
+  revision the ledger records for the yes; for AP-13 both the approved revision and the file as later filled in, see below), and
+  `decisions.md`, which quotes verbatim the ledger rows D-104, D-106, D-107, D-108, D-109 and D-110 and the approval rows of the
+  pre-registration, AP-11, the unattended-upgrades change, AP-12, "Fix H7 first", AP-13, AP-14, the freeze and AP-15, each with the
+  user's answer.
+* AP-13's approved revision was no longer kept as a file: the packet was filled in 25 min after the yes. Both are published.
+  `preregistration/AP-13_R2a_resume_R2b.md` is the approved revision, byte for byte (sha256 `af1d1517c20f25cd...`, the hash the
+  ledger records for the yes): the text the orchestrator wrote at 2026-11-15T20:17:59Z, recovered on 2026-11-17 from its session
+  record of that write. It carries `<PIN>` and `<GATE>` placeholders, as the approval says ("pin and gate to be filled in").
+  `preregistration/AP-13_R2a_resume_R2b.after-approval.md` is the file as last written (2026-11-15T21:32:42Z), **not** the approved
+  revision. `AP-13_approved_vs_after-approval.diff` shows what changed: the pin `9c0c25a...` and its gate filled in, the plans printed
+  with that pin recorded, and the status lines changed to approved. Nothing else changed.
 * `recomputation/`: above.
 * `analysis/`: written by `eval/publish_campaign.py` from the published files: `runs.json` (each run's state and provenance) and
   `summary.md`. The publisher judges only drift checks of the older layout (a `drift/` directory at the top of a source, schema 1),
@@ -262,9 +270,6 @@ stream summaries; the compressed logs do not enter them.
   `speed_reference.json`, and as the P-1 checks compare with them.
 * AP-13's first launch on 2026-11-15, refused by the timers pre-check at 21:38:39Z with nothing measured [ledger]: its launcher log is
   not in the backup. The waiter that then launched AP-13 after the midnight timers is `packets/after_timers_launch_20261115T213900Z.log`.
-* The approved draft of AP-13: the ledger records its sha256 as `af1d1517c20f25cd...` and no kept file has it. The published
-  `preregistration/AP-13_R2a_resume_R2b.after-approval.md` is the file as last written, 25 min after the yes, with the pin and its gate
-  filled in; it is **not** the approved revision (`approved_revisions.tsv`).
 * The thesis text that reports this re-calibration, and the ledger itself (outside this repository).
 
 ## How to re-check

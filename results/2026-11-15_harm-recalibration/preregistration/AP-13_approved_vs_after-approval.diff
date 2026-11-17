@@ -1,0 +1,41 @@
+--- AP-13_R2a_resume_R2b.md
++++ AP-13_R2a_resume_R2b.after-approval.md
+@@ -1,10 +1,10 @@
+-# AP-13: R2a's resume, then R2b, at the pin after D-108 (revision 1, 2026-11-15; needs the user's yes)
++# AP-13: R2a's resume, then R2b, at the pin after D-108 (revision 1, 2026-11-15; approved by the user 21:07:21Z, "ok, I approve runs")
+ 
+-**Ready, not approved.**
+-- **Pinned commit:** `<PIN>`, integ/s6 after D-108. It is 5f3769c plus the merge of K22, plus the departure note
++**Approved** (APPROVALS 2026-11-15T21:07:21Z; R2c not included).
++- **Pinned commit:** `9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f`, integ/s6 after D-108. It is 5f3769c plus the merge of K22, plus the departure note
+   `docs/RECALIBRATION_2026-11_DEPARTURE_1.md`.
+-- **Its gate:** `<GATE>`.
+-- **Worktree:** `worktrees/run-recal`, moved to `<PIN>`, clean.
++- **Its gate:** PASSED 2026-11-15T21:32:10Z: the full suite on its tree c0bd4b4d048bf4ac8c8231a651a43e1034626044, 3562 tests, the known failure only (D-097; tasks/T-120/artifacts/gates/INTEG22_suite.txt).
++- **Worktree:** `worktrees/run-recal`, moved to `9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f`, clean.
+ - **Session:** as R1 and R2a, `/var/tmp/ddos_campaigns/recal_2026-11`.
+ 
+ AP-12 approved R2a then R2b. R2a paused "host unfit" (C-156) and R2b did not start. This packet finishes what AP-12 approved, at
+@@ -36,10 +36,10 @@
+ - A packet pauses at the third host-invalid run in a row, or at the fourth in the packet.
+ 
+ ## How (D-106's way, at the user's word)
+-`tasks/T-120/r_launch.sh AP-13 <PIN> R2a R2b`, started by the orchestrator in the background. It is `r2_launch.sh` with the
++`tasks/T-120/r_launch.sh AP-13 9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f R2a R2b`, started by the orchestrator in the background. It is `r2_launch.sh` with the
+ approval's id and the pin as arguments.
+ 1. It waits 180 s so that the orchestrator's turn has ended.
+-2. For each packet it runs `sudo bench/packets/packet.sh <P> --commit <PIN>` from `worktrees/run-recal`, and checks the stage's
++2. For each packet it runs `sudo bench/packets/packet.sh <P> --commit 9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f` from `worktrees/run-recal`, and checks the stage's
+    `/proc` entry once a minute.
+ 3. The next packet starts only after a summary that begins `PACKET <P> done (exit 0):`.
+ 
+@@ -49,7 +49,8 @@
+ the packet's log. Send it again if the log shows the step still going a minute later.
+ 
+ **Before the launch** (done offline):
+-- `packet.sh R2a --commit <PIN> --print` and `packet.sh R2b --commit <PIN> --print` in run-recal print their plans.
++- `packet.sh R2a --commit 9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f --print` and `packet.sh R2b --commit 9c0c25a77299fd19d169c40c3fae4ca8d7a1d45f --print` in run-recal printed their plans,
++  exit 0 (tasks/T-120/artifacts/R2a_print_9c0c25a.txt, R2b_print_9c0c25a.txt).
+ - The pre-checks run at the launch itself.
+ 
+ ## During
