@@ -507,10 +507,11 @@ does not list.
   experiments (`docs/ML_INVESTIGATION.md` section 3), and the raw data of the harm benchmark's
   calibration session of 2026-11-04, so the frozen record
   (`bench/calibration/ddos-mitigation-2026-11-04.json`) cannot be re-derived from the repository.
-  Likewise the raw data of the re-calibration's steps R1-R3 (2026-11-15 and 16) are not in `results/`
-  yet: the frozen record `bench/calibration/ddos-mitigation-2026-11-16.json` is in the repository and R4's
-  confirmation is published with P2 (`results/2026-11-16_harm-p2-hg4/`), but the record's capacity,
-  knees and reference cannot be re-derived from the repository (HB2).
+* The raw data of the re-calibration's steps R1-R4 (2026-11-15 and 16) are published as
+  `results/2026-11-15_harm-recalibration/` (2026-11-17). Re-running the project's own functions on the
+  published runs reproduces the capacity, the three ladders, the reference and R4's verdict with 0 mismatches,
+  and the freeze writes a file byte-identical to `bench/calibration/ddos-mitigation-2026-11-16.json` (its
+  `recomputation/`; HB2).
 * P2 and R4 (`results/2026-11-16_harm-p2-hg4/`, published 2026-11-16) are scoped differently. For P2-2b
   the project's judge (`eval/harm_gate.py` at 18386ed), re-run on the raw run files, reproduces gate.md
   byte for byte and gate.json up to one final newline that the command line adds; an independent
@@ -604,10 +605,11 @@ monitors 2 s after a run's window; R1 and the first 15 runs of the cheap ladder 
 by the race) were judged before it, every later run after it; the four set-aside runs were never used.
 
 **It does not show** anything about the desktop, the 2026-11-04 record, or the laptop in a window after
-a later reboot without a new drift check. The raw data of R1-R3 are not in `results/` yet (Q1), so the
-capacity, the knees and the reference cannot be re-derived from the repository.
+a later reboot without a new drift check. The raw data of R1-R4 are published
+(`results/2026-11-15_harm-recalibration/`), and the capacity, the knees, the reference, the record and R4's
+verdict re-derive from them (its `recomputation/`, Q1).
 
-**Would settle the rest.** Publishing R1-R3's session files; a drift check before any later campaign
+**Would settle the rest.** A drift check before any later campaign
 that does not start in R4's window (the pre-registration requires it).
 
 ### HB3. P2: the daemon with XDP enforcement keeps legit service quality where the attack harms the unprotected server
@@ -734,6 +736,7 @@ Run on 2026-11-08 to 11: the harm benchmark's drift check (AP-4, AP-5, AP-5b, AP
 
 Run on 2026-11-14 to 16 on the laptop, each step with its own approval: the host check HS1, the
 re-calibration R1-R3 and its freeze, the confirmation R4 (HB2), then P2's smoke runs P2-1 (not
-host-checked, not a result), P2-2 (INVALID) and P2-2b (gate PASS, NOT MET; HB3). R4 and P2 are published as
-`2026-11-16_harm-p2-hg4`; R1-R3's raw data are not published yet. None of the registered experiments P1, P3
+host-checked, not a result), P2-2 (INVALID) and P2-2b (gate PASS, NOT MET; HB3). P2 and R4's verdict are
+published as `2026-11-16_harm-p2-hg4`, the raw data of R1-R4 as `2026-11-15_harm-recalibration`. None of the
+registered experiments P1, P3
 and P4 has run (the thesis, `tab:zarejestrowane`).
