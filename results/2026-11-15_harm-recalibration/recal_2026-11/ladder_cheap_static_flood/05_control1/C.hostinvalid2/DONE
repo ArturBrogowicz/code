@@ -1,0 +1,324 @@
+{
+ "finished_utc": "2026-11-15T19:14:48+00:00",
+ "host": {
+  "ok": false,
+  "other_cpu": [
+   {
+    "pct": 0.8,
+    "t": 1794769938.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.8,
+    "t": 1794769948.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 2.8000000000000003,
+    "t": 1794769958.0,
+    "top": [
+     [
+      0.6,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.4,
+      "/usr/lib/systemd/systemd-udevd"
+     ],
+     [
+      0.4,
+      "/usr/lib/systemd/systemd --user"
+     ]
+    ]
+   },
+   {
+    "pct": 0.8,
+    "t": 1794769968.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 1.0,
+    "t": 1794769978.0,
+    "top": [
+     [
+      0.9,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+     ]
+    ]
+   },
+   {
+    "pct": 2.3000000000000003,
+    "t": 1794769988.0,
+    "top": [
+     [
+      2.1,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/usr/sbin/multipathd -d -s"
+     ],
+     [
+      0.1,
+      "/usr/sbin/chronyd -n -F 1"
+     ]
+    ]
+   },
+   {
+    "pct": 0.4,
+    "t": 1794769998.0,
+    "top": [
+     [
+      0.3,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+     ]
+    ]
+   },
+   {
+    "pct": 0.9,
+    "t": 1794770008.0,
+    "top": [
+     [
+      0.9,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 1.1,
+    "t": 1794770018.0,
+    "top": [
+     [
+      1.0,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "sshd-session: artur@notty"
+     ]
+    ]
+   },
+   {
+    "pct": 0.9,
+    "t": 1794770028.0,
+    "top": [
+     [
+      0.9,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 1.3,
+    "t": 1794770038.0,
+    "top": [
+     [
+      1.0,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "bash /home/artur/agent_workspace/tasks/T-119/r2_launch.sh R2"
+     ],
+     [
+      0.1,
+      "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+     ]
+    ]
+   },
+   {
+    "pct": 0.7,
+    "t": 1794770048.0,
+    "top": [
+     [
+      0.5,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "sshd-session: artur@notty"
+     ],
+     [
+      0.1,
+      "sshd-session: artur@notty"
+     ]
+    ]
+   },
+   {
+    "pct": 0.9,
+    "t": 1794770058.0,
+    "top": [
+     [
+      0.9,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.9,
+    "t": 1794770068.0,
+    "top": [
+     [
+      0.9,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 2.6,
+    "t": 1794770078.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.3,
+      "/usr/lib/systemd/systemd-udevd"
+     ],
+     [
+      0.3,
+      "/usr/lib/systemd/systemd --switched-root --system --deserial"
+     ]
+    ]
+   }
+  ],
+  "reasons": [
+   "H7: the pidstat record does not cover the run (2026-11-15T19:12:11+00:00 to 2026-11-15T19:14:48+00:00)"
+  ],
+  "rules": {
+   "H1": {
+    "ok": true,
+    "reasons": []
+   },
+   "H3": {
+    "ok": true,
+    "reasons": []
+   },
+   "H4": {
+    "ok": true,
+    "reasons": []
+   },
+   "H5": {
+    "ok": true,
+    "reasons": []
+   },
+   "H6": {
+    "ok": true,
+    "reasons": []
+   },
+   "H7": {
+    "ok": false,
+    "reasons": [
+     "H7: the pidstat record does not cover the run (2026-11-15T19:12:11+00:00 to 2026-11-15T19:14:48+00:00)"
+    ]
+   }
+  },
+  "slip_p99_s": 0.013272720000000559,
+  "window": {
+   "end": "2026-11-15T19:14:48+00:00",
+   "start": "2026-11-15T19:12:11+00:00"
+  }
+ },
+ "ok": true,
+ "reasons": [],
+ "seconds": 140.6,
+ "setup_retries": 0,
+ "speed": {
+  "after": {
+   "cpus": {
+    "0": {
+     "C0": 0.005514359375000111,
+     "C1": 5.083380000000304,
+     "C2": 2.6579629999998744,
+     "C3": 42.93063599999991,
+     "C5": 231.43749499999979
+    },
+    "1": {
+     "C0": 0.00553447656249928,
+     "C1": 5.057011000000777,
+     "C2": 2.6388769999989847,
+     "C3": 42.86005400000015,
+     "C5": 230.65804400000013
+    }
+   },
+   "errors": {},
+   "t_end": 1794770088.2461197,
+   "t_start": 1794770070.2778058,
+   "utc_end": "2026-11-15T19:14:48+00:00",
+   "utc_start": "2026-11-15T19:14:30+00:00"
+  },
+  "before": {
+   "cpus": {
+    "0": {
+     "C0": 0.005550171875000343,
+     "C1": 5.164412000000063,
+     "C2": 2.699621999999735,
+     "C3": 42.823054000000305,
+     "C5": 236.84498799999966
+    },
+    "1": {
+     "C0": 0.005513578125001389,
+     "C1": 5.110731000000257,
+     "C2": 2.6798949999999877,
+     "C3": 42.75353400000004,
+     "C5": 230.97760399999956
+    }
+   },
+   "errors": {},
+   "t_end": 1794769950.2640786,
+   "t_start": 1794769931.9594524,
+   "utc_end": "2026-11-15T19:12:30+00:00",
+   "utc_start": "2026-11-15T19:12:11+00:00"
+  },
+  "d_after": 0.00018282553901624587,
+  "d_before": 0.005102089526703324,
+  "in_run": {
+   "frozen_cost_s": 38.50896216200848,
+   "index": 1.0779627045091709,
+   "origin_cpu_s": 41.51122499999999
+  },
+  "limit": 0.1,
+  "ok": true,
+  "reasons": [],
+  "reference": "the session's origin step (origin/origin.json)",
+  "reference_costs_ms": {
+   "C0": 0.005546960937498346,
+   "C1": 5.112814999999937,
+   "C2": 2.6510200000000594,
+   "C3": 42.71167500000139,
+   "C5": 231.9604360000005
+  },
+  "window": {
+   "end": "2026-11-15T19:14:48+00:00",
+   "start": "2026-11-15T19:12:11+00:00",
+   "t_end": 1794770088.2461197,
+   "t_start": 1794769931.9594524
+  }
+ },
+ "timer_refused_probes": 0,
+ "timer_waited_s": 2.2
+}

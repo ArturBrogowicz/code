@@ -1,0 +1,227 @@
+{
+ "created_utc": "2026-11-16T10:01:11+00:00",
+ "knees": {
+  "cheap_static_flood": 4.0,
+  "costly_export_flood": 4.0,
+  "costly_search_flood": 2.0
+ },
+ "pins": {
+  "attack": "3-6",
+  "daemon": "2",
+  "legit": "7",
+  "server": "0-1"
+ },
+ "rho_rps": 42.25,
+ "rounds": [
+  {
+   "attacks": {
+    "cheap_static_flood": {
+     "Q": 4.113345521023766,
+     "level": 4.0,
+     "p95_s": 0.9108921999999993,
+     "requests": 1094,
+     "run": "reference/r1/attack_cheap_static_flood/U",
+     "seed": 42
+    },
+    "costly_export_flood": {
+     "Q": 46.829640947288006,
+     "level": 4.0,
+     "p95_s": 0.5823330000000009,
+     "requests": 1309,
+     "run": "reference/r1/attack_costly_export_flood/U",
+     "seed": 43
+    },
+    "costly_search_flood": {
+     "Q": 97.20793534166054,
+     "level": 2.0,
+     "p95_s": 0.19109860000000425,
+     "requests": 1361,
+     "run": "reference/r1/attack_costly_search_flood/U",
+     "seed": 44
+    }
+   },
+   "legit": {
+    "Q": 100.0,
+    "p95_s": 0.07976160000000225,
+    "requests": 3039,
+    "run": "reference/r1/legit/C",
+    "seed": 41
+   },
+   "round": 1
+  },
+  {
+   "attacks": {
+    "cheap_static_flood": {
+     "Q": 7.038391224862888,
+     "level": 4.0,
+     "p95_s": 0.9570476,
+     "requests": 1094,
+     "run": "reference/r2/attack_cheap_static_flood/U",
+     "seed": 42
+    },
+    "costly_export_flood": {
+     "Q": 54.08708938120703,
+     "level": 4.0,
+     "p95_s": 0.45132529999999665,
+     "requests": 1309,
+     "run": "reference/r2/attack_costly_export_flood/U",
+     "seed": 43
+    },
+    "costly_search_flood": {
+     "Q": 98.74908020603385,
+     "level": 2.0,
+     "p95_s": 0.19468035000000275,
+     "requests": 1359,
+     "run": "reference/r2/attack_costly_search_flood/U",
+     "seed": 44
+    }
+   },
+   "legit": {
+    "Q": 100.0,
+    "p95_s": 0.08153750000000314,
+    "requests": 3039,
+    "run": "reference/r2/legit/C",
+    "seed": 41
+   },
+   "round": 2
+  },
+  {
+   "attacks": {
+    "cheap_static_flood": {
+     "Q": 4.653284671532846,
+     "level": 4.0,
+     "p95_s": 0.8228984999999973,
+     "requests": 1096,
+     "run": "reference/r3/attack_cheap_static_flood/U",
+     "seed": 42
+    },
+    "costly_export_flood": {
+     "Q": 38.13882532418002,
+     "level": 4.0,
+     "p95_s": 0.7651213000000071,
+     "requests": 1311,
+     "run": "reference/r3/attack_costly_export_flood/U",
+     "seed": 43
+    },
+    "costly_search_flood": {
+     "Q": 98.45588235294117,
+     "level": 2.0,
+     "p95_s": 0.2049095000000001,
+     "requests": 1360,
+     "run": "reference/r3/attack_costly_search_flood/U",
+     "seed": 44
+    }
+   },
+   "legit": {
+    "Q": 99.96710526315789,
+    "p95_s": 0.07850129999998927,
+    "requests": 3040,
+    "run": "reference/r3/legit/C",
+    "seed": 41
+   },
+   "round": 3
+  },
+  {
+   "attacks": {
+    "cheap_static_flood": {
+     "Q": 4.844606946983546,
+     "level": 4.0,
+     "p95_s": 0.8976693999999994,
+     "requests": 1094,
+     "run": "reference/r4/attack_cheap_static_flood/U",
+     "seed": 42
+    },
+    "costly_export_flood": {
+     "Q": 44.19847328244275,
+     "level": 4.0,
+     "p95_s": 0.5464668000000018,
+     "requests": 1310,
+     "run": "reference/r4/attack_costly_export_flood/U",
+     "seed": 43
+    },
+    "costly_search_flood": {
+     "Q": 98.31006612784716,
+     "level": 2.0,
+     "p95_s": 0.19304255000000475,
+     "requests": 1361,
+     "run": "reference/r4/attack_costly_search_flood/U",
+     "seed": 44
+    }
+   },
+   "legit": {
+    "Q": 100.0,
+    "p95_s": 0.08077439999999073,
+    "requests": 3038,
+    "run": "reference/r4/legit/C",
+    "seed": 41
+   },
+   "round": 4
+  },
+  {
+   "attacks": {
+    "cheap_static_flood": {
+     "Q": 2.6484018264840183,
+     "level": 4.0,
+     "p95_s": 0.7823326000000023,
+     "requests": 1095,
+     "run": "reference/r5/attack_cheap_static_flood/U",
+     "seed": 42
+    },
+    "costly_export_flood": {
+     "Q": 44.15584415584416,
+     "level": 4.0,
+     "p95_s": 0.6246214499999954,
+     "requests": 1309,
+     "run": "reference/r5/attack_costly_export_flood/U",
+     "seed": 43
+    },
+    "costly_search_flood": {
+     "Q": 97.86764705882354,
+     "level": 2.0,
+     "p95_s": 0.20247050000000044,
+     "requests": 1360,
+     "run": "reference/r5/attack_costly_search_flood/U",
+     "seed": 44
+    }
+   },
+   "legit": {
+    "Q": 100.0,
+    "p95_s": 0.08227740000000591,
+    "requests": 3039,
+    "run": "reference/r5/legit/C",
+    "seed": 41
+   },
+   "round": 5
+  }
+ ],
+ "seeds": {
+  "attack": {
+   "cheap_static_flood": 42,
+   "costly_export_flood": 43,
+   "costly_search_flood": 44
+  },
+  "legit": 41
+ },
+ "smoke": false,
+ "step": "reference",
+ "under": {
+  "capacity": {
+   "c_sat_rps": 241.3,
+   "c_slo_rps": 84.5
+  },
+  "route_costs_ms": {
+   "C0": 0.005546960937498346,
+   "C1": 5.112814999999937,
+   "C2": 2.6510200000000594,
+   "C3": 42.71167500000139,
+   "C5": 231.9604360000005
+  },
+  "template_sha256": "ac4e3156db5eacb62fad6c39ebd24c9b5943c07662d231ac7070d9ed9d7e0716"
+ },
+ "waits": {
+  "refused_probes": 0,
+  "runs": 20,
+  "waited": {},
+  "waited_s": 44.0
+ }
+}

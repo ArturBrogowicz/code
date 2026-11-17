@@ -1,0 +1,20 @@
+    2.228 timer probe 1 on CPU 7 at 2026-11-16T01:29:02+00:00: p50 0.0540045, p99 0.534099, max 0.569182 ms: passed
+    2.370 run U of costly_export_sub_threshold, seed 22: preflight and environment passed
+   20.388 speed probe before the stack: CPU 0 C3 42.92 ms, C5 229.6 ms, CPU 1 C3 43 ms, C5 233.2 ms
+   25.239 topology: 4 namespaces, 300 addresses, verified in 4.9 s
+   25.258 started the origin as pid 507279
+   25.310 started Nginx (its launcher returned after 0.05 s)
+   28.070 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   28.173 launched 31 legit streams
+   60.851 launched 4 attack streams
+  147.093 timeline over after 119.0 s
+  149.137 KILL pid 507279
+  149.137 stopped 1 process(es) of this run in 2.03 s
+  149.153 wall time of 5 stream(s) raised to what their records need, by up to 0.12 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  149.237 nginx access log: 5020 lines (0 unparsed), server_requests.csv written, log compressed
+  149.242 run.json written; the run is sound
+  151.297 KILL 2 processes of the namespaces that ignored TERM for 2 s
+  151.501 teardown: 2 process(es) in 5 namespace(s): listed in 0.02 s, ended in 2.23 s
+  151.521 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.00 s
+  151.610 teardown: links deleted: vo_hg_0_perfect 0.03 s, vo_hg_1_broadba 0.01 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.03 s
+  151.637 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 2.4 s in all)

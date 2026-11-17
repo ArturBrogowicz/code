@@ -1,0 +1,30 @@
+    2.234 timer probe 1 on CPU 7 at 2026-11-15T18:27:33+00:00: p50 0.0630785, p99 0.575077, max 0.843974 ms: passed
+    2.498 run C of capacity, seed 13: preflight and environment passed
+   20.769 speed probe before the stack: CPU 0 C3 43.19 ms, C5 235.4 ms, CPU 1 C3 43.05 ms, C5 237 ms
+   26.022 topology: 4 namespaces, 200 addresses, verified in 5.3 s
+   26.041 started the origin as pid 329467
+   26.093 started Nginx (its launcher returned after 0.05 s)
+   28.854 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   28.965 launched 32 legit streams
+   48.973 launched 32 legit streams
+   68.954 launched 32 legit streams
+   88.972 launched 32 legit streams
+  108.963 launched 32 legit streams
+  128.996 launched 32 legit streams
+  148.976 launched 32 legit streams
+  168.976 launched 32 legit streams
+  188.956 launched 32 legit streams
+  208.983 launched 32 legit streams
+  228.974 launched 32 legit streams
+  248.977 launched 32 legit streams
+  285.092 timeline over after 256.2 s
+  287.129 KILL pid 329467
+  287.129 stopped 1 process(es) of this run in 2.02 s
+  287.276 wall time of 101 stream(s) raised to what their records need, by up to 0.47 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  288.090 nginx access log: 47240 lines (0 unparsed), server_requests.csv written, log compressed
+  288.173 run.json written; the run is sound
+  290.223 KILL 2 processes of the namespaces that ignored TERM for 2 s
+  290.427 teardown: 2 process(es) in 5 namespace(s): listed in 0.02 s, ended in 2.23 s
+  290.449 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.01 s, server_ns 0.00 s
+  290.535 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.02 s, ddos_br0 0.01 s
+  290.560 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 2.4 s in all)

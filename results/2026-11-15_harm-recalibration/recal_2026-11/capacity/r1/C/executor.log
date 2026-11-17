@@ -1,0 +1,31 @@
+    0.081 gate: uptime 99509 s, load 0.72; waiting up to 30 min for uptime 1800 s and load below 0.3
+   62.245 timer probe 1 on CPU 7 at 2026-11-15T18:17:09+00:00: p50 0.0318505, p99 0.513898, max 0.52097 ms: passed
+   62.499 run C of capacity, seed 11: preflight and environment passed
+   80.739 speed probe before the stack: CPU 0 C3 42.67 ms, C5 233 ms, CPU 1 C3 42.86 ms, C5 234.5 ms
+   85.233 topology: 4 namespaces, 200 addresses, verified in 4.5 s
+   85.252 started the origin as pid 327129
+   85.304 started Nginx (its launcher returned after 0.05 s)
+   88.054 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   88.153 launched 31 legit streams
+  108.162 launched 31 legit streams
+  128.159 launched 31 legit streams
+  148.181 launched 31 legit streams
+  168.178 launched 31 legit streams
+  188.181 launched 31 legit streams
+  208.152 launched 31 legit streams
+  228.163 launched 31 legit streams
+  248.182 launched 31 legit streams
+  268.183 launched 31 legit streams
+  288.152 launched 31 legit streams
+  308.161 launched 31 legit streams
+  343.262 timeline over after 255.2 s
+  345.293 KILL pid 327129
+  345.293 stopped 1 process(es) of this run in 2.02 s
+  345.443 wall time of 99 stream(s) raised to what their records need, by up to 0.47 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  346.225 nginx access log: 46532 lines (0 unparsed), server_requests.csv written, log compressed
+  346.254 run.json written; the run is sound
+  348.297 KILL 2 processes of the namespaces that ignored TERM for 2 s
+  348.503 teardown: 2 process(es) in 5 namespace(s): listed in 0.02 s, ended in 2.22 s
+  348.525 teardown: namespaces deleted: hg_0_perfect 0.01 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.01 s, server_ns 0.00 s
+  348.611 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.02 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  348.637 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.03 s; 2.4 s in all)

@@ -1,0 +1,30 @@
+    2.240 timer probe 1 on CPU 7 at 2026-11-15T18:22:19+00:00: p50 0.086613, p99 0.536113, max 0.557318 ms: passed
+    2.493 run C of capacity, seed 12: preflight and environment passed
+   20.723 speed probe before the stack: CPU 0 C3 42.35 ms, C5 232.6 ms, CPU 1 C3 43.9 ms, C5 235 ms
+   28.517 topology: 4 namespaces, 200 addresses, verified in 7.8 s
+   28.535 started the origin as pid 328338
+   28.587 started Nginx (its launcher returned after 0.05 s)
+   31.365 stack ready: 5 routes answer with their own class under calibration placeholder; warmed up
+   31.467 launched 29 legit streams
+   51.470 launched 29 legit streams
+   71.463 launched 29 legit streams
+   91.463 launched 29 legit streams
+  111.474 launched 29 legit streams
+  131.496 launched 29 legit streams
+  151.472 launched 29 legit streams
+  171.452 launched 29 legit streams
+  191.479 launched 29 legit streams
+  211.476 launched 29 legit streams
+  231.473 launched 29 legit streams
+  251.454 launched 29 legit streams
+  286.581 timeline over after 255.2 s
+  288.610 KILL pid 328338
+  288.610 stopped 1 process(es) of this run in 2.02 s
+  288.747 wall time of 85 stream(s) raised to what their records need, by up to 0.36 s: the engine was descheduled between reading the schedule's zero and its wall clock
+  289.546 nginx access log: 47159 lines (0 unparsed), server_requests.csv written, log compressed
+  289.565 run.json written; the run is sound
+  291.606 KILL 2 processes of the namespaces that ignored TERM for 2 s
+  291.810 teardown: 2 process(es) in 5 namespace(s): listed in 0.02 s, ended in 2.22 s
+  291.831 teardown: namespaces deleted: hg_0_perfect 0.00 s, hg_1_broadband 0.00 s, hg_2_mobile_3g 0.00 s, hg_3_mobile_bad 0.00 s, server_ns 0.01 s
+  291.925 teardown: links deleted: vo_hg_0_perfect 0.01 s, vo_hg_1_broadba 0.02 s, vo_hg_2_mobile_ 0.01 s, vo_hg_3_mobile_ 0.01 s, veth_srv_br 0.01 s, ddos_br0 0.02 s
+  291.950 teardown complete: no namespace, link or process of the testbed is left (leftover check 0.02 s; 2.4 s in all)

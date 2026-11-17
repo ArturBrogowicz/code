@@ -1,0 +1,146 @@
+{
+ "c_sat_rps": 241.3,
+ "c_slo_rps": 84.5,
+ "created_utc": "2026-11-15T18:32:45+00:00",
+ "first_unhealthy_rps": 109.9,
+ "levels_rps": [
+  29.6,
+  38.5,
+  50.0,
+  65.0,
+  84.5,
+  109.9,
+  142.8,
+  185.6,
+  241.3,
+  313.7,
+  407.9,
+  530.2
+ ],
+ "pins": {
+  "attack": "3-6",
+  "daemon": "2",
+  "legit": "7",
+  "server": "0-1"
+ },
+ "q_pct": [
+  [
+   100.0,
+   100.0,
+   100.0,
+   100.0,
+   99.80237154150197,
+   98.17905918057663,
+   97.1655328798186,
+   69.31818181818181,
+   0.05959475566150179,
+   0.0,
+   0.0,
+   0.0
+  ],
+  [
+   100.0,
+   100.0,
+   100.0,
+   100.0,
+   99.68503937007874,
+   98.53300733496333,
+   96.86013320647002,
+   67.8302532511978,
+   0.09975062344139651,
+   0.0,
+   0.0,
+   0.0
+  ],
+  [
+   100.0,
+   100.0,
+   100.0,
+   99.80392156862744,
+   100.0,
+   99.63325183374083,
+   97.65166340508806,
+   71.61693268563498,
+   10.015408320493066,
+   0.0,
+   0.0,
+   0.0
+  ]
+ ],
+ "smoke": false,
+ "stack_cost": [
+  {
+   "nginx_ms_per_request": 0.4140127388535031,
+   "origin_ms_per_request": 11.668789808917193,
+   "requests": 334
+  },
+  {
+   "nginx_ms_per_request": 0.36649214659685864,
+   "origin_ms_per_request": 11.896296296296295,
+   "requests": 405
+  },
+  {
+   "nginx_ms_per_request": 0.33450704225352107,
+   "origin_ms_per_request": 10.03584229390681,
+   "requests": 558
+  },
+  {
+   "nginx_ms_per_request": 0.33333333333333337,
+   "origin_ms_per_request": 9.855072463768115,
+   "requests": 731
+  },
+  {
+   "nginx_ms_per_request": 0.32407407407407407,
+   "origin_ms_per_request": 9.81447963800905,
+   "requests": 884
+  },
+  {
+   "nginx_ms_per_request": 0.2982456140350877,
+   "origin_ms_per_request": 9.832220367278797,
+   "requests": 1186
+  },
+  {
+   "nginx_ms_per_request": 0.28326745718050067,
+   "origin_ms_per_request": 9.708827404479578,
+   "requests": 1513
+  },
+  {
+   "nginx_ms_per_request": 0.23377862595419846,
+   "origin_ms_per_request": 9.670324427480915,
+   "requests": 2096
+  },
+  {
+   "nginx_ms_per_request": 0.19888346127006284,
+   "origin_ms_per_request": 8.272019808984789,
+   "requests": 2827
+  },
+  {
+   "nginx_ms_per_request": 0.19044990339497658,
+   "origin_ms_per_request": 6.406414155377385,
+   "requests": 3623
+  },
+  {
+   "nginx_ms_per_request": 0.16305048335123523,
+   "origin_ms_per_request": 4.990547798066595,
+   "requests": 4655
+  },
+  {
+   "nginx_ms_per_request": 0.14442413162705667,
+   "origin_ms_per_request": 3.8259930197772976,
+   "requests": 6017
+  }
+ ],
+ "step": "capacity",
+ "step_s": 20.0,
+ "template_sha256": "ac4e3156db5eacb62fad6c39ebd24c9b5943c07662d231ac7070d9ed9d7e0716",
+ "waits": {
+  "refused_probes": 0,
+  "runs": 3,
+  "waited": {},
+  "waited_s": 6.6
+ },
+ "window_s": [
+  5.0,
+  17.0
+ ]
+}

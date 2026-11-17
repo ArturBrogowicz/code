@@ -1,0 +1,368 @@
+{
+ "finished_utc": "2026-11-16T12:03:10+00:00",
+ "host": {
+  "ok": true,
+  "other_cpu": [
+   {
+    "pct": 0.7,
+    "t": 1794830425.0,
+    "top": [
+     [
+      0.6,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+     ]
+    ]
+   },
+   {
+    "pct": 0.5,
+    "t": 1794830435.0,
+    "top": [
+     [
+      0.5,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 2.7,
+    "t": 1794830445.0,
+    "top": [
+     [
+      0.5,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.4,
+      "/usr/lib/systemd/systemd-udevd"
+     ],
+     [
+      0.4,
+      "/usr/lib/systemd/systemd --switched-root --system --deserial"
+     ]
+    ]
+   },
+   {
+    "pct": 0.6,
+    "t": 1794830455.0,
+    "top": [
+     [
+      0.5,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+     ]
+    ]
+   },
+   {
+    "pct": 0.7,
+    "t": 1794830465.0,
+    "top": [
+     [
+      0.6,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/usr/sbin/cron -f -P"
+     ]
+    ]
+   },
+   {
+    "pct": 0.7,
+    "t": 1794830475.0,
+    "top": [
+     [
+      0.5,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "sshd-session: artur@notty"
+     ],
+     [
+      0.1,
+      "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+     ]
+    ]
+   },
+   {
+    "pct": 0.7,
+    "t": 1794830485.0,
+    "top": [
+     [
+      0.6,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/usr/lib/polkit-1/polkitd --no-debug --log-level=notice"
+     ]
+    ]
+   },
+   {
+    "pct": 0.3,
+    "t": 1794830495.0,
+    "top": [
+     [
+      0.3,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.9,
+    "t": 1794830505.0,
+    "top": [
+     [
+      0.6,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "sshd-session: artur@notty"
+     ],
+     [
+      0.1,
+      "/usr/lib/openssh/sftp-server"
+     ]
+    ]
+   },
+   {
+    "pct": 0.7,
+    "t": 1794830515.0,
+    "top": [
+     [
+      0.6,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/usr/lib/polkit-1/polkitd --no-debug --log-level=notice"
+     ]
+    ]
+   },
+   {
+    "pct": 0.6000000000000001,
+    "t": 1794830525.0,
+    "top": [
+     [
+      0.4,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/usr/sbin/multipathd -d -s"
+     ],
+     [
+      0.1,
+      "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+     ]
+    ]
+   },
+   {
+    "pct": 0.7,
+    "t": 1794830535.0,
+    "top": [
+     [
+      0.6,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/usr/libexec/udisks2/udisksd"
+     ]
+    ]
+   },
+   {
+    "pct": 0.4,
+    "t": 1794830545.0,
+    "top": [
+     [
+      0.3,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+     ]
+    ]
+   },
+   {
+    "pct": 0.7,
+    "t": 1794830555.0,
+    "top": [
+     [
+      0.6,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/usr/lib/systemd/systemd-resolved"
+     ]
+    ]
+   },
+   {
+    "pct": 0.7,
+    "t": 1794830565.0,
+    "top": [
+     [
+      0.6,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "sshd-session: artur@notty"
+     ]
+    ]
+   },
+   {
+    "pct": 1.3,
+    "t": 1794830575.0,
+    "top": [
+     [
+      0.6,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.2,
+      "/usr/lib/systemd/systemd-udevd"
+     ],
+     [
+      0.2,
+      "/usr/lib/systemd/systemd --user"
+     ]
+    ]
+   },
+   {
+    "pct": 0.4,
+    "t": 1794830585.0,
+    "top": [
+     [
+      0.3,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+     ]
+    ]
+   }
+  ],
+  "reasons": [],
+  "rules": {
+   "H1": {
+    "ok": true,
+    "reasons": []
+   },
+   "H3": {
+    "ok": true,
+    "reasons": []
+   },
+   "H4": {
+    "ok": true,
+    "reasons": []
+   },
+   "H5": {
+    "ok": true,
+    "reasons": []
+   },
+   "H6": {
+    "ok": true,
+    "reasons": []
+   },
+   "H7": {
+    "ok": true,
+    "reasons": []
+   }
+  },
+  "slip_p99_s": 0.013100040000002972,
+  "window": {
+   "end": "2026-11-16T12:03:08+00:00",
+   "start": "2026-11-16T12:00:18+00:00"
+  }
+ },
+ "ok": true,
+ "reasons": [],
+ "seconds": 154.6,
+ "setup_retries": 0,
+ "speed": {
+  "after": {
+   "cpus": {
+    "0": {
+     "C0": 0.005463367187499846,
+     "C1": 5.051260000000113,
+     "C2": 2.628697999999652,
+     "C3": 42.56446000000125,
+     "C5": 229.3499419999998
+    },
+    "1": {
+     "C0": 0.005596152343750535,
+     "C1": 5.18980899999999,
+     "C2": 2.711943999999633,
+     "C3": 42.96995899999967,
+     "C5": 236.35085699999968
+    }
+   },
+   "errors": {},
+   "t_end": 1794830588.3770995,
+   "t_start": 1794830570.401715,
+   "utc_end": "2026-11-16T12:03:08+00:00",
+   "utc_start": "2026-11-16T12:02:50+00:00"
+  },
+  "before": {
+   "cpus": {
+    "0": {
+     "C0": 0.005478121093749344,
+     "C1": 5.107424999999832,
+     "C2": 2.683741999999878,
+     "C3": 42.36595700000034,
+     "C5": 232.80590199999995
+    },
+    "1": {
+     "C0": 0.005450101562498588,
+     "C1": 5.080545000000214,
+     "C2": 2.6507589999997805,
+     "C3": 42.54901000000011,
+     "C5": 230.90898400000003
+    }
+   },
+   "errors": {},
+   "t_end": 1794830436.0310378,
+   "t_start": 1794830418.1430492,
+   "utc_end": "2026-11-16T12:00:36+00:00",
+   "utc_start": "2026-11-16T12:00:18+00:00"
+  },
+  "d_after": 0.0025684610625486826,
+  "d_before": -0.003197673191981776,
+  "in_run": {
+   "frozen_cost_s": 48.679414537649265,
+   "index": 1.077063877985824,
+   "origin_cpu_s": 52.43083900000001
+  },
+  "limit": 0.1,
+  "ok": true,
+  "reasons": [],
+  "reference": "the frozen record 7005a2ed",
+  "reference_costs_ms": {
+   "C0": 0.005546960937498346,
+   "C1": 5.112814999999937,
+   "C2": 2.6510200000000594,
+   "C3": 42.71167500000139,
+   "C5": 231.9604360000005
+  },
+  "window": {
+   "end": "2026-11-16T12:03:08+00:00",
+   "start": "2026-11-16T12:00:18+00:00",
+   "t_end": 1794830588.3770995,
+   "t_start": 1794830418.1430492
+  }
+ },
+ "timer_refused_probes": 0,
+ "timer_waited_s": 2.2
+}

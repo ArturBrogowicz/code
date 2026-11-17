@@ -1,0 +1,488 @@
+2026/11/16 01:42:58 [error] 509513#509513: *1 connect() failed (111: Connection refused) while connecting to upstream, client: 10.0.0.1, server: twojadomena.pl, request: "GET /static/1 HTTP/1.1", upstream: "http://127.0.0.1:8080/static/1", host: "10.0.0.1"
+2026/11/16 01:42:58 [info] 509513#509513: *1 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:42:59 [info] 509513#509513: *3 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:42:59 [info] 509513#509513: *5 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:42:59 [info] 509513#509513: *7 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:42:59 [info] 509513#509513: *9 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:42:59 [info] 509513#509513: *11 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:43:00 [info] 509513#509513: *13 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:43:00 [info] 509513#509513: *15 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:43:00 [info] 509513#509513: *17 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:43:00 [info] 509513#509513: *19 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:43:00 [info] 509513#509513: *21 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:43:00 [info] 509513#509513: *23 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:43:00 [info] 509513#509513: *25 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:43:00 [info] 509513#509513: *27 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:43:00 [info] 509513#509513: *29 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:43:00 [info] 509513#509513: *31 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:43:01 [info] 509513#509513: *33 client 10.0.0.1 closed keepalive connection
+2026/11/16 01:43:05 [warn] 509513#509513: *171 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/00/0000000001 while reading upstream, client: 10.0.1.2, server: twojadomena.pl, request: "GET /export?r=485 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=485", host: "10.0.0.1"
+2026/11/16 01:43:06 [warn] 509513#509513: *177 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/00/0000000002 while reading upstream, client: 10.0.1.14, server: twojadomena.pl, request: "GET /export?r=218 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=218", host: "10.0.0.1"
+2026/11/16 01:43:12 [warn] 509513#509513: *668 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/00/0000000003 while reading upstream, client: 10.0.1.31, server: twojadomena.pl, request: "GET /export?r=592 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=592", host: "10.0.0.1"
+2026/11/16 01:43:12 [warn] 509513#509513: *695 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/00/0000000004 while reading upstream, client: 10.0.1.81, server: twojadomena.pl, request: "GET /export?r=428 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=428", host: "10.0.0.1"
+2026/11/16 01:43:13 [warn] 509513#509513: *725 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/00/0000000005 while reading upstream, client: 10.0.1.17, server: twojadomena.pl, request: "GET /export?r=52 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=52", host: "10.0.0.1"
+2026/11/16 01:43:18 [warn] 509513#509513: *994 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/00/0000000006 while reading upstream, client: 10.0.1.34, server: twojadomena.pl, request: "GET /export?r=209 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=209", host: "10.0.0.1"
+2026/11/16 01:43:18 [warn] 509513#509513: *1030 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/00/0000000007 while reading upstream, client: 10.0.1.8, server: twojadomena.pl, request: "GET /export?r=304 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=304", host: "10.0.0.1"
+2026/11/16 01:43:19 [warn] 509513#509513: *1042 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/00/0000000008 while reading upstream, client: 10.0.1.33, server: twojadomena.pl, request: "GET /export?r=257 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=257", host: "10.0.0.1"
+2026/11/16 01:43:19 [warn] 509513#509513: *1064 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/00/0000000009 while reading upstream, client: 10.0.1.153, server: twojadomena.pl, request: "GET /export?r=305 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=305", host: "10.0.0.1"
+2026/11/16 01:43:23 [warn] 509513#509513: *1312 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/01/0000000010 while reading upstream, client: 10.0.1.126, server: twojadomena.pl, request: "GET /export?r=473 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=473", host: "10.0.0.1"
+2026/11/16 01:43:28 [warn] 509513#509513: *1509 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/01/0000000011 while reading upstream, client: 10.0.1.46, server: twojadomena.pl, request: "GET /export?r=814 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=814", host: "10.0.0.1"
+2026/11/16 01:43:38 [warn] 509513#509513: *2042 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/01/0000000012 while reading upstream, client: 10.0.2.6, server: twojadomena.pl, request: "GET /export?r=873 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=873", host: "10.0.0.1"
+2026/11/16 01:43:39 [warn] 509513#509513: *2094 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/01/0000000013 while reading upstream, client: 10.0.2.23, server: twojadomena.pl, request: "GET /export?r=332 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=332", host: "10.0.0.1"
+2026/11/16 01:43:46 [warn] 509513#509513: *2426 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/01/0000000014 while reading upstream, client: 10.0.2.5, server: twojadomena.pl, request: "GET /export?r=630 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=630", host: "10.0.0.1"
+2026/11/16 01:43:50 [warn] 509513#509513: *2600 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/01/0000000015 while reading upstream, client: 10.0.2.29, server: twojadomena.pl, request: "GET /export?r=331 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=331", host: "10.0.0.1"
+2026/11/16 01:43:50 [warn] 509513#509513: *2633 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/01/0000000016 while reading upstream, client: 10.0.1.135, server: twojadomena.pl, request: "GET /export?r=611 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=611", host: "10.0.0.1"
+2026/11/16 01:43:51 [warn] 509513#509513: *2684 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/01/0000000017 while reading upstream, client: 10.0.2.7, server: twojadomena.pl, request: "GET /export?r=811 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=811", host: "10.0.0.1"
+2026/11/16 01:43:51 [warn] 509513#509513: *2689 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/01/0000000018 while reading upstream, client: 10.0.2.31, server: twojadomena.pl, request: "GET /export?r=720 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=720", host: "10.0.0.1"
+2026/11/16 01:43:56 [warn] 509513#509513: *2930 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/01/0000000019 while reading upstream, client: 10.0.1.47, server: twojadomena.pl, request: "GET /export?r=61 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=61", host: "10.0.0.1"
+2026/11/16 01:43:57 [warn] 509513#509513: *2948 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/02/0000000020 while reading upstream, client: 10.0.2.44, server: twojadomena.pl, request: "GET /export?r=642 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=642", host: "10.0.0.1"
+2026/11/16 01:44:00 [warn] 509513#509513: *3092 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/02/0000000021 while reading upstream, client: 10.0.1.136, server: twojadomena.pl, request: "GET /export?r=545 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=545", host: "10.0.0.1"
+2026/11/16 01:44:01 [warn] 509513#509513: *3139 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/02/0000000022 while reading upstream, client: 10.0.1.65, server: twojadomena.pl, request: "GET /export?r=138 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=138", host: "10.0.0.1"
+2026/11/16 01:44:02 [warn] 509513#509513: *3177 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/02/0000000023 while reading upstream, client: 10.0.2.40, server: twojadomena.pl, request: "GET /export?r=98 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=98", host: "10.0.0.1"
+2026/11/16 01:44:04 [warn] 509513#509513: *3245 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/02/0000000024 while reading upstream, client: 10.0.2.20, server: twojadomena.pl, request: "GET /export?r=289 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=289", host: "10.0.0.1"
+2026/11/16 01:44:04 [warn] 509513#509513: *3304 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/02/0000000025 while reading upstream, client: 10.0.2.24, server: twojadomena.pl, request: "GET /export?r=404 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=404", host: "10.0.0.1"
+2026/11/16 01:44:05 [warn] 509513#509513: *3343 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/02/0000000026 while reading upstream, client: 10.0.1.156, server: twojadomena.pl, request: "GET /export?r=947 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=947", host: "10.0.0.1"
+2026/11/16 01:44:05 [warn] 509513#509513: *3346 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/02/0000000027 while reading upstream, client: 10.0.2.46, server: twojadomena.pl, request: "GET /export?r=564 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=564", host: "10.0.0.1"
+2026/11/16 01:44:05 [info] 509513#509513: *3245 client 10.0.2.20 closed keepalive connection
+2026/11/16 01:44:05 [info] 509513#509513: *2684 client 10.0.2.7 closed keepalive connection
+2026/11/16 01:44:05 [info] 509513#509513: *3304 client 10.0.2.24 closed keepalive connection
+2026/11/16 01:44:10 [warn] 509513#509513: *3650 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/02/0000000028 while reading upstream, client: 10.0.1.161, server: twojadomena.pl, request: "GET /export?r=94 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=94", host: "10.0.0.1"
+2026/11/16 01:44:10 [info] 509513#509513: *2948 client 10.0.2.44 closed keepalive connection
+2026/11/16 01:44:10 [info] 509513#509513: *3666 client 10.0.2.55 closed keepalive connection
+2026/11/16 01:44:11 [warn] 509513#509513: *3676 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/02/0000000029 while reading upstream, client: 10.0.2.47, server: twojadomena.pl, request: "GET /export?r=603 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=603", host: "10.0.0.1"
+2026/11/16 01:44:11 [warn] 509513#509513: *3687 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/03/0000000030 while reading upstream, client: 10.0.2.56, server: twojadomena.pl, request: "GET /export?r=564 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=564", host: "10.0.0.1"
+2026/11/16 01:44:11 [warn] 509513#509513: *3683 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/03/0000000031 while reading upstream, client: 10.0.2.54, server: twojadomena.pl, request: "GET /export?r=864 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=864", host: "10.0.0.1"
+2026/11/16 01:44:12 [warn] 509513#509513: *3755 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/03/0000000032 while reading upstream, client: 10.0.1.176, server: twojadomena.pl, request: "GET /export?r=524 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=524", host: "10.0.0.1"
+2026/11/16 01:44:18 [warn] 509513#509513: *4009 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/03/0000000033 while reading upstream, client: 10.0.2.58, server: twojadomena.pl, request: "GET /export?r=253 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=253", host: "10.0.0.1"
+2026/11/16 01:44:18 [warn] 509513#509513: *4038 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/03/0000000034 while reading upstream, client: 10.0.2.67, server: twojadomena.pl, request: "GET /export?r=104 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=104", host: "10.0.0.1"
+2026/11/16 01:44:19 [warn] 509513#509513: *4054 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/03/0000000035 while reading upstream, client: 10.0.2.83, server: twojadomena.pl, request: "GET /export?r=873 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=873", host: "10.0.0.1"
+2026/11/16 01:44:19 [info] 509513#509513: *4054 client 10.0.2.83 closed keepalive connection
+2026/11/16 01:44:19 [info] 509513#509513: *3676 client 10.0.2.47 closed keepalive connection
+2026/11/16 01:44:19 [info] 509513#509513: *4038 client 10.0.2.67 closed keepalive connection
+2026/11/16 01:44:19 [info] 509513#509513: *3683 client 10.0.2.54 closed keepalive connection
+2026/11/16 01:44:19 [info] 509513#509513: *3687 client 10.0.2.56 closed keepalive connection
+2026/11/16 01:44:19 [info] 509513#509513: *4009 client 10.0.2.58 closed keepalive connection
+2026/11/16 01:44:19 [info] 509513#509513: *3346 client 10.0.2.46 closed keepalive connection
+2026/11/16 01:44:21 [warn] 509513#509513: *4154 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/03/0000000036 while reading upstream, client: 10.0.1.174, server: twojadomena.pl, request: "GET /export?r=16 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=16", host: "10.0.0.1"
+2026/11/16 01:44:22 [warn] 509513#509513: *4255 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/03/0000000037 while reading upstream, client: 10.0.1.93, server: twojadomena.pl, request: "GET /export?r=936 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=936", host: "10.0.0.1"
+2026/11/16 01:44:24 [warn] 509513#509513: *4347 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/03/0000000038 while reading upstream, client: 10.0.1.96, server: twojadomena.pl, request: "GET /export?r=698 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=698", host: "10.0.0.1"
+2026/11/16 01:44:25 [warn] 509513#509513: *4387 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/9/03/0000000039 while reading upstream, client: 10.0.1.100, server: twojadomena.pl, request: "GET /export?r=61 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=61", host: "10.0.0.1"
+2026/11/16 01:44:25 [warn] 509513#509513: *4397 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/0/04/0000000040 while reading upstream, client: 10.0.1.207, server: twojadomena.pl, request: "GET /export?r=328 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=328", host: "10.0.0.1"
+2026/11/16 01:44:28 [warn] 509513#509513: *4503 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/1/04/0000000041 while reading upstream, client: 10.0.1.219, server: twojadomena.pl, request: "GET /export?r=629 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=629", host: "10.0.0.1"
+2026/11/16 01:44:29 [warn] 509513#509513: *4546 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/2/04/0000000042 while reading upstream, client: 10.0.1.233, server: twojadomena.pl, request: "GET /export?r=217 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=217", host: "10.0.0.1"
+2026/11/16 01:44:34 [info] 509513#509513: *4805 client 10.0.1.77 closed keepalive connection
+2026/11/16 01:44:34 [info] 509513#509513: *4063 client 10.0.1.184 closed keepalive connection
+2026/11/16 01:44:34 [info] 509513#509513: *4817 client 10.0.1.4 closed keepalive connection
+2026/11/16 01:44:35 [info] 509513#509513: *4835 client 10.0.1.113 closed keepalive connection
+2026/11/16 01:44:35 [info] 509513#509513: *4147 client 10.0.1.179 closed keepalive connection
+2026/11/16 01:44:36 [info] 509513#509513: *199 client 10.0.1.41 closed keepalive connection
+2026/11/16 01:44:36 [info] 509513#509513: *81 client 10.0.1.9 closed keepalive connection
+2026/11/16 01:44:36 [info] 509513#509513: *39 client 10.0.1.27 closed keepalive connection
+2026/11/16 01:44:36 [info] 509513#509513: *141 client 10.0.1.90 closed keepalive connection
+2026/11/16 01:44:36 [info] 509513#509513: *219 client 10.0.1.168 closed keepalive connection
+2026/11/16 01:44:36 [info] 509513#509513: *305 client 10.0.1.178 closed keepalive connection
+2026/11/16 01:44:36 [info] 509513#509513: *4865 client 10.0.1.30 closed keepalive connection
+2026/11/16 01:44:36 [info] 509513#509513: *4976 client 10.0.1.132 closed keepalive connection
+2026/11/16 01:44:36 [info] 509513#509513: *4921 client 10.0.1.127 closed keepalive connection
+2026/11/16 01:44:36 [info] 509513#509513: *4814 client 10.0.1.211 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *4282 client 10.0.1.179 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *154 client 10.0.1.179 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *43 client 10.0.1.27 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *61 client 10.0.1.77 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *74 client 10.0.1.90 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *95 client 10.0.1.168 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *121 client 10.0.1.178 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *150 client 10.0.1.184 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *76 client 10.0.1.30 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *69 client 10.0.1.20 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *139 client 10.0.1.127 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *91 client 10.0.1.51 closed keepalive connection
+2026/11/16 01:44:37 [info] 509512#509512: *57 client 10.0.1.7 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *99 client 10.0.1.67 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *181 client 10.0.1.211 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *123 client 10.0.1.91 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *166 client 10.0.1.146 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *50 client 10.0.1.4 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *157 client 10.0.1.132 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *127 client 10.0.1.113 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *86 client 10.0.1.9 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *119 client 10.0.1.41 closed keepalive connection
+2026/11/16 01:44:37 [info] 509513#509513: *169 client 10.0.1.122 closed keepalive connection
+2026/11/16 01:44:38 [warn] 509513#509513: *5061 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/3/04/0000000043 while reading upstream, client: 10.0.1.240, server: twojadomena.pl, request: "GET /export?r=196 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=196", host: "10.0.0.1"
+2026/11/16 01:44:39 [warn] 509513#509513: *5080 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/4/04/0000000044 while reading upstream, client: 10.0.1.31, server: twojadomena.pl, request: "GET /export?r=213 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=213", host: "10.0.0.1"
+2026/11/16 01:44:39 [warn] 509513#509513: *5098 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/5/04/0000000045 while reading upstream, client: 10.0.1.33, server: twojadomena.pl, request: "GET /export?r=655 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=655", host: "10.0.0.1"
+2026/11/16 01:44:40 [info] 509513#509513: *4397 client 10.0.1.207 closed keepalive connection
+2026/11/16 01:44:40 [info] 509513#509513: *5061 client 10.0.1.240 closed keepalive connection
+2026/11/16 01:44:40 [info] 509513#509513: *5098 client 10.0.1.33 closed keepalive connection
+2026/11/16 01:44:40 [info] 509513#509513: *4546 client 10.0.1.233 closed keepalive connection
+2026/11/16 01:44:40 [info] 509513#509513: *4503 client 10.0.1.219 closed keepalive connection
+2026/11/16 01:44:40 [info] 509513#509513: *5080 client 10.0.1.31 closed keepalive connection
+2026/11/16 01:44:46 [warn] 509513#509513: *5396 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/6/04/0000000046 while reading upstream, client: 10.0.1.129, server: twojadomena.pl, request: "GET /export?r=52 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=52", host: "10.0.0.1"
+2026/11/16 01:44:46 [info] 509513#509513: *5396 client 10.0.1.129 closed keepalive connection
+2026/11/16 01:44:47 [warn] 509513#509513: *5439 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/7/04/0000000047 while reading upstream, client: 10.0.1.183, server: twojadomena.pl, request: "GET /export?r=999 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=999", host: "10.0.0.1"
+2026/11/16 01:44:48 [info] 509513#509513: *5439 client 10.0.1.183 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *640 client 10.0.1.102 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *2994 client 10.0.1.157 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *65 client 10.0.1.1 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *2448 client 10.0.1.8 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *2451 client 10.0.1.13 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *2460 client 10.0.1.16 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *2464 client 10.0.1.19 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *311 client 10.0.1.21 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *318 client 10.0.1.22 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *377 client 10.0.1.39 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *387 client 10.0.1.53 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *415 client 10.0.1.66 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *419 client 10.0.1.69 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *493 client 10.0.1.76 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *554 client 10.0.1.89 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *585 client 10.0.1.94 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *604 client 10.0.1.107 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *606 client 10.0.1.117 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *651 client 10.0.1.125 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *666 client 10.0.1.143 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *716 client 10.0.1.144 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *2117 client 10.0.1.147 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *2129 client 10.0.1.155 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *786 client 10.0.1.159 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *2151 client 10.0.1.163 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *846 client 10.0.1.166 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *860 client 10.0.1.170 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *880 client 10.0.1.180 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *893 client 10.0.1.195 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *904 client 10.0.1.198 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *909 client 10.0.1.208 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *914 client 10.0.1.209 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *924 client 10.0.1.214 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *928 client 10.0.1.227 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *965 client 10.0.1.237 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *1021 client 10.0.1.239 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *1026 client 10.0.1.246 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *1034 client 10.0.1.247 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *1038 client 10.0.1.249 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *1040 client 10.0.1.254 closed keepalive connection
+2026/11/16 01:44:48 [info] 509512#509512: *529 client 10.0.1.78 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4592 client 10.0.1.38 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4860 client 10.0.1.101 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *3512 client 10.0.1.109 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4797 client 10.0.1.99 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4899 client 10.0.1.105 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *1559 client 10.0.1.139 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4368 client 10.0.1.202 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4499 client 10.0.1.241 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4544 client 10.0.1.10 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4933 client 10.0.1.110 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4475 client 10.0.1.226 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4602 client 10.0.1.40 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4429 client 10.0.1.221 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4736 client 10.0.1.55 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4361 client 10.0.1.201 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4508 client 10.0.1.251 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *1516 client 10.0.1.124 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4744 client 10.0.1.56 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4521 client 10.0.1.3 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4349 client 10.0.1.196 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4788 client 10.0.1.88 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4482 client 10.0.1.235 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4423 client 10.0.1.218 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4516 client 10.0.1.252 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4665 client 10.0.1.48 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4760 client 10.0.1.73 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *5367 client 10.0.1.43 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4753 client 10.0.1.60 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *1612 client 10.0.1.190 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *1579 client 10.0.1.151 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4389 client 10.0.1.206 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *5190 client 10.0.1.224 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4943 client 10.0.1.111 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4777 client 10.0.1.82 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4558 client 10.0.1.24 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4479 client 10.0.1.230 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *1615 client 10.0.1.192 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4758 client 10.0.1.63 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4338 client 10.0.1.193 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4652 client 10.0.1.44 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *5110 client 10.0.1.205 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4445 client 10.0.1.223 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4582 client 10.0.1.28 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4691 client 10.0.1.50 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4791 client 10.0.1.92 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4551 client 10.0.1.23 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4780 client 10.0.1.87 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4359 client 10.0.1.199 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4604 client 10.0.1.42 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *1597 client 10.0.1.182 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4414 client 10.0.1.217 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4977 client 10.0.1.138 closed keepalive connection
+2026/11/16 01:44:48 [info] 509513#509513: *4965 client 10.0.1.134 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *284 client 10.0.1.80 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *332 client 10.0.1.120 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *463 client 10.0.1.154 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *546 client 10.0.1.165 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *452 client 10.0.1.148 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4841 client 10.0.1.108 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5149 client 10.0.1.154 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *209 client 10.0.1.70 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *421 client 10.0.1.123 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5052 client 10.0.1.123 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *570 client 10.0.1.215 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *572 client 10.0.1.231 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *448 client 10.0.1.133 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *290 client 10.0.1.97 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4636 client 10.0.1.68 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *97 client 10.0.1.35 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5090 client 10.0.1.148 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *476 client 10.0.1.175 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *428 client 10.0.1.121 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *339 client 10.0.1.112 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *473 client 10.0.1.186 closed keepalive connection
+2026/11/16 01:44:49 [info] 509512#509512: *4833 client 10.0.1.98 closed keepalive connection
+2026/11/16 01:44:49 [info] 509512#509512: *4867 client 10.0.1.112 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *242 client 10.0.1.72 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5373 client 10.0.1.35 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5285 client 10.0.1.187 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5182 client 10.0.1.167 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *301 client 10.0.1.98 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *402 client 10.0.1.108 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5353 client 10.0.1.15 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5302 client 10.0.1.215 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4782 client 10.0.1.97 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4908 client 10.0.1.121 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5202 client 10.0.1.175 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5311 client 10.0.1.248 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *425 client 10.0.1.62 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5178 client 10.0.1.165 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *2953 client 10.0.1.109 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3162 client 10.0.1.224 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3221 client 10.0.1.82 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *2837 client 10.0.1.101 closed keepalive connection
+2026/11/16 01:44:49 [warn] 509513#509513: *5501 an upstream response is buffered to a temporary file /var/lib/nginx/proxy/8/04/0000000048 while reading upstream, client: 10.0.1.198, server: twojadomena.pl, request: "GET /export?r=230 HTTP/1.1", upstream: "http://127.0.0.1:8080/export?r=230", host: "10.0.0.1"
+2026/11/16 01:44:49 [info] 509513#509513: *2825 client 10.0.1.92 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3102 client 10.0.1.206 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3169 client 10.0.1.235 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3204 client 10.0.1.48 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3199 client 10.0.1.42 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *2830 client 10.0.1.99 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *2859 client 10.0.1.105 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3003 client 10.0.1.199 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3210 client 10.0.1.60 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3171 client 10.0.1.28 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3299 client 10.0.1.88 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *2967 client 10.0.1.124 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4700 client 10.0.1.72 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4724 client 10.0.1.74 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5318 client 10.0.1.6 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5093 client 10.0.1.133 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5485 client 10.0.1.170 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5501 client 10.0.1.198 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4739 client 10.0.1.80 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5237 client 10.0.1.186 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5357 client 10.0.1.26 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4873 client 10.0.1.120 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4769 client 10.0.1.85 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *525 client 10.0.1.116 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *83 client 10.0.1.1 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *88 client 10.0.1.16 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *135 client 10.0.1.22 closed keepalive connection
+2026/11/16 01:44:49 [info] 509512#509512: *191 client 10.0.1.69 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *144 client 10.0.1.39 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *186 client 10.0.1.66 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *228 client 10.0.1.78 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *249 client 10.0.1.89 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *264 client 10.0.1.107 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *291 client 10.0.1.117 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *335 client 10.0.1.143 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *345 client 10.0.1.155 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *355 client 10.0.1.163 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *385 client 10.0.1.195 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *432 client 10.0.1.209 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *439 client 10.0.1.214 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *442 client 10.0.1.227 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *450 client 10.0.1.239 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *454 client 10.0.1.246 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *474 client 10.0.1.247 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *517 client 10.0.1.254 closed keepalive connection
+2026/11/16 01:44:49 [info] 509512#509512: *367 client 10.0.1.180 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *598 client 10.0.1.171 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *303 client 10.0.1.12 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *768 client 10.0.1.243 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *656 client 10.0.1.212 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *732 client 10.0.1.236 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *557 client 10.0.1.252 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *37 client 10.0.1.3 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *131 client 10.0.1.43 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *164 client 10.0.1.56 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *471 client 10.0.1.202 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *137 client 10.0.1.50 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *79 client 10.0.1.40 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *274 client 10.0.1.110 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *429 client 10.0.1.190 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *465 client 10.0.1.193 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *133 client 10.0.1.44 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *59 client 10.0.1.38 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *160 client 10.0.1.55 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *380 client 10.0.1.139 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *467 client 10.0.1.201 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *47 client 10.0.1.10 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *489 client 10.0.1.223 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *406 client 10.0.1.182 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *240 client 10.0.1.63 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *55 client 10.0.1.24 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *277 client 10.0.1.111 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *257 client 10.0.1.73 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *272 client 10.0.1.101 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *550 client 10.0.1.251 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *523 client 10.0.1.230 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *485 client 10.0.1.221 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *117 client 10.0.1.42 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *184 client 10.0.1.60 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *328 client 10.0.1.138 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *383 client 10.0.1.151 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *434 client 10.0.1.192 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *533 client 10.0.1.241 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *323 client 10.0.1.134 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *511 client 10.0.1.226 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *270 client 10.0.1.88 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3581 client 10.0.1.66 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3605 client 10.0.1.71 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *352 client 10.0.1.104 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *389 client 10.0.1.114 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *487 client 10.0.1.130 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *515 client 10.0.1.140 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *531 client 10.0.1.143 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *543 client 10.0.1.169 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3421 client 10.0.1.177 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3539 client 10.0.1.185 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3555 client 10.0.1.214 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5336 client 10.0.1.202 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3699 client 10.0.1.111 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5210 client 10.0.1.189 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3639 client 10.0.1.100 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5294 client 10.0.1.194 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3707 client 10.0.1.134 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5163 client 10.0.1.182 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3728 client 10.0.1.151 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3706 client 10.0.1.129 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3562 client 10.0.1.93 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5143 client 10.0.1.164 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5362 client 10.0.1.234 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5453 client 10.0.1.10 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5313 client 10.0.1.201 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3533 client 10.0.1.65 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5528 client 10.0.1.40 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3646 client 10.0.1.101 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3628 client 10.0.1.96 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3721 client 10.0.1.138 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3543 client 10.0.1.88 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3500 client 10.0.1.60 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5449 client 10.0.1.3 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4170 client 10.0.1.50 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5221 client 10.0.1.190 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5377 client 10.0.1.241 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5503 client 10.0.1.38 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5398 client 10.0.1.250 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5483 client 10.0.1.34 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4184 client 10.0.1.55 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3679 client 10.0.1.110 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3726 client 10.0.1.139 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5270 client 10.0.1.193 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5475 client 10.0.1.17 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5461 client 10.0.1.14 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5258 client 10.0.1.192 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5343 client 10.0.1.223 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3537 client 10.0.1.73 closed keepalive connection
+2026/11/16 01:44:49 [info] 509512#509512: *4193 client 10.0.1.56 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5345 client 10.0.1.226 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3710 client 10.0.1.137 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5401 client 10.0.1.251 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5409 client 10.0.1.252 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5418 client 10.0.1.2 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5341 client 10.0.1.221 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3530 client 10.0.1.63 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5152 client 10.0.1.172 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5477 client 10.0.1.24 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5350 client 10.0.1.230 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4808 client 10.0.1.37 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4929 client 10.0.1.39 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4948 client 10.0.1.66 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5087 client 10.0.1.69 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5103 client 10.0.1.71 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5113 client 10.0.1.78 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5132 client 10.0.1.89 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5140 client 10.0.1.104 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5146 client 10.0.1.107 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5154 client 10.0.1.114 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5157 client 10.0.1.117 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5170 client 10.0.1.130 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5192 client 10.0.1.140 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5195 client 10.0.1.143 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5198 client 10.0.1.155 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5204 client 10.0.1.163 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5214 client 10.0.1.169 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5217 client 10.0.1.177 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5235 client 10.0.1.180 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5259 client 10.0.1.185 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5265 client 10.0.1.195 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5299 client 10.0.1.209 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5319 client 10.0.1.214 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5347 client 10.0.1.227 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5447 client 10.0.1.239 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5521 client 10.0.1.246 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5526 client 10.0.1.247 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5535 client 10.0.1.254 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *73 client 10.0.1.15 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *769 client 10.0.1.243 closed keepalive connection
+2026/11/16 01:44:49 [info] 509512#509512: *251 client 10.0.1.59 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4694 client 10.0.1.68 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *540 client 10.0.1.85 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *422 client 10.0.1.152 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *109 client 10.0.1.12 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *279 client 10.0.1.102 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4654 client 10.0.1.26 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *664 client 10.0.1.167 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *563 client 10.0.1.112 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *5304 client 10.0.1.231 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *696 client 10.0.1.187 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4523 client 10.0.1.248 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *513 client 10.0.1.74 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *495 client 10.0.1.157 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *718 client 10.0.1.236 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *527 client 10.0.1.171 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *593 client 10.0.1.210 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4540 client 10.0.1.6 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *740 client 10.0.1.212 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3603 client 10.0.1.70 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3216 client 10.0.1.154 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3022 client 10.0.1.120 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4678 client 10.0.1.70 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *391 client 10.0.1.116 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3519 client 10.0.1.233 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *2981 client 10.0.1.108 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *2991 client 10.0.1.112 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3586 client 10.0.1.35 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3445 client 10.0.1.219 closed keepalive connection
+2026/11/16 01:44:49 [info] 509512#509512: *3428 client 10.0.1.215 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4571 client 10.0.1.148 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3030 client 10.0.1.123 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3576 client 10.0.1.31 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3574 client 10.0.1.33 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3284 client 10.0.1.186 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3462 client 10.0.1.231 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *4642 client 10.0.1.156 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *2267 client 10.0.1.97 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3154 client 10.0.1.135 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3241 client 10.0.1.175 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3332 client 10.0.1.207 closed keepalive connection
+2026/11/16 01:44:49 [info] 509512#509512: *3231 client 10.0.1.161 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3079 client 10.0.1.126 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3037 client 10.0.1.121 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3247 client 10.0.1.165 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3619 client 10.0.1.72 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3135 client 10.0.1.133 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3183 client 10.0.1.136 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3635 client 10.0.1.80 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3547 client 10.0.1.240 closed keepalive connection
+2026/11/16 01:44:49 [info] 509513#509513: *3252 client 10.0.1.176 closed keepalive connection
+2026/11/16 01:44:50 [info] 509513#509513: *4385 client 10.0.1.98 closed keepalive connection
+2026/11/16 01:44:50 [info] 509513#509513: *3577 client 10.0.1.15 closed keepalive connection
+2026/11/16 01:44:50 [info] 509513#509513: *4971 client 10.0.1.188 closed keepalive connection

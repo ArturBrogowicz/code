@@ -1,0 +1,322 @@
+{
+ "finished_utc": "2026-11-16T00:52:28+00:00",
+ "host": {
+  "ok": true,
+  "other_cpu": [
+   {
+    "pct": 0.6,
+    "t": 1794790196.0,
+    "top": [
+     [
+      0.5,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/home/artur/.claude/remote/srv/87375cc7c944eb9d45c8d9267edc7"
+     ]
+    ]
+   },
+   {
+    "pct": 1.0,
+    "t": 1794790206.0,
+    "top": [
+     [
+      0.7,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "@dbus-daemon --system --address=systemd: --nofork --nopidfil"
+     ],
+     [
+      0.1,
+      "/usr/lib/systemd/systemd --switched-root --system --deserial"
+     ]
+    ]
+   },
+   {
+    "pct": 3.1,
+    "t": 1794790216.0,
+    "top": [
+     [
+      1.0,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.4,
+      "/usr/lib/systemd/systemd-udevd"
+     ],
+     [
+      0.4,
+      "/usr/lib/systemd/systemd --switched-root --system --deserial"
+     ]
+    ]
+   },
+   {
+    "pct": 1.0,
+    "t": 1794790226.0,
+    "top": [
+     [
+      0.9,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/usr/sbin/chronyd -n -F 1"
+     ]
+    ]
+   },
+   {
+    "pct": 0.8,
+    "t": 1794790236.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.5,
+    "t": 1794790246.0,
+    "top": [
+     [
+      0.5,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.8,
+    "t": 1794790256.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.7,
+    "t": 1794790266.0,
+    "top": [
+     [
+      0.7,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.9,
+    "t": 1794790276.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/usr/lib/polkit-1/polkitd --no-debug --log-level=notice"
+     ]
+    ]
+   },
+   {
+    "pct": 0.4,
+    "t": 1794790286.0,
+    "top": [
+     [
+      0.4,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.8,
+    "t": 1794790296.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 1.1,
+    "t": 1794790306.0,
+    "top": [
+     [
+      1.0,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/usr/sbin/multipathd -d -s"
+     ]
+    ]
+   },
+   {
+    "pct": 0.9,
+    "t": 1794790316.0,
+    "top": [
+     [
+      0.9,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 0.8,
+    "t": 1794790326.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ]
+    ]
+   },
+   {
+    "pct": 1.5,
+    "t": 1794790336.0,
+    "top": [
+     [
+      0.5,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.2,
+      "/usr/lib/systemd/systemd-udevd"
+     ],
+     [
+      0.2,
+      "/usr/lib/systemd/systemd --user"
+     ]
+    ]
+   },
+   {
+    "pct": 0.9,
+    "t": 1794790346.0,
+    "top": [
+     [
+      0.8,
+      "/home/artur/.claude/remote/ccd-cli/2.1.325-1ef04b37a794 --ou"
+     ],
+     [
+      0.1,
+      "/usr/sbin/multipathd -d -s"
+     ]
+    ]
+   }
+  ],
+  "reasons": [],
+  "rules": {
+   "H1": {
+    "ok": true,
+    "reasons": []
+   },
+   "H3": {
+    "ok": true,
+    "reasons": []
+   },
+   "H4": {
+    "ok": true,
+    "reasons": []
+   },
+   "H5": {
+    "ok": true,
+    "reasons": []
+   },
+   "H6": {
+    "ok": true,
+    "reasons": []
+   },
+   "H7": {
+    "ok": true,
+    "reasons": []
+   }
+  },
+  "slip_p99_s": 0.01321100000000077,
+  "window": {
+   "end": "2026-11-16T00:52:25+00:00",
+   "start": "2026-11-16T00:49:49+00:00"
+  }
+ },
+ "ok": true,
+ "reasons": [],
+ "seconds": 140.8,
+ "setup_retries": 0,
+ "speed": {
+  "after": {
+   "cpus": {
+    "0": {
+     "C0": 0.005519175781249636,
+     "C1": 5.065536000000037,
+     "C2": 2.6617209999999503,
+     "C3": 42.98548900000121,
+     "C5": 230.46087499999945
+    },
+    "1": {
+     "C0": 0.005523402343748929,
+     "C1": 5.137751999999551,
+     "C2": 2.7042399999999134,
+     "C3": 45.905824000000095,
+     "C5": 233.56949300000008
+    }
+   },
+   "errors": {},
+   "t_end": 1794790345.978125,
+   "t_start": 1794790327.866175,
+   "utc_end": "2026-11-16T00:52:25+00:00",
+   "utc_start": "2026-11-16T00:52:07+00:00"
+  },
+  "before": {
+   "cpus": {
+    "0": {
+     "C0": 0.005498980468749207,
+     "C1": 5.043105000000381,
+     "C2": 2.6478240000002984,
+     "C3": 42.09746300000017,
+     "C5": 230.82743200000078
+    },
+    "1": {
+     "C0": 0.005493503906250571,
+     "C1": 5.122853999999677,
+     "C2": 2.6920869999997876,
+     "C3": 42.806582999999954,
+     "C5": 232.23388899999975
+    }
+   },
+   "errors": {},
+   "t_end": 1794790207.2700193,
+   "t_start": 1794790189.3383381,
+   "utc_end": "2026-11-16T00:50:07+00:00",
+   "utc_start": "2026-11-16T00:49:49+00:00"
+  },
+  "d_after": 0.020416694475672487,
+  "d_before": -0.003965988747855698,
+  "in_run": {
+   "frozen_cost_s": 73.19429912200805,
+   "index": 1.131017729427353,
+   "origin_cpu_s": 82.78405000000004
+  },
+  "limit": 0.1,
+  "ok": true,
+  "reasons": [],
+  "reference": "the session's origin step (origin/origin.json)",
+  "reference_costs_ms": {
+   "C0": 0.005546960937498346,
+   "C1": 5.112814999999937,
+   "C2": 2.6510200000000594,
+   "C3": 42.71167500000139,
+   "C5": 231.9604360000005
+  },
+  "window": {
+   "end": "2026-11-16T00:52:25+00:00",
+   "start": "2026-11-16T00:49:49+00:00",
+   "t_end": 1794790345.978125,
+   "t_start": 1794790189.3383381
+  }
+ },
+ "timer_refused_probes": 0,
+ "timer_waited_s": 2.2
+}
