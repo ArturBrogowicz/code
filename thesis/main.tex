@@ -104,7 +104,7 @@ Na wkład pracy składają się następujące elementy; zakres obowiązywania ka
 \end{enumerate}
 
 \subsection{Struktura pracy}
-Rozdział~\ref{sec:stan_ataki} przedstawia taksonomię współczesnych ataków DDoS oraz mechanizmy ataków wolumetrycznych, ataków na warstwę aplikacyjną i ataków typu \textit{low-and-slow}. Rozdział~\ref{sec:stan_obrona} omawia umiejscowienie mechanizmów obrony, filtrowanie pakietów w jądrze systemu operacyjnego, metody detekcji oparte na uczeniu maszynowym i metodykę ich ewaluacji, a rozdział~\ref{sec:wnioski_przeglad} zbiera wnioski z tego przeglądu. Rozdział~\ref{sec:architektura} formułuje wymagania W1--W7 i opisuje architekturę systemu, a rozdział~\ref{sec:implementacja} jego implementację: program XDP, demon płaszczyzny sterowania z regułami detekcji, konfigurację serwera Nginx, potoki modelu GRU i rejestr zdarzeń. Rozdział~\ref{sec:testbed} opisuje środowisko testowe, scenariusze ataków, konfiguracje porównawcze, metryki, analizę statystyczną i zasady higieny ewaluacji oraz eksperymenty zarejestrowane przed zebraniem danych. Rozdział~\ref{sec:wyniki} przedstawia wyniki wraz z zakresem ich obowiązywania, stan benchmarku szkody i programy badań, które nie dały wyniku. Rozdział~\ref{sec:wnioski} ocenia spełnienie wymagań, odpowiada na pytania G1--G5 oraz wskazuje ograniczenia wyników i kierunki dalszych prac.
+Rozdział~\ref{sec:stan_ataki} przedstawia taksonomię współczesnych ataków DDoS oraz mechanizmy ataków wolumetrycznych, ataków na warstwę aplikacyjną i ataków typu \textit{low-and-slow}. Rozdział~\ref{sec:stan_obrona} omawia umiejscowienie mechanizmów obrony, filtrowanie pakietów w jądrze systemu operacyjnego, metody detekcji oparte na uczeniu maszynowym i metodykę ich ewaluacji, a rozdział~\ref{sec:wnioski_przeglad} zbiera wnioski z tego przeglądu. Rozdział~\ref{sec:architektura} formułuje wymagania W1--W7 i opisuje architekturę systemu, a rozdział~\ref{sec:implementacja} jego implementację: program XDP, demon płaszczyzny sterowania z regułami detekcji, konfigurację serwera Nginx, potoki modelu GRU i rejestr zdarzeń. Rozdział~\ref{sec:testbed} opisuje środowisko testowe, scenariusze ataków, konfiguracje porównawcze, metryki, analizę statystyczną i zasady higieny ewaluacji oraz eksperymenty zarejestrowane przed zebraniem danych. Rozdział~\ref{sec:wyniki} przedstawia wyniki wraz z zakresem ich obowiązywania, stan benchmarku szkody i programy badań, które nie dały wyniku. Rozdział~\ref{sec:wnioski} ocenia spełnienie wymagań, odpowiada na pytania G1--G5 oraz wskazuje ograniczenia wyników i kierunki dalszych prac. Załączniki~\ref{sec:zal_repo} i~\ref{sec:zal_uruchomienie}, umieszczone po bibliografii, opisują zawartość repozytorium projektu oraz sposób uruchomienia testów i pomiarów, sprawdzenia opublikowanych wyników i zbudowania pracy.
 
 \section{Analiza stanu wiedzy o najbardziej dotkliwych atakach DDoS}\label{sec:stan_ataki}
 Globalny rozwój i rosnąca powszechność wykorzystywania architektur chmurowych, połączone z postępem w implementacji sieci o coraz wyższych przepływnościach, są przyczyną intensyfikacji zagrożeń związanych z rozproszonymi atakami odmowy usługi (ang. \textit{Distributed Denial of Service} -- DDoS). Porównanie dziesięciu niezależnych źródeł obserwacji z lat 2019--2023 -- teleskopów sieciowych, honeypotów, punktu wymiany ruchu (IXP) oraz danych dostawców komercyjnych -- wykazało trend wzrostowy ataków bezpośrednich (ang. \textit{direct-path}) w czterech z pięciu obserwatoriów. Jednocześnie poszczególne źródła istotnie się różnią: każdy punkt pomiarowy obserwuje inny wycinek populacji ataków, a raporty branżowe sygnalizują wzrost liczby ataków w warstwie aplikacyjnej \cite{hiesgen2024age}. Ewolucja technik wykorzystywanych przez atakujących również postępuje: obserwowane jest odejście od prostych prób wysycenia pasma sieciowego na rzecz wielowarstwowych wektorów ataków, operujących na asymetrii zasobów oraz uderzeniach wymierzonych w specyficzną logikę warstwy aplikacyjnej. Uzasadnia to badanie metod detekcji opartych na uczeniu maszynowym, ocenianych jednak zawsze względem prostszych, deterministycznych punktów odniesienia (podrozdział~\ref{sec:metodyka}).
@@ -1073,10 +1073,10 @@ Rodzaj & Zawartość \\
 \end{tabularx}
 \end{table}
 
-Odtwarzalność wyników zapewniają mechanizmy środowiska testowego. Każdy przebieg zapisuje plik \texttt{provenance.json}, zawierający m.in. zatwierdzenie (\textit{commit}) i stan repozytorium, ustawienia, plan profili klientów, opis hosta oraz sumy SHA-256 skryptów, programu XDP, konfiguracji Nginx i modelu. Kampanie opublikowane w katalogu \texttt{results/}, z wyjątkiem kampanii oznaczonej jako zastąpiona (sekcja~\ref{sec:topologia}), zawierają weryfikowalne pliki \texttt{SHA256SUMS}, a narzędzia analizy w katalogu \texttt{eval/} odtwarzają raporty bajt w bajt. Odtwarzalność ma jednak granice: wdrożonego modelu GRU \textit{Tier-1} nie można odbudować z samego repozytorium, ponieważ jego dane uczące nie są opublikowane, a przebiegi toru L7 opublikowane przed 20~października 2026~r. nie rejestrują, czy drzewo robocze repozytorium zawierało niezatwierdzone zmiany. Zachowanie środowiska i narzędzi analizy jest ponadto sprawdzane testami jednostkowymi w katalogu \texttt{tests/}.
+Odtwarzalność wyników zapewniają mechanizmy środowiska testowego. Każdy przebieg zapisuje plik \texttt{provenance.json}, zawierający m.in. zatwierdzenie (\textit{commit}) i stan repozytorium, ustawienia, plan profili klientów, opis hosta oraz sumy SHA-256 skryptów, programu XDP, konfiguracji Nginx i modelu. Kampanie opublikowane w katalogu \texttt{results/}, z wyjątkiem kampanii oznaczonej jako zastąpiona (sekcja~\ref{sec:topologia}), zawierają weryfikowalne pliki \texttt{SHA256SUMS}, a narzędzia analizy w katalogu \texttt{eval/} odtwarzają raporty bajt w bajt. Odtwarzalność ma jednak granice: wdrożonego modelu GRU \textit{Tier-1} nie można odbudować z samego repozytorium, ponieważ jego dane uczące nie są opublikowane, a przebiegi toru L7 opublikowane przed 20~października 2026~r. nie rejestrują, czy drzewo robocze repozytorium zawierało niezatwierdzone zmiany. Zachowanie środowiska i narzędzi analizy jest ponadto sprawdzane testami jednostkowymi w katalogu \texttt{tests/}. Zawartość repozytorium i polecenia, którymi sprawdza się sumy kontrolne i ponownie przelicza opublikowane wyniki, podano w załącznikach~\ref{sec:zal_repo} i~\ref{sec:zal_uruchomienie}.
 
 \section{Środowisko testowe i metodyka badań}\label{sec:testbed}
-Rozdział opisuje środowisko testowe zrealizowane w skrypcie \texttt{test\_distributed\_suite.py}, scenariusze ataków, konfiguracje porównawcze, definicje metryk oraz procedurę statystyczną. Kampanie pomiarowe uruchamia skrypt \texttt{eval/run\_campaign.py}, a analizują je narzędzia z katalogu \texttt{eval/}. Opisana metodyka odpowiada wymaganiu W5 i zaleceniom przytoczonym w sekcji~\ref{sec:metodyka}.
+Rozdział opisuje środowisko testowe zrealizowane w skrypcie \texttt{test\_distributed\_suite.py}, scenariusze ataków, konfiguracje porównawcze, definicje metryk oraz procedurę statystyczną. Kampanie pomiarowe uruchamia skrypt \texttt{eval/run\_campaign.py}, a analizują je narzędzia z katalogu \texttt{eval/}; polecenia podano w załączniku~\ref{sec:zal_uruchomienie}. Opisana metodyka odpowiada wymaganiu W5 i zaleceniom przytoczonym w sekcji~\ref{sec:metodyka}.
 
 \subsection{Topologia sieci}\label{sec:topologia}
 Środowisko działa na jednej maszynie wirtualnej z systemem Linux. Każdy węzeł jest osobną przestrzenią nazw sieciowych, połączoną parą interfejsów \texttt{veth} z mostem programowym \texttt{ddos\_br0} w domyślnej przestrzeni nazw (rys.~\ref{fig:topologia}). Serwer (\texttt{server\_ns}) ma adres 10.0.0.1/16, klienci prawowici \texttt{legit\_1}--\texttt{legit\_20} adresy 10.0.1.1--10.0.1.20, a boty \texttt{bot\_1}--\texttt{bot\_N} adresy z puli 10.0.2.0/24. Domyślna liczba botów to $N=5$, a w punkcie pracy \textit{knee} $N=10$.
@@ -2031,4 +2031,124 @@ P.~Emmerich, S.~Gallenmüller, D.~Raumer, F.~Wohlfart, and G.~Carle, ``MoonGen: 
 C.~Panggabean, C.~Venkatachalam, P.~Shah, S.~John, P.~Renuka~Devi, and S.~Venkatachalam, ``Intelligent DoS and DDoS Detection: A Hybrid GRU-NTM Approach to Network Security,'' in \textit{Proc. 5th International Conference on Smart Electronics and Communication (ICOSEC)}, Sep. 2024, pp.~658--665, doi: \href{https://doi.org/10.1109/ICOSEC61587.2024.10722438}{10.1109/ICOSEC61587.2024.10722438}.
 
 \end{thebibliography}
+
+% --- ZAŁĄCZNIKI: po bibliografii, od nowej strony, numerowane literami; w nagłówku rozdziału słowo ,,Załącznik'' ---
+\clearpage
+\appendix
+\makeatletter
+\newcommand*{\zal@prefix@section}{Załącznik~}
+\renewcommand*{\@seccntformat}[1]{\csname zal@prefix@#1\endcsname\csname the#1\endcsname\quad}
+\makeatother
+
+\section{Zawartość repozytorium}\label{sec:zal_repo}
+Repozytorium projektu zawiera kod systemu, środowisko testowe, narzędzia ewaluacji, opublikowane wyniki i źródła niniejszej pracy. Opis odpowiada stanowi repozytorium z 17~listopada 2026~r. Tabela~\ref{tab:repo} zestawia główne części repozytorium.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\caption{Główne części repozytorium projektu}\label{tab:repo}
+\begin{tabularx}{\linewidth}{@{}L{5.2cm}Y@{}}
+\toprule
+Ścieżka & Zawartość \\
+\midrule
+\texttt{control\_plane.py}, \texttt{xdp\_ddos\_filter.c} & demon płaszczyzny sterowania i program XDP (sekcje~\ref{sec:impl_xdp} i~\ref{sec:impl_daemon}) \\
+\texttt{ban\_events.py}, \texttt{slow\_pc.py}, \texttt{l7\_*.py} & rejestr zdarzeń, reguła per połączenie i moduły warstwy L7: silnik trybu cienia, reguły, moduł L7 v2 (sekcje~\ref{sec:impl_slowpc} i~\ref{sec:gru_l7}--\ref{sec:impl_events}) \\
+\texttt{GRU\_ML\_model.py}, \texttt{capture\_\allowbreak testbed\_\allowbreak dataset.py}, \texttt{train\_\allowbreak testbed\_\allowbreak gru.py}, \texttt{training\_\allowbreak results/} & potok GRU \textit{Tier-1}: model, przechwytywanie danych w środowisku testowym, trening, wdrożony model i skaler (sekcja~\ref{sec:gru_tier1}) \\
+\texttt{nginx*.conf}, \texttt{dummy\_app.py}, \texttt{l7\_webapp.py}, \texttt{gunicorn\_\allowbreak profile\_r.py} & chroniona usługa i jej konfiguracje, w tym profil R (sekcje~\ref{sec:impl_nginx} i~\ref{sec:exp_p4}) \\
+\texttt{test\_\allowbreak distributed\_\allowbreak suite.py} & zestaw testowy: topologia, scenariusze ataków, ruch prawowity, metryki (rozdział~\ref{sec:testbed}) \\
+\texttt{eval/} & uruchamianie, analiza, wykresy, statystyka i publikacja kampanii; programy wykonawcze i reguły werdyktu eksperymentów P1 i P4 \\
+\texttt{bench/} & benchmark szkody: serwer zaplecza o skalibrowanym koszcie, generator obciążenia, populacja klientów, scenariusze, program wykonawczy, kampania bramki, kalibracja; rekordy kalibracji w katalogu \texttt{bench/\allowbreak calibration/} (sekcja~\ref{sec:benchmark_szkody}) \\
+\texttt{ml/} & zbiory danych, generatory ruchu i skrypty treningowe toru L7 oraz pliki rejestracji (\texttt{*prereg*.json}) \\
+\texttt{tests/} & testy jednostkowe \\
+\texttt{results/} & opublikowane kampanie i analizy pochodne, po jednym katalogu na wpis; indeks \texttt{results/\allowbreak README.md} \\
+\texttt{docs/} & dokumentacja: podręcznik ewaluacji (\texttt{EVALUATION.md}), przewodnik (\texttt{GUIDE.md}), historia projektu (\texttt{PROJECT\_\allowbreak HISTORY.md}), zestawienie twierdzeń pracy z dowodami (\texttt{THESIS\_\allowbreak CLAIMS.md}), projekty, rejestracje i przeglądy \\
+\texttt{thesis/}, \texttt{presentation/} & źródła niniejszej pracy (\texttt{main.tex}, \texttt{images/}) i prezentacja \\
+\texttt{README.md}, \texttt{requirements.txt}, \texttt{requirements-\allowbreak plot.txt}, \texttt{.gitattributes} & opis repozytorium; wersje pakietów języka Python (drugi plik: tylko rysunki); zapis plików katalogu \texttt{results/} bez konwersji znaków końca wiersza \\
+\texttt{server/}, \texttt{attacker/}, \texttt{setup.sh}, \texttt{test\_\allowbreak mitigation\_\allowbreak suite.py} i inne & wczesny układ z dwiema maszynami wirtualnymi i prototyp z sekcji~\ref{sec:koncepcja_wyjsciowa}; pomiary opisane w pracy z nich nie korzystają \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Opublikowane dane.} Katalog \texttt{results/} zawiera 36 wpisów (stan z 17~listopada 2026~r.): kampanie pomiarowe, przebiegi pilotażowe i analizy pochodne, każdy w osobnym katalogu. Plik \texttt{results/\allowbreak README.md} jest ich indeksem i podaje status każdego wpisu, a plik \texttt{README.md} wpisu opisuje jego zawartość, pochodzenie i ograniczenia. Opublikowanego wpisu nie zmienia się później; poprawki opisów zbiera sekcja \textit{Errata} indeksu. Każdy wpis poza zastąpionym \texttt{2026-\allowbreak 10-\allowbreak 11\_\allowbreak superseded-\allowbreak dup-\allowbreak mac} ma plik \texttt{SHA256SUMS} z sumami SHA-256 swoich plików; polecenie \texttt{sha256sum -c SHA256SUMS}, wykonane w katalogu wpisu, sprawdza, że pliki nie zostały zmienione (listing~\ref{lst:zal_odtw}). Plik \texttt{.gitattributes} wyłącza w katalogu \texttt{results/} konwersję znaków końca wiersza, która zmieniłaby sumy kontrolne plików tekstowych, np. przy pobraniu repozytorium w systemie Windows z ustawieniem \texttt{core.autocrlf=true}. Wpisy benchmarku szkody zawierają ponadto katalog \texttt{recomputation/} z ponownym przeliczeniem wyniku (sekcja~\ref{sec:wyniki_wiarygodnosc}).
+
+\section{Instrukcja uruchomienia}\label{sec:zal_uruchomienie}
+Polecenia wydaje się w katalogu głównym repozytorium, o ile listing nie stanowi inaczej. Testy jednostkowe (punkt~\ref{sec:zal_testy}), sprawdzenie i przeliczenie opublikowanych wyników (punkt~\ref{sec:zal_odtworzenie}) oraz zbudowanie pracy (punkt~\ref{sec:zal_praca}) nie wymagają uprawnień administratora ani maszyny wirtualnej środowiska testowego. Przebiegi zestawu testowego i benchmarku szkody (punkty~\ref{sec:zal_przebieg} i~\ref{sec:zal_benchmark}) wymagają uprawnień administratora i zmieniają stan systemu, dlatego należy je uruchamiać wyłącznie na jednorazowej maszynie wirtualnej przeznaczonej do pomiarów. Pełny przewodnik po repozytorium i pomiarach, wraz z warunkami, od których zależy ważność pomiaru (m.in. komputer-host, który nie przechodzi w stan uśpienia, bezczynna maszyna wirtualna, wstrzymane automatyczne aktualizacje pakietów systemu gościa), zawiera plik \texttt{docs/\allowbreak GUIDE.md}. Przebieg prac nad projektem opisuje plik \texttt{docs/\allowbreak PROJECT\_\allowbreak HISTORY.md}, a ustawienia, pliki wynikowe i metryki podręcznik \texttt{docs/\allowbreak EVALUATION.md}.
+
+\subsection{Środowisko}\label{sec:zal_srodowisko}
+Środowiskiem testowym jest jedna maszyna wirtualna VirtualBox z systemem Ubuntu 26.04 LTS (jądro 7.0.0-42, 8 procesorów wirtualnych, Python 3.14.4); każdy przebieg zapisuje własne wersje jądra i interpretera. Biblioteka BCC pochodzi z pakietów dystrybucji, dlatego środowisko wirtualne języka Python tworzy się z dostępem do pakietów systemowych, w katalogu \texttt{venv} w katalogu głównym repozytorium, gdzie oczekują go zestaw testowy i dokumentacja (listing~\ref{lst:zal_env}). Pakietu \texttt{python3-psutil} wymaga systemowy interpreter, pod którym działają zestaw testowy i program kampanii; pozostałe narzędzia, korzystające m.in. z pakietu \texttt{numpy}, uruchamia się interpreterem \texttt{venv/\allowbreak bin/\allowbreak python}. Plik \texttt{requirements.txt} ustala wersje pakietów importowanych przez kod, a pakiet \texttt{matplotlib} (\texttt{requirements-\allowbreak plot.txt}) jest potrzebny wyłącznie do rysunków.
+
+\begin{lstlisting}[language=bash, caption={Przygotowanie środowiska (Ubuntu, katalog główny repozytorium)}, label=lst:zal_env]
+sudo apt install python3-venv python3-bpfcc bpfcc-tools python3-psutil \
+    nginx hping3 wrk iproute2 ethtool
+python3 -m venv --system-site-packages venv
+venv/bin/pip install -r requirements.txt
+venv/bin/pip install -r requirements-plot.txt    # opcjonalnie: rysunki
+\end{lstlisting}
+
+\subsection{Testy jednostkowe}\label{sec:zal_testy}
+Testy jednostkowe nie wymagają uprawnień administratora ani sieci: reguły demona wykonują się w nich na atrapach zegara, procesów i map BPF, a programy benchmarku szkody na symulowanym hoście (\texttt{bench/\allowbreak sim\_host.py}).
+
+\begin{lstlisting}[language=bash, caption={Testy jednostkowe}, label=lst:zal_testy]
+venv/bin/python -m unittest discover -s tests
+\end{lstlisting}
+
+\subsection{Przebieg zestawu testowego i kampania}\label{sec:zal_przebieg}
+Zestaw testowy (rozdział~\ref{sec:testbed}) uruchamia demona i serwer Gunicorn ze środowiska \texttt{venv} z punktu~\ref{sec:zal_srodowisko}. Konfigurację porównawczą wybierają zmienne z tabeli~\ref{tab:konfiguracje}, punkt pracy zmienna \texttt{OPERATING\_POINT}, a podzbiór scenariuszy zmienna \texttt{ONLY\_SCENARIOS}; przy starcie zestaw sprawdza obecność narzędzi \texttt{hping3}, \texttt{wrk}, \texttt{curl}, \texttt{ping}, \texttt{tc}, \texttt{ip} i \texttt{ethtool}. Program kampanii ustawia zmienne każdego przebiegu sam, a z opcją \texttt{-{}-dry-run} jedynie wypisuje plan, bez uprawnień administratora. Listing~\ref{lst:zal_suite} pokazuje pojedynczy przebieg scenariusza~4 w punkcie \textit{knee} w konfiguracji \texttt{xdp} oraz kampanię EXP-A (10 bloków po cztery konfiguracje, \texttt{PROFILE\_SEED} 101--110, sekcja~\ref{sec:wyniki_dostepnosc}), jej analizę i publikację w katalogu \texttt{results/}.
+
+\begin{lstlisting}[language=bash, caption={Pojedynczy przebieg i kampania (root; wyłącznie jednorazowa maszyna wirtualna)}, label=lst:zal_suite]
+sudo env OPERATING_POINT=knee ONLY_SCENARIOS=4 \
+    python3 test_distributed_suite.py
+python3 eval/run_campaign.py --operating-point knee --scenarios 4 \
+    --runs 10 --attack-duration 30 --seed-base 100 --dry-run
+sudo python3 eval/run_campaign.py --operating-point knee --scenarios 4 \
+    --runs 10 --attack-duration 30 --seed-base 100
+venv/bin/python eval/analyze_campaign.py /var/tmp/ddos_campaigns/<kampania>
+venv/bin/python eval/publish_campaign.py /var/tmp/ddos_campaigns/<kampania> \
+    --name <rrrr-mm-dd_opis>
+\end{lstlisting}
+
+Zestaw testowy, uruchomiony samodzielnie lub przez program kampanii, zatrzymuje procesy o nazwach używanych przez środowisko (demon, Gunicorn, Nginx, \texttt{hping3}, \texttt{wrk}), usuwa i tworzy na nowo przestrzenie nazw \texttt{server\_ns}, \texttt{legit\_*} i \texttt{bot\_*} oraz most \texttt{ddos\_br0}, dołącza i odłącza program XDP, czyści reguły iptables w przestrzeni nazw serwera i obcina logi serwera Nginx w katalogu \texttt{/var/\allowbreak log/\allowbreak nginx/}. Wyniki przebiegu zapisuje w nowym katalogu w \texttt{/var/\allowbreak tmp/\allowbreak ddos\_campaigns/}. Program kampanii odmawia startu przy niezatwierdzonych zmianach w śledzonych plikach repozytorium i przy pozostałościach poprzedniego przebiegu, a to samo polecenie wydane ponownie wznawia przerwaną kampanię.
+
+\subsection{Benchmark szkody: kalibracja i kampania bramki}\label{sec:zal_benchmark}
+Rekord kalibracji obowiązuje wyłącznie na komputerze, na którym go wyznaczono (sekcja~\ref{sec:wyniki_kalibracja}), dlatego na innym hoście benchmark kalibruje się od nowa krokami z sekcji~\ref{sec:benchmark_szkody}, które zapisują przebiegi w jednym katalogu sesji (\texttt{SESJA} w listingu~\ref{lst:zal_bench}). Krok \texttt{ladder} wykonuje się dla każdej z trzech rodzin ataku: \texttt{cheap\_\allowbreak static\_\allowbreak flood}, \texttt{costly\_\allowbreak export\_\allowbreak flood} i \texttt{costly\_\allowbreak search\_\allowbreak flood}. Krok \texttt{freeze} nie uruchamia przebiegów, lecz zapisuje z katalogu sesji zamrożony rekord (\texttt{REKORD}), a polecenie \texttt{plan} wypisuje kroki i ich czas bez uruchamiania czegokolwiek. Kontrola dryfu (\texttt{drift}) poprzedza kampanię, która nie rozpoczyna się w oknie potwierdzenia rekordu. Specyfikację ataku kampanii P2 (poziom równy dwukrotności punktu przegięcia) przelicza na nowy rekord skrypt \texttt{bench/\allowbreak hg4\_spec.py}. Dwa ostatnie polecenia to kampania P2 z ramieniem $M_{\mathrm{xdp}}$ i ponowna ocena jej katalogu narzędziem bramki szkody.
+
+\begin{lstlisting}[language=bash, caption={Kalibracja benchmarku szkody i kampania bramki (root poza poleceniami \texttt{plan}, \texttt{freeze}, \texttt{hg4\_spec.py} i oceną bramki)}, label=lst:zal_bench]
+venv/bin/python bench/calibrate.py plan
+sudo ./venv/bin/python bench/calibrate.py origin    --out SESJA
+sudo ./venv/bin/python bench/calibrate.py capacity  --out SESJA
+sudo ./venv/bin/python bench/calibrate.py ladder    --out SESJA \
+    --family cheap_static_flood
+sudo ./venv/bin/python bench/calibrate.py reference --out SESJA
+venv/bin/python bench/calibrate.py freeze --dir SESJA \
+    --out bench/calibration/<host>-<data>.json
+sudo ./venv/bin/python bench/calibrate.py drift --calibration REKORD \
+    --out KATALOG
+venv/bin/python bench/hg4_spec.py --calibration REKORD --write
+sudo ./venv/bin/python bench/gate_campaign.py run \
+    bench/scenarios/cheap_static_flood_hg4.json \
+    --calibration REKORD --modes xdp --out KAMPANIA
+venv/bin/python eval/harm_gate.py KAMPANIA --calibration REKORD \
+    --md gate.md --json gate.json
+\end{lstlisting}
+
+\subsection{Sprawdzenie i przeliczenie opublikowanego wyniku}\label{sec:zal_odtworzenie}
+Listing~\ref{lst:zal_odtw} sprawdza sumy kontrolne wpisu ponownej kalibracji i przelicza z opublikowanych przebiegów, funkcjami projektu, wszystkie jej kroki: pojemność, punkty przegięcia, odniesienie, zamrożony rekord i werdykt potwierdzenia R4 (sekcja~\ref{sec:wyniki_kalibracja}). Polecenia \texttt{diff} i \texttt{cmp} nie wypisują niczego, gdy wynik się odtwarza. Analogicznie przelicza się wynik kampanii P2 (skrypt \texttt{recomputation/\allowbreak recompute\_\allowbreak p22b.py}, niekorzystający z kodu projektu) oraz analizę kampanii zestawu testowego (\texttt{eval/\allowbreak analyze\_\allowbreak campaign.py}, po którym \texttt{git status} nie wykazuje zmian). Pełne polecenia podają pliki \texttt{README.md} tych wpisów i podręcznik \texttt{docs/\allowbreak EVALUATION.md}.
+
+\begin{lstlisting}[language=bash, caption={Sprawdzenie i przeliczenie wpisu ponownej kalibracji (bez uprawnień administratora)}, label=lst:zal_odtw]
+cd results/2026-11-15_harm-recalibration
+sha256sum --quiet -c SHA256SUMS
+R=../../bench/calibration/ddos-mitigation-2026-11-16.json
+../../venv/bin/python -B recomputation/recompute_from_runs.py ../.. \
+    recal_2026-11 $R /tmp | diff - recomputation/recompute_from_runs.out
+cmp /tmp/freeze_record_created_utc_as_committed.json $R
+\end{lstlisting}
+
+\subsection{Budowanie pracy}\label{sec:zal_praca}
+Źródła pracy znajdują się w katalogu \texttt{thesis/}: plik \texttt{main.tex}, zawierający także bibliografię, i rysunki w katalogu \texttt{images/}. Pracę buduje się programem pdfLaTeX w dystrybucji TeX z pakietami m.in. \texttt{babel} (język polski), \texttt{tikz}, \texttt{listings}, \texttt{tabularx}, \texttt{longtable}, \texttt{booktabs}, \texttt{hyperref} i \texttt{pdfpages}; trzy przebiegi ustalają spis treści i odsyłacze (listing~\ref{lst:zal_praca}).
+
+\begin{lstlisting}[language=bash, caption={Budowanie pracy}, label=lst:zal_praca]
+cd thesis
+pdflatex main.tex && pdflatex main.tex && pdflatex main.tex
+\end{lstlisting}
+
 \end{document}
