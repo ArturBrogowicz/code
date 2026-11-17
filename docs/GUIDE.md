@@ -97,6 +97,10 @@ and keep nothing else on it.
 
 ### 2.2 Validity checklist for a measurement
 
+Three precautions decide whether a measurement counts at all: **the VM's host must not sleep**, **the VM must be idle
+apart from the step**, and **automatic package updates must be suspended** for the whole window (and restored
+afterwards). Items 1, 5 and 3 below say how; the rest are the checks the tools add.
+
 A run on a disturbed host can look like harm or like mitigation. The 2026-11 campaigns enforced the points below by tool
 (the packet pre-checks of [`bench/packets/prechecks.py`](../bench/packets/prechecks.py), the per-run host check of
 [`bench/hostcheck.py`](../bench/hostcheck.py)) or by an operator's rule written into the pre-registrations
@@ -113,10 +117,11 @@ from the project's operation notes, not from a published file.
    header). For example `date -u` beside `curl -sI https://www.kernel.org | grep -i '^date:'`, and `chronyc tracking`.
    The packet pre-check and H4 require chrony synchronised: leap status normal, |System time| under 0.1 s, a selected
    source within 1 s.
-3. **No package job and no system timer inside a step.** For the 2026-11 programme five timers were masked (`apt-daily`,
-   `apt-daily-upgrade`, `fwupd-refresh`, `logrotate`, `man-db`) and the kernel packages held (`linux-generic`,
-   `linux-headers-generic`, `linux-image-generic`) ([`HS1_PREREG.md`](HS1_PREREG.md) 2.2); `unattended-upgrades.service`
-   was disabled on 2026-11-15 after the pre-check refused R1 on a running package job
+3. **Suspend automatic package updates and system timers: no package job and no timer inside a step.** For the 2026-11
+   programme five timers were masked (`apt-daily`, `apt-daily-upgrade`, `fwupd-refresh`, `logrotate`, `man-db`) and the
+   kernel packages held (`linux-generic`, `linux-headers-generic`, `linux-image-generic`)
+   ([`HS1_PREREG.md`](HS1_PREREG.md) 2.2); `unattended-upgrades.service` was disabled on 2026-11-15 after the pre-check
+   refused R1 on a running package job
    ([`results/2026-11-15_harm-recalibration/README.md`](../results/2026-11-15_harm-recalibration/README.md), D-107). HS1
    also recommends masking `motd-news`, `update-notifier-*`, `dpkg-db-backup`, `fstrim`, `e2scrub_all`, `xfs_scrub_all`
    and holding snap refreshes. With systemd's own commands that is, for example:
@@ -195,7 +200,24 @@ on the testbed VM (`dpkg-query`, 2026-11-17):
 torch and urllib3 at the testbed's versions. The suite and the runners look for `venv/bin/python` in the checkout they
 run from: the suite stops at once without it.
 
-### 3.3 Confirm it works
+### 3.3 Which Python runs what
+
+| Runs under | What | Evidence |
+|---|---|---|
+| the system `python3`, as root (`sudo python3 ...`) | `test_distributed_suite.py` and `eval/run_campaign.py` (standard library and `psutil`, from `python3-psutil`); the suite starts Gunicorn and the daemon with the checkout's `venv/bin/python` | `"python": "/usr/bin/python3"` in the `campaign.json` of EXP-A, EXP-C and the 2026-10-20 regression run; `PYTHON_VENV` in the suite |
+| `./venv/bin/python -B`, as root | every step of the harm benchmark on the VM: `bench/hostcheck.py speed-hold`, `bench/calibrate.py`, `bench/executor.py run`, `bench/gate_campaign.py run` (through `bench/packets/packet.sh`) | the packet logs, e.g. `R1_20261115T180935Z.log` lines 11 and 16, `R4_20261116T115437Z.log` line 8, `P2-2_20261116T173249Z.log` line 8 |
+| `venv/bin/python`, as the user | every offline tool: analysis, publication, the harm gate, the plans, the simulated host, the calibrator's `plan` and `freeze`, `bench/hg4_spec.py`, the unit tests | this guide's offline runs |
+
+The system `python3` has no numpy (Ubuntu's `python3-numpy` is not installed). In the offline sandbox at `4f31066`,
+`python3 bench/gate_campaign.py plan`, `python3 bench/calibrate.py plan`, `python3 bench/hg4_spec.py`, and
+`eval/harm_gate.py`, `eval/publish_campaign.py`, `eval/analyze_campaign.py` and `eval/run_level_stats.py` under
+`python3` all stop with `ModuleNotFoundError: No module named 'numpy'`; `bench/scenario.py`, `bench/calibration.py`,
+`bench/origin.py`, `bench/executor.py plan`, `bench/loadgen.py`, `bench/packets/prechecks.py`, `bench/hostcheck.py`,
+`eval/expc_probe.py` and the pure-Python P2 recomputation run under it. Some docstrings still write `python3` for the
+first group (`bench/calibrate.py`, `bench/gate_campaign.py`, `bench/hg4_spec.py`); on the testbed VM a numpy in the
+user's own site directory hid this. Use `venv/bin/python` for everything but the suite and the campaign runner.
+
+### 3.4 Confirm it works
 
     venv/bin/python -m unittest discover -s tests                     # (offline) the whole suite
     venv/bin/python -m unittest tests.test_harm_gate -v               # (offline) one module
@@ -209,7 +231,7 @@ network, and the suite's import guard keeps the testbed's cleanup from running.
 
 ### 4.1 Unit tests
 
-[3.3](#33-confirm-it-works). What they cover: [`EVALUATION.md`, "Tests"](EVALUATION.md#tests). A module that reads the
+[3.4](#34-confirm-it-works). What they cover: [`EVALUATION.md`, "Tests"](EVALUATION.md#tests). A module that reads the
 documents (for example `tests.test_p4_outcome`, `tests.test_slow_pc_rule`, `tests.test_daemon_robustness`) fails when a
 pinned sentence of [`EVALUATION.md`](EVALUATION.md) changes.
 
@@ -615,7 +637,7 @@ scripts as read for this guide:
 | 11-16 08:02-10:02 | R2c (knee 2.0) and R3, the reference (5 rounds) | `r_launch_20261116T080211Z.log` |
 | 11-16 10:05 | freeze, offline: `bench/calibrate.py freeze --dir <session> --out bench/calibration/ddos-mitigation-2026-11-16.json`; record `7005a2ed`, committed at `ec819fb` | entry README, "F, the freeze" |
 | 11-16 11:19-12:33 | reboot by the user; R4 waited for 30 min of uptime, then confirmed the record for legit and all three families | `r4_launch_20261116T112106Z.log`, `R4_*.log` |
-| 11-16 | HG4's spec set to level 8, twice the new cheap knee (K8, commit `688594a`; the tool is `bench/hg4_spec.py --calibration <record> --write`) | P2 README, `git show 688594a` |
+| 11-16 | HG4's spec set to level 8, twice the new cheap knee (K8, commit `688594a`; the tool is `venv/bin/python bench/hg4_spec.py --calibration <record> --write`) | P2 README, `git show 688594a` |
 | 11-16 14:13-14:29 | P2-1: two smoke runs, `bench/executor.py run cheap_static_flood_hg4.json --kind M_xdp` and `--kind M_limits`, seed 1 | `p21_launch_*.log` |
 | 11-16 14:34-15:47 | P2-2: 23 runs, 4 valid blocks; INVALID (exit 2): the attack began more than 0.5 s early in 3 runs | `p22_launch_*.log` |
 | 11-16 | K23 (post hoc): the attack is launched from the legit engines' observed start; pin `18386ed` | [`HG1C_DESIGN.md`](HG1C_DESIGN.md) departure 42 |
