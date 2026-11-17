@@ -58,7 +58,8 @@ clean tree). Every run of all seven packets is executor-sound and, but for the f
 19:49:29Z: 4 of its runs had been set aside, each by H7 alone, because the judge read the monitors' records as soon as the run's window
 ended and a sample due in the next second was not in the file yet (`docs/RECALIBRATION_2026-11_DEPARTURE_1.md`, ledger C-156). On
 the user's "Fix H7 first" (D-108), K22 made the judge wait until 2 s after the window's end before it reads the monitors' records; H7's
-text, its thresholds and every other rule are unchanged. The new pin `9c0c25a` (D-109) is `5f3769c` plus K22 and the departure note.
+text, its thresholds and every other rule are unchanged. Because H4-H6 read the same records, a run can now also fail H4 or H6 on a
+sample written in those 2 s (the departure note, "Its effect on H4-H6"); H5 can change only a verdict that H7 fails anyway. The new pin `9c0c25a` (D-109) is `5f3769c` plus K22 and the departure note.
 
 * **Judged at the window's end, at `5f3769c`:** R1's 3 capacity runs, R2a's runs 01-11 and the 4 set-aside runs.
 * **Judged 2 s after the window's end, at `9c0c25a` or `ec819fb`:** R2a's runs 12-18, all of R2b, R2c, R3 and R4. So R2a's ladder
@@ -171,7 +172,8 @@ Everything above was recomputed offline from a copy of this published folder, in
 functions at `c6579fd`: `recompute_from_runs.py`, its output `recompute_from_runs.out`, and the records it wrote. `bench/calibrate.py`,
 `bench/calibration.py`, `bench/calibration/placeholder.json` (the template) and all of `eval/` are the same files at `c6579fd` as at
 the freeze's pin `9c0c25a`; `bench/executor.py` differs (K23, for P2) but not in the two constants the freeze reads from it
-(`ORIGIN_SEED`, `GUNICORN`).
+(`ORIGIN_SEED`, `GUNICORN`), and `bench/sim_host.py` and `bench/scenarios/cheap_static_flood_hg4.json` differ (for P2) but are not
+used by the recomputation.
 
 * **Capacity:** the Q of all 36 steps from the 3 staged runs (`metrics_by_step`), and C_slo, C_sat from them (`capacity_of`).
 * **Ladders:** every run's Q and p95 from its request records (`harm_gate.run_metrics`), then `analyse_ladder`: the controls, every
@@ -207,9 +209,10 @@ stream summaries; the compressed logs do not enter them.
   Each run is a directory of the run contract: `plan.json`, `run.json`, `environment.json`, `DONE` (the host check), `executor.log`,
   the Nginx and gunicorn logs, `nginx.conf`, `server.csv`, `server_requests.csv`, and per load stream its request records
   (`loadgen.records.csv.gz`, compressed by the tool) and summary.
-* `packets/`: each packet's log and its tar's `.sha256` (R1, R2a's two, R2b, R2c, R3, R4), the six launcher logs
-  (`r1_launch_*` twice: the first refused by the pre-check, `r2_launch_*`, `after_timers_launch_*`: AP-13's waiter and launch after
-  the midnight timers, `r_launch_*`: AP-14, `r4_launch_*`), and two checks of this publication: `prefix_chain_check.txt` and
+* `packets/`: each packet's log and its tar's `.sha256` (R1, R2a's two, R2b, R2c, R3, R4), the seven launcher logs
+  (`r1_launch_*` twice: the first refused by the pre-check; `r2_launch_*`; `r_launch_20261115T213308Z.log`: AP-13's first launch,
+  refused by the timers pre-check at 21:37:08Z with nothing started; `after_timers_launch_*`: AP-13's waiter and launch after the
+  midnight timers; `r_launch_20261116T080211Z.log`: AP-14; `r4_launch_*`), and two checks of this publication: `prefix_chain_check.txt` and
   `live_comparison.txt` (below).
 * `paired/`: the two paired checks P-1 (`paired.json`, `probes.jsonl`): 17:24:54Z, D +0.14 % (GO ON; R1 then refused by the
   pre-check), and 18:07:27Z, D +0.03 % (GO ON; R1 ran), each within the 5 % limit.
@@ -225,6 +228,10 @@ stream summaries; the compressed logs do not enter them.
   `preregistration/AP-13_R2a_resume_R2b.after-approval.md` is the file as last written (2026-11-15T21:32:42Z), **not** the approved
   revision. `AP-13_approved_vs_after-approval.diff` shows what changed: the pin `9c0c25a...` and its gate filled in, the plans printed
   with that pin recorded, and the status lines changed to approved. Nothing else changed.
+* AP-14 and AP-15: the published files are byte for byte the ones whose sha256 the ledger records for the yes, but those hashes were
+  taken after the orchestrator had set each file's title and its "Ready, not approved" line to "Approved", in the second of the
+  user's answer (AP-14, 2026-11-16T08:02:08Z) or one second after it (AP-15, 10:59:34Z). The file as it stood when the user answered
+  differs from the published one in those two lines only (`approved_revisions.tsv`).
 * `recomputation/`: above.
 * `analysis/`: written by `eval/publish_campaign.py` from the published files: `runs.json` (each run's state and provenance) and
   `summary.md`. The publisher judges only drift checks of the older layout (a `drift/` directory at the top of a source, schema 1),
@@ -249,8 +256,8 @@ stream summaries; the compressed logs do not enter them.
   3 capacity runs' `plan.json`; 119.6 MB become 12.0 MB. `GZIPPED.tsv` gives each one's original size and sha256
   (`gzip -dc <file> | sha256sum` returns it) and the published sha256. Nothing else is changed. The request records and the
   access logs were compressed by the tools themselves.
-* **Size:** the folder is 13,783 files (with `SHA256SUMS`) and 92,765,995 bytes (88.5 MiB); its largest file is `SHA256SUMS`
-  (2,252,869 bytes); the largest data file is `recal_2026-11/monitors/6/pidstat.txt.gz` (1.8 MB). It is under 95 MB with the
+* **Size:** the folder is 13,786 files (with `SHA256SUMS`) and 92,776,246 bytes (88.5 MiB); its largest file is `SHA256SUMS`
+  (2,253,199 bytes); the largest data file is `recal_2026-11/monitors/6/pidstat.txt.gz` (1.8 MB). It is under 95 MB with the
   1-MB threshold, so the lower threshold the publication's brief allowed (64 KiB) was not used. The publisher warns above 20 MiB
   and refuses over 100 MiB.
 * **Redactions:** in the seven `pidstat.txt` (before their compression) the command of every line naming a path under `~/.claude`,
@@ -268,8 +275,6 @@ stream summaries; the compressed logs do not enter them.
 * The packet tars themselves (their content is `recal_2026-11/`, checked above; their sha256 are in `packets/*.sha256`).
 * HS1's own run of 2026-11-14 (RES-05 [ledger]): only its medians appear, as R1's speed reference copied them into
   `speed_reference.json`, and as the P-1 checks compare with them.
-* AP-13's first launch on 2026-11-15, refused by the timers pre-check at 21:38:39Z with nothing measured [ledger]: its launcher log is
-  not in the backup. The waiter that then launched AP-13 after the midnight timers is `packets/after_timers_launch_20261115T213900Z.log`.
 * The thesis text that reports this re-calibration, and the ledger itself (outside this repository).
 
 ## How to re-check
@@ -281,6 +286,7 @@ stream summaries; the compressed logs do not enter them.
         | diff - recomputation/recompute_from_runs.out
     cmp /tmp/freeze_record_created_utc_as_committed.json ../../bench/calibration/ddos-mitigation-2026-11-16.json
 
-The script only reads `recal_2026-11/` and writes its two outputs to the last argument. The `diff` and the `cmp` print nothing when
+The script reads `recal_2026-11/`, the record and the repository's `bench/` and `eval/`, copies each set-aside run into a temporary
+directory that it removes, and writes its two outputs to the last argument. The `diff` and the `cmp` print nothing when
 the recomputation reproduces. `gzip -dc` any `.gz` and compare with `GZIPPED.tsv`. To rebuild `analysis/`, run `venv/bin/python eval/publish_campaign.py
 results/2026-11-15_harm-recalibration/recal_2026-11 --name <scratch>` (it writes `results/<scratch>/`).
