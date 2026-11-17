@@ -44,7 +44,7 @@ SERVER_NS = "server_ns"
 BRIDGE_NAME = "ddos_br0"      # Bridge lives in the DEFAULT namespace
 
 LEGIT_COUNT = 20               # Number of legitimate client namespaces
-LEGIT_IP_PREFIX = "10.0.1"     # Legit IPs: 10.0.1.1 – 10.0.1.40
+LEGIT_IP_PREFIX = "10.0.1"     # Legit IPs: 10.0.1.1 – 10.0.1.20 (count: LEGIT_COUNT above)
 
 BOTNET_IP_PREFIX = "10.0.2"    # Botnet IPs: 10.0.2.1 – 10.0.2.10 (count: BOTNET_COUNT below)
 
