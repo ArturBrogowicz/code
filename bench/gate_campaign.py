@@ -2,12 +2,12 @@
 """The gate campaign of the harm benchmark: the blocks of one scenario, each block the control C, the placebo Cp and the attack U
 in a drawn order, run by the executor and judged by eval/harm_gate.py (docs/HG1C_DESIGN.md 7, docs/HG1B_MINIMAL_DESIGN.md 5).
 
-    python3 bench/gate_campaign.py plan SPEC --calibration FILE [--blocks N]
+    ./venv/bin/python bench/gate_campaign.py plan SPEC --calibration FILE [--blocks N]
     sudo ./venv/bin/python bench/gate_campaign.py run SPEC --calibration FILE --out DIR [--dry-run] [--blocks N]
     sudo ./venv/bin/python bench/gate_campaign.py run SPEC --calibration FILE --out DIR --dry-run --timer-limit-ms 50   # a smoke test
-    python3 bench/gate_campaign.py run SPEC --calibration FILE --out DIR --simulate pass       # no root, no namespace
+    ./venv/bin/python bench/gate_campaign.py run SPEC --calibration FILE --out DIR --simulate pass       # no root, no namespace
     sudo ./venv/bin/python bench/gate_campaign.py run SPEC --calibration FILE --out DIR --modes xdp    # with the protected arm M_xdp
-    python3 bench/gate_campaign.py status DIR
+    ./venv/bin/python bench/gate_campaign.py status DIR
 
 A campaign directory holds `campaign.json`, an unscored `warmup/C`, and one directory `bNN_aM` per block attempt with its
 `block.json` and the runs `C`, `Cp` and `U` (and `M_<mode>` for each `--modes`), each in the run contract (bench/executor.py). `DONE` marks a finished run; the same

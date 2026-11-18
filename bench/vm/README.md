@@ -11,6 +11,17 @@ parses them and runs `vm_step.sh --print`.
 | `s3_snapshot.sh` | 26 | `s3_snapshot.sh DIR`: writes a record of the host and the tree into DIR: time, uptime and load, `lsmod`, `ps`, network namespaces, links, TCP listeners, `/var/log/nginx`, `bench/__pycache__`, the git index's owner, HEAD, `git status --short`, `/run/nginx.pid` and `bench/executor.py`'s `leftovers()`. |
 | `s3_compare.sh` | 17 | `s3_compare.sh BEFORE AFTER`: prints what differs between two snapshots (HEAD and status, namespaces, links, leftovers, nginx and gunicorn processes, modules, listeners, pid file, index owner, `__pycache__` owners, `/var/log/nginx`). |
 
+Four more files serve the host checks of November 2026, on the laptop host: HS1, the standalone host stability check
+(`docs/HS1_PREREG.md`), and P-1, the paired check before the re-calibration's R1 (`docs/RECALIBRATION_2026-11_PREREG.md`
+section 5.3). `tests/test_hs1_eval.py` and `tests/test_paired_check.py` test the two evaluators offline.
+
+| File | Lines | What it does |
+|---|---|---|
+| `hs1_series.sh` | 173 | `hs1_series.sh RUN_DIR`: checks the start conditions, then runs the 3-hour series detached (every 300 s one `hs1_probe.py` probe on CPU 0, then 1, then 7, beside mpstat, pidstat, chrony and iostat); `--collect RUN_DIR` writes the extracts. RUN_DIR must lie under the orchestrator's directory hard-coded on line 23; the sandbox on line 30 is the orchestrator's too (`HS1_SBX` overrides it). |
+| `hs1_probe.py` | 63 | one probe: the origin's unloaded cost estimate of every route (`bench/origin.py`'s `time_routes`, with the knobs of the 2026-11-04 record), printed as one JSON line; no server, no network, writes nothing |
+| `hs1_eval.py` | 692 | HS1's verdict from one run directory (exit 0 PASS, 1 FAIL, 3 NO READING), with `verdict.json` and `medians.json`, the reference of R1's speed hold; `--precheck RUN_DIR` judges only the start conditions. Standard library only. |
+| `paired_check.py` | 296 | P-1: the probe as the user (A) and as root (B), in the order A B B A on CPU 0, then CPU 1; \|D\| <= 5 % lets R1 go on (exit 0), above it exit 6, an unreadable probe exit 3; `judge OUT_DIR` re-judges offline. Its default sandbox and workspace paths (lines 38 and 40) are the orchestrator's. |
+
 ## Use
 
     S=/var/tmp/<a directory for this step's records> bash <worktree>/bench/vm/vm_step.sh NAME -- COMMAND [ARG...]

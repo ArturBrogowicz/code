@@ -3,12 +3,12 @@
 the calibration record with what the host measures, each one a directory of runs in the run contract, so that every number can be
 recomputed offline. `freeze` reads those directories and never touches the VM.
 
-    python3 bench/calibrate.py plan                                         # the steps, their runs and their time
+    ./venv/bin/python bench/calibrate.py plan                                         # the steps, their runs and their time
     sudo ./venv/bin/python bench/calibrate.py origin    --out DIR           # 1  the cost of each route, unloaded
     sudo ./venv/bin/python bench/calibrate.py capacity  --out DIR           # 2  C_slo and C_sat, three staged runs
     sudo ./venv/bin/python bench/calibrate.py ladder    --out DIR --family costly_search_flood      # 3  screening, one per family
     sudo ./venv/bin/python bench/calibrate.py reference --out DIR           # 5  the Q and p95 the drift check must reproduce
-    python3 bench/calibrate.py freeze --dir DIR --out bench/calibration/<host>-<date>.json         # 4+5  the knees, the record
+    ./venv/bin/python bench/calibrate.py freeze --dir DIR --out bench/calibration/<host>-<date>.json         # 4+5  the knees, the record
     sudo ./venv/bin/python bench/calibrate.py drift --calibration FILE --out DIR                   # 7  before a later campaign
 
 Every step that runs the VM is a separate approval and takes the environment gate of a campaign's start: the steps that make runs

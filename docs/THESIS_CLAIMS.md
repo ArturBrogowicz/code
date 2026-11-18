@@ -78,8 +78,10 @@ HTTP flood) at one server operating point (the knee). Only one complete suite ru
 `2026-10-20_regression-after-audit-defaults` (one run, commit 618b2fc), evaluated the defaults of
 2026-10-19 end to end. The daemon has changed since that run: `control_plane.py` has 22 commits after
 618b2fc (among them a guarded telemetry poll and supervised worker threads, the R.U.D.Y. client-field
-fix, and the per-connection and L7 v2 modules, both off by default), and no published run exercises it
-as it is now.
+fix, and the per-connection and L7 v2 modules, both off by default), and no published suite run
+exercises it as it is now. The only published runs of the daemon as it is now are those of P2
+(`results/2026-11-16_harm-p2-hg4/`, at 688594a and 18386ed, whose `control_plane.py` is the same as at
+4f31066): one attack family at one level with XDP enforcement (HB3), not the suite's scenarios.
 
 **Labels.** The suite's "Yo-Yo" scenario (S9) is a pulsing flood: `wrk` for 2 s, then 6 s of pause
 (`test_distributed_suite.py:1829-1832`). The Yo-Yo attack of the literature targets autoscaling, and this
